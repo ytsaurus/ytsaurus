@@ -8,7 +8,7 @@ namespace NYT::NQueryTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString FormatAcoList(const std::optional<NYson::TYsonString>& accessControlObjects);
+std::string FormatAcoList(const std::optional<NYson::TYsonString>& accessControlObjects);
 
 ////////////////////////////////////////////////////////////////////////////////
 

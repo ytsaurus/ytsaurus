@@ -4,7 +4,7 @@
 #include "object_attribute_cache.h"
 #endif
 
-#include "public.h"
+#include "private.h"
 #include "config.h"
 
 #include <yt/yt/ytlib/cypress_client/batch_attribute_fetcher.h>
@@ -23,10 +23,10 @@ TObjectAttributeCacheBase<TKey, TValue>::TObjectAttributeCacheBase(
     : TAsyncExpiringCache<TKey, TValue>(
         config,
         invoker,
-        ObjectClientLogger().WithTag("Cache: ObjectAttribute"),
+        ObjectClientLogger().WithTag("Cache", "ObjectAttribute"),
         std::move(profiler))
     , Config_(std::move(config))
-    , Logger(logger.WithTag("ObjectAttributeCacheId: %v", TGuid::Create()))
+    , Logger(logger.WithTag("ObjectAttributeCacheId", TGuid::Create()))
     , Connection_(connection)
     , Invoker_(std::move(invoker))
 { }
@@ -47,7 +47,8 @@ TFuture<std::vector<TErrorOr<TValue>>> TObjectAttributeCacheBase<TKey, TValue>::
     const std::vector<TKey>& keys,
     bool /*isPeriodicUpdate*/) noexcept
 {
-    YT_LOG_DEBUG("Updating object attribute cache (ObjectCount: %v)", keys.size());
+    YT_TLOG_DEBUG("Updating object attribute cache")
+        .With("ObjectCount", keys.size());
 
     auto connection = Connection_.Lock();
     if (!connection) {
@@ -64,7 +65,8 @@ TFuture<std::vector<TErrorOr<TValue>>> TObjectAttributeCacheBase<TKey, TValue>::
     const std::vector<TKey>& keys,
     const NApi::NNative::IClientPtr& client) noexcept
 {
-    YT_LOG_DEBUG("Fetching attributes via object attribute cache (ObjectCount: %v)", keys.size());
+    YT_TLOG_DEBUG("Fetching attributes via object attribute cache")
+        .With("ObjectCount", keys.size());
 
     std::vector<NYPath::TYPath> paths;
     paths.reserve(keys.size());

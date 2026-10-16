@@ -64,7 +64,20 @@ Y_WEAK TQueryStatistics CoordinateAndExecute(
     i64 /*limit*/,
     bool /*useAdaptiveOrderedSchemafulReader*/,
     TSubQueryEvaluator /*evaluateSubQuery*/,
-    TTopQueryEvaluator /*evaluateTopQuery*/)
+    TTopQueryEvaluator /*evaluateTopQuery*/,
+    TSubplanFutureHoldersPtr /*subplanFutureHolders*/)
+{
+    // Proper implementation resides in yt/yt/library/query/engine/coordinator.cpp.
+    YT_ABORT();
+}
+
+TQueryStatistics CoordinateAndExecuteWithShuffle(
+    int /*splitCount*/,
+    int /*groupKeyPrefix*/,
+    TSubQueryEvaluator /*evaluateSubQuery*/,
+    TMiddleQueryEvaluator /*evaluateMiddleQuery*/,
+    TTopQueryEvaluator /*evaluateTopQuery*/,
+    const IMemoryChunkProviderPtr& /*memoryChunkProvider*/)
 {
     // Proper implementation resides in yt/yt/library/query/engine/coordinator.cpp.
     YT_ABORT();

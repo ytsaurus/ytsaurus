@@ -1,12 +1,16 @@
 package tech.ytsaurus.client;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -70,42 +74,30 @@ public class MountWaitTest extends YTsaurusClientTestBase {
     }
 
     @Test
-    public void waitProxiesMultithreaded() throws InterruptedException {
+    public void waitProxiesMultithreaded() throws InterruptedException, ExecutionException {
         final int threads = 20;
-        final Object startLock = new Object();
+        CountDownLatch startedWaits = new CountDownLatch(threads);
+        List<Callable<Void>> tasks = new ArrayList<>(threads);
 
-        AtomicInteger startedWaits = new AtomicInteger();
-        AtomicInteger joinedThreads = new AtomicInteger();
-
-        ExecutorService executorService = Executors.newFixedThreadPool(threads);
         for (int i = 0; i < threads; i++) {
-            executorService.submit(() -> {
-                CompletableFuture<Void> waitProxiesFuture;
-                synchronized (startLock) {
-                    waitProxiesFuture = yt.waitProxies();
-                    startedWaits.getAndIncrement();
-                }
-                while (startedWaits.get() < threads) {
-                    try {
-                        synchronized (startLock) {
-                            startLock.wait();
-                        }
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                // startedWaits == threads
-                synchronized (startLock) {
-                    startLock.notifyAll();
-                }
-                waitProxiesFuture.join();
-
-                joinedThreads.getAndIncrement();
+            tasks.add(() -> {
+                CompletableFuture<Void> waitProxiesFuture = yt.waitProxies();
+                startedWaits.countDown();
+                startedWaits.await();
+                waitProxiesFuture.get();
+                return null;
             });
         }
-        executorService.shutdown();
-        executorService.awaitTermination(60, TimeUnit.SECONDS);
-        Assert.assertEquals(startedWaits.get(), joinedThreads.get());
+
+        ExecutorService executorService = Executors.newFixedThreadPool(threads);
+        try {
+            for (var result : executorService.invokeAll(tasks, 60, TimeUnit.SECONDS)) {
+                result.get();
+            }
+        } finally {
+            executorService.shutdownNow();
+            Assert.assertTrue("Worker threads did not terminate",
+                    executorService.awaitTermination(60, TimeUnit.SECONDS));
+        }
     }
 }

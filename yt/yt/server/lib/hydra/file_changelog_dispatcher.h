@@ -47,7 +47,7 @@ DEFINE_REFCOUNTED_TYPE(IFileChangelogDispatcher)
 
 IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
     NIO::IIOEnginePtr ioEngine,
-    IMemoryUsageTrackerPtr memoryUsageTracker,
+    IMemoryUsageTrackerPtr indexMemoryUsageTracker,
     TFileChangelogDispatcherConfigPtr config,
     std::string threadName,
     NProfiling::TProfiler profiler = {});

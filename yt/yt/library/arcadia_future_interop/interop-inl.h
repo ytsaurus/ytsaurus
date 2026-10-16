@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "interop.h"
 #endif
-#undef INTEROP_INL_H_
 
 #include <yt/yt/core/actions/future.h>
 

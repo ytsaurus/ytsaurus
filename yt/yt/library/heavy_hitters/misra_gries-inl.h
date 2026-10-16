@@ -83,6 +83,11 @@ void TMisraGriesHeavyHitters<TKey>::Register(const std::vector<TKey>& keys, TIns
     EnsureSummaryTimestampFreshness(now);
     double increment = 1.0 / GetNormalizationFactor(now);
 
+    if (DefaultLimit_ <= 0) {
+        TotalCounter_ += increment * std::ssize(keys);
+        return;
+    }
+
     for (const auto& key : keys) {
         DoRegister(key, increment);
     }
@@ -98,6 +103,15 @@ void TMisraGriesHeavyHitters<TKey>::RegisterWeighted(
     EnsureSummaryTimestampFreshness(now);
     double increment = 1.0 / GetNormalizationFactor(now);
 
+    if (DefaultLimit_ <= 0) {
+        double totalWeight = 0;
+        for (const auto& [key, weight] : weightedKeys) {
+            totalWeight += weight;
+        }
+        TotalCounter_ += increment * totalWeight;
+        return;
+    }
+
     for (const auto& [key, weight] : weightedKeys) {
         DoRegister(key, increment * weight);
     }
@@ -108,14 +122,14 @@ TMisraGriesHeavyHitters<TKey>::TStatistics TMisraGriesHeavyHitters<TKey>::GetSta
 {
     auto guard = Guard(SpinLock_);
 
-    if (SortedByMisraGriesCounter_.empty()) {
-        return {};
-    }
-
     double normalizationFactor = GetNormalizationFactor(now);
     auto total = TotalCounter_ * normalizationFactor;
     TStatistics statistics;
     statistics.Total = total / Window_.Seconds();
+
+    if (SortedByStatisticsCounter_.empty() || total == 0) {
+        return statistics;
+    }
 
     auto rit = SortedByStatisticsCounter_.rbegin();
     i64 count = DefaultLimit_;

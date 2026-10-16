@@ -1,0 +1,70 @@
+{{- if .Values.dashboards.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "monitoring.fullname" . }}-dashboards-upload
+  labels:
+    {{- include "monitoring.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: {{ .Values.dashboards.job.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "monitoring.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.dashboards.job.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.dashboards.job.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+        - name: dashboards-upload
+          image: "{{ .Values.dashboards.image.repository }}:{{ .Values.dashboards.image.tag }}"
+          imagePullPolicy: {{ .Values.dashboards.image.pullPolicy }}
+          {{- with .Values.dashboards.job.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            {{- if .Values.dashboards.grafana.enabled }}
+            {{- if empty .Values.dashboards.grafana.url }}
+            {{- fail "dashboards.grafana.url is required when dashboards.grafana.enabled is true" }}
+            {{- end }}
+            {{- if empty .Values.dashboards.grafana.datasource.uid }}
+            {{- fail "dashboards.grafana.datasource.uid is required when dashboards.grafana.enabled is true" }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.dashboards.cypress.enabled }}
+            {{- if empty .Values.cluster.proxy }}
+            {{- fail "cluster.proxy is required when dashboards.cypress.enabled is true" }}
+            {{- end }}
+            {{- if empty .Values.dashboards.cypress.path }}
+            {{- fail "dashboards.cypress.path is required when dashboards.cypress.enabled is true" }}
+            {{- end }}
+            - name: YT_PROXY
+              value: {{ .Values.cluster.proxy | quote }}
+            {{- end }}
+          envFrom:
+            {{- range .Values.secretRefs }}
+            - secretRef:
+                name: {{ . }}
+            {{- end }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -ex
+              {{- if .Values.dashboards.grafana.enabled }}
+              /ytsaurus/monitoring/scripts/upload-grafana.sh --grafana-base-url {{ .Values.dashboards.grafana.url | quote }} --grafana-datasource-uid {{ .Values.dashboards.grafana.datasource.uid | quote }}
+              {{- end }}
+              {{- if .Values.dashboards.cypress.enabled }}
+              /ytsaurus/monitoring/scripts/upload-cypress.sh --yt-dashboards-dir {{ .Values.dashboards.cypress.path | quote }}
+              {{- end }}
+{{- end }}

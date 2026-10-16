@@ -10,6 +10,8 @@
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 namespace NYT::NFormats {
 namespace {
 
@@ -29,7 +31,7 @@ protected:
     TBlobFormatConfigPtr Config_ = New<TBlobFormatConfig>();;
     TControlAttributesConfigPtr ControlAttributesConfig_ = New<TControlAttributesConfig>();
     ISchemalessFormatWriterPtr Writer_;
-    TStringStream OutputStream_;
+    TStdStringStream OutputStream_;
 
     void CreateWriter()
     {

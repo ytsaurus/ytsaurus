@@ -39,9 +39,9 @@ target_link_libraries(yt-server-cell_balancer PUBLIC
   yutil
   yt-server-master
   ytserver
-  server-lib-cypress_election
   server-lib-cypress_registrar
   server-lib-tablet_server
+  yt-library-cypress_election
   yt-library-dynamic_config
   yt-library-monitoring
   yt-library-orchid

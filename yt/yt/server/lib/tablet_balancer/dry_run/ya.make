@@ -10,6 +10,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/server/lib/tablet_balancer/dry_run/lib
+    yt/yt/core
     library/cpp/getopt/small
     library/cpp/yt/logging
 )

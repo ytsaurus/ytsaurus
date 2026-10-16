@@ -2,9 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/chunked_vector.h>
-#include <yt/yt/core/misc/three_level_stable_vector.h>
-
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,49 +35,10 @@ struct IRevisionProvider
 
 DEFINE_REFCOUNTED_TYPE(IRevisionProvider);
 
-class TTwoLevelRevisionProvider
-    : public IRevisionProvider
-{
-public:
-    TTwoLevelRevisionProvider();
+////////////////////////////////////////////////////////////////////////////////
 
-    TSortedDynamicStoreRevision GetLatestRevision() const final;
-    TSortedDynamicStoreRevision RegisterRevision(TTimestamp timestamp, std::optional<i64> mutationSequenceNumber) final;
-    TTimestamp TimestampFromRevision(TSortedDynamicStoreRevision revision) const final;
-    i64 GetTimestampCount() const final;
-    i64 GetSoftTimestampCountLimit() const final;
-
-private:
-    static constexpr size_t RevisionsPerChunk = 1ULL << 13;
-    static constexpr size_t MaxRevisionChunks = TwoLevelHardRevisionsPerDynamicStoreLimit / RevisionsPerChunk + 1;
-
-    TChunkedVector<TTimestamp, RevisionsPerChunk> RevisionToTimestamp_;
-    i64 LatestRevisionMutationSequenceNumber_ = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(TTwoLevelRevisionProvider);
-
-class TThreeLevelRevisionProvider
-    : public IRevisionProvider
-{
-public:
-    TThreeLevelRevisionProvider();
-
-    TSortedDynamicStoreRevision GetLatestRevision() const final;
-    TSortedDynamicStoreRevision RegisterRevision(TTimestamp timestamp, std::optional<i64> mutationSequenceNumber) final;
-    TTimestamp TimestampFromRevision(TSortedDynamicStoreRevision revision) const final;
-    i64 GetTimestampCount() const final;
-    i64 GetSoftTimestampCountLimit() const final;
-
-private:
-    static constexpr size_t RevisionsPerChunk = 1ULL << 13;
-    static_assert(ThreeLevelHardRevisionsPerDynamicStoreLimit == 1LL << 31);
-
-    TThreeLevelStableVector<TTimestamp, RevisionsPerChunk, RevisionsPerChunk, ThreeLevelHardRevisionsPerDynamicStoreLimit> RevisionToTimestamp_;
-    i64 LatestRevisionMutationSequenceNumber_ = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(TThreeLevelRevisionProvider);
+IRevisionProviderPtr CreateTwoLevelRevisionProvider();
+IRevisionProviderPtr CreateThreeLevelRevisionProvider();
 
 ////////////////////////////////////////////////////////////////////////////////
 

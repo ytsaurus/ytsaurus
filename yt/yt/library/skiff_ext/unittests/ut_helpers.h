@@ -1,0 +1,15 @@
+#pragma once
+
+#include <yt/yt/core/ytree/public.h>
+
+#include <string>
+
+namespace NYT::NSkiffExt {
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ConvertToSkiffSchemaShortDebugString(const NYTree::INodePtr& node);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NSkiffExt

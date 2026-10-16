@@ -1,5 +1,4 @@
 {
-    "ref_counted_tracker_dump_period" = 15000;
     "cluster_connection" = {
         "cell_directory" = {
             "soft_backoff_time" = 100;
@@ -120,7 +119,6 @@
     "address_resolver" = {
         "localhost_fqdn" = "localhost";
     };
-    "yt_alloc_dump_period" = 15000;
     "api_service" = {
         "user_access_validator" = {
             "ban_cache" = {

@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: APScheduler
-Version: 3.11.2
+Version: 3.11.3
 Summary: In-process task scheduler with Cron-like capabilities
 Author-email: Alex Grönholm <alex.gronholm@nextday.fi>
 License: MIT
@@ -20,6 +20,7 @@ Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
 Requires-Python: >=3.8
 Description-Content-Type: text/x-rst
 License-File: LICENSE.txt
@@ -49,7 +50,7 @@ Requires-Dist: APScheduler[etcd,mongodb,redis,rethinkdb,sqlalchemy,tornado,zooke
 Requires-Dist: pytest; extra == "test"
 Requires-Dist: pytest-timeout; extra == "test"
 Requires-Dist: anyio>=4.5.2; extra == "test"
-Requires-Dist: PySide6; (platform_python_implementation == "CPython" and python_version < "3.14") and extra == "test"
+Requires-Dist: PySide6; platform_python_implementation == "CPython" and extra == "test"
 Requires-Dist: gevent; python_version < "3.14" and extra == "test"
 Requires-Dist: pytz; extra == "test"
 Requires-Dist: twisted; python_version < "3.14" and extra == "test"

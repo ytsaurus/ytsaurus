@@ -62,7 +62,7 @@ class TestBlobFormat(object):
         )
 
         with pytest.raises(yt.YtError):
-            yt.read_table(table, format=self._create_format(raw=True))
+            list(yt.read_table(table, format=self._create_format(raw=True)))
 
     @authors("achains")
     def test_custom_column_names(self):

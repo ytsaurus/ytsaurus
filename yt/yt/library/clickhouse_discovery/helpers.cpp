@@ -11,7 +11,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class Callback>
-void ProcessInstances(const THashMap<TString, IAttributeDictionaryPtr>& instances, Callback callback)
+void ProcessInstances(const THashMap<std::string, IAttributeDictionaryPtr>& instances, Callback callback)
 {
     for (const auto& [key, attributes] : instances) {
         if (!attributes || !attributes->Contains("clique_incarnation")) {
@@ -22,21 +22,21 @@ void ProcessInstances(const THashMap<TString, IAttributeDictionaryPtr>& instance
     }
 }
 
-i64 FindMaxIncarnation(const THashMap<TString, IAttributeDictionaryPtr>& instances)
+i64 FindMaxIncarnation(const THashMap<std::string, IAttributeDictionaryPtr>& instances)
 {
     i64 maxIncarnation = -1;
-    auto callback = [&maxIncarnation] (i64 incarnation, const TString& /*key*/, const IAttributeDictionaryPtr& /*attributes*/) {
+    auto callback = [&maxIncarnation] (i64 incarnation, const std::string& /*key*/, const IAttributeDictionaryPtr& /*attributes*/) {
         maxIncarnation = std::max(maxIncarnation, incarnation);
     };
     ProcessInstances(instances, callback);
     return maxIncarnation;
 }
 
-THashMap<TString, IAttributeDictionaryPtr> FilterInstancesByIncarnation(const THashMap<TString, IAttributeDictionaryPtr>& instances)
+THashMap<std::string, IAttributeDictionaryPtr> FilterInstancesByIncarnation(const THashMap<std::string, IAttributeDictionaryPtr>& instances)
 {
     auto maxIncarnation = FindMaxIncarnation(instances);
-    THashMap<TString, IAttributeDictionaryPtr> result;
-    auto callback = [&] (i64 incarnation, const TString& key, const IAttributeDictionaryPtr& attributes) {
+    THashMap<std::string, IAttributeDictionaryPtr> result;
+    auto callback = [&] (i64 incarnation, const std::string& key, const IAttributeDictionaryPtr& attributes) {
         if (incarnation == maxIncarnation) {
             result.emplace(key, attributes);
         }

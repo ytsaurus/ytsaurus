@@ -1,6 +1,7 @@
 package jupyt
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -68,6 +69,14 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 
 func (c *Controller) GetControllerSnapshot() (yson.RawValue, error) {
 	return make(yson.RawValue, 0), nil
+}
+
+func (c *Controller) IsControllerSnapshotOutdated(snapshot yson.RawValue, _ *strawberry.Oplet) (bool, error) {
+	current, err := c.GetControllerSnapshot()
+	if err != nil {
+		return false, err
+	}
+	return !bytes.Equal(snapshot, current), nil
 }
 
 type jupytOpletInfo struct{}
@@ -265,7 +274,7 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 	}
 }
 
-func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
+func (c *Controller) GetOpBriefAttributes(parsedSpeclet any, opletInfo yson.RawValue) map[string]any {
 	speclet := parsedSpeclet.(Speclet)
 
 	return map[string]any{

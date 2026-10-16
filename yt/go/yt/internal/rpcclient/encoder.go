@@ -3,21 +3,45 @@ package rpcclient
 import (
 	"context"
 	"io"
+	"strconv"
 
 	"github.com/golang/protobuf/proto"
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/library/go/ptr"
+	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/proto/client/api/common"
 	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
+	"go.ytsaurus.tech/yt/go/proto/client/tablet_client"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
+type rpcProxyFeature int32
+
+const (
+	rpcProxyFeatureGetInSyncWithoutKeys rpcProxyFeature = 0
+	rpcProxyFeatureWideLocks            rpcProxyFeature = 1
+)
+
+func (feature rpcProxyFeature) String() string {
+	switch feature {
+	case rpcProxyFeatureGetInSyncWithoutKeys:
+		return "GetInSyncWithoutKeys"
+	case rpcProxyFeatureWideLocks:
+		return "WideLocks"
+	default:
+		return strconv.FormatInt(int64(feature), 10)
+	}
+}
+
 // Encoder is adapter between typed and untyped layer of API.
 type Encoder struct {
+	ClockClusterTag yt.CellTag
+
 	StartCall func() *Call
 
 	Invoke            CallInvoker
@@ -64,7 +88,7 @@ func (e *Encoder) CreateNode(
 		Force:                &opts.Force,
 		IgnoreExisting:       &opts.IgnoreExisting,
 		LockExisting:         nil, // todo check unimportant
-		IgnoreTypeMismatch:   nil, // todo check unimportant
+		IgnoreTypeMismatch:   &opts.IgnoreTypeMismatch,
 		TransactionalOptions: convertTransactionOptions(opts.TransactionOptions),
 		PrerequisiteOptions:  convertPrerequisiteOptions(opts.PrerequisiteOptions),
 		MutatingOptions:      convertMutatingOptions(opts.MutatingOptions),
@@ -524,6 +548,92 @@ func (e *Encoder) ReadTable(
 	return nil, xerrors.New("implement me")
 }
 
+func (e *Encoder) PartitionTables(
+	ctx context.Context,
+	paths []ypath.YPath,
+	options *yt.PartitionTablesOptions,
+) (partitions yt.MultiTablePartitions, err error) {
+	return yt.MultiTablePartitions{}, xerrors.New("implement me")
+}
+
+func (e *Encoder) ReadTablePartition(
+	ctx context.Context,
+	cookie []byte,
+	options *yt.ReadTablePartitionOptions,
+) (r yt.TablePartitionReader, err error) {
+	return nil, xerrors.New("implement me")
+}
+
+var _ yt.DistributedWriteClient = (*client)(nil)
+
+func (e *Encoder) StartDistributedWriteSession(
+	ctx context.Context,
+	path ypath.YPath,
+	options *yt.StartDistributedWriteSessionOptions,
+) (result yt.DistributedWriteSessionWithCookies, err error) {
+	return yt.DistributedWriteSessionWithCookies{}, xerrors.New("implement me")
+}
+
+func (e *Encoder) PingDistributedWriteSession(
+	ctx context.Context,
+	session yt.DistributedWriteSession,
+	options *yt.PingDistributedWriteSessionOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+func (e *Encoder) FinishDistributedWriteSession(
+	ctx context.Context,
+	session yt.DistributedWriteSession,
+	results []yt.WriteFragmentResult,
+	options *yt.FinishDistributedWriteSessionOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+func (e *Encoder) WriteTableFragment(
+	ctx context.Context,
+	cookie yt.WriteFragmentCookie,
+	options *yt.TableFragmentWriterOptions,
+) (w yt.TableFragmentWriter, err error) {
+	return nil, xerrors.New("implement me")
+}
+
+var _ yt.DistributedWriteFileClient = (*client)(nil)
+
+func (e *Encoder) StartDistributedWriteFileSession(
+	ctx context.Context,
+	path ypath.YPath,
+	options *yt.StartDistributedWriteFileSessionOptions,
+) (result yt.DistributedWriteFileSessionWithCookies, err error) {
+	return yt.DistributedWriteFileSessionWithCookies{}, xerrors.New("implement me")
+}
+
+func (e *Encoder) PingDistributedWriteFileSession(
+	ctx context.Context,
+	session yt.DistributedWriteFileSession,
+	options *yt.PingDistributedWriteFileSessionOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+func (e *Encoder) FinishDistributedWriteFileSession(
+	ctx context.Context,
+	session yt.DistributedWriteFileSession,
+	results []yt.WriteFileFragmentResult,
+	options *yt.FinishDistributedWriteFileSessionOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+func (e *Encoder) WriteFileFragment(
+	ctx context.Context,
+	cookie yt.WriteFileFragmentCookie,
+	options *yt.FileFragmentWriterOptions,
+) (w yt.FileFragmentWriter, err error) {
+	return nil, xerrors.New("implement me")
+}
+
 var _ yt.TabletClient = (*client)(nil)
 
 func (e *Encoder) SelectRows(
@@ -653,20 +763,147 @@ func (e *Encoder) MultiLookupRows(
 	return e.InvokeMultiLookup(ctx, call, &multiLookupRespWrapper{&rsp})
 }
 
-func (e *Encoder) LockRows(
+func (e *Encoder) lockRows(
 	ctx context.Context,
 	path ypath.Path,
 	locks []string,
 	lockType yt.LockType,
 	keys []any,
 	opts *yt.LockRowsOptions,
+	atomicity yt.Atomicity,
 ) (err error) {
+	if err := validateLockRows(path, locks); err != nil {
+		return err
+	}
 	if len(keys) == 0 {
 		return nil
 	}
 
-	// todo convert (lock group + type) for api_service.cpp, need table mount cache for that?
-	return xerrors.New("implement me")
+	if opts == nil {
+		opts = &yt.LockRowsOptions{}
+	}
+
+	reqMountInfo := &rpc_proxy.TReqGetTableMountInfo{
+		Path: []byte(path.String()),
+	}
+	call := e.newCall(MethodGetTableMountInfo, NewGetTableMountInfoRequest(reqMountInfo), nil)
+
+	var rspMountInfo rpc_proxy.TRspGetTableMountInfo
+	if err = e.Invoke(ctx, call, &rspMountInfo); err != nil {
+		return err
+	}
+
+	lockMask, err := buildLockMask(rspMountInfo.GetSchema(), atomicity == yt.AtomicityFull, locks, lockType)
+	if err != nil {
+		return yterrors.Err("unable to build lock mask",
+			yterrors.Attr("path", path.String()),
+			yterrors.Attr("method", "lock_rows"),
+			err)
+	}
+	attachments, descriptor, err := encodeToWire(keys)
+	if err != nil {
+		return xerrors.Errorf("unable to encode request into wire format: %w", err)
+	}
+
+	modificationTypes := make([]rpc_proxy.ERowModificationType, 0, len(keys))
+	for range keys {
+		modificationTypes = append(modificationTypes, rpc_proxy.ERowModificationType_RMT_MODIFY)
+	}
+
+	req := &rpc_proxy.TReqModifyRows{
+		TransactionId:        getTxID(opts.TransactionOptions),
+		Path:                 []byte(path.String()),
+		RowModificationTypes: modificationTypes,
+		RowsetDescriptor:     descriptor,
+	}
+	sendOptions := encodeRowLocks(req, lockMask, len(keys))
+
+	call = e.newCall(MethodModifyRows, NewLockRowsRequest(req), attachments)
+	var rsp rpc_proxy.TRspModifyRows
+	return e.Invoke(ctx, call, &rsp, sendOptions...)
+}
+
+func validateLockRows(path ypath.Path, locks []string) error {
+	if len(locks) != 0 {
+		return nil
+	}
+
+	return yterrors.Err("empty locks list",
+		yterrors.Attr("path", path.String()),
+		yterrors.Attr("method", "lock_rows"))
+}
+
+func encodeRowLocks(
+	req *rpc_proxy.TReqModifyRows,
+	lockMask *tablet_client.TLockMask,
+	rowCount int,
+) []bus.SendOption {
+	req.RowLocks = make([]*tablet_client.TLockMask, rowCount)
+	for index := range req.RowLocks {
+		req.RowLocks[index] = lockMask
+	}
+	return []bus.SendOption{bus.WithRequiredServerFeatureIDs(int32(rpcProxyFeatureWideLocks))}
+}
+
+func buildLockMask(
+	schema *common.TTableSchema,
+	fullAtomicity bool,
+	locks []string,
+	lockType yt.LockType,
+) (*tablet_client.TLockMask, error) {
+	lockValue, err := convertLockType(lockType)
+	if err != nil {
+		return nil, err
+	}
+
+	lockIndexByName := make(map[string]int)
+	if fullAtomicity {
+		for _, column := range schema.GetColumns() {
+			if column.SortOrder != nil || column.Expression != nil || column.Lock == nil {
+				continue
+			}
+			if _, ok := lockIndexByName[column.GetLock()]; !ok {
+				lockIndexByName[column.GetLock()] = len(lockIndexByName) + 1
+			}
+		}
+	}
+
+	mask := &tablet_client.TLockMask{Size: ptr.Int32(0)}
+	for _, lock := range locks {
+		index, ok := lockIndexByName[lock]
+		if !ok {
+			return nil, xerrors.Errorf("lock group %q not found in schema", lock)
+		}
+
+		if size := index + 1; int(mask.GetSize()) < size {
+			mask.Size = ptr.Int32(int32(size))
+		}
+		wordIndex := index / 16
+		for len(mask.Bitmap) <= wordIndex {
+			mask.Bitmap = append(mask.Bitmap, 0)
+		}
+		shift := uint(index%16) * 4
+		mask.Bitmap[wordIndex] &^= uint64(0xf) << shift
+		mask.Bitmap[wordIndex] |= lockValue << shift
+	}
+
+	return mask, nil
+}
+
+// Values match ELockType codes from yt/yt/client/table_client/schema.h.
+func convertLockType(lockType yt.LockType) (uint64, error) {
+	switch lockType {
+	case yt.LockTypeNone:
+		return 0, nil
+	case yt.LockTypeSharedWeak:
+		return 1, nil
+	case yt.LockTypeSharedStrong:
+		return 2, nil
+	case yt.LockTypeExclusive:
+		return 3, nil
+	default:
+		return 0, xerrors.Errorf("unexpected lock type %q", lockType)
+	}
 }
 
 func (e *Encoder) PushQueueProducerBatch(
@@ -792,6 +1029,108 @@ func (e *Encoder) RemoveQueueProducerSession(
 	call := e.newCall(MethodRemoveQueueProducerSession, NewRemoveQueueProducerSessionRequest(req), nil)
 
 	var rsp rpc_proxy.TRspRemoveQueueProducerSession
+	return e.Invoke(ctx, call, &rsp)
+}
+
+func (e *Encoder) PullQueueConsumer(
+	ctx context.Context,
+	consumerPath ypath.Path,
+	queuePath ypath.Path,
+	opts *yt.PullQueueConsumerOptions,
+) (r yt.TableReader, result *yt.PullQueueConsumerResult, err error) {
+	if opts == nil {
+		opts = &yt.PullQueueConsumerOptions{}
+	}
+
+	req := &rpc_proxy.TReqPullQueueConsumer{
+		ConsumerPath:   []byte(consumerPath.String()),
+		QueuePath:      []byte(queuePath.String()),
+		Offset:         opts.Offset,
+		PartitionIndex: opts.PartitionIndex,
+		RowBatchReadOptions: &rpc_proxy.TRowBatchReadOptions{
+			MaxRowCount:          opts.MaxRowCount,
+			MaxDataWeight:        opts.MaxDataWeight,
+			DataWeightPerRowHint: opts.DataWeightPerRowHint,
+		},
+	}
+
+	call := e.newCall(MethodPullQueueConsumer, NewPullQueueConsumerRequest(req), nil)
+	var rsp rpc_proxy.TRspPullQueueConsumer
+	r, err = e.InvokeReadRow(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	result = &yt.PullQueueConsumerResult{
+		StartOffset: rsp.GetStartOffset(),
+	}
+	return
+}
+
+func (e *Encoder) AdvanceQueueConsumer(
+	ctx context.Context,
+	consumerPath ypath.Path,
+	queuePath ypath.Path,
+	opts *yt.AdvanceQueueConsumerOptions,
+) (err error) {
+	if opts == nil {
+		opts = &yt.AdvanceQueueConsumerOptions{}
+	}
+
+	req := &rpc_proxy.TReqAdvanceQueueConsumer{
+		TransactionId:  getTxID(opts.TransactionOptions),
+		ConsumerPath:   []byte(consumerPath.String()),
+		QueuePath:      []byte(queuePath.String()),
+		PartitionIndex: opts.PartitionIndex,
+		OldOffset:      opts.OldOffset,
+		NewOffset:      opts.NewOffset,
+	}
+
+	call := e.newCall(MethodAdvanceQueueConsumer, NewAdvanceQueueConsumerRequest(req), nil)
+	var rsp rpc_proxy.TRspAdvanceQueueConsumer
+	return e.Invoke(ctx, call, &rsp)
+}
+
+func (e *Encoder) RegisterQueueConsumer(
+	ctx context.Context,
+	queuePath ypath.Path,
+	consumerPath ypath.Path,
+	opts *yt.RegisterQueueConsumerOptions,
+) (err error) {
+	if opts == nil {
+		opts = &yt.RegisterQueueConsumerOptions{}
+	}
+
+	req := &rpc_proxy.TReqRegisterQueueConsumer{
+		QueuePath:    []byte(queuePath.String()),
+		ConsumerPath: []byte(consumerPath.String()),
+		Vital:        opts.Vital,
+	}
+
+	if len(opts.Partitions) > 0 {
+		req.Partitions = &rpc_proxy.TReqRegisterQueueConsumer_TRegistrationPartitions{
+			Items: opts.Partitions,
+		}
+	}
+
+	call := e.newCall(MethodRegisterQueueConsumer, NewRegisterQueueConsumerRequest(req), nil)
+	var rsp rpc_proxy.TRspRegisterQueueConsumer
+	return e.Invoke(ctx, call, &rsp)
+}
+
+func (e *Encoder) UnregisterQueueConsumer(
+	ctx context.Context,
+	queuePath ypath.Path,
+	consumerPath ypath.Path,
+	opts *yt.UnregisterQueueConsumerOptions,
+) (err error) {
+	req := &rpc_proxy.TReqUnregisterQueueConsumer{
+		QueuePath:    []byte(queuePath.String()),
+		ConsumerPath: []byte(consumerPath.String()),
+	}
+
+	call := e.newCall(MethodUnregisterQueueConsumer, NewUnregisterQueueConsumerRequest(req), nil)
+	var rsp rpc_proxy.TRspUnregisterQueueConsumer
 	return e.Invoke(ctx, call, &rsp)
 }
 
@@ -1242,7 +1581,7 @@ func (e *Encoder) startTabletTx(
 		Durability:                 nil, // todo
 		Attributes:                 nil, // todo
 		Deadline:                   nil, // todo
-		PrerequisiteTransactionIds: nil, // todo
+		PrerequisiteTransactionIds: convertPrerequisiteTxIDs(opts.PrerequisiteTransactionIDs),
 	}
 
 	call := e.newCall(MethodStartTransaction, NewStartTxRequest(req), nil)
@@ -1610,6 +1949,7 @@ func (e *Encoder) CheckPermission(
 	path ypath.YPath,
 	opts *yt.CheckPermissionOptions,
 ) (response *yt.CheckPermissionResponse, err error) {
+	permission, opts = yt.NormalizeCheckPermission(permission, opts)
 	if opts == nil {
 		opts = &yt.CheckPermissionOptions{}
 	}
@@ -1627,6 +1967,7 @@ func (e *Encoder) CheckPermission(
 		PrerequisiteOptions:  convertPrerequisiteOptions(opts.PrerequisiteOptions),
 		MasterReadOptions:    convertMasterReadOptions(opts.MasterReadOptions),
 		Columns:              convertCheckPermissionColumns(opts.Columns),
+		Vital:                opts.Vital,
 	}
 
 	call := e.newCall(MethodCheckPermission, NewCheckPermissionRequest(req), nil)
@@ -2369,6 +2710,9 @@ func (e *Encoder) GenerateTimestamp(
 ) (ts yt.Timestamp, err error) {
 	req := &rpc_proxy.TReqGenerateTimestamps{
 		Count: nil, // todo
+	}
+	if e.ClockClusterTag != 0 {
+		req.ClockClusterTag = ptr.Int32(int32(e.ClockClusterTag))
 	}
 
 	call := e.newCall(MethodGenerateTimestamps, NewGenerateTimestampRequest(req), nil)

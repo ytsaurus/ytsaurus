@@ -4,15 +4,15 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/yt/server/master/object_server/object_detail.h>
+#include <yt/yt/server/master/object_server/object.h>
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
 #include <yt/yt/core/actions/signal.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <util/generic/hash_multi_map.h>
 
@@ -25,6 +25,7 @@ struct TLockKey
     ELockKeyKind Kind = ELockKeyKind::None;
     std::string Name;
 
+    bool operator==(const TLockKey&) const = default;
     std::strong_ordering operator<=>(const TLockKey& rhs) const = default;
 
     void Persist(const NCellMaster::TPersistenceContext& context);
@@ -45,11 +46,33 @@ struct TLockRequest
     void Persist(const NCellMaster::TPersistenceContext& context);
 
     bool operator==(const TLockRequest& other) const;
+    std::strong_ordering operator<=>(const TLockRequest& other) const;
 
     ELockMode Mode;
     TLockKey Key;
+
+    // This field does not participate in comparison and hashing.
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::NullTimestamp;
 };
+
+void FormatValue(TStringBuilderBase* builder, const TLockRequest& lockRequest, TStringBuf /*spec*/);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCypressServer
+
+template<>
+struct THash<NYT::NCypressServer::TLockRequest>
+{
+    size_t operator()(const NYT::NCypressServer::TLockRequest& request) const
+    {
+        using namespace NYT::NCypressServer;
+        return ::THash<std::tuple<ELockMode, ELockKeyKind, std::string>>{}(
+            std::tie(request.Mode, request.Key.Kind, request.Key.Name));
+    }
+};
+
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,6 +145,8 @@ struct TCypressNodeLockingState
     // They must not be invalidated unless the record itself is erased. Keep this
     // in mind when changing container types.
     // NB: Deterministic order for both keys and values is required here, hence std::set.
+    // NB: Transactions have to be sorted by depth, since checking child transactions always
+    // provides more information than the ancestor.
     std::set<
         std::pair<
             NTransactionServer::TTransactionRawPtr,

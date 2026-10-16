@@ -1,11 +1,11 @@
 #include "consumer_controller.h"
 
-#include "snapshot.h"
-#include "snapshot_representation.h"
 #include "config.h"
 #include "helpers.h"
 #include "pass_profiler.h"
 #include "profile_manager.h"
+#include "snapshot.h"
+#include "snapshot_representation.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -13,10 +13,10 @@
 
 #include <yt/yt/ytlib/queue_client/dynamic_state.h>
 
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/client/queue_client/consumer_client.h>
 #include <yt/yt/client/queue_client/helpers.h>
-
-#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 
@@ -28,7 +28,7 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -57,7 +57,8 @@ class TConsumerSnapshotBuildSession final
 {
 public:
     TConsumerSnapshotBuildSession(
-        TConsumerTableRow row,
+        TConsumerReference ref,
+        TConsumerTableRowConstPtr row,
         std::optional<TReplicatedTableMappingTableRow> replicatedTableMappingRow,
         TConsumerSnapshotPtr previousConsumerSnapshot,
         std::vector<TConsumerRegistrationTableRow> registrations,
@@ -66,25 +67,24 @@ public:
         const IObjectStore* store,
         std::vector<bool> isVerboseLoggingQueue,
         TInstant passInstant)
-        : Row_(std::move(row))
-        , ReplicatedTableMappingRow_(std::move(replicatedTableMappingRow))
-        , PreviousConsumerSnapshot_(std::move(previousConsumerSnapshot))
+        : PreviousConsumerSnapshot_(std::move(previousConsumerSnapshot))
         , Registrations_(std::move(registrations))
         , Logger(logger)
         , ClientDirectory_(std::move(clientDirectory))
         , Store_(store)
         , IsVerboseLoggingQueue_(std::move(isVerboseLoggingQueue))
         , PassInstant_(passInstant)
-        , ConsumerSnapshot_(New<TConsumerSnapshot>(Row_))
-    { }
+        , ConsumerSnapshot_(New<TConsumerSnapshot>(std::move(ref), std::move(row)))
+    {
+        ConsumerSnapshot_->ReplicatedTableMappingRow = std::move(replicatedTableMappingRow);
+    }
 
     TConsumerSnapshotPtr Build()
     {
         ConsumerSnapshot_->PassIndex = PreviousConsumerSnapshot_->PassIndex + 1;
         ConsumerSnapshot_->PassInstant = PassInstant_;
-        ConsumerSnapshot_->ReplicatedTableMappingRow = ReplicatedTableMappingRow_;
 
-        if (ConsumerSnapshot_->Row.QueueAgentBanned.value_or(false)) {
+        if (ConsumerSnapshot_->Row->QueueAgentBanned.value_or(false)) {
             ConsumerSnapshot_->Banned = true;
 
             // NB(apachee): Instead of relying on invariant that BannedSince is present when Banned is true
@@ -95,8 +95,8 @@ public:
                 ConsumerSnapshot_->BannedSince = ConsumerSnapshot_->PassInstant;
             }
 
-            ConsumerSnapshot_->Error = TError("Consumer is banned by \"queue_agent_banned\" attribute (BannedSince: %v)",
-                ConsumerSnapshot_->BannedSince);
+            ConsumerSnapshot_->Error = TError("Consumer is banned by \"queue_agent_banned\" attribute")
+                .With("banned_since", ConsumerSnapshot_->BannedSince);
 
             return ConsumerSnapshot_;
         }
@@ -104,17 +104,15 @@ public:
         try {
             GuardedBuild();
         } catch (const std::exception& ex) {
-            auto error = TError(ex);
-            YT_LOG_DEBUG(error, "Error building consumer snapshot");
-            ConsumerSnapshot_->Error = std::move(error);
+            ConsumerSnapshot_->Error = ex;
+            YT_TLOG_DEBUG("Error building consumer snapshot")
+                .With(ConsumerSnapshot_->Error);
         }
 
         return ConsumerSnapshot_;
     }
 
 private:
-    const TConsumerTableRow Row_;
-    const std::optional<TReplicatedTableMappingTableRow> ReplicatedTableMappingRow_;
     const TConsumerSnapshotPtr PreviousConsumerSnapshot_;
     const std::vector<TConsumerRegistrationTableRow> Registrations_;
     const TLogger Logger;
@@ -123,58 +121,39 @@ private:
     const std::vector<bool> IsVerboseLoggingQueue_;
     const TInstant PassInstant_;
 
-    IClientPtr Client_;
-    IConsumerClientPtr ConsumerClient_;
-
     TConsumerSnapshotPtr ConsumerSnapshot_;
 
     void GuardedBuild()
     {
-        YT_LOG_DEBUG("Building consumer snapshot (PassIndex: %v)", ConsumerSnapshot_->PassIndex);
+        YT_TLOG_DEBUG("Building consumer snapshot")
+            .With("PassIndex", ConsumerSnapshot_->PassIndex);
 
-        if (Row_.SynchronizationError && !Row_.SynchronizationError->IsOK()) {
-            THROW_ERROR TError("Consumer synchronization failed")
-                << *Row_.SynchronizationError;
-        }
+        ValidateConsumer(*ConsumerSnapshot_->Row, ConsumerSnapshot_->ReplicatedTableMappingRow);
 
-        if (!Row_.RowRevision) {
-            THROW_ERROR_EXCEPTION("Consumer is not in-sync yet");
+        auto clientContext = ClientDirectory_->GetDataReadContext(*ConsumerSnapshot_->Row, ConsumerSnapshot_->ReplicatedTableMappingRow, /*onlyDataReplicas*/ true);
+        auto clientRichYPath = TRichYPath(clientContext.Path);
+        if (auto name = ConsumerSnapshot_->Ref.GetQueueConsumerName()) {
+            clientRichYPath.SetQueueConsumerName(*name);
         }
-        if (!Row_.ObjectType) {
-            THROW_ERROR_EXCEPTION("Consumer object type is not known yet");
-        }
-        if (!Row_.Schema) {
-            THROW_ERROR_EXCEPTION("Consumer schema is not known yet");
-        }
+        auto consumerClient = CreateConsumerClient(clientContext.Client, clientRichYPath, *ConsumerSnapshot_->Row->Schema);
 
-        if (IsReplicatedTableObjectType(Row_.ObjectType) && !ReplicatedTableMappingRow_) {
-            THROW_ERROR_EXCEPTION("No replicated table mapping row is known for replicated consumer");
-        }
-        if (ReplicatedTableMappingRow_) {
-            ReplicatedTableMappingRow_->Validate();
-        }
-
-        auto consumerPath = ConsumerSnapshot_->Row.Path;
-
-        auto clientContext = ClientDirectory_->GetDataReadContext(ConsumerSnapshot_, /*onlyDataReplicas*/ true);
-        Client_ = clientContext.Client;
-        ConsumerClient_ = CreateConsumerClient(Client_, clientContext.Path, *ConsumerSnapshot_->Row.Schema);
-
-        std::vector<TQueuePath> queuePaths;
+        std::vector<TTablePath> queuePaths;
         std::vector<TFuture<TSubConsumerSnapshotPtr>> subSnapshotFutures;
         for (const auto& [registrationIndex, registration] : Enumerate(Registrations_)) {
             auto queuePath = registration.Queue;
             auto queueSnapshot = Store_->FindQueueSnapshot(queuePath);
             if (!queueSnapshot) {
-                YT_LOG_DEBUG("Snapshot is missing for the queue while building subconsumer snapshot (Queue: %v)", queuePath);
+                YT_TLOG_DEBUG("Snapshot is missing for the queue while building subconsumer snapshot")
+                    .With("Queue", queuePath);
                 auto errorQueueSnapshot = New<TQueueSnapshot>(TQueueTableRow{.Path = queuePath});
-                errorQueueSnapshot->Error = TError("Queue %Qv snapshot is missing", queuePath);
+                errorQueueSnapshot->Error = TError("Queue %v snapshot is missing", queuePath);
                 queueSnapshot = std::move(errorQueueSnapshot);
             }
             queuePaths.push_back(queuePath);
             subSnapshotFutures.push_back(BIND(
                 &TConsumerSnapshotBuildSession::BuildSubConsumerSnapshot,
                 MakeStrong(this),
+                consumerClient,
                 queuePath,
                 Passed(std::move(queueSnapshot)),
                 IsVerboseLoggingQueue_[registrationIndex])
@@ -191,7 +170,9 @@ private:
             if (subConsumerSnapshotOrError.IsOK()) {
                 subConsumerSnapshot = std::move(subConsumerSnapshotOrError.Value());
             } else {
-                YT_LOG_DEBUG(subConsumerSnapshotOrError, "Error building subconsumer snapshot (Queue: %v)", queuePath);
+                YT_TLOG_DEBUG("Error building subconsumer snapshot")
+                    .With("Queue", queuePath)
+                    .With(subConsumerSnapshotOrError);
                 subConsumerSnapshot = New<TSubConsumerSnapshot>();
                 subConsumerSnapshot->Error = std::move(subConsumerSnapshotOrError);
             }
@@ -200,19 +181,21 @@ private:
 
         ConsumerSnapshot_->Registrations = Registrations_;
 
-        YT_LOG_DEBUG("Consumer snapshot built");
+        YT_TLOG_DEBUG("Consumer snapshot built");
     }
 
     TSubConsumerSnapshotPtr BuildSubConsumerSnapshot(
-        TQueuePath queuePath,
+        IConsumerClientPtr consumerClient,
+        TTablePath queuePath,
         TQueueSnapshotConstPtr queueSnapshot,
         bool enableVerboseLogging)
     {
-        auto Logger = this->Logger().WithTag("Queue: %v", queuePath);
+        auto Logger = this->Logger().WithTag("Queue", queuePath);
 
-        YT_LOG_DEBUG("Building subconsumer snapshot (PassIndex: %v)", ConsumerSnapshot_->PassIndex);
+        YT_TLOG_DEBUG("Building subconsumer snapshot")
+            .With("PassIndex", ConsumerSnapshot_->PassIndex);
         auto logFinally = Finally([&] {
-            YT_LOG_DEBUG("Subconsumer snapshot built");
+            YT_TLOG_DEBUG("Subconsumer snapshot built");
         });
 
         auto subSnapshot = New<TSubConsumerSnapshot>();
@@ -222,7 +205,8 @@ private:
             subSnapshot->Error = queueSnapshot->Error;
 
             if (enableVerboseLogging) {
-                YT_LOG_DEBUG("Queue snapshot has an error (Error: %v)", subSnapshot->Error);
+                YT_TLOG_DEBUG("Queue snapshot has an error")
+                    .With(subSnapshot->Error);
             }
             return subSnapshot;
         }
@@ -230,7 +214,7 @@ private:
         subSnapshot->HasCumulativeDataWeightColumn = queueSnapshot->HasCumulativeDataWeightColumn;
 
         // Assume partition count to be the same as the partition count in the current queue snapshot.
-        auto partitionCount = queueSnapshot->PartitionCount;
+        const auto partitionCount = queueSnapshot->PartitionCount;
         subSnapshot->PartitionCount = partitionCount;
         // Allocate partition snapshots.
         subSnapshot->PartitionSnapshots.resize(partitionCount);
@@ -239,21 +223,19 @@ private:
             consumerPartitionSnapshot->NextRowIndex = 0;
         }
 
-        // Collect partition infos from the consumer table.
         if (enableVerboseLogging) {
-            YT_LOG_DEBUG("Collecting partition infos from consumer table");
+            YT_TLOG_DEBUG("Collecting partition infos from consumer table");
         }
 
         {
-            auto subConsumerClient = ConsumerClient_->GetSubConsumerClient(/*queueClient*/ nullptr, ToCrossClusterReference(queuePath));
-
+            auto subConsumerClient = consumerClient->GetSubConsumerClient(/*queueClient*/ nullptr, ToCrossClusterReference(queuePath));
             auto consumerPartitionInfos = WaitFor(subConsumerClient->CollectPartitions(partitionCount, /*withLastConsumeTime*/ true))
                 .ValueOrThrow();
 
             for (const auto& consumerPartitionInfo : consumerPartitionInfos) {
                 auto partitionIndex = consumerPartitionInfo.PartitionIndex;
 
-                if (consumerPartitionInfo.PartitionIndex >= partitionCount) {
+                if (partitionIndex >= partitionCount) {
                     // Probably that is a row for an obsolete partition. Just ignore it.
                     continue;
                 }
@@ -314,7 +296,8 @@ private:
         std::vector<TFuture<void>> futures;
 
         if (enableVerboseLogging) {
-            YT_LOG_DEBUG("Start to collect timestamps (HasTimestampColumn: %v)", queueSnapshot->HasTimestampColumn);
+            YT_TLOG_DEBUG("Start to collect timestamps")
+                .With("HasTimestampColumn", queueSnapshot->HasTimestampColumn);
         }
 
         if (queueSnapshot->HasTimestampColumn) {
@@ -324,7 +307,8 @@ private:
         }
 
         if (enableVerboseLogging) {
-            YT_LOG_DEBUG("Start to collect cumulative data weight (HasCumulativeDataWeightColumn: %v)", queueSnapshot->HasCumulativeDataWeightColumn);
+            YT_TLOG_DEBUG("Start to collect cumulative data weight")
+                .With("HasCumulativeDataWeightColumn", queueSnapshot->HasCumulativeDataWeightColumn);
         }
 
         if (queueSnapshot->HasCumulativeDataWeightColumn) {
@@ -337,7 +321,8 @@ private:
             .ThrowOnError();
 
         if (enableVerboseLogging) {
-            YT_LOG_DEBUG("Start to calculate processing lags and read rates (PartitionCount: %v)", subSnapshot->PartitionSnapshots.size());
+            YT_TLOG_DEBUG("Start to calculate processing lags and read rates")
+                .With("PartitionCount", subSnapshot->PartitionSnapshots.size());
         }
 
         for (const auto& [partitionIndex, subConsumerPartitionSnapshot] : Enumerate(subSnapshot->PartitionSnapshots)) {
@@ -361,16 +346,16 @@ private:
             subSnapshot->ReadRate += subConsumerPartitionSnapshot->ReadRate;
 
             if (enableVerboseLogging) {
-                YT_LOG_DEBUG("New subconsumer snapshot (PassIndex: %v, PartitionIndex: %v, UnreadRowCount: %v, NextRowIndex: %v, Disposition: %v, CumulativeDataWeight: %v, UnreadDataWeight: %v, NextRowCommitTime: %v, ProcessingLag: %v)",
-                    ConsumerSnapshot_->PassIndex,
-                    partitionIndex,
-                    subConsumerPartitionSnapshot->UnreadRowCount,
-                    subConsumerPartitionSnapshot->NextRowIndex,
-                    subConsumerPartitionSnapshot->Disposition,
-                    subConsumerPartitionSnapshot->CumulativeDataWeight.value_or(-1),
-                    subConsumerPartitionSnapshot->UnreadDataWeight.value_or(-1),
-                    subConsumerPartitionSnapshot->NextRowCommitTime.value_or(TInstant()),
-                    subConsumerPartitionSnapshot->ProcessingLag);
+                YT_TLOG_DEBUG("New subconsumer snapshot")
+                    .With("PassIndex", ConsumerSnapshot_->PassIndex)
+                    .With("PartitionIndex", partitionIndex)
+                    .With("UnreadRowCount", subConsumerPartitionSnapshot->UnreadRowCount)
+                    .With("NextRowIndex", subConsumerPartitionSnapshot->NextRowIndex)
+                    .With("Disposition", subConsumerPartitionSnapshot->Disposition)
+                    .With("CumulativeDataWeight", subConsumerPartitionSnapshot->CumulativeDataWeight.value_or(-1))
+                    .With("UnreadDataWeight", subConsumerPartitionSnapshot->UnreadDataWeight.value_or(-1))
+                    .With("NextRowCommitTime", subConsumerPartitionSnapshot->NextRowCommitTime.value_or(TInstant()))
+                    .With("ProcessingLag", subConsumerPartitionSnapshot->ProcessingLag);
             }
         }
 
@@ -386,9 +371,9 @@ private:
         const auto& Logger = logger;
 
         // TODO(nadya73): Use CollectPartitionRowInfos.
-        YT_LOG_DEBUG("Collecting consumer timestamps");
+        YT_TLOG_DEBUG("Collecting consumer timestamps");
 
-        auto clientContext = ClientDirectory_->GetDataReadContext(queueSnapshot);
+        auto clientContext = ClientDirectory_->GetDataReadContext(queueSnapshot->Row, queueSnapshot->ReplicatedTableMappingRow);
 
         TStringBuilder queryBuilder;
         queryBuilder.AppendFormat("[$tablet_index], [$timestamp] from [%v] where ([$tablet_index], [$row_index]) in (",
@@ -416,9 +401,11 @@ private:
         TSelectRowsOptions options;
         options.ReplicaConsistency = EReplicaConsistency::Sync;
         if (enableVerboseLogging) {
-            YT_LOG_DEBUG("Executing query for next row commit times (Query: %v)", query);
+            YT_TLOG_DEBUG("Executing query for next row commit times")
+                .With("Query", query);
         } else {
-            YT_LOG_TRACE("Executing query for next row commit times (Query: %v)", query);
+            YT_TLOG_TRACE("Executing query for next row commit times")
+                .With("Query", query);
         }
         auto result = WaitFor(clientContext.Client->SelectRows(query))
             .ValueOrThrow();
@@ -430,11 +417,11 @@ private:
             auto& consumerPartitionSnapshot = subSnapshot->PartitionSnapshots[tabletIndex];
 
             if (auto commitTimestamp = FromUnversionedValue<std::optional<ui64>>(row[1])) {
-                consumerPartitionSnapshot->NextRowCommitTime = TimestampToInstant(*commitTimestamp).first;
+                consumerPartitionSnapshot->NextRowCommitTime = TimestampToInstant(NTransactionClient::TTimestamp(*commitTimestamp)).first;
             }
         }
 
-        YT_LOG_DEBUG("Consumer timestamps collected");
+        YT_TLOG_DEBUG("Consumer timestamps collected");
     }
 
     void CollectCumulativeDataWeights(
@@ -444,7 +431,7 @@ private:
     {
         const auto& Logger = logger;
 
-        YT_LOG_DEBUG("Collecting consumer cumulative data weights");
+        YT_TLOG_DEBUG("Collecting consumer cumulative data weights");
 
         std::vector<std::pair<int, i64>> tabletAndRowIndices;
 
@@ -458,7 +445,7 @@ private:
             }
         }
 
-        auto clientContext = ClientDirectory_->GetDataReadContext(queueSnapshot);
+        auto clientContext = ClientDirectory_->GetDataReadContext(queueSnapshot->Row, queueSnapshot->ReplicatedTableMappingRow);
 
         auto params = TCollectPartitionRowInfoParams{
             .HasCumulativeDataWeightColumn = true,
@@ -477,7 +464,7 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Consumer cumulative data weights collected");
+        YT_TLOG_DEBUG("Consumer cumulative data weights collected");
     }
 };
 
@@ -487,7 +474,8 @@ class TConsumerController
 public:
     TConsumerController(
         bool leading,
-        const TConsumerTableRow& row,
+        TConsumerReference ref,
+        TConsumerTableRowConstPtr row,
         const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
         const IObjectStore* store,
         const TQueueControllerDynamicConfigPtr& dynamicConfig,
@@ -497,22 +485,24 @@ public:
         : Leading_(leading)
         , ConsumerRow_(row)
         , ReplicatedTableMappingRow_(replicatedTableMappingRow)
-        , ConsumerPath_(row.Path)
+        , ConsumerRef_(std::move(ref))
         , ObjectStore_(store)
         , DynamicConfig_(dynamicConfig)
         , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
-        , Logger(ConsumerControllerLogger().WithTag("Consumer: %v, Leading: %v", ConsumerPath_, Leading_))
+        , Logger(ConsumerControllerLogger()
+            .WithTag("Consumer", ConsumerRef_)
+            .WithTag("Leading", Leading_))
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TConsumerController::Pass, MakeWeak(this)),
             dynamicConfig->PassPeriod))
         , BaseProfiler_(profiler)
-        , ProfileManager_(CreateConsumerProfileManager(profiler, Logger, row, leading))
+        , ProfileManager_(CreateConsumerProfileManager(profiler, Logger, ConsumerRef_.GetQueueConsumerName(), *row, leading))
         , PassProfiler_(New<TPassProfiler>(ProfileManager_.Acquire()->GetProfiler(EProfilerScope::ObjectPass)))
     {
         // Prepare initial erroneous snapshot.
-        auto consumerSnapshot = New<TConsumerSnapshot>(row);
+        auto consumerSnapshot = New<TConsumerSnapshot>(ConsumerRef_, std::move(row));
         consumerSnapshot->ReplicatedTableMappingRow = replicatedTableMappingRow;
         consumerSnapshot->Error = TError("Consumer is not processed yet");
         ConsumerSnapshot_.Store(std::move(consumerSnapshot));
@@ -522,18 +512,18 @@ public:
     {
         PassExecutor_->Start();
 
-        YT_LOG_INFO("Consumer controller started");
+        YT_TLOG_INFO("Consumer controller started");
     }
 
     void OnRowUpdated(std::any row) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        const auto& consumerRow = std::any_cast<const TConsumerTableRow&>(row);
+        const auto& consumerRow = std::any_cast<TConsumerTableRowConstPtr>(row);
 
         auto oldRow = ConsumerRow_.Exchange(consumerRow);
-        if (oldRow.QueueConsumerProfilingTag != consumerRow.QueueConsumerProfilingTag) {
-            ProfileManager_.Store(CreateConsumerProfileManager(BaseProfiler_, Logger, consumerRow, Leading_));
+        if (oldRow->QueueConsumerProfilingTag != consumerRow->QueueConsumerProfilingTag) {
+            ProfileManager_.Store(CreateConsumerProfileManager(BaseProfiler_, Logger, ConsumerRef_.GetQueueConsumerName(), *consumerRow, Leading_));
             PassProfiler_.Store(New<TPassProfiler>(ProfileManager_.Acquire()->GetProfiler(EProfilerScope::ObjectPass)));
         }
     }
@@ -555,10 +545,9 @@ public:
 
         PassExecutor_->SetPeriod(newConfig->PassPeriod);
 
-        YT_LOG_DEBUG(
-            "Updated consumer controller dynamic config (OldConfig: %v, NewConfig: %v)",
-            ConvertToYsonString(oldConfig, EYsonFormat::Text),
-            ConvertToYsonString(newConfig, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Updated consumer controller dynamic config")
+            .With("OldConfig", ConvertToYsonString(oldConfig, EYsonFormat::Text))
+            .With("NewConfig", ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
     void Stop() override
@@ -577,7 +566,8 @@ public:
 
         auto consumerSnapshot = ConsumerSnapshot_.Acquire();
 
-        YT_LOG_DEBUG("Building consumer controller orchid (PassIndex: %v)", consumerSnapshot->PassIndex);
+        YT_TLOG_DEBUG("Building consumer controller orchid")
+            .With("PassIndex", consumerSnapshot->PassIndex);
 
         BuildYsonFluently(consumer).BeginMap()
             .Item("leading").Value(Leading_)
@@ -597,9 +587,9 @@ public:
 
 private:
     bool Leading_;
-    NThreading::TAtomicObject<TConsumerTableRow> ConsumerRow_;
-    NThreading::TAtomicObject<std::optional<TReplicatedTableMappingTableRow>> ReplicatedTableMappingRow_;
-    const TConsumerPath ConsumerPath_;
+    TAtomicConsumerTableRowConstPtr ConsumerRow_;
+    TAtomicObject<std::optional<TReplicatedTableMappingTableRow>> ReplicatedTableMappingRow_;
+    const TConsumerReference ConsumerRef_;
     const IObjectStore* ObjectStore_;
     using TQueueControllerDynamicConfigAtomicPtr = TAtomicIntrusivePtr<TQueueControllerDynamicConfig>;
     TQueueControllerDynamicConfigAtomicPtr DynamicConfig_;
@@ -608,7 +598,7 @@ private:
     const IInvokerPtr Invoker_;
 
     using TConsumerSnapshotAtomicPtr = TAtomicIntrusivePtr<TConsumerSnapshot>;
-    TConsumerSnapshotAtomicPtr ConsumerSnapshot_ = nullptr;
+    TConsumerSnapshotAtomicPtr ConsumerSnapshot_;
 
     const TLogger Logger;
     const TPeriodicExecutorPtr PassExecutor_;
@@ -630,38 +620,33 @@ private:
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("ConsumerControllerPass"));
 
-        YT_LOG_INFO("Consumer controller pass started");
+        YT_TLOG_INFO("Consumer controller pass started");
 
-        TRichYPath consumerPath(ConsumerPath_);
-        bool enableVerboseLogging = false;
-        {
-            auto config = DynamicConfig_.Acquire();
+        TRichYPath consumerRef(ConsumerRef_);
+        auto config = DynamicConfig_.Acquire();
+        bool enableVerboseLogging = config->EnableVerboseLogging;
 
-            enableVerboseLogging = config->EnableVerboseLogging;
-
-            auto it = std::find(config->DelayedObjects.begin(), config->DelayedObjects.end(), consumerPath);
-            if (it != config->DelayedObjects.end()) {
-                // NB(apachee): Since this should only be used for debug, it is a warning in case "delayed_objects" field is left non-empty accidentally.
-                YT_LOG_WARNING("This pass is delayed since consumer is present in \"delayed_objects\" field of dynamic config (DelayDuration: %v)", config->ControllerDelay);
-                TDelayedExecutor::WaitForDuration(config->ControllerDelay);
-            }
+        auto it = std::find(config->DelayedObjects.begin(), config->DelayedObjects.end(), consumerRef);
+        if (it != config->DelayedObjects.end()) {
+            // NB(apachee): Since this should only be used for debug, it is a warning in case "delayed_objects" field is left non-empty accidentally.
+            YT_TLOG_WARNING("This pass is delayed since consumer is present in \"delayed_objects\" field of dynamic config")
+                .With("DelayDuration", config->ControllerDelay);
+            TDelayedExecutor::WaitForDuration(config->ControllerDelay);
         }
 
-        auto registrations = ObjectStore_->GetRegistrations(ConsumerPath_, EObjectKind::Consumer);
-        YT_LOG_INFO("Registrations fetched (RegistrationCount: %v)", registrations.size());
+        auto registrations = ObjectStore_->GetRegistrations(ConsumerRef_, EObjectKind::Consumer);
+        YT_TLOG_INFO("Registrations fetched")
+            .With("RegistrationCount", registrations.size());
         for (const auto& registration : registrations) {
-            YT_LOG_DEBUG(
-                "Relevant registration (Queue: %v, Consumer: %v, Vital: %v)",
-                registration.Queue,
-                registration.Consumer,
-                registration.Vital);
+            YT_TLOG_DEBUG("Relevant registration")
+                .With("Queue", registration.Queue)
+                .With("Consumer", registration.Consumer)
+                .With("Vital", registration.Vital);
         }
 
         std::vector<bool> isVerboseLoggingQueue(registrations.size());
         if (enableVerboseLogging) {
-            auto config = DynamicConfig_.Acquire();
-
-            auto consumerIt = std::find(config->VerboseLoggingObjects.begin(), config->VerboseLoggingObjects.end(), consumerPath);
+            auto consumerIt = std::find(config->VerboseLoggingObjects.begin(), config->VerboseLoggingObjects.end(), consumerRef);
             auto isVerboseLoggingConsumer = consumerIt != config->VerboseLoggingObjects.end();
 
             if (isVerboseLoggingConsumer) {
@@ -673,7 +658,8 @@ private:
         }
 
         auto nextConsumerSnapshot = New<TConsumerSnapshotBuildSession>(
-            ConsumerRow_.Load(),
+            ConsumerRef_,
+            ConsumerRow_.Acquire(),
             ReplicatedTableMappingRow_.Load(),
             previousConsumerSnapshot,
             std::move(registrations),
@@ -685,21 +671,22 @@ private:
             ->Build();
         ConsumerSnapshot_.Store(nextConsumerSnapshot);
 
-        YT_LOG_INFO("Consumer snapshot updated");
+        YT_TLOG_INFO("Consumer snapshot updated");
 
         auto finalizePass = Finally([&] {
-            YT_LOG_INFO("Consumer controller pass finished");
+            YT_TLOG_INFO("Consumer controller pass finished");
             passProfiler->OnFinish(TInstant::Now() - startTime);
         });
 
         if (nextConsumerSnapshot->Banned) {
-            YT_LOG_INFO(nextConsumerSnapshot->Error, "Skipping consumer controller leading logic because consumer is banned");
+            YT_TLOG_INFO("Skipping consumer controller leading logic because consumer is banned")
+                .With(nextConsumerSnapshot->Error);
 
             return;
         }
 
         if (Leading_) {
-            YT_LOG_DEBUG("Consumer controller is leading, performing mutating operations");
+            YT_TLOG_DEBUG("Consumer controller is leading, performing mutating operations");
 
             ProfileManager_.Acquire()->Profile(previousConsumerSnapshot, nextConsumerSnapshot);
         }
@@ -708,34 +695,25 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TErrorConsumerController = TErrorController<TConsumerTableRow, TConsumerSnapshot>;
-DEFINE_REFCOUNTED_TYPE(TErrorConsumerController)
-
-////////////////////////////////////////////////////////////////////////////////
-
 bool UpdateConsumerController(
     IObjectControllerPtr& controller,
     bool leading,
-    const TConsumerTableRow& row,
+    TConsumerReference ref,
+    TConsumerTableRowConstPtr tableRow,
     const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     const IObjectStore* store,
-    const IQueueExportManagerPtr& /*queueExportManager*/,
     const TQueueControllerDynamicConfigPtr& dynamicConfig,
     const TQueueAgentClientDirectoryPtr& clientDirectory,
     IInvokerPtr invoker)
 {
-    if (row.IsMultiConsumerRow()) {
-        controller = New<TErrorConsumerController>(row, replicatedTableMappingRow, TError("Multi-consumer are not supported yet"));
-        return true;
-    }
-
     if (controller && controller->IsLeading() == leading) {
         return false;
     }
 
     auto newController = New<TConsumerController>(
         leading,
-        row,
+        std::move(ref),
+        std::move(tableRow),
         replicatedTableMappingRow,
         store,
         dynamicConfig,

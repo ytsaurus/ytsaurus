@@ -1,9 +1,10 @@
-GTEST(cell-balancer-unittests)
+GTEST(unittester-cell-balancer)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     allocation_from_spare_ut.cpp
+    annotate_new_instances_ut.cpp
     bundle_scheduler_ut.cpp
     chaos_scheduler_ut.cpp
     helpers.cpp

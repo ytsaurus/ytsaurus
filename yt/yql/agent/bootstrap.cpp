@@ -4,6 +4,8 @@
 #include "private.h"
 #include "yql_agent.h"
 #include "yql_service.h"
+#include "token_manager.h"
+#include "token_service.h"
 #include "dynamic_config_manager.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
@@ -36,16 +38,19 @@
 
 #include <yt/yt/core/bus/server.h>
 
+#include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/server.h>
 
 #include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/rpc/bus/server.h>
@@ -103,10 +108,10 @@ void TBootstrap::Run()
     ControlQueue_ = New<TActionQueue>("Control");
     ControlInvoker_ = ControlQueue_->GetInvoker();
 
-    BIND(&TBootstrap::DoRun, this)
-        .AsyncVia(ControlInvoker_)
-        .Run()
-        .BlockingGet()
+    NYT::NConcurrency::WaitForFast(
+        BIND(&TBootstrap::DoRun, this)
+            .AsyncVia(ControlInvoker_)
+            .Run())
         .ThrowOnError();
 
     Sleep(TDuration::Max());
@@ -114,10 +119,9 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    YT_LOG_INFO(
-        "Starting Yql agent process (NativeCluster: %v, User: %v)",
-        Config_->ClusterConnection->Static->ClusterName,
-        Config_->User);
+    YT_TLOG_INFO("Starting YQL agent process")
+        .With("NativeCluster", Config_->ClusterConnection->Static->ClusterName)
+        .With("User", Config_->User);
 
     AgentId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
 
@@ -142,6 +146,29 @@ void TBootstrap::DoRun()
 
     auto clientDirectory = New<TClientDirectory>(NativeConnection_->GetClusterDirectory(), clientOptions);
 
+    TokenManagerQueue_ = New<TActionQueue>("TokenManager");
+    TokenManager_ = CreateTokenManager(
+        NativeConnection_->GetClusterDirectory(),
+        TokenManagerQueue_->GetInvoker(),
+        Config_->YqlAgent);
+
+    if (Config_->YqlAgent->UseTokenResolver) {
+        const auto& socketPath = Config_->YqlAgent->TokenService->UnixSocketPath;
+        auto socketDirectory = NFS::GetDirectoryName(socketPath);
+        NFS::MakeDirRecursive(socketDirectory);
+
+        if (NFS::Exists(socketPath)) {
+            NFS::Remove(socketPath);
+        }
+
+        auto busConfig = NTcp::TBusServerConfig::CreateUds(socketPath);
+        TokenBusServer_ = NTcp::CreateBusServer(busConfig);
+        TokenRpcServer_ = NRpc::NBus::CreateBusServer(TokenBusServer_);
+        TokenRpcServer_->RegisterService(CreateTokenService(
+            TokenManagerQueue_->GetInvoker(),
+            TokenManager_));
+    }
+
     DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, NativeClient_, ControlInvoker_);
     DynamicConfigManager_->SubscribeBeforeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
 
@@ -157,6 +184,14 @@ void TBootstrap::DoRun()
 
     DynamicConfigManager_->Start();
 
+    {
+        YT_TLOG_INFO("Loading dynamic config for the first time");
+        auto error = WaitFor(DynamicConfigManager_->GetConfigLoadedFuture());
+        YT_TLOG_FATAL_UNLESS(error.IsOK(), "Unexpected failure while waiting for the first dynamic config loaded")
+            .With(error);
+        YT_TLOG_INFO("Dynamic config loaded");
+    }
+
     YqlAgent_ = CreateYqlAgent(
         this,
         Config_,
@@ -165,6 +200,7 @@ void TBootstrap::DoRun()
         NativeConnection_->GetClusterDirectory(),
         clientDirectory,
         ControlInvoker_,
+        TokenManager_,
         AgentId_);
 
     IMapNodePtr orchidRoot;
@@ -221,12 +257,24 @@ void TBootstrap::DoRun()
         YqlAgent_,
         ComponentStateChecker_));
 
-    YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+    YT_TLOG_INFO("Listening for HTTP requests")
+        .With("Port", Config_->MonitoringPort);
     HttpServer_->Start();
 
     YqlAgent_->Start();
 
-    YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+    TokenManager_->Start();
+
+    if (TokenRpcServer_) {
+        const auto& socketPath = Config_->YqlAgent->TokenService->UnixSocketPath;
+        TokenRpcServer_->Configure(Config_->RpcServer);
+        TokenRpcServer_->Start();
+        YT_TLOG_INFO("Listening for local token requests")
+            .With("UnixSocketPath", socketPath);
+    }
+
+    YT_TLOG_INFO("Listening for RPC requests")
+        .With("Port", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);
     RpcServer_->Start();
 
@@ -240,7 +288,8 @@ void TBootstrap::UpdateCypressNode()
         try {
             GuardedUpdateCypressNode();
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Error updating cypress node");
+            YT_TLOG_DEBUG("Error updating cypress node")
+                .With(ex);
             continue;
         }
         return;
@@ -262,12 +311,13 @@ void TBootstrap::GuardedUpdateCypressNode()
                 .Item("annotations").Value(Config_->CypressAnnotations)
             .EndMap());
 
-        YT_LOG_INFO("Creating instance node (Path: %v)", instancePath);
+        YT_TLOG_INFO("Creating instance node")
+            .With("Path", instancePath);
 
         WaitFor(NativeClient_->CreateNode(instancePath, EObjectType::MapNode, options))
             .ThrowOnError();
 
-        YT_LOG_INFO("Instance node created");
+        YT_TLOG_INFO("Instance node created");
     }
     {
         TCreateNodeOptions options;
@@ -280,12 +330,13 @@ void TBootstrap::GuardedUpdateCypressNode()
 
         auto orchidPath = instancePath + "/orchid";
 
-        YT_LOG_INFO("Creating orchid node (Path: %v)", orchidPath);
+        YT_TLOG_INFO("Creating orchid node")
+            .With("Path", orchidPath);
 
         WaitFor(NativeClient_->CreateNode(orchidPath, EObjectType::Orchid, options))
             .ThrowOnError();
 
-        YT_LOG_INFO("Orchid node created");
+        YT_TLOG_INFO("Orchid node created");
     }
 }
 
@@ -294,7 +345,7 @@ void TBootstrap::OnDynamicConfigChanged(
     const TYqlAgentServerDynamicConfigPtr& newConfig)
 {
     if (!YqlAgent_) {
-        YT_LOG_DEBUG("Yql agent is not ready to update dynconfig");
+        YT_TLOG_DEBUG("YQL agent is not ready to update dynamic config");
         return;
     }
 
@@ -314,15 +365,19 @@ void TBootstrap::OnDynamicConfigChanged(
 
     ComponentStateChecker_->SetPeriod(newConfig->YqlAgent->StateCheckPeriod);
 
-    YT_LOG_DEBUG(
-        "Updated Yql agent server dynamic config (OldConfig: %v, NewConfig: %v)",
-        ConvertToYsonString(oldConfig, EYsonFormat::Text),
-        ConvertToYsonString(newConfig, EYsonFormat::Text));
+    YT_TLOG_DEBUG("Updated YQL agent server dynamic config")
+        .With("OldConfig", ConvertToYsonString(oldConfig, EYsonFormat::Text))
+        .With("NewConfig", ConvertToYsonString(newConfig, EYsonFormat::Text));
 }
 
 const NNative::TConnectionCompoundConfigPtr TBootstrap::GetClusterConnectionConfig() const
 {
     return Config_->ClusterConnection;
+}
+
+const NNative::IClientPtr& TBootstrap::GetClient() const
+{
+    return NativeClient_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -49,12 +49,11 @@ private:
         auto incarnationId = FromProto<NScheduler::TIncarnationId>(request->controller_agent_incarnation_id());
         auto nodeId = request->node_id();
         auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
-        context->SetRequestInfo(
-            "NodeId: %v, NodeAddress: %v, JobCount: %v, KnownIncarnationId: %v",
-            nodeId,
-            descriptor.GetDefaultAddress(),
-            request->jobs_size(),
-            incarnationId);
+        context->AnnotateRequest()
+            .With("NodeId", nodeId)
+            .With("NodeAddress", descriptor.GetDefaultAddress())
+            .With("JobCount", request->jobs_size())
+            .With("KnownIncarnationId", incarnationId);
 
         Bootstrap_->GetControllerAgent()->GetJobTracker()->ProcessHeartbeat(context);
     }
@@ -67,14 +66,13 @@ private:
         auto operationId = FromProto<TOperationId>(request->operation_id());
         auto allocationId = FromProto<TAllocationId>(request->allocation_id());
         auto lastJobId = YT_OPTIONAL_FROM_PROTO(*request, last_job_id, TJobId);
-        context->SetRequestInfo(
-            "NodeId: %v, NodeAddress: %v, KnownIncarnationId: %v, OperationId: %v, AllocationId: %v, LastJobId: %v",
-            nodeId,
-            descriptor.GetDefaultAddress(),
-            incarnationId,
-            operationId,
-            allocationId,
-            lastJobId);
+        context->AnnotateRequest()
+            .With("NodeId", nodeId)
+            .With("NodeAddress", descriptor.GetDefaultAddress())
+            .With("KnownIncarnationId", incarnationId)
+            .With("OperationId", operationId)
+            .With("AllocationId", allocationId)
+            .With("LastJobId", lastJobId);
 
         Bootstrap_->GetControllerAgent()->GetJobTracker()->SettleJob(context);
     }

@@ -12,11 +12,17 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/cell_master_client/public.h>
+
 #include <yt/yt/ytlib/chunk_client/config.h>
+
+#include <yt/yt/ytlib/distributed_chunk_session_client/public.h>
 
 #include <yt/yt/ytlib/event_log/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/yt/ytlib/push_based_shuffle_client/public.h>
 
 #include <yt/yt/ytlib/scheduler/cluster_name.h>
 #include <yt/yt/ytlib/scheduler/config.h>
@@ -63,10 +69,6 @@ struct TTestingOptions
 {
     //! Testing option that enables snapshot build/load cycle after operation materialization.
     bool EnableSnapshotCycleAfterMaterialization;
-
-    //! If this option is set, these layers are used in all the user jobs
-    //! and all the rootfs's become writable.
-    std::vector<NYPath::TRichYPath> RootfsTestLayers;
 
     //! If this option is set, controller agent sleeps for this duration before performing actual unregistration.
     std::optional<TDuration> DelayInUnregistration;
@@ -294,12 +296,40 @@ DEFINE_REFCOUNTED_TYPE(TDataBalancerOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPushBasedShuffleOptions
+    : public NYTree::TYsonStruct
+{
+    double SealFallbackCompressionRatio;
+    i64 SealFallbackRowCountPerRecord;
+
+    //! Controller-side estimates that size the partition job writer memory budget.
+    i64 PerPartitionMetadataEstimate;
+    i64 PerSequencerConnectionEstimate;
+    i64 TargetUncompressedRecordSize;
+
+    NPushBasedShuffleClient::TShuffleWriterConfigPtr ShuffleWriterConfig;
+    NPushBasedShuffleClient::TPartitionReaderConfigPtr PartitionReaderConfig;
+    NPushBasedShuffleClient::TSortReaderConfigPtr SortReaderConfig;
+    int SortThreadCount;
+
+    NApi::TJournalChunkWriterConfigPtr JournalWriterConfig;
+    NDistributedChunkSessionClient::TDistributedChunkSessionPoolConfigPtr SessionPoolConfig;
+    NDistributedChunkSessionClient::TDistributedChunkSessionControllerConfigPtr SessionControllerConfig;
+
+    REGISTER_YSON_STRUCT(TPushBasedShuffleOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPushBasedShuffleOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TUserJobOptions
     : public NYTree::TYsonStruct
 {
-    //! Thread limit for the user job is ceil(#InitialThreadLimit + #ThreadLimitMultiplier * JobCpuLimit);
-    i64 ThreadLimitMultiplier;
-    i64 InitialThreadLimit;
+    //! Thread limit for the user job container as a function of cpu (variable "cpu" = ceil(job cpu_limit)).
+    TArithmeticFormula ThreadLimitFormula;
 
     REGISTER_YSON_STRUCT(TUserJobOptions);
 
@@ -324,7 +354,7 @@ struct TGpuCheckOptions
     std::vector<std::string> BinaryArgs;
 
     //! Network project for GPU check container.
-    std::optional<TString> NetworkProject;
+    std::optional<std::string> NetworkProject;
 
     REGISTER_YSON_STRUCT(TGpuCheckOptions);
 
@@ -434,6 +464,9 @@ DEFINE_REFCOUNTED_TYPE(TSimpleOperationOptions)
 struct TMapOperationOptions
     : public TSimpleOperationOptions
 {
+    bool EnableMapJobSizeAdjustment;
+    bool EnableOrderedMapJobSizeAdjustment;
+
     REGISTER_YSON_STRUCT(TMapOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -536,8 +569,13 @@ struct TSortOperationOptionsBase
     i64 MaxValueCountPerSimpleSortJob;
     NChunkPools::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
     NChunkPools::TJobSizeAdjusterConfigPtr SortedMergeJobSizeAdjuster;
+    bool EnablePartitionMapJobSizeAdjustment;
+    bool EnableOrderedPartitionMapJobSizeAdjustment;
+    bool EnableSortedMergeInSortJobSizeAdjustment;
     TDataBalancerOptionsPtr DataBalancer;
     i64 DefaultPartitionDataWeightForMerging;
+    bool EnableFinalPartitionsMergingByDefault;
+    TPushBasedShuffleOptionsPtr PushBasedShuffle;
 
     REGISTER_YSON_STRUCT(TSortOperationOptionsBase);
 
@@ -782,6 +820,22 @@ DEFINE_REFCOUNTED_TYPE(TJobTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPushBasedShuffleConfig
+    : public NYTree::TYsonStruct
+{
+    int ThreadCount;
+
+    NDistributedChunkSessionClient::TDistributedChunkSessionSealMonitorConfigPtr SealMonitor;
+
+    REGISTER_YSON_STRUCT(TPushBasedShuffleConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPushBasedShuffleConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDockerRegistryConfig
     : public NYTree::TYsonStruct
 {
@@ -812,7 +866,7 @@ DEFINE_REFCOUNTED_TYPE(TDockerRegistryConfig)
 struct TRemoteOperationsConfig
     : public NYTree::TYsonStruct
 {
-    THashSet<TString> AllowedUsers;
+    THashSet<std::string> AllowedUsers;
 
     bool AllowedForEveryone;
 
@@ -1039,7 +1093,7 @@ struct TControllerAgentConfig
     int MaxRangesOnTable;
 
     TUserFileLimitsConfigPtr UserFileLimits;
-    THashMap<TString, TUserFileLimitsPatchConfigPtr> UserFileLimitsPerTree;
+    THashMap<std::string, TUserFileLimitsPatchConfigPtr> UserFileLimitsPerTree;
 
     //! Maximum number of files per user job.
     int MaxUserFileCount;
@@ -1058,20 +1112,6 @@ struct TControllerAgentConfig
 
     //! Maximum number of foreign chunks to locate per request.
     int MaxChunksPerLocateRequest;
-
-    //! Enables using tmpfs if tmpfs_path is specified in user spec.
-    bool EnableTmpfs;
-
-    //! Enables dynamic change of job sizes.
-    bool EnablePartitionMapJobSizeAdjustment;
-
-    //! Enables dynamic change of job sizes.
-    bool EnableOrderedPartitionMapJobSizeAdjustment;
-
-    bool EnableSortedMergeInSortJobSizeAdjustment;
-
-    bool EnableMapJobSizeAdjustment;
-    bool EnableOrderedMapJobSizeAdjustment;
 
     //! Enables splitting of long jobs.
     // TODO(gritukan): Remove it.
@@ -1126,7 +1166,7 @@ struct TControllerAgentConfig
     NYTree::INodePtr VanillaOperationOptionsNode;
 
     //! Default environment variables set for every job.
-    THashMap<TString, TString> Environment;
+    THashMap<std::string, std::string> Environment;
 
     //! If |true|, jobs are revived from snapshot.
     bool EnableJobRevival;
@@ -1173,15 +1213,15 @@ struct TControllerAgentConfig
     // Cypress path to a special layer containing YT-specific data required to
     // run jobs with custom rootfs, e.g. statically linked ytserver-exec.
     // Is applied on top of user layers if they are used.
-    std::optional<TString> SystemLayerPath;
+    std::optional<NYPath::TYPath> SystemLayerPath;
 
     // Cypress path to a default layer for user jobs, if no layers were specified explicitly.
-    std::optional<TString> DefaultLayerPath;
+    std::optional<NYPath::TYPath> DefaultLayerPath;
 
     // Cypress path to the directory with CUDA toolkit layers which are required for some
     // GPU jobs. The layer is applied as an additional user layer on top of the others if they are
     // present.
-    std::optional<TString> CudaToolkitLayerDirectoryPath;
+    std::optional<NYPath::TYPath> CudaToolkitLayerDirectoryPath;
 
     //! Controls handling docker images specified in user spec.
     TDockerRegistryConfigPtr DockerRegistry;
@@ -1239,6 +1279,7 @@ struct TControllerAgentConfig
     bool EnableVersionedRemoteCopy;
     bool EnableHunksRemoteCopy;
     bool EnableCompressionDictionaryRemoteCopy;
+    bool EnableHunkChunkReplicaPrefetch;
 
     NScheduler::EEnablePorto DefaultEnablePorto;
 
@@ -1255,7 +1296,7 @@ struct TControllerAgentConfig
     bool EnableBypassArtifactCache;
 
     //! List of the tags assigned to controller agent.
-    std::vector<TString> Tags;
+    std::vector<std::string> Tags;
 
     TUserJobMonitoringConfigPtr UserJobMonitoring;
 
@@ -1266,6 +1307,9 @@ struct TControllerAgentConfig
 
     //! List of media that are deprecated to be used in disk requests.
     THashSet<std::string> DeprecatedMedia;
+
+    //! List of media allowed for NBD disks.
+    THashSet<std::string> NbdMedia;
 
     //! The name of the fast medium (SSD) in the communal intermediate account.
     std::string FastIntermediateMedium;
@@ -1288,11 +1332,13 @@ struct TControllerAgentConfig
 
     // Supposed to be used in tests.
     std::optional<i64> FootprintMemory;
+    // Supposed to be set for asan builds to account for ytserver-exec's memory.
+    std::optional<i64> ExecFootprintMemory;
 
     //! Enables job profiling.
     bool EnableJobProfiling;
 
-    std::optional<TString> CudaProfilerLayerPath;
+    std::optional<NYPath::TYPath> CudaProfilerLayerPath;
 
     THashMap<std::string, std::string> CudaProfilerEnvironmentVariables;
     // COMPAT(omgronnny)
@@ -1305,11 +1351,15 @@ struct TControllerAgentConfig
 
     TJobTrackerConfigPtr JobTracker;
 
-    THashSet<TString> NetworkProjectsAllowedForOffloading;
+    TPushBasedShuffleConfigPtr PushBasedShuffle;
+
+    THashSet<std::string> NetworkProjectsAllowedForOffloading;
 
     bool EnableNetworkInOperationDemand;
 
     NRpc::TServerDynamicConfigPtr RpcServer;
+
+    NCellMasterClient::TCellDirectorySynchronizerOverrideDynamicConfigPtr MasterCellDirectorySynchronizer;
 
     //! How many initial successive job aborts are needed to fail operation.
     THashMap<EAbortReason, int> MaxJobAbortsUntilOperationFailure;
@@ -1344,6 +1394,9 @@ struct TControllerAgentConfig
     NServer::TOperationEventReporterConfigPtr OperationEventsReporter;
 
     bool FailOperationsInEmptyTrees;
+
+    //! If |true|, operations on tables whose primary medium is S3 (offshore) are forbidden.
+    bool ForbidOperationsOnOffshoreMedia;
 
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 

@@ -1,6 +1,7 @@
 GO_LIBRARY()
 
 SRCS(
+    base.go
     converter.go
     counter.go
     func_counter.go
@@ -13,6 +14,7 @@ SRCS(
     metrics_opts.go
     registry.go
     registry_opts.go
+    series.go
     spack.go
     spack_compression.go
     stream.go
@@ -32,6 +34,7 @@ GO_TEST_SRCS(
     metrics_test.go
     race_test.go
     registry_test.go
+    series_test.go
     spack_compression_test.go
     spack_test.go
     stream_test.go

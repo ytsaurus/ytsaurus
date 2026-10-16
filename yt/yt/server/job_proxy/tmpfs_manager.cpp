@@ -21,9 +21,9 @@ TTmpfsManager::TTmpfsManager(TTmpfsManagerConfigPtr config)
         TmpfsDeviceIds.insert(GetDeviceId(path));
     }
 
-    YT_LOG_DEBUG("Tmpfs manager instantiated (TmpfsPaths: %v, TmpfsDeviceIds: %v)",
-        Config_->TmpfsPaths,
-        TmpfsDeviceIds);
+    YT_TLOG_DEBUG("Tmpfs manager instantiated")
+        .With("TmpfsPaths", Config_->TmpfsPaths)
+        .With("TmpfsDeviceIds", TmpfsDeviceIds);
 }
 
 void TTmpfsManager::DumpTmpfsStatistics(
@@ -102,18 +102,19 @@ std::vector<TTmpfsManager::TTmpfsVolumeStatitsitcs> TTmpfsManager::GetTmpfsVolum
             auto diskSpaceStatistics = GetDiskSpaceStatistics(tmpfsPath);
 
             if (diskSpaceStatistics.TotalSpace < diskSpaceStatistics.AvailableSpace) {
-                YT_LOG_WARNING("Disk total space is less that disk available space (TmpfsPath: %v, TotalSpace: %v, AvailableSpace: %v)",
-                    tmpfsPath,
-                    diskSpaceStatistics.TotalSpace,
-                    diskSpaceStatistics.AvailableSpace);
+                YT_TLOG_WARNING("Disk total space is less that disk available space")
+                    .With("TmpfsPath", tmpfsPath)
+                    .With("TotalSpace", diskSpaceStatistics.TotalSpace)
+                    .With("AvailableSpace", diskSpaceStatistics.AvailableSpace);
             }
 
             volumeStatistics.Limit = diskSpaceStatistics.TotalSpace;
             volumeStatistics.Usage = std::max<i64>(0, diskSpaceStatistics.TotalSpace - diskSpaceStatistics.AvailableSpace);
             aggregatedTmpfsUsage += volumeStatistics.Usage;
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to get tmpfs disk space info (TmpfsPath: %v)",
-                tmpfsPath);
+            YT_TLOG_WARNING("Failed to get tmpfs disk space info")
+                .With("TmpfsPath", tmpfsPath)
+                .With(ex);
         }
 
         volumeStatistics.MaxUsage = std::max(MaxTmpfsUsage_[index], volumeStatistics.Usage);

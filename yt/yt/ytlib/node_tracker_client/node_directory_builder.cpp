@@ -27,8 +27,7 @@ void TNodeDirectoryBuilder::Add(TNodeId nodeId)
         return;
     }
 
-    const auto descriptor = Directory_->FindDescriptor(nodeId);
-    if (descriptor) {
+    if (const auto* descriptor = Directory_->FindDescriptor(nodeId); descriptor) {
         auto* item = ProtoDirectory_->add_items();
         item->set_node_id(ToProto(nodeId));
         ToProto(item->mutable_node_descriptor(), *descriptor);

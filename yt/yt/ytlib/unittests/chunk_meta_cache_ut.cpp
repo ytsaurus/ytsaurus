@@ -71,7 +71,7 @@ TEST(TCachedChunkMetaTest, Simple)
     auto fetchFunc = BIND(&TChunkMetaFetcherMock::Fetch, &fetcherMock);
 
     ON_CALL(fetcherMock, Fetch(_))
-        .WillByDefault(Invoke(CreateFakeChunkMetaFuture));
+        .WillByDefault(CreateFakeChunkMetaFuture);
 
     {
         InSequence sequence;
@@ -115,7 +115,7 @@ TEST(TCachedChunkMetaTest, StuckRequests)
         EXPECT_CALL(fetcherMock, Fetch(TTagList(std::vector{1, 2, 3})))
             .WillOnce(Return(stuckMeta.ToFuture()));
         EXPECT_CALL(fetcherMock, Fetch(TTagList(std::vector{4, 5, 6})))
-            .WillOnce(Invoke(CreateFakeChunkMetaFuture));
+            .WillOnce(CreateFakeChunkMetaFuture);
     }
 
     std::vector<TFuture<TRefCountedChunkMetaPtr>> stuckRequests;
@@ -159,10 +159,10 @@ TEST(TCachedChunkMetaTest, FailedRequests)
         InSequence sequence;
         EXPECT_CALL(fetcherMock, Fetch(TTagList(std::vector{1, 2, 3})))
             .Times(5)
-            .WillRepeatedly(Invoke(CreateErrorChunkMetaFuture));
+            .WillRepeatedly(CreateErrorChunkMetaFuture);
         EXPECT_CALL(fetcherMock, Fetch(TTagList(std::vector{1, 2, 3})))
             .Times(1)
-            .WillRepeatedly(Invoke(CreateFakeChunkMetaFuture));
+            .WillRepeatedly(CreateFakeChunkMetaFuture);
     }
 
     for (int index = 0; index < 5; ++index) {
@@ -206,7 +206,7 @@ TEST(TClientChunkMetaCacheTest, Simple)
 
         EXPECT_CALL(fetcherMock, Fetch(TTagList(std::vector<int>{})))
             .Times(5)
-            .WillRepeatedly(Invoke(CreateFakeChunkMetaFuture));
+            .WillRepeatedly(CreateFakeChunkMetaFuture);
     }
 
     for (int index = 0; index < 5; ++index) {
@@ -229,7 +229,7 @@ TEST(TClientChunkMetaCacheTest, Eviction)
     auto fetchFunc = BIND(&TChunkMetaFetcherMock::Fetch, &fetcherMock);
 
     ON_CALL(fetcherMock, Fetch(_))
-        .WillByDefault(Invoke(CreateFakeChunkMetaFuture));
+        .WillByDefault(CreateFakeChunkMetaFuture);
 
     std::vector<int> hugeTagList(100);
     // 0, 1, 2, .., 99

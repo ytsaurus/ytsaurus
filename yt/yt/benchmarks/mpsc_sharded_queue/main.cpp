@@ -1,5 +1,5 @@
 #include <yt/yt/core/profiling/timing.h>
-#include <yt/yt/core/profiling/tscp.h>
+#include <library/cpp/yt/system/tscp.h>
 
 #include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/mpsc_sharded_queue.h>

@@ -54,11 +54,13 @@ void TDynamicTransactionManagerTestingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("throw_on_lease_revocation", &TThis::ThrowOnLeaseRevocation)
         .Default(false);
-    registrar.Parameter("prerequisite_check_failure_during_commit_of_transactions", &TThis::PrerequisiteCheckFailureDuringCommitOfTransactions)
-        .Default();
-    registrar.Parameter("sequoia_transaction_barrier_delay", &TThis::SequoiaTransactionBarrierDelay)
+    registrar.Parameter("prepared_transactions_barrier_delay", &TThis::PreparedTransactionsBarrierDelay)
         .Optional()
         .DontSerializeDefault();
+    registrar.Parameter("prerequisite_check_failure_during_commit_of_transactions", &TThis::PrerequisiteCheckFailureDuringCommitOfTransactions)
+        .Default();
+    registrar.Parameter("artificial_participant_commit_delay", &TThis::ArtificialParticipantCommitDelay)
+        .Default(TDuration::Zero());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,14 +79,12 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(DefaultProfilingPeriod);
+    registrar.Parameter("alert_flush_period", &TThis::AlertFlushPeriod)
+        .Default(DefaultAlertFlushPeriod);
     registrar.Parameter("check_transaction_is_compatible_with_method", &TThis::CheckTransactionIsCompatibleWithMethod)
         .Default(true);
     registrar.Parameter("alert_transaction_is_not_compatible_with_method", &TThis::AlertTransactionIsNotCompatibleWithMethod)
         .Default(false);
-
-    registrar.Parameter("recompute_strongly_ordered_transaction_refs", &TThis::RecomputeStronglyOrderedTransactionRefs)
-        .Default(0)
-        .DontSerializeDefault();
 
     THashMap<EObjectType, THashSet<std::string>> defaultWhitelist;
     defaultWhitelist[EObjectType::UploadTransaction] = {
@@ -103,6 +103,9 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("transaction_type_to_method_whitelist", &TThis::TransactionTypeToMethodWhitelist)
         .Default(defaultWhitelist);
 
+    registrar.Parameter("enable_wait_until_prepared_transactions_finished", &TThis::EnableWaitUntilPreparedTransactionsFinished)
+        .Default(false);
+
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
 
@@ -117,14 +120,25 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_start_foreign_transaction_fixes", &TThis::EnableStartForeignTransactionFixes)
         .Default(false);
 
-    registrar.Parameter("enable_cypress_mirrorred_to_sequoia_prerequisite_transaction_validation_via_leases", &TThis::EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases)
-        .Default(false);
-
     registrar.Parameter("enable_non_strict_externalized_transaction_usage", &TThis::EnableNonStrictExternalizedTransactionUsage)
         .Default(true);
 
     registrar.Parameter("transaction_finisher", &TThis::TransactionFinisher)
         .DefaultNew();
+
+    registrar.Parameter("active_transaction_count_alert_threshold", &TThis::ActiveTransactionCountAlertThreshold)
+        .GreaterThanOrEqual(0)
+        .Default(200'000);
+
+    registrar.Parameter("active_transaction_count_limit", &TThis::ActiveTransactionCountLimit)
+        .GreaterThanOrEqual(0)
+        .Default(300'000);
+
+    registrar.Parameter("enforce_active_transaction_count_limit", &TThis::EnforceActiveTransactionCountLimit)
+        .Default(false);
+
+    registrar.Parameter("ignore_missing_lease_cells_on_forced_transaction_abort", &TThis::IgnoreMissingLeaseCellsOnForcedTransactionAbort)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

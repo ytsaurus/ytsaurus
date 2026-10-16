@@ -29,6 +29,8 @@ message TReqCreateScion
 
     optional string effective_annotation = 12;
     optional string effective_annotation_path = 13;
+
+    optional uint64 sequoia_revision = 15;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

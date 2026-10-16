@@ -8,17 +8,17 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/yt/server/lib/nbd/config.h>
-
-#include <yt/yt/server/lib/signature/public.h>
-
 #include <yt/yt/ytlib/chunk_client/public.h>
+
+#include <yt/yt/library/nbd/config.h>
 
 #include <yt/yt/library/dns_over_rpc/client/config.h>
 
 #include <yt/yt/library/gpu/config.h>
 
 #include <yt/yt/library/tracing/jaeger/public.h>
+
+#include <yt/yt/library/signature/components/public.h>
 
 #include <yt/yt/core/concurrency/config.h>
 
@@ -103,8 +103,6 @@ struct TSlotManagerConfig
     //! Polymorphic job environment configuration.
     NJobProxy::TJobEnvironmentConfig JobEnvironment;
 
-    bool EnableArtifactCopyTracking;
-
     //! If set, user job will not receive uid.
     //! For testing purposes only.
     bool DoNotSetUserId;
@@ -122,6 +120,11 @@ struct TSlotManagerConfig
     TSlotManagerTestingConfigPtr Testing;
 
     std::vector<TNumaNodeConfigPtr> NumaNodes;
+
+    //! Unfortunately, we cannot always allow non-root volumes to be created. I know of two cases where this flag must be disabled:
+    //! 1) The node uses Simple environment but is not running as root.
+    //! 2) The node runs in a CRI environment, but the Kubernetes configuration for the node container does not set mountPropagation: Bidirectional.
+    bool EnableNonRootVolumes;
 
     REGISTER_YSON_STRUCT(TSlotManagerConfig);
 
@@ -185,8 +188,13 @@ struct TSlotManagerDynamicConfig
     //! Copy artifacts without blocking any of the slot location IO invokers.
     bool EnableAsyncArtifactCopy;
 
+    TDuration CopyRateAggregatorHalfLife;
+
     //! Polymorphic job environment configuration.
     NJobProxy::TJobEnvironmentConfig JobEnvironment;
+
+    //! This is applied to all locations.
+    NServer::TDiskLocationDynamicConfigPtr LocationConfigPatch;
 
     REGISTER_YSON_STRUCT(TSlotManagerDynamicConfig);
 
@@ -219,6 +227,9 @@ struct TVolumeManagerDynamicConfig
     //! For testing purpuses.
     bool ThrowOnPrepareVolume;
 
+    //! For testing purposes.
+    bool ThrowOnPrepareLayers;
+
     REGISTER_YSON_STRUCT(TVolumeManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -249,6 +260,8 @@ struct TLayerCacheDynamicConfig
 
     TTmpfsLayerCacheDynamicConfigPtr TmpfsCache;
 
+    NServer::TDiskLocationDynamicConfigPtr LocationConfigPatch;
+
     REGISTER_YSON_STRUCT(TLayerCacheDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -277,7 +290,7 @@ struct TUserJobSensor
 {
     NProfiling::EMetricType Type;
 
-    TString ProfilingName;
+    std::string ProfilingName;
 
     REGISTER_YSON_STRUCT(TUserJobSensor);
 
@@ -306,9 +319,9 @@ DEFINE_REFCOUNTED_TYPE(TUserJobStatisticSensor)
 struct TUserJobMonitoringDynamicConfig
     : public NYTree::TYsonStruct
 {
-    THashMap<TString, TUserJobStatisticSensorPtr> StatisticSensors;
+    THashMap<std::string, TUserJobStatisticSensorPtr> StatisticSensors;
 
-    static const THashMap<TString, TUserJobStatisticSensorPtr>& GetDefaultStatisticSensors();
+    static const THashMap<std::string, TUserJobStatisticSensorPtr>& GetDefaultStatisticSensors();
 
     REGISTER_YSON_STRUCT(TUserJobMonitoringDynamicConfig);
 
@@ -354,6 +367,8 @@ struct TControllerAgentConnectorDynamicConfig
 
     bool ResendFullJobInfo;
 
+    bool OmitDataStatisticsFromYson;
+
     REGISTER_YSON_STRUCT(TControllerAgentConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -381,6 +396,8 @@ struct TChunkCacheDynamicConfig
     : public NYTree::TYsonStruct
 {
     bool TestCacheLocationDisabling;
+
+    bool TestDisableOnOutOfDiskSpace;
 
     REGISTER_YSON_STRUCT(TChunkCacheDynamicConfig);
 
@@ -472,11 +489,15 @@ struct TGpuManagerConfig
     bool Enable;
 
     std::optional<NYPath::TYPath> DriverLayerDirectoryPath;
-    std::optional<TString> DriverVersion;
+    std::optional<std::string> DriverVersion;
 
     NGpu::TGpuInfoProviderConfig GpuInfoProvider;
 
     TGpuManagerTestingConfigPtr Testing;
+
+    bool UseGpuInfoProviderForDeviceDiscovery;
+
+    EGpuFlavor GpuFlavor;
 
     REGISTER_YSON_STRUCT(TGpuManagerConfig);
 
@@ -501,15 +522,17 @@ struct TGpuManagerDynamicConfig
 
     NConcurrency::TPeriodicExecutorOptions DriverLayerFetching;
 
-    THashMap<TString, TString> CudaToolkitMinDriverVersion;
+    THashMap<std::string, std::string> CudaToolkitMinDriverVersion;
 
     NGpu::TGpuInfoProviderConfig GpuInfoProvider;
 
     //! This option is specific to nvidia-container-runtime.
-    TString DefaultNvidiaDriverCapabilities;
+    std::string DefaultNvidiaDriverCapabilities;
 
     bool EnableNetworkServiceLevel;
     TDuration ApplyNetworkServiceLevelTimeout;
+
+    std::optional<bool> UseGpuInfoProviderForDeviceDiscovery;
 
     REGISTER_YSON_STRUCT(TGpuManagerDynamicConfig);
 
@@ -523,9 +546,9 @@ DEFINE_REFCOUNTED_TYPE(TGpuManagerDynamicConfig)
 struct TShellCommandConfig
     : public NYTree::TYsonStruct
 {
-    TString Path;
-    std::vector<TString> Args;
-    THashMap<TString, TString> EnvironmentVariables;
+    std::string Path;
+    std::vector<std::string> Args;
+    THashMap<std::string, std::string> EnvironmentVariables;
 
     REGISTER_YSON_STRUCT(TShellCommandConfig);
 
@@ -707,6 +730,7 @@ struct TNbdConfig
     : public NYTree::TYsonStruct
 {
     bool Enabled;
+    bool ReadWriteEnabled;
     TNbdClientConfigPtr Client;
     NNbd::TNbdServerConfigPtr Server;
     i64 BlockCacheCompressedDataCapacity;
@@ -727,8 +751,8 @@ struct TJobProxyLoggingConfig
 
     NLogging::TLogManagerConfigPtr LogManagerTemplate;
 
-    std::optional<TString> JobProxyStderrPath;
-    std::optional<TString> ExecutorStderrPath;
+    std::optional<std::string> JobProxyStderrPath;
+    std::optional<std::string> ExecutorStderrPath;
 
     REGISTER_YSON_STRUCT(TJobProxyLoggingConfig);
 
@@ -754,17 +778,13 @@ struct TJobProxyConfig
 
     NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
 
-    NBus::TBusClientConfigPtr SupervisorConnection;
+    NBus::NTcp::TBusClientConfigPtr SupervisorConnection;
 
     TDuration SupervisorRpcTimeout;
 
     TDuration JobProxyHeartbeatPeriod;
 
     bool JobProxySendHeartbeatBeforeAbort;
-
-    //! This is a special testing option.
-    //! Instead of actually setting root fs, it just provides special environment variable.
-    bool TestRootFS;
 
     //! This option is used for testing purposes only.
     //! It runs job shell under root user instead of slot user.
@@ -799,13 +819,12 @@ struct TLogDumpConfig
     i64 BufferSize;
 
     // Name of the log writer which is used for dump.
-    TString LogWriterName;
+    std::string LogWriterName;
 
     REGISTER_YSON_STRUCT(TLogDumpConfig);
 
     static void Register(TRegistrar registrar);
 };
-
 
 DEFINE_REFCOUNTED_TYPE(TLogDumpConfig)
 
@@ -814,8 +833,6 @@ DEFINE_REFCOUNTED_TYPE(TLogDumpConfig)
 struct TJobProxyLogManagerConfig
     : public NYTree::TYsonStruct
 {
-    TString Directory;
-
     int ShardingKeyLength;
 
     TDuration LogsStoragePeriod;
@@ -823,7 +840,13 @@ struct TJobProxyLogManagerConfig
     // Value std::nullopt means unlimited concurrency.
     int DirectoryTraversalConcurrency;
 
+    TDuration LocationCheckPeriod;
+
     TLogDumpConfigPtr LogDump;
+
+    std::string JobProxyLogSymlinksPath;
+
+    std::vector<TJobProxyLogManagerLocationConfigPtr> Locations;
 
     REGISTER_YSON_STRUCT(TJobProxyLogManagerConfig);
 
@@ -840,7 +863,7 @@ struct TLogDumpDynamicConfig
     std::optional<i64> BufferSize;
 
     // Name of the log writer which is used for dump.
-    std::optional<TString> LogWriterName;
+    std::optional<std::string> LogWriterName;
 
     REGISTER_YSON_STRUCT(TLogDumpDynamicConfig);
 
@@ -854,6 +877,7 @@ DEFINE_REFCOUNTED_TYPE(TLogDumpDynamicConfig)
 struct TJobProxyLogManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
+    std::optional<TDuration> LocationCheckPeriod;
     std::optional<TDuration> LogsStoragePeriod;
     std::optional<int> DirectoryTraversalConcurrency;
 
@@ -865,6 +889,20 @@ struct TJobProxyLogManagerDynamicConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxyLogManagerDynamicConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJobProxyLogManagerLocationConfig
+    : public NYTree::TYsonStruct
+{
+    std::string Path;
+
+    REGISTER_YSON_STRUCT(TJobProxyLogManagerLocationConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobProxyLogManagerLocationConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

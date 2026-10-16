@@ -34,7 +34,7 @@ void CheckStackDepth()
 
 TLogger MakeQueryLogger(TGuid queryId)
 {
-    return QueryClientLogger().WithTag("FragmentId: %v", queryId);
+    return QueryClientLogger().WithTag("FragmentId", queryId);
 }
 
 TLogger MakeQueryLogger(TConstBaseQueryPtr query)
@@ -52,10 +52,10 @@ void ThrowTypeMismatchError(
     TStringBuf rhsSource)
 {
     THROW_ERROR_EXCEPTION("Type mismatch in expression %Qv", source)
-        << TErrorAttribute("lhs_source", lhsSource)
-        << TErrorAttribute("rhs_source", rhsSource)
-        << TErrorAttribute("lhs_type", lhsType)
-        << TErrorAttribute("rhs_type", rhsType);
+        .With("lhs_source", lhsSource)
+        .With("rhs_source", rhsSource)
+        .With("lhs_type", lhsType)
+        .With("rhs_type", rhsType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -246,6 +246,44 @@ bool CanOmitOrderBy(int keyPrefix, TRange<TOrderItem> orderItems, TRange<std::st
     }
 
     return true;
+}
+
+bool CanReverseScanForOrderBy(int fixedKeyPrefix, TRange<TOrderItem> orderItems, TRange<std::string> keyColumns, const TConstGroupClausePtr& groupClause)
+{
+    if (groupClause) {
+        return false;
+    }
+
+    int currentKeyIndex = fixedKeyPrefix;
+
+    for (const auto& item : orderItems) {
+        if (currentKeyIndex >= std::ssize(keyColumns)) {
+            break;
+        }
+
+        const auto* referenceExpr = item.Expression->As<TReferenceExpression>();
+        if (!referenceExpr) {
+            return false;
+        }
+
+        auto columnIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
+
+        if (columnIndex >= 0 && columnIndex < fixedKeyPrefix) {
+            continue;
+        }
+
+        if (columnIndex != currentKeyIndex) {
+            return false;
+        }
+
+        if (!item.Descending) {
+            return false;
+        }
+
+        ++currentKeyIndex;
+    }
+
+    return currentKeyIndex > fixedKeyPrefix;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

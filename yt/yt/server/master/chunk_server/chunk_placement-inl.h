@@ -4,6 +4,10 @@
 #include "chunk_placement.h"
 #endif
 
+#include "chunk_manager.h"
+
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+
 #include <yt/yt/server/master/node_tracker_server/host.h>
 #include <yt/yt/server/master/node_tracker_server/rack.h>
 
@@ -28,7 +32,10 @@ public:
         : ChunkPlacement_(chunkPlacement)
         , Medium_(medium)
         , Chunk_(chunk)
-        , MaxReplicasPerRack_(ChunkPlacement_->GetMaxReplicasPerRack(medium, chunk, replicationFactorOverride))
+        , MaxReplicasPerRack_(ChunkPlacement_->GetMaxReplicasPerRack(
+            medium->GetIndex(),
+            chunk,
+            replicationFactorOverride))
         , ReplicationFactorOverride_(replicationFactorOverride)
         , AllowMultipleReplicasPerNode_(allowMultipleReplicasPerNode)
     {
@@ -193,7 +200,7 @@ private:
     int GetMaxReplicasPerDataCenter(NNodeTrackerServer::TDataCenter* dataCenter) const
     {
         return ChunkPlacement_->GetMaxReplicasPerDataCenter(
-            Medium_,
+            Medium_->GetIndex(),
             Chunk_,
             dataCenter,
             ReplicationFactorOverride_);
@@ -323,14 +330,14 @@ TNodeList TChunkPlacement::GetWriteTargets(
     }
 
     const TLoadFactorToNodeMap* loadFactorToNodeMap = nullptr;
-    TNodeToLoadFactorMap* nodeToLoadFactorMap = nullptr;
+    TWeightedRandomNodeChooser* nodeChooser = nullptr;
 
     if (EnableTwoRandomChoicesWriteTargetAllocation_) {
-        auto it = MediumToNodeToLoadFactor_.find(medium);
-        if (it == MediumToNodeToLoadFactor_.end()) {
+        auto it = MediumToNodeChooser_.find(medium);
+        if (it == MediumToNodeChooser_.end()) {
             return TNodeList();
         } else {
-            nodeToLoadFactorMap = &it->second;
+            nodeChooser = &it->second;
         }
     } else {
         auto it = MediumToLoadFactorToNode_.find(medium);
@@ -394,7 +401,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
 
         bool hasProgress = false;
         if (EnableTwoRandomChoicesWriteTargetAllocation_) {
-            auto allocationSession = nodeToLoadFactorMap->StartAllocationSession(NodesToCheckBeforeGivingUpOnWriteTargetAllocation_);
+            auto allocationSession = nodeChooser->StartAllocationSession(NodesToCheckBeforeGivingUpOnWriteTargetAllocation_);
             while (!allocationSession.HasFailed() && !hasEnoughTargets()) {
                 auto nodeId = allocationSession.PickRandomNode();
                 auto* node = nodeTracker->GetNode(nodeId);
@@ -545,41 +552,36 @@ bool TChunkPlacement::IsValidWriteTargetToAllocate(
 
 template <typename TGenericChunk>
 int TChunkPlacement::GetMaxReplicasPerRack(
-    const TMedium* medium,
-    const TGenericChunk* chunk,
-    std::optional<int> replicationFactorOverride) const
-{
-    // For now, replication factor on offshore medium is always 1.
-    if (medium->IsOffshore()) {
-        return 1;
-    }
-
-    auto result = chunk->GetMaxReplicasPerFailureDomain(
-        medium->GetIndex(),
-        replicationFactorOverride,
-        Bootstrap_->GetChunkManager()->GetChunkRequisitionRegistry());
-    return CapPerRackReplicationFactor(result, medium, chunk);
-}
-
-template <typename TGenericChunk>
-int TChunkPlacement::GetMaxReplicasPerRack(
     int mediumIndex,
     const TGenericChunk* chunk,
     std::optional<int> replicationFactorOverride) const
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     const auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
-    return GetMaxReplicasPerRack(medium, chunk, replicationFactorOverride);
-}
 
-template <typename TGenericChunk>
-int TChunkPlacement::GetMaxReplicasPerDataCenter(
-    const TDomesticMedium* medium,
-    const TGenericChunk* chunk,
-    const NNodeTrackerServer::TDataCenter* dataCenter,
-    std::optional<int> replicationFactorOverride) const
-{
-    return GetMaxReplicasPerDataCenter(medium->GetIndex(), chunk, dataCenter, replicationFactorOverride);
+    // For now, replication factor on offshore medium is always 1.
+    if (medium->IsOffshore()) {
+        return 1;
+    }
+
+    auto maxReplicasPerRack = chunk->GetMaxReplicasPerFailureDomain(
+        mediumIndex,
+        replicationFactorOverride,
+        chunkManager->GetChunkRequisitionRegistry());
+    maxReplicasPerRack = CapPerRackReplicationFactor(maxReplicasPerRack, medium, chunk);
+
+    if (!IsDataCenterAware_) {
+        return maxReplicasPerRack;
+    }
+
+    // Temporarily unavailable data centers still participate in failure-domain accounting,
+    // so their limit also constrains the number of replicas per rack.
+    auto maxReplicasPerActiveDataCenter = DoGetMaxReplicasPerDataCenter(
+        mediumIndex,
+        chunk,
+        std::ssize(AliveStorageDataCenters_) + std::ssize(TemporarilyUnavailableStorageDataCenters_),
+        replicationFactorOverride);
+    return std::min(maxReplicasPerRack, maxReplicasPerActiveDataCenter);
 }
 
 template <typename TGenericChunk>
@@ -593,37 +595,59 @@ int TChunkPlacement::GetMaxReplicasPerDataCenter(
         return Max<int>();
     }
 
-    if (!IsDataCenterFeasible(dataCenter)) {
+    if (!IsDataCenterFeasible(dataCenter) &&
+        !IsDataCenterTemporarilyUnavailable(dataCenter))
+    {
         return 0;
     }
 
+    return DoGetMaxReplicasPerDataCenter(
+        mediumIndex,
+        chunk,
+        std::ssize(AliveStorageDataCenters_),
+        replicationFactorOverride);
+}
+
+template <typename TGenericChunk>
+int TChunkPlacement::DoGetMaxReplicasPerDataCenter(
+    int mediumIndex,
+    const TGenericChunk* chunk,
+    int dataCenterCount,
+    std::optional<int> replicationFactorOverride) const
+{
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto* chunkRequisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
 
     const auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
+    if (medium->IsOffshore()) {
+        return 1;
+    }
+
     auto replicaCount = replicationFactorOverride.value_or(
         chunk->GetPhysicalReplicationFactor(mediumIndex, chunkRequisitionRegistry));
     replicaCount = CapTotalReplicationFactor(replicaCount, chunk, medium);
-    auto aliveStorageDataCenterCount = std::ssize(AliveStorageDataCenters_);
-    if (aliveStorageDataCenterCount == 0) {
-        // Dividing by zero is bad, so case of zero alive data centers is handled separately.
-        // Actually, in this case replica allocation is impossible, so we can return any possible value.
+
+    if (dataCenterCount == 0) {
+        // No tighter bound can be enforced when no data centers are available for placement.
         return replicaCount;
     }
 
-    auto maxReplicasPerDataCenter = DivCeil<int>(replicaCount, aliveStorageDataCenterCount);
-    auto maxReplicasPerFailureDomain = chunk->GetMaxReplicasPerFailureDomain(
-        mediumIndex,
-        replicationFactorOverride,
-        chunkRequisitionRegistry);
+    auto maxReplicasPerDataCenter = DivCeil<int>(replicaCount, dataCenterCount);
 
     // Typically it's impossible to store chunk in such a way that after data center loss it is still
-    // available when one data center is already banned, so we do not consider data center as a failure
-    // domain when there are banned data centers.
+    // available when one data center is already excluded, so we do not consider data center as a failure
+    // domain when there are banned or temporarily unavailable data centers.
     // Consider a cluster with 3 data centers and chunk with erasure codec RS(6, 3). When one data center
     // is lost, at least one data center will store at least 5 of its replicas which is too much to repair
     // chunk from the rest parts.
-    if (BannedStorageDataCenters_.empty()) {
+    if (BannedStorageDataCenters_.empty() &&
+        TemporarilyUnavailableStorageDataCenters_.empty())
+    {
+        auto maxReplicasPerFailureDomain = chunk->GetMaxReplicasPerFailureDomain(
+            mediumIndex,
+            replicationFactorOverride,
+            chunkRequisitionRegistry);
+
         maxReplicasPerDataCenter = std::min<int>(maxReplicasPerDataCenter, maxReplicasPerFailureDomain);
     }
 

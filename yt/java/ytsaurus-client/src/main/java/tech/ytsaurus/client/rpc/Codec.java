@@ -205,6 +205,7 @@ class ZlibCodec extends Codec {
 
     @Override
     public byte[] compress(byte[] src) {
+        Deflater deflater = new Deflater(level);
         DeflaterOutputStream encoder = null;
         try {
             int uncompressedSize = src.length;
@@ -212,7 +213,7 @@ class ZlibCodec extends Codec {
             ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN).putLong(uncompressedSize);
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             baos.write(header);
-            encoder = new DeflaterOutputStream(baos, new Deflater(level));
+            encoder = new DeflaterOutputStream(baos, deflater);
             copy(new ByteArrayInputStream(src), encoder);
             encoder.flush();
             encoder.close();
@@ -220,8 +221,12 @@ class ZlibCodec extends Codec {
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         } finally {
-            if (encoder != null) {
-                closeQuietly(encoder);
+            try {
+                if (encoder != null) {
+                    closeQuietly(encoder);
+                }
+            } finally {
+                deflater.end();
             }
         }
     }
@@ -237,8 +242,11 @@ class ZlibCodec extends Codec {
                 throw new IllegalArgumentException(String.format("broken stream (read %d bytes)", ret));
             }
             long uncompressedSize = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN).getLong();
+            if (uncompressedSize < 0 || uncompressedSize > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException(String.format("invalid uncompressed size: %d", uncompressedSize));
+            }
             decoder = new InflaterInputStream(bais);
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream((int) uncompressedSize);
             copy(decoder, baos);
             byte[] result = baos.toByteArray();
 

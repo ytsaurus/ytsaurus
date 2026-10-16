@@ -20,15 +20,15 @@ void TDynamicSchedulerPoolManagerConfig::Register(TRegistrar registrar)
         re2::RE2 dummy1(config->PoolNameRegexForUsers);
         if (!dummy1.ok()) {
             THROW_ERROR_EXCEPTION("Failed to parse pool name validation regex for users")
-                << TErrorAttribute("regular_expression", config->PoolNameRegexForUsers)
-                << TErrorAttribute("inner_error", dummy1.error());
+                .With("regular_expression", config->PoolNameRegexForUsers)
+                .With("inner_error", dummy1.error());
         }
 
         re2::RE2 dummy2(config->PoolNameRegexForAdministrators);
         if (!dummy2.ok()) {
             THROW_ERROR_EXCEPTION("Failed to parse pool name validation regex for administrators")
-                << TErrorAttribute("regular_expression", config->PoolNameRegexForAdministrators)
-                << TErrorAttribute("inner_error", dummy2.error());
+                .With("regular_expression", config->PoolNameRegexForAdministrators)
+                .With("inner_error", dummy2.error());
         }
     });
 }

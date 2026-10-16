@@ -16,10 +16,6 @@ class MisbehavingBytesSubtype(binary_type):
         return b("bad __bytes__")
 
 class TestDecode(TestCase):
-    if not hasattr(TestCase, 'assertIs'):
-        def assertIs(self, a, b):
-            self.assertTrue(a is b, '%r is %r' % (a, b))
-
     def test_decimal(self):
         rval = json.loads('1.1', parse_float=decimal.Decimal)
         self.assertTrue(isinstance(rval, decimal.Decimal))
@@ -118,6 +114,62 @@ class TestDecode(TestCase):
         diff = id(x) - id(y)
         self.assertRaises(ValueError, j.scan_once, y, diff)
         self.assertRaises(ValueError, j.raw_decode, y, i)
+
+    def test_array_hook(self):
+        result = json.loads('[1, [2, 3], 4]', array_hook=tuple)
+        self.assertEqual(result, (1, (2, 3), 4))
+        self.assertIsInstance(result, tuple)
+
+    def test_array_hook_empty(self):
+        result = json.loads('[]', array_hook=tuple)
+        self.assertEqual(result, ())
+        self.assertIsInstance(result, tuple)
+
+    def test_array_hook_nested_in_object(self):
+        result = json.loads('{"a": [1, 2]}', array_hook=tuple)
+        self.assertEqual(result, {"a": (1, 2)})
+
+    def test_array_hook_with_object_hook(self):
+        # Both hooks applied together: array_hook on arrays,
+        # object_hook on objects
+        def freeze_dict(d):
+            return tuple(sorted(d.items()))
+        s = '{"xkd": [[1], [2], [3]]}'
+        result = json.loads(s, object_hook=freeze_dict, array_hook=tuple)
+        self.assertIsInstance(result, tuple)
+        # object_hook converts dict to sorted tuple of items
+        xkd_value = dict(result)['xkd']
+        self.assertIsInstance(xkd_value, tuple)
+        for item in xkd_value:
+            self.assertIsInstance(item, tuple)
+
+    def test_array_hook_none(self):
+        # array_hook=None should behave like no hook
+        result = json.loads('[1, 2]', array_hook=None)
+        self.assertEqual(result, [1, 2])
+        self.assertIsInstance(result, list)
+
+    def test_trailing_comma_unexpected_data(self):
+        # Matches CPython's test_unexpected_data for trailing commas
+        test_cases = [
+            ('[42,]', 'Illegal trailing comma before end of array'),
+            ('{"spam":42,}', 'Illegal trailing comma before end of object'),
+            ('{"spam":42 , }', 'Illegal trailing comma before end of object'),
+            ('[123  , ]', 'Illegal trailing comma before end of array'),
+        ]
+        for doc, expected_msg in test_cases:
+            try:
+                json.loads(doc)
+                self.fail("Expected JSONDecodeError for %r" % (doc,))
+            except json.JSONDecodeError as e:
+                self.assertIn(expected_msg, str(e),
+                    "Wrong error for %r: %s" % (doc, e))
+
+    def test_nonascii_digits_rejected(self):
+        # Non-ASCII digits (e.g. fullwidth digits) must not be accepted
+        # as JSON numbers. Matches CPython gh-125687.
+        for num in [u"1\uff10", u"0.\uff10", u"0e\uff10"]:
+            self.assertRaises(json.JSONDecodeError, json.loads, num)
 
     def test_bounded_int(self):
         # SJ-PT-23-03, limit quadratic number parsing per Python 3.11

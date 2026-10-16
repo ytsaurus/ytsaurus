@@ -17,7 +17,7 @@ The first important point in the query execution journey is the so-called _heavy
 
 The three most popular ways to access {{product-name}} are shown below.
 
-![](../../../../../../images/chyt_before_clique.png){ .center }
+![](../../../../../../_images/chyt_before_clique.png){ .center }
 
 When you access CHYT directly from a script or from the command line using the cURL utility, an SLB balancer (for example, `http://$YT_PROXY`) acts as the endpoint. Behind it lies a complex construction of balancers that directs the query to so-called *control proxies*, which respond with an HTTP redirect to the heavy proxies servicing all the heavy load in {{product-name}}. With this access interface, the `query id` matches the `trace id`: you can see them in the `X-Yt-Trace-Id` and `X-ClickHouse-Query-Id` headers.
 

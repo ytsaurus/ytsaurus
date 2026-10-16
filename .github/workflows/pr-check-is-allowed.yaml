@@ -143,6 +143,10 @@ jobs:
 
   check-pr:
     name: Check PR
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     needs:
       - check-running-allowed
     if: needs.check-running-allowed.outputs.result == 'true' && needs.check-running-allowed.outputs.commit_sha != ''

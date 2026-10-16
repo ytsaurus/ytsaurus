@@ -762,6 +762,9 @@ message TSelectObjectsOptions
     // Continuation token indicates the next record to be fetched. Opaque for the client.
     optional string continuation_token = 5;
 
+    // Upper bound token caps the selected key range. Opaque for the client.
+    optional string upper_bound_token = 11;
+
     // If true then all requested attributes will be merged into
     // root object corresponding to the object type.
     optional bool fetch_root_object = 6;

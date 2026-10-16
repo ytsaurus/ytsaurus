@@ -41,7 +41,6 @@ target_link_libraries(restricted-boost-range INTERFACE
   restricted-boost-optional
   restricted-boost-preprocessor
   restricted-boost-regex
-  restricted-boost-static_assert
   restricted-boost-tuple
   restricted-boost-type_traits
   restricted-boost-utility

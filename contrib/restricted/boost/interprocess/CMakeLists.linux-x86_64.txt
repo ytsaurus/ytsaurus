@@ -35,7 +35,6 @@ target_link_libraries(restricted-boost-interprocess INTERFACE
   restricted-boost-integer
   restricted-boost-intrusive
   restricted-boost-move
-  restricted-boost-static_assert
   restricted-boost-type_traits
   restricted-boost-unordered
   restricted-boost-winapi

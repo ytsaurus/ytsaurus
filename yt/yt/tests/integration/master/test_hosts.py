@@ -3,7 +3,7 @@ from time import sleep
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
-    authors, get_singular_chunk_id, ls, get, set, remove, create_rack, exists, create_host, create, remove_host, get_driver, set_node_banned, set_nodes_banned, wait, write_table)
+    authors, get_singular_chunk_id, ls, get, set, remove, create_rack, exists, create_host, create, remove_host, get_driver, set_node_banned, set_nodes_banned, wait, write_table, raises_yt_error)
 
 from yt.common import YtError
 
@@ -57,7 +57,6 @@ class TestHostsBase(YTEnvSetup):
         return get("//sys/racks/{}/@hosts".format(rack))
 
 
-@pytest.mark.enabled_multidaemon
 class TestHosts(TestHostsBase):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -73,21 +72,21 @@ class TestHosts(TestHostsBase):
 
     @authors("gritukan")
     def test_empty_name_fail(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Host name cannot be empty"):
             create_host("")
         assert self._get_custom_hosts() == []
 
     @authors("gritukan")
     def test_duplicate_name_fail(self):
         create_host("h")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_host("h")
         assert self._get_custom_hosts() == ["h"]
 
     @authors("gritukan")
     def test_rename_forbidden(self):
         create_host("h")
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin attribute .* cannot be set"):
             set("//sys/hosts/h/@name", "g")
         assert self._get_custom_hosts() == ["h"]
 
@@ -113,7 +112,7 @@ class TestHosts(TestHostsBase):
     @authors("gritukan")
     def test_set_invalid_host(self):
         node = ls("//sys/cluster_nodes")[0]
-        with pytest.raises(YtError):
+        with raises_yt_error("No such host .*"):
             self._set_host(node, "h")
         assert self._get_host(node) == node
         assert self._get_nodes(node) == [node]
@@ -128,7 +127,7 @@ class TestHosts(TestHostsBase):
         create_host("h")
         node = ls("//sys/cluster_nodes")[0]
         self._set_host(node, "h")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot remove host with assigned nodes"):
             remove_host("h")
 
     @authors("gritukan")
@@ -147,7 +146,7 @@ class TestHosts(TestHostsBase):
     @authors("gritukan")
     def test_set_rack_fail(self):
         create_host("h")
-        with pytest.raises(YtError):
+        with raises_yt_error("No such rack .*"):
             self._set_rack("h", "r")
 
 
@@ -275,7 +274,6 @@ class TestHostAwareReplication(TestHostsBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestHostsMulticell(TestHosts):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

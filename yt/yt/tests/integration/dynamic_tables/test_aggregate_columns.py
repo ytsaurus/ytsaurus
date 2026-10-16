@@ -5,11 +5,9 @@ from yt_commands import (
     create, create_dynamic_table, alter_table, read_table,
     start_transaction, commit_transaction,
     lookup_rows, select_rows, insert_rows, delete_rows,
-    sync_create_cells, sync_mount_table, sync_flush_table, sync_compact_table, sync_unmount_table)
+    sync_create_cells, sync_mount_table, sync_flush_table, sync_compact_table, sync_unmount_table, raises_yt_error)
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError
-
 import pytest
 
 import yt.yson as yson
@@ -24,7 +22,6 @@ from yt.xdelta_aggregate_column.bindings import XDeltaCodec
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestAggregateColumns(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -363,7 +360,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("aggregate", ["avg", "cardinality"])
     def test_invalid_aggregate(self, aggregate):
         sync_create_cells(1)
-        with pytest.raises(YtError):
+        with raises_yt_error("New table schema is not valid"):
             self._create_table_with_aggregate_column("//tmp/t", aggregate=aggregate)
 
     @authors("leasid")
@@ -500,7 +497,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         value = lookup_rows("//tmp/t", [{"key": 1}, {"key": 2}])
         assert value == [{"key": 1, "value": {"a": 3}}, {"key": 2, "value": {"h": 25, "q": 1}}]
 
-    @authors("aleksandra-zh")
+    @authors("aleksandra-zh", "grphil")
     def test_aggregate_stored_replica_set(self):
         sync_create_cells(1)
         schema = [
@@ -510,12 +507,29 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         create_dynamic_table("//tmp/t", schema=schema)
         sync_mount_table("//tmp/t")
 
-        insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList([
-            [[yson.YsonUint64(20), 1, yson.YsonUint64(2)], [yson.YsonUint64(30), 3, yson.YsonUint64(4)]],
-            []
-        ])}], aggregate=True)
+        insert_rows("//tmp/t", [
+            {
+                "key": 1,
+                "value": yson.YsonList([
+                    [[yson.YsonUint64(20), 1, yson.YsonUint64(2)], [yson.YsonUint64(30), 3, yson.YsonUint64(4)]],
+                    []
+                ])
+            },
+            {
+                "key": 2,
+                "value": yson.YsonList([
+                    [[yson.YsonUint64(1), 1, yson.YsonUint64(1), yson.YsonUint64(1)],
+                     [yson.YsonUint64(2), 2, yson.YsonUint64(2), yson.YsonUint64(2)]],
+                    [],
+                ])
+            }], aggregate=True)
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
         assert value == [[yson.YsonUint64(20), 1, yson.YsonUint64(2)], [yson.YsonUint64(30), 3, yson.YsonUint64(4)]]
+        value = lookup_rows("//tmp/t", [{"key": 2}])[0]["value"]
+        assert value == [
+            [yson.YsonUint64(1), 1, yson.YsonUint64(1), yson.YsonUint64(1)],
+            [yson.YsonUint64(2), 2, yson.YsonUint64(2), yson.YsonUint64(2)],
+        ]
 
         insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList([
             [],
@@ -538,6 +552,65 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
 
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
         assert value == []
+
+        insert_rows("//tmp/t", [{"key": 2, "value": yson.YsonList([
+            [[yson.YsonUint64(1), 1, yson.YsonUint64(1), yson.YsonUint64(2)]],
+            [],
+        ])}], aggregate=True)
+        value = lookup_rows("//tmp/t", [{"key": 2}])[0]["value"]
+        assert value == [[yson.YsonUint64(1), 1, yson.YsonUint64(1), yson.YsonUint64(2)], [yson.YsonUint64(2), 2, yson.YsonUint64(2), yson.YsonUint64(2)]]
+
+        insert_rows("//tmp/t", [{"key": 2, "value": yson.YsonList([
+            [],
+            [[yson.YsonUint64(2), 2, yson.YsonUint64(2)]]
+        ])}], aggregate=True)
+        value = lookup_rows("//tmp/t", [{"key": 2}])[0]["value"]
+        assert value == [[yson.YsonUint64(1), 1, yson.YsonUint64(1), yson.YsonUint64(2)]]
+
+        insert_rows("//tmp/t", [{"key": 2, "value": yson.YsonList([
+            [],
+            [[yson.YsonUint64(1), 1, yson.YsonUint64(1), yson.YsonUint64(3)]]
+        ])}], aggregate=True)
+        value = lookup_rows("//tmp/t", [{"key": 2}])[0]["value"]
+        assert value == []
+
+    @authors("babenko")
+    def test_aggregate_inferrum_kv_cache_replica_set(self):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any", "aggregate": "_inferrum_kv_cache_replica_set"},
+        ]
+        create_dynamic_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+
+        def make_delta(added, removed):
+            return yson.YsonList([
+                [yson.YsonUint64(replica) for replica in added],
+                [yson.YsonUint64(replica) for replica in removed],
+            ])
+
+        def make_state(replicas):
+            return [yson.YsonUint64(replica) for replica in replicas]
+
+        insert_rows("//tmp/t", [
+            {"key": 1, "value": make_delta([20, 30], [])},
+            {"key": 2, "value": make_delta([1, 2], [])},
+        ], aggregate=True)
+        assert lookup_rows("//tmp/t", [{"key": 1}])[0]["value"] == make_state([20, 30])
+        assert lookup_rows("//tmp/t", [{"key": 2}])[0]["value"] == make_state([1, 2])
+
+        insert_rows("//tmp/t", [{"key": 1, "value": make_delta([], [20])}], aggregate=True)
+        assert lookup_rows("//tmp/t", [{"key": 1}])[0]["value"] == make_state([30])
+
+        insert_rows("//tmp/t", [{"key": 1, "value": make_delta([20, 40], [])}], aggregate=True)
+        assert lookup_rows("//tmp/t", [{"key": 1}])[0]["value"] == make_state([20, 30, 40])
+
+        insert_rows("//tmp/t", [{"key": 1, "value": make_delta([], [20, 30, 40])}], aggregate=True)
+        assert lookup_rows("//tmp/t", [{"key": 1}])[0]["value"] == []
+
+        insert_rows("//tmp/t", [{"key": 2, "value": make_delta([2, 3], [1])}], aggregate=True)
+        assert lookup_rows("//tmp/t", [{"key": 2}])[0]["value"] == make_state([2, 3])
 
     @authors("aleksandra-zh")
     def test_aggregate_last_seen_replica_set(self):
@@ -591,7 +664,6 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestAggregateColumnsMulticell(TestAggregateColumns):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -602,7 +674,6 @@ class TestAggregateColumnsMulticell(TestAggregateColumns):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestAggregateColumnsRpcProxy(TestAggregateColumns):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

@@ -10,7 +10,7 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/yt/core/misc/property.h>
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NLsm::NTesting {
 

@@ -1,0 +1,78 @@
+package NYT.NDistributedChunkSessionClient.NProto;
+
+import "yt/ytlib/chunk_client/proto/session_id.proto";
+
+import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
+import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TWriteRecordStatistics
+{
+    optional int64 data_weight = 1;
+    optional int64 uncompressed_data_size = 2;
+    optional int64 row_count = 3;
+}
+
+message TSessionProgress
+{
+    optional int64 data_weight = 1;
+    optional int64 compressed_data_size = 2;
+    optional int64 uncompressed_data_size = 3;
+    optional int64 record_count = 4;
+    optional int64 row_count = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartSession
+{
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    required uint64 session_timeout = 2;
+    repeated fixed64 chunk_replicas = 3;
+    required bytes journal_chunk_writer_options = 4 [(NYT.NYson.NProto.yson_string) = true];
+    required bytes journal_chunk_writer_config = 5 [(NYT.NYson.NProto.yson_string) = true];
+    optional NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 6;
+}
+
+message TRspStartSession
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPingSession
+{
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+}
+
+message TRspPingSession
+{
+    optional TSessionProgress progress = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqWriteRecord
+{
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    optional TWriteRecordStatistics statistics = 2;
+}
+
+message TRspWriteRecord
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFinishSession
+{
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+}
+
+message TRspFinishSession
+{
+    optional TSessionProgress progress = 1;
+}

@@ -19,6 +19,8 @@ using NNodeTrackerClient::TChunkLocationIndex;
 
 using NNodeTrackerClient::TNodeId;
 
+using TLocationCountPerMedium = THashMap<std::string, int>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSessionOptions;
@@ -88,6 +90,9 @@ DECLARE_REFCOUNTED_STRUCT(TJournalManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TJobControllerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TDataNodeConfig)
 DECLARE_REFCOUNTED_STRUCT(TDataNodeDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TMediumAwareBlockCacheManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TMediumAwareBlockCacheManagerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(IMediumAwareBlockCacheManager)
 DECLARE_REFCOUNTED_STRUCT(TLayerLocationConfig)
 DECLARE_REFCOUNTED_STRUCT(TTmpfsLayerCacheConfig)
 DECLARE_REFCOUNTED_STRUCT(TVolumeManagerConfig)
@@ -137,6 +142,12 @@ YT_DEFINE_ERROR_ENUM(
     ((LocalChunkReaderFailed)    (1300))
     // This is deprecated, since volume manager is now a part of data node.
     // ((LayerUnpackingFailed)      (1301))
+);
+
+DEFINE_ENUM(EReadIORequestsMode,
+    (Sequential)
+    (Batched)
+    (Parallel)
 );
 
 DEFINE_ENUM(EDataNodeThrottlerKind,

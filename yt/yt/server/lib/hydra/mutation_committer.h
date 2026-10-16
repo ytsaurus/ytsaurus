@@ -24,9 +24,10 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/mpsc_queue.h>
-#include <yt/yt/core/misc/ring_queue.h>
 
 #include <yt/yt/library/tracing/async_queue_trace.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 namespace NYT::NHydra {
 
@@ -40,7 +41,15 @@ struct TMutationDraft
 };
 
 using TMutationDraftQueue = TMpscQueue<TMutationDraft>;
-using TMutationDraftQueuePtr = TIntrusivePtr<TMutationDraftQueue>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Given, for each voting peer, its last logged sequence number paired with its weight,
+//! returns the highest sequence number reached by peers whose weights sum to at least
+//! quorumWeight, or -1 if no such sequence number exists.
+i64 ComputeQuorumSequenceNumber(
+    std::vector<std::pair<i64, int>> loggedSequenceNumbersAndWeights,
+    int quorumWeight);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,7 +123,6 @@ public:
         const TDistributedHydraManagerOptions& options,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TLeaderLeasePtr leaderLease,
-        TMutationDraftQueuePtr mutationDraftQueue,
         IChangelogPtr changelog,
         TReachableState reachableState,
         TEpochContext* epochContext,
@@ -136,17 +144,21 @@ public:
     void Start();
     void Stop();
 
-    void SerializeMutations();
+    //! True between Start() and Stop(): the manager's pump only forwards drafts to an
+    //! active committer (otherwise it drops them).
+    bool IsActive() const;
+
+    void SerializeMutations(TMutationDraftQueue* mutationDraftQueue);
 
     void BuildMonitoring(NYTree::TFluentMap fluent);
 
 private:
-    const TMutationDraftQueuePtr MutationDraftQueue_;
     const TLeaderLeasePtr LeaderLease_;
 
     const NConcurrency::TPeriodicExecutorPtr FlushMutationsExecutor_;
-    const NConcurrency::TPeriodicExecutorPtr SerializeMutationsExecutor_;
     const NConcurrency::TPeriodicExecutorPtr CheckpointCheckExecutor_;
+
+    bool Active_ = false;
 
     struct TPeerState
     {
@@ -263,11 +275,15 @@ public:
 
     i64 GetLoggedSequenceNumber() const;
     i64 GetExpectedSequenceNumber() const;
+    i64 GetCommittedSequenceNumber() const;
     void SetSequenceNumber(i64 number);
 
     void BuildMonitoring(NYTree::TFluentMap fluent);
 
     void CatchUp();
+
+    //! Drops uncommitted mutations before restart. Unsafe!
+    TFuture<void> TruncateChangelog(i64 lastSequenceNumber);
 
     //! Cleans things up, aborts all pending mutations with a human-readable error.
     void Stop();

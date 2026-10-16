@@ -1,6 +1,8 @@
 #include "table_reader.h"
 
 #include "client.h"
+#include "helpers.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/table_client/table_read_spec.h>
 
@@ -37,6 +39,8 @@
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
+
+#include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/rpc/public.h>
 
@@ -80,6 +84,9 @@ public:
         , RpsThrottler_(std::move(rpsThrottler))
         , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
+        , Logger(ApiLogger()
+            .WithTag("Path", RichPath_.GetPath())
+            .WithTag("TransactionId", TransactionId_))
     {
         YT_VERIFY(Config_);
         YT_VERIFY(Client_);
@@ -87,6 +94,12 @@ public:
         ReadyEvent_ = BIND(&TTableReader::DoOpen, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
             .Run();
+    }
+
+    ~TTableReader()
+    {
+        YT_TLOG_DEBUG("Table reader timing statistics")
+            .With("TimingStatistics", TTableReader::GetTimingStatistics());
     }
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -135,6 +148,19 @@ public:
         return Reader_->GetDataStatistics();
     }
 
+    TTableReaderTimingStatistics GetTimingStatistics() const override
+    {
+        TTableReaderTimingStatistics statistics;
+        if (ReadyEvent_.IsSet()) {
+            statistics.MasterFetchTime = MasterFetchTime_;
+            if (ReadyEvent_.GetOrCrash().IsOK() && UnderlyingReaderTracksTiming_) {
+                statistics.DataReadTiming = Reader_->GetTimingStatistics();
+            }
+        }
+        statistics.TotalTime = TotalTimer_.GetElapsedTime();
+        return statistics;
+    }
+
     const TNameTablePtr& GetNameTable() const override
     {
         YT_VERIFY(Reader_);
@@ -165,6 +191,12 @@ private:
     const IThroughputThrottlerPtr RpsThrottler_;
     const TTransactionId TransactionId_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
+    const NLogging::TLogger Logger;
+
+    const NProfiling::TWallTimer TotalTimer_;
+    std::optional<TDuration> MasterFetchTime_;
+    // TODO(achains): drop once TSchemalessMergingMultiChunkReader tracks timing statistics.
+    bool UnderlyingReaderTracksTiming_ = false;
 
     TFuture<void> ReadyEvent_;
     ISchemalessMultiChunkReaderPtr Reader_;
@@ -181,8 +213,6 @@ private:
 
         auto readSessionId = TReadSessionId::Create();
         auto fetchTableReadSpecOptions = TFetchSingleTableReadSpecOptions{
-            .RichPath = RichPath_,
-            .Client = Client_,
             .TransactionId = Options_.TransactionId,
             .ReadSessionId = readSessionId,
             .GetUserObjectBasicAttributesOptions = TGetUserObjectBasicAttributesOptions{
@@ -198,17 +228,23 @@ private:
             .ChunkAvailabilityPolicy = tableReaderConfig->ChunkAvailabilityPolicy,
         };
 
-        TClientChunkReadOptions chunkReadOptions;
-        chunkReadOptions.MemoryUsageTracker = MemoryUsageTracker_;
-        chunkReadOptions.WorkloadDescriptor = tableReaderConfig->WorkloadDescriptor;
-        chunkReadOptions.WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
-        chunkReadOptions.ReadSessionId = readSessionId;
+        auto chunkReadOptions = MakeChunkReadOptions(
+            readSessionId,
+            MemoryUsageTracker_,
+            tableReaderConfig,
+            RichPath_.GetPath());
 
-        auto tableReadSpec = FetchSingleTableReadSpec(fetchTableReadSpecOptions);
+        NChunkClient::TUserObject userObject(RichPath_);
+        auto tableReadSpec = [&] {
+            MasterFetchTime_.emplace();
+            NProfiling::TValueIncrementingTimingGuard<NProfiling::TWallTimer> timingGuard(&*MasterFetchTime_);
+            return FetchSingleTableReadSpec(&userObject, Client_, fetchTableReadSpecOptions);
+        }();
         YT_VERIFY(tableReadSpec.DataSourceDirectory->DataSources().size() == 1);
         const auto& dataSource = tableReadSpec.DataSourceDirectory->DataSources().front();
         TableSchema_ = dataSource->Schema();
         OmittedInaccessibleColumns_ = dataSource->OmittedInaccessibleColumns();
+        UnderlyingReaderTracksTiming_ = dataSource->GetType() != EDataSourceType::VersionedTable;
         Reader_ = CreateAppropriateSchemalessMultiChunkReader(
             tableReaderOptions,
             tableReaderConfig,

@@ -72,7 +72,7 @@ DEFINE_REFCOUNTED_TYPE(TLogTableConfig)
 struct TLogFileConfig
     : public NYTree::TYsonStruct
 {
-    TString Path;
+    std::string Path;
     std::vector<TLogTableConfigPtr> Tables;
 
     REGISTER_YSON_STRUCT(TLogFileConfig);

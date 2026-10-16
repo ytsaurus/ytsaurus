@@ -30,9 +30,7 @@ import avro
 import avro.io
 
 from confluent_kafka.avro import ClientError
-from confluent_kafka.avro.serializer import (SerializerError,
-                                             KeySerializerError,
-                                             ValueSerializerError)
+from confluent_kafka.avro.serializer import KeySerializerError, SerializerError, ValueSerializerError
 
 log = logging.getLogger(__name__)
 
@@ -101,7 +99,7 @@ class MessageSerializer(object):
         """
         serialize_err = KeySerializerError if is_key else ValueSerializerError
 
-        subject_suffix = ('-key' if is_key else '-value')
+        subject_suffix = '-key' if is_key else '-value'
         # get the latest schema for the subject
         subject = topic + subject_suffix
         if self.registry_client.auto_register_schemas:
@@ -190,7 +188,8 @@ class MessageSerializer(object):
                 payload.seek(curr_pos)
 
                 self.id_to_decoder_func[schema_id] = lambda p: schemaless_reader(
-                    p, fast_avro_writer_schema, fast_avro_reader_schema)
+                    p, fast_avro_writer_schema, fast_avro_reader_schema
+                )
                 return self.id_to_decoder_func[schema_id]
             except Exception:
                 log.warning("Fast avro failed for schema with id %d, falling thru to standard avro" % (schema_id))

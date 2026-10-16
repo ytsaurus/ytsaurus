@@ -269,34 +269,36 @@ TPartition* TStoreManager::FindPartition(TStore* store) const
 
 void TStoreManager::StartCompaction(TCompactionRequest request)
 {
-    auto Logger = NTesting::Logger().WithTag("PartitionId: %v, Reason: %v", request.PartitionId, request.Reason);
+    auto Logger = NTesting::Logger()
+        .WithTag("PartitionId", request.PartitionId)
+        .WithTag("Reason", request.Reason);
     auto* partition = Tablet_->FindPartition(request.PartitionId);
     if (!partition) {
-        YT_LOG_INFO("Cannot compact partition since partition is missing");
+        YT_TLOG_INFO("Cannot compact partition since partition is missing");
         return;
     }
     if (partition->GetState() != EPartitionState::Normal) {
-        YT_LOG_INFO("Cannot compact partition since state is bad (State: %v)",
-            partition->GetState());
+        YT_TLOG_INFO("Cannot compact partition since state is bad")
+            .With("State", partition->GetState());
         return;
     }
     std::vector<TStore*> stores;
     for (auto storeId : request.Stores) {
         auto* store = partition->FindStore(storeId);
         if (!store) {
-            YT_LOG_INFO("Cannot compact since store is missing (StoreId: %v)",
-                storeId);
+            YT_TLOG_INFO("Cannot compact since store is missing")
+                .With("StoreId", storeId);
             return;
         }
         if (!store->GetIsCompactable()) {
-            YT_LOG_INFO("Cannot compact since store is not compactable (StoreId: %v)",
-                storeId);
+            YT_TLOG_INFO("Cannot compact since store is not compactable")
+                .With("StoreId", storeId);
             return;
         }
         if (store->GetCompactionState() != EStoreCompactionState::None) {
-            YT_LOG_INFO("Cannot compact since store has wrong compaction state (StoreId: %v, State: %v)",
-                storeId,
-                store->GetCompactionState());
+            YT_TLOG_INFO("Cannot compact since store has wrong compaction state")
+                .With("StoreId", storeId)
+                .With("State", store->GetCompactionState());
             return;
         }
         stores.push_back(store);
@@ -316,7 +318,7 @@ void TStoreManager::StartCompaction(TCompactionRequest request)
         CompactionThrottler_.Acquire(store->GetCompressedDataSize());
     }
 
-    YT_LOG_INFO("Partition compaction started");
+    YT_TLOG_INFO("Partition compaction started");
 
     // Slightly imprecise: should take timestamp from LSM action batch.
     auto retentionTimestamp = InstantToTimestamp(ActionQueue_->GetNow() - MountConfig_->MaxDataTtl).first;
@@ -346,7 +348,7 @@ void TStoreManager::FinishCompaction(
 {
     auto* partition = Tablet_->FindPartition(request.PartitionId);
     if (!partition) {
-        YT_LOG_INFO("Cannot finish compaction since partition is missing");
+        YT_TLOG_INFO("Cannot finish compaction since partition is missing");
         return;
     }
     YT_VERIFY(partition->GetState() == EPartitionState::Compacting);
@@ -392,40 +394,42 @@ void TStoreManager::FinishCompaction(
 
     UpdateOverlappingStoreCount();
 
-    YT_LOG_INFO("Partition compaction completed");
+    YT_TLOG_INFO("Partition compaction completed");
 }
 
 void TStoreManager::StartPartitioning(TCompactionRequest request)
 {
-    auto Logger = NTesting::Logger().WithTag("PartitionId: %v, Reason: %v", request.PartitionId, request.Reason);
+    auto Logger = NTesting::Logger()
+        .WithTag("PartitionId", request.PartitionId)
+        .WithTag("Reason", request.Reason);
     auto* partition = Tablet_->FindPartition(request.PartitionId);
     YT_VERIFY(partition->IsEden());
     if (!partition) {
-        YT_LOG_INFO("Cannot partition Eden since partition is missing");
+        YT_TLOG_INFO("Cannot partition Eden since partition is missing");
         return;
     }
     if (partition->GetState() != EPartitionState::Normal) {
-        YT_LOG_INFO("Cannot compact partition since state is bad (State: %v)",
-            partition->GetState());
+        YT_TLOG_INFO("Cannot compact partition since state is bad")
+            .With("State", partition->GetState());
         return;
     }
     std::vector<TStore*> stores;
     for (auto storeId : request.Stores) {
         auto* store = partition->FindStore(storeId);
         if (!store) {
-            YT_LOG_INFO("Cannot compact since store is missing (StoreId: %v)",
-                storeId);
+            YT_TLOG_INFO("Cannot compact since store is missing")
+                .With("StoreId", storeId);
             return;
         }
         if (!store->GetIsCompactable()) {
-            YT_LOG_INFO("Cannot compact since store is not compactable (StoreId: %v)",
-                storeId);
+            YT_TLOG_INFO("Cannot compact since store is not compactable")
+                .With("StoreId", storeId);
             return;
         }
         if (store->GetCompactionState() != EStoreCompactionState::None) {
-            YT_LOG_INFO("Cannot compact since store has wrong compaction state (StoreId: %v, State: %v)",
-                storeId,
-                store->GetCompactionState());
+            YT_TLOG_INFO("Cannot compact since store has wrong compaction state")
+                .With("StoreId", storeId)
+                .With("State", store->GetCompactionState());
             return;
         }
         stores.push_back(store);
@@ -444,7 +448,7 @@ void TStoreManager::StartPartitioning(TCompactionRequest request)
         PartitioningThrottler_.Acquire(store->GetCompressedDataSize());
     }
 
-    YT_LOG_INFO("Eden partitioning started");
+    YT_TLOG_INFO("Eden partitioning started");
 
     std::vector<TKey> pivots;
     for (const auto& partition : Tablet_->Partitions()) {
@@ -480,7 +484,7 @@ void TStoreManager::FinishPartitioning(
 {
     auto* partition = Tablet_->FindPartition(request.PartitionId);
     if (!partition) {
-        YT_LOG_INFO("Cannot finish partitioning since partition is missing");
+        YT_TLOG_INFO("Cannot finish partitioning since partition is missing");
         return;
     }
     YT_VERIFY(partition->GetState() == EPartitionState::Partitioning);
@@ -523,7 +527,7 @@ void TStoreManager::FinishPartitioning(
 
     UpdateOverlappingStoreCount();
 
-    YT_LOG_INFO("Eden partitioning completed");
+    YT_TLOG_INFO("Eden partitioning completed");
 }
 
 void TStoreManager::DoGetSamples(
@@ -553,7 +557,8 @@ void TStoreManager::DoGetSamples(
 
 void TStoreManager::RotateStore(TRotateStoreRequest request)
 {
-    YT_LOG_INFO("Rotating store (Reason: %v)", request.Reason);
+    YT_TLOG_INFO("Rotating store")
+        .With("Reason", request.Reason);
 
     if (request.Reason == EStoreRotationReason::Periodic) {
         if (GetLastPeriodicRotationTime() != request.ExpectedLastPeriodicRotationTime) {
@@ -578,23 +583,23 @@ void TStoreManager::RotateStore(TRotateStoreRequest request)
 
 void TStoreManager::StartSplitPartition(TSplitPartitionRequest request)
 {
-    auto Logger = NTesting::Logger().WithTag("PartitionId: %v", request.PartitionId);
+    auto Logger = NTesting::Logger().WithTag("PartitionId", request.PartitionId);
     auto* partition = Tablet_->FindPartition(request.PartitionId);
     if (!partition) {
-        YT_LOG_INFO("Cannot split partition since partition is missing");
+        YT_TLOG_INFO("Cannot split partition since partition is missing");
         return;
     }
     if (partition->GetIndex() != request.PartitionIndex) {
-        YT_LOG_INFO("Cannot split partition due to index mismatch");
+        YT_TLOG_INFO("Cannot split partition due to index mismatch");
         return;
     }
     if (partition->GetState() != EPartitionState::Normal) {
-        YT_LOG_INFO("Cannot split partition since partition is in invalid state (State: %v)",
-            partition->GetState());
+        YT_TLOG_INFO("Cannot split partition since partition is in invalid state")
+            .With("State", partition->GetState());
         return;
     }
 
-    YT_LOG_INFO("Splitting partition");
+    YT_TLOG_INFO("Splitting partition");
 
     partition->SetState(EPartitionState::Splitting);
     DoGetSamples(
@@ -614,19 +619,18 @@ void TStoreManager::FinishSplitPartition(
     TSplitPartitionRequest request,
     std::vector<TNativeKey> pivots)
 {
-    auto Logger = NTesting::Logger().WithTag("PartitionId: %v", request.PartitionId);
+    auto Logger = NTesting::Logger().WithTag("PartitionId", request.PartitionId);
     auto* partition = Tablet_->FindPartition(request.PartitionId);
     if (!partition) {
-        YT_LOG_INFO("Cannot split partition since partition is missing");
+        YT_TLOG_INFO("Cannot split partition since partition is missing");
         return;
     }
     YT_VERIFY(partition->GetState() == EPartitionState::Splitting);
 
-    YT_LOG_INFO("Splitting partition (Index: %v, PivotKeys: %v .. %v, NewPivots: %v)",
-        partition->GetIndex(),
-        partition->PivotKey(),
-        partition->NextPivotKey(),
-        MakeFormattableView(pivots, TDefaultFormatter{}));
+    YT_TLOG_INFO("Splitting partition")
+        .With("Index", partition->GetIndex())
+        .WithFormat("PivotKeys", "%v .. %v", partition->PivotKey(), partition->NextPivotKey())
+        .With("NewPivots", MakeFormattableView(pivots, TDefaultFormatter{}));
 
     auto oldStores = std::move(partition->Stores());
     auto& partitions = Tablet_->Partitions();
@@ -668,12 +672,12 @@ void TStoreManager::FinishSplitPartition(
             ssize(pivots));
     }
 
-    YT_LOG_INFO("Partition split");
+    YT_TLOG_INFO("Partition split");
 }
 
 void TStoreManager::MergePartitions(TMergePartitionsRequest request)
 {
-    auto Logger = NTesting::Logger().WithTag("PartitionIds: %v", request.PartitionIds);
+    auto Logger = NTesting::Logger().WithTag("PartitionIds", request.PartitionIds);
 
     // Validation.
     {
@@ -681,18 +685,19 @@ void TStoreManager::MergePartitions(TMergePartitionsRequest request)
         for (auto partitionId : request.PartitionIds) {
             auto* partition = Tablet_->FindPartition(partitionId);
             if (!partition) {
-                YT_LOG_INFO("Cannot merge partitions since one of partitions is missing");
+                YT_TLOG_INFO("Cannot merge partitions since one of partitions is missing");
                 return;
             }
 
             if (partition->GetIndex() != partitionIndex) {
-                YT_LOG_INFO("Cannot merge partitions due to index mismatch");
+                YT_TLOG_INFO("Cannot merge partitions due to index mismatch");
                 return;
             }
 
             if (partition->GetState() != EPartitionState::Normal) {
-                YT_LOG_INFO("Cannot merge partitions since partition is in invalid state (PartitionId: %v, State: %v)",
-                    partition->GetId(), partition->GetState());
+                YT_TLOG_INFO("Cannot merge partitions since partition is in invalid state")
+                    .With("PartitionId", partition->GetId())
+                    .With("State", partition->GetState());
                 return;
             }
 
@@ -700,7 +705,7 @@ void TStoreManager::MergePartitions(TMergePartitionsRequest request)
         }
     }
 
-    YT_LOG_INFO("Merging partitions");
+    YT_TLOG_INFO("Merging partitions");
 
     std::vector<std::unique_ptr<TStore>> oldStores;
     for (auto partitionId : request.PartitionIds) {
@@ -751,7 +756,7 @@ void TStoreManager::MergePartitions(TMergePartitionsRequest request)
             newPartition);
     }
 
-    YT_LOG_INFO("Partitions merged");
+    YT_TLOG_INFO("Partitions merged");
 }
 
 void TStoreManager::OnStoreFlushed(std::unique_ptr<TStore> store)
@@ -766,14 +771,13 @@ void TStoreManager::OnStoreFlushed(std::unique_ptr<TStore> store)
 
     store->SetPartition(partition);
 
-    YT_LOG_INFO("Added store to tablet (StoreId: %v, PartitionId: %v, Eden: %v, "
-        "MinKey: %v, UpperBoundKey: %v, Size: %v)",
-        store->GetId(),
-        partition->GetId(),
-        partition->IsEden(),
-        store->MinKey(),
-        store->UpperBoundKey(),
-        store->GetUncompressedDataSize());
+    YT_TLOG_INFO("Added store to tablet")
+        .With("StoreId", store->GetId())
+        .With("PartitionId", partition->GetId())
+        .With("Eden", partition->IsEden())
+        .With("MinKey", store->MinKey())
+        .With("UpperBoundKey", store->UpperBoundKey())
+        .With("Size", store->GetUncompressedDataSize());
 
     if (StructuredLogger_) {
         StructuredLogger_->OnTabletStoresUpdateCommitted(

@@ -2,6 +2,7 @@
 
 #include <yt/yt/library/query/base/ast_visitors.h>
 #include <yt/yt/library/query/base/ast.h>
+#include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/misc/objects_holder.h>
 
 #include <yt/yt/orm/client/misc/error.h>
@@ -10,7 +11,7 @@
 
 using namespace NYT::NQueryClient::NAst;
 
-namespace NYT::NOrm::NServer::NObjects {
+namespace NYT::NOrm::NQuery {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,8 +24,6 @@ DEFINE_ENUM(EFilterPlace,
     (Where)
     // Subexpression should be put in having clause of select query.
     (Having)
-    // Subexpression is a join predicate.
-    (JoinPredicate)
     // Subexpression contains expression belonging to different parts of select query.
     (Heterogenous)
 );
@@ -32,9 +31,42 @@ DEFINE_ENUM(EFilterPlace,
 struct TFilterType
 {
     EFilterPlace Place = EFilterPlace::Unknown;
-    std::string JoinName;
-
     bool operator==(const TFilterType& other) const = default;
+};
+
+bool IsAggregateFunction(
+    const NQueryClient::TConstTypeInferrerMapPtr& functions,
+    const std::string& functionName)
+{
+    auto it = functions->find(functionName);
+    return it != functions->end() && it->second->IsAggregate();
+}
+
+class TAggregateFunctionChecker
+    : public TAstVisitor<TAggregateFunctionChecker>
+{
+public:
+    using TBase = TAstVisitor<TAggregateFunctionChecker>;
+    using TBase::Visit;
+
+    void OnFunction(const TFunctionExpressionPtr functionExpr)
+    {
+        if (IsAggregateFunction(Functions_, functionExpr->FunctionName)) {
+            HasAggregateFunction_ = true;
+            return;
+        }
+
+        TBase::OnFunction(functionExpr);
+    }
+
+    bool HasAggregateFunction() const
+    {
+        return HasAggregateFunction_;
+    }
+
+private:
+    const NQueryClient::TConstTypeInferrerMapPtr Functions_ = NQueryClient::GetBuiltinTypeInferrers();
+    bool HasAggregateFunction_ = false;
 };
 
 class TFilterSplitter
@@ -55,9 +87,9 @@ public:
         return {};
     }
 
-    TFilterType OnReference(const TReferenceExpressionPtr /*referenceExpr*/)
+    TFilterType OnReference(const TReferenceExpressionPtr referenceExpr)
     {
-        return {};
+        return GetExpressionFilterTypeHint(referenceExpr, /*isReference*/ true);
     }
 
     TFilterType OnAlias(const TAliasExpressionPtr aliasExpr)
@@ -66,7 +98,7 @@ public:
         auto type = Visit(aliasExpr->Expression);
         if (type.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot alias heterogenous expression in filter")
-                << TErrorAttribute("expression", FormatExpression(*aliasExpr->Expression)));
+                .With("expression", FormatExpression(*aliasExpr->Expression)));
         }
         return type;
     }
@@ -77,7 +109,7 @@ public:
         auto type = Visit(unaryExpr->Operand);
         if (type.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot apply unary %lv on heterogenous expression in filter", unaryExpr->Opcode)
-                << TErrorAttribute("expression", FormatExpression(unaryExpr->Operand)));
+                .With("expression", FormatExpression(unaryExpr->Operand)));
         }
         return type;
     }
@@ -110,7 +142,7 @@ public:
         auto commonType = GetCommonType(lhsType, rhsType);
         if (commonType.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot apply binary %lv to heterogenous operands", binaryExpr->Opcode)
-                << TErrorAttribute("expression", FormatExpression(*binaryExpr)));
+                .With("expression", FormatExpression(*binaryExpr)));
         }
         return commonType;
     }
@@ -130,8 +162,13 @@ public:
         auto type = Visit(functionExpr->Arguments);
         if (type.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot call function %v with heterogenous arguments", functionExpr->FunctionName)
-                << TErrorAttribute("expression", FormatExpression(*functionExpr)));
+                .With("expression", FormatExpression(*functionExpr)));
         }
+
+        if (IsAggregateFunction(Functions_, functionExpr->FunctionName)) {
+            return {.Place = EFilterPlace::Having};
+        }
+
         return type;
     }
 
@@ -141,7 +178,7 @@ public:
         auto type = Visit(inExpr->Expr);
         if (type.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot use in with heterogenous expression")
-                << TErrorAttribute("expression", FormatExpression(*inExpr)));
+                .With("expression", FormatExpression(*inExpr)));
         }
         return type;
     }
@@ -152,7 +189,7 @@ public:
         auto type = Visit(betweenExpr->Expr);
         if (type.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot use between with heterogenous expression")
-                << TErrorAttribute("expression", FormatExpression(*betweenExpr)));
+                .With("expression", FormatExpression(*betweenExpr)));
         }
         return type;
     }
@@ -168,7 +205,7 @@ public:
 
         if (type.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot use transform with heterogenous arguments")
-                << TErrorAttribute("expression", FormatExpression(*transformExpr)));
+                .With("expression", FormatExpression(*transformExpr)));
         }
         return type;
     }
@@ -192,7 +229,7 @@ public:
         auto commonType = GetCommonType(types);
         if (commonType.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot use case with heterogenous arguments")
-                << TErrorAttribute("expression", FormatExpression(*caseExpr)));
+                .With("expression", FormatExpression(*caseExpr)));
         }
         return commonType;
     }
@@ -208,7 +245,7 @@ public:
 
         if (commonType.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot use like with heterogenous arguments")
-                << TErrorAttribute("expression", FormatExpression(*likeExpr)));
+                .With("expression", FormatExpression(*likeExpr)));
         }
         return commonType;
     }
@@ -251,9 +288,6 @@ public:
             case EFilterPlace::Having:
                 Having_ = expression;
                 break;
-            case EFilterPlace::JoinPredicate:
-                JoinPredicates_[type.JoinName] = expression;
-                break;
             case EFilterPlace::Heterogenous:
                 break;
         }
@@ -264,43 +298,34 @@ public:
         if (Having_ != nullptr) {
             split.Having = TExpressionList{Having_};
         }
-        for (auto& [name, expr] : JoinPredicates_) {
-            split.JoinPredicates[name] = TExpressionList{expr};
-        }
         return split;
     }
 
 private:
     TObjectsHolder* const ObjectsHolder_;
     const TFilterHints& FilterHints_;
+    const NQueryClient::TConstTypeInferrerMapPtr Functions_ = NQueryClient::GetBuiltinTypeInferrers();
 
     int NonAndDepth_ = 0;
 
     TExpressionPtr Where_ = nullptr;
     TExpressionPtr Having_ = nullptr;
-    THashMap<std::string, TExpressionPtr> JoinPredicates_;
-
     TExpressionPtr FilterExpression_ = nullptr;
 
     TFilterType GetExpressionFilterTypeHint(
         TExpressionPtr expression,
         bool isReference = false)
     {
-        auto joinIt = FilterHints_.JoinPredicates.find(expression);
-        if (joinIt != FilterHints_.JoinPredicates.end()) {
-            return {
-                .Place = EFilterPlace::JoinPredicate,
-                .JoinName = joinIt->second,
-            };
+        if (isReference) {
+            auto* referenceExpr = expression->As<TReferenceExpression>();
+            YT_VERIFY(referenceExpr);
+            const auto& tableName = referenceExpr->Reference.TableName;
+            return tableName && FilterHints_.HavingAliases.contains(*tableName)
+                ? TFilterType{.Place = EFilterPlace::Having}
+                : TFilterType{.Place = EFilterPlace::Where};
         }
 
-        if (FilterHints_.Having.contains(expression)) {
-            return {.Place = EFilterPlace::Having};
-        }
-
-        return isReference
-            ? TFilterType{.Place = EFilterPlace::Where}
-            : TFilterType{.Place = EFilterPlace::Unknown};
+        return {.Place = EFilterPlace::Unknown};
     }
 
     TFilterType GetCommonType(
@@ -317,6 +342,12 @@ private:
 
         if (lhs == rhs) {
             return lhs;
+        }
+
+        if ((lhs.Place == EFilterPlace::Where && rhs.Place == EFilterPlace::Having) ||
+            (lhs.Place == EFilterPlace::Having && rhs.Place == EFilterPlace::Where))
+        {
+            return {.Place = EFilterPlace::Having};
         }
 
         return {.Place = EFilterPlace::Heterogenous};
@@ -347,14 +378,6 @@ private:
             case EFilterPlace::Where:
                 Where_ = BuildAndExpression(ObjectsHolder_, Where_, expression);
                 return;
-            case EFilterPlace::JoinPredicate: {
-                YT_VERIFY(!type.JoinName.empty());
-                JoinPredicates_[type.JoinName] = BuildAndExpression(
-                    ObjectsHolder_,
-                    JoinPredicates_[type.JoinName],
-                    expression);
-                return;
-            }
             case EFilterPlace::Heterogenous:
                 return;
         }
@@ -365,8 +388,8 @@ private:
         THROW_ERROR_EXCEPTION(
             NClient::EErrorCode::InvalidRequestArguments,
             "Cannot split query filter")
-                << std::move(error)
-                << TErrorAttribute("filter", FormatExpression(*FilterExpression_));
+                .With(std::move(error))
+                .With("filter", FormatExpression(*FilterExpression_));
     }
 
     class TDepthGuard
@@ -412,7 +435,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFilterSplit SplitFilter(
+bool ContainsAggregateFunction(TExpressionPtr expression)
+{
+    TAggregateFunctionChecker checker;
+    checker.Visit(expression);
+    return checker.HasAggregateFunction();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFilterSplit SplitFilterIntoWhereAndHaving(
     TExpressionPtr filterExpression,
     const TFilterHints& filterHints,
     TObjectsHolder* objectsHolder)
@@ -422,4 +454,4 @@ TFilterSplit SplitFilter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOrm::NServer::NObjects
+} // namespace NYT::NOrm::NQuery

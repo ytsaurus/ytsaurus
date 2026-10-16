@@ -8,6 +8,8 @@ The examples are located at [yt/java/ytsaurus-client-examples](https://github.co
 
 Before using the examples, read the [instructions for obtaining the token](../../../user-guide/storage/auth.md).
 
+If `setAuth` is not passed to the client builder, `ytsaurus-client` loads the username from `YT_USER`, or uses the value of the Java system property `user.name` (`System.getProperty("user.name")`) if the variable is not set. If the Java process in a container runs as `root` and `user.name` is not overridden at JVM startup, its value is usually `root`. The token is loaded independently from `YT_TOKEN` or `~/.yt/token`. If the local username differs from the {{product-name}} username, set `YT_USER` explicitly; the username must match the user associated with the token. For details, see [Selecting a username](../../../user-guide/storage/auth.md#user-selection).
+
 Also you need to have tutorial tables on your YTsaurus cluster. It can be generated using this script:
 ```bash
 ./yt/yt/scripts/upload_tutorial_data/upload_tutorial_data.py --yt-directory //home/dev/tutorial --proxy <your-http-proxy> 

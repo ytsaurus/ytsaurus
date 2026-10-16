@@ -2,9 +2,13 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/job_agent/proto/job_profile.pb.h>
+
 #include <yt/yt/ytlib/controller_agent/persistence.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
+#include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/core/phoenix/context.h>
 #include <yt/yt/core/phoenix/type_decl.h>
@@ -20,12 +24,37 @@ using NPhoenix::TPersistenceContext;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobProfile
+class TJobProfile
 {
-    TString Type;
-    TString Blob;
-    double ProfilingProbability;
+public:
+    TJobProfile() = default;
+    TJobProfile(
+        NScheduler::EProfilingBinary profilingBinary,
+        NScheduler::EProfilerType profilerType,
+        double profilingProbability,
+        TString blob = {});
+
+    DEFINE_BYVAL_RO_PROPERTY(
+        NScheduler::EProfilingBinary,
+        ProfilingBinary,
+        NScheduler::EProfilingBinary::JobProxy);
+    DEFINE_BYVAL_RO_PROPERTY(
+        NScheduler::EProfilerType,
+        ProfilerType,
+        NScheduler::EProfilerType::Cpu);
+    DEFINE_BYVAL_RO_PROPERTY(double, ProfilingProbability, 0);
+    DEFINE_BYREF_RO_PROPERTY(TString, Blob);
+
+public:
+    std::string GetType() const;
+
+private:
+    friend void ToProto(NProto::TJobProfile* protoProfile, const TJobProfile& profile);
+    friend void FromProto(TJobProfile* profile, const NProto::TJobProfile& protoProfile);
 };
+
+void ToProto(NProto::TJobProfile* protoProfile, const TJobProfile& profile);
+void FromProto(TJobProfile* profile, const NProto::TJobProfile& protoProfile);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +63,7 @@ struct TTimeStatistics
     std::optional<TDuration> WaitingForResourcesDuration;
     std::optional<TDuration> PrepareDuration;
     std::optional<TDuration> ArtifactsCachingDuration;
+    std::optional<TDuration> PrepareLayersDuration;
     std::optional<TDuration> PrepareRootFSDuration;
     std::optional<TDuration> PrepareNonRootVolumesDuration;
     std::optional<TDuration> LinkVolumesDuration;

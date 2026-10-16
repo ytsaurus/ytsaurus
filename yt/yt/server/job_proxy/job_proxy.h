@@ -65,25 +65,30 @@ public:
 
     NJobTrackerClient::TJobId GetJobId() const override;
 
-    TString GetAuthenticatedUser() const override;
+    std::string GetAuthenticatedUser() const override;
 
     std::string GetLocalHostName() const override;
 
     NRpc::IServerPtr GetRpcServer() const override;
 
-    TString GetPreparationPath() const override;
-    TString GetSlotPath() const override;
-    TString GetJobProxyUnixDomainSocketPath() const override;
+    std::string GetPreparationPath() const override;
+    std::string GetSlotPath() const override;
+    std::string GetJobProxyUnixDomainSocketPath() const override;
     std::string GetJobProxyGrpcUnixDomainSocketPath() const override;
     std::string GetJobProxyHttpUnixDomainSocketPath() const override;
-    TString AdjustPath(const TString& path) const override;
+    std::string AdjustPath(const std::string& path) const override;
 
     NChunkClient::TTrafficMeterPtr GetTrafficMeter() const override;
+    NChunkClient::TJobIoMeterPtr GetJobIoMeter() const override;
 
     NConcurrency::IThroughputThrottlerPtr GetInBandwidthThrottler(const NScheduler::TClusterName& clusterName) const override;
     NConcurrency::IThroughputThrottlerPtr GetOutBandwidthThrottler() const override;
     NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const override;
     NConcurrency::IThroughputThrottlerPtr GetUserJobContainerCreationThrottler() const override;
+
+    TFuture<NDistributedChunkSessionClient::TSessionDescriptor> GetShuffleWriteSession(
+        int partitionIndex,
+        std::optional<NChunkClient::TSessionId> excludedSessionId) const override;
 
     NApi::NNative::IConnectionPtr CreateNativeConnection(
         NApi::NNative::TConnectionCompoundConfigPtr config,
@@ -112,6 +117,7 @@ private:
     // Job proxy memory reserve (= memory limit after multiplication by
     // job proxy memory reserve factor) by the scheduler.
     i64 JobProxyMemoryReserve_ = 0;
+    i64 JobProxyEstimatedMemory_ = 0;
     // Job proxy peak memory usage.
     std::atomic<i64> JobProxyMaxMemoryUsage_ = 0;
     // Job proxy cumulative memory usage in bytes * seconds.
@@ -144,6 +150,7 @@ private:
 
     // Local servers accessible only via Unix domain sockets.
     NRpc::IServerPtr RpcServer_;
+    NRpc::IServerPtr PrivateRpcServer_;
     NRpc::IServerPtr GrpcServer_;
     NRpc::IServerPtr HttpServer_;
 
@@ -155,6 +162,7 @@ private:
 
     NRpc::IChannelPtr SupervisorChannel_;
     std::unique_ptr<NExecNode::TSupervisorServiceProxy> SupervisorProxy_;
+    std::unique_ptr<NExecNode::TSupervisorServiceProxy> RetryingSupervisorProxy_;
 
     NApi::NNative::IClientPtr Client_;
 
@@ -164,6 +172,7 @@ private:
     TDuration RefCountedTrackerLogPeriod_;
     TInstant LastRefCountedTrackerLogTime_;
     i64 LastLoggedJobProxyMaxMemoryUsage_ = 0;
+    i64 LastProfiledJobProxyMaxMemoryUsage_ = 0;
 
     THashMap<NChunkClient::TChunkId, NExecNode::TRefCountedChunkSpecPtr> ChunkIdToOriginalSpec_;
 
@@ -175,9 +184,10 @@ private:
     std::optional<int> JobProxyRpcServerPort_;
 
     NChunkClient::TTrafficMeterPtr TrafficMeter_;
+    NChunkClient::TJobIoMeterPtr JobIoMeter_;
 
     mutable THashMap<NScheduler::TClusterName, NConcurrency::IThroughputThrottlerPtr> InBandwidthThrottlers_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InBandwidthThrottlersSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, InBandwidthThrottlersSpinLock_);
 
     NConcurrency::IThroughputThrottlerPtr OutBandwidthThrottler_;
     NConcurrency::IThroughputThrottlerPtr OutRpsThrottler_;
@@ -197,10 +207,14 @@ private:
 
     std::optional<int> OomScoreAdj_;
 
+    TFuture<TString> JobProxyPeakMemoryProfile_;
+
     NYTree::IYPathServicePtr CreateOrchidService();
     void InitializeOrchid();
 
     void UpdateCumulativeMemoryUsage(i64 memoryUsage);
+
+    void SetCpuGuarantee(double cpuGuarantee);
 
     void SetJob(IJobPtr job);
     IJobPtr FindJob() const;
@@ -226,7 +240,7 @@ private:
 
     void InitializeChunkReaderHost();
 
-    TStatistics GetEnrichedStatistics() const;
+    IJob::TStatistics GetEnrichedStatistics(const IJobPtr& job) const;
 
     IJobPtr CreateBuiltinJob();
 
@@ -252,12 +266,12 @@ private:
     void OnPrepared() override;
 
     void PrepareArtifact(
-        const TString& artifactName,
-        const TString& pipePath) override;
+        const std::string& artifactName,
+        const std::string& pipePath) override;
 
     void OnArtifactPreparationFailed(
-        const TString& artifactName,
-        const TString& artifactPath,
+        const std::string& artifactName,
+        const std::string& artifactPath,
         const TError& error) override;
 
     void OnJobMemoryThrashing() override;
@@ -280,9 +294,13 @@ private:
 
     void LogSystemStats() const;
 
+    bool UpdateOomScoreAdj(pid_t pid, int* mutableExpectedScoreAdj, int desiredScoreAdj) override;
     void SetOomScoreAdj(int score);
 
     void OnMemoryReserveExceeded(i64 usage);
+    void OnMemoryEstimationExceeded(i64 usage);
+
+    TFuture<TString> ProfileJobProxyPeakMemory(bool runExternalSymbolizer) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxy)

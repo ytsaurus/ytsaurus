@@ -33,12 +33,12 @@ public:
 
     virtual ~TCommandDescriptor();
 
-    static void InitType(const TString& moduleName);
+    static void InitType(const std::string& moduleName);
 
 private:
     NDriver::TCommandDescriptor Descriptor_;
 
-    static TString TypeName_;
+    static std::string TypeName_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

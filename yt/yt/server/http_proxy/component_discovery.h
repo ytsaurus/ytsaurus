@@ -5,6 +5,8 @@
 #include <yt/yt/ytlib/api/public.h>
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/client/api/client_common.h>
+
 namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,6 +39,7 @@ DEFINE_ENUM(EClusterComponentType,
     ((QueryTracker)            (18))
 
     ((CypressProxy)            (19))
+    ((TimestampProxy)          (20))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

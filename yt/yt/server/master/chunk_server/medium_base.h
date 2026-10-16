@@ -1,14 +1,14 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/yt/server/master/object_server/object.h>
 
 #include <yt/yt/server/master/security_server/acl.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NChunkServer {
 

@@ -11,12 +11,12 @@ namespace NYT::NYTProf {
 //! Register profiling handlers.
 void Register(
     const NHttp::IServerPtr& server,
-    const TString& prefix,
+    const std::string& prefix,
     const TBuildInfo& buildInfo = TBuildInfo::GetDefault());
 
 void Register(
     const NHttp::IRequestPathMatcherPtr& handlers,
-    const TString& prefix,
+    const std::string& prefix,
     const TBuildInfo& buildInfo = TBuildInfo::GetDefault());
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -120,11 +120,11 @@ Validation of rights to read symlinks will be fixed in [this ticket](https://nd
 
 In most cases, the error arises when executing a `JOIN` if its inputs include a monster key (a huge number of records with the same key value). To check for a monster key, click the red circle in the query execution plan and drill down to the failed {{product-name}} operation. After that, in the {{product-name}} interface, open the `Partition sizes` tab of the failed operation.
 
-![](../../../images/partition_sizes.png)
+![](../../../_images/partition_sizes.png)
 
 If you see large partitions (more than 200 GB), this indicates that you have monster keys. To find the value of the problem key, expand the error message in the operation's `Details` tab. Most probably, you'll find it there.
 
-![](../../../images/max_allowed_data_error.png)
+![](../../../_images/max_allowed_data_error.png)
 
 In this example, the problem key is an empty string. <!--Другие способы узнать проблемные ключи описаны в разделе [Производительность](performance.md).-->
 

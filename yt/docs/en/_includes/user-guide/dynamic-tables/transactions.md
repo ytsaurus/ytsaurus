@@ -82,7 +82,7 @@ Many versions of the same value can be written to tables with `atomicity=none` a
 
 Therefore, we recommend setting the following options for tables with `atomicity=none`:
 
-```json
+```yson
 min_data_ttl = 0
 merge_rows_on_flush = %true
 ```

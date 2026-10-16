@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
 from collections.abc import Callable
-from typing import Any, Generic, TypeAlias, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeAlias, TypeVar
 
 from .._core._exceptions import EndOfStream
 from .._core._typedattr import TypedAttributeProvider
 from ._resources import AsyncResource
-from ._tasks import TaskGroup
+
+if TYPE_CHECKING:
+    from ._tasks import TaskGroup
 
 T_Item = TypeVar("T_Item")
 T_co = TypeVar("T_co", covariant=True)
@@ -15,7 +17,7 @@ T_contra = TypeVar("T_contra", contravariant=True)
 
 
 class UnreliableObjectReceiveStream(
-    Generic[T_co], AsyncResource, TypedAttributeProvider
+    AsyncResource, TypedAttributeProvider, Generic[T_co]
 ):
     """
     An interface for receiving objects.
@@ -50,7 +52,7 @@ class UnreliableObjectReceiveStream(
 
 
 class UnreliableObjectSendStream(
-    Generic[T_contra], AsyncResource, TypedAttributeProvider
+    AsyncResource, TypedAttributeProvider, Generic[T_contra]
 ):
     """
     An interface for sending objects.
@@ -140,8 +142,10 @@ class ByteReceiveStream(AsyncResource, TypedAttributeProvider):
         .. note:: Implementers of this interface should not return an empty
             :class:`bytes` object, and users should ignore them.
 
-        :param max_bytes: maximum number of bytes to receive
+        :param max_bytes: maximum number of bytes to receive (must be a positive
+            integer)
         :return: the received bytes
+        :raises ValueError: if ``max_bytes`` is less than 1
         :raises ~anyio.EndOfStream: if this stream has been closed from the other end
         """
 
@@ -189,7 +193,7 @@ AnyByteSendStream: TypeAlias = ObjectSendStream[bytes] | ByteSendStream
 AnyByteStream: TypeAlias = ObjectStream[bytes] | ByteStream
 
 
-class Listener(Generic[T_co], AsyncResource, TypedAttributeProvider):
+class Listener(AsyncResource, TypedAttributeProvider, Generic[T_co]):
     """An interface for objects that let you accept incoming connections."""
 
     @abstractmethod

@@ -14,12 +14,14 @@ ENDIF()
 
 SRCS(
     containers_ut.cpp
+    porto_helpers_ut.cpp
     process_ut.cpp
 )
 
 IF(OS_LINUX)
     SRCS(
         porto_resource_tracker_ut.cpp
+        instance_ut.cpp
     )
 ENDIF()
 

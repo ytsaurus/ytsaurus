@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "decorated_automaton.h"
 #include "distributed_hydra_manager.h"
 
 #include <yt/yt/ytlib/election/public.h>
@@ -30,6 +31,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
+        TStateHashCheckerPtr stateHashChecker,
         NRpc::IResponseKeeperPtr responseKeeper,
         TEpochContext* epochContext,
         TReachableState targetState,
@@ -45,6 +47,7 @@ private:
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     const IChangelogStorePtr ChangelogStore_;
     const ISnapshotStorePtr SnapshotStore_;
+    const TStateHashCheckerPtr StateHashChecker_;
     const NRpc::IResponseKeeperPtr ResponseKeeper_;
     TEpochContext* const EpochContext_;
     const TReachableState TargetState_;
@@ -70,6 +73,8 @@ private:
     void ReplayChangelog(const IChangelogPtr& changelog, i64 sequenceNumber);
 
     void RecoverFromCurrentStateUsingChangelog(int changelogId);
+
+    void ReportMutationStateHashesToLeader(i64 firstSequenceNumber, i64 lastSequenceNumber);
 
     void FinishRecovery();
 };

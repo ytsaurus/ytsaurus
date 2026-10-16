@@ -135,9 +135,9 @@ TClient::TClient(
     INodeMemoryTrackerPtr memoryTracker)
     : Connection_(std::move(connection))
     , Options_(options)
-    , Logger(ApiLogger().WithTag("ClientId: %v, AuthenticatedUser: %v",
-        TGuid::Create(),
-        Options_.GetAuthenticatedUser()))
+    , Logger(ApiLogger()
+        .WithTag("ClientId", TGuid::Create())
+        .WithTag("AuthenticatedUser", Options_.GetAuthenticatedUser()))
     , Profiler_(TProfiler("/native_client").WithTag("connection_name", Connection_->GetStaticConfig()->ConnectionName))
     , Counters_(Profiler_)
     , TypeHandlers_{
@@ -355,7 +355,10 @@ void TClient::InitChannelsOrThrow(EMasterChannelKind kind, TCellTag cellTag)
     }
 
     {
-        auto wrappedCypressChannel = WrapChannel(Connection_->GetCypressChannelOrThrow(kind, cellTag));
+        auto cypressChannel = Options_.CypressProxyChannelOverride
+            ? Connection_->WrapAsCypressChannelOrThrow(Options_.CypressProxyChannelOverride, kind, cellTag)
+            : Connection_->GetCypressChannelOrThrow(kind, cellTag);
+        auto wrappedCypressChannel = WrapChannel(std::move(cypressChannel));
         auto guard = WriterGuard(CypressChannelsLock_);
         CypressChannels_[kind][cellTag] = std::move(wrappedCypressChannel);
     }
@@ -415,10 +418,12 @@ TFuture<T> TClient::Execute(
         ] {
             try {
                 auto prologue = [&] {
-                    YT_LOG_DEBUG("Command started (Command: %v)", commandName);
+                    YT_TLOG_DEBUG("Command started")
+                        .With("Command", commandName);
                 };
                 auto epilogue = [&] {
-                    YT_LOG_DEBUG("Command completed (Command: %v)", commandName);
+                    YT_TLOG_DEBUG("Command completed")
+                        .With("Command", commandName);
                 };
                 prologue();
                 if constexpr (std::is_same_v<T, void>) {
@@ -430,7 +435,9 @@ TFuture<T> TClient::Execute(
                     return result;
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Command failed (Command: %v)", commandName);
+                YT_TLOG_DEBUG("Command failed")
+                    .With("Command", commandName)
+                    .With(ex);
                 throw;
             }
         })
@@ -438,7 +445,7 @@ TFuture<T> TClient::Execute(
         .Run()
         .WithTimeout(options.Timeout, TFutureTimeoutOptions{
             .Error = TError(NYT::EErrorCode::Timeout, "Command timed out")
-                << TErrorAttribute("command", commandName),
+                .With("command", commandName),
         });
 }
 
@@ -559,7 +566,8 @@ IChannelPtr TClient::GetHydraAdminChannelOrThrow(TCellId cellId)
             SyncCellsIfNeeded({cellId});
         } catch (const TErrorException& ex) {
             if (ex.Error().FindMatching(NHydra::EErrorCode::ReadOnly)) {
-                YT_LOG_WARNING(ex, "Skipping cell directory synchronization");
+                YT_TLOG_WARNING("Skipping cell directory synchronization")
+                    .With(ex);
             } else {
                 throw;
             }
@@ -647,9 +655,9 @@ void TClient::ValidateSuperuserPermissions()
         .ValueOrThrow();
 
     auto groups = ConvertTo<THashSet<std::string>>(groupYsonList);
-    YT_LOG_DEBUG("User group membership info received (Name: %v, Groups: %v)",
-        Options_.User,
-        groups);
+    YT_TLOG_DEBUG("User group membership info received")
+        .With("Name", Options_.User)
+        .With("Groups", groups);
 
     if (!groups.contains(SuperusersGroupName)) {
         THROW_ERROR_EXCEPTION("Superuser permissions required");
@@ -672,16 +680,17 @@ void TClient::ValidatePermissionsWithAcn(
             permission,
             TCheckPermissionOptions());
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Check permission failed");
+        YT_TLOG_ERROR("Check permission failed")
+            .With(ex);
         response = TError(ex);
     }
 
     if (!(response.IsOK() && response.Value().Action == ESecurityAction::Allow)) {
         ValidateSuperuserPermissions();
-        YT_LOG_WARNING("There is no access control object with the necessary permissions (Name: %v, Path: %v, Permission: %v)",
-            Options_.User,
-            objectPath,
-            ToString(permission));
+        YT_TLOG_WARNING("There is no access control object with the necessary permissions")
+            .With("Name", Options_.User)
+            .With("Path", objectPath)
+            .With("Permission", ToString(permission));
     }
 }
 
@@ -726,17 +735,17 @@ TObjectId TClient::CreateObjectImpl(
 
             ++retryIndex;
 
-            YT_LOG_DEBUG("Retrieving object life stage (ObjectId: %v)",
-                objectId);
+            YT_TLOG_DEBUG("Retrieving object life stage")
+                .With("ObjectId", objectId);
 
             auto lifeStageYson = WaitFor(GetNode(FromObjectId(objectId) + "/@life_stage", /*options*/ {}))
                 .ValueOrThrow();
 
             lifeStage = ConvertTo<EObjectLifeStage>(lifeStageYson);
 
-            YT_LOG_DEBUG("Object life stage retrieved (ObjectId: %v, LifeStage: %v)",
-                objectId,
-                lifeStage);
+            YT_TLOG_DEBUG("Object life stage retrieved")
+                .With("ObjectId", objectId)
+                .With("LifeStage", lifeStage);
 
             if (lifeStage == EObjectLifeStage::CreationCommitted) {
                 ok = true;
@@ -749,9 +758,9 @@ TObjectId TClient::CreateObjectImpl(
         if (!ok) {
             THROW_ERROR_EXCEPTION("Failed to wait until object %v creation is committed",
                 objectId)
-                << TErrorAttribute("retry_count", retryIndex)
-                << TErrorAttribute("retry_time", timer.GetElapsedTime())
-                << TErrorAttribute("last_seen_life_stage", lifeStage);
+                .With("retry_count", retryIndex)
+                .With("retry_time", timer.GetElapsedTime())
+                .With("last_seen_life_stage", lifeStage);
         }
     }
 
@@ -886,7 +895,7 @@ void TClient::DoCheckClusterLiveness(
             if (!responseOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION(NApi::EErrorCode::ClusterLivenessCheckFailed,
                     "Cluster liveness subrequest failed")
-                    << TError(responseOrError);
+                    .With(TError(responseOrError));
             }
         }
     }
@@ -898,8 +907,8 @@ void TClient::DoCheckClusterLiveness(
         if (health != ETabletCellHealth::Good && health != ETabletCellHealth::Degraded) {
             THROW_ERROR_EXCEPTION(NApi::EErrorCode::ClusterLivenessCheckFailed,
                 "Tablet cell bundle health subrequest failed")
-                << TErrorAttribute("bundle_name", *options.CheckTabletCellBundle)
-                << TErrorAttribute("bundle_health", health);
+                .With("bundle_name", *options.CheckTabletCellBundle)
+                .With("bundle_health", health);
         }
     }
 }

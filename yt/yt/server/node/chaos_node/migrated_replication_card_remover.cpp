@@ -138,8 +138,9 @@ private:
                 .Apply(
                     BIND([=] (const TChaosNodeServiceProxy::TErrorOrRspRemoveReplicationCardPtr& rspOrError) {
                         if (!rspOrError.IsOK()) {
-                            YT_LOG_WARNING(rspOrError, "Failed to remove replication card (ReplicationCardId: %v)",
-                                replicationCardId);
+                            YT_TLOG_WARNING("Failed to remove replication card")
+                                .With("ReplicationCardId", replicationCardId)
+                                .With(rspOrError);
                         }
                     })));
         }

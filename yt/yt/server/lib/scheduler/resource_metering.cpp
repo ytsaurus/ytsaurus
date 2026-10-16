@@ -79,7 +79,7 @@ size_t THash<NYT::NScheduler::TMeteringKey>::operator()(const NYT::NScheduler::T
     NYT::HashCombine(res, key.TreeId);
     NYT::HashCombine(res, key.PoolId);
 
-    std::vector<std::pair<TString, TString>> sortedMeteringTags;
+    std::vector<std::pair<std::string, std::string>> sortedMeteringTags;
     for (const auto& pair : key.MeteringTags) {
         sortedMeteringTags.push_back(pair);
     }

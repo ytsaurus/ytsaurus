@@ -104,8 +104,8 @@ public:
         if (cookie.IsActive()) {
             EndInsertCachedMeta(std::move(cookie), std::move(meta));
         } else {
-            YT_LOG_DEBUG("Failed to cache chunk meta due to concurrent read (ChunkId: %v)",
-                chunkId);
+            YT_TLOG_DEBUG("Failed to cache chunk meta due to concurrent read")
+                .With("ChunkId", chunkId);
         }
     }
 
@@ -124,8 +124,8 @@ public:
             std::move(meta));
         cookie.EndInsert(cachedMeta);
 
-        YT_LOG_DEBUG("Chunk meta is put into cache (ChunkId: %v)",
-            chunkId);
+        YT_TLOG_DEBUG("Chunk meta is put into cache")
+            .With("ChunkId", chunkId);
     }
 
     void RemoveCachedMeta(TChunkId chunkId) override
@@ -146,8 +146,8 @@ public:
         if (cookie.IsActive()) {
             EndInsertCachedBlocksExt(std::move(cookie), std::move(blocksExt));
         } else {
-            YT_LOG_DEBUG("Failed to cache blocks ext due to concurrent read (ChunkId: %v)",
-                chunkId);
+            YT_TLOG_DEBUG("Failed to cache blocks ext due to concurrent read")
+                .With("ChunkId", chunkId);
         }
     }
 
@@ -166,8 +166,8 @@ public:
             std::move(blocksExt));
         cookie.EndInsert(cachedBlocksExt);
 
-        YT_LOG_DEBUG("Blocks ext is put into cache (ChunkId: %v)",
-            chunkId);
+        YT_TLOG_DEBUG("Blocks ext is put into cache")
+            .With("ChunkId", chunkId);
     }
 
     void RemoveCachedBlocksExt(TChunkId chunkId) override

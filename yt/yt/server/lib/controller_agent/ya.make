@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 PROTO_NAMESPACE(yt)
 
 SRCS(
+    job_statistics_wire.cpp
     statistics.cpp
     structs.cpp
     progress_counter.cpp
@@ -16,6 +17,7 @@ SRCS(
     network_project.cpp
 
     proto/job_tracker_service.proto
+    proto/push_based_shuffle_service.proto
 )
 
 PEERDIR(
@@ -27,3 +29,7 @@ PEERDIR(
 )
 
 END()
+
+RECURSE_FOR_TESTS(
+    unittests
+)

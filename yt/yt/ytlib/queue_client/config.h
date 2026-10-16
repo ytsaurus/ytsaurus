@@ -3,11 +3,10 @@
 #include "public.h"
 #include "private.h"
 
-#include <yt/yt/client/federated/public.h>
-
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/misc/cache_config.h>
+#include <yt/yt/core/misc/config.h>
 
 #include <yt/yt/core/rpc/config.h>
 
@@ -37,9 +36,9 @@ namespace NDetail {
 struct TLookupSessionConfig
     : public virtual TRefCounted
 {
-    TString User;
+    std::string User;
     NYPath::TRichYPath Table;
-    NClient::NFederated::TFederationConfigPtr FederationConfig;
+    std::optional<int> SuccessfulLookupsRequired;
 
     bool operator==(const TLookupSessionConfig&) const;
 };
@@ -83,7 +82,7 @@ DEFINE_REFCOUNTED_TYPE(TCompoundStateLookupCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NDetail
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,12 +119,31 @@ struct TQueueAgentDynamicStateConfig
     //! If no cluster is specified, the table will be assumed to be located on the queue agent's local cluster.
     NYPath::TRichYPath ReplicatedTableMappingTablePath;
 
+    //! Backoff options used for retrying failed requests to the state tables.
+    TExponentialBackoffOptions RetryBackoff;
+
     REGISTER_YSON_STRUCT(TQueueAgentDynamicStateConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgentDynamicStateConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TQueueAgentDynamicStateDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    //! Backoff options used for retrying failed requests to the state tables.
+    //! If omitted, the value from the static config is kept.
+    std::optional<TExponentialBackoffOptions> RetryBackoff;
+
+    REGISTER_YSON_STRUCT(TQueueAgentDynamicStateDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueueAgentDynamicStateDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,10 +174,9 @@ struct TQueueConsumerRegistrationManagerCacheConfig
     TEnumIndexedArray<EQueueConsumerRegistrationManagerCacheKind, TAsyncExpiringCacheDynamicConfigPtr> Delta;
     //! Config for batching all lookups, except periodic updates (for those look into #BatchUpdate in #Base or #Delta).
     TQueueConsumerRegistrationManagerBatchLookupConfigPtr BatchLookup;
-    //! Federated client config for state lookups.
-    NClient::NFederated::TFederationConfigPtr FederationConfig;
-    //! Tablet cell bundle used to override tablet cell bundle of federation config for each cache kind.
-    TEnumIndexedArray<EQueueConsumerRegistrationManagerCacheKind, std::optional<std::string>> CacheKindToBundleName;
+    //! Specifies the minimum number of lookups to replicas to be considered successful for each cache kind.
+    //! Null or omitted values means that value of `max(1, replicaCount - 1)` is used, i.e. at least one success and at most one failure are required.
+    TEnumIndexedArray<EQueueConsumerRegistrationManagerCacheKind, std::optional<int>> CacheKindToSuccessfulLookupsRequired;
 
     REGISTER_YSON_STRUCT(TQueueConsumerRegistrationManagerCacheConfig);
 
@@ -231,6 +248,8 @@ struct TQueueConsumerRegistrationManagerConfig
     //! Config for internally used async expiring caches.
     //! \note If legacy implementation is used, this field is ignored.
     TQueueConsumerRegistrationManagerCacheConfigPtr Cache;
+
+    NYPath::TRichYPath GetCachePath(EQueueConsumerRegistrationManagerCacheKind kind) const;
 
     REGISTER_YSON_STRUCT(TQueueConsumerRegistrationManagerConfig);
 

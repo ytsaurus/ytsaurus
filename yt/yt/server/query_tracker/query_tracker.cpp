@@ -24,6 +24,10 @@
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
 #include <yt/yt/ytlib/query_tracker_client/helpers.h>
 
+#include <yt/yt/ytlib/yql_client/public.h>
+
+#include <yt/yt/client/query_client/query_builder.h>
+
 #include <yt/yt/client/table_client/record_helpers.h>
 
 #include <yt/yt/client/api/client.h>
@@ -54,7 +58,7 @@ using namespace NYPath;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
-using namespace NRecords;
+using namespace NQueryTrackerClient::NRecords;
 using namespace NComponentStateChecker;
 using namespace NTableClient;
 using namespace NLogging;
@@ -119,11 +123,17 @@ public:
     {
         Config_ = config;
         AcquisitionExecutor_->SetPeriod(config->ActiveQueryAcquisitionPeriod);
-        Engines_[EQueryEngine::Mock]->Reconfigure(config->MockEngine, Config_->NotIndexedQueriesTTL);
-        Engines_[EQueryEngine::Ql]->Reconfigure(config->QLEngine, Config_->NotIndexedQueriesTTL);
-        Engines_[EQueryEngine::Yql]->Reconfigure(config->YqlEngine, Config_->NotIndexedQueriesTTL);
-        Engines_[EQueryEngine::Chyt]->Reconfigure(config->ChytEngine, Config_->NotIndexedQueriesTTL);
-        Engines_[EQueryEngine::Spyt]->Reconfigure(config->SpytEngine, Config_->NotIndexedQueriesTTL);
+
+        auto engines = {
+            EQueryEngine::Mock,
+            EQueryEngine::Ql,
+            EQueryEngine::Yql,
+            EQueryEngine::Chyt,
+            EQueryEngine::Spyt,
+        };
+        for (const auto engine : engines) {
+            Engines_[engine]->Reconfigure(GetConfigByEngine(Config_, engine));
+        }
     }
 
     IYPathServicePtr GetOrchidService() const override
@@ -179,7 +189,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
-        YT_LOG_INFO("Requesting query tracker state version");
+        YT_TLOG_INFO("Requesting query tracker state version");
         TGetNodeOptions options;
         options.ReadFrom = EMasterChannelKind::Cache;
         auto asyncResult = StateClient_->GetNode(StateRoot_ + "/@version", options);
@@ -194,8 +204,8 @@ private:
             int stateVersion = ConvertTo<int>(rspOrError.Value());
             if (stateVersion < MinRequiredStateVersion_) {
                 auto alert = TError(NAlerts::EErrorCode::QueryTrackerInvalidState, "Min required state version is not met")
-                    << TErrorAttribute("version", stateVersion)
-                    << TErrorAttribute("min_required_version", MinRequiredStateVersion_);
+                    .With("version", stateVersion)
+                    .With("min_required_version", MinRequiredStateVersion_);
                 AlertCollector_->StageAlert(CreateAlert(
                     NAlerts::EErrorCode::QueryTrackerInvalidState,
                     "Erroneous query tracker state",
@@ -217,16 +227,16 @@ private:
         auto guard = TCurrentTraceContextGuard(traceContext);
 
         if (!LeaseTransaction_) {
-            YT_LOG_DEBUG("Skip active queries acquisition, since lease transaction is not started");
+            YT_TLOG_DEBUG("Skip active queries acquisition, since lease transaction is not started");
             return;
         }
 
         if (ComponentStateChecker_->IsComponentBanned()) {
-            YT_LOG_DEBUG("Skip active queries acquisition, since query tracker instance is banned");
+            YT_TLOG_DEBUG("Skip active queries acquisition, since query tracker instance is banned");
             return;
         }
 
-        YT_LOG_DEBUG("Selecting active queries for potential acquisition");
+        YT_TLOG_DEBUG("Selecting active queries for potential acquisition");
 
         std::vector<TActiveQuery> queryRecords;
 
@@ -234,18 +244,19 @@ private:
             // TODO(max42): select as little fields as possible; lookup full row in TryAcquireQuery instead.
             // Select queries with expired leases.
             auto selectQuery = Format(
-                "[query_id], [incarnation], [assigned_tracker], [lease_transaction_id], [engine], [state], [user], [query], [settings], [files], [secrets] from [%v]",
+                "[query_id], [incarnation], [assigned_tracker], [lease_transaction_id], [engine], [state], [user], [query], [settings], [files], [secrets], [access_control_objects], [is_indexed] from [%v]",
                 StateRoot_ + "/active_queries");
             auto selectResult = WaitFor(StateClient_->SelectRows(selectQuery))
                 .ValueOrThrow();
             queryRecords = ToRecords<TActiveQuery>(selectResult.Rowset);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error while selecting queries with expired leases");
+            YT_TLOG_ERROR("Error while selecting queries with expired leases")
+                .With(ex);
             return;
         }
 
-        YT_LOG_DEBUG("Active queries selected (ActiveQueryCount: %v)",
-            queryRecords.size());
+        YT_TLOG_DEBUG("Active queries selected")
+            .With("ActiveQueryCount", queryRecords.size());
 
         THashSet<TTransactionId> leaseTransactionIds;
         for (const auto& record : queryRecords) {
@@ -257,7 +268,8 @@ private:
             activeLeaseTransactionIds = WaitFor(GetAliveTransactions(leaseTransactionIds))
                 .ValueOrThrow();
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error while getting alive lease transactions for active queries");
+            YT_TLOG_ERROR("Error while getting alive lease transactions for active queries")
+                .With(ex);
             return;
         }
 
@@ -285,23 +297,21 @@ private:
             }
         }
 
-        YT_LOG_INFO("Selected orphaned active queries (OrphanedQueryCount: %v)",
-            orphanedQueries.size());
+        YT_TLOG_INFO("Selected orphaned active queries")
+            .With("OrphanedQueryCount", orphanedQueries.size());
 
         // Ensure even distribution of queries across trackers by introducing a random delay
         // between 0 and acquisition period.
         for (const auto& record : orphanedQueries) {
             auto delay = RandomDuration(Config_->ActiveQueryAcquisitionPeriod);
-            YT_LOG_INFO(
-                "Scheduling acquisition of query (QueryId: %v, Engine: %v, User: %v, "
-                "Incarnation: %v, LeaseTransactionId: %v, AssignedTracker: %v, Delay: %v)",
-                record.Key.QueryId,
-                record.Engine,
-                record.User,
-                record.Incarnation,
-                record.LeaseTransactionId,
-                record.AssignedTracker,
-                delay);
+            YT_TLOG_INFO("Scheduling acquisition of query")
+                .With("QueryId", record.Key.QueryId)
+                .With("Engine", record.Engine)
+                .With("User", record.User)
+                .With("Incarnation", record.Incarnation)
+                .With("LeaseTransactionId", record.LeaseTransactionId)
+                .With("AssignedTracker", record.AssignedTracker)
+                .With("Delay", delay);
             TDelayedExecutor::Submit(
                 BIND_NO_PROPAGATE(&TQueryTracker::TryAcquireQuery, MakeWeak(this), record),
                 delay,
@@ -319,7 +329,8 @@ private:
         try {
             GuardedTryAcquireQuery(std::move(queryRecord));
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error acquiring query");
+            YT_TLOG_ERROR("Error acquiring query")
+                .With(ex);
         }
     }
 
@@ -328,11 +339,12 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
         auto queryId = queryRecord.Key.QueryId;
-        auto Logger = NQueryTracker::Logger().WithTag("QueryId: %v", queryId);
-        YT_LOG_DEBUG("Starting acquisition transaction");
+        auto Logger = NQueryTracker::Logger().WithTag("QueryId", queryId);
+        YT_TLOG_DEBUG("Starting acquisition transaction");
         auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet))
             .ValueOrThrow();
-        YT_LOG_DEBUG("Acquisition transaction started (TransactionId: %v)", transaction->GetId());
+        YT_TLOG_DEBUG("Acquisition transaction started")
+            .With("TransactionId", transaction->GetId());
 
         const auto& idMapping = TActiveQueryDescriptor::Get()->GetIdMapping();
         auto optionalRecord = WaitFor(
@@ -343,22 +355,22 @@ private:
             .ValueOrThrow();
 
         if (!LeaseTransaction_) {
-            YT_LOG_INFO("Failed to acquire query since lease transaction is not active");
+            YT_TLOG_INFO("Failed to acquire query since lease transaction is not active");
             return;
         }
 
         auto leaseTransactionId = LeaseTransaction_->GetId();
 
         if (!optionalRecord) {
-            YT_LOG_INFO("Query is no longer present (Timestamp: %v)", transaction->GetStartTimestamp());
+            YT_TLOG_INFO("Query is no longer present")
+                .With("Timestamp", transaction->GetStartTimestamp());
             return;
         } else if (optionalRecord->Incarnation != queryRecord.Incarnation) {
-            YT_LOG_INFO(
-                "Query was already acquired by another entity (Incarnation: %v, LeaseTransactionId: %v, AssignedTracker: %v, Timestamp: %v)",
-                optionalRecord->Incarnation,
-                optionalRecord->LeaseTransactionId,
-                optionalRecord->AssignedTracker,
-                transaction->GetStartTimestamp());
+            YT_TLOG_INFO("Query was already acquired by another entity")
+                .With("Incarnation", optionalRecord->Incarnation)
+                .With("LeaseTransactionId", optionalRecord->LeaseTransactionId)
+                .With("AssignedTracker", optionalRecord->AssignedTracker)
+                .With("Timestamp", transaction->GetStartTimestamp());
             return;
         }
 
@@ -367,17 +379,42 @@ private:
 
         auto newIncarnation = queryRecord.Incarnation + 1;
 
-        YT_LOG_INFO(
-            "Query is still expired, acquiring it "
-            "(Timestamp: %v, Incarnation: %v, LeaseTransactionId: %v, State: %v)",
-            transaction->GetStartTimestamp(),
-            newIncarnation,
-            leaseTransactionId,
-            optionalRecord->State);
+        YT_TLOG_INFO("Query is still expired, acquiring it")
+            .With("Timestamp", transaction->GetStartTimestamp())
+            .With("Incarnation", newIncarnation)
+            .With("LeaseTransactionId", leaseTransactionId)
+            .With("State", optionalRecord->State);
 
         // If current query state is "running", switch it to "pending". Otherwise, keep the existing state of a query;
         // in particular, it may be "failing" or "completing" if the previous incarnation succeeded in reaching pre-terminating state.
         auto newState = optionalRecord->State == EQueryState::Running ? EQueryState::Pending : optionalRecord->State;
+        std::optional<TError> acquisitionError;
+        auto engine = Engines_[queryRecord.Engine];
+
+        bool hasPreviousNonFinishingRun =
+            queryRecord.LeaseTransactionId != NullTransactionId &&
+            !IsFinishingState(newState);
+
+        if (hasPreviousNonFinishingRun && !engine->IsSafeToRestartQuery()) {
+            newState = EQueryState::Failing;
+
+            auto error = TError("Query lease was lost; restarting query execution is unsafe")
+                .With("previous_incarnation", queryRecord.Incarnation)
+                .With("previous_lease_transaction_id", queryRecord.LeaseTransactionId);
+
+            if (queryRecord.AssignedTracker) {
+                error = std::move(error)
+                    .With("previous_assigned_tracker", *queryRecord.AssignedTracker);
+            }
+
+            acquisitionError = std::move(error);
+        }
+
+        if (hasPreviousNonFinishingRun) {
+            // Ensure that we don't track this query, so query acquisition
+            // using same query tracker instance which dropped lease is safe.
+            DetachQuery(queryId);
+        }
 
         auto rowBuffer = New<TRowBuffer>();
         TActiveQueryPartial newRecord{
@@ -386,7 +423,14 @@ private:
             .Incarnation = newIncarnation,
             .LeaseTransactionId = leaseTransactionId,
             .AssignedTracker = SelfAddress_,
+            .Progress = CompressedEmptyMap,
         };
+
+        if (acquisitionError) {
+            newRecord.Error = acquisitionError;
+            newRecord.FinishTime = TInstant::Now();
+        }
+
         std::vector newRows{
             newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetPartialIdMapping()),
         };
@@ -394,9 +438,13 @@ private:
             StateRoot_ + "/active_queries",
             TActiveQueryDescriptor::Get()->GetNameTable(),
             MakeSharedRange(std::move(newRows), rowBuffer));
+        if (hasPreviousNonFinishingRun && queryRecord.Engine == EQueryEngine::Yql) {
+            DeleteProgressParts(queryId, transaction, rowBuffer);
+        }
         auto commitResultOrError = WaitFor(transaction->Commit());
         if (!commitResultOrError.IsOK()) {
-            YT_LOG_DEBUG(commitResultOrError, "Failed to acquire query");
+            YT_TLOG_DEBUG("Failed to acquire query")
+                .With(commitResultOrError);
             return;
         }
 
@@ -404,29 +452,27 @@ private:
         // Just do nothing: other query tracker (or even us) will find a query with dead lease transaction
         // and will try to acquire it.
         if (!LeaseTransaction_ || LeaseTransaction_->GetId() != leaseTransactionId) {
-            YT_LOG_INFO("Failed to acquire query since lease transaction was aborted during acquisition "
-                "(LeaseTransactionId: %v)",
-                leaseTransactionId);
+            YT_TLOG_INFO("Failed to acquire query since lease transaction was aborted during acquisition")
+                .With("LeaseTransactionId", leaseTransactionId);
             return;
         }
 
         // Do not forget to update query record with new values.
         queryRecord.Incarnation = newIncarnation;
         queryRecord.LeaseTransactionId = leaseTransactionId;
-        YT_LOG_INFO(
-            "Query acquired (CommitTimestamp: %v, Incarnation: %v, LeaseTransactionId: %v)",
-            commitResultOrError.Value().PrimaryCommitTimestamp,
-            newIncarnation,
-            leaseTransactionId);
+        YT_TLOG_INFO("Query acquired")
+            .With("CommitTimestamp", commitResultOrError.Value().PrimaryCommitTimestamp)
+            .With("Incarnation", newIncarnation)
+            .With("LeaseTransactionId", leaseTransactionId);
 
         IQueryHandlerPtr handler;
-        if (!IsFinishingState(optionalRecord->State)) {
+        if (!IsFinishingState(newState)) {
             try {
-                auto engine = queryRecord.Engine;
-                handler = Engines_[engine]->StartOrAttachQuery(queryRecord);
+                handler = engine->StartOrAttachQuery(queryRecord);
                 handler->Start();
             } catch (const std::exception& ex) {
-                YT_LOG_INFO(ex, "Unrecoverable error on query start, finishing query");
+                YT_TLOG_INFO("Unrecoverable error on query start, finishing query")
+                    .With(ex);
                 FinishQueryLoop(queryId, TError(ex), EQueryState::Failed);
                 return;
             }
@@ -463,23 +509,26 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
-        auto Logger = QueryTrackerLogger().WithTag("QueryId: %v, Incarnation: %v", queryId, incarnation);
+        auto Logger = QueryTrackerLogger()
+            .WithTag("QueryId", queryId)
+            .WithTag("Incarnation", incarnation);
 
         if (auto iter = AcquiredQueries_.find(queryId);
             iter == AcquiredQueries_.end() || iter->second.Incarnation != incarnation)
         {
-            YT_LOG_DEBUG("Cancelling obsolete ping");
+            YT_TLOG_DEBUG("Cancelling obsolete ping");
             DetachQuery(queryId);
             return false;
         }
 
         try {
-            YT_LOG_DEBUG("Starting ping transaction");
+            YT_TLOG_DEBUG("Starting ping transaction");
 
             auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet))
                 .ValueOrThrow();
 
-            YT_LOG_DEBUG("Ping transaction started (TransactionId: %v)", transaction->GetId());
+            YT_TLOG_DEBUG("Ping transaction started")
+                .With("TransactionId", transaction->GetId());
             const auto& idMapping = TActiveQueryDescriptor::Get()->GetIdMapping();
             auto activeQueryRecord = WaitFor(
                 LookupActiveQuery(
@@ -489,13 +538,13 @@ private:
                 .ValueOrThrow();
 
             if (!activeQueryRecord) {
-                YT_LOG_INFO("Query record is missing, cancelling ping");
+                YT_TLOG_INFO("Query record is missing, cancelling ping");
                 DetachQuery(queryId);
                 return false;
             }
 
             if (IsFinishingState(activeQueryRecord->State)) {
-                YT_LOG_INFO("Query is in pre-terminating state, pinging stopped");
+                YT_TLOG_INFO("Query is in pre-terminating state, pinging stopped");
                 TError error;
                 EQueryState finalState;
                 switch (activeQueryRecord->State) {
@@ -505,16 +554,18 @@ private:
                         if (AcquiredQueries_[queryId].Handler) {
                             AcquiredQueries_[queryId].Handler->Abort();
                         }
-                        YT_LOG_INFO("Query abort was requested (Error: %v)", error);
+                        YT_TLOG_INFO("Query abort was requested")
+                            .With(error);
                         break;
                     case EQueryState::Failing:
                         error = *activeQueryRecord->Error;
                         finalState = EQueryState::Failed;
-                        YT_LOG_INFO("Query failed (Error: %v)", error);
+                        YT_TLOG_INFO("Query failed")
+                            .With(error);
                         break;
                     case EQueryState::Completing:
                         finalState = EQueryState::Completed;
-                        YT_LOG_INFO("Query completed");
+                        YT_TLOG_INFO("Query completed");
                         break;
                     default:
                         YT_ABORT();
@@ -524,11 +575,12 @@ private:
                 return false;
             }
 
-            YT_LOG_DEBUG("Query is still running, doing nothing");
+            YT_TLOG_DEBUG("Query is still running, doing nothing");
 
             return true;
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error pinging query");
+            YT_TLOG_ERROR("Error pinging query")
+                .With(ex);
             return true;
         }
     }
@@ -538,7 +590,8 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
         if (auto it = AcquiredQueries_.find(queryId); it != AcquiredQueries_.end()) {
             const auto& [queryId, query] = *it;
-            YT_LOG_INFO("Query detached (QueryId: %v)", queryId);
+            YT_TLOG_INFO("Query detached")
+                .With("QueryId", queryId);
             if (query.Handler) {
                 query.Handler->Detach();
             }
@@ -575,8 +628,8 @@ private:
 
         if (finalState == EQueryState::Aborted || finalState == EQueryState::Failed) {
             error = TError("Query %v %lv", queryId, finalState)
-                << error
-                << TErrorAttribute("query_id", queryId);
+                .With(error)
+                .With("query_id", queryId);
         }
 
         while (true) {
@@ -595,13 +648,14 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
-        auto Logger = NQueryTracker::Logger().WithTag("QueryId: %v", queryId);
+        auto Logger = NQueryTracker::Logger().WithTag("QueryId", queryId);
 
         try {
-            YT_LOG_DEBUG("Starting finish transaction");
+            YT_TLOG_DEBUG("Starting finish transaction");
             auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet))
                 .ValueOrThrow();
-            YT_LOG_DEBUG("Finish transaction started (TransactionId: %v)", transaction->GetId());
+            YT_TLOG_DEBUG("Finish transaction started")
+                .With("TransactionId", transaction->GetId());
 
             auto activeQueryRecord = WaitFor(
                 LookupActiveQuery(
@@ -610,11 +664,16 @@ private:
                 .ValueOrThrow();
 
             if (!activeQueryRecord) {
-                YT_LOG_INFO("Query record is missing, cancelling finish");
+                YT_TLOG_INFO("Query record is missing, cancelling finish");
                 return false;
             }
 
             auto rowBuffer = New<TRowBuffer>();
+
+            std::optional<TDuration> notIndexedQueryTtl;
+            if (!activeQueryRecord->IsIndexed) {
+                notIndexedQueryTtl = GetConfigByEngine(Config_, activeQueryRecord->Engine)->NotIndexedQueriesTtl;
+            }
 
             {
                 std::vector keysToDelete = {
@@ -627,6 +686,10 @@ private:
             }
 
             {
+                // See YQLOVERYT-307. We must remove tokens from settings for long-term storage
+                auto settingsNode = ConvertToNode(activeQueryRecord->Settings)->AsMap();
+                settingsNode->RemoveChild("tokens");
+
                 // We must copy all fields of active query except for incarnation, ping time, assigned query and abort request
                 // (which do not matter for finished query) and filter factors field (which goes to finished_queries_by_start_time,
                 // finished_queries_by_user_and_start_time, finished_queries_by_aco_and_start_time tables).
@@ -636,7 +699,7 @@ private:
                     .Engine = activeQueryRecord->Engine,
                     .Query = activeQueryRecord->Query,
                     .Files = activeQueryRecord->Files,
-                    .Settings = activeQueryRecord->Settings,
+                    .Settings = ConvertToYsonString(settingsNode),
                     .User = activeQueryRecord->User,
                     .AccessControlObjects = activeQueryRecord->AccessControlObjects.value_or(TYsonString(TString("[]"))),
                     .StartTime = activeQueryRecord->StartTime,
@@ -651,9 +714,11 @@ private:
                     .IsIndexed = activeQueryRecord->IsIndexed,
                     .IsTutorial = activeQueryRecord->IsTutorial,
                 };
-                if (!activeQueryRecord->IsIndexed) {
-                    newRecord.TTL = Config_->NotIndexedQueriesTTL.MilliSeconds();
+
+                if (notIndexedQueryTtl) {
+                    newRecord.Ttl = notIndexedQueryTtl->MilliSeconds();
                 }
+
                 std::vector newRows = {
                     newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetPartialIdMapping()),
                 };
@@ -667,9 +732,14 @@ private:
                 }
             }
 
+            if (notIndexedQueryTtl && activeQueryRecord->Engine == EQueryEngine::Yql) {
+                SetQueryProgressTtl(queryId, *notIndexedQueryTtl, transaction, rowBuffer);
+            }
+
             auto commitResultOrError = WaitFor(transaction->Commit());
             if (!commitResultOrError.IsOK()) {
-                YT_LOG_ERROR(commitResultOrError, "Failed to finish query, backing off");
+                YT_TLOG_ERROR("Failed to finish query, backing off")
+                    .With(commitResultOrError);
                 return true;
             }
 
@@ -682,12 +752,79 @@ private:
                 stateTimeGauge.Update(now - activeQueryRecord->FinishTime.value());
             }
 
-            YT_LOG_INFO("Query finished (CommitTimestamp: %v)", commitResultOrError.Value().PrimaryCommitTimestamp);
+            YT_TLOG_INFO("Query finished")
+                .With("CommitTimestamp", commitResultOrError.Value().PrimaryCommitTimestamp);
             return false;
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error while finishing query");
+            YT_TLOG_ERROR("Error while finishing query")
+                .With(ex);
             return true;
         }
+    }
+
+    void SetQueryProgressTtl(
+        TQueryId queryId,
+        TDuration ttl,
+        const ITransactionPtr& transaction,
+        const TRowBufferPtr& rowBuffer)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
+        NQueryClient::TQueryBuilder builder;
+        builder.SetSource(StateRoot_ + "/query_progresses");
+        builder.AddSelectExpression("[part_name]");
+        builder.AddWhereConjunct("[query_id] = {QueryId}");
+
+        TSelectRowsOptions options;
+        options.Timestamp = transaction->GetStartTimestamp();
+        options.PlaceholderValues = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("QueryId").Value(queryId)
+            .EndMap();
+
+        auto selectResult = WaitFor(StateClient_->SelectRows(builder.Build(), options))
+            .ValueOrThrow();
+        auto parts = ToRecords<TQueryProgressPartial>(selectResult.Rowset);
+        if (parts.empty()) {
+            return;
+        }
+
+        std::vector<TUnversionedRow> newRows;
+        newRows.reserve(parts.size());
+        for (const auto& part : parts) {
+            TQueryProgressPartial newRecord{
+                .Key = {.QueryId = queryId, .PartName = part.Key.PartName},
+                .Ttl = ttl.MilliSeconds(),
+            };
+            newRows.push_back(newRecord.ToUnversionedRow(rowBuffer, TQueryProgressDescriptor::Get()->GetPartialIdMapping()));
+        }
+
+        transaction->WriteRows(
+            StateRoot_ + "/query_progresses",
+            TQueryProgressDescriptor::Get()->GetNameTable(),
+            MakeSharedRange(std::move(newRows), rowBuffer));
+    }
+
+    void DeleteProgressParts(
+        TQueryId queryId,
+        const ITransactionPtr& transaction,
+        const TRowBufferPtr& rowBuffer)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
+        std::vector<TUnversionedRow> keysToDelete;
+        for (auto part : TEnumTraits<NYqlClient::EProgressPart>::GetDomainValues()) {
+            TQueryProgressKey key{
+                .QueryId = queryId,
+                .PartName = FormatEnum(part),
+            };
+            keysToDelete.push_back(key.ToKey(rowBuffer));
+        }
+
+        transaction->DeleteRows(
+            StateRoot_ + "/query_progresses",
+            TQueryProgressDescriptor::Get()->GetNameTable(),
+            MakeSharedRange(std::move(keysToDelete), rowBuffer));
     }
 
     static void ValidateIncarnation(i64 expectedIncarnation, const TActiveQuery& record)
@@ -698,8 +835,8 @@ private:
                 "Query incarnation mismatch: expected %v, actual %v",
                 expectedIncarnation,
                 record.Incarnation)
-                    << TErrorAttribute("expected_incarnation", expectedIncarnation)
-                    << TErrorAttribute("actual_incarnation", record.Incarnation);
+                    .With("expected_incarnation", expectedIncarnation)
+                    .With("actual_incarnation", record.Incarnation);
         }
     }
 
@@ -710,13 +847,14 @@ private:
 
         YT_VERIFY(!LeaseTransaction_);
 
-        YT_LOG_DEBUG("Starting lease transaction");
+        YT_TLOG_DEBUG("Starting lease transaction");
 
         auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Master))
             .ValueOrThrow();
         YT_VERIFY(!std::exchange(LeaseTransaction_, std::move(transaction)));
 
-        YT_LOG_DEBUG("Lease transaction started (TransactionId: %v)", LeaseTransaction_->GetId());
+        YT_TLOG_DEBUG("Lease transaction started")
+            .With("TransactionId", LeaseTransaction_->GetId());
 
         LeaseTransaction_->SubscribeAborted(BIND(
             &TQueryTracker::OnLeaseTransactionAborted,
@@ -729,7 +867,9 @@ private:
     {
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
-        YT_LOG_WARNING(error, "Lease transaction aborted (TransactionId: %v)", transactionId);
+        YT_TLOG_WARNING("Lease transaction aborted")
+            .With("TransactionId", transactionId)
+            .With(error);
 
         YT_VERIFY(LeaseTransaction_);
         LeaseTransaction_.Reset();
@@ -739,15 +879,15 @@ private:
         auto activeQueries = std::exchange(AcquiredQueries_, {});
         for (const auto& [queryId, query] : activeQueries) {
             if (query.LeaseTransactionId != transactionId) {
-                YT_LOG_WARNING("Active query has unexpected lease transaction id "
-                    " during lease transaction abort handling, detaching it "
-                    "(QueryId: %v, LeaseTransactionId: %v, ExpectedLeaseTransactionId: %v)",
-                    queryId,
-                    query.LeaseTransactionId,
-                    transactionId);
+                YT_TLOG_WARNING("Active query has unexpected lease transaction id during lease transaction abort handling, detaching it")
+                    .With("QueryId", queryId)
+                    .With("LeaseTransactionId", query.LeaseTransactionId)
+                    .With("ExpectedLeaseTransactionId", transactionId);
             }
 
-            DetachQuery(queryId);
+            if (query.Handler) {
+                query.Handler->Detach();
+            }
         }
     }
 

@@ -93,4 +93,48 @@ func TestWalk(t *testing.T) {
 			"//home/ytwalk/foo/bar":    {},
 		})
 	})
+
+	t.Run("EscapedPaths", func(t *testing.T) {
+		for _, tc := range []struct {
+			name   string
+			opaque bool
+		}{
+			{name: "ReadInCallback"},
+			{name: "OpaqueSubtree", opaque: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				root := env.TmpPath()
+				escapedNodePath := root.Child(`node\/with_slash`)
+				_, err := env.YT.CreateNode(env.Ctx, escapedNodePath, yt.NodeMap, &yt.CreateNodeOptions{
+					Recursive: true,
+					Attributes: map[string]any{
+						"opaque": tc.opaque,
+					},
+				})
+				require.NoError(t, err)
+
+				childPath := escapedNodePath.Child("child")
+				require.NoError(t, env.YT.SetNode(env.Ctx, childPath, "value", nil))
+
+				walkResult := map[ypath.Path]yt.NodeType{}
+				err = ytwalk.Do(env.Ctx, env.YT, &ytwalk.Walk{
+					Root: root,
+					OnNode: func(path ypath.Path, _ any) error {
+						var nodeType yt.NodeType
+						if err := env.YT.GetNode(env.Ctx, path.Attr("type"), &nodeType, nil); err != nil {
+							return err
+						}
+						walkResult[path] = nodeType
+						return nil
+					},
+				})
+				require.NoError(t, err)
+				require.Equal(t, map[ypath.Path]yt.NodeType{
+					root:            yt.NodeMap,
+					escapedNodePath: yt.NodeMap,
+					childPath:       yt.NodeString,
+				}, walkResult)
+			})
+		}
+	})
 }

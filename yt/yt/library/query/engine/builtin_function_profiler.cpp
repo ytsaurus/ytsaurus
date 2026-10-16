@@ -2,6 +2,7 @@
 
 #include "functions_cg.h"
 #include "cg_fragment_compiler.h"
+#include "public.h"
 
 #include <yt/yt/library/query/engine_api/range_inferrer.h>
 #include <yt/yt/library/query/engine_api/new_range_inferrer.h>
@@ -21,6 +22,7 @@
 namespace NYT::NQueryClient {
 
 using namespace NWebAssembly;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,7 +98,7 @@ public:
         const std::vector<TLogicalTypePtr>& /*argumentTypes*/,
         const TLogicalTypePtr& type,
         const std::string& name,
-        NCodegen::EExecutionBackend /*executionBackend*/,
+        const TQueryFoldingProfilerOptions& /*options*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
         return [
@@ -249,7 +251,7 @@ public:
         const std::vector<TLogicalTypePtr>& /*argumentTypes*/,
         const TLogicalTypePtr& type,
         const std::string& /*name*/,
-        NCodegen::EExecutionBackend /*executionBackend*/,
+        const TQueryFoldingProfilerOptions& /*options*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
         YT_VERIFY(argIds.size() == 1);
@@ -300,7 +302,7 @@ public:
         const std::vector<TLogicalTypePtr>& /*argumentTypes*/,
         const TLogicalTypePtr& type,
         const std::string& /*name*/,
-        NCodegen::EExecutionBackend /*executionBackend*/,
+        const TQueryFoldingProfilerOptions& /*options*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
         YT_VERIFY(argIds.size() == 2);
@@ -363,7 +365,7 @@ public:
         const std::vector<TLogicalTypePtr>& /*argumentTypes*/,
         const TLogicalTypePtr& type,
         const std::string& /*name*/,
-        NCodegen::EExecutionBackend /*executionBackend*/,
+        const TQueryFoldingProfilerOptions& /*options*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
         YT_VERIFY(argIds.size() == 1);
@@ -417,7 +419,7 @@ public:
         const std::vector<TLogicalTypePtr>& /*argumentTypes*/,
         const TLogicalTypePtr& type,
         const std::string& /*name*/,
-        NCodegen::EExecutionBackend /*executionBackend*/,
+        const TQueryFoldingProfilerOptions& /*options*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
         return [
@@ -479,7 +481,7 @@ public:
         const std::vector<TLogicalTypePtr>& /*argumentTypes*/,
         const TLogicalTypePtr& type,
         const std::string& /*name*/,
-        NCodegen::EExecutionBackend /*executionBackend*/,
+        const TQueryFoldingProfilerOptions& /*options*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
         return [
@@ -523,7 +525,7 @@ public:
         const std::vector<TLogicalTypePtr>& /*argumentTypes*/,
         const TLogicalTypePtr& type,
         const std::string& /*name*/,
-        NCodegen::EExecutionBackend /*executionBackend*/,
+        const TQueryFoldingProfilerOptions& /*options*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
         return [
@@ -571,7 +573,7 @@ public:
         const std::vector<TLogicalTypePtr>& argumentTypes,
         const TLogicalTypePtr& targetType,
         const std::string& name,
-        NCodegen::EExecutionBackend executionBackend,
+        const TQueryFoldingProfilerOptions& options,
         llvm::FoldingSetNodeID* id) const override
     {
         YT_VERIFY(argIds.size() == 1);
@@ -629,7 +631,7 @@ public:
                     argumentTypes,
                     targetType,
                     name,
-                    executionBackend,
+                    options,
                     id);
         };
 
@@ -1058,7 +1060,7 @@ public:
         const TLogicalTypePtr& stateType,
         const TLogicalTypePtr& /*resultType*/,
         const std::string& name,
-        NCodegen::EExecutionBackend /*executionBackend*/,
+        const TQueryFoldingProfilerOptions& /*options*/,
         llvm::FoldingSetNodeID* id) const override
     {
         YT_VERIFY(argumentTypes.size() == 1);
@@ -1273,7 +1275,7 @@ public:
         const TLogicalTypePtr& stateType,
         const TLogicalTypePtr& resultType,
         const std::string& name,
-        NCodegen::EExecutionBackend /*executionBackend*/,
+        const TQueryFoldingProfilerOptions& /*options*/,
         llvm::FoldingSetNodeID* id) const override
     {
         if (id) {
@@ -1665,10 +1667,16 @@ public:
         bool useFunctionContext) override
     {
         if (FunctionProfilers_) {
+            auto implementationFiles = GetUdfBytecode(implementationFile);
             FunctionProfilers_->emplace(functionName, New<TExternalFunctionCodegen>(
                 functionName,
                 symbolName,
-                GetUdfBytecode(implementationFile),
+                implementationFiles,
+#ifdef YT_ENABLE_UDF_NATIVE_OBJECT_CODE
+                MakeUdfNativeObjectCode(implementationFiles, functionName, {symbolName}),
+#else
+                /*nativeObjectCode*/ nullptr,
+#endif
                 GetCallingConvention(callingConvention),
                 TSharedRef(),
                 useFunctionContext));
@@ -1683,10 +1691,16 @@ public:
         ECallingConvention callingConvention) override
     {
         if (FunctionProfilers_) {
+            auto implementationFiles = GetUdfBytecode(implementationFile);
             FunctionProfilers_->emplace(functionName, New<TExternalFunctionCodegen>(
                 functionName,
                 functionName,
-                GetUdfBytecode(implementationFile),
+                implementationFiles,
+#ifdef YT_ENABLE_UDF_NATIVE_OBJECT_CODE
+                MakeUdfNativeObjectCode(implementationFiles, functionName, {functionName}),
+#else
+                /*nativeObjectCode*/ nullptr,
+#endif
                 GetCallingConvention(callingConvention),
                 TSharedRef(),
                 false));
@@ -1702,10 +1716,16 @@ public:
         TStringBuf implementationFile) override
     {
         if (FunctionProfilers_) {
+            auto implementationFiles = GetUdfBytecode(implementationFile);
             FunctionProfilers_->emplace(functionName, New<TExternalFunctionCodegen>(
                 functionName,
                 functionName,
-                GetUdfBytecode(implementationFile),
+                implementationFiles,
+#ifdef YT_ENABLE_UDF_NATIVE_OBJECT_CODE
+                MakeUdfNativeObjectCode(implementationFiles, functionName, {functionName}),
+#else
+                /*nativeObjectCode*/ nullptr,
+#endif
                 GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType),
                 TSharedRef(),
                 false));
@@ -1780,10 +1800,16 @@ TConstFunctionProfilerMapPtr CreateBuiltinFunctionProfilers()
 
     result->emplace("if", New<NBuiltins::TIfFunctionCodegen>());
 
+    auto isPrefixImplementationFiles = GetUdfBytecode("is_prefix");
     result->emplace("is_prefix", New<TExternalFunctionCodegen>(
         "is_prefix",
         "is_prefix",
-        GetUdfBytecode("is_prefix"),
+        isPrefixImplementationFiles,
+#ifdef YT_ENABLE_UDF_NATIVE_OBJECT_CODE
+        MakeUdfNativeObjectCode(isPrefixImplementationFiles, "is_prefix", {"is_prefix"}),
+#else
+        /*nativeObjectCode*/ nullptr,
+#endif
         GetCallingConvention(ECallingConvention::Simple),
         TSharedRef()));
 

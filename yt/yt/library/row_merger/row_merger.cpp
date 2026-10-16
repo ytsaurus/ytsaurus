@@ -186,7 +186,7 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimes
                 int timestampColumnIndex = ColumnIdToIndex_[timestampColumnId];
 
                 if (partialValue.Timestamp > MergedTimestamps_[timestampColumnIndex]) {
-                    MergedRow_[timestampColumnIndex] = MakeUnversionedUint64Value(partialValue.Timestamp, timestampColumnId);
+                    MergedRow_[timestampColumnIndex] = MakeUnversionedUint64Value(partialValue.Timestamp.Underlying(), timestampColumnId);
                     MergedTimestamps_[timestampColumnIndex] = partialValue.Timestamp;
                 }
             }
@@ -466,16 +466,16 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
             } else {
                 if (nestedItemCount != currentItemCount) {
                     THROW_ERROR_EXCEPTION("Item count mismatch in nested key column")
-                        << TErrorAttribute("expected", nestedItemCount)
-                        << TErrorAttribute("actual", currentItemCount)
-                        << TErrorAttribute("column_id", static_cast<int>(columnId));
+                        .With("expected", nestedItemCount)
+                        .With("actual", currentItemCount)
+                        .With("column_id", static_cast<int>(columnId));
                 }
 
                 if (aggregateFlag != currentAggregateFlag) {
                     THROW_ERROR_EXCEPTION("Aggregate flag mismatch in nested key column")
-                        << TErrorAttribute("expected", aggregateFlag)
-                        << TErrorAttribute("actual", currentAggregateFlag)
-                        << TErrorAttribute("column_id", static_cast<int>(columnId));
+                        .With("expected", aggregateFlag)
+                        .With("actual", currentAggregateFlag)
+                        .With("column_id", static_cast<int>(columnId));
                 }
             }
 
@@ -483,7 +483,7 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
 
             TVersionedValue value;
             static_cast<TUnversionedValue&>(value) = mergedValue;
-            value.Timestamp = PartialRowCount_;
+            value.Timestamp = NTransactionClient::TTimestamp(PartialRowCount_);
             nestedValues.push_back(value);
 
             ValidValues_[columnId - KeyColumnCount_] = false;
@@ -512,28 +512,28 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
 
             if (isFirstColumn) {
                 THROW_ERROR_EXCEPTION("Nested value column occured without nested key column")
-                    << TErrorAttribute("column_id", static_cast<int>(columnId));
+                    .With("column_id", static_cast<int>(columnId));
             }
 
             if (nestedItemCount != currentItemCount) {
                 THROW_ERROR_EXCEPTION("Item count mismatch in nested value column")
-                    << TErrorAttribute("expected", nestedItemCount)
-                    << TErrorAttribute("actual", currentItemCount)
-                    << TErrorAttribute("column_id", static_cast<int>(columnId));
+                    .With("expected", nestedItemCount)
+                    .With("actual", currentItemCount)
+                    .With("column_id", static_cast<int>(columnId));
             }
 
             if (aggregateFlag != Any(mergedValue.Flags & EValueFlags::Aggregate)) {
                 THROW_ERROR_EXCEPTION("Aggregate flag mismatch in nested value column")
-                    << TErrorAttribute("expected", aggregateFlag)
-                    << TErrorAttribute("actual", currentAggregateFlag)
-                    << TErrorAttribute("column_id", static_cast<int>(columnId));
+                    .With("expected", aggregateFlag)
+                    .With("actual", currentAggregateFlag)
+                    .With("column_id", static_cast<int>(columnId));
             }
 
             auto& nestedValues = NestedValueColumns_[index];
 
             TVersionedValue value;
             static_cast<TUnversionedValue&>(value) = mergedValue;
-            value.Timestamp = PartialRowCount_;
+            value.Timestamp = NTransactionClient::TTimestamp(PartialRowCount_);
             nestedValues.push_back(value);
 
             ValidValues_[columnId - KeyColumnCount_] = false;

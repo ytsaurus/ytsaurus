@@ -21,6 +21,14 @@ java {
     withJavadocJar()
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(11)
+}
+
+tasks.withType<Javadoc>().configureEach {
+    (options as CoreJavadocOptions).addStringOption("source", "11")
+}
+
 dependencies {
     api("com.google.protobuf:protobuf-java:4.33.0")
     api(project(":yt:yt_proto:yt:core"))
@@ -38,6 +46,7 @@ protobuf {
 
 val prepareProto = tasks.register<Copy>("prepareProto") {
     from(rootDir) {
+        include("yt/yt_proto/yt/client/api/common/proto/schema.proto")
         include("yt/yt_proto/yt/client/api/rpc_proxy/proto/api_service.proto")
         include("yt/yt_proto/yt/client/api/rpc_proxy/proto/discovery_service.proto")
         include("yt/yt_proto/yt/client/bundle_controller/proto/bundle_controller_service.proto")
@@ -59,6 +68,7 @@ val prepareProto = tasks.register<Copy>("prepareProto") {
         include("yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.proto")
         include("yt/yt_proto/yt/client/table_client/proto/versioned_io_options.proto")
         include("yt/yt_proto/yt/client/tablet_client/proto/lock_mask.proto")
+        include("yt/yt_proto/yt/client/tablet_client/proto/secondary_index.proto")
         include("yt/yt_proto/yt/client/transaction_client/proto/timestamp_service.proto")
         include("yt/yt_proto/yt/client/query_client/proto/query_statistics.proto")
         include("yt/yt_proto/yt/client/scheduler/proto/spec_patch.proto")

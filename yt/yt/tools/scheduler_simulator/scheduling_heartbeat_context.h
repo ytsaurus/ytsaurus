@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/scheduler/common/exec_node.h>
 
+#include <yt/yt/core/actions/invoker_util.h>
+
 namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,6 +31,7 @@ public:
             shardId,
             schedulerConfig,
             node,
+            /*backgroundInvoker*/ GetSyncInvoker(),
             runningAllocations,
             mediumDirectory,
             defaultMinSpareAllocationResources)

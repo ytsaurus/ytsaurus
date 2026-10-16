@@ -1,0 +1,1032 @@
+{
+    "panels": [
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "none"
+                                }
+                            },
+                            {
+                                "id": "custom.fillOpacity",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "normal"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_bus_in_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", band=~\"\", encrypted=~\"\", network=~\"\", pod=~\"$pod\"}[$__rate_interval])",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_bus_in_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", band=~\".+\", encrypted=~\"\", network=~\"\", pod=~\"$pod\"}[$__rate_interval])",
+                    "refId": "B"
+                }
+            ],
+            "title": "Network received bytes (bus)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "none"
+                                }
+                            },
+                            {
+                                "id": "custom.fillOpacity",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "normal"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_bus_out_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", band=~\"\", encrypted=~\"\", network=~\"\", pod=~\"$pod\"}[$__rate_interval])",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_bus_out_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", band=~\".+\", encrypted=~\"\", network=~\"\", pod=~\"$pod\"}[$__rate_interval])",
+                    "refId": "B"
+                }
+            ],
+            "title": "Network transmitted bytes (bus)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "none"
+                                }
+                            },
+                            {
+                                "id": "custom.fillOpacity",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "normal"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 6
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_bus_pending_out_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", band=~\"\", encrypted=~\"\", network=~\"\", pod=~\"$pod\"}",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_bus_pending_out_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", band=~\".+\", encrypted=~\"\", network=~\"\", pod=~\"$pod\"}",
+                    "refId": "B"
+                }
+            ],
+            "title": "Pending out bytes",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "none"
+                                }
+                            },
+                            {
+                                "id": "custom.fillOpacity",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "normal"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 6
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_bus_retransmits\", tablet_cell_bundle=~\"$tablet_cell_bundle\", band=~\"\", encrypted=~\"\", network=~\"\", pod=~\"$pod\"}[$__rate_interval])",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_bus_retransmits\", tablet_cell_bundle=~\"$tablet_cell_bundle\", band=~\".+\", encrypted=~\"\", network=~\"\", pod=~\"$pod\"}[$__rate_interval])",
+                    "refId": "B"
+                }
+            ],
+            "title": "TCP retransmits rate",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "none"
+                                }
+                            },
+                            {
+                                "id": "custom.fillOpacity",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "normal"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 12
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_in_throttler_value\", tablet_cell_bundle=~\"$tablet_cell_bundle\", bucket=~\"\", pod=~\"$pod\"}[$__rate_interval])",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_in_throttler_value\", tablet_cell_bundle=~\"$tablet_cell_bundle\", bucket=~\".+\", pod=~\"$pod\"}[$__rate_interval])",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "max by() ({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_in_throttler_total_limit\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\"})",
+                    "legendFormat": "\"Limit\"",
+                    "refId": "C"
+                }
+            ],
+            "title": "Receive network throttler bytes rate",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "none"
+                                }
+                            },
+                            {
+                                "id": "custom.fillOpacity",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "normal"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 12
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_out_throttler_value\", tablet_cell_bundle=~\"$tablet_cell_bundle\", bucket=~\"\", pod=~\"$pod\"}[$__rate_interval])",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_out_throttler_value\", tablet_cell_bundle=~\"$tablet_cell_bundle\", bucket=~\".+\", pod=~\"$pod\"}[$__rate_interval])",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "max by() ({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_out_throttler_total_limit\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\"})",
+                    "legendFormat": "\"Limit\"",
+                    "refId": "C"
+                }
+            ],
+            "title": "Transmit network throttler bytes rate",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 18
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_in_throttler_throttled\", tablet_cell_bundle=~\"$tablet_cell_bundle\", bucket=~\".+\", pod=~\"$pod\"}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Receive network throttled",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 18
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_out_throttler_throttled\", tablet_cell_bundle=~\"$tablet_cell_bundle\", bucket=~\".+\", pod=~\"$pod\"}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Transmit network throttled",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 24
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_rpc_server_request_count\", tablet_cell_bundle=~\"$tablet_cell_bundle\", user=~\"\", yt_service=~\".+\", method=~\".+\", pod=~\"$pod\", queue=~\"\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "RPC request rate",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 24
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_rpc_server_request_queue_size_errors\", tablet_cell_bundle=~\"$tablet_cell_bundle\", user=~\"\", yt_service=~\".+\", method=~\".+\", pod=~\"$pod\", queue=~\"\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "RPC rejected due to queue overflow",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 30
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_rpc_server_failed_request_count\", tablet_cell_bundle=~\"$tablet_cell_bundle\", user=~\"\", yt_service=~\".+\", method=~\".+\", pod=~\"$pod\", queue=~\"\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "RPC failed request rate",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 30
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_rpc_server_timed_out_request_count\", tablet_cell_bundle=~\"$tablet_cell_bundle\", user=~\"\", yt_service=~\".+\", method=~\".+\", pod=~\"$pod\", queue=~\"\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "RPC timed out request rate",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "fillOpacity": 100,
+                        "hideFrom": {
+                            "legend": true
+                        },
+                        "stacking": {
+                            "group": "A",
+                            "mode": "normal"
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 36
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_lookup_chunk_reader_statistics_data_bytes_transmitted\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", user=~\".+\", medium=~\"\", pod=~\"$pod\"}[$__rate_interval])",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Table lookup bytes received",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "fillOpacity": 100,
+                        "hideFrom": {
+                            "legend": true
+                        },
+                        "stacking": {
+                            "group": "A",
+                            "mode": "normal"
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 36
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_select_chunk_reader_statistics_data_bytes_transmitted\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", user=~\".+\", medium=~\"\", pod=~\"$pod\"}[$__rate_interval])",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Table select bytes received",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 42
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_rpc_server_request_time_remote_wait_max\", tablet_cell_bundle=~\"$tablet_cell_bundle\", user=~\"\", yt_service=~\"QueryService\", method=~\"Multiread\", pod=~\"$pod\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Table lookup (QueryService::Multiread) RPC acknowledge time",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 42
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_rpc_server_request_time_remote_wait_max\", tablet_cell_bundle=~\"$tablet_cell_bundle\", user=~\"\", yt_service=~\"QueryService\", method=~\"Execute\", pod=~\"$pod\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Table select (QueryService::Execute) RPC acknowledge time",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 48
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_rpc_client_request_message_body_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", user=~\"\", yt_service=~\"\", method=~\"\", pod=~\"$pod\", queue=~\"\", recognized=~\"\"}[$__rate_interval])",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Rpc client (yt_node) request message body size",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 48
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_rpc_client_request_message_attachment_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", user=~\"\", yt_service=~\"\", method=~\"\", pod=~\"$pod\", queue=~\"\", recognized=~\"\"}[$__rate_interval])",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Rpc client (yt_node) request message attachment size",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 54
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_rpc_client_response_message_body_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", user=~\"\", yt_service=~\"\", method=~\"\", pod=~\"$pod\", queue=~\"\", recognized=~\"\"}[$__rate_interval])",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Rpc client (yt_node) response message body size",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 54
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_rpc_client_response_message_attachment_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", user=~\"\", yt_service=~\"\", method=~\"\", pod=~\"$pod\", queue=~\"\", recognized=~\"\"}[$__rate_interval])",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Rpc client (yt_node) response message attachment size",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 60
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_rpc_server_request_message_body_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", user=~\"\", yt_service=~\"\", method=~\"\", pod=~\"$pod\", queue=~\"\", recognized=~\"\"}[$__rate_interval])",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Rpc server (yt_node) request message body size",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 60
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_rpc_server_request_message_attachment_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", user=~\"\", yt_service=~\"\", method=~\"\", pod=~\"$pod\", queue=~\"\", recognized=~\"\"}[$__rate_interval])",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Rpc server (yt_node) request message attachment size",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 66
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_rpc_server_response_message_body_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", user=~\"\", yt_service=~\"\", method=~\"\", pod=~\"$pod\", queue=~\"\", recognized=~\"\"}[$__rate_interval])",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Rpc server (yt_node) response message body size",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 66
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_rpc_server_response_message_attachment_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", user=~\"\", yt_service=~\"\", method=~\"\", pod=~\"$pod\", queue=~\"\", recognized=~\"\"}[$__rate_interval])",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Rpc server (yt_node) response message attachment size",
+            "type": "timeseries"
+        }
+    ],
+    "tags": [],
+    "templating": {
+        "list": [
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "hide": 0,
+                "label": "Cluster",
+                "name": "cluster",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": "sys",
+                    "value": "sys"
+                },
+                "hide": 0,
+                "label": "Tablet cell bundle",
+                "name": "tablet_cell_bundle",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "sys",
+                        "value": "sys"
+                    }
+                ],
+                "query": "sys",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "default_for_ui": ".*",
+                "hide": 0,
+                "label": "Pod",
+                "name": "pod",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            }
+        ]
+    },
+    "title": "Bundle network [Autogenerated]"
+}

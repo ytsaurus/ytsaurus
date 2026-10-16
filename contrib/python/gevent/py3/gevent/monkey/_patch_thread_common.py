@@ -7,15 +7,37 @@ Internal use only.
 """
 import sys
 
-from ._util import _patch_module
-from ._util import _queue_warning
-from ._util import _notify_patch
+from gevent.exceptions import LoopExit
 
 from ._state import is_object_patched
+from ._util import _notify_patch
+from ._util import _patch_module
+from ._util import _queue_warning
+
+
+def _patch_global_shutdown_lock(threading):
+    # ``concurrent.futures.thread`` registers its ``_global_shutdown_lock`` with
+    # ``os.register_at_fork(before=acquire, after_in_parent=release)``, and
+    # ``Executor.submit`` holds it across ``Thread.start()``. So a worker
+    # greenlet that forks runs those handlers while another greenlet holds the
+    # lock: a native one blocks the only OS thread forever, one of ours parks
+    # the greenlet inside ``os.fork()``. See :issue:`1865`.
+    #
+    # We can't unregister, so we hand the handlers a lock nobody else holds;
+    # uncontended, it neither blocks nor switches. Its users re-read the global.
+    # We import the module since applications import it after patching.
+    import concurrent.futures.thread as cf_thread
+    if not hasattr(cf_thread, '_global_shutdown_lock'): # pragma: no cover
+        # Private; it may go away.
+        return
+
+    cf_thread._global_shutdown_lock = threading._allocate_lock()
+
 
 def _patch_existing_locks(threading):
     if len(list(threading.enumerate())) != 1:
         return
+    _patch_global_shutdown_lock(threading)
     # This is used to protect internal data structures for enumerate.
     # It's acquired when threads are started and when they're stopped.
     # Stopping a thread checks a Condition, which on Python 2 wants to test
@@ -191,8 +213,9 @@ class BasePatcher:
             self.patch_logging()
 
     def patch_event(self):
-        from .api import patch_item
         from gevent.event import Event
+
+        from .api import patch_item
         patch_item(self.threading_mod, 'Event', Event)
         # Python 2 had `Event` as a function returning
         # the private class `_Event`. Some code may be relying
@@ -215,8 +238,9 @@ class BasePatcher:
 
     def patch__threading_local(self):
         _threading_local = __import__('_threading_local')
-        from .api import patch_item
         from gevent.local import local
+
+        from .api import patch_item
         patch_item(_threading_local, 'local', local)
 
     def patch_active_threads(self):
@@ -266,14 +290,19 @@ class BasePatcher:
             # XXX: There's probably a better way to do this. Probably need to take a
             # step back and look at the whole picture.
             main_thread._ident = get_ident()
-            orig_shutdown()
+            try:
+                orig_shutdown()
+            except LoopExit: # pragma: no cover
+                pass
             patch_item(threading_mod, '_shutdown', orig_shutdown)
         patch_item(threading_mod, '_shutdown', _shutdown)
 
     @staticmethod # Static to be sure we don't accidentally capture `self` and keep it alive
     def _make_existing_non_main_thread_join_func(thread, thread_greenlet, threading_mod):
-        from gevent.hub import sleep
         from time import time
+
+        from gevent.hub import sleep
+
         # TODO: This is almost the algorithm that the 3.13 _ThreadHandle class
         # employs. UNIFY them.
         def join(timeout=None):

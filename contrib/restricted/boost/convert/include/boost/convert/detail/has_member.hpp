@@ -5,6 +5,7 @@
 #ifndef BOOST_CONVERT_HAS_MEMBER_HPP
 #define BOOST_CONVERT_HAS_MEMBER_HPP
 
+#include <boost/type_traits/remove_const.hpp>
 #include <boost/type_traits/detail/yes_no_type.hpp>
 
 // This macro allows to check if a type has a member named "__member_name__"...

@@ -4,14 +4,15 @@
 
 #include <yt/yt/client/kafka/requests.h>
 
+#include <yt/yt/core/actions/public.h>
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/bus/bus.h>
 #include <yt/yt/core/bus/public.h>
 
-#include <library/cpp/yt/misc/guid.h>
-
 #include <library/cpp/yt/memory/ref.h>
+
+#include <library/cpp/yt/misc/guid.h>
 
 namespace NYT::NKafkaProxy {
 
@@ -29,9 +30,10 @@ DEFINE_REFCOUNTED_TYPE(IServer);
 ////////////////////////////////////////////////////////////////////////////////
 
 IServerPtr CreateServer(
-    TProxyBootstrapConfigPtr config,
+    TKafkaServerConfigPtr config,
     NConcurrency::IPollerPtr poller,
     NConcurrency::IPollerPtr acceptor,
+    IInvokerPtr controlInvoker,
     IRequestHandlerPtr requestHandler);
 
 ////////////////////////////////////////////////////////////////////////////////

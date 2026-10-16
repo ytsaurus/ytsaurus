@@ -7,9 +7,10 @@
 #include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/core/misc/aggregate_property.h>
-#include <yt/yt/core/misc/property.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NHiveServer {
 
@@ -47,6 +48,8 @@ public:
     };
 
     TLamportClock* GetClock();
+
+    void Clear();
 
     std::pair<TLogicalTime, TConsistentState> GetConsistentState(std::optional<TLogicalTime> logicalTime);
 

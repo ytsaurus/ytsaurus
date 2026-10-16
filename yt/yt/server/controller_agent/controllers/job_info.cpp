@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 
+#include <yt/yt/server/lib/controller_agent/structs.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <util/generic/cast.h>
@@ -93,7 +95,7 @@ TJoblet::TJoblet(
     TTask* task,
     int jobIndex,
     int taskJobIndex,
-    const TString& treeId,
+    const std::string& treeId,
     bool treeIsTentative)
     : Task(task)
     , JobIndex(jobIndex)
@@ -104,7 +106,7 @@ TJoblet::TJoblet(
 
 TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool isJobFinished)
 {
-    const auto Logger = ControllerLogger().WithTag("JobId: %v", JobId);
+    const auto Logger = ControllerLogger().WithTag("JobId", JobId);
 
     if (!jobSummary.Statistics) {
         // Return empty delta if job has no statistics.
@@ -122,9 +124,9 @@ TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool isJobF
     bool monotonicityViolated = !Dominates(newJobMetrics, JobMetrics);
     if (monotonicityViolated) {
         if (!HasLoggedJobMetricsMonotonicityViolation) {
-            YT_LOG_WARNING("Job metrics monotonicity violated (Previous: %v, Current: %v)",
-                ConvertToYsonString(JobMetrics, EYsonFormat::Text),
-                ConvertToYsonString(newJobMetrics, EYsonFormat::Text));
+            YT_TLOG_WARNING("Job metrics monotonicity violated")
+                .With("Previous", ConvertToYsonString(JobMetrics, EYsonFormat::Text))
+                .With("Current", ConvertToYsonString(newJobMetrics, EYsonFormat::Text));
 
             HasLoggedJobMetricsMonotonicityViolation = true;
         }
@@ -197,7 +199,9 @@ void TJoblet::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(13, BriefStatistics);
     PHOENIX_REGISTER_FIELD(14, Progress);
     PHOENIX_REGISTER_FIELD(15, StderrSize);
-    PHOENIX_REGISTER_FIELD(16, Phase);
+    PHOENIX_REGISTER_FIELD(16, Phase,
+        // COMPAT(pogorelov)
+        .template Serializer<TJobPhaseSerializer>());
     PHOENIX_REGISTER_FIELD(17, CompetitionIds);
     PHOENIX_REGISTER_FIELD(18, HasCompetitors);
     PHOENIX_REGISTER_FIELD(19, TaskName);
@@ -241,21 +245,22 @@ PHOENIX_DEFINE_TYPE(TJoblet);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCompletedJob::Persist(const TPersistenceContext& context)
+void TCompletedJob::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Suspended);
-    Persist(context, UnavailableChunks);
-    Persist(context, JobId);
-    Persist(context, SourceTask);
-    Persist(context, OutputCookie);
-    Persist(context, DataWeight);
-    Persist(context, DestinationPool);
-    Persist(context, InputCookie);
-    Persist(context, InputStripe);
-    Persist(context, NodeDescriptor);
-    Persist(context, Restartable);
+    PHOENIX_REGISTER_FIELD(1, Suspended);
+    PHOENIX_REGISTER_FIELD(2, UnavailableChunks);
+    PHOENIX_REGISTER_FIELD(3, JobId);
+    PHOENIX_REGISTER_FIELD(4, SourceTask);
+    PHOENIX_REGISTER_FIELD(5, OutputCookie);
+    PHOENIX_REGISTER_FIELD(6, DataWeight);
+    PHOENIX_REGISTER_FIELD(7, DestinationPool);
+    PHOENIX_REGISTER_FIELD(8, InputCookie);
+    PHOENIX_REGISTER_FIELD(9, InputStripe);
+    PHOENIX_REGISTER_FIELD(10, NodeDescriptor);
+    PHOENIX_REGISTER_FIELD(11, Restartable);
 }
+
+PHOENIX_DEFINE_TYPE(TCompletedJob);
 
 ////////////////////////////////////////////////////////////////////////////////
 

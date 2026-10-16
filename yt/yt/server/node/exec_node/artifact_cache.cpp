@@ -32,6 +32,8 @@
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 
 #include <yt/yt/ytlib/file_client/file_chunk_reader.h>
@@ -50,11 +52,15 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/client/table_client/adapters.h>
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/client/misc/io_tags.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
+
+#include <yt/yt/core/actions/callback.h>
+#include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
@@ -127,35 +133,93 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TThrottlingOutput
+    : public IOutputStream
+{
+public:
+    TThrottlingOutput(
+        IOutputStream* underlying,
+        IThroughputThrottlerPtr throttler)
+        : Underlying_(underlying)
+        , Throttler_(std::move(throttler))
+    { }
+
+private:
+    IOutputStream* const Underlying_;
+    const IThroughputThrottlerPtr Throttler_;
+
+    void Throttle(i64 amount)
+    {
+        WaitFor(Throttler_->Throttle(amount))
+            .ThrowOnError();
+    }
+
+    void DoWrite(const void* buf, size_t len) override
+    {
+        Throttle(len);
+        Underlying_->Write(buf, len);
+    }
+
+    void DoWriteV(const TPart* parts, size_t count) override
+    {
+        i64 totalSize = 0;
+        for (size_t index = 0; index < count; ++index) {
+            totalSize += parts[index].len;
+        }
+        Throttle(totalSize);
+        Underlying_->Write(parts, count);
+    }
+
+    void DoFlush() override
+    {
+        Underlying_->Flush();
+    }
+
+    void DoFinish() override
+    {
+        Underlying_->Finish();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TErrorInterceptingOutput
     : public IOutputStream
 {
 public:
     TErrorInterceptingOutput(
         TChunkLocationBasePtr location,
-        IOutputStream* underlying,
-        bool testLocationDisable)
+        std::unique_ptr<IOutputStream> underlying,
+        bool testLocationDisable,
+        std::function<void()> cleanup)
         : Location_(std::move(location))
-        , Underlying_(underlying)
+        , Underlying_(std::move(underlying))
         , TestLocationDisabling_(testLocationDisable)
+        , Cleanup_(std::move(cleanup))
     { }
 
 private:
     const TChunkLocationBasePtr Location_;
-    IOutputStream* const Underlying_;
+    const std::unique_ptr<IOutputStream> Underlying_;
     const bool TestLocationDisabling_ = false;
+    const std::function<void()> Cleanup_;
 
     template <class... TArgs>
     void Check(
         void(IOutputStream::*Method)(TArgs...),
         TArgs... args)
     {
+        if (!Location_->IsEnabled()) {
+            THROW_ERROR_EXCEPTION(Location_->GetLocationDisableError());
+        }
+
         try {
             if (TestLocationDisabling_) {
                 THROW_ERROR_EXCEPTION("Test cache location disabling");
             }
             (*Underlying_.*Method)(args...);
         } catch (const std::exception& ex) {
+            Cleanup_();
             Location_->ScheduleDisable(ex);
             THROW_ERROR_EXCEPTION(ex);
         }
@@ -179,6 +243,130 @@ private:
     void DoFinish() override
     {
         Check(&IOutputStream::Finish);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPositionalFileOutput
+    : public IOutputStream
+{
+public:
+    TPositionalFileOutput(TFile file, i64 offset)
+        : File_(std::move(file))
+        , Offset_(offset)
+    { }
+
+    i64 GetPosition() const
+    {
+        return Offset_;
+    }
+
+private:
+    const TFile File_;
+    i64 Offset_;
+
+    void DoWrite(const void* buf, size_t len) override
+    {
+        File_.Pwrite(buf, len, Offset_);
+        Offset_ += len;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Triggers incremental writeback via sync_file_range every WritebackBatchSize bytes
+// so that the final Flush() does not have to flush the whole file at once.
+// nullopt writebackBatchSize disables writeback.
+class TIncrementalWritebackOutput
+    : public IOutputStream
+{
+public:
+    TIncrementalWritebackOutput(
+        TFile file,
+        i64 startOffset,
+        std::optional<i64> writebackBatchSize,
+        NLogging::TLogger logger,
+        std::unique_ptr<IOutputStream> underlying)
+        : Underlying_(std::move(underlying))
+        , WritebackBatchSize_(writebackBatchSize)
+        , Logger(std::move(logger))
+        , File_(std::move(file))
+        , FlushedOffset_(startOffset)
+    { }
+
+private:
+    const std::unique_ptr<IOutputStream> Underlying_;
+    const std::optional<i64> WritebackBatchSize_;
+    const NLogging::TLogger Logger;
+
+    TFile File_;
+    i64 FlushedOffset_;
+    i64 UnflushedBytes_ = 0;
+
+    void AccountForWrittenBytes(i64 size)
+    {
+        if (!WritebackBatchSize_) {
+            return;
+        }
+
+        UnflushedBytes_ += size;
+
+        if (UnflushedBytes_ >= *WritebackBatchSize_) {
+            FlushUnflushedBytes();
+        }
+    }
+
+    void DoWrite(const void* buf, size_t len) override
+    {
+        Underlying_->Write(buf, len);
+        AccountForWrittenBytes(len);
+    }
+
+    void DoWriteV(const TPart* parts, size_t count) override
+    {
+        i64 totalSize = 0;
+        for (size_t index = 0; index < count; ++index) {
+            totalSize += parts[index].len;
+        }
+        Underlying_->Write(parts, count);
+        AccountForWrittenBytes(totalSize);
+    }
+
+    void DoFlush() override
+    {
+        Underlying_->Flush();
+    }
+
+    void DoFinish() override
+    {
+        // NB: Finish() is not forwarded to the underlying stream: neither TPositionalFileOutput
+        // nor TUnbufferedFileOutput needs it for correctness, and TUnbufferedFileOutput::DoFinish()
+        // would fsync the file before the final Flush() in ProduceArtifactFile,
+        // defeating the purpose of this class.
+        FlushUnflushedBytes();
+    }
+
+    void FlushUnflushedBytes()
+    {
+        if (UnflushedBytes_ == 0) {
+            return;
+        }
+
+        // NB: Errors are logged and swallowed: sync_file_range fails on some file systems
+        // (e.g. tmpfs), the final Flush() guarantees durability anyway, and an exception
+        // would disable the location.
+        try {
+            File_.FlushCache(FlushedOffset_, UnflushedBytes_, /*wait*/ false);
+        } catch (const std::exception& ex) {
+            YT_TLOG_DEBUG("Incremental writeback failed")
+                .With("FileName", File_.GetName())
+                .With("Offset", FlushedOffset_)
+                .With("Bytes", UnflushedBytes_)
+                .With(ex);
+        }
+        FlushedOffset_ += UnflushedBytes_;
+        UnflushedBytes_ = 0;
     }
 };
 
@@ -268,11 +456,14 @@ private:
 
     TFuture<void> Check(TFuture<void> result)
     {
-        return result.Apply(BIND([location = Location_] (const TError& error) {
-            if (!error.IsOK()) {
-                location->ScheduleDisable(error);
-                THROW_ERROR_EXCEPTION(error);
+        return result.Apply(BIND([location = Location_, underlying = Underlying_] (const TError& error) {
+            if (error.IsOK()) {
+                return OKFuture;
             }
+            return underlying->Cancel().Apply(BIND([location, error] (const TError& inner) {
+                location->ScheduleDisable(error);
+                return inner.IsOK() ? error : error.With(inner);
+            }));
         }));
     }
 };
@@ -312,7 +503,7 @@ public:
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        YT_LOG_INFO("Initializing artifact cache");
+        YT_TLOG_INFO("Initializing artifact cache");
 
         Bootstrap_->GetDynamicConfigManager()->SubscribeBeforeConfigChanged(
             BIND_NO_PROPAGATE(&TArtifactCache::TImpl::OnDynamicConfigChanged, MakeWeak(this)));
@@ -325,7 +516,7 @@ public:
             auto location = New<TCacheLocation>(
                 "cache" + ToString(index),
                 std::move(locationConfig),
-                Bootstrap_->GetClusterNodeBootstrap(),
+                Bootstrap_,
                 // All this stuff is leaky.
                 Bootstrap_->GetArtifactCache());
 
@@ -342,9 +533,8 @@ public:
 
         ValidateLocations();
 
-        YT_LOG_INFO(
-            "Artifact cache initialized (ArtifactCount: %v)",
-            GetSize());
+        YT_TLOG_INFO("Artifact cache initialized")
+            .With("ArtifactCount", GetSize());
 
         RunBackgroundValidation();
     }
@@ -359,13 +549,6 @@ public:
             }
         }
         return false;
-    }
-
-    TArtifactPtr FindArtifact(TChunkId chunkId)
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        return Find(TArtifactKey(chunkId));
     }
 
     std::vector<TArtifactPtr> GetArtifacts()
@@ -397,30 +580,40 @@ public:
             /*bypassArtifactCache*/ false);
 
         auto Logger = ExecNodeLogger()
-            .WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId);
+            .WithTag("ReadSessionId", chunkReadOptions.ReadSessionId);
 
         // NB: Artifact key is being formatted as prototext and is pretty verbose.
         // We avoid annotating each relevant line with the full key and log the key
         // only once. Other lines are tagged read session id, which seems sufficient.
-        YT_LOG_INFO(
-            "Downloading artifact (ArtifactKey: %v)",
-            key);
+        YT_TLOG_INFO("Downloading artifact")
+            .With("ArtifactKey", key);
 
-        auto cookie = BeginInsert(key);
+        auto cookie = BeginInsert(key, key.GetFileSizeEstimateOrCrash());
         auto cookieValue = cookie.GetValue();
 
         if (cookie.IsActive()) {
-            if (auto optionalDescriptor = ExtractRegisteredChunk(key)) {
-                DoValidateArtifact(std::move(cookie), key, artifactDownloadOptions, chunkReadOptions, *optionalDescriptor, Logger);
-            } else {
-                DoDownloadArtifact(std::move(cookie), key, artifactDownloadOptions, chunkReadOptions, Logger);
-            }
+            auto future = ExtractRegisteredChunk(key);
             if (fetchedFromCache) {
-                *fetchedFromCache = false;
+                // NB: fetchedFromCache is set optimistically before validation completes.
+                // If DoValidateChunk finds corruption and falls back to DoDownloadArtifact,
+                // the artifact will be fetched over the network despite fetchedFromCache=true.
+                *fetchedFromCache = !future.IsSet() || future.GetOrCrash().ValueOrDefault(std::nullopt).has_value();
             }
+            return future.Apply(BIND([=, this, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<std::optional<TRegisteredChunkDescriptor>>& optionalDescriptor) mutable {
+                if (optionalDescriptor.IsOK() && optionalDescriptor.ValueOrCrash().has_value()) {
+                    // Artifact is on disk but not in the in-memory SLRU index (e.g. after node restart).
+                    DoValidateArtifact(std::move(cookie), key, artifactDownloadOptions, chunkReadOptions, *optionalDescriptor.ValueOrCrash(), Logger);
+                } else {
+                    if (!optionalDescriptor.IsOK()) {
+                        YT_TLOG_WARNING("Error extracting registered chunk")
+                            .With(optionalDescriptor);
+                    }
+                    DoDownloadArtifact(std::move(cookie), key, artifactDownloadOptions, chunkReadOptions, Logger);
+                }
+                return cookieValue.As<TArtifactPtr>();
+            }));
         } else {
-            YT_LOG_INFO(
-                "Artifact is either found in cache or is being downloaded");
+            YT_TLOG_INFO("Artifact is either found in cache or is being downloaded");
             if (fetchedFromCache) {
                 *fetchedFromCache = true;
             }
@@ -438,7 +631,7 @@ public:
             artifactDownloadOptions,
             /*bypassArtifactCache*/ true);
 
-        decltype(&TImpl::MakeFileProducer) producerBuilder;
+        decltype(&TImpl::MakeTableProducer) producerBuilder;
         switch (FromProto<EDataSourceType>(key.data_source().type())) {
             case EDataSourceType::File:
                 producerBuilder = &TImpl::MakeFileProducer;
@@ -459,18 +652,42 @@ public:
             GetUnlimitedThrottler());
     }
 
-    TFuture<void> RemoveChunksByLocation(const TCacheLocationPtr& location)
+    TFuture<void> RemoveChunksByLocation(const TCacheLocationPtr& location, bool forbidSlruResurrection)
     {
         return BIND([=, this, this_ = MakeStrong(this)] {
             auto chunks = GetAll();
             for (const auto& chunk : chunks) {
                 if (chunk->GetLocation() == location) {
-                    TryRemove(chunk->GetKey(), /*forbidResurrection*/ true);
+                    TryRemove(chunk->GetKey(), forbidSlruResurrection);
                 }
             }
 
+            std::vector<TFuture<void>> pendingRegistrations;
             {
-                auto guard = Guard(RegisteredChunkMapLock_);
+                auto guard = Guard(UnvalidatedChunkMapsLock_);
+                THashMap<TChunkId, TPendingChunkRegistrationDescriptor> newPendingChunkRegistrationMap;
+
+                for (const auto& [chunkId, chunkDescriptor] : PendingChunkRegistrationMap_) {
+                    if (chunkDescriptor.Location == location) {
+                        if (!chunkDescriptor.Registration) {
+                            continue;
+                        }
+                        pendingRegistrations.push_back(chunkDescriptor.Registration);
+                    }
+                    newPendingChunkRegistrationMap.emplace(chunkId, chunkDescriptor);
+                }
+                PendingChunkRegistrationMap_ = std::move(newPendingChunkRegistrationMap);
+            }
+
+            WaitUntilSet(
+                AllSet(std::move(pendingRegistrations))
+                    .AsVoid());
+
+            {
+                auto guard = Guard(UnvalidatedChunkMapsLock_);
+                for (const auto& [chunkId, chunkDescriptor] : PendingChunkRegistrationMap_) {
+                    YT_VERIFY(chunkDescriptor.Location != location);
+                }
                 THashMap<TArtifactKey, TRegisteredChunkDescriptor> newRegisteredChunkMap;
                 for (const auto& [artifactKey, chunkDescriptor] : RegisteredChunkMap_) {
                     if (chunkDescriptor.Location != location) {
@@ -499,8 +716,16 @@ private:
         TChunkDescriptor Descriptor;
     };
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RegisteredChunkMapLock_);
+    struct TPendingChunkRegistrationDescriptor
+    {
+        TCacheLocationPtr Location;
+        TChunkDescriptor Descriptor;
+        TFuture<void> Registration;
+    };
+
+    YT_DECLARE_SPIN_LOCK(TSpinLock, UnvalidatedChunkMapsLock_);
     THashMap<TArtifactKey, TRegisteredChunkDescriptor> RegisteredChunkMap_;
+    THashMap<TChunkId, TPendingChunkRegistrationDescriptor> PendingChunkRegistrationMap_;
 
     TPerCategoryThrottlerProvider CreateBandwithThrottlerProvider()
     {
@@ -538,8 +763,33 @@ private:
             return;
         }
 
+        // If a chunk is discovered on disk, it needs to be registered (which involves reading
+        // meta from disk to deserialize the artifact key), and then validated, before finally
+        // being inserted into SLRU. This either happens when the artifact is first requested
+        // or eventually via background validation.
         for (const auto& descriptor : descriptors) {
-            RegisterChunk(location, descriptor);
+            if (IsArtifactChunkId(descriptor.Id)) {
+                // These are registered and put into RegisteredChunkMap_ straight away, because
+                // their chunk id cannot be reconstructed from an artifact key and therefore we
+                // need to deserialize it now.
+                RegisterChunk(location, descriptor);
+                continue;
+            }
+
+            // For single-chunk file artifacts, whose chunk id equals file chunk id, we can
+            // postpone registration because their chunk id can be used for lookup instead of
+            // artifact key. Before they make it into RegisteredChunkMap_, they will hang around
+            // in PendingChunkRegistrationMap_.
+            auto guard = Guard(UnvalidatedChunkMapsLock_);
+            if (PendingChunkRegistrationMap_.contains(descriptor.Id)) {
+                guard.Release();
+                RemoveUnregisteredChunkFiles(location, descriptor.Id);
+                continue;
+            }
+            EmplaceOrCrash(PendingChunkRegistrationMap_, descriptor.Id, TPendingChunkRegistrationDescriptor{
+                .Location = location,
+                .Descriptor = descriptor,
+            });
         }
 
         location->Start();
@@ -578,42 +828,77 @@ private:
 
     void RunBackgroundValidation()
     {
-        Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND_NO_PROPAGATE([this_ = MakeStrong(this), this] {
+        Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND([this_ = MakeStrong(this), this] {
             // Delay start of background validation to populate chunk cache with useful artifacts.
             TDelayedExecutor::WaitForDuration(Config_->BackgroundArtifactValidationDelay);
 
-            YT_LOG_INFO("Background artifacts validation started");
+            YT_TLOG_INFO("Background artifacts validation started");
 
             while (true) {
-                auto guard = Guard(RegisteredChunkMapLock_);
-                if (RegisteredChunkMap_.empty()) {
-                    YT_LOG_INFO("Background artifacts validation finished");
+                auto guard = Guard(UnvalidatedChunkMapsLock_);
+
+                if (!RegisteredChunkMap_.empty()) {
+                    auto artifactKey = RegisteredChunkMap_.begin()->first;
+
+                    guard.Release();
+
+                    auto errorOrChunk = WaitFor(DownloadArtifact(artifactKey, /*artifactDownloadOptions*/ {}));
+                    if (!errorOrChunk.IsOK()) {
+                        YT_TLOG_WARNING("Background artifact validation failed")
+                            .With("ArtifactKey", artifactKey)
+                            .With(errorOrChunk);
+                    }
+                } else if (!PendingChunkRegistrationMap_.empty()) {
+                    auto chunkId = PendingChunkRegistrationMap_.begin()->first;
+                    GuardedRegisterChunkIfNeeded(chunkId, guard);
+                    auto future = PendingChunkRegistrationMap_.begin()->second.Registration;
+                    YT_VERIFY(future);
+
+                    guard.Release();
+
+                    auto registrationResult = WaitFor(future);
+                    if (!registrationResult.IsOK()) {
+                        YT_TLOG_WARNING("Artifact registration failed")
+                            .With("ChunkId", chunkId)
+                            .With(registrationResult);
+                    }
+                } else {
+                    YT_TLOG_INFO("Background artifacts validation finished");
                     return;
-                }
-
-                auto artifactKey = RegisteredChunkMap_.begin()->first;
-                guard.Release();
-
-                TArtifactDownloadOptions options;
-                auto errorOrChunk = WaitFor(DownloadArtifact(artifactKey, options));
-                if (!errorOrChunk.IsOK()) {
-                    YT_LOG_WARNING(errorOrChunk, "Background artifact validation failed (ArtifactKey: %v)", artifactKey);
                 }
 
                 TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
             }}));
     }
 
-    std::optional<TRegisteredChunkDescriptor> ExtractRegisteredChunk(const TArtifactKey& key)
+    TFuture<std::optional<TRegisteredChunkDescriptor>> ExtractRegisteredChunk(const TArtifactKey& key)
     {
-        auto guard = Guard(RegisteredChunkMapLock_);
-        auto it = RegisteredChunkMap_.find(key);
-        if (it == RegisteredChunkMap_.end()) {
-            return std::nullopt;
+        auto guard = Guard(UnvalidatedChunkMapsLock_);
+        TChunkId chunkId;
+        if (key.chunk_specs_size() == 1) {
+            chunkId = FromProto<TChunkId>(key.chunk_specs()[0].chunk_id());
+            GuardedRegisterChunkIfNeeded(chunkId, guard);
         }
-        auto descriptor = std::move(it->second);
-        RegisteredChunkMap_.erase(it);
-        return descriptor;
+        if (chunkId && PendingChunkRegistrationMap_.contains(chunkId)) {
+            const auto& registration = GetOrCrash(PendingChunkRegistrationMap_, chunkId).Registration;
+            YT_VERIFY(registration);
+            return registration.Apply(BIND([=, this, this_ = MakeStrong(this)] () -> std::optional<TRegisteredChunkDescriptor> {
+                auto guard = Guard(UnvalidatedChunkMapsLock_);
+                auto it = RegisteredChunkMap_.find(key);
+                if (it == RegisteredChunkMap_.end()) {
+                    return std::nullopt;
+                }
+                auto descriptor = std::move(it->second);
+                RegisteredChunkMap_.erase(it);
+                return std::move(descriptor);
+            }));
+        }
+        if (auto it = RegisteredChunkMap_.find(key); it != RegisteredChunkMap_.end()) {
+            auto descriptor = std::move(it->second);
+            RegisteredChunkMap_.erase(it);
+            return MakeFuture(std::optional(std::move(descriptor)));
+        }
+        return MakeFuture<std::optional<TRegisteredChunkDescriptor>>(std::nullopt);
     }
 
     void DoDownloadArtifact(
@@ -628,19 +913,19 @@ private:
         auto cookieValue = cookie.GetValue();
         auto canPrepareSingleChunk = CanPrepareSingleChunk(key);
         auto chunkId = GetOrCreateArtifactId(key, canPrepareSingleChunk);
-        Logger.AddTag("ChunkId: %v", chunkId);
+        Logger.AddTag("ChunkId", chunkId);
 
         auto [location, lockedChunkGuard] = AcquireNewChunkLocation(chunkId);
         if (!location) {
-            auto error = TError("Cannot find a suitable location for artifact chunk");
-            cookie.Cancel(error);
-            YT_LOG_ERROR(error);
+            static constexpr auto Message = "Cannot find a suitable location for artifact chunk"_sb;
+            cookie.Cancel(TError(Message));
+            YT_TLOG_ERROR(Message);
             return;
         }
 
-        Logger.AddTag("LocationId: %v", location->GetId());
+        Logger.AddTag("LocationId", location->GetId());
 
-        YT_LOG_INFO("Loading artifact into cache");
+        YT_TLOG_INFO("Loading artifact into cache");
 
         decltype(&TImpl::DownloadChunk) downloader;
         if (canPrepareSingleChunk) {
@@ -661,8 +946,7 @@ private:
 
         TSessionCounterGuard sessionCounterGuard(location);
 
-        auto invoker = CreateSerializedInvoker(location->GetAuxPoolInvoker());
-        invoker->Invoke(BIND(
+        location->GetAuxPoolInvoker()->Invoke(BIND(
             downloader,
             MakeStrong(this),
             key,
@@ -689,18 +973,18 @@ private:
         auto chunkId = descriptor.Descriptor.Id;
         const auto& location = descriptor.Location;
 
-        Logger.AddTag("ChunkId: %v, LocationId: %v",
-            chunkId,
-            location->GetId());
+        Logger
+            .AddTag("ChunkId", chunkId)
+            .AddTag("LocationId", location->GetId());
 
         if (!CanPrepareSingleChunk(key)) {
-            YT_LOG_INFO("Skipping validation for multi-chunk artifact");
+            YT_TLOG_INFO("Skipping validation for multi-chunk artifact");
             auto artifact = CreateArtifact(location, key, descriptor.Descriptor);
-            cookie.EndInsert(std::move(artifact));
+            EndInsertIfEnabled(cookie, std::move(artifact), location);
             return;
         }
 
-        YT_LOG_INFO("Scheduling cached chunk validation");
+        YT_TLOG_INFO("Scheduling cached chunk validation");
         location->GetAuxPoolInvoker()->Invoke(BIND(
             &TImpl::DoValidateChunk,
             MakeStrong(this),
@@ -728,40 +1012,33 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         try {
-            YT_LOG_INFO("Chunk validation started");
+            YT_TLOG_INFO("Chunk validation started");
 
             auto dataFileName = location->GetChunkPath(chunkId);
 
-            auto chunkReader = New<TChunkFileReader>(
-                location->GetIOEngine(),
-                chunkId,
-                dataFileName);
-
-            auto metaOrError = WaitFor(chunkReader->GetMeta(chunkReadOptions, {}));
-            THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Failed to read cached chunk meta");
-
-            auto meta = std::move(metaOrError.Value());
-            auto miscExt = GetProtoExtension<TMiscExt>(meta->extensions());
+            YT_VERIFY(key.chunk_specs_size() == 1);
+            auto miscExt = GetProtoExtension<TMiscExt>(key.chunk_specs()[0].chunk_meta().extensions());
 
             try {
                 TFile dataFile(dataFileName, OpenExisting | RdOnly | CloseOnExec);
                 if (dataFile.GetLength() != miscExt.compressed_data_size()) {
                     THROW_ERROR_EXCEPTION("Chunk length mismatch")
-                        << TErrorAttribute("chunk_id", chunkId)
-                        << TErrorAttribute("expected_size", miscExt.compressed_data_size())
-                        << TErrorAttribute("actual_size", dataFile.GetLength());
+                        .With("chunk_id", chunkId)
+                        .With("expected_size", miscExt.compressed_data_size())
+                        .With("actual_size", dataFile.GetLength());
                 }
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to validate cached chunk size")
-                    << ex;
+                    .With(ex);
             }
 
-            YT_LOG_INFO("Chunk validation completed");
+            YT_TLOG_INFO("Chunk validation completed");
 
             auto chunk = CreateArtifact(location, key, descriptor.Descriptor);
-            cookie.EndInsert(std::move(chunk));
+            EndInsertIfEnabled(cookie, std::move(chunk), location);
         } catch (const std::exception& ex) {
-            YT_LOG_INFO(ex, "Chunk is corrupted");
+            YT_TLOG_INFO("Chunk is corrupted")
+                .With(ex);
 
             location->RemoveChunkFiles(chunkId, true);
 
@@ -780,10 +1057,9 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG(
-            "Cached chunk object created (ChunkId: %v, LocationId: %v)",
-            descriptor.Id,
-            location->GetId());
+        YT_TLOG_DEBUG("Cached chunk object created")
+            .With("ChunkId", descriptor.Id)
+            .With("LocationId", location->GetId());
 
         location->UpdateChunkCount(+1);
         location->UpdateUsedSpace(+descriptor.DiskSpace);
@@ -795,10 +1071,9 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG(
-            "Cached chunk object destroyed (ChunkId: %v, LocationId: %v)",
-            descriptor.Id,
-            location->GetId());
+        YT_TLOG_DEBUG("Cached chunk object destroyed")
+            .With("ChunkId", descriptor.Id)
+            .With("LocationId", location->GetId());
 
         location->UpdateChunkCount(-1);
         location->UpdateUsedSpace(-descriptor.DiskSpace);
@@ -827,8 +1102,67 @@ private:
             std::move(meta),
             /*destroyedHandler*/ BIND_NO_PROPAGATE(&TImpl::OnArtifactDestroyed, MakeStrong(this), location, descriptor));
         OnArtifactCreated(location, descriptor);
-        lockedChunkGuard.Release();
+        std::move(lockedChunkGuard).Release();
         return artifact;
+    }
+
+    void EndInsertIfEnabled(
+        TInsertCookie& cookie,
+        TArtifactPtr artifact,
+        const TCacheLocationPtr& location)
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (!location->IsEnabled()) {
+            cookie.Cancel(
+                TError(
+                    NExecNode::EErrorCode::ArtifactFetchFailed,
+                    "Refusing to insert artifact into a disabled cache location")
+                    .With("location_id", location->GetId()));
+            return;
+        }
+
+        auto key = cookie.GetKey();
+        cookie.EndInsert(std::move(artifact));
+
+        if (!location->IsEnabled()) {
+            TryRemove(key, /*forbidResurrection*/ true);
+        }
+    }
+
+    void GuardedRegisterChunkIfNeeded(TChunkId chunkId, const TGuard<TSpinLock>& /*guard*/)
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto it = PendingChunkRegistrationMap_.find(chunkId);
+        if (it == PendingChunkRegistrationMap_.end()) {
+            return;
+        }
+        if (it->second.Registration) {
+            return;
+        }
+
+        it->second.Registration = BIND(
+            &TImpl::RegisterChunk,
+            MakeStrong(this),
+            it->second.Location,
+            it->second.Descriptor)
+            .AsyncVia(it->second.Location->GetAuxPoolInvoker())
+            .Run()
+            .Apply(BIND([this, this_ = MakeStrong(this), chunkId] (const TError& result) {
+                auto guard = Guard(UnvalidatedChunkMapsLock_);
+                EraseOrCrash(PendingChunkRegistrationMap_, chunkId);
+                result.ThrowOnError();
+            })
+                .AsyncVia(it->second.Location->GetAuxPoolInvoker()))
+            .ToUncancelable();
+    }
+
+    void RegisterChunkIfNeeded(TChunkId chunkId)
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        GuardedRegisterChunkIfNeeded(chunkId, Guard(UnvalidatedChunkMapsLock_));
     }
 
     void RegisterChunk(
@@ -839,21 +1173,32 @@ private:
 
         auto chunkId = descriptor.Id;
 
+        auto lockedChunkGuard = location->TryLockChunk(chunkId);
+        YT_VERIFY(lockedChunkGuard);
+
+        auto fileRemover = Finally([&] {
+            location->RemoveChunkFiles(chunkId, /*force*/ true);
+        });
+
+        // RemoveChunkFiles will unlock the chunk instead.
+        std::move(lockedChunkGuard).Release();
+
         auto optionalKey = TryParseArtifactMeta(location, chunkId);
         if (!optionalKey) {
             return;
         }
         const auto& key = *optionalKey;
 
-        {
-            auto lockedChunkGuard = location->TryLockChunk(chunkId);
-            YT_VERIFY(lockedChunkGuard);
-            lockedChunkGuard.Release();
+        // COMPAT(dann239): Previous node versions sometimes constructed "hollow" artifact keys.
+        if (!key.IsInitialized()) {
+            YT_TLOG_WARNING("Skipping chunk with an uninitialized key")
+                .With("ChunkId", chunkId);
+            return;
         }
 
         bool inserted;
         {
-            auto guard = Guard(RegisteredChunkMapLock_);
+            auto guard = Guard(UnvalidatedChunkMapsLock_);
             inserted = RegisteredChunkMap_.emplace(key, TRegisteredChunkDescriptor{
                 .Location = location,
                 .Descriptor = descriptor
@@ -861,18 +1206,16 @@ private:
         }
 
         if (!inserted) {
-            YT_LOG_WARNING(
-                "Removing duplicate cached chunk (ChunkId: %v)",
-                chunkId);
-            location->RemoveChunkFiles(chunkId, true);
+            YT_TLOG_WARNING("Removing duplicate cached chunk")
+                .With("ChunkId", chunkId);
             return;
         }
 
-        YT_LOG_DEBUG(
-            "Cached chunk registered (ChunkId: %v, LocationId: %v, DiskSpace: %v)",
-            chunkId,
-            location->GetId(),
-            descriptor.DiskSpace);
+        fileRemover.Release();
+        YT_TLOG_DEBUG("Cached chunk registered")
+            .With("ChunkId", chunkId)
+            .With("LocationId", location->GetId())
+            .With("DiskSpace", descriptor.DiskSpace);
     }
 
 
@@ -887,10 +1230,9 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG(
-            "Chunk object added to cache (ChunkId: %v, LocationId: %v)",
-            artifact->GetId(),
-            artifact->GetLocation()->GetId());
+        YT_TLOG_DEBUG("Chunk object added to cache")
+            .With("ChunkId", artifact->GetId())
+            .With("LocationId", artifact->GetLocation()->GetId());
 
         TAsyncSlruCacheBase::OnAdded(artifact);
     }
@@ -899,10 +1241,9 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG(
-            "Chunk object removed from cache (ChunkId: %v, LocationId: %v)",
-            artifact->GetId(),
-            artifact->GetLocation()->GetId());
+        YT_TLOG_DEBUG("Chunk object removed from cache")
+            .With("ChunkId", artifact->GetId())
+            .With("LocationId", artifact->GetLocation()->GetId());
 
         TAsyncSlruCacheBase::OnRemoved(artifact);
     }
@@ -992,6 +1333,47 @@ private:
         return true;
     }
 
+    struct TFileChunkLayout
+    {
+        std::vector<i64> Offsets;
+        std::vector<i64> Sizes;
+        i64 TotalSize = 0;
+    };
+
+    static std::optional<TFileChunkLayout> TryGetFileChunkLayout(const TArtifactKey& key)
+    {
+        std::vector<i64> offsets;
+        std::vector<i64> sizes;
+        i64 offset = 0;
+        const auto& chunkSpecs = key.chunk_specs();
+        for (const auto& chunkSpec : chunkSpecs) {
+            if (chunkSpec.has_lower_limit() && !IsTrivial(chunkSpec.lower_limit())) {
+                return std::nullopt;
+            }
+            if (chunkSpec.has_upper_limit() && !IsTrivial(chunkSpec.upper_limit())) {
+                return std::nullopt;
+            }
+            if (!chunkSpec.has_uncompressed_data_size_override()) {
+                return std::nullopt;
+            }
+            const auto chunkSize = chunkSpec.uncompressed_data_size_override();
+            if (chunkSize <= 0) {
+                return std::nullopt;
+            }
+            offsets.push_back(offset);
+            sizes.push_back(chunkSize);
+            offset += chunkSize;
+        }
+        if (std::ssize(offsets) < 2) {
+            return std::nullopt;
+        }
+        return TFileChunkLayout{
+            .Offsets = std::move(offsets),
+            .Sizes = std::move(sizes),
+            .TotalSize = offset,
+        };
+    }
+
     TClientChunkReadOptions MakeClientChunkReadOptions(
         TArtifactDownloadOptions artifactDownloadOptions,
         bool bypassArtifactCache)
@@ -1055,22 +1437,22 @@ private:
                 std::move(seedReplicas));
 
             auto fileName = location->GetChunkPath(chunkId);
-            auto chunkWriter = New<TChunkFileWriter>(
-                location->GetIOEngine(),
-                chunkId,
-                fileName,
-                /*syncOnClose*/ false);
-
-            auto checkedChunkWriter = New<TErrorInterceptingChunkWriter>(location, chunkWriter);
+            auto checkedChunkWriter = New<TErrorInterceptingChunkWriter>(
+                location,
+                New<TChunkFileWriter>(
+                    location->GetIOEngine(),
+                    chunkId,
+                    fileName,
+                    /*syncOnClose*/ false));
 
             IChunkWriter::TWriteBlocksOptions writeBlocksOptions;
 
-            YT_LOG_DEBUG("Opening chunk writer");
+            YT_TLOG_DEBUG("Opening chunk writer");
 
             WaitFor(checkedChunkWriter->Open())
                 .ThrowOnError();
 
-            YT_LOG_DEBUG("Getting chunk meta");
+            YT_TLOG_DEBUG("Getting chunk meta");
 
             auto chunkMeta = WaitFor(chunkReader->GetMeta(IChunkReader::TGetMetaOptions{
                 .ClientOptions = chunkReadOptions,
@@ -1113,19 +1495,17 @@ private:
             blockFetcher->Start();
 
             for (int index = 0; index < blockCount; ++index) {
-                YT_LOG_DEBUG(
-                    "Downloading block (Block: %v)",
-                    index);
+                YT_TLOG_DEBUG("Downloading block")
+                    .With("Block", index);
 
                 auto block = WaitFor(blockFetcher->FetchBlock(index))
                     .ValueOrThrow();
 
-                YT_LOG_DEBUG(
-                    "Writing block (Block: %v)",
-                    index);
+                YT_TLOG_DEBUG("Writing block")
+                    .With("Block", index);
 
                 if (!checkedChunkWriter->WriteBlock(writeBlocksOptions, chunkReadOptions.WorkloadDescriptor, block)) {
-                    WaitFor(chunkWriter->GetReadyEvent())
+                    WaitFor(checkedChunkWriter->GetReadyEvent())
                         .ThrowOnError();
                 }
 
@@ -1133,7 +1513,7 @@ private:
                     .ThrowOnError();
             }
 
-            YT_LOG_DEBUG("Closing chunk");
+            YT_TLOG_DEBUG("Closing chunk");
 
             auto deferredChunkMeta = New<TDeferredChunkMeta>();
             deferredChunkMeta->CopyFrom(*chunkMeta);
@@ -1161,18 +1541,20 @@ private:
                     });
             }
 
-            YT_LOG_INFO("Chunk is downloaded into cache");
+            YT_TLOG_INFO("Chunk is downloaded into cache");
 
-            TChunkDescriptor descriptor(chunkId, chunkWriter->GetChunkInfo().disk_space());
+            TChunkDescriptor descriptor(chunkId, checkedChunkWriter->GetChunkInfo().disk_space());
             auto chunk = CreateArtifact(location,  key, descriptor, std::move(chunkMeta), std::move(lockedChunkGuard));
-            cookie.EndInsert(chunk);
+            EndInsertIfEnabled(cookie, std::move(chunk), location);
         } catch (const std::exception& ex) {
             auto error = TError(
                 "Error downloading chunk %v into cache",
                 chunkId)
-                << ex;
+                .With(ex);
             cookie.Cancel(error);
-            YT_LOG_WARNING(error);
+            YT_TLOG_WARNING("Error downloading chunk into cache")
+                .With("ChunkId", chunkId)
+                .With(ex);
         }
     }
 
@@ -1190,26 +1572,170 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         try {
-            auto producer = MakeFileProducer(
-                key,
-                artifactDownloadOptions.TrafficMeter,
-                chunkReadOptions,
-                location->GetInThrottler());
+            auto readerConfig = GetArtifactCacheReaderConfig();
 
-            auto artifact = ProduceArtifactFile(
-                key,
-                location,
-                chunkId,
-                std::move(lockedChunkGuard),
-                producer,
-                Logger);
-            cookie.EndInsert(std::move(artifact));
+            auto chunkLayout = readerConfig->MaxParallelDownloadChunks > 1
+                ? TryGetFileChunkLayout(key)
+                : std::nullopt;
+
+            TArtifactPtr artifact;
+            if (chunkLayout) {
+                YT_TLOG_INFO("Downloading file artifact in parallel")
+                    .With("ChunkCount", std::ssize(chunkLayout->Offsets))
+                    .With("TotalSize", chunkLayout->TotalSize)
+                    .With("MaxParallelDownloadChunks", readerConfig->MaxParallelDownloadChunks);
+
+                artifact = ProduceArtifactFileFromChunks(
+                    key,
+                    location,
+                    chunkId,
+                    std::move(lockedChunkGuard),
+                    artifactDownloadOptions,
+                    chunkReadOptions,
+                    *chunkLayout,
+                    Logger);
+            } else {
+                auto producer = MakeFileProducer(
+                    key,
+                    artifactDownloadOptions.TrafficMeter,
+                    chunkReadOptions,
+                    location->GetInThrottler());
+
+                artifact = ProduceArtifactFile(
+                    key,
+                    location,
+                    chunkId,
+                    std::move(lockedChunkGuard),
+                    producer,
+                    Logger);
+            }
+
+            EndInsertIfEnabled(cookie, std::move(artifact), location);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading file artifact into cache")
-                << ex;
+                .With(ex);
             cookie.Cancel(error);
-            YT_LOG_WARNING(error);
+            YT_TLOG_WARNING("Error downloading file artifact into cache")
+                .With(ex);
         }
+    }
+
+    void DownloadFileChunk(
+        const std::shared_ptr<const TArtifactKey>& key,
+        const TCacheLocationPtr& location,
+        const TChunkSpec& chunkSpec,
+        i64 offset,
+        TFile dataFile,
+        i64 expectedSize,
+        const TArtifactDownloadOptions& artifactDownloadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
+        const IMultiReaderMemoryManagerPtr& multiReaderMemoryManager,
+        const std::function<void()>& cleanupTempFiles,
+        const NLogging::TLogger& Logger)
+    {
+        auto readerConfig = GetArtifactCacheReaderConfig();
+
+        // Each chunk gets its own child memory manager: the shared manager is finalized
+        // once a chunk's only reader is opened, and a subsequent reader registration would fail.
+        auto childMemoryManager = multiReaderMemoryManager->CreateMultiReaderMemoryManager(
+            readerConfig->WindowSize);
+
+        auto positionalOutput = std::make_unique<TPositionalFileOutput>(dataFile, offset);
+        auto* positionalOutputPtr = positionalOutput.get();
+
+        TErrorInterceptingOutput checkedOutput(
+            location,
+            std::make_unique<TIncrementalWritebackOutput>(
+                std::move(dataFile),
+                offset,
+                readerConfig->WritebackBatchSize,
+                Logger,
+                std::move(positionalOutput)),
+            Bootstrap_->GetDynamicConfig()->ExecNode->ChunkCache->TestCacheLocationDisabling,
+            cleanupTempFiles);
+
+        auto producer = MakeFileProducer(
+            key,
+            artifactDownloadOptions.TrafficMeter,
+            chunkReadOptions,
+            location->GetInThrottler(),
+            std::vector<TChunkSpec>{chunkSpec},
+            std::move(childMemoryManager));
+
+        producer(&checkedOutput);
+        checkedOutput.Finish();
+
+        auto writtenBytes = positionalOutputPtr->GetPosition() - offset;
+        if (writtenBytes != expectedSize) {
+            THROW_ERROR_EXCEPTION("Chunk %v produced an artifact file chunk of unexpected size",
+                FromProto<TChunkId>(chunkSpec.chunk_id()))
+                .With("expected_size", expectedSize)
+                .With("written_size", writtenBytes)
+                .With("offset", offset);
+        }
+    }
+
+    TArtifactPtr ProduceArtifactFileFromChunks(
+        const TArtifactKey& key,
+        const TCacheLocationPtr& location,
+        TChunkId chunkId,
+        TLockedChunkGuard lockedChunkGuard,
+        const TArtifactDownloadOptions& artifactDownloadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
+        const TFileChunkLayout& chunkLayout,
+        const NLogging::TLogger& Logger)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+
+        auto dataFileFiller = [&] (const TArtifactDataContext& context) {
+            auto readerConfig = GetArtifactCacheReaderConfig();
+
+            auto multiReaderMemoryManager = CreateParallelReaderMemoryManager(
+                TParallelReaderMemoryManagerOptions{
+                    .TotalReservedMemorySize = readerConfig->MaxBufferSize,
+                    .MaxInitialReaderReservedMemory = readerConfig->WindowSize,
+                },
+                NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
+
+            auto sharedKey = std::make_shared<const TArtifactKey>(key);
+
+            const auto& chunkSpecs = key.chunk_specs();
+
+            std::vector<TCallback<TFuture<void>()>> chunkCallbacks;
+            chunkCallbacks.reserve(std::ssize(chunkSpecs));
+            for (int index = 0; index < std::ssize(chunkSpecs); ++index) {
+                chunkCallbacks.push_back(
+                    BIND(
+                        &TImpl::DownloadFileChunk,
+                        MakeStrong(this),
+                        sharedKey,
+                        location,
+                        chunkSpecs[index],
+                        chunkLayout.Offsets[index],
+                        context.DataFile,
+                        chunkLayout.Sizes[index],
+                        artifactDownloadOptions,
+                        chunkReadOptions,
+                        multiReaderMemoryManager,
+                        context.CleanupTempFiles,
+                        Logger)
+                        .AsyncVia(location->GetAuxPoolInvoker()));
+            }
+
+            WaitFor(RunWithAllSucceededBoundedConcurrency(
+                std::move(chunkCallbacks),
+                readerConfig->MaxParallelDownloadChunks))
+                .ThrowOnError();
+        };
+
+        return ProduceArtifactFile(
+            key,
+            location,
+            chunkId,
+            std::move(lockedChunkGuard),
+            dataFileFiller,
+            std::ssize(chunkLayout.Offsets),
+            Logger);
     }
 
     std::function<void(IOutputStream*)> MakeFileProducer(
@@ -1218,9 +1744,24 @@ private:
         const TClientChunkReadOptions& chunkReadOptions,
         const IThroughputThrottlerPtr& throttler)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        return MakeFileProducer(
+            std::make_shared<const TArtifactKey>(key),
+            trafficMeter,
+            chunkReadOptions,
+            throttler,
+            std::vector<TChunkSpec>(key.chunk_specs().begin(), key.chunk_specs().end()),
+            /*multiReaderMemoryManager*/ nullptr);
+    }
 
-        std::vector<TChunkSpec> chunkSpecs(key.chunk_specs().begin(), key.chunk_specs().end());
+    std::function<void(IOutputStream*)> MakeFileProducer(
+        std::shared_ptr<const TArtifactKey> key,
+        const TTrafficMeterPtr& trafficMeter,
+        const TClientChunkReadOptions& chunkReadOptions,
+        const IThroughputThrottlerPtr& throttler,
+        const std::vector<TChunkSpec>& chunkSpecs,
+        IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto readerOptions = New<TMultiChunkReaderOptions>();
         readerOptions->EnableP2P = true;
@@ -1240,26 +1781,35 @@ private:
             std::move(chunkReaderHost),
             chunkReadOptions,
             chunkSpecs,
-            FromProto<NChunkClient::TDataSourcePtr>(key.data_source()));
+            FromProto<NChunkClient::TDataSourcePtr>(key->data_source()),
+            std::move(multiReaderMemoryManager));
 
-        return [reader = std::move(reader), key, throttler] (IOutputStream* output) {
-            TBlock block;
-            while (reader->ReadBlock(&block)) {
-                if (block.Data.Empty()) {
-                    auto error = WaitFor(reader->GetReadyEvent());
-                    if (!error.IsOK()) {
-                        THROW_ERROR_EXCEPTION(
-                            NExecNode::EErrorCode::ArtifactFetchFailed,
-                            "Error while fetching artifact chunks")
-                            << TErrorAttribute("path", key.data_source().path())
-                            << TErrorAttribute("filesystem", FromProto<NControllerAgent::ELayerFilesystem>(key.filesystem()))
-                            << std::move(error);
-                    }
-                } else {
-                    output->Write(block.Data.Begin(), block.Size());
-                    WaitFor(throttler->Throttle(block.Size()))
-                        .ThrowOnError();
+        auto asyncStream = CreateFileReaderAdapter(reader);
+        auto prefetchingStream = CreatePrefetchingAdapter(
+            std::move(asyncStream),
+            GetArtifactCacheReaderConfig()->WindowSize);
+
+        return [prefetchingStream, key = std::move(key), throttler] (IOutputStream* output) {
+            TThrottlingOutput throttlingOutput(output, throttler);
+            auto syncStream = CreateSyncAdapter(prefetchingStream);
+
+            const void* buf;
+            while (true) {
+                size_t size;
+                try {
+                    size = syncStream->Next(&buf);
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION(
+                        NExecNode::EErrorCode::ArtifactFetchFailed,
+                        "Error while fetching artifact chunks")
+                        .With("path", key->data_source().path())
+                        .With("filesystem", FromProto<NControllerAgent::ELayerFilesystem>(key->filesystem()))
+                        .With(ex);
                 }
+                if (size == 0) {
+                    break;
+                }
+                throttlingOutput.Write(buf, size);
             }
         };
     }
@@ -1291,12 +1841,15 @@ private:
                 std::move(lockedChunkGuard),
                 producer,
                 Logger);
-            cookie.EndInsert(std::move(chunk));
+            EndInsertIfEnabled(cookie, std::move(chunk), location);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading table artifact into cache")
-                << ex;
+                .With(ex);
             cookie.Cancel(error);
-            YT_LOG_WARNING(error);
+            YT_TLOG_WARNING("Error downloading table artifact into cache")
+                .With("ArtifactKey", key)
+                .With("ChunkId", chunkId)
+                .With(ex);
         }
     }
 
@@ -1306,7 +1859,7 @@ private:
         const NTableClient::TTableSchemaPtr& schema,
         const NTableClient::TColumnRenameDescriptors& renameDescriptors)
     {
-        THashMap<TString, TString> nameToStableName;
+        THashMap<std::string, std::string> nameToStableName;
         for (const auto& renameDescriptor : renameDescriptors) {
             nameToStableName.emplace(renameDescriptor.NewName, renameDescriptor.OriginalName);
         }
@@ -1403,32 +1956,42 @@ private:
             key,
             throttler
         ] (IOutputStream* output) {
+            TThrottlingOutput throttlingOutput(output, throttler);
             auto writer = CreateStaticTableWriterForFormat(
                 format,
                 nameTable,
                 {schema ? schema : New<TTableSchema>()},
                 {columns},
-                CreateAsyncAdapter(output),
+                CreateAsyncAdapter(&throttlingOutput),
                 false, /*enableContextSaving*/
                 New<TControlAttributesConfig>(),
                 0);
-            TPipeReaderToWriterOptions options;
-            options.BufferRowCount = TableArtifactBufferRowCount;
-            options.Throttler = throttler;
-            options.ReaderErrorWrapper = [key] (TError readerError) {
-                return TError(
-                    NExecNode::EErrorCode::ArtifactFetchFailed,
-                    "Error while fetching artifact chunks")
-                    << TErrorAttribute("path", key.data_source().path())
-                    << TErrorAttribute("filesystem", FromProto<NControllerAgent::ELayerFilesystem>(key.filesystem()))
-                    << std::move(readerError);
-            };
-            PipeReaderToWriter(
+
+            PipeReaderToWriterByBatches(
                 CreateApiFromSchemalessChunkReaderAdapter(reader),
                 writer,
-                options);
+                TPipeReaderToWriterByBatchesOptions{
+                    .StartingOptions = {
+                        .MaxRowsPerRead = TableArtifactBufferRowCount,
+                        .Columnar = (format.GetType() == EFormatType::Arrow),
+                    },
+                    .ReaderErrorWrapper = [key] (TError readerError) {
+                        return TError(
+                            NExecNode::EErrorCode::ArtifactFetchFailed,
+                            "Error while fetching artifact chunks")
+                            .With("path", key.data_source().path())
+                            .With("filesystem", FromProto<NControllerAgent::ELayerFilesystem>(key.filesystem()))
+                            .With(std::move(readerError));
+                    },
+                });
         };
     }
+
+    struct TArtifactDataContext
+    {
+        TFile& DataFile;
+        std::function<void()> CleanupTempFiles;
+    };
 
     TArtifactPtr ProduceArtifactFile(
         const TArtifactKey& key,
@@ -1438,14 +2001,49 @@ private:
         const std::function<void(IOutputStream*)>& producer,
         const NLogging::TLogger& Logger)
     {
+        auto dataFileFiller = [&] (const TArtifactDataContext& context) {
+            TErrorInterceptingOutput checkedOutput(
+                location,
+                std::make_unique<TIncrementalWritebackOutput>(
+                    context.DataFile,
+                    /*startOffset*/ 0,
+                    GetArtifactCacheReaderConfig()->WritebackBatchSize,
+                    Logger,
+                    std::make_unique<TUnbufferedFileOutput>(context.DataFile)),
+                Bootstrap_->GetDynamicConfig()->ExecNode->ChunkCache->TestCacheLocationDisabling,
+                context.CleanupTempFiles);
+
+            producer(&checkedOutput);
+            checkedOutput.Finish();
+        };
+
+        return ProduceArtifactFile(
+            key,
+            location,
+            chunkId,
+            std::move(lockedChunkGuard),
+            dataFileFiller,
+            /*ioRequestCount*/ 1,
+            Logger);
+    }
+
+    TArtifactPtr ProduceArtifactFile(
+        const TArtifactKey& key,
+        const TCacheLocationPtr& location,
+        TChunkId chunkId,
+        TLockedChunkGuard lockedChunkGuard,
+        const std::function<void(const TArtifactDataContext&)>& dataFileFiller,
+        int ioRequestCount,
+        const NLogging::TLogger& Logger)
+    {
         YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
-        YT_LOG_INFO("Producing artifact file");
+        YT_TLOG_INFO("Producing artifact file");
 
         auto dataFileName = location->GetChunkPath(chunkId);
         auto metaFileName = dataFileName + ArtifactMetaSuffix;
-        auto tempDataFileName = dataFileName + NFS::TempFileSuffix;
-        auto tempMetaFileName = metaFileName + NFS::TempFileSuffix;
+        auto tempDataFileName = dataFileName + std::string(NFS::TempFileSuffix);
+        auto tempMetaFileName = metaFileName + std::string(NFS::TempFileSuffix);
 
         auto metaBlob = SerializeProtoToRef(key);
         TArtifactMetaHeader metaHeader;
@@ -1454,36 +2052,51 @@ private:
         std::unique_ptr<TFile> tempMetaFile;
         i64 chunkSize;
 
+        auto cleanupTempFiles = [=] {
+            for (const auto& path : {tempDataFileName, tempMetaFileName}) {
+                try {
+                    if (NFS::Exists(path)) {
+                        NFS::Remove(path);
+                    }
+                } catch (const std::exception& ex) {
+                    YT_TLOG_ERROR("Failed to cleanup a temporary file")
+                        .With("Path", path)
+                        .With(ex);
+                }
+            }
+        };
+
         location->DisableOnError(BIND([&] {
+            auto guard = Finally(cleanupTempFiles);
+
+            // TODO(babenko): migrate to std::string (TFile is TString-only).
             tempDataFile = std::make_unique<TFile>(
-                tempDataFileName,
+                TString(tempDataFileName),
                 CreateAlways | WrOnly | Seq | CloseOnExec);
             tempDataFile->Flock(LOCK_EX);
 
+            // TODO(babenko): migrate to std::string (TFile is TString-only).
             tempMetaFile = std::make_unique<TFile>(
-                tempMetaFileName,
+                TString(tempMetaFileName),
                 CreateAlways | WrOnly | Seq | CloseOnExec);
             tempMetaFile->Flock(LOCK_EX);
-        })).Run();
 
-        TUnbufferedFileOutput fileOutput(*tempDataFile);
-        TErrorInterceptingOutput checkedOutput(
-            location,
-            &fileOutput,
-            Bootstrap_->GetDynamicConfig()->ExecNode->ChunkCache->TestCacheLocationDisabling);
+            guard.Release();
+        })).Run();
 
         auto traceContext = CreateTraceContextFromCurrent("ArtifactCache");
         TTraceContextGuard guard(traceContext);
 
         PackBaggageFromDataSource(traceContext, FromProto<NChunkClient::TDataSourcePtr>(key.data_source()));
 
-        producer(&checkedOutput);
+        TArtifactDataContext dataFileContext{*tempDataFile, cleanupTempFiles};
+        dataFileFiller(dataFileContext);
 
         if (Bootstrap_->GetIOTracker()->IsEnabled()) {
             Bootstrap_->GetIOTracker()->Enqueue(
                 TIOCounters{
                     .Bytes = tempDataFile->GetLength(),
-                    .IORequests = 1,
+                    .IORequests = ioRequestCount,
                 },
                 /*tags*/ {
                     {FormatIOTag(ERawIOTag::LocationId), ToString(location->GetId())},
@@ -1497,6 +2110,8 @@ private:
         }
 
         location->DisableOnError(BIND([&] {
+            auto guard = Finally(cleanupTempFiles);
+
             chunkSize = tempDataFile->GetLength();
             tempDataFile->Flush();
             tempDataFile->Close();
@@ -1508,6 +2123,8 @@ private:
 
             NFS::Rename(tempMetaFileName, metaFileName);
             NFS::Rename(tempDataFileName, dataFileName);
+
+            guard.Release();
         })).Run();
 
         TChunkDescriptor descriptor(chunkId);
@@ -1521,69 +2138,95 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
+        auto dataFileName = location->GetChunkPath(chunkId);
+
         if (!IsArtifactChunkId(chunkId)) {
-            return TArtifactKey(chunkId);
+            auto chunkReader = New<TChunkFileReader>(
+                location->GetIOEngine(),
+                chunkId,
+                dataFileName);
+
+            auto options = MakeClientChunkReadOptions(
+                /*artifactDownloadOptions*/ {},
+                /*bypassArtifactCache*/ false);
+
+            auto metaOrError = WaitFor(chunkReader->GetMeta(options));
+            if (!metaOrError.IsOK()) {
+                YT_TLOG_WARNING("Failed to read cached chunk meta")
+                    .With(metaOrError);
+                return std::nullopt;
+            }
+
+            auto meta = std::move(metaOrError.Value());
+
+            auto chunkSpec = TChunkSpec();
+            ToProto(chunkSpec.mutable_chunk_id(), chunkId);
+            chunkSpec.mutable_chunk_meta()->CopyFrom(*meta);
+
+            return TArtifactKey(EDataSourceType::File, {std::move(chunkSpec)});
         }
 
-        auto dataFileName = location->GetChunkPath(chunkId);
         auto metaFileName = dataFileName + ArtifactMetaSuffix;
 
         TSharedMutableRef metaBlob;
 
         location->DisableOnError(BIND([&] {
+            // TODO(babenko): migrate to std::string (TFile is TString-only).
             TFile metaFile(
-                metaFileName,
+                TString(metaFileName),
                 OpenExisting | RdOnly | Seq | CloseOnExec);
             TFileInput metaInput(metaFile);
             metaBlob = TSharedMutableRef::Allocate<TArtifactReaderMetaBufferTag>(metaFile.GetLength());
             metaInput.Read(metaBlob.Begin(), metaFile.GetLength());
         })).Run();
 
-        auto readMeta = [&] () -> std::optional<TArtifactKey> {
-            if (metaBlob.Size() < sizeof(TArtifactMetaHeader)) {
-                YT_LOG_WARNING(
-                    "Artifact meta file %v is too short: at least %v bytes expected",
-                    metaFileName,
-                    sizeof(TArtifactMetaHeader));
-                return std::nullopt;
-            }
-
-            const auto* header = reinterpret_cast<const TArtifactMetaHeader*>(metaBlob.Begin());
-            if (header->Signature != header->ExpectedSignature) {
-                YT_LOG_WARNING(
-                    "Bad signature in artifact meta file %v: expected %X, actual %X",
-                    metaFileName,
-                    header->ExpectedSignature,
-                    header->Signature);
-                return std::nullopt;
-            }
-
-            if (header->Version != header->ExpectedVersion) {
-                YT_LOG_WARNING(
-                    "Incompatible version in artifact meta file %v: expected %v, actual %v",
-                    metaFileName,
-                    header->ExpectedVersion,
-                    header->Version);
-                return std::nullopt;
-            }
-
-            metaBlob = metaBlob.Slice(sizeof(TArtifactMetaHeader), metaBlob.Size());
-            TArtifactKey key;
-            if (!TryDeserializeProto(&key, metaBlob)) {
-                YT_LOG_WARNING(
-                    "Failed to parse artifact meta file %v",
-                    metaFileName);
-                return std::nullopt;
-            }
-
-            return key;
-        };
-
-        auto key = readMeta();
-        if (!key) {
-            location->RemoveChunkFiles(chunkId, true);
+        if (metaBlob.Size() < sizeof(TArtifactMetaHeader)) {
+            YT_TLOG_WARNING("Artifact meta file is too short")
+                .With("FileName", metaFileName)
+                .With("MinSize", sizeof(TArtifactMetaHeader));
+            return std::nullopt;
         }
-        return key;
+
+        const auto* header = reinterpret_cast<const TArtifactMetaHeader*>(metaBlob.Begin());
+        if (header->Signature != header->ExpectedSignature) {
+            YT_TLOG_WARNING("Bad signature in artifact meta file")
+                .With("FileName", metaFileName)
+                .WithFormat("ExpectedSignature", "%X", header->ExpectedSignature)
+                .WithFormat("Signature", "%X", header->Signature);
+            return std::nullopt;
+        }
+
+        if (header->Version != header->ExpectedVersion) {
+            YT_TLOG_WARNING("Incompatible version in artifact meta file")
+                .With("FileName", metaFileName)
+                .With("ExpectedVersion", header->ExpectedVersion)
+                .With("Version", header->Version);
+            return std::nullopt;
+        }
+
+        metaBlob = metaBlob.Slice(sizeof(TArtifactMetaHeader), metaBlob.Size());
+        NProto::TArtifactKey key;
+        if (!TryDeserializeProto(&key, metaBlob)) {
+            YT_TLOG_WARNING("Failed to parse artifact meta file")
+                .With("FileName", metaFileName);
+            return std::nullopt;
+        }
+
+        return TArtifactKey(key);
+    }
+
+    void RemoveUnregisteredChunkFiles(const TCacheLocationPtr& location, TChunkId chunkId)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+
+        YT_TLOG_INFO("Removing an unwanted unregistered chunk")
+            .With("ChunkId", chunkId)
+            .With("LocationId", location->GetId());
+
+        auto guard = location->TryLockChunk(chunkId);
+        YT_VERIFY(guard);
+        std::move(guard).Release();
+        location->RemoveChunkFiles(chunkId, /*force*/ true);
     }
 
     NDataNode::TArtifactCacheReaderConfigPtr GetArtifactCacheReaderConfig() const
@@ -1625,13 +2268,6 @@ bool TArtifactCache::IsEnabled() const
     return Impl_->IsEnabled();
 }
 
-TArtifactPtr TArtifactCache::FindArtifact(TChunkId chunkId)
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return Impl_->FindArtifact(chunkId);
-}
-
 std::vector<TArtifactPtr> TArtifactCache::GetArtifacts()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -1646,11 +2282,11 @@ int TArtifactCache::GetArtifactCount()
     return Impl_->GetSize();
 }
 
-TFuture<void> TArtifactCache::RemoveArtifactsByLocation(const TCacheLocationPtr& location)
+TFuture<void> TArtifactCache::RemoveArtifactsByLocation(const TCacheLocationPtr& location, bool forbidSlruResurrection)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return Impl_->RemoveChunksByLocation(location);
+    return Impl_->RemoveChunksByLocation(location, forbidSlruResurrection);
 }
 
 TFuture<TArtifactPtr> TArtifactCache::DownloadArtifact(

@@ -29,8 +29,6 @@
 
 #include <yt/yt/core/http/server.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/phoenix/context.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -41,7 +39,11 @@
 #include <yt/yt/core/yson/null_consumer.h>
 #include <yt/yt/core/yson/stream.h>
 
+#include <library/cpp/yt/misc/property.h>
+
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
+
+#include <util/stream/buffered.h>
 
 #include <util/system/fs.h>
 
@@ -112,13 +114,14 @@ std::vector<TExecNodePtr> CreateExecNodesFromNode(const INodePtr& nodeGroupsNode
     return CreateExecNodes(nodeGroups);
 }
 
-std::vector<TExecNodePtr> CreateExecNodesFromFile(const TString& nodeGroupsFilename)
+std::vector<TExecNodePtr> CreateExecNodesFromFile(const std::string& nodeGroupsFilename)
 {
     try {
-        TIFStream configStream(nodeGroupsFilename);
+        // TODO(babenko): migrate to std::string
+        TIFStream configStream{TString(nodeGroupsFilename)};
         return CreateExecNodesFromNode(ConvertToNode(&configStream));
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error reading node groups") << ex;
+        THROW_ERROR_EXCEPTION("Error reading node groups").With(ex);
     }
 }
 
@@ -129,13 +132,14 @@ TSchedulerConfigPtr LoadSchedulerConfigFromNode(const INodePtr& schedulerConfigN
     return schedulerConfig;
 }
 
-TSchedulerConfigPtr LoadSchedulerConfigFromFile(const TString& schedulerConfigFilename)
+TSchedulerConfigPtr LoadSchedulerConfigFromFile(const std::string& schedulerConfigFilename)
 {
     try {
-        TIFStream configStream(schedulerConfigFilename);
+        // TODO(babenko): migrate to std::string
+        TIFStream configStream{TString(schedulerConfigFilename)};
         return LoadSchedulerConfigFromNode(ConvertToNode(&configStream));
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error reading scheduler config") << ex;
+        THROW_ERROR_EXCEPTION("Error reading scheduler config").With(ex);
     }
 }
 
@@ -152,7 +156,7 @@ std::vector<TOperationDescription> LoadOperations(bool shiftOperationsToStart)
 {
     std::vector<TOperationDescription> operations;
     {
-        TStreamLoadContext context(&Cin);
+        NPhoenix::TLoadContext context(&Cin);
         Load(context, operations);
     }
     if (shiftOperationsToStart) {
@@ -164,13 +168,14 @@ std::vector<TOperationDescription> LoadOperations(bool shiftOperationsToStart)
     return operations;
 }
 
-TYsonString LoadPoolTreesYson(const TString& poolTreesFilename)
+TYsonString LoadPoolTreesYson(const std::string& poolTreesFilename)
 {
     try {
-        TIFStream configStream(poolTreesFilename);
+        // TODO(babenko): migrate to std::string
+        TIFStream configStream{TString(poolTreesFilename)};
         return ConvertToYsonString(&configStream);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error reading pool trees") << ex;
+        THROW_ERROR_EXCEPTION("Error reading pool trees").With(ex);
     }
 }
 
@@ -213,7 +218,8 @@ private:
         OnEntryExtracted_(ConvertTo<T>(node));
         ++ExtractedCount_;
         if (ExtractedCount_ % 1000 == 0) {
-            YT_LOG_INFO("Records extracted: %v", ExtractedCount_);
+            YT_TLOG_INFO("Records extracted")
+                .With("RecordCount", ExtractedCount_);
         }
     }
 
@@ -250,7 +256,7 @@ protected:
         // but this occasionally still happens by mistake. Thus we now immediately crash unless debug
         // mode has been explicitly allowed.
 #ifndef NDEBUG
-        YT_LOG_FATAL_IF(
+        YT_TLOG_FATAL_IF(
             !AllowDebugMode_,
             "Running the simulator in debug mode is forbidden by default. Use '--allow-debug-mode' to allow it explicitly.");
 #endif
@@ -278,7 +284,8 @@ protected:
                 &monitoringManager,
                 &orchidRoot);
 
-            YT_LOG_INFO("Listening for HTTP requests on port %v", httpServer->GetAddress().GetPort());
+            YT_TLOG_INFO("Listening for HTTP requests")
+                .With("Port", httpServer->GetAddress().GetPort());
             httpServer->Start();
 
             RunSimulation(config);
@@ -295,18 +302,20 @@ private:
 
     void RunSimulation(const TSchedulerSimulatorConfigPtr& config)
     {
-        YT_LOG_INFO("Reading operations description");
+        YT_TLOG_INFO("Reading operations description");
 
         std::vector<TExecNodePtr> execNodes = CreateExecNodesFromFile(config->NodeGroupsFilename);
 
-        YT_LOG_INFO("Discovered %v nodes", execNodes.size());
+        YT_TLOG_INFO("Discovered nodes")
+            .With("NodeCount", execNodes.size());
 
         YT_VERIFY(!execNodes.empty());
 
         const auto operations = LoadOperations(config->ShiftOperationsToStart);
         const TInstant earliestTime = FindEarliestTime(operations);
 
-        TFixedBufferFileOutput eventLogOutputStream(config->EventLogFilename);
+        // TODO(babenko): migrate to std::string
+        TFixedBufferFileOutput eventLogOutputStream(TString(config->EventLogFilename));
 
         auto schedulerConfig = LoadSchedulerConfigFromFile(config->SchedulerConfigFilename);
         auto poolTreesYson = LoadPoolTreesYson(config->PoolTreesFilename);
@@ -341,18 +350,20 @@ public:
     }
 
 private:
-    TString Destination_;
+    std::string Destination_;
 
     TLogger Logger = TLogger("Converter");
 
     void DoRun() override
     {
-        TString destinationTemp(Destination_ + ".tmp");
+        std::string destinationTemp = Destination_ + ".tmp";
 
         {
             auto input = TYsonInput(&Cin, NYT::NYson::EYsonType::ListFragment);
-            TUnbufferedFileOutput outputTemp(destinationTemp);
-            TStreamSaveContext context(&outputTemp);
+            // TODO(babenko): drop cast once TUnbufferedFileOutput accepts std::string
+            TUnbufferedFileOutput outputTemp{TString(destinationTemp)};
+            TBufferedOutput bufferedOutputTemp(&outputTemp);
+            NPhoenix::TSaveContext context(&bufferedOutputTemp);
             TYsonListExtractor<TOperationDescription> extractor(
                 [&] (const TOperationDescription& entry) { Save(context, entry); },
                 Logger);
@@ -361,7 +372,8 @@ private:
             extractor.Finish();
 
             int extractedCount = extractor.GetExtractedCount();
-            TUnbufferedFileOutput output(Destination_);
+            // TODO(babenko): drop cast once TUnbufferedFileOutput accepts std::string
+            TUnbufferedFileOutput output{TString(Destination_)};
             output.Write(&extractedCount, sizeof(extractedCount));
 
             context.Finish();
@@ -378,7 +390,7 @@ private:
 
 int main(int argc, const char** argv)
 {
-    if (TString(argv[1]) == "convert-operations-to-binary-format") {
+    if (std::string(argv[1]) == "convert-operations-to-binary-format") {
         return NYT::TConvertOperationsToBinaryFormatProgram().Run(argc - 1, argv + 1);
     }
     return NYT::TSchedulerSimulatorProgram().Run(argc, argv);

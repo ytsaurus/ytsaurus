@@ -8,7 +8,7 @@ When calculating the fair share ratio for all nodes of the tree, a procedure is 
 
 When distributing the fair share to the children, the following task is solved: Let `F` be the fair share value to be distributed to the children: `c_1, c_2, ... c_n`. The weight of the children is marked as `w_1, w_2, ... w_n` . The children also have an upper fair share limit denoted as `u_i`. This limit is calculated based on the demand, resource granularity, set resource limits, and so on. The lower fair share limit is denoted as `l_i` (set by the min share ratio). The algorithm that divides the fair share searches for an `x` to execute:
 
-![](../../../../../images/fair_share_formula.png){ .center }
+![](../../../../../_images/fair_share_formula.png){ .center }
 
 If the total `min share ratio` of the children in the pool is greater than one, it is normalized to 1. In general, `min share ratio` is a complicated characteristic and we do not recommend setting it for nested pools. Otherwise, the task described above would have no solution.
 

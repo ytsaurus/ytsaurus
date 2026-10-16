@@ -36,6 +36,12 @@ bool TTabletAction::IsFinished() const
     return Lost_ || IsTabletActionFinished(State_);
 }
 
+bool TTabletAction::IsMove() const
+{
+    return Kind_ == ETabletActionKind::Move ||
+        Kind_ == ETabletActionKind::SmoothMove;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsTabletActionFinished(ETabletActionState state)

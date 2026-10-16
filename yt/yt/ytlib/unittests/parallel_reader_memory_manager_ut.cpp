@@ -11,7 +11,7 @@
 namespace NYT::NChunkClient {
 namespace {
 
-constexpr auto WaitIterationCount = 50;
+constexpr auto WaitIterationCount = 100;
 constexpr auto WaitIterationDuration = TDuration::MilliSeconds(5);
 constexpr auto AssertIterationCount = 75;
 constexpr auto AssertIterationDuration = TDuration::MilliSeconds(5);

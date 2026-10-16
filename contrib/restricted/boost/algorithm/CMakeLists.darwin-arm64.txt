@@ -37,7 +37,6 @@ target_link_libraries(restricted-boost-algorithm INTERFACE
   restricted-boost-mpl
   restricted-boost-range
   restricted-boost-regex
-  restricted-boost-static_assert
   restricted-boost-throw_exception
   restricted-boost-tuple
   restricted-boost-type_traits

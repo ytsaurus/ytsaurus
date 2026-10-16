@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .validation_util import ValidationUtil  # noqa: F401
 from .conversion_util import ConversionUtil  # noqa: F401
+from .validation_util import ValidationUtil  # noqa: F401

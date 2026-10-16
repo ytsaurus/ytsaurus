@@ -27,7 +27,6 @@ public:
         queryPath.SkipPrefix("/");
 
         YQL_CLOG(TRACE, FastMapReduce) << "Received HTTP request: " << httpRequest.Method << " " << httpRequest.Path;
-        Cerr << "Received HTTP request: " << httpRequest.Method << " " << httpRequest.Path << "\n";
 
         if (queryPath == "ping") {
             YQL_ENSURE(httpRequest.Method == "GET");
@@ -55,13 +54,12 @@ public:
         opts.AddBindAddress(Host_, Port_);
         HttpServer_ = MakeHolder<THttpServer>(this, opts.EnableKeepAlive(true).EnableCompression(true));
 
-        PingHandler_ = std::bind(&TFmrWorkerServer::PingHandler, this, std::placeholders::_1);
+        PingHandler_ = std::bind_front(&TFmrWorkerServer::PingHandler, this);
     }
 
     void Start() override {
         HttpServer_->Start();
         YQL_CLOG(INFO, FastMapReduce) << "Worker server is listening on url " << "http://" + Host_ + ":" + ToString(Port_);
-        Cerr << "Worker server is listening on url " << "http://" + Host_ + ":" + ToString(Port_) << "\n";
     }
 
     void Stop() override {

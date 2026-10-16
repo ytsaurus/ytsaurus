@@ -158,8 +158,8 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(IsConnected());
 
-        YT_LOG_INFO("Flushing operation node (OperationId: %v)",
-            operationId);
+        YT_TLOG_INFO("Flushing operation node")
+            .With("OperationId", operationId);
 
         return OperationNodesAndArchiveUpdateExecutor_->ExecuteUpdate(operationId);
     }
@@ -240,7 +240,7 @@ public:
         return static_cast<bool>(Tags_);
     }
 
-    const std::vector<TString>& GetTags() const
+    const std::vector<std::string>& GetTags() const
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -250,19 +250,19 @@ public:
 
         auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
 
-        YT_LOG_DEBUG("Fetching \"tags_override\" attribute");
+        YT_TLOG_DEBUG("Fetching \"tags_override\" attribute");
 
         auto req = TYPathProxy::Get(GetInstancePath() + "/@tags_override");
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             Tags_ = Config_->Tags;
-            YT_LOG_DEBUG("Attribute \"tags_override\" does not exist; using tags from config (Tags: %v)",
-                Tags_);
+            YT_TLOG_DEBUG("Attribute \"tags_override\" does not exist; using tags from config")
+                .With("Tags", Tags_);
         } else {
             auto rsp = rspOrError.ValueOrThrow();
-            Tags_ = ConvertTo<std::vector<TString>>(TYsonString(rsp->value()));
-            YT_LOG_DEBUG("Tags fetched from Cypress (Tags: %v)",
-                Tags_);
+            Tags_ = ConvertTo<std::vector<std::string>>(TYsonString(rsp->value()));
+            YT_TLOG_DEBUG("Tags fetched from Cypress")
+                .With("Tags", Tags_);
         }
 
         return *Tags_;
@@ -287,7 +287,7 @@ private:
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableControlInvoker_;
 
-    mutable std::optional<std::vector<TString>> Tags_;
+    mutable std::optional<std::vector<std::string>> Tags_;
 
     struct TLivePreviewRequest
     {
@@ -432,7 +432,7 @@ private:
     void DoCleanup()
     {
         if (CancelableContext_) {
-            CancelableContext_->Cancel(TError("Scheduler disconnected"));
+            CancelableContext_->Cancel(TError(NYT::EErrorCode::Canceled, "Scheduler disconnected"));
             CancelableContext_.Reset();
         }
 
@@ -597,7 +597,7 @@ private:
             batchReqs[cellTag]->AddRequest(checkReq, "check_tx_" + ToString(id));
         }
 
-        YT_LOG_INFO("Refreshing transactions");
+        YT_TLOG_INFO("Refreshing transactions");
 
         THashMap<TCellTag, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> batchRsps;
 
@@ -606,8 +606,9 @@ private:
             if (batchRspOrError.IsOK()) {
                 batchRsps[cellTag] = batchRspOrError.Value();
             } else {
-                YT_LOG_ERROR(batchRspOrError, "Error refreshing transactions (CellTag: %v)",
-                    cellTag);
+                YT_TLOG_ERROR("Error refreshing transactions")
+                    .With("CellTag", cellTag)
+                    .With(batchRspOrError);
             }
         }
 
@@ -620,13 +621,15 @@ private:
                 const auto& batchRsp = it->second;
                 auto rspOrError = batchRsp->GetResponse("check_tx_" + ToString(id));
                 if (!rspOrError.IsOK()) {
-                    YT_LOG_DEBUG(rspOrError, "Found dead transaction (TransactionId: %v)", id);
+                    YT_TLOG_DEBUG("Found dead transaction")
+                        .With("TransactionId", id)
+                        .With(rspOrError);
                     deadTransactionIds.insert(id);
                 }
             }
         }
 
-        YT_LOG_INFO("Transactions refreshed");
+        YT_TLOG_INFO("Transactions refreshed");
 
         // Check every transaction of every operation and raise appropriate notifications.
         for (const auto& [operationId, operation] : controllerAgent->GetOperations()) {
@@ -704,19 +707,19 @@ private:
             livePreviewTransactionId = update->LivePreviewTransactionId;
         }
 
-        YT_LOG_DEBUG("Started updating operation node (OperationId: %v, "
-            "LivePreviewTransactionId: %v, LivePreviewRequestCount: %v)",
-            operationId,
-            livePreviewTransactionId,
-            livePreviewRequests.size());
+        YT_TLOG_DEBUG("Started updating operation node")
+            .With("OperationId", operationId)
+            .With("LivePreviewTransactionId", livePreviewTransactionId)
+            .With("LivePreviewRequestCount", livePreviewRequests.size());
 
         try {
             AttachLivePreviewChunks(operationId, livePreviewTransactionId, livePreviewRequests);
         } catch (const std::exception& ex) {
             // NB: Don' treat this as a critical error.
             // Some of these chunks could go missing for a number of reasons.
-            YT_LOG_WARNING(ex, "Error attaching live preview chunks (OperationId: %v)",
-                operationId);
+            YT_TLOG_WARNING("Error attaching live preview chunks")
+                .With("OperationId", operationId)
+                .With(ex);
         }
 
         try {
@@ -724,11 +727,11 @@ private:
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating operation %v node",
                 operationId)
-                << ex;
+                .With(ex);
         }
 
-        YT_LOG_DEBUG("Finished updating operation node (OperationId: %v)",
-            operationId);
+        YT_TLOG_DEBUG("Finished updating operation node")
+            .With("OperationId", operationId);
     }
 
     TCallback<TFuture<void>()> UpdateOperationNodeAndArchive(TOperationId operationId, TOperationNodeUpdate* update)
@@ -765,10 +768,9 @@ private:
 
         auto controller = operation->GetController();
 
-        if (!Config_->EnableControllerFeaturesArchivation ||
-            !DoesOperationsArchiveExist() ||
-            !TryUpdateControllerFeaturesInArchive(operationId, featureYson))
-        {
+        if (Config_->EnableControllerFeaturesArchivation && DoesOperationsArchiveExist()) {
+            TryUpdateControllerFeaturesInArchive(operationId, featureYson);
+        } else {
             auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
 
             auto path = GetOperationPath(operationId) + "/@controller_features";
@@ -780,14 +782,14 @@ private:
         }
     }
 
-    bool TryUpdateControllerFeaturesInArchive(TOperationId operationId, const TYsonString& featureYson)
+    void TryUpdateControllerFeaturesInArchive(TOperationId operationId, const TYsonString& featureYson)
     {
         const auto& client = Bootstrap_->GetClient();
         auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
             .ValueOrThrow();
-        YT_LOG_DEBUG("Operation controller features update transaction started (TransactionId: %v, OperationId: %v)",
-            transaction->GetId(),
-            operationId);
+        YT_TLOG_DEBUG("Operation controller features update transaction started")
+            .With("TransactionId", transaction->GetId())
+            .With("OperationId", operationId);
 
         auto operationIdAsGuid = operationId.Underlying();
         NRecords::TOrderedByIdPartial record{
@@ -810,18 +812,16 @@ private:
             .ToUncancelable());
 
         if (!error.IsOK()) {
-            YT_LOG_WARNING(
-                error,
-                "Operation controller features update in archive failed (TransactionId: %v, OperationId: %v)",
-                transaction->GetId(),
-                operationId);
+            YT_TLOG_WARNING("Operation controller features update in archive failed")
+                .With("TransactionId", transaction->GetId())
+                .With("OperationId", operationId)
+                .With(error);
         } else {
-            YT_LOG_DEBUG("Operation controller features updated successfully (TransactionId: %v, DataWeight: %v, OperationId: %v)",
-                transaction->GetId(),
-                orderedByIdRowsDataWeight,
-                operationId);
+            YT_TLOG_DEBUG("Operation controller features updated successfully")
+                .With("TransactionId", transaction->GetId())
+                .With("DataWeight", orderedByIdRowsDataWeight)
+                .With("OperationId", operationId);
         }
-        return error.IsOK();
     }
 
     void UpdateOperationProgress(TOperationId operationId)
@@ -837,7 +837,11 @@ private:
         auto controller = operation->GetController();
         bool shouldUpdateLightOperationAttributes = controller->ShouldUpdateLightOperationAttributes();
 
-        UpdateProgressAndLightAttributes(operationId, controller, controller->HasProgress(), shouldUpdateLightOperationAttributes);
+        UpdateProgressAndLightAttributes(
+            operationId,
+            controller,
+            controller->HasProgress(),
+            shouldUpdateLightOperationAttributes);
         if (shouldUpdateLightOperationAttributes) {
             controller->SetLightOperationAttributesUpdated();
         }
@@ -851,12 +855,10 @@ private:
     {
         TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("UpdateOperationProgress"));
 
-        YT_LOG_DEBUG(
-            "Updating operation progress and failed jobs existence "
-            "(OperationId: %v, ShouldUpdateProgress: %v, ShouldUpdateLightOperationAttributes: %v)",
-            operationId,
-            shouldUpdateProgress,
-            shouldUpdateLightOperationAttributes);
+        YT_TLOG_DEBUG("Updating operation progress and failed jobs existence")
+            .With("OperationId", operationId)
+            .With("ShouldUpdateProgress", shouldUpdateProgress)
+            .With("ShouldUpdateLightOperationAttributes", shouldUpdateLightOperationAttributes);
 
         auto batchReq = StartObjectBatchRequestWithPrerequisites();
         GenerateMutationId(batchReq);
@@ -876,12 +878,19 @@ private:
             ValidateYson(progress, GetYsonNestingLevelLimit());
             ValidateYson(briefProgress, GetYsonNestingLevelLimit());
 
-            bool archiveUpdated = false;
             if (Config_->EnableOperationProgressArchivation && DoesOperationsArchiveExist()) {
-                archiveUpdated = TryUpdateOperationProgressInArchive(operationId, progress, briefProgress);
-            }
+                // While the operation is running, we only attempt to write brief progress to the archive.
+                // Once the operation finishes, persist brief progress in Cypress to ensure it is always available.
+                if (controller->IsFinished()) {
+                    hasSubrequests = true;
 
-            if (!archiveUpdated) {
+                    auto briefProgressReq = multisetReq->add_subrequests();
+                    briefProgressReq->set_attribute("brief_progress");
+                    briefProgressReq->set_value(ToProto(briefProgress));
+                }
+
+                TryUpdateOperationProgressInArchive(operationId, progress, briefProgress);
+            } else {
                 hasSubrequests = true;
 
                 auto progressReq = multisetReq->add_subrequests();
@@ -909,11 +918,11 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
         }
 
-        YT_LOG_DEBUG("Operation progress and failed jobs existence updated (OperationId: %v)",
-            operationId);
+        YT_TLOG_DEBUG("Operation progress and failed jobs existence updated")
+            .With("OperationId", operationId);
     }
 
-    bool TryUpdateOperationProgressInArchive(
+    void TryUpdateOperationProgressInArchive(
         TOperationId operationId,
         const TYsonString& progress,
         const TYsonString& briefProgress)
@@ -921,9 +930,9 @@ private:
         const auto& client = Bootstrap_->GetClient();
         auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
             .ValueOrThrow();
-        YT_LOG_DEBUG("Operation progress update transaction started (TransactionId: %v, OperationId: %v)",
-            transaction->GetId(),
-            operationId);
+        YT_TLOG_DEBUG("Operation progress update transaction started")
+            .With("TransactionId", transaction->GetId())
+            .With("OperationId", operationId);
 
         auto operationIdAsGuid = operationId.Underlying();
         NRecords::TOrderedByIdPartial record{
@@ -948,19 +957,17 @@ private:
             .WithTimeout(Config_->OperationProgressArchivationTimeout));
 
         if (!error.IsOK()) {
-            YT_LOG_WARNING(
-                error,
-                "Operation progress update in archive failed (TransactionId: %v, OperationId: %v)",
-                transaction->GetId(),
-                operationId);
+            YT_TLOG_WARNING("Operation progress update in archive failed")
+                .With("TransactionId", transaction->GetId())
+                .With("OperationId", operationId)
+                .With(error);
             UpdateOperationProgressFailuresCounter_.Increment();
         } else {
-            YT_LOG_DEBUG("Operation progress updated successfully (TransactionId: %v, DataWeight: %v, OperationId: %v)",
-                transaction->GetId(),
-                orderedByIdRowsDataWeight,
-                operationId);
+            YT_TLOG_DEBUG("Operation progress updated successfully")
+                .With("TransactionId", transaction->GetId())
+                .With("DataWeight", orderedByIdRowsDataWeight)
+                .With("OperationId", operationId);
         }
-        return error.IsOK();
     }
 
     void AttachLivePreviewChunks(
@@ -990,10 +997,10 @@ private:
             tableInfo.TableId = request.TableId;
             tableInfo.ChildIds.push_back(request.ChildId);
 
-            YT_LOG_DEBUG("Appending live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
-                operationId,
-                tableInfo.TableId,
-                tableInfo.ChildIds.size());
+            YT_TLOG_DEBUG("Appending live preview chunk trees")
+                .With("OperationId", operationId)
+                .With("TableId", tableInfo.TableId)
+                .With("ChildCount", tableInfo.ChildIds.size());
         }
 
         THashMap<TCellTag, std::vector<TTableInfo*>> nativeCellTagToTableInfos;
@@ -1122,8 +1129,8 @@ private:
 
         auto* update = OperationNodesAndArchiveUpdateExecutor_->FindUpdate(operationId);
         if (!update) {
-            YT_LOG_DEBUG("Trying to attach live preview to an unknown operation (OperationId: %v)",
-                operationId);
+            YT_TLOG_DEBUG("Trying to attach live preview to an unknown operation")
+                .With("OperationId", operationId);
             return;
         }
 
@@ -1131,10 +1138,10 @@ private:
         YT_VERIFY(!update->LivePreviewTransactionId || update->LivePreviewTransactionId == transactionId);
         update->LivePreviewTransactionId = transactionId;
 
-        YT_LOG_TRACE("Attaching live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
-            operationId,
-            tableId,
-            childIds.size());
+        YT_TLOG_TRACE("Attaching live preview chunk trees")
+            .With("OperationId", operationId)
+            .With("TableId", tableId)
+            .With("ChildCount", childIds.size());
 
         for (const auto& childId : childIds) {
             update->LivePreviewRequests.push_back(TLivePreviewRequest{tableId, childId});
@@ -1161,15 +1168,15 @@ private:
             }
 
             THROW_ERROR_EXCEPTION("Error getting snapshot version")
-                << rspOrError;
+                .With(rspOrError);
         }
 
         const auto& rsp = rspOrError.Value();
         int version = ConvertTo<int>(TYsonString(rsp->value()));
 
-        YT_LOG_INFO("Snapshot found (OperationId: %v, Version: %v)",
-            operationId,
-            version);
+        YT_TLOG_INFO("Snapshot found")
+            .With("OperationId", operationId)
+            .With("Version", version);
 
         if (!ValidateSnapshotVersion(version)) {
             THROW_ERROR_EXCEPTION("Snapshot version validation failed");
@@ -1185,7 +1192,7 @@ private:
                 operationId);
             snapshot.Blocks = downloader->Run();
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error downloading snapshot") << ex;
+            THROW_ERROR_EXCEPTION("Error downloading snapshot").With(ex);
         }
         return snapshot;
     }
@@ -1204,7 +1211,7 @@ private:
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         auto error = GetCumulativeError(batchRspOrError);
         if (!error.IsOK()) {
-            Bootstrap_->GetControllerAgent()->Disconnect(TError("Failed to remove snapshot") << error);
+            Bootstrap_->GetControllerAgent()->Disconnect(TError("Failed to remove snapshot").With(error));
         }
     }
 
@@ -1236,9 +1243,10 @@ private:
         // NB: Result is logged in the builder.
         auto error = WaitFor(builder->Run(weakControllerMap));
         if (error.IsOK()) {
-            YT_LOG_INFO("Snapshot builder finished");
+            YT_TLOG_INFO("Snapshot builder finished");
         } else {
-            YT_LOG_ERROR(error, "Error building snapshots");
+            YT_TLOG_ERROR("Error building snapshots")
+                .With(error);
         }
     }
 
@@ -1277,7 +1285,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        Bootstrap_->GetControllerAgent()->Disconnect(TError("Failed to update operation node") << error);
+        Bootstrap_->GetControllerAgent()->Disconnect(TError("Failed to update operation node").With(error));
     }
 
     void DoAddChunkTreesToUnstageList(std::vector<TChunkTreeId> chunkTreeIds, bool recursive)
@@ -1312,14 +1320,16 @@ private:
                 req->set_recursive(unstageRequest.Recursive);
             }
 
-            YT_LOG_DEBUG("Unstaging chunk trees (ChunkTreeCount: %v, CellTag: %v)",
-                batchReq->unstage_chunk_tree_subrequests_size(),
-                cellTag);
+            YT_TLOG_DEBUG("Unstaging chunk trees")
+                .With("ChunkTreeCount", batchReq->unstage_chunk_tree_subrequests_size())
+                .With("CellTag", cellTag);
 
             YT_UNUSED_FUTURE(batchReq->Invoke().Apply(
                 BIND([=, cellTag = cellTag] (const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
                     if (!batchRspOrError.IsOK()) {
-                        YT_LOG_DEBUG(batchRspOrError, "Error unstaging chunk trees (CellTag: %v)", cellTag);
+                        YT_TLOG_DEBUG("Error unstaging chunk trees")
+                            .With("CellTag", cellTag)
+                            .With(batchRspOrError);
                     }
                 })));
         }
@@ -1364,31 +1374,31 @@ private:
         if (Config_->EnableUnrecognizedAlert) {
             auto unrecognized = Config_->GetRecursiveUnrecognized();
             if (unrecognized && unrecognized->GetChildCount() > 0) {
-                YT_LOG_WARNING("Controller agent config contains unrecognized options (Unrecognized: %v)",
-                    ConvertToYsonString(unrecognized, EYsonFormat::Text));
+                YT_TLOG_WARNING("Controller agent config contains unrecognized options")
+                    .With("Unrecognized", ConvertToYsonString(unrecognized, EYsonFormat::Text));
                 SetControllerAgentAlert(
                     EControllerAgentAlertType::UnrecognizedConfigOptions,
                     TError("Controller agent config contains unrecognized options")
-                        << TErrorAttribute("unrecognized", unrecognized));
+                        .With("unrecognized", unrecognized));
             }
         }
 
         if (!Config_->EnableSnapshotLoading && Config_->EnableSnapshotLoadingDisabledAlert) {
-            auto error = TError("Snapshot loading is disabled; consider enabling it using the controller agent config");
-            YT_LOG_WARNING(error);
-            SetControllerAgentAlert(EControllerAgentAlertType::SnapshotLoadingDisabled, error);
+            static constexpr auto Message = "Snapshot loading is disabled; consider enabling it using the controller agent config"_sb;
+            YT_TLOG_WARNING(Message);
+            SetControllerAgentAlert(EControllerAgentAlertType::SnapshotLoadingDisabled, TError(Message));
         }
 
         if (!Config_->EnableSnapshotBuilding && Config_->EnableSnapshotBuildingDisabledAlert) {
-            auto error = TError("Snapshot building is disabled; consider enabling it using the controller agent config");
-            YT_LOG_WARNING(error);
-            SetControllerAgentAlert(EControllerAgentAlertType::SnapshotBuildingDisabled, error);
+            static constexpr auto Message = "Snapshot building is disabled; consider enabling it using the controller agent config"_sb;
+            YT_TLOG_WARNING(Message);
+            SetControllerAgentAlert(EControllerAgentAlertType::SnapshotBuildingDisabled, TError(Message));
         }
     }
 
     void ExecuteUpdateConfig()
     {
-        YT_LOG_INFO("Updating controller agent configuration");
+        YT_TLOG_INFO("Updating controller agent configuration");
 
         try {
             auto proxy = CreateObjectServiceReadProxy(
@@ -1397,7 +1407,7 @@ private:
             auto req = TYPathProxy::Get("//sys/controller_agents/config");
             auto rspOrError = WaitFor(proxy.Execute(req));
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                YT_LOG_INFO("No configuration found in Cypress");
+                YT_TLOG_INFO("No configuration found in Cypress");
                 SetControllerAgentAlert(EControllerAgentAlertType::UnrecognizedConfigOptions, TError());
                 SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, TError());
                 return;
@@ -1411,7 +1421,7 @@ private:
                 newConfig = ConvertTo<TControllerAgentConfigPtr>(newConfigNode);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error loading controller agent configuration")
-                    << ex;
+                    .With(ex);
             }
 
             SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, TError());
@@ -1422,7 +1432,7 @@ private:
             auto oldConfigNode = ConvertToNode(Config_);
             auto newConfigNode = ConvertToNode(newConfig);
             if (AreNodesEqual(oldConfigNode, newConfigNode)) {
-                YT_LOG_INFO("Controller agent configuration is not changed");
+                YT_TLOG_INFO("Controller agent configuration is not changed");
                 return;
             }
 
@@ -1431,11 +1441,12 @@ private:
 
             Bootstrap_->GetControllerAgent()->UpdateConfig(newConfig);
 
-            YT_LOG_INFO("Controller agent configuration updated");
+            YT_TLOG_INFO("Controller agent configuration updated");
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, error);
-            YT_LOG_WARNING(error, "Error updating controller agent configuration");
+            YT_TLOG_WARNING("Error updating controller agent configuration")
+                .With(error);
         }
     }
 
@@ -1470,16 +1481,16 @@ private:
                 batchReqs[cellTag] = proxy.ExecuteBatch();
             }
 
-            YT_LOG_DEBUG("Requesting intermediate medium usage (OperationId: %v, TransactionId: %v)",
-                operationId,
-                transactionId);
+            YT_TLOG_DEBUG("Requesting intermediate medium usage")
+                .With("OperationId", operationId)
+                .With("TransactionId", transactionId);
             auto intermediateMediumReq = TYPathProxy::Get(Format("#%v/@resource_usage", transactionId));
             batchReqs[cellTag]->AddRequest(intermediateMediumReq, ToString(transactionId));
         }
 
-        YT_LOG_INFO("Fetching intermediate medium resource usage (OperationCount: %v, CellCount: %v)",
-            transactions.size(),
-            batchReqs.size());
+        YT_TLOG_INFO("Fetching intermediate medium resource usage")
+            .With("OperationCount", transactions.size())
+            .With("CellCount", batchReqs.size());
 
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncBatchRsps;
         std::vector<TCellTag> cellTags;
@@ -1494,8 +1505,9 @@ private:
             if (batchRspOrError.IsOK()) {
                 batchRsps[cellTag] = batchRspOrError.Value();
             } else {
-                YT_LOG_ERROR(batchRspOrError, "Error fetching intermediate medium resource usage (CellTag: %v)",
-                    cellTag);
+                YT_TLOG_ERROR("Error fetching intermediate medium resource usage")
+                    .With("CellTag", cellTag)
+                    .With(batchRspOrError);
             }
         }
 
@@ -1513,10 +1525,10 @@ private:
 
             auto intermediateMediumRsp = it->second->GetResponse<TYPathProxy::TRspGet>(ToString(transactionId));
             if (!intermediateMediumRsp.IsOK()) {
-                YT_LOG_DEBUG(intermediateMediumRsp,
-                    "Failed to get intermediate medium resource usage (OperationId: %v, TransactionId: %v)",
-                    operationId,
-                    transactionId);
+                YT_TLOG_DEBUG("Failed to get intermediate medium resource usage")
+                    .With("OperationId", operationId)
+                    .With("TransactionId", transactionId)
+                    .With(intermediateMediumRsp);
                 continue;
             }
 
@@ -1528,10 +1540,10 @@ private:
                     ToYPathLiteral(medium)));
 
             if (usage) {
-                YT_LOG_DEBUG("Updating intermediate medium usage (OperationId: %v, TransactionId: %v, Usage: %v)",
-                    operationId,
-                    transactionId,
-                    *usage);
+                YT_TLOG_DEBUG("Updating intermediate medium usage")
+                    .With("OperationId", operationId)
+                    .With("TransactionId", transactionId)
+                    .With("Usage", *usage);
 
                 ++operationCount;
 
@@ -1549,20 +1561,20 @@ private:
                         ++switchedOperationCount;
                     }
                 } else {
-                    YT_LOG_DEBUG("Intermediate medium usage updated for a unknown operation (OperationId: %v, Usage: %v)",
-                        operationId,
-                        *usage);
+                    YT_TLOG_DEBUG("Intermediate medium usage updated for a unknown operation")
+                        .With("OperationId", operationId)
+                        .With("Usage", *usage);
                 }
             } else {
-                YT_LOG_DEBUG("Intermediate medium is not used yet (OperationId: %v, TransactionId: %v)",
-                    operationId,
-                    transactionId);
+                YT_TLOG_DEBUG("Intermediate medium is not used yet")
+                    .With("OperationId", operationId)
+                    .With("TransactionId", transactionId);
             }
         }
 
-        YT_LOG_INFO("Updated intermediate medium usage (OperationCount: %v, SwitchedToSlowMedium: %v)",
-            operationCount,
-            switchedOperationCount);
+        YT_TLOG_INFO("Updated intermediate medium usage")
+            .With("OperationCount", operationCount)
+            .With("SwitchedToSlowMedium", switchedOperationCount);
     }
 
     void UpdateAlerts()
@@ -1585,7 +1597,8 @@ private:
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Error updating controller agent alerts");
+            YT_TLOG_WARNING("Error updating controller agent alerts")
+                .With(rspOrError);
         }
     }
 
@@ -1702,7 +1715,7 @@ bool TMasterConnector::TagsLoaded() const
     return Impl_->TagsLoaded();
 }
 
-const std::vector<TString>& TMasterConnector::GetTags() const
+const std::vector<std::string>& TMasterConnector::GetTags() const
 {
     return Impl_->GetTags();
 }
@@ -1715,4 +1728,3 @@ void TMasterConnector::SetControllerAgentAlert(EControllerAgentAlertType alertTy
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
-

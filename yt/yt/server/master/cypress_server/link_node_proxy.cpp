@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/master/object_server/object_manager.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+
 #include <yt/yt/core/ypath/tokenizer.h>
 
 namespace NYT::NCypressServer {

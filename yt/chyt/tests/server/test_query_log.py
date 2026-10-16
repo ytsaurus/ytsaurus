@@ -1,11 +1,13 @@
 from base import ClickHouseTestBase, Clique, enable_sequoia
 
-from yt_commands import (authors, create, exists, read_table, sync_unmount_table, get, alter_table, write_table, print_debug,
-                         raises_yt_error)
+from yt_commands import (authors, abort_transaction, create, exists, lock, read_table, start_transaction,
+                         sync_unmount_table, get, alter_table, write_table, print_debug, raises_yt_error)
 
 from yt.common import wait, update
 
 import yt.yson as yson
+
+import time
 
 
 class TestQueryLog(ClickHouseTestBase):
@@ -275,6 +277,29 @@ class TestQueryLog(ClickHouseTestBase):
             for key, value in expected_values.items():
                 assert key in secondary_rows[0]['chyt_query_runtime_variables']
                 assert secondary_rows[0]['chyt_query_runtime_variables'][key] == value
+
+    @authors("buyval01")
+    def test_log_table_is_created_by_leader(self):
+        clique = Clique(1, export_query_log=True)
+
+        create("map_node", clique.election_lock_path)
+        tx = start_transaction(timeout=180000)
+        lock(clique.election_lock_path, mode="exclusive", tx=tx)
+
+        with clique:
+            query_id = clique.make_query("select queryID() as query_id")[0]["query_id"]
+
+            # Instance cannot become a leader while the lock is held by the foreign transaction,
+            # so it should not create the log table even though the log has already been flushed.
+            time.sleep(3)
+            assert clique.get_leader_instance_cookie() is None
+            assert not exists(clique.query_log_table_path)
+
+            abort_transaction(tx)
+
+            wait(lambda: clique.get_leader_instance_cookie() == 0)
+            wait(lambda: exists(clique.query_log_table_path))
+            wait(lambda: {"query_id": query_id} in read_table(clique.query_log_table_path + "{query_id}"))
 
     @authors("denmogilevec")
     def test_insert_statistics(self):

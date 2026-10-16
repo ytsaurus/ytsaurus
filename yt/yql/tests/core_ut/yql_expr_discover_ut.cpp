@@ -42,10 +42,8 @@ Y_UNIT_TEST_SUITE(TDiscoverYqlExpr) {
         auto intentTransformer = CreateIntentDeterminationTransformer(*typeAnnotationContext);
         TVector<TTransformStage> transformers;
         const auto issueCode = TIssuesIds::DEFAULT_ERROR;
-        transformers.push_back(TTransformStage(CreateFunctorTransformer(
-            [=](const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
-                return EvaluateExpression(input, output, *typeAnnotationContext, ctx, *functionRegistry, nullptr);
-            }),
+        transformers.push_back(TTransformStage(
+            CreateEvaluateExpressionTransformer(*typeAnnotationContext, *functionRegistry),
             "EvaluateExpression",
             issueCode));
         transformers.push_back(TTransformStage(

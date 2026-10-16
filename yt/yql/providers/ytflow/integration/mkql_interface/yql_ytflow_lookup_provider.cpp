@@ -15,27 +15,27 @@ class TYtflowLookupProviderRegistry
 public:
     TYtflowLookupProviderRegistry() = default;
 
-    void Register(const TString& providerName, TCreationCallback callback) override
+    void Register(const TString& providerName, TFactoryCreationCallback callback) override
     {
-        auto [_, emplaced] = CreationCallbacks.emplace(providerName, std::move(callback));
+        auto [_, emplaced] = FactoryCreationCallbacks.emplace(providerName, std::move(callback));
 
         YQL_ENSURE(emplaced, "Duplicate lookup provider registration: " << providerName);
     }
 
-    THolder<IYtflowLookupProvider> Create(
+    THolder<IYtflowLookupProviderFactory> CreateFactory(
         const TString& providerName,
-        TCreationContext& ctx
+        const TFactoryCreationContext& ctx
     ) const override {
-        auto iterator = CreationCallbacks.find(providerName);
+        auto iterator = FactoryCreationCallbacks.find(providerName);
         YQL_ENSURE(
-            iterator != CreationCallbacks.end(),
+            iterator != FactoryCreationCallbacks.end(),
             "Unknown lookup provider: " << providerName);
 
         return iterator->second(ctx);
     }
 
 private:
-    THashMap<TString, TCreationCallback> CreationCallbacks;
+    THashMap<TString, TFactoryCreationCallback> FactoryCreationCallbacks;
 };
 
 } // anonymous namespace

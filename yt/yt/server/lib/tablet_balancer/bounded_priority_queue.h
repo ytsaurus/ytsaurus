@@ -2,41 +2,43 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/property.h>
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TPayload>
-class TBoundedPriorityQueue
+class alignas(CacheLineSize) TBoundedPriorityQueue
 {
 public:
+    struct TElement
+    {
+        double Cost;
+        TPayload Payload;
+    };
+
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TElement>, Elements);
     DEFINE_BYVAL_RO_PROPERTY(double, BestDiscardedCost);
 
 public:
-    using TElement = std::pair<double, TPayload>;
-
     explicit TBoundedPriorityQueue(int maxSize);
+
+    bool IsEmpty() const;
 
     void Insert(double cost, TPayload payload);
 
-    std::optional<TElement> ExtractMax();
+    TElement ExtractMax();
 
     template <class TFilter>
     void Invalidate(TFilter&& filter);
-
-    bool IsEmpty() const;
 
     void Reset();
 
 private:
     const int Capacity_;
 
-    std::vector<TElement> Elements_;
-
     static bool LessComparator(const TElement& lhs, const TElement& rhs);
-
     static bool GreaterComparator(const TElement& lhs, const TElement& rhs);
 };
 

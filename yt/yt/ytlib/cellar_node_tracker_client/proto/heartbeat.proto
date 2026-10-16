@@ -1,7 +1,9 @@
 package NYT.NCellarNodeTrackerClient.NProto;
 
 import "yt/ytlib/hive/proto/cell_directory.proto";
+
 import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,6 +17,7 @@ message TCellSlotInfo
     optional int32 preload_pending_store_count = 6;
     optional int32 preload_completed_store_count = 7;
     optional int32 preload_failed_store_count = 8;
+    optional NYT.NProto.TError error = 9;
 }
 
 message TCreateCellSlotInfo

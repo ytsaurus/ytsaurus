@@ -20,6 +20,8 @@ struct IHunkLockManager
         const TTabletNodeDynamicConfigPtr& oldConfig,
         const TTabletNodeDynamicConfigPtr& newConfig) = 0;
 
+    virtual void ScheduleUnlockStaleHunkStores() = 0;
+
     virtual void RegisterHunkStore(
         THunkStoreId hunkStoreId,
         TCellId hunkCellId,

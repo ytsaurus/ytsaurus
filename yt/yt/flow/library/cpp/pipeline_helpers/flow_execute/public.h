@@ -1,0 +1,14 @@
+#pragma once
+
+#include <yt/yt/core/misc/public.h>
+
+namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TDirectControllerCommandsConfig)
+DECLARE_REFCOUNTED_STRUCT(IDirectControllerChannels)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow

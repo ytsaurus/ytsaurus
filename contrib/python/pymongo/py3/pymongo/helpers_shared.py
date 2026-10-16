@@ -13,20 +13,20 @@
 # limitations under the License.
 
 """Bits and pieces used by the driver that don't really fit elsewhere."""
+
 from __future__ import annotations
 
+import random
 import sys
+import time
 import traceback
 from collections import abc
+from collections.abc import Container, Iterable, Mapping, Sequence
 from typing import (
     TYPE_CHECKING,
     Any,
-    Container,
-    Iterable,
-    Mapping,
     NoReturn,
     Optional,
-    Sequence,
     Union,
 )
 
@@ -107,6 +107,58 @@ _SENSITIVE_COMMANDS: set[str] = {
     "copydbsaslstart",
     "copydb",
 }
+
+
+# Client backpressure
+_BACKOFF_INITIAL = 0.1
+_BACKOFF_MAX = 10
+
+
+def _backoff(
+    attempt: int,
+    base_backoff: float,
+    max_delay: float = _BACKOFF_MAX,
+) -> float:
+    jitter = random.random()  # noqa: S311
+    return jitter * min(base_backoff * (2**attempt), max_delay)
+
+
+class _RetryPolicy:
+    """A retry limiter that performs exponential backoff with jitter."""
+
+    def __init__(
+        self,
+        attempts: Optional[int] = None,
+        backoff_initial: float = _BACKOFF_INITIAL,
+        backoff_max: float = _BACKOFF_MAX,
+    ):
+        # Import locally to avoid a circular import through pymongo.common.
+        from pymongo.common import MAX_ADAPTIVE_RETRIES
+
+        self.attempts = MAX_ADAPTIVE_RETRIES if attempts is None else attempts
+        self.backoff_initial = backoff_initial
+        self.backoff_max = backoff_max
+
+    def backoff(self, attempt: int, base_backoff: Optional[float] = None) -> float:
+        """Return the actual backoff duration for the given attempt and base backoff."""
+        return _backoff(
+            max(0, attempt),
+            self.backoff_initial if base_backoff is None or base_backoff < 0 else base_backoff,
+            self.backoff_max,
+        )
+
+    def should_retry(self, attempt: int, delay: float) -> bool:
+        """Return if we have retry attempts remaining and the next backoff would not exceed a timeout."""
+        from pymongo import _csot
+
+        if attempt > self.attempts:
+            return False
+
+        if _csot.get_timeout():
+            if time.monotonic() + delay > _csot.get_deadline():
+                return False
+
+        return True
 
 
 def _get_timeout_details(options: PoolOptions) -> dict[str, float]:
@@ -240,15 +292,6 @@ def _check_command_response(
         return
 
     details = response
-    # Mongos returns the error details in a 'raw' object
-    # for some errors.
-    if "raw" in response:
-        for shard in response["raw"].values():
-            # Grab the first non-empty raw error from a shard.
-            if shard.get("errmsg") and not shard.get("ok"):
-                details = shard
-                break
-
     errmsg = details["errmsg"]
     code = details.get("code")
 

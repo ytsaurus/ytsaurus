@@ -764,7 +764,8 @@ class _ReadTableRetriableState(object):
                 self.range_started = True
                 self.range_index_row_yielded = False
                 self.row_index_row_yielded = False
-            self.next_row_index += 1
+            if self.next_row_index is not None:
+                self.next_row_index += 1
 
         return can_omit_control_info
 
@@ -1152,7 +1153,7 @@ def get_table_columnar_statistics(paths, client=None):
     :type paths: list of (str or :class:`TablePath <yt.wrapper.ypath.TablePath>`)
     """
     paths = list(map(lambda path: TablePath(path, client=client), flatten(paths)))
-    return make_formatted_request("get_table_columnar_statistics", params={"paths": paths}, client=client, format=None)
+    return make_formatted_request("get_table_columnar_statistics", params={"paths": paths}, client=client, format=None, use_heavy_proxy=True)
 
 
 def _slice_row_ranges_for_dump_parquet(max_thread_count, lower_limit, upper_limit):

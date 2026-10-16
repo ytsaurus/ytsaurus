@@ -80,7 +80,7 @@ def generate_iter_data(registry, schema, extra_key_count, aggregate, update, spe
         update)
     yt.remove(registry.prev_data)
 
-def write_to_dynamic_table(registry, attributes, schema, aggregate, update, with_alter, force, spec):
+def write_to_dynamic_table(registry, attributes, schema, aggregate, update, with_alter, force, spec, epoch):
     if with_alter:
         attributes = copy.deepcopy(attributes)
         assert yt.get(registry.base + "/@dynamic") == False
@@ -117,7 +117,7 @@ def write_to_dynamic_table(registry, attributes, schema, aggregate, update, with
         mount_table(registry.base)
 
     elif spec.sorted.write_policy == "insert_rows":
-        write_data(schema, registry.iter_data, registry.base, aggregate, update, spec)
+        write_data(schema, registry.iter_data, registry.base, aggregate, update, spec, epoch)
     elif spec.sorted.write_policy == "bulk_insert":
         # YYY
         assert False, "Not implemented"
@@ -198,7 +198,7 @@ def test_sorted_tables(base_path, spec, attributes, force):
         if not spec.testing.skip_write:
             with_alter = iteration == 0 and spec.prepare_table_via_alter
             write_to_dynamic_table(
-                registry, attributes, schema, aggregate, update, with_alter, force, spec)
+                registry, attributes, schema, aggregate, update, with_alter, force, spec, iteration)
             delete_data(registry.iter_deletion, registry.base, spec)
 
         # Disturb the table with remote copy.

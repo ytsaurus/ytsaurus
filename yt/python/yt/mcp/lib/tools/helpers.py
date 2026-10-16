@@ -8,7 +8,7 @@ from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass, asdict
 from pydantic_core import PydanticUndefined
-from typing import Any, Optional, List, Tuple, TypedDict
+from typing import Any, Optional, List, Tuple, TypedDict, Callable
 
 from yt.common import _pretty_format_messages
 from yt.mcp.lib.tool_runner_mcp import YTToolRunnerMCP
@@ -37,6 +37,11 @@ class ExternalConfigType(TypedDict):
 
 
 class YTToolBase:
+    # Set to True on tool classes that mutate the cluster (Cypress writes,
+    # write_table, etc.). Used by the server entry point to filter out
+    # mutating tools when --rw-mode is not set (default: read-only).
+    _MUTABLE = False
+
     @dataclass
     class ToolName:
         name: str
@@ -44,7 +49,7 @@ class YTToolBase:
 
     @dataclass
     class ToolInputField:
-        name: str
+        name: Optional[str] = None
         description: Optional[str] = None
         examples: Optional[List[str]] = None
         field_type: Optional[type] = None
@@ -57,19 +62,72 @@ class YTToolBase:
     def set_runner(self, runner: YTToolRunnerMCP):
         self.runner: YTToolRunnerMCP = weakref.proxy(runner)
 
+    @classmethod
+    def _is_mutable(cls):
+        return cls._MUTABLE
+
     def _get_tool_description(self):
         if not self._tool_description:
             self._tool_description = self.get_tool_description()
         return self._tool_description
 
+    def _get_description_from_handler(self, f: Callable[[Any], Any]) -> typing.Tuple["YTToolBase.ToolName", List["YTToolBase.ToolInputField"]]:
+        tool_fields = []
+        tool_name = None
+        argument_types = typing.get_type_hints(f, include_extras=True)
+        for argument_name, argument_type in argument_types.items():
+            if typing.get_origin(argument_type) == typing.Annotated \
+                    and len(typing.get_args(argument_type)) == 2 \
+                    and isinstance(typing.get_args(argument_type)[1], self.ToolInputField):
+                field_type: Tuple[typing.Type, "YTToolBase.ToolInputField"] = typing.get_args(argument_type)
+                if not field_type[1].name:
+                    field_type[1].name = argument_name
+                if not field_type[1].field_type:
+                    field_type[1].field_type = field_type[0]
+                tool_fields.append(field_type[1])
+        if f.__doc__:
+            tool_name = self.ToolName(
+                self.__class__.__name__,
+                f.__doc__,
+            )
+        return tool_name, tool_fields
+
     def get_tool_description(self) -> Tuple[ToolName, List[ToolInputField]]:
-        raise RuntimeError("Not Implemented")
+        description = self._get_description_from_handler(self.on_handle_request)
+        if description[0] and description[1]:
+            return description
+        else:
+            raise RuntimeError("Not Implemented")
 
     def on_handle_request(self, **kwargs):
         raise RuntimeError("Not Implemented")
 
     def get_tool_variants(self) -> Optional[List[ToolTemplateType]]:
         pass
+
+    # Forbidden path prefixes for mutating tools. Hardcoded defaults are
+    # system/log roots that no agent should ever modify; the list can be
+    # overridden via env MCP_YT_WRITE_FORBIDDEN_PREFIXES (comma-separated).
+    _DEFAULT_WRITE_FORBIDDEN_PREFIXES = ("//sys", "//logs")
+
+    def helper_check_write_path(self, path):
+        """Reject mutating operations on system/log paths.
+
+        Raises RuntimeError if `path` falls under a forbidden prefix.
+        Called from mutating tools' on_handle_request before any mutation.
+        """
+        if not path:
+            return
+        prefixes_env = os.environ.get("MCP_YT_WRITE_FORBIDDEN_PREFIXES")
+        if prefixes_env is not None:
+            prefixes = tuple(p.strip() for p in prefixes_env.split(",") if p.strip())
+        else:
+            prefixes = self._DEFAULT_WRITE_FORBIDDEN_PREFIXES
+        normalized = str(path).rstrip("/")
+        for prefix in prefixes:
+            prefix_norm = prefix.rstrip("/")
+            if normalized == prefix_norm or normalized.startswith(prefix_norm + "/"):
+                raise RuntimeError(f"Write operations are forbidden under {prefix}")
 
     def helper_process_common_exception(self, ex: Exception, raise_exception=True):
         self.runner._logger.error(type(ex))

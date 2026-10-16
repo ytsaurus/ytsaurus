@@ -24,7 +24,7 @@ using namespace NLastGetopt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-auto ReadRecords(const TString& filename)
+auto ReadRecords(const std::string& filename)
 {
     // TODO: Use pull parser instead of materializing everything at once.
     auto str = TIFStream(filename).ReadAll();
@@ -32,7 +32,7 @@ auto ReadRecords(const TString& filename)
 }
 
 
-TTableSchemaPtr LoadSchema(const TString& filename)
+TTableSchemaPtr LoadSchema(const std::string& filename)
 {
     TIFStream stream(filename);
     return ConvertTo<TTableSchemaPtr>(TYsonString(stream.ReadAll()));
@@ -42,13 +42,13 @@ TTableSchemaPtr LoadSchema(const TString& filename)
 
 void GuardedMain(int argc, char* argv[])
 {
-    TString schemaFile;
+    std::string schemaFile;
     TOpts opts;
     opts.SetFreeArgsNum(1);
     opts.SetFreeArgTitle(0, "journal", "Journal dump (yson list fragment)");
 
-    TString tabletIdStr;
-    TString schemaPath;
+    std::string tabletIdStr;
+    std::string schemaPath;
     opts.AddLongOption("tablet-id")
         .StoreResult(&tabletIdStr)
         .Required();

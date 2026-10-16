@@ -9,6 +9,8 @@
 
 #include <yt/yt/client/transaction_client/helpers.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NTabletNode {
@@ -19,6 +21,8 @@ using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NLogging;
 using namespace NProfiling;
+
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,7 +71,6 @@ private:
     const int BatchSize_;
     int Position_;
 };
-
 
 class TFakeReplicationLogBatchReader
     : public TReplicationLogBatchReaderBase
@@ -135,7 +138,7 @@ protected:
         i64* rowDataWeight) const override
     {
         *replicationRow = row.ToTypeErasedRow();
-        *timestamp = row[0].Data.Uint64;
+        *timestamp = NYT::NTransactionClient::TTimestamp(row[0].Data.Uint64);
         *rowDataWeight = row[1].Data.Int64;
     }
 
@@ -174,30 +177,30 @@ private:
 
 TTimestamp CreateTransactionTimestamp(TInstant instant, int offset)
 {
-    return InstantToTimestamp(instant).first + offset;
+    return NYT::NTransactionClient::TTimestamp(InstantToTimestamp(instant).first.Underlying() + offset);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void AppendReplicationLogRows(
-    TTimestamp timestamp,
+    ui64 timestamp,
     int rowWeight,
     int rowsCount,
     std::vector<TFakeRow>* replicationLogRows)
 {
     for (; rowsCount > 0; --rowsCount) {
-        replicationLogRows->emplace_back(timestamp, rowWeight);
+        replicationLogRows->emplace_back(NYT::NTransactionClient::TTimestamp(timestamp), rowWeight);
     }
 }
 
 void AppendReplicationNotFittingLogRows(
-    TTimestamp timestamp,
+    ui64 timestamp,
     int rowWeight,
     int rowsCount,
     std::vector<TFakeRow>* replicationLogRows)
 {
     for (; rowsCount > 0; --rowsCount) {
-        replicationLogRows->emplace_back(timestamp, rowWeight, false);
+        replicationLogRows->emplace_back(NYT::NTransactionClient::TTimestamp(timestamp), rowWeight, false);
     }
 }
 
@@ -243,7 +246,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadEmpty)
     EXPECT_EQ(result.ReadRowCount, 0ll);
     EXPECT_EQ(result.ResponseRowCount, 0ll);
     EXPECT_EQ(result.ResponseDataWeight, 0ll);
-    EXPECT_EQ(result.MaxTimestamp, 0ull);
+    EXPECT_EQ(result.MaxTimestamp.Underlying(), 0ull);
     EXPECT_EQ(reader.GetReadsCount(), 1);
 
     nodeMemoryTracker->ClearTrackers();
@@ -279,7 +282,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadAll)
     EXPECT_EQ(result.ReadRowCount, 30ll);
     EXPECT_EQ(result.ResponseRowCount, 30ll);
     EXPECT_EQ(result.ResponseDataWeight, 300ll);
-    EXPECT_EQ(result.MaxTimestamp, 3ull);
+    EXPECT_EQ(result.MaxTimestamp.Underlying(), 3ull);
     EXPECT_EQ(reader.GetReadsCount(), 2);
     CheckReaderContinious(reader, 30);
 
@@ -316,7 +319,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
     EXPECT_EQ(result.ReadRowCount, 24ll);
     EXPECT_EQ(result.ResponseRowCount, 20ll);
     EXPECT_EQ(result.ResponseDataWeight, 200ll);
-    EXPECT_EQ(result.MaxTimestamp, 2ull);
+    EXPECT_EQ(result.MaxTimestamp.Underlying(), 2ull);
     EXPECT_EQ(reader.GetReadsCount(), 1);
     EXPECT_EQ(result.EndReplicationRowIndex, 20);
     CheckReaderContinious(reader, 20);
@@ -333,7 +336,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
     EXPECT_EQ(result.ReadRowCount, 10ll);
     EXPECT_EQ(result.ResponseRowCount, 10ll);
     EXPECT_EQ(result.ResponseDataWeight, 100ll);
-    EXPECT_EQ(result.MaxTimestamp, 3ull);
+    EXPECT_EQ(result.MaxTimestamp.Underlying(), 3ull);
     // 1 from previous read, 1 till the end and 1 to get null batch.
     EXPECT_EQ(reader.GetReadsCount(), 3);
     EXPECT_EQ(result.EndReplicationRowIndex, 30);
@@ -372,7 +375,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
     EXPECT_EQ(result.ReadRowCount, 106ll);
     EXPECT_EQ(result.ResponseRowCount, 100ll);
     EXPECT_EQ(result.ResponseDataWeight, 1000ll);
-    EXPECT_EQ(result.MaxTimestamp, 1ull);
+    EXPECT_EQ(result.MaxTimestamp.Underlying(), 1ull);
     EXPECT_EQ(reader.GetReadsCount(), 5);
     CheckReaderContinious(reader, 100);
     EXPECT_EQ(result.EndReplicationRowIndex, 100);
@@ -389,7 +392,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
     EXPECT_EQ(result.ReadRowCount, 20ll);
     EXPECT_EQ(result.ResponseRowCount, 20ll);
     EXPECT_EQ(result.ResponseDataWeight, 200ll);
-    EXPECT_EQ(result.MaxTimestamp, 3ull);
+    EXPECT_EQ(result.MaxTimestamp.Underlying(), 3ull);
     // 5 from previous read, 1 till the end and 1 to get null batch.
     EXPECT_EQ(reader.GetReadsCount(), 7);
     EXPECT_EQ(result.EndReplicationRowIndex, 120);
@@ -429,7 +432,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadAllNoMatching)
     EXPECT_EQ(result.ResponseRowCount, 0ll);
     EXPECT_EQ(result.EndReplicationRowIndex, 30);
     EXPECT_EQ(result.ResponseDataWeight, 0ll);
-    EXPECT_EQ(result.MaxTimestamp, 3ull);
+    EXPECT_EQ(result.MaxTimestamp.Underlying(), 3ull);
     EXPECT_EQ(reader.GetReadsCount(), 2);
 
     nodeMemoryTracker->ClearTrackers();
@@ -466,7 +469,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadAllSomeMatching)
     EXPECT_EQ(result.ResponseRowCount, 10ll);
     EXPECT_EQ(result.EndReplicationRowIndex, 30);
     EXPECT_EQ(result.ResponseDataWeight, 100ll);
-    EXPECT_EQ(result.MaxTimestamp, 3ull);
+    EXPECT_EQ(result.MaxTimestamp.Underlying(), 3ull);
     EXPECT_EQ(reader.GetReadsCount(), 2);
 
     const auto& rowIds = reader.GetProcessedRows();
@@ -509,7 +512,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadByLimitsNoneMatching)
     EXPECT_EQ(result.ReadRowCount, 30ll);
     EXPECT_EQ(result.ResponseRowCount, 0ll);
     EXPECT_EQ(result.ResponseDataWeight, 0ll);
-    EXPECT_EQ(result.MaxTimestamp, 2ull);
+    EXPECT_EQ(result.MaxTimestamp.Underlying(), 2ull);
     EXPECT_EQ(reader.GetReadsCount(), 1);
     EXPECT_EQ(result.EndReplicationRowIndex, 20);
 
@@ -525,7 +528,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadByLimitsNoneMatching)
     EXPECT_EQ(result.ReadRowCount, 10ll);
     EXPECT_EQ(result.ResponseRowCount, 0ll);
     EXPECT_EQ(result.ResponseDataWeight, 0ll);
-    EXPECT_EQ(result.MaxTimestamp, 3ull);
+    EXPECT_EQ(result.MaxTimestamp.Underlying(), 3ull);
     // 1 from previous read, 1 till the end and 1 to get null batch.
     EXPECT_EQ(reader.GetReadsCount(), 3);
     EXPECT_EQ(result.EndReplicationRowIndex, 30);
@@ -564,7 +567,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadByLimitsSomeMatching)
     EXPECT_EQ(result.ReadRowCount, 30ll);
     EXPECT_EQ(result.ResponseRowCount, 10ll);
     EXPECT_EQ(result.ResponseDataWeight, 100ll);
-    EXPECT_EQ(result.MaxTimestamp, 2ull);
+    EXPECT_EQ(result.MaxTimestamp.Underlying(), 2ull);
     EXPECT_EQ(reader.GetReadsCount(), 1);
     EXPECT_EQ(result.EndReplicationRowIndex, 20);
     CheckReaderContinious(reader, 10);
@@ -581,7 +584,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadByLimitsSomeMatching)
     EXPECT_EQ(result.ReadRowCount, 10ll);
     EXPECT_EQ(result.ResponseRowCount, 10ll);
     EXPECT_EQ(result.ResponseDataWeight, 100ll);
-    EXPECT_EQ(result.MaxTimestamp, 3ull);
+    EXPECT_EQ(result.MaxTimestamp.Underlying(), 3ull);
     // 1 from previous read, 1 till the end and 1 to get null batch.
     EXPECT_EQ(reader.GetReadsCount(), 3);
     EXPECT_EQ(result.EndReplicationRowIndex, 30);
@@ -623,7 +626,7 @@ TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithUpperBound)
 
     auto result = reader.ReadReplicationBatch(
         0,
-        3,
+        3_ts,
         /*maxDataWeight*/ 1_GB,
         10000,
         TInstant::Max(),
@@ -634,14 +637,14 @@ TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithUpperBound)
     EXPECT_EQ(result.ReadRowCount, 30ll);
     EXPECT_EQ(result.ResponseRowCount, 10ll);
     EXPECT_EQ(result.ResponseDataWeight, 100ll);
-    EXPECT_EQ(result.MaxTimestamp, 3ull);
+    EXPECT_EQ(result.MaxTimestamp.Underlying(), 3ull);
     EXPECT_EQ(reader.GetReadsCount(), 1);
     EXPECT_EQ(result.EndReplicationRowIndex, 20);
     CheckReaderContinious(reader, 10);
 
     result = reader.ReadReplicationBatch(
         20,
-        3,
+        3_ts,
         /*maxDataWeight*/ 1_GB,
         10000,
         TInstant::Max(),
@@ -651,7 +654,7 @@ TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithUpperBound)
     EXPECT_EQ(result.ReadRowCount, 10ll);
     EXPECT_EQ(result.ResponseRowCount, 0ll);
     EXPECT_EQ(result.ResponseDataWeight, 0ll);
-    EXPECT_EQ(result.MaxTimestamp, 3ull);
+    EXPECT_EQ(result.MaxTimestamp.Underlying(), 3ull);
     EXPECT_EQ(reader.GetReadsCount(), 2);
     EXPECT_EQ(result.EndReplicationRowIndex, 20);
     CheckReaderContinious(reader, 10);
@@ -674,12 +677,12 @@ TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithMaxInstant)
     auto borderTimestamp = CreateTransactionTimestamp(TInstant::Seconds(2), 0);
     auto maxRowTimestamp = CreateTransactionTimestamp(TInstant::Seconds(4), 0);
 
-    AppendReplicationLogRows(CreateTransactionTimestamp(TInstant::Seconds(1), 0), 10, 10, &transactions);
-    AppendReplicationNotFittingLogRows(borderTimestamp, 10, 10, &transactions);
+    AppendReplicationLogRows(CreateTransactionTimestamp(TInstant::Seconds(1), 0).Underlying(), 10, 10, &transactions);
+    AppendReplicationNotFittingLogRows(borderTimestamp.Underlying(), 10, 10, &transactions);
 
-    AppendReplicationNotFittingLogRows(CreateTransactionTimestamp(TInstant::Seconds(4), 0), 10, 10, &transactions);
-    AppendReplicationLogRows(CreateTransactionTimestamp(TInstant::Seconds(4), 0), 10, 10, &transactions);
-    AppendReplicationNotFittingLogRows(maxRowTimestamp, 10, 10, &transactions);
+    AppendReplicationNotFittingLogRows(CreateTransactionTimestamp(TInstant::Seconds(4), 0).Underlying(), 10, 10, &transactions);
+    AppendReplicationLogRows(CreateTransactionTimestamp(TInstant::Seconds(4), 0).Underlying(), 10, 10, &transactions);
+    AppendReplicationNotFittingLogRows(maxRowTimestamp.Underlying(), 10, 10, &transactions);
 
     TFakeReplicationLogBatchReader reader(
         mountConfig,

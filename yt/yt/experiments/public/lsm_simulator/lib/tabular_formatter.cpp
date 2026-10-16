@@ -12,15 +12,15 @@ TTabularFormatter::TTabularFormatter(int columnCount)
     MaxColumnWidth_.resize(columnCount);
 }
 
-TString TTabularFormatter::Format(const std::vector<TString>& row)
+std::string TTabularFormatter::Format(const std::vector<std::string>& row)
 {
     YT_VERIFY(ssize(row) == ssize(MaxColumnWidth_));
 
-    TString result;
+    std::string result;
     for (auto [str, width] : Zip(row, MaxColumnWidth_)) {
         width = std::max<int>(width, ssize(str) + 2);
         result += str;
-        result += TString(width - ssize(str), ' ');
+        result += std::string(width - ssize(str), ' ');
     }
     return result;
 }

@@ -37,7 +37,8 @@ public:
 
         for (const auto& block : blocks) {
             auto error = block.CheckChecksum();
-            YT_LOG_FATAL_UNLESS(error.IsOK(), error, "Block checksum mismatch during memory block reading");
+            YT_TLOG_FATAL_UNLESS(error.IsOK(), "Block checksum mismatch during memory block reading")
+                .With(error);
         }
 
         return MakeFuture(std::move(blocks));
@@ -58,7 +59,8 @@ public:
 
         for (const auto& block : blocks) {
             auto error = block.CheckChecksum();
-            YT_LOG_FATAL_UNLESS(error.IsOK(), error, "Block checksum mismatch during memory block reading");
+            YT_TLOG_FATAL_UNLESS(error.IsOK(), "Block checksum mismatch during memory block reading")
+                .With(error);
         }
 
         return MakeFuture(std::move(blocks));

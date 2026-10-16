@@ -7,6 +7,7 @@
 #include <yt/yt/ytlib/query_tracker_client/helpers.h>
 #include <yt/yt/ytlib/query_tracker_client/query_tracker_service_proxy.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
 namespace NYT::NApi::NNative {
@@ -24,7 +25,7 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const TStartQueryOptions& options)
+TQueryId TClient::DoStartQuery(EQueryEngine engine, const std::string& query, const TStartQueryOptions& options)
 {
     TQueryTrackerServiceProxy proxy(
         Connection_->GetQueryTrackerChannelOrThrow(options.QueryTrackerStage));
@@ -57,6 +58,10 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
         for (const auto& aco : *options.AccessControlObjects) {
             protoAccessControlObjects->add_items(aco);
         }
+    }
+
+    if (options.MutationId) {
+        ToProto(rpcRequest->mutable_mutating_options(), options);
     }
 
     for (const auto& sec : options.Secrets) {
@@ -193,6 +198,12 @@ TQuery TClient::DoGetQuery(TQueryId queryId, const TGetQueryOptions& options)
         rpcRequest->set_timestamp(ToProto(options.Timestamp));
     }
 
+    ToProto(rpcRequest->mutable_progress_parts(), options.ProgressParts);
+
+    if (options.MinProgressRevision) {
+        rpcRequest->set_min_progress_revision(*options.MinProgressRevision);
+    }
+
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
     auto rpcResponse = rsp->rpc_proxy_response();
     return FromProto<TQuery>(rpcResponse.query());
@@ -257,7 +268,7 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
     return TListQueriesResult{
         .Queries = std::move(queries),
         .Incomplete = rpcResponse.incomplete(),
-        .Timestamp = rpcResponse.timestamp(),
+        .Timestamp = FromProto<NTransactionClient::TTimestamp>(rpcResponse.timestamp()),
     };
 }
 

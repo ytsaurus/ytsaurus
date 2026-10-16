@@ -2,16 +2,24 @@ package agent
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"go.ytsaurus.tech/yt/go/yt"
-	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 type crashedJobEvent struct {
 	jobID          yt.JobID
+	opletAlias     string
 	expirationTime time.Time
+}
+
+type crashedJobBatchEntry struct {
+	operationID yt.OperationID
+	opletAlias  string
+	jobIDs      []yt.JobID
 }
 
 type crashedJobMonitor struct {
@@ -28,30 +36,43 @@ func newCrashedJobMonitor(expirationTimeout time.Duration) *crashedJobMonitor {
 	}
 }
 
-func (m *crashedJobMonitor) registerCrashedJobs(ops []OperationStatus) {
+func (m *crashedJobMonitor) registerCrashedJobs(batch []crashedJobBatchEntry) map[string]int {
+	now := time.Now()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	expirationTime := time.Now().Add(m.eventExpirationTimeout)
-	for _, op := range ops {
-		opID := op.ID
-		for _, jobID := range op.CrashedJobs {
-			m.opEvents[opID] = append(m.opEvents[opID], crashedJobEvent{jobID, expirationTime})
+	expirationTime := now.Add(m.eventExpirationTimeout)
+	for _, entry := range batch {
+		for _, jobID := range entry.jobIDs {
+			m.opEvents[entry.operationID] = append(m.opEvents[entry.operationID], crashedJobEvent{
+				jobID:          jobID,
+				opletAlias:     entry.opletAlias,
+				expirationTime: expirationTime,
+			})
 		}
 	}
+
+	counts := make(map[string]int)
+	for _, events := range m.getActiveEventsLocked(now) {
+		for _, event := range events {
+			if event.opletAlias != "" {
+				counts[event.opletAlias]++
+			}
+		}
+	}
+	return counts
 }
 
-func (m *crashedJobMonitor) getCoreAlert() error {
-	if m == nil {
-		return errors.New("core monitor is not initialized")
-	}
-
+func (m *crashedJobMonitor) getActiveEvents() map[yt.OperationID][]crashedJobEvent {
 	now := time.Now()
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return m.getActiveEventsLocked(now)
+}
 
-	cores := make(map[yt.OperationID][]yt.JobID)
+func (m *crashedJobMonitor) getActiveEventsLocked(now time.Time) map[yt.OperationID][]crashedJobEvent {
+	activeEvents := make(map[yt.OperationID][]crashedJobEvent)
 	toDelete := make([]yt.OperationID, 0)
 	for opID, events := range m.opEvents {
 		newLen := 0
@@ -59,7 +80,7 @@ func (m *crashedJobMonitor) getCoreAlert() error {
 			if events[idx].expirationTime.Before(now) {
 				continue
 			}
-			cores[opID] = append(cores[opID], events[idx].jobID)
+			activeEvents[opID] = append(activeEvents[opID], events[idx])
 			events[newLen] = events[idx]
 			newLen++
 		}
@@ -73,9 +94,27 @@ func (m *crashedJobMonitor) getCoreAlert() error {
 		delete(m.opEvents, id)
 	}
 
-	if len(cores) == 0 {
+	return activeEvents
+}
+
+func (m *crashedJobMonitor) getCoreAlert() error {
+	if m == nil {
+		return errors.New("core monitor is not initialized")
+	}
+
+	activeEvents := m.getActiveEvents()
+	if len(activeEvents) == 0 {
 		return nil
 	}
 
-	return yterrors.Err(yterrors.Attr("op_id_to_crashed_job_ids", cores))
+	parts := make([]string, 0, len(activeEvents))
+	for opID, events := range activeEvents {
+		jobStrs := make([]string, len(events))
+		for i, event := range events {
+			jobStrs[i] = event.jobID.String()
+		}
+		parts = append(parts, fmt.Sprintf("op %v: crashed jobs [%v]", opID, strings.Join(jobStrs, ", ")))
+	}
+
+	return errors.New(strings.Join(parts, "; "))
 }

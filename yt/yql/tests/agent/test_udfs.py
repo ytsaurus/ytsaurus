@@ -8,8 +8,6 @@ import pytest
 
 
 class TestUdfs(TestQueriesYqlBase):
-    NUM_TEST_PARTITIONS = 4
-
     @authors("max42")
     @pytest.mark.timeout(120)
     def test_simple_udf(self, query_tracker, yql_agent):
@@ -133,8 +131,6 @@ select $get_secure_param(SecureParam("token:geheim1")) as sp1, $get_secure_param
 
 
 class TestUdfsWithDynamicConfig(TestQueriesYqlBase):
-    NUM_TEST_PARTITIONS = 4
-
     def _update_dyn_config(self, yql_agent, dyn_config):
         config = get("//sys/yql_agent/config")
         config["yql_agent"] = dyn_config
@@ -195,10 +191,18 @@ select a from primary.`//tmp/t` where $f(unwrap(a));
         result = query.read_result(0)
         assert_items_equal(result, [{"a": 1}, {"a": 2}])
 
+    @authors("a-romanov")
+    @pytest.mark.timeout(300)
+    def test_streaming_udf_pwd(self, query_tracker, yql_agent):
+        query = self.start_query("yql", "PROCESS AS_TABLE([<|Data:''|>]) USING Streaming::ProcessInline(TableRows(), 'pwd');")
+        query.track()
+        result = query.read_result(0)
+        assert result[0]['Data'].endswith('sandbox')
+
 
 class TestUdfsWithDynamicConfigWithProcesses(TestUdfsWithDynamicConfig):
-    YQL_SUBPROCESSES_COUNT = 8
+    YQL_SUBPROCESS_COUNT = 8
 
 
 class TestUdfsWithProcesses(TestUdfs):
-    YQL_SUBPROCESSES_COUNT = 8
+    YQL_SUBPROCESS_COUNT = 8

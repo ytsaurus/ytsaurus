@@ -44,11 +44,12 @@ public:
     //! Returns number of bytes available to read.
     i64 GetBytesAvailable() const;
 
-    NNet::IConnectionReaderPtr CreateAsyncReader();
+    NNet::IConnectionReaderPtr IntoAsyncReader() &&;
 
 private:
     const std::string Path_;
-    int Fd_;
+
+    NNet::IConnectionReaderPtr Reader_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TGpuCoreReader)
@@ -110,7 +111,7 @@ private:
     NConcurrency::TAsyncReaderWriterLock WriterLock_;
 
     TCoreResult CoreResult_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CoreInfosLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, CoreInfosLock_);
 
     TGpuCoreReaderPtr GpuCoreReader_;
 

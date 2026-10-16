@@ -4,7 +4,9 @@
 #include "callbacks.h"
 #include "functions.h"
 #include "helpers.h"
+#include "hierarchical_join_rewriter.h"
 #include "lexer.h"
+#include "private.h"
 #include "push_down_group_by.h"
 #include "query_helpers.h"
 #include "query_visitors.h"
@@ -25,7 +27,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr i64 MaxQueryLimit = std::numeric_limits<i64>::max() - 2;
 constexpr int MaxJoinNumber = 200;
 constexpr int MaxMultiJoinGroupNumber = 15;
 
@@ -185,7 +186,7 @@ TConstExpressionPtr BuildPredicate(
 {
     if (expressionAst.size() != 1) {
         THROW_ERROR_EXCEPTION("Expecting scalar expression")
-            << TErrorAttribute("source", FormatExpression(expressionAst));
+            .With("source", FormatExpression(expressionAst));
     }
 
     // TODO(lukyan): BuildTypedExpression(expressionAst.front(), {EValueType::Boolean}) ?
@@ -195,9 +196,9 @@ TConstExpressionPtr BuildPredicate(
     EValueType expectedType(EValueType::Boolean);
     if (actualType != expectedType) {
         THROW_ERROR_EXCEPTION("%v is not a boolean expression", name)
-            << TErrorAttribute("source", expressionAst.front()->GetSource(builder->GetSource()))
-            << TErrorAttribute("actual_type", actualType)
-            << TErrorAttribute("expected_type", expectedType);
+            .With("source", expressionAst.front()->GetSource(builder->GetSource()))
+            .With("actual_type", actualType)
+            .With("expected_type", expectedType);
     }
 
     return ApplyRewriters(typedPredicate);
@@ -218,7 +219,8 @@ TGroupClausePtr BuildGroupClause(
 
     builder->SetGroupData(
         &groupClause->GroupItems,
-        &groupClause->AggregateItems);
+        &groupClause->AggregateItems,
+        totalsMode);
 
     return groupClause;
 }
@@ -344,7 +346,20 @@ void PrepareQuery(
             query->OrderClause = std::move(orderClause);
         }
 
-        // Use ordered scan otherwise
+        bool canReverseScanForOrderBy = false;
+        if (!canOmitOrderBy &&
+            builder->GetContext().Options.AllowReverseScanForOrderBy)
+        {
+            canReverseScanForOrderBy = CanReverseScanForOrderBy(
+                /*fixedKeyPrefix*/ 0,
+                query->OrderClause->OrderItems,
+                query->GetKeyColumns(),
+                query->GroupClause);
+        }
+
+        if (canReverseScanForOrderBy) {
+            query->IsReverseScan = true;
+        }
     }
 
     if (ast.SelectExprs) {
@@ -460,7 +475,7 @@ private:
 void YsonParseError(TStringBuf message, TYsonStringBuf source)
 {
     THROW_ERROR_EXCEPTION("%v", message)
-        << TErrorAttribute("context", Format("%v", source.AsStringBuf()));
+        .With("context", Format("%v", source.AsStringBuf()));
 }
 
 THashMap<std::string, std::string> ConvertYsonPlaceholdersToQueryLiterals(TYsonStringBuf placeholders)
@@ -527,7 +542,7 @@ NAst::TAstHead ParseQueryString(
 
     if (result != 0) {
         THROW_ERROR_EXCEPTION("Parse failure")
-            << TErrorAttribute("source", source);
+            .With("source", source);
     }
 
     return head;
@@ -710,7 +725,7 @@ TJoinClausePtr BuildJoinClause(
     joinClause->ForeignObjectId = foreignDataSplit.ObjectId;
     joinClause->IsLeft = tableJoin.IsLeft;
 
-    if (!tableJoin.Table.Hint->RequireSyncReplica && options.AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse) {
+    if (!tableJoin.Table.Hint.RequireSyncReplica && options.AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse) {
         joinClause->RequireSyncReplica = false;
     }
 
@@ -745,16 +760,16 @@ TJoinClausePtr BuildJoinClause(
         if (!NTableClient::IsV1Type(selfColumnType) || !NTableClient::IsV1Type(foreignColumnType)) {
             THROW_ERROR_EXCEPTION("Cannot join column %Qv of nonsimple type",
                 columnName)
-                << TErrorAttribute("self_type", selfColumnType)
-                << TErrorAttribute("foreign_type", foreignColumnType);
+                .With("self_type", selfColumnType)
+                .With("foreign_type", foreignColumnType);
         }
 
         // N.B. When we try join optional<int32> and int16 columns it must work.
         if (NTableClient::GetWireType(selfColumnType) != NTableClient::GetWireType(foreignColumnType)) {
             THROW_ERROR_EXCEPTION("Column %Qv type mismatch in join",
                 columnName)
-                << TErrorAttribute("self_type", selfColumnType)
-                << TErrorAttribute("foreign_type", foreignColumnType);
+                .With("self_type", selfColumnType)
+                .With("foreign_type", foreignColumnType);
         }
 
         selfEquations.push_back(New<TReferenceExpression>(selfColumnType, columnName));
@@ -772,8 +787,8 @@ TJoinClausePtr BuildJoinClause(
         THROW_ERROR_EXCEPTION("Tuples of same size are expected but got %v vs %v",
             selfEquations.size(),
             foreignEquations.size())
-            << TErrorAttribute("lhs_source", FormatExpression(tableJoin.Lhs))
-            << TErrorAttribute("rhs_source", FormatExpression(tableJoin.Rhs));
+            .With("lhs_source", FormatExpression(tableJoin.Lhs))
+            .With("rhs_source", FormatExpression(tableJoin.Rhs));
     }
 
     for (int index = 0; index < std::ssize(selfEquations); ++index) {
@@ -781,8 +796,8 @@ TJoinClausePtr BuildJoinClause(
             THROW_ERROR_EXCEPTION("Types mismatch in join equation \"%v = %v\"",
                 InferName(selfEquations[index]),
                 InferName(foreignEquations[index]))
-                << TErrorAttribute("self_type", selfEquations[index]->LogicalType)
-                << TErrorAttribute("foreign_type", foreignEquations[index]->LogicalType);
+                .With("self_type", selfEquations[index]->LogicalType)
+                .With("foreign_type", foreignEquations[index]->LogicalType);
         }
     }
 
@@ -887,9 +902,9 @@ TJoinClausePtr BuildJoinClause(
     joinClause->ForeignKeyPrefix = foreignKeyPrefix;
     joinClause->CommonKeyPrefix = *globalCommonKeyPrefix;
 
-    YT_LOG_DEBUG("Creating join (CommonKeyPrefix: %v, ForeignKeyPrefix: %v)",
-        joinClause->CommonKeyPrefix,
-        joinClause->ForeignKeyPrefix);
+    YT_TLOG_DEBUG("Creating join")
+        .With("CommonKeyPrefix", joinClause->CommonKeyPrefix)
+        .With("ForeignKeyPrefix", joinClause->ForeignKeyPrefix);
 
     if (tableJoin.Predicate) {
         joinClause->Predicate = BuildPredicate(
@@ -1027,6 +1042,16 @@ std::optional<i64> TryGetIntegerValue(NAst::TExpressionPtr expr)
     return std::nullopt;
 }
 
+std::optional<i64> TryGetProjectionIndex(NAst::TExpressionPtr expr)
+{
+    auto index = TryGetIntegerValue(expr);
+    if (!index || *index == 0) {
+        return std::nullopt;
+    }
+
+    return index;
+}
+
 class TCardinalityIntoHyperLogLogWithPrecisionRewriter
     : public NAst::TRewriter<TCardinalityIntoHyperLogLogWithPrecisionRewriter>
 {
@@ -1082,9 +1107,9 @@ void RewriteCardinalityIntoHyperLogLogWithPrecision(
 
     if (auto* subquery = std::get_if<NAst::TQueryAstHeadPtr>(&ast->FromClause); subquery) {
         RewriteCardinalityIntoHyperLogLogWithPrecision(
-            &subquery->Get()->Ast,
-            &subquery->Get()->AliasMap,
-            subquery->Get(),
+            &(*subquery)->Ast,
+            &(*subquery)->AliasMap,
+            holder,
             hyperLogLogPrecision);
     }
 
@@ -1135,12 +1160,10 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
     int projectionCount = projections ? std::ssize(*projections) : 0;
 
     auto isIndexReference = [&] (NAst::TExpressionPtr expr) {
-        auto integerValue = TryGetIntegerValue(expr);
-
-        if (integerValue.has_value() && *integerValue != 0) {
-            if (*integerValue < 0 || *integerValue > projectionCount) {
+        if (auto projectionIndex = TryGetProjectionIndex(expr)) {
+            if (*projectionIndex < 0 || *projectionIndex > projectionCount) {
                 THROW_ERROR_EXCEPTION("Reference expression index is out of bounds")
-                    << TErrorAttribute("index", *integerValue);
+                    .With("index", *projectionIndex);
             }
 
             return true;
@@ -1151,7 +1174,7 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
 
     if (ast.GroupExprs) {
         for (auto* expr : ast.GroupExprs.value()) {
-            hasIndexReference = isIndexReference(expr);
+            hasIndexReference |= isIndexReference(expr);
         }
     }
 
@@ -1161,7 +1184,7 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
 
     for (auto& orderExpr : orderExpressionList) {
         for (auto* expr : orderExpr.Expressions) {
-            hasIndexReference = isIndexReference(expr);
+            hasIndexReference |= isIndexReference(expr);
         }
     }
 
@@ -1173,7 +1196,7 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
         return;
     }
 
-    auto indexToAlias = THashMap<i64, std::string>();
+    THashMap<i64, std::string> indexToAlias;
 
     for (i64 projectionIndex = 0; projectionIndex < std::ssize(*projections); ++projectionIndex) {
         auto& expr = (*projections)[projectionIndex];
@@ -1206,10 +1229,8 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
 
         for (i64 index = 0; index < std::ssize(groupExpressionList); ++index) {
             auto& expr = groupExpressionList[index];
-            auto integerValue = TryGetIntegerValue(expr);
-
-            if (integerValue.has_value()) {
-                auto& aliasName = indexToAlias[*integerValue];
+            if (auto projectionIndex = TryGetProjectionIndex(expr)) {
+                auto& aliasName = indexToAlias[*projectionIndex];
                 auto* newExpr = head.New<NAst::TReferenceExpression>(
                     expr->SourceLocation,
                     aliasName);
@@ -1221,10 +1242,8 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
     for (auto& orderExpr : orderExpressionList) {
         for (i64 index = 0; index < std::ssize(orderExpr.Expressions); ++index) {
             auto& expr = orderExpr.Expressions[index];
-            auto integerValue = TryGetIntegerValue(expr);
-
-            if (integerValue.has_value()) {
-                auto& aliasName = indexToAlias[*integerValue];
+            if (auto projectionIndex = TryGetProjectionIndex(expr)) {
+                auto& aliasName = indexToAlias[*projectionIndex];
                 auto* newExpr = head.New<NAst::TReferenceExpression>(
                     expr->SourceLocation,
                     aliasName);
@@ -1285,7 +1304,7 @@ const TDataSplit& GetDataSplitOrThrow(
 {
     auto it = dataSplits.find(path);
     if (it == dataSplits.end()) {
-        THROW_ERROR_EXCEPTION("Data split not found for table path %Qv", path);
+        THROW_ERROR_EXCEPTION("Data split not found for table path %v", path);
     }
     return it->second;
 }
@@ -1300,22 +1319,25 @@ THashMap<NYPath::TYPath, TDataSplit> GetDataSplits(
     {
         const auto* table = std::get_if<NAst::TTableDescriptor>(&queryAst.FromClause);
 
-        YT_LOG_DEBUG("Getting initial data splits (PrimaryPath: %v, ForeignPaths: %v, SubqueryDepth: %v)",
-            table ? table->Path : "unapplicable",
-            MakeFormattableView(
+        YT_TLOG_DEBUG("Getting initial data splits")
+            .With("PrimaryPath", table ? table->Path : "inapplicable")
+            .With("ForeignPaths", MakeFormattableView(
                 queryAst.Joins,
                 [] (TStringBuilderBase* builder, const std::variant<NAst::TJoin, NAst::TArrayJoin>& join) {
                     if (auto* tableJoin = std::get_if<NAst::TJoin>(&join)) {
                         FormatValue(builder, tableJoin->Table.Path, TStringBuf());
                     }
-            }),
-            depth);
+            }))
+            .With("SubqueryDepth", depth);
     }
 
-    auto asyncDataSplits = THashMap<NYPath::TYPath, TFuture<TDataSplit>>();
+    THashMap<NYPath::TYPath, TFuture<TDataSplit>> asyncDataSplits;
 
     auto pathCollector = TPathCollector([&] (const NYPath::TYPath& path) -> void {
-        asyncDataSplits.try_emplace(path, callbacks->GetInitialSplit(path));
+        auto [it, inserted] = asyncDataSplits.try_emplace(path);
+        if (inserted) {
+            it->second = callbacks->GetInitialSplit(path);
+        }
     });
     auto query = NAst::TQueryExpression({}, queryAst, aliasMap);
     pathCollector.Visit(&query);
@@ -1331,17 +1353,67 @@ THashMap<NYPath::TYPath, TDataSplit> GetDataSplits(
     auto dataSplitPairs = WaitForFast(AllSucceeded(futures))
         .ValueOrThrow();
 
-    auto result = THashMap<NYPath::TYPath, TDataSplit>();
+    THashMap<NYPath::TYPath, TDataSplit> result;
     result.reserve(dataSplitPairs.size());
     for (auto& pair : dataSplitPairs) {
-        result.emplace(std::move(pair));
+        result.insert(std::move(pair));
     }
 
-    YT_LOG_DEBUG("Initial data splits received");
+    YT_TLOG_DEBUG("Initial data splits received");
     return result;
 }
 
 } // namespace
+
+void ValidateOrderByOffsetAndLimit(const NAst::TQuery& queryAst)
+{
+    if (!queryAst.OrderExpressions.empty() && !queryAst.Limit) {
+        THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT");
+    }
+
+    if (queryAst.Offset && !queryAst.Limit) {
+        THROW_ERROR_EXCEPTION("OFFSET used without LIMIT");
+    }
+
+    if (queryAst.Limit && *queryAst.Limit > MaxQueryLimit) {
+        THROW_ERROR_EXCEPTION("Maximum LIMIT exceeded")
+            .With("limit", *queryAst.Limit)
+            .With("max_limit", MaxQueryLimit);
+    }
+
+    i64 offset = queryAst.Offset.value_or(0);
+    i64 limit = queryAst.Limit.value_or(UnorderedReadHint);
+    if (offset < 0) {
+        THROW_ERROR_EXCEPTION("Negative OFFSET is forbidden")
+            .With("offset", offset);
+    }
+
+    if (limit < 0) {
+        THROW_ERROR_EXCEPTION("Negative LIMIT is forbidden")
+            .With("limit", limit);
+    }
+
+    THROW_ERROR_EXCEPTION_IF(
+        offset > std::numeric_limits<i64>::max() - limit,
+        "Sum of offset %v and limit %v overflows i64",
+        offset,
+        limit);
+}
+
+void ValidateHaving(const NAst::TQuery& queryAst, bool hasOrderBy)
+{
+    if (!queryAst.HavingPredicate || hasOrderBy) {
+        return;
+    }
+
+    if (queryAst.Limit) {
+        THROW_ERROR_EXCEPTION("HAVING with LIMIT is not allowed");
+    }
+
+    if (queryAst.Offset) {
+        THROW_ERROR_EXCEPTION("HAVING with OFFSET is not allowed");
+    }
+}
 
 TPlanFragmentPtr PreparePlanFragmentImpl(
     IPrepareCallbacks* callbacks,
@@ -1352,6 +1424,20 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
     IMemoryUsageTrackerPtr memoryTracker,
     int depth)
 {
+    if (depth > MaxSubqueryDepth) {
+        THROW_ERROR_EXCEPTION("Maximum subquery depth exceeded")
+            .With("max_subquery_depth", MaxSubqueryDepth);
+    }
+
+    if (queryAst.SelectExprs &&
+        options.MaxProjectionCount &&
+        std::ssize(*queryAst.SelectExprs) > *options.MaxProjectionCount)
+    {
+        THROW_ERROR_EXCEPTION("Maximum projection count exceeded")
+            .With("projection_count", std::ssize(*queryAst.SelectExprs))
+            .With("max_projection_count", *options.MaxProjectionCount);
+    }
+
     auto query = New<TQuery>(TGuid::Create());
 
     auto Logger = MakeQueryLogger(query);
@@ -1450,43 +1536,26 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
 
     if (std::ssize(query->JoinClauses) > MaxJoinNumber) {
         THROW_ERROR_EXCEPTION("The number of joins exceeds the allowed maximum. Consider rewriting the query.")
-            << TErrorAttribute("join_number", std::ssize(query->JoinClauses))
-            << TErrorAttribute("max_join_number", MaxMultiJoinGroupNumber);
+            .With("join_number", std::ssize(query->JoinClauses))
+            .With("max_join_number", MaxMultiJoinGroupNumber);
     }
 
     auto joinGroups = GetJoinGroups(query->JoinClauses, query->GetRenamedSchema());
     if (std::ssize(joinGroups) > MaxMultiJoinGroupNumber) {
         THROW_ERROR_EXCEPTION("The number of multi-join groups exceeds the allowed maximum. Consider rewriting the query.")
-            << TErrorAttribute("multi_join_group_number", std::ssize(joinGroups))
-            << TErrorAttribute("max_multi_join_group_number", MaxMultiJoinGroupNumber);
+            .With("multi_join_group_number", std::ssize(joinGroups))
+            .With("max_multi_join_group_number", MaxMultiJoinGroupNumber);
     }
 
+    ValidateOrderByOffsetAndLimit(queryAst);
+    ValidateHaving(queryAst, /*hasOrderBy*/ query->OrderClause != nullptr);
+
     if (queryAst.Limit) {
-        if (*queryAst.Limit > MaxQueryLimit) {
-            THROW_ERROR_EXCEPTION("Maximum LIMIT exceeded")
-                << TErrorAttribute("limit", *queryAst.Limit)
-                << TErrorAttribute("max_limit", MaxQueryLimit);
-        }
-
         query->Limit = *queryAst.Limit;
-
-        if (!query->OrderClause && query->HavingClause) {
-            THROW_ERROR_EXCEPTION("HAVING with LIMIT is not allowed");
-        }
-    } else if (!queryAst.OrderExpressions.empty()) {
-        THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT");
     }
 
     if (queryAst.Offset) {
-        if (!query->OrderClause && query->HavingClause) {
-            THROW_ERROR_EXCEPTION("HAVING with OFFSET is not allowed");
-        }
-
         query->Offset = *queryAst.Offset;
-
-        if (!queryAst.Limit) {
-            THROW_ERROR_EXCEPTION("OFFSET used without LIMIT");
-        }
     }
 
     TryPushDownGroupBy(query, queryAst, Logger);
@@ -1498,15 +1567,17 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
     }
 
     auto queryFingerprint = InferName(query, {.OmitValues = true});
-    YT_LOG_DEBUG("Prepared query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
-        queryFingerprint,
-        *readSchema,
-        *query->GetTableSchema());
+    YT_TLOG_DEBUG("Prepared query")
+        .With("Fingerprint", queryFingerprint)
+        .With("ReadSchema", *readSchema)
+        .With("ResultSchema", *query->GetTableSchema());
 
     auto rowBuffer = New<TRowBuffer>(
         TQueryPreparerBufferTag(),
         TChunkedMemoryPool::DefaultStartChunkSize,
         memoryTracker);
+
+    query = InsertHierarchicalJoins(query, Logger);
 
     fragment->Query = query;
 

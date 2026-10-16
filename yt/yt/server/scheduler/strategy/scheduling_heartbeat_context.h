@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/scheduler/public.h>
 
+#include <yt/yt/core/actions/public.h>
+
 namespace NYT::NScheduler::NStrategy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,6 +16,7 @@ NPolicy::ISchedulingHeartbeatContextPtr CreateSchedulingHeartbeatContext(
     int nodeShardId,
     TSchedulerConfigPtr config,
     TExecNodePtr node,
+    IInvokerPtr backgroundInvoker,
     const std::vector<TAllocationPtr>& runningAllocations,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
     const TJobResources& defaultMinSpareAllocationResources);

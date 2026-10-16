@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <library/cpp/yt/cpu_clock/public.h>
+
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,7 +23,7 @@ public:
     explicit TUserJobWriteController(IJobHostPtr host);
     ~TUserJobWriteController();
 
-    void Init(TInstant ioStartTime);
+    void Init(TCpuInstant ioStartTime);
 
     std::vector<IProfilingMultiChunkWriterPtr> GetWriters() const;
     int GetOutputStreamCount() const;
@@ -45,6 +47,8 @@ protected:
     std::vector<IProfilingMultiChunkWriterPtr> Writers_;
     std::vector<std::unique_ptr<NTableClient::IFlushableValueConsumer>> ValueConsumers_;
     std::unique_ptr<NTableClient::TBlobTableWriter> StderrTableWriter_;
+
+    bool HasShuffleWriter_ = false;
 
     std::vector<NChunkClient::IChunkWriter::TWriteBlocksOptions> OutputWriteBlocksOptions_;
 };

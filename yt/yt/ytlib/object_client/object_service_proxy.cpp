@@ -1,5 +1,6 @@
 #include "object_service_proxy.h"
 
+#include "private.h"
 #include "config.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -448,10 +449,10 @@ void TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::InvokeNextBatch()
 {
     auto subbatchReq = FormNextBatch();
     CurrentReqFuture_ = subbatchReq->DoInvoke();
-    YT_LOG_DEBUG("Subbatch request invoked (BatchRequestId: %v, SubbatchRequestId: %v, SubbatchSize: %v)",
-        GetRequestId(),
-        subbatchReq->GetRequestId(),
-        subbatchReq->GetSize());
+    YT_TLOG_DEBUG("Subbatch request invoked")
+        .With("BatchRequestId", GetRequestId())
+        .With("SubbatchRequestId", subbatchReq->GetRequestId())
+        .With("SubbatchSize", subbatchReq->GetSize());
 
     CurrentReqFuture_.Subscribe(
         BIND(&TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::OnSubbatchResponse, MakeStrong(this)));
@@ -488,10 +489,10 @@ void TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::OnSubbatchResponse(c
         return;
     }
 
-    YT_LOG_DEBUG("Subbatch response received (BatchRequestId: %v, SubbatchRequestId: %v, SubbatchSubresponseCount: %v)",
-        GetRequestId(),
-        rsp->GetRequestId(),
-        rsp->GetResponseCount());
+    YT_TLOG_DEBUG("Subbatch response received")
+        .With("BatchRequestId", GetRequestId())
+        .With("SubbatchRequestId", rsp->GetRequestId())
+        .With("SubbatchSubresponseCount", rsp->GetResponseCount());
 
     // The remote side shouldn't backoff until there's at least one subresponse.
     YT_VERIFY(rsp->GetResponseCount() > 0 || GetTotalSubrequestCount() == 0);
@@ -564,14 +565,14 @@ void TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::SetBalancingHeader()
     auto stickyGroupSize = *StickyGroupSize_;
     if (auto advisedStickyGroupSize = GetAdvisedStickyGroupSize()) {
         stickyGroupSize = std::max(stickyGroupSize, *advisedStickyGroupSize);
-        YT_LOG_DEBUG("Using advised sticky group size (RequestId: %v, ProvidedSize: %v, AdvisedSize: %v)",
-            GetRequestId(),
-            stickyGroupSize,
-            *advisedStickyGroupSize);
+        YT_TLOG_DEBUG("Using advised sticky group size")
+            .With("RequestId", GetRequestId())
+            .With("ProvidedSize", stickyGroupSize)
+            .With("AdvisedSize", *advisedStickyGroupSize);
     } else {
-        YT_LOG_DEBUG("Not using advised sticky group size (RequestId: %v, ProvidedSize: %v)",
-            GetRequestId(),
-            stickyGroupSize);
+        YT_TLOG_DEBUG("Not using advised sticky group size")
+            .With("RequestId", GetRequestId())
+            .With("ProvidedSize", stickyGroupSize);
     }
     balancingHeaderExt->set_sticky_group_size(stickyGroupSize);
 }
@@ -697,11 +698,11 @@ void TObjectServiceProxy::TReqExecuteBatch::InvokeNextBatch()
         batchRequest->SetStickyGroupSize(*StickyGroupSize_);
     }
     CurrentReqFuture_ = batchRequest->Invoke();
-    YT_LOG_DEBUG("Batch attempt invoked (BatchRequestId: %v, AttemptRequestId: %v, RequestCount: %v, CurrentRetry: %v)",
-        GetRequestId(),
-        batchRequest->GetRequestId(),
-        batchRequest->GetSize(),
-        CurrentRetry_);
+    YT_TLOG_DEBUG("Batch attempt invoked")
+        .With("BatchRequestId", GetRequestId())
+        .With("AttemptRequestId", batchRequest->GetRequestId())
+        .With("RequestCount", batchRequest->GetSize())
+        .With("CurrentRetry", CurrentRetry_);
     YT_UNUSED_FUTURE(CurrentReqFuture_.Apply(
         BIND(&TObjectServiceProxy::TReqExecuteBatch::OnBatchResponse, MakeStrong(this))));
 }
@@ -862,13 +863,12 @@ bool TObjectServiceProxy::TRspExecuteBatch::TryDeserializeBody(
                 auto advisedStickyGroupSize = subresponse.advised_sticky_group_size();
                 auto key = InnerRequestDescriptors_[subrequestIndex].GetKey();
                 auto oldAdvisedStickyGroupSize = StickyGroupSizeCache_->UpdateAdvisedStickyGroupSize(key, advisedStickyGroupSize);
-                YT_LOG_DEBUG_IF(
+                YT_TLOG_DEBUG_IF(
                     advisedStickyGroupSize != oldAdvisedStickyGroupSize,
-                    "Cached sticky group size updated (RequestId: %v, SubrequestIndex: %v, Size: %v -> %v)",
-                    GetRequestId(),
-                    subrequestIndex,
-                    oldAdvisedStickyGroupSize,
-                    advisedStickyGroupSize);
+                    "Cached sticky group size updated")
+                    .With("RequestId", GetRequestId())
+                    .With("SubrequestIndex", subrequestIndex)
+                    .WithFormat("Size", "%v -> %v", oldAdvisedStickyGroupSize, advisedStickyGroupSize);
             }
             InnerResponseDescriptors_[subrequestIndex].Meta = {{partIndex, partIndex + partCount}, revision};
             partIndex += partCount;
@@ -899,13 +899,12 @@ bool TObjectServiceProxy::TRspExecuteBatch::TryDeserializeBody(
                 auto advisedStickyGroupSize = body.advised_sticky_group_size(subrequestIndex);
                 auto key = InnerRequestDescriptors_[subrequestIndex].GetKey();
                 auto oldAdvisedStickyGroupSize = StickyGroupSizeCache_->UpdateAdvisedStickyGroupSize(key, advisedStickyGroupSize);
-                YT_LOG_DEBUG_IF(
+                YT_TLOG_DEBUG_IF(
                     advisedStickyGroupSize != oldAdvisedStickyGroupSize,
-                    "Cached sticky group size updated (RequestId: %v, SubrequestIndex: %v, Size: %v -> %v)",
-                    GetRequestId(),
-                    subrequestIndex,
-                    oldAdvisedStickyGroupSize,
-                    advisedStickyGroupSize);
+                    "Cached sticky group size updated")
+                    .With("RequestId", GetRequestId())
+                    .With("SubrequestIndex", subrequestIndex)
+                    .WithFormat("Size", "%v -> %v", oldAdvisedStickyGroupSize, advisedStickyGroupSize);
             }
         }
 
@@ -925,14 +924,14 @@ void TObjectServiceProxy::TRspExecuteBatch::SetResponseReceived(
     auto& descriptor = InnerResponseDescriptors_[index];
     YT_VERIFY(!descriptor.Meta);
 
-    const auto attachmentCount = std::ssize(Attachments_);
+    const auto attachmentCount = std::ssize(Attachments());
     const auto rangeSize = std::distance(attachments.Begin, attachments.End);
 
     descriptor.Uncertain = false;
     descriptor.Meta = {{attachmentCount, attachmentCount + rangeSize}, revision};
     ++ResponseCount_;
 
-    Attachments_.insert(Attachments_.end(), attachments.Begin, attachments.End);
+    Attachments().insert(Attachments().end(), attachments.Begin, attachments.End);
 
     if (index == FirstUnreceivedResponseIndex_) {
         for (; FirstUnreceivedResponseIndex_ < std::ssize(InnerRequestDescriptors_); ++FirstUnreceivedResponseIndex_) {
@@ -1016,8 +1015,8 @@ TSharedRefArray TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int in
     }
     return TSharedRefArray(
         TRange(
-            Attachments_.data() + beginIndex,
-            Attachments_.data() + endIndex),
+            Attachments().data() + beginIndex,
+            Attachments().data() + endIndex),
         TSharedRefArray::TCopyParts{});
 }
 
@@ -1043,8 +1042,8 @@ TObjectServiceProxy::TRspExecuteBatch::TAttachmentRange TObjectServiceProxy::TRs
     const auto& meta = InnerResponseDescriptors_[index].Meta;
     YT_VERIFY(meta);
     return {
-        Attachments_.begin() + meta->PartRange.first,
-        Attachments_.begin() + meta->PartRange.second
+        Attachments().begin() + meta->PartRange.first,
+        Attachments().begin() + meta->PartRange.second
     };
 }
 

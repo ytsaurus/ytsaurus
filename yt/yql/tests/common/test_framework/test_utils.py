@@ -3,8 +3,15 @@ import time
 import traceback
 import threading
 import os
+import shutil
+import subprocess
 
 from datetime import datetime, timedelta
+
+from google.protobuf.json_format import ParseDict
+from google.protobuf.text_format import MessageToString
+
+import yql.essentials.providers.common.proto.gateways_config_pb2 as gateways_config_pb2
 
 
 def row_spec_to_yt_schema(row_spec):
@@ -81,35 +88,17 @@ def infer_yt_schema(attrs):
     return yt.yson.dumps(attrs, yson_format="pretty").decode()
 
 
-def wait_pipeline_state_or_failed_jobs(
-    target_state, pipeline_path,
+def wait_pipeline_condition_or_failed_jobs(
+    condition, pipeline_path,
     timeout=600,
     client=None,
+    condition_description="condition",
+    ignore_exceptions=False,
 ):
     import yt.logger as logger
 
     from yt.common import YtError
-    from yt.wrapper.flow_commands import PipelineState, get_pipeline_state, flow_execute
-
-    if target_state == PipelineState.Completed:
-        target_states = {PipelineState.Completed, }
-    elif target_state == PipelineState.Working:
-        target_states = {PipelineState.Completed, PipelineState.Working}
-    elif target_state == PipelineState.Stopped:
-        target_states = {PipelineState.Completed, PipelineState.Stopped}
-    elif target_state == PipelineState.Draining:
-        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Draining}
-    elif target_state == PipelineState.Paused:
-        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Paused}
-    elif target_state == PipelineState.Pausing:
-        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Paused, PipelineState.Pausing}
-    else:
-        logger.warning("Unknown pipeline state %s", target_state)
-        return
-
-    invalid_state_transitions = {
-        PipelineState.Stopped: {PipelineState.Paused, },
-    }
+    from yt.wrapper.flow_commands import get_pipeline_state, flow_execute
 
     deadline = datetime.now() + timedelta(seconds=timeout)
 
@@ -122,15 +111,18 @@ def wait_pipeline_state_or_failed_jobs(
             timeout=timeout,
             client=client)
 
-        if current_state in target_states:
-            logger.info("Waiting finished (current state: %s, target state: %s)",
-                        current_state, target_state)
-            return
+        try:
+            condition_met = condition(current_state)
+        except Exception:
+            if not ignore_exceptions:
+                raise
+            logger.exception("Failed to check wait condition: %s", condition_description)
+            condition_met = False
 
-        if current_state in invalid_state_transitions.get(target_state, []):
-            raise YtError("Invalid state transition", attributes={
-                "current_state": current_state,
-                "target_state": target_state})
+        if condition_met:
+            logger.info("Waiting finished (current state: %s, condition: %s)",
+                        current_state, condition_description)
+            return
 
         try:
             # TODO(ngc224): debug occasional computation-related method errors
@@ -164,10 +156,94 @@ def wait_pipeline_state_or_failed_jobs(
                 logger.exception("Found failed jobs in some computations")
                 raise
 
-        logger.info("Still waiting (current state: %s, target state: %s)",
-                    current_state, target_state)
+        logger.info("Still waiting (current state: %s, condition: %s)",
+                    current_state, condition_description)
 
         time.sleep(1)
+
+
+def wait_pipeline_state_or_failed_jobs(
+    target_state, pipeline_path,
+    timeout=600,
+    client=None,
+):
+    import yt.logger as logger
+
+    from yt.common import YtError
+    from yt.wrapper.flow_commands import PipelineState
+
+    if target_state == PipelineState.Completed:
+        target_states = {PipelineState.Completed, }
+    elif target_state == PipelineState.Working:
+        target_states = {PipelineState.Completed, PipelineState.Working}
+    elif target_state == PipelineState.Stopped:
+        target_states = {PipelineState.Completed, PipelineState.Stopped}
+    elif target_state == PipelineState.Draining:
+        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Draining}
+    elif target_state == PipelineState.Paused:
+        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Paused}
+    elif target_state == PipelineState.Pausing:
+        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Paused, PipelineState.Pausing}
+    else:
+        logger.warning("Unknown pipeline state %s", target_state)
+        return
+
+    invalid_state_transitions = {
+        PipelineState.Stopped: {PipelineState.Paused, },
+    }
+
+    def target_state_reached(current_state):
+        if current_state in invalid_state_transitions.get(target_state, []):
+            raise YtError("Invalid state transition", attributes={
+                "current_state": current_state,
+                "target_state": target_state})
+        return current_state in target_states
+
+    wait_pipeline_condition_or_failed_jobs(
+        target_state_reached,
+        pipeline_path,
+        timeout=timeout,
+        client=client,
+        condition_description="target state: %s" % target_state,
+    )
+
+
+def upper_first(str):
+    if not str:
+        return str
+
+    return str[:1].upper() + str[1:]
+
+
+def convert_snake_to_camel(snake_str):
+    parts = snake_str.split('_')
+    return "".join(upper_first(part) for part in parts)
+
+
+def convert_snake_dict_keys_to_camel(obj):
+    import yt.yson as yson
+
+    result = obj
+    if isinstance(obj, dict):
+        result = {}
+        for key, value in obj.items():
+            if isinstance(value, yson.YsonBoolean):
+                new_value = True if value else False
+            else:
+                new_value = convert_snake_dict_keys_to_camel(value)
+
+            result[convert_snake_to_camel(key)] = new_value
+    elif isinstance(obj, list):
+        result = []
+        for value in obj:
+            result.append(convert_snake_dict_keys_to_camel(value))
+    return result
+
+
+def convert_gateways_config_to_proto_text(gateways_config):
+    message = ParseDict(convert_snake_dict_keys_to_camel(gateways_config),
+                        gateways_config_pb2.TGatewaysConfig())
+    return MessageToString(message)
 
 
 def create_flow_logs_replicators(pipeline_path, output_dir, logs_batch_size, output_file_prefix, yt_client):
@@ -242,7 +318,10 @@ class FlowLogsReplicator(threading.Thread):
         return True
 
 
-def dump_pipeline_jobs_stderr(pipeline_path, jobs_stderr_file_path, client):
+def dump_pipeline_jobs_stderr(
+    pipeline_path, jobs_stderr_file_path, client,
+    operation_driver_factory=None,
+):
     import yt.yson
 
     vanilla_info_attribute = "_yql_ytflow_vanilla_info"
@@ -261,10 +340,28 @@ def dump_pipeline_jobs_stderr(pipeline_path, jobs_stderr_file_path, client):
         write_info("No operation found in pipeline attributes\n")
         return
 
-    operation_id = pipeline_attributes.attributes[vanilla_info_attribute]["operation_id"]
+    vanilla_info = pipeline_attributes.attributes[vanilla_info_attribute]
+    operation_id = vanilla_info["operation_id"]
+
+    if operation_driver_factory is not None:
+        from yt_commands import get_job_stderr, list_jobs
+
+        operation_driver = operation_driver_factory(vanilla_info["runtime_cluster"])
+
+        def list_operation_jobs():
+            return list_jobs(operation_id, with_stderr=True, driver=operation_driver)
+
+        def read_job_stderr(job_id):
+            return get_job_stderr(operation_id, job_id, driver=operation_driver)
+    else:
+        def list_operation_jobs():
+            return client.list_jobs(operation_id, with_stderr=True)
+
+        def read_job_stderr(job_id):
+            return client.get_job_stderr(operation_id, job_id).read()
 
     try:
-        jobs = client.list_jobs(operation_id, with_stderr=True)
+        jobs = list_operation_jobs()
     except Exception:
         write_info(traceback.format_exc())
         return
@@ -287,12 +384,224 @@ def dump_pipeline_jobs_stderr(pipeline_path, jobs_stderr_file_path, client):
                 jobs_stderr_file.write("\n")
 
             try:
-                job_stderr = client.get_job_stderr(operation_id, job["id"]) \
-                    .read() \
-                    .decode("utf8")
+                job_stderr = read_job_stderr(job["id"]).decode("utf8")
 
                 jobs_stderr_file.write(job_stderr)
             except Exception:
                 jobs_stderr_file.write(traceback.format_exc())
 
             jobs_stderr_file.write("\n\n")
+
+
+def wait_for_debug():
+    event = threading.Event()
+    event.wait()
+
+
+class FlowProcess:
+    def __init__(self, flow_command, env, stdout, stderr):
+        self.flow_command = flow_command
+        self.env = env
+        self.stdout = stdout
+        self.stderr = stderr
+
+    def __enter__(self):
+        self.process = subprocess.Popen(
+            self.flow_command,
+            env=self.env,
+            stdout=self.stdout, stderr=self.stderr
+        )
+
+    def __exit__(self, exc_type, exc_value, tb):
+        import yt.logger as logger
+
+        if self.process.poll() is None:
+            logger.info("Terminating flow process with pid: %s" % self.process.pid)
+            self.process.terminate()
+            self.process.wait()
+
+
+class FlowDebugHelper:
+    def __init__(self, yt_cluster, yt_proxy_endpoint, yt_client, pipeline_path,
+                 ytflow_worker_bin_path, port_manager):
+        self.yt_cluster = yt_cluster
+        self.yt_proxy_endpoint = yt_proxy_endpoint
+        self.yt_client = yt_client
+        self.pipeline_path = pipeline_path
+        self.ytflow_worker_bin = ytflow_worker_bin_path
+        self.port_manager = port_manager
+
+    def get_debug_environment_variables(self, flow_mode):
+        import yt.yson as yson
+
+        rpc_port = self.port_manager.get_port()
+        monitoring_port = self.port_manager.get_port()
+
+        return {
+            "YT_FLOW_CONFIG": yson.dumps(yson.YsonMap(
+                {
+                    "rpc_port": rpc_port,
+                    "bus_server": yson.YsonMap(
+                        {
+                            "port": rpc_port
+                        }
+                    ),
+                    "monitoring_port": monitoring_port
+                }
+            )).decode("utf-8"),
+            "YT_PROXY_URL_ALIASING_CONFIG": yson.dumps(yson.YsonMap(
+                {
+                    self.yt_cluster: self.yt_proxy_endpoint
+                }
+            )).decode("utf-8"),
+            "YT_FLOW_MODE": flow_mode,
+            "YDB_TOKEN": "does_not_matter",
+            "MONIUM_TOKEN": "does_not_matter",
+        }
+
+    def wait_leader_controller(self, pipeline_path, timeout, attempts, delay, client):
+        import yt.logger as logger
+
+        from yt.common import YtResponseError
+        from yt.wrapper.flow_commands import get_pipeline_state
+
+        attempt = 0
+        last_exception = None
+        while attempt < attempts:
+            try:
+                return get_pipeline_state(pipeline_path, timeout=timeout, client=client)
+            except YtResponseError as error:
+                last_exception = error
+                logger.info("Retrying exception '%s', delay: %s" % (error, delay))
+            time.sleep(delay)
+            attempt += 1
+
+        raise last_exception
+
+    def setup_flow_debug_environment(
+        self, ytflow_worker_config_path,
+        debug_output_directory,
+        controller_wait_retries,
+        controller_retry_delay,
+        flow_command_timeout=600
+    ):
+        from yt.environment.helpers import read_config
+        from yt.wrapper.flow_commands import set_pipeline_spec, set_pipeline_dynamic_spec, start_pipeline
+
+        ytflow_worker_config_destination_path = os.path.join(
+            debug_output_directory, "ytflow_worker_config.yson")
+        shutil.copy(ytflow_worker_config_path, ytflow_worker_config_destination_path)
+
+        flow_command = [self.ytflow_worker_bin, "--config", ytflow_worker_config_destination_path]
+        controller_env, worker_env = [
+            self.get_debug_environment_variables(flow_mode)
+            for flow_mode in ("Controller", "Worker")
+        ]
+
+        stdout_path, stderr_path = [
+            os.path.join(debug_output_directory, "controller_" + path_prefix)
+            for path_prefix in ("stdout", "stderr")
+        ]
+
+        with open(stdout_path, "w") as stdout, open(stderr_path, "w") as stderr, \
+             FlowProcess(flow_command, env=controller_env, stdout=stdout, stderr=stderr):
+
+            ytflow_worker_config = read_config(ytflow_worker_config_destination_path)
+
+            self.wait_leader_controller(self.pipeline_path, flow_command_timeout, controller_wait_retries, controller_retry_delay, self.yt_client)
+            set_pipeline_spec(self.pipeline_path, ytflow_worker_config['pipeline_spec'], client=self.yt_client)
+            set_pipeline_dynamic_spec(self.pipeline_path,
+                                      ytflow_worker_config['dynamic_pipeline_spec'], client=self.yt_client)
+            start_pipeline(self.pipeline_path, timeout=flow_command_timeout, client=self.yt_client)
+
+            with open(os.path.join(debug_output_directory, "run_worker"), "w") as f:
+                worker_env_string = " ".join(["%s='%s'" % (key, value) for key, value in worker_env.items()])
+                f.write(worker_env_string + " ya gdb --args " + " ".join(flow_command))
+
+            wait_for_debug()
+
+
+def to_cyson_nodes(y):
+    """Convert yt.yson (and plain) nodes to values that cyson.dumps handles correctly.
+
+    yt.yson.YsonBoolean subclasses int, so cyson would dump it as 0/1 unless converted
+    to cyson.YsonBoolean / bool. Same for uint64 -> YsonUInt64.
+    """
+    from cyson import (
+        YsonBoolean,
+        YsonEntity,
+        YsonFloat64,
+        YsonInt64,
+        YsonList,
+        YsonMap,
+        YsonString,
+        YsonUInt64,
+    )
+    from yt.yson import (
+        YsonBoolean as YtBoolean,
+        YsonDouble as YtDouble,
+        YsonEntity as YtEntity,
+        YsonInt64 as YtInt64,
+        YsonString as YtString,
+        YsonStringProxy as YtStringProxy,
+        YsonType as YtType,
+        YsonUint64 as YtUint64,
+        YsonUnicode as YtUnicode,
+    )
+
+    def attrs_of(obj):
+        if isinstance(obj, YtType) and obj.has_attributes():
+            return to_cyson_nodes(obj.attributes)
+        return None
+
+    def with_attrs(node, obj):
+        attrs = attrs_of(obj)
+        if attrs is not None:
+            node.attributes = attrs
+        return node
+
+    # Already cyson-typed nodes dump correctly.
+    if isinstance(y, (YsonBoolean, YsonEntity, YsonFloat64, YsonInt64, YsonList, YsonMap, YsonString, YsonUInt64)):
+        return y
+
+    # YtBoolean / YtUint64 / YtInt64 all subclass int — check before plain int fallthrough.
+    if isinstance(y, (bool, YtBoolean)):
+        return with_attrs(YsonBoolean(bool(y)), y)
+    if isinstance(y, YtUint64):
+        return with_attrs(YsonUInt64(int(y)), y)
+    if isinstance(y, YtInt64):
+        return with_attrs(YsonInt64(int(y)), y)
+    if isinstance(y, YtDouble):
+        return with_attrs(YsonFloat64(float(y)), y)
+    if isinstance(y, (YtString, YtUnicode, YtStringProxy)):
+        if isinstance(y, YtStringProxy):
+            value = y._bytes
+        elif isinstance(y, six.text_type):
+            value = y.encode('utf-8')
+        else:
+            value = bytes(y)
+        return with_attrs(YsonString(value), y)
+    if isinstance(y, YtEntity):
+        return YsonEntity(attributes=attrs_of(y))
+
+    if isinstance(y, list):
+        items = [to_cyson_nodes(i) for i in y]
+        attrs = attrs_of(y)
+        if attrs is None:
+            return items
+        node = YsonList([])
+        node.extend(items)
+        node.attributes = attrs
+        return node
+
+    if isinstance(y, dict):
+        items = {to_cyson_nodes(k): to_cyson_nodes(v) for k, v in six.iteritems(y)}
+        attrs = attrs_of(y)
+        if attrs is None:
+            return items
+        node = YsonMap({})
+        node.update(items)
+        node.attributes = attrs
+        return node
+
+    return y

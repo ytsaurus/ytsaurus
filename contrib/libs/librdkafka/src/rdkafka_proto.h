@@ -172,8 +172,12 @@ static RD_UNUSED const char *rd_kafka_ApiKey2str(int16_t ApiKey) {
             [RD_KAFKAP_ListTransactions]          = "ListTransactions",
             [RD_KAFKAP_AllocateProducerIds]       = "AllocateProducerIds",
             [RD_KAFKAP_ConsumerGroupHeartbeat]    = "ConsumerGroupHeartbeat",
+            [RD_KAFKAP_ConsumerGroupDescribe]     = "ConsumerGroupDescribe",
             [RD_KAFKAP_GetTelemetrySubscriptions] = "GetTelemetrySubscriptions",
             [RD_KAFKAP_PushTelemetry]             = "PushTelemetry",
+            [RD_KAFKAP_ShareGroupHeartbeat]       = "ShareGroupHeartbeat",
+            [RD_KAFKAP_ShareFetch]                = "ShareFetch",
+            [RD_KAFKAP_ShareAcknowledge]          = "ShareAcknowledge",
 
         };
         static RD_TLS char ret[64];
@@ -283,6 +287,8 @@ typedef struct rd_kafkap_str_s {
 #define RD_KAFKAP_STR_INITIALIZER                                              \
         { .len = RD_KAFKAP_STR_LEN_NULL, .str = NULL }
 
+#define RD_KAFKAP_STR_INITIALIZER_EMPTY                                        \
+        { .len = 0, .str = "" }
 /**
  * Frees a Kafka string previously allocated with `rd_kafkap_str_new()`
  */
@@ -572,6 +578,11 @@ typedef struct rd_kafka_buf_s rd_kafka_buf_t;
 #define RD_KAFKAP_MSGSET_V2_OF_RecordCount                                     \
         (8 + 4 + 4 + 1 + 4 + 2 + 4 + 8 + 8 + 8 + 2 + 4)
 
+/* Byte offsets for legacy MsgVersion v0..v1 MessageSet fields */
+#define RD_KAFKAP_MSGSET_V0_OF_MessageSize (8)
+#define RD_KAFKAP_MSGSET_V0_OF_MagicByte   (8 + 4 + 4)
+#define RD_KAFKAP_MSGSET_V0_OF_Attributes  (8 + 4 + 4 + 1)
+
 
 /**
  * @struct Struct representing UUID protocol primitive type.
@@ -613,14 +624,15 @@ static RD_INLINE RD_UNUSED int rd_kafka_Uuid_cmp(rd_kafka_Uuid_t a,
         return 0;
 }
 
-static RD_INLINE RD_UNUSED int rd_kafka_Uuid_ptr_cmp(void *a, void *b) {
-        rd_kafka_Uuid_t *a_uuid = a, *b_uuid = b;
+static RD_INLINE RD_UNUSED int rd_kafka_Uuid_ptr_cmp(const void *a,
+                                                     const void *b) {
+        const rd_kafka_Uuid_t *a_uuid = a, *b_uuid = b;
         return rd_kafka_Uuid_cmp(*a_uuid, *b_uuid);
 }
 
 rd_kafka_Uuid_t rd_kafka_Uuid_random();
 
-const char *rd_kafka_Uuid_str(const rd_kafka_Uuid_t *uuid);
+char *rd_kafka_Uuid_str(const rd_kafka_Uuid_t *uuid);
 
 unsigned int rd_kafka_Uuid_hash(const rd_kafka_Uuid_t *uuid);
 

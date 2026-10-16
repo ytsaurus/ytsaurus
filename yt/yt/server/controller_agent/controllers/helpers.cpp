@@ -173,10 +173,10 @@ std::vector<TInputStreamDescriptorPtr> BuildInputStreamDescriptorsFromOutputStre
 
 void TControllerFeatures::AddSingular(TStringBuf name, double value)
 {
-    Features_[name] += value;
+    Features_[std::string(name)] += value;
 }
 
-void TControllerFeatures::AddSingular(const TString& name, const INodePtr& node)
+void TControllerFeatures::AddSingular(const std::string& name, const INodePtr& node)
 {
     switch (node->GetType()) {
         case ENodeType::Map:
@@ -197,31 +197,27 @@ void TControllerFeatures::AddSingular(const TString& name, const INodePtr& node)
             AddSingular(name, node->AsBoolean()->GetValue());
             break;
         default:
-            YT_LOG_FATAL("Unexpected type as controller feature (Type: %v)",
-                node->GetType());
+            YT_TLOG_FATAL("Unexpected type as controller feature")
+                .With("Type", node->GetType());
             break;
     }
 }
 
 void TControllerFeatures::AddCounted(TStringBuf name, double value)
 {
-    TString sumFeature{name};
-    sumFeature += ".sum";
-    Features_[sumFeature] += value;
-    TString countFeature{name};
-    countFeature += ".count";
-    Features_[countFeature] += 1;
+    Features_[std::string(name) + ".sum"] += value;
+    Features_[std::string(name) + ".count"] += 1;
 }
 
 void TControllerFeatures::CalculateJobStatisticsAverage()
 {
-    static const TString SumSuffix = ".sum";
-    static const TString CountSuffix = ".count";
-    static const TString AvgSuffix = ".avg";
-    static const TString JobStatisticsPrefix = "job_statistics.";
-    TVector<std::pair<TString, double>> newAvgValues;
+    static const std::string SumSuffix = ".sum";
+    static const std::string CountSuffix = ".count";
+    static const std::string AvgSuffix = ".avg";
+    static const std::string JobStatisticsPrefix = "job_statistics.";
+    std::vector<std::pair<std::string, double>> newAvgValues;
     for (const auto& [sumFeature, sum] : Features_) {
-        if (sumFeature.StartsWith(JobStatisticsPrefix) && sumFeature.EndsWith(SumSuffix)) {
+        if (sumFeature.starts_with(JobStatisticsPrefix) && sumFeature.ends_with(SumSuffix)) {
             auto feature = sumFeature;
             feature.resize(std::ssize(feature) - std::ssize(SumSuffix));
             auto countFeature = feature + CountSuffix;
@@ -307,7 +303,7 @@ void SafeUpdateAggregatedJobStatistics(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegistryConfigPtr& config)
+TDockerImageSpec::TDockerImageSpec(const std::string& dockerImage, const TDockerRegistryConfigPtr& config)
 {
     const auto& internalRegistries = config->InternalRegistryAlternativeAddresses;
     TStringBuf imageRef;
@@ -316,7 +312,7 @@ TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegi
     // Format: [REGISTRY/]IMAGE[:TAG][@DIGEST], where REGISTRY is FQDN[:PORT].
     // Registry FQDN must has at least one "." or PORT.
     if (!StringSplitter(dockerImage).Split('/').Limit(2).TryCollectInto(&Registry, &imageRef) ||
-        Registry.find_first_of(".:") == TString::npos)
+        Registry.find_first_of(".:") == std::string::npos)
     {
         // Use main internal registry address.
         Registry = config->InternalRegistryAddress.value_or("");
@@ -341,7 +337,7 @@ TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegi
     }
 }
 
-TString TDockerImageSpec::GetDockerImage() const
+std::string TDockerImageSpec::GetDockerImage() const
 {
     TStringBuilder reference;
 
@@ -378,7 +374,7 @@ std::vector<TRichYPath> GetLayerPathsFromDockerImage(
 
         if (!rspOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to read tags from %Qv", tagsPath)
-                << rspOrError;
+                .With(rspOrError);
         }
 
         auto rspTags = ConvertToNode(TYsonString(rspOrError.ValueOrThrow()->value()));
@@ -403,7 +399,7 @@ std::vector<TRichYPath> GetLayerPathsFromDockerImage(
             "Failed to load docker image %v:%v",
             dockerImage.Image,
             dockerImage.Tag)
-            << ex;
+            .With(ex);
     }
 }
 
@@ -532,7 +528,8 @@ bool IsBulkInsertAllowedForUser(
     options.ReadFrom = EMasterChannelKind::Cache;
     options.Attributes = {"enable_bulk_insert"};
 
-    auto path = "//sys/users/" + ToYPathLiteral(authenticatedUser);
+    // TODO(dgolear): Switch to std::string.
+    TString path = "//sys/users/" + ToYPathLiteral(authenticatedUser);
     auto rspOrError = WaitFor(client->GetNode(path, options));
     THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to check if bulk insert is enabled");
     auto rsp = ConvertTo<INodePtr>(rspOrError.Value());
@@ -544,7 +541,7 @@ bool IsBulkInsertAllowedForUser(
 bool HasCompressionDictionaries(
     const IAttributeDictionaryPtr& tableAttributes)
 {
-    // TODO(alexelexa, YT-20044): Support compression dicrionaries remote copy.
+    // TODO(alexelexa, YT-20044): Support compression dictionaries remote copy.
     auto dictionaryCompressionNode =
         tableAttributes->Get<IMapNodePtr>("mount_config")->FindChild("value_dictionary_compression");
     if (dictionaryCompressionNode) {
@@ -624,14 +621,14 @@ void ValidateDynamicTableOutputChunkConstraints(NChunkClient::TInputChunkPtr chu
 
     if (auto chunkMaxBlockSize = chunk->GetMaxBlockSize(); chunkMaxBlockSize > maxBlockSize) {
         THROW_ERROR_EXCEPTION("Cannot attach output chunk to a dynamic table since it has too large block size")
-            << TErrorAttribute("chunk_max_block_size", chunkMaxBlockSize)
-            << TErrorAttribute("max_unversioned_block_size", maxBlockSize);
+            .With("chunk_max_block_size", chunkMaxBlockSize)
+            .With("max_unversioned_block_size", maxBlockSize);
         }
 
     if (auto chunkCompressedDataSize = chunk->GetCompressedDataSize(); chunkCompressedDataSize > maxChunkSize) {
         THROW_ERROR_EXCEPTION("Cannot attach output chunk to a dynamic table since it is too large")
-            << TErrorAttribute("chunk_compressed_data_size", chunkCompressedDataSize)
-            << TErrorAttribute("max_unversioned_chunk_size", maxChunkSize);
+            .With("chunk_compressed_data_size", chunkCompressedDataSize)
+            .With("max_unversioned_chunk_size", maxChunkSize);
     }
 }
 

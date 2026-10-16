@@ -1,0 +1,94 @@
+#include "memory_block_device.h"
+
+#include <yt/yt/server/lib/nbd/block_device_detail.h>
+
+#include <yt/yt/library/nbd/memory/config.h>
+
+namespace NYT::NNbd::NMemory {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMemoryBlockDevice
+    : public TBlockDeviceBase
+{
+public:
+    explicit TMemoryBlockDevice(TMemoryBlockDeviceConfigPtr config)
+        : Config_(std::move(config))
+        , Data_(TSharedMutableRef::Allocate(Config_->Size))
+    { }
+
+    i64 GetTotalSize() const override
+    {
+        return Config_->Size;
+    }
+
+    i64 GetBlockSize() const override
+    {
+        // Byte-addressable backend; advertise the conventional sector size.
+        return 512;
+    }
+
+    bool IsReadOnly() const override
+    {
+        return false;
+    }
+
+    std::string GetDescription() const override
+    {
+        return Format("Memory{Size: %v}", GetTotalSize());
+    }
+
+    std::string GetProfileSensorTag() const override
+    {
+        return std::string();
+    }
+
+    TFuture<TReadResponse> Read(
+        i64 offset,
+        i64 length,
+        const TReadOptions& /*options*/) override
+    {
+        return MakeFuture<TReadResponse>({Data_.Slice(offset, offset + length), false});
+    }
+
+    TFuture<TWriteResponse> Write(
+        i64 offset,
+        const TSharedRef& data,
+        const TWriteOptions& /*options*/) override
+    {
+        // XXX(babenko): racy
+        std::copy(data.Begin(), data.End(), Data_.Begin() + offset);
+        return MakeFuture<TWriteResponse>({});
+    }
+
+    TFuture<void> Flush(const TFlushOptions& /*options*/) override
+    {
+        return OKFuture;
+    }
+
+    TFuture<void> Initialize() override
+    {
+        return OKFuture;
+    }
+
+    TFuture<void> Finalize() override
+    {
+        return OKFuture;
+    }
+
+private:
+    const TMemoryBlockDeviceConfigPtr Config_;
+
+    TSharedMutableRef Data_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IBlockDevicePtr CreateMemoryBlockDevice(TMemoryBlockDeviceConfigPtr config)
+{
+    return New<TMemoryBlockDevice>(std::move(config));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NNbd::NMemory

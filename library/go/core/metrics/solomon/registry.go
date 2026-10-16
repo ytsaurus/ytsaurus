@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"time"
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/nop"
@@ -12,16 +13,20 @@ import (
 	"go.ytsaurus.tech/library/go/core/metrics/internal/pkg/registryutil"
 )
 
-var _ metrics.Registry = (*Registry)(nil)
-var _ metrics.MetricsStreamer = (*Registry)(nil)
+var (
+	_ metrics.Registry        = (*Registry)(nil)
+	_ metrics.MetricsStreamer = (*Registry)(nil)
+)
 
 type Registry struct {
-	separator    string
-	prefix       string
-	tags         map[string]string
-	rated        bool
-	useNameTag   bool
-	streamFormat StreamFormat
+	separator          string
+	prefix             string
+	tags               map[string]string
+	rated              bool
+	trackRateStartTime bool
+	useNameTag         bool
+	startTime          uint32
+	streamFormat       StreamFormat
 
 	subregistries map[string]*Registry
 	m             *sync.Mutex
@@ -35,6 +40,7 @@ func NewRegistry(opts *RegistryOpts) *Registry {
 	r := &Registry{
 		separator:    ".",
 		useNameTag:   false,
+		startTime:    uint32(time.Now().Unix()),
 		streamFormat: StreamSpack,
 
 		subregistries: make(map[string]*Registry),
@@ -49,6 +55,7 @@ func NewRegistry(opts *RegistryOpts) *Registry {
 		r.prefix = opts.Prefix
 		r.tags = opts.Tags
 		r.rated = opts.Rated
+		r.trackRateStartTime = opts.TrackRateStartTime
 		r.useNameTag = opts.UseNameTag
 		r.streamFormat = opts.StreamFormat
 		for _, collector := range opts.Collectors {
@@ -63,11 +70,13 @@ func NewRegistry(opts *RegistryOpts) *Registry {
 // Rated returns copy of registry with rated set to desired value.
 func (r Registry) Rated(rated bool) metrics.Registry {
 	return &Registry{
-		separator:  r.separator,
-		prefix:     r.prefix,
-		tags:       r.tags,
-		rated:      rated,
-		useNameTag: r.useNameTag,
+		separator:          r.separator,
+		prefix:             r.prefix,
+		tags:               r.tags,
+		rated:              rated,
+		trackRateStartTime: r.trackRateStartTime,
+		useNameTag:         r.useNameTag,
+		startTime:          r.startTime,
 
 		subregistries: r.subregistries,
 		m:             r.m,
@@ -97,109 +106,72 @@ func (r Registry) AddMetric(metric Metric) Metric {
 }
 
 func (r Registry) Counter(name string) metrics.Counter {
-	s := &Counter{
-		name:       r.newMetricName(name),
-		metricType: typeCounter,
-		tags:       r.tags,
-		useNameTag: r.useNameTag,
-	}
+	m := NewCounter(r.newMetricName(name), 0, WithTags(r.tags))
+	m.useNameTag = r.useNameTag
 
-	return r.registerMetric(s).(metrics.Counter)
+	return r.registerMetric(&m).(metrics.Counter)
 }
 
 func (r Registry) FuncCounter(name string, function func() int64) metrics.FuncCounter {
-	s := &FuncCounter{
-		name:       r.newMetricName(name),
-		metricType: typeCounter,
-		tags:       r.tags,
-		function:   function,
-		useNameTag: r.useNameTag,
-	}
+	m := NewFuncCounter(r.newMetricName(name), function, WithTags(r.tags), WithNameTag(r.useNameTag))
 
-	return r.registerMetric(s).(metrics.FuncCounter)
+	return r.registerMetric(&m).(metrics.FuncCounter)
 }
 
 func (r Registry) Gauge(name string) metrics.Gauge {
-	s := &Gauge{
-		name:       r.newMetricName(name),
-		metricType: typeGauge,
-		tags:       r.tags,
-		useNameTag: r.useNameTag,
-	}
+	m := NewGauge(r.newMetricName(name), 0, WithTags(r.tags), WithNameTag(r.useNameTag))
 
-	return r.registerMetric(s).(metrics.Gauge)
+	return r.registerMetric(&m).(metrics.Gauge)
 }
 
 func (r Registry) FuncGauge(name string, function func() float64) metrics.FuncGauge {
-	s := &FuncGauge{
-		name:       r.newMetricName(name),
-		metricType: typeGauge,
-		tags:       r.tags,
-		function:   function,
-		useNameTag: r.useNameTag,
-	}
+	m := NewFuncGauge(r.newMetricName(name), function, WithTags(r.tags), WithNameTag(r.useNameTag))
 
-	return r.registerMetric(s).(metrics.FuncGauge)
+	return r.registerMetric(&m).(metrics.FuncGauge)
 }
 
 func (r Registry) IntGauge(name string) metrics.IntGauge {
-	s := &IntGauge{
-		name:       r.newMetricName(name),
-		metricType: typeIGauge,
-		tags:       r.tags,
-		useNameTag: r.useNameTag,
-	}
+	m := NewIntGauge(r.newMetricName(name), 0, WithTags(r.tags), WithNameTag(r.useNameTag))
 
-	return r.registerMetric(s).(metrics.IntGauge)
+	return r.registerMetric(&m).(metrics.IntGauge)
 }
 
 func (r Registry) FuncIntGauge(name string, function func() int64) metrics.FuncIntGauge {
-	s := &FuncIntGauge{
-		name:       r.newMetricName(name),
-		metricType: typeIGauge,
-		tags:       r.tags,
-		function:   function,
-		useNameTag: r.useNameTag,
-	}
+	m := NewFuncIntGauge(r.newMetricName(name), function, WithTags(r.tags), WithNameTag(r.useNameTag))
 
-	return r.registerMetric(s).(metrics.FuncIntGauge)
+	return r.registerMetric(&m).(metrics.FuncIntGauge)
 }
 
 func (r Registry) Timer(name string) metrics.Timer {
-	s := &Timer{
-		name:       r.newMetricName(name),
-		metricType: typeGauge,
-		tags:       r.tags,
-		useNameTag: r.useNameTag,
-	}
+	m := NewTimer(r.newMetricName(name), 0, WithTags(r.tags), WithNameTag(r.useNameTag))
 
-	return r.registerMetric(s).(metrics.Timer)
+	return r.registerMetric(&m).(metrics.Timer)
 }
 
 func (r Registry) Histogram(name string, buckets metrics.Buckets) metrics.Histogram {
-	s := &Histogram{
-		name:         r.newMetricName(name),
-		metricType:   typeHistogram,
-		tags:         r.tags,
-		bucketBounds: metricsutil.BucketsBounds(buckets),
-		bucketValues: make([]int64, buckets.Size()),
-		useNameTag:   r.useNameTag,
-	}
+	m := NewHistogram(
+		r.newMetricName(name),
+		metricsutil.BucketsBounds(buckets),
+		make([]int64, buckets.Size()),
+		0,
+		WithTags(r.tags),
+		WithNameTag(r.useNameTag),
+	)
 
-	return r.registerMetric(s).(metrics.Histogram)
+	return r.registerMetric(&m).(metrics.Histogram)
 }
 
 func (r Registry) DurationHistogram(name string, buckets metrics.DurationBuckets) metrics.Timer {
-	s := &Histogram{
-		name:         r.newMetricName(name),
-		metricType:   typeHistogram,
-		tags:         r.tags,
-		bucketBounds: metricsutil.DurationBucketsBounds(buckets),
-		bucketValues: make([]int64, buckets.Size()),
-		useNameTag:   r.useNameTag,
-	}
+	m := NewHistogram(
+		r.newMetricName(name),
+		metricsutil.DurationBucketsBounds(buckets),
+		make([]int64, buckets.Size()),
+		0,
+		WithTags(r.tags),
+		WithNameTag(r.useNameTag),
+	)
 
-	return r.registerMetric(s).(metrics.Timer)
+	return r.registerMetric(&m).(metrics.Timer)
 }
 
 func (r Registry) RemoveMetric(name string) {
@@ -232,12 +204,14 @@ func (r *Registry) newSubregistry(prefix string, tags map[string]string) *Regist
 	}
 
 	subregistry := &Registry{
-		separator:    r.separator,
-		prefix:       prefix,
-		tags:         tags,
-		rated:        r.rated,
-		useNameTag:   r.useNameTag,
-		streamFormat: r.streamFormat,
+		separator:          r.separator,
+		prefix:             prefix,
+		tags:               tags,
+		rated:              r.rated,
+		trackRateStartTime: r.trackRateStartTime,
+		useNameTag:         r.useNameTag,
+		startTime:          r.startTime,
+		streamFormat:       r.streamFormat,
 
 		subregistries: r.subregistries,
 		m:             r.m,
@@ -258,6 +232,9 @@ func (r *Registry) registerMetric(s Metric) Metric {
 	if r.rated {
 		Rated(s)
 	}
+	if r.trackRateStartTime {
+		ensureRateStartTime(s)
+	}
 
 	key := r.metricKey(s.getID())
 
@@ -274,6 +251,17 @@ func (r *Registry) registerMetric(s Metric) Metric {
 	} else {
 		r.metrics.Store(key, s)
 		return s
+	}
+}
+
+func ensureRateStartTime(s Metric) {
+	switch m := s.(type) {
+	case *Counter:
+		m.ensureStartTime()
+	case *FuncCounter:
+		m.ensureStartTime()
+	case *Histogram:
+		m.ensureStartTime()
 	}
 }
 

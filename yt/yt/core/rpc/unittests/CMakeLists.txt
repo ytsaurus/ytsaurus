@@ -12,8 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(main)
 add_subdirectory(lib)
+add_subdirectory(main)
 add_subdirectory(shutdown)
 add_subdirectory(allocation_tags)
 add_subdirectory(bin)

@@ -1,0 +1,13 @@
+JAVA_CONTRIB()
+
+VERSION(2.0.3)
+
+LICENSE(CC0-1.0)
+
+JAR_RESOURCE(158607174)
+
+SRC_RESOURCE(158606807)
+
+ORIGINAL_SOURCE(scm:git:git://github.com/LatencyUtils/LatencyUtils.git)
+
+END()

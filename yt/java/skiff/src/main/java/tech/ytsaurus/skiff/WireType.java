@@ -7,6 +7,7 @@ public enum WireType {
     INT_32,    /* "int32" */
     INT_64,    /* "int64" */
     INT_128,   /* "int128" */
+    INT_256,   /* "int256" */
     UINT_8,    /* "uint8" */
     UINT_16,   /* "uint16" */
     UINT_32,   /* "uint32" */
@@ -36,6 +37,8 @@ public enum WireType {
                 return "int64";
             case INT_128:
                 return "int128";
+            case INT_256:
+                return "int256";
 
             case UINT_8:
                 return "uint8";
@@ -82,6 +85,7 @@ public enum WireType {
             case INT_32:
             case INT_64:
             case INT_128:
+            case INT_256:
 
             case UINT_8:
             case UINT_16:

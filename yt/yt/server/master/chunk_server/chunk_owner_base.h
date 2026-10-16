@@ -1,11 +1,13 @@
 #pragma once
 
-#include "chunk.h"
+#include "public.h"
+
 #include "chunk_merger_traversal_info.h"
 #include "chunk_owner_data_statistics.h"
+#include "chunk_requisition.h"
 
-#include <yt/yt/server/master/cypress_server/public.h>
 #include <yt/yt/server/master/cypress_server/node.h>
+#include <yt/yt/server/master/cypress_server/public.h>
 
 #include <yt/yt/server/master/table_server/public.h>
 
@@ -17,8 +19,9 @@
 
 #include <yt/yt/core/crypto/crypto.h>
 
-#include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/intern_registry.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NChunkServer {
 
@@ -42,12 +45,6 @@ public:
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, bool, EnableSkynetSharing);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, NChunkClient::EChunkMergerMode, ChunkMergerMode);
 
-    // TODO(aleksandra-zh): Merger stuff, wrap that.
-    // If chunk owner is changed, while it is being merged, it should be marked updated
-    // to initiate another merge after the current one is finished.
-    DEFINE_BYVAL_RW_PROPERTY(bool, UpdatedSinceLastMerge, false);
-    DEFINE_BYREF_RW_PROPERTY(TChunkMergerTraversalInfo, ChunkMergerTraversalInfo);
-
 public:
     using TCypressNode::TCypressNode;
     explicit TChunkOwnerBase(NCypressServer::TVersionedNodeId id);
@@ -67,10 +64,14 @@ public:
     const TChunkList* GetSnapshotHunkChunkList() const;
     const TChunkList* GetSnapshotChunkList(EChunkListContentType type) const;
 
-    const TChunkList* GetDeltaChunkList() const;
+    const TChunkList* GetAppendDeltaChunkList() const;
 
     const TChunkOwnerDataStatistics& DeltaStatistics() const;
     TChunkOwnerDataStatistics* MutableDeltaStatistics();
+
+    bool HasChunkMergerInfo() const;
+    const TChunkMergerInfo& ChunkMergerInfo() const;
+    TChunkMergerInfo* MutableChunkMergerInfo();
 
     NSecurityServer::TSecurityTags ComputeSecurityTags() const;
 
@@ -110,7 +111,8 @@ public:
         NChunkClient::EUpdateMode Mode = {};
         NTableServer::TMasterTableSchema* ChunkSchema = nullptr;
         NTableServer::TMasterTableSchema* TableSchema = nullptr;
-        std::optional<NTableClient::ETableSchemaMode> SchemaMode = NTableClient::ETableSchemaMode::Weak;
+        NTableClient::ETableSchemaMode SchemaMode = NTableClient::ETableSchemaMode::Weak;
+        std::optional<NTableClient::EOptimizeFor> OptimizeFor = std::nullopt;
 
         NCellMaster::TBootstrap* const Bootstrap = nullptr;
     };
@@ -151,6 +153,8 @@ private:
     std::unique_ptr<TChunkOwnerDataStatistics> DeltaStatistics_;
     TEnumIndexedArray<EChunkListContentType, TChunkListPtr> ChunkLists_;
 
+    std::unique_ptr<TChunkMergerInfo> ChunkMergerInfo_;
+
     TChunkOwnerDataStatistics ComputeUpdateStatistics() const;
 
     NSecurityServer::TClusterResources GetDiskUsage(const TChunkOwnerDataStatistics& statistics) const;
@@ -159,7 +163,7 @@ private:
 DEFINE_MASTER_OBJECT_TYPE(TChunkOwnerBase)
 
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TChunkOwnerBase, 576);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TChunkOwnerBase, 568);
 
 ////////////////////////////////////////////////////////////////////////////////
 

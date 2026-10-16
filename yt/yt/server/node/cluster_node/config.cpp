@@ -355,7 +355,7 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
         .InRange(0.0, 1.0)
         .Default(0.1);
     registrar.Parameter("enable_fair_throttler", &TThis::EnableFairThrottler)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("in_throttler", &TThis::InThrottler)
         .DefaultNew();
     registrar.Parameter("out_throttler", &TThis::OutThrottler)
@@ -480,12 +480,12 @@ NHttp::TServerConfigPtr TClusterNodeBootstrapConfig::CreateSkynetHttpServerConfi
 void TClusterNodeProgramConfig::Register(TRegistrar registrar)
 {
     registrar.Postprocessor([] (TThis* config) {
-        auto dispatcherConfig = config->GetSingletonConfig<NBus::TTcpDispatcherConfig>();
+        auto dispatcherConfig = config->GetSingletonConfig<NBus::NTcp::TDispatcherConfig>();
         if (!dispatcherConfig->NetworkBandwidth) {
             dispatcherConfig->NetworkBandwidth = config->NetworkBandwidth;
         }
 
-        auto tcpDispatcherConfig = config->GetSingletonConfig<NBus::TTcpDispatcherConfig>();
+        auto tcpDispatcherConfig = config->GetSingletonConfig<NBus::NTcp::TDispatcherConfig>();
         if (!tcpDispatcherConfig->NetworkBandwidth) {
             tcpDispatcherConfig->NetworkBandwidth = config->NetworkBandwidth;
         }
@@ -499,6 +499,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("config_annotation", &TThis::ConfigAnnotation)
         .Optional();
     registrar.Parameter("resource_limits", &TThis::ResourceLimits)
+        .DefaultNew();
+    registrar.Parameter("hotswap_manager", &TThis::HotswapManager)
         .DefaultNew();
     registrar.Parameter("data_node", &TThis::DataNode)
         .DefaultNew();
@@ -546,6 +548,10 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .Default(1.1);
     registrar.Parameter("node_memory_tracker", &TThis::NodeMemoryTracker)
         .DefaultNew();
+    registrar.Parameter("aux_poller_thread_count", &TThis::AuxPollerThreadCount)
+        .Default();
+    registrar.Parameter("solomon_exporter", &TThis::SolomonExporter)
+        .DefaultNew();
 
     registrar.Parameter("chaos_residency_cache", &TThis::ChaosResidencyCache)
         .DefaultNew();
@@ -557,6 +563,10 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("fair_share_hierarchical_scheduler", &TThis::FairShareHierarchicalScheduler)
         .DefaultNew();
+
+    registrar.Parameter("connection_thread_pool_size", &TThis::ConnectionThreadPoolSize)
+        .GreaterThan(0)
+        .Optional();
 
     registrar.Postprocessor([] (TThis* config) {
         if (!config->JobResourceManager->CheckUserJobsCategoryLimitOnResourceUpdate) {

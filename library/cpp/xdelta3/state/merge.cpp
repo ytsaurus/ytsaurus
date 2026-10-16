@@ -25,11 +25,11 @@ namespace NXdeltaAggregateColumn {
 
     bool EncodeHeaderTo(const TStateHeader& header, ui8* data, size_t size, size_t& resultSize);
 
-    bool EncodeErrorHeader(XDeltaContext* context, NProtoBuf::Arena& arena, TStateHeader::EErrorCode error, TSpan* result)
+    bool EncodeErrorHeader(XDeltaContext* context, google::protobuf::Arena& arena, TStateHeader::EErrorCode error, TSpan* result)
     {
         result->Offset = result->Size = 0;
 
-        auto header = NProtoBuf::Arena::CreateMessage<NXdeltaAggregateColumn::TStateHeader>(&arena);
+        auto header = google::protobuf::Arena::CreateMessage<NXdeltaAggregateColumn::TStateHeader>(&arena);
         header->set_error_code(error);
         auto headerSize = SizeOfHeader(*header);
         auto data = TDataPtr(AllocateFromContext(context, headerSize), TDeleter(context));
@@ -41,7 +41,7 @@ namespace NXdeltaAggregateColumn {
         return false;
     }
 
-    bool EncodeState(XDeltaContext* context, NProtoBuf::Arena& arena, const TState& state, TSpan* result)
+    bool EncodeState(XDeltaContext* context, google::protobuf::Arena& arena, const TState& state, TSpan* result)
     {
         auto headerSize = SizeOfHeader(state.Header());
         result->Size = headerSize + state.PayloadSize();
@@ -65,7 +65,7 @@ namespace NXdeltaAggregateColumn {
         return 0u == empty.PayloadSize() && empty.Header().base_hash() != empty.Header().state_hash();
     }
 
-    bool MergePatches(XDeltaContext* context, NProtoBuf::Arena& arena, const TState& lhs, const TState& rhs, TSpan* result)
+    bool MergePatches(XDeltaContext* context, google::protobuf::Arena& arena, const TState& lhs, const TState& rhs, TSpan* result)
     {
         if (lhs.Header().state_hash() != rhs.Header().base_hash()) {
             return EncodeErrorHeader(context, arena, TStateHeader::MERGE_PATCHES_ERROR, result);
@@ -83,7 +83,7 @@ namespace NXdeltaAggregateColumn {
             return EncodeState(context, arena, lhs, result);
         }
 
-        auto merged = NProtoBuf::Arena::CreateMessage<TStateHeader>(&arena);
+        auto merged = google::protobuf::Arena::CreateMessage<TStateHeader>(&arena);
         merged->set_type(TStateHeader::PATCH);
         merged->set_base_hash(lhs.Header().base_hash());
         merged->set_state_hash(rhs.Header().state_hash());
@@ -122,7 +122,7 @@ namespace NXdeltaAggregateColumn {
         return true;
     }
 
-    bool ApplyPatch(XDeltaContext* context, NProtoBuf::Arena& arena, const TState& base, const TState& patch, TSpan* result)
+    bool ApplyPatch(XDeltaContext* context, google::protobuf::Arena& arena, const TState& base, const TState& patch, TSpan* result)
     {
         auto baseHash = base.CalcHash();
         if (baseHash != patch.Header().base_hash()) {
@@ -141,7 +141,7 @@ namespace NXdeltaAggregateColumn {
 
         size_t stateSize = 0;
 
-        auto merged = NProtoBuf::Arena::CreateMessage<TStateHeader>(&arena);
+        auto merged = google::protobuf::Arena::CreateMessage<TStateHeader>(&arena);
         merged->set_type(TStateHeader::BASE);
 
         auto maxHeaderSize = SizeOfHeader(*merged) + sizeof(stateSize);
@@ -187,17 +187,17 @@ namespace NXdeltaAggregateColumn {
     int MergeStates(XDeltaContext* context, const ui8* lhsData, size_t lhsSize, const ui8* rhsData, size_t rhsSize, TSpan* result)
     {
         using namespace NXdeltaAggregateColumn;
-        using namespace NProtoBuf::io;
+        using namespace google::protobuf::io;
 
         result->Data = nullptr;
         result->Size = 0;
         result->Offset = 0;
 
-        NProtoBuf::ArenaOptions options;
-        options.initial_block_size = ArenaMaxSize;   
+        google::protobuf::ArenaOptions options;
+        options.initial_block_size = ArenaMaxSize;
         auto buffer = TDataPtr(AllocateFromContext(context, options.initial_block_size), TDeleter(context));
         options.initial_block = reinterpret_cast<char*>(buffer.get());
-        NProtoBuf::Arena arena(options);
+        google::protobuf::Arena arena(options);
 
         TState rhs(arena, rhsData, rhsSize);
 

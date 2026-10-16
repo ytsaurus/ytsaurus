@@ -7,6 +7,8 @@
 
 namespace NYT::NPython {
 
+using namespace NSkiffExt;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSkiffRecord::TSkiffRecord(TSkiffSchema* schema)
@@ -19,7 +21,7 @@ TSkiffRecord::TSkiffRecord(
     TIntrusivePtr<TSkiffSchema> schema,
     const std::vector<Py::Object>& denseFields,
     const THashMap<ui16, Py::Object>& sparseFields,
-    const THashMap<TString, Py::Object>& otherFields)
+    const THashMap<std::string, Py::Object>& otherFields)
     : Schema_(schema)
     , DenseFields_(denseFields)
     , SparseFields_(sparseFields)
@@ -39,7 +41,7 @@ Py::Object TSkiffRecord::GetField(ui16 index)
     throw Py::IndexError(ToString(index));
 }
 
-Py::Object TSkiffRecord::GetField(const TString& key)
+Py::Object TSkiffRecord::GetField(const std::string& key)
 {
     if (Schema_->HasField(key)) {
         auto fieldIndex = Schema_->GetFieldIndex(key);
@@ -66,7 +68,7 @@ void TSkiffRecord::SetField(ui16 index, const Py::Object& value)
     }
 }
 
-void TSkiffRecord::SetField(const TString& key, const Py::Object& value)
+void TSkiffRecord::SetField(const std::string& key, const Py::Object& value)
 {
     if (Schema_->HasField(key)) {
         auto fieldIndex = Schema_->GetFieldIndex(key);
@@ -122,8 +124,8 @@ YT_PREVENT_TLS_CACHING void CheckFieldType(const Py::Object& value, NSkiff::EWir
                     PyObject_RichCompareBool(valueAsLongLong.ptr(), UnsignedInt64Max, Py_LT) != 1))
             {
                 THROW_ERROR_EXCEPTION("Invalid value passed to SkiffRecord, it must be in range [0, 2^64 - 1]")
-                    << TErrorAttribute("expected_type", "uint64")
-                    << TErrorAttribute("value", ConvertStringObjectToString(valueAsLongLong.str()));
+                    .With("expected_type", "uint64")
+                    .With("value", ConvertStringObjectToString(valueAsLongLong.str()));
             }
             if (wireType == NSkiff::EWireType::Int64 &&
                 (
@@ -131,16 +133,16 @@ YT_PREVENT_TLS_CACHING void CheckFieldType(const Py::Object& value, NSkiff::EWir
                     PyObject_RichCompareBool(valueAsLongLong.ptr(), SignedInt64Max, Py_LE) != 1))
             {
                 THROW_ERROR_EXCEPTION("Invalid value passed to SkiffRecord, it must be in range [0, 2^64 - 1]")
-                    << TErrorAttribute("expected_type", "int64")
-                    << TErrorAttribute("value", ConvertStringObjectToString(valueAsLongLong.str()));
+                    .With("expected_type", "int64")
+                    .With("value", ConvertStringObjectToString(valueAsLongLong.str()));
             }
             break;
         }
         case NSkiff::EWireType::Boolean: {
             if (!value.isBoolean()) {
                 THROW_ERROR_EXCEPTION("Invalid value passed to SkiffRecord")
-                    << TErrorAttribute("expected_type", "boolean")
-                    << TErrorAttribute("value", TString(value.as_string()));
+                    .With("expected_type", "boolean")
+                    .With("value", TString(value.as_string()));
             }
             break;
         }
@@ -151,8 +153,8 @@ YT_PREVENT_TLS_CACHING void CheckFieldType(const Py::Object& value, NSkiff::EWir
         case NSkiff::EWireType::String32: {
             if (!(PyBytes_Check(value.ptr()) || PyUnicode_Check(value.ptr()))) {
                 THROW_ERROR_EXCEPTION("Invalid value passed to SkiffRecord")
-                    << TErrorAttribute("expected_type", "string")
-                    << TErrorAttribute("value", TString(value.as_string()));
+                    .With("expected_type", "string")
+                    .With("value", TString(value.as_string()));
             }
             break;
         }
@@ -172,7 +174,8 @@ void TSkiffRecord::SetDenceField(ui16 index, const Py::Object& value)
         newFieldValue = Py::None();
     }
     auto fieldDescription = Schema_->GetDenseField(index);
-    CheckFieldType(newFieldValue, fieldDescription.ValidatedGetDeoptionalizeType(/*simplify*/ true), fieldDescription.IsRequired());
+    auto [strippedSchema, optionalKind] = StripOptional(fieldDescription.Schema());
+    CheckFieldType(newFieldValue, GetSupportedWireTypeOrThrow(strippedSchema), optionalKind == EOptionalKind::None);
     DenseFields_[index] = newFieldValue;
 }
 
@@ -183,11 +186,11 @@ void TSkiffRecord::SetSparseField(ui16 index, const Py::Object& value)
         return;
     }
     auto fieldDescription = Schema_->GetSparseField(index - Schema_->GetDenseFieldsCount());
-    CheckFieldType(value, fieldDescription.ValidatedGetDeoptionalizeType(/*simplify*/ true), false);
+    CheckFieldType(value, GetSupportedWireTypeOrThrow(fieldDescription.Schema()), false);
     SparseFields_[index] = value;
 }
 
-void TSkiffRecord::SetOtherField(const TString& key, const Py::Object& value)
+void TSkiffRecord::SetOtherField(const std::string& key, const Py::Object& value)
 {
     if (!value.ptr()) {
         OtherFields_.erase(key);
@@ -201,7 +204,7 @@ size_t TSkiffRecord::Size()
     return DenseFields_.size() + SparseFields_.size() + OtherFields_.size();
 }
 
-THashMap<TString, Py::Object>* TSkiffRecord::GetOtherFields()
+THashMap<std::string, Py::Object>* TSkiffRecord::GetOtherFields()
 {
     return &OtherFields_;
 }
@@ -226,7 +229,7 @@ TIntrusivePtr<TSkiffRecord> TSkiffRecord::DeepCopy()
 
     std::vector<Py::Object> denseFields;
     THashMap<ui16, Py::Object> sparseFields;
-    THashMap<TString, Py::Object> otherFields;
+    THashMap<std::string, Py::Object> otherFields;
 
     for (const auto& field : DenseFields_) {
         denseFields.push_back(deepcopyFunction.apply(Py::TupleN(field)));

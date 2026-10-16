@@ -5,6 +5,15 @@ types:
     table_group: response_keeper_table
     type_name: TSequoiaResponseKeeper
     fields:
+      {% if version >= 7 %}
+      - cpp_name: MutationIdHash
+        cpp_type: ui64
+        column_name: mutation_id_hash
+        column_type: Uint64
+        sort_order: Ascending
+        expression: farm_hash(mutation_id)
+      {% endif %}
+
       - cpp_name: MutationId
         cpp_type: NRpc::TMutationId
         column_name: mutation_id

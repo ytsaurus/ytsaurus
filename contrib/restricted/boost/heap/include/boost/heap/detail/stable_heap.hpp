@@ -19,6 +19,7 @@
 #include <boost/iterator/iterator_adaptor.hpp>
 #include <boost/throw_exception.hpp>
 
+#include <boost/heap/detail/heap_utils.hpp>
 #include <boost/heap/heap_merge.hpp>
 #include <boost/heap/policies.hpp>
 
@@ -30,9 +31,7 @@ struct size_holder
     static const bool constant_time_size = ConstantSize;
     typedef SizeType  size_type;
 
-    size_holder( void ) noexcept :
-        size_( 0 )
-    {}
+    size_holder( void ) noexcept = default;
 
     size_holder( size_holder&& rhs ) noexcept :
         size_( rhs.size_ )
@@ -40,9 +39,7 @@ struct size_holder
         rhs.size_ = 0;
     }
 
-    size_holder( size_holder const& rhs ) noexcept :
-        size_( rhs.size_ )
-    {}
+    size_holder( size_holder const& rhs ) noexcept = default;
 
     size_holder& operator=( size_holder&& rhs ) noexcept
     {
@@ -51,11 +48,7 @@ struct size_holder
         return *this;
     }
 
-    size_holder& operator=( size_holder const& rhs ) noexcept
-    {
-        size_ = rhs.size_;
-        return *this;
-    }
+    size_holder& operator=( size_holder const& rhs ) noexcept = default;
 
     SizeType get_size() const noexcept
     {
@@ -87,12 +80,12 @@ struct size_holder
         size_ -= value;
     }
 
-    void swap( size_holder& rhs ) noexcept
+    void do_swap( size_holder& rhs ) noexcept
     {
-        std::swap( size_, rhs.size_ );
+        swap_via_move( *this, rhs );
     }
 
-    SizeType size_;
+    SizeType size_ {};
 };
 
 template < class SizeType >
@@ -100,25 +93,6 @@ struct size_holder< false, SizeType >
 {
     static const bool constant_time_size = false;
     typedef SizeType  size_type;
-
-    size_holder( void ) noexcept
-    {}
-
-    size_holder( size_holder&& ) noexcept
-    {}
-
-    size_holder( size_holder const& ) noexcept
-    {}
-
-    size_holder& operator=( size_holder&& ) noexcept
-    {
-        return *this;
-    }
-
-    size_holder& operator=( size_holder const& ) noexcept
-    {
-        return *this;
-    }
 
     size_type get_size() const noexcept
     {
@@ -140,18 +114,12 @@ struct size_holder< false, SizeType >
     void sub( SizeType /*value*/ ) noexcept
     {}
 
-    void swap( size_holder& /*rhs*/ ) noexcept
+    void do_swap( size_holder& /*rhs*/ ) noexcept
     {}
 };
 
-// note: MSVC does not implement lookup correctly, we therefore have to place the Cmp object as member inside the
-//       struct. of course, this prevents EBO and significantly reduces the readability of this code
 template < typename T, typename Cmp, bool constant_time_size, typename StabilityCounterType = boost::uintmax_t, bool stable = false >
-struct heap_base :
-#ifndef BOOST_MSVC
-    Cmp,
-#endif
-    size_holder< constant_time_size, size_t >
+struct heap_base : Cmp, size_holder< constant_time_size, size_t >
 {
     typedef StabilityCounterType                      stability_counter_type;
     typedef T                                         value_type;
@@ -161,38 +129,18 @@ struct heap_base :
     typedef Cmp                                       internal_compare;
     static const bool                                 is_stable = stable;
 
-#ifdef BOOST_MSVC
-    Cmp cmp_;
-#endif
-
     heap_base( Cmp const& cmp = Cmp() ) :
-#ifndef BOOST_MSVC
         Cmp( cmp )
-#else
-        cmp_( cmp )
-#endif
     {}
 
     heap_base( heap_base&& rhs ) noexcept( std::is_nothrow_move_constructible< Cmp >::value ) :
-#ifndef BOOST_MSVC
         Cmp( std::move( static_cast< Cmp& >( rhs ) ) ),
-#endif
         size_holder_type( std::move( static_cast< size_holder_type& >( rhs ) ) )
-#ifdef BOOST_MSVC
-        ,
-        cmp_( std::move( rhs.cmp_ ) )
-#endif
     {}
 
     heap_base( heap_base const& rhs ) :
-#ifndef BOOST_MSVC
         Cmp( static_cast< Cmp const& >( rhs ) ),
-#endif
         size_holder_type( static_cast< size_holder_type const& >( rhs ) )
-#ifdef BOOST_MSVC
-        ,
-        cmp_( rhs.value_comp() )
-#endif
     {}
 
     heap_base& operator=( heap_base&& rhs ) noexcept( std::is_nothrow_move_assignable< Cmp >::value )
@@ -242,11 +190,7 @@ struct heap_base :
 
     Cmp const& value_comp( void ) const noexcept
     {
-#ifndef BOOST_MSVC
         return *this;
-#else
-        return cmp_;
-#endif
     }
 
     Cmp const& get_internal_cmp( void ) const noexcept
@@ -254,11 +198,12 @@ struct heap_base :
         return value_comp();
     }
 
-    void swap( heap_base& rhs ) noexcept( std::is_nothrow_move_constructible< Cmp >::value
-                                          && std::is_nothrow_move_assignable< Cmp >::value )
+    void do_swap( heap_base& rhs ) noexcept( std::is_nothrow_move_constructible< Cmp >::value
+                                             && std::is_nothrow_move_assignable< Cmp >::value )
     {
-        std::swap( value_comp_ref(), rhs.value_comp_ref() );
-        size_holder< constant_time_size, size_t >::swap( rhs );
+        heap_base tmp( std::move( rhs ) );
+        rhs   = std::move( *this );
+        *this = std::move( tmp );
     }
 
     stability_counter_type get_stability_count( void ) const noexcept
@@ -275,20 +220,14 @@ struct heap_base :
 private:
     Cmp& value_comp_ref( void )
     {
-#ifndef BOOST_MSVC
         return *this;
-#else
-        return cmp_;
-#endif
     }
 };
 
 
 template < typename T, typename Cmp, bool constant_time_size, typename StabilityCounterType >
 struct heap_base< T, Cmp, constant_time_size, StabilityCounterType, true > :
-#ifndef BOOST_MSVC
     Cmp,
-#endif
     size_holder< constant_time_size, size_t >
 {
     typedef StabilityCounterType stability_counter_type;
@@ -314,40 +253,18 @@ struct heap_base< T, Cmp, constant_time_size, StabilityCounterType, true > :
     typedef size_holder< constant_time_size, size_t > size_holder_type;
     typedef Cmp                                       value_compare;
 
-#ifdef BOOST_MSVC
-    Cmp cmp_;
-#endif
-
     heap_base( Cmp const& cmp = Cmp() ) :
-#ifndef BOOST_MSVC
         Cmp( cmp ),
-#else
-        cmp_( cmp ),
-#endif
         counter_( 0 )
     {}
 
-    heap_base( heap_base&& rhs ) noexcept( std::is_nothrow_move_constructible< Cmp >::value ) :
-#ifndef BOOST_MSVC
-        Cmp( std::move( static_cast< Cmp& >( rhs ) ) ),
-#else
-        cmp_( std::move( rhs.cmp_ ) ),
-#endif
-        size_holder_type( std::move( static_cast< size_holder_type& >( rhs ) ) ),
-        counter_( rhs.counter_ )
-    {
-        rhs.counter_ = 0;
-    }
+    heap_base( heap_base const& rhs )            = default;
+    heap_base& operator=( heap_base const& rhs ) = default;
 
-    heap_base( heap_base const& rhs ) :
-#ifndef BOOST_MSVC
-        Cmp( static_cast< Cmp const& >( rhs ) ),
-#else
-        cmp_( rhs.value_comp() ),
-#endif
-        size_holder_type( static_cast< size_holder_type const& >( rhs ) ),
-        counter_( rhs.counter_ )
-    {}
+    heap_base( heap_base&& rhs ) noexcept( std::is_nothrow_move_constructible< Cmp >::value )
+    {
+        *this = std::move( rhs );
+    }
 
     heap_base& operator=( heap_base&& rhs ) noexcept( std::is_nothrow_move_assignable< Cmp >::value )
     {
@@ -359,14 +276,6 @@ struct heap_base< T, Cmp, constant_time_size, StabilityCounterType, true > :
         return *this;
     }
 
-    heap_base& operator=( heap_base const& rhs )
-    {
-        value_comp_ref().operator=( rhs.value_comp() );
-        size_holder_type::operator=( static_cast< size_holder_type const& >( rhs ) );
-
-        counter_ = rhs.counter_;
-        return *this;
-    }
 
     bool operator()( internal_type const& lhs, internal_type const& rhs ) const
     {
@@ -380,18 +289,18 @@ struct heap_base< T, Cmp, constant_time_size, StabilityCounterType, true > :
 
     internal_type make_node( T const& val )
     {
-        stability_counter_type count = ++counter_;
-        if ( counter_ == ( std::numeric_limits< stability_counter_type >::max )() )
+        if ( counter_ == ( std::numeric_limits< stability_counter_type >::max )() - 1 )
             BOOST_THROW_EXCEPTION( std::runtime_error( "boost::heap counter overflow" ) );
+        stability_counter_type count = ++counter_;
         return internal_type( count, val );
     }
 
     template < class... Args >
     internal_type make_node( Args&&... args )
     {
-        stability_counter_type count = ++counter_;
-        if ( counter_ == ( std::numeric_limits< stability_counter_type >::max )() )
+        if ( counter_ == ( std::numeric_limits< stability_counter_type >::max )() - 1 )
             BOOST_THROW_EXCEPTION( std::runtime_error( "boost::heap counter overflow" ) );
+        stability_counter_type count = ++counter_;
         return internal_type( count, std::forward< Args >( args )... );
     }
 
@@ -407,11 +316,7 @@ struct heap_base< T, Cmp, constant_time_size, StabilityCounterType, true > :
 
     Cmp const& value_comp( void ) const noexcept
     {
-#ifndef BOOST_MSVC
         return *this;
-#else
-        return cmp_;
-#endif
     }
 
     struct internal_compare : Cmp
@@ -437,16 +342,12 @@ struct heap_base< T, Cmp, constant_time_size, StabilityCounterType, true > :
         return internal_compare( value_comp() );
     }
 
-    void swap( heap_base& rhs ) noexcept( std::is_nothrow_move_constructible< Cmp >::value
-                                          && std::is_nothrow_move_assignable< Cmp >::value )
+    void do_swap( heap_base& rhs ) noexcept( std::is_nothrow_move_constructible< Cmp >::value
+                                             && std::is_nothrow_move_assignable< Cmp >::value )
     {
-#ifndef BOOST_MSVC
-        std::swap( static_cast< Cmp& >( *this ), static_cast< Cmp& >( rhs ) );
-#else
-        std::swap( cmp_, rhs.cmp_ );
-#endif
-        std::swap( counter_, rhs.counter_ );
-        size_holder< constant_time_size, size_t >::swap( rhs );
+        heap_base tmp( std::move( rhs ) );
+        rhs   = std::move( *this );
+        *this = std::move( tmp );
     }
 
     stability_counter_type get_stability_count( void ) const
@@ -465,11 +366,7 @@ struct heap_base< T, Cmp, constant_time_size, StabilityCounterType, true > :
 private:
     Cmp& value_comp_ref( void ) noexcept
     {
-#ifndef BOOST_MSVC
         return *this;
-#else
-        return cmp_;
-#endif
     }
 
     stability_counter_type counter_;
@@ -563,6 +460,6 @@ struct extract_allocator_types
 };
 
 
-}}}    // namespace boost::heap::detail
+}}} // namespace boost::heap::detail
 
 #endif /* BOOST_HEAP_DETAIL_STABLE_HEAP_HPP */

@@ -12,50 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
-add_library(ngtcp2-crypto-quictls)
-
-
-target_compile_options(ngtcp2-crypto-quictls PRIVATE
-  -DBUILDING_NGTCP2
-  -DHAVE_CONFIG_H
-  -DNGTCP2_STATICLIB
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(ngtcp2-crypto-quictls PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2
-  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/crypto
-  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/crypto/includes
-  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib
-  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/includes
-)
-
-target_link_libraries(ngtcp2-crypto-quictls PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-ngtcp2
-  contrib-libs-openssl
-)
-
-target_sources(ngtcp2-crypto-quictls PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/crypto/quictls/quictls.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/crypto/shared.c
-)
-
-
-set_property(
-  SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/crypto/quictls/quictls.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/crypto/shared.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)

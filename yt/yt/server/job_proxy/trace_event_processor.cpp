@@ -185,12 +185,10 @@ void TJobTraceEventProcessor::OnEvent(const TTraceEvent& event)
     };
 
     if (eventIndex % Config_->LoggingInterval == 0) {
-        YT_LOG_DEBUG(
-            "Job trace event processor statistics "
-            "(TraceId: %v, EventCount: %v, ActiveProcessIds: %v)",
-            traceId,
-            eventIndex,
-            GetKeys(PidToTraceId_));
+        YT_TLOG_DEBUG("Job trace event processor statistics")
+            .With("TraceId", traceId)
+            .With("EventCount", eventIndex)
+            .With("ActiveProcessIds", GetKeys(PidToTraceId_));
     }
 
     auto rowlet = std::make_unique<TJobTraceEventRowlet>(std::move(report));
@@ -200,7 +198,8 @@ void TJobTraceEventProcessor::OnEvent(const TTraceEvent& event)
 void TJobTraceEventProcessor::FinishGlobalTrace()
 {
     if (EventIndex_ > 0 && !HasControlEvents_) {
-        YT_LOG_DEBUG("Report the end of global trace (TraceId: %v)", GlobalTraceId_);
+        YT_TLOG_DEBUG("Report the end of global trace")
+            .With("TraceId", GlobalTraceId_);
 
         ReportTraceState(NullProcessId, GlobalTraceId_, EJobTraceState::Finished);
     }
@@ -213,10 +212,10 @@ void TJobTraceEventProcessor::OnControlEvent(const TTraceControlEvent& event)
     auto pid = event.ProcessId;
     auto type = event.Type;
 
-    YT_LOG_DEBUG("Received trace control event (Type: %v, TraceId: %v, Pid: %v)",
-        type,
-        traceId,
-        pid);
+    YT_TLOG_DEBUG("Received trace control event")
+        .With("Type", type)
+        .With("TraceId", traceId)
+        .With("Pid", pid);
 
     switch (type) {
         case EJobTraceEventType::TraceStarted:
@@ -262,28 +261,29 @@ void TJobTraceEventProcessor::OnTraceStartedForPid(TProcessId pid, TJobTraceId t
         auto currentTraceId = it->second;
         if (currentTraceId == traceId) {
             THROW_ERROR_EXCEPTION("Received several \"trace_started\" events for trace")
-                << TErrorAttribute("trace_id", traceId)
-                << TErrorAttribute("pid", pid);
+                .With("trace_id", traceId)
+                .With("pid", pid);
         }
 
-        YT_LOG_ERROR("Did not receive finish event for previous trace (ProcessId: %v, PreviousTraceId: %v, NewTraceId: %v)",
-            pid,
-            currentTraceId,
-            traceId);
+        YT_TLOG_ERROR("Did not receive finish event for previous trace")
+            .With("ProcessId", pid)
+            .With("PreviousTraceId", currentTraceId)
+            .With("NewTraceId", traceId);
 
         OnTraceFinishedForPid(pid, currentTraceId, EJobTraceState::Orphaned);
     }
 
     PidToTraceId_[pid] = traceId;
 
-    YT_LOG_DEBUG("Trace has started for process (TraceId: %v, Pid: %v)",
-        traceId,
-        pid);
+    YT_TLOG_DEBUG("Trace has started for process")
+        .With("TraceId", traceId)
+        .With("Pid", pid);
 
     {
         auto pidCountIt = TraceIdToPidCount_.find(traceId);
         if (pidCountIt == TraceIdToPidCount_.end()) {
-            YT_LOG_DEBUG("Trace has started (TraceId: %v)", traceId);
+            YT_TLOG_DEBUG("Trace has started")
+                .With("TraceId", traceId);
 
             pidCountIt = EmplaceOrCrash(TraceIdToPidCount_, traceId, 0);
         }
@@ -305,21 +305,22 @@ void TJobTraceEventProcessor::OnTraceFinishedForPid(TProcessId pid, TJobTraceId 
     auto traceIdIt = PidToTraceId_.find(pid);
     if (traceIdIt == PidToTraceId_.end()) {
         THROW_ERROR_EXCEPTION("Received finish event without start event")
-            << TErrorAttribute("trace_id", traceId)
-            << TErrorAttribute("pid", pid);
+            .With("trace_id", traceId)
+            .With("pid", pid);
     }
 
     PidToTraceId_.erase(traceIdIt);
 
-    YT_LOG_DEBUG("Trace has finished for process (TraceId: %v, Pid: %v)",
-        traceId,
-        pid);
+    YT_TLOG_DEBUG("Trace has finished for process")
+        .With("TraceId", traceId)
+        .With("Pid", pid);
 
     // NB(bystrovserg): TraceIdToPidCount_ and PidToTraceId_ must have keys at the same time, so we do not check here.
     auto pidCountIt = GetIteratorOrCrash(TraceIdToPidCount_, traceId);
     auto pidCount = pidCountIt->second;
     if (pidCount == 0) {
-        YT_LOG_DEBUG("Trace has finished (TraceId: %v)", traceId);
+        YT_TLOG_DEBUG("Trace has finished")
+            .With("TraceId", traceId);
 
         TraceIdToPidCount_.erase(pidCountIt);
     }

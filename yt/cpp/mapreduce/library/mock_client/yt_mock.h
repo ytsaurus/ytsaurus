@@ -30,10 +30,12 @@ public:
     MOCK_METHOD(TRichYPath, CanonizeYPath, (const TRichYPath&), (override));
     MOCK_METHOD(TVector<TTableColumnarStatistics>, GetTableColumnarStatistics, (const TVector<TRichYPath>&, const TGetTableColumnarStatisticsOptions&), (override));
     MOCK_METHOD(TMultiTablePartitions, GetTablePartitions, (const TVector<TRichYPath>&, const TGetTablePartitionsOptions&), (override));
+    MOCK_METHOD(TFilePartitions, GetFilePartitions, (const TYPath&, const TVector<TFileReadRange>&, const TGetFilePartitionsOptions&), (override));
     MOCK_METHOD(TBatchRequestPtr, CreateBatchRequest, (), (override));
     MOCK_METHOD(TVector<TTabletInfo>, GetTabletInfos, (const TYPath&, const TVector<int>&, const TGetTabletInfosOptions&), (override));
 
     MOCK_METHOD(IFileReaderPtr, CreateFileReader, (const TRichYPath&, const TFileReaderOptions&), (override));
+    MOCK_METHOD(IFileReaderPtr, CreateFilePartitionReader, (const TString&, const TFilePartitionReaderOptions&), (override));
     MOCK_METHOD(IFileWriterPtr, CreateFileWriter, (const TRichYPath&, const TFileWriterOptions&), (override));
     MOCK_METHOD(IFileReaderPtr, CreateBlobTableReader, (const TYPath&, const TKey&, const TBlobTableReaderOptions&), (override));
     MOCK_METHOD(TTableWriterPtr<::google::protobuf::Message>, CreateTableWriter, (const TRichYPath& path, const ::google::protobuf::Descriptor& descriptor, const TTableWriterOptions& options), (override));
@@ -98,6 +100,7 @@ public:
     MOCK_METHOD(void, EnableTableReplica, (const TReplicaId& replicaid), ());
     MOCK_METHOD(void, DisableTableReplica, (const TReplicaId& replicaid), ());
     MOCK_METHOD(void, AlterTableReplica, (const TReplicaId& replicaid, const TAlterTableReplicaOptions&), (override));
+    MOCK_METHOD(void, CheckClusterLiveness, (const TCheckClusterLivenessOptions&), (override));
 
     MOCK_METHOD(TAuthorizationInfo, WhoAmI, (), (override));
 
@@ -154,9 +157,11 @@ public:
     MOCK_METHOD(TRichYPath, CanonizeYPath, (const TRichYPath&), (override));
     MOCK_METHOD(TVector<TTableColumnarStatistics>, GetTableColumnarStatistics, (const TVector<TRichYPath>&, const TGetTableColumnarStatisticsOptions&), (override));
     MOCK_METHOD(TMultiTablePartitions, GetTablePartitions, (const TVector<TRichYPath>&, const TGetTablePartitionsOptions&), (override));
+    MOCK_METHOD(TFilePartitions, GetFilePartitions, (const TYPath&, const TVector<TFileReadRange>&, const TGetFilePartitionsOptions&), (override));
     MOCK_METHOD(TBatchRequestPtr, CreateBatchRequest, (), (override));
 
     MOCK_METHOD(IFileReaderPtr, CreateFileReader, (const TRichYPath&, const TFileReaderOptions&), (override));
+    MOCK_METHOD(IFileReaderPtr, CreateFilePartitionReader, (const TString&, const TFilePartitionReaderOptions&), (override));
     MOCK_METHOD(IFileWriterPtr, CreateFileWriter, (const TRichYPath&, const TFileWriterOptions&), (override));
     MOCK_METHOD(TTableWriterPtr<::google::protobuf::Message>, CreateTableWriter, (const TRichYPath& path, const ::google::protobuf::Descriptor& descriptor, const TTableWriterOptions& options), (override));
     MOCK_METHOD(TRawTableReaderPtr, CreateRawReader, (const TRichYPath& path, const TFormat& format, const TTableReaderOptions& options), (override));
@@ -212,7 +217,7 @@ public:
     MOCK_METHOD(ILockPtr, Lock, (const TYPath& path, ELockMode mode, const TLockOptions& options), (override));
     MOCK_METHOD(void, Unlock, (const TYPath& path, const TUnlockOptions& options), (override));
 
-    MOCK_METHOD(void, Commit, (), (override));
+    MOCK_METHOD(void, Commit, (const TCommitTransactionOptions& options), (override));
     MOCK_METHOD(void, Abort, (), (override));
     MOCK_METHOD(void, Ping, (), (override));
 

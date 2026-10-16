@@ -8,4 +8,6 @@ LOCAL_JAR(gson-2.8.9.jar)
 
 LOCAL_SOURCES_JAR(gson-2.8.9-sources.jar)
 
+ORIGINAL_SOURCE(https://github.com/google/gson/)
+
 END()

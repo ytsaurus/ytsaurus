@@ -1,0 +1,68 @@
+package NYql.NProto;
+option java_package = "ru.yandex.yql.proto";
+
+import "yql/tools/yqlworker/interface/proto/task.proto";
+import "yql/tools/yqlworker/proto/worker.proto";
+
+
+message TStatusUpdateRequest {
+    optional string WorkerId = 1;
+    optional string TaskId = 2;
+    optional TTaskResult Result = 3;
+    optional uint64 SentTime = 4;
+    optional string WorkerVersion = 5;
+    optional string WorkerPid = 6;
+    optional string WorkerHost = 7;
+    repeated string ExternalQueryIds = 8;
+    optional string ExternalHost = 9;
+}
+
+message TStatusUpdateResponse {
+    enum EStatus {
+        UNKNOWN = 0;
+        OK = 1;
+        FAILED = 2;
+    }
+
+    optional EStatus Status = 1;
+    optional string Message = 2;
+}
+
+message THeartbeatRequest {
+    optional string WorkerId = 1;
+    optional uint32 Port = 2;
+    optional uint64 SentTime = 3;
+    optional EWorkerState WorkerState = 4;
+    optional uint32 RunningTasksCount = 5;
+    optional uint32 SvnRevision = 6;
+    optional string ProgramCommitId = 7;
+}
+
+message THeartbeatResponse {
+    optional uint64 MaxHealthcheckGap = 1;
+    optional uint64 MaxHeartbeatGap = 2;
+    optional uint64 LoseUnhealthyWorkerAfter = 3;
+    optional EWorkerState WorkerState = 4;
+}
+
+message TTaskSubscriptionNotifyRequest {
+    optional uint32 ChannelId = 1;
+    optional string WorkerId = 2;
+    optional string TaskId = 3;
+    optional string Username = 4;
+    optional TTaskResult Result = 5;
+    optional uint64 SentTime = 6;
+    optional bool Unsubscribe = 7;
+}
+
+message TTaskSubscriptionNotifyResponse {
+    enum EStatus {
+        UNKNOWN = 0;
+        OK = 1;
+        FAILED = 2;
+        NOT_EXISTS = 3;
+    }
+
+    optional EStatus Status = 1;
+    optional string Message = 2;
+}

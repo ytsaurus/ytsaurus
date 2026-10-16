@@ -11,6 +11,7 @@ PY_SRCS(
     _requirements.py
     bundle.py
     check_clang_warnings.py
+    cmake_export.py
     coverage.py
     cp.py
     create_init_py.py
@@ -30,6 +31,7 @@ PY_SRCS(
     pybuild.py
     res.py
     suppressions.py
+    yql_prebuilt.py
     yql_python_udf.py
     ytest.py
 )

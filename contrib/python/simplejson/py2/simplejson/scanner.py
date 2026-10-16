@@ -2,6 +2,7 @@
 """
 import re
 from .errors import JSONDecodeError
+
 def _import_c_make_scanner():
     try:
         from ._speedups import make_scanner
@@ -13,7 +14,7 @@ c_make_scanner = _import_c_make_scanner()
 __all__ = ['make_scanner', 'JSONDecodeError']
 
 NUMBER_RE = re.compile(
-    r'(-?(?:0|[1-9]\d*))(\.\d+)?([eE][-+]?\d+)?',
+    r'(-?(?:0|[1-9][0-9]*))(\.[0-9]+)?([eE][-+]?[0-9]+)?',
     (re.VERBOSE | re.MULTILINE | re.DOTALL))
 
 
@@ -29,6 +30,7 @@ def py_make_scanner(context):
     parse_constant = context.parse_constant
     object_hook = context.object_hook
     object_pairs_hook = context.object_pairs_hook
+    array_hook = context.array_hook
     memo = context.memo
 
     def _scan_once(string, idx):
@@ -44,7 +46,7 @@ def py_make_scanner(context):
             return parse_object((string, idx + 1), encoding, strict,
                 _scan_once, object_hook, object_pairs_hook, memo)
         elif nextchar == '[':
-            return parse_array((string, idx + 1), _scan_once)
+            return parse_array((string, idx + 1), _scan_once, array_hook)
         elif nextchar == 'n' and string[idx:idx + 4] == 'null':
             return None, idx + 4
         elif nextchar == 't' and string[idx:idx + 4] == 'true':

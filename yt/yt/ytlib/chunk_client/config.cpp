@@ -170,6 +170,16 @@ void TS3MediumConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("secret_access_key", &TThis::SecretAccessKey)
         .Default();
+    registrar.Parameter("prefix", &TThis::Prefix)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMediumDirectorySynchronizerTestingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("bypass_cache", &TThis::BypassCache)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,6 +188,8 @@ void TMediumDirectorySynchronizerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("sync_period", &TThis::SyncPeriod)
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

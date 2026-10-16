@@ -23,7 +23,7 @@ void TJournalAsLocalFileReadOnlyChangelog::Open(const std::string& path)
     TYsonPullParser parser(&input, EYsonType::ListFragment);
     TYsonPullParserCursor cursor(&parser);
     YT_VERIFY(cursor.TryConsumeFragmentStart());
-    static const TString PayloadKey("payload");
+    static const std::string PayloadKey("payload");
     while (!cursor->IsEndOfStream()) {
         cursor.ParseMap([&] (TYsonPullParserCursor* cursor) {
             auto valueType = (*cursor)->GetType();
@@ -70,9 +70,19 @@ i64 TJournalAsLocalFileReadOnlyChangelog::GetDataSize() const
     return TotalBytes_;
 }
 
-i64 TJournalAsLocalFileReadOnlyChangelog::EstimateChangelogSize(i64 payloadSize) const
+i64 TJournalAsLocalFileReadOnlyChangelog::EstimateWriteSize(i64 payloadSize) const
 {
     return payloadSize;
+}
+
+i64 TJournalAsLocalFileReadOnlyChangelog::EstimateReadSize(
+    int /*firstRecordId*/,
+    int /*maxRecords*/,
+    i64 maxBytes) const
+{
+    // TODO(babenko): Provide a more precise estimate based on the requested record range.
+    // For now use the total changelog size as the read guess.
+    return std::min(maxBytes, GetDataSize());
 }
 
 TFuture<std::vector<TSharedRef>> TJournalAsLocalFileReadOnlyChangelog::Read(

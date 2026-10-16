@@ -11,6 +11,8 @@
 #include <yt/yt/client/table_client/validate_logical_type.h>
 #include <yt/yt/library/formats/format.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 #include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
 
 #include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/memory.h>
@@ -129,6 +131,86 @@ std::string MakeIntAndStringArrow(const std::vector<int8_t>& data, const std::ve
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
+std::string MakeLargeStringArrow(const std::vector<std::optional<std::string>>& data)
+{
+    arrow20::LargeStringBuilder builder;
+
+    for (const auto& value : data) {
+        if (value) {
+            Verify(builder.Append(*value));
+        } else {
+            Verify(builder.AppendNull());
+        }
+    }
+
+    auto stringArray = builder.Finish();
+    auto arrowSchema = arrow20::schema({arrow20::field("large_string", arrow20::large_utf8())});
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {*stringArray};
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+
+    return MakeOutputFromRecordBatch(recordBatch);
+}
+
+std::string MakeLargeBinaryArrow(const std::vector<std::optional<std::string>>& data)
+{
+    arrow20::LargeBinaryBuilder builder;
+
+    for (const auto& value : data) {
+        if (value) {
+            Verify(builder.Append(*value));
+        } else {
+            Verify(builder.AppendNull());
+        }
+    }
+
+    auto binaryArray = builder.Finish();
+    auto arrowSchema = arrow20::schema({arrow20::field("large_binary", arrow20::large_binary())});
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {*binaryArray};
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+
+    return MakeOutputFromRecordBatch(recordBatch);
+}
+
+std::string MakeYsonArrow(const std::vector<std::string>& data)
+{
+    arrow20::BinaryBuilder builder;
+
+    for (const auto& value : data) {
+        Verify(builder.Append(value));
+    }
+
+    auto binaryArray = builder.Finish();
+    auto metadata = std::make_shared<arrow20::KeyValueMetadata>(
+        std::vector{YTTypeMetadataKey},
+        std::vector{YTTypeMetadataValueYson});
+    auto arrowSchema = arrow20::schema({arrow20::field("any", arrow20::binary(), /*nullable*/ true, metadata)});
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {*binaryArray};
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+
+    return MakeOutputFromRecordBatch(recordBatch);
+}
+
+std::string MakeFixedSizeBinaryArrow(const std::vector<std::optional<std::string>>& data)
+{
+    auto type = arrow20::fixed_size_binary(3);
+    arrow20::FixedSizeBinaryBuilder builder(type);
+
+    for (const auto& value : data) {
+        if (value) {
+            Verify(builder.Append(*value));
+        } else {
+            Verify(builder.AppendNull());
+        }
+    }
+
+    auto binaryArray = builder.Finish();
+    auto arrowSchema = arrow20::schema({arrow20::field("fixed_size_binary", type)});
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {*binaryArray};
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+
+    return MakeOutputFromRecordBatch(recordBatch);
+}
+
 std::string MakeIntListArrow(const std::vector<std::optional<std::vector<i32>>>& data)
 {
     auto* pool = arrow20::default_memory_pool();
@@ -189,11 +271,13 @@ std::string MakeIntListDictionaryArrow(
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
-std::string MakeStringListArrow(const std::vector<std::vector<std::string>>& data)
+template <class TBuilder>
+std::string MakeStringLikeListArrow(
+    const std::vector<std::vector<std::string>>& data,
+    std::shared_ptr<TBuilder> valueBuilder)
 {
     auto* pool = arrow20::default_memory_pool();
 
-    auto valueBuilder = std::make_shared<arrow20::StringBuilder>(pool);
     auto listBuilder = std::make_unique<arrow20::ListBuilder>(pool, valueBuilder);
 
     for (const auto& list : data) {
@@ -212,6 +296,34 @@ std::string MakeStringListArrow(const std::vector<std::vector<std::string>>& dat
     auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
 
     return MakeOutputFromRecordBatch(recordBatch);
+}
+
+std::string MakeStringListArrow(const std::vector<std::vector<std::string>>& data)
+{
+    return MakeStringLikeListArrow(
+        data,
+        std::make_shared<arrow20::StringBuilder>());
+}
+
+std::string MakeLargeStringListArrow(const std::vector<std::vector<std::string>>& data)
+{
+    return MakeStringLikeListArrow(
+        data,
+        std::make_shared<arrow20::LargeStringBuilder>());
+}
+
+std::string MakeLargeBinaryListArrow(const std::vector<std::vector<std::string>>& data)
+{
+    return MakeStringLikeListArrow(
+        data,
+        std::make_shared<arrow20::LargeBinaryBuilder>());
+}
+
+std::string MakeFixedSizeBinaryListArrow(const std::vector<std::vector<std::string>>& data)
+{
+    return MakeStringLikeListArrow(
+        data,
+        std::make_shared<arrow20::FixedSizeBinaryBuilder>(arrow20::fixed_size_binary(3)));
 }
 
 std::string MakeMapArrow(const std::vector<std::vector<i32>>& key, const std::vector<std::vector<i32>>& value)
@@ -484,44 +596,6 @@ std::string MakeTzTypeArrow(const std::vector<TTzRow>& dateValue)
         date32Array,
         datetime64Array,
         timestamp64Array
-    };
-
-    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
-
-    return MakeOutputFromRecordBatch(recordBatch);
-}
-
-std::string MakeTzDateTypeArrow(const std::vector<int>& dateValue)
-{
-    auto* pool = arrow20::default_memory_pool();
-
-    auto dateBuilder = std::make_shared<arrow20::UInt16Builder>(pool);
-    auto dateTzNameBuilder = std::make_shared<arrow20::BinaryBuilder>(pool);
-
-    std::vector<std::shared_ptr<arrow20::Field>> dateFields = {
-        std::make_shared<arrow20::Field>("Timestamp", std::make_shared<arrow20::UInt16Type>()),
-        std::make_shared<arrow20::Field>("TzIndex", std::make_shared<arrow20::BinaryType>()),
-    };
-    arrow20::StructBuilder tzDateBuilder(
-        std::make_shared<arrow20::StructType>(dateFields),
-        pool,
-        {dateBuilder, dateTzNameBuilder});
-
-    for (int index = 0; index < std::ssize(dateValue); index++) {
-        Verify(tzDateBuilder.Append());
-        Verify(dateBuilder->Append(dateValue[index]));
-        Verify(dateTzNameBuilder->Append("Europe/Moscow"));
-    }
-
-    std::shared_ptr<arrow20::Schema> arrowSchema = arrow20::schema({
-        arrow20::field("tzDateColumn", tzDateBuilder.type()),
-    });
-
-    std::shared_ptr<arrow20::Array> dateArray;
-    Verify(tzDateBuilder.Finish(&dateArray));
-
-    std::vector<std::shared_ptr<arrow20::Array>> columns = {
-        dateArray
     };
 
     auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
@@ -812,10 +886,63 @@ TEST(TArrowParserTest, String)
     ASSERT_EQ(GetString(collectedRows.GetRowValue(2, "string")), "yt");
 }
 
-
-TString ConvertToYsonTextStringStable(const INodePtr& node, bool binary = false)
+TEST(TArrowParserTest, LargeString)
 {
-    TStringStream out;
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("large_string", EValueType::String),
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    parser->Read(MakeLargeStringArrow({"foo", std::nullopt, "bar"}));
+    parser->Finish();
+
+    ASSERT_EQ(collectedRows.Size(), 3);
+    ASSERT_EQ(GetString(collectedRows.GetRowValue(0, "large_string")), "foo");
+    ASSERT_TRUE(IsNull(collectedRows.GetRowValue(1, "large_string")));
+    ASSERT_EQ(GetString(collectedRows.GetRowValue(2, "large_string")), "bar");
+}
+
+TEST(TArrowParserTest, LargeBinary)
+{
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("large_binary", EValueType::String),
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    parser->Read(MakeLargeBinaryArrow({"foo", std::nullopt, "bar"}));
+    parser->Finish();
+
+    ASSERT_EQ(collectedRows.Size(), 3);
+    ASSERT_EQ(GetString(collectedRows.GetRowValue(0, "large_binary")), "foo");
+    ASSERT_TRUE(IsNull(collectedRows.GetRowValue(1, "large_binary")));
+    ASSERT_EQ(GetString(collectedRows.GetRowValue(2, "large_binary")), "bar");
+}
+
+TEST(TArrowParserTest, FixedSizeBinary)
+{
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("fixed_size_binary", EValueType::String),
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    parser->Read(MakeFixedSizeBinaryArrow({"foo", std::nullopt, "bar"}));
+    parser->Finish();
+
+    ASSERT_EQ(collectedRows.Size(), 3);
+    ASSERT_EQ(GetString(collectedRows.GetRowValue(0, "fixed_size_binary")), "foo");
+    ASSERT_TRUE(IsNull(collectedRows.GetRowValue(1, "fixed_size_binary")));
+    ASSERT_EQ(GetString(collectedRows.GetRowValue(2, "fixed_size_binary")), "bar");
+}
+
+std::string ConvertToYsonTextStringStable(const INodePtr& node, bool binary = false)
+{
+    TStdStringStream out;
     auto format = binary ? EYsonFormat::Binary : EYsonFormat::Text;
     TYsonWriter writer(&out, format);
     VisitTree(node, &writer, true, TAttributeFilter());
@@ -885,6 +1012,63 @@ TEST(TArrowParserTest, ListOfStrings)
 
     auto secondNode = GetComposite(collectedRows.GetRowValue(1, "list"));
     ASSERT_EQ(ConvertToYsonTextStringStable(secondNode), "[\"42\";\"universe\";]");
+}
+
+TEST(TArrowParserTest, ListOfLargeStrings)
+{
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    parser->Read(MakeLargeStringListArrow({{"foo", "bar"}, {"42", "universe"}}));
+    parser->Finish();
+
+    auto firstNode = GetComposite(collectedRows.GetRowValue(0, "list"));
+    ASSERT_EQ(ConvertToYsonTextStringStable(firstNode), "[\"foo\";\"bar\";]");
+
+    auto secondNode = GetComposite(collectedRows.GetRowValue(1, "list"));
+    ASSERT_EQ(ConvertToYsonTextStringStable(secondNode), "[\"42\";\"universe\";]");
+}
+
+TEST(TArrowParserTest, ListOfLargeBinaries)
+{
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    parser->Read(MakeLargeBinaryListArrow({{"foo", "bar"}, {"baz", "qux"}}));
+    parser->Finish();
+
+    auto firstNode = GetComposite(collectedRows.GetRowValue(0, "list"));
+    ASSERT_EQ(ConvertToYsonTextStringStable(firstNode), "[\"foo\";\"bar\";]");
+
+    auto secondNode = GetComposite(collectedRows.GetRowValue(1, "list"));
+    ASSERT_EQ(ConvertToYsonTextStringStable(secondNode), "[\"baz\";\"qux\";]");
+}
+
+TEST(TArrowParserTest, ListOfFixedSizeBinaries)
+{
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    parser->Read(MakeFixedSizeBinaryListArrow({{"foo", "bar"}, {"baz", "qux"}}));
+    parser->Finish();
+
+    auto firstNode = GetComposite(collectedRows.GetRowValue(0, "list"));
+    ASSERT_EQ(ConvertToYsonTextStringStable(firstNode), "[\"foo\";\"bar\";]");
+
+    auto secondNode = GetComposite(collectedRows.GetRowValue(1, "list"));
+    ASSERT_EQ(ConvertToYsonTextStringStable(secondNode), "[\"baz\";\"qux\";]");
 }
 
 TEST(TArrowParserTest, Map)
@@ -1100,72 +1284,32 @@ TEST(TArrowParserTest, TzType)
     stringValue = GetString(collectedRows.GetRowValue(0, "tzDateColumn"));
     auto dateValue = NTzTypes::ParseTzValue<ui16>(stringValue);
     ASSERT_EQ(dateValue.first, row.DateValue);
-    ASSERT_EQ(dateValue.second, "Europe/Moscow");
+    ASSERT_EQ(dateValue.second, 1);
 
     stringValue = GetString(collectedRows.GetRowValue(0, "tzDatetimeColumn"));
     auto datetimeValue = NTzTypes::ParseTzValue<ui32>(stringValue);
     ASSERT_EQ(datetimeValue.first, row.DatetimeValue);
-    ASSERT_EQ(datetimeValue.second, "Europe/Moscow");
+    ASSERT_EQ(datetimeValue.second, 1);
 
     stringValue = GetString(collectedRows.GetRowValue(0, "tzTimestampColumn"));
     auto timestampValue = NTzTypes::ParseTzValue<ui64>(stringValue);
     ASSERT_EQ(timestampValue.first, row.TimestampValue);
-    ASSERT_EQ(timestampValue.second, "Europe/Moscow");
+    ASSERT_EQ(timestampValue.second, 1);
 
     stringValue = GetString(collectedRows.GetRowValue(0, "tzDate32Column"));
     auto date32Value = NTzTypes::ParseTzValue<i32>(stringValue);
     ASSERT_EQ(date32Value.first, row.Date32Value);
-    ASSERT_EQ(date32Value.second, "Europe/Moscow");
+    ASSERT_EQ(date32Value.second, 1);
 
     stringValue = GetString(collectedRows.GetRowValue(0, "tzDatetime64Column"));
     auto datetime64Value = NTzTypes::ParseTzValue<i64>(stringValue);
     ASSERT_EQ(datetime64Value.first, row.Datetime64Value);
-    ASSERT_EQ(datetime64Value.second, "Europe/Moscow");
+    ASSERT_EQ(datetime64Value.second, 1);
 
     stringValue = GetString(collectedRows.GetRowValue(0, "tzTimestamp64Column"));
     auto timestamp64Value = NTzTypes::ParseTzValue<i64>(stringValue);
     ASSERT_EQ(timestamp64Value.first, row.Timestamp64Value);
-    ASSERT_EQ(timestamp64Value.second, "Europe/Moscow");
-}
-
-TEST(TArrowParserTest, TzTypeName)
-{
-    auto tableSchema = New<TTableSchema>(std::vector{
-        TColumnSchema("tzDateColumn", ESimpleLogicalValueType::TzDate),
-    });
-
-    TCollectingValueConsumer collectedRows(tableSchema);
-
-    auto parser = CreateParserForArrow(&collectedRows);
-
-    parser->Read(MakeTzDateTypeArrow({42}));
-    parser->Finish();
-
-    std::string stringValue;
-
-    stringValue = GetString(collectedRows.GetRowValue(0, "tzDateColumn"));
-    auto dateValue = NTzTypes::ParseTzValue<ui16>(stringValue);
-    ASSERT_EQ(dateValue.first, 42);
-    ASSERT_EQ(dateValue.second, "Europe/Moscow");
-}
-
-TEST(TArrowParserTest, WrongTzIndex)
-{
-    auto tableSchema = New<TTableSchema>(std::vector{
-        TColumnSchema("tzDateColumn", ESimpleLogicalValueType::TzDate),
-        TColumnSchema("tzDatetimeColumn", ESimpleLogicalValueType::TzDatetime),
-        TColumnSchema("tzTimestampColumn", ESimpleLogicalValueType::TzTimestamp),
-        TColumnSchema("tzDate32Column", ESimpleLogicalValueType::TzDate32),
-        TColumnSchema("tzDatetime64Column", ESimpleLogicalValueType::TzDatetime64),
-        TColumnSchema("tzTimestamp64Column", ESimpleLogicalValueType::TzTimestamp64),
-    });
-
-    TCollectingValueConsumer collectedRows(tableSchema);
-
-    auto parser = CreateParserForArrow(&collectedRows);
-
-    TTzRow row = {42, 100, 1, 2, 3, 4, 1000};
-    EXPECT_THROW_WITH_SUBSTRING(parser->Read(MakeTzTypeArrow({row})), "Failed to parse column");
+    ASSERT_EQ(timestamp64Value.second, 1);
 }
 
 TEST(TArrowParserTest, WrongTzType)
@@ -1206,7 +1350,7 @@ TEST(TArrowParserTest, ListOfTzTypes)
 
     auto tzString = std::string_view(result.begin() + 3, result.end() - 2);
 
-    ASSERT_EQ(tzString, NTzTypes::MakeTzString<ui16>(42, NTzTypes::GetTzName(1)));
+    ASSERT_EQ(tzString, NTzTypes::MakeTzString<ui16>(42, 1));
 }
 
 TEST(TArrowParserTest, ListOfDatetimes)
@@ -1302,6 +1446,43 @@ TEST(TArrowParserTest, AnyColumn)
 
     ASSERT_EQ(GetInt64(collectedRows.GetRowValue(2, "integer")), 3);
     ASSERT_EQ(GetString(collectedRows.GetRowValue(2, "string")), "yt");
+}
+
+TEST(TArrowParserTest, YsonMetadata)
+{
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("any", EValueType::Any),
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    std::vector<std::string> values = {"{a=1}", "[1;2]", "#", "\"str\""};
+    parser->Read(MakeYsonArrow(values));
+    parser->Finish();
+
+    ASSERT_EQ(collectedRows.Size(), std::ssize(values));
+    for (int rowIndex = 0; rowIndex < std::ssize(values); ++rowIndex) {
+        auto value = collectedRows.GetRowValue(rowIndex, "any");
+        EXPECT_EQ(value.Type, EValueType::Any);
+        EXPECT_EQ(std::string(value.AsStringBuf()), values[rowIndex]);
+    }
+}
+
+TEST(TArrowParserTest, InvalidYsonMetadata)
+{
+    for (const auto& value : {""s, "{"s, "<a=1>1"s}) {
+        auto tableSchema = New<TTableSchema>(std::vector{
+            TColumnSchema("any", EValueType::Any),
+        });
+
+        TCollectingValueConsumer collectedRows(tableSchema);
+
+        auto parser = CreateParserForArrow(&collectedRows);
+
+        EXPECT_THROW_WITH_SUBSTRING(parser->Read(MakeYsonArrow({value})), "is not a valid YSON");
+    }
 }
 
 TEST(TArrowParserTest, WrongListInput)

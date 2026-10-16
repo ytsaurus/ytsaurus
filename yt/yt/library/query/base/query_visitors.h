@@ -139,15 +139,49 @@ struct TVisitor
 
     void OnSubquery(const TSubqueryExpression* subqueryExpr)
     {
-        for (const auto& [expr, name] : subqueryExpr->FromExpressions) {
-            Visit(expr);
+        for (const auto& [expression, name] : subqueryExpr->FromExpressions) {
+            Visit(expression);
         }
 
-        Visit(subqueryExpr->WhereClause);
+        for (const auto& joinClause : subqueryExpr->JoinClauses) {
+            for (const auto& equation : joinClause->SelfEquations) {
+                Visit(equation);
+            }
 
-        if (const auto* projectClause = subqueryExpr->ProjectClause.Get()) {
-            for (const auto& [expr, name] : projectClause->Projections) {
-                Visit(expr);
+            for (const auto& equation : joinClause->ForeignEquations) {
+                Visit(equation);
+            }
+
+            if (joinClause->Predicate) {
+                Visit(joinClause->Predicate);
+            }
+        }
+
+        if (subqueryExpr->WhereClause) {
+            Visit(subqueryExpr->WhereClause);
+        }
+
+        if (subqueryExpr->GroupClause) {
+            for (const auto& [expression, name] : subqueryExpr->GroupClause->GroupItems) {
+                Visit(expression);
+            }
+
+            for (const auto& aggregateItem : subqueryExpr->GroupClause->AggregateItems) {
+                for (const auto& argument : aggregateItem.Arguments) {
+                    Visit(argument);
+                }
+            }
+        }
+
+        if (subqueryExpr->ProjectClause) {
+            for (const auto& [expression, name] : subqueryExpr->ProjectClause->Projections) {
+                Visit(expression);
+            }
+        }
+
+        if (subqueryExpr->OrderClause) {
+            for (const auto& orderItem : subqueryExpr->OrderClause->OrderItems) {
+                Visit(orderItem.Expression);
             }
         }
     }
@@ -576,7 +610,7 @@ struct TAbstractExpressionPrinter
                 auto groupClauseHolder = std::move(groupClause);
                 Builder->AppendString(it->AggregateFunction);
                 Builder->AppendChar('(');
-                Derived()->OnArguments(it, args...);
+                Derived()->OnArguments(&*it, args...);
                 Builder->AppendChar(')');
                 groupClause = std::move(groupClauseHolder);
                 return;
@@ -794,6 +828,7 @@ struct TAbstractExpressionPrinter
     {
         auto inferNameOptions = TInferNameOptions{
             .OmitValues = Options.OmitValues,
+            .OmitOffsetAndLimit = Options.OmitOffsetAndLimit,
             .GroupClause = subqueryExpr->GroupClause,
         };
         auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
@@ -814,6 +849,36 @@ struct TAbstractExpressionPrinter
 
         clauses.push_back(std::string("FROM (") + JoinToString(subqueryExpr->FromExpressions, namedItemFormatter) + ")");
 
+        for (const auto& joinClause : subqueryExpr->JoinClauses) {
+            auto selfEquations = std::vector<std::string>();
+            {
+                selfEquations.reserve(joinClause->SelfEquations.size());
+                for (const auto& equation : joinClause->SelfEquations) {
+                    selfEquations.push_back(InferName(equation, inferNameOptions));
+                }
+            }
+
+            auto foreignEquations = std::vector<std::string>();
+            {
+                foreignEquations.reserve(joinClause->ForeignEquations.size());
+                for (const auto& equation : joinClause->ForeignEquations) {
+                    foreignEquations.push_back(InferName(equation, inferNameOptions));
+                }
+            }
+
+            clauses.push_back(Format(
+                "%v JOIN [common prefix: %v, foreign prefix: %v] ON (%v) = (%v)",
+                joinClause->IsLeft ? "LEFT" : "INNER",
+                joinClause->CommonKeyPrefix,
+                joinClause->ForeignKeyPrefix,
+                JoinToString(selfEquations),
+                JoinToString(foreignEquations)));
+
+            if (joinClause->Predicate) {
+                clauses.push_back("AND " + InferName(joinClause->Predicate, inferNameOptions));
+            }
+        }
+
         if (subqueryExpr->WhereClause) {
             clauses.push_back(std::string("WHERE ") + InferName(subqueryExpr->WhereClause, inferNameOptions));
         }
@@ -833,6 +898,23 @@ struct TAbstractExpressionPrinter
             if (subqueryExpr->GroupClause->TotalsMode == ETotalsMode::BeforeHaving) {
                 clauses.push_back("WITH TOTALS");
             }
+        }
+
+        if (subqueryExpr->OrderClause) {
+            inferNameOptions.GroupClause = subqueryExpr->GroupClause;
+            auto orderItemFormatter = [&] (TStringBuilderBase* builder, const TOrderItem& item) {
+                builder->AppendString(InferName(item.Expression, inferNameOptions));
+                builder->AppendString(item.Descending ? " DESC" : " ASC");
+            };
+            clauses.push_back("ORDER BY " + JoinToString(subqueryExpr->OrderClause->OrderItems, orderItemFormatter));
+        }
+
+        if (!Options.OmitOffsetAndLimit && subqueryExpr->Offset != 0) {
+            clauses.push_back(std::string("OFFSET ") + (Options.OmitValues ? "?" : ToString(subqueryExpr->Offset)));
+        }
+
+        if (!Options.OmitOffsetAndLimit && subqueryExpr->Limit < UnorderedReadHint) {
+            clauses.push_back(std::string("LIMIT ") + (Options.OmitValues ? "?" : ToString(subqueryExpr->Limit)));
         }
 
         Builder->AppendChar('(');
@@ -875,6 +957,21 @@ public:
 
 private:
     TColumnSet* const Storage_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReferenceReplacer
+    : public TRewriter<TReferenceReplacer>
+{
+public:
+    TReferenceReplacer(TStringBuf from, const TReferenceExpression* to);
+
+    TConstExpressionPtr OnReference(const TReferenceExpression* referenceExpr);
+
+private:
+    const TStringBuf From_;
+    const TReferenceExpression* To_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

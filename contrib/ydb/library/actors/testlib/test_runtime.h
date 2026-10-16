@@ -45,6 +45,7 @@ const TDuration DEFAULT_DISPATCH_TIMEOUT = NSan::PlainOrUnderSanitizer(
 
 namespace NActors {
     struct THeSingleSystemEnv { };
+    class IHarmonizer;
 
     struct TTestActorSetupCmd { // like TActorSetupCmd, but not owning the Actor
         TTestActorSetupCmd(IActor* actor, TMailboxType::EType mailboxType, ui32 poolId)
@@ -708,6 +709,9 @@ namespace NActors {
             auto edgeEvent = GrabEdgeEvent<TEvents::TEvWakeup>(edgeActor);
             return future.ExtractValue();
         }
+
+        // Called with the node index before constructing each node actor system.
+        std::function<void(ui32, TActorSystemSetup*)> SetupNodeSubSystems;
 
     protected:
         struct TNodeDataBase;

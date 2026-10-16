@@ -23,7 +23,7 @@ struct TChaosCacheBootstrapConfig
 {
     bool AbortOnUnrecognizedOptions;
 
-    NBus::TBusConfigPtr BusClient;
+    NBus::NTcp::TBusConfigPtr BusClient;
 
     NChaosCache::TChaosCacheConfigPtr ChaosCache;
 

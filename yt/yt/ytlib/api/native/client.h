@@ -76,6 +76,12 @@ struct TSyncAlienCellsResult
     bool EnableMetadataCells;
 };
 
+struct TGetChaosLeaseOptions
+    : public TTimeoutOptions
+{
+    bool BypassCache = false;
+};
+
 struct IClient
     : public IClientBase
     , public virtual NApi::IClient
@@ -117,6 +123,10 @@ struct IClient
     virtual TFuture<TSyncAlienCellsResult> SyncAlienCells(
         const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
         const TSyncAlienCellOptions& options = {}) = 0;
+
+    virtual TFuture<NChaosClient::TChaosLeasePtr> GetChaosLease(
+        NChaosClient::TChaosLeaseId chaosLeaseId,
+        const TGetChaosLeaseOptions& options = {}) = 0;
 
     virtual bool DoesOperationsArchiveExist() = 0;
 

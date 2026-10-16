@@ -1,6 +1,5 @@
 #include "chaos_cell.h"
 #include "chaos_cell_bundle.h"
-#include "config.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
@@ -9,6 +8,8 @@
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/server/master/object_server/object.h>
+
+#include <yt/yt/server/lib/chaos_server/config.h>
 
 #include <yt/yt/ytlib/tablet_client/public.h>
 #include <yt/yt/ytlib/tablet_client/config.h>
@@ -79,7 +80,10 @@ TCellDescriptor TChaosCell::GetDescriptor() const
     // Need to differentiate them to avoid peer reconfiguration when alien peer is updated.
     descriptor.ConfigVersion = GetDescriptorConfigVersion();
     const auto& chaosOptions = GetChaosOptions();
-    for (int peerId = 0; peerId < std::ssize(chaosOptions->Peers); ++peerId) {
+
+    int peerCount = std::ssize(chaosOptions->Peers);
+    descriptor.Peers.reserve(peerCount);
+    for (int peerId = 0; peerId < peerCount; ++peerId) {
         auto peerDescriptor = TCellPeerDescriptor(Peers_[peerId].Descriptor, true);
         if (IsAlienPeer(peerId)) {
             peerDescriptor.SetAlienCluster(*chaosOptions->Peers[peerId]->AlienCluster);

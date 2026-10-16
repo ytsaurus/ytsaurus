@@ -911,7 +911,7 @@ class TestCypressCommandsMulticell(object):
         # copy with retry at start
         client.config["proxy"]["retries"]["count"] = 3  # even than "interrupt_every"
         with inject_http_error(client, filter_url="api/v4/start_transaction", interrupt_every=0) as transaction_calls_cnt:
-            with inject_http_error(client, filter_url="api/v4/copy", interrupt_from=0, interrupt_till=3, interrupt_every=2, raise_connection_reset=True) as copy_calls_cnt:
+            with inject_http_error(client, filter_url="api/v4/copy", interrupt_from=0, interrupt_till=2, interrupt_every=2, raise_connection_reset=True) as copy_calls_cnt:
                 # 1 attempt (enable_cross_cell_copying=False) - fail by test
                 # 2 retry in make_formatted_request (enable_cross_cell_copying=False) - fail by server
                 # 3 switch to transaction mode with enable_cross_cell_copying=True - ok
@@ -943,7 +943,7 @@ class TestCypressCommandsMulticell(object):
         client.move(table_beyond_portal_2, table_beyond_portal)
 
         client.config["proxy"]["retries"]["count"] = 3  # even than "interrupt_every"
-        with inject_http_error(client, filter_url="api/v4/move", interrupt_from=0, interrupt_till=3, interrupt_every=2, raise_connection_reset=True) as calls_cnt:
+        with inject_http_error(client, filter_url="api/v4/move", interrupt_from=0, interrupt_till=2, interrupt_every=2, raise_connection_reset=True) as calls_cnt:
             client.move(table_beyond_portal, table_no_portal)
         assert not client.exists(table_beyond_portal)
         assert calls_cnt.filtered_total_calls == 3

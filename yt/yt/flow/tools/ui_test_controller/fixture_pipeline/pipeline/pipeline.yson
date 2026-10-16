@@ -1,0 +1,102 @@
+{
+    "spec" = {
+        "computations" = {
+            "source_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["source_records"];
+                "source_streams" = {
+                    "queue_source" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {};
+                    };
+                };
+            };
+            "keyed_transform" = {
+                "computation_class_name" = "NYT::NFlow::NUIScreenshotPipeline::TSlowPassthroughComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["source_records"];
+                "output_stream_ids" = ["transformed_records"];
+                "parameters" = {
+                    "processing_delay" = 10;
+                };
+            };
+            "queue_writer" = {
+                "computation_class_name" = "NYT::NFlow::TPassthroughComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["transformed_records"];
+                "output_stream_ids" = ["output_records"];
+                "sinks" = {
+                    "output_sink" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
+                        "input_stream_ids" = ["output_records"];
+                        "parameters" = {};
+                    };
+                    "audit_sink" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
+                        "input_stream_ids" = ["output_records"];
+                        "parameters" = {};
+                    };
+                };
+            };
+        };
+        "streams" = {
+            "source_records" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string"; required = %true;};
+                    {"name" = "value"; "type" = "string"; required = %true;};
+                ];
+            };
+            "transformed_records" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string"; required = %true;};
+                    {"name" = "value"; "type" = "string"; required = %true;};
+                ];
+            };
+            "output_records" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string"; required = %true;};
+                    {"name" = "value"; "type" = "string"; required = %true;};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "source_reader" = {
+                "batch_duration" = 250;
+                "max_rows_per_batch" = 50;
+                "source_streams" = {
+                    "queue_source" = {
+                        "parameters" = {};
+                    };
+                };
+            };
+            "keyed_transform" = {
+                "batch_duration" = 250;
+                "max_rows_per_batch" = 50;
+                "parameters" = {
+                    "desired_partition_count" = 3;
+                };
+            };
+            "queue_writer" = {
+                "batch_duration" = 250;
+                "max_rows_per_batch" = 50;
+                "parameters" = {
+                    "desired_partition_count" = 3;
+                };
+            };
+        };
+        "job_manager" = {
+            "use_cpu_aware_balancer" = %false;
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+    };
+}

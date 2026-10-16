@@ -76,9 +76,9 @@ public:
                 return guardOrError;
             }
 
-            YT_LOG_INFO("Intercepted chunk data created (ChunkId: %v, Mode: %v)",
-                chunkId,
-                Mode_);
+            YT_TLOG_INFO("Intercepted chunk data created")
+                .With("ChunkId", chunkId)
+                .With("Mode", Mode_);
 
             // Replace the old data, if any, by a new one.
             ChunkIdToData_[chunkId] = data;
@@ -121,7 +121,7 @@ private:
     const EInMemoryMode Mode_;
     IBootstrap* const Bootstrap_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     THashMap<TChunkId, TChunkDataPtr> ChunkIdToData_;
 };
 
@@ -166,14 +166,15 @@ public:
 private:
     IBootstrap* const Bootstrap_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SessionMapLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SessionMapLock_);
     THashMap<TInMemorySessionId, TInMemorySessionPtr> SessionMap_;
 
     DECLARE_RPC_SERVICE_METHOD(NTabletNode::NProto, StartSession)
     {
         auto inMemoryMode = FromProto<EInMemoryMode>(request->in_memory_mode());
 
-        context->SetRequestInfo("InMemoryMode: %v", inMemoryMode);
+        context->AnnotateRequest()
+            .With("InMemoryMode", inMemoryMode);
 
         auto sessionId = TInMemorySessionId::Create();
 
@@ -187,7 +188,8 @@ private:
 
         auto session = New<TInMemorySession>(inMemoryMode, Bootstrap_, std::move(lease));
 
-        YT_LOG_DEBUG("In-memory session started (SessionId: %v)", sessionId);
+        YT_TLOG_DEBUG("In-memory session started")
+            .With("SessionId", sessionId);
 
         {
             // Register session.
@@ -197,7 +199,8 @@ private:
 
         ToProto(response->mutable_session_id(), sessionId);
 
-        context->SetResponseInfo("SessionId: %v", sessionId);
+        context->AnnotateResponse()
+            .With("SessionId", sessionId);
 
         context->Reply();
     }
@@ -205,14 +208,10 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NTabletNode::NProto, FinishSession)
     {
         auto sessionId = FromProto<TInMemorySessionId>(request->session_id());
-        context->SetRequestInfo("SessionId: %v, TabletIds: %v, ChunkIds: %v",
-            sessionId,
-            MakeFormattableView(request->tablet_id(), [] (TStringBuilderBase* builder, const NYT::NProto::TGuid& tabletId) {
-                FormatValue(builder, FromProto<TTabletId>(tabletId), TStringBuf());
-            }),
-            MakeFormattableView(request->chunk_id(), [] (TStringBuilderBase* builder, const NYT::NProto::TGuid& chunkId) {
-                FormatValue(builder, FromProto<TChunkId>(chunkId), TStringBuf());
-            }));
+        context->AnnotateRequest()
+            .With("SessionId", sessionId)
+            .With("TabletIds", MakeFormattableView(request->tablet_id(), [] (TStringBuilderBase* builder, const NYT::NProto::TGuid& tabletId) { FormatValue(builder, FromProto<TTabletId>(tabletId), TStringBuf()); }))
+            .With("ChunkIds", MakeFormattableView(request->chunk_id(), [] (TStringBuilderBase* builder, const NYT::NProto::TGuid& chunkId) { FormatValue(builder, FromProto<TChunkId>(chunkId), TStringBuf()); }));
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
 
@@ -238,12 +237,11 @@ private:
                 }
 
                 if (!tabletSnapshot) {
-                    YT_LOG_DEBUG("Tablet snapshot not found (SessionId: %v, TabletId: %v, "
-                        "MountRevision: %v, TargetServantMountRevision: %v)",
-                        sessionId,
-                        tabletId,
-                        mountRevision,
-                        targetServantMountRevision);
+                    YT_TLOG_DEBUG("Tablet snapshot not found")
+                        .With("SessionId", sessionId)
+                        .With("TabletId", tabletId)
+                        .With("MountRevision", mountRevision)
+                        .With("TargetServantMountRevision", targetServantMountRevision);
 
                     continue;
                 }
@@ -252,9 +250,9 @@ private:
                 auto chunkData = session->ExtractChunkData(chunkId);
 
                 if (!chunkData) {
-                    YT_LOG_WARNING("Chunk data does not exist, dropping in-memory session (SessionId: %v, ChunkId: %v)",
-                        sessionId,
-                        chunkId);
+                    YT_TLOG_WARNING("Chunk data does not exist, dropping in-memory session")
+                        .With("SessionId", sessionId)
+                        .With("ChunkId", chunkId);
 
                     dropSession = true;
                     break;
@@ -296,10 +294,12 @@ private:
             }
 
             if (!dropSession) {
-                YT_LOG_DEBUG("In-memory session finished (SessionId: %v)", sessionId);
+                YT_TLOG_DEBUG("In-memory session finished")
+                    .With("SessionId", sessionId);
             }
         } else {
-            YT_LOG_DEBUG("In-memory session does not exist (SessionId: %v)", sessionId);
+            YT_TLOG_DEBUG("In-memory session does not exist")
+                .With("SessionId", sessionId);
         }
 
         context->Reply();
@@ -309,9 +309,9 @@ private:
     {
         auto sessionId = FromProto<TInMemorySessionId>(request->session_id());
 
-        context->SetRequestInfo("SessionId: %v, BlockCount: %v",
-            sessionId,
-            request->block_ids_size());
+        context->AnnotateRequest()
+            .With("SessionId", sessionId)
+            .With("BlockCount", request->block_ids_size());
 
         if (auto session = FindSession(sessionId)) {
             RenewSessionLease(session);
@@ -331,9 +331,9 @@ private:
                     if (SessionMap_.erase(sessionId) == 1) {
                         guard.Release();
 
-                        YT_LOG_WARNING("In-memory session is dropped due to memory pressure (SessionId: %v, ChunkId: %v)",
-                            sessionId,
-                            blockId.ChunkId);
+                        YT_TLOG_WARNING("In-memory session is dropped due to memory pressure")
+                            .With("SessionId", sessionId)
+                            .With("ChunkId", blockId.ChunkId);
                     }
 
                     dropped = true;
@@ -343,13 +343,14 @@ private:
 
             response->set_dropped(dropped);
         } else {
-            YT_LOG_DEBUG("In-memory session does not exist, blocks dropped (SessionId: %v)",
-                sessionId);
+            YT_TLOG_DEBUG("In-memory session does not exist, blocks dropped")
+                .With("SessionId", sessionId);
             response->set_dropped(true);
         }
 
 
-        context->SetResponseInfo("Dropped: %v", response->dropped());
+        context->AnnotateResponse()
+            .With("Dropped", response->dropped());
         context->Reply();
     }
 
@@ -357,7 +358,8 @@ private:
     {
         auto sessionId = FromProto<TInMemorySessionId>(request->session_id());
 
-        context->SetRequestInfo("SessionId: %v", sessionId);
+        context->AnnotateRequest()
+            .With("SessionId", sessionId);
 
         auto session = GetSessionOrThrow(sessionId);
         RenewSessionLease(session);
@@ -374,8 +376,8 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Session lease expired (SessionId: %v)",
-            sessionId);
+        YT_TLOG_INFO("Session lease expired")
+            .With("SessionId", sessionId);
 
         YT_VERIFY(SessionMap_.erase(sessionId) == 1);
     }

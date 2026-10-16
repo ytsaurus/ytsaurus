@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.79.1)
+VERSION(v1.83.2)
 
 SRCS(
     channel.go
@@ -16,4 +16,5 @@ END()
 RECURSE(
     e2e
     fakeserver
+    faketransport
 )

@@ -6,6 +6,9 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/phoenix/context.h>
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <yt/yt/core/ytree/node.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
@@ -20,9 +23,12 @@ struct TJobDescription
     NScheduler::TJobResources ResourceLimits;
     NControllerAgent::TJobId Id;
     NJobTrackerClient::EJobType Type;
-    TString State;
+    std::string State;
 
-    void Persist(const TStreamPersistenceContext& context);
+    using TSaveContext = NPhoenix::TSaveContext;
+    using TLoadContext = NPhoenix::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TJobDescription, 0x3a17c8d2);
 };
 
 void Deserialize(TJobDescription& value, NYTree::INodePtr node);
@@ -37,11 +43,14 @@ struct TOperationDescription
     TDuration Duration;
     std::string AuthenticatedUser;
     NScheduler::EOperationType Type;
-    TString State;
+    std::string State;
     bool InTimeframe;
     NYson::TYsonString Spec;
 
-    void Persist(const TStreamPersistenceContext& context);
+    using TSaveContext = NPhoenix::TSaveContext;
+    using TLoadContext = NPhoenix::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TOperationDescription, 0x7b4e91f5);
 };
 
 void Deserialize(TOperationDescription& value, NYTree::INodePtr node);

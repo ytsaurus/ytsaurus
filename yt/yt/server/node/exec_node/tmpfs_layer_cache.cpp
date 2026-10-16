@@ -34,13 +34,14 @@ using namespace NClusterNode;
 using namespace NContainers;
 using namespace NDataNode;
 using namespace NObjectClient;
+using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
 using namespace NFS;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ExecNodeLogger;
+constinit const auto Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +51,7 @@ TTmpfsLayerCache::TTmpfsLayerCache(
     TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
     IInvokerPtr controlInvoker,
     IMemoryUsageTrackerPtr memoryUsageTracker,
-    const TString& cacheName,
+    const std::string& cacheName,
     IPortoExecutorPtr portoExecutor,
     TAbsorbLayerCallback absorbLayer)
     : Config_(std::move(config))
@@ -111,25 +112,29 @@ TFuture<void> TTmpfsLayerCache::Initialize()
     auto path = CombinePaths(NFs::CurrentWorkingDirectory(), Format("%v_tmpfs_layers", CacheName_));
 
     {
-        YT_LOG_DEBUG("Cleanup tmpfs layer cache volume (Path: %v)", path);
-        auto error = WaitFor(PortoExecutor_->UnlinkVolume(TString(path), "self"));
+        YT_TLOG_DEBUG("Cleanup tmpfs layer cache volume")
+            .With("Path", path);
+        auto error = WaitFor(PortoExecutor_->UnlinkVolume(path, "self"));
         if (!error.IsOK()) {
-            YT_LOG_DEBUG(error, "Failed to unlink volume (Path: %v)", path);
+            YT_TLOG_DEBUG("Failed to unlink volume")
+                .With("Path", path)
+                .With(error);
         }
     }
 
     TFuture<void> result;
     try {
-        YT_LOG_DEBUG("Create tmpfs layer cache volume (Path: %v)", path);
+        YT_TLOG_DEBUG("Create tmpfs layer cache volume")
+            .With("Path", path);
 
         MakeDirRecursive(path, 0777);
 
-        THashMap<TString, TString> volumeProperties;
+        THashMap<std::string, std::string> volumeProperties;
         volumeProperties["backend"] = "tmpfs";
         volumeProperties["permissions"] = "0777";
         volumeProperties["space_limit"] = ToString(Config_->Capacity);
 
-        WaitFor(PortoExecutor_->CreateVolume(TString(path), volumeProperties))
+        WaitFor(PortoExecutor_->CreateVolume(path, volumeProperties))
             .ThrowOnError();
 
         MemoryUsageTracker_->Acquire(Config_->Capacity);
@@ -165,7 +170,7 @@ TFuture<void> TTmpfsLayerCache::Initialize()
 
         result = Initialized_.ToFuture();
     } catch (const std::exception& ex) {
-        auto error = TError("Failed to create %v tmpfs layer volume cache", CacheName_) << ex;
+        auto error = TError("Failed to create %v tmpfs layer volume cache", CacheName_).With(ex);
         SetAlert(error);
         // That's a fatal error; tmpfs layer cache is broken and we shouldn't start jobs on this node.
         result = MakeFuture(error);
@@ -177,7 +182,8 @@ TFuture<void> TTmpfsLayerCache::Disable(const TError& error, bool persistentDisa
 {
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
-    YT_LOG_WARNING("Disable tmpfs layer cache (Path: %v)", CacheName_);
+    YT_TLOG_WARNING("Disable tmpfs layer cache")
+        .With("Path", CacheName_);
 
     if (TmpfsLocation_) {
         MemoryUsageTracker_->Release(Config_->Capacity);
@@ -230,10 +236,13 @@ void TTmpfsLayerCache::SetAlert(const TError& error)
 {
     auto guard = Guard(AlertSpinLock_);
     if (error.IsOK() && !Alert_.IsOK()) {
-        YT_LOG_INFO("Tmpfs layer cache alert reset (CacheName: %v)", CacheName_);
+        YT_TLOG_INFO("Tmpfs layer cache alert reset")
+            .With("CacheName", CacheName_);
         UpdateFailedCounter_.Update(0);
     } else if (!error.IsOK()) {
-        YT_LOG_WARNING(error, "Tmpfs layer cache alert set (CacheName: %v)", CacheName_);
+        YT_TLOG_WARNING("Tmpfs layer cache alert set")
+            .With("CacheName", CacheName_)
+            .With(error);
         UpdateFailedCounter_.Update(1);
     }
 
@@ -246,9 +255,9 @@ void TTmpfsLayerCache::UpdateLayers()
 
     auto tag = TGuid::Create();
     auto Logger = ExecNodeLogger()
-        .WithTag("Tag: %v", tag);
+        .WithTag("Tag", tag);
 
-    YT_LOG_INFO("Started updating tmpfs layers");
+    YT_TLOG_INFO("Started updating tmpfs layers");
 
     TListNodeOptions listNodeOptions;
     listNodeOptions.ReadFrom = EMasterChannelKind::Cache;
@@ -263,7 +272,7 @@ void TTmpfsLayerCache::UpdateLayers()
             "Failed to list %v tmpfs layers directory %v",
             CacheName_,
             Config_->LayersDirectoryPath)
-            << listNodeRspOrError);
+            .With(listNodeRspOrError));
         return;
     }
     const auto& listNodeRsp = listNodeRspOrError.Value();
@@ -281,14 +290,13 @@ void TTmpfsLayerCache::UpdateLayers()
             NExecNode::EErrorCode::TmpfsLayerImportFailed,
             "Tmpfs layers directory %v has invalid structure",
             Config_->LayersDirectoryPath)
-            << ex);
+            .With(ex));
         return;
     }
 
-    YT_LOG_INFO(
-        "Listed tmpfs layers (CacheName: %v, Count: %v)",
-        CacheName_,
-        paths.size());
+    YT_TLOG_INFO("Listed tmpfs layers")
+        .With("CacheName", CacheName_)
+        .With("Count", paths.size());
 
     {
         THashMap<NYPath::TYPath, TFetchedArtifactKey> cachedLayerDescriptors;
@@ -324,7 +332,7 @@ void TTmpfsLayerCache::UpdateLayers()
     auto fetchResultsOrError = WaitFor(AllSucceeded(futures));
     if (!fetchResultsOrError.IsOK()) {
         SetAlert(TError(NExecNode::EErrorCode::TmpfsLayerImportFailed, "Failed to fetch tmpfs layer descriptions")
-            << fetchResultsOrError);
+            .With(fetchResultsOrError));
         return;
     }
 
@@ -340,7 +348,8 @@ void TTmpfsLayerCache::UpdateLayers()
         newArtifacts.insert(*fetchedKey.ArtifactKey);
     }
 
-    YT_LOG_DEBUG("Listed unique tmpfs layers (Count: %v)", newArtifacts.size());
+    YT_TLOG_DEBUG("Listed unique tmpfs layers")
+        .With("Count", newArtifacts.size());
 
     {
         std::vector<TArtifactKey> artifactsToRemove;
@@ -361,10 +370,8 @@ void TTmpfsLayerCache::UpdateLayers()
 
         guard.Release();
 
-        YT_LOG_INFO_IF(
-            !artifactsToRemove.empty(),
-            "Released cached tmpfs layers (Count: %v)",
-            artifactsToRemove.size());
+        YT_TLOG_INFO_IF(!artifactsToRemove.empty(), "Released cached tmpfs layers")
+            .With("Count", artifactsToRemove.size());
     }
 
     std::vector<TFuture<TLayerPtr>> newLayerFutures;
@@ -384,7 +391,7 @@ void TTmpfsLayerCache::UpdateLayers()
     auto newLayersOrError = WaitFor(AllSet(newLayerFutures));
     if (!newLayersOrError.IsOK()) {
         SetAlert(TError(NExecNode::EErrorCode::TmpfsLayerImportFailed, "Failed to import new tmpfs layers")
-            << newLayersOrError);
+            .With(newLayersOrError));
         return;
     }
 
@@ -394,20 +401,18 @@ void TTmpfsLayerCache::UpdateLayers()
         if (!newLayerOrError.IsOK()) {
             hasFailedLayer = true;
             SetAlert(TError(NExecNode::EErrorCode::TmpfsLayerImportFailed, "Failed to import new %v tmpfs layer", CacheName_)
-                << newLayerOrError);
+                .With(newLayerOrError));
             continue;
         }
 
         const auto& layer = newLayerOrError.Value();
-        YT_LOG_INFO(
-            "Successfully imported new tmpfs layer (LayerId: %v, ArtifactPath: %v, CacheName: %v)",
-            layer->GetMeta().Id,
-            layer->GetMeta().artifact_key().data_source().path(),
-            CacheName_);
+        YT_TLOG_INFO("Successfully imported new tmpfs layer")
+            .With("LayerId", layer->GetMeta().Id)
+            .With("ArtifactPath", layer->GetMeta().artifact_key().data_source().path())
+            .With("CacheName", CacheName_);
         hasImportedLayer = true;
 
-        TArtifactKey key;
-        key.CopyFrom(layer->GetMeta().artifact_key());
+        auto key = TArtifactKey(layer->GetMeta().artifact_key());
 
         auto guard = Guard(DataSpinLock_);
         CachedLayers_[key] = layer;
@@ -424,7 +429,7 @@ void TTmpfsLayerCache::UpdateLayers()
         Initialized_.TrySet();
     }
 
-    YT_LOG_INFO("Finished updating tmpfs layers");
+    YT_TLOG_INFO("Finished updating tmpfs layers");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

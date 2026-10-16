@@ -11,11 +11,12 @@ PEERDIR(
     library/cpp/getopt
     library/cpp/yt/phdr_cache
     yt/yt/core
-    yt/yt/ytlib
     yt/yt/library/fusion
     yt/yt/library/program
     yt/yt/library/server_program
+    yt/yt/server/lib/cypress_proxy
     yt/yt/server/master
+    yt/yt/ytlib
 )
 
 END()

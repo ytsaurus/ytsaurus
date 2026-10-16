@@ -17,6 +17,7 @@
 #include <yt/yt/ytlib/object_client/config.h>
 #include <yt/yt/ytlib/object_client/caching_object_service.h>
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
+#include <yt/yt/ytlib/object_client/private.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -34,7 +35,7 @@
 #include <yt/yt/core/rpc/local_channel.h>
 #include <yt/yt/core/rpc/dispatcher.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NCellMasterClient {
 
@@ -152,8 +153,8 @@ public:
 
         cellTag = cellTag == PrimaryMasterCellTagSentinel ? GetPrimaryMasterCellTag() : cellTag;
         auto guard = ReaderGuard(SpinLock_);
-        auto it = CellWrappedChannelMap_.find(cellTag);
-        if (it == CellWrappedChannelMap_.end()) {
+        auto it = RetryingCellChannelMap_.find(cellTag);
+        if (it == RetryingCellChannelMap_.end()) {
             return nullptr;
         }
         return it->second[kind];
@@ -178,7 +179,7 @@ public:
         return GetMasterChannelOrThrow(kind, CellTagFromId(cellId));
     }
 
-    IChannelPtr FindNakedMasterChannel(EMasterChannelKind kind, TCellTag cellTag) override
+    IChannelPtr FindNonRetryingMasterChannel(EMasterChannelKind kind, TCellTag cellTag) override
     {
         YT_VERIFY(kind == EMasterChannelKind::Leader || kind == EMasterChannelKind::Follower);
 
@@ -187,21 +188,21 @@ public:
         }
 
         auto guard = ReaderGuard(SpinLock_);
-        auto it = CellNakedChannelMap_.find(cellTag);
-        if (it == CellNakedChannelMap_.end()) {
+        auto it = NonRetryingCellChannelMap_.find(cellTag);
+        if (it == NonRetryingCellChannelMap_.end()) {
             return nullptr;
         }
         return it->second[kind];
     }
 
-    IChannelPtr GetNakedMasterChannelOrThrow(EMasterChannelKind kind, TCellTag cellTag) override
+    IChannelPtr GetNonRetryingMasterChannelOrThrow(EMasterChannelKind kind, TCellTag cellTag) override
     {
         YT_VERIFY(kind == EMasterChannelKind::Leader || kind == EMasterChannelKind::Follower);
 
         if (cellTag == PrimaryMasterCellTagSentinel) {
             cellTag = GetPrimaryMasterCellTag();
         }
-        if (auto channel = FindNakedMasterChannel(kind, cellTag)) {
+        if (auto channel = FindNonRetryingMasterChannel(kind, cellTag)) {
             return channel;
         }
         ThrowUnknownMasterCellTag(cellTag);
@@ -263,9 +264,9 @@ public:
             for (auto protoRole : item.roles()) {
                 auto role = NYT::FromProto<EMasterCellRole>(protoRole);
                 if (role == EMasterCellRole::Unknown) {
-                    YT_LOG_ALERT("Skipped an unknown cell role while synchronizing master cell directory (MasterCellRole: %v, CellTag: %v)",
-                        protoRole,
-                        cellTag);
+                    YT_TLOG_ALERT("Skipped an unknown cell role while synchronizing master cell directory")
+                        .With("MasterCellRole", protoRole)
+                        .With("CellTag", cellTag);
                     continue;
                 }
                 roles |= EMasterCellRoles(role);
@@ -291,10 +292,9 @@ public:
         auto oldSecondaryMasterConnectionConfigs = GetSecondaryMasterConnectionConfigs();
 
         if (ClusterMasterCompositionChanged(oldSecondaryMasterConnectionConfigs, newSecondaryMasterConnectionConfigs)) {
-            YT_LOG_INFO("Cluster membership configuration has changed, starting reconfiguration "
-                "(SecondaryMasterCellTags: %v, ReceivedSecondaryMasterCellTags: %v)",
-                oldSecondaryMasterCellTags,
-                newSecondaryMasterCellTags);
+            YT_TLOG_INFO("Cluster membership configuration has changed, starting reconfiguration")
+                .With("SecondaryMasterCellTags", oldSecondaryMasterCellTags)
+                .With("ReceivedSecondaryMasterCellTags", newSecondaryMasterCellTags);
 
             ReconfigureMasterCellDirectory(newSecondaryMasterConnectionConfigs);
 
@@ -323,11 +323,11 @@ public:
             if (Config_->PrimaryMaster->Addresses) {
                 auto expectedPrimaryCellAddresses = *Config_->PrimaryMaster->Addresses;
                 const auto& actualPrimaryCellAddresses = cellTagToAddresses[PrimaryMasterCellTag_];
-                YT_LOG_WARNING_UNLESS(
+                YT_TLOG_WARNING_UNLESS(
                     expectedPrimaryCellAddresses == actualPrimaryCellAddresses,
-                    "Synchronized primary master cell addresses do not match, connection config is probably incorrect (ConfigPrimaryMasterAddresses: %v, SynchronizedPrimaryMasterAddresses: %v)",
-                    expectedPrimaryCellAddresses,
-                    actualPrimaryCellAddresses);
+                    "Synchronized primary master cell addresses do not match, connection config is probably incorrect")
+                    .With("ConfigPrimaryMasterAddresses", expectedPrimaryCellAddresses)
+                    .With("SynchronizedPrimaryMasterAddresses", actualPrimaryCellAddresses);
 
                 for (const auto& [cellTag, cellConfig] : oldSecondaryMasterConnectionConfigs) {
                     if (!newSecondaryMasterConnectionConfigs.contains(cellTag)) {
@@ -337,20 +337,19 @@ public:
                         const auto& expectedCellAddresses = *cellConfig->Addresses;
                         const auto& actualCellAddresses = cellTagToAddresses[CellTagFromId(cellConfig->CellId)];
 
-                        YT_LOG_WARNING_UNLESS(
+                        YT_TLOG_WARNING_UNLESS(
                             expectedCellAddresses == actualCellAddresses,
-                            "Synchronized secondary master cell addresses do not match, connection config is probably incorrect "
-                            "(CellTag: %v, ConfigSecondaryMasterAddresses: %v, SynchronizedSecondaryMasterAddresses: %v)",
-                            cellTag,
-                            expectedCellAddresses,
-                            actualCellAddresses);
+                            "Synchronized secondary master cell addresses do not match, connection config is probably incorrect")
+                            .With("CellTag", cellTag)
+                            .With("ConfigSecondaryMasterAddresses", expectedCellAddresses)
+                            .With("SynchronizedSecondaryMasterAddresses", actualCellAddresses);
                     }
                 }
             }
         }
 
-        YT_LOG_DEBUG("Successfully synchronized master cell roles (CellTagToRoles: %v)",
-            cellTagToRoles);
+        YT_TLOG_DEBUG("Successfully synchronized master cell roles")
+            .With("CellTagToRoles", cellTagToRoles);
 
         {
             auto guard = WriterGuard(SpinLock_);
@@ -383,7 +382,7 @@ public:
             }
         }
 
-        YT_LOG_DEBUG("Default master cell roles set");
+        YT_TLOG_DEBUG("Default master cell roles set");
     }
 
 private:
@@ -397,9 +396,9 @@ private:
     const NNative::TConnectionOptions Options_;
     const NHiveClient::ICellDirectoryPtr HiveCellDirectory_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
-    THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> CellWrappedChannelMap_;
-    THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> CellNakedChannelMap_;
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
+    THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> RetryingCellChannelMap_;
+    THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> NonRetryingCellChannelMap_;
     THashMap<TCellTag, EMasterCellRoles> CellTagToRoles_;
     TEnumIndexedArray<EMasterCellRole, TCellTagList> RoleToCellTags_;
     TRandomGenerator RandomGenerator_;
@@ -438,10 +437,10 @@ private:
             } else if (const auto& oldAddresses = GetOrCrash(SecondaryMasterConnectionConfigs_, cellTag)->Addresses;
                 secondaryMaster->Addresses != oldAddresses)
             {
-                YT_LOG_INFO("Master cell peer addresses changed and will be merged (CellTag: %v, NewCellAddresses: %v, OldCellAddresses: %v)",
-                    cellTag,
-                    secondaryMaster->Addresses,
-                    oldAddresses);
+                YT_TLOG_INFO("Master cell peer addresses changed and will be merged")
+                    .With("CellTag", cellTag)
+                    .With("NewCellAddresses", secondaryMaster->Addresses)
+                    .With("OldCellAddresses", oldAddresses);
 
                 std::optional<std::vector<std::string>> mergedAddresses;
                 if (oldAddresses) {
@@ -487,14 +486,14 @@ private:
 
             auto [newSecondaryMasterConfigs, changedSecondaryMasterConfigs, removedSecondaryMasterCellTags] = BuildMasterCellDirectoryUpdate(secondaryMasterConnectionConfigs);
 
-            YT_LOG_ALERT_UNLESS(
+            YT_TLOG_ALERT_UNLESS(
                 removedSecondaryMasterCellTags.empty(),
-                "Received probably stale configuration of secondary masters, where some master cells were removed, will not apply removal (RemovedCellTags: %v)",
-                removedSecondaryMasterCellTags);
+                "Received probably stale configuration of secondary masters, where some master cells were removed, will not apply removal")
+                .With("RemovedCellTags", removedSecondaryMasterCellTags);
 
             for (const auto& [cellTag, secondaryMaster] : newSecondaryMasterConfigs) {
-                YT_LOG_INFO("New master cell appeared, initializing channels (CellTag: %v)",
-                    cellTag);
+                YT_TLOG_INFO("New master cell appeared, initializing channels")
+                    .With("CellTag", cellTag);
                 InitMasterChannels(secondaryMaster);
                 if (Config_->EnableHiveCellDirectoryReconfigurationOnNewMasterCells && HiveCellDirectory_) {
                     HiveCellDirectory_->ReconfigureCell(secondaryMaster);
@@ -505,8 +504,8 @@ private:
 
             }
             for (const auto& [cellTag, secondaryMaster] : changedSecondaryMasterConfigs) {
-                YT_LOG_INFO("Existing master cell appeared, reinitializing channels (CellTag: %v)",
-                    cellTag);
+                YT_TLOG_INFO("Existing master cell appeared, reinitializing channels")
+                    .With("CellTag", cellTag);
                 RemoveMasterChannels(cellTag);
                 InitMasterChannels(secondaryMaster);
                 if (Config_->EnableHiveCellDirectoryReconfigurationOnChangedMasterCells && HiveCellDirectory_) {
@@ -514,18 +513,17 @@ private:
                 }
                 auto [it, emplaced] = SecondaryMasterConnectionConfigs_.emplace(cellTag, secondaryMaster);
                 if (emplaced) {
-                    YT_LOG_ALERT("No config was found in master cell directory for existing master cell (CellTag: %v)",
-                        cellTag);
+                    YT_TLOG_ALERT("No config was found in master cell directory for existing master cell")
+                        .With("CellTag", cellTag);
                 } else {
                     it->second = secondaryMaster;
                 }
             }
 
-            YT_LOG_DEBUG("Finished reconfiguration of cell cluster membership "
-                "(NewCellTags: %v, ChangedCellTags: %v, RemovedCellTags: %v)",
-                GetMasterCellTags(newSecondaryMasterConfigs),
-                GetMasterCellTags(changedSecondaryMasterConfigs),
-                removedSecondaryMasterCellTags);
+            YT_TLOG_DEBUG("Finished reconfiguration of cell cluster membership")
+                .With("NewCellTags", GetMasterCellTags(newSecondaryMasterConfigs))
+                .With("ChangedCellTags", GetMasterCellTags(changedSecondaryMasterConfigs))
+                .With("RemovedCellTags", removedSecondaryMasterCellTags);
 
             CellDirectoryChanged_.Fire(
                 newSecondaryMasterConfigs,
@@ -571,8 +569,8 @@ private:
                 Config_->MasterCache->MasterCacheDiscoveryPeriodSplay,
                 MakeWeak(this),
                 ENodeRole::MasterCache,
-                BIND(&TCellDirectory::CreatePeerChannelFromAddresses, ChannelFactory_, masterCacheConfig, EPeerKind::Follower, Options_));
-            CellWrappedChannelMap_[cellTag][EMasterChannelKind::Cache] = channel;
+                BIND(&TCellDirectory::CreateRetryingPeerChannelFromAddresses, ChannelFactory_, masterCacheConfig, EPeerKind::Follower, Options_));
+            RetryingCellChannelMap_[cellTag][EMasterChannelKind::Cache] = channel;
         } else {
             InitMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, EPeerKind::Follower);
         }
@@ -581,7 +579,7 @@ private:
             auto cachingObjectService = CreateCachingObjectService(
                 Config_->CachingObjectService,
                 NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-                CellWrappedChannelMap_[cellTag][EMasterChannelKind::Cache],
+                RetryingCellChannelMap_[cellTag][EMasterChannelKind::Cache],
                 Cache_,
                 config->CellId,
                 ObjectClientLogger(),
@@ -590,7 +588,7 @@ private:
             //! NB: Don't check for duplicates on emplace to prevent "race" between planned update of master cell directory and scheduled out of band.
             CachingObjectServices_.emplace(cellTag, cachingObjectService);
             RpcServer_->RegisterService(cachingObjectService);
-            CellWrappedChannelMap_[cellTag][EMasterChannelKind::ClientSideCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
+            RetryingCellChannelMap_[cellTag][EMasterChannelKind::ClientSideCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
         }
     }
 
@@ -602,11 +600,11 @@ private:
         YT_ASSERT_WRITER_SPINLOCK_AFFINITY(SpinLock_);
 
         auto cellTag = CellTagFromId(config->CellId);
-        auto [nakedChannel, retryingChannelWithDefaultTimeout] = CreatePeerChannel(ChannelFactory_, config, peerKind, Options_);
+        auto [nonRetryingChannel, retryingChannel] = CreatePeerChannels(ChannelFactory_, config, peerKind, Options_);
 
-        CellWrappedChannelMap_[cellTag][channelKind] = std::move(retryingChannelWithDefaultTimeout);
+        RetryingCellChannelMap_[cellTag][channelKind] = std::move(retryingChannel);
         if (channelKind == EMasterChannelKind::Leader || channelKind == EMasterChannelKind::Follower) {
-            CellNakedChannelMap_[cellTag][channelKind] = std::move(nakedChannel);
+            NonRetryingCellChannelMap_[cellTag][channelKind] = std::move(nonRetryingChannel);
         }
     }
 
@@ -622,11 +620,11 @@ private:
             CachingObjectServices_.erase(cachingObjectServiceIt);
         }
 
-        EraseOrCrash(CellWrappedChannelMap_, cellTag);
-        EraseOrCrash(CellNakedChannelMap_, cellTag);
+        EraseOrCrash(RetryingCellChannelMap_, cellTag);
+        EraseOrCrash(NonRetryingCellChannelMap_, cellTag);
     }
 
-    static IChannelPtr CreatePeerChannelFromAddresses(
+    static IChannelPtr CreateRetryingPeerChannelFromAddresses(
         IChannelFactoryPtr channelFactory,
         const TMasterConnectionConfigPtr& config,
         EPeerKind peerKind,
@@ -638,17 +636,17 @@ private:
             peerChannelConfig->Addresses = discoveredAddresses;
         }
 
-        return CreatePeerChannel(channelFactory, peerChannelConfig, peerKind, options)
-            .RetryingChannelWithDefaultTimeout;
+        return CreatePeerChannels(channelFactory, peerChannelConfig, peerKind, options)
+            .RetryingChannel;
     }
 
     struct TPeerChannel
     {
-        IChannelPtr NakedChannel;
-        IChannelPtr RetryingChannelWithDefaultTimeout;
+        IChannelPtr NonRetryingChannel;
+        IChannelPtr RetryingChannel;
     };
 
-    static TPeerChannel CreatePeerChannel(
+    static TPeerChannel CreatePeerChannels(
         IChannelFactoryPtr channelFactory,
         const TMasterConnectionConfigPtr& config,
         EPeerKind kind,
@@ -663,12 +661,12 @@ private:
                 effectiveError = &error.InnerErrors().front();
             }
 
-            if (effectiveError->GetNonTrivialCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
+            if (effectiveError->FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError)) {
                 return true;
             }
 
             if (options.RetryRequestQueueSizeLimitExceeded &&
-                effectiveError->GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)
+                effectiveError->FindMatching(NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded))
             {
                 return true;
             }
@@ -677,11 +675,9 @@ private:
         });
 
         auto nakedChannel = NHydra::CreatePeerChannel(config, channelFactory, kind);
-        auto channel = CreateRetryingChannel(config, nakedChannel, isRetriableError);
-        channel = CreateDefaultTimeoutChannel(std::move(channel), config->RpcTimeout);
         return {
-            .NakedChannel = std::move(nakedChannel),
-            .RetryingChannelWithDefaultTimeout = std::move(channel),
+            .NonRetryingChannel = CreateDefaultTimeoutChannel(nakedChannel, config->RpcTimeout),
+            .RetryingChannel = CreateDefaultTimeoutChannel(CreateRetryingChannel(config, nakedChannel, isRetriableError), config->RpcTimeout),
         };
     }
 };

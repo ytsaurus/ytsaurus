@@ -31,6 +31,5 @@ target_link_libraries(restricted-boost-align INTERFACE
   restricted-boost-assert
   restricted-boost-config
   restricted-boost-core
-  restricted-boost-static_assert
 )
 

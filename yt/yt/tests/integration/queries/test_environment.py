@@ -1,6 +1,6 @@
-from conftest_lib.conftest_queries import QueryTracker
+from .base import QueriesTestBase
 
-from yt_env_setup import YTEnvSetup
+from conftest_lib.conftest_queries import QueryTracker
 
 from yt.environment.init_query_tracker_state import get_latest_version, create_tables_required_version, run_migration
 
@@ -18,8 +18,7 @@ import yt_error_codes
 import pytest
 
 
-@pytest.mark.enabled_multidaemon
-class TestEnvironment(YTEnvSetup):
+class TestEnvironment(QueriesTestBase):
     NUM_QUERY_TRACKERS = 3
 
     DELTA_DRIVER_CONFIG = {
@@ -71,8 +70,7 @@ class TestEnvironment(YTEnvSetup):
                         "Min required state version is not met")
 
 
-@pytest.mark.enabled_multidaemon
-class TestMigration(YTEnvSetup):
+class TestMigration(QueriesTestBase):
     NUM_QUERY_TRACKERS = 1
     NUM_SCHEDULERS = 1
     NUM_MASTERS = 1
@@ -170,6 +168,8 @@ class TestMigration(YTEnvSetup):
             "finished_queries",
             "finished_query_results",
             "active_queries",
+            "query_progresses",
+            "queries_by_user_and_mutation_id",
         ]
 
         for table in tables:
@@ -664,7 +664,7 @@ def spyt_home():
     create("map_node", "//home/spark", recursive=True)
 
 
-class TestQueryTrackerSpytInfo(YTEnvSetup):
+class TestQueryTrackerSpytInfo(QueriesTestBase):
     QUERY_TRACKER_DYNAMIC_CONFIG = {
         "spyt_engine": {
             "proxy_config": {

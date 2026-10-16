@@ -1,0 +1,6 @@
+25.2-to-25.3:
+  version_filter:
+    ytsaurus: "25.2"
+  upgrade_to:
+    ytsaurus: "25.3"
+    operator: "0.26.0"

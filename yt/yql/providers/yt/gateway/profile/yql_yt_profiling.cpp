@@ -109,6 +109,12 @@ public:
         return YQL_PROFILE_BIND_VAL(future, profileScope);
     }
 
+    TFuture<TUnlockTablesResult> UnlockTables(TUnlockTablesOptions&& options) final {
+        auto profileScope = YQL_PROFILE_FUNC_VAL(TRACE);
+        auto future = Slave_->UnlockTables(std::move(options));
+        return YQL_PROFILE_BIND_VAL(future, profileScope);
+    }
+
     TFuture<TDropTrackablesResult> DropTrackables(TDropTrackablesOptions&& options) final {
         auto profileScope = YQL_PROFILE_FUNC_VAL(TRACE);
         auto future = Slave_->DropTrackables(std::move(options));
@@ -138,6 +144,10 @@ public:
 
     TString GetClusterServer(const TString& cluster) const final {
         return Slave_->GetClusterServer(cluster);
+    }
+
+    TString GetClusterYtName(const TString& cluster) const final {
+        return Slave_->GetClusterYtName(cluster);
     }
 
     NYT::TRichYPath GetRealTable(const TString& sessionId, const TString& cluster, const TString& table, ui32 epoch, const TString& tmpFolder, bool temp, bool anonymous) const final {
@@ -210,6 +220,11 @@ public:
     NThreading::TFuture<TDownloadTableResult> DownloadTable(TDownloadTableOptions&& options) override {
         YQL_PROFILE_FUNC(TRACE);
         return Slave_->DownloadTable(std::move(options));
+    }
+
+    NThreading::TFuture<TUploadFilesToCacheResult> UploadFilesToCache(TUploadFilesToCacheOptions&& options) override {
+        YQL_PROFILE_FUNC(TRACE);
+        return Slave_->UploadFilesToCache(std::move(options));
     }
 
     IYtTokenResolver::TPtr GetYtTokenResolver() const override {

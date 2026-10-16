@@ -10,9 +10,12 @@ Options explanation:
 """
 
 from yt_odin_checks.lib.check_runner import main
+from yt_odin_checks.lib.queue_agent_helpers import (
+    BANNED_ATTRIBUTE_NAME,
+    MAINTENANCE_ATTRIBUTE_NAME,
+    is_attribute_true,
+)
 from yt.wrapper import YtClient
-
-from yt import yson
 
 from collections import namedtuple, defaultdict
 from dacite import from_dict
@@ -21,7 +24,7 @@ import datetime
 from logging import Logger
 import pytz
 
-BANNED_ATTRIBUTE_NAME = "banned"
+
 DEFAULT_MAX_LAG_MS = 60 * 1000
 
 
@@ -88,7 +91,7 @@ class QueueAgentControllerLivenessChecker:
         self.last_unreachable_exception = None
 
     def check(self):
-        queue_agent_instances = self.client.list("//sys/queue_agents/instances", attributes=[BANNED_ATTRIBUTE_NAME])
+        queue_agent_instances = self.client.list("//sys/queue_agents/instances", attributes=[BANNED_ATTRIBUTE_NAME, MAINTENANCE_ATTRIBUTE_NAME])
 
         now = datetime.datetime.now(pytz.UTC)
         self.logger.info(f"Using {now} as now() value")
@@ -96,12 +99,12 @@ class QueueAgentControllerLivenessChecker:
 
         for yson_instance in queue_agent_instances:
             instance = str(yson_instance)
-            if yson_instance.has_attributes() and BANNED_ATTRIBUTE_NAME in yson_instance.attributes:
-                attribute_value = yson_instance.attributes[BANNED_ATTRIBUTE_NAME]
-                # NB(apachee): Check type to match the behavior of queue agent sharding manager (it ignores anything except bool).
-                if isinstance(attribute_value, yson.YsonBoolean) and attribute_value:
-                    self.logger.info(f"Skipping banned instance {instance}")
-                    continue
+            if is_attribute_true(yson_instance, BANNED_ATTRIBUTE_NAME):
+                self.logger.info(f"Skipping banned instance {instance}")
+                continue
+            if is_attribute_true(yson_instance, MAINTENANCE_ATTRIBUTE_NAME):
+                self.logger.info(f"Skipping instance {instance} under maintenance")
+                continue
 
             try:
                 controller_info = ControllerInfo(self.client.get(f"//sys/queue_agents/instances/{instance}/orchid/queue_agent/controller_info"))

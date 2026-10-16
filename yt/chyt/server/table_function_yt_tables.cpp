@@ -167,7 +167,9 @@ public:
             }
 
             if (TablePaths_.size() > maxPaths) {
-                THROW_ERROR_EXCEPTION("Too many tables to read in ytTables (MaxTables: %v)", maxPaths);
+                THROW_ERROR_EXCEPTION("Too many tables to read in ytTables: up to %v tables allowed, %v given",
+                    maxPaths,
+                    TablePaths_.size());
             }
         }
     }
@@ -219,8 +221,7 @@ private:
             queryContext->SessionSettings->DynamicTable->EnableDynamicStoreRead,
             queryContext->Logger);
 
-        DB::StorageID storageId{"YT", BuildStorageName(tables)};
-        return CreateStorageDistributor(context, std::move(tables), std::move(storageId));
+        return CreateStorageDistributor(context, std::move(tables));
     }
 
     const char* getStorageTypeName() const override

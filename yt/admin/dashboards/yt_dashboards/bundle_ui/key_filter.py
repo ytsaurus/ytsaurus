@@ -18,10 +18,10 @@ def build_bundle_key_filter_rowset():
         .row()
             .cell("Key filter cache hit count rate", MultiSensor(
                 filter_cache("hit_count.rate"),
-                filter_cache("miss_count.rate"),
+                filter_cache("missed_count.rate"),
             ))
             .cell("Key filter cache hit weight rate", MultiSensor(
                 filter_cache("hit_weight.rate"),
-                filter_cache("miss_weight.rate"),
+                filter_cache("missed_weight.rate"),
             ))
     ).owner

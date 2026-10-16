@@ -23,7 +23,7 @@ import time
 import weakref
 from typing import Any, Optional
 
-from pymongo import _csot
+from pymongo import _csot, _op_id
 from pymongo._asyncio_task import create_task
 from pymongo.lock import _create_lock
 
@@ -87,15 +87,16 @@ class AsyncPeriodicExecutor:
         """Execute the target function soon."""
         self._event = True
 
-    def update_interval(self, new_interval: int) -> None:
+    def update_interval(self, new_interval: float) -> None:
         self._interval = new_interval
 
     def skip_sleep(self) -> None:
         self._skip_sleep = True
 
     async def _run(self) -> None:
-        # The CSOT contextvars must be cleared inside the executor task before execution begins
+        # The CSOT and op id contextvars must be cleared inside the executor task before execution begins
         _csot.reset_all()
+        _op_id.reset()
         while not self._stopped:
             if self._task and self._task.cancelling():  # type: ignore[unused-ignore, attr-defined]
                 raise asyncio.CancelledError
@@ -217,7 +218,7 @@ class PeriodicExecutor:
         """Execute the target function soon."""
         self._event = True
 
-    def update_interval(self, new_interval: int) -> None:
+    def update_interval(self, new_interval: float) -> None:
         self._interval = new_interval
 
     def skip_sleep(self) -> None:

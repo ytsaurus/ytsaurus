@@ -10,8 +10,8 @@ namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, SequoiaClientProfiler, "/sequoia_client");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, SequoiaClientLogger, "SequoiaClient");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, SequoiaClientProfiler, "/sequoia_client");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, SequoiaClientLogger, "SequoiaClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 

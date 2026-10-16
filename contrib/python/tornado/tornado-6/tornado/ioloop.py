@@ -50,7 +50,7 @@ import typing
 from typing import Union, Any, Type, Optional, Callable, TypeVar, Tuple, Awaitable
 
 if typing.TYPE_CHECKING:
-    from typing import Dict, List, Set  # noqa: F401
+    from typing import Dict, List, Set, TypedDict  # noqa: F401
 
     from typing_extensions import Protocol
 else:
@@ -116,9 +116,6 @@ class IOLoop(Configurable):
         if __name__ == "__main__":
             asyncio.run(main())
 
-    .. testoutput::
-       :hide:
-
     Most applications should not attempt to construct an `IOLoop` directly,
     and instead initialize the `asyncio` event loop and use `IOLoop.current()`.
     In some cases, such as in test frameworks when initializing an `IOLoop`
@@ -181,7 +178,7 @@ class IOLoop(Configurable):
             impl = import_object(impl)
         if isinstance(impl, type) and not issubclass(impl, BaseAsyncIOLoop):
             raise RuntimeError("only AsyncIOLoop is allowed when asyncio is available")
-        super(IOLoop, cls).configure(impl, **kwargs)
+        super().configure(impl, **kwargs)
 
     @staticmethod
     def instance() -> "IOLoop":
@@ -494,7 +491,11 @@ class IOLoop(Configurable):
         .. versionchanged:: 6.2
            ``tornado.util.TimeoutError`` is now an alias to ``asyncio.TimeoutError``.
         """
-        future_cell = [None]  # type: List[Optional[Future]]
+        if typing.TYPE_CHECKING:
+            FutureCell = TypedDict(  # noqa: F841
+                "FutureCell", {"future": Optional[Future], "timeout_called": bool}
+            )
+        future_cell = {"future": None, "timeout_called": False}  # type: FutureCell
 
         def run() -> None:
             try:
@@ -505,38 +506,45 @@ class IOLoop(Configurable):
                     result = convert_yielded(result)
             except Exception:
                 fut = Future()  # type: Future[Any]
-                future_cell[0] = fut
+                future_cell["future"] = fut
                 future_set_exc_info(fut, sys.exc_info())
             else:
                 if is_future(result):
-                    future_cell[0] = result
+                    future_cell["future"] = result
                 else:
                     fut = Future()
-                    future_cell[0] = fut
+                    future_cell["future"] = fut
                     fut.set_result(result)
-            assert future_cell[0] is not None
-            self.add_future(future_cell[0], lambda future: self.stop())
+            assert future_cell["future"] is not None
+            self.add_future(future_cell["future"], lambda future: self.stop())
 
         self.add_callback(run)
         if timeout is not None:
 
             def timeout_callback() -> None:
+                # signal that timeout is triggered
+                future_cell["timeout_called"] = True
                 # If we can cancel the future, do so and wait on it. If not,
                 # Just stop the loop and return with the task still pending.
                 # (If we neither cancel nor wait for the task, a warning
                 # will be logged).
-                assert future_cell[0] is not None
-                if not future_cell[0].cancel():
+                assert future_cell["future"] is not None
+                if not future_cell["future"].cancel():
                     self.stop()
 
             timeout_handle = self.add_timeout(self.time() + timeout, timeout_callback)
         self.start()
         if timeout is not None:
             self.remove_timeout(timeout_handle)
-        assert future_cell[0] is not None
-        if future_cell[0].cancelled() or not future_cell[0].done():
-            raise TimeoutError("Operation timed out after %s seconds" % timeout)
-        return future_cell[0].result()
+        assert future_cell["future"] is not None
+        if future_cell["future"].cancelled() or not future_cell["future"].done():
+            if future_cell["timeout_called"]:
+                raise TimeoutError("Operation timed out after %s seconds" % timeout)
+            else:
+                # timeout not called; maybe stop() was called explicitly
+                # or some other cancellation
+                raise RuntimeError("Event loop stopped before Future completed.")
+        return future_cell["future"].result()
 
     def time(self) -> float:
         """Returns the current time according to the `IOLoop`'s clock.
@@ -557,7 +565,7 @@ class IOLoop(Configurable):
         deadline: Union[float, datetime.timedelta],
         callback: Callable,
         *args: Any,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> object:
         """Runs the ``callback`` at the time ``deadline`` from the I/O loop.
 
@@ -708,7 +716,7 @@ class IOLoop(Configurable):
         self,
         executor: Optional[concurrent.futures.Executor],
         func: Callable[..., _T],
-        *args: Any
+        *args: Any,
     ) -> "Future[_T]":
         """Runs a function in a ``concurrent.futures.Executor``. If
         ``executor`` is ``None``, the IO loop's default executor will be used.
@@ -822,7 +830,7 @@ class IOLoop(Configurable):
         self._pending_tasks.discard(f)
 
 
-class _Timeout(object):
+class _Timeout:
     """An IOLoop timeout, a UNIX timestamp and a callback"""
 
     # Reduce memory overhead when there are lots of pending callbacks
@@ -851,7 +859,7 @@ class _Timeout(object):
         return self.tdeadline <= other.tdeadline
 
 
-class PeriodicCallback(object):
+class PeriodicCallback:
     """Schedules the given callback to be called periodically.
 
     The callback is called every ``callback_time`` milliseconds when

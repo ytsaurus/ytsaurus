@@ -61,7 +61,7 @@ public:
                 .Item("peer_id").Value(PeerId_)
             .EndMap()))
         , UnavailableError_(TError(NRpc::EErrorCode::Unavailable, "Peer is not available")
-            << TErrorAttribute("endpoint", EndpointDescription_))
+            .With("endpoint", EndpointDescription_))
     { }
 
     const std::string& GetEndpointDescription() const override
@@ -85,7 +85,7 @@ public:
         if (!connection) {
             return MakeFuture<IChannelPtr>(
                     TError(NRpc::EErrorCode::Unavailable, "Cannot find such cluster")
-                        << TErrorAttribute("cluster", Cluster_));
+                        .With("cluster", Cluster_));
         }
 
         const auto& channelFactory = connection->GetChannelFactory();

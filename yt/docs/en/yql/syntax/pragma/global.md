@@ -38,7 +38,7 @@ The prefix is not added if the table name is an absolute path (starts with /).
 | String | — | Static |
 | String, the name of the prefix appended to all modules | "" | Static |
 
-Importing all UDFs from the specified library. For the pragma to work, the library must be attached to the query using the ![ico](../../../../images/qt-ui-attach.png =30x30) icon. Please note that the library must be shared library (.so) and compiled for Linux x64.
+Importing all UDFs from the specified library. For the pragma to work, the library must be attached to the query using the ![ico](../../../../_images/qt-ui-attach.png =30x30) icon. Please note that the library must be shared library (.so) and compiled for Linux x64.
 
 When setting a prefix, it's appended before the names of all loaded modules, e.g. CustomPrefixIp::IsIPv4 instead of Ip::IsIPv4. Setting the prefix lets you use  different versions of the same UDF.
 
@@ -296,3 +296,17 @@ Increasing the limit on the number of groups in [GROUP BY](../group_by.md).
 Increasing the limit on the number of dimensions in [GROUP BY](../group_by.md#rollup-cube-group-sets).
 
 Use this option with care: the computational complexity of the query grows exponentially with the number of dimensions.
+
+## CostBasedOptimizer {#costbasedoptimizer}
+
+| Value type | Default |
+| --- | --- |
+| String: `disable` / `pg` / `native` | disable |
+
+Enables the cost-based optimizer for `JOIN` order. It reorders inputs to minimize plan cost based on table statistics and applies only when there are more than two inputs.
+
+* `disable`: Optimization is disabled.
+* `native`: Native optimizer, recommended for YT.
+* `pg`: Optimizer based on PostgreSQL algorithms.
+
+This is a static pragma: its value is fixed before the query optimization stage.

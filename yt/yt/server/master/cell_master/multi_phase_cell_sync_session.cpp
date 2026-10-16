@@ -2,13 +2,12 @@
 
 #include "private.h"
 #include "bootstrap.h"
+#include "hydra_facade.h"
 #include "multicell_manager.h"
 
-#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
-
-#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 
 #include <yt/yt/core/actions/future.h>
 
@@ -35,9 +34,16 @@ void TMultiPhaseCellSyncSession::ScheduleSyncWithUpstream()
 
 void TMultiPhaseCellSyncSession::ScheduleSyncWithSequoiaTransactions()
 {
-    if (SyncWithSequoiaTransactions_ == ESyncRequest::DontNeed) {
+    if (!SuppressSyncWithSequoiaTransactions_ &&
+        SyncWithSequoiaTransactions_ == ESyncRequest::DontNeed)
+    {
         SyncWithSequoiaTransactions_ = ESyncRequest::Need;
     }
+}
+
+void TMultiPhaseCellSyncSession::SuppressSyncWithSequoiaTransactions()
+{
+    SuppressSyncWithSequoiaTransactions_ = true;
 }
 
 TFuture<void> TMultiPhaseCellSyncSession::Sync(const TCellTagList& cellTags, TFuture<void> additionalFuture)
@@ -67,9 +73,9 @@ TFuture<void> TMultiPhaseCellSyncSession::Sync(const TCellTagList& cellTags, std
 
     if (SyncWithSequoiaTransactions_ == ESyncRequest::Need) {
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        addAsyncResult(hydraManager->SyncWithLeader().Apply(BIND([transactionSupervisor] {
-            return transactionSupervisor->WaitUntilPreparedTransactionsFinished();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        addAsyncResult(hydraManager->SyncWithLeader().Apply(BIND([transactionManager] {
+            return transactionManager->WaitUntilAllPreparedTransactionsFinished();
         })));
         SyncWithSequoiaTransactions_ = ESyncRequest::Done;
     }
@@ -97,8 +103,8 @@ TFuture<void> TMultiPhaseCellSyncSession::Sync(const TCellTagList& cellTags, std
         return OKFuture;
     }
 
-    YT_LOG_DEBUG_UNLESS(syncCellTags.empty(), "Request will synchronize with other cells (CellTags: %v)",
-        syncCellTags);
+    YT_TLOG_DEBUG_UNLESS(syncCellTags.empty(), "Request will synchronize with other cells")
+        .With("CellTags", syncCellTags);
 
     return AllSucceeded(std::move(syncFutures));
 }

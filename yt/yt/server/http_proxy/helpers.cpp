@@ -33,11 +33,11 @@ std::optional<std::string> GatherHeader(const THeadersPtr& headers, const std::s
         return *singleHeader;
     }
 
-    TString buffer;
+    std::string buffer;
     for (int i = 0; ; i++) {
         if (i > 1000) {
             THROW_ERROR_EXCEPTION("Too many header parts")
-                << TErrorAttribute("header_name", headerName);
+                .With("header_name", headerName);
         }
 
         {
@@ -81,7 +81,7 @@ std::vector<TStringBuf> TokenizeQueryArgumentName(TStringBuf argument)
         auto closingBracket = argument.find(']', openBracket);
         if (closingBracket == TString::npos) {
             THROW_ERROR_EXCEPTION("Unmatched bracket in query argument name")
-                << TErrorAttribute("argument", argument);
+                .With("argument", argument);
         }
 
         parts.push_back(argument.substr(openBracket + 1, closingBracket - openBracket - 1));
@@ -89,7 +89,7 @@ std::vector<TStringBuf> TokenizeQueryArgumentName(TStringBuf argument)
 
         if (++nesting > MaxNesting) {
             THROW_ERROR_EXCEPTION("Nesting limit reached in query argument name")
-                << TErrorAttribute("argument", argument);
+                .With("argument", argument);
         }
     }
 
@@ -118,7 +118,7 @@ void InsertChildAt(const IMapNodePtr& root, const INodePtr& child, const std::ve
 
             if (intValue < 0 || intValue > MaxListSize) {
                 THROW_ERROR_EXCEPTION("Invalid list index in query argument")
-                    << TErrorAttribute("index", intValue);
+                    .With("index", intValue);
             }
 
             current = listNode->FindChild(intValue);
@@ -136,17 +136,17 @@ void InsertChildAt(const IMapNodePtr& root, const INodePtr& child, const std::ve
             }
 
             auto mapNode = current->AsMap();
-            current = mapNode->FindChild(TString{at[i]});
+            current = mapNode->FindChild(at[i]);
             linkBack = [key = at[i], mapNode] (const INodePtr& node) {
-                mapNode->AddChild(TString{key}, node);
+                mapNode->AddChild(key, node);
             };
         }
     }
 
     if (current && (current->GetType() != ENodeType::Entity)) {
         THROW_ERROR_EXCEPTION("Conflicting values in query argument")
-            << TErrorAttribute("child", child)
-            << TErrorAttribute("conflict", current);
+            .With("child", child)
+            .With("conflict", current);
     }
 
     linkBack(child);
@@ -209,9 +209,9 @@ void FixupNodesWithAttributes(const IMapNodePtr& node)
     }
 }
 
-NYTree::IMapNodePtr HideSecretParameters(const TString& commandName, NYTree::IMapNodePtr parameters)
+NYTree::IMapNodePtr HideSecretParameters(const std::string& commandName, NYTree::IMapNodePtr parameters)
 {
-    std::vector<TString> secretParameters = {
+    std::vector<std::string> secretParameters = {
         "/spec/secure_vault",
         "/query",
     };
@@ -344,7 +344,8 @@ std::optional<TNetworkStatistics> GetNetworkStatistics()
 
         return totals;
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Failed to read network statistics");
+        YT_TLOG_ERROR("Failed to read network statistics")
+            .With(ex);
         return {};
     }
 }
@@ -361,7 +362,7 @@ void RedirectToDataProxy(const IRequestPtr& request, const IResponseWriterPtr& r
     auto target = coordinator->AllocateProxyEntry(coordinator->GetConfig()->DefaultRoleFilter.value_or("data"));
     if (target) {
         auto url = request->GetUrl();
-        TString protocol;
+        std::string protocol;
         if (request->IsHttps()) {
             protocol = "https";
         } else {

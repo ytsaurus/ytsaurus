@@ -22,6 +22,14 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobPhaseSerializer
+{
+    static void Save(TSaveContext& context, EJobPhase phase);
+    static void Load(TLoadContext& context, EJobPhase& phase);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(max42): does this need to belong to server/lib?
 // TODO(max42): make this structure non-copyable.
 struct TJobSummary
@@ -97,8 +105,8 @@ struct TCompletedJobSummary
     bool Abandoned = false;
 
     // These fields are for controller's use only.
-    std::vector<NChunkClient::TLegacyDataSlicePtr> UnreadInputDataSlices;
-    std::vector<NChunkClient::TLegacyDataSlicePtr> ReadInputDataSlices;
+    std::vector<NChunkClient::TDataSlicePtr> UnreadInputDataSlices;
+    std::vector<NChunkClient::TDataSlicePtr> ReadInputDataSlices;
     int SplitJobCount = 1;
 
     inline static constexpr EJobState ExpectedState = EJobState::Completed;
@@ -131,6 +139,19 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
 std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
     TJobId jobId,
     TFinishedAllocationSummary&& eventSummary);
+
+std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
+    TJobId jobId,
+    EAbortReason abortReason);
+
+std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
+    const TJobSummary& other,
+    EAbortReason abortReason);
+
+std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
+    const TJobSummary& other,
+    EAbortReason abortReason,
+    TError outerError);
 
 struct TFailedJobSummary
     : public TJobSummary

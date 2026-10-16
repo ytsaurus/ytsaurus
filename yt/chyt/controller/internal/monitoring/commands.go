@@ -4,6 +4,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/metrics/solomon"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/httpserver"
 )
 
@@ -20,6 +21,9 @@ func RegisterHTTPMonitoring(c HTTPMonitoringConfig, l log.Logger, leader LeaderC
 }
 
 func NewServer(c HTTPMonitoringConfig, l log.Logger, leader LeaderChecker, healthers map[string]HealthChecker) *httpserver.HTTPServer {
-	monitoringHandler := RegisterHTTPMonitoring(c, l, leader, healthers)
-	return httpserver.New(c.Endpoint, monitoringHandler)
+	return httpserver.New(c.Endpoint, RegisterHTTPMonitoring(c, l, leader, healthers))
+}
+
+func NewMetricsServer(endpoint string, registry *solomon.Registry) *httpserver.HTTPServer {
+	return httpserver.New(endpoint, RegisterHTTPMetrics(registry))
 }

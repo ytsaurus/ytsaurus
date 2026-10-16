@@ -1,0 +1,135 @@
+#include "runtime_init_context.h"
+
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/node.h>
+
+namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRuntimeInitContext::TRuntimeInitContext(
+    IJobInitContextPtr underlying,
+    TJobStateManagerPtr stateManager,
+    TComputationId computationId,
+    TPartitionId partitionId,
+    NYTree::IMapNodePtr parametersNode,
+    NYTree::TYsonStructPtr parametersObject,
+    THashMap<TResourceId, IResourcePtr> staticResources,
+    NProfiling::TProfiler profiler,
+    NHttp::IClientPtr httpClient,
+    NHttp::IClientPtr httpsClient)
+    : Underlying_(std::move(underlying))
+    , StateManager_(std::move(stateManager))
+    , ComputationId_(std::move(computationId))
+    , PartitionId_(partitionId)
+    , ParametersNode_(parametersNode ? std::move(parametersNode) : NYTree::GetEphemeralNodeFactory()->CreateMap())
+    , ParametersObject_(std::move(parametersObject))
+    , StaticResources_(std::move(staticResources))
+    , Profiler_(std::move(profiler))
+    , HttpClient_(std::move(httpClient))
+    , HttpsClient_(std::move(httpsClient))
+{ }
+
+TFuture<IMutableStateKeyProviderPtr> TRuntimeInitContext::CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const
+{
+    return Underlying_->CreateMutableStateKeyProvider(std::move(ctor));
+}
+
+TFuture<IJoinedStateKeyProviderPtr> TRuntimeInitContext::CreateJoinedStateKeyProvider(std::function<IStateHolderPtr()> ctor) const
+{
+    return Underlying_->CreateJoinedStateKeyProvider(std::move(ctor));
+}
+
+IInitContextPtr TRuntimeInitContext::AsPartition() const
+{
+    return Underlying_->AsPartition();
+}
+
+IInitContextPtr TRuntimeInitContext::AsKey(TKey key) const
+{
+    return Underlying_->AsKey(std::move(key));
+}
+
+IRuntimeInitContextPtr TRuntimeInitContext::WithPrefix(TStringBuf prefix) const
+{
+    return New<TRuntimeInitContext>(
+        Underlying_->WithPrefix(prefix),
+        StateManager_,
+        ComputationId_,
+        PartitionId_,
+        ParametersNode_,
+        ParametersObject_,
+        StaticResources_,
+        Profiler_,
+        HttpClient_,
+        HttpsClient_);
+}
+
+const std::string& TRuntimeInitContext::GetPrefix() const
+{
+    return Underlying_->GetPrefix();
+}
+
+NYTree::IMapNodePtr TRuntimeInitContext::GetParametersNode() const
+{
+    return ParametersNode_;
+}
+
+NYTree::TYsonStructPtr TRuntimeInitContext::GetParametersObject() const
+{
+    return ParametersObject_;
+}
+
+IResourcePtr TRuntimeInitContext::GetStaticResource(const TResourceId& resourceId) const
+{
+    auto iter = StaticResources_.find(resourceId);
+    if (iter == StaticResources_.end()) {
+        THROW_ERROR_EXCEPTION("Static resource %Qv is not found", resourceId);
+    }
+    return iter->second;
+}
+
+NProfiling::TProfiler TRuntimeInitContext::GetProfiler() const
+{
+    return Profiler_;
+}
+
+NHttp::IClientPtr TRuntimeInitContext::GetHttpClient() const
+{
+    if (!HttpClient_) {
+        THROW_ERROR_EXCEPTION("HTTP client is not available in this init context");
+    }
+    return HttpClient_;
+}
+
+NHttp::IClientPtr TRuntimeInitContext::GetHttpsClient() const
+{
+    if (!HttpsClient_) {
+        THROW_ERROR_EXCEPTION("HTTPS client is not available in this init context");
+    }
+    return HttpsClient_;
+}
+
+TComputationId TRuntimeInitContext::GetComputationId() const
+{
+    return ComputationId_;
+}
+
+TPartitionId TRuntimeInitContext::GetPartitionId() const
+{
+    return PartitionId_;
+}
+
+IExternalStateManagerPtr TRuntimeInitContext::GetExternalStateManagerOrThrow(const std::string& name) const
+{
+    return StateManager_->GetExternalStateManagerOrThrow(name);
+}
+
+IExternalStateJoinerPtr TRuntimeInitContext::GetExternalStateJoinerOrThrow(const std::string& name) const
+{
+    return StateManager_->GetExternalStateJoinerOrThrow(name);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow

@@ -15,8 +15,8 @@ DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, TimestampProviderLogger, "TimestampProvider");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, TimestampProviderProfiler, "/timestamp_provider");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, TimestampProviderLogger, "TimestampProvider");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, TimestampProviderProfiler, "/timestamp_provider");
 
 ////////////////////////////////////////////////////////////////////////////////
 

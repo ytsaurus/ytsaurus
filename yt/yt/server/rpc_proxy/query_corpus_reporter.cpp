@@ -86,7 +86,7 @@ public:
             return;
         }
 
-        Batch_.Enqueue(TString(query));
+        Batch_.Enqueue(std::string(query));
         ++BatchSize_;
     }
 
@@ -101,7 +101,7 @@ private:
 
     std::atomic<bool> Enable_ = false;
     TAtomicIntrusivePtr<TConfig> Config_;
-    TMpscStack<TString> Batch_;
+    TMpscStack<std::string> Batch_;
     std::atomic<int> BatchSize_;
     std::atomic<int> MaxBatchSize_;
 
@@ -125,16 +125,17 @@ private:
         auto batch = Batch_.DequeueAll();
         BatchSize_ -= batch.size();
 
-        YT_LOG_DEBUG("Started reporting queries for corpus");
+        YT_TLOG_DEBUG("Started reporting queries for corpus");
         auto timer = TWallTimer();
 
         try {
             DoReportStatistics(Config_.Acquire()->TablePath, batch);
             ReportCount_.Increment();
-            YT_LOG_DEBUG("Finished reporting queries for corpus");
+            YT_TLOG_DEBUG("Finished reporting queries for corpus");
         } catch (const std::exception& ex) {
             ReportErrorCount_.Increment();
-            YT_LOG_ERROR(ex, "Failed to report queries for corpus");
+            YT_TLOG_ERROR("Failed to report queries for corpus")
+                .With(ex);
             timer.Stop();
             TDelayedExecutor::WaitForDuration(Config_.Acquire()->ReportBackoffTime);
         }
@@ -142,7 +143,7 @@ private:
         ReportTime_.Record(timer.GetElapsedTime());
     }
 
-    void DoReportStatistics(const std::optional<TYPath>& tablePath, const std::vector<TString>& batch)
+    void DoReportStatistics(const std::optional<TYPath>& tablePath, const std::vector<std::string>& batch)
     {
         if (!tablePath || batch.empty()) {
             return;

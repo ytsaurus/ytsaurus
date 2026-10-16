@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, ROOTFS_LAYER_PATH
 
 from yt_commands import (
     authors, print_debug, wait, retry, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
@@ -12,8 +12,8 @@ from yt_commands import (
 
 import yt.environment.init_operations_archive as init_operations_archive
 from yt.wrapper.common import uuid_hash_pair
-from yt.common import parts_to_uuid, YtError
-from yt_gpu_layers_helpers import GpuCheckBase
+from yt.common import parts_to_uuid
+from yt_gpu_layers_helpers import GpuCheckBase, make_gpu_check_layer_cache_config
 import yt.yson as yson
 
 import datetime
@@ -69,7 +69,6 @@ def wait_for_data_in_job_archive(op_id, job_ids):
     wait(lambda: len(get_job_spec_rows_for_jobs(job_ids)) == len(job_ids))
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetJobInput(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -349,7 +348,7 @@ class TestGetJobInput(YTEnvSetup):
                 "max_failed_job_count": 1,
             },
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
         job_ids = os.listdir(self._tmpdir)
@@ -391,7 +390,7 @@ class TestGetJobInput(YTEnvSetup):
         assert op_id == op.id
         job_id = parts_to_uuid(id_lo=rows[0]["job_id_lo"], id_hi=rows[0]["job_id_hi"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error occurred while parsing YSON"):
             get_job_input(job_id)
 
     @authors("ermolovd")
@@ -428,7 +427,7 @@ class TestGetJobInput(YTEnvSetup):
             with open(input_file, "rb") as inf:
                 actual_input = inf.read()
             assert actual_input
-            with pytest.raises(YtError):
+            with raises_yt_error("No such chunk .*"):
                 get_job_input(job_id)
 
     @authors("ermolovd")
@@ -460,7 +459,7 @@ class TestGetJobInput(YTEnvSetup):
             with open(input_file, "rb") as inf:
                 actual_input = inf.read()
             assert actual_input
-            with pytest.raises(YtError):
+            with raises_yt_error("Failed to parse job spec fetched from operation archive"):
                 get_job_input(job_id, job_spec_source="archive")
 
     @authors("ermolovd")
@@ -568,7 +567,7 @@ class TestGetJobInput(YTEnvSetup):
         if successful_jobs:
             op.track()
         else:
-            with pytest.raises(YtError):
+            with raises_yt_error("Failed jobs limit exceeded"):
                 op.track()
 
         job_ids = os.listdir(self._tmpdir)
@@ -580,7 +579,6 @@ class TestGetJobInput(YTEnvSetup):
             wait(lambda: len(get_job_spec_rows_for_jobs(job_ids)) > 0)
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetJobStderr(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -864,7 +862,7 @@ class TestGetJobStderr(YTEnvSetup):
 
             # We should use 'wait' since job can be still in prepare phase in the opinion of the node.
             wait(lambda: retry(lambda: get_job_stderr(op.id, job_id, authenticated_user="u")) == b"STDERR-OUTPUT\n")
-            with pytest.raises(YtError):
+            with raises_yt_error("Operation access denied"):
                 get_job_stderr(op.id, job_id, authenticated_user="other")
 
             update_op_parameters(
@@ -895,7 +893,6 @@ class TestGetJobStderr(YTEnvSetup):
             set("//sys/operations/@inherit_acl", True)
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetJobSpec(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -971,7 +968,7 @@ class TestGetJobSpec(YTEnvSetup):
         job_id = jobs[0]
 
         get_job_spec(job_id, authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation access denied"):
             get_job_spec(job_id, authenticated_user="v")
 
 
@@ -986,10 +983,8 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
     USE_DYNAMIC_TABLES = True
 
     DELTA_NODE_CONFIG = {
+        "data_node": make_gpu_check_layer_cache_config(),
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
             "gpu_manager": {
                 "driver_version": "0",
                 "testing": {
@@ -1050,7 +1045,7 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
 
     @pytest.mark.timeout(180)
     def test_gpu_check_stderr_on_fail(self):
-        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_gpu_layer_and_reset_nodes()
         self.setup_gpu_check_options(binary_path="/gpu_check/gpu_check_fail")
 
         op = run_test_vanilla(
@@ -1059,7 +1054,6 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
                 "max_failed_job_count": 1,
             },
             task_patch={
-                "layer_paths": ["//tmp/base_layer"],
                 "gpu_limit": 1,
                 "enable_gpu_layers": True,
                 "enable_gpu_check": True,
@@ -1090,7 +1084,7 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
     @authors("bystrovserg")
     @pytest.mark.timeout(180)
     def test_gpu_check_success_with_job_error(self):
-        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_gpu_layer_and_reset_nodes()
         self.setup_gpu_check_options(binary_path="/gpu_check/gpu_check_success")
 
         op = run_test_vanilla(
@@ -1099,7 +1093,6 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
                 "max_failed_job_count": 1,
             },
             task_patch={
-                "layer_paths": ["//tmp/base_layer"],
                 "gpu_limit": 1,
                 "enable_gpu_layers": True,
                 "enable_gpu_check": True,
@@ -1126,12 +1119,12 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
     @authors("bystrovserg")
     @pytest.mark.timeout(180)
     def test_gpu_check_stderr_on_gpu_check_success(self):
-        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_gpu_layer_and_reset_nodes()
 
         update_controller_agent_config(
             "vanilla_operation_options/gpu_check",
             {
-                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "layer_paths": ["//tmp/gpu_check/0", ROOTFS_LAYER_PATH],
                 "binary_path": "/gpu_check/gpu_check_args",
                 "binary_args": ["-Y"],
             }
@@ -1144,7 +1137,6 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
             },
             task_patch={
                 "gpu_limit": 1,
-                "layer_paths": ["//tmp/base_layer"],
                 "enable_gpu_layers": True,
                 "enable_gpu_check": True,
             },
@@ -1160,7 +1152,7 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
     @authors("bystrovserg")
     @pytest.mark.timeout(180)
     def test_has_gpu_check_stderr_in_archive_features(self):
-        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_gpu_layer_and_reset_nodes()
         self.setup_gpu_check_options(binary_path="/gpu_check/gpu_check_fail")
 
         op = run_test_vanilla(
@@ -1169,7 +1161,6 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
                 "max_failed_job_count": 1,
             },
             task_patch={
-                "layer_paths": ["//tmp/base_layer"],
                 "gpu_limit": 1,
                 "enable_gpu_layers": True,
                 "enable_gpu_check": True,
@@ -1192,7 +1183,6 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetJobInputRpcProxy(TestGetJobInput):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -1200,21 +1190,18 @@ class TestGetJobInputRpcProxy(TestGetJobInput):
     ENABLE_RPC_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetJobStderrRpcProxy(TestGetJobStderr):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetJobSpecRpcProxy(TestGetJobSpec):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetJobStderrGpuCheckerRpcProxy(TestGetJobStderrGpuChecker):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

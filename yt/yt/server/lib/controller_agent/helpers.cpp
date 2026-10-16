@@ -60,7 +60,7 @@ TNodeId NodeIdFromJobId(TJobId jobId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString JobTypeAsKey(EJobType jobType)
+std::string JobTypeAsKey(EJobType jobType)
 {
     return Format("%lv", jobType);
 }
@@ -128,17 +128,17 @@ TTableSchemaPtr RenameColumnsInSchema(
         }
         if (!columnMapping.empty()) {
             THROW_ERROR_EXCEPTION("Rename is supported only for columns in schema")
-                << TErrorAttribute("failed_rename_descriptors", columnMapping)
-                << TErrorAttribute("schema", schema);
+                .With("failed_rename_descriptors", columnMapping)
+                .With("schema", schema);
         }
         schema = New<TTableSchema>(newColumns, schema->IsStrict(), schema->IsUniqueKeys());
         ValidateColumnUniqueness(*schema);
         return schema;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error renaming columns")
-            << TErrorAttribute("table_description", tableDescription)
-            << TErrorAttribute("column_rename_descriptors", renameDescriptors)
-            << ex;
+            .With("table_description", tableDescription)
+            .With("column_rename_descriptors", renameDescriptors)
+            .With(ex);
     }
 }
 
@@ -147,7 +147,7 @@ TTableSchemaPtr RenameColumnsInSchema(
 void ValidateJobShellAccess(
     const NApi::NNative::IClientPtr& client,
     const std::string& user,
-    const TString& jobShellName,
+    const std::string& jobShellName,
     const std::vector<std::string>& jobShellOwners)
 {
     if (user == RootUserName || user == SuperusersGroupName) {
@@ -200,6 +200,23 @@ void PackBaggageFromJobSpec(
     AddTagToBaggage(baggage, ERawIOTag::JobId, ToString(jobId));
     AddTagToBaggage(baggage, EAggregateIOTag::JobType, FormatEnum(jobType));
     traceContext->PackBaggage(baggage);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateAbortedJobError(
+    NScheduler::EAbortReason abortReason,
+    TNonNullPtr<TError> errorPtr)
+{
+    auto& error = *errorPtr;
+    if (!error.Attributes().Find<std::string>("abort_reason")) {
+        auto inner = std::move(error);
+        error = TError("Job aborted by controller agent")
+            .With("abort_reason", abortReason);
+        if (!inner.IsOK()) {
+            error.Add(std::move(inner));
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

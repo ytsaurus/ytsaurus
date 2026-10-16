@@ -22,6 +22,21 @@ If you like this project, please consider donating to one of the funds that help
 
 ## [Features & Examples](example/)
 
+* Basic
+
+  ```cpp
+  #include <magic_enum/magic_enum.hpp>
+  #include <iostream>
+
+  enum class Color { RED = -10, BLUE = 0, GREEN = 10 };
+
+  int main() {
+    Color c1 = Color::RED;
+    std::cout << magic_enum::enum_name(c1) << std::endl; // RED
+    return 0;
+  }
+  ```
+
 * Enum value to string
 
   ```cpp
@@ -43,7 +58,7 @@ If you like this project, please consider donating to one of the funds that help
   auto color = magic_enum::enum_cast<Color>(value, magic_enum::case_insensitive);
 
   // enum_cast with BinaryPredicate
-  auto color = magic_enum::enum_cast<Color>(value, [](char lhs, char rhs) { return std::tolower(lhs) == std::tolower(rhs); }
+  auto color = magic_enum::enum_cast<Color>(value, [](char lhs, char rhs) { return std::tolower(lhs) == std::tolower(rhs); });
 
   // enum_cast with default
   auto color_or_default = magic_enum::enum_cast<Color>(value).value_or(Color::NONE);
@@ -52,7 +67,7 @@ If you like this project, please consider donating to one of the funds that help
 * Integer to enum value
 
   ```cpp
-  int color_integer = 2;
+  int color_integer = 0;
   auto color = magic_enum::enum_cast<Color>(color_integer);
   if (color.has_value()) {
     // color.value() -> Color::BLUE
@@ -89,7 +104,7 @@ If you like this project, please consider donating to one of the funds that help
   ```cpp
   Color color = Color::RED;
   auto color_integer = magic_enum::enum_integer(color); // or magic_enum::enum_underlying(color);
-  // color_integer -> 1
+  // color_integer -> -10
   ```
 
 * Enum names sequence
@@ -169,8 +184,10 @@ If you like this project, please consider donating to one of the funds that help
   };
 
   magic_enum::enum_flags_name(Directions::Up | Directions::Right); // -> "Directions::Up|Directions::Right"
+  magic_enum::enum_flags_name(Directions::Up | Directions::Right, ','); // -> "Directions::Up,Directions::Right"
   magic_enum::enum_flags_contains(Directions::Up | Directions::Right); // -> true
   magic_enum::enum_flags_cast(3); // -> "Directions::Left|Directions::Down"
+  magic_enum::enum_flags_cast<Directions>("Left,Down", ','); // -> Directions::Left|Directions::Down
   ```
 
 * Enum type name
@@ -291,7 +308,7 @@ If you like this project, please consider donating to one of the funds that help
 
 ## Integration
 
-* You should add the required file [magic_enum.hpp](include/magic_enum.hpp), and optionally other headers from [include dir](include/) or [release archive](https://github.com/Neargye/magic_enum/releases/latest). Alternatively, you can build the library with CMake.
+* You should add the required file [magic_enum.hpp](include/magic_enum/magic_enum.hpp), and optionally other headers from [include dir](include/) or [release archive](https://github.com/Neargye/magic_enum/releases/latest). Alternatively, you can build the library with CMake.
 
 * If you are using [vcpkg](https://github.com/Microsoft/vcpkg/) on your project for external dependencies, then you can use the [magic-enum package](https://github.com/microsoft/vcpkg/tree/master/ports/magic-enum).
 
@@ -305,7 +322,7 @@ If you like this project, please consider donating to one of the funds that help
   CPMAddPackage(
       NAME magic_enum
       GITHUB_REPOSITORY Neargye/magic_enum
-      GIT_TAG x.y.z # Where `x.y.z` is the release version you want to use.
+      GIT_TAG vx.y.z # Where `x.y.z` is the release version you want to use.
   )
   ```
 

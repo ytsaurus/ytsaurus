@@ -139,20 +139,17 @@ protected:
     {
         const auto& chunkManager = GetBootstrap()->GetChunkManager();
         const auto* primaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
-        YT_LOG_DEBUG(
-            "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
-            "PrimaryMedium: %v, Replication: %v, ErasureCodec: %v, ReadQuorum: %v, WriteQuorum: %v, "
-            "Mode: %v, LockTimestamp: %v)",
-            originatingNode->GetVersionedId(),
-            branchedNode->GetVersionedId(),
-            GetObjectId(originatingNode->GetChunkList()),
-            primaryMedium->GetName(),
-            originatingNode->Replication(),
-            originatingNode->GetErasureCodec(),
-            originatingNode->GetReadQuorum(),
-            originatingNode->GetWriteQuorum(),
-            lockRequest.Mode,
-            lockRequest.Timestamp);
+        YT_TLOG_DEBUG("Node branched")
+            .With("OriginatingNodeId", originatingNode->GetVersionedId())
+            .With("BranchedNodeId", branchedNode->GetVersionedId())
+            .With("ChunkListId", GetObjectId(originatingNode->GetChunkList()))
+            .With("PrimaryMedium", primaryMedium->GetName())
+            .With("Replication", originatingNode->Replication())
+            .With("ErasureCodec", originatingNode->GetErasureCodec())
+            .With("ReadQuorum", originatingNode->GetReadQuorum())
+            .With("WriteQuorum", originatingNode->GetWriteQuorum())
+            .With("Mode", lockRequest.Mode)
+            .With("LockTimestamp", lockRequest.Timestamp);
     }
 
     void DoMerge(
@@ -178,11 +175,10 @@ protected:
         TJournalNode* originatingNode,
         TJournalNode* branchedNode) override
     {
-        YT_LOG_DEBUG(
-            "Node merged (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v)",
-            originatingNode->GetVersionedId(),
-            branchedNode->GetVersionedId(),
-            GetObjectId(originatingNode->GetChunkList()));
+        YT_TLOG_DEBUG("Node merged")
+            .With("OriginatingNodeId", originatingNode->GetVersionedId())
+            .With("BranchedNodeId", branchedNode->GetVersionedId())
+            .With("ChunkListId", GetObjectId(originatingNode->GetChunkList()));
     }
 
     void DoUnbranch(
@@ -202,11 +198,10 @@ protected:
         TJournalNode* originatingNode,
         TJournalNode* branchedNode) override
     {
-        YT_LOG_DEBUG(
-            "Node unbranched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v)",
-            originatingNode->GetVersionedId(),
-            branchedNode->GetVersionedId(),
-            GetObjectId(originatingNode->GetChunkList()));
+        YT_TLOG_DEBUG("Node unbranched")
+            .With("OriginatingNodeId", originatingNode->GetVersionedId())
+            .With("BranchedNodeId", branchedNode->GetVersionedId())
+            .With("ChunkListId", GetObjectId(originatingNode->GetChunkList()));
     }
 
     void DoClone(
@@ -268,10 +263,9 @@ protected:
 
         auto* chunkList = trunkNode->GetChunkList();
         if (auto* unsealedChild = chunkList ? FindFirstUnsealedChild(chunkList) : nullptr) {
-            YT_LOG_DEBUG(
-                "Waiting for first unsealed journal chunk to become sealed (NodeId: %v, ChunkId: %v)",
-                trunkNode->GetId(),
-                unsealedChild->GetId());
+            YT_TLOG_DEBUG("Waiting for first unsealed journal chunk to become sealed")
+                .With("NodeId", trunkNode->GetId())
+                .With("ChunkId", unsealedChild->GetId());
             const auto& chunkManager = GetBootstrap()->GetChunkManager();
             chunkManager->ScheduleChunkSeal(unsealedChild->As<TChunk>());
         } else {

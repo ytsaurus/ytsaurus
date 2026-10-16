@@ -2,6 +2,9 @@ package tech.ytsaurus.client;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.SocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -282,9 +285,12 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
                 Objects.requireNonNull(httpBuilder.options.getRpcProxySelector())
         );
 
-        HttpClient httpClient = HttpClient.newBuilder()
-                .executor(httpBuilder.eventLoop)
-                .build();
+        HttpClient.Builder httpClientBuilder = HttpClient.newBuilder()
+                .executor(httpBuilder.eventLoop);
+        if (httpBuilder.httpConnectProxy != null) {
+            httpClientBuilder.proxy(httpConnectProxySelector(httpBuilder.httpConnectProxy));
+        }
+        HttpClient httpClient = httpClientBuilder.build();
 
         proxyGetter = new HttpProxyGetter(
                 httpClient,
@@ -348,6 +354,21 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
 
         executorService = discoveryBuilder.eventLoop;
         updatePeriodMs = discoveryBuilder.options.getProxyUpdateTimeout().toMillis();
+    }
+
+    private static java.net.ProxySelector httpConnectProxySelector(InetSocketAddress proxy) {
+        return new java.net.ProxySelector() {
+            @Override
+            public List<Proxy> select(URI uri) {
+                // Rebuild the address so that the proxy hostname is resolved anew for every request.
+                return List.of(new Proxy(Proxy.Type.HTTP,
+                        new InetSocketAddress(proxy.getHostString(), proxy.getPort())));
+            }
+
+            @Override
+            public void connectFailed(URI uri, SocketAddress address, IOException failure) {
+            }
+        };
     }
 
     static HttpBuilder httpBuilder() {
@@ -532,6 +553,13 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         String balancerFqdn;
         @Nullable
         Integer balancerPort;
+        @Nullable
+        InetSocketAddress httpConnectProxy;
+
+        HttpBuilder setHttpConnectProxy(@Nullable InetSocketAddress httpConnectProxy) {
+            this.httpConnectProxy = httpConnectProxy;
+            return this;
+        }
 
         HttpBuilder setBalancerFqdn(String fqdn) {
             if (fqdn.matches(IP_V6_REG_EX)) {

@@ -160,7 +160,7 @@ public:
     TFuture<void> AddUserToGroup(const std::string& name, const std::string& group) override
     {
         if (!UserGroups_.contains(name)) {
-            return MakeFuture(TError("User does not exist (Name: %v)", name));
+            return MakeFuture(TError("User %Qv does not exist", name));
         }
 
         UserGroups_[name].insert(group);

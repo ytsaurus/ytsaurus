@@ -17,5 +17,4 @@ def alter_child_node_table(app: sequoia_app.SequoiaTool) -> actions.ActionPlan:
                     use_default_mapper=True)
             ])
         .then()
-        .promote_reign()
         .build())

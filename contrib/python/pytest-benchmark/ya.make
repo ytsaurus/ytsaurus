@@ -2,12 +2,11 @@
 
 PY3_LIBRARY()
 
-VERSION(5.2.3)
+VERSION(5.3.0)
 
 LICENSE(BSD-2-Clause)
 
 PEERDIR(
-    contrib/python/py-cpuinfo
     contrib/python/pytest
 )
 
@@ -26,7 +25,6 @@ PY_SRCS(
     pytest_benchmark/__init__.py
     pytest_benchmark/__main__.py
     pytest_benchmark/cli.py
-    pytest_benchmark/compat.py
     pytest_benchmark/csv.py
     pytest_benchmark/fixture.py
     pytest_benchmark/histogram.py

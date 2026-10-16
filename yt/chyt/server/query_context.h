@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include "cluster_nodes.h"
+#include "cypress_object_repository.h"
 #include "object_lock.h"
 #include "query_progress.h"
 #include "secondary_query_input_puller.h"
@@ -17,14 +18,16 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <yt/yt/client/hydra/public.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/statistics.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <Interpreters/Context.h>
 #include <Interpreters/Session.h>
@@ -37,7 +40,6 @@ namespace NYT::NClickHouseServer {
 struct TStorageContext
     : public TRefCounted
 {
-public:
     int Index = -1;
     TQueryContext* QueryContext;
     TQuerySettingsPtr Settings;
@@ -53,33 +55,34 @@ DEFINE_REFCOUNTED_TYPE(TStorageContext)
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::ContextMutablePtr PrepareContextForQuery(
-        std::shared_ptr<DB::Session> session,
-        const std::string& dataBaseUser,
-        TDuration timeout,
-        THost* host,
-        std::string traceContextRoot);
+    std::shared_ptr<DB::Session> session,
+    const std::string& dataBaseUser,
+    TDuration timeout,
+    THost* host,
+    std::string traceContextRoot,
+    NTransactionClient::TTransactionId parentTransactionId = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Context for whole query. Shared by all select queries from YT tables in query
 //! (including subqueries).
-struct TQueryContext
+class TQueryContext
     : public TRefCounted
 {
 public:
     NLogging::TLogger Logger;
-    const TString User;
+    const std::string User;
 
     const NTracing::TTraceContextPtr TraceContext;
     const TQueryId QueryId;
     const EQueryKind QueryKind;
     THost* const Host;
     TString Query;
-    TString CurrentUser;
-    TString CurrentAddress;
-    TString InitialUser;
-    TString InitialAddress;
-    TQueryId InitialQueryId;
+    std::string CurrentUser;
+    std::string CurrentAddress;
+    std::string InitialUser;
+    std::string InitialAddress;
+    std::string InitialQueryId;
     std::optional<TQueryId> ParentQueryId;
     //! Text of the initial query. Used for better debugging.
     std::optional<TString> InitialQuery;
@@ -89,7 +92,7 @@ public:
     std::optional<TString> YqlOperationId;
 
     // Transactionality
-    //! It is the id of some external acording to chyt query transaction that was passed to the query.
+    //! Id of an external transaction passed in as a query parameter.
     NTransactionClient::TTransactionId ParentTransactionId;
     //! ReadTransactionId is the id of the query transaction in which snapshot locks are taken.
     NTransactionClient::TTransactionId ReadTransactionId;
@@ -107,9 +110,10 @@ public:
     //! InterpreterDropQuery performs a basic check for matching the type of the object and the type of the query (table/dictionary).
     //! However, there is a chance that after checking, but before the actual call of YtDatabase::dropTable,
     //! the object was deleted, and we may unexpectedly delete an object of a different type.
-    //! For this reason, LastResolvedDictionaryName stores the name of the dictionary that was resolved last within the current query.
+    //! For this reason, LastResolvedCliqueObject stores the identity and revision of the clique object
+    //! that was resolved last within the current query.
     //! It helps consistently resolve storage in YtDatabase::dropTable call.
-    std::string LastResolvedDictionaryName;
+    std::optional<TRepositoryObjectDescriptor> LastResolvedCliqueObject;
 
     //! if |true|, query registry should keep QueryFinishInfo after the query context is destroyed.
     //! Invoker affinity: query registry invoker.
@@ -244,12 +248,12 @@ private:
     //! 2) It acts like a per-query cache to avoid many master request when per-clique cache is disabled.
     THashMap<NYPath::TYPath, TErrorOr<NYTree::IAttributeDictionaryPtr>> ObjectAttributesSnapshot_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PhaseLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, PhaseLock_);
     std::atomic<EQueryPhase> QueryPhase_ {EQueryPhase::Start};
     TInstant LastPhaseTime_;
     TString PhaseDebugString_ = ToString(EQueryPhase::Start);
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueryLogLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, QueryLogLock_);
     //! CHYT-specific query statistics.
     TStatistics Statistics_;
     NYTree::IAttributeDictionaryPtr RuntimeVariables_ = NYTree::CreateEphemeralAttributes();
@@ -260,12 +264,12 @@ private:
     TQueryProgress Progress_;
 
     //! Spinlock controlling lazy client creation.
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ClientLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ClientLock_);
     //! Native client for the user that initiated the query. Created on first use.
     mutable NApi::NNative::IClientPtr Client_;
 
     //! Spinlock controlling select query context map.
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StorageToStorageContextLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, StorageToStorageContextLock_);
     THashMap<const DB::IStorage*, TStorageContextPtr> StorageToStorageContext_;
 
     // Transactionality

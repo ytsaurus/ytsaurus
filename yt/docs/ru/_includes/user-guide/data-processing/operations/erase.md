@@ -12,7 +12,7 @@
 
 ## Пример спецификации
 
-```yaml
+```yson
 {
   table_path = "//tmp/input_table[#10:#100]";
   combine_chunks = %true;

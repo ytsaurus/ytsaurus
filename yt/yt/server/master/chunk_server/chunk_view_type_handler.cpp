@@ -1,7 +1,8 @@
 #include "chunk_view_type_handler.h"
+
+#include "chunk_manager.h"
 #include "chunk_view.h"
 #include "chunk_view_proxy.h"
-#include "chunk_manager.h"
 
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 

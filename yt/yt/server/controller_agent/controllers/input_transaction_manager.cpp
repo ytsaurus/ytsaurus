@@ -113,7 +113,8 @@ TFuture<void> TInputTransactionManager::Start(
     std::vector<TFuture<void>> transactionFutures;
 
     for (const auto& [parentTransaction, _] : ParentToTransaction_) {
-        YT_LOG_INFO("Starting input transaction (Parent: %v)", parentTransaction);
+        YT_TLOG_INFO("Starting input transaction")
+            .With("Parent", parentTransaction);
 
         TTransactionStartOptions options;
         options.AutoAbort = false;
@@ -138,8 +139,8 @@ TFuture<void> TInputTransactionManager::Start(
 
                         auto transaction = transactionOrError.Value();
 
-                        YT_LOG_INFO("Input transaction started (TransactionId: %v)",
-                            transaction->GetId());
+                        YT_TLOG_INFO("Input transaction started")
+                            .With("TransactionId", transaction->GetId());
 
                         YT_VERIFY(ParentToTransaction_.contains(parentTransaction));
                         // NB: Assignments are not racy, because invoker of this "Apply" is serialized.
@@ -178,8 +179,9 @@ TFuture<void> TInputTransactionManager::Revive(TControllerTransactionIds transac
             YT_VERIFY(ParentToTransaction_.contains(parent) && !ParentToTransaction_[parent]);
             ParentToTransaction_[parent] = transaction;
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error attaching operation transaction (TransactionId: %v)",
-                transactionId.Id);
+            YT_TLOG_WARNING("Error attaching operation transaction")
+                .With("TransactionId", transactionId.Id)
+                .With(ex);
         }
         transactions.push_back(transaction);
     }
@@ -189,22 +191,20 @@ TFuture<void> TInputTransactionManager::Revive(TControllerTransactionIds transac
     for (int i = 0; i < std::ssize(transactions); ++i) {
         auto transaction = transactions[i];
         if (!transaction) {
-            YT_LOG_INFO(
-                "Input transaction is missing, will use clean start "
-                "(TransactionId: %v)",
-                transactionIds.InputIds[i].Id);
+            YT_TLOG_INFO("Input transaction is missing, will use clean start")
+                .With("TransactionId", transactionIds.InputIds[i].Id);
             pingFutures.push_back(
                 MakeFuture(
                     TError("Failed to attach transaction")
-                        << TErrorAttribute("transaction_id", transactionIds.InputIds[i])));
+                        .With("transaction_id", transactionIds.InputIds[i])));
         } else {
             pingFutures.push_back(
                 transaction->Ping()
                     .Apply(BIND([transactionId = transaction->GetId()] (const TError& error) {
                         if (!error.IsOK()) {
                             THROW_ERROR_EXCEPTION("Failed to ping transaction")
-                                << TErrorAttribute("transaction_id", transactionId)
-                                << error;
+                                .With("transaction_id", transactionId)
+                                .With(error);
                         }
                     })
                         .AsyncVia(GetCurrentInvoker())));
@@ -265,8 +265,9 @@ TFuture<void> TInputTransactionManager::Abort(IClientPtr schedulerClient)
                     auto error = TError(
                         "Failed to create scheduler client for cluster %Qv",
                         parent.Cluster);
-                    YT_LOG_WARNING(error, "Failed to abort input transaction (TransactionId: %v)",
-                        transaction->GetId());
+                    YT_TLOG_WARNING("Failed to abort input transaction")
+                        .With("TransactionId", transaction->GetId())
+                        .With(error);
                     abortFutures.push_back(MakeFuture(error));
                     continue;
                 }
@@ -278,10 +279,9 @@ TFuture<void> TInputTransactionManager::Abort(IClientPtr schedulerClient)
                         ->AttachTransaction(transaction->GetId())
                         ->Abort());
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(
-                    ex,
-                    "Error attaching operation transaction for abort (TransactionId: %v)",
-                    transaction->GetId());
+                YT_TLOG_WARNING("Error attaching operation transaction for abort")
+                    .With("TransactionId", transaction->GetId())
+                    .With(ex);
             }
 
         }
@@ -314,17 +314,17 @@ TError TInputTransactionManager::ValidateSchedulerTransactions(
 {
     if (transactionIds.InputIds.size() != ParentToTransaction_.size()) {
         return TError("Inconsistent number of transactions")
-                << TErrorAttribute("cypress_transactions_count", transactionIds.InputIds.size())
-                << TErrorAttribute("controller_transactions_count", ParentToTransaction_.size());
+                .With("cypress_transactions_count", transactionIds.InputIds.size())
+                .With("controller_transactions_count", ParentToTransaction_.size());
     }
 
     for (const auto& [i, transactionId] : Enumerate(transactionIds.InputIds)) {
         if (!transactionId.Id) {
             return TError(
                 "Found null transaction coming from scheduler, considering all transactions to be lost")
-                << TErrorAttribute("transaction_id", transactionId.Id)
-                << TErrorAttribute("parent_transaction_id", transactionId.ParentId)
-                << TErrorAttribute("transaction_index", i);
+                .With("transaction_id", transactionId.Id)
+                .With("parent_transaction_id", transactionId.ParentId)
+                .With("transaction_index", i);
         }
     }
 
@@ -346,7 +346,7 @@ void TInputTransactionManager::ValidateRemoteOperationsAllowed(
         THROW_ERROR_EXCEPTION(
             "Cluster %Qv is not allowed to be an input remote cluster",
             clusterName)
-            << TErrorAttribute("input_table_path", path);
+            .With("input_table_path", path);
     }
 
     const auto& clusterConfig = ControllerConfig_->RemoteOperations[remoteClusterName];
@@ -360,7 +360,7 @@ void TInputTransactionManager::ValidateRemoteOperationsAllowed(
             "User %Qv is not allowed to start operations reading from cluster %Qv",
             authenticatedUser,
             clusterName)
-            << TErrorAttribute("input_table_path", path);
+            .With("input_table_path", path);
     }
 }
 

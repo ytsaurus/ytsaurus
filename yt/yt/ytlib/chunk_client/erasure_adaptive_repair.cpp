@@ -25,12 +25,14 @@ TRepairingReadersObserver::TRepairingReadersObserver(
     : Codec_(codec)
     , Config_(std::move(config))
     , Readers_(std::move(readers))
-    , SlowReaderBanTimes_(codec->GetTotalPartCount(), TInstant())
+    , SlowReaderBanTimes_(codec->GetParams().TotalPartCount, TInstant())
 {
     YT_VERIFY(Config_->EnableAutoRepair);
-    YT_VERIFY(std::ssize(Readers_) == Codec_->GetTotalPartCount());
 
-    for (int partIndex = 0; partIndex < Codec_->GetTotalPartCount(); ++partIndex) {
+    const auto& codecParams = Codec_->GetParams();
+    YT_VERIFY(std::ssize(Readers_) == codecParams.TotalPartCount);
+
+    for (int partIndex = 0; partIndex < codecParams.TotalPartCount; ++partIndex) {
         auto callback = BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this), partIndex] (i64 bytesReceived, TDuration timePassed) {
             auto this_ = weakThis.Lock();
             if (!this_) {
@@ -166,7 +168,7 @@ TAdaptiveErasureRepairingSession::TAdaptiveErasureRepairingSession(
     , Logger(std::move(logger))
     , AdaptivelyRepairedCounter_(std::move(adaptivelyRepairedCounter))
 {
-    YT_VERIFY(std::ssize(Readers_) == Codec_->GetTotalPartCount());
+    YT_VERIFY(std::ssize(Readers_) == Codec_->GetParams().TotalPartCount);
 }
 
 NErasure::TPartIndexSet TAdaptiveErasureRepairingSession::CalculateBannedParts()

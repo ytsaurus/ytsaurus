@@ -12,6 +12,14 @@ namespace NYT::NTabletClient {
 
 namespace NProto {
 
+class TReqMount;
+class TReqUnmount;
+class TReqRemount;
+class TReqFreeze;
+class TReqUnfreeze;
+class TReqReshard;
+class TReqTwoPhaseAlter;
+
 class TReqRegisterTransactionActions;
 class TRspRegisterTransactionActions;
 class TTableReplicaStatistics;
@@ -51,6 +59,12 @@ DEFINE_ENUM(ETabletStoresUpdateReason,
     ((Trim)                 (4))
     ((Sweep)                (5))
     ((DictionaryBuilding)   (6))
+);
+
+DEFINE_ENUM(ETabletServiceFeatures,
+    ((WriteGenerations)         (0))
+    ((SharedWriteLocks)         (1))
+    ((DelayedWrite)             (2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

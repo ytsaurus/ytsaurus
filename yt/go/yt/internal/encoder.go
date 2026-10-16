@@ -416,6 +416,7 @@ func (e *Encoder) CheckPermission(
 	path ypath.YPath,
 	options *yt.CheckPermissionOptions,
 ) (response *yt.CheckPermissionResponse, err error) {
+	permission, options = yt.NormalizeCheckPermission(permission, options)
 	call := e.newCall(NewCheckPermissionParams(user, permission, path, options))
 	err = e.do(ctx, call, CheckPermissionResultDecoder(&response))
 	return
@@ -682,6 +683,19 @@ func (e *Encoder) WriteTableRaw(
 	return
 }
 
+func (e *Encoder) WriteFileRaw(
+	ctx context.Context,
+	path ypath.YPath,
+	options *yt.WriteFileOptions,
+	body *bytes.Buffer,
+) (err error) {
+	call := e.newCall(NewWriteFileParams(path, options))
+	call.YSONValue = body.Bytes()
+	call.DisableRetries = true
+	err = e.do(ctx, call, noopResultDecoder)
+	return
+}
+
 func (e *Encoder) WriteTable(
 	ctx context.Context,
 	path ypath.YPath,
@@ -702,6 +716,156 @@ func (e *Encoder) WriteTable(
 	call := e.newCall(NewWriteTableParams(path, options))
 	call.Format = format
 	return e.InvokeWriteRow(ctx, call)
+}
+
+var _ yt.DistributedWriteClient = (*Encoder)(nil)
+
+func (e *Encoder) StartDistributedWriteSession(
+	ctx context.Context,
+	path ypath.YPath,
+	options *yt.StartDistributedWriteSessionOptions,
+) (result yt.DistributedWriteSessionWithCookies, err error) {
+	call := e.newCall(NewStartDistributedWriteSessionParams(path, options))
+	err = e.do(ctx, call, StartDistributedWriteSessionResultDecoder(&result))
+	return
+}
+
+func (e *Encoder) PingDistributedWriteSession(
+	ctx context.Context,
+	session yt.DistributedWriteSession,
+	options *yt.PingDistributedWriteSessionOptions,
+) (err error) {
+	call := e.newCall(NewPingDistributedWriteSessionParams(session, options))
+	return e.do(ctx, call, noopResultDecoder)
+}
+
+func (e *Encoder) FinishDistributedWriteSession(
+	ctx context.Context,
+	session yt.DistributedWriteSession,
+	results []yt.WriteFragmentResult,
+	options *yt.FinishDistributedWriteSessionOptions,
+) (err error) {
+	call := e.newCall(NewFinishDistributedWriteSessionParams(session, results, options))
+	return e.do(ctx, call, noopResultDecoder)
+}
+
+func (e *Encoder) WriteTableFragment(
+	ctx context.Context,
+	cookie yt.WriteFragmentCookie,
+	options *yt.TableFragmentWriterOptions,
+) (w yt.TableFragmentWriter, err error) {
+	call := e.newCall(NewWriteTableFragmentParams(cookie, options))
+	if options != nil && options.Format != nil {
+		skiffFormat, ok := options.Format.(skiff.Format)
+		if !ok {
+			return nil, xerrors.Errorf("unexpected format: %+v", options.Format)
+		}
+		if _, err := skiff.SingleSchema(&skiffFormat); err != nil {
+			return nil, err
+		}
+		call.Format = options.Format
+	}
+	call.WriteRspChan = make(chan *CallResult, 1)
+
+	rowWriter, err := e.InvokeWriteRow(ctx, call)
+	if err != nil {
+		return nil, err
+	}
+	return &tableFragmentWriter{TableWriter: rowWriter, rspChan: call.WriteRspChan}, nil
+}
+
+// tableFragmentWriter adapts a low-level row writer to yt.TableFragmentWriter,
+// capturing the signed fragment result returned by the server after Commit.
+type tableFragmentWriter struct {
+	yt.TableWriter
+
+	rspChan chan *CallResult
+	result  yt.WriteFragmentResult
+}
+
+func (w *tableFragmentWriter) Commit() error {
+	if err := w.TableWriter.Commit(); err != nil {
+		return err
+	}
+	res, ok := <-w.rspChan
+	if !ok || res == nil {
+		return xerrors.New("write_table_fragment: server did not return a fragment result")
+	}
+	return WriteTableFragmentResultDecoder(&w.result)(res)
+}
+
+func (w *tableFragmentWriter) Result() yt.WriteFragmentResult {
+	return w.result
+}
+
+var _ yt.DistributedWriteFileClient = (*Encoder)(nil)
+
+func (e *Encoder) StartDistributedWriteFileSession(
+	ctx context.Context,
+	path ypath.YPath,
+	options *yt.StartDistributedWriteFileSessionOptions,
+) (result yt.DistributedWriteFileSessionWithCookies, err error) {
+	call := e.newCall(NewStartDistributedWriteFileSessionParams(path, options))
+	err = e.do(ctx, call, StartDistributedWriteFileSessionResultDecoder(&result))
+	return
+}
+
+func (e *Encoder) PingDistributedWriteFileSession(
+	ctx context.Context,
+	session yt.DistributedWriteFileSession,
+	options *yt.PingDistributedWriteFileSessionOptions,
+) (err error) {
+	call := e.newCall(NewPingDistributedWriteFileSessionParams(session, options))
+	return e.do(ctx, call, noopResultDecoder)
+}
+
+func (e *Encoder) FinishDistributedWriteFileSession(
+	ctx context.Context,
+	session yt.DistributedWriteFileSession,
+	results []yt.WriteFileFragmentResult,
+	options *yt.FinishDistributedWriteFileSessionOptions,
+) (err error) {
+	call := e.newCall(NewFinishDistributedWriteFileSessionParams(session, results, options))
+	return e.do(ctx, call, noopResultDecoder)
+}
+
+func (e *Encoder) WriteFileFragment(
+	ctx context.Context,
+	cookie yt.WriteFileFragmentCookie,
+	options *yt.FileFragmentWriterOptions,
+) (w yt.FileFragmentWriter, err error) {
+	call := e.newCall(NewWriteFileFragmentParams(cookie, options))
+	call.WriteRspChan = make(chan *CallResult, 1)
+
+	fileWriter, err := e.InvokeWrite(ctx, call)
+	if err != nil {
+		return nil, err
+	}
+	return &fileFragmentWriter{WriteCloser: fileWriter, rspChan: call.WriteRspChan}, nil
+}
+
+// fileFragmentWriter adapts a low-level file writer to yt.FileFragmentWriter,
+// capturing the signed fragment result returned by the server after Close.
+type fileFragmentWriter struct {
+	io.WriteCloser
+
+	rspChan chan *CallResult
+	result  yt.WriteFileFragmentResult
+}
+
+func (w *fileFragmentWriter) Close() error {
+	if err := w.WriteCloser.Close(); err != nil {
+		return err
+	}
+	res, ok := <-w.rspChan
+	if !ok || res == nil {
+		return xerrors.New("write_file_fragment: server did not return a fragment result")
+	}
+	return WriteFileFragmentResultDecoder(&w.result)(res)
+}
+
+func (w *fileFragmentWriter) Result() yt.WriteFileFragmentResult {
+	return w.result
 }
 
 func (e *Encoder) ReadTable(
@@ -727,6 +891,38 @@ func (e *Encoder) ReadTable(
 		}
 	}
 	call := e.newCall(NewReadTableParams(path, options))
+	call.Format = format
+	call.TableSchema = tableSchema
+	return e.InvokeReadRow(ctx, call)
+}
+
+func (e *Encoder) PartitionTables(
+	ctx context.Context,
+	paths []ypath.YPath,
+	options *yt.PartitionTablesOptions,
+) (partitions yt.MultiTablePartitions, err error) {
+	call := e.newCall(NewPartitionTablesParams(paths, options))
+	err = e.do(ctx, call, newValueResultDecoder()(&partitions))
+	return partitions, err
+}
+
+func (e *Encoder) ReadTablePartition(
+	ctx context.Context,
+	cookie []byte,
+	options *yt.ReadTablePartitionOptions,
+) (r yt.TablePartitionReader, err error) {
+	var format any
+	var tableSchema *schema.Schema
+	if options != nil {
+		format = options.Format
+		tableSchema = options.TableSchema
+		if tableSchema != nil {
+			if _, ok := format.(skiff.Format); !ok {
+				return nil, xerrors.Errorf("unexpected output format: %+v", format)
+			}
+		}
+	}
+	call := e.newCall(NewReadTablePartitionParams(cookie, options))
 	call.Format = format
 	call.TableSchema = tableSchema
 	return e.InvokeReadRow(ctx, call)
@@ -956,6 +1152,58 @@ func (e *Encoder) RemoveQueueProducerSession(
 	options *yt.RemoveQueueProducerSessionOptions,
 ) (err error) {
 	call := e.newCall(NewRemoveQueueProducerSessionParams(producerPath, queuePath, sessionID, options))
+	err = e.do(ctx, call, noopResultDecoder)
+	return
+}
+
+func (e *Encoder) PullQueueConsumer(
+	ctx context.Context,
+	consumerPath ypath.Path,
+	queuePath ypath.Path,
+	options *yt.PullQueueConsumerOptions,
+) (r yt.TableReader, result *yt.PullQueueConsumerResult, err error) {
+	call := e.newCall(NewPullQueueConsumerParams(consumerPath, queuePath, options))
+	r, err = e.InvokeReadRow(ctx, call)
+	if err != nil {
+		return
+	}
+
+	result = &yt.PullQueueConsumerResult{}
+	if startOffset, ok := yt.StartRowIndex(r); ok {
+		result.StartOffset = startOffset
+	}
+	return
+}
+
+func (e *Encoder) AdvanceQueueConsumer(
+	ctx context.Context,
+	consumerPath ypath.Path,
+	queuePath ypath.Path,
+	options *yt.AdvanceQueueConsumerOptions,
+) (err error) {
+	call := e.newCall(NewAdvanceQueueConsumerParams(consumerPath, queuePath, options))
+	err = e.do(ctx, call, noopResultDecoder)
+	return
+}
+
+func (e *Encoder) RegisterQueueConsumer(
+	ctx context.Context,
+	queuePath ypath.Path,
+	consumerPath ypath.Path,
+	options *yt.RegisterQueueConsumerOptions,
+) (err error) {
+	call := e.newCall(NewRegisterQueueConsumerParams(queuePath, consumerPath, options))
+	err = e.do(ctx, call, noopResultDecoder)
+	return
+}
+
+func (e *Encoder) UnregisterQueueConsumer(
+	ctx context.Context,
+	queuePath ypath.Path,
+	consumerPath ypath.Path,
+	options *yt.UnregisterQueueConsumerOptions,
+) (err error) {
+	call := e.newCall(NewUnregisterQueueConsumerParams(queuePath, consumerPath, options))
 	err = e.do(ctx, call, noopResultDecoder)
 	return
 }

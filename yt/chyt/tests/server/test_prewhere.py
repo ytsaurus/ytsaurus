@@ -362,9 +362,9 @@ class TestClickHousePrewhere(ClickHouseTestBase):
 
         config_patch = self.get_config_patch(optimize_move_to_prewhere=False)
         with Clique(1, config_patch=config_patch) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select * from `//tmp/t` prewhere int")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select * from `//tmp/t` prewhere str")
 
     @authors("dakovalkov")

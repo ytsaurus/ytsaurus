@@ -1,12 +1,18 @@
 import yt_queries
 
-from yt_env_setup import YTEnvSetup, get_sanitizer_type
+from yt_env_setup import YTEnvSetup, get_sanitizer_type, ROOTFS_LAYER_PATH
 
-from yt_commands import (create, write_file)
+from yt_commands import (create, get, set, wait, write_file)
+
+from yt.environment.helpers import wait_for_dynamic_config_update
+
+from google.protobuf.text_format import MessageToString
 
 import hashlib
 import tarfile
 import tempfile
+
+import yatest.common
 
 
 LLVM_SYMBOLIZER_PATH = "contrib/libs/llvm18/tools/llvm-symbolizer/llvm-symbolizer"
@@ -17,7 +23,64 @@ LLVM_SYMBOLIZER_FILENAME = "llvm-symbolizer"
 SUPPRESSIONS_FILENAME = "suppressions.txt"
 
 
+def convert_camel_to_snake(camel_str):
+    result = []
+    for i, ch in enumerate(camel_str):
+        if ch.isupper() and i > 0 and not camel_str[i - 1].isupper():
+            result.append("_")
+        result.append(ch.lower())
+    return "".join(result)
+
+
+def merge_old_dynconfig_into_new_static(config, override):
+    fields_by_snake = {convert_camel_to_snake(field.name): field for field in config.DESCRIPTOR.fields}
+    for key, value in override.items():
+        field = fields_by_snake[key]
+        if field.label == field.LABEL_REPEATED:
+            repeated = getattr(config, field.name)
+            name_field = field.message_type.fields_by_name.get("Name") if field.type == field.TYPE_MESSAGE else None
+            if name_field is not None and name_field.type == name_field.TYPE_STRING:
+                name_key = convert_camel_to_snake(name_field.name)
+                existing_by_name = {getattr(item, name_field.name): item for item in repeated}
+                for item in value:
+                    item_name = item.get(name_key)
+                    if item_name is not None and item_name in existing_by_name:
+                        merge_old_dynconfig_into_new_static(existing_by_name[item_name], item)
+                    else:
+                        merge_old_dynconfig_into_new_static(repeated.add(), item)
+            elif field.type == field.TYPE_MESSAGE:
+                for item in value:
+                    merge_old_dynconfig_into_new_static(repeated.add(), item)
+            else:
+                repeated.extend(value)
+        elif field.type == field.TYPE_MESSAGE:
+            merge_old_dynconfig_into_new_static(getattr(config, field.name), value)
+        else:
+            setattr(config, field.name, value)
+
+
+def wait_for_proto_dynamic_config_update(client, expected_modification_times):
+    instances = client.list("//sys/yql_agent/instances")
+
+    if not instances:
+        return
+
+    def check():
+        for instance in instances:
+            modification_times = client.get(
+                "//sys/yql_agent/instances/{0}/orchid/yql_agent/proto_configs_modification_time".format(instance))
+            for flavor, expected_modification_time in expected_modification_times.items():
+                if modification_times.get(flavor) != expected_modification_time:
+                    return False
+
+        return True
+
+    wait(check, error_message="Proto dynamic config didn't become as expected in time", ignore_exceptions=True)
+
+
 class TestQueriesYqlBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+
     NUM_NODES = 3
     NUM_YQL_AGENTS = 1
     NUM_MASTERS = 1
@@ -35,6 +98,26 @@ class TestQueriesYqlBase(YTEnvSetup):
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
 
+    # Pass --test-param YT_RECIPE_DEBUG_LOGS to keep the default debug logs.
+    if yatest.common.get_param("YT_RECIPE_DEBUG_LOGS") is not None:
+        DELTA_LOCAL_YT_CONFIG = {}
+    else:
+        # Debug logging is on by default in local YT and produces hundreds of GB of logs.
+        # job_proxy_log_manager is passed as a whole value, so its defaults are restated
+        # here with log_dump switched to the info writer: no debug writer is created once
+        # debug logging is off.
+        DELTA_LOCAL_YT_CONFIG = {
+            "enable_debug_logging": False,
+            "job_proxy_log_manager": {
+                "sharding_key_length": 1,
+                "logs_storage_period": "7d",
+                "directory_traversal_concurrency": None,
+                "log_dump": {
+                    "log_writer_name": "info",
+                },
+            },
+        }
+
     COPY_YTSERVER = False
 
     if get_sanitizer_type():
@@ -44,9 +127,6 @@ class TestQueriesYqlBase(YTEnvSetup):
 
         DELTA_NODE_CONFIG = {
             "exec_node": {
-                "job_proxy": {
-                    "test_root_fs": True,
-                },
                 "slot_manager": {
                     "job_environment": {
                         "type": "porto",
@@ -131,17 +211,42 @@ leak:*ToPySecureParam*
         self._setup_files(authenticated_user=kwargs.get("authenticated_user"))
 
         query_prefix = f"""
-pragma yt.LayerPaths = "{self._sanitizer_stuff_archive_yt_path}";
+pragma yt.LayerPaths = "{self._sanitizer_stuff_archive_yt_path},{ROOTFS_LAYER_PATH}";
 pragma yt.JobEnv = '{{
-    ASAN_SYMBOLIZER_PATH = "$(RootFS)/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
-    MSAN_SYMBOLIZER_PATH = "$(RootFS)/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
-    LSAN_SYMBOLIZER_PATH = "$(RootFS)/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
-    TSAN_SYMBOLIZER_PATH = "$(RootFS)/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
-    UBSAN_SYMBOLIZER_PATH = "$(RootFS)/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
-    LSAN_OPTIONS = "malloc_context_size=200:suppressions=$(RootFS)/{SANITIZER_STUFF_PATH}/{SUPPRESSIONS_FILENAME}";
+    ASAN_SYMBOLIZER_PATH = "/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
+    MSAN_SYMBOLIZER_PATH = "/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
+    LSAN_SYMBOLIZER_PATH = "/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
+    TSAN_SYMBOLIZER_PATH = "/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
+    UBSAN_SYMBOLIZER_PATH = "/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
+    LSAN_OPTIONS = "malloc_context_size=200:suppressions=/{SANITIZER_STUFF_PATH}/{SUPPRESSIONS_FILENAME}";
 }}';
 """
 
         query = query_prefix + query
 
         return yt_queries.start_query(engine, query, **kwargs)
+
+
+class TestUpdateYqlAgentDynamicConfigMixin:
+    def _update_dyn_config(self, yql_agent, dyn_config):
+        config = get("//sys/yql_agent/config")
+        config["yql_agent"] = dyn_config
+        set("//sys/yql_agent/config", config)
+        wait_for_dynamic_config_update(yql_agent.yql_agent.client, config, "//sys/yql_agent/instances")
+
+
+class TestUpdateYqlAgentQtWorkerDynamicConfigMixin(TestUpdateYqlAgentDynamicConfigMixin):
+    def _update_dyn_config(self, yql_agent, dyn_config):
+        modification_time = None
+        if "gateways" in dyn_config:
+            config = yql_agent.render_gateways_conf(yql_agent.yql_agent.env)
+            merge_old_dynconfig_into_new_static(config, dyn_config["gateways"])
+            filename = "//sys/yql_agent/proto_gateways/default.conf"
+            create("file", filename, recursive=True, force=True)
+            write_file(filename, MessageToString(config).encode('utf-8'))
+            modification_time = get(filename + "/@modification_time")
+
+        super()._update_dyn_config(yql_agent, dyn_config)
+
+        if modification_time:
+            wait_for_proto_dynamic_config_update(yql_agent.yql_agent.client, {"default": modification_time})

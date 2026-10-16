@@ -37,7 +37,7 @@ class TRecordBatchReaderOrcAdapter
     : public arrow20::RecordBatchReader
 {
 public:
-    TRecordBatchReaderOrcAdapter(const TString& inputFilePath, MemoryPool* pool, int arrowBatchSize)
+    TRecordBatchReaderOrcAdapter(const std::string& inputFilePath, MemoryPool* pool, int arrowBatchSize)
         : ArrowBatchSize_(arrowBatchSize)
     {
         auto fileReaderOrError = arrow20::io::MemoryMappedFile::Open(inputFilePath, arrow20::io::FileMode::READ);
@@ -139,7 +139,7 @@ TArrowRawIterator::TArrowRawIterator(Py::PythonClassInstance* self, Py::Tuple& a
     : Py::PythonClass<TArrowRawIterator>::PythonClass(self, args, kwargs)
 { }
 
-void TArrowRawIterator::Initialize(const TString& inputFilePath, EFileFormat format, int arrowBatchSize)
+void TArrowRawIterator::Initialize(const std::string& inputFilePath, EFileFormat format, int arrowBatchSize)
 {
     auto* pool = arrow20::default_memory_pool();
 

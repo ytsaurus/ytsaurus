@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 #include <util/stream/mem.h>
 
 namespace NYT::NHydra {
@@ -20,7 +22,7 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "SimpleHydra");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "SimpleHydra");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,7 +110,7 @@ void TSimpleHydraManagerMock::DoApplyUpTo(int sequenceNumber)
             /*sequenceNumber*/ AppliedSequenceNumber_,
             /*stateHash*/ 0,
             /*term*/ 0,
-            /*localHostNameOverride*/ TSharedRef::FromString("<mock-host>"));
+            /*localHostNameOverride*/ "<mock-host>");
 
         {
             TMutationContextGuard mutationContextGuard(&mutationContext);
@@ -128,8 +130,8 @@ TSimpleHydraManagerMock::TSnapshot TSimpleHydraManagerMock::DoSaveSnapshot()
 {
     YT_ASSERT_INVOKER_AFFINITY(AutomatonInvoker_);
 
-    TString snapshotData;
-    TStringOutput output(snapshotData);
+    std::string snapshotData;
+    TStdStringOutput output(snapshotData);
     auto writer = CreateAsyncAdapter(&output);
 
     TFuture<void> future;
@@ -184,7 +186,7 @@ void TSimpleHydraManagerMock::DoLoadSnapshot(const TSnapshot& snapshot)
         TPhysicalVersion(),
         /*timestamp*/ TInstant::Zero(),
         /*randomSeed*/ 0,
-        /*localHostNameOverride*/ TSharedRef::FromString("<mock-host>"));
+        /*localHostNameOverride*/ "<mock-host>");
     THydraContextGuard guard(&hydraContext);
 
     Automaton_->PrepareState();
@@ -194,9 +196,9 @@ TFuture<TMutationResponse> TSimpleHydraManagerMock::CommitMutation(TMutationRequ
 {
     YT_VERIFY(IsActiveLeader());
 
-    YT_LOG_DEBUG("Committing mutation (SequenceNumber: %v, Type: %v)",
-        MutationRequests_.size(),
-        request.Type);
+    YT_TLOG_DEBUG("Committing mutation")
+        .With("SequenceNumber", MutationRequests_.size())
+        .With("Type", request.Type);
     MutationRequests_.emplace_back(std::move(request));
     auto promise = MutationResponsePromises_.emplace_back(NewPromise<TMutationResponse>());
     return promise;
@@ -251,6 +253,11 @@ TFuture<void> TSimpleHydraManagerMock::Reconfigure(TDynamicDistributedHydraManag
 ELogLevel TSimpleHydraManagerMock::GetMutationHandlerFailureLogLevel(TStringBuf /*mutationType*/) const
 {
     return ELogLevel::Warning;
+}
+
+ELogLevel TSimpleHydraManagerMock::GetUnknownAutomatonPartsLogLevel() const
+{
+    return ELogLevel::Fatal;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

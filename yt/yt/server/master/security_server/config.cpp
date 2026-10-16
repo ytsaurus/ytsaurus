@@ -77,6 +77,18 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("allow_alter_without_full_read", &TThis::AllowAlterWithoutFullRead)
         .Default(EAllowAlterWithoutFullRead::Allow);
+
+    registrar.Parameter("check_all_ace_columns_full_read", &TThis::CheckAllAceColumnsFullRead)
+        .Default(false)
+        .DontSerializeDefault();
+
+    registrar.Parameter("allow_change_request_limits_for_root", &TThis::AllowChangeRequestLimitsForRoot)
+        .Default(false)
+        .DontSerializeDefault();
+
+    registrar.Parameter("forward_authenticated_user", &TThis::ForwardAuthenticatedUser)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

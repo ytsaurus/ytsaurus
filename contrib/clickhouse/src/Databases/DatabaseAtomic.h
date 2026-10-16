@@ -24,6 +24,7 @@ public:
     DatabaseAtomic(String name_, String metadata_path_, UUID uuid, ContextPtr context_);
 
     String getEngineName() const override { return "Atomic"; }
+    bool supportsAtomicTableReplacement() const override;
     UUID getUUID() const override { return db_uuid; }
 
     void renameDatabase(ContextPtr query_context, const String & new_name) override;

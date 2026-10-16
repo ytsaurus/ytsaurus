@@ -136,6 +136,7 @@ func (l *library) SystemGetConfComputeSettings() (SystemConfComputeSettings, Ret
 
 // nvml.SystemSetConfComputeKeyRotationThresholdInfo()
 func (l *library) SystemSetConfComputeKeyRotationThresholdInfo(keyRotationThresholdInfo ConfComputeSetKeyRotationThresholdInfo) Return {
+	keyRotationThresholdInfo.Version = STRUCT_VERSION(keyRotationThresholdInfo, 1)
 	return nvmlSystemSetConfComputeKeyRotationThresholdInfo(&keyRotationThresholdInfo)
 }
 
@@ -145,4 +146,9 @@ func (l *library) SystemGetDriverBranch() (SystemDriverBranchInfo, Return) {
 	branchInfo.Version = STRUCT_VERSION(branchInfo, 1)
 	ret := nvmlSystemGetDriverBranch(&branchInfo, SYSTEM_DRIVER_VERSION_BUFFER_SIZE)
 	return branchInfo, ret
+}
+
+func (l *library) SystemGetCPER_v1(cper *GetCPER_v1) Return {
+	ret := nvmlSystemGetCPER_v1(cper)
+	return ret
 }

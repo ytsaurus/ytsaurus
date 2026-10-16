@@ -20,6 +20,8 @@
 #include <Server/NotFoundHandler.h>
 #include <Server/StaticRequestHandler.h>
 
+#include <Server/HTTP/sendExceptionToHTTPClient.h>
+
 #include <base/getFQDNOrHostName.h>
 
 namespace NYT::NClickHouseServer {
@@ -38,11 +40,14 @@ public:
     { }
 
     void handleRequest(
-        DB::HTTPServerRequest& /*request*/,
+        DB::HTTPServerRequest& request,
         DB::HTTPServerResponse& response,
         const ProfileEvents::Event& /*write_event*/) override
     {
         try {
+            // Closing with an unread body makes the peer see an RST instead of this response.
+            DB::drainRequestIfNeeded(request, response);
+
             response.set("X-ClickHouse-Server-Display-Name", Server_.config().getString("display_name", getFQDNOrHostName()));
             response.setStatusAndReason(DB::HTTPResponse::HTTP_MOVED_PERMANENTLY);
             (*response.send()) << "Instance moved or is moving from this address.\n";
@@ -118,7 +123,10 @@ public:
         response.set("X-Yt-Trace-Id", ToString(TraceContext_->GetTraceId()));
 
         auto replyError = [&] (DBPoco::Net::HTTPResponse::HTTPStatus statusCode, const TError& error) {
-            YT_LOG_INFO(error, "Replying with error");
+            YT_TLOG_INFO("Replying with error")
+                .With(error);
+            // Closing with an unread body makes the peer see an RST instead of this response.
+            DB::drainRequestIfNeeded(request, response);
             // Without this header proxy thinks that the response is not from clickhouse instance.
             response.set("X-ClickHouse-Server-Display-Name", Server_.config().getString("display_name", getFQDNOrHostName()));
             response.setStatusAndReason(statusCode);
@@ -153,9 +161,10 @@ public:
             return;
         }
 
-        YT_LOG_DEBUG("Preparing clickhouse user (UserName: %v)", userName);
+        YT_TLOG_DEBUG("Preparing clickhouse user")
+            .With("UserName", userName);
         Host_->PrepareClickHouseUser(userName);
-        YT_LOG_DEBUG("User prepared");
+        YT_TLOG_DEBUG("User prepared");
 
         DB::HTTPHandler::handleRequest(request, response, writeEvent);
     }
@@ -179,13 +188,15 @@ private:
 
         auto maybeDataLensRequestId = request.get("X-Request-Id", "");
         if (maybeDataLensRequestId.starts_with("dl.")) {
-            YT_LOG_INFO("Request contains DataLens request id (RequestId: %v)", maybeDataLensRequestId);
+            YT_TLOG_INFO("Request contains DataLens request id")
+                .With("RequestId", maybeDataLensRequestId);
             DataLensRequestId_ = TString(maybeDataLensRequestId);
         }
 
         auto maybeYqlOperationId = request.get("X-YQL-Operation-Id", "");
         if (!maybeYqlOperationId.empty()) {
-            YT_LOG_INFO("Request contains YQL operation id (OperationId: %v)", maybeYqlOperationId);
+            YT_TLOG_INFO("Request contains YQL operation id")
+                .With("OperationId", maybeYqlOperationId);
             YqlOperationId_ = TString(maybeYqlOperationId.substr(0, YqlOperationIdLength));
         }
 
@@ -198,30 +209,28 @@ private:
             parentSpan = TSpanContext{
                 .TraceId = TTraceId::Create()
             };
-            YT_LOG_INFO(
-                "Parent span context is absent or not parseable, generating our own trace id aka query id "
-                "(RequestTraceId: %v, RequestSpanId: %v, GeneratedTraceId: %v)",
-                requestTraceId,
-                requestSpanId,
-                parentSpan.TraceId);
+            YT_TLOG_INFO("Parent span context is absent or not parseable, generating our own trace id aka query id")
+                .With("RequestTraceId", requestTraceId)
+                .With("RequestSpanId", requestSpanId)
+                .With("GeneratedTraceId", parentSpan.TraceId);
         } else {
-            YT_LOG_INFO("Parsed parent span context (RequestTraceId: %v, RequestSpanId: %v)",
-                requestTraceId,
-                requestSpanId);
+            YT_TLOG_INFO("Parsed parent span context")
+                .With("RequestTraceId", requestTraceId)
+                .With("RequestSpanId", requestSpanId);
         }
 
         auto requestSampled = TString(request.get("X-Yt-Sampled", ""));
         if (int intValue; TryIntFromString<10>(requestSampled, intValue) && intValue >= 0 && intValue <= 1) {
-            YT_LOG_INFO("Parsed X-Yt-Sampled (RequestSampled: %v)",
-                requestSampled);
+            YT_TLOG_INFO("Parsed X-Yt-Sampled")
+                .With("RequestSampled", requestSampled);
             parentSpan.Sampled = (intValue == 1);
         } else if (bool boolValue; TryFromString<bool>(requestSampled, boolValue)) {
-            YT_LOG_INFO("Parsed X-Yt-Sampled (RequestSampled: %v)",
-                requestSampled);
+            YT_TLOG_INFO("Parsed X-Yt-Sampled")
+                .With("RequestSampled", requestSampled);
             parentSpan.Sampled = boolValue;
         } else {
-            YT_LOG_INFO("Cannot parse X-Yt-Sampled, assuming false (RequestSampled: %v)",
-                requestSampled);
+            YT_TLOG_INFO("Cannot parse X-Yt-Sampled, assuming false")
+                .With("RequestSampled", requestSampled);
             parentSpan.Sampled = false;
         }
 
@@ -255,11 +264,11 @@ public:
         DBPoco::URI uri(request.getURI());
 
         const auto& Logger = ClickHouseYtLogger;
-        YT_LOG_INFO("HTTP request received (Method: %v, URI: %v, Address: %v, UserAgent: %v)",
-            request.getMethod(),
-            uri.toString(),
-            request.clientAddress().toString(),
-            (request.has("User-Agent") ? request.get("User-Agent") : "none"));
+        YT_TLOG_INFO("HTTP request received")
+            .With("Method", request.getMethod())
+            .With("URI", uri.toString())
+            .With("Address", request.clientAddress().toString())
+            .With("UserAgent", request.has("User-Agent") ? request.get("User-Agent") : "none");
 
         // Light health-checking requests.
         if (request.getMethod() == DB::HTTPServerRequest::HTTP_HEAD ||

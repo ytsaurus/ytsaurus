@@ -13,10 +13,10 @@ from .suite import Suite
 
 
 class YTSuiteAdapter(Suite):
-    def _transform_statement_table_name(self, ast: sqlglot.Expression) -> sqlglot.Expression:
+    def _transform_statement_table_name(self, ast: sqlglot.exp.Expression) -> sqlglot.exp.Expression:
         updated_table_references = set()
 
-        def transform_table_name(node: sqlglot.Expression) -> sqlglot.Expression:
+        def transform_table_name(node: sqlglot.exp.Expression) -> sqlglot.exp.Expression:
             if isinstance(node, sqlglot.exp.Table):
                 updated_name_indentifier = self._get_table_indentifier(node.name)
                 updated_table_references.add(node.name)
@@ -29,8 +29,8 @@ class YTSuiteAdapter(Suite):
 
         return ast.transform(transform_table_name)
 
-    def _transform_statement_append_limit(self, ast: sqlglot.Expression) -> sqlglot.Expression:
-        def append_limit(node: sqlglot.Expression) -> sqlglot.Expression:
+    def _transform_statement_append_limit(self, ast: sqlglot.exp.Expression) -> sqlglot.exp.Expression:
+        def append_limit(node: sqlglot.exp.Expression) -> sqlglot.exp.Expression:
             if (
                 isinstance(node, sqlglot.exp.Select)
                 and node.find(sqlglot.exp.Order)

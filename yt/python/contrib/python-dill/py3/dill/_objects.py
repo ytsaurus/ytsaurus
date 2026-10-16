@@ -2,7 +2,7 @@
 #
 # Author: Mike McKerns (mmckerns @caltech and @uqfoundation)
 # Copyright (c) 2008-2016 California Institute of Technology.
-# Copyright (c) 2016-2025 The Uncertainty Quantification Foundation.
+# Copyright (c) 2016-2026 The Uncertainty Quantification Foundation.
 # License: 3-clause BSD.  The full license text is available at:
 #  - https://github.com/uqfoundation/dill/blob/master/LICENSE
 """
@@ -50,6 +50,7 @@ import optparse
 import threading
 import socket
 import contextlib
+import contextvars
 try:
     import bz2
     import sqlite3
@@ -175,7 +176,7 @@ a['OptionParserType'] = _oparser = optparse.OptionParser() # pickle ok
 a['OptionGroupType'] = optparse.OptionGroup(_oparser,"foo") # pickle ok
 a['OptionType'] = optparse.Option('--foo') # pickle ok
 if HAS_CTYPES:
-    z = x if IS_PYPY else a
+    z = x if (IS_PYPY and sys.hexversion < 0x30b0df0) else a
     z['CCharType'] = _cchar = ctypes.c_char()
     z['CWCharType'] = ctypes.c_wchar() # fail == 2.6
     z['CByteType'] = ctypes.c_byte()
@@ -217,7 +218,7 @@ a['BufferedIOBaseType'] = io.BufferedIOBase()
 a['UnicodeIOType'] = TextIO() # the new StringIO
 a['LoggerAdapterType'] = logging.LoggerAdapter(_logger,_dict) # pickle ok
 if HAS_CTYPES:
-    z = x if IS_PYPY else a
+    z = x if (IS_PYPY and sys.hexversion < 0x30b0df0) else a
     z['CBoolType'] = ctypes.c_bool(1)
     z['CLongDoubleType'] = ctypes.c_longdouble()
     del z
@@ -226,7 +227,7 @@ import argparse
 a['OrderedDictType'] = collections.OrderedDict(_dict)
 a['CounterType'] = collections.Counter(_dict)
 if HAS_CTYPES:
-    z = x if IS_PYPY else a
+    z = x if (IS_PYPY and sys.hexversion < 0x30b0df0) else a
     z['CSSizeTType'] = ctypes.c_ssize_t()
     del z
 # generic operating system services (CH 15)
@@ -250,20 +251,22 @@ a['ModuleType'] = datetime
 a['NotImplementedType'] = NotImplemented
 a['SliceType'] = slice(1)
 a['UnboundMethodType'] = _class._method #XXX: works when not imported!
-d['TextWrapperType'] = open(os.devnull, 'r') # same as mode='w','w+','r+'
+from ._dill import get_file_type as openfile
+d['TextWrapperType'] = openfile('r', buffering=-1) # same as mode='w','w+','r+'
 if not IS_PYODIDE:
-    d['BufferedRandomType'] = open(os.devnull, 'r+b') # same as mode='w+b'
-d['BufferedReaderType'] = open(os.devnull, 'rb') # (default: buffering=-1)
-d['BufferedWriterType'] = open(os.devnull, 'wb')
+    d['BufferedRandomType'] = openfile('r+b', buffering=-1) # same as mode='w+b'
+d['BufferedReaderType'] = openfile('rb', buffering=-1) # (default: buffering=-1)
+d['BufferedWriterType'] = openfile('wb', buffering=-1)
 try: # oddities: deprecated
     from _pyio import open as _open
-    d['PyTextWrapperType'] = _open(os.devnull, 'r', buffering=-1)
+    d['PyTextWrapperType'] = openfile('r', buffering=-1, open=_open)
     if not IS_PYODIDE:
-        d['PyBufferedRandomType'] = _open(os.devnull, 'r+b', buffering=-1)
-    d['PyBufferedReaderType'] = _open(os.devnull, 'rb', buffering=-1)
-    d['PyBufferedWriterType'] = _open(os.devnull, 'wb', buffering=-1)
+        d['PyBufferedRandomType'] = openfile('r+b', buffering=-1, open=_open)
+    d['PyBufferedReaderType'] = openfile('rb', buffering=-1, open=_open)
+    d['PyBufferedWriterType'] = openfile('wb', buffering=-1, open=_open)
 except ImportError:
     pass
+del openfile
 # other (concrete) object types
 z = d if sys.hexversion < 0x30800a2 else a
 z['CellType'] = (_lambda)(0).__closure__[0]
@@ -331,6 +334,7 @@ x['SocketType'] = _socket = socket.socket()
 x['SocketPairType'] = socket.socketpair()[0]
 # python runtime services (CH 27)
 a['GeneratorContextManagerType'] = contextlib.contextmanager(max)([1])
+#a['ContextType'] = contextvars.Context() #XXX: ContextVar
 
 try: # ipython
     __IPYTHON__ is True # is ipython

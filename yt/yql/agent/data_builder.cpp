@@ -54,7 +54,7 @@ TLogicalTypePtr SkipTagged(const TLogicalTypePtr& type)
         case ELogicalMetatype::Tagged:
             return SkipTagged(type->AsTaggedTypeRef().GetElement());
         default:
-            THROW_ERROR_EXCEPTION("Invalid metatype in type %v", ToString(*type));
+            THROW_ERROR_EXCEPTION("Invalid metatype in type %v", *type);
     }
 }
 
@@ -66,13 +66,13 @@ TDataBuilder::TDataBuilder(IValueConsumer* consumer, NTableClient::TLogicalTypeP
     : ValueConsumer_(consumer)
     , ValueWriter_(&ValueBuffer_)
 {
-    Type_.push(SkipTagged(type));
+    Type_.emplace(SkipTagged(type));
 }
 
 void TDataBuilder::OnVoid()
 {
     const auto& topType = Type_.top();
-    THROW_ERROR_EXCEPTION_UNLESS(topType->IsNullable(), "Type %v is not nullable", ToString(*topType));
+    THROW_ERROR_EXCEPTION_UNLESS(topType->IsNullable(), "Type %v is not nullable", *topType);
 
     AddNull();
 }
@@ -80,7 +80,7 @@ void TDataBuilder::OnVoid()
 void TDataBuilder::OnNull()
 {
     const auto& topType = Type_.top();
-    THROW_ERROR_EXCEPTION_UNLESS(topType->IsNullable(), "Type %v is not nullable", ToString(*topType));
+    THROW_ERROR_EXCEPTION_UNLESS(topType->IsNullable(), "Type %v is not nullable", *topType);
 
     AddNull();
 }
@@ -88,7 +88,7 @@ void TDataBuilder::OnNull()
 void TDataBuilder::OnEmptyList()
 {
     const auto& topType = Type_.top();
-    THROW_ERROR_EXCEPTION_UNLESS(topType->IsNullable(), "Type %v is not nullable", ToString(*topType));
+    THROW_ERROR_EXCEPTION_UNLESS(topType->IsNullable(), "Type %v is not nullable", *topType);
 
     AddNull();
 }
@@ -96,7 +96,7 @@ void TDataBuilder::OnEmptyList()
 void TDataBuilder::OnEmptyDict()
 {
     const auto& topType = Type_.top();
-    THROW_ERROR_EXCEPTION_UNLESS(topType->IsNullable(), "Type %v is not nullable", ToString(*topType));
+    THROW_ERROR_EXCEPTION_UNLESS(topType->IsNullable(), "Type %v is not nullable", *topType);
 
     AddNull();
 }
@@ -108,7 +108,7 @@ void TDataBuilder::OnBool(bool value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Boolean,
         "Type %v is not \"boolean\"",
-        ToString(*topType));
+        *topType);
 
     AddBoolean(value);
 }
@@ -120,7 +120,7 @@ void TDataBuilder::OnInt8(i8 value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Int8,
         "Type %v is not \"int8\"",
-        ToString(*topType));
+        *topType);
 
     AddSigned(value);
 }
@@ -132,7 +132,7 @@ void TDataBuilder::OnUint8(ui8 value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Uint8,
         "Type %v is not \"uint8\"",
-        ToString(*topType));
+        *topType);
 
     AddUnsigned(value);
 }
@@ -144,7 +144,7 @@ void TDataBuilder::OnInt16(i16 value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Int16,
         "Type %v is not \"int16\"",
-        ToString(*topType));
+        *topType);
 
     AddSigned(value);
 }
@@ -156,7 +156,7 @@ void TDataBuilder::OnUint16(ui16 value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Uint16,
         "Type %v is not \"uint16\"",
-        ToString(*topType));
+        *topType);
 
     AddUnsigned(value);
 }
@@ -168,7 +168,7 @@ void TDataBuilder::OnInt32(i32 value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Int32,
         "Type %v is not \"int32\"",
-        ToString(*topType));
+        *topType);
 
     AddSigned(value);
 }
@@ -180,7 +180,7 @@ void TDataBuilder::OnUint32(ui32 value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Uint32,
         "Type %v is not \"uint32\"",
-        ToString(*topType));
+        *topType);
 
     AddUnsigned(value);
 }
@@ -192,7 +192,7 @@ void TDataBuilder::OnInt64(i64 value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Int64,
         "Type %v is not \"int64\"",
-        ToString(*topType));
+        *topType);
 
     AddSigned(value);
 }
@@ -204,7 +204,7 @@ void TDataBuilder::OnUint64(ui64 value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Uint64,
         "Type %v is not \"uint64\"",
-        ToString(*topType));
+        *topType);
 
     AddUnsigned(value);
 }
@@ -216,7 +216,7 @@ void TDataBuilder::OnFloat(float value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Float,
         "Type %v is not \"float\"",
-        ToString(*topType));
+        *topType);
 
     AddReal(value);
 }
@@ -228,7 +228,7 @@ void TDataBuilder::OnDouble(double value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Double,
         "Type %v is not \"double\"",
-        ToString(*topType));
+        *topType);
 
     AddReal(value);
 }
@@ -240,7 +240,7 @@ void TDataBuilder::OnString(TStringBuf value, bool /*isUtf8*/)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::String,
         "Type %v is not \"string\"",
-        ToString(*topType));
+        *topType);
 
     AddString(value);
 }
@@ -252,7 +252,7 @@ void TDataBuilder::OnUtf8(TStringBuf value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Utf8,
         "Type %v is not \"utf8\"",
-        ToString(*topType));
+        *topType);
 
     AddString(value);
 }
@@ -269,7 +269,7 @@ void TDataBuilder::OnJson(TStringBuf value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Json,
         "Type %v is not \"json\"",
-        ToString(*topType));
+        *topType);
 
     AddString(value);
 }
@@ -281,7 +281,7 @@ void TDataBuilder::OnJsonDocument(TStringBuf value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::String,
         "Type %v is not \"string\"",
-        ToString(*topType));
+        *topType);
 
     AddString(value);
 }
@@ -293,7 +293,7 @@ void TDataBuilder::OnUuid(TStringBuf value, bool /*isUtf8*/)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Uuid,
         "Type %v is not \"uuid\"",
-        ToString(*topType));
+        *topType);
 
     AddString(value);
 }
@@ -305,7 +305,7 @@ void TDataBuilder::OnDyNumber(TStringBuf value, bool /*isUtf8*/)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::String,
         "Type %v is not \"string\"",
-        ToString(*topType));
+        *topType);
 
     AddString(value);
 }
@@ -317,7 +317,7 @@ void TDataBuilder::OnDate(ui16 value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Date,
         "Type %v is not \"date\"",
-        ToString(*topType));
+        *topType);
 
     AddUnsigned(value);
 }
@@ -329,7 +329,7 @@ void TDataBuilder::OnDatetime(ui32 value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Datetime,
         "Type %v is not \"datetime\"",
-        ToString(*topType));
+        *topType);
 
     AddUnsigned(value);
 }
@@ -341,7 +341,7 @@ void TDataBuilder::OnTimestamp(ui64 value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Timestamp,
         "Type %v is not \"timestamp\"",
-        ToString(*topType));
+        *topType);
 
     AddUnsigned(value);
 }
@@ -353,7 +353,7 @@ void TDataBuilder::OnTzDate(TStringBuf value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::String,
         "Type %v is not \"string\"",
-        ToString(*topType));
+        *topType);
 
     AddString(value);
 }
@@ -365,7 +365,7 @@ void TDataBuilder::OnTzDatetime(TStringBuf value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::String,
         "Type %v is not \"string\"",
-        ToString(*topType));
+        *topType);
 
     AddString(value);
 }
@@ -377,7 +377,7 @@ void TDataBuilder::OnTzTimestamp(TStringBuf value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::String,
         "Type %v is not \"string\"",
-        ToString(*topType));
+        *topType);
 
     AddString(value);
 }
@@ -389,7 +389,7 @@ void TDataBuilder::OnInterval(i64 value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Interval,
         "Type %v is not \"interval\"",
-        ToString(*topType));
+        *topType);
 
     AddSigned(value);
 }
@@ -401,7 +401,7 @@ void TDataBuilder::OnDate32(i32 value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Date32,
         "Type %v is not \"date32\"",
-        ToString(*topType));
+        *topType);
 
     AddSigned(value);
 }
@@ -413,7 +413,7 @@ void TDataBuilder::OnDatetime64(i64 value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Datetime64,
         "Type %v is not \"datetime64\"",
-        ToString(*topType));
+        *topType);
 
     AddSigned(value);
 }
@@ -425,7 +425,7 @@ void TDataBuilder::OnTimestamp64(i64 value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Timestamp64,
         "Type %v is not \"timestamp64\"",
-        ToString(*topType));
+        *topType);
 
     AddSigned(value);
 }
@@ -437,7 +437,7 @@ void TDataBuilder::OnTzDate32(TStringBuf value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::String,
         "Type %v is not \"string\"",
-        ToString(*topType));
+        *topType);
 
     AddString(value);
 }
@@ -449,7 +449,7 @@ void TDataBuilder::OnTzDatetime64(TStringBuf value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::String,
         "Type %v is not \"string\"",
-        ToString(*topType));
+        *topType);
 
     AddString(value);
 }
@@ -461,7 +461,7 @@ void TDataBuilder::OnTzTimestamp64(TStringBuf value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::String,
         "Type %v is not \"string\"",
-        ToString(*topType));
+        *topType);
 
     AddString(value);
 }
@@ -473,7 +473,7 @@ void TDataBuilder::OnInterval64(i64 value)
         topType->GetMetatype() == ELogicalMetatype::Simple &&
         topType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Interval64,
         "Type %v is not \"interval64\"",
-        ToString(*topType));
+        *topType);
 
     AddSigned(value);
 }
@@ -484,7 +484,7 @@ void TDataBuilder::OnDecimal(TStringBuf value)
     THROW_ERROR_EXCEPTION_UNLESS(
         topType->GetMetatype() == ELogicalMetatype::Decimal,
         "Type %v is not \"decimal\"",
-        ToString(*topType));
+        *topType);
 
     std::array<char, NDecimal::TDecimal::MaxBinarySize> buffer;
     AddString(NDecimal::TDecimal::TextToBinary(
@@ -501,8 +501,8 @@ void TDataBuilder::OnBeginOptional()
     THROW_ERROR_EXCEPTION_UNLESS(
         topType->GetMetatype() == ELogicalMetatype::Optional,
         "Type %v is not \"optional\"",
-        ToString(*topType));
-    Type_.push(topType->AsOptionalTypeRef().GetElement());
+        *topType);
+    Type_.emplace(topType->AsOptionalTypeRef().GetElement());
 
     ++OptionalLevels_.top();
 }
@@ -536,8 +536,8 @@ void TDataBuilder::OnBeginList()
     THROW_ERROR_EXCEPTION_UNLESS(
         topType->GetMetatype() == ELogicalMetatype::List,
         "Type %v is not \"list\"",
-        ToString(*topType));
-    Type_.push(topType->AsListTypeRef().GetElement());
+        *topType);
+    Type_.emplace(topType->AsListTypeRef().GetElement());
 
     BeginList();
 }
@@ -570,8 +570,8 @@ void TDataBuilder::OnBeginTuple()
     THROW_ERROR_EXCEPTION_UNLESS(
         topType->GetMetatype() == ELogicalMetatype::Tuple,
         "Type %v is not \"tuple\"",
-        ToString(*topType));
-    TupleTypes_.push({topType->AsTupleTypeRef().GetElements(), 0});
+        *topType);
+    TupleTypes_.emplace(TTupleTypes{topType->AsTupleTypeRef().GetElements(), 0});
 
     BeginList();
 }
@@ -579,7 +579,7 @@ void TDataBuilder::OnBeginTuple()
 void TDataBuilder::OnBeforeTupleItem()
 {
     THROW_ERROR_EXCEPTION_UNLESS(!TupleTypes_.empty() && TupleTypes_.top().Index < TupleTypes_.top().Types.size(), "Type is not correct Tuple");
-    Type_.push(TupleTypes_.top().Types[TupleTypes_.top().Index]);
+    Type_.emplace(TupleTypes_.top().Types[TupleTypes_.top().Index]);
     OpenItem();
 }
 
@@ -589,7 +589,7 @@ void TDataBuilder::OnAfterTupleItem()
     THROW_ERROR_EXCEPTION_UNLESS(
         !TupleTypes_.empty(),
         "Type %v is not correct \"tuple\"",
-        ToString(*topType));
+        *topType);
     TupleTypes_.top().Index++;
     Type_.pop();
     CloseItem();
@@ -607,8 +607,8 @@ void TDataBuilder::OnBeginStruct()
     THROW_ERROR_EXCEPTION_UNLESS(
         topType->GetMetatype() == ELogicalMetatype::Struct,
         "Type %v is not \"struct\"",
-        ToString(*topType));
-    StructTypes_.push({topType->AsStructTypeRef().GetFields(), 0});
+        *topType);
+    StructTypes_.emplace(TStructTypes{topType->AsStructTypeRef().GetFields(), 0});
 
     BeginList();
     if (!Depth_) {
@@ -622,8 +622,8 @@ void TDataBuilder::OnBeforeStructItem()
     THROW_ERROR_EXCEPTION_UNLESS(
         !StructTypes_.empty() && StructTypes_.top().Index < StructTypes_.top().Types.size(),
         "Type %v is not correct \"struct\"",
-        ToString(*topType));
-    Type_.push(StructTypes_.top().Types[StructTypes_.top().Index].Type);
+        *topType);
+    Type_.emplace(StructTypes_.top().Types[StructTypes_.top().Index].Type);
     OpenItem();
 }
 
@@ -633,7 +633,7 @@ void TDataBuilder::OnAfterStructItem()
     THROW_ERROR_EXCEPTION_UNLESS(
         !StructTypes_.empty(),
         "Type %v is not correct \"struct\"",
-        ToString(*topType));
+        *topType);
     StructTypes_.top().Index++;
     Type_.pop();
     CloseItem();
@@ -654,8 +654,8 @@ void TDataBuilder::OnBeginDict()
     THROW_ERROR_EXCEPTION_UNLESS(
         topType->GetMetatype() == ELogicalMetatype::Dict,
         "Type %v is not \"dict\"",
-        ToString(*topType));
-    DictType_.push({topType->AsDictTypeRef().GetKey(), topType->AsDictTypeRef().GetValue()});
+        *topType);
+    DictType_.emplace(TDictType{topType->AsDictTypeRef().GetKey(), topType->AsDictTypeRef().GetValue()});
 
     BeginList();
 }
@@ -666,8 +666,8 @@ void TDataBuilder::OnBeforeDictItem()
     THROW_ERROR_EXCEPTION_UNLESS(
         !DictType_.empty(),
         "Type %v is not correct \"dict\"",
-        ToString(*topType));
-    Type_.push(DictType_.top().Value);
+        *topType);
+    Type_.emplace(DictType_.top().Value);
     BeginList();
 }
 
@@ -677,8 +677,8 @@ void TDataBuilder::OnBeforeDictKey()
     THROW_ERROR_EXCEPTION_UNLESS(
         !DictType_.empty(),
         "Type %v is not correct \"dict\"",
-        ToString(*topType));
-    Type_.push(DictType_.top().Key);
+        *topType);
+    Type_.emplace(DictType_.top().Key);
     OpenItem();
 }
 
@@ -717,12 +717,12 @@ void TDataBuilder::OnBeginVariant(ui32 index)
         topType->GetMetatype() == ELogicalMetatype::VariantStruct ||
         topType->GetMetatype() == ELogicalMetatype::VariantTuple,
         "Type %v is not \"dict\"",
-        ToString(*topType));
+        *topType);
 
     if (topType->GetMetatype() == ELogicalMetatype::VariantStruct) {
-        Type_.push(topType->AsVariantStructTypeRef().GetFields()[index].Type);
+        Type_.emplace(topType->AsVariantStructTypeRef().GetFields()[index].Type);
     } else {
-        Type_.push(topType->AsVariantTupleTypeRef().GetElements()[index]);
+        Type_.emplace(topType->AsVariantTupleTypeRef().GetElements()[index]);
     }
 
     BeginList();
@@ -835,7 +835,7 @@ void TDataBuilder::BeginList()
 
 void TDataBuilder::OpenItem()
 {
-    OptionalLevels_.push(0);
+    OptionalLevels_.emplace(0);
     if (Depth_ > 0) {
         ValueWriter_.OnListItem();
     }

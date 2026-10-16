@@ -7,9 +7,9 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<TString> ParseEncodingArgument(Py::Tuple& args, Py::Dict& kwargs)
+std::optional<std::string> ParseEncodingArgument(Py::Tuple& args, Py::Dict& kwargs)
 {
-    std::optional<TString> encoding;
+    std::optional<std::string> encoding;
     if (HasArgument(args, kwargs, "encoding")) {
         auto arg = ExtractArgument(args, kwargs, "encoding");
         if (!arg.isNone()) {
@@ -28,7 +28,7 @@ std::optional<TString> ParseEncodingArgument(Py::Tuple& args, Py::Dict& kwargs)
     return encoding;
 }
 
-YT_PREVENT_TLS_CACHING Py::Bytes EncodeStringObject(const Py::Object& obj, const std::optional<TString>& encoding, TContext* context)
+YT_PREVENT_TLS_CACHING Py::Bytes EncodeStringObject(const Py::Object& obj, const std::optional<std::string>& encoding, TContext* context)
 {
     if (PyUnicode_Check(obj.ptr())) {
         if (!encoding) {

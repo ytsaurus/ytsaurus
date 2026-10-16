@@ -50,7 +50,7 @@ public:
         : FileName_(std::move(fileName))
         , SnapshotId_(snapshotId)
         , IOInvoker_(std::move(ioInvoker))
-        , Logger(HydraLogger().WithTag("Path: %v", fileName))
+        , Logger(HydraLogger().WithTag("Path", fileName))
     { }
 
     int GetSnapshotId() const
@@ -99,7 +99,7 @@ private:
 
     void DoOpen()
     {
-        YT_LOG_DEBUG("Opening local snapshot reader");
+        YT_TLOG_DEBUG("Opening local snapshot reader");
 
         try {
             TFileHandle fileHandle(FileName_, RdOnly | OpenExisting | CloseOnExec);
@@ -134,8 +134,8 @@ private:
                 THROW_ERROR_EXCEPTION(
                     "Invalid compressed length in header of %v: expected %v, got %v",
                     FileName_,
-                    File_->GetLength(),
-                    Header_.CompressedLength);
+                    Header_.CompressedLength,
+                    File_->GetLength());
             }
 
             auto serializedMeta = TSharedMutableRef::Allocate<TLocalSnapshotReaderTag>(
@@ -152,10 +152,10 @@ private:
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening snapshot %v for reading",
                 FileName_)
-                << ex;
+                .With(ex);
         }
 
-        YT_LOG_DEBUG("Local snapshot reader opened");
+        YT_TLOG_DEBUG("Local snapshot reader opened");
     }
 
     TSharedRef DoRead()
@@ -216,7 +216,7 @@ public:
         , SnapshotId_(snapshotId)
         , Meta_(std::move(meta))
         , IOInvoker_(std::move(ioInvoker))
-        , Logger(HydraLogger().WithTag("Path: %v", FileName_))
+        , Logger(HydraLogger().WithTag("Path", FileName_))
     {
         SerializedMeta_ = SerializeProtoToRef(Meta_);
     }
@@ -233,9 +233,10 @@ public:
                 // TODO(babenko): migrate to std::string
                 NFS::Remove(TString(FileName_) + TempFileSuffix);
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Error removing temporary local snapshot, ignored (FileName: %v)",
+                YT_TLOG_WARNING("Error removing temporary local snapshot, ignored")
                     // TODO(babenko): migrate to std::string
-                    TString(FileName_) + TempFileSuffix);
+                    .With("FileName", TString(FileName_) + TempFileSuffix)
+                    .With(ex);
             }
         }
     }
@@ -302,8 +303,8 @@ private:
     {
         YT_VERIFY(!IsOpened_);
 
-        YT_LOG_DEBUG("Opening local snapshot writer (Codec: %v)",
-            Codec_);
+        YT_TLOG_DEBUG("Opening local snapshot writer")
+            .With("Codec", Codec_);
 
         try {
             // TODO(babenko): migrate to std::string
@@ -337,12 +338,12 @@ private:
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening snapshot %v for writing",
                 FileName_)
-                << ex;
+                .With(ex);
         }
 
         IsOpened_ = true;
 
-        YT_LOG_DEBUG("Local snapshot writer opened");
+        YT_TLOG_DEBUG("Local snapshot writer opened");
     }
 
     void DoFinish()
@@ -369,7 +370,7 @@ private:
     {
         YT_VERIFY(IsOpened_ && !IsClosed_);
 
-        YT_LOG_DEBUG("Closing local snapshot writer");
+        YT_TLOG_DEBUG("Closing local snapshot writer");
 
         DoFinish();
 
@@ -404,7 +405,7 @@ private:
 
         IsClosed_ = true;
 
-        YT_LOG_DEBUG("Local snapshot writer closed");
+        YT_TLOG_DEBUG("Local snapshot writer closed");
     }
 };
 
@@ -423,7 +424,7 @@ public:
         : FileName_(std::move(fileName))
         , Meta_(std::move(meta))
         , IOInvoker_(std::move(ioInvoker))
-        , Logger(HydraLogger().WithTag("Path: %v", FileName_))
+        , Logger(HydraLogger().WithTag("Path", FileName_))
     { }
 
     TFuture<void> Open() override
@@ -456,8 +457,8 @@ private:
 
     void DoOpen()
     {
-        YT_LOG_DEBUG("Opening uncompressed headerless file snapshot reader (FileName: %v)",
-            FileName_);
+        YT_TLOG_DEBUG("Opening uncompressed headerless file snapshot reader")
+            .With("FileName", FileName_);
 
         try {
             TFileHandle fileHandle(FileName_, RdOnly | OpenExisting | CloseOnExec);
@@ -469,15 +470,15 @@ private:
 
             FileInput_.reset(new TUnbufferedFileInput(*File_));
 
-            YT_LOG_DEBUG("Uncompressed headerless file snapshot reader opened (FileName: %v)",
-                FileName_);
+            YT_TLOG_DEBUG("Uncompressed headerless file snapshot reader opened")
+                .With("FileName", FileName_);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening snapshot %v for reading",
                 FileName_)
-                << ex;
+                .With(ex);
         }
 
-        YT_LOG_DEBUG("Local snapshot reader opened");
+        YT_TLOG_DEBUG("Local snapshot reader opened");
     }
 
     TSharedRef DoRead()
@@ -514,7 +515,7 @@ public:
         IInvokerPtr ioInvoker)
         : FileName_(std::move(fileName))
         , IOInvoker_(std::move(ioInvoker))
-        , Logger(HydraLogger().WithTag("Path: %v", FileName_))
+        , Logger(HydraLogger().WithTag("Path", FileName_))
     { }
 
     ~TUncompressedHeaderlessLocalSnapshotWriter()
@@ -528,9 +529,10 @@ public:
                 // TODO(babenko): migrate to std::string
                 NFS::Remove(TString(FileName_) + TempFileSuffix);
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Error removing temporary local snapshot, ignored (FileName: %v)",
+                YT_TLOG_WARNING("Error removing temporary local snapshot, ignored")
                     // TODO(babenko): migrate to std::string
-                    TString(FileName_) + TempFileSuffix);
+                    .With("FileName", TString(FileName_) + TempFileSuffix)
+                    .With(ex);
             }
         }
     }
@@ -586,7 +588,7 @@ private:
     {
         YT_VERIFY(!IsOpened_);
 
-        YT_LOG_DEBUG("Opening uncompressed headerless local snapshot writer");
+        YT_TLOG_DEBUG("Opening uncompressed headerless local snapshot writer");
 
         try {
             // TODO(babenko): migrate to std::string
@@ -595,12 +597,12 @@ private:
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening snapshot %v for writing",
                 FileName_)
-                << ex;
+                .With(ex);
         }
 
         IsOpened_ = true;
 
-        YT_LOG_DEBUG("Local uncompressed headerless snapshot writer opened");
+        YT_TLOG_DEBUG("Local uncompressed headerless snapshot writer opened");
     }
 
     void DoFinish()
@@ -614,7 +616,7 @@ private:
     {
         YT_VERIFY(IsOpened_ && !IsClosed_);
 
-        YT_LOG_DEBUG("Closing local uncompressed headerless snapshot writer");
+        YT_TLOG_DEBUG("Closing local uncompressed headerless snapshot writer");
 
         DoFinish();
 
@@ -628,7 +630,7 @@ private:
 
         IsClosed_ = true;
 
-        YT_LOG_DEBUG("Local uncompressed headerless snapshot writer closed");
+        YT_TLOG_DEBUG("Local uncompressed headerless snapshot writer closed");
     }
 };
 
@@ -643,7 +645,7 @@ public:
         IInvokerPtr ioInvoker)
         : Config_(std::move(config))
         , IOInvoker_(std::move(ioInvoker))
-        , Logger(HydraLogger().WithTag("Path: %v", Config_->Path))
+        , Logger(HydraLogger().WithTag("Path", Config_->Path))
     { }
 
     TFuture<void> Initialize()
@@ -694,7 +696,7 @@ private:
     const IInvokerPtr IOInvoker_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     std::set<int> RegisteredSnapshotIds_;
     THashMap<int, TWeakPtr<ISnapshotWriter>> SnapshotIdToWriter_;
 
@@ -715,8 +717,8 @@ private:
         {
             auto guard = Guard(SpinLock_);
             if (RegisteredSnapshotIds_.erase(snapshotId) == 1) {
-                YT_LOG_WARNING("Erased orphaned snapshot from store (SnapshotId: %v)",
-                    snapshotId);
+                YT_TLOG_WARNING("Erased orphaned snapshot from store")
+                    .With("SnapshotId", snapshotId);
             }
         }
 
@@ -727,7 +729,7 @@ private:
     {
         auto path = Config_->Path;
 
-        YT_LOG_INFO("Preparing snapshot directory");
+        YT_TLOG_INFO("Preparing snapshot directory");
 
         // TODO(babenko): migrate to std::string
         NFS::MakeDirRecursive(TString(path));
@@ -737,7 +739,7 @@ private:
             NFS::CleanTempFiles(TString(path));
         }
 
-        YT_LOG_INFO("Snapshot scan started");
+        YT_TLOG_INFO("Snapshot scan started");
 
         // TODO(babenko): migrate to std::string
         auto fileNames = EnumerateFiles(TString(path));
@@ -751,15 +753,15 @@ private:
 
             int snapshotId;
             if (!TryFromString(name, snapshotId)) {
-                YT_LOG_WARNING("Found unrecognized file in snapshot directory (FileName: %v)",
-                    fileName);
+                YT_TLOG_WARNING("Found unrecognized file in snapshot directory")
+                    .With("FileName", fileName);
                 continue;
             }
 
             RegisterSnapshot(snapshotId);
         }
 
-        YT_LOG_INFO("Snapshot scan completed");
+        YT_TLOG_INFO("Snapshot scan completed");
     }
 
     template <class... TArgs>
@@ -770,8 +772,8 @@ private:
         auto guard = Guard(SpinLock_);
 
         if (!snapshotExists && RegisteredSnapshotIds_.erase(snapshotId) > 0) {
-            YT_LOG_WARNING("Erased orphaned snapshot from store (SnapshotId: %v)",
-                snapshotId);
+            YT_TLOG_WARNING("Erased orphaned snapshot from store")
+                .With("SnapshotId", snapshotId);
         }
 
         if (RegisteredSnapshotIds_.contains(snapshotId)) {
@@ -820,8 +822,8 @@ private:
         EraseOrCrash(SnapshotIdToWriter_, snapshotId);
         InsertOrCrash(RegisteredSnapshotIds_, snapshotId);
 
-        YT_LOG_INFO("Snapshot registered (SnapshotId: %v)",
-            snapshotId);
+        YT_TLOG_INFO("Snapshot registered")
+            .With("SnapshotId", snapshotId);
     }
 
     void RegisterSnapshot(int snapshotId)
@@ -830,8 +832,8 @@ private:
 
         InsertOrCrash(RegisteredSnapshotIds_, snapshotId);
 
-        YT_LOG_INFO("Snapshot registered (SnapshotId: %v)",
-            snapshotId);
+        YT_TLOG_INFO("Snapshot registered")
+            .With("SnapshotId", snapshotId);
     }
 };
 

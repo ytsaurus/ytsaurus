@@ -26,7 +26,7 @@ void TSkiffIterator::Initialize(
     const std::vector<Py::PythonClassObject<TSkiffSchemaPython>>& pythonSkiffschemaList,
     const std::string& rangeIndexColumnName,
     const std::string& rowIndexColumnName,
-    const std::optional<TString>& encoding)
+    const std::optional<std::string>& encoding)
 {
     YT_VERIFY(inputStreamHolder.get() == inputStream);
     InputStream_ = inputStream;

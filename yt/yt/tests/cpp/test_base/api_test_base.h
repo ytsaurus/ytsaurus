@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/core/yson/string.h>
+
 #include <library/cpp/yt/memory/shared_range.h>
 
 namespace NYT {
@@ -60,8 +62,8 @@ protected:
     static void SetUpTestCase();
 
     static void CreateTable(
-        const TString& tablePath,
-        const TString& schema,
+        const NYPath::TYPath& tablePath,
+        const NYson::TYsonString& schema,
         bool mount = true);
 
     static void SyncMountTable(const NYPath::TYPath& path);

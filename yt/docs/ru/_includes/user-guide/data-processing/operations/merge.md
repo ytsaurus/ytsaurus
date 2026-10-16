@@ -25,7 +25,7 @@
 
 ## Пример спецификации
 
-```yaml
+```yson
 {
   pool = "my_cool_pool";
   mode = "sorted";

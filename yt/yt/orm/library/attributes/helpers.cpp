@@ -1,14 +1,16 @@
 #include "helpers.h"
 
+#include "proto_visitor.h"
 #include "wire_string.h"
 
 #include <yt/yt/core/ypath/token.h>
-#include <yt/yt/core/ypath/tokenizer.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/tree_builder.h>
 
+#include <yt/yt/core/yson/null_consumer.h>
+#include <yt/yt/core/yson/parser.h>
 #include <yt/yt/core/yson/protobuf_interop.h>
 #include <yt/yt/core/yson/writer.h>
 
@@ -30,6 +32,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 
+using NProtoBuf::Descriptor;
 using NProtoBuf::EnumValueDescriptor;
 using NProtoBuf::FieldDescriptor;
 using NProtoBuf::Message;
@@ -44,6 +47,144 @@ constexpr int ProtobufMapValueFieldNumber = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsYsonStringField(const FieldDescriptor* fieldDescriptor)
+{
+    return fieldDescriptor && fieldDescriptor->options().GetExtension(NYson::NProto::yson_string);
+}
+
+void ValidateYsonString(TStringBuf value)
+{
+    if (!value.empty()) {
+        ParseYsonStringBuffer(value, EYsonType::Node, GetNullYsonConsumer());
+    }
+}
+
+namespace {
+
+// Null messages let TProtoVisitor follow the schema without reading actual values.
+class TYsonStringFieldDescriptorVisitor final
+    : public TProtoVisitor<const Message*, TYsonStringFieldDescriptorVisitor>
+{
+    friend class TProtoVisitor<const Message*, TYsonStringFieldDescriptorVisitor>;
+
+public:
+    TYsonStringFieldDescriptorVisitor()
+    {
+        SetMissingFieldPolicy(EMissingFieldPolicy::Force);
+    }
+
+    const FieldDescriptor* Find(const Descriptor* rootDescriptor, NYPath::TYPathBuf path)
+    {
+        if (!rootDescriptor) {
+            return nullptr;
+        }
+
+        CurrentDescriptor_ = rootDescriptor;
+        try {
+            Visit(static_cast<const Message*>(nullptr), path);
+        } catch (const TErrorException&) {
+            return nullptr;
+        }
+
+        return Result_;
+    }
+
+private:
+    const Descriptor* CurrentDescriptor_ = nullptr;
+    const FieldDescriptor* Result_ = nullptr;
+
+    void VisitMessage(const Message* /*message*/, EVisitReason reason)
+    {
+        TProtoVisitor::VisitRegularMessage(nullptr, CurrentDescriptor_, reason);
+    }
+
+    void VisitPresentSingularField(
+        const Message* /*message*/,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason)
+    {
+        VisitFieldDescriptor(fieldDescriptor, reason);
+    }
+
+    void VisitRepeatedField(
+        const Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason)
+    {
+        if (IsYsonStringField(fieldDescriptor) && PathComplete()) {
+            Result_ = fieldDescriptor;
+            return;
+        }
+
+        TProtoVisitor::VisitRepeatedField(message, fieldDescriptor, reason);
+    }
+
+    void VisitRepeatedFieldEntry(
+        const Message* /*message*/,
+        const FieldDescriptor* fieldDescriptor,
+        int /*index*/,
+        EVisitReason reason)
+    {
+        VisitFieldDescriptor(fieldDescriptor, reason);
+    }
+
+    void VisitFieldDescriptor(
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason)
+    {
+        if (IsYsonStringField(fieldDescriptor)) {
+            if (PathComplete()) {
+                Result_ = fieldDescriptor;
+            }
+            return;
+        }
+
+        if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_MESSAGE) {
+            CurrentDescriptor_ = fieldDescriptor->message_type();
+            VisitMessage(nullptr, reason);
+        }
+    }
+
+    void VisitRepeatedFieldEntryRelative(
+        const Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        int index,
+        EVisitReason reason)
+    {
+        VisitRepeatedFieldEntry(message, fieldDescriptor, index, reason);
+    }
+
+    void OnIndexError(
+        const Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason,
+        TError error)
+    {
+        if (error.GetCode() != EErrorCode::OutOfBounds) {
+            TProtoVisitor::OnIndexError(message, fieldDescriptor, reason, std::move(error));
+            return;
+        }
+
+        auto indexToken = GetLiteralValue();
+        AdvanceOver(indexToken);
+        VisitRepeatedFieldEntry(message, fieldDescriptor, /*index*/ 0, EVisitReason::Path);
+    }
+};
+
+} // namespace
+
+const FieldDescriptor* FindYsonStringFieldDescriptor(
+    const TProtobufElement& rootElement,
+    NYPath::TYPathBuf path)
+{
+    const auto* messageElement = std::get_if<std::unique_ptr<TProtobufMessageElement>>(&rootElement);
+    return messageElement
+        ? TYsonStringFieldDescriptorVisitor().Find(
+            UnreflectProtobufMessageType((*messageElement)->Type),
+            path)
+        : nullptr;
+}
+
 std::string RandomString(int length, TStringBuf charset)
 {
     TStringBuilder builder;
@@ -57,7 +198,7 @@ std::string RandomString(int length, TStringBuf charset)
 
 const TProtobufMessageType* GetMessageTypeByYPath(
     const TProtobufMessageType* rootType,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     bool allowAttributeDictionary)
 {
     auto result = ResolveProtobufElementByYPath(rootType, path);
@@ -78,7 +219,7 @@ const TProtobufMessageType* GetMessageTypeByYPath(
 
 NYTree::INodePtr ConvertProtobufToNode(
     const NYson::TProtobufMessageType* rootType,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TWireString& wireStringPayload,
     const NYson::TProtobufParserOptions& options)
 {
@@ -100,11 +241,210 @@ NYTree::INodePtr ConvertProtobufToNode(
 
 NYTree::INodePtr ConvertProtobufToNode(
     const TProtobufMessageType* rootType,
-    const NYPath::TYPath& path,
-    const TString& payload,
+    NYPath::TYPathBuf path,
+    TStringBuf payload,
     const NYson::TProtobufParserOptions& options)
 {
     return ConvertProtobufToNode(rootType, path, TWireString::FromSerialized(payload), options);
+}
+
+namespace {
+
+NYTree::INodePtr DoConvertProtobufElementToNode(
+    const TProtobufElement& element,
+    const TWireString& wireStringPayload,
+    bool ysonString,
+    const TProtobufParserOptions& options)
+{
+    auto parseMessage = [&] (const TProtobufMessageType* type) -> NYTree::INodePtr {
+        THROW_ERROR_EXCEPTION_IF(wireStringPayload.size() > 1,
+            EErrorCode::Unimplemented,
+            "Cannot convert message of type %Qv represented by non-continuous wire string",
+            UnreflectProtobufMessageType(type)->full_name());
+        auto wireStringPart = wireStringPayload.LastOrEmptyPart();
+        google::protobuf::io::ArrayInputStream protobufInputStream(
+            wireStringPart.AsStringView().data(),
+            wireStringPart.AsStringView().size());
+        auto builder = NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
+        builder->BeginTree();
+        ParseProtobuf(&*builder, &protobufInputStream, type, options);
+        return builder->EndTree();
+    };
+
+    return VisitProtobufElement(element,
+        [&] (const TProtobufMessageElement& messageElement) -> NYTree::INodePtr {
+            return parseMessage(messageElement.Type);
+        },
+        [&] (const TProtobufAttributeDictionaryElement& attrElement) -> NYTree::INodePtr {
+            return parseMessage(attrElement.Type);
+        },
+        [&] (const TProtobufScalarElement& scalarElement) -> NYTree::INodePtr {
+            auto wireStringPart = wireStringPayload.LastOrEmptyPart();
+
+            if (wireStringPart.AsSpan().empty()) {
+                return GetEphemeralNodeFactory()->CreateEntity();
+            }
+
+            switch (GetNodeTypeByProtobufScalarElement(scalarElement)) {
+                case NYTree::ENodeType::Int64: {
+                    i64 value;
+                    THROW_ERROR_EXCEPTION_IF(!ParseInt64(&value, scalarElement.Type, wireStringPart),
+                        EErrorCode::InvalidData, "Cannot parse int64 from wire string");
+                    return ConvertToNode(value);
+                }
+                case NYTree::ENodeType::Uint64: {
+                    ui64 value;
+                    THROW_ERROR_EXCEPTION_IF(!ParseUint64(&value, scalarElement.Type, wireStringPart),
+                        EErrorCode::InvalidData, "Cannot parse uint64 from wire string");
+                    return ConvertToNode(value);
+                }
+                case NYTree::ENodeType::Double: {
+                    double value;
+                    THROW_ERROR_EXCEPTION_IF(!ParseDouble(&value, scalarElement.Type, wireStringPart),
+                        EErrorCode::InvalidData, "Cannot parse double from wire string");
+                    return ConvertToNode(value);
+                }
+                case NYTree::ENodeType::Boolean: {
+                    bool value;
+                    THROW_ERROR_EXCEPTION_IF(!ParseBoolean(&value, scalarElement.Type, wireStringPart),
+                        EErrorCode::InvalidData, "Cannot parse boolean from wire string");
+                    return ConvertToNode(value);
+                }
+                case NYTree::ENodeType::String: {
+                    if (scalarElement.Type.Underlying() == NProtoBuf::FieldDescriptor::TYPE_ENUM) {
+                        i64 intValue;
+                        THROW_ERROR_EXCEPTION_IF(!ParseInt64(&intValue, scalarElement.Type, wireStringPart),
+                            EErrorCode::InvalidData, "Cannot parse enum value from wire string");
+                        TStringBuf literal = FindProtobufEnumLiteralByValue(scalarElement.EnumType, intValue);
+                        THROW_ERROR_EXCEPTION_IF(literal.empty(),
+                            EErrorCode::InvalidData,
+                            "No string literal for enum value %v",
+                            intValue);
+                        return ConvertToNode(literal);
+                    }
+                    return ConvertToNode(wireStringPart.AsStringView());
+                }
+                default:
+                    THROW_ERROR_EXCEPTION(EErrorCode::Unimplemented,
+                        "Unsupported scalar element node type %Qlv",
+                        GetNodeTypeByProtobufScalarElement(scalarElement));
+            }
+        },
+        [&] (const TProtobufRepeatedElement& repeatedElement) -> NYTree::INodePtr {
+            if (ysonString &&
+                std::holds_alternative<std::unique_ptr<TProtobufAnyElement>>(repeatedElement.Element))
+            {
+                auto result = GetEphemeralNodeFactory()->CreateList();
+                for (auto wireStringPart : wireStringPayload) {
+                    result->AddChild(DoConvertProtobufElementToNode(
+                        repeatedElement.Element,
+                        TWireString{wireStringPart},
+                        ysonString,
+                        options));
+                }
+                return result;
+            }
+
+            THROW_ERROR_EXCEPTION(EErrorCode::Unimplemented,
+                "Conversion of repeated protobuf element to node is not supported");
+        },
+        [](const TProtobufMapElement&) -> NYTree::INodePtr {
+            THROW_ERROR_EXCEPTION(EErrorCode::Unimplemented,
+                "Conversion of map protobuf element to node is not supported");
+        },
+        [&] (const TProtobufAnyElement&) -> NYTree::INodePtr {
+            // The caller identifies yson_string by the typed attribute or protobuf field descriptor.
+            if (!ysonString) {
+                THROW_ERROR_EXCEPTION(EErrorCode::Unimplemented,
+                    "Conversion of any protobuf element to node is not supported");
+            }
+            auto wireStringPart = wireStringPayload.LastOrEmptyPart();
+            if (wireStringPart.AsSpan().empty()) {
+                return GetEphemeralNodeFactory()->CreateEntity();
+            }
+            return ConvertToNode(TYsonString(wireStringPart.AsStringView()));
+        });
+}
+
+} // namespace
+
+NYTree::INodePtr ConvertProtobufElementToNode(
+    const TProtobufElement& element,
+    const TWireString& wireStringPayload,
+    const TProtobufParserOptions& options)
+{
+    return DoConvertProtobufElementToNode(element, wireStringPayload, /*ysonString*/ false, options);
+}
+
+NYTree::INodePtr ConvertProtobufElementToNode(
+    const TProtobufElement& element,
+    const TWireString& wireStringPayload,
+    const FieldDescriptor* fieldDescriptor,
+    const TProtobufParserOptions& options)
+{
+    return DoConvertProtobufElementToNode(
+        element,
+        wireStringPayload,
+        IsYsonStringField(fieldDescriptor),
+        options);
+}
+
+NYTree::INodePtr ConvertYsonStringProtobufElementToNode(
+    const TProtobufElement& element,
+    const TWireString& wireStringPayload,
+    const TProtobufParserOptions& options)
+{
+    return DoConvertProtobufElementToNode(element, wireStringPayload, /*ysonString*/ true, options);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TIntEnumToStringYsonConsumer::TIntEnumToStringYsonConsumer(
+    IYsonConsumer* underlying,
+    const TProtobufEnumType* enumType)
+    : Underlying_(underlying)
+    , EnumType_(enumType)
+{ }
+
+TIntEnumToStringYsonConsumer::TIntEnumToStringYsonConsumer(
+    IYsonConsumer* underlying,
+    const TProtobufElement& enumElement)
+    : TIntEnumToStringYsonConsumer(
+        underlying,
+        GetProtobufElementOrThrow<TProtobufScalarElement>(
+            std::holds_alternative<std::unique_ptr<TProtobufRepeatedElement>>(enumElement)
+                ? std::get<std::unique_ptr<TProtobufRepeatedElement>>(enumElement)->Element
+                : enumElement)
+            .EnumType)
+{ }
+
+void TIntEnumToStringYsonConsumer::OnMyInt64Scalar(i64 value)
+{
+    auto literal = FindProtobufEnumLiteralByValue(EnumType_, value);
+    THROW_ERROR_EXCEPTION_IF(literal.empty(),
+        "Cannot convert unknown enum value %v to a string",
+        value);
+    Underlying_->OnStringScalar(literal);
+}
+
+void TIntEnumToStringYsonConsumer::OnMyEntity()
+{
+    Underlying_->OnEntity();
+}
+
+void TIntEnumToStringYsonConsumer::OnMyBeginList()
+{
+    Underlying_->OnBeginList();
+}
+
+void TIntEnumToStringYsonConsumer::OnMyListItem()
+{
+    Underlying_->OnListItem();
+}
+
+void TIntEnumToStringYsonConsumer::OnMyEndList()
+{
+    Underlying_->OnEndList();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,9 +514,9 @@ TErrorOr<std::pair<int, TYsonString>> LookupUnknownYsonFieldsItem(
     return TError(NAttributes::EErrorCode::MissingKey, "Unknown yson field not found");
 }
 
-TString SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value)
+TProtoStringType SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value)
 {
-    TString output;
+    TProtoStringType output;
     StringOutputStream outputStream(&output);
     CodedOutputStream codedOutputStream(&outputStream);
     codedOutputStream.WriteTag(
@@ -409,18 +749,18 @@ void ReduceErrors(TError& base, TError incoming, NAttributes::EErrorCode mismatc
     if (base.IsOK()) {
         YT_VERIFY(!incoming.IsOK());
         base = TError(mismatchErrorCode, "Some messages have errors")
-            << std::move(incoming);
+            .With(std::move(incoming));
     } else if (incoming.IsOK()) {
         base = TError(mismatchErrorCode, "Some messages have errors")
-            << std::move(base);
+            .With(std::move(base));
     } else if (base.GetCode() == mismatchErrorCode) {
-        base <<= std::move(incoming);
+        base.Add(std::move(incoming));
     } else if (base.GetCode() == incoming.GetCode()) {
-        base <<= std::move(incoming);
+        base.Add(std::move(incoming));
     } else {
         base = TError(mismatchErrorCode, "Some messages have errors")
-            << std::move(base)
-            << std::move(incoming);
+            .With(std::move(base))
+            .With(std::move(incoming));
     }
 }
 
@@ -469,8 +809,8 @@ std::partial_ordering CompareScalarFields(
                 <=> rhsReflection->GetEnumValue(*rhsMessage, rhsFieldDescriptor);
         }
         case FieldDescriptor::CppType::CPPTYPE_STRING: {
-            TString lhsScratch;
-            TString rhsScratch;
+            TProtoStringType lhsScratch;
+            TProtoStringType rhsScratch;
             return lhsReflection
                 ->GetStringReference(*lhsMessage, lhsFieldDescriptor, &lhsScratch).ConstRef()
                 <=> rhsReflection
@@ -526,8 +866,8 @@ std::partial_ordering CompareScalarRepeatedFieldEntries(
                 <=> rhsReflection->GetRepeatedEnumValue(*rhsMessage, rhsFieldDescriptor, rhsIndex);
         }
     case FieldDescriptor::CppType::CPPTYPE_STRING: {
-        TString lhsScratch;
-        TString rhsScratch;
+        TProtoStringType lhsScratch;
+        TProtoStringType rhsScratch;
         return lhsReflection-> GetRepeatedStringReference(
             *lhsMessage,
             lhsFieldDescriptor,
@@ -573,7 +913,7 @@ TErrorOr<int> LocateMapEntry(
     return TError(NAttributes::EErrorCode::MissingKey, "Key not found in map");
 }
 
-TErrorOr<TString> MapKeyFieldToString(
+TErrorOr<TProtoStringType> MapKeyFieldToString(
     const Message* message,
     const FieldDescriptor* keyFieldDescriptor)
 {
@@ -599,14 +939,15 @@ TErrorOr<TString> MapKeyFieldToString(
 
 TErrorOr<std::unique_ptr<Message>> MakeMapKeyMessage(
     const FieldDescriptor* fieldDescriptor,
-    TString key)
+    TStringBuf key)
 {
     auto* descriptor = fieldDescriptor->message_type();
     std::unique_ptr<Message> result{
         NProtoBuf::MessageFactory::generated_factory()->GetPrototype(descriptor)->New()};
 
     auto* keyFieldDescriptor = descriptor->map_key();
-    auto error = SetScalarFieldFromString(result.get(), keyFieldDescriptor, std::move(key));
+    // TODO(dgolear): switch to TStringBuf?
+    auto error = SetScalarFieldFromString(result.get(), keyFieldDescriptor, TProtoStringType(key));
 
     if (!error.IsOK()) {
         return error;
@@ -623,7 +964,8 @@ TError SetScalarField(
 {
     switch (value->GetType()) {
         case NYTree::ENodeType::String:
-            return SetScalarField(message, fieldDescriptor, value->AsString()->GetValue());
+            // TODO(babenko): migrate to std::string
+            return SetScalarField(message, fieldDescriptor, TProtoStringType(value->AsString()->GetValue()));
         case NYTree::ENodeType::Int64:
             return SetScalarField(message, fieldDescriptor, value->AsInt64()->GetValue());
         case NYTree::ENodeType::Uint64:
@@ -653,7 +995,7 @@ TError SetScalarField(
 
     switch (fieldDescriptor->cpp_type()) {
         case NProtoBuf::FieldDescriptor::CPPTYPE_STRING:
-            return SetScalarField(message, fieldDescriptor, TString{wireStringPart.AsStringView()});
+            return SetScalarField(message, fieldDescriptor, TProtoStringType{wireStringPart.AsStringView()});
         case NProtoBuf::FieldDescriptor::CPPTYPE_INT32:
         case NProtoBuf::FieldDescriptor::CPPTYPE_INT64:
         case NProtoBuf::FieldDescriptor::CPPTYPE_ENUM:
@@ -695,7 +1037,8 @@ TError SetScalarRepeatedFieldEntry(
 {
     switch (value->GetType()) {
         case NYTree::ENodeType::String:
-            return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, value->AsString()->GetValue());
+            // TODO(babenko): migrate to std::string
+            return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, TProtoStringType(value->AsString()->GetValue()));
         case NYTree::ENodeType::Int64:
             return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, value->AsInt64()->GetValue());
         case NYTree::ENodeType::Uint64:
@@ -727,7 +1070,7 @@ TError SetScalarRepeatedFieldEntry(
 
     switch (fieldDescriptor->cpp_type()) {
         case NProtoBuf::FieldDescriptor::CPPTYPE_STRING:
-            return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, TString{wireStringPart.AsStringView()});
+            return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, TProtoStringType{wireStringPart.AsStringView()});
         case NProtoBuf::FieldDescriptor::CPPTYPE_INT32:
         case NProtoBuf::FieldDescriptor::CPPTYPE_INT64:
         case NProtoBuf::FieldDescriptor::CPPTYPE_ENUM:
@@ -768,7 +1111,8 @@ TError AddScalarRepeatedFieldEntry(
 {
     switch (value->GetType()) {
         case NYTree::ENodeType::String:
-            return AddScalarRepeatedFieldEntry(message, fieldDescriptor, value->AsString()->GetValue());
+            // TODO(babenko): migrate to std::string
+            return AddScalarRepeatedFieldEntry(message, fieldDescriptor, TProtoStringType(value->AsString()->GetValue()));
         case NYTree::ENodeType::Int64:
             return AddScalarRepeatedFieldEntry(message, fieldDescriptor, value->AsInt64()->GetValue());
         case NYTree::ENodeType::Uint64:
@@ -797,7 +1141,7 @@ TError AddScalarRepeatedFieldEntry(
 
     switch (fieldDescriptor->cpp_type()) {
         case NProtoBuf::FieldDescriptor::CPPTYPE_STRING:
-            return AddScalarRepeatedFieldEntry(message, fieldDescriptor, TString{wireStringPart.AsStringView()});
+            return AddScalarRepeatedFieldEntry(message, fieldDescriptor, TProtoStringType{wireStringPart.AsStringView()});
         case NProtoBuf::FieldDescriptor::CPPTYPE_INT32:
         case NProtoBuf::FieldDescriptor::CPPTYPE_INT64:
         case NProtoBuf::FieldDescriptor::CPPTYPE_ENUM:
@@ -834,7 +1178,7 @@ TError AddScalarRepeatedFieldEntry(
 std::pair<int, TError> FindAttributeDictionaryEntry(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    const TString& key)
+    TStringBuf key)
 {
     const auto* entryDescriptor = fieldDescriptor->message_type();
     if (entryDescriptor == nullptr) {
@@ -857,7 +1201,7 @@ std::pair<int, TError> FindAttributeDictionaryEntry(
     for (int i = 0; i < size; ++i) {
         const auto& entry = reflection->GetRepeatedMessage(*message, fieldDescriptor, i);
         const auto* entryReflection = entry.GetReflection();
-        TString tmp;
+        TProtoStringType tmp;
         const auto& entryKey =
             entryReflection->GetStringReference(entry, keyFieldDescriptor, &tmp);
         if (entryKey == key) {
@@ -886,7 +1230,7 @@ TErrorOr<TYsonString> GetAttributeDictionaryEntryValue(const NProtoBuf::Message*
     if (valueFieldDescriptor == nullptr) {
         return TError("Failed to locate the value field in an attribute dictionary entry");
     }
-    TString tmp;
+    TProtoStringType tmp;
     const auto& value = entryReflection->GetStringReference(*entry, valueFieldDescriptor, &tmp);
 
     return TYsonString(value);
@@ -911,7 +1255,7 @@ TError SetAttributeDictionaryEntryValue(
 TErrorOr<NProtoBuf::Message*> AddAttributeDictionaryEntry(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    const TString& key)
+    TStringBuf key)
 {
     const auto* reflection = message->GetReflection();
 
@@ -923,7 +1267,7 @@ TErrorOr<NProtoBuf::Message*> AddAttributeDictionaryEntry(
     if (keyFieldDescriptor == nullptr) {
         return TError("Failed to locate the key field in an attribute dictionary entry");
     }
-    entryReflection->SetString(entry, keyFieldDescriptor, key);
+    entryReflection->SetString(entry, keyFieldDescriptor, TProtoStringType(key));
 
     return entry;
 }
@@ -938,18 +1282,19 @@ const EnumValueDescriptor* LookupEnumValue(
     const T& value)
 {
     const auto* enumDescriptor = fieldDescriptor->enum_type();
+    YT_VERIFY(enumDescriptor);
     if constexpr (std::is_integral_v<T>) {
         return enumDescriptor->FindValueByNumber(value);
-    } else { // TString
+    } else { // String type.
         auto decoded = TryDecodeEnumValue(value);
-        for (int i = 0; i < enumDescriptor->value_count(); ++i) {
-            const auto* enumValueDescriptor = enumDescriptor->value(i);
+        for (int index = 0; index < enumDescriptor->value_count(); ++index) {
+            const auto* enumValueDescriptor = enumDescriptor->value(index);
             if (enumValueDescriptor->options().HasExtension(NYT::NYson::NProto::enum_value_name) &&
                 enumValueDescriptor->options().GetExtension(NYT::NYson::NProto::enum_value_name) == value)
             {
                 return enumValueDescriptor;
             }
-            if (decoded.has_value() && enumValueDescriptor->name() == decoded.value()) {
+            if (decoded.has_value() && enumValueDescriptor->name() == *decoded) {
                 return enumValueDescriptor;
             }
             if (enumValueDescriptor->name() == value) {
@@ -1177,20 +1522,28 @@ TError SetScalarField(
 TError SetScalarField(
     Message* message,
     const FieldDescriptor* fieldDescriptor,
-    TString value)
+    TProtoStringType value)
 {
-    BEGIN_SWITCH(TString);
-        CASE_SCALAR_DIRECT(TString, String, STRING);
+    BEGIN_SWITCH(std::string);
+        CASE_SCALAR_DIRECT(std::string, String, STRING);
         CASE_SCALAR_ENUM();
-    END_SWITCH(TString);
+    END_SWITCH(std::string);
+}
+
+TError SetScalarField(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    const std::string& value)
+{
+    return SetScalarField(message, fieldDescriptor, TProtoStringType(value));
 }
 
 TError SetScalarFieldFromString(
     Message* message,
     const FieldDescriptor* fieldDescriptor,
-    TString value)
+    TProtoStringType value)
 {
-    BEGIN_SWITCH(TString);
+    BEGIN_SWITCH(std::string);
         CASE_SCALAR_WITH_CAST_FROM_STRING(i32, Int32, INT32);
         CASE_SCALAR_WITH_CAST_FROM_STRING(i64, Int64, INT64);
         CASE_SCALAR_WITH_CAST_FROM_STRING(ui32, UInt32, UINT32);
@@ -1198,9 +1551,9 @@ TError SetScalarFieldFromString(
         CASE_SCALAR_WITH_CAST_FROM_STRING(double, Double, DOUBLE);
         CASE_SCALAR_WITH_CAST_FROM_STRING(float, Float, FLOAT);
         CASE_SCALAR_WITH_CAST_FROM_STRING(bool, Bool, BOOL);
-        CASE_SCALAR_DIRECT(TString, String, STRING);
+        CASE_SCALAR_DIRECT(std::string, String, STRING);
         CASE_SCALAR_ENUM();
-    END_SWITCH(TString);
+    END_SWITCH(std::string);
 }
 
 TError SetDefaultScalarFieldValue(
@@ -1281,21 +1634,30 @@ TError SetScalarRepeatedFieldEntry(
     Message* message,
     const FieldDescriptor* fieldDescriptor,
     int index,
-    TString value)
+    TProtoStringType value)
 {
-    BEGIN_SWITCH(TString);
-        CASE_REPEATED_DIRECT(TString, String, STRING);
+    BEGIN_SWITCH(std::string);
+        CASE_REPEATED_DIRECT(std::string, String, STRING);
         CASE_REPEATED_ENUM();
-    END_SWITCH(TString);
+    END_SWITCH(std::string);
+}
+
+TError SetScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    int index,
+    const std::string& value)
+{
+    return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, TProtoStringType(value));
 }
 
 TError SetScalarRepeatedFieldEntryFromString(
     Message* message,
     const FieldDescriptor* fieldDescriptor,
     int index,
-    TString value)
+    TProtoStringType value)
 {
-    BEGIN_SWITCH(TString);
+    BEGIN_SWITCH(std::string);
         CASE_REPEATED_WITH_CAST_FROM_STRING(i32, Int32, INT32);
         CASE_REPEATED_WITH_CAST_FROM_STRING(i64, Int64, INT64);
         CASE_REPEATED_WITH_CAST_FROM_STRING(ui32, UInt32, UINT32);
@@ -1303,9 +1665,9 @@ TError SetScalarRepeatedFieldEntryFromString(
         CASE_REPEATED_WITH_CAST_FROM_STRING(double, Double, DOUBLE);
         CASE_REPEATED_WITH_CAST_FROM_STRING(float, Float, FLOAT);
         CASE_REPEATED_WITH_CAST_FROM_STRING(bool, Bool, BOOL);
-        CASE_REPEATED_DIRECT(TString, String, STRING);
+        CASE_REPEATED_DIRECT(std::string, String, STRING);
         CASE_REPEATED_ENUM();
-    END_SWITCH(TString);
+    END_SWITCH(std::string);
 }
 
 TError SetDefaultScalarRepeatedFieldEntryValue(
@@ -1382,20 +1744,28 @@ TError AddScalarRepeatedFieldEntry(
 TError AddScalarRepeatedFieldEntry(
     Message* message,
     const FieldDescriptor* fieldDescriptor,
-    TString value)
+    TProtoStringType value)
 {
-    BEGIN_SWITCH(TString);
-        CASE_ADD_DIRECT(TString, String, STRING);
+    BEGIN_SWITCH(std::string);
+        CASE_ADD_DIRECT(std::string, String, STRING);
         CASE_ADD_ENUM();
-    END_SWITCH(TString);
+    END_SWITCH(std::string);
+}
+
+TError AddScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    const std::string& value)
+{
+    return AddScalarRepeatedFieldEntry(message, fieldDescriptor, TProtoStringType(value));
 }
 
 TError AddScalarRepeatedFieldEntryFromString(
     Message* message,
     const FieldDescriptor* fieldDescriptor,
-    TString value)
+    TProtoStringType value)
 {
-    BEGIN_SWITCH(TString);
+    BEGIN_SWITCH(std::string);
         CASE_ADD_WITH_CAST_FROM_STRING(i32, Int32, INT32);
         CASE_ADD_WITH_CAST_FROM_STRING(i64, Int64, INT64);
         CASE_ADD_WITH_CAST_FROM_STRING(ui32, UInt32, UINT32);
@@ -1403,9 +1773,9 @@ TError AddScalarRepeatedFieldEntryFromString(
         CASE_ADD_WITH_CAST_FROM_STRING(double, Double, DOUBLE);
         CASE_ADD_WITH_CAST_FROM_STRING(float, Float, FLOAT);
         CASE_ADD_WITH_CAST_FROM_STRING(bool, Bool, BOOL);
-        CASE_ADD_DIRECT(TString, String, STRING);
+        CASE_ADD_DIRECT(std::string, String, STRING);
         CASE_ADD_ENUM();
-    END_SWITCH(TString);
+    END_SWITCH(std::string);
 }
 
 TError AddDefaultScalarFieldEntryValue(

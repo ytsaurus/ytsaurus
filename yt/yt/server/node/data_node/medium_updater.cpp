@@ -65,11 +65,11 @@ void TMediumUpdater::UpdateLocationMedia(
         if (auto it = mediumOverrides.find(location->GetUuid()); it != mediumOverrides.end()) {
             descriptor = mediumDirectory->FindByIndex(it->second);
             if (!descriptor) {
-                YT_LOG_ALERT("Overridden location medium does not exists (LocationId: %v, LocationUuid: %v, LocationIndex: %v, MediumIndex: %v)",
-                    location->GetId(),
-                    location->GetUuid(),
-                    location->GetIndex(),
-                    it->second);
+                YT_TLOG_ALERT("Overridden location medium does not exists")
+                    .With("LocationId", location->GetId())
+                    .With("LocationUuid", location->GetUuid())
+                    .With("LocationIndex", location->GetIndex())
+                    .With("MediumIndex", it->second);
             }
         }
 
@@ -77,11 +77,11 @@ void TMediumUpdater::UpdateLocationMedia(
             const auto& mediumName = location->GetStaticConfig()->MediumName;
             descriptor = mediumDirectory->FindByName(mediumName);
             if (!descriptor) {
-                YT_LOG_ERROR("Configured location medium does not exist (LocationId: %v, LocationUuid: %v, LocationIndex: %v, MediumName: %v)",
-                    location->GetId(),
-                    location->GetUuid(),
-                    location->GetIndex(),
-                    mediumName);
+                YT_TLOG_ERROR("Configured location medium does not exist")
+                    .With("LocationId", location->GetId())
+                    .With("LocationUuid", location->GetUuid())
+                    .With("LocationIndex", location->GetIndex())
+                    .With("MediumName", mediumName);
                 continue;
             }
         }
@@ -93,14 +93,14 @@ void TMediumUpdater::UpdateLocationMedia(
     for (const auto& location : chunkStore->Locations()) {
         if (location->CanPublish() &&
             (location->IsEnabled() || chunkStore->ShouldPublishDisabledLocations()) &&
-            location->GetMediumDescriptor()->GetIndex() == GenericMediumIndex)
+            location->GetMediumIndex() == GenericMediumIndex)
         {
             alerts.push_back(TError(
                 NChunkClient::EErrorCode::LocationMediumIsMisconfigured,
                 "Location medium is misconfigured")
-                << TErrorAttribute("medium_index", location->GetMediumDescriptor()->GetIndex())
-                << TErrorAttribute("medium_name", location->GetMediumName())
-                << TErrorAttribute("location_uuid", ToString(location->GetUuid())));
+                .With("medium_index", location->GetMediumIndex())
+                .With("medium_name", location->GetMediumName())
+                .With("location_uuid", ToString(location->GetUuid())));
         }
     }
 
@@ -116,7 +116,8 @@ TMediumDirectoryPtr TMediumUpdater::GetMediumDirectoryOrCrash(bool onInitialize)
             throw;
         }
 
-        YT_LOG_FATAL(ex, "Cannot get medium directory after initialization");
+        YT_TLOG_FATAL("Cannot get medium directory after initialization")
+            .With(ex);
     }
 }
 
@@ -132,4 +133,3 @@ void TMediumUpdater::PopulateAlerts(std::vector<TError>* alerts)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDataNode
-

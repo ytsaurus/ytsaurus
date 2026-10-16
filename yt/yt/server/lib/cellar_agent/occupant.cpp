@@ -26,6 +26,7 @@
 #include <yt/yt/server/lib/hydra/snapshot.h>
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/dry_run_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/serialize.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
 #include <yt/yt/server/lib/lease_server/lease_manager.h>
@@ -65,12 +66,14 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/duration_moving_average.h>
+#include <yt/yt/core/misc/expiration_verifier.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/yt/core/rpc/response_keeper.h>
 #include <yt/yt/core/rpc/server.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/helpers.h>
@@ -151,7 +154,7 @@ public:
             TotalMediaWrittenBytes_ += mediaWrittenBytes;
         }
 
-        MediaWrittenBytesCounter_.Increment(averageMediaBytes);
+        MediaWrittenBytesCounter_.Increment(mediaWrittenBytes);
         MediaWrittenBytesMovingAverage_.Update(averageMediaBytes);
 
         if (ChangelogOutThrottler_ && EnableChangelogNetworkUsageAccounting_.load(std::memory_order::relaxed)) {
@@ -229,7 +232,7 @@ private:
     i64 TotalPayloadWrittenBytes_ = 0;
     i64 TotalMediaWrittenBytes_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, WrittenBytesLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, WrittenBytesLock_);
     std::optional<TDuration> WrittenBytesMovingAverageWindow_;
     mutable TAverageDurationMovingAverage PayloadWrittenBytes_{DefaultWrittenBytesMovingAverageWindow};
     mutable TAverageDurationMovingAverage MediaWrittenBytes_{DefaultWrittenBytesMovingAverageWindow};
@@ -290,9 +293,9 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (Finalizing_) {
-            YT_LOG_DEBUG("Peer is finalized (CellId: %v, State: %v)",
-                GetCellId(),
-                EPeerState::Stopped);
+            YT_TLOG_DEBUG("Peer is finalized")
+                .With("CellId", GetCellId())
+                .With("State", EPeerState::Stopped);
             return EPeerState::Stopped;
         }
 
@@ -301,9 +304,9 @@ public:
         }
 
         if (Initialized_) {
-            YT_LOG_DEBUG("Peer is not initialized yet (CellId: %v, State: %v)",
-                GetCellId(),
-                EPeerState::Stopped);
+            YT_TLOG_DEBUG("Peer is not initialized yet")
+                .With("CellId", GetCellId())
+                .With("State", EPeerState::Stopped);
             return EPeerState::Stopped;
         }
 
@@ -395,14 +398,12 @@ public:
         TVersion version = mutationContext->GetVersion();
 
         // COMPAT(h0pless): HydraLogicalRecordId.
-        constexpr int ChaosReignBase = 300000;
         constexpr int ChaosReignHydraLogicalRecordId = 300301;
-        constexpr int TabletReignBase = 100000;
         constexpr int TabletReignHydraLogicalRecordId = 101401;
         auto mutationReign = mutationContext->Request().Reign;
-        if (ChaosReignBase < mutationReign && mutationReign < ChaosReignHydraLogicalRecordId) {
+        if (IsChaosReign(mutationReign) && mutationReign < ChaosReignHydraLogicalRecordId) {
             version = mutationContext->GetPhysicalVersion();
-        } else if (TabletReignBase < mutationReign && mutationReign < TabletReignHydraLogicalRecordId) {
+        } else if (IsTabletReign(mutationReign) && mutationReign < TabletReignHydraLogicalRecordId) {
             version = mutationContext->GetPhysicalVersion();
         }
 
@@ -422,7 +423,7 @@ public:
 
         Initialized_ = true;
 
-        YT_LOG_INFO("Cellar occupant initialized");
+        YT_TLOG_INFO("Cellar occupant initialized");
     }
 
     bool CanConfigure() const override
@@ -498,9 +499,9 @@ public:
         if (configureInfo.has_peer_id()) {
             int peerId = configureInfo.peer_id();
             if (PeerId_ != peerId) {
-                YT_LOG_DEBUG("Peer id updated (PeerId: %v -> %v)",
-                    PeerId_,
-                    peerId);
+                YT_TLOG_DEBUG("Peer id updated")
+                    .With("OldPeerId", PeerId_)
+                    .With("NewPeerId", peerId);
 
                 PeerId_ = peerId;
 
@@ -510,8 +511,8 @@ public:
         }
 
         if (configureInfo.has_options()) {
-            YT_LOG_DEBUG("Dynamic cell options updated (Options: %v)",
-                ConvertToYsonString(TYsonString(configureInfo.options()), EYsonFormat::Text).AsStringBuf());
+            YT_TLOG_DEBUG("Dynamic cell options updated")
+                .With("Options", ConvertToYsonString(TYsonString(configureInfo.options()), EYsonFormat::Text).AsStringBuf());
             Options_ = ConvertTo<TTabletCellOptionsPtr>(TYsonString(configureInfo.options()));
         }
 
@@ -521,9 +522,9 @@ public:
 
         auto newPrerequisiteTransactionId = FromProto<TTransactionId>(configureInfo.prerequisite_transaction_id());
         if (newPrerequisiteTransactionId != PrerequisiteTransactionId_) {
-            YT_LOG_INFO("Prerequisite transaction updated (TransactionId: %v -> %v)",
-                PrerequisiteTransactionId_,
-                newPrerequisiteTransactionId);
+            YT_TLOG_INFO("Prerequisite transaction updated")
+                .With("OldTransactionId", PrerequisiteTransactionId_)
+                .With("NewTransactionId", newPrerequisiteTransactionId);
             PrerequisiteTransactionId_ = newPrerequisiteTransactionId;
             if (ElectionManager_) {
                 YT_UNUSED_FUTURE(ElectionManager_->Abandon(TError("Cell slot reconfigured")));
@@ -536,8 +537,8 @@ public:
             TTransactionAttachOptions attachOptions;
             attachOptions.Ping = false;
             PrerequisiteTransaction_ = client->AttachTransaction(PrerequisiteTransactionId_, attachOptions);
-            YT_LOG_INFO("Prerequisite transaction attached (TransactionId: %v)",
-                PrerequisiteTransactionId_);
+            YT_TLOG_INFO("Prerequisite transaction attached")
+                .With("TransactionId", PrerequisiteTransactionId_);
         }
 
         // COMPAT(akozhikhov)
@@ -587,8 +588,8 @@ public:
             slotHydraManager->SetDynamicOptions(hydraManagerDynamicOptions);
             ElectionManager_->ReconfigureCell(CellManager_);
 
-            YT_LOG_INFO("Cellar occupant reconfigured (ConfigVersion: %v)",
-                CellDescriptor_.ConfigVersion);
+            YT_TLOG_INFO("Cellar occupant reconfigured")
+                .With("ConfigVersion", CellDescriptor_.ConfigVersion);
         } else {
             Automaton_ = occupier->CreateAutomaton();
 
@@ -630,6 +631,7 @@ public:
                     rpcServer,
                     ElectionManagerThunk_,
                     GetCellId(),
+                    CellManager_->GetTotalPeerCount(),
                     ChangelogStoreFactoryThunk_,
                     SnapshotStoreThunk_,
                     Bootstrap_->GetNativeAuthenticator(),
@@ -723,8 +725,8 @@ public:
             OrchidService_ = occupier->PopulateOrchidService(CreateOrchidService())
                 ->Via(Bootstrap_->GetControlInvoker());
 
-            YT_LOG_INFO("Cellar occupant configured (ConfigVersion: %v)",
-                CellDescriptor_.ConfigVersion);
+            YT_TLOG_INFO("Cellar occupant configured")
+                .With("ConfigVersion", CellDescriptor_.ConfigVersion);
         }
     }
 
@@ -749,9 +751,9 @@ public:
         auto updateVersion = updateInfo.dynamic_config_version();
 
         if (DynamicConfigVersion_ >= updateVersion) {
-            YT_LOG_DEBUG("Received outdated dynamic config update (DynamicConfigVersion: %v, UpdateVersion: %v)",
-                DynamicConfigVersion_,
-                updateVersion);
+            YT_TLOG_DEBUG("Received outdated dynamic config update")
+                .With("DynamicConfigVersion", DynamicConfigVersion_)
+                .With("UpdateVersion", updateVersion);
             return;
         }
 
@@ -766,7 +768,7 @@ public:
                 auto unrecognizedOptions = dynamicOptions->GetRecursiveUnrecognized();
                 if (unrecognizedOptions->GetChildCount() > 0) {
                     UnrecognizedOptionsAlert_ = TError("Found unrecognized parameters in dynamic tablet cell options")
-                        << TErrorAttribute("unrecognized_options", unrecognizedOptions);
+                        .With("unrecognized_options", unrecognizedOptions);
                 } else {
                     UnrecognizedOptionsAlert_ = {};
                 }
@@ -775,11 +777,12 @@ public:
             DynamicConfigVersion_ = updateInfo.dynamic_config_version();
             DynamicOptions_.Store(std::move(dynamicOptions));
 
-            YT_LOG_DEBUG("Updated dynamic config (DynamicConfigVersion: %v)",
-                DynamicConfigVersion_);
+            YT_TLOG_DEBUG("Updated dynamic config")
+                .With("DynamicConfigVersion", DynamicConfigVersion_);
         } catch (const std::exception& ex) {
             // TODO(savrus): Write this to cell errors once we have them.
-            YT_LOG_ERROR(ex, "Error while updating dynamic config");
+            YT_TLOG_ERROR("Error while updating dynamic config")
+                .With(ex);
         }
     }
 
@@ -795,7 +798,15 @@ public:
                 YT_UNUSED_FUTURE(hydraManager->Reconfigure(dynamicConfig->HydraManager));
             }
             if (ChangelogStoreFactory_) {
-                ChangelogStoreFactory_->Reconfigure(dynamicConfig->Changelogs);
+                try {
+                    ChangelogStoreFactory_->Reconfigure(dynamicConfig->Changelogs);
+                } catch (const std::exception& ex) {
+                    YT_TLOG_ERROR("Error while reconfiguring changelog store factory")
+                        .With(ex);
+                }
+            }
+            if (LeaseManager_) {
+                LeaseManager_->Reconfigure(dynamicConfig->LeaseManager);
             }
         }
     }
@@ -808,7 +819,7 @@ public:
             return FinalizeResult_;
         }
 
-        YT_LOG_INFO("Finalizing cellar occupant");
+        YT_TLOG_INFO("Finalizing cellar occupant");
 
         Finalizing_ = true;
 
@@ -937,9 +948,9 @@ private:
         return builder.Flush();
     }
 
-    TCompositeMapServicePtr CreateOrchidService()
+    ICompositeMapServicePtr CreateOrchidService()
     {
-        return New<TCompositeMapService>()
+        return CreateCompositeMapService()
             ->AddAttribute(EInternedAttributeKey::Opaque, BIND([] (IYsonConsumer* consumer) {
                     BuildYsonFluently(consumer)
                         .Value(true);
@@ -1000,7 +1011,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (PrerequisiteTransaction_) {
-            YT_LOG_DEBUG("Checking prerequisite transaction");
+            YT_TLOG_DEBUG("Checking prerequisite transaction");
             TPrerequisitePingOptions options{
                 .EnableRetries = true
             };
@@ -1014,19 +1025,22 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        CellManager_.Reset();
+        VerifyEventualExpiration(std::exchange(CellManager_, nullptr), Logger);
 
         // Stop everything and release the references to break cycles.
         if (auto hydraManager = GetHydraManager()) {
             WaitFor(hydraManager->Finalize())
                 .ThrowOnError();
         }
-        HydraManager_.Store(nullptr);
+        // Null the member only now -- after Finalize has taken the automaton out of
+        // Leading -- so "Leading => HydraManager_ is non-null" holds and guarded-invoker
+        // callers never observe a null manager; then verify it expires.
+        VerifyEventualExpiration(HydraManager_.Exchange(nullptr), Logger);
 
         if (ElectionManager_) {
             ElectionManager_->Finalize();
         }
-        ElectionManager_.Reset();
+        VerifyEventualExpiration(std::exchange(ElectionManager_, nullptr), Logger);
 
         ResponseKeeper_.Reset();
 
@@ -1037,7 +1051,7 @@ private:
 
         GetOccupier()->Finalize();
 
-        Occupier_.Store(nullptr);
+        VerifyEventualExpiration(Occupier_.Exchange(nullptr), Logger);
     }
 
     void DoFinalizeAutomaton()
@@ -1051,19 +1065,19 @@ private:
                 rpcServer->UnregisterService(service);
             }
         }
-        TransactionSupervisor_.Reset();
+        VerifyEventualExpiration(std::exchange(TransactionSupervisor_, nullptr), Logger);
 
         if (HiveManager_) {
             rpcServer->UnregisterService(HiveManager_->GetRpcService());
         }
-        HiveManager_.Reset();
+        VerifyEventualExpiration(std::exchange(HiveManager_, nullptr), Logger);
 
         if (LeaseManager_) {
             rpcServer->UnregisterService(LeaseManager_->GetRpcService());
         }
-        LeaseManager_.Reset();
+        VerifyEventualExpiration(std::exchange(LeaseManager_, nullptr), Logger);
 
-        Automaton_.Reset();
+        VerifyEventualExpiration(std::exchange(Automaton_, nullptr), Logger);
     }
 
     void OnRecoveryComplete()
@@ -1078,9 +1092,9 @@ private:
     {
         const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
 
-        YT_LOG_INFO("Configure cell timestamp provider (ClockClusterTag: %v, ClusterTag: %v)",
-            clockClusterTag,
-            connection->GetClusterTag());
+        YT_TLOG_INFO("Configure cell timestamp provider")
+            .With("ClockClusterTag", clockClusterTag)
+            .With("ClusterTag", connection->GetClusterTag());
 
         TimestampProvider_ = clockClusterTag == connection->GetClusterTag()
             ? connection->GetTimestampProvider()
@@ -1089,9 +1103,9 @@ private:
 
     NLogging::TLogger MakeLogger() const
     {
-        return CellarAgentLogger().WithTag("CellId: %v, PeerId: %v",
-            CellDescriptor_.CellId,
-            PeerId_);
+        return CellarAgentLogger()
+            .WithTag("CellId", CellDescriptor_.CellId)
+            .WithTag("PeerId", PeerId_);
     }
 };
 

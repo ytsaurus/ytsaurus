@@ -30,7 +30,7 @@ int main()
     traceContext->SetRecorded();
     traceContext->SetSampled();
     traceContext->AddTag("tag", "value");
-    traceContext->SetLoggingTag("LoggingTag");
+    traceContext->AddLoggingTag("Tag", "Value");
 
     NYT::NTracing::TTraceContextGuard guard(traceContext);
     auto future = BIND([&] {

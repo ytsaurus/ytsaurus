@@ -40,11 +40,17 @@ class YTEnvRunner(YTEnvSetup):
 
     def setup(self) -> None:
         self.setup_class()
-        self.setup_method(None)
+        try:
+            self.setup_method(None)
+        except BaseException:
+            self.teardown_class()
+            raise
 
     def teardown(self) -> None:
-        self.teardown_method(None)
-        self.teardown_class()
+        try:
+            self.teardown_method(None)
+        finally:
+            self.teardown_class()
 
 
 def run_yt_env(config_path: str) -> None:
@@ -62,33 +68,34 @@ def run_yt_env(config_path: str) -> None:
 
     runner = YTEnvRunner()
     runner.setup()
+    try:
+        # Set environment variables.
+        # NB: Set_env(k, v) writes (k, v) into the special file instead of actually
+        # setting environment variable so it's OK to call it in YT runner process.
 
-    # Set environment variables.
-    # NB: Set_env(k, v) writes (k, v) into the special file instead of actually
-    # setting environment variable so it's OK to call it in YT runner process.
+        if runner.Env.yt_config.http_proxy_count > 0 and runner.ENABLE_HTTP_PROXY:
+            set_env("YT_HTTP_PROXY_ADDRESS", runner.Env.get_http_proxy_address())
+            set_env("YT_PROXY", runner.Env.get_http_proxy_address())
+            set_env("YT_PROXY_URL_ALIASING_CONFIG", yson.dumps(yson.YsonMap({
+                runner.Env._cluster_name: runner.Env.get_http_proxy_address()
+            })).decode("ascii"))
 
-    if runner.Env.yt_config.http_proxy_count > 0 and runner.ENABLE_HTTP_PROXY:
-        set_env("YT_HTTP_PROXY_ADDRESS", runner.Env.get_http_proxy_address())
-        set_env("YT_PROXY", runner.Env.get_http_proxy_address())
-        set_env("YT_PROXY_URL_ALIASING_CONFIG", yson.dumps(yson.YsonMap({
-            runner.Env._cluster_name: runner.Env.get_http_proxy_address()
-        })).decode("ascii"))
+        driver_backend = config.get("DRIVER_BACKEND", "native")
+        if driver_backend == "native":
+            set_env("YT_DRIVER_CONFIG_PATH", runner.Env.config_paths["driver"])
+            set_env("YT_DRIVER_LOGGING_CONFIG_PATH", runner.Env.config_paths["driver_logging"])
+        elif driver_backend == "rpc":
+            set_env("YT_NATIVE_DRIVER_CONFIG_PATH", runner.Env.config_paths["driver"])
+            set_env("YT_DRIVER_CONFIG_PATH", runner.Env.config_paths["rpc_driver"])
+            set_env("YT_DRIVER_LOGGING_CONFIG_PATH", runner.Env.config_paths["driver_logging"])
+        else:
+            raise RuntimeError(f"Incorrect driver backend: {driver_backend}")
 
-    driver_backend = config.get("DRIVER_BACKEND", "native")
-    if driver_backend == "native":
-        set_env("YT_DRIVER_CONFIG_PATH", runner.Env.config_paths["driver"])
-        set_env("YT_DRIVER_LOGGING_CONFIG_PATH", runner.Env.config_paths["driver_logging"])
-    elif driver_backend == "rpc":
-        set_env("YT_NATIVE_DRIVER_CONFIG_PATH", runner.Env.config_paths["driver"])
-        set_env("YT_DRIVER_CONFIG_PATH", runner.Env.config_paths["rpc_driver"])
-        set_env("YT_DRIVER_LOGGING_CONFIG_PATH", runner.Env.config_paths["driver_logging"])
-    else:
-        raise RuntimeError(f"Incorrect driver backend: {driver_backend}")
+        RECIPE_PIPE.send("ready")
+        RECIPE_PIPE.wait("stop")
+    finally:
+        runner.teardown()
 
-    RECIPE_PIPE.send("ready")
-    RECIPE_PIPE.wait("stop")
-
-    runner.teardown()
     RECIPE_PIPE.send("stopped")
 
 

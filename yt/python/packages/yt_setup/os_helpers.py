@@ -5,6 +5,8 @@ import os
 import shutil
 from contextlib import contextmanager
 from shutil import ignore_patterns  # noqa
+from sys import version_info as python_version
+from functools import partial
 
 
 logger = logging.getLogger("os_helpers")
@@ -43,12 +45,16 @@ def cp(source_path, destination_path):
     shutil.copy(source_path, destination_path)
 
 
-def cp_r(path, dest_dir, permissions=None, ignore=None):
+def cp_r(path, dest_dir, permissions=None, ignore=None, dirs_exist_ok=False):
     """copy recursive"""
     logger.info("Copy %s to %s", path, dest_dir)
     assert os.path.isdir(dest_dir)
     if os.path.isdir(path):
-        shutil.copytree(path, os.path.join(dest_dir, os.path.basename(path)), symlinks=True, ignore=ignore)
+        copytree = shutil.copytree
+        if python_version[0:2] >= (3, 8):
+            copytree = partial(shutil.copytree, dirs_exist_ok=dirs_exist_ok)
+
+        copytree(path, os.path.join(dest_dir, os.path.basename(path)), symlinks=True, ignore=ignore)
         if permissions is not None:
             chmod_r(os.path.join(dest_dir, os.path.basename(path)), permissions)
     else:

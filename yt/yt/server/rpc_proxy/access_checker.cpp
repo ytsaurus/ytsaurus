@@ -10,7 +10,7 @@
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NRpcProxy {
 
@@ -70,12 +70,13 @@ public:
 
         if (error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
             return TError("User %Qv is not allowed to use RPC proxies with role %Qv", user, proxyRole)
-                << error;
+                .With(error);
         }
 
-        YT_LOG_INFO(error, "Failed to check if user is allowed to use RPC proxy (User: %v, Role: %v)",
-            user,
-            proxyRole);
+        YT_TLOG_INFO("Failed to check if user is allowed to use RPC proxy")
+            .With("User", user)
+            .With("Role", proxyRole)
+            .With(error);
 
         return TError();
     }
@@ -86,7 +87,7 @@ private:
 
     std::atomic<bool> Enabled_;
 
-    NThreading::TAtomicObject<std::optional<std::string>> ProxyRole_;
+    TAtomicObject<std::optional<std::string>> ProxyRole_;
 
     void OnDynamicConfigChanged(
         const TProxyDynamicConfigPtr& /*oldConfig*/,

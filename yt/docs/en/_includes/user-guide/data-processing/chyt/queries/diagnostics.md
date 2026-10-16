@@ -17,7 +17,7 @@ The query examples are given below.
 
 ### Native CPU bound query
 
-![](../../../../../../images/chyt_query_native_cpu_bound.png){ .center }
+![](../../../../../../_images/chyt_query_native_cpu_bound.png){ .center }
 
 This query loaded the clique's CPU to the brim for about a minute, with almost all of the CPU consumption going directly to data processing in the ClickHouse engine.
 
@@ -30,7 +30,7 @@ The last two indicators demonstrate that such a query is almost "ideal" for CHYT
 
 ### Strongly filtering IO bound query
 
-![](../../../../../../images/chyt_query_useless_and_io_bound.png){ .center }
+![](../../../../../../_images/chyt_query_useless_and_io_bound.png){ .center }
 
 This query looks fundamentally different and you can make two conclusions.
 
@@ -48,7 +48,7 @@ Increasing the clique size can also help this query.
 
 ### CHYT Worker & IO bound query
 
-![](../../../../../../images/chyt_query_worker_bound.png){ .center }
+![](../../../../../../_images/chyt_query_worker_bound.png){ .center }
 
 This query was definitely not IO-bound, it completely loaded the clique's CPU. Moreover, you can see that the clique consumed a little more than 150 cores at the peak, while it was configured for 128 cores. This is a normal situation, because if a {{product-name}} node has not provided all the cores for the jobs running on it, the surplus cores are divided proportionally between the jobs populating it. Thereby, at this point, some of the instances were on empty nodes and the query managed to dispose of more resources than the clique is entitled to. This is a nice CHYT feature.
 
@@ -63,7 +63,7 @@ The CHYT team is working on efficiency at this point and on reducing the number 
 
 ### DataLens Burst
 
-![](../../../../../../images/chyt_query_datalens_burst.png){ .center }
+![](../../../../../../_images/chyt_query_datalens_burst.png){ .center }
 
 This is quite typical for cliques under the DataLens dashboards. Short bursts at 11:34, 11:40, 11:44, 11:46, 12:18, and 12:23 show what the single opening of the dashboard living on top of this clique looks like. It's not instantaneous, but quite tolerable — the typical time to open a dashboard is about a minute, because queries digest substantial amounts of data.
 

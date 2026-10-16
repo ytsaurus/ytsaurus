@@ -20,13 +20,13 @@ void TYsonMapFragmentBatcher::Flush()
 {
     BatchWriter_->Flush();
 
-    if (BatchStream_.empty()) {
+    if (BatchStream_.Empty()) {
         return;
     }
 
     BatchOutput_->push_back(TYsonString(BatchStream_.Str(), EYsonType::MapFragment));
     BatchSize_ = 0;
-    BatchStream_.clear();
+    BatchStream_.Clear();
 }
 
 void TYsonMapFragmentBatcher::OnMyKeyedItem(TStringBuf key)

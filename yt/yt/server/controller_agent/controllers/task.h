@@ -40,7 +40,9 @@
 
 #include <yt/yt/core/logging/serializable_logger.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <expected>
 
@@ -108,12 +110,12 @@ public:
 
     //! Human-readable title of a particular task that appears in logging. For builtin tasks it coincides
     //! with the vertex descriptor and a task level in brackets (if applicable).
-    virtual TString GetTitle() const;
+    virtual std::string GetTitle() const;
 
     virtual TCompositePendingJobCount GetPendingJobCount() const;
     TCompositePendingJobCount GetPendingJobCountDelta();
     bool HasNoPendingJobs() const;
-    bool HasNoPendingJobs(const TString& poolTree) const;
+    bool HasNoPendingJobs(const std::string& poolTree) const;
 
     virtual int GetTotalJobCount() const;
     int GetTotalJobCountDelta();
@@ -166,6 +168,10 @@ public:
     virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
     virtual void OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary);
     virtual void OnJobLost(TCompletedJobPtr completedJob, NChunkClient::TChunkId chunkId);
+
+    //! Returning false makes loss of this output a no-op: no suspension, replay, or failure.
+    virtual bool IsJobOutputNeeded(const TCompletedJobPtr& completedJob) const;
+
     void OnOperationRevived();
 
     virtual void OnStripeRegistrationFailed(
@@ -199,6 +205,7 @@ public:
 
     IDigest* GetUserJobMemoryDigest() const;
     IDigest* GetJobProxyMemoryDigest() const;
+    const TLogDigestConfigPtr& GetJobProxyMemoryDigestConfig() const;
 
     virtual void SetupCallbacks();
 
@@ -251,7 +258,7 @@ public:
     //! Modifies the job spec so the job will use the experimental setup if required.
     void PatchUserJobSpec(NControllerAgent::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const;
 
-    virtual THashMap<TString, TString> BuildJobEnvironment() const;
+    virtual THashMap<std::string, std::string> BuildJobEnvironment() const;
 
     NScheduler::TAllocationStartDescriptor CreateAllocationStartDescriptor(
         const TAllocation& allocation,
@@ -342,7 +349,9 @@ protected:
         NNodeTrackerClient::TNodeDirectoryBuilder* directoryBuilder,
         NControllerAgent::NProto::TTableInputSpec* inputSpec,
         NChunkPools::TChunkStripePtr stripe,
-        NTableClient::TComparator comparator = NTableClient::TComparator());
+        TNonNullPtr<THashSet<NChunkClient::TChunkId>> seenHunkChunks,
+        NTableClient::TComparator comparator,
+        NControllerAgent::NProto::TJobSpecExt* jobSpecExt);
 
     void AddOutputTableSpecs(NControllerAgent::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
 
@@ -379,15 +388,15 @@ protected:
     //! It transforms data slices into new mode, adapts them for using in corresponding chunk pool
     //! (using task-dependent AdaptInputDataSlice virtual method) and registers data slice
     //! input read limits in the InputChunkToReadBounds_ mapping.
-    void AdjustInputKeyBounds(const NChunkClient::TLegacyDataSlicePtr& dataSlice);
+    void AdjustInputKeyBounds(const NChunkClient::TDataSlicePtr& dataSlice);
 
     //! Default implementation simply drops key bounds which is perfectly OK for non-sorted chunk pools.
-    virtual void AdjustDataSliceForPool(const NChunkClient::TLegacyDataSlicePtr& dataSlice) const;
+    virtual void AdjustDataSliceForPool(const NChunkClient::TDataSlicePtr& dataSlice) const;
 
     //! This method is called for each output data slice before serializing it to the job spec.
     //! It applies data slice input read limits from the InputChunkToReadBounds_ mapping.
     //! It is overridden only in the legacy version of sorted controller.
-    void AdjustOutputKeyBounds(const NChunkClient::TLegacyDataSlicePtr& dataSlice) const;
+    void AdjustOutputKeyBounds(const NChunkClient::TDataSlicePtr& dataSlice) const;
 
     //! This method processes `chunkListIds`, forming the chunk stripes (maybe with boundary
     //! keys taken from `schedulerJobResult` if they are present) and sends them to the destination pools
@@ -425,6 +434,9 @@ protected:
         const TAllocation& allocation);
 
     virtual void StoreLastJobInfo(TAllocation& allocation, const TJobletPtr& joblet) const;
+
+    virtual const TChunkListPoolPtr& GetOutputChunkListPool() const;
+    virtual NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag);
 
 private:
     TCompositePendingJobCount CachedPendingJobCount_;
@@ -464,7 +476,7 @@ private:
     // NB: This field is used in BuildJobSpecProto which is run in an non-serialized invoker,
     // so access it only under the following spinlock.
     THashMap<NTableClient::TTableSchemaPtr, TString> TableSchemaToProtobufTableSchema_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, TableSchemaToProtobufTableSchemaLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, TableSchemaToProtobufTableSchemaLock_);
 
     std::unique_ptr<IHistogram> EstimatedInputDataWeightHistogram_;
     std::unique_ptr<IHistogram> InputDataWeightHistogram_;
@@ -503,7 +515,7 @@ private:
 
     //! Availability of clusters read from by task.
     THashMap<NScheduler::TClusterName, bool> ClusterToNetworkBandwidthAvailability_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ClusterToNetworkBandwidthAvailabilityLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ClusterToNetworkBandwidthAvailabilityLock_);
 
     struct TOutputCookieInfo
     {

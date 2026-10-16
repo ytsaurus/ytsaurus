@@ -56,6 +56,7 @@ target_link_libraries(yt-chyt-server PUBLIC
   yt-yt-ytlib
   yt-library-clickhouse_discovery
   yt-library-clickhouse_functions
+  yt-library-cypress_election
   yt-library-orchid
   yt-library-monitoring
   library-tracing-jaeger
@@ -70,6 +71,7 @@ target_link_libraries(yt-chyt-server PUBLIC
 target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/ch_to_yt_converter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/chunk_spec_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/clickhouse_config.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/clickhouse_invoker.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/clickhouse_server.cpp
@@ -79,7 +81,7 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/columnar_conversion.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/computed_columns.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/config_repository.cpp
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/cypress_config_repository.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/cypress_object_repository.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/conversion.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/custom_data_types.cpp
@@ -99,6 +101,7 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/launcher_compatibility.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/logger.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/logging_transform.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/materialized_view_coordinator.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/memory_watchdog.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/object_lock.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/poco_config.cpp
@@ -125,11 +128,13 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/storage_subquery.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/storage_system_clique.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/storage_system_log_table_exporter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/storage_yt_materialized_view.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/storages_yt_nodes.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/subquery.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/subquery_spec.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/table.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_function_yt_list_log_tables.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_function_yt_list_queue_exports.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_function_yt_node_attributes.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_function_yt_secondary_query.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_function_yt_tables.cpp
@@ -189,6 +194,7 @@ target_link_libraries(yt-chyt-server.global PUBLIC
   yt-yt-ytlib
   yt-library-clickhouse_discovery
   yt-library-clickhouse_functions
+  yt-library-cypress_election
   yt-library-orchid
   yt-library-monitoring
   library-tracing-jaeger

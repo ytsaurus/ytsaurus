@@ -4,48 +4,47 @@
  ***
 
 ## Master & Cypress
-- [ ] Sequoia: Cypress metadata in Dynamic Tables.
-- [ ] S3 Support as a Medium: Introduce S3 support as a storage medium, expanding storage flexibility and options.
-- [ ] Support for Apache Parquet/Apache Iceberg file format in S3 as external tables in Cypress.
-- [ ] Develop support for time zones in the YTsaurus type system.
-- [ ] Delta lake tables.
-- [ ] Row Level Security. 
+- [x] Row Level Security.
+- [ ] Develop support for time zones in the YTsaurus type system. (26.1)
+- [ ] S3 Support as a Medium: Introduce S3 support as a storage medium, expanding storage flexibility and options. 
+- [ ] Support for Apache Parquet/Apache Iceberg file format in S3 as external tables in Cypress. 
+- [ ] Delta tables.
+
 
 ## Scheduler
 - [X] Operation access control via ACOs (24.2).
 - [X] Gang operations support for distributed ML workloads (25.1).
 - [X] Jobs Timeline UI for Vanilla operations (25.1, UI 1.94.0+).
 - [X] Improved fair share distribution algorithm for gang operations (25.3).
-- [ ] New allocation scheduling strategy for ML workloads (25.3+).
 - [ ] Flexible ACL management for pools.
 - [ ] Renewal of documentation.
 
 ## MapReduce
-- [ ] API for Modifying Operation Parameters: Develop an API that allows for the modification of operation parameters during execution, enhancing flexibility and control over dynamic operations.
-- [ ] Shuffle service
-- [ ] Inter-Cluster Bandwidth Limiting Mechanism: Develop a mechanism to limit inter-cluster bandwidth during operations to optimize network resource usage and prevent overloads.
+- [x] Distributed jobs for data processing: this technology is needed to run GPU batch inference jobs in case of large models that don't fit inside one host. (25.3)
+- [x] Accounting compressed data size in data slicing. (25.4)
+- [x] API for Modifying Operation Parameters: Develop an API that allows for the modification of operation parameters during execution, enhancing flexibility and control over dynamic operations.
+- [x] Rework sorted chunk pool and make new_sorted_pool default.
+- [x] Inter-Cluster Bandwidth Limiting Mechanism: Develop a mechanism to limit inter-cluster bandwidth during operations to optimize network resource usage and prevent overloads.
 - [ ] IO Scheduler: Implement an IO scheduler to optimize input/output operations, improve resource allocation, and enhance overall system performance.
-- [ ] Distributed jobs for data processing: this technology is needed to run GPU batch inference jobs in case of large models that don't fit inside one host.
+- [ ] Shuffle service.
 - [ ] Support ARM64 host.
-- [ ] Rework sorted chunk pool and make new_sorted_pool default.
-- [ ] Accounting compressed data size in data slicing.
 - [ ] Adaptive buffer row count in jobs: this is useful for heavy jobs to reduce number of job abortions caused by interuption timeout.
 
 ## Queues
-- [x] Implement exactly once write semantics for YTsaurus queues
-- [x] Refactor queue exports: add retries and rate limiting
+- [x] Implement exactly once write semantics for YTsaurus queues (25.3)
+- [x] Refactor queue exports: add retries and rate limiting (25.3)
+- [ ] Multi-consumer support — storing offsets for multiple consumers in a single table (26.1)
 - [ ] Kafka proxy
-  - [x] Basic kafka functionality via a single kafka proxy
-  - [ ] Opportunity to run more than one kafka proxy
+  - [x] Basic kafka functionality via a single kafka proxy (25.3)
+  - [ ] Opportunity to run more than one kafka proxy (26.2)
   - [ ] Support transactional producers
 
 
 ## Dynamic Tables
-- [ ] Bundle Controller: Make our internal dynamic tables resource management tool available in Open Source. Bundle controller allows multi-tennant separation of dynamic tables compute layer (e.g. tablet nodes) between different tennants and provides UI configuration for thread pool sizes and memory categories limitation
+- [x] Bundle Controller: Make our internal dynamic tables resource management tool available in Open Source. Bundle controller allows multi-tennant separation of dynamic tables compute layer (e.g. tablet nodes) between different tennants and provides UI configuration for thread pool sizes and memory categories limitation (25.2)
 - [ ] Bundle diagnostics dashboards: Add several useful diagnostics dashboards to UI in Open Source. With dashboards and diagnostics guide it is much easier to resolve performance issues. 
-- [ ] Chaos: Improve stability and performance.
-- [ ] Seamless Tablet Migration: Develop and implement a protocol for seamless tablet migration to prevent memory and load imbalances on nodes. The goal is to minimize downtime to a few seconds by maintaining dual copies of tablets with consistent write support during migration. This includes achieving zero-downtime migration, implementing resharding, and devising a strategy for supporting write retries, potentially initiating development in this area.
-- [ ] Bulk insert from YQL: YQL requires special type of bulk insert due to nested user transactions. We enhance bulk insert feature to allow inserting directly from YQL.
+- [ ] Seamless Tablet Migration: Develop and implement a protocol for seamless tablet migration to prevent memory and load imbalances on nodes. The goal is to minimize downtime to a few seconds by maintaining dual copies of tablets with consistent write support during migration. This includes achieving zero-downtime migration, implementing resharding, and devising a strategy for supporting write retries, potentially initiating development in this area. (expected in 26.3)
+- [x] Bulk insert from YQL: YQL requires special type of bulk insert due to nested user transactions. We enhance bulk insert feature to allow inserting directly from YQL.
 - [ ] Shared write: Lockless write mode useful for write-only transactions (also known as blind write). Initial support is already available in recent release but we work on performance and expect much lower latencies for reading values written in shared write mode. 
 - [ ] Display Dynamic Table Errors in YT Interface: Implement an interface feature to display errors from dynamic tables with a selectable time range. The initial version is almost ready, and in the upcoming semesters, we will evaluate its performance and incorporate new error types.
 - [ ] UDF Development: Enable support for YQL UDFs in dynamic tables, allowing users to leverage existing UDFs. The execution engine will utilize WebAssembly technology to ensure adequate isolation for running arbitrary code.
@@ -71,14 +70,14 @@
 
 ## SPYT
 - [X] Integration with the YTsaurus internal shuffle service for sorting and subsequent access to sorted portions of data. It supports saving of sorted parts in case of unexpected aborts of executors. (Available from spyt 2.7.0 and YTsaurus 25.2.0).
-- [ ] Support for dynamic allocation by changing the number of jobs in a running operation (as part of direct spark-submit).
+- [X] Support for dynamic allocation by changing the number of jobs in a running operation (as part of direct spark-submit). (Available from spyt 2.8.0).
 - [ ] Support columnar-statistics with using Spark 3.4.x.
 - [X] Support Spark SQL via Query Tracker for working with dynamic tables without specification of suffix with timestamp like /@timestamp_111111111111. (Available from 2.7.0).
 - [X] Support for Java 17. (Available from 2.6.0, see the compatibility matrix).
-- [ ] Support Scala 2.13.
+- [X] Support Scala 2.13. (Available from 2.10.0)
 - [X] Support Apache Spark 3.3.x - 3.5.6. (Available from 2.5.0 version, see the compatibility matrix).
-- [ ] Support Apache Spark 4.x.x.
-- [ ] Deprecate Apache Livy server and support Spark Connect for using via Query Tracker for using Spark SQL.
+- [X] Support Apache Spark 4.x.x. (Available from 2.10.0).
+- [X] Deprecate Apache Livy server and support Spark Connect for using via Query Tracker for using Spark SQL. (Deprecated from 2.10.0).
 - [X] Support Spark Structured Streaming with YTsaurus Queues for micro-batch processing. (Available from 2.6.5)
 
 ## YQL
@@ -113,10 +112,9 @@
 - [ ] Go SDK: Add capabilities to work with queues.
 
 ## Microservices
-- [ ] Open Source Release of Resource Usage: Provides visibility into account resource consumption.
-- [ ] Open Source Release of Access Log Viewer: Enables viewing of all operations on objects in the UI.
-- [ ] Timbertruck: support zstd compression
+- [x] Open Source Release of Resource Usage: Provides visibility into account resource consumption.
+- [x] Open Source Release of Access Log Viewer: Enables viewing of all operations on objects in the UI.
+- [x] Timbertruck: support zstd compression
 
 ## Other
 - [x] Airflow provider
-- [ ] Debezium integration

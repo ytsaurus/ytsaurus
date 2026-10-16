@@ -5,7 +5,7 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <yt/yt/library/profiling/solomon/sensor.h>
+#include <yt/yt/library/profiling/simple_sensor_impl.h>
 
 namespace NYT::NChunkClient {
 
@@ -84,14 +84,14 @@ void TChunkReaderStatistics::AddFrom(const TChunkReaderStatisticsPtr& from)
     #undef XX
 
     {
-        auto value = from->MaxBlockSize.load(std::memory_order_relaxed);
-        auto prevValue = MaxBlockSize.load(std::memory_order_relaxed);
+        auto value = from->MaxBlockSize.load(std::memory_order::relaxed);
+        auto prevValue = MaxBlockSize.load(std::memory_order::relaxed);
         while (
             value > prevValue &&
             !MaxBlockSize.compare_exchange_weak(
                 prevValue,
                 value,
-                std::memory_order_relaxed))
+                std::memory_order::relaxed))
         { }
     }
 }

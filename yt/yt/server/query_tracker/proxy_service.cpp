@@ -62,14 +62,13 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, StartQuery)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqStartQuery::GetDescriptor()->field_count() == 10);
+        YT_VERIFY(NRpcProxy::NProto::TReqStartQuery::GetDescriptor()->field_count() == 11);
         YT_VERIFY(NRpcProxy::NProto::TRspStartQuery::GetDescriptor()->field_count() == 1);
 
         auto rpcRequest = request->rpc_proxy_request();
         auto* rpcResponse = response->mutable_rpc_proxy_response();
 
         auto queryId = TQueryId::Create();
-        ToProto(rpcResponse->mutable_query_id(), queryId);
 
         TStartQueryOptions options;
         if (rpcRequest.has_query_tracker_stage()) {
@@ -89,6 +88,11 @@ private:
             : std::nullopt;
 
         options.Draft = rpcRequest.draft();
+
+        if (rpcRequest.has_mutating_options()) {
+            options.MutationId = FromProto<TMutationId>(rpcRequest.mutating_options().mutation_id());
+            options.Retry = rpcRequest.mutating_options().retry();
+        }
 
         for (const auto& requestFile : rpcRequest.files()) {
             auto file = New<TQueryFile>();
@@ -111,11 +115,14 @@ private:
         auto query = rpcRequest.query();
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
-        QueryTracker_->StartQuery(queryId, engine, query, options, user);
+        // On a retry with the same mutation id, StartQuery returns the id of the already started query.
+        queryId = QueryTracker_->StartQuery(queryId, engine, query, options, user);
+        ToProto(rpcResponse->mutable_query_id(), queryId);
 
-        context->SetResponseInfo("QueryId: %v", queryId);
+        context->AnnotateResponse()
+            .With("QueryId", queryId);
         context->Reply();
     }
 
@@ -138,7 +145,8 @@ private:
 
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId);
 
         QueryTracker_->AbortQuery(queryId, options, user);
 
@@ -158,9 +166,9 @@ private:
         auto resultIndex = rpcRequest.result_index();
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v, ResultIndex: %v",
-            queryId,
-            resultIndex);
+        context->AnnotateRequest()
+            .With("QueryId", queryId)
+            .With("ResultIndex", resultIndex);
 
         auto queryResult = QueryTracker_->GetQueryResult(queryId, resultIndex, user);
 
@@ -206,9 +214,9 @@ private:
         auto resultIndex = rpcRequest.result_index();
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v, ResultIndex: %v",
-            queryId,
-            resultIndex);
+        context->AnnotateRequest()
+            .With("QueryId", queryId)
+            .With("ResultIndex", resultIndex);
 
         auto rowset = QueryTracker_->ReadQueryResult(queryId, resultIndex, options, user);
 
@@ -222,7 +230,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, GetQuery)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqGetQuery::GetDescriptor()->field_count() == 4);
+        YT_VERIFY(NRpcProxy::NProto::TReqGetQuery::GetDescriptor()->field_count() == 6);
         YT_VERIFY(NRpcProxy::NProto::TRspGetQuery::GetDescriptor()->field_count() == 1);
 
         auto rpcRequest = request->rpc_proxy_request();
@@ -238,12 +246,20 @@ private:
             ? FromProto<TAttributeFilter>(rpcRequest.attributes())
             : TAttributeFilter();
         options.Timestamp = rpcRequest.has_timestamp()
-            ? rpcRequest.timestamp()
+            ? FromProto<NTransactionClient::TTimestamp>(rpcRequest.timestamp())
             : NullTimestamp;
+
+        options.ProgressParts = FromProto<std::vector<std::string>>(rpcRequest.progress_parts());
+        if (rpcRequest.has_min_progress_revision()) {
+            options.MinProgressRevision = rpcRequest.min_progress_revision();
+        }
 
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId)
+            .With("ProgressParts", options.ProgressParts)
+            .With("MinProgressRevision", options.MinProgressRevision);
 
         auto query = QueryTracker_->GetQuery(queryId, options, user);
         ToProto(rpcResponse->mutable_query(), query);
@@ -306,7 +322,7 @@ private:
 
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         auto result = QueryTracker_->ListQueries(options, user);
 
@@ -314,7 +330,7 @@ private:
             ToProto(rpcResponse->add_queries(), query);
         }
         rpcResponse->set_incomplete(result.Incomplete);
-        rpcResponse->set_timestamp(result.Timestamp);
+        rpcResponse->set_timestamp(ToProto(result.Timestamp));
 
         context->Reply();
     }
@@ -345,7 +361,8 @@ private:
 
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId);
 
         QueryTracker_->AlterQuery(queryId, options, user);
 
@@ -370,7 +387,7 @@ private:
         if (rpcRequest.has_settings()) {
             options.Settings = ConvertToNode(TYsonStringBuf(rpcRequest.settings()));
         }
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         auto result = QueryTracker_->GetQueryTrackerInfo(options);
 
@@ -408,7 +425,7 @@ private:
         }
         options.Query = rpcRequest.query();
         options.Engine = ConvertQueryEngineFromProto(rpcRequest.engine());
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         auto result = QueryTracker_->GetQueryDeclaredParametersInfo(options);
 

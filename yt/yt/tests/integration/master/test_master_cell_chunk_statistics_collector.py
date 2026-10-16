@@ -122,7 +122,7 @@ class TestMasterCellChunkStatisticsCollector(YTEnvSetup):
 
     @authors("kvk1920")
     def test_empty_bounds(self):
-        with raises_yt_error("cannot be empty"):
+        with raises_yt_error(".* cannot be empty"):
             set(
                 "//sys/@config/chunk_manager/master_cell_chunk_statistics_collector/creation_time_histogram_bucket_bounds",
                 [])

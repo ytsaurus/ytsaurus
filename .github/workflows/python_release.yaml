@@ -19,9 +19,10 @@ jobs:
     steps:
       - name: Start YC runner
         id: start-yc-runner
-        uses: yc-actions/yc-github-runner@v1
+        uses: yc-actions/yc-github-runner@v2.1.0
         with:
           mode: start
+          retry-timeout: PT5M
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           folder-id: ${{ vars.YC_FOLDER_ID }}
@@ -45,7 +46,7 @@ jobs:
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: ytsaurus
 
@@ -214,9 +215,10 @@ jobs:
     if: ${{ always() }}
     steps:
       - name: Stop YC runner
-        uses: yc-actions/yc-github-runner@v1
+        uses: yc-actions/yc-github-runner@v2.1.0
         with:
           mode: stop
+          retry-timeout: PT5M
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start-vm.outputs.label }}
@@ -226,20 +228,11 @@ jobs:
     name: Send notifications
     needs:
       - stop-vm
-    runs-on: ubuntu-latest
     if: ${{ failure() }}
-    steps:
-      - name: Send telegram message
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_TOKEN }}
-          disable_web_page_preview: true
-          format: markdown
-          message: |
-            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.
-            Git ${{github.ref_type}}: *${{github.ref_name}}*.
-            Commit:
-            ```
-            ${{github.event.head_commit.message}}
-            ```
+    uses: ./.github/workflows/send_telegram_notification.yaml
+    with:
+      notification_type: workflow_failure
+      runner: ubuntu-latest
+    secrets:
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}

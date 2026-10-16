@@ -66,7 +66,8 @@ void THunkStorageNode::ValidateReshard(
     int lastTabletIndex,
     int newTabletCount,
     const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
-    const std::vector<i64>& trimmedRowCounts) const
+    const std::vector<i64>& trimmedRowCounts,
+    const std::vector<i64>& cumulativeDataWeights) const
 {
     TTabletOwnerBase::ValidateReshard(
         bootstrap,
@@ -74,10 +75,15 @@ void THunkStorageNode::ValidateReshard(
         lastTabletIndex,
         newTabletCount,
         pivotKeys,
-        trimmedRowCounts);
+        trimmedRowCounts,
+        cumulativeDataWeights);
 
     if (!trimmedRowCounts.empty()) {
         THROW_ERROR_EXCEPTION("Cannot reshard hunk storage node with \"trimmed_row_counts\"");
+    }
+
+    if (!cumulativeDataWeights.empty()) {
+        THROW_ERROR_EXCEPTION("Cannot reshard hunk storage node with \"cumulative_data_weights\"");
     }
 }
 

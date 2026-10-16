@@ -9,11 +9,6 @@ from yt.yson import YsonUint64, YsonInt64, YsonEntity, YsonMap, YsonDouble, Yson
 from yt.yson.yson_types import YsonStringProxy, make_byte_key
 
 try:
-    from yt.packages.six import b, PY3
-except ImportError:
-    from six import b, PY3
-
-try:
     import yt_yson_bindings
 except ImportError:
     yt_yson_bindings = None
@@ -42,11 +37,11 @@ class YsonWriterTestBase(object):
 
     def test_integers(self):
         value = 0
-        assert b("0") == self.dumps(value)
+        assert b"0" == self.dumps(value)
 
         value = YsonInt64(1)
         value.attributes = {"foo": "bar"}
-        assert b('<"foo"="bar";>1') == self.dumps(value)
+        assert b'<"foo"="bar";>1' == self.dumps(value)
 
         assert b"\x02\x00" == self.dumps_binary(0)
 
@@ -56,12 +51,12 @@ class YsonWriterTestBase(object):
 
     def test_long_integers(self):
         value = 2 ** 63
-        assert b(str(value) + "u") == self.dumps(value)
+        assert (str(value) + "u").encode() == self.dumps(value)
         assert b"\x06\x80\x80\x80\x80\x80\x80\x80\x80\x80\x01" == self.dumps_binary(value)
 
         value = 2 ** 63 - 1
-        assert b(str(value)) == self.dumps(value)
-        assert b(str(value) + "u") == self.dumps(YsonUint64(value))
+        assert (str(value)).encode() == self.dumps(value)
+        assert (str(value) + "u").encode() == self.dumps(YsonUint64(value))
         assert b"\x02\xfe\xff\xff\xff\xff\xff\xff\xff\xff\x01" == self.dumps_binary(value)
         assert b"\x06\xff\xff\xff\xff\xff\xff\xff\xff\x7f" == self.dumps_binary(YsonUint64(value))
 
@@ -90,19 +85,13 @@ class YsonWriterTestBase(object):
 
         value = YsonDouble(0.0)
         value.attributes = {"foo": "bar"}
-        assert self.dumps(value) in (b('<"foo"="bar";>0.0'), b('<"foo"="bar";>0.'))
+        assert self.dumps(value) in (b'<"foo"="bar";>0.0', b'<"foo"="bar";>0.')
 
     def test_custom_integers(self):
         class MyInt(int):
             pass
         assert b"10" == self.dumps(MyInt(10))
         assert b"\x02\x14" == self.dumps_binary(MyInt(10))
-
-        if not PY3:
-            class MyLong(long):  # noqa
-                pass
-            assert b"10" == self.dumps(MyLong(10))
-            assert b"\x02\x14" == self.dumps_binary(MyLong(10))
 
     def test_context_in_errors(self):
         try:
@@ -201,7 +190,6 @@ class YsonWriterTestBase(object):
         assert b"#" == self.dumps_binary(None)
         assert b"#" == self.dumps_binary(YsonEntity())
 
-    @pytest.mark.skipif("not PY3")
     def test_dump_encoding(self):
         assert self.dumps({"a": 1}, yson_format="pretty") == b'{\n    "a" = 1;\n}'
         assert self.dumps_binary("ABC") == b"\x01\x06ABC"
@@ -248,7 +236,6 @@ class YsonWriterTestBase(object):
 
         assert b'<"foo"="bar";>234u' == self.dumps(A())
 
-    @pytest.mark.skipif("not PY3")
     def test_string_proxy(self):
         key = YsonStringProxy()
         key._bytes = b"\xFA"

@@ -40,7 +40,7 @@ std::vector<NCompression::ECodec> GetCompressionCodecs(
         ? *configuredForbiddenCodecs
         : NCompression::GetForbiddenCodecs();
     std::vector<NCompression::ECodec> result;
-    for (auto id : TEnumTraits<NCompression::ECodec>::GetDomainValues()) {
+    for (auto id : TEnumTraits<NCompression::ECodec>::GetUniqueDomainValues()) {
         if (!codecs.contains(id)) {
             result.push_back(id);
         }
@@ -84,4 +84,3 @@ TYsonString CreateFeatureRegistryYson(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer
-

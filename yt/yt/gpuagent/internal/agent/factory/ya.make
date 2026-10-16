@@ -6,10 +6,10 @@ PEERDIR(
     yt/yt/gpuagent/internal/agent/nv
 )
 
-IF (OPENSOURCE)
-    SRCS(providers_external.go)    
+IF (NOT YT_CUSTOM_INTERNAL_BUILD)
+    SRCS(providers_default.go)    
 ELSE()
-    SRCS(providers_internal.go)
+    SRCS(providers_custom.go)
     PEERDIR(
         yt/yt/gpuagent/internal/agent/mx
     )

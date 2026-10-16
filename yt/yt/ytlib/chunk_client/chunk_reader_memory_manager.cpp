@@ -37,16 +37,16 @@ TChunkReaderMemoryManager::TChunkReaderMemoryManager(
     , MemoryUsageTracker_(Options_.MemoryUsageTracker)
     , ProfilingTagList_(std::move(Options_.ProfilingTagList))
     , Id_(TGuid::Create())
-    , Logger(ReaderMemoryManagerLogger().WithTag("Id: %v", Id_))
+    , Logger(ReaderMemoryManagerLogger().WithTag("Id", Id_))
 {
     TGuid parentId;
     if (auto parent = HostMemoryManager_.Lock()) {
         parentId = parent->GetId();
     }
-    YT_LOG_DEBUG("Chunk reader memory manager created (ReservedMemorySize: %v, PrefetchMemorySize: %v, ParentId: %v)",
-        GetReservedMemorySize(),
-        PrefetchMemorySize_.load(),
-        parentId);
+    YT_TLOG_DEBUG("Chunk reader memory manager created")
+        .With("ReservedMemorySize", GetReservedMemorySize())
+        .With("PrefetchMemorySize", PrefetchMemorySize_.load())
+        .With("ParentId", parentId);
 }
 
 TChunkReaderMemoryManagerHolderPtr TChunkReaderMemoryManager::CreateHolder(
@@ -92,9 +92,9 @@ i64 TChunkReaderMemoryManager::GetReservedMemorySize() const
 
 void TChunkReaderMemoryManager::SetReservedMemorySize(i64 size)
 {
-    YT_LOG_DEBUG_UNLESS(GetReservedMemorySize() == size, "Updating reserved memory size (OldReservedMemorySize: %v, NewReservedMemorySize: %v)",
-        GetReservedMemorySize(),
-        size);
+    YT_TLOG_DEBUG_UNLESS(GetReservedMemorySize() == size, "Updating reserved memory size")
+        .With("OldReservedMemorySize", GetReservedMemorySize())
+        .With("NewReservedMemorySize", size);
 
     ReservedMemorySize_ = size;
     AsyncSemaphore_->SetTotal(size);
@@ -107,12 +107,14 @@ const NProfiling::TTagList& TChunkReaderMemoryManager::GetProfilingTagList() con
 
 void TChunkReaderMemoryManager::AddChunkReaderInfo(TGuid chunkReaderId)
 {
-    YT_LOG_DEBUG("Chunk reader info added (ChunkReaderId: %v)", chunkReaderId);
+    YT_TLOG_DEBUG("Chunk reader info added")
+        .With("ChunkReaderId", chunkReaderId);
 }
 
 void TChunkReaderMemoryManager::AddReadSessionInfo(TGuid readSessionId)
 {
-    YT_LOG_DEBUG("Read session info added (ReadSessionId: %v)", readSessionId);
+    YT_TLOG_DEBUG("Read session info added")
+        .With("ReadSessionId", readSessionId);
 }
 
 TGuid TChunkReaderMemoryManager::GetId() const
@@ -122,9 +124,9 @@ TGuid TChunkReaderMemoryManager::GetId() const
 
 TMemoryUsageGuardPtr TChunkReaderMemoryManager::Acquire(i64 size)
 {
-    YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Force acquiring memory (MemorySize: %v, FreeMemorySize: %v)",
-        size,
-        GetFreeMemorySize());
+    YT_TLOG_DEBUG_IF(Options_.EnableDetailedLogging, "Force acquiring memory")
+        .With("MemorySize", size)
+        .With("FreeMemorySize", GetFreeMemorySize());
 
     return New<TMemoryUsageGuard>(
         TAsyncSemaphoreGuard::Acquire(AsyncSemaphore_, size),
@@ -134,9 +136,9 @@ TMemoryUsageGuardPtr TChunkReaderMemoryManager::Acquire(i64 size)
 
 TFuture<TMemoryUsageGuardPtr> TChunkReaderMemoryManager::AsyncAcquire(i64 size)
 {
-    YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Acquiring memory (MemorySize: %v, FreeMemorySize: %v)",
-        size,
-        GetFreeMemorySize());
+    YT_TLOG_DEBUG_IF(Options_.EnableDetailedLogging, "Acquiring memory")
+        .With("MemorySize", size)
+        .With("FreeMemorySize", GetFreeMemorySize());
 
     return AsyncSemaphore_->AsyncAcquire(size)
         .AsUnique().Apply(BIND(ThrowOnDestroyed(&TChunkReaderMemoryManager::OnSemaphoreAcquired), MakeWeak(this)))
@@ -166,9 +168,9 @@ i64 TChunkReaderMemoryManager::GetFreeMemorySize() const
 void TChunkReaderMemoryManager::SetTotalSize(i64 size)
 {
     auto oldTotalMemorySize = TotalMemorySize_.load();
-    YT_LOG_DEBUG_UNLESS(oldTotalMemorySize == size, "Updating total memory size (OldTotalSize: %v, NewTotalSize: %v)",
-        oldTotalMemorySize,
-        size);
+    YT_TLOG_DEBUG_UNLESS(oldTotalMemorySize == size, "Updating total memory size")
+        .With("OldTotalSize", oldTotalMemorySize)
+        .With("NewTotalSize", size);
 
     TotalMemorySize_ = size;
     OnMemoryRequirementsUpdated();
@@ -184,9 +186,9 @@ void TChunkReaderMemoryManager::SetRequiredMemorySize(i64 size)
             break;
         }
         if (RequiredMemorySize_.compare_exchange_weak(oldValue, size)) {
-            YT_LOG_DEBUG("Updating required memory size (OldRequiredMemorySize: %v, NewRequiredMemorySize: %v)",
-                oldValue,
-                size);
+            YT_TLOG_DEBUG("Updating required memory size")
+                .With("OldRequiredMemorySize", oldValue)
+                .With("NewRequiredMemorySize", size);
             OnMemoryRequirementsUpdated();
             break;
         }
@@ -196,9 +198,9 @@ void TChunkReaderMemoryManager::SetRequiredMemorySize(i64 size)
 void TChunkReaderMemoryManager::SetPrefetchMemorySize(i64 size)
 {
     auto oldPrefetchMemorySize = PrefetchMemorySize_.load();
-    YT_LOG_DEBUG_UNLESS(oldPrefetchMemorySize == size, "Updating prefetch memory size (OldPrefetchMemorySize: %v, NewPrefetchMemorySize: %v)",
-        oldPrefetchMemorySize,
-        size);
+    YT_TLOG_DEBUG_UNLESS(oldPrefetchMemorySize == size, "Updating prefetch memory size")
+        .With("OldPrefetchMemorySize", oldPrefetchMemorySize)
+        .With("NewPrefetchMemorySize", size);
 
     PrefetchMemorySize_ = size;
     OnMemoryRequirementsUpdated();
@@ -206,8 +208,8 @@ void TChunkReaderMemoryManager::SetPrefetchMemorySize(i64 size)
 
 TFuture<void> TChunkReaderMemoryManager::Finalize()
 {
-    YT_LOG_DEBUG("Finalizing chunk reader memory manager (AlreadyFinalized: %v)",
-        Finalized_.load());
+    YT_TLOG_DEBUG("Finalizing chunk reader memory manager")
+        .With("AlreadyFinalized", Finalized_.load());
 
     Finalized_ = true;
     TryUnregister();
@@ -221,7 +223,8 @@ TMemoryUsageGuardPtr TChunkReaderMemoryManager::OnSemaphoreAcquired(TAsyncSemaph
 {
     auto size = semaphoreGuard.GetSlots();
 
-    YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Semaphore acquired (MemorySize: %v)", size);
+    YT_TLOG_DEBUG_IF(Options_.EnableDetailedLogging, "Semaphore acquired")
+        .With("MemorySize", size);
 
     return New<TMemoryUsageGuard>(
         std::move(semaphoreGuard),
@@ -231,13 +234,12 @@ TMemoryUsageGuardPtr TChunkReaderMemoryManager::OnSemaphoreAcquired(TAsyncSemaph
 
 void TChunkReaderMemoryManager::OnMemoryRequirementsUpdated()
 {
-    YT_LOG_DEBUG("Memory requirements updated (ReservedMemorySize: %v, UsedMemorySize: %v, TotalMemorySize: %v, "
-        "RequiredMemorySize: %v, PrefetchMemorySize: %v)",
-        GetReservedMemorySize(),
-        GetUsedMemorySize(),
-        TotalMemorySize_.load(),
-        GetRequiredMemorySize(),
-        PrefetchMemorySize_.load());
+    YT_TLOG_DEBUG("Memory requirements updated")
+        .With("ReservedMemorySize", GetReservedMemorySize())
+        .With("UsedMemorySize", GetUsedMemorySize())
+        .With("TotalMemorySize", TotalMemorySize_.load())
+        .With("RequiredMemorySize", GetRequiredMemorySize())
+        .With("PrefetchMemorySize", PrefetchMemorySize_.load());
 
     if (auto hostMemoryManager = HostMemoryManager_.Lock()) {
         hostMemoryManager->UpdateMemoryRequirements(MakeStrong(this));
@@ -247,7 +249,7 @@ void TChunkReaderMemoryManager::OnMemoryRequirementsUpdated()
 void TChunkReaderMemoryManager::DoUnregister()
 {
     if (!Unregistered_.test_and_set()) {
-        YT_LOG_DEBUG("Unregistering chunk reader memory manager");
+        YT_TLOG_DEBUG("Unregistering chunk reader memory manager");
         if (auto hostMemoryManager = HostMemoryManager_.Lock()) {
             hostMemoryManager->Unregister(MakeStrong(this));
         }

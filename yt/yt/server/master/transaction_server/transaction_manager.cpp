@@ -12,6 +12,7 @@
 #include "transaction_type_handler.h"
 #include "transaction.h"
 
+#include <yt/yt/server/master/cell_master/alert_manager.h>
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
@@ -24,6 +25,7 @@
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/node.h>
+#include <yt/yt/server/master/cypress_server/sequoia_actions_executor.h>
 
 #include <yt/yt/server/master/object_server/attribute_set.h>
 #include <yt/yt/server/master/object_server/object.h>
@@ -36,6 +38,7 @@
 
 #include <yt/yt/server/master/sequoia_server/config.h>
 #include <yt/yt/server/master/sequoia_server/context.h>
+#include <yt/yt/server/master/sequoia_server/revision.h>
 #include <yt/yt/server/master/sequoia_server/sequoia_manager.h>
 
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
@@ -54,6 +57,8 @@
 #include <yt/yt/server/lib/sequoia/protobuf_helpers.h>
 #include <yt/yt/server/lib/sequoia/transaction_finish_request.h>
 
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 #include <yt/yt/server/lib/transaction_server/private.h>
 
@@ -63,6 +68,8 @@
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager_detail.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.pb.h>
+
+#include <yt/yt/ytlib/api/native/proto/transaction_actions.pb.h>
 
 #include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
 
@@ -74,6 +81,10 @@
 #include <yt/yt/ytlib/sequoia_client/records/transactions.record.h>
 
 #include <yt/yt/ytlib/tablet_client/bulk_insert_locking.h>
+
+// TODO(kvk1920): it's a dirty way to detect dyntable-related system
+// transactions.
+#include <yt/yt/ytlib/tablet_client/proto/master_tablet_service.pb.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
@@ -88,6 +99,7 @@
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
+#include <yt/yt/core/concurrency/async_barrier.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -108,6 +120,8 @@
 
 #include <library/cpp/yt/compact_containers/compact_queue.h>
 
+#include <library/cpp/yt/misc/range_formatters.h>
+
 namespace NYT::NTransactionServer {
 
 using namespace NCellMaster;
@@ -119,6 +133,7 @@ using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NHydra;
 using namespace NLeaseServer;
+using namespace NLogging;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NObjectServer;
@@ -144,7 +159,12 @@ namespace {
 class TTransactionContextGuard
 {
 public:
-    TTransactionContextGuard(TBootstrap* bootstrap, TTransaction* transaction)
+    // TODO(kvk1920): make separate constructors for Prepare, Commit and Abort.
+    TTransactionContextGuard(
+        TBootstrap* bootstrap,
+        TTransaction* transaction,
+        std::optional<TTimestamp> timestamp,
+        std::optional<bool> latePrepare = std::nullopt)
         : UserGuard_(
             bootstrap->GetSecurityManager(),
             transaction->IsSequoiaTransaction()
@@ -155,9 +175,9 @@ public:
             TraceGuard_.emplace(transaction->GetTraceContext());
             SequoiaGuard_.emplace(bootstrap, transaction->GetId(), transaction->SequoiaWriteSet());
             MessageTagGuard_.emplace(
-                Format("SequoiaTransactionId: %v, Phase: %v",
-                    transaction->GetId(),
-                    [&] {
+                NLogging::TLoggingTagList()
+                    .With("SequoiaTransactionId", transaction->GetId())
+                    .With("Phase", [&] {
                         auto state = transaction->GetPersistentState();
                         if (state == ETransactionState::Aborted) {
                             return "Abort";
@@ -166,7 +186,67 @@ public:
                         } else {
                             return "Prepare";
                         }
-                    } ()));
+                    }()));
+        }
+
+        bool needSequoiaRevision = false;
+        if (transaction->IsSequoiaTransaction()) {
+            needSequoiaRevision = true;
+        } else {
+            static const THashSet<std::string> ActionTypes = {
+                NTabletClient::NProto::TReqMount::GetDescriptor()->full_name(),
+                NTabletClient::NProto::TReqUnmount::GetDescriptor()->full_name(),
+                NTabletClient::NProto::TReqFreeze::GetDescriptor()->full_name(),
+                NTabletClient::NProto::TReqUnfreeze::GetDescriptor()->full_name(),
+                NTabletClient::NProto::TReqRemount::GetDescriptor()->full_name(),
+                NTabletClient::NProto::TReqReshard::GetDescriptor()->full_name(),
+                NTabletServer::NProto::TReqUpdateTabletStores::GetDescriptor()->full_name(),
+                NTabletServer::NProto::TReqUpdateHunkTabletStores::GetDescriptor()->full_name(),
+                NApi::NNative::NProto::TReqMergeToTrunkAndUnlockNode::GetDescriptor()->full_name(),
+            };
+
+            needSequoiaRevision = std::ranges::any_of(transaction->Actions(), [] (const auto& action) {
+                return ActionTypes.contains(action.Type);
+            });
+        }
+
+        const auto& config = bootstrap->GetDynamicConfig()->SequoiaManager;
+        bool enableSequoiaRevision = config->ShouldUseSequoiaRevisions();
+
+        if (needSequoiaRevision) {
+            // NB: transaction state becomes "aborted"/"committed" _before_ the
+            // execution of corresponding actions. But transition to "prepared"
+            // state happens _after_ action execution. That's why only
+            // "Committed" and "Aborted" states are explicitly checked here.
+            if (transaction->GetPersistentState() == ETransactionState::Committed) {
+                YT_ASSERT(timestamp);
+                if (enableSequoiaRevision) {
+                    SequoiaRevisionGuard_.emplace(TSequoiaRevisionCommit{TRevision(timestamp->Underlying())});
+                } else {
+                    SequoiaRevisionGuard_.emplace(TSequoiaRevisionDisabled{});
+                }
+            } else if (transaction->GetPersistentState() != ETransactionState::Aborted) {
+                YT_VERIFY(latePrepare.has_value());
+                YT_ASSERT(timestamp);
+                if (enableSequoiaRevision) {
+                    const auto& sequoiaActionExecutor = bootstrap->GetSequoiaActionsExecutor();
+                    SequoiaRevisionGuard_.emplace(TSequoiaRevisionPrepare{
+                        [sequoiaActionExecutor, transaction, latePrepare] (
+                            TVersionedNodeId node,
+                            EModificationType modificationType
+                        ) {
+                            sequoiaActionExecutor->PrepareSequoiaNodeModification(
+                                transaction,
+                                node,
+                                modificationType,
+                                *latePrepare);
+                        },
+                        TRevision(timestamp->Underlying()),
+                    });
+                } else {
+                    SequoiaRevisionGuard_.emplace(TSequoiaRevisionDisabled{});
+                }
+            }
         }
     }
 
@@ -175,9 +255,175 @@ private:
     std::optional<NTracing::TTraceContextGuard> TraceGuard_;
     std::optional<TSequoiaContextGuard> SequoiaGuard_;
     std::optional<NLogging::TFiberMessageTagGuard> MessageTagGuard_;
+    std::optional<TSequoiaRevisionGuard> SequoiaRevisionGuard_;
+};
+
+//! When a mirrored Cypress transaction is used as a prerequisite for another
+//! transaction commit (e.g. for committing Sequoia transactions), the
+//! prerequisite check is implemented by issuing a lease from prerequisite
+//! transaction's coordinator cell to the cell coordinating the commit.
+//! To prevent the prerequisite transaction from finishing concurrently with 2pc,
+//! we take a persistent reference to the lease in prepare (and then release it
+//! in commit/abort).
+class TLeasePersistentReferenceTracker
+{
+public:
+    TLeasePersistentReferenceTracker(TBootstrap* bootstrap, TLogger logger)
+        : Bootstrap_(bootstrap)
+        , Logger(std::move(logger))
+    { }
+
+    void Save(NCellMaster::TSaveContext& context)
+    {
+        using NYT::Save;
+
+        THashMap<TRawObjectPtr<TTransaction>, TCompactFlatSet<TLeaseId, 2>> transactionToReferencedLeaseIds;
+        for (const auto& [transaction, leases] : TransactionToReferencedLeases_) {
+            auto& leaseIds = transactionToReferencedLeaseIds[transaction];
+            for (auto* lease : leases) {
+                leaseIds.insert(lease->GetId());
+            }
+        }
+        Save(context, transactionToReferencedLeaseIds);
+        // LeaseToReferencingTransactions_ is not persisted and is recomputed instead.
+    }
+
+    void Load(NCellMaster::TLoadContext& context)
+    {
+        using NYT::Load;
+
+        const auto& leaseManager = Bootstrap_->GetLeaseManager();
+        auto transactionToReferencedLeaseIds = Load<THashMap<TRawObjectPtr<TTransaction>, TCompactFlatSet<TLeaseId, 2>>>(context);
+        for (const auto& [transaction, leaseIds] : transactionToReferencedLeaseIds) {
+            auto& leases = TransactionToReferencedLeases_[transaction];
+            for (auto leaseId : leaseIds) {
+                if (auto* lease = leaseManager->FindLease(leaseId)) {
+                    leases.insert(lease);
+                    LeaseToReferencingTransactions_[lease].insert(transaction);
+                } else {
+                    YT_TLOG_ALERT("Lease not found while loading transaction-to-referenced-lease map")
+                        .With("LeaseId", leaseId)
+                        .With("TransactionId", transaction->GetId());
+                }
+            }
+        }
+    }
+
+    void Clear()
+    {
+        TransactionToReferencedLeases_.clear();
+        LeaseToReferencingTransactions_.clear();
+    }
+
+    void RefLease(TTransaction* transaction, ILease* lease)
+    {
+        lease->RefPersistently(/*force*/ false); // May throw on inactive lease.
+        InsertOrCrash(TransactionToReferencedLeases_[transaction], lease);
+        InsertOrCrash(LeaseToReferencingTransactions_[lease], transaction);
+    }
+
+    void HandleTransactionFinish(TTransaction* transaction)
+    {
+        auto transactionIt = TransactionToReferencedLeases_.find(transaction);
+
+        if (transactionIt == TransactionToReferencedLeases_.end()) {
+            return;
+        }
+
+        const auto& leases = transactionIt->second;
+        for (auto* lease : leases) {
+            lease->UnrefPersistently();
+            if (auto leaseIt = LeaseToReferencingTransactions_.find(lease);
+                leaseIt != LeaseToReferencingTransactions_.end())
+            {
+                auto& transactions = leaseIt->second;
+                if (transactions.erase(transaction)) {
+                    if (transactions.empty()) {
+                        LeaseToReferencingTransactions_.erase(leaseIt);
+                    }
+                } else {
+                    YT_TLOG_ALERT("Lease is referenced by transaction according to transaction-to-lease map but not according to lease-to-transaction map")
+                        .With("LeaseId", lease->GetId())
+                        .With("TransactionId", transaction->GetId());
+                }
+            } else {
+                YT_TLOG_ALERT("Lease is referenced by transaction according to transaction-to-lease map but is not referenced by any transaction according to lease-to-transaction map")
+                    .With("LeaseId", lease->GetId())
+                    .With("TransactionId", transaction->GetId());
+            }
+        }
+
+        TransactionToReferencedLeases_.erase(transactionIt);
+    }
+
+    void HandleLeaseRemoval(ILease* lease)
+    {
+        auto it = LeaseToReferencingTransactions_.find(lease);
+        if (it == LeaseToReferencingTransactions_.end()) {
+            return;
+        }
+
+        const auto& transactions = it->second;
+        YT_TLOG_ALERT_IF(transactions.empty(), "Lease is referenced by an empty list of transactions")
+            .With("LeaseId", lease->GetId());
+
+        YT_TLOG_ALERT_IF(
+            lease->GetPersistentRefCounter() < std::ssize(transactions),
+            "Lease has persistent reference count smaller than the number of transactions it's referenced by")
+            .With("LeaseId", lease->GetId())
+            .With("PersistentRefCounter", lease->GetPersistentRefCounter())
+            .With("ReferencingTransactionCount", std::ssize(transactions))
+            .With("ReferencingTransactions", MakeShrunkFormattableView(
+                    transactions,
+                    [] (TStringBuilderBase* builder, TTransaction* transaction) {
+                        builder->AppendFormat("%v", GetObjectId(transaction));
+                    },
+                    100));
+
+        for (auto* transaction : transactions) {
+            auto it = TransactionToReferencedLeases_.find(transaction);
+            if (it == TransactionToReferencedLeases_.end()) {
+                YT_TLOG_ALERT("Transaction is referencing a lease according to a lease-to-transactions map but is not referencing any lease according to the transaction-to-lease map")
+                    .With("LeaseId", lease->GetId())
+                    .With("TransactionId", transaction->GetId());
+            } else {
+                auto& leases = it->second;
+                if (leases.erase(lease)) {
+                    if (leases.empty()) {
+                        TransactionToReferencedLeases_.erase(it);
+                    }
+                } else {
+                    YT_TLOG_ALERT("Transaction is referencing a lease according to a lease-to-transactions map but is not referencing that lease according to the transaction-to-lease map")
+                        .With("LeaseId", lease->GetId())
+                        .With("TransactionId", transaction->GetId());
+                }
+            }
+        }
+
+        // NB: no need to persistently unreference the lease at it's already being
+        // destroyed anyway (probably via revocation with force == true).
+        LeaseToReferencingTransactions_.erase(it);
+    }
+
+    void OnProfiling(NProfiling::TSensorBuffer* buffer)
+    {
+        buffer->AddGauge("/transaction_to_referenced_leases_size", std::ssize(TransactionToReferencedLeases_));
+        buffer->AddGauge("/lease_to_referencing_transactions_size", std::ssize(LeaseToReferencingTransactions_));
+    }
+
+private:
+    const TBootstrap* Bootstrap_;
+    const TLogger Logger;
+    THashMap<TTransaction*, TCompactFlatSet<ILease*, 2>> TransactionToReferencedLeases_;
+    THashMap<ILease*, TCompactFlatSet<TTransaction*, 4>> LeaseToReferencingTransactions_;
 };
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAllBarrierTags
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -213,6 +459,7 @@ public:
         , LeaseTracker_(CreateTransactionLeaseTracker(
             Bootstrap_->GetTransactionLeaseTrackerThreadPool(),
             TransactionServerLogger()))
+        , LeasePersistentReferenceTracker_(Bootstrap_, TransactionServerLogger())
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 
@@ -320,12 +567,22 @@ public:
 
         const auto& leaseManager = Bootstrap_->GetLeaseManager();
         leaseManager->SubscribeLeaseRevoked(BIND_NO_PROPAGATE(&TTransactionManager::OnLeaseRevoked, MakeWeak(this)));
+        leaseManager->SubscribeLeaseRemoved(BIND_NO_PROPAGATE(&TTransactionManager::OnLeaseRemoved, MakeWeak(this)));
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
             BIND(&TTransactionManager::OnProfiling, MakeWeak(this)),
             TDynamicTransactionManagerConfig::DefaultProfilingPeriod);
         ProfilingExecutor_->Start();
+
+        const auto& alertManager = Bootstrap_->GetAlertManager();
+        alertManager->RegisterAlertSource(BIND_NO_PROPAGATE(&TTransactionManager::GetAlerts, MakeStrong(this)));
+
+        AlertFlushingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+            BIND(&TTransactionManager::FlushAlerts, MakeWeak(this)),
+            TDynamicTransactionManagerConfig::DefaultAlertFlushPeriod);
+        AlertFlushingExecutor_->Start();
 
         // Start Cypress Tx
         // Coordinator: TReqStartCypressTransaction, late prepare
@@ -346,7 +603,10 @@ public:
         // Participant: TReqCommitTransaction, commit only
         RegisterTransactionActionHandlers<NProto::TReqCommitCypressTransaction>({
             .Prepare = BIND_NO_PROPAGATE(
-                &TTransactionManager::HydraPrepareAndCommitCommitCypressTransactionInSequoia,
+                &TTransactionManager::HydraPrepareCommitCypressTransactionInSequoia,
+                Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(
+                &TTransactionManager::HydraCommitCommitCypressTransactionInSequoia,
                 Unretained(this)),
         });
         // TODO(kvk1920): consider renaming TReqCommitTransaction ->
@@ -407,7 +667,7 @@ public:
     }
 
     TTransaction* StartSystemTransaction(
-        const TCellTagList& replicatedToCellTags,
+        const TCellTagSet& replicatedToCellTags,
         std::optional<TDuration> timeout,
         const std::string& title,
         const IAttributeDictionary& attributes,
@@ -425,13 +685,14 @@ public:
             hintId);
     }
 
-        TTransaction* StartSequoiaTransaction(
+    TTransaction* StartSequoiaTransaction(
         TTransactionId transactionId,
         std::optional<TDuration> timeout,
         const std::string& title,
-        const IAttributeDictionary& attributes) override
+        const IAttributeDictionary& attributes,
+        const std::vector<std::string>& barrierTags = {}) override
     {
-        return StartTransaction(
+        auto* transaction = StartTransaction(
             ETransactionType::Sequoia,
             /*parent*/ nullptr,
             /*prerequisiteTransactions*/ {},
@@ -441,10 +702,16 @@ public:
             title,
             attributes,
             transactionId);
+
+        for (const auto& tag : barrierTags) {
+            transaction->RegisterBarrierCookie(tag, InvalidAsyncBarrierCookie);
+        }
+
+        return transaction;
     }
 
     TTransaction* StartNonMirroredCypressTransaction(
-        const TCellTagList& replicatedToCellTags,
+        const TCellTagSet& replicatedToCellTags,
         const std::string& title) override
     {
         return StartTransaction(
@@ -463,7 +730,7 @@ public:
         ETransactionType transactionType,
         TTransaction* parent,
         std::vector<TTransactionRawPtr> prerequisiteTransactions,
-        const TCellTagList& replicatedToCellTags,
+        const TCellTagSet& replicatedToCellTags,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
         const std::optional<std::string>& title,
@@ -489,7 +756,7 @@ public:
     TTransaction* StartUploadTransaction(
         TTransaction* parent,
         std::vector<TTransactionRawPtr> prerequisiteTransactions,
-        const TCellTagList& replicatedToCellTags,
+        const TCellTagSet& replicatedToCellTags,
         std::optional<TDuration> timeout,
         const std::optional<std::string>& title,
         TTransactionId hintId) override
@@ -518,7 +785,7 @@ public:
             THROW_ERROR_EXCEPTION(
                 NTransactionClient::EErrorCode::UploadTransactionCannotHaveNested,
                 "Failed to start a transaction nested in an upload transaction")
-                << TErrorAttribute("upload_transaction_id", parent->GetId());
+                .With("upload_transaction_id", parent->GetId());
         }
     }
 
@@ -535,9 +802,9 @@ public:
             THROW_ERROR_EXCEPTION(
                 NTransactionClient::EErrorCode::ForeignParentTransaction,
                 "Parent transaction is foreign")
-                << TErrorAttribute("parent_transaction_id", parent->GetId())
-                << TErrorAttribute("parent_transaction_cell_tag", CellTagFromId(parent->GetId()))
-                << TErrorAttribute("expected_cell_tag", thisCellTag);
+                .With("parent_transaction_id", parent->GetId())
+                .With("parent_transaction_cell_tag", CellTagFromId(parent->GetId()))
+                .With("expected_cell_tag", thisCellTag);
         }
 
         for (auto prerequisiteTransaction : prerequisiteTransactions) {
@@ -545,9 +812,9 @@ public:
                 THROW_ERROR_EXCEPTION(
                     NTransactionClient::EErrorCode::ForeignPrerequisiteTransaction,
                     "Prerequisite transaction is foreign")
-                    << TErrorAttribute("prerequisite_transaction_id", prerequisiteTransaction->GetId())
-                    << TErrorAttribute("prerequisite_transaction_cell_tag", CellTagFromId(prerequisiteTransaction->GetId()))
-                    << TErrorAttribute("expected_cell_tag", thisCellTag);
+                    .With("prerequisite_transaction_id", prerequisiteTransaction->GetId())
+                    .With("prerequisite_transaction_cell_tag", CellTagFromId(prerequisiteTransaction->GetId()))
+                    .With("expected_cell_tag", thisCellTag);
             }
         }
     }
@@ -561,7 +828,7 @@ public:
         ETransactionType transactionType,
         TTransaction* parent,
         std::vector<TTransactionRawPtr> prerequisiteTransactions,
-        TCellTagList replicatedToCellTags,
+        TCellTagSet replicatedToCellTags,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
         const std::optional<std::string>& title,
@@ -575,7 +842,7 @@ public:
         const auto& dynamicConfig = GetDynamicConfig();
 
         if (hintId) {
-            YT_VERIFY(ValidateTransactionTypeCoherency(transactionType, hintId));
+            YT_VERIFY(CheckTransactionTypeCoherency(transactionType, hintId));
         }
 
         auto transactionObjectType = TransactionTypeToObjectType(
@@ -589,22 +856,20 @@ public:
             auto parentType = TypeFromId(parent->GetId());
 
             if (IsSystemTransactionType(transactionObjectType) && !IsSystemTransactionType(parentType)) {
-                YT_LOG_ALERT("An attempt to create a system transaction nested inside of non-system parent was made "
-                    "(ParentId: %v, ParentType: %v, RequestedChildType: %v, HintId: %v)",
-                    parent->GetId(),
-                    parentType,
-                    transactionObjectType,
-                    hintId);
+                YT_TLOG_ALERT("An attempt to create a system transaction nested inside of non-system parent was made")
+                    .With("ParentId", parent->GetId())
+                    .With("ParentType", parentType)
+                    .With("RequestedChildType", transactionObjectType)
+                    .With("HintId", hintId);
                 transactionObjectType = EObjectType::NestedTransaction;
             }
 
             if (!IsSystemTransactionType(transactionObjectType) && IsSystemTransactionType(parentType)) {
-                YT_LOG_ALERT("An attempt to create a non-system transaction nested inside of system parent was made "
-                    "(ParentId: %v, ParentType: %v, RequestedChildType: %v, HintId: %v)",
-                    parent->GetId(),
-                    parentType,
-                    transactionObjectType,
-                    hintId);
+                YT_TLOG_ALERT("An attempt to create a non-system transaction nested inside of system parent was made")
+                    .With("ParentId", parent->GetId())
+                    .With("ParentType", parentType)
+                    .With("RequestedChildType", transactionObjectType)
+                    .With("HintId", hintId);
                 transactionObjectType = EObjectType::SystemNestedTransaction;
             }
         }
@@ -618,7 +883,7 @@ public:
                 THROW_ERROR_EXCEPTION(
                     NTransactionClient::EErrorCode::TransactionDepthLimitReached,
                     "Transaction depth limit reached")
-                    << TErrorAttribute("limit", dynamicConfig->MaxTransactionDepth);
+                    .With("limit", dynamicConfig->MaxTransactionDepth);
             }
         }
 
@@ -629,11 +894,12 @@ public:
         // COMPAT(shakurov): this is a hotfix. Replace TryInsert with Insert and remove TryInsert altogether.
         auto [transaction, inserted] = TransactionMap_.TryInsert(transactionId, std::move(transactionHolder));
         if (!inserted) {
-            YT_LOG_ALERT("Skipped duplicate transaction start (TransactionId: %v)", transactionId);
+            YT_TLOG_ALERT("Skipped duplicate transaction start")
+                .With("TransactionId", transactionId);
             return transaction;
         }
 
-        // Every active transaction has a fake reference to itself.
+        // Every active transaction has an artificial reference to itself.
         YT_VERIFY(transaction->RefObject() == 1);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -688,6 +954,7 @@ public:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
         transaction->Acd().SetOwner(user);
+        transaction->SetInitiatorId(user->GetId());
 
         try {
             objectManager->FillAttributes(transaction, attributes);
@@ -699,12 +966,7 @@ public:
 
         if (!replicatedToCellTags.empty()) {
             // Never include native cell tag into ReplicatedToCellTags.
-            replicatedToCellTags.erase(
-                std::remove(
-                    replicatedToCellTags.begin(),
-                    replicatedToCellTags.end(),
-                    CellTagFromId(transactionId)),
-                replicatedToCellTags.end());
+            replicatedToCellTags.erase(CellTagFromId(transactionId));
 
             if (transactionType == ETransactionType::Upload) {
                 transaction->ReplicatedToCellTags() = replicatedToCellTags;
@@ -715,27 +977,31 @@ public:
             }
         }
 
+        auto activeTransactionCount = MaybeIncrementUserActiveTransactionCount(transaction);
+
         TransactionStarted_.Fire(transaction);
 
         auto time = timer.GetElapsedTime();
 
         YT_LOG_ACCESS("StartTransaction", transaction);
 
-        YT_LOG_DEBUG("Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
-            "ReplicatedToCellTags: %v, Timeout: %v, Deadline: %v, User: %v, Title: %v, WallTime: %v, "
-            "MirroredToSequoia: %v)",
-            transactionId,
-            GetObjectId(parent),
-            MakeFormattableView(transaction->PrerequisiteTransactions(), [] (auto* builder, auto prerequisiteTransaction) {
-                FormatValue(builder, prerequisiteTransaction->GetId(), TStringBuf());
-            }),
-            replicatedToCellTags,
-            transaction->GetTimeout(),
-            transaction->GetDeadline(),
-            user->GetName(),
-            title,
-            time,
-            IsCypressTransactionMirroredToSequoia(transactionId));
+        YT_TLOG_DEBUG("Transaction started")
+            .With("TransactionId", transactionId)
+            .With("ParentId", GetObjectId(parent))
+            .With("PrerequisiteTransactionIds", MakeFormattableView(
+                transaction->PrerequisiteTransactions(),
+                [] (auto* builder, auto prerequisiteTransaction) {
+                    FormatValue(builder, prerequisiteTransaction->GetId(), TStringBuf());
+                }))
+            .With("ReplicatedToCellTags", replicatedToCellTags)
+            .With("Timeout", transaction->GetTimeout())
+            .With("Deadline", transaction->GetDeadline())
+            .With("User", user->GetName())
+            .With("InitiatorId", transaction->GetInitiatorId())
+            .WithIf(activeTransactionCount.has_value(), "InitiatorActiveTransactionCount", activeTransactionCount)
+            .With("Title", title)
+            .With("WallTime", time)
+            .With("MirroredToSequoia", IsCypressTransactionMirroredToSequoia(transactionId));
 
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
 
@@ -744,15 +1010,14 @@ public:
         return transaction;
     }
 
-    void MarkTransactionReplicated(TTransaction* transaction, TCellTagList replicateToCellTags)
+    void MarkTransactionReplicated(TTransaction* transaction, TCellTagSet replicateToCellTags)
     {
         for (; transaction; transaction = transaction->GetParent()) {
             bool alreadyReplicated = true;
             for (auto cellTag : replicateToCellTags) {
                 if (!transaction->IsReplicatedToCell(cellTag)) {
                     alreadyReplicated = false;
-                    transaction->ReplicatedToCellTags().push_back(cellTag);
-                    SortUnique(transaction->ReplicatedToCellTags());
+                    InsertOrCrash(transaction->ReplicatedToCellTags(), cellTag);
                 }
             }
             if (alreadyReplicated) {
@@ -765,10 +1030,10 @@ public:
         TTransaction* transaction,
         const TTransactionCommitOptions& options) override
     {
-        YT_LOG_ALERT_IF(
+        YT_TLOG_ALERT_IF(
             transaction->IsCypressTransaction() && IsSequoiaId(transaction->GetId()),
-            "Attempt to commit Cypress transaction in non-Sequoia way (TransactionId: %v)",
-            transaction->GetId());
+            "Attempt to commit Cypress transaction in non-Sequoia way")
+            .With("TransactionId", transaction->GetId());
 
         CommitTransaction(transaction, options);
     }
@@ -812,17 +1077,16 @@ public:
 
         NProfiling::TWallTimer timer;
 
-        YT_VERIFY(transaction->IsForeign() || transaction->GetNativeCommitMutationRevision() == NHydra::NullRevision);
+        YT_VERIFY(transaction->IsForeign() || transaction->NativeCommitRevision().Mutation == NHydra::NullRevision);
 
         auto transactionId = transaction->GetId();
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(transaction, EPermission::Write);
+        MaybeValidateWritePermission(transaction);
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
-            YT_LOG_DEBUG("Transaction is already committed (TransactionId: %v)",
-                transactionId);
+            YT_TLOG_DEBUG("Transaction is already committed")
+                .With("TransactionId", transactionId);
             return;
         }
 
@@ -880,9 +1144,9 @@ public:
             transaction->NestedTransactions().end());
         std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectIdComparer());
         for (auto* nestedTransaction : nestedTransactions) {
-            YT_LOG_DEBUG("Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
-                nestedTransaction->GetId(),
-                transactionId);
+            YT_TLOG_DEBUG("Aborting nested transaction on parent commit")
+                .With("TransactionId", nestedTransaction->GetId())
+                .With("ParentId", transactionId);
             TTransactionAbortOptions options{
                 .Force = true,
             };
@@ -893,6 +1157,24 @@ public:
         }
         YT_VERIFY(transaction->NestedTransactions().empty());
 
+        auto mutationRevision = GetCurrentMutationContext()
+            ->GetVersion()
+            .ToRevision();
+        auto sequoiaRevision = mutationRevision;
+        if (auto currentSequoiaRevision = GetCurrentSequoiaRevision()) {
+            Visit(*currentSequoiaRevision,
+                [&] (const TSequoiaRevisionPrepare&) {
+                    YT_TLOG_ALERT_IF(
+                        IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transaction->GetId()),
+                        "Mirrored transaction commit is executed outside of Sequoia transaction commit")
+                        .With("TransactionId", transaction->GetId());
+                },
+                [&] (const TSequoiaRevisionCommit& revision) {
+                    sequoiaRevision = revision.Revision;
+                },
+                [] (TSequoiaRevisionDisabled /*disabled*/) { });
+        }
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         // NB: mirrored Cypress transactions are committed with Sequoia
         // transaction actions instead of Hive.
@@ -900,18 +1182,18 @@ public:
         if (replicateCommitViaHive && !transaction->ReplicatedToCellTags().empty()) {
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
-            request.set_commit_timestamp(options.CommitTimestamp);
-            const auto* mutationContext = GetCurrentMutationContext();
-            request.set_native_commit_mutation_revision(ToProto(mutationContext->GetVersion().ToRevision()));
+            request.set_commit_timestamp(ToProto(options.CommitTimestamp));
+            request.set_native_commit_mutation_revision(ToProto(mutationRevision));
+            request.set_native_commit_sequoia_revision(ToProto(sequoiaRevision));
             multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
         }
         // Externalized transactions are always finished via Hive.
         if (!transaction->ExternalizedToCellTags().empty()) {
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
-            request.set_commit_timestamp(options.CommitTimestamp);
-            const auto* mutationContext = GetCurrentMutationContext();
-            request.set_native_commit_mutation_revision(ToProto(mutationContext->GetVersion().ToRevision()));
+            request.set_commit_timestamp(ToProto(options.CommitTimestamp));
+            request.set_native_commit_mutation_revision(ToProto(mutationRevision));
+            request.set_native_commit_sequoia_revision(ToProto(sequoiaRevision));
             multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
         }
 
@@ -919,9 +1201,11 @@ public:
             CloseLease(transaction);
         }
 
+        auto activeTransactionCount = MaybeDecrementUserActiveTransactionCount(transaction);
+
         transaction->SetPersistentState(ETransactionState::Committed);
 
-        TTransactionContextGuard guard(Bootstrap_, transaction);
+        TTransactionContextGuard guard(Bootstrap_, transaction, options.CommitTimestamp);
         TransactionCommitted_.Fire(transaction);
 
         if (temporarilyRefTimestampHolder) {
@@ -952,14 +1236,15 @@ public:
 
         auto time = timer.GetElapsedTime();
 
-        YT_LOG_DEBUG(
-            "Transaction committed (TransactionId: %v, User: %v, CommitTimestamp: %v@%v, WallTime: %v)",
-            transactionId,
-            user->GetName(),
-            options.CommitTimestamp,
-            options.CommitTimestampClusterTag,
-            time);
+        YT_TLOG_DEBUG("Transaction committed")
+            .With("TransactionId", transactionId)
+            .With("User", user->GetName())
+            .With("InitiatorId", transaction->GetInitiatorId())
+            .WithIf(activeTransactionCount.has_value(), "InitiatorActiveTransactionCount", activeTransactionCount)
+            .WithFormat("CommitTimestamp", "%v@%v", options.CommitTimestamp, options.CommitTimestampClusterTag)
+            .With("WallTime", time);
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
     }
 
@@ -967,10 +1252,10 @@ public:
         TTransaction* transaction,
         const TTransactionAbortOptions& options) override
     {
-        YT_LOG_ALERT_IF(
+        YT_TLOG_ALERT_IF(
             transaction->IsCypressTransaction() && IsSequoiaId(transaction->GetId()),
-            "Attempt to abort mirrored Cypress transaction in non-Sequoia way (TransactionId: %v)",
-            transaction->GetId());
+            "Attempt to abort mirrored Cypress transaction in non-Sequoia way")
+            .With("TransactionId", transaction->GetId());
 
         AbortTransaction(
             transaction,
@@ -991,8 +1276,8 @@ public:
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Aborted) {
-            YT_LOG_DEBUG("Transaction is already aborted (TransactionId: %v)",
-                transactionId);
+            YT_TLOG_DEBUG("Transaction is already aborted")
+                .With("TransactionId", transactionId);
             return;
         }
 
@@ -1012,8 +1297,7 @@ public:
         }
 
         if (validatePermissions) {
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            securityManager->ValidatePermission(transaction, EPermission::Write);
+            MaybeValidateWritePermission(transaction);
         }
 
         // See the same place in CommitTransaction().
@@ -1057,9 +1341,11 @@ public:
 
         transaction->BulkInsertState().OnTransactionAborted();
 
+        auto activeTransactionCount = MaybeDecrementUserActiveTransactionCount(transaction);
+
         transaction->SetPersistentState(ETransactionState::Aborted);
 
-        TTransactionContextGuard guard(Bootstrap_, transaction);
+        TTransactionContextGuard guard(Bootstrap_, transaction, /*commitTimestamp*/ std::nullopt);
         TransactionAborted_.Fire(transaction);
         RunAbortTransactionActions(transaction, options, /*requireLegacyBehavior*/ false);
 
@@ -1085,18 +1371,20 @@ public:
 
         auto time = timer.GetElapsedTime();
 
-        YT_LOG_DEBUG("Transaction aborted (TransactionId: %v, User: %v, Force: %v, Title: %v, WallTime: %v)",
-            transactionId,
-            user->GetName(),
-            options.Force,
-            transaction->GetTitle(),
-            time);
+        YT_TLOG_DEBUG("Transaction aborted")
+            .With("TransactionId", transactionId)
+            .With("User", user->GetName())
+            .With("InitiatorId", transaction->GetInitiatorId())
+            .WithIf(activeTransactionCount.has_value(), "InitiatorActiveTransactionCount", activeTransactionCount)
+            .With("Force", options.Force)
+            .With("Title", transaction->GetTitle())
+            .With("WallTime", time);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
     }
 
-    void ReplicateTransaction(TTransaction* transaction, TCellTagList dstCellTags)
+    void ReplicateTransaction(TTransaction* transaction, TCellTagSet dstCellTags)
     {
         YT_VERIFY(IsObjectAlive(transaction));
         YT_VERIFY(transaction->IsNative());
@@ -1110,7 +1398,7 @@ public:
 
     TTransactionId ExternalizeTransaction(
         TTransaction* transaction,
-        TCellTagList dstCellTags) override
+        TCellTagSet dstCellTags) override
     {
         if (!transaction) {
             return {};
@@ -1121,7 +1409,7 @@ public:
 
     TTransactionId ExternalizeOrReplicateTransaction(
         TTransaction* transaction,
-        TCellTagList dstCellTags,
+        TCellTagSet dstCellTags,
         bool shouldExternalize)
     {
         if (transaction->IsUpload()) {
@@ -1135,39 +1423,38 @@ public:
             }
 
             if (transactionToCheck == transaction) {
-                YT_LOG_ALERT("Unexpected transaction state encountered while replicating (TransactionId: %v, TransactionState: %v)",
-                    transaction->GetId(),
-                    state);
+                YT_TLOG_ALERT("Unexpected transaction state encountered while replicating")
+                    .With("TransactionId", transaction->GetId())
+                    .With("TransactionState", state);
             } else {
-                YT_LOG_ALERT("Unexpected ancestor transaction state encountered while replicating (TransactionId: %v, AncestorTransactionId: %v, AncestorTransactionState: %v)",
-                    transaction->GetId(),
-                    transactionToCheck->GetId(),
-                    state);
+                YT_TLOG_ALERT("Unexpected ancestor transaction state encountered while replicating")
+                    .With("TransactionId", transaction->GetId())
+                    .With("AncestorTransactionId", transactionToCheck->GetId())
+                    .With("AncestorTransactionState", state);
             }
         };
 
-        TCompactVector<std::pair<TTransaction*, TCellTagList>, 16> transactionsToDstCells;
+        TCompactVector<std::pair<TTransaction*, TCellTagSet>, 16> transactionsToDstCells;
         for (auto* currentTransaction = transaction; currentTransaction; currentTransaction = currentTransaction->GetParent()) {
             YT_VERIFY(IsObjectAlive(currentTransaction));
             checkTransactionState(currentTransaction);
 
-            transactionsToDstCells.emplace_back(currentTransaction, TCellTagList());
+            transactionsToDstCells.emplace_back(currentTransaction, TCellTagSet());
 
             for (auto dstCellTag : dstCellTags) {
                 if (shouldExternalize) {
                     if (currentTransaction->IsExternalizedToCell(dstCellTag)) {
                         continue;
                     }
-                    currentTransaction->ExternalizedToCellTags().push_back(dstCellTag);
+                    currentTransaction->ExternalizedToCellTags().insert(dstCellTag);
                 } else {
                     if (currentTransaction->IsReplicatedToCell(dstCellTag)) {
                         continue;
                     }
-                    currentTransaction->ReplicatedToCellTags().push_back(dstCellTag);
-                    SortUnique(currentTransaction->ReplicatedToCellTags());
+                    currentTransaction->ReplicatedToCellTags().insert(dstCellTag);
                 }
 
-                transactionsToDstCells.back().second.push_back(dstCellTag);
+                transactionsToDstCells.back().second.insert(dstCellTag);
             }
 
             if (transactionsToDstCells.back().second.empty()) {
@@ -1191,17 +1478,17 @@ public:
                 effectiveTransactionId = MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag());
                 effectiveParentTransactionId = MakeExternalizedTransactionId(parentTransactionId, multicellManager->GetCellTag());
 
-                YT_LOG_DEBUG("Externalizing transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTags: %v, ExternalizedTransactionId: %v, ExternalizedParentTransactionId: %v)",
-                    transactionId,
-                    parentTransactionId,
-                    cellTags,
-                    effectiveTransactionId,
-                    effectiveParentTransactionId);
+                YT_TLOG_DEBUG("Externalizing transaction")
+                    .With("TransactionId", transactionId)
+                    .With("ParentTransactionId", parentTransactionId)
+                    .With("DstCellTags", cellTags)
+                    .With("ExternalizedTransactionId", effectiveTransactionId)
+                    .With("ExternalizedParentTransactionId", effectiveParentTransactionId);
             } else {
-                YT_LOG_DEBUG("Replicating transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTags: %v)",
-                    transactionId,
-                    parentTransactionId,
-                    cellTags);
+                YT_TLOG_DEBUG("Replicating transaction")
+                    .With("TransactionId", transactionId)
+                    .With("ParentTransactionId", parentTransactionId)
+                    .With("DstCellTags", cellTags);
             }
 
             // NB: Technically, an externalized transaction *is* foreign, with its native cell being this one.
@@ -1253,7 +1540,7 @@ public:
         TTransaction* transaction,
         TTransactionId transactionId,
         TTransactionId parentTransactionId,
-        TCellTagList dstCellTags,
+        TCellTagSet dstCellTags,
         TTransaction* transactionAttributeHolderOverride) override
     {
         NProto::TReqStartForeignTransaction startRequest;
@@ -1285,11 +1572,11 @@ public:
             if (IsObjectAlive(user)) {
                 startRequest.set_user(ToProto(user->GetName()));
             } else {
-                YT_LOG_ALERT("Transaction user is not alive during %v (TransactionId: %v)",
-                    transaction->GetId() == transactionId
-                    ? "replication"
-                    : "externalization",
-                    transaction->GetId());
+                YT_TLOG_ALERT("Transaction user is not alive")
+                    .With("Operation", transaction->GetId() == transactionId
+                        ? "replication"
+                        : "externalization")
+                    .With("TransactionId", transaction->GetId());
             }
         } else {
             // TODO(shakurov): this is a reproduction of an old bug. Remove.
@@ -1381,16 +1668,6 @@ public:
             YT_VERIFY(transaction->StagedObjects().erase(object) == 1);
             objectManager->UnrefObject(object);
         }
-    }
-
-    void StageNode(TTransaction* transaction, TCypressNode* trunkNode) override
-    {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-        YT_ASSERT(trunkNode->IsTrunk());
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        transaction->StagedNodes().push_back(trunkNode);
-        objectManager->RefObject(trunkNode);
     }
 
     void ImportObject(TTransaction* transaction, TObject* object) override
@@ -1536,16 +1813,14 @@ public:
             leaseAgnosticPrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
             leaseAwarePrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
             for (auto transactionId : prerequisiteTransactionIds) {
-                if (IsMirroringToSequoiaEnabled() &&
-                    IsCypressTransactionMirroredToSequoia(transactionId) &&
-                    GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases)
-                {
+                if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
                     leaseAwarePrerequisiteTransactionIds.push_back(transactionId);
                 } else {
                     leaseAgnosticPrerequisiteTransactionIds.push_back(transactionId);
                 }
             }
 
+            SortUnique(leaseAwarePrerequisiteTransactionIds);
             asyncResults.push_back(IssueLeasesForCell(
                 leaseAwarePrerequisiteTransactionIds,
                 leaseManager,
@@ -1559,11 +1834,13 @@ public:
                     return multicellManager->FindMasterChannel(cellTag, EPeerKind::Leader);
                 })));
 
+            const auto& sequoiaManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
             asyncResults.push_back(RunTransactionReplicationSession(
                 /*syncWithUpstream*/ false,
                 Bootstrap_,
                 leaseAgnosticPrerequisiteTransactionIds,
-                IsMirroringToSequoiaEnabled()));
+                IsMirroringToSequoiaEnabled(),
+                sequoiaManagerConfig->ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator));
         }
 
         if (!cellIdsToSyncWith.empty()) {
@@ -1639,8 +1916,11 @@ public:
             ThrowTransactionSuccessorHasLeases(transaction);
         }
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(transaction, EPermission::Write);
+        MaybeValidateWritePermission(transaction);
+
+        if (!persistent && !options.PrerequisiteTransactionIds.empty()) {
+            THROW_ERROR_EXCEPTION("Prerequisite transactions are not supported for a transient transaction commit");
+        }
 
         auto state = transaction->GetState(persistent);
         YT_VERIFY(state == ETransactionState::Active);
@@ -1653,17 +1933,43 @@ public:
                 "Prerequisite check failed: this failure is requested manually via dynamic config");
         }
 
-        const auto& leaseManager = Bootstrap_->GetLeaseManager();
-        for (auto prerequisiteTransactionId : options.PrerequisiteTransactionIds) {
-            if (IsCypressTransactionMirroredToSequoia(prerequisiteTransactionId) &&
-                leaseManager->FindLease(prerequisiteTransactionId))
-            {
-                continue;
+        try {
+            const auto& leaseManager = Bootstrap_->GetLeaseManager();
+            // RefLease crashes if the same lease is referenced twice.
+            THashSet<TTransactionId> referencedPrerequisiteTransactionIds;
+            for (auto prerequisiteTransactionId : options.PrerequisiteTransactionIds) {
+                if (IsCypressTransactionMirroredToSequoia(prerequisiteTransactionId)) {
+                    if (!referencedPrerequisiteTransactionIds.insert(prerequisiteTransactionId).second) {
+                        continue;
+                    }
+                    if (auto* lease = leaseManager->FindLease(prerequisiteTransactionId)) {
+                        LeasePersistentReferenceTracker_.RefLease(transaction, lease); // May throw on inactive lease.
+                    } else {
+                        THROW_ERROR_EXCEPTION(
+                            NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                            "Prerequisite check failed: lease not found for prerequisite transaction %v",
+                            prerequisiteTransactionId)
+                            .With("prerequisite_transaction_id", prerequisiteTransactionId)
+                            .With("sequoia_transaction_id", transaction->GetId())
+                            .With("master_cell_id", Bootstrap_->GetCellId());
+                    }
+                } else {
+                    GetAndValidatePrerequisiteTransaction(prerequisiteTransactionId);
+                }
             }
-            GetAndValidatePrerequisiteTransaction(prerequisiteTransactionId);
+        } catch (const TErrorException& ex) {
+            if (ex.Error().GetCode() == NObjectClient::EErrorCode::PrerequisiteCheckFailed) {
+                throw;
+            }
+            // Attempting to reference an inactive lease results in a generic error that needs wrapping.
+            THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed")
+                .With("sequoia_transaction_id", transaction->GetId())
+                .With("master_cell_id", Bootstrap_->GetCellId())
+                .With(ex);
         }
 
-        TTransactionContextGuard guard(Bootstrap_, transaction);
+        TTransactionContextGuard guard(Bootstrap_, transaction, options.PrepareTimestamp, /*latePrepare*/ options.LatePrepare);
 
         if (transaction->IsSequoiaTransaction()) {
             try {
@@ -1674,12 +1980,39 @@ public:
                     "Prepare action for Sequoia transaction %v failed on master participant %v",
                     transaction->GetId(),
                     Bootstrap_->GetCellId())
-                    << TErrorAttribute("sequoia_transaction_id", transaction->GetId())
-                    << TErrorAttribute("master_cell_id", Bootstrap_->GetCellId())
-                    << ex;
+                    .With("sequoia_transaction_id", transaction->GetId())
+                    .With("master_cell_id", Bootstrap_->GetCellId())
+                    .With(ex);
             }
         } else {
             RunPrepareTransactionActions(transaction, options);
+        }
+
+        if (!transaction->GetBarrierCookies().empty()) {
+            YT_TLOG_DEBUG("Adding transaction to barriers")
+                .With("TransactionId", transaction->GetId())
+                .With("BarrierTags", MakeShrunkFormattableView(
+                    transaction->GetBarrierCookies(),
+                    [] (auto* builder, const auto& pair) {
+                        builder->AppendFormat("%v", pair.first);
+                    },
+                    /*limit*/ 100));
+        }
+
+        if (!IsRecovery()) {
+            auto guard = WriterGuard(BarrierLock_);
+
+            for (const auto& [tag, originalCookie] : transaction->GetBarrierCookies()) {
+                YT_VERIFY(originalCookie == InvalidAsyncBarrierCookie);
+
+                auto [it, _] = TagToBarrier_.emplace(
+                    std::piecewise_construct,
+                    std::forward_as_tuple(tag),
+                    std::forward_as_tuple());
+
+                auto cookie = it->second.Insert();
+                transaction->RegisterBarrierCookie(tag, cookie);
+            }
         }
 
         if (persistent) {
@@ -1688,12 +2021,10 @@ public:
             transaction->SetTransientState(ETransactionState::TransientCommitPrepared);
         }
 
-        YT_LOG_DEBUG(
-            "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %v@%v)",
-            transaction->GetId(),
-            persistent,
-            options.PrepareTimestamp,
-            options.PrepareTimestampClusterTag);
+        YT_TLOG_DEBUG("Transaction commit prepared")
+            .With("TransactionId", transaction->GetId())
+            .With("Persistent", persistent)
+            .WithFormat("PrepareTimestamp", "%v@%v", options.PrepareTimestamp, options.PrepareTimestampClusterTag);
     }
 
     void PrepareTransactionAbort(
@@ -1718,25 +2049,25 @@ public:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
-        securityManager->ValidatePermission(transaction, EPermission::Write);
+        MaybeValidateWritePermission(transaction);
 
         transaction->SetTransientState(ETransactionState::TransientAbortPrepared);
 
-        YT_LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
-            transaction->GetId());
+        YT_TLOG_DEBUG("Transaction abort prepared")
+            .With("TransactionId", transaction->GetId());
     }
 
     void CommitTransaction(
         TTransactionId transactionId,
         const TTransactionCommitOptions& options,
-        TRevision nativeCommitMutationRevision)
+        TTransaction::TNativeCommitRevision nativeCommitRevision)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         ValidateMirroredTransactionFinish(transactionId, /*commit*/ true);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        transaction->SetNativeCommitMutationRevision(nativeCommitMutationRevision);
+        transaction->NativeCommitRevision() = nativeCommitRevision;
         CommitTransaction(transaction, options);
     }
 
@@ -1747,7 +2078,7 @@ public:
         CommitTransaction(
             transactionId,
             options,
-            /*nativeCommitMutationRevision*/ NullRevision);
+            /*nativeCommitMutationRevision*/ {});
     }
 
     void AbortTransaction(
@@ -1792,11 +2123,10 @@ public:
         for (const auto& protoId : context->Request().prerequisite_transaction_ids()) {
             auto transactionId = FromProto<TTransactionId>(protoId);
             if (IsSystemTransactionType(TypeFromId(transactionId))) {
-                YT_LOG_ALERT("Attempt to use system transaction as a prerequisite for Cypress one "
-                    "(SystemTransactionId: %v)",
-                    transactionId);
+                YT_TLOG_ALERT("Attempt to use system transaction as a prerequisite for Cypress one")
+                    .With("SystemTransactionId", transactionId);
                 THROW_ERROR_EXCEPTION("System transactions cannot be prerequisites for Cypress ones")
-                    << TErrorAttribute("system_transaction_id", transactionId);
+                    .With("system_transaction_id", transactionId);
             } else {
                 onCypressTransaction(transactionId);
             }
@@ -1805,29 +2135,25 @@ public:
         auto parentId = FromProto<TTransactionId>(context->Request().parent_id());
         if (parentId) {
             if (IsSystemTransactionType(TypeFromId(parentId))) {
-                YT_LOG_ALERT("Attempt to use system transaction as parent for Cypress one "
-                    "(SystemTransactionId: %v)",
-                    parentId);
+                YT_TLOG_ALERT("Attempt to use system transaction as parent for Cypress one")
+                    .With("SystemTransactionId", parentId);
                 THROW_ERROR_EXCEPTION("System transactions cannot be parent for Cypress ones")
-                    << TErrorAttribute("system_transaction_id", parentId);
+                    .With("system_transaction_id", parentId);
             } else {
                 onCypressTransaction(parentId);
             }
         }
 
         if (mirroredSample && nonMirroredSample) {
-            YT_LOG_ALERT(
-                "Attempt to start Cypress transaction which depends on both mirrored and "
-                "non-mirrored transaction (MirroredTransactionId: %v, "
-                "NonMirroredTransactionId: %v, Title: %v)",
-                mirroredSample,
-                nonMirroredSample,
-                YT_OPTIONAL_FROM_PROTO(context->Request(), title));
+            YT_TLOG_ALERT("Attempt to start Cypress transaction which depends on both mirrored and non-mirrored transaction")
+                .With("MirroredTransactionId", mirroredSample)
+                .With("NonMirroredTransactionId", nonMirroredSample)
+                .With("Title", YT_OPTIONAL_FROM_PROTO(context->Request(), title));
             THROW_ERROR_EXCEPTION(
                 "Cypress transaction cannot depend on both mirrored and non-mirrored "
                 "transactions at the same time")
-                << TErrorAttribute("mirrored_transaction_id", mirroredSample)
-                << TErrorAttribute("non_mirrored_transaction_id", nonMirroredSample);
+                .With("mirrored_transaction_id", mirroredSample)
+                .With("non_mirrored_transaction_id", nonMirroredSample);
         }
 
         return nonMirroredSample;
@@ -1837,6 +2163,18 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        if (TryReplyFromResponseKeeper(context.Get())) {
+            return;
+        }
+
+        auto* user = Bootstrap_->GetSecurityManager()->GetUserByNameOrAliasOrThrow(
+            context->GetAuthenticationIdentity().User,
+            /*activeLifeStageOnly*/ true);
+        if (auto error = CheckUserActiveTransactionCount(user); !error.IsOK()) {
+            context->Reply(std::move(error));
+            return;
+        }
+
         if (IsMirroringToSequoiaEnabled()) {
             auto nonMirroredTransactionId = FindUsedNonMirroredTransaction(context);
             if (!nonMirroredTransactionId) {
@@ -1844,10 +2182,8 @@ public:
                 return;
             }
 
-            YT_LOG_WARNING(
-                "Mirroring to Sequoia is enabled but non-mirrored Cypress transaction is "
-                "started (TransactionId: %v)",
-                nonMirroredTransactionId);
+            YT_TLOG_WARNING("Mirroring to Sequoia is enabled but non-mirrored Cypress transaction is started")
+                .With("TransactionId", nonMirroredTransactionId);
         }
 
         auto hydraRequest = BuildStartCypressTransactionRequest(
@@ -1869,8 +2205,8 @@ public:
         {
             THROW_ERROR_EXCEPTION(NTransactionClient::EErrorCode::NeedLockDynamicTablesBeforeCommit,
                 "Lock dynamic tables before commit and pass \"dynamic_tables_locked\" flag")
-                << TErrorAttribute("transaction_id", transaction->GetId())
-                << TErrorAttribute("lockable_dynamic_tables", ConvertToYsonString(bulkInsertState.LockableDynamicTables(), EYsonFormat::Text));
+                .With("transaction_id", transaction->GetId())
+                .With("lockable_dynamic_tables", ConvertToYsonString(bulkInsertState.LockableDynamicTables(), EYsonFormat::Text));
         }
     }
 
@@ -1984,9 +2320,9 @@ public:
         bool force2PC = request.force_2pc();
         if (force2PC || !participantCellIds.empty()) {
             THROW_ERROR_EXCEPTION("Cypress transactions cannot be committed via 2PC")
-                << TErrorAttribute("transaction_id", transactionId)
-                << TErrorAttribute("force_2pc", force2PC)
-                << TErrorAttribute("participant_cell_ids", participantCellIds);
+                .With("transaction_id", transactionId)
+                .With("force_2pc", force2PC)
+                .With("participant_cell_ids", participantCellIds);
         }
 
         ThrowIfDynamicTablesNotLocked(transaction, request.dynamic_tables_locked());
@@ -2045,7 +2381,7 @@ public:
     {
         if (!prepareError.IsOK()) {
             auto error = TError("Failed to get ready for transaction commit")
-                << prepareError;
+                .With(prepareError);
             return MakeFuture<TSharedRefArray>(error);
         }
 
@@ -2053,7 +2389,7 @@ public:
         auto asyncTimestamp = timestampProvider->GenerateTimestamps();
         return asyncTimestamp.Apply(
             BIND(
-                &TTransactionManager::OnCommitTimestampGenerated,
+                &TTransactionManager::OnCommitTimestampKnown,
                 MakeStrong(this),
                 transactionId,
                 prerequisiteTransactionIds,
@@ -2064,7 +2400,7 @@ public:
                     .AsyncVia(EpochAutomatonInvoker_));
     }
 
-    TFuture<TSharedRefArray> OnCommitTimestampGenerated(
+    TFuture<TSharedRefArray> OnCommitTimestampKnown(
         TTransactionId transactionId,
         std::vector<TTransactionId> prerequisiteTransactionIds,
         NRpc::TMutationId mutationId,
@@ -2075,15 +2411,14 @@ public:
     {
         if (!timestampOrError.IsOK()) {
             auto error = TError("Failed to generate commit timestamp")
-                << timestampOrError;
+                .With(timestampOrError);
             return MakeFuture<TSharedRefArray>(TError(timestampOrError));
         }
 
         auto commitTimestamp = timestampOrError.Value();
-        YT_LOG_DEBUG("Commit timestamp generated for transaction "
-            "(TransactionId: %v, CommitTimestamp: %v)",
-            transactionId,
-            commitTimestamp);
+        YT_TLOG_DEBUG("Commit timestamp generated for transaction")
+            .With("TransactionId", transactionId)
+            .With("CommitTimestamp", commitTimestamp);
 
         if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
             return CommitCypressTransactionInSequoia(
@@ -2364,16 +2699,50 @@ private:
 
     NProfiling::TBufferedProducerPtr BufferedProducer_;
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
+    NConcurrency::TPeriodicExecutorPtr AlertFlushingExecutor_;
 
     const ITransactionLeaseTrackerPtr LeaseTracker_;
 
     TEntityMap<TTransaction> TransactionMap_;
+
+    // COMPAT(h0pless): AbortStuckTransactions.
+    std::vector<TTransactionId> StuckTransactions_;
 
     THashMap<TTransactionId, TTimestampHolder> TimestampHolderMap_;
 
     THashSet<TTransaction*> ForeignTransactions_;
     THashSet<TTransaction*> NativeTopmostTransactions_;
     THashSet<TTransaction*> NativeTransactions_;
+
+    TLeasePersistentReferenceTracker LeasePersistentReferenceTracker_;
+
+    THashMap<TUserId, int> UserIdToActiveTransactionCount_;
+
+    struct TUserExceededActiveTransactionCountAlertThresholdReport
+    {
+        std::string Name;
+        int AlertThresholdExceededCount = 0;
+        int LimitExceededCount = 0;
+        int DenyStartTransactionCount = 0;
+        int ActiveTransactionCount = 0;
+        int Limit = 0;
+        int AlertThreshold = 0;
+    };
+    // This map is transient and used for alert accumulation.
+    THashMap<TUserId, TUserExceededActiveTransactionCountAlertThresholdReport> UserIdToActiveTransactionCountExceededAlertReport_;
+
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, BarrierLock_);
+    // This map is not saved to the snapshot and should not be updated during recovery.
+    THashMap<std::string, TAsyncBarrier> TagToBarrier_;
+
+    YT_DECLARE_SPIN_LOCK(TSpinLock, BarrierProfilingLock_);
+    // This map is transient and used for profiling.
+    std::map<TInstant, int> BarrierTimestampStartMap_;
+
+    // To ensure no data race with config, these values have to be atomic.
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ConfigLock_);
+    bool EnableWaitUntilPreparedTransactionsFinished_ = false;
+    std::optional<TDuration> PreparedTransactionsBarrierDelay_ = std::nullopt;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -2423,7 +2792,7 @@ private:
             deadline = FromProto<TInstant>(request->deadline());
         }
 
-        auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
+        auto replicateToCellTags = FromProto<TCellTagSet>(request->replicate_to_cell_tags());
         auto* transaction = StartTransaction(
             isCypressTransaction ? ETransactionType::Cypress : ETransactionType::System,
             parent,
@@ -2441,7 +2810,8 @@ private:
         }
 
         if (context) {
-            context->SetResponseInfo("TransactionId: %v", id);
+            context->AnnotateResponse()
+                .With("TransactionId", id);
         }
     }
 
@@ -2465,9 +2835,14 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, std::move(identity));
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* schema = objectManager->GetSchema(EObjectType::Transaction);
-        securityManager->ValidatePermission(schema, EPermission::Create);
+        auto hintId = YT_OPTIONAL_FROM_PROTO(*request, hint_id, TTransactionId)
+            .value_or(NullTransactionId);
+
+        if (!hintId || CellTagFromId(hintId) == Bootstrap_->GetCellTag()) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            auto* schema = objectManager->GetSchema(EObjectType::Transaction);
+            securityManager->ValidatePermission(schema, EPermission::Create);
+        }
 
         auto parentId = FromProto<TTransactionId>(request->parent_id());
         auto* parent = parentId ? GetTransactionOrThrow(parentId) : nullptr;
@@ -2486,10 +2861,8 @@ private:
         auto title = YT_OPTIONAL_FROM_PROTO(*request, title);
         auto timeout = FromProto<TDuration>(request->timeout());
         auto deadline = YT_OPTIONAL_FROM_PROTO(*request, deadline, TInstant);
-        auto hintId = YT_OPTIONAL_FROM_PROTO(*request, hint_id, TTransactionId)
-            .value_or(TTransactionId{});
 
-        auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
+        auto replicateToCellTags = FromProto<TCellTagSet>(request->replicate_to_cell_tags());
         auto* transaction = StartTransaction(
             ETransactionType::Cypress,
             parent,
@@ -2508,7 +2881,8 @@ private:
         }
 
         if (context) {
-            context->SetResponseInfo("TransactionId: %v", id);
+            context->AnnotateResponse()
+                .With("TransactionId", id);
         }
     }
 
@@ -2534,8 +2908,8 @@ private:
         auto* parent = parentId ? FindTransaction(parentId) : nullptr;
         if (parentId && !parent) {
             THROW_ERROR_EXCEPTION("Failed to start foreign transaction: parent transaction not found")
-                << TErrorAttribute("transaction_id", hintId)
-                << TErrorAttribute("parent_transaction_id", parentId);
+                .With("transaction_id", hintId)
+                .With("parent_transaction_id", parentId);
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -2545,8 +2919,8 @@ private:
             const auto& userName = request->user();
             user = securityManager->FindUserByName(userName, true /*activeLifeStageOnly*/);
             if (!IsObjectAlive(user)) {
-                YT_LOG_ALERT("Foreign transaction user not found, falling back to root (User: %v)",
-                    userName);
+                YT_TLOG_ALERT("Foreign transaction user not found, falling back to root")
+                    .With("User", userName);
                 user = securityManager->GetRootUser();
             }
         }
@@ -2566,7 +2940,7 @@ private:
         }
 
         auto transactionType = ObjectTypeToTransactionType(TypeFromId(hintId));
-        ValidateTransactionTypeCoherency(transactionType, hintId);
+        CheckTransactionTypeCoherency(transactionType, hintId);
 
         auto title = YT_OPTIONAL_FROM_PROTO(*request, title);
         auto* transaction = DoStartTransaction(
@@ -2598,10 +2972,9 @@ private:
 
         if (GetDynamicConfig()->ForbidTransactionActionsForCypressTransactions) {
             if (transaction->IsCypressTransaction() && !request->actions().empty()) {
-                YT_LOG_ALERT(
-                    "Transaction is Cypress but has actions (TransactionId: %v, TransactionActionCount: %v)",
-                    transaction->GetId(),
-                    request->actions_size());
+                YT_TLOG_ALERT("Transaction is Cypress but has actions")
+                    .With("TransactionId", transaction->GetId())
+                    .With("TransactionActionCount", request->actions_size());
                 THROW_ERROR_EXCEPTION("Cypress transactions cannot have transaction actions");
             }
         }
@@ -2610,17 +2983,20 @@ private:
             auto data = FromProto<TTransactionActionData>(protoData);
             auto& action = transaction->Actions().emplace_back(std::move(data));
 
-            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v)",
-                transactionId,
-                action.Type);
+            YT_TLOG_DEBUG("Transaction action registered")
+                .With("TransactionId", transactionId)
+                .With("ActionType", action.Type);
         }
     }
 
     void HydraPrepareTransactionCommit(NProto::TReqPrepareTransactionCommit* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto prepareTimestamp = request->prepare_timestamp();
+        auto prepareTimestamp = FromProto<NTransactionClient::TTimestamp>(request->prepare_timestamp());
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
+        auto expectedPrepareSignature = request->has_expected_prepare_signature()
+            ? FromProto<NTransactionClient::TTransactionSignature>(request->expected_prepare_signature())
+            : NTransactionClient::FinalTransactionSignature;
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, std::move(identity));
@@ -2628,6 +3004,7 @@ private:
         TTransactionPrepareOptions options{
             .Persistent = true,
             .PrepareTimestamp = prepareTimestamp,
+            .ExpectedPrepareSignature = expectedPrepareSignature,
         };
         PrepareTransactionCommit(transactionId, options);
     }
@@ -2646,13 +3023,17 @@ private:
     void HydraCommitTransaction(NProto::TReqCommitTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto commitTimestamp = request->commit_timestamp();
+        auto commitTimestamp = FromProto<NTransactionClient::TTimestamp>(request->commit_timestamp());
         auto nativeCommitMutationRevision = FromProto<NHydra::TRevision>(request->native_commit_mutation_revision());
+
+        // COMPAT(kvk1920): SequoiaRevision.
+        auto nativeCommitSequoiaRevision = YT_OPTIONAL_FROM_PROTO(*request, native_commit_sequoia_revision, TRevision)
+            .value_or(nativeCommitMutationRevision);
 
         TTransactionCommitOptions options{
             .CommitTimestamp = commitTimestamp,
         };
-        CommitTransaction(transactionId, options, nativeCommitMutationRevision);
+        CommitTransaction(transactionId, options, {nativeCommitMutationRevision, nativeCommitSequoiaRevision});
     }
 
     void HydraCommitAbortForeignTransactionInSequoia(
@@ -2677,7 +3058,7 @@ private:
         AbortTransaction(transactionId, options);
     }
 
-    void HydraPrepareAndCommitCommitCypressTransactionInSequoia(
+    void HydraPrepareCommitCypressTransactionInSequoia(
         TTransaction* /*sequoiaTransaction*/,
         NProto::TReqCommitCypressTransaction* request,
         const TTransactionPrepareOptions& options)
@@ -2696,20 +3077,40 @@ private:
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
 
         try {
-            PrepareAndCommitCypressTransaction(
-                transaction,
-                prerequisiteTransactionIds,
-                request->commit_timestamp());
+            TTransactionPrepareOptions prepareOptions{
+                .Persistent = true,
+                .LatePrepare = true, // Technically true.
+                .PrepareTimestamp = FromProto<NTransactionClient::TTimestamp>(request->commit_timestamp()),
+                .PrepareTimestampClusterTag = Bootstrap_->GetPrimaryCellTag(),
+                .PrerequisiteTransactionIds = prerequisiteTransactionIds,
+            };
+            PrepareTransactionCommit(transaction, prepareOptions);
         } catch (const std::exception& ex) {
-            TTransactionAbortRequest abortRequest;
-            abortRequest.AuthenticationIdentity = identity;
-            abortRequest.Force = true;
+            if (TError(ex).GetNonTrivialCode() != NSecurityClient::EErrorCode::AuthorizationError) {
+                TTransactionAbortRequest abortRequest;
+                abortRequest.AuthenticationIdentity = identity;
+                abortRequest.Force = true;
 
-            const auto& transactionFinisher = Bootstrap_->GetTransactionFinisher();
-            transactionFinisher->PersistRequest(transaction, abortRequest, /*update*/ true);
+                const auto& transactionFinisher = Bootstrap_->GetTransactionFinisher();
+                transactionFinisher->PersistRequest(transaction, abortRequest, /*update*/ true);
+            }
 
             throw;
         }
+    }
+
+    void HydraCommitCommitCypressTransactionInSequoia(
+        TTransaction* /*sequoiaTransaction*/,
+        NProto::TReqCommitCypressTransaction* request,
+        const TTransactionCommitOptions& /*options*/)
+    {
+        auto* transaction = GetTransaction(FromProto<TTransactionId>(request->transaction_id()));
+
+        TTransactionCommitOptions commitOptions{
+            .CommitTimestamp = FromProto<NTransactionClient::TTimestamp>(request->commit_timestamp()),
+            .CommitTimestampClusterTag = Bootstrap_->GetPrimaryCellTag(),
+        };
+        CommitTransaction(transaction, commitOptions);
     }
 
     void PrepareAndCommitCypressTransaction(
@@ -2757,10 +3158,11 @@ private:
             PrepareAndCommitCypressTransaction(
                 transaction,
                 prerequisiteTransactionIds,
-                request->commit_timestamp());
+                FromProto<NTransactionClient::TTimestamp>(request->commit_timestamp()));
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Failed to commit transaction, aborting (TransactionId: %v)",
-                transactionId);
+            YT_TLOG_DEBUG("Failed to commit transaction, aborting")
+                .With("TransactionId", transactionId)
+                .With(ex);
 
             TTransactionAbortOptions abortOptions{
                 .Force = true,
@@ -2813,7 +3215,6 @@ private:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
-        securityManager->ValidatePermission(transaction, EPermission::Write);
 
         TTransactionAbortOptions abortOptions{
             .Force = force,
@@ -2829,7 +3230,7 @@ private:
         NProto::TReqMarkCypressTransactionsReplicatedToCells* request,
         const TTransactionCommitOptions& /*options*/)
     {
-        auto destinationCellTags = FromProto<TCellTagList>(request->destination_cell_tags());
+        auto destinationCellTags = FromProto<TCellTagSet>(request->destination_cell_tags());
 
         for (const auto& protoId : request->transaction_ids()) {
             auto transactionId = FromProto<TTransactionId>(protoId);
@@ -2852,10 +3253,10 @@ private:
             return;
         }
 
-        YT_LOG_ALERT_UNLESS(
+        YT_TLOG_ALERT_UNLESS(
             IsCypressTransactionType(TypeFromId(transactionId)),
-            "Unexpected transaction object type encountered during replica materialization (TransactionId: %v)",
-            transactionId);
+            "Unexpected transaction object type encountered during replica materialization")
+            .With("TransactionId", transactionId);
 
         HydraStartForeignTransaction(request);
     }
@@ -2869,11 +3270,9 @@ private:
             try {
                 MaterializeCypressTransactionReplica(&subrequest);
             } catch (const std::exception& ex) {
-                YT_LOG_ALERT(
-                    ex,
-                    "Failed to prepare Cypress transaction replica materialization "
-                    "(TransactionId: %v)",
-                    FromProto<TTransactionId>(subrequest.id()));
+                YT_TLOG_ALERT("Failed to prepare Cypress transaction replica materialization")
+                    .With("TransactionId", FromProto<TTransactionId>(subrequest.id()))
+                    .With(ex);
             }
         }
     }
@@ -2948,15 +3347,13 @@ private:
         }
 
         if (context) {
-            context->SetResponseInfo(
-                "ReplicatedTransactionIds: %v, MissingTransactionIds: %v, SkippedTransactionIds: %v, "
-                "BoomerangMutationId: %v, BoomerangWaveId: %v, BoomerangWaveSize: %v",
-                postedTransactionIds,
-                postedMissingTransactionIds,
-                skippedTransactionIds,
-                boomerangMutationId,
-                boomerangWaveId,
-                boomerangWaveSize);
+            context->AnnotateResponse()
+                .With("ReplicatedTransactionIds", postedTransactionIds)
+                .With("MissingTransactionIds", postedMissingTransactionIds)
+                .With("SkippedTransactionIds", skippedTransactionIds)
+                .With("BoomerangMutationId", boomerangMutationId)
+                .With("BoomerangWaveId", boomerangWaveId)
+                .With("BoomerangWaveSize", boomerangWaveSize);
         }
     }
 
@@ -2981,8 +3378,9 @@ private:
         try {
             HydraReturnBoomerang(request);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Error during boomerang transaction action execution (SequoiaTransactionId: %v)",
-                sequoiaTransaction->GetId());
+            YT_TLOG_ALERT("Error during boomerang transaction action execution")
+                .With("SequoiaTransactionId", sequoiaTransaction->GetId())
+                .With(ex);
         }
     }
 
@@ -3005,20 +3403,19 @@ private:
         auto cellId = FromProto<TCellId>(request->cell_id());
         auto cellType = TypeFromId(cellId);
 
-        auto alerted = AlertOnInvalidLeaseCellType(
-            cellId,
-            "Requested to issue leases for unknown cell type, ignored (TransactionIds: %v, CellType: %v)",
-            transactionIds,
-            cellType);
-        if (alerted) {
+        if (!IsValidCellTypeForLeaseIssue(cellType)) {
+            YT_TLOG_ALERT("Requested to issue leases for unknown cell type, ignored")
+                .With("TransactionIds", transactionIds)
+                .With("CellType", cellType);
             return;
         }
         auto* cellLeaseTransactionIds = FindCellLeaseTransactionIds(cellId);
         if (!cellLeaseTransactionIds) {
-            THROW_ERROR_EXCEPTION("Requested to issue leases for missing cell")
-                << TErrorAttribute("transaction_ids", transactionIds)
-                << TErrorAttribute("cell_id", cellId)
-                << TErrorAttribute("cell_type", cellType);
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable,
+                "Requested to issue leases for missing cell")
+                .With("transaction_ids", transactionIds)
+                .With("cell_id", cellId)
+                .With("cell_type", cellType);
         }
 
         for (auto transactionId : transactionIds) {
@@ -3028,12 +3425,12 @@ private:
             }
             if (!transaction->IsCypressTransaction()) {
                 THROW_ERROR_EXCEPTION("Leases cannot be issued for non-Cypress transactions")
-                    << TErrorAttribute("transaction_id", transaction->GetId());
+                    .With("transaction_id", transaction->GetId());
             }
             if (transaction->GetTransactionLeasesState() != ETransactionLeasesState::Active) {
                 THROW_ERROR_EXCEPTION("Transaction is revoking leases")
-                    << TErrorAttribute("transaction_id", transaction->GetId())
-                    << TErrorAttribute("transaction_leases_state", transaction->GetTransactionLeasesState());
+                    .With("transaction_id", transaction->GetId())
+                    .With("transaction_leases_state", transaction->GetTransactionLeasesState());
             }
 
             if (RegisterTransactionLease(transaction, cellId, cellLeaseTransactionIds)) {
@@ -3063,9 +3460,9 @@ private:
             for (auto tableId : tableIds) {
                 if (bulkInsertState.HasConflict(tableId)) {
                     THROW_ERROR_EXCEPTION("Duplicate lockable dynamic table")
-                        << TErrorAttribute("transaction_id", transactionId)
-                        << TErrorAttribute("topmost_transaction_id", transaction->GetTopmostTransaction()->GetId())
-                        << TErrorAttribute("table_id", tableId);
+                        .With("transaction_id", transactionId)
+                        .With("topmost_transaction_id", transaction->GetTopmostTransaction()->GetId())
+                        .With("table_id", tableId);
                 }
             }
         }
@@ -3079,16 +3476,16 @@ private:
 
         auto* transaction = FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_DEBUG(
-                "Requested to revoke leases for non-existent transaction, ignored (TransactionId: %v)",
-                transactionId);
+            YT_TLOG_DEBUG("Requested to revoke leases for non-existent transaction, ignored")
+                .With("TransactionId", transactionId);
             return;
         }
 
         auto transactionFinisherGuard = Finally([&] {
             const auto& transactionFinisher = Bootstrap_->GetTransactionFinisher();
             if (!finishRequest) {
-                YT_LOG_ALERT("Lease revocation without payload (TransactionId: %v)", transactionId);
+                YT_TLOG_ALERT("Lease revocation without payload")
+                    .With("TransactionId", transactionId);
                 return;
             }
 
@@ -3108,15 +3505,18 @@ private:
                     TTransactionAbortRequest abortRequest = {.Force = finishRequest->abort().force() };
                     fillUserFinishRequest(&abortRequest);
                     transactionFinisher->PersistRequest(transaction, abortRequest);
-                } break;
+                    break;
+                }
                 case ETransactionFinishRequest::Commit: {
                     TTransactionCommitRequest commitRequest;
                     FromProto(&commitRequest.PrerequisiteTransactionIds, finishRequest->commit().prerequisite_transaction_ids());
                     fillUserFinishRequest(&commitRequest);
                     transactionFinisher->PersistRequest(transaction, commitRequest);
-                } break;
+                    break;
+                }
                 case ETransactionFinishRequest::Expiration:
-                    transactionFinisher->PersistRequest(transaction, TTransactionExpirationRequest{});
+                    transactionFinisher->PersistRequest(transaction, TTransactionExpirationRequest{}, /*update*/ true);
+                    break;
             }
         });
 
@@ -3151,12 +3551,10 @@ private:
         const auto& hiveManager = Bootstrap_->GetHiveManager();
 
         auto revokeTransaction = [&] (TTransaction* transaction) {
-            YT_LOG_DEBUG(
-                "Revoking leases for transaction "
-                "(TransactionId: %v, TransactionLeaseCount: %v, SuccessorTransactionLeaseCount: %v)",
-                transaction->GetId(),
-                transaction->LeaseCellIds().size(),
-                transaction->GetSuccessorTransactionLeaseCount());
+            YT_TLOG_DEBUG("Revoking leases for transaction")
+                .With("TransactionId", transaction->GetId())
+                .With("TransactionLeaseCount", transaction->LeaseCellIds().size())
+                .With("SuccessorTransactionLeaseCount", transaction->GetSuccessorTransactionLeaseCount());
 
             transaction->SetTransactionLeasesState(ETransactionLeasesState::Revoking);
 
@@ -3175,20 +3573,20 @@ private:
                 hiveManager->PostMessage(mailbox, message);
 
                 if (force) {
-                    auto alerted = AlertOnInvalidLeaseCellType(
-                        cellId,
-                        "Requested to revoke leases for unknown cell type, ignored (TransactionId: %v, CellType: %v)",
-                        transaction->GetId(),
-                        cellType);
-                    if (alerted) {
+                    if (!IsValidCellTypeForLeaseIssue(cellType)) {
+                        YT_TLOG_ALERT("Requested to revoke leases for unknown cell type, ignored")
+                            .With("TransactionId", transaction->GetId())
+                            .With("CellType", cellType);
                         return;
                     }
                     auto* cellLeaseTransactionIds = FindCellLeaseTransactionIds(cellId);
                     if (!cellLeaseTransactionIds) {
-                        THROW_ERROR_EXCEPTION("Requested to revoke leases from missing cell")
-                            << TErrorAttribute("transaction_id", transaction->GetId())
-                            << TErrorAttribute("cell_id", cellId)
-                            << TErrorAttribute("cell_type", cellType);
+                        if (!GetDynamicConfig()->IgnoreMissingLeaseCellsOnForcedTransactionAbort) {
+                            THROW_ERROR_EXCEPTION("Requested to revoke leases from missing cell")
+                                .With("transaction_id", transaction->GetId())
+                                .With("cell_id", cellId)
+                                .With("cell_type", cellType);
+                        }
                     }
                     UnregisterTransactionLease(transaction, cellId, cellLeaseTransactionIds);
                 }
@@ -3200,17 +3598,6 @@ private:
     bool IsValidCellTypeForLeaseIssue(EObjectType cellType)
     {
         return cellType == EObjectType::TabletCell || cellType == EObjectType::MasterCell;
-    }
-
-    template <class... TArgs>
-    bool AlertOnInvalidLeaseCellType(TCellId cellId, TFormatString<TArgs...> format, TArgs&&... args)
-    {
-        if (IsValidCellTypeForLeaseIssue(TypeFromId(cellId))) {
-            return false;
-        }
-
-        YT_LOG_ALERT(format, std::forward<TArgs>(args)...);
-        return true;
     }
 
     THashSet<TTransactionId>* FindCellLeaseTransactionIds(TCellId cellId)
@@ -3235,10 +3622,9 @@ private:
                 return multicellManager->FindLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
             }
             default: {
-                YT_LOG_ALERT(
-                    "Cell of unknown type requested to handle transaction leases (CellId: %v, CellType: %v)",
-                    cellId,
-                    cellType);
+                YT_TLOG_ALERT("Cell of unknown type requested to handle transaction leases")
+                    .With("CellId", cellId)
+                    .With("CellType", cellType);
                 return nullptr;
             }
         }
@@ -3380,17 +3766,67 @@ private:
         YT_VERIFY(IsLeader());
         YT_VERIFY(IsObjectAlive(transaction));
 
-        switch (transaction->GetTransactionLeasesState()) {
-            case ETransactionLeasesState::Active: {
-                NProto::TTransactionFinishRequest finishRequest;
-                finishRequest.set_kind(ToProto(ETransactionFinishRequest::Expiration));
-                finishRequest.mutable_expiration();
-                return RevokeTransactionLeases(transaction->GetId(), &finishRequest);
+        // NB: there is no fast path. Lease revocation cannot be skipped here
+        // since abort request is persisted during lease revocation. Abort
+        // request must be persisted even if there is already existing abort
+        // request since the existing abort request may have non-root user with
+        // insufficient rights.
+        NProto::TTransactionFinishRequest finishRequest;
+        finishRequest.set_kind(ToProto(ETransactionFinishRequest::Expiration));
+        finishRequest.mutable_expiration();
+        return RevokeTransactionLeases(transaction->GetId(), &finishRequest);
+    }
+
+    void RemoveTransactionFromBarriers(TTransaction* transaction)
+    {
+        if (IsRecovery()) {
+            return;
+        }
+
+        const auto& barrierCookies = transaction->GetBarrierCookies();
+        // Logging and validation, that can be removed once barriers are stable.
+        if (!barrierCookies.empty()) {
+            YT_TLOG_DEBUG("Attempting to remove transaction from barriers")
+                .With("TransactionId", transaction->GetId());
+
+            std::vector<std::string_view> registeredBarrierTags;
+            std::vector<std::string_view> unpreparedBarrierTags;
+            for (const auto& [tag, cookie] : barrierCookies) {
+                if (cookie != InvalidAsyncBarrierCookie) {
+                    registeredBarrierTags.push_back(tag);
+                } else {
+                    unpreparedBarrierTags.push_back(tag);
+                }
             }
-            case ETransactionLeasesState::Revoking:
-                return transaction->LeasesRevokedPromise().ToFuture().ToUncancelable();
-            case ETransactionLeasesState::Revoked:
-                return OKFuture;
+
+            YT_VERIFY(registeredBarrierTags.empty() || unpreparedBarrierTags.empty());
+
+            if (!registeredBarrierTags.empty()) {
+                YT_TLOG_DEBUG("Removing transaction from barriers")
+                    .With("TransactionId", transaction->GetId())
+                    .With("BarrierTags", MakeShrunkFormattableView(registeredBarrierTags, TDefaultFormatter(), /*limit*/ 100));
+            }
+        }
+
+        {
+            auto guard = WriterGuard(BarrierLock_);
+
+            for (const auto& [tag, cookie] : barrierCookies) {
+                // Transaction might not have been registered yet.
+                // This can happen, for example, when prepare fails.
+                if (cookie == InvalidAsyncBarrierCookie) {
+                    continue;
+                }
+
+                auto it = GetIteratorOrCrash(TagToBarrier_, tag);
+                it->second.Remove(cookie);
+
+                if (it->second.Empty()) {
+                    YT_TLOG_DEBUG("Barrier is empty, removing")
+                        .With("BarrierTag", tag);
+                    TagToBarrier_.erase(it);
+                }
+            }
         }
     }
 
@@ -3398,6 +3834,8 @@ public:
     void FinishTransaction(TTransaction* transaction)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        RemoveTransactionFromBarriers(transaction);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
@@ -3431,6 +3869,8 @@ public:
             EraseOrCrash(ForeignTransactions_, transaction);
         }
 
+        LeasePersistentReferenceTracker_.HandleTransactionFinish(transaction);
+
         for (auto prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
             // NB: Duplicates are fine; prerequisite transactions may be duplicated.
             prerequisiteTransaction->DependentTransactions().erase(transaction);
@@ -3448,9 +3888,9 @@ public:
             if (dependentTransaction->GetPersistentState() != ETransactionState::Active) {
                 continue;
             }
-            YT_LOG_DEBUG("Aborting dependent transaction (DependentTransactionId: %v, PrerequisiteTransactionId: %v)",
-                dependentTransaction->GetId(),
-                transaction->GetId());
+            YT_TLOG_DEBUG("Aborting dependent transaction")
+                .With("DependentTransactionId", dependentTransaction->GetId())
+                .With("PrerequisiteTransactionId", transaction->GetId());
             TTransactionAbortOptions options{
                 .Force = true,
             };
@@ -3468,8 +3908,13 @@ public:
 
         CacheTransactionFinished(transaction);
 
-        // Kill the fake reference thus destroying the object.
-        objectManager->UnrefObject(transaction);
+        auto transactionId = transaction->GetId();
+
+        // Kill the artificial reference thus destroying the object.
+        int refCounter = objectManager->UnrefObject(transaction);
+        YT_TLOG_ALERT_UNLESS(refCounter == 0, "Transaction is still alive after finishing")
+            .With("TransactionId", transactionId)
+            .With("RefCounter", refCounter);
     }
 
 private:
@@ -3538,10 +3983,9 @@ private:
         };
         IteratePredecessorTransactions(transaction, accountTransactionLease);
 
-        YT_LOG_DEBUG(
-            "Transaction lease registered (TransactionId: %v, CellId: %v)",
-            transaction->GetId(),
-            cellId);
+        YT_TLOG_DEBUG("Transaction lease registered")
+            .With("TransactionId", transaction->GetId())
+            .With("CellId", cellId);
 
         return true;
     }
@@ -3553,13 +3997,18 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
-        YT_VERIFY(cellLeaseTransactionIds);
 
         if (!transaction->LeaseCellIds().erase(cellId)) {
             return false;
         }
 
-        EraseOrCrash(*cellLeaseTransactionIds, transaction->GetId());
+        if (cellLeaseTransactionIds) {
+            EraseOrCrash(*cellLeaseTransactionIds, transaction->GetId());
+        } else {
+            YT_LOG_ALERT("Unregistering transaction lease for a missing cell (TransactionId: %v, MissingCellId: %v)",
+                GetObjectId(transaction),
+                cellId);
+        }
 
         auto discountTransactionLease = [&] (TTransaction* transaction) {
             transaction->SetSuccessorTransactionLeaseCount(
@@ -3567,13 +4016,148 @@ private:
         };
         IteratePredecessorTransactions(transaction, BIND(discountTransactionLease));
 
-        YT_LOG_DEBUG(
-            "Transaction lease unregistered (TransactionId: %v, CellId: %v, SuccessorLeaseCount: %v)",
-            transaction->GetId(),
-            cellId,
-            transaction->GetSuccessorTransactionLeaseCount());
+        YT_TLOG_DEBUG("Transaction lease unregistered")
+            .With("TransactionId", transaction->GetId())
+            .With("CellId", cellId)
+            .With("SuccessorLeaseCount", transaction->GetSuccessorTransactionLeaseCount());
 
         return true;
+    }
+
+    /*
+     * This function prevents a race between a reply being sent to the client and changes being actually applied.
+     *
+     * Let's look at a following example:
+     * The user sends some mutating request, for simplicity, let's call it SET, waits for a reply and immediately
+     * after that sends another request. It doesn't matter if the request is mutating or not, but let's call it GET.
+     * SET involves a 2-phase commit with at least one master cell not using the late prepare mode.
+     * Again, for illustrative purposes, let's say that there are two master cells.
+     * Cell 1 is a coordinator in late-prepare mode.
+     * Cell 2 executes actions normally.
+     *
+     * +------User------+-----Cell 1-----+-----Cell 2-----+
+     * |      SET       |                |                |
+     * |    waiting     |   Sequoia transaction started   |
+     * |    waiting     |   Starting transaction commit   |
+     * |    waiting     |                |    prepared    |
+     * |    waiting     |    committed   |    prepared    |
+     * |    waiting     |          Response sent          |
+     * |  Got response  |    committed   |    prepared    |
+     * |      GET       |    committed   |    prepared    | <--  GET arrives on a cell where the effects
+     * +----------------+----------------+----------------+      of SET are not fully applied yet.
+     *
+     * This situation is trivially resolved by waiting until there are no more prepared,
+     * but not committed transactions.
+    */
+    TFuture<void> WaitUntilPreparedTransactionsFinished(const std::vector<std::string>& barrierTags) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return DoWaitUntilPreparedTransactionsFinished(barrierTags);
+    }
+
+    TFuture<void> WaitUntilAllPreparedTransactionsFinished() override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return DoWaitUntilPreparedTransactionsFinished(TAllBarrierTags{});
+    }
+
+    TFuture<void> DoWaitUntilPreparedTransactionsFinished(
+        std::variant<TAllBarrierTags, std::vector<std::string>> barrierTags)
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        std::optional<TDuration> preparedTransactionsBarrierDelay = std::nullopt;
+
+        {
+            auto guard = ReaderGuard(ConfigLock_);
+
+            if (!EnableWaitUntilPreparedTransactionsFinished_) {
+                return OKFuture;
+            }
+
+            preparedTransactionsBarrierDelay = PreparedTransactionsBarrierDelay_;
+        }
+
+        auto delayed = [delay = preparedTransactionsBarrierDelay] (TFuture<void> future) {
+            if (delay) {
+                return AllSucceeded<void>({std::move(future), TDelayedExecutor::MakeDelayed(*delay)});
+            }
+
+            return future;
+        };
+
+        // Only for logging.
+        std::vector<std::string> tagsAssociatedWithPresentBarriers;
+
+        std::vector<TFuture<void>> barriers;
+        {
+            auto guard = ReaderGuard(BarrierLock_);
+            Visit(barrierTags,
+                [&] (TAllBarrierTags) {
+                    for (auto& [tag, barrier] : TagToBarrier_) {
+                        barriers.push_back(barrier.GetBarrierFuture());
+                        tagsAssociatedWithPresentBarriers.push_back(tag);
+                    }
+                },
+                [&] (const std::vector<std::string>& specifiedTags) {
+                    for (const auto& tag : specifiedTags) {
+                        auto it = TagToBarrier_.find(tag);
+                        if (it != TagToBarrier_.end()) {
+                            barriers.push_back(it->second.GetBarrierFuture());
+                            tagsAssociatedWithPresentBarriers.push_back(tag);
+                        }
+                    }
+                }
+            );
+        }
+
+        if (barriers.empty()) {
+            auto barrierTagList = Visit(barrierTags,
+                [] (TAllBarrierTags) {
+                    return NLogging::TLoggingTagList()
+                        .With("AllBarrierTags", true);
+                },
+                [] (const std::vector<std::string>& specifiedTags) {
+                    return NLogging::TLoggingTagList()
+                        .With("BarrierTags", specifiedTags);
+                });
+            YT_TLOG_DEBUG("No prepared transactions")
+                .With(barrierTagList);
+
+            return delayed(OKFuture);
+        }
+
+        auto now = GetInstant();
+        {
+            auto guard = Guard(BarrierProfilingLock_);
+            BarrierTimestampStartMap_[now] += 1;
+        }
+
+        YT_TLOG_DEBUG("Waiting for barriers")
+            .With("BarrierCount", std::ssize(barriers))
+            .With("TagsAssociatedWithPresentBarriers", tagsAssociatedWithPresentBarriers);
+
+        auto updateMetrics = BIND([this, this_ = MakeStrong(this), start = now] (const TError& error) {
+            auto guard = Guard(BarrierProfilingLock_);
+            auto& counter = BarrierTimestampStartMap_[start];
+            --counter;
+
+            YT_TLOG_ALERT_IF(counter < 0, "Barrier wait time metrics have negative counter")
+                .With("StartTime", start);
+
+            if (counter == 0) {
+                BarrierTimestampStartMap_.erase(start);
+            }
+
+            return error;
+        });
+
+        auto newBarriers = AllSucceeded(barriers)
+            .Apply(updateMetrics);
+
+        return delayed(newBarriers);
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context)
@@ -3588,6 +4172,7 @@ private:
         TransactionMap_.SaveValues(context);
         Save(context, TimestampHolderMap_);
         BoomerangTracker_->Save(context);
+        LeasePersistentReferenceTracker_.Save(context);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -3606,8 +4191,21 @@ private:
         TransactionMap_.LoadValues(context);
         Load(context, TimestampHolderMap_);
         BoomerangTracker_->Load(context);
-    }
 
+        // COMPAT(theevilbird)
+        if (context.GetVersion() < EMasterReign::RemoveStagedNodesInTransactions ||
+            (context.GetVersion() >= EMasterReign::Start_26_2 && context.GetVersion() < EMasterReign::RemoveStagedNodesInTransactions_26_2)) {
+            NeedUnrefStagedNodes_ = true;
+        }
+
+        // COMPAT(shakurov)
+        if ((context.GetVersion() >= EMasterReign::PrerequisiteTransactionsHeldFor2PCViaLeases_26_1 &&
+            context.GetVersion() < EMasterReign::Start_26_2) ||
+            context.GetVersion() >= EMasterReign::PrerequisiteTransactionsHeldFor2PCViaLeases_26_2)
+        {
+            LeasePersistentReferenceTracker_.Load(context);
+        }
+    }
 
     void OnAfterSnapshotLoaded() override
     {
@@ -3635,6 +4233,97 @@ private:
                 CacheTransactionStarted(transaction);
             }
         }
+
+        // COMPAT(h0pless): AbortStuckTransactions.
+        for (auto [id, transaction] : TransactionMap_) {
+            if (!IsCypressTransactionType(transaction->GetType())) {
+                continue;
+            }
+
+            if (transaction->IsNativeTxExternalizationEnabled()) {
+                continue;
+            }
+
+            YT_TLOG_ALERT("Found a stuck transaction; aborting")
+                .With("TransactionId", id);
+
+            StuckTransactions_.push_back(id);
+        }
+
+        // Reconstruct UserIdToActiveTransactionCount.
+        for (auto [id, transaction] : TransactionMap_) {
+            if (!IsObjectAlive(transaction)) {
+                continue;
+            }
+            auto state = transaction->GetPersistentState();
+            if (state == ETransactionState::Active || state == ETransactionState::PersistentCommitPrepared) {
+                MaybeIncrementUserActiveTransactionCount(transaction);
+            }
+        }
+        AlertOnUsersExceedingActiveTransactionCountAlertThresholds();
+
+        // COMPAT(theevilbird): EMasterReign::RemoveStagedNodesInTransactions
+        if (NeedUnrefStagedNodes_) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            for (auto [id, transaction] : TransactionMap_) {
+                if (!IsObjectAlive(transaction)) {
+                    continue;
+                }
+                for (auto node : transaction->StagedNodes()) {
+                    objectManager->UnrefObject(node);
+                }
+                transaction->StagedNodes().clear();
+            }
+        }
+    }
+
+    void RestoreBarriers()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        YT_TLOG_DEBUG("Restoring transaction barriers");
+
+        for (auto [id, transaction] : TransactionMap_) {
+            if (!IsObjectAlive(transaction)) {
+                continue;
+            }
+
+            if (transaction->GetPersistentState() != ETransactionState::PersistentCommitPrepared) {
+                continue;
+            }
+
+            {
+                auto guard = WriterGuard(BarrierLock_);
+
+                for (auto [tag, _] : transaction->GetBarrierCookies()) {
+                    auto [it, emplaced] = TagToBarrier_.emplace(
+                        std::piecewise_construct,
+                        std::forward_as_tuple(tag),
+                        std::forward_as_tuple());
+
+                    auto cookie = it->second.Insert();
+                    transaction->RegisterBarrierCookie(tag, cookie);
+                }
+            }
+        }
+    }
+
+    void ClearBarriers(TError error = TError(BarrierAbandonedError))
+    {
+        YT_TLOG_DEBUG("Clearing transaction barriers");
+
+        auto guard = WriterGuard(BarrierLock_);
+
+        YT_VERIFY(!error.IsOK());
+
+        for (auto& [tag, barrier] : TagToBarrier_) {
+            barrier.Clear(error);
+        }
+        TagToBarrier_.clear();
+
+        // Not clearing BarrierTimestampStartMap_ on purpose here, since it's
+        // tied not to the automaton state, but to the requests that are being
+        // currently executed.
     }
 
     void Clear() override
@@ -3647,7 +4336,16 @@ private:
         ForeignTransactions_.clear();
         NativeTopmostTransactions_.clear();
         NativeTransactions_.clear();
+        UserIdToActiveTransactionCount_.clear();
+        UserIdToActiveTransactionCountExceededAlertReport_.clear();
         TransactionPresenceCache_->Clear();
+        // COMPAT(theevilbird): EMasterReign::RemoveStagedNodesInTransactions. Remove after 26.1.
+        NeedUnrefStagedNodes_ = false;
+
+        StuckTransactions_.clear();
+        ClearBarriers();
+        LeasePersistentReferenceTracker_.Clear();
+        BoomerangTracker_->Clear();
     }
 
     void OnStartLeading() override
@@ -3690,6 +4388,22 @@ private:
         LeaseTracker_->Start();
 
         BoomerangTracker_->Start();
+
+        for (auto transactionId : StuckTransactions_) {
+            auto* transaction = FindTransaction(transactionId);
+            if (!IsObjectAlive(transaction)) {
+                continue;
+            }
+
+            auto request = BuildAbortCypressTransactionRequest(
+                transactionId,
+                /*force*/ true,
+                NRpc::GetRootAuthenticationIdentity());
+
+            auto mutation = CreateMutation(HydraManager_, request);
+            mutation->SetMutationId(NRpc::GenerateMutationId(), /*isRetry*/ false);
+            YT_UNUSED_FUTURE(mutation->Commit());
+        }
     }
 
     void OnStopLeading() override
@@ -3702,17 +4416,17 @@ private:
         LeaseTracker_->Stop();
 
         // Reset all transiently prepared transactions back into active state.
+        auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
         for (auto [transactionId, transaction] : TransactionMap_) {
             transaction->ResetTransientState();
 
             if (transaction->LeasesRevokedPromise()) {
-                auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
                 transaction->LeasesRevokedPromise().TrySet(error);
                 transaction->LeasesRevokedPromise() = NewPromise<void>();
             }
         }
 
-        OnStopEpoch();
+        OnStopEpoch(std::move(error));
     }
 
     void OnStopFollowing() override
@@ -3721,12 +4435,15 @@ private:
 
         TMasterAutomatonPart::OnStopFollowing();
 
-        OnStopEpoch();
+        auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
+        OnStopEpoch(std::move(error));
     }
 
-    void OnStopEpoch()
+    void OnStopEpoch(TError error)
     {
         TransactionPresenceCache_->Stop();
+
+        ClearBarriers(std::move(error));
     }
 
     void OnRecoveryStarted() override
@@ -3741,16 +4458,13 @@ private:
         TMasterAutomatonPart::OnRecoveryComplete();
 
         BufferedProducer_->SetEnabled(true);
+
+        RestoreBarriers();
     }
 
     TFuture<void> GetReadyToEnterReadOnlyMode() override
     {
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        if (!transactionSupervisor) {
-            return OKFuture;
-        }
-
-        return transactionSupervisor->WaitUntilPreparedTransactionsFinished();
+        return WaitUntilAllPreparedTransactionsFinished();
     }
 
     void CreateLease(TTransaction* transaction)
@@ -3868,11 +4582,9 @@ private:
         }
 
         if (transaction->GetTransactionLeasesState() == ETransactionLeasesState::Active) {
-            YT_LOG_ALERT(
-                "Attempted to subscribe to lease revocation for a transaction in active leasing state "
-                "(TransactionId: %v, LeasesState: %v)",
-                transaction->GetId(),
-                transaction->GetTransactionLeasesState());
+            YT_TLOG_ALERT("Attempted to subscribe to lease revocation for a transaction in active leasing state")
+                .With("TransactionId", transaction->GetId())
+                .With("LeasesState", transaction->GetTransactionLeasesState());
             return OKFuture;
         }
 
@@ -3918,37 +4630,40 @@ private:
 
         auto* transaction = FindTransaction(leaseId);
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_DEBUG(
-                "Unknown lease was revoked, ignored (LeaseId: %v, CellId: %v)",
-                leaseId,
-                cellId);
+            YT_TLOG_DEBUG("Unknown lease was revoked, ignored")
+                .With("LeaseId", leaseId)
+                .With("CellId", cellId);
             return;
         }
 
         auto cellType = TypeFromId(cellId);
-        auto alerted = AlertOnInvalidLeaseCellType(
-            cellId,
-            "Lease revoked for unknown cell type, ignored (TransactionId: %v, CellType: %v)",
-            transaction->GetId(),
-            cellType);
-        if (alerted) {
+        if (!IsValidCellTypeForLeaseIssue(cellType)) {
+            YT_TLOG_ALERT("Lease revoked for unknown cell type, ignored")
+                .With("TransactionId", transaction->GetId())
+                .With("CellType", cellType);
             return;
         }
         auto* cellLeaseTransactionIds = FindCellLeaseTransactionIds(cellId);
         if (!cellLeaseTransactionIds) {
-            YT_LOG_DEBUG(
-                "Lease was revoked on missing cell, ignored (LeaseId: %v, CellId: %v)",
-                leaseId,
-                cellId);
+            YT_TLOG_DEBUG("Lease was revoked on missing cell, ignored")
+                .With("LeaseId", leaseId)
+                .With("CellId", cellId);
             return;
         }
 
         if (!UnregisterTransactionLease(transaction, cellId, cellLeaseTransactionIds)) {
-            YT_LOG_DEBUG(
-                "Unregistered lease was revoked, ignored (LeaseId: %v, CellId: %v)",
-                leaseId,
-                cellId);
+            YT_TLOG_DEBUG("Unregistered lease was revoked, ignored")
+                .With("LeaseId", leaseId)
+                .With("CellId", cellId);
         }
+    }
+
+    void OnLeaseRemoved(ILease* lease)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
+        LeasePersistentReferenceTracker_.HandleLeaseRemoval(lease);
     }
 
     void OnProfiling()
@@ -3962,6 +4677,24 @@ private:
             buffer.AddGauge("/subscribed_remote_transaction_replication_count", TransactionPresenceCache_->GetSubscribedRemoteTransactionReplicationCount());
         }
 
+        LeasePersistentReferenceTracker_.OnProfiling(&buffer);
+
+        auto elapsedTime = TDuration::Zero();
+        {
+            auto now = GetInstant();
+            auto guard = Guard(BarrierProfilingLock_);
+
+            if (!BarrierTimestampStartMap_.empty()) {
+                elapsedTime = now - BarrierTimestampStartMap_.begin()->first;
+            }
+        }
+
+        // TODO(h0pless): Support AddEventTimer interface to the buffer.
+        // NB: this metric takes into account only currently active barriers,
+        // meaning that worst case scenario barrier wait time is equal to the
+        // period with which OnProfiling is called.
+        buffer.AddGauge("/max_barrier_wait_time", elapsedTime.SecondsFloat());
+
         const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
         if (transactionSupervisor) {
             transactionSupervisor->OnProfiling(&buffer);
@@ -3971,7 +4704,58 @@ private:
             transactionFinisher->OnProfiling(&buffer);
         }
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        for (auto [userId, count] : UserIdToActiveTransactionCount_) {
+            auto* user = securityManager->FindUser(userId);
+            TWithTagGuard guard(&buffer);
+            guard.AddTag("user_id", ToString(userId));
+            guard.AddTag("user", IsObjectAlive(user) ? user->GetName() : "<unknown>");
+            buffer.AddGauge("/active_transaction_count", count);
+        }
+
         BufferedProducer_->Update(std::move(buffer));
+    }
+
+    std::vector<TError> GetAlerts()
+    {
+        VerifyPersistentStateRead();
+
+        std::vector<TError> alerts;
+
+        const auto& dynamicConfig = GetDynamicConfig();
+        int alertThreshold = dynamicConfig->ActiveTransactionCountAlertThreshold;
+        int limit = dynamicConfig->ActiveTransactionCountLimit;
+        if (limit < alertThreshold) {
+            alerts.push_back(TError("Possible transaction_manager misconfiguration: active_transaction_count_alert_threshold is greater than active_transaction_count_limit")
+                .With("alert_threshold", alertThreshold)
+                .With("limit", limit));
+        }
+
+        return alerts;
+    }
+
+    void FlushUserActiveTransactionCountAlertThresholdExceededReports()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        for (const auto& [userId, alertReport] : UserIdToActiveTransactionCountExceededAlertReport_) {
+            YT_TLOG_ALERT("User active transaction count exceeded alert threshold")
+                .With("User", alertReport.Name)
+                .With("ActiveTransactionCount", alertReport.ActiveTransactionCount)
+                .With("AlertThreshold", alertReport.AlertThreshold)
+                .With("Limit", alertReport.Limit)
+                .With("AlertThresholdExceededCount", alertReport.AlertThresholdExceededCount)
+                .With("LimitExceededCount", alertReport.LimitExceededCount)
+                .With("DenyStartTransactionCount", alertReport.DenyStartTransactionCount);
+        }
+        UserIdToActiveTransactionCountExceededAlertReport_.clear();
+    }
+
+    void FlushAlerts()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        FlushUserActiveTransactionCountAlertThresholdExceededReports();
     }
 
     const TDynamicTransactionManagerConfigPtr& GetDynamicConfig()
@@ -3982,17 +4766,8 @@ private:
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
     {
         const auto& newConfig = GetDynamicConfig();
-
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        transactionSupervisor->SetDynamicStronglyOrderedPreparedTransactionsBarrierDelay(newConfig->Testing->SequoiaTransactionBarrierDelay);
-
         ProfilingExecutor_->SetPeriod(newConfig->ProfilingPeriod);
-
-        if (HasMutationContext()) {
-            if (oldConfig->TransactionManager->RecomputeStronglyOrderedTransactionRefs != newConfig->RecomputeStronglyOrderedTransactionRefs) {
-                transactionSupervisor->RecomputeStronglyOrderedTransactionRefsOnCoordinator();
-            }
-        }
+        AlertFlushingExecutor_->SetPeriod(newConfig->AlertFlushPeriod);
 
         auto getCypressTransactionMirroringEnabled = [] (const TDynamicClusterConfigPtr& config) {
             const auto& sequoiaManager = config->SequoiaManager;
@@ -4002,9 +4777,31 @@ private:
         auto mirroringWasEnabled = getCypressTransactionMirroringEnabled(oldConfig);
         auto mirroringEnabled = getCypressTransactionMirroringEnabled(Bootstrap_->GetDynamicConfig());
         if (mirroringEnabled != mirroringWasEnabled) {
-            YT_LOG_INFO("Cypress transaction mirroring %v",
-                mirroringEnabled ? "enabled" : "disabled");
+            YT_TLOG_INFO("Cypress transaction mirroring toggled")
+                .With("Enabled", mirroringEnabled);
         }
+
+        {
+            auto guard = WriterGuard(ConfigLock_);
+
+            auto barriersEnabled = newConfig->EnableWaitUntilPreparedTransactionsFinished;
+            if (barriersEnabled != EnableWaitUntilPreparedTransactionsFinished_) {
+                YT_TLOG_INFO("Barriers for 2pc transactions toggled")
+                    .With("Enabled", barriersEnabled);
+                EnableWaitUntilPreparedTransactionsFinished_ = barriersEnabled;
+            }
+
+            auto newDelay = newConfig->Testing->PreparedTransactionsBarrierDelay;
+            if (newDelay != PreparedTransactionsBarrierDelay_) {
+                YT_TLOG_INFO("Setting prepared transaction barrier delay")
+                    .With("PreviousDelay", PreparedTransactionsBarrierDelay_)
+                    .With("NewDelay", newDelay);
+                PreparedTransactionsBarrierDelay_ = newDelay;
+            }
+        }
+
+        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+        transactionSupervisor->SetArtificialParticipantCommitDelay(newConfig->Testing->ArtificialParticipantCommitDelay);
     }
 
     void ThrowTransactionSuccessorHasLeases(TTransaction* transaction)
@@ -4012,8 +4809,8 @@ private:
         THROW_ERROR_EXCEPTION(
             NTransactionClient::EErrorCode::TransactionSuccessorHasLeases,
             "Transaction successor has leases issued")
-            << TErrorAttribute("transaction_id", transaction->GetId())
-            << TErrorAttribute("successor_transaction_lease_count", transaction->GetSuccessorTransactionLeaseCount());
+            .With("transaction_id", transaction->GetId())
+            .With("successor_transaction_lease_count", transaction->GetSuccessorTransactionLeaseCount());
     }
 
     std::unique_ptr<NHydra::TMutation> CreateStartCypressTransactionMutation(
@@ -4042,17 +4839,15 @@ private:
             IsMirroringToSequoiaEnabled() &&
             !GetSequoiaContext())
         {
-            YT_LOG_ALERT(
-                "Attempt to %v mirrored transaction via TransactionSupervisor.%vTransaction (TransactionId: %v)",
-                commit ? "commit" : "abort",
-                commit ? "Commit" : "Abort",
-                transactionId);
+            YT_TLOG_ALERT("Attempt to finish mirrored transaction via transaction supervisor")
+                .With("Action", commit ? "commit" : "abort")
+                .With("TransactionId", transactionId);
 
             THROW_ERROR_EXCEPTION(
                 "Cannot %v mirrored transaction via TransactionSupervisor.%vTransaction",
                 commit ? "commit" : "abort",
                 commit ? "Commit" : "Abort")
-                << TErrorAttribute("transaction_id", transactionId);
+                .With("transaction_id", transactionId);
         }
     }
 
@@ -4067,6 +4862,112 @@ private:
         }
 
         return false;
+    }
+
+    void MaybeValidateWritePermission(TTransaction* transaction)
+    {
+        if (transaction->IsNative() && !transaction->IsExternalized()) {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->ValidatePermission(transaction, EPermission::Write);
+        }
+    }
+
+    bool ShouldTransactionContributeToUserActiveTransactionCount(TTransaction* transaction)
+    {
+        return transaction->IsNative() && transaction->IsCypressTransaction();
+    }
+
+    std::optional<int> MaybeIncrementUserActiveTransactionCount(TTransaction* transaction)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        if (!ShouldTransactionContributeToUserActiveTransactionCount(transaction)) {
+            return std::nullopt;
+        }
+        return ++UserIdToActiveTransactionCount_[transaction->GetInitiatorId()];
+    }
+
+    std::optional<int> MaybeDecrementUserActiveTransactionCount(TTransaction* transaction)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        if (!ShouldTransactionContributeToUserActiveTransactionCount(transaction)) {
+            return std::nullopt;
+        }
+
+        auto userId = transaction->GetInitiatorId();
+        auto it = UserIdToActiveTransactionCount_.insert({userId, 0}).first;
+        if (--it->second < 0) {
+            YT_TLOG_ALERT("User active transaction count went negative and was reset to zero")
+                .With("UserId", userId)
+                .With("ActiveTransactionCount", it->second)
+                .With("TransactionId", transaction->GetId());
+            it->second = 0;
+        }
+        auto count = it->second;
+        if (count == 0) {
+            UserIdToActiveTransactionCount_.erase(it);
+        }
+        return count;
+    }
+
+    TError CheckUserActiveTransactionCount(TUser* user)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& dynamicConfig = GetDynamicConfig();
+
+        auto [alertThreshold, limit] = user->GetActiveTransactionCountAlertThresholdAndLimitOverride()
+            .value_or(TUser::TActiveTransactionCountLimitsOverride{
+                .AlertThreshold = dynamicConfig->ActiveTransactionCountAlertThreshold,
+                .Limit = dynamicConfig->ActiveTransactionCountLimit,
+            });
+
+        int count = GetOrDefault(UserIdToActiveTransactionCount_, user->GetId(), 0);
+
+        bool alertThresholdExceeded = alertThreshold <= count;
+        bool limitExceeded = limit <= count;
+        bool denyStartTransaction = limitExceeded && dynamicConfig->EnforceActiveTransactionCountLimit &&
+            !Bootstrap_->GetSecurityManager()->IsSuperuser(user);
+
+        if (alertThresholdExceeded) {
+            auto& alertReport = UserIdToActiveTransactionCountExceededAlertReport_[user->GetId()];
+            alertReport.AlertThresholdExceededCount += 1;
+            alertReport.LimitExceededCount += limitExceeded;
+            alertReport.DenyStartTransactionCount += denyStartTransaction;
+            alertReport.ActiveTransactionCount = count;
+            alertReport.AlertThreshold = alertThreshold;
+            alertReport.Limit = limit;
+            if (alertReport.AlertThresholdExceededCount == 1) {
+                alertReport.Name = user->GetName();
+            }
+        }
+
+        if (denyStartTransaction) {
+            return TError("Active transaction count limit exceeded")
+                .With("user", user->GetName())
+                .With("active_transaction_count", count)
+                .With("active_transaction_count_limit", limit);
+        }
+        return TError();
+    }
+
+    void AlertOnUsersExceedingActiveTransactionCountAlertThresholds()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        for (auto [userId, count] : UserIdToActiveTransactionCount_) {
+            if (auto* user = securityManager->FindUser(userId); IsObjectAlive(user)) {
+                Y_UNUSED(CheckUserActiveTransactionCount(user));
+            } else {
+                YT_TLOG_WARNING("User not found, but has non-zero active transaction count")
+                    .With("UserId", userId)
+                    .With("ActiveTransactionCount", count);
+            }
+        }
+
+        FlushUserActiveTransactionCountAlertThresholdExceededReports();
     }
 };
 

@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <library/cpp/yt/string/string.h>
+
 #include <util/string/join.h>
 #include <util/string/split.h>
 
@@ -35,19 +37,19 @@ struct TGpuMetricsIndex
         , ClocksMaxSM(Register("clocks.max.sm"))
     { }
 
-    int Register(const TString& name)
+    int Register(const std::string& name)
     {
         int index = Names.size();
         Names.push_back(name);
         return index;
     }
 
-    TString GetQueryString() const
+    std::string GetQueryString() const
     {
         return JoinSeq(",", Names);
     }
 
-    std::vector<TString> Names;
+    std::vector<std::string> Names;
 
     int Uuid;
     int Name;
@@ -75,7 +77,7 @@ class TNvidiaSmiGpuInfoProvider
             auto now = TInstant::Now();
             if (now > deadline) {
                 THROW_ERROR_EXCEPTION("Failed to get GPU information within timeout")
-                    << TErrorAttribute("timeout", timeout);
+                    .With("timeout", timeout);
             } else {
                 remainingTimeout = deadline - now;
             }
@@ -95,7 +97,7 @@ class TNvidiaSmiGpuInfoProvider
         checkAndUpdateTimeout();
         if (!nvidiaSmiResult.Status.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to check healthy GPUs: 'nvidia-smi --query-gpu' exited with an error")
-                << nvidiaSmiResult.Status;
+                .With(nvidiaSmiResult.Status);
         }
 
         auto output = nvidiaSmiResult.Output.ToStringBuf();
@@ -131,7 +133,7 @@ class TNvidiaSmiGpuInfoProvider
 
             result.push_back(TGpuInfo{
                 .Index = gpuIndex,
-                .Name = SubstGlobalCopy(to_lower(TString(StripString(tokens[metricsIndex.Name]))), ' ', '_'),
+                .Name = SubstGlobalCopy(AsciiStringToLower(StripString(tokens[metricsIndex.Name])), ' ', '_'),
                 .UtilizationGpuRate = FromString<i64>(StripString(tokens[metricsIndex.UtilizationGpu])) / 100.0,
                 .UtilizationMemoryRate = FromString<i64>(StripString(tokens[metricsIndex.UtilizationMemory])) / 100.0,
                 .MemoryUsed = static_cast<i64>(memoryUsed),

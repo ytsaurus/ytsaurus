@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.79.1)
+VERSION(v1.83.2)
 
 SRCS(
     experimental.go
@@ -61,7 +61,9 @@ RECURSE(
     hierarchy
     idle
     leakcheck
+    mem
     metadata
+    optional
     pretty
     profiling
     proto

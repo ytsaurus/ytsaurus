@@ -111,8 +111,8 @@ void BuildOriginalColumnNames(
         if (!inserted) {
             THROW_ERROR_EXCEPTION(
                 "Found duplicate target names in \"rename_columns\" attribute")
-                << TErrorAttribute("first_renamed_column", iter->second)
-                << TErrorAttribute("second_renamed_column", descriptor.OriginalName);
+                .With("first_renamed_column", iter->second)
+                .With("second_renamed_column", descriptor.OriginalName);
         }
     }
 
@@ -191,11 +191,11 @@ TCellTag PickChunkHostingCell(
 {
     const auto& Logger = logger;
 
-    YT_LOG_DEBUG("Started synchronizing master cell directory");
+    YT_TLOG_DEBUG("Started synchronizing master cell directory");
     const auto& cellDirectorySynchronizer = connection->GetMasterCellDirectorySynchronizer();
     WaitFor(cellDirectorySynchronizer->RecentSync())
         .ThrowOnError();
-    YT_LOG_DEBUG("Master cell directory synchronized successfully");
+    YT_TLOG_DEBUG("Master cell directory synchronized successfully");
 
     const auto& cellDirectory = connection->GetMasterCellDirectory();
     auto cellId = cellDirectory->GetRandomMasterCellWithRoleOrThrow(NCellMasterClient::EMasterCellRole::ChunkHost);
@@ -212,7 +212,7 @@ void GetUserObjectBasicAttributes(
 {
     const auto& Logger = logger;
 
-    YT_LOG_DEBUG("Getting basic attributes of user objects");
+    YT_TLOG_DEBUG("Getting basic attributes of user objects");
 
     auto proxy = CreateObjectServiceReadProxy(client, options.ReadFrom);
     auto batchReq = proxy.ExecuteBatch();
@@ -284,8 +284,8 @@ void GetUserObjectBasicAttributes(
         }
     }
 
-    YT_LOG_DEBUG("Basic attributes received (Attributes: %v)",
-        MakeFormattableView(objects, [] (auto* builder, const auto* object) {
+    YT_TLOG_DEBUG("Basic attributes received")
+        .With("Attributes", MakeFormattableView(objects, [] (auto* builder, const auto* object) {
             builder->AppendFormat("{Id: %v, ExternalCellTag: %v, ExternalTransactionId: %v}",
                 object->ObjectId,
                 object->ExternalCellTag,
@@ -303,11 +303,11 @@ TSessionId CreateChunk(
 {
     const auto& Logger = logger;
 
-    YT_LOG_DEBUG("Creating chunk (ReplicationFactor: %v, TransactionId: %v, ChunkListId: %v, MediumName: %v)",
-        options->ReplicationFactor,
-        transactionId,
-        chunkListId,
-        options->MediumName);
+    YT_TLOG_DEBUG("Creating chunk")
+        .With("ReplicationFactor", options->ReplicationFactor)
+        .With("TransactionId", transactionId)
+        .With("ChunkListId", chunkListId)
+        .With("MediumName", options->MediumName);
 
     auto chunkType = options->ErasureCodec == ECodec::None
         ? EObjectType::Chunk
@@ -345,8 +345,8 @@ TSessionId CreateChunk(
     const auto& rsp = rspOrError.Value();
     auto sessionId = FromProto<TSessionId>(rsp->session_id());
 
-    YT_LOG_DEBUG("Chunk created (MediumIndex: %v)",
-        sessionId.MediumIndex);
+    YT_TLOG_DEBUG("Chunk created")
+        .With("MediumIndex", sessionId.MediumIndex);
 
     return sessionId;
 }
@@ -509,7 +509,7 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
                 NTabletClient::EErrorCode::TabletNotMounted,
                 "Tablet %v is not mounted",
                 tabletInfo->TabletId)
-                << TErrorAttribute("tablet_state", tabletInfo->State);
+                .With("tablet_state", tabletInfo->State);
         }
 
         TSubrequest subrequest;
@@ -583,10 +583,10 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
         for (const auto& attachment : rsp->Attachments()) {
             auto reader = CreateWireProtocolReader(attachment);
             auto rows = reader->ReadUnversionedRowset(false);
-            YT_LOG_DEBUG("Got samples in attachments (SampleCount: %v, FirstSample: %v, LastSample: %v)",
-                rows.size(),
-                rows.empty() ? TLegacyKey{} : rows[0],
-                rows.empty() ? TLegacyKey{} : rows.Back());
+            YT_TLOG_DEBUG("Got samples in attachments")
+                .With("SampleCount", rows.size())
+                .With("FirstSample", rows.empty() ? TLegacyKey{} : rows[0])
+                .With("LastSample", rows.empty() ? TLegacyKey{} : rows.Back());
         }
     }
 
@@ -609,17 +609,14 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     const auto& config = client->GetNativeConnection()->GetConfig();
     auto useFollowers = config->UseFollowersForWriteTargetsAllocation;
 
-    YT_LOG_DEBUG("Allocating write targets "
-        "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, "
-        "PreferredHostName: %v, ForbiddenAddresses: %v, AllocatedAddresses: %v, "
-        "UseFollowers: %v)",
-        sessionId,
-        desiredTargetCount,
-        minTargetCount,
-        preferredHostName,
-        forbiddenAddresses,
-        allocatedAddresses,
-        useFollowers);
+    YT_TLOG_DEBUG("Allocating write targets")
+        .With("ChunkId", sessionId)
+        .With("DesiredTargetCount", desiredTargetCount)
+        .With("MinTargetCount", minTargetCount)
+        .With("PreferredHostName", preferredHostName)
+        .With("ForbiddenAddresses", forbiddenAddresses)
+        .With("AllocatedAddresses", allocatedAddresses)
+        .With("UseFollowers", useFollowers);
 
     auto channelKind = useFollowers ? EMasterChannelKind::Follower : EMasterChannelKind::Leader;
     auto channel = client->GetMasterChannelOrThrow(channelKind, CellTagFromId(sessionId.ChunkId));
@@ -658,15 +655,15 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
 
     auto replicas = FromProto<TChunkReplicaWithMediumList>(rsp.replicas());
     if (replicas.empty()) {
-        THROW_ERROR_EXCEPTION(
-            NChunkClient::EErrorCode::MasterCommunicationFailed,
+        throwOnError(TError(
+            NChunkClient::EErrorCode::NotEnoughAvailableNodes,
             "Not enough data nodes available to write chunk %v",
-            sessionId);
+            sessionId));
     }
 
-    YT_LOG_DEBUG("Write targets allocated (ChunkId: %v, Targets: %v)",
-        sessionId,
-        MakeFormattableView(replicas, TChunkReplicaAddressFormatter(nodeDirectory)));
+    YT_TLOG_DEBUG("Write targets allocated")
+        .With("ChunkId", sessionId)
+        .With("Targets", MakeFormattableView(replicas, TChunkReplicaAddressFormatter(nodeDirectory)));
 
     return replicas;
 }
@@ -756,9 +753,11 @@ IChunkReaderPtr CreateRemoteReader(
     TChunkReaderHostPtr chunkReaderHost)
 {
     auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
-    auto replicas = GetReplicasFromChunkSpec(chunkSpec);
+    // Decode replicas as TChunkReplicaWithMedium to preserve the full 64-bit value,
+    // including medium index (which TChunkReplica truncates to 29 bits).
+    auto replicas = FromProto<TChunkReplicaWithMediumList>(chunkSpec.replicas());
 
-    auto Logger = ChunkClientLogger().WithTag("ChunkId: %v", chunkId);
+    auto Logger = ChunkClientLogger().WithTag("ChunkId", chunkId);
 
     auto optionsPerChunk = New<TRemoteReaderOptions>();
     optionsPerChunk->AllowFetchingSeedsFromMaster = options->AllowFetchingSeedsFromMaster;
@@ -767,8 +766,8 @@ IChunkReaderPtr CreateRemoteReader(
 
     if (IsErasureChunkId(chunkId)) {
         auto erasureCodecId = FromProto<ECodec>(chunkSpec.erasure_codec());
-        YT_LOG_DEBUG("Creating erasure remote reader (Codec: %v)",
-            erasureCodecId);
+        YT_TLOG_DEBUG("Creating erasure remote reader")
+            .With("Codec", erasureCodecId);
 
         std::array<TChunkReplica, ::NErasure::MaxTotalPartCount> partIndexToReplica;
         std::fill(partIndexToReplica.begin(), partIndexToReplica.end(), TChunkReplicaWithMedium());
@@ -776,10 +775,11 @@ IChunkReaderPtr CreateRemoteReader(
             partIndexToReplica[replica.GetReplicaIndex()] = replica;
         }
 
-        auto* erasureCodec = GetCodec(erasureCodecId);
+        auto* erasureCodec = GetCodecOrThrow(erasureCodecId);
+        const auto& codecParams = erasureCodec->GetParams();
         auto partCount = config->EnableAutoRepair ?
-            erasureCodec->GetTotalPartCount() :
-            erasureCodec->GetDataPartCount();
+            codecParams.TotalPartCount :
+            codecParams.DataPartCount;
 
         auto partConfig = CloneYsonStruct(config);
         partConfig->FailOnNoSeeds = true;
@@ -812,7 +812,7 @@ IChunkReaderPtr CreateRemoteReader(
             /*testingOptions*/ std::nullopt,
             Logger);
     } else {
-        YT_LOG_DEBUG("Creating regular remote reader");
+        YT_TLOG_DEBUG("Creating regular remote reader");
 
         return CreateReplicationReader(
             std::move(config),
@@ -882,9 +882,9 @@ void LocateChunks(
                 *req->add_subrequests() = chunkSpecs[index]->chunk_id();
             }
 
-            YT_LOG_DEBUG("Locating chunks (CellTag: %v, ChunkCount: %v)",
-                cellTag,
-                req->subrequests_size());
+            YT_TLOG_DEBUG("Locating chunks")
+                .With("CellTag", cellTag)
+                .With("ChunkCount", req->subrequests_size());
 
             auto rspOrError = WaitFor(req->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locating chunks at cell %v",
@@ -995,7 +995,11 @@ void DumpCodecStatistics(
 
 bool IsAddressLocal(const std::string& address)
 {
-    return GetServiceHostName(address) == GetLocalHostName();
+    try {
+        return GetServiceHostName(address) == GetLocalHostName();
+    } catch (const std::exception&) {
+        return false;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1057,8 +1061,8 @@ void ValidateChunkFeatures(
                     "Chunk %v requires feature %Qlv that is not supported yet",
                     chunkId,
                     TEnumTraits<EChunkFeatures>::FindLiteralByValue(chunkFeature))
-                    << TErrorAttribute("chunk_features", chunkFeatures)
-                    << TErrorAttribute("supported_chunk_features", supportedChunkFeatures);
+                    .With("chunk_features", chunkFeatures)
+                    .With("supported_chunk_features", supportedChunkFeatures);
             }
         }
 
@@ -1068,8 +1072,8 @@ void ValidateChunkFeatures(
         THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::UnsupportedChunkFeature,
             "Processing chunk %v requires feature that is not supported by cluster yet",
             chunkId)
-            << TErrorAttribute("chunk_features", chunkFeatures)
-            << TErrorAttribute("supported_chunk_features", supportedChunkFeatures);
+            .With("chunk_features", chunkFeatures)
+            .With("supported_chunk_features", supportedChunkFeatures);
     }
 }
 
@@ -1186,7 +1190,7 @@ bool IsLargeEnoughChunkWeight(i64 chunkWeight, i64 chunkWeightThreshold)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString FormatBlocks(int startBlockIndex, int endBlockIndex)
+std::string FormatBlockIndexRange(int startBlockIndex, int endBlockIndex)
 {
     TStringBuilder builder;
 
@@ -1197,6 +1201,20 @@ TString FormatBlocks(int startBlockIndex, int endBlockIndex)
     }
 
     return builder.Flush();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsJournalFormat(EChunkFormat format) noexcept
+{
+    switch (format) {
+        case EChunkFormat::JournalDefault:
+        case EChunkFormat::JournalDistributed:
+        case EChunkFormat::HunkJournal:
+            return true;
+        default:
+            return false;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

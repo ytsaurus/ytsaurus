@@ -8,6 +8,7 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+
 namespace NYT::NAuth {
 
 using namespace NApi;
@@ -44,17 +45,17 @@ public:
     {
         UpdateExecutor_->Start();
 
-        YT_LOG_DEBUG("Starting periodic updates in native cookie store");
+        YT_TLOG_DEBUG("Starting periodic updates in native cookie store");
     }
 
     void Stop() override
     {
         YT_UNUSED_FUTURE(UpdateExecutor_->Stop());
 
-        YT_LOG_DEBUG("Stopping periodic updates in native cookie store");
+        YT_TLOG_DEBUG("Stopping periodic updates in native cookie store");
     }
 
-    TFuture<TCypressCookiePtr> GetCookie(const TString& value) override
+    TFuture<TCypressCookiePtr> GetCookie(const std::string& value) override
     {
         {
             auto guard = ReaderGuard(CookiesLock_);
@@ -164,10 +165,10 @@ private:
     };
     using TEntryPtr = TIntrusivePtr<TEntry>;
 
-    THashMap<TString, TEntryPtr> Cookies_;
+    THashMap<std::string, TEntryPtr> Cookies_;
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, CookiesLock_);
 
-    THashMap<TString, TCypressCookiePtr> UserToLastCookie_;
+    THashMap<std::string, TCypressCookiePtr> UserToLastCookie_;
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, UserToLastCookieLock_);
 
     bool IsEntryActual(const TEntryPtr& entry)
@@ -183,10 +184,10 @@ private:
             entry->FetchTime + Config_->ErrorEvictionTime > TInstant::Now();
     }
 
-    TFuture<TCypressCookiePtr> DoFetchCookie(const TString& value)
+    TFuture<TCypressCookiePtr> DoFetchCookie(const std::string& value)
     {
-        YT_LOG_DEBUG("Fetching cookie from Cypress (Cookie: %v)",
-            value);
+        YT_TLOG_DEBUG("Fetching cookie from Cypress")
+            .With("Cookie", value);
 
         return Client_->GetNode(GetCookiePath(value))
             .Apply(BIND([=, this_ = MakeStrong(this)] (const TYsonString& value) {
@@ -199,13 +200,14 @@ private:
         try {
             GuardedFetchAllCookies();
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to fetch native cookies from Cypress");
+            YT_TLOG_WARNING("Failed to fetch native cookies from Cypress")
+                .With(ex);
         }
     }
 
     void GuardedFetchAllCookies()
     {
-        YT_LOG_DEBUG("Started fetching native cookies");
+        YT_TLOG_DEBUG("Started fetching native cookies");
 
         static const std::string ValueAttribute = "value";
 
@@ -220,11 +222,11 @@ private:
             .ValueOrThrow();
         auto listResult = ConvertTo<IListNodePtr>(rawListResult);
 
-        YT_LOG_DEBUG("Native cookies fetched from Cypress (CookieCount: %v)",
-            listResult->GetChildCount());
+        YT_TLOG_DEBUG("Native cookies fetched from Cypress")
+            .With("CookieCount", listResult->GetChildCount());
 
-        THashMap<TString, TEntryPtr> newCookies;
-        THashMap<TString, TCypressCookiePtr> newUserToLastCookie;
+        THashMap<std::string, TEntryPtr> newCookies;
+        THashMap<std::string, TCypressCookiePtr> newUserToLastCookie;
         for (const auto& child : listResult->GetChildren()) {
             try {
                 auto cookie = child->Attributes().Get<TCypressCookiePtr>(ValueAttribute);
@@ -245,8 +247,9 @@ private:
                     }
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to parse cookie (Cookie: %v)",
-                    child->GetValue<TString>());
+                YT_TLOG_WARNING("Failed to parse cookie")
+                    .With("Cookie", child->GetValue<std::string>())
+                    .With(ex);
             }
         }
 
@@ -276,7 +279,7 @@ private:
         }
     }
 
-    static TYPath GetCookiePath(const TString& value)
+    static TYPath GetCookiePath(const std::string& value)
     {
         return Format("//sys/cypress_cookies/%v", ToYPathLiteral(value));
     }

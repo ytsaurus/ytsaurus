@@ -76,6 +76,8 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
     String networkProject;
     protected final @Nullable
     Duration prepareTimeLimit;
+    protected final @Nullable
+    DiskRequest diskRequest;
 
     protected MapperOrReducerSpec(Class<?> mainClazz, Builder<?> builder) {
         if (builder.userJob == null) {
@@ -99,6 +101,7 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
         memoryReserveFactor = builder.memoryReserveFactor;
         networkProject = builder.networkProject;
         prepareTimeLimit = builder.prepareTimeLimit;
+        diskRequest = builder.diskRequest;
     }
 
     /**
@@ -275,6 +278,7 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
                 .when(cpuLimit != null, b -> b.key("cpu_limit").value(cpuLimit))
                 .when(jobTimeLimit != null, b -> b.key("job_time_limit").value(jobTimeLimit))
                 .when(jobCount != null, b -> b.key("job_count").value(jobCount))
+                .when(diskRequest != null, b -> b.key("disk_request").value(diskRequest.prepare()))
                 .key("environment").value(environment)
                 .when(customStatisticsCountLimit != null, b -> b.key("custom_statistics_count_limit")
                         .value(customStatisticsCountLimit))
@@ -374,6 +378,8 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
         String networkProject = null;
         @Nullable
         Duration prepareTimeLimit = null; // defaults to 45 minutes
+        @Nullable
+        DiskRequest diskRequest = null;
 
         public abstract MapperOrReducerSpec build();
 
@@ -509,6 +515,14 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
          */
         public T setPrepareTimeLimit(@Nullable Duration prepareTimeLimit) {
             this.prepareTimeLimit = prepareTimeLimit;
+            return self();
+        }
+
+        /**
+         * Set disk request for the job.
+         */
+        public T setDiskRequest(@Nullable DiskRequest diskRequest) {
+            this.diskRequest = diskRequest;
             return self();
         }
     }

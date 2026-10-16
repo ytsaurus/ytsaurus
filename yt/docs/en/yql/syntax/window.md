@@ -46,10 +46,20 @@ Here, the `window_definition` is written as
 [ frame_definition ]
 ```
 
-You can set an optional *frame definition* (`frame_definition`) one of two ways:
+You can set an optional *frame definition* (`frame_definition`) in one of the following ways:
 
 * ```ROWS frame_begin```
 * ```ROWS BETWEEN frame_begin AND frame_end```
+* ```RANGE frame_begin```
+* ```RANGE BETWEEN frame_begin AND frame_end```
+
+{% note info %}
+
+`RANGE` mode is available starting with language version 2026.01.
+
+In Query Tracker, select language version 2026.01 or later to use `RANGE` frames.
+
+{% endnote %}
 
 The *frame start* (`frame_begin`) and *frame end* (`frame_end`) are set one of the following ways:
 
@@ -59,7 +69,9 @@ The *frame start* (`frame_begin`) and *frame end* (`frame_end`) are set one of t
 * ```offset FOLLOWING```
 * ```UNBOUNDED FOLLOWING```
 
-Here, *frame offset* (`offset`) is a non-negative numerical literal. If the frame end isn't set, the `CURRENT ROW` is assumed.
+Here, *frame offset* (`offset`) is a non-negative literal. If the frame end isn't set, `CURRENT ROW` is assumed.
+
+In `ROWS` mode, the offset is always an integer. In `RANGE` mode with an offset, `ORDER BY` must contain exactly one column; the offset type is determined by that column and must support addition, subtraction, and comparison with it. Numeric columns, including `Decimal`, use a numeric offset; date and time columns use `Interval` or `Interval64`. PostgreSQL types are supported similarly. `NaN` and `Inf` values are not allowed.
 
 There should be no window function calls in any of the expressions inside the window definition.
 
@@ -77,7 +89,9 @@ If `ORDER BY` is omitted, the order of rows in the partition is undefined.
 
 The `frame_definition` specifies a set of partition rows that fall into the *window frame* associated with the current row.
 
-In `ROWS` mode (the only one that YQL currently supports), the window frame contains rows with the specified offsets relative to the current row in the partition. For example, if `ROWS BETWEEN 3 PRECEDING AND 5 FOLLOWING` is used, the window frame contains 3 rows preceding the current one, the current row, and 5 rows following it.
+In `ROWS` mode, the window frame contains rows with the specified offsets relative to the current row in the partition. For example, `ROWS BETWEEN 3 PRECEDING AND 5 FOLLOWING` contains three preceding rows, the current row, and five following rows.
+
+In `RANGE` mode with an offset, the range is based on values of the single `ORDER BY` column rather than a number of rows. For example, `RANGE BETWEEN 3 PRECEDING AND 5 FOLLOWING` includes rows whose value is between “current minus 3” and “current plus 5”. `RANGE CURRENT ROW` includes all rows with the same sort value. `UNBOUNDED PRECEDING` and `UNBOUNDED FOLLOWING` have the same meaning as in `ROWS` mode.
 
 The set of rows in the window frame may change depending on which row is the current one. For example, for the first row in the partition, the ROWS `BETWEEN 3 PRECEDING AND 1 PRECEDING` window frame will have no rows.
 
@@ -89,6 +103,17 @@ Namely, if there is `ORDER BY`, then `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRE
 Further, depending on the specific window function, it's calculated either based on the set of rows in the partition or the set of rows in the window frame.
 
 [List of available window functions](../builtins/window.md)
+
+```yql
+SELECT
+    ts,
+    AVG(value) OVER w AS moving_avg
+FROM my_table
+WINDOW w AS (
+    ORDER BY ts
+    RANGE BETWEEN 10 PRECEDING AND 10 FOLLOWING
+);
+```
 
 #### Examples
 
@@ -139,9 +164,9 @@ WINDOW w AS (
 
 ## Implementation specifics
 
-* Functions calculated on the `ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING` or `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` window frame are implemented efficiently (do not require additional memory and their computation runs on a partition in O(partition size) time).
+* Functions on `ROWS/RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING` or `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` run in O(partition size) without extra memory. `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` requires memory to buffer rows with equal `ORDER BY` values.
 
-* For a `ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING` window frame, a `COMPACT` [hint](lexer.md#sql-hints) can be specified after the `PARTITION` keyword to select the execution strategy in RAM.
+* For a `ROWS/RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING` frame, a `COMPACT` [hint](lexer.md#sql-hints) can be specified after `PARTITION` to select the in-memory strategy.
 
   For example: `PARTITION /*+ COMPACT() */ BY key` or `PARTITION /*+ COMPACT() */ BY ()` (if `PARTITION BY` was initially absent).
 
@@ -149,10 +174,10 @@ WINDOW w AS (
 
 * If the window frame doesn't start with `UNBOUNDED PRECEDING`, calculating window functions on this window requires additional memory equal to O(the maximum number of rows from the window boundaries to the current row), while the computation time is equal to O(number_of_partition_rows * window_size).
 
-* For the window frame starting with `UNBOUNDED PRECEDING` and ending with `N`, where `N` is neither `CURRENT ROW` nor `UNBOUNDED FOLLOWING`, additional memory equal to O(N) is required and the computation time is equal to O(N * number_of_partition_rows).
+* For a frame starting with `UNBOUNDED PRECEDING` and ending with `N`, where `N` is neither `CURRENT ROW` nor `UNBOUNDED FOLLOWING`, O(N) extra memory is required and computation takes O(partition size).
 
 * The `LEAD(expr, N)` and `LAG(expr, N)` functions always require O(N) of RAM.
 
-Given the above, a query with `ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING` should, if possible, be changed to `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` by reversing the `ORDER BY` sorting order.
+If possible, change `ROWS/RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING` to `ROWS/RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` by reversing the `ORDER BY` sorting order.
 
 In terms of MapReduce, window functions are physically executed through Reduce, with `PARTITION BY` keys, which can mean lengthy execution for big sections, as well as a strict 200 GB per section limit for the main clusters {{product-name}}.

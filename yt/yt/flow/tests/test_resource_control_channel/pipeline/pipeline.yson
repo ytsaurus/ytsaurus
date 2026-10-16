@@ -1,0 +1,65 @@
+{
+    "spec" = {
+        "computations" = {
+            "Reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["data"];
+                "source_streams" = {
+                    "random" = {
+                        "source_class_name" = "NYT::NFlow::TRandomSource";
+                    };
+                };
+            };
+            "Consumer" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionSwiftMapComputation";
+                "processing_function" = "NExample::TNullFunction";
+                "input_stream_ids" = ["data"];
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "required_resource_ids" = {
+                    "Counter" = {
+                        "worker" = %true;
+                        "controller" = %true;
+                    };
+                };
+            };
+        };
+        "streams" = {
+            "data" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string"; required = %true;};
+                    {"name" = "data"; "type" = "string"; required = %true;};
+                ];
+            };
+        };
+        "resources" = {
+            "Counter" = {
+                "resource_class_name" = "NExample::TCounterResource";
+                "always_on" = %true;
+                "parameters" = {
+                    "generation_period" = 3000;
+                };
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "Reader" = {
+                "source_streams" = {
+                    "random" = {
+                        "parameters" = {
+                            "partition_count" = 1;
+                            "message_size_mean" = 100;
+                            "message_count_mean" = 10;
+                            "message_key_range" = 1000;
+                        };
+                    };
+                };
+            };
+            "Consumer" = {};
+        };
+    };
+}

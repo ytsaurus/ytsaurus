@@ -1,29 +1,32 @@
 #pragma once
 
-#include "runtime_settings_configuration.h"
+#include "runtime_settings.h"
 
 #include <yql/essentials/minikql/runtime_settings/proto/runtime_settings.pb.h>
 #include <yql/essentials/core/credentials/yql_credentials.h>
+#include <yql/essentials/core/qplayer/storage/interface/yql_qstorage.h>
 
 #include <util/generic/ptr.h>
 #include <util/generic/string.h>
+
+#include <functional>
 
 namespace NYql {
 
 TRuntimeSettings::TPtr CreateRuntimeSettingsFromProto(
     const NProto::TRuntimeSettings& proto,
     const TString& userName,
-    TCredentials::TPtr credentials);
+    TCredentials::TPtr credentials,
+    const TQContext& qContext,
+    std::function<void(const TString&)> onPartialFeatureActivation);
+
+TRuntimeSettings::TPtr DeserializeRuntimeSettingsFromProto(
+    const NProto::TRuntimeSettings& proto);
 
 NProto::TRuntimeSettings SerializeRuntimeSettingsToProto(
-    const TRuntimeSettings::TConstPtr& config);
+    const TRuntimeSettings& config);
 
 TString SerializeRuntimeSettingsToString(const TRuntimeSettings& config);
-
-TRuntimeSettings::TPtr CreateRuntimeSettingsFromString(
-    const TString& data,
-    const TString& userName,
-    TCredentials::TPtr credentials);
 
 TRuntimeSettings::TPtr CreateRuntimeSettingsFromString(
     const TString& data);

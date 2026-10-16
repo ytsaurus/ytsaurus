@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import yt.logger as yt_logger
 
+import errno
 import gzip
 import os
 import fcntl
@@ -37,11 +38,13 @@ ALL_COMPONENTS = [
     "cell-balancer",
     "tablet-balancer",
     "master-cache",
+    "chaos-cache",
     "queue-agent",
     "cypress-proxy",
     "query-tracker",
     "kafka-proxy",
     "replicated-table-tracker",
+    "offshore-data-gateway",
     "multi",
 ]
 
@@ -100,22 +103,56 @@ def search_binary_path(binary_name, binary_root=None, build_path_dir=None):
 
 
 def insert_sudo_wrapper(bin_dir, binary_root):
+    # TODO(pogorelov): Run local tests with the Porto job environment inside
+    # a Porto container and remove sudo fixup from their test binaries.
+    # See YT-27295.
     SUDO_WRAPPER = """#!/bin/sh
+
+exec sudo -En {} {} {} {} "$@"
+"""
+    TOOLS_SUDO_WRAPPER = """#!/bin/sh
+
+# The job rootfs can access /yt_runtime but not host-side sudo. Preserve the
+# ytserver-tools basename because ytserver-all dispatches by argv[0].
+if [ -x /yt_runtime/.real/ytserver-tools ]; then
+    exec /yt_runtime/.real/ytserver-tools "$@"
+fi
 
 exec sudo -En {} {} {} {} "$@"
 """
     sudofixup = search_binary_path("yt-sudo-fixup", binary_root=binary_root)
 
-    for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
+    # ytserver-exec is started as root by the Porto job environment and drops
+    # privileges to the slot user before executing user code. Wrapping it in
+    # sudo breaks custom rootfs jobs, where neither sudo nor host paths exist.
+    for binary in ["ytserver-job-proxy", "ytserver-tools"]:
         bin_path = os.path.join(bin_dir, binary)
         orig_path = os.path.join(bin_dir, binary + ".orig")
         if not os.path.exists(bin_path):
             continue
 
         os.rename(bin_path, orig_path)
+        if binary == "ytserver-tools":
+            real_dir = os.path.join(bin_dir, ".real")
+            if not os.path.exists(real_dir):
+                os.mkdir(real_dir)
+            real_path = os.path.join(real_dir, "ytserver-tools")
+            if os.path.exists(real_path):
+                os.remove(real_path)
+            # In CI orig_path may be a symlink to a build-root path that is
+            # unavailable inside the job rootfs. Keep a real binary in the
+            # directory bind-mounted at /yt_runtime.
+            source_path = os.path.realpath(orig_path)
+            try:
+                os.link(source_path, real_path)
+            except OSError as error:
+                if error.errno != errno.EXDEV:
+                    raise
+                shutil.copy2(source_path, real_path)
 
         with open(bin_path, "w") as trampoline:
-            trampoline.write(SUDO_WRAPPER.format(sudofixup, os.getuid(), orig_path, binary))
+            wrapper = TOOLS_SUDO_WRAPPER if binary == "ytserver-tools" else SUDO_WRAPPER
+            trampoline.write(wrapper.format(sudofixup, os.getuid(), orig_path, binary))
             os.chmod(bin_path, 0o755)
 
 

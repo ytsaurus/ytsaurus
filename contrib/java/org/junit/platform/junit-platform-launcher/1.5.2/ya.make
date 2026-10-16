@@ -10,6 +10,9 @@ PEERDIR(
 )
 
 LOCAL_JAR(junit-platform-launcher-1.5.2.jar)
+
 LOCAL_SOURCES_JAR(junit-platform-launcher-1.5.2-sources.jar)
+
+ORIGINAL_SOURCE(https://github.com/junit-team/junit5)
 
 END()

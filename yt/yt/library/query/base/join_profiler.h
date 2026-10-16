@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/library/query/base/query_common.h>
 
 #include <yt/yt/core/ypath/public.h>
@@ -9,6 +11,17 @@
 #include <yt/yt/core/actions/future.h>
 
 namespace NYT::NQueryClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EJoinSubqueryMode,
+    (Lookup)
+    (PrefixScan)
+    (FullScan)
+    (PredicateGuidedScan)
+);
+
+EJoinSubqueryMode GetJoinSubqueryMode(const TJoinClause& joinClause, const NLogging::TLogger& Logger = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,8 +35,6 @@ using TExecutePlan = std::function<TFuture<TQueryStatistics>(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IJoinRowsProducer)
-
 struct IJoinRowsProducer
     : public virtual TRefCounted
 {
@@ -35,8 +46,6 @@ struct IJoinRowsProducer
 DEFINE_REFCOUNTED_TYPE(IJoinRowsProducer)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_STRUCT(IJoinProfiler)
 
 struct IJoinProfiler
     : public virtual TRefCounted
@@ -55,6 +64,16 @@ IJoinProfilerPtr CreateJoinSubqueryProfiler(
     TGetPrefetchJoinDataSource getPrefetchJoinDataSource,
     IMemoryChunkProviderPtr memoryChunkProvider,
     bool useOrderByInJoinSubqueries,
+    bool allowHeavyRangeInferenceInJoins,
+    std::optional<i64> cacheSize,
+    NLogging::TLogger logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IJoinProfilerPtr CreateJoinRowsetProfiler(
+    TSharedRange<TRow> rowset,
+    int foreignKeyPrefix,
+    int joinKeySize,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,11 +81,25 @@ IJoinProfilerPtr CreateJoinSubqueryProfiler(
 class TJoinProfilerRegistry
 {
 public:
+    TJoinProfilerRegistry(
+        TExecutePlan executePlan,
+        TConsumeSubqueryStatistics consumeSubqueryStatistics,
+        IMemoryChunkProviderPtr memoryChunkProvider,
+        NLogging::TLogger logger);
+
     IJoinProfilerPtr GetJoinProfilerOrThrow(size_t index) const;
     void InsertJoinProfilerOrThrow(size_t index, IJoinProfilerPtr profiler);
 
+    // TODO(dtorilov): Consider exposing a generic lookup-join API here.
+    IJoinRowsProducerPtr CreateHierarchicalJoinRowsProducer(
+        TConstHierarchicalJoinClausePtr hierarchicalJoinClause) const;
+
 private:
     THashMap<size_t, IJoinProfilerPtr> Profilers_;
+    TExecutePlan ExecutePlan_;
+    TConsumeSubqueryStatistics ConsumeSubqueryStatistics_;
+    IMemoryChunkProviderPtr MemoryChunkProvider_;
+    NLogging::TLogger Logger_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

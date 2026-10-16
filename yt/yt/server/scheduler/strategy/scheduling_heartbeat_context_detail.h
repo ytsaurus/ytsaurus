@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
+#include <yt/yt/core/actions/public.h>
+
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
 namespace NYT::NScheduler::NStrategy {
@@ -18,6 +20,7 @@ public:
         int nodeShardId,
         TSchedulerConfigPtr config,
         TExecNodePtr node,
+        IInvokerPtr backgroundInvoker,
         const std::vector<TAllocationPtr>& runningAllocations,
         const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
         const TJobResources& defaultMinSpareAllocationResources);
@@ -69,8 +72,8 @@ public:
 
     void PreemptAllocation(const TAllocationPtr& allocation, TDuration preemptionTimeout, NPolicy::EAllocationPreemptionReason preemptionReason) override;
 
-    NPolicy::TScheduleAllocationsStatistics GetSchedulingStatistics() const override;
-    void SetSchedulingStatistics(NPolicy::TScheduleAllocationsStatistics statistics) override;
+    NPolicy::TScheduleAllocationsStatisticsPtr GetSchedulingStatistics() const override;
+    void SetSchedulingStatistics(NPolicy::TScheduleAllocationsStatisticsPtr statistics) override;
 
     void StoreScheduleAllocationExecDurationEstimate(TDuration duration) override;
     TDuration ExtractScheduleAllocationExecDurationEstimate() override;
@@ -107,7 +110,7 @@ private:
     std::optional<int> DiscountMediumIndex_;
     TJobResourcesWithQuotaDiscount Discount_;
 
-    NPolicy::TScheduleAllocationsStatistics SchedulingStatistics_;
+    NPolicy::TScheduleAllocationsStatisticsPtr SchedulingStatistics_;
 
     std::optional<TDuration> ScheduleAllocationExecDurationEstimate_;
 

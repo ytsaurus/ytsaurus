@@ -17,6 +17,8 @@
 
 #include <yt/yt/core/tracing/public.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NControllerAgent {
 
 static constexpr TStringBuf DockerAuthEnv("docker_auth");
@@ -27,7 +29,7 @@ NNodeTrackerClient::TNodeId NodeIdFromJobId(TJobId jobId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString JobTypeAsKey(EJobType jobType);
+std::string JobTypeAsKey(EJobType jobType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,7 +77,7 @@ struct TJobToConfirm
 void ValidateJobShellAccess(
     const NApi::NNative::IClientPtr& client,
     const std::string& user,
-    const TString& jobShellName,
+    const std::string& jobShellName,
     const std::vector<std::string>& jobShellOwners);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,6 +97,12 @@ void PackBaggageFromJobSpec(
     TOperationId operationId,
     TJobId jobId,
     EJobType jobType);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateAbortedJobError(
+    NScheduler::EAbortReason abortReason,
+    TNonNullPtr<TError> errorPtr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

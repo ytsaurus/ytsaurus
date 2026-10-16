@@ -77,7 +77,7 @@ size_t TReferenceHasher::operator()(const TReference& reference) const
     if (reference.CompositeTypeAccessor.DictOrListItemAccessor) {
         if (std::ssize(*reference.CompositeTypeAccessor.DictOrListItemAccessor) != 1) {
             THROW_ERROR_EXCEPTION("Expression inside of the list or dict item accessor should be scalar")
-                << TErrorAttribute("source", FormatReference(reference));
+                .With("source", FormatReference(reference));
         }
         HashCombine(result, reference.CompositeTypeAccessor.DictOrListItemAccessor->front());
     }
@@ -230,16 +230,6 @@ TStringBuf TExpression::GetSource(TStringBuf source) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTableHint::Register(TRegistrar registrar)
-{
-    registrar.Parameter("require_sync_replica", &TThis::RequireSyncReplica)
-        .Default(true);
-    registrar.Parameter("push_down_group_by", &TThis::PushDownGroupBy)
-        .Default(false);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source)
 {
     auto begin = sourceLocation.first;
@@ -248,23 +238,11 @@ TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source)
     return source.substr(begin, end - begin);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf /*spec*/)
-{
-    builder->AppendString("\"{");
-    if (hint.PushDownGroupBy) {
-        builder->AppendString("push_down_group_by=%true;");
-    }
-    if (!hint.RequireSyncReplica) {
-        builder->AppendString("require_sync_replica=%false;");
-    }
-    builder->AppendString("}\"");
-}
-
 bool operator==(const TTableDescriptor& lhs, const TTableDescriptor& rhs)
 {
     return
-        std::tie(lhs.Path, lhs.Alias, *lhs.Hint) ==
-        std::tie(rhs.Path, rhs.Alias, *rhs.Hint);
+        std::tie(lhs.Path, lhs.Alias, lhs.Hint) ==
+        std::tie(rhs.Path, rhs.Alias, rhs.Hint);
 }
 
 bool operator==(const TJoin& lhs, const TJoin& rhs)
@@ -490,23 +468,27 @@ void FormatReference(TStringBuilderBase* builder, const TReference& ref, int dep
     }
 
     if (ref.CompositeTypeAccessor.DictOrListItemAccessor) {
+        // Preserving existing behavior, see YT-28316.
+        auto compatOptions = options;
+        compatOptions.IsFinal = false;
         builder->AppendChar('[');
-        FormatExpressions(builder, *ref.CompositeTypeAccessor.DictOrListItemAccessor, depth + 1, options);
+        FormatExpressions(builder, *ref.CompositeTypeAccessor.DictOrListItemAccessor, depth + 1, compatOptions);
         builder->AppendChar(']');
     }
 }
 
 void FormatTableDescriptor(TStringBuilderBase* builder, const TTableDescriptor& descriptor, const TFormatOptions& options)
 {
-    static const TTableHintPtr DefaultHint = New<TTableHint>();
-
-    FormatId(builder, descriptor.Path, options);
+    // Preserving existing behavior, see YT-28316.
+    auto compatOptions = options;
+    compatOptions.IsFinal = false;
+    FormatId(builder, descriptor.Path, compatOptions);
     if (descriptor.Alias) {
         builder->AppendString(" AS ");
-        FormatId(builder, *descriptor.Alias, options);
+        FormatId(builder, *descriptor.Alias, compatOptions);
     }
-    if (*descriptor.Hint != *DefaultHint) {
-        Format(builder, " WITH HINT %v", *descriptor.Hint);
+    if (descriptor.Hint != TTableHint()) {
+        Format(builder, " WITH HINT %v", descriptor.Hint);
     }
 }
 
@@ -514,8 +496,11 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int 
 {
     if (depth >= MaxExpressionDepth) {
         THROW_ERROR_EXCEPTION("Maximum expression depth exceeded")
-            << TErrorAttribute("max_expression_depth", MaxExpressionDepth);
+            .With("max_expression_depth", MaxExpressionDepth);
     }
+    // Preserving existing behavior, see YT-28316.
+    auto compatOptions = options;
+    compatOptions.IsFinal = false;
     auto printTuple = [&] (TStringBuilderBase* builder, const TLiteralValueTuple& tuple) {
         bool needParens = tuple.size() > 1;
         if (needParens) {
@@ -571,7 +556,7 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int 
     } else if (auto* typedExpr = expr.As<TAliasExpression>()) {
         if (options.ExpandAliases) {
             builder->AppendChar('(');
-            FormatExpression(builder, *typedExpr->Expression, depth + 1, options);
+            FormatExpression(builder, *typedExpr->Expression, depth + 1, compatOptions);
             builder->AppendString(" as ");
             FormatId(builder, typedExpr->Name, options);
             builder->AppendChar(')');
@@ -581,30 +566,30 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int 
     } else if (auto* typedExpr = expr.As<TFunctionExpression>()) {
         builder->AppendString(typedExpr->FunctionName);
         builder->AppendChar('(');
-        FormatExpressions(builder, typedExpr->Arguments, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Arguments, depth + 1, compatOptions);
         builder->AppendChar(')');
     } else if (auto* typedExpr = expr.As<TUnaryOpExpression>()) {
         builder->AppendString(GetUnaryOpcodeLexeme(typedExpr->Opcode));
         builder->AppendChar('(');
-        FormatExpressions(builder, typedExpr->Operand, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Operand, depth + 1, compatOptions);
         builder->AppendChar(')');
     } else if (auto* typedExpr = expr.As<TBinaryOpExpression>()) {
         builder->AppendChar('(');
-        FormatExpressions(builder, typedExpr->Lhs, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Lhs, depth + 1, compatOptions);
         builder->AppendChar(')');
         builder->AppendString(GetBinaryOpcodeLexeme(typedExpr->Opcode));
         builder->AppendChar('(');
-        FormatExpressions(builder, typedExpr->Rhs, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Rhs, depth + 1, compatOptions);
         builder->AppendChar(')');
     } else if (auto* typedExpr = expr.As<TInExpression>()) {
         builder->AppendChar('(');
-        FormatExpressions(builder, typedExpr->Expr, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Expr, depth + 1, compatOptions);
         builder->AppendString(") IN (");
         printTuples(builder, typedExpr->Values);
         builder->AppendChar(')');
     } else if (auto* typedExpr = expr.As<TBetweenExpression>()) {
         builder->AppendChar('(');
-        FormatExpressions(builder, typedExpr->Expr, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Expr, depth + 1, compatOptions);
         builder->AppendString(") BETWEEN (");
         printRanges(builder, typedExpr->Values);
         builder->AppendChar(')');
@@ -615,7 +600,7 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int 
         if (needParenthesis) {
             builder->AppendChar('(');
         }
-        FormatExpressions(builder, typedExpr->Expr, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Expr, depth + 1, compatOptions);
         if (needParenthesis) {
             builder->AppendChar(')');
         }
@@ -627,7 +612,7 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int 
 
         if (typedExpr->DefaultExpr) {
             builder->AppendString(", ");
-            FormatExpression(builder, *typedExpr->DefaultExpr, depth + 1, options);
+            FormatExpression(builder, *typedExpr->DefaultExpr, depth + 1, compatOptions);
         }
 
         builder->AppendChar(')');
@@ -636,39 +621,39 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int 
 
         if (typedExpr->OptionalOperand) {
             builder->AppendChar(' ');
-            FormatExpression(builder, *typedExpr->OptionalOperand, depth + 1, options);
+            FormatExpression(builder, *typedExpr->OptionalOperand, depth + 1, compatOptions);
         }
 
         for (const auto& item : typedExpr->WhenThenExpressions) {
             builder->AppendString(" WHEN ");
-            FormatExpression(builder, item.Condition, depth + 1, options);
+            FormatExpression(builder, item.Condition, depth + 1, compatOptions);
             builder->AppendString(" THEN ");
-            FormatExpression(builder, item.Result, depth + 1, options);
+            FormatExpression(builder, item.Result, depth + 1, compatOptions);
         }
 
         if (typedExpr->DefaultExpression) {
             builder->AppendString(" ELSE ");
-            FormatExpression(builder, *typedExpr->DefaultExpression, depth + 1, options);
+            FormatExpression(builder, *typedExpr->DefaultExpression, depth + 1, compatOptions);
         }
 
         builder->AppendString(" END");
     } else if (auto* typedExpr = expr.As<TLikeExpression>()) {
-        FormatExpressions(builder, typedExpr->Text, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Text, depth + 1, compatOptions);
 
         builder->AppendChar(' ');
         builder->AppendString(GetStringMatchOpcodeLexeme(typedExpr->Opcode));
         builder->AppendChar(' ');
 
-        FormatExpressions(builder, typedExpr->Pattern, depth + 1, options);
+        FormatExpressions(builder, typedExpr->Pattern, depth + 1, compatOptions);
 
         if (typedExpr->EscapeCharacter) {
             builder->AppendString(" ESCAPE ");
-            FormatExpressions(builder, *typedExpr->EscapeCharacter, depth + 1, options);
+            FormatExpressions(builder, *typedExpr->EscapeCharacter, depth + 1, compatOptions);
         }
     } else if (auto* typedExpr = expr.As<TQueryExpression>()) {
         builder->AppendChar('(');
         builder->AppendString(" SELECT ");
-        FormatQuery(builder, typedExpr->Query, options);
+        FormatQuery(builder, typedExpr->Query, compatOptions);
         builder->AppendChar(')');
     } else {
         YT_ABORT();

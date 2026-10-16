@@ -33,7 +33,13 @@ public:
                 {
                     EProfilerScope::ObjectPass,
                     profiler
-                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Queue>(row, /*enablePathAggregation*/ true, /*addObjectType*/ true, leading))
+                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Queue>(
+                            row,
+                            NDetail::TProfilingOptions{
+                                .EnablePathAggregation = true,
+                                .AddObjectType = true,
+                                .Leading = leading,
+                            }))
                         .WithTag("export_name", exportName)
                         .WithPrefix("/queue/static_export"),
                 },

@@ -6,6 +6,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,10 +22,57 @@ func (b proxyBan) expired(banDuration time.Duration) bool {
 }
 
 const (
-	defaultUpdatePeriod  = time.Second * 30
-	defaultBanDuration   = 5 * time.Minute
-	defaultActiveSetSize = 50
+	defaultUpdatePeriod        = time.Second * 30
+	defaultBanDuration         = 5 * time.Minute
+	maxYPClusterNameSize       = 32
+	powerOfTwoChoicesPeerCount = 2
+	minShuffleSampleFraction   = 0.75
+
+	// DefaultActiveSetSize is the maximum number of proxies kept in the active set by default.
+	DefaultActiveSetSize = 50
 )
+
+type ProxyPriority int
+
+const (
+	ProxyPriorityLocal ProxyPriority = iota
+	ProxyPriorityForeign
+	proxyPriorityCount
+)
+
+type ProxyPriorityProvider func(address string) ProxyPriority
+
+func NewYPClusterProxyPriorityProvider(localHostName string) (ProxyPriorityProvider, string) {
+	localCluster, localClusterOK := inferYPClusterFromHostName(localHostName)
+
+	provider := func(address string) ProxyPriority {
+		cluster, ok := inferYPClusterFromHostName(address)
+		if localClusterOK && ok && cluster == localCluster {
+			return ProxyPriorityLocal
+		}
+		return ProxyPriorityForeign
+	}
+	return provider, localCluster
+}
+
+func inferYPClusterFromHostName(hostName string) (string, bool) {
+	start := strings.IndexByte(hostName, '.')
+	if start == -1 {
+		return "", false
+	}
+
+	end := strings.IndexByte(hostName[start+1:], '.')
+	if end == -1 {
+		return "", false
+	}
+	end += start + 1
+
+	cluster := hostName[start+1 : end]
+	if cluster == "" || len(cluster) > maxYPClusterNameSize {
+		return "", false
+	}
+	return cluster, true
+}
 
 type stringSet struct {
 	set   []string
@@ -41,6 +89,47 @@ func (s *stringSet) size() int {
 
 func (s *stringSet) random() string {
 	return s.set[rand.Intn(len(s.set))]
+}
+
+func (s *stringSet) randomDistinct(count int) []string {
+	if count > len(s.set) {
+		panic("not enough elements in set")
+	}
+	if count == 0 {
+		return nil
+	}
+	if count == 1 {
+		return []string{s.random()}
+	}
+
+	result := make([]string, 0, count)
+	if float64(count) >= minShuffleSampleFraction*float64(len(s.set)) {
+		indexes := make([]int, len(s.set))
+		for index := range indexes {
+			indexes[index] = index
+		}
+		for index := range count {
+			other := index + rand.Intn(len(indexes)-index)
+			indexes[index], indexes[other] = indexes[other], indexes[index]
+			result = append(result, s.set[indexes[index]])
+		}
+		return result
+	}
+
+	for len(result) < count {
+		candidate := s.random()
+		found := false
+		for _, element := range result {
+			if element == candidate {
+				found = true
+				break
+			}
+		}
+		if !found {
+			result = append(result, candidate)
+		}
+	}
+	return result
 }
 
 func (s *stringSet) contains(ss string) bool {
@@ -96,9 +185,14 @@ type ProxySet struct {
 
 	ActiveSetSize int
 
-	all      stringSet
-	active   stringSet
-	inactive stringSet
+	PriorityProvider                 ProxyPriorityProvider
+	MinPeerCountForPriorityAwareness int
+	EnablePowerOfTwoChoicesStrategy  bool
+
+	all                  stringSet
+	active               [proxyPriorityCount]stringSet
+	inactive             [proxyPriorityCount]stringSet
+	inflightRequestCount map[string]int
 }
 
 func (s *ProxySet) updatePeriod() time.Duration {
@@ -121,7 +215,7 @@ func (s *ProxySet) activeSetSize() int {
 	if s.ActiveSetSize != 0 {
 		return s.ActiveSetSize
 	} else {
-		return defaultActiveSetSize
+		return DefaultActiveSetSize
 	}
 }
 
@@ -129,14 +223,135 @@ var errProxyListEmpty = errors.New("proxy list is empty")
 
 func (s *ProxySet) doPickRandom() (string, bool) {
 	switch {
-	case !s.active.empty():
-		return s.active.random(), true
+	case s.activePeerCount() != 0:
+		if !s.EnablePowerOfTwoChoicesStrategy || s.activePeerCount() < powerOfTwoChoicesPeerCount {
+			return s.pickActive(), true
+		}
 
+		peers := s.pickActivePeers(powerOfTwoChoicesPeerCount)
+		if s.inflightRequestCount[peers[0]] < s.inflightRequestCount[peers[1]] {
+			return peers[0], true
+		}
+		return peers[1], true
 	case !s.all.empty():
 		return s.all.random(), true
-
 	default:
 		return "", false
+	}
+}
+
+func (s *ProxySet) pickActive() string {
+	index := rand.Intn(min(max(s.MinPeerCountForPriorityAwareness, 1), s.activePeerCount()))
+	for priority := ProxyPriorityLocal; priority < proxyPriorityCount; priority++ {
+		if index < s.active[priority].size() {
+			return s.active[priority].random()
+		}
+		index -= s.active[priority].size()
+	}
+	panic("proxy set inconsistent")
+}
+
+func (s *ProxySet) pickActivePeers(peerCount int) []string {
+	activePeerCount := s.activePeerCount()
+	if peerCount < 1 || peerCount > activePeerCount {
+		panic("invalid peer count")
+	}
+
+	minPeersToPickFrom := min(max(s.MinPeerCountForPriorityAwareness, peerCount), activePeerCount)
+	for priority := ProxyPriorityLocal; priority < proxyPriorityCount; priority++ {
+		peers := &s.active[priority]
+		if peers.empty() {
+			continue
+		}
+		if minPeersToPickFrom <= peers.size() {
+			return peers.randomDistinct(peerCount)
+		}
+		break
+	}
+
+	var eligiblePeerCount [proxyPriorityCount]int
+	remainingPeerCount := minPeersToPickFrom
+	for priority := ProxyPriorityLocal; priority < proxyPriorityCount; priority++ {
+		count := s.active[priority].size()
+		if count > remainingPeerCount {
+			count = remainingPeerCount
+		}
+		eligiblePeerCount[priority] = count
+		remainingPeerCount -= count
+	}
+
+	var selectedPeerCount [proxyPriorityCount]int
+	remainingPeerCount = minPeersToPickFrom
+	for range peerCount {
+		index := rand.Intn(remainingPeerCount)
+		for priority := ProxyPriorityLocal; priority < proxyPriorityCount; priority++ {
+			if index < eligiblePeerCount[priority] {
+				selectedPeerCount[priority]++
+				eligiblePeerCount[priority]--
+				remainingPeerCount--
+				break
+			}
+			index -= eligiblePeerCount[priority]
+		}
+	}
+
+	for priority := ProxyPriorityLocal; priority < proxyPriorityCount; priority++ {
+		if selectedPeerCount[priority] == peerCount {
+			return s.active[priority].randomDistinct(peerCount)
+		}
+	}
+
+	peers := make([]string, 0, peerCount)
+	for priority := ProxyPriorityLocal; priority < proxyPriorityCount; priority++ {
+		peers = append(peers, s.active[priority].randomDistinct(selectedPeerCount[priority])...)
+	}
+	rand.Shuffle(len(peers), func(i, j int) { peers[i], peers[j] = peers[j], peers[i] })
+	return peers
+}
+
+func (s *ProxySet) priority(proxy string) ProxyPriority {
+	if s.PriorityProvider == nil {
+		return ProxyPriorityLocal
+	}
+	return s.PriorityProvider(proxy)
+}
+
+func (s *ProxySet) activePeerCount() int {
+	return s.active[ProxyPriorityLocal].size() + s.active[ProxyPriorityForeign].size()
+}
+
+// IncrementInflightRequestCount records an in-flight request to a proxy.
+func (s *ProxySet) IncrementInflightRequestCount(proxy string) {
+	if !s.EnablePowerOfTwoChoicesStrategy {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.inflightRequestCount == nil {
+		s.inflightRequestCount = make(map[string]int)
+	}
+	s.inflightRequestCount[proxy]++
+}
+
+// DecrementInflightRequestCount removes an in-flight request from a proxy.
+func (s *ProxySet) DecrementInflightRequestCount(proxy string) {
+	if !s.EnablePowerOfTwoChoicesStrategy {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	count := s.inflightRequestCount[proxy]
+	if count <= 0 {
+		panic("request counter underflow")
+	}
+	if count == 1 {
+		delete(s.inflightRequestCount, proxy)
+	} else {
+		s.inflightRequestCount[proxy] = count - 1
 	}
 }
 
@@ -192,21 +407,24 @@ func (s *ProxySet) updateProxies(updateDone chan struct{}) {
 	s.updateErr = nil
 	s.all = all
 
-	for proxy := range s.active.index {
-		if !all.contains(proxy) {
-			s.active.remove(proxy)
+	for priority := ProxyPriorityLocal; priority < proxyPriorityCount; priority++ {
+		for proxy := range s.active[priority].index {
+			if !all.contains(proxy) {
+				s.active[priority].remove(proxy)
+			}
 		}
-	}
 
-	for proxy := range s.inactive.index {
-		if !all.contains(proxy) {
-			s.inactive.remove(proxy)
+		for proxy := range s.inactive[priority].index {
+			if !all.contains(proxy) {
+				s.inactive[priority].remove(proxy)
+			}
 		}
 	}
 
 	for _, proxy := range alive {
-		if !s.active.contains(proxy) {
-			s.inactive.add(proxy)
+		priority := s.priority(proxy)
+		if !s.active[priority].contains(proxy) {
+			s.inactive[priority].add(proxy)
 		}
 	}
 
@@ -214,10 +432,20 @@ func (s *ProxySet) updateProxies(updateDone chan struct{}) {
 }
 
 func (s *ProxySet) updateActiveSet() {
-	for s.active.size() < s.activeSetSize() && !s.inactive.empty() {
-		proxy := s.inactive.random()
-		s.inactive.remove(proxy)
-		s.active.add(proxy)
+	remaining := s.activeSetSize()
+	for priority := ProxyPriorityLocal; priority < proxyPriorityCount; priority++ {
+		active, inactive := &s.active[priority], &s.inactive[priority]
+		for active.size() > remaining {
+			proxy := active.random()
+			active.remove(proxy)
+			inactive.add(proxy)
+		}
+		for active.size() < remaining && !inactive.empty() {
+			proxy := inactive.random()
+			inactive.remove(proxy)
+			active.add(proxy)
+		}
+		remaining -= active.size()
 	}
 }
 
@@ -276,8 +504,9 @@ func (s *ProxySet) BanProxy(name string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.active.remove(name)
-	s.inactive.remove(name)
+	priority := s.priority(name)
+	s.active[priority].remove(name)
+	s.inactive[priority].remove(name)
 	s.updateActiveSet()
 }
 

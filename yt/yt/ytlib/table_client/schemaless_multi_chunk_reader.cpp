@@ -90,10 +90,9 @@ using namespace NScheduler;
 using namespace NApi;
 using namespace NLogging;
 
+using NChunkClient::NProto::TMiscExt;
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TReadRange;
-using NChunkClient::NProto::TMiscExt;
-
 using NYT::FromProto;
 using NYT::TRange;
 
@@ -203,7 +202,11 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 /*profiler*/ {});
         }
 
-        auto wrapReader = [=] (ISchemalessChunkReaderPtr chunkReader) {
+        auto wrapReader = [=] (ISchemalessChunkReaderPtr chunkReader) -> ISchemalessChunkReaderPtr {
+            if (!options->DecodeHunks) {
+                return chunkReader;
+            }
+
             auto dictionaryCompressionFactory = CreateSimpleDictionaryCompressionFactory(
                 chunkFragmentReader,
                 config,
@@ -282,9 +285,10 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 : nullptr,
                         });
 
-                        YT_LOG_DEBUG("Create chunk reader (HintCount: %v, ChunkFormat: %v, Sorted: %v)",
-                            hintKeyPrefixes ? std::ssize(hintKeyPrefixes->HintPrefixes) : -1,
-                            chunkMeta->GetChunkFormat(), chunkMeta->Misc().sorted());
+                        YT_TLOG_DEBUG("Create chunk reader")
+                            .With("HintCount", hintKeyPrefixes ? std::ssize(hintKeyPrefixes->HintPrefixes) : -1)
+                            .With("ChunkFormat", chunkMeta->GetChunkFormat())
+                            .With("Sorted", chunkMeta->Misc().sorted());
 
                         if (!hintKeyPrefixes || !chunkMeta->Misc().sorted() ||
                             chunkMeta->GetChunkFormat() != EChunkFormat::TableUnversionedSchemalessHorizontal)
@@ -309,7 +313,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 dataSliceDescriptor.VirtualRowIndex,
                                 interruptDescriptorKeyLength);
                         } else {
-                            YT_LOG_DEBUG("Only reading hint prefixes (Count: %v)", hintKeyPrefixes->HintPrefixes.size());
+                            YT_TLOG_DEBUG("Only reading hint prefixes")
+                                .With("Count", hintKeyPrefixes->HintPrefixes.size());
                             return CreateSchemalessKeyRangesChunkReader(
                                 perClusterChunkReaderHost->Client->GetNativeConnection()->GetColumnEvaluatorCache(),
                                 std::move(chunkState),
@@ -464,10 +469,7 @@ public:
         // Read time is accounted from our own read timer (reacall that multi reader manager deals with chunk readers
         // while Read() is a table reader level methdd).
         auto statistics = MultiReaderManager_->GetTimingStatistics();
-        {
-            auto guard = Guard(ReadTimerLock_);
-            statistics.ReadTime = ReadTimer_.GetElapsedTime();
-        }
+        statistics.ReadTime = ReadTimer_.GetElapsedTime();
         statistics.IdleTime -= statistics.ReadTime;
         return statistics;
     }
@@ -510,8 +512,7 @@ private:
 
     std::atomic<bool> Finished_ = false;
 
-    TWallTimer ReadTimer_ = TWallTimer(false /*active */);
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReadTimerLock_);
+    TConcurrentTimer<TWallTimer> ReadTimer_{/*start*/ false};
 
     void OnReaderSwitched();
 };
@@ -538,12 +539,13 @@ TSchemalessMultiChunkReader::TSchemalessMultiChunkReader(
 TSchemalessMultiChunkReader::~TSchemalessMultiChunkReader()
 {
     const auto& Logger = MultiReaderManager_->GetLogger();
-    YT_LOG_DEBUG("Multi chunk reader timing statistics (TimingStatistics: %v)", TSchemalessMultiChunkReader::GetTimingStatistics());
+    YT_TLOG_DEBUG("Multi chunk reader timing statistics")
+        .With("TimingStatistics", TSchemalessMultiChunkReader::GetTimingStatistics());
 }
 
 IUnversionedRowBatchPtr TSchemalessMultiChunkReader::Read(const TRowBatchReadOptions& options)
 {
-    auto readGuard = TTimerGuard<TWallTimer>(&ReadTimer_, &ReadTimerLock_);
+    auto readGuard = TTimerGuard<TConcurrentTimer<TWallTimer>>(&ReadTimer_);
 
     if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().GetOrCrash().IsOK()) {
         return CreateEmptyUnversionedRowBatch();
@@ -960,7 +962,8 @@ public:
     ~TSchemalessMergingMultiChunkReader()
     {
         YT_UNUSED_FUTURE(ParallelReaderMemoryManager_->Finalize());
-        YT_LOG_DEBUG("Schemaless merging multi chunk reader data statistics (DataStatistics: %v)", TSchemalessMergingMultiChunkReader::GetDataStatistics());
+        YT_TLOG_DEBUG("Schemaless merging multi chunk reader data statistics")
+            .With("DataStatistics", TSchemalessMergingMultiChunkReader::GetDataStatistics());
     }
 
 private:
@@ -1117,7 +1120,7 @@ std::tuple<std::vector<int>, TTimestampColumnMapping> CreateTimestampedMappings(
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to update name table for schemaless merging multi chunk reader")
-            << ex;
+            .With(ex);
     }
 
     return std::tuple(
@@ -1142,7 +1145,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
     auto Logger = TableClientLogger();
     if (chunkReadOptions.ReadSessionId) {
-        Logger.AddTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId);
+        Logger.AddTag("ReadSessionId", chunkReadOptions.ReadSessionId);
     }
 
     const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
@@ -1255,13 +1258,13 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         boundaries.push_back(minKey);
     }
 
-    YT_LOG_DEBUG("Create overlapping range reader (Boundaries: %v, Stores: %v, SystemColumnFilter: %v, TimestampedUserColumnFilter: %v)",
-        boundaries,
-        MakeFormattableView(chunkSpecs, [] (TStringBuilderBase* builder, const TChunkSpec& chunkSpec) {
+    YT_TLOG_DEBUG("Create overlapping range reader")
+        .With("Boundaries", boundaries)
+        .With("Stores", MakeFormattableView(chunkSpecs, [] (TStringBuilderBase* builder, const TChunkSpec& chunkSpec) {
             FormatValue(builder, FromProto<TChunkId>(chunkSpec.chunk_id()), TStringBuf());
-        }),
-        columnFilter,
-        timestampedColumnFilter);
+        }))
+        .With("SystemColumnFilter", columnFilter)
+        .With("TimestampedUserColumnFilter", timestampedColumnFilter);
 
     if (!multiReaderMemoryManager) {
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
@@ -1312,10 +1315,9 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             THROW_ERROR_EXCEPTION("Row index limit is not supported");
         }
 
-        YT_LOG_DEBUG("Creating versioned chunk reader (ChunkId: %v, Range: <%v : %v>)",
-            chunkId,
-            lowerLimit,
-            upperLimit);
+        YT_TLOG_DEBUG("Creating versioned chunk reader")
+            .With("ChunkId", chunkId)
+            .WithFormat("Range", "<%v : %v>", lowerLimit, upperLimit);
 
         auto remoteReader = CreateRemoteReader(
             chunkSpec,
@@ -1338,15 +1340,15 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             .BlockCache = chunkReaderHost->BlockCache,
             .ChunkSpec = chunkSpec,
             .ChunkMeta = versionedChunkMeta,
-            .OverrideTimestamp = chunkSpec.has_override_timestamp() ? chunkSpec.override_timestamp() : NullTimestamp,
+            .OverrideTimestamp = FromProto<NTransactionClient::TTimestamp>(chunkSpec.override_timestamp()),
             .TableSchema = versionedReadSchema,
             .DataSource = dataSource,
         });
 
         auto effectiveTimestamp = timestamp;
         if (chunkSpec.has_max_clip_timestamp()) {
-            YT_ASSERT(chunkSpec.max_clip_timestamp() != NullTimestamp);
-            effectiveTimestamp = std::min(effectiveTimestamp, chunkSpec.max_clip_timestamp());
+            YT_ASSERT(FromProto<NTransactionClient::TTimestamp>(chunkSpec.max_clip_timestamp()) != NullTimestamp);
+            effectiveTimestamp = std::min(effectiveTimestamp, FromProto<NTransactionClient::TTimestamp>(chunkSpec.max_clip_timestamp()));
         }
 
         if (versionedChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
@@ -1535,6 +1537,10 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 nameTable,
                 chunkReadOptions,
                 adjustedColumnFilter);
+
+            if (!options->DecodeHunks) {
+                return reader;
+            }
 
             auto chunkFragmentReader = CreateChunkFragmentReader(
                 config,

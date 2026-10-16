@@ -75,4 +75,9 @@ using TPersistentStatePtr = TIntrusivePtr<TPersistentState>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Returns true if the node holds the classic policy's persistent state.
+bool IsClassicPersistentState(const NYTree::INodePtr& node);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler::NStrategy::NPolicy

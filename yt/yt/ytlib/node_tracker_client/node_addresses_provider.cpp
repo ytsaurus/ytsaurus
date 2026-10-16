@@ -9,7 +9,7 @@
 #include <yt/yt/core/rpc/dispatcher.h>
 #include <yt/yt/core/rpc/roaming_channel.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
@@ -80,7 +80,7 @@ public:
                 .Period = syncPeriod,
                 .Splay = syncPeriodSplay,
             }))
-        , Logger(NodeTrackerClientLogger().WithTag("NodeRole: %v", NodeRole_))
+        , Logger(NodeTrackerClientLogger().WithTag("NodeRole", NodeRole_))
         , NullChannel_(ChannelBuilder_({}))
     { }
 
@@ -102,8 +102,8 @@ public:
             return MakeFuture<IChannelPtr>(TError(
                 NRpc::EErrorCode::TransportError,
                 "Channel terminated")
-                << NullChannel_->GetEndpointAttributes()
-                << TerminationError_);
+                .With(NullChannel_->GetEndpointAttributes())
+                .With(TerminationError_));
         }
         return ChannelPromise_;
     }
@@ -146,7 +146,7 @@ private:
 
     const IChannelPtr NullChannel_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     mutable bool Started_ = false;
     TPromise<IChannelPtr> ChannelPromise_ = NewPromise<IChannelPtr>();
     TError TerminationError_;
@@ -210,7 +210,7 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Started updating node list");
+            YT_TLOG_DEBUG("Started updating node list");
 
             auto channel = cellDirectory->GetMasterChannelOrThrow(GetChannelKind(NodeRole_), cellDirectory->GetPrimaryMasterCellId());
             auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(channel));
@@ -248,23 +248,25 @@ private:
                 .ValueOrThrow();
             auto newAddresses = GetAddresses(NodeRole_, rsp);
 
-            YT_LOG_DEBUG("Received node list (Addresses: %v)", newAddresses);
+            YT_TLOG_DEBUG("Received node list")
+                .With("Addresses", newAddresses);
 
             if (Addresses_ == newAddresses) {
-                YT_LOG_DEBUG("Node list has not changed");
+                YT_TLOG_DEBUG("Node list has not changed");
                 return;
             }
 
-            YT_LOG_INFO("Node list has been changed (OldAddresses: %v, NewAddresses: %v)",
-                Addresses_,
-                newAddresses);
+            YT_TLOG_INFO("Node list has been changed")
+                .With("OldAddresses", Addresses_)
+                .With("NewAddresses", newAddresses);
 
             Addresses_ = std::move(newAddresses);
             SetChannel(ChannelBuilder_(*Addresses_));
 
-            YT_LOG_DEBUG("Finished updating node list");
+            YT_TLOG_DEBUG("Finished updating node list");
         } catch (const std::exception& ex) {
-            YT_LOG_INFO(ex, "Failed updating node list");
+            YT_TLOG_INFO("Failed updating node list")
+                .With(ex);
         }
     }
 };

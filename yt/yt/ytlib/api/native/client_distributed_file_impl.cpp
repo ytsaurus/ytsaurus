@@ -335,12 +335,13 @@ IFileFragmentWriterPtr TClient::CreateFileFragmentWriter(
     }
 
     auto cookie = ConvertTo<TWriteFileFragmentCookie>(TYsonStringBuf(signedCookie.Underlying()->Payload()));
+    auto mainTransactionId = cookie.CookieData.MainTransactionId;
 
     return NFileClient::CreateFileFragmentWriter(
         options.Config ? options.Config : New<TFileWriterConfig>(),
         std::move(cookie),
         MakeStrong(this),
-        cookie.CookieData.MainTransactionId,
+        mainTransactionId,
         /*writeBlocksOptions*/ {},
         HeavyRequestMemoryUsageTracker_
     );

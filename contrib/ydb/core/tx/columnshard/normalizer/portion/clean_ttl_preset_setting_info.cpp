@@ -1,1 +1,0 @@
-#include "clean_ttl_preset_setting_info.h"

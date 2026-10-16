@@ -61,13 +61,16 @@ target_sources(unittester-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_list_statistics_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_replacer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_requisition_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_statistics_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_tree_balancer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_tree_traversing_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_tree_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_view_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/cumulative_statistics_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/incumbent_scheduler_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/interned_pool_attributes_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/leader_smoothing_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/table_schema_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/tablet_cell_balancer_ut.cpp
 )

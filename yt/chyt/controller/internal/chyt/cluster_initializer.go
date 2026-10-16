@@ -10,19 +10,18 @@ import (
 )
 
 const (
-	DefaultDiscoveryV1Path = ypath.Path("//sys/clickhouse/cliques")
-	YTClickHouseUser       = "yt-clickhouse"
-	CHYTSQLObjectsUser     = "chyt-sql-objects"
+	YTClickHouseUser   = "yt-clickhouse"
+	CHYTSQLObjectsUser = "chyt-sql-objects"
 )
 
 type ClusterInitializer struct {
-	l    log.Logger
-	ytc  yt.Client
-	root ypath.Path
+	l          log.Logger
+	ytc        yt.Client
+	familyRoot ypath.Path
 }
 
 func (initializer *ClusterInitializer) createNodesIfNotExist(ctx context.Context) error {
-	_, err := initializer.ytc.CreateNode(ctx, DefaultDiscoveryV1Path, yt.NodeMap, &yt.CreateNodeOptions{
+	_, err := initializer.ytc.CreateNode(ctx, ypath.Path("//sys/clickhouse"), yt.NodeMap, &yt.CreateNodeOptions{
 		Recursive:      true,
 		IgnoreExisting: true,
 	})
@@ -152,7 +151,7 @@ func (initializer *ClusterInitializer) setUpYTClickHouseUser(ctx context.Context
 			yt.PermissionMount,
 		},
 	}
-	err = initializer.addPermissionIfNeeded(ctx, YTClickHouseUser, initializer.root, rootACL)
+	err = initializer.addPermissionIfNeeded(ctx, YTClickHouseUser, initializer.familyRoot, rootACL)
 	if err != nil {
 		return err
 	}
@@ -176,7 +175,7 @@ func (initializer *ClusterInitializer) setUpCHYTSQLObjectsUser(ctx context.Conte
 			yt.PermissionRemove,
 		},
 	}
-	err := initializer.addPermissionIfNeeded(ctx, CHYTSQLObjectsUser, initializer.root, rootACL)
+	err := initializer.addPermissionIfNeeded(ctx, CHYTSQLObjectsUser, initializer.familyRoot, rootACL)
 	if err != nil {
 		return err
 	}
@@ -212,10 +211,10 @@ func (initializer *ClusterInitializer) ACONamespace() string {
 	return "chyt"
 }
 
-func NewClusterInitializer(l log.Logger, ytc yt.Client, root ypath.Path) strawberry.ClusterInitializer {
+func NewClusterInitializer(l log.Logger, ytc yt.Client, familyRoot ypath.Path) strawberry.ClusterInitializer {
 	return &ClusterInitializer{
-		l:    l,
-		ytc:  ytc,
-		root: root,
+		l:          l,
+		ytc:        ytc,
+		familyRoot: familyRoot,
 	}
 }

@@ -2,8 +2,8 @@ from yt_odin.logserver import FULLY_AVAILABLE_STATE, UNAVAILABLE_STATE
 from yt_odin.test_helpers import make_check_dir, configure_odin, run_checks, wait
 
 
-def test_controller_operation_memory_consumption(yt_env):
-    yt_client = yt_env.yt_client
+def test_controller_operation_memory_consumption(yt_env_with_tagged_memory_profiling):
+    yt_client = yt_env_with_tagged_memory_profiling.yt_client
     proxy_url = yt_client.config["proxy"]["url"]
 
     agents = yt_client.get("//sys/controller_agents/instances")
@@ -31,8 +31,8 @@ def test_controller_operation_memory_consumption(yt_env):
         op.abort()
 
 
-def test_controller_operation_memory_consumption_fail(yt_env):
-    yt_client = yt_env.yt_client
+def test_controller_operation_memory_consumption_fail(yt_env_with_tagged_memory_profiling):
+    yt_client = yt_env_with_tagged_memory_profiling.yt_client
     proxy_url = yt_client.config["proxy"]["url"]
 
     agents = yt_client.get("//sys/controller_agents/instances")

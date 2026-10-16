@@ -1,7 +1,6 @@
 #include "chunk_pool.h"
 
-#include "legacy_job_manager.h"
-#include "new_job_manager.h"
+#include "job_manager.h"
 
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
@@ -111,90 +110,73 @@ PHOENIX_DEFINE_TYPE(TChunkPoolOutputWithCountersBase);
 
 // IPersistentChunkPoolOutput implementation.
 
-template <class TJobManager>
-TChunkPoolOutputWithJobManagerBase<TJobManager>::TChunkPoolOutputWithJobManagerBase(const NLogging::TLogger& logger)
+TChunkPoolOutputWithJobManagerBase::TChunkPoolOutputWithJobManagerBase(const NLogging::TLogger& logger)
     : JobManager_(New<TJobManager>(logger))
 { }
 
-template <class TJobManager>
-NTableClient::TChunkStripeStatisticsVector TChunkPoolOutputWithJobManagerBase<TJobManager>::GetApproximateStripeStatistics() const
+NTableClient::TChunkStripeStatisticsVector TChunkPoolOutputWithJobManagerBase::GetApproximateStripeStatistics() const
 {
     return JobManager_->GetApproximateStripeStatistics();
 }
 
-template <class TJobManager>
-IChunkPoolOutput::TCookie TChunkPoolOutputWithJobManagerBase<TJobManager>::Extract(TNodeId /*nodeId*/)
+IChunkPoolOutput::TCookie TChunkPoolOutputWithJobManagerBase::Extract(TNodeId /*nodeId*/)
 {
     return JobManager_->ExtractCookie();
 }
 
-template <class TJobManager>
-TChunkStripeListPtr TChunkPoolOutputWithJobManagerBase<TJobManager>::GetStripeList(IChunkPoolOutput::TCookie cookie)
+TChunkStripeListPtr TChunkPoolOutputWithJobManagerBase::GetStripeList(IChunkPoolOutput::TCookie cookie)
 {
     return JobManager_->GetStripeList(cookie);
 }
 
-template <class TJobManager>
-int TChunkPoolOutputWithJobManagerBase<TJobManager>::GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const
+int TChunkPoolOutputWithJobManagerBase::GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const
 {
     return JobManager_->GetStripeList(cookie)->GetAggregateStatistics().ChunkCount;
 }
 
-template <class TJobManager>
-void TChunkPoolOutputWithJobManagerBase<TJobManager>::Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary)
+void TChunkPoolOutputWithJobManagerBase::Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary)
 {
     JobManager_->Completed(cookie, jobSummary.InterruptionReason);
 }
 
-template <class TJobManager>
-void TChunkPoolOutputWithJobManagerBase<TJobManager>::Failed(IChunkPoolOutput::TCookie cookie)
+void TChunkPoolOutputWithJobManagerBase::Failed(IChunkPoolOutput::TCookie cookie)
 {
     JobManager_->Failed(cookie);
 }
 
-template <class TJobManager>
-void TChunkPoolOutputWithJobManagerBase<TJobManager>::Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason)
+void TChunkPoolOutputWithJobManagerBase::Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason)
 {
     JobManager_->Aborted(cookie, reason);
 }
 
-template <class TJobManager>
-void TChunkPoolOutputWithJobManagerBase<TJobManager>::Lost(IChunkPoolOutput::TCookie cookie)
+void TChunkPoolOutputWithJobManagerBase::Lost(IChunkPoolOutput::TCookie cookie)
 {
     JobManager_->Lost(cookie);
 }
 
-template <class TJobManager>
-const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase<TJobManager>::GetJobCounter() const
+const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetJobCounter() const
 {
     return JobManager_->JobCounter();
 }
 
-template <class TJobManager>
-const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase<TJobManager>::GetDataWeightCounter() const
+const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetDataWeightCounter() const
 {
     return JobManager_->DataWeightCounter();
 }
 
-template <class TJobManager>
-const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase<TJobManager>::GetRowCounter() const
+const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetRowCounter() const
 {
     return JobManager_->RowCounter();
 }
 
-template <class TJobManager>
-const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase<TJobManager>::GetDataSliceCounter() const
+const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetDataSliceCounter() const
 {
     return JobManager_->DataSliceCounter();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-PHOENIX_DEFINE_TEMPLATE_TYPE(TChunkPoolOutputWithJobManagerBase, (NPhoenix::_));
-
-// Explicit instantiations.
-template class TChunkPoolOutputWithJobManagerBase<TLegacyJobManager>;
-template class TChunkPoolOutputWithJobManagerBase<TNewJobManager>;
+PHOENIX_DEFINE_TYPE(TChunkPoolOutputWithJobManagerBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -214,11 +196,10 @@ void TJobSplittingBase::Completed(TCookie cookie, const TCompletedJobSummary& jo
     // If we have at least one processed row, we are a legal job, do nothing.
     // If we cannot find input row count field in statistics, something is wrong,
     // so do not affect splittability of anybody.
-    YT_LOG_DEBUG(
-        "Input row count extracted from job summary (JobId: %v, OutputCookie: %v, InputRowCount: %v)",
-        jobSummary.Id,
-        cookie,
-        inputRowCount);
+    YT_TLOG_DEBUG("Input row count extracted from job summary")
+        .With("JobId", jobSummary.Id)
+        .With("OutputCookie", cookie)
+        .With("InputRowCount", inputRowCount);
     if (!inputRowCount || *inputRowCount != 0) {
         return;
     }
@@ -234,7 +215,9 @@ void TJobSplittingBase::Completed(TCookie cookie, const TCompletedJobSummary& jo
     auto parentCookie = VectorAtOr(CookieToParentCookie_, cookie, /*defaultValue*/ IChunkPoolOutput::NullCookie);
     // If we are a root job, we affect splittability of nobody.
     if (parentCookie == IChunkPoolOutput::NullCookie) {
-        YT_LOG_DEBUG("Job is a root job, doing nothing (JobId: %v, OutputCookie: %v)", jobSummary.Id, cookie);
+        YT_TLOG_DEBUG("Job is a root job, doing nothing")
+            .With("JobId", jobSummary.Id)
+            .With("OutputCookie", cookie);
         return;
     }
 
@@ -242,31 +225,27 @@ void TJobSplittingBase::Completed(TCookie cookie, const TCompletedJobSummary& jo
     // no need to do anything any more.
     if (!IsSplittable(parentCookie)) {
         YT_VERIFY(!VectorAtOr(CookieIsSplittable_, cookie, /*defaultValue*/ true));
-        YT_LOG_DEBUG(
-            "Parent is already unsplittable, doing nothing (JobId: %v, OutputCookie: %v, ParentOutputCookie: %v)",
-            jobSummary.Id,
-            cookie,
-            parentCookie);
+        YT_TLOG_DEBUG("Parent is already unsplittable, doing nothing")
+            .With("JobId", jobSummary.Id)
+            .With("OutputCookie", cookie)
+            .With("ParentOutputCookie", parentCookie);
         return;
     }
 
     EnsureVectorIndex(CookieToEmptyChildCount_, parentCookie);
     auto parentEmptyChildCount = ++CookieToEmptyChildCount_[parentCookie];
-    YT_LOG_DEBUG(
-        "Empty split child detected (JobId: %v, OutputCookie: %v, ParentOutputCookie: %v, ParentEmptyChildCount: %v)",
-        jobSummary.Id,
-        cookie,
-        parentCookie,
-        parentEmptyChildCount);
+    YT_TLOG_DEBUG("Empty split child detected")
+        .With("JobId", jobSummary.Id)
+        .With("OutputCookie", cookie)
+        .With("ParentOutputCookie", parentCookie)
+        .With("ParentEmptyChildCount", parentEmptyChildCount);
 
     YT_VERIFY(parentCookie < static_cast<TCookie>(CookieToChildCookies_.size()));
     if (parentEmptyChildCount + 1 >= std::ssize(CookieToChildCookies_[parentCookie])) {
-        YT_LOG_DEBUG(
-            "All but one sibling of a cookie are empty, marking descendants of a "
-            "parent as unsplittable (JobId: %v, OutputCookie: %v, ParentOutputCookie: %v)",
-            jobSummary.Id,
-            cookie,
-            parentCookie);
+        YT_TLOG_DEBUG("All but one sibling of a cookie are empty, marking descendants of a parent as unsplittable")
+            .With("JobId", jobSummary.Id)
+            .With("OutputCookie", cookie)
+            .With("ParentOutputCookie", parentCookie);
         MarkDescendantsUnsplittable(jobSummary.Id, parentCookie);
     }
 }
@@ -283,21 +262,18 @@ void TJobSplittingBase::RegisterChildCookies(TJobId jobId, TCookie cookie, std::
         return;
     }
 
-    YT_LOG_DEBUG(
-        "Job was split (JobId: %v, OutputCookie: %v, ChildOutputCookies: %v",
-        jobId,
-        cookie,
-        childCookies);
+    YT_TLOG_DEBUG("Job was split")
+        .With("JobId", jobId)
+        .With("OutputCookie", cookie)
+        .With("ChildOutputCookies", childCookies);
 
     // Job splitter must call IsSplittable twice: before deciding to interrupt job and
     // before setting SplitJobCount (note that we may decide that job is unsplittable
     // before these two events by all-siblings-were-empty condition).
-    YT_LOG_ALERT_UNLESS(
-        childCookies.size() == 1 || IsSplittable(cookie),
-        "Unexpected call to RegisterChildCookies (JobId: %v, IsSplittable: %v, ChildCookies: %v)",
-        jobId,
-        IsSplittable(cookie),
-        childCookies);
+    YT_TLOG_ALERT_UNLESS(childCookies.size() == 1 || IsSplittable(cookie), "Unexpected call to RegisterChildCookies")
+        .With("JobId", jobId)
+        .With("IsSplittable", IsSplittable(cookie))
+        .With("ChildCookies", childCookies);
 
     // If there is a single child while we expected child count to be at least 2,
     // we were not successful in splitting this job.
@@ -305,19 +281,17 @@ void TJobSplittingBase::RegisterChildCookies(TJobId jobId, TCookie cookie, std::
     // to ensure unsplittability propagation.
     bool markChildrenUnsplittable = false;
     if (childCookies.size() == 1 && VectorAtOr(CookieShouldBeSplitProperly_, cookie)) {
-        YT_LOG_DEBUG(
-            "Splitting resulted in a single child, marking him as unsplittable (JobId: %v, OutputCookie: %v, ChildOutputCookie: %v)",
-            jobId,
-            cookie,
-            childCookies.back());
+        YT_TLOG_DEBUG("Splitting resulted in a single child, marking him as unsplittable")
+            .With("JobId", jobId)
+            .With("OutputCookie", cookie)
+            .With("ChildOutputCookie", childCookies.back());
         markChildrenUnsplittable = true;
     }
     if (!IsSplittable(cookie)) {
-        YT_LOG_DEBUG(
-            "Propagating unsplittability to children (JobId: %v, OutputCookie: %v, ChildOutputCookies: %v)",
-            jobId,
-            cookie,
-            childCookies);
+        YT_TLOG_DEBUG("Propagating unsplittability to children")
+            .With("JobId", jobId)
+            .With("OutputCookie", cookie)
+            .With("ChildOutputCookies", childCookies);
         markChildrenUnsplittable = true;
     }
     if (markChildrenUnsplittable) {
@@ -360,11 +334,10 @@ void TJobSplittingBase::MarkDescendantsUnsplittable(TJobId jobId, TCookie cookie
         }
     }
 
-    YT_LOG_DEBUG(
-        "Descendants of a cookie marked as unsplittable (JobId: %v, OutputCookie: %v, NewUnsplittableDescendants: %v)",
-        jobId,
-        cookie,
-        visitedCookies);
+    YT_TLOG_DEBUG("Descendants of a cookie marked as unsplittable")
+        .With("JobId", jobId)
+        .With("OutputCookie", cookie)
+        .With("NewUnsplittableDescendants", visitedCookies);
 }
 
 size_t TJobSplittingBase::GetMaxVectorSize() const
@@ -400,9 +373,6 @@ void TJobSplittingBase::ValidateChildJobSizes(
 
     auto [parentPrimaryStatistics, parentForeignStatistics] = getPrimaryAndForeignStatistics(parentCookie);
 
-    TChunkStripeStatistics totalChildPrimaryStatistics;
-    TChunkStripeStatistics totalChildForeignStatistics;
-
     auto hasGreaterComponent = [] (const TChunkStripeStatistics& childStatistics, const TChunkStripeStatistics& parentStatistics) {
         return childStatistics.DataWeight > parentStatistics.DataWeight ||
             childStatistics.CompressedDataSize > parentStatistics.CompressedDataSize ||
@@ -413,35 +383,17 @@ void TJobSplittingBase::ValidateChildJobSizes(
     for (auto childCookie : childCookies) {
         auto [childPrimaryStatistics, childForeignStatistics] = getPrimaryAndForeignStatistics(childCookie);
 
-        YT_LOG_ALERT_IF(
+        YT_TLOG_ALERT_IF(
             hasGreaterComponent(childPrimaryStatistics, parentPrimaryStatistics) ||
             hasGreaterComponent(childForeignStatistics, parentForeignStatistics),
-            "Child job is greater than parent job "
-            "(ParentCookie: %v, ChildCookie: %v, ParentPrimaryStatistics: %v, ChildPrimaryStatistics: %v, "
-            "ParentForeignStatistics: %v, ChildForeignStatistics: %v)",
-            parentCookie,
-            childCookie,
-            parentPrimaryStatistics,
-            childPrimaryStatistics,
-            parentForeignStatistics,
-            childForeignStatistics);
-
-        totalChildPrimaryStatistics += childPrimaryStatistics;
-        totalChildForeignStatistics += childForeignStatistics;
+            "Child job is greater than parent job")
+            .With("ParentCookie", parentCookie)
+            .With("ChildCookie", childCookie)
+            .With("ParentPrimaryStatistics", parentPrimaryStatistics)
+            .With("ChildPrimaryStatistics", childPrimaryStatistics)
+            .With("ParentForeignStatistics", parentForeignStatistics)
+            .With("ChildForeignStatistics", childForeignStatistics);
     }
-
-    YT_LOG_ALERT_IF(
-        totalChildPrimaryStatistics.DataWeight > parentPrimaryStatistics.DataWeight ||
-        totalChildPrimaryStatistics.RowCount > parentPrimaryStatistics.RowCount,
-        "Child jobs have greater primary data weight or primary row count than parent job "
-        "(ParentCookie: %v, ChildCookies: %v, ParentPrimaryStatistics: %v, ParentForeignStatistics: %v, "
-        "TotalChildPrimaryStatistics: %v, TotalChildForeignStatistics: %v)",
-        parentCookie,
-        childCookies,
-        parentPrimaryStatistics,
-        parentForeignStatistics,
-        totalChildPrimaryStatistics,
-        totalChildForeignStatistics);
 }
 
 void TJobSplittingBase::RegisterMetadata(auto&& registrar)

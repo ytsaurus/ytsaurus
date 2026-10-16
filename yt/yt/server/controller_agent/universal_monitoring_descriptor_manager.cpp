@@ -47,7 +47,7 @@ bool TUniversalMonitoringDescriptorManager::TryAcqireMonitoringDescriptor(TOpera
         ++NotAcquiredMonitoringDescriptorsCount_;
         return false;
     }
-    OperationIdToCountOfAcqiredMonitor_[operationId]++;
+    OperationIdToCountOfAcquiredMonitor_[operationId]++;
     ++Size_;
     return true;
 }
@@ -56,8 +56,8 @@ bool TUniversalMonitoringDescriptorManager::TryReleaseMonitoringDescriptor(TOper
 {
     auto guard = TGuard(SpinLock_);
 
-    auto it = OperationIdToCountOfAcqiredMonitor_.find(operationId);
-    if (it == OperationIdToCountOfAcqiredMonitor_.end() || it->second == 0) {
+    auto it = OperationIdToCountOfAcquiredMonitor_.find(operationId);
+    if (it == OperationIdToCountOfAcquiredMonitor_.end() || it->second == 0) {
         return false;
     }
 
@@ -71,28 +71,28 @@ bool TUniversalMonitoringDescriptorManager::TryReleaseMonitoringDescriptor(TOper
 bool TUniversalMonitoringDescriptorManager::TryRemoveOperation(TOperationId operationId)
 {
     auto guard = TGuard(SpinLock_);
-    auto it = OperationIdToCountOfAcqiredMonitor_.find(operationId);
-    if (it == OperationIdToCountOfAcqiredMonitor_.end()) {
+    auto it = OperationIdToCountOfAcquiredMonitor_.find(operationId);
+    if (it == OperationIdToCountOfAcquiredMonitor_.end()) {
         return false;
     }
 
-    auto countOfUnrelesedMonitor = it->second;
-    Size_ -= countOfUnrelesedMonitor;
-    OperationIdToCountOfAcqiredMonitor_.erase(it);
-    return countOfUnrelesedMonitor;
+    auto countOfUnreleasedMonitor = it->second;
+    Size_ -= countOfUnreleasedMonitor;
+    OperationIdToCountOfAcquiredMonitor_.erase(it);
+    return true;
 }
 
 void TUniversalMonitoringDescriptorManager::RemoveAllOperations()
 {
     auto guard = TGuard(SpinLock_);
 
-    for (const auto& [_, countOfAcquiredMonitor] : OperationIdToCountOfAcqiredMonitor_) {
+    for (const auto& [_, countOfAcquiredMonitor] : OperationIdToCountOfAcquiredMonitor_) {
         Size_ -= countOfAcquiredMonitor;
     }
 
     YT_VERIFY(Size_ == 0);
 
-    OperationIdToCountOfAcqiredMonitor_.clear();
+    OperationIdToCountOfAcquiredMonitor_.clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

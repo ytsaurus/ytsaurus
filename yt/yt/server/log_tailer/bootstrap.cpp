@@ -9,6 +9,8 @@
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
 
+#include <yt/yt/library/profiling/solomon/exporter.h>
+
 #include <yt/yt/library/program/build_attributes.h>
 
 #include <yt/yt/core/http/server.h>
@@ -27,7 +29,7 @@ using namespace NSignals;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Bootstrap");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,15 +41,17 @@ TBootstrap::TBootstrap(TLogTailerBootstrapConfigPtr config)
 
 void TBootstrap::Run()
 {
-    YT_LOG_INFO("Starting log tailer");
+    YT_TLOG_INFO("Starting log tailer");
 
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
+    auto solomonExporter = New<NProfiling::TSolomonExporter>(Config_->SolomonExporter);
     NMonitoring::Initialize(
         HttpServer_,
-        Config_->SolomonExporter,
+        solomonExporter,
         &MonitoringManager_,
         &OrchidRoot_);
+    solomonExporter->Start();
 
     SetBuildAttributes(OrchidRoot_, "clickhouse_log_tailer");
 
@@ -67,11 +71,12 @@ void TBootstrap::Run()
 void TBootstrap::SigintHandler()
 {
     auto counter = ++SigintCounter_;
-    YT_LOG_INFO("Received SIGINT (SigintCount: %v)", counter);
+    YT_TLOG_INFO("Received SIGINT")
+        .With("SigintCount", counter);
     if (counter > 1) {
         Abort(ToUnderlying(EProcessExitCode::OK));
     }
-    YT_LOG_INFO("Ignoring first SIGINT");
+    YT_TLOG_INFO("Ignoring first SIGINT");
 }
 
 const TLogTailerConfigPtr& TBootstrap::GetConfig()

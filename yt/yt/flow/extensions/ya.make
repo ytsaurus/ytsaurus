@@ -1,0 +1,5 @@
+RECURSE(
+    clickhouse
+    http
+    kafka
+)

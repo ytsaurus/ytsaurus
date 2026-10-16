@@ -270,7 +270,7 @@ bool ContainsComputedFields(TExpressionPtr expression, std::function<bool(TRefer
     return TComputedFieldsChecker(std::move(detector)).ContainsComputedField(expression);
 }
 
-std::pair<TExpressionPtr, TExpressionPtr> SplitFilter(
+std::pair<TExpressionPtr, TExpressionPtr> SplitFilterByComputedFields(
     TObjectsHolder* context,
     std::function<bool(TReferenceExpressionPtr)> detector,
     TExpressionPtr filter)

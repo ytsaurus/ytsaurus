@@ -75,18 +75,15 @@ private:
             return false;
         }
         LockGuard cleanup_lock(*mod_globs->thread_states_to_destroy_lock);
-        if (state->has_main_greenlet()) {
-            // mark the thread as dead ASAP.
-            // this is racy! If we try to throw or switch to a
-            // greenlet from this thread from some other thread before
-            // we clear the state pointer, it won't realize the state
-            // is dead which can crash the process.
-            PyGreenlet* p(state->borrow_main_greenlet().borrow());
-            assert(p->pimpl->thread_state() == state || p->pimpl->thread_state() == nullptr);
-            dynamic_cast<MainGreenlet*>(p->pimpl)->thread_state(nullptr);
-           return true;
-        }
-        return false;
+        // mark the thread as dead ASAP.
+        // TODO: While the state variable tracking the death is
+        // atomic, and used with the strictest memory ordering, could
+        // this still be hiding race conditions? Specifically, is
+        // there a scenario where a thread is dying and thread local
+        // variables are being deconstructed, and some other thread
+        // tries to switch/throw to a greenlet owned by this thread,
+        // such that we think the switch will work but it won't?
+        return state->mark_main_greenlet_dead();
     }
 
     static void
@@ -161,33 +158,30 @@ private:
         // May or may not be holding the GIL (depending on Py_GIL_DISABLED).
         // Passed a non-shared pointer to the actual thread state.
         // state -> main greenlet
-        assert(state->has_main_greenlet());
+        //
+        // The thread_state in the main greenlet has already been
+        // cleared by the time this function runs from our pending
+        // callback, but the greenlet itself is still there.
+#ifndef NDEBUG
         PyGreenlet* main(state->borrow_main_greenlet());
-        // When we need to do cross-thread operations, we check this.
-        // A NULL value means the thread died some time ago.
-        // We do this here, rather than in a Python dealloc function
-        // for the greenlet, in case there's still a reference out
-        // there.
-        dynamic_cast<MainGreenlet*>(main->pimpl)->thread_state(nullptr);
-
+        assert(main);
+        assert(main->pimpl->thread_state() == nullptr);
+#endif
         delete state; // Deleting this runs the destructor, DECREFs the main greenlet.
     }
 
 
     static int AddPendingCall(int (*func)(void*), void* arg)
     {
-        // If the interpreter is in the middle of finalizing, we can't add a
-        // pending call. Trying to do so will end up in a SIGSEGV, as
-        // Py_AddPendingCall will not be able to get the interpreter and will
-        // try to dereference a NULL pointer. It's possible this can still
-        // segfault if we happen to get context switched, and maybe we should
-        // just always implement our own AddPendingCall, but I'd like to see if
-        // this works first
-#if GREENLET_PY313
-        if (Py_IsFinalizing()) {
-#else
-        if (_Py_IsFinalizing()) {
-#endif
+        // If the interpreter is in the middle of finalizing, we can't
+        // add a pending call. Trying to do so will end up in a
+        // SIGSEGV, as Py_AddPendingCall will not be able to get the
+        // interpreter and will try to dereference a NULL pointer.
+        // It's possible this can still segfault if we happen to get
+        // context switched, and maybe we should just always implement
+        // our own AddPendingCall, but I'd like to see if this works
+        // first
+        if (greenlet::IsShuttingDown()) {
 #ifdef GREENLET_DEBUG
             // No need to log in the general case. Yes, we'll leak,
             // but we're shutting down so it should be ok.

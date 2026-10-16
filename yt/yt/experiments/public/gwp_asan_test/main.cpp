@@ -62,7 +62,7 @@ protected:
                 "Unknown mode %Qv, expected one of %lv",
                 ModeString_,
                 std::vector(domainValues.begin(), domainValues.end()))
-                << TError(ex);
+                .With(ex);
         }
 
         i64 cumulativeAllocationSize = 0;
@@ -154,7 +154,7 @@ protected:
     }
 
 private:
-    TString ModeString_ = "none";
+    std::string ModeString_ = "none";
     EMode Mode_;
     i64 AllocationSize_ = 8_KB;
     i64 GuardedSamplingRate_ = 128_MB;

@@ -1,3 +1,5 @@
+#include "queue_consumer_type_handler.h"
+
 #include "client_impl.h"
 #include "type_handler_detail.h"
 
@@ -22,11 +24,15 @@ public:
         const TYPath& path,
         const TCreateNodeOptions& options)
     {
-        if (type != EObjectType::QueueConsumer) {
+        if (type != EObjectType::QueueConsumer && type != EObjectType::QueueMultiConsumer) {
             return {};
         }
 
-        return CreateQueueConsumerNode(Client_, path, options);
+        return CreateQueueConsumerNode(
+            Client_,
+            path,
+            /*isMultiConsumer*/ type == EObjectType::QueueMultiConsumer,
+            options);
     }
 };
 

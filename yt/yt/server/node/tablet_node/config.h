@@ -30,6 +30,8 @@
 
 #include <yt/yt/core/concurrency/config.h>
 
+#include <yt/yt/core/misc/config.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/ytree/polymorphic_yson_struct.h>
@@ -132,6 +134,14 @@ struct TTabletManagerDynamicConfig
     //! snapshots with redirection hint may be evicted.
     std::optional<TDuration> ExtendedSnapshotEvictionTimeout;
 
+    //! Timeout for waiting on a smooth movement stage change when a write
+    //! arrives at a tablet that is temporarily in read-only stage.
+    TDuration WaitOnReadOnlySmoothMovementStageTimeout;
+
+    bool YieldBeforeBuildingLsmActions;
+
+    bool AccountActiveStoreLookupHashTableToTabletStatic;
+
     REGISTER_YSON_STRUCT(TTabletManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -144,11 +154,11 @@ DEFINE_REFCOUNTED_TYPE(TTabletManagerDynamicConfig)
 struct TTabletCellWriteManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-    //! Testing option.
-    //! If set, write request will fail with this probability.
-    //! In case of failure write request will be equiprobably
-    //! applied or not applied.
-    std::optional<double> WriteFailureProbability;
+    //! Testing options.
+    //! If set, the write fails with this probability and is not applied.
+    std::optional<double> FailureProbabilityBeforeWrite;
+    //! If set, the write fails with this probability and is applied.
+    std::optional<double> FailureProbabilityAfterWrite;
 
     //! Compat. See comment in TTabletWriteManager::OnTransactionTransientReset.
     bool DetectTransientTransactionsPerTablet;
@@ -197,8 +207,11 @@ DEFINE_REFCOUNTED_TYPE(TStoreBackgroundActivityOrchidConfig)
 struct TCompactionHintFetcherConfig
     : public NYTree::TYsonStruct
 {
+    static const TExponentialBackoffOptions DefaultRetryBackoff;
+
     NConcurrency::TPeriodicExecutorOptions PeriodicExecutor;
     NConcurrency::TThroughputThrottlerConfigPtr RequestThrottler;
+    TExponentialBackoffOptions RetryBackoff;
 
     REGISTER_YSON_STRUCT(TCompactionHintFetcherConfig);
 
@@ -284,7 +297,7 @@ struct TStoreCompactorDynamicConfig
     std::optional<std::string> CompactionFairSharePool;
     std::optional<std::string> PartitioningFairSharePool;
 
-    bool ScheduleNewTasksAfterTaskCompletion;
+    bool ReuseCompactionInvokerForWriterCompression;
 
     double StarvingTablesTasksRatio;
     TDuration BackgroundTaskHistoryWindow;
@@ -295,6 +308,24 @@ struct TStoreCompactorDynamicConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreCompactorDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGlobalStoresUpdateThrottlerConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+    TDuration RpcTimeout;
+
+    // COMPAT(alexelexa)
+    TDuration NoSuchMethodBackoffTime;
+
+    REGISTER_YSON_STRUCT(TGlobalStoresUpdateThrottlerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGlobalStoresUpdateThrottlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -511,6 +542,7 @@ struct TStatisticsReporterConfig
     bool Enable;
     int MaxTabletsPerTransaction;
     TDuration ReportBackoffTime;
+    TDuration WriteTimeout;
     NYPath::TYPath TablePath;
 
     NConcurrency::TPeriodicExecutorOptions PeriodicOptions;
@@ -537,6 +569,25 @@ struct TOverloadReporterConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TOverloadReporterConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRowCacheControllerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enabled;
+    TDuration Period;
+    i64 MemoryLimitGapInBytes;
+    double MemoryLimitGapFraction;
+    double RotationMemoryThreshold;
+    bool AllowFillingAvailableMemory;
+
+    REGISTER_YSON_STRUCT(TRowCacheControllerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TRowCacheControllerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -697,6 +748,7 @@ struct TTabletNodeDynamicConfig
     TPartitionBalancerDynamicConfigPtr PartitionBalancer;
     TInMemoryManagerDynamicConfigPtr InMemoryManager;
     TCompressionDictionaryBuilderDynamicConfigPtr CompressionDictionaryBuilder;
+    TGlobalStoresUpdateThrottlerConfigPtr GlobalStoresUpdateThrottler;
 
     TSlruCacheDynamicConfigPtr VersionedChunkMetaCache;
 
@@ -705,6 +757,11 @@ struct TTabletNodeDynamicConfig
     bool EnableStructuredLogger;
     TDuration FullStructuredTabletHeartbeatPeriod;
     TDuration IncrementalStructuredTabletHeartbeatPeriod;
+
+    // COMPAT(ifsmirnov): YT-29282, migrate to TablePath and remove.
+    // Controls the exported label of tables with profiling_mode=tag:
+    // "table_tag", "table_path" or both.
+    EProfilingTagExportMode ProfilingTagExportMode;
 
     TMasterConnectorDynamicConfigPtr MasterConnector;
     TSecurityManagerDynamicConfigPtr SecurityManager;
@@ -720,6 +777,8 @@ struct TTabletNodeDynamicConfig
 
     TErrorManagerConfigPtr ErrorManager;
 
+    TRowCacheControllerDynamicConfigPtr RowCacheController;
+
     bool EnableChunkFragmentReaderThrottling;
 
     TMediumThrottlersConfigPtr MediumThrottlers;
@@ -731,6 +790,8 @@ struct TTabletNodeDynamicConfig
     bool EnableSnapshotNetworkThrottling;
 
     NChaosClient::TChaosReplicationCardUpdatesBatcherDynamicConfigPtr ChaosReplicationCardUpdatesBatcher;
+
+    TSlruCacheDynamicConfigPtr ClientCache;
 
     TTestingTabletNodeDynamicConfig Testing;
 
@@ -821,6 +882,8 @@ struct TTabletNodeConfig
     //! Used for local mode. If false, node will crash when recovering
     //! a tablet cell from the different reign.
     bool AllowReignChange;
+
+    TSlruCacheConfigPtr ClientCache;
 
     REGISTER_YSON_STRUCT(TTabletNodeConfig);
 

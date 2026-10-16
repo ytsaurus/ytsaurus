@@ -46,6 +46,17 @@ public:
         NLsm::EPartitionCompactionHintKind kind);
 
     TCompactionHintConfigChange AsOnlyEnableConfigChange();
+
+private:
+    static bool IsNonAggregateRowDigestEnabled(const TTableMountConfigPtr& config);
+    static bool IsAggregateRowDigestEnabled(const TTableMountConfigPtr& config);
+    static bool IsMinHashDigestEnabled(const TTableMountConfigPtr& config);
+
+    template <class TCompactionHintConfig>
+    static bool IsConfigChanged(
+        const TTableMountConfigPtr& oldConfig,
+        const TTableMountConfigPtr& newConfig,
+        TCompactionHintConfig TCompactionHintsConfig::* compactionHintField);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

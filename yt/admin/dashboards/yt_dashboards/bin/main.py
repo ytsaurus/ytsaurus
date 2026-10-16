@@ -6,9 +6,11 @@ from yt_dashboards.master import (
     build_master_global, build_master_local, build_master_node_tracker, build_master_cpu, build_master_merge_jobs,
     build_master_accounts)
 from yt_dashboards.cypress_proxies import build_cypress_proxies
+from yt_dashboards.sequoia_replicas import build_sequoia_replicas
 from yt_dashboards.artemis import (
     build_local_artemis, build_bundle_artemis, build_global_artemis, build_local_artemis_container)
 from yt_dashboards.scheduler_internal import build_scheduler_internal
+from yt_dashboards.scheduler_gpu import build_scheduler_gpu
 from yt_dashboards.scheduler_pool import build_scheduler_pool
 from yt_dashboards.scheduler_operation import build_scheduler_operation
 from yt_dashboards.jobs_monitor import build_jobs_monitor
@@ -21,19 +23,22 @@ from yt_dashboards.data_nodes import build_data_nodes_common
 from yt_dashboards.data_node_local import build_data_node_local
 from yt_dashboards.user_load import build_user_load
 from yt_dashboards.http_proxies import build_http_proxies
+from yt_dashboards.table_replication import build_dynamic_table_replication
+import yt_dashboards.table_dispersion as table_dispersion
 
 from yt_dashboards.bundle_ui import (
     build_bundle_ui_user_load, build_bundle_ui_lsm, build_bundle_ui_rpc_resource_overview,
     build_bundle_ui_cpu, build_bundle_ui_downtime, build_bundle_ui_memory, build_bundle_ui_network, build_bundle_rpc_proxy_dashboard,
     build_bundle_ui_disk, build_bundle_ui_resource_overview, build_bundle_ui_efficiency, build_bundle_capacity_planning,
-    build_bundle_ui_key_filter)
+    build_bundle_ui_key_filter, build_bundle_ui_cache_and_filtration)
 
-from yt_dashboards import lsm
+from yt_dashboards import compaction
 
 from yt_dashboards import flow
 
 from yt_dashboards import queue_agent
 from yt_dashboards import queue_and_consumer_metrics
+from yt_dashboards.cluster_workloads import build_cluster_reference_workload_performance
 
 
 logging.basicConfig(
@@ -69,6 +74,15 @@ dashboards = {
     },
     "scheduler-internal": {
         "func": build_scheduler_internal,
+        "monitoring": {
+            "args": [True, "monitoring"],
+        },
+        "grafana": {
+            "args": [False, "grafana"],
+        },
+    },
+    "scheduler-gpu": {
+        "func": build_scheduler_gpu,
         "monitoring": {
             "args": [True, "monitoring"],
         },
@@ -117,7 +131,11 @@ dashboards = {
         },
     },
     "per-table-compaction": {
-        "func": lsm.build_per_table_compaction,
+        "func": compaction.build_per_table_compaction,
+        "monitoring": {},
+    },
+    "compaction-digest": {
+        "func": compaction.build_compaction_digest,
         "monitoring": {},
     },
     "bundle-ui-user-load": {
@@ -202,6 +220,10 @@ dashboards = {
         "func": build_key_filter,
         "monitoring": {},
     },
+    "bundle-ui-cache-and-filtration": {
+        "func": build_bundle_ui_cache_and_filtration,
+        "monitoring": {},
+    },
     "master-global": {
         "func": build_master_global,
         "monitoring": {
@@ -234,6 +256,11 @@ dashboards = {
         "monitoring": {},
         "grafana": {},
     },
+    "sequoia-replicas": {
+        "func": build_sequoia_replicas,
+        "monitoring": {},
+        "grafana": {"args": ["grafana"]},
+    },
     "cypress-proxy": {
         "func": build_cypress_proxies,
         "monitoring": {},
@@ -249,11 +276,18 @@ dashboards = {
     "exe-nodes": {
         "func": build_exe_nodes,
         "monitoring": {},
-        "grafana": {},
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "data-nodes-common": {
         "func": build_data_nodes_common,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "data-node-local": {
         "func": build_data_node_local,
@@ -268,44 +302,111 @@ dashboards = {
     },
     "flow-general": {
         "func": flow.build_flow_general,
-        "monitoring": {},
-        "grafana": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-diagnostics": {
         "func": flow.build_flow_diagnostics,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-event-time": {
         "func": flow.build_flow_event_time,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-controller": {
         "func": flow.build_flow_controller,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-worker": {
         "func": flow.build_flow_worker,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-computation": {
         "func": flow.build_flow_computation,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-message-transfering": {
         "func": flow.build_flow_message_transfering,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-one-worker": {
         "func": flow.build_flow_one_worker,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-state-cache": {
         "func": flow.build_flow_state_cache,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-companion-manager": {
         "func": flow.build_flow_companion_manager,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
+    },
+    "flow-distributed-throttler": {
+        "func": flow.build_flow_distributed_throttler,
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
+    },
+    "flow-key-visitor": {
+        "func": flow.build_flow_key_visitor,
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "queue-metrics": {
         "func": queue_and_consumer_metrics.build_queue_metrics,
@@ -334,6 +435,15 @@ dashboards = {
             "args": ["grafana"]
         },
     },
+    "queue-multi-consumer-metrics": {
+        "func": queue_and_consumer_metrics.build_queue_multi_consumer_metrics,
+        "monitoring": {
+            "args": ["monitoring"]
+        },
+        "grafana": {
+            "args": ["grafana"]
+        },
+    },
     "queue-consumer-pass-metrics": {
         "func": queue_and_consumer_metrics.build_queue_consumer_pass_metrics,
         "monitoring": {
@@ -355,6 +465,18 @@ dashboards = {
             ],
         },
     },
+    "cluster-reference-workload-performance": {
+        "func": build_cluster_reference_workload_performance,
+        "monitoring": {},
+    },
+    "multimetric": {
+        "func": table_dispersion.build,
+        "monitoring": {},
+    },
+    "dynamic-table-replication": {
+        "func": build_dynamic_table_replication,
+        "monitoring": {},
+    }
 }
 
 

@@ -4,6 +4,9 @@
 #include "chunk.h"
 #endif
 
+#include "helpers.h"
+#include "incumbency_epoch.h"
+
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
@@ -120,36 +123,31 @@ inline void TChunk::ResetPartLossTime()
     data->EpochPartLossTime = NProfiling::TCpuInstant{};
 }
 
-inline TChunkRepairQueueIterator TChunk::GetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue) const
+inline TChunkRepairQueueIterator TChunk::GetRepairQueueIterator(int mediumIndex, int priority) const
 {
-    auto* iteratorMap = SelectRepairQueueIteratorMap(queue);
-    auto it = iteratorMap->find(mediumIndex);
+    auto* iteratorMap = &GetDynamicData()->RepairQueueIterators;
+    auto key = EncodeRepairQueueKey(mediumIndex, priority);
+    auto it = iteratorMap->find(key);
     return it == iteratorMap->end()
         ? TChunkRepairQueueIterator()
         : it->second;
 }
 
-inline void TChunk::SetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue, TChunkRepairQueueIterator value)
+inline void TChunk::SetRepairQueueIterator(int mediumIndex, int priority, TChunkRepairQueueIterator value)
 {
-    auto* iteratorMap = SelectRepairQueueIteratorMap(queue);
+    auto* iteratorMap = &GetDynamicData()->RepairQueueIterators;
+    auto key = EncodeRepairQueueKey(mediumIndex, priority);
     if (value == TChunkRepairQueueIterator()) {
-        iteratorMap->erase(mediumIndex);
+        iteratorMap->erase(key);
     } else {
-        (*iteratorMap)[mediumIndex] = value;
+        (*iteratorMap)[key] = value;
     }
 }
 
-inline TChunkDynamicData::TMediumToRepairQueueIterator* TChunk::SelectRepairQueueIteratorMap(EChunkRepairQueue queue) const
+inline const TChunkDynamicData::TRepairQueueIteratorMap&
+TChunk::SelectRepairQueueIteratorMap() const
 {
-    switch (queue) {
-        case EChunkRepairQueue::Missing:
-            return &GetDynamicData()->MissingPartRepairQueueIterators;
-
-        case EChunkRepairQueue::Decommissioned:
-            return &GetDynamicData()->DecommissionedPartRepairQueueIterators;
-        default:
-            YT_ABORT();
-    }
+    return GetDynamicData()->RepairQueueIterators;
 }
 
 inline const TChunkDynamicData::TJobSet& TChunk::GetJobs() const
@@ -183,16 +181,18 @@ inline TChunkRequisitionIndex TChunk::GetLocalRequisitionIndex() const
     return LocalRequisitionIndex_;
 }
 
+// COMPAT(theevilbird)
 inline void TChunk::SetLocalRequisitionIndex(
     TChunkRequisitionIndex requisitionIndex,
     TChunkRequisitionRegistry* registry,
-    const NObjectServer::IObjectManagerPtr& objectManager)
+    const NObjectServer::IObjectManagerPtr& objectManager,
+    bool forceAggregatedRequisitionUpdate)
 {
     registry->Unref(LocalRequisitionIndex_, objectManager);
     LocalRequisitionIndex_ = requisitionIndex;
     registry->Ref(LocalRequisitionIndex_);
 
-    UpdateAggregatedRequisitionIndex(registry, objectManager);
+    UpdateAggregatedRequisitionIndex(registry, objectManager, forceAggregatedRequisitionUpdate);
 }
 
 inline TChunkRequisitionIndex TChunk::GetExternalRequisitionIndex(
@@ -222,12 +222,14 @@ inline void TChunk::SetExternalRequisitionIndex(
     UpdateAggregatedRequisitionIndex(registry, objectManager);
 }
 
+// COMPAT(theevilbird)
 inline void TChunk::UpdateAggregatedRequisitionIndex(
     TChunkRequisitionRegistry* registry,
-    const NObjectServer::IObjectManagerPtr& objectManager)
+    const NObjectServer::IObjectManagerPtr& objectManager,
+    bool forceAggregatedRequisitionUpdate)
 {
     auto requisition = ComputeAggregatedRequisition(registry);
-    if (requisition.GetAllEntryCount() == 0) {
+    if (!forceAggregatedRequisitionUpdate && requisition.GetAllEntryCount() == 0) {
         // This doesn't mean the chunk is no longer needed; this may be a
         // temporary contingency. The aggregated requisition should never
         // be made empty as this may confuse the replicator.
@@ -244,20 +246,53 @@ inline void TChunk::UpdateAggregatedRequisitionIndex(
 
 inline const TChunkRequisition& TChunk::GetAggregatedRequisition(const TChunkRequisitionRegistry* registry) const
 {
-    YT_VERIFY(AggregatedRequisitionIndex_ != EmptyChunkRequisitionIndex);
-    return registry->GetRequisition(AggregatedRequisitionIndex_);
+    const auto& Logger = ChunkServerLogger;
+    YT_TLOG_ALERT_IF(
+        AggregatedRequisitionIndex_ == EmptyChunkRequisitionIndex && IsNative(),
+        "Chunk has empty requisition")
+        .With("ChunkId", GetId());
+
+    const auto& requisition = registry->GetRequisition(AggregatedRequisitionIndex_);
+    YT_TLOG_ALERT_IF(
+        requisition.GetAllEntryCount() == 0 && IsNative(),
+        "Chunk has requisition with zero entry count")
+        .With("ChunkId", GetId());
+
+    return requisition;
 }
 
 inline TChunkRequisitionIndex TChunk::GetAggregatedRequisitionIndex() const
 {
-    YT_VERIFY(AggregatedRequisitionIndex_ != EmptyChunkRequisitionIndex);
+    const auto& Logger = ChunkServerLogger;
+    YT_TLOG_ALERT_IF(
+        AggregatedRequisitionIndex_ == EmptyChunkRequisitionIndex && IsNative(),
+        "Chunk has empty requisition")
+        .With("ChunkId", GetId());
     return AggregatedRequisitionIndex_;
 }
 
 inline const TChunkReplication& TChunk::GetAggregatedReplication(const TChunkRequisitionRegistry* registry) const
 {
-    YT_VERIFY(AggregatedRequisitionIndex_ != EmptyChunkRequisitionIndex);
-    return registry->GetReplication(AggregatedRequisitionIndex_);
+    if (AggregatedRequisitionIndex_ == EmptyChunkRequisitionIndex) {
+        static const auto fakeEmptyReplication = TChunkRequisition(
+            nullptr /* account */,
+            DefaultStoreMediumIndex,
+            TReplicationPolicy(NChunkClient::DefaultReplicationFactor, false /*dataPartsOnly*/),
+            true /*committed*/)
+            .ToReplication();
+        return fakeEmptyReplication;
+    }
+
+    const auto& replication = registry->GetReplication(AggregatedRequisitionIndex_);
+
+    const auto& Logger = ChunkServerLogger;
+    YT_TLOG_ALERT_IF(
+        !replication.IsValid(),
+        "Chunk has invalid replication")
+        .With("ChunkId", GetId())
+        .With("Replication", replication);
+
+    return replication;
 }
 
 inline int TChunk::GetAggregatedReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const
@@ -271,8 +306,8 @@ inline int TChunk::GetAggregatedPhysicalReplicationFactor(const TChunkRequisitio
     const auto& physicalReplication = registry->GetPhysicalReplication(AggregatedRequisitionIndex_);
 
     if (IsErasure()) {
-        auto* codec = NErasure::GetCodec(GetErasureCodec());
-        return physicalReplication.MediumCount * codec->GetTotalPartCount();
+        auto* codec = NErasure::GetCodecOrThrow(GetErasureCodec());
+        return physicalReplication.MediumCount * codec->GetParams().TotalPartCount;
     } else {
         return physicalReplication.ReplicaCount;
     }

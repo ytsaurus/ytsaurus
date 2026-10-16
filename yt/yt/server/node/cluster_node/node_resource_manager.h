@@ -18,7 +18,7 @@
 
 #include <library/cpp/yt/containers/enum_indexed_array.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NClusterNode {
 
@@ -94,7 +94,7 @@ struct TJobResources
     i64 MergeDataSize = 0;
 };
 
-TString FormatResourceUsage(
+std::string FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits);
 void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /*format*/);
@@ -170,6 +170,11 @@ public:
 
     void OnInstanceLimitsUpdated(const NContainers::TInstanceLimits& limits);
 
+    //! Invoke out-of-band iteration of |UpdateLimits| and return a future
+    //! which becomes set when the invocation completes.
+    //! Returns error if update executor is not started.
+    TFuture<void> SyncUpdateLimits();
+
     NYTree::IYPathServicePtr GetOrchidService();
 
     DEFINE_SIGNAL(void(), JobsCpuLimitUpdated);
@@ -181,7 +186,7 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;
 
-    NThreading::TAtomicObject<NContainers::TInstanceLimits> Limits_;
+    TAtomicObject<NContainers::TInstanceLimits> Limits_;
 
     i64 SelfMemoryGuarantee_ = 0;
     std::atomic<double> JobsCpuLimit_ = 0;

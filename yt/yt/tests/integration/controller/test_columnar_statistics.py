@@ -14,11 +14,21 @@ from yt_type_helpers import (
 
 from yt_helpers import profiler_factory
 
-from yt.common import YtError
-
 from yt.yson.yson_types import YsonEntity
 
 import pytest
+
+
+EARLY_FINISH_DELTA_DYNAMIC_NODE_CONFIG = {
+    "%true": {
+        "data_node": {
+            "testing_options": {
+                "columnar_statistics_chunk_meta_fetch_max_delay": 6000,
+                "columnar_statistics_read_timeout_fraction": 0.3,
+            },
+        },
+    },
+}
 
 
 class _TestColumnarStatisticsBase(YTEnvSetup):
@@ -29,7 +39,9 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "enable_map_job_size_adjustment": False,
+            "map_operation_options": {
+                "enable_map_job_size_adjustment": False,
+            },
             "user_file_limits": {
                 "max_table_data_weight": 2000,
             },
@@ -40,17 +52,6 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
             },
         },
         "heap_profiler_update_snapshot_period": 100,
-    }
-
-    DELTA_DYNAMIC_NODE_CONFIG = {
-        "%true": {
-            "data_node": {
-                "testing_options": {
-                    "columnar_statistics_chunk_meta_fetch_max_delay": 5000,
-                    "columnar_statistics_read_timeout_fraction": 0.1,
-                },
-            },
-        },
     }
 
     DELTA_DRIVER_CONFIG = {
@@ -173,7 +174,6 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
         return result["summary"]
 
 
-@pytest.mark.enabled_multidaemon
 class TestColumnarStatistics(_TestColumnarStatisticsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -183,7 +183,7 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
         write_table("<append=%true>//tmp/t", [{"a": "x" * 100, "b": 42}, {"c": 1.2}])
         write_table("<append=%true>//tmp/t", [{"a": "x" * 200}, {"c": True}])
         write_table("<append=%true>//tmp/t", [{"b": None, "c": 0}, {"a": "x" * 1000}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Table .* does not have schema and column selector is not specified"):
             get_table_columnar_statistics('["//tmp/t";]')
         self._expect_data_weight_statistics(2, 2, "a,b,c", [0, 0, 0])
         self._expect_data_weight_statistics(0, 6, "a,b,c", [1300, 8, 17], expected_estimated_unique_counts=[2, 1, 2])
@@ -667,7 +667,7 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
         s = "x" * 100
         for i in range(5):
             write_table("<append=%true>//tmp/t", [{"a": s, "b": s, "c": s, "d": s, "e": s}])
-        with pytest.raises(YtError):
+        with raises_yt_error("User file table .* exceeds data weight limit: .* > .*"):
             vanilla(
                 spec={
                     "tasks": {
@@ -881,7 +881,9 @@ class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperatio
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "enable_map_job_size_adjustment": False,
+            "map_operation_options": {
+                "enable_map_job_size_adjustment": False,
+            },
             "user_file_limits": {
                 "max_table_data_weight": 2000,
             },
@@ -898,16 +900,7 @@ class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperatio
         "heap_profiler_update_snapshot_period": 100,
     }
 
-    DELTA_DYNAMIC_NODE_CONFIG = {
-        "%true": {
-            "data_node": {
-                "testing_options": {
-                    "columnar_statistics_chunk_meta_fetch_max_delay": 6000,
-                    "columnar_statistics_read_timeout_fraction": 0.3,
-                },
-            },
-        },
-    }
+    DELTA_DYNAMIC_NODE_CONFIG = EARLY_FINISH_DELTA_DYNAMIC_NODE_CONFIG
 
     DELTA_DRIVER_CONFIG = {
         "fetcher": {
@@ -925,7 +918,6 @@ class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperatio
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -933,16 +925,7 @@ class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
-    DELTA_DYNAMIC_NODE_CONFIG = {
-        "%true": {
-            "data_node": {
-                "testing_options": {
-                    "columnar_statistics_chunk_meta_fetch_max_delay": 6000,
-                    "columnar_statistics_read_timeout_fraction": 0.3,
-                },
-            },
-        },
-    }
+    DELTA_DYNAMIC_NODE_CONFIG = EARLY_FINISH_DELTA_DYNAMIC_NODE_CONFIG
 
     DELTA_DRIVER_CONFIG = {
         "fetcher": {
@@ -963,7 +946,7 @@ class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
         write_table("<append=%true>//tmp/t", [{"a": "x" * 200}, {"c": True}])
         write_table("<append=%true>//tmp/t", [{"b": None, "c": 0}, {"a": "x" * 1000}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Unable to fetch info for chunk .* from"):
             self._expect_data_weight_statistics(None, None, "a,b,c", [1900, 56, 65], enable_early_finish=False)
 
         self._expect_data_weight_statistics(None, None, "a,b,c", [1900, 56, 65], enable_early_finish=True)
@@ -972,7 +955,6 @@ class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestColumnarStatisticsCommandEarlyFinishRpcProxy(TestColumnarStatisticsCommandEarlyFinish):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -988,7 +970,6 @@ class TestColumnarStatisticsCommandEarlyFinishRpcProxy(TestColumnarStatisticsCom
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestColumnarStatisticsRenamedColumns(_TestColumnarStatisticsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1078,7 +1059,6 @@ class TestColumnarStatisticsRenamedColumns(_TestColumnarStatisticsBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestColumnarStatisticsRpcProxy(TestColumnarStatistics):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -1088,7 +1068,6 @@ class TestColumnarStatisticsRpcProxy(TestColumnarStatistics):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestColumnarStatisticsUseControllerAgentDefault(_TestColumnarStatisticsBase):
     ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = {
@@ -1128,7 +1107,6 @@ class TestColumnarStatisticsUseControllerAgentDefault(_TestColumnarStatisticsBas
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReadSizeEstimation(_TestColumnarStatisticsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1200,8 +1178,6 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
 
         self._prepare_input_table(strict, optimize_for, erasure_codec, striped_erasure, use_groups)
 
-        create("table", "//tmp/t_out")
-
         columns_selectors = [
             [],
             ["small"],
@@ -1213,18 +1189,26 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
             ["unknown1", "unknown2"],
         ]
 
-        for columns in columns_selectors:
-            op = map(
+        ops = []
+        for index, columns in enumerate(columns_selectors):
+            output_table = "//tmp/t_out_{}".format(index)
+            create("table", output_table)
+            ops.append(map(
                 in_="//tmp/t_in{{{}}}".format(",".join(columns)),
-                out="//tmp/t_out",
+                out=output_table,
                 command="cat > /dev/null",
                 spec={
                     "input_table_columnar_statistics": {
                         "mode": mode,
                     },
                 },
-            )
+                track=False,
+            ))
 
+        for op in ops:
+            op.track()
+
+        for columns, op in zip(columns_selectors, ops):
             progress = get(op.get_path() + "/@progress")
             input_statistics = progress["job_statistics_v2"]["data"]["input"]
             actual_uncompressed_data_size = self._get_completed_summary(input_statistics["uncompressed_data_size"])["sum"]
@@ -1243,8 +1227,8 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
                 estimated_uncompressed_data_size * (1 - delta),
                 max(estimated_uncompressed_data_size - 10, 0))
 
-            assert estimated_compressed_data_size_lower_bound <= actual_compressed_data_size <= estimated_compressed_data_size * (1 + delta)
-            assert estimated_uncompressed_data_size_lower_bound <= actual_uncompressed_data_size <= estimated_uncompressed_data_size * (1 + delta)
+            assert estimated_compressed_data_size_lower_bound <= actual_compressed_data_size <= estimated_compressed_data_size * (1 + delta), columns
+            assert estimated_uncompressed_data_size_lower_bound <= actual_uncompressed_data_size <= estimated_uncompressed_data_size * (1 + delta), columns
 
     @authors("apollo1321")
     @pytest.mark.parametrize("mode", ["from_nodes", "from_master"])

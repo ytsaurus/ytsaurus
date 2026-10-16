@@ -2,7 +2,11 @@
 
 #include <yt/yt/server/lib/hydra/serialize.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/serialize.h>
+
 #include <yt/yt/core/misc/serialize.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -16,6 +20,25 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TExpectedTransactionSignatureInfo::Persist(const TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Coordinator);
+    Persist(context, Participants);
+}
+
+void Serialize(const TExpectedTransactionSignatureInfo& signatureInfo, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("coordinator").Value(signatureInfo.Coordinator)
+            .Item("participants").Value(signatureInfo.Participants)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCommit::TCommit(TTransactionId transactionId)
     : TransactionId_(transactionId)
     , Persistent_(false)
@@ -25,6 +48,8 @@ TCommit::TCommit(
     TTransactionId transactionId,
     TMutationId mutationId,
     std::vector<TCellId> participantCellIds,
+    TExpectedTransactionSignatureInfo expectedPrepareSignatures,
+    TTransactionCommitApprovalCounts targetCommitApprovalCounts,
     std::vector<TCellId> prepareOnlyParticipantCellIds,
     std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
     bool distributed,
@@ -32,13 +57,14 @@ TCommit::TCommit(
     bool inheritCommitTimestamp,
     NApi::ETransactionCoordinatorPrepareMode coordinatorPrepareMode,
     NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
-    bool stronglyOrdered,
+    TStrongOrderingTagsMap strongOrderingTags,
     TTimestamp maxAllowedCommitTimestamp,
-    NRpc::TAuthenticationIdentity identity,
-    std::vector<TTransactionId> prerequisiteTransactionIds)
+    NRpc::TAuthenticationIdentity identity)
     : TransactionId_(transactionId)
     , MutationId_(mutationId)
     , ParticipantCellIds_(std::move(participantCellIds))
+    , ExpectedPrepareSignatures_(std::move(expectedPrepareSignatures))
+    , TargetCommitApprovalCounts_(std::move(targetCommitApprovalCounts))
     , PrepareOnlyParticipantCellIds_(std::move(prepareOnlyParticipantCellIds))
     , CellIdsToSyncWithBeforePrepare_(std::move(cellIdsToSyncWithBeforePrepare))
     , Distributed_(distributed)
@@ -46,10 +72,9 @@ TCommit::TCommit(
     , InheritCommitTimestamp_(inheritCommitTimestamp)
     , CoordinatorPrepareMode_(coordinatorPrepareMode)
     , CoordinatorCommitMode_(coordinatorCommitMode)
-    , StronglyOrdered_(stronglyOrdered)
+    , StrongOrderingTags_(std::move(strongOrderingTags))
     , MaxAllowedCommitTimestamp_(maxAllowedCommitTimestamp)
     , AuthenticationIdentity_(std::move(identity))
-    , PrerequisiteTransactionIds_(std::move(prerequisiteTransactionIds))
 { }
 
 TFuture<TSharedRefArray> TCommit::GetAsyncResponseMessage()
@@ -59,7 +84,11 @@ TFuture<TSharedRefArray> TCommit::GetAsyncResponseMessage()
 
 void TCommit::SetResponseMessage(TSharedRefArray message)
 {
-    ResponseMessagePromise_.TrySet(std::move(message));
+    BIND([promise = ResponseMessagePromise_, message = std::move(message)] () mutable {
+        promise.TrySet(std::move(message));
+    })
+        .Via(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+        .Run();
 }
 
 bool TCommit::IsPrepareOnlyParticipant(TCellId cellId) const
@@ -77,6 +106,8 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, TransactionId_);
     Save(context, MutationId_);
     Save(context, ParticipantCellIds_);
+    Save(context, ExpectedPrepareSignatures_);
+    Save(context, TargetCommitApprovalCounts_);
     Save(context, PrepareOnlyParticipantCellIds_);
     Save(context, CellIdsToSyncWithBeforePrepare_);
     Save(context, Distributed_);
@@ -91,52 +122,53 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, MaxAllowedCommitTimestamp_);
     Save(context, AuthenticationIdentity_.User);
     Save(context, AuthenticationIdentity_.UserTag);
-    Save(context, StronglyOrdered_);
+    Save(context, StrongOrderingTags_);
 }
 
 void TCommit::Load(TLoadContext& context)
 {
     using NYT::Load;
 
+    auto contextVersion = static_cast<ETransactionSupervisorReign>(context.GetVersion());
     Persistent_ = true;
     Load(context, TransactionId_);
     Load(context, MutationId_);
     Load(context, ParticipantCellIds_);
-    Load(context, PrepareOnlyParticipantCellIds_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 10) {
-        Load(context, CellIdsToSyncWithBeforePrepare_);
+    // COMPAT(atalmenev) old changelog entries don't carry per-participant signatures.
+    if (contextVersion >= ETransactionSupervisorReign::ExpectedPrepareSignature) {
+        Load(context, ExpectedPrepareSignatures_);
+    } else {
+        ExpectedPrepareSignatures_.Participants.assign(
+            ParticipantCellIds_.size(),
+            FinalTransactionSignature);
     }
+    // COMPAT(kvk1920)
+    if (contextVersion >= ETransactionSupervisorReign::CommitApprovalCount) {
+        Load(context, TargetCommitApprovalCounts_);
+    }
+    Load(context, PrepareOnlyParticipantCellIds_);
+    Load(context, CellIdsToSyncWithBeforePrepare_);
     Load(context, Distributed_);
     Load(context, GeneratePrepareTimestamp_);
     Load(context, InheritCommitTimestamp_);
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= 12) {
-        Load(context, PrepareTimestamp_);
-        Load(context, PrepareTimestampClusterTag_);
-    } else {
-        PrepareTimestamp_ = NTransactionClient::NullTimestamp;
-        PrepareTimestampClusterTag_ = NObjectClient::InvalidCellTag;
-    }
+    Load(context, PrepareTimestamp_);
+    Load(context, PrepareTimestampClusterTag_);
     Load(context, CommitTimestamps_);
     Load(context, PersistentState_);
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= 12) {
-        Load(context, CoordinatorPrepareMode_);
-    } else {
-        CoordinatorPrepareMode_ = NApi::ETransactionCoordinatorPrepareMode::Early;
-    }
+    Load(context, CoordinatorPrepareMode_);
     Load(context, CoordinatorCommitMode_);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= 11) {
-        Load(context, MaxAllowedCommitTimestamp_);
-    }
+    Load(context, MaxAllowedCommitTimestamp_);
     Load(context, AuthenticationIdentity_.User);
     Load(context, AuthenticationIdentity_.UserTag);
 
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= 14) {
-        Load(context, StronglyOrdered_);
+    // COMPAT(h0pless): StrongOrderingTags.
+    if (ETransactionSupervisorReign::Sequencer <= contextVersion && contextVersion < ETransactionSupervisorReign::StrongOrderingTags) {
+        Load<bool>(context);
+    }
+
+    // COMPAT(h0pless): StrongOrderingTags.
+    if (contextVersion >= ETransactionSupervisorReign::StrongOrderingTags) {
+        Load(context, StrongOrderingTags_);
     }
 }
 
@@ -174,13 +206,28 @@ void TCommit::BuildOrchidYson(IYsonConsumer* consumer) const
             .Item("transient_state").Value(TransientState_)
             .Item("persistent_state").Value(PersistentState_)
             .Item("responded_cell_ids").Value(RespondedCellIds_)
-            .Item("strongly_ordered").Value(StronglyOrdered_)
-            .DoIf(!PrerequisiteTransactionIds_.empty(), [&] (auto fluent) {
-                fluent
-                    .Item("prerequisite_transaction_ids")
-                    .Value(PrerequisiteTransactionIds_);
-            })
+            .Item("strong_ordering_tags").DoMapFor(
+                StrongOrderingTags_,
+                [] (auto fluent, const auto& item) {
+                    fluent.Item(ToString(item.first)).Value(item.second);
+                })
+            .Item("expected_prepare_signatures").Value(ExpectedPrepareSignatures_)
         .EndMap();
+}
+
+bool TCommit::IsStronglyOrderedForCell(TCellId cellId) const
+{
+    return StrongOrderingTags_.contains(cellId);
+}
+
+std::vector<std::string> TCommit::GetStrongOrderingTagsForCell(TCellId cellId) const
+{
+    auto it = StrongOrderingTags_.find(cellId);
+    if (it == StrongOrderingTags_.end()) {
+        return {};
+    }
+
+    return it->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

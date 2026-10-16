@@ -1,4 +1,5 @@
 #include <Storages/MergeTree/KeyCondition.h>
+#include <Storages/KeyDescription.h>
 #include <Storages/MergeTree/BoolMask.h>
 #include <Core/PlainRanges.h>
 #include <DataTypes/DataTypesNumber.h>
@@ -954,6 +955,16 @@ KeyCondition::KeyCondition(
 
     if (std::any_of(rpn.begin(), rpn.end(), [&](const auto & elem) { return always_relaxed_atom_elements.contains(elem.function); }))
         relaxed = true;
+}
+
+KeyCondition::KeyCondition(
+    const ActionsDAGWithInversionPushDown & filter_dag,
+    ContextPtr context,
+    const KeyDescription & key_description,
+    bool single_point_)
+    : KeyCondition(filter_dag, context, key_description.column_names, key_description.expression, single_point_)
+{
+    key_order = KeyOrder(key_description.reverse_flags);
 }
 
 bool KeyCondition::addCondition(const String & column, const Range & range)
@@ -2725,10 +2736,31 @@ static BoolMask forAnyHyperrectangle(
     bool right_bounded,
     Hyperrectangle & hyperrectangle, /// This argument is modified in-place for the callback
     const DataTypes & data_types,
+    const KeyOrder & key_order,
     size_t prefix_size,
     BoolMask initial_mask,
     F && callback)
 {
+    auto values_between = [&](size_t col, bool included) -> Range
+    {
+        return key_order.isReversed(col) ? Range(right_keys[col], included, left_keys[col], included)
+                                         : Range(left_keys[col], included, right_keys[col], included);
+    };
+
+    auto values_after_left_boundary = [&](size_t col, bool included) -> Range
+    {
+        bool with_null = isNullableOrLowCardinalityNullable(data_types[col]);
+        return key_order.isReversed(col) ? Range::createRightBounded(left_keys[col], included, with_null)
+                                         : Range::createLeftBounded(left_keys[col], included, with_null);
+    };
+
+    auto values_before_right_boundary = [&](size_t col, bool included) -> Range
+    {
+        bool with_null = isNullableOrLowCardinalityNullable(data_types[col]);
+        return key_order.isReversed(col) ? Range::createLeftBounded(right_keys[col], included, with_null)
+                                         : Range::createRightBounded(right_keys[col], included, with_null);
+    };
+
     if (!left_bounded && !right_bounded)
         return callback(hyperrectangle);
 
@@ -2754,13 +2786,11 @@ static BoolMask forAnyHyperrectangle(
     if (prefix_size + 1 == key_size)
     {
         if (left_bounded && right_bounded)
-            hyperrectangle[prefix_size] = Range(left_keys[prefix_size], true, right_keys[prefix_size], true);
+            hyperrectangle[prefix_size] = values_between(prefix_size, true);
         else if (left_bounded)
-            hyperrectangle[prefix_size]
-                = Range::createLeftBounded(left_keys[prefix_size], true, isNullableOrLowCardinalityNullable(data_types[prefix_size]));
+            hyperrectangle[prefix_size] = values_after_left_boundary(prefix_size, true);
         else if (right_bounded)
-            hyperrectangle[prefix_size]
-                = Range::createRightBounded(right_keys[prefix_size], true, isNullableOrLowCardinalityNullable(data_types[prefix_size]));
+            hyperrectangle[prefix_size] = values_before_right_boundary(prefix_size, true);
 
         return callback(hyperrectangle);
     }
@@ -2768,13 +2798,11 @@ static BoolMask forAnyHyperrectangle(
     /// (x1 .. x2) × (-inf .. +inf)
 
     if (left_bounded && right_bounded)
-        hyperrectangle[prefix_size] = Range(left_keys[prefix_size], false, right_keys[prefix_size], false);
+        hyperrectangle[prefix_size] = values_between(prefix_size, false);
     else if (left_bounded)
-        hyperrectangle[prefix_size]
-            = Range::createLeftBounded(left_keys[prefix_size], false, isNullableOrLowCardinalityNullable(data_types[prefix_size]));
+        hyperrectangle[prefix_size] = values_after_left_boundary(prefix_size, false);
     else if (right_bounded)
-        hyperrectangle[prefix_size]
-            = Range::createRightBounded(right_keys[prefix_size], false, isNullableOrLowCardinalityNullable(data_types[prefix_size]));
+        hyperrectangle[prefix_size] = values_before_right_boundary(prefix_size, false);
 
     for (size_t i = prefix_size + 1; i < key_size; ++i)
     {
@@ -2799,7 +2827,7 @@ static BoolMask forAnyHyperrectangle(
         result = BoolMask::combine(
             result,
             forAnyHyperrectangle(
-                key_size, left_keys, right_keys, true, false, hyperrectangle, data_types, prefix_size + 1, initial_mask, callback));
+                key_size, left_keys, right_keys, true, false, hyperrectangle, data_types, key_order, prefix_size + 1, initial_mask, callback));
 
         if (result.isComplete())
             return result;
@@ -2813,7 +2841,7 @@ static BoolMask forAnyHyperrectangle(
         result = BoolMask::combine(
             result,
             forAnyHyperrectangle(
-                key_size, left_keys, right_keys, false, true, hyperrectangle, data_types, prefix_size + 1, initial_mask, callback));
+                key_size, left_keys, right_keys, false, true, hyperrectangle, data_types, key_order, prefix_size + 1, initial_mask, callback));
     }
 
     return result;
@@ -2827,6 +2855,8 @@ BoolMask KeyCondition::checkInRange(
     const DataTypes & data_types,
     BoolMask initial_mask) const
 {
+    chassert(key_order.compareTuples(left_keys, right_keys, used_key_size) <= 0);
+
     Hyperrectangle key_ranges;
 
     key_ranges.reserve(used_key_size);
@@ -2847,7 +2877,7 @@ BoolMask KeyCondition::checkInRange(
     //     std::cerr << (i != 0 ? ", " : "") << applyVisitor(FieldVisitorToString(), right_keys[i]);
     // std::cerr << "]" << ": " << initial_mask.can_be_true << " : " << initial_mask.can_be_false << "\n";
 
-    return forAnyHyperrectangle(used_key_size, left_keys, right_keys, true, true, key_ranges, data_types, 0, initial_mask,
+    return forAnyHyperrectangle(used_key_size, left_keys, right_keys, true, true, key_ranges, data_types, key_order, 0, initial_mask,
         [&] (const Hyperrectangle & key_ranges_hyperrectangle)
     {
         auto res = checkInHyperrectangle(key_ranges_hyperrectangle, data_types);

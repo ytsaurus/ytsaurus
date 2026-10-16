@@ -1,4 +1,5 @@
 #include "config.h"
+#include "experiments.h"
 #include "helpers.h"
 #include "operation.h"
 #include "operation_controller.h"
@@ -93,6 +94,7 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
         allocationProto->set_tree_id(allocation.TreeId);
         allocationProto->set_node_id(ToProto(allocation.NodeId));
         allocationProto->set_node_address(allocation.NodeAddress);
+        allocationProto->set_allocation_group_name(allocation.AllocationGroupName);
     }
     ToProto(resultProto->mutable_revived_banned_tree_ids(), result.RevivedBannedTreeIds);
     ToProto(resultProto->mutable_composite_needed_resources(), result.NeededResources);
@@ -168,13 +170,13 @@ public:
 
     ~TOperationControllerWrapper() override
     {
-        auto Logger = ControllerLogger().WithTag("OperationId: %v", Id_);
+        auto Logger = ControllerLogger().WithTag("OperationId", Id_);
 
         const auto snapshot = GetGlobalMemoryUsageSnapshot();
         YT_VERIFY(snapshot);
 
-        YT_LOG_INFO("Controller wrapper destructed, controller destruction scheduled (MemoryUsage: %v)",
-            snapshot->GetUsage(OperationIdTag, ToString(Id_)));
+        YT_TLOG_INFO("Controller wrapper destructed, controller destruction scheduled")
+            .With("MemoryUsage", snapshot->GetUsage(OperationIdTag, ToString(Id_)));
 
         DtorInvoker_->Invoke(BIND([
             underlying = std::move(Underlying_),
@@ -187,22 +189,21 @@ public:
             YT_VERIFY(snapshotBefore);
 
             auto memoryUsageBefore = snapshotBefore->GetUsage(OperationIdTag, ToString(id));
-            YT_LOG_INFO("Started destructing operation controller (MemoryUsageBefore: %v)", memoryUsageBefore);
+            YT_TLOG_INFO("Started destructing operation controller")
+                .With("MemoryUsageBefore", memoryUsageBefore);
             if (auto refCount = ResetAndGetResidualRefCount(underlying)) {
-                YT_LOG_WARNING(
-                    "Controller is going to be removed, but it has residual reference count; memory leak is possible "
-                    "(RefCount: %v)",
-                    refCount);
+                YT_TLOG_WARNING("Controller is going to be removed, but it has residual reference count; memory leak is possible")
+                    .With("RefCount", refCount);
             }
 
             const auto snapshotAfter = GetGlobalMemoryUsageSnapshot();
             YT_VERIFY(snapshotAfter);
 
             auto memoryUsageAfter = snapshotAfter->GetUsage(OperationIdTag, ToString(id));
-            YT_LOG_INFO("Finished destructing operation controller (Elapsed: %v, MemoryUsageAfter: %v, MemoryUsageDecrease: %v)",
-                timer.GetElapsedTime(),
-                memoryUsageAfter,
-                memoryUsageBefore - memoryUsageAfter);
+            YT_TLOG_INFO("Finished destructing operation controller")
+                .With("Elapsed", timer.GetElapsedTime())
+                .With("MemoryUsageAfter", memoryUsageAfter)
+                .With("MemoryUsageDecrease", memoryUsageBefore - memoryUsageAfter);
         }));
     }
 
@@ -410,7 +411,7 @@ public:
 
     TControllerScheduleAllocationResultPtr ScheduleAllocation(
         const TAllocationSchedulingContext& context,
-        const TString& treeId) override
+        const std::string& treeId) override
     {
         return DoExecuteGuarded(&IOperationController::ScheduleAllocation, context, treeId);
     }
@@ -500,7 +501,7 @@ public:
         return DoExecuteGuarded(&IOperationController::GetJobShells);
     }
 
-    TString WriteCoreDump() const override
+    std::string WriteCoreDump() const override
     {
         return DoExecuteGuarded(&IOperationController::WriteCoreDump);
     }
@@ -566,119 +567,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ApplyPatch(
-    const TYPath& path,
-    const INodePtr& root,
-    const INodePtr& templatePatch,
-    const INodePtr& patch)
-{
-    auto node = FindNodeByYPath(root, path);
-    if (node) {
-        node = CloneNode(node);
-    }
-    if (templatePatch) {
-        if (node) {
-            node = PatchNode(templatePatch, node);
-        } else {
-            node = templatePatch;
-        }
-    }
-    if (patch) {
-        if (node) {
-            node = PatchNode(node, patch);
-        } else {
-            node = patch;
-        }
-    }
-    if (node) {
-        ForceYPath(root, path);
-        // Note that #node may be equal to one of the #root's subtrees or to one of the patches.
-        // In any case, we do not want to use it as an argument to SetNodeByYPath, since this wonderful
-        // method would change the parent of the argument node, which may lead to child-parent relation inconsistency.
-        SetNodeByYPath(root, path, CloneNode(node));
-    }
-}
-
-void ApplyExperiments(TOperation* operation)
-{
-    const auto& spec = operation->GetSpec();
-    std::vector<TYPath> userJobPaths;
-    std::vector<TYPath> jobIOPaths;
-    jobIOPaths.push_back("/auto_merge/job_io");
-    switch (operation->GetType()) {
-        case EOperationType::Map: {
-            userJobPaths.push_back("/mapper");
-            jobIOPaths.push_back("/job_io");
-            break;
-        }
-        case EOperationType::JoinReduce:
-        case EOperationType::Reduce: {
-            userJobPaths.push_back("/reducer");
-            jobIOPaths.push_back("/job_io");
-            break;
-        }
-        case EOperationType::MapReduce: {
-            if (FindNodeByYPath(spec, "/mapper")) {
-                userJobPaths.push_back("/mapper");
-            }
-            if (FindNodeByYPath(spec, "/reduce_combiner")) {
-                userJobPaths.push_back("/reduce_combiner");
-            }
-            userJobPaths.push_back("/reducer");
-            jobIOPaths.push_back("/map_job_io");
-            jobIOPaths.push_back("/sort_job_io");
-            jobIOPaths.push_back("/reduce_job_io");
-            break;
-        }
-        case EOperationType::Sort: {
-            jobIOPaths.push_back("/partition_job_io");
-            jobIOPaths.push_back("/sort_job_io");
-            jobIOPaths.push_back("/merge_job_io");
-            break;
-        }
-        case EOperationType::Merge:
-        case EOperationType::Erase:
-        case EOperationType::RemoteCopy: {
-            jobIOPaths.push_back("/job_io");
-            break;
-        }
-        case EOperationType::Vanilla: {
-            auto tasks = GetNodeByYPath(spec, "/tasks");
-            for (const auto& key : tasks->AsMap()->GetKeys()) {
-                userJobPaths.push_back("/tasks/" + key);
-                jobIOPaths.push_back("/tasks/" + key + "/job_io");
-            }
-            break;
-        }
-    }
-
-    INodePtr optionsPatch;
-
-    for (const auto& experiment : operation->ExperimentAssignments()) {
-        for (const auto& path : userJobPaths) {
-            ApplyPatch(
-                path,
-                spec,
-                experiment->Effect->ControllerUserJobSpecTemplatePatch,
-                experiment->Effect->ControllerUserJobSpecPatch);
-        }
-        for (const auto& path : jobIOPaths) {
-            ApplyPatch(
-                path,
-                spec,
-                experiment->Effect->ControllerJobIOTemplatePatch,
-                experiment->Effect->ControllerJobIOPatch);
-        }
-        if (const auto& node = experiment->Effect->ControllerOptionsPatch; node) {
-            optionsPatch = optionsPatch
-                ? PatchNode(optionsPatch, node)
-                : node;
-        }
-    }
-
-    operation->SetOptionsPatch(std::move(optionsPatch));
-}
-
 IOperationControllerPtr CreateControllerForOperation(
     TControllerAgentConfigPtr config,
     TOperation* operation,
@@ -686,7 +574,15 @@ IOperationControllerPtr CreateControllerForOperation(
 {
     IOperationControllerPtr controller;
     auto host = operation->GetHost();
-    ApplyExperiments(operation);
+
+    INodePtr optionsPatch;
+    ApplyExperiments(
+        operation->GetSpec(),
+        operation->GetType(),
+        operation->ExperimentAssignments(),
+        &optionsPatch);
+    operation->SetOptionsPatch(std::move(optionsPatch));
+
     switch (operation->GetType()) {
         case EOperationType::Map: {
             auto baseSpec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());

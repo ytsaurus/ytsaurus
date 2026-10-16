@@ -1,0 +1,292 @@
+{
+    "panels": [
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "count"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\".+\", service=~\"yt-queue-agent\", __name__=~\"yt_queue_agent_consumer_partition_rows_consumed\", consumer_cluster=~\"$consumer_cluster\", consumer_path=~\"$consumer_path\", partition_index=~\"\", queue_cluster=~\"$queue_cluster\", queue_path=~\"$queue_path\"}[$__rate_interval])",
+                    "legendFormat": "Rows consumed",
+                    "refId": "A"
+                }
+            ],
+            "title": "Rows consumed",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "Bps"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\".+\", service=~\"yt-queue-agent\", __name__=~\"yt_queue_agent_consumer_partition_data_weight_consumed\", consumer_cluster=~\"$consumer_cluster\", consumer_path=~\"$consumer_path\", partition_index=~\"\", queue_cluster=~\"$queue_cluster\", queue_path=~\"$queue_path\"}[$__rate_interval])",
+                    "legendFormat": "Data weight consumed",
+                    "refId": "A"
+                }
+            ],
+            "title": "Data weight consumed",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "count"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 6
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\".+\", service=~\"yt-queue-agent\", __name__=~\"yt_queue_agent_consumer_partition_lag_rows_sum\", consumer_cluster=~\"$consumer_cluster\", consumer_path=~\"$consumer_path\", partition_index=~\"\", queue_cluster=~\"$queue_cluster\", queue_path=~\"$queue_path\"}",
+                    "legendFormat": "Row lag",
+                    "refId": "A"
+                }
+            ],
+            "title": "Total row lag",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "s"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 6
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\".+\", service=~\"yt-queue-agent\", __name__=~\"yt_queue_agent_consumer_partition_lag_time_max\", consumer_cluster=~\"$consumer_cluster\", consumer_path=~\"$consumer_path\", partition_index=~\"\", queue_cluster=~\"$queue_cluster\", queue_path=~\"$queue_path\"}",
+                    "legendFormat": "Time lag",
+                    "refId": "A"
+                }
+            ],
+            "title": "Max time lag",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 6,
+                "y": 12
+            },
+            "options": {
+                "content": "<h2>Not Supported</h2>",
+                "mode": "markdown"
+            },
+            "title": "Offset",
+            "type": "text"
+        }
+    ],
+    "tags": [],
+    "templating": {
+        "list": [
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "hide": 0,
+                "label": "Consumer cluster",
+                "name": "consumer_cluster",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "hide": 0,
+                "label": "Consumer path",
+                "name": "consumer_path",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "hide": 0,
+                "label": "Queue cluster",
+                "name": "queue_cluster",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "hide": 0,
+                "label": "Queue path",
+                "name": "queue_path",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            }
+        ],
+        "permissions": [
+            {
+                "cluster": "$consumer_cluster",
+                "path": "$consumer_path",
+                "permission": "read"
+            },
+            {
+                "cluster": "$queue_cluster",
+                "path": "$queue_path",
+                "permission": "read"
+            }
+        ]
+    },
+    "title": "Queue consumer metrics [Autogenerated]"
+}

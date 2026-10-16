@@ -17,7 +17,7 @@ from .controller import add_partitions_by_current_job_status_cell, add_controlle
 
 from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
-from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
+from yt_dashboard_generator.sensor import MultiSensor
 
 from textwrap import dedent
 
@@ -25,19 +25,23 @@ from textwrap import dedent
 COMPUTATION_CELL_GENERATOR = ComputationCellGenerator(has_computation_id_tag=False)
 
 
-def build_flow_status():
+def build_flow_status(backend):
 
     def recovery_by_reason(statuses, alias):
-        return (FlowController("|".join(f"yt.flow.controller.job_status.{status}" for status in statuses))
+        return (MonitoringExpr(FlowController("|".join(f"yt.flow.controller.job_status.{status}" for status in statuses)))
             .aggr("computation_id")
             .all("previous_job_finish_reason")
-            .query_transformation(f'alias(series_sum("previous_job_finish_reason", {{query}}), "{alias}")'))
+            .series_sum("previous_job_finish_reason")
+            .alias(alias))
 
     recovery_by_reason_description = dedent("""\
         **Expect to see zero on this panel if pipeline is stably working.**
 
-        **Recovering** — current job is preloading data or its status is unknown.
+        **Recovering** — the partition has no job yet, or its new job is preloading data.
         **Warming up** — current job is working ≤ 5 minutes.
+
+        A partition moved by the balancer appears here only once its new job is created: while the
+        old job is finishing the epoch it is `Gracefully moving` on the neighbouring panel.
 
         **after Failed** — previous job failed.
         **after LostWorker** — previous job worker is gone (release/reallocation/OOM/crash/...).
@@ -54,8 +58,8 @@ def build_flow_status():
             .apply_func(add_partitions_by_current_job_status_cell)
             .cell("Recovering/warming up by reason",
                 MultiSensor(
-                    recovery_by_reason(["unknown", "preparing"], "Recovering after {{{{previous_job_finish_reason}}}}"),
-                    recovery_by_reason(["working_young"], "Warming up after {{{{previous_job_finish_reason}}}}"))
+                    recovery_by_reason(["unknown", "preparing"], "Recovering after {{previous_job_finish_reason}}"),
+                    recovery_by_reason(["working_young"], "Warming up after {{previous_job_finish_reason}}"))
                     .stack(True)
                     .unit("UNIT_COUNT"),
                 display_legend=False,
@@ -77,8 +81,36 @@ def build_flow_status():
                     "Warming up after Unknown": "#9999ff",
                 })
             .cell("Registered workers count", FlowController("yt.flow.controller.worker_count").unit("UNIT_COUNT"))
-            .apply_func(add_controller_failed_iterations_cell)
+            .apply_func(lambda row: add_controller_failed_iterations_cell(row, backend=backend))
     ).owner
+
+
+def build_status_profiler():
+    broken_description = dedent("""\
+        Number of status-profiler components (queue/table connectors, key visitors, companion,
+        controller activities, ...) currently reporting an error, broken down by path.
+
+        **Expect an empty panel when the pipeline is healthy.** The stack total is the number of
+        problematic places right now.
+    """)
+
+    return (Rowset()
+        .stack(True)
+        .row()
+            .cell(
+                "Components in error state",
+                MultiSensor(
+                    MonitoringExpr(FlowWorker("yt.flow.worker.status_profiler.broken"))
+                        .aggr("host")
+                        .all("path")
+                        .alias("worker {{path}}"),
+                    MonitoringExpr(FlowController("yt.flow.controller.status_profiler.broken"))
+                        .aggr("host")
+                        .all("path")
+                        .alias("controller {{path}}"))
+                    .unit("UNIT_COUNT"),
+                description=broken_description)
+    )
 
 
 def build_lags():
@@ -120,9 +152,9 @@ def build_epoch_timings():
     return (Rowset()
         .row()
             .apply_func(COMPUTATION_CELL_GENERATOR.add_epoch_parts_time_cell)
+            .apply_func(COMPUTATION_CELL_GENERATOR.add_epoch_parts_max_time_cell)
             .apply_func(COMPUTATION_CELL_GENERATOR.add_epoch_duration_max_time_cell)
             .apply_func(COMPUTATION_CELL_GENERATOR.add_epoch_count_total_cell)
-            .cell("", EmptyCell())
     )
 
 
@@ -168,17 +200,19 @@ def build_logging():
     )
 
 
-def build_flow_general():
+def build_flow_general(backend="monitoring"):
     def fill(d):
-        d.add(build_resource_usage("controller", add_component_to_title=True))
-        d.add(build_resource_usage("worker", add_component_to_title=True))
-        d.add(build_flow_status())
         d.add(build_lags())
+        d.add(COMPUTATION_CELL_GENERATOR.build_event_lag_rowset(backend))
+        d.add(build_resource_usage("controller", add_component_to_title=True, backend=backend))
+        d.add(build_resource_usage("worker", add_component_to_title=True, backend=backend))
+        d.add(build_flow_status(backend))
+        d.add(build_status_profiler())
         d.add(COMPUTATION_CELL_GENERATOR.build_message_rate_rowset())
         d.add(build_epoch_timings())
         d.add(COMPUTATION_CELL_GENERATOR.build_resources_rowset())
-        d.add(COMPUTATION_CELL_GENERATOR.build_partition_aggregates_rowset())
+        d.add(COMPUTATION_CELL_GENERATOR.build_partition_aggregates_rowset(backend))
         d.add(COMPUTATION_CELL_GENERATOR.build_partition_store_operations_rowset())
         d.add(build_logging())
 
-    return create_dashboard("general", fill)
+    return create_dashboard("general", fill, backend=backend)

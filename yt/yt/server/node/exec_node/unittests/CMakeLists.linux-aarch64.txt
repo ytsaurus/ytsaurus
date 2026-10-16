@@ -56,6 +56,10 @@ target_link_options(unittester-exec-node PRIVATE
   -lutil
 )
 
+target_sources(unittester-exec-node PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/unittests/pending_downloads_tracker_ut.cpp
+)
+
 
 add_test(
   NAME

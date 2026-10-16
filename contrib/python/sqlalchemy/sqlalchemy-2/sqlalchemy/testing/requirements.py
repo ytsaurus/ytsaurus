@@ -167,6 +167,16 @@ class SuiteRequirements(Requirements):
         return exclusions.open()
 
     @property
+    def repeated_column_foreign_keys(self):
+        """Target database must support a FOREIGN KEY constraint which names
+        the same local column more than once, e.g.
+        ``FOREIGN KEY (a, a) REFERENCES r (b, c)``.
+
+        """
+
+        return exclusions.closed()
+
+    @property
     def foreign_key_ddl(self):
         """Target database must support the DDL phrases for FOREIGN KEY."""
 
@@ -435,6 +445,19 @@ class SuiteRequirements(Requirements):
             lambda config: config.db.dialect.update_returning,
             "%(database)s %(does_support)s 'UPDATE ... RETURNING'",
         )
+
+    @property
+    def update_returning_dialect_not_supported(self):
+        """target database rejects UPDATE ... RETURNING when the dialect
+        reports that ``update_returning`` is not supported.
+
+        This is normally the case; it's false only where a server has
+        gained UPDATE ... RETURNING that the dialect doesn't implement
+        yet, so that the statement runs rather than raising.
+
+        """
+
+        return exclusions.open()
 
     @property
     def insert_executemany_returning(self):
@@ -1671,6 +1694,12 @@ class SuiteRequirements(Requirements):
     def gil_enabled(self):
         return exclusions.only_if(
             lambda: not util.freethreading, "GIL-enabled build needed"
+        )
+
+    @property
+    def freethreading(self):
+        return exclusions.only_if(
+            lambda: util.freethreading, "free-threaded build needed"
         )
 
     @property

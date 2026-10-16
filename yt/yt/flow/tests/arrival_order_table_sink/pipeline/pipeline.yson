@@ -1,0 +1,61 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NTest::TArrivalOrderSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["rows"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "<cluster=primary>//tmp/input_queue";
+                            "consumer_path" = "<cluster=primary>//tmp/consumer";
+                            "update_partition_count_period" = "100ms";
+                        };
+                    };
+                };
+                "sinks" = {
+                    "static" = {
+                        "sink_class_name" = "NYT::NFlow::NStaticTableConnector::TArrivalOrderTableSink";
+                        "input_stream_ids" = ["rows"];
+                        "parameters" = {
+                            "output_directory" = "<cluster=primary>//tmp/output";
+                            "table_period" = "1s";
+                            "table_ttl" = "1h";
+                            "data_weight_column" = "data_weight";
+                        };
+                    };
+                };
+            };
+        };
+        "streams" = {
+            "rows" = {
+                "schema" = [
+                    {"name" = "partition_id"; "type" = "uint64";};
+                    {"name" = "sequence"; "type" = "int64";};
+                    {"name" = "data_weight"; "type" = "int64";};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {
+                "max_rows_per_batch" = 100;
+                "sinks" = {
+                    "static" = {
+                        "parameters" = {
+                            "max_row_count" = 100;
+                            "max_data_weight" = 1048576;
+                            "retry_backoff" = "10ms";
+                        };
+                    };
+                };
+            };
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+    };
+}

@@ -5,7 +5,7 @@ from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
                      YtRequestQueueSizeLimitExceeded, YtRpcUnavailable, YtConcurrentOperationsLimitExceeded,
                      YtRequestTimedOut, YtRetriableError, YtTransportError, YtNoSuchTransaction, YtProxyBanned,
-                     create_http_response_error)
+                     YtFlowViewKeeperNotInitialized, create_http_response_error)
 from .framing import unframed_iter_content
 from .command import parse_commands
 from .format import JsonFormat, YsonFormat
@@ -111,7 +111,8 @@ def get_retriable_errors():
             SocketError, ChunkedEncodingError, ReadTimeoutError,
             YtIncorrectResponse, YtProxyUnavailable, YtProxyBanned,
             YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
-            YtRequestTimedOut, YtRetriableError, YtTransportError)
+            YtRequestTimedOut, YtRetriableError, YtTransportError,
+            YtFlowViewKeeperNotInitialized)
 
 
 class ProxyProvider(object):
@@ -308,7 +309,7 @@ def raise_for_token(response, request_info):
     error_exc = create_http_response_error(
         response.error(),
         url=request_info["url"],
-        request_headers=request_info["headers"],
+        request_headers=hide_auth_headers(request_info["headers"]),
         response_headers=dict(**response.headers),
         params=request_info["params"])
     raise YtTokenError(
@@ -330,10 +331,34 @@ def _raise_for_status(response, request_info):
         error_exc = create_http_response_error(
             response.error(),
             url=request_info["url"],
-            request_headers=request_info["headers"],
+            request_headers=hide_auth_headers(request_info["headers"]),
             response_headers=dict(**response.headers),
             params=request_info["params"])
         raise error_exc
+
+
+def _is_connection_dns_error(error: "requests.ConnectionError") -> bool:
+    """Return True if error is a ConnectionError caused by DNS resolution failure (EAI_NONAME)."""
+    cause = getattr(error, "__cause__", None) or getattr(error, "__context__", None)
+    while cause is not None:
+        if isinstance(cause, SocketError) and getattr(cause, "errno", None) == socket.EAI_NONAME:
+            return True
+        cause = getattr(cause, "__cause__", None) or getattr(cause, "__context__", None)
+    return False
+
+
+def _check_short_alias(client):
+    proxy_config = get_config(client)["proxy"]
+    proxy_url = proxy_config.get("url") or ""
+    parsed = urlparse(proxy_url if "//" in proxy_url else "//" + proxy_url)
+    host = parsed.hostname or ""
+    if "." not in host and ":" not in host and "localhost" not in host and not parsed.port and not parsed.scheme and not proxy_config["default_suffix"]:
+        raise YtError(
+            f"""DNS resolution failed for proxy {proxy_url!r}. \
+This looks like a short cluster alias, but 'proxy/default_suffix' is not configured. \
+Use full proxy hostname (e.g. '{host}.cluster.example.com') \
+or set 'proxy/default_suffix' in config."""
+        )
 
 
 class HTTPRequestRetrier(Retrier):
@@ -476,6 +501,9 @@ class HTTPRequestRetrier(Retrier):
         self.is_connection_timeout_error = isinstance(error, requests.exceptions.ConnectTimeout)
         if self.proxy_provider is not None:
             self.proxy_provider.on_error_occurred(error)
+        if isinstance(error, requests.ConnectionError) and _is_connection_dns_error(error):
+            _check_short_alias(self.client)
+
         if self.make_retries:
             if self.retry_action is not None:
                 self.retry_action(error, self.kwargs)
@@ -528,6 +556,11 @@ def _get_proxy_url_parts(required=True, client=None, replace_host_proxy: str = N
 
     # expand host aliases
     if "." not in hostname and ":" not in hostname and "localhost" not in hostname and not port and not scheme:
+        if not proxy_config["default_suffix"]:
+            logger.tip(
+                f"""Proxy {hostname!r} looks like a short cluster alias, but 'proxy/default_suffix' is not configured. \
+Use full proxy hostname (e.g. '{hostname}.cluster.example.com') or set 'proxy/default_suffix' in config."""
+            )
         hostname = hostname + proxy_config["default_suffix"]
 
     # get scheme from config
@@ -662,6 +695,10 @@ def _get_token_by_ssh_session(client):
 
 def validate_token(token, client):
     if token is not None:
+        if token != token.strip():
+            raise YtTokenError(
+                "Authentication token contains leading or trailing whitespace. "
+                "Remove any spaces, tabs, or line breaks around the token.")
         require(all(33 <= ord(c) <= 126 for c in token),
                 lambda: YtTokenError("You have an improper authentication token"))
 

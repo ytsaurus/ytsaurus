@@ -8,6 +8,7 @@ SRCS(
     enforce_aggregate.cpp
     filter_introspection.cpp
     helpers.cpp
+    implication_checker.cpp
     misc.cpp
     query_optimizer.cpp
     query_rewriter.cpp
@@ -19,6 +20,7 @@ PEERDIR(
     yt/yt/orm/client/misc
 
     yt/yt/orm/library/attributes
+    yt/yt/orm/library/mpl
 
     yt/yt/library/query/base
 

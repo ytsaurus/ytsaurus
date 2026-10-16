@@ -135,9 +135,17 @@ public:
         return UnderlyingChangelog_->GetDataSize();
     }
 
-    i64 EstimateChangelogSize(i64 payloadSize) const override
+    i64 EstimateWriteSize(i64 payloadSize) const override
     {
-        return UnderlyingChangelog_->EstimateChangelogSize(payloadSize);
+        return UnderlyingChangelog_->EstimateWriteSize(payloadSize);
+    }
+
+    i64 EstimateReadSize(
+        int firstRecordId,
+        int maxRecords,
+        i64 maxBytes) const override
+    {
+        return UnderlyingChangelog_->EstimateReadSize(firstRecordId, maxRecords, maxBytes);
     }
 
     TFuture<void> Append(TRange<TSharedRef> records) override
@@ -257,9 +265,17 @@ public:
         return UnderlyingChangelog_->GetDataSize();
     }
 
-    i64 EstimateChangelogSize(i64 payloadSize) const override
+    i64 EstimateWriteSize(i64 payloadSize) const override
     {
-        return UnderlyingChangelog_->EstimateChangelogSize(payloadSize);
+        return UnderlyingChangelog_->EstimateWriteSize(payloadSize);
+    }
+
+    i64 EstimateReadSize(
+        int firstRecordId,
+        int maxRecords,
+        i64 maxBytes) const override
+    {
+        return UnderlyingChangelog_->EstimateReadSize(firstRecordId, maxRecords, maxBytes);
     }
 
     TFuture<void> Append(TRange<TSharedRef> records) override
@@ -314,13 +330,13 @@ public:
         , Config_(std::move(config))
         , Dispatcher_(CreateFileChangelogDispatcher(
             IOEngine_,
-            /*memoryUsageTracker*/ nullptr,
+            /*indexMemoryUsageTracker*/ nullptr,
             Config_,
             threadName,
             profiler))
         , Invoker_(Dispatcher_->GetInvoker())
         , BoundedConcurrencyInvoker_(CreateBoundedConcurrencyInvoker(Invoker_, 1))
-        , Logger(HydraLogger().WithTag("Path: %v", Config_->Path))
+        , Logger(HydraLogger().WithTag("Path", Config_->Path))
     { }
 
     TFuture<void> WriteTerm(int term)
@@ -403,15 +419,16 @@ private:
             auto underlyingChangelog = WaitFor(Dispatcher_->CreateChangelog(id, path, meta, Config_))
                 .ValueOrThrow();
 
-            YT_LOG_INFO("Local changelog created (ChangelogId: %v, Epoch: %v)",
-                id,
-                epoch);
+            YT_TLOG_INFO("Local changelog created")
+                .With("ChangelogId", id)
+                .With("Epoch", epoch);
 
             auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
             cookie.EndInsert(cachedChangelog);
         } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Error creating changelog (Path: %v)",
-                path);
+            YT_TLOG_FATAL("Error creating changelog")
+                .With("Path", path)
+                .With(ex);
         }
 
         return MakeEpochBoundLocalChangelog(epoch, cookie.GetValue());
@@ -435,15 +452,16 @@ private:
                     auto underlyingChangelog = WaitFor(Dispatcher_->OpenChangelog(id, path, Config_))
                         .ValueOrThrow();
 
-                    YT_LOG_INFO("Local changelog opened (ChangelogId: %v, Epoch: %v)",
-                        id,
-                        epoch);
+                    YT_TLOG_INFO("Local changelog opened")
+                        .With("ChangelogId", id)
+                        .With("Epoch", epoch);
 
                     auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
                     cookie.EndInsert(cachedChangelog);
                 } catch (const std::exception& ex) {
-                    YT_LOG_FATAL(ex, "Error opening changelog (Path: %v)",
-                        path);
+                    YT_TLOG_FATAL("Error opening changelog")
+                        .With("Path", path)
+                        .With(ex);
                 }
             }
         }
@@ -458,9 +476,9 @@ private:
         auto path = GetChangelogPath(Config_->Path, id);
         RemoveChangelogFiles(path);
 
-        YT_LOG_INFO("Local changelog removed (ChangelogId: %v, Epoch: %v)",
-            id,
-            epoch);
+        YT_TLOG_INFO("Local changelog removed")
+            .With("ChangelogId", id)
+            .With("Epoch", epoch);
     }
 
     IChangelogStorePtr DoLock()
@@ -474,7 +492,7 @@ private:
                 Initialized_ = true;
             }
 
-            YT_LOG_INFO("Locking local changelog store");
+            YT_TLOG_INFO("Locking local changelog store");
 
             WaitFor(Dispatcher_->FlushChangelogs())
                 .ThrowOnError();
@@ -495,11 +513,11 @@ private:
                 scanResult.LatestNonemptyChangelogId,
                 scanResult.LastMutationSequenceNumber);
 
-            YT_LOG_INFO("Local changelog store locked (Epoch: %v, ReachableVersion: %v, ElectionPriority: %v, Term: %v)",
-                epoch,
-                reachableVersion,
-                electionPriority,
-                term);
+            YT_TLOG_INFO("Local changelog store locked")
+                .With("Epoch", epoch)
+                .With("ReachableVersion", reachableVersion)
+                .With("ElectionPriority", electionPriority)
+                .With("Term", term);
 
             return CreateStore(
                 reachableVersion,
@@ -510,14 +528,14 @@ private:
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error locking local changelog store %v",
                 Config_->Path)
-                << ex;
+                .With(ex);
         }
     }
 
 
     void InitializeImpl()
     {
-        YT_LOG_INFO("Initializing local changelog store");
+        YT_TLOG_INFO("Initializing local changelog store");
 
         // TODO(babenko): migrate to std::string
         NFS::MakeDirRecursive(TString(Config_->Path));
@@ -525,7 +543,7 @@ private:
         // TODO(babenko): migrate to std::string
         NFS::CleanTempFiles(TString(Config_->Path));
 
-        YT_LOG_INFO("Local changelog store initialized");
+        YT_TLOG_INFO("Local changelog store initialized");
     }
 
     IChangelogStorePtr CreateStore(
@@ -556,8 +574,8 @@ private:
             auto name = NFS::GetFileNameWithoutExtension(fileName);
             int id;
             if (!TryFromString<int>(name, id)) {
-                YT_LOG_WARNING("Found unrecognized file in local changelog store (FileName: %v)",
-                    fileName);
+                YT_TLOG_WARNING("Found unrecognized file in local changelog store")
+                    .With("FileName", fileName);
                 continue;
             }
 
@@ -598,11 +616,13 @@ private:
         LockFileHandle_.emplace(fileName, RdWr | CreateAlways);
 
         if (!LockFileHandle_->IsOpen()) {
-            YT_LOG_FATAL(TError::FromSystem(), "Cannot open local changelog store");
+            YT_TLOG_FATAL("Cannot open local changelog store")
+                .With(TError::FromSystem());
         }
 
         if (LockFileHandle_->Flock(LOCK_EX | LOCK_NB) != 0) {
-            YT_LOG_FATAL(TError::FromSystem(), "Cannot lock local changelog store");
+            YT_TLOG_FATAL("Cannot lock local changelog store")
+                .With(TError::FromSystem());
         }
     }
 
@@ -623,8 +643,9 @@ private:
             });
             return FromString<int>(strippedTermString);
         } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Error reading term from local changelog store (Path: %v)",
-                Config_->Path);
+            YT_TLOG_FATAL("Error reading term from local changelog store")
+                .With("Path", Config_->Path)
+                .With(ex);
         }
     }
 
@@ -646,8 +667,9 @@ private:
             // TODO(babenko): migrate to std::string
             NFS::Rename(tempFileName, TString(fileName));
         } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Error writing term to local changelog store (Path: %v)",
-                Config_->Path);
+            YT_TLOG_FATAL("Error writing term to local changelog store")
+                .With("Path", Config_->Path)
+                .With(ex);
         }
     }
 };
@@ -751,8 +773,8 @@ private:
                 return;
             }
         } while (!LatestChangelogId_.compare_exchange_weak(expected, id));
-        YT_LOG_INFO("Latest changelog id updated (NewChangelogId: %v)",
-            id);
+        YT_TLOG_INFO("Latest changelog id updated")
+            .With("NewChangelogId", id);
     }
 };
 

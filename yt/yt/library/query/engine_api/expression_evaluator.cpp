@@ -4,9 +4,7 @@
 
 namespace NYT::NQueryClient {
 
-using NTableClient::TMutableVersionedRow;
-using NTableClient::TMutableUnversionedRow;
-using NTableClient::TUnversionedValue;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

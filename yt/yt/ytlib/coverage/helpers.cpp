@@ -17,13 +17,14 @@ namespace NYT::NCoverage {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ReadCoverageOrThrow(TString* result)
+std::string ReadCoverageOrThrow()
 {
 #ifdef __AFL_COMPILER
-    result->resize(__afl_map_size);
-    __afl_copy_coverage(reinterpret_cast<ui8*>(result->begin()), __afl_map_size);
+    std::string result;
+    result.resize(__afl_map_size);
+    __afl_copy_coverage(reinterpret_cast<ui8*>(result.data()), __afl_map_size);
+    return result;
 #else
-    Y_UNUSED(result);
     THROW_ERROR_EXCEPTION("Unsupported, consider instrumenting the binary first");
 #endif
 }

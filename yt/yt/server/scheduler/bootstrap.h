@@ -18,6 +18,8 @@
 
 #include <yt/yt/core/http/public.h>
 
+#include <yt/yt/core/https/public.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -38,7 +40,7 @@ public:
 
     const TSchedulerBootstrapConfigPtr& GetConfig() const;
     const NApi::NNative::IClientPtr& GetClient() const;
-    const NApi::NNative::IClientPtr& GetRemoteClient(NObjectClient::TCellTag tag) const;
+    NApi::NNative::IClientPtr GetRemoteClient(NObjectClient::TCellTag tag) const;
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue) const;
@@ -60,11 +62,11 @@ private:
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
+    NHttp::IServerPtr HttpsServer_;
     NApi::NNative::IConnectionPtr Connection_;
     NApi::NNative::IClientPtr Client_;
     TSchedulerPtr Scheduler_;
     TControllerAgentTrackerPtr ControllerAgentTracker_;
-    mutable THashMap<NObjectClient::TCellTag, NApi::NNative::IClientPtr> RemoteClients_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
     void DoRun();

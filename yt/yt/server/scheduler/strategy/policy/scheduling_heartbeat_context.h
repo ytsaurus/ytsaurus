@@ -13,30 +13,19 @@ namespace NYT::NScheduler::NStrategy::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(eshcherbin): Refactor TScheduleAllocationsStatistics to allow for different scheduling strategies.
 struct TScheduleAllocationsStatistics
+    : public TRefCounted
 {
     int ControllerScheduleAllocationCount = 0;
     int ControllerScheduleAllocationTimedOutCount = 0;
-    TEnumIndexedArray<EAllocationSchedulingStage, int> ScheduleAllocationAttemptCountPerStage;
-    int MaxNonPreemptiveSchedulingIndex = -1;
-    int ScheduledDuringPreemption = 0;
     int PreemptibleAllocationCount = 0;
-    bool ScheduleWithPreemption = false;
-    TEnumIndexedArray<EOperationPreemptionPriority, int> OperationCountByPreemptionPriority;
     TJobResources ResourceLimits;
     TJobResources ResourceUsage;
-    TJobResources ResourceUsageDiscount;
-    bool SsdPriorityPreemptionEnabled = false;
-    THashSet<int> SsdPriorityPreemptionMedia;
 };
 
-void Serialize(const TScheduleAllocationsStatistics& statistics, NYson::IYsonConsumer* consumer);
+using TScheduleAllocationsStatisticsPtr = TIntrusivePtr<TScheduleAllocationsStatistics>;
 
-TString FormatScheduleAllocationAttemptsCompact(const TScheduleAllocationsStatistics& statistics);
-
-TString FormatOperationCountByPreemptionPriorityCompact(
-    const TEnumIndexedArray<EOperationPreemptionPriority, int>& operationsPerPriority);
+void BuildScheduleAllocationsStatisticsCommon(const TScheduleAllocationsStatisticsPtr& statistics, NYTree::TFluentMap fluent);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,8 +100,8 @@ struct ISchedulingHeartbeatContext
 
     virtual NProfiling::TCpuInstant GetNow() const = 0;
 
-    virtual TScheduleAllocationsStatistics GetSchedulingStatistics() const = 0;
-    virtual void SetSchedulingStatistics(TScheduleAllocationsStatistics statistics) = 0;
+    virtual TScheduleAllocationsStatisticsPtr GetSchedulingStatistics() const = 0;
+    virtual void SetSchedulingStatistics(TScheduleAllocationsStatisticsPtr statistics) = 0;
 
     virtual void StoreScheduleAllocationExecDurationEstimate(TDuration duration) = 0;
     virtual TDuration ExtractScheduleAllocationExecDurationEstimate() = 0;

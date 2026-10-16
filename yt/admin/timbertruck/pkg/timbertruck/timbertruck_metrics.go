@@ -4,7 +4,6 @@ import (
 	"log/slog"
 
 	"go.ytsaurus.tech/library/go/core/metrics"
-	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
 )
 
 type activeTaskCounter struct {
@@ -55,42 +54,30 @@ func (c *activeTaskCounter) Do() {
 	}
 }
 
-type skippedRowsMetrics interface {
-	Inc(reason pipelines.SkipRowReason)
+// rowCounters holds a counter per value of a single tag. It is a noop when registry is nil.
+type rowCounters[T ~string] struct {
+	counters map[T]metrics.Counter
 }
 
-type skippedRowsMetricsImpl struct {
-	logger   *slog.Logger
-	counters map[pipelines.SkipRowReason]metrics.Counter
-}
-
-func (m *skippedRowsMetricsImpl) Inc(reason pipelines.SkipRowReason) {
-	if counter, ok := m.counters[reason]; ok {
+func (c rowCounters[T]) Inc(value T) {
+	if counter, ok := c.counters[value]; ok {
 		counter.Inc()
 	}
 }
 
-type noopSkippedRowsMetrics struct{}
-
-func (m *noopSkippedRowsMetrics) Inc(_ pipelines.SkipRowReason) {}
-
-func newSkippedRowsMetrics(logger *slog.Logger, streamName string, registry metrics.Registry) skippedRowsMetrics {
+func newRowCounters[T ~string](registry metrics.Registry, streamName string, name string, tag string, values []T) rowCounters[T] {
+	result := rowCounters[T]{counters: make(map[T]metrics.Counter, len(values))}
 	if registry == nil {
-		return &noopSkippedRowsMetrics{}
+		return result
 	}
 
-	result := &skippedRowsMetricsImpl{
-		logger:   logger,
-		counters: make(map[pipelines.SkipRowReason]metrics.Counter),
-	}
-
-	for _, reason := range pipelines.AllSkipRowReasons {
+	for _, value := range values {
 		counter := registry.WithTags(map[string]string{
 			"stream": streamName,
-			"reason": string(reason),
-		}).Counter("tt.stream.skipped_rows")
+			tag:      string(value),
+		}).Counter(name)
 		counter.Add(0)
-		result.counters[reason] = counter
+		result.counters[value] = counter
 	}
 
 	return result

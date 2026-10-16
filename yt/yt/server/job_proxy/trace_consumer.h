@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/json/json_writer.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NJobProxy {
 

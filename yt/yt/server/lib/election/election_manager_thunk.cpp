@@ -48,6 +48,11 @@ TCellManagerPtr TElectionManagerThunk::GetCellManager()
     return Underlying_.Acquire()->GetCellManager();
 }
 
+void TElectionManagerThunk::Discombobulate()
+{
+    Underlying_.Acquire()->Discombobulate();
+}
+
 void TElectionManagerThunk::SetUnderlying(IElectionManagerPtr underlying)
 {
     Underlying_.Store(std::move(underlying));

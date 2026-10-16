@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     config.cpp
+    memory_profile_retention.cpp
     tcmalloc_manager.cpp
     GLOBAL configure_tcmalloc_manager.cpp
 )
@@ -17,3 +18,9 @@ PEERDIR(
 )
 
 END()
+
+IF (OS_LINUX AND NOT SANITIZER_TYPE)
+    RECURSE_FOR_TESTS(
+        unittests
+    )
+ENDIF()

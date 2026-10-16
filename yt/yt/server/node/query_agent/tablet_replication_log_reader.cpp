@@ -95,9 +95,9 @@ public:
                 break;
             }
 
-            YT_LOG_DEBUG("Waiting for replicated rows from tablet reader (TabletId: %v, StartRowIndex: %v)",
-                TabletId_,
-                currentRowIndex);
+            YT_TLOG_DEBUG("Waiting for replicated rows from tablet reader")
+                .With("TabletId", TabletId_)
+                .With("StartRowIndex", currentRowIndex);
 
             WaitFor(Reader_->GetReadyEvent())
                 .ThrowOnError();
@@ -219,7 +219,7 @@ protected:
         TTimestamp* timestamp,
         i64* rowDataWeight) const override
     {
-        auto rowTimestamp = row[TimestampColumnIndex_].Data.Uint64;
+        auto rowTimestamp = NTransactionClient::TTimestamp(row[TimestampColumnIndex_].Data.Uint64);
 
         *timestamp = rowTimestamp;
         *replicationRow = row.ToTypeErasedRow();

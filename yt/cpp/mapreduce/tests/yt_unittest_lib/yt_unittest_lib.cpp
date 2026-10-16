@@ -54,6 +54,9 @@ static void VerifyLocalMode(TStringBuf proxy, const IClientBasePtr& client)
     try {
         fqdnAttr = client->Get("//sys/@local_mode_fqdn").AsString();
     } catch (const TErrorResponse& error) {
+        if (!error.IsResolveError()) {
+            throw;
+        }
         Y_ABORT("Attribute //sys/@local_mode_fqdn not found; are you trying to run tests on a real cluster?");
     }
     fqdnAttr = to_lower(fqdnAttr);
@@ -144,6 +147,11 @@ bool UseRpcClient()
     return !useRpcClient.empty();
 }
 
+bool UseDefaultHttpClient()
+{
+    return !UseRpcClient() && GetEnv("YT_TESTS_USE_CORE_HTTP_CLIENT").empty();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TZeroWaitLockPollIntervalGuard::TZeroWaitLockPollIntervalGuard()
@@ -214,7 +222,7 @@ TTestFixture::TTestFixture(const TCreateClientOptions& options)
 
 TTestFixture::~TTestFixture()
 {
-    YT_LOG_INFO("Completing test and aborting all operations");
+    YT_TLOG_INFO("Completing test and aborting all operations");
     while (true) {
         auto result = Client_->ListOperations(
             TListOperationsOptions()
@@ -227,9 +235,9 @@ TTestFixture::~TTestFixture()
                 Client_->AttachOperation(*op.Id)->AbortOperation();
             } catch (const TErrorResponse& ex) {
                 if (ex.GetError().ContainsErrorCode(NClusterErrorCodes::NScheduler::NoSuchOperation)) {
-                    YT_LOG_ERROR("Error aborting operation %v: %v",
-                        *op.Id,
-                        ex.what());
+                    YT_TLOG_ERROR("Error aborting operation")
+                        .With("OperationId", *op.Id)
+                        .With("Error", ex.what());
                 } else {
                     Y_ABORT("Unexpected error: %s", ex.what());
                 }

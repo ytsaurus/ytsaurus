@@ -57,6 +57,7 @@
 #include "rdkafka_interceptor.h"
 #include "rdkafka_idempotence.h"
 #include "rdkafka_sasl_oauthbearer.h"
+#include "rdkafka_share_acknowledgement.h"
 #if WITH_OAUTHBEARER_OIDC
 #error #include "rdkafka_sasl_oauthbearer_oidc.h"
 #endif
@@ -82,8 +83,14 @@
 #endif
 
 
-static once_flag rd_kafka_global_init_once  = ONCE_FLAG_INIT;
-static once_flag rd_kafka_global_srand_once = ONCE_FLAG_INIT;
+static once_flag rd_kafka_global_init_once = ONCE_FLAG_INIT;
+#ifdef _WIN32
+/* On Windows srand needs to be called on each thread. */
+static RD_TLS once_flag rd_kafka_srand_once = ONCE_FLAG_INIT;
+#else
+static once_flag rd_kafka_srand_once = ONCE_FLAG_INIT;
+#endif
+
 
 /**
  * @brief Global counter+lock for all active librdkafka instances
@@ -130,6 +137,13 @@ void rd_kafka_set_thread_name(const char *fmt, ...) {
  */
 static char RD_TLS rd_kafka_thread_sysname[16] = "app";
 
+/**
+ * @brief Seed the PRNG with current microseconds and thread ID.
+ */
+static void rd_kafka_srand(void) {
+        srand(rd_seed());
+}
+
 void rd_kafka_set_thread_sysname(const char *fmt, ...) {
         va_list ap;
 
@@ -140,6 +154,31 @@ void rd_kafka_set_thread_sysname(const char *fmt, ...) {
 
         thrd_setname(rd_kafka_thread_sysname);
 }
+
+/**
+ * @brief Seed the PRNG for the current thread or for the whole process.
+ *        Depending on the platform implementation of srand() the seed can
+ *        be a thread local or global one. In case it's thread local we
+ *        need to call it on each thread.
+ *
+ * @param rk Client instance.
+ * @param internal_thread If true, seed the PRNG if
+ *                        it's required per-thread.
+ */
+#ifdef _WIN32
+void rd_kafka_thread_srand(rd_kafka_t *rk, rd_bool_t internal_thread) {
+        /* We always call it once per thread in the internal threads and
+         * once per thread in the application threads, if requested. */
+        if (rk->rk_conf.enable_random_seed || internal_thread)
+                call_once(&rd_kafka_srand_once, rd_kafka_srand);
+}
+#else
+void rd_kafka_thread_srand(rd_kafka_t *rk, rd_bool_t internal_thread) {
+        /* We call it only in the app threads, only once, if requested. */
+        if (rk->rk_conf.enable_random_seed && !internal_thread)
+                call_once(&rd_kafka_srand_once, rd_kafka_srand);
+}
+#endif
 
 static void rd_kafka_global_init0(void) {
         cJSON_Hooks json_hooks = {.malloc_fn = rd_malloc, .free_fn = rd_free};
@@ -168,18 +207,6 @@ static void rd_kafka_global_init0(void) {
  */
 void rd_kafka_global_init(void) {
         call_once(&rd_kafka_global_init_once, rd_kafka_global_init0);
-}
-
-
-/**
- * @brief Seed the PRNG with current_time.milliseconds
- */
-static void rd_kafka_global_srand(void) {
-        struct timeval tv;
-
-        rd_gettimeofday(&tv, NULL);
-
-        srand((unsigned int)(tv.tv_usec / 1000));
 }
 
 
@@ -404,7 +431,9 @@ static const struct rd_kafka_err_desc rd_kafka_err_descs[] = {
     _ERR_DESC(RD_KAFKA_RESP_ERR__BAD_MSG, "Local: Bad message format"),
     _ERR_DESC(RD_KAFKA_RESP_ERR__BAD_COMPRESSION,
               "Local: Invalid compressed data"),
-    _ERR_DESC(RD_KAFKA_RESP_ERR__DESTROY, "Local: Broker handle destroyed"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR__DESTROY,
+              "Local: Broker handle destroyed "
+              "for termination"),
     _ERR_DESC(
         RD_KAFKA_RESP_ERR__FAIL,
         "Local: Communication failure with broker"),  // FIXME: too specific
@@ -488,7 +517,9 @@ static const struct rd_kafka_err_desc rd_kafka_err_descs[] = {
               "Local: Partition log truncation detected"),
     _ERR_DESC(RD_KAFKA_RESP_ERR__INVALID_DIFFERENT_RECORD,
               "Local: an invalid record in the same batch caused "
-              "the failure of this message too."),
+              "the failure of this message too"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR__DESTROY_BROKER,
+              "Local: Broker handle destroyed without termination"),
 
     _ERR_DESC(RD_KAFKA_RESP_ERR_UNKNOWN, "Unknown broker error"),
     _ERR_DESC(RD_KAFKA_RESP_ERR_NO_ERROR, "Success"),
@@ -698,6 +729,9 @@ static const struct rd_kafka_err_desc rd_kafka_err_descs[] = {
               "Broker: Request principal deserialization failed during "
               "forwarding"),
     _ERR_DESC(RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_ID, "Broker: Unknown topic id"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_INCONSISTENT_TOPIC_ID,
+              "Broker: The log's topic ID did not match the topic ID in the "
+              "request"),
     _ERR_DESC(RD_KAFKA_RESP_ERR_FENCED_MEMBER_EPOCH,
               "Broker: The member epoch is fenced by the group coordinator"),
     _ERR_DESC(RD_KAFKA_RESP_ERR_UNRELEASED_INSTANCE_ID,
@@ -708,12 +742,51 @@ static const struct rd_kafka_err_desc rd_kafka_err_descs[] = {
               "the consumer group"),
     _ERR_DESC(RD_KAFKA_RESP_ERR_STALE_MEMBER_EPOCH,
               "Broker: The member epoch is stale"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_MISMATCHED_ENDPOINT_TYPE,
+              "Broker: The request was sent to an endpoint of the wrong type"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_UNSUPPORTED_ENDPOINT_TYPE,
+              "Broker: This endpoint type is not supported yet"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_UNKNOWN_CONTROLLER_ID,
+              "Broker: This controller ID is not known"),
     _ERR_DESC(RD_KAFKA_RESP_ERR_UNKNOWN_SUBSCRIPTION_ID,
               "Broker: Client sent a push telemetry request with an invalid or "
               "outdated subscription ID"),
     _ERR_DESC(RD_KAFKA_RESP_ERR_TELEMETRY_TOO_LARGE,
               "Broker: Client sent a push telemetry request larger than the "
               "maximum size the broker will accept"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_INVALID_REGISTRATION,
+              "Broker: The controller has considered the broker registration "
+              "to be invalid"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_TRANSACTION_ABORTABLE,
+              "Broker: The server encountered an error with the transaction"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_INVALID_RECORD_STATE,
+              "Broker: The record state is invalid"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_SHARE_SESSION_NOT_FOUND,
+              "Broker: The share session was not found"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_INVALID_SHARE_SESSION_EPOCH,
+              "Broker: The share session epoch is invalid"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_FENCED_STATE_EPOCH,
+              "Broker: The share-group state epoch did not match"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_INVALID_VOTER_KEY,
+              "Broker: The voter key doesn't match the receiving replica's "
+              "key"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_DUPLICATE_VOTER,
+              "Broker: The voter is already part of the set of voters"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_VOTER_NOT_FOUND,
+              "Broker: The voter is not part of the set of voters"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_INVALID_REGULAR_EXPRESSION,
+              "Broker: The regular expression is not valid"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_REBOOTSTRAP_REQUIRED,
+              "Broker: Client metadata is stale, "
+              "client should rebootstrap to obtain new metadata"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_STREAMS_INVALID_TOPOLOGY,
+              "Broker: The supplied topology is invalid"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_STREAMS_INVALID_TOPOLOGY_EPOCH,
+              "Broker: The supplied topology epoch is invalid"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_STREAMS_TOPOLOGY_FENCED,
+              "Broker: The supplied topology epoch is outdated"),
+    _ERR_DESC(RD_KAFKA_RESP_ERR_SHARE_SESSION_LIMIT_REACHED,
+              "Broker: The limit of share sessions has been reached"),
     _ERR_DESC(RD_KAFKA_RESP_ERR__END, NULL)};
 
 
@@ -925,7 +998,29 @@ rd_kafka_resp_err_t rd_kafka_test_fatal_error(rd_kafka_t *rk,
                 return RD_KAFKA_RESP_ERR_NO_ERROR;
 }
 
-
+/**
+ * @brief Called when a broker thread is decommissioned.
+ *        on the main thread to join the corresponding thread
+ *        and remove it from the wait lists.
+ *
+ * @locality main thread
+ */
+void rd_kafka_decommissioned_broker_thread_join(rd_kafka_t *rk,
+                                                void *rkb_decommissioned) {
+        thrd_t *thrd;
+        int i;
+        RD_LIST_FOREACH(thrd, &rk->wait_decommissioned_thrds, i) {
+                void *rkb = rd_list_elem(&rk->wait_decommissioned_brokers, i);
+                if (rkb == rkb_decommissioned) {
+                        rd_list_remove_elem(&rk->wait_decommissioned_thrds, i);
+                        rd_list_remove_elem(&rk->wait_decommissioned_brokers,
+                                            i);
+                        thrd_join(*thrd, NULL);
+                        rd_free(thrd);
+                        i--;
+                }
+        }
+}
 
 /**
  * @brief Final destructor for rd_kafka_t, must only be called with refcnt 0.
@@ -964,18 +1059,37 @@ void rd_kafka_destroy_final(rd_kafka_t *rk) {
                 rd_kafka_assignment_destroy(rk);
                 if (rk->rk_consumer.q)
                         rd_kafka_q_destroy(rk->rk_consumer.q);
-                rd_avg_destroy(
-                    &rk->rk_telemetry.rd_avg_current.rk_avg_poll_idle_ratio);
-                rd_avg_destroy(
-                    &rk->rk_telemetry.rd_avg_current.rk_avg_rebalance_latency);
-                rd_avg_destroy(
-                    &rk->rk_telemetry.rd_avg_current.rk_avg_commit_latency);
-                rd_avg_destroy(
-                    &rk->rk_telemetry.rd_avg_rollover.rk_avg_poll_idle_ratio);
-                rd_avg_destroy(
-                    &rk->rk_telemetry.rd_avg_rollover.rk_avg_rebalance_latency);
-                rd_avg_destroy(
-                    &rk->rk_telemetry.rd_avg_rollover.rk_avg_commit_latency);
+
+                /* TODO: factor out a helper that destroys both the
+                 * rd_avg_current and rd_avg_rollover variants of a metric
+                 * in one call, to reduce the repetition below. */
+                if (RD_KAFKA_IS_SHARE_CONSUMER(rk)) {
+                        rd_avg_destroy(&rk->rk_telemetry.rd_avg_current
+                                            .rk_avg_share_poll_idle_ratio);
+                        rd_avg_destroy(&rk->rk_telemetry.rd_avg_rollover
+                                            .rk_avg_share_poll_idle_ratio);
+                        rd_avg_destroy(&rk->rk_telemetry.rd_avg_current
+                                            .rk_avg_share_time_between_poll);
+                        rd_avg_destroy(&rk->rk_telemetry.rd_avg_rollover
+                                            .rk_avg_share_time_between_poll);
+                        rd_avg_destroy(&rk->rk_telemetry.rd_avg_current
+                                            .rk_avg_rebalance_latency);
+                        rd_avg_destroy(&rk->rk_telemetry.rd_avg_rollover
+                                            .rk_avg_rebalance_latency);
+                } else {
+                        rd_avg_destroy(&rk->rk_telemetry.rd_avg_current
+                                            .rk_avg_poll_idle_ratio);
+                        rd_avg_destroy(&rk->rk_telemetry.rd_avg_rollover
+                                            .rk_avg_poll_idle_ratio);
+                        rd_avg_destroy(&rk->rk_telemetry.rd_avg_current
+                                            .rk_avg_rebalance_latency);
+                        rd_avg_destroy(&rk->rk_telemetry.rd_avg_current
+                                            .rk_avg_commit_latency);
+                        rd_avg_destroy(&rk->rk_telemetry.rd_avg_rollover
+                                            .rk_avg_rebalance_latency);
+                        rd_avg_destroy(&rk->rk_telemetry.rd_avg_rollover
+                                            .rk_avg_commit_latency);
+                }
         }
 
         /* Purge op-queues */
@@ -1017,8 +1131,7 @@ void rd_kafka_destroy_final(rd_kafka_t *rk) {
         cnd_destroy(&rk->rk_init_cnd);
         mtx_destroy(&rk->rk_init_lock);
 
-        if (rk->rk_full_metadata)
-                rd_kafka_metadata_destroy(&rk->rk_full_metadata->metadata);
+
         rd_kafkap_str_destroy(rk->rk_client_id);
         rd_kafkap_str_destroy(rk->rk_group_id);
         rd_kafkap_str_destroy(rk->rk_eos.transactional_id);
@@ -1028,6 +1141,7 @@ void rd_kafka_destroy_final(rd_kafka_t *rk) {
         mtx_destroy(&rk->rk_conf.sasl.lock);
         rwlock_destroy(&rk->rk_lock);
 
+        rd_free(rk->rk_rkshare);
         rd_free(rk);
         rd_kafka_global_cnt_decr();
 }
@@ -1044,6 +1158,10 @@ static void rd_kafka_destroy_app(rd_kafka_t *rk, int flags) {
             "Terminate", "DestroyCalled", "Immediate", "NoConsumerClose", NULL};
 
         /* Fatal errors and _F_IMMEDIATE also sets .._NO_CONSUMER_CLOSE */
+        /* TODO KIP-932: Decide how destroy should behave when a fatal error
+         * is set: flush pending acks and send the share-session leave
+         * (as the explicit close() path does), or keep forcing
+         * NO_CONSUMER_CLOSE and skip those network calls. */
         if (flags & RD_KAFKA_DESTROY_F_IMMEDIATE ||
             rd_kafka_fatal_error_code(rk))
                 flags |= RD_KAFKA_DESTROY_F_NO_CONSUMER_CLOSE;
@@ -1101,7 +1219,26 @@ static void rd_kafka_destroy_app(rd_kafka_t *rk, int flags) {
         if (rk->rk_cgrp) {
                 rd_kafka_dbg(rk, GENERIC, "TERMINATE",
                              "Terminating consumer group handler");
-                rd_kafka_consumer_close(rk);
+                if (RD_KAFKA_IS_SHARE_CONSUMER(rk)) {
+                        rd_kafka_error_t *error =
+                            rd_kafka_share_consumer_close(rk->rk_rkshare);
+                        if (error)
+                                rd_kafka_error_destroy(error);
+                } else
+                        rd_kafka_consumer_close(rk);
+        }
+
+        if (RD_KAFKA_IS_SHARE_CONSUMER(rk)) {
+                /* Destroy inflight acks map to release
+                 * toppar references held by topic_partition objects in the map.
+                 * Otherwise rd_kafka_destroy_internal() deadlocks: it joins
+                 * broker threads, which wait for refcnt <= 1, but the toppar
+                 * holds a broker ref via rktp_leader that is only released when
+                 * the toppar is destroyed, which requires refcnt 0, which
+                 * requires releasing the rktp ref held by the inflight_acks map
+                 * entry.
+                 */
+                RD_MAP_DESTROY(&rk->rk_rkshare->rkshare_inflight_acks);
         }
 
         /* Await telemetry termination. This method blocks until the last
@@ -1156,8 +1293,48 @@ void rd_kafka_destroy(rd_kafka_t *rk) {
         rd_kafka_destroy_app(rk, 0);
 }
 
+rd_kafka_error_t *rd_kafka_share_destroy(rd_kafka_share_t *rkshare) {
+        rd_kafka_error_t *error = NULL;
+
+        /**
+         * TODO KIP-932: Guard this with checks for rkshare and
+         *               rkshare->rkshare_rk?
+         */
+        /* Claim the access gate for this thread so that, from here on, a share
+         * API call from any *other* thread is rejected for the duration of the
+         * teardown. Never released: the gate (and its mutex) is destroyed in
+         * rd_kafka_destroy_app(), and the current_owner_thread/ref_count
+         * bookkeeping is never read again, so a release would be a no-op. The
+         * teardown re-enters the gate on this same thread via
+         * rd_kafka_share_consumer_close(), which the re-entrant ref_count
+         * permits. A non-NO_ERROR acquire means another
+         * thread is concurrently inside a share API (or destroy was called from
+         * the ack callback): destroying now would be unsafe, so report the
+         * error and leave the instance intact for the application to retry. */
+        if (unlikely((error = rd_kafka_share_acquire(rkshare)) != NULL))
+                return error;
+
+        rd_kafka_destroy(rkshare->rkshare_rk);
+        return NULL;
+}
+
 void rd_kafka_destroy_flags(rd_kafka_t *rk, int flags) {
         rd_kafka_destroy_app(rk, flags);
+}
+
+rd_kafka_error_t *rd_kafka_share_destroy_flags(rd_kafka_share_t *rkshare,
+                                               int flags) {
+        rd_kafka_error_t *error = NULL;
+
+        /* See rd_kafka_share_destroy(): claim the gate to lock other threads
+         * out for the teardown. Never released (the gate is destroyed in
+         * rd_kafka_destroy_app()). On a non-NULL acquire another thread is
+         * using the consumer; forward the error */
+        if (unlikely((error = rd_kafka_share_acquire(rkshare)) != NULL))
+                return error;
+
+        rd_kafka_destroy_flags(rkshare->rkshare_rk, flags);
+        return NULL;
 }
 
 
@@ -1168,8 +1345,8 @@ void rd_kafka_destroy_flags(rd_kafka_t *rk, int flags) {
  */
 static void rd_kafka_destroy_internal(rd_kafka_t *rk) {
         rd_kafka_topic_t *rkt, *rkt_tmp;
-        rd_kafka_broker_t *rkb, *rkb_tmp;
-        rd_list_t wait_thrds;
+        rd_kafka_broker_t *rkb;
+        rd_list_t wait_thrds, brokers_to_decommission;
         thrd_t *thrd;
         int i;
 
@@ -1212,32 +1389,24 @@ static void rd_kafka_destroy_internal(rd_kafka_t *rk) {
         }
 
         /* Decommission brokers.
-         * Broker thread holds a refcount and detects when broker refcounts
-         * reaches 1 and then decommissions itself. */
-        TAILQ_FOREACH_SAFE(rkb, &rk->rk_brokers, rkb_link, rkb_tmp) {
-                /* Add broker's thread to wait_thrds list for later joining */
-                thrd  = rd_malloc(sizeof(*thrd));
-                *thrd = rkb->rkb_thread;
-                rd_list_add(&wait_thrds, thrd);
-                rd_kafka_wrunlock(rk);
-
-                rd_kafka_dbg(rk, BROKER, "DESTROY", "Sending TERMINATE to %s",
-                             rd_kafka_broker_name(rkb));
-                /* Send op to trigger queue/io wake-up.
-                 * The op itself is (likely) ignored by the broker thread. */
-                rd_kafka_q_enq(rkb->rkb_ops,
-                               rd_kafka_op_new(RD_KAFKA_OP_TERMINATE));
-
-#ifndef _WIN32
-                /* Interrupt IO threads to speed up termination. */
-                if (rk->rk_conf.term_sig)
-                        pthread_kill(rkb->rkb_thread, rk->rk_conf.term_sig);
-#endif
-
-                rd_kafka_broker_destroy(rkb);
-
-                rd_kafka_wrlock(rk);
+         * `rd_kafka_broker_decommission` releases and reacquires
+         * the lock so there could be destroyed brokers in
+         * `rk->rk_brokers` */
+        rd_list_init(&brokers_to_decommission,
+                     rd_atomic32_get(&rk->rk_broker_cnt), NULL);
+        TAILQ_FOREACH(rkb, &rk->rk_brokers, rkb_link) {
+                /* Don't try to decommission already decommissioning brokers
+                 * otherwise they could be already destroyed when
+                 * `rd_kafka_broker_decommission` is called below. */
+                if (rd_list_find(&rk->wait_decommissioned_brokers, rkb,
+                                 rd_list_cmp_ptr) == NULL)
+                        rd_list_add(&brokers_to_decommission, rkb);
         }
+
+        RD_LIST_FOREACH(rkb, &brokers_to_decommission, i) {
+                rd_kafka_broker_decommission(rk, rkb, &wait_thrds);
+        }
+        rd_list_destroy(&brokers_to_decommission);
 
         if (rk->rk_clusterid) {
                 rd_free(rk->rk_clusterid);
@@ -1279,22 +1448,23 @@ static void rd_kafka_destroy_internal(rd_kafka_t *rk) {
 
         /* Loose our special reference to the internal broker. */
         mtx_lock(&rk->rk_internal_rkb_lock);
-        if ((rkb = rk->rk_internal_rkb)) {
+        if (rk->rk_internal_rkb) {
                 rd_kafka_dbg(rk, GENERIC, "TERMINATE",
                              "Decommissioning internal broker");
 
-                /* Send op to trigger queue wake-up. */
-                rd_kafka_q_enq(rkb->rkb_ops,
+                thrd  = rd_malloc(sizeof(*thrd));
+                *thrd = rk->rk_internal_rkb->rkb_thread;
+
+                /* Send op to trigger queue wake-up.
+                 * WARNING: This is last time we can read
+                 * from rk_internal_rkb in this thread! */
+                rd_kafka_q_enq(rk->rk_internal_rkb->rkb_ops,
                                rd_kafka_op_new(RD_KAFKA_OP_TERMINATE));
 
                 rk->rk_internal_rkb = NULL;
-                thrd                = rd_malloc(sizeof(*thrd));
-                *thrd               = rkb->rkb_thread;
                 rd_list_add(&wait_thrds, thrd);
         }
         mtx_unlock(&rk->rk_internal_rkb_lock);
-        if (rkb)
-                rd_kafka_broker_destroy(rkb);
 
 
         rd_kafka_dbg(rk, GENERIC, "TERMINATE", "Join %d broker thread(s)",
@@ -1309,6 +1479,17 @@ static void rd_kafka_destroy_internal(rd_kafka_t *rk) {
         }
 
         rd_list_destroy(&wait_thrds);
+
+        /* Join previously decommissioned broker threads */
+        RD_LIST_FOREACH(thrd, &rk->wait_decommissioned_thrds, i) {
+                int res;
+                if (thrd_join(*thrd, &res) != thrd_success)
+                        ;
+                rd_free(thrd);
+        }
+        rd_list_destroy(&rk->additional_brokerlists);
+        rd_list_destroy(&rk->wait_decommissioned_brokers);
+        rd_list_destroy(&rk->wait_decommissioned_thrds);
 
         /* Destroy mock cluster */
         if (rk->rk_mock.cluster)
@@ -1434,9 +1615,7 @@ static RD_INLINE void rd_kafka_stats_emit_toppar(struct _stats_emit *st,
         rd_kafka_toppar_lock(rktp);
 
         if (rktp->rktp_broker) {
-                rd_kafka_broker_lock(rktp->rktp_broker);
                 broker_id = rktp->rktp_broker->rkb_nodeid;
-                rd_kafka_broker_unlock(rktp->rktp_broker);
         }
 
         /* Grab a copy of the latest finalized offset stats */
@@ -1660,6 +1839,7 @@ static void rd_kafka_stats_emit_broker_reqs(struct _stats_emit *st,
                 [RD_KAFKAP_AlterClientQuotas]            = rd_true,
                 [RD_KAFKAP_DescribeUserScramCredentials] = rd_true,
                 [RD_KAFKAP_AlterUserScramCredentials]    = rd_true,
+                [RD_KAFKAP_ConsumerGroupDescribe]        = rd_true,
             }};
         int i;
         int cnt = 0;
@@ -2029,6 +2209,85 @@ static void rd_kafka_1s_tmr_cb(rd_kafka_timers_t *rkts, void *arg) {
         rd_kafka_coord_cache_expire(&rk->rk_coord_cache);
 }
 
+/**
+ * @brief Reset broker down reported flag for all brokers.
+ *        In case it was set to 1 it will be reset to 0 and
+ *        the broker down count will be decremented.
+ *
+ * @locks none
+ * @locks_acquired rd_kafka_rdlock()
+ * @locality any
+ */
+void rd_kafka_reset_any_broker_down_reported(rd_kafka_t *rk) {
+        rd_kafka_broker_t *rkb;
+        rd_kafka_rdlock(rk);
+        TAILQ_FOREACH(rkb, &rk->rk_brokers, rkb_link) {
+                if (rd_atomic32_set(&rkb->rkb_down_reported, 0) == 1)
+                        rd_atomic32_sub(&rk->rk_broker_down_cnt, 1);
+        }
+        rd_kafka_rdunlock(rk);
+}
+
+/**
+ * @brief Re-bootstrap timer callback.
+ *
+ * @locality rdkafka main thread
+ * @locks none
+ */
+static void rd_kafka_rebootstrap_tmr_cb(rd_kafka_timers_t *rkts, void *arg) {
+        int i;
+        char *brokerlist;
+        rd_kafka_t *rk = rkts->rkts_rk;
+        rd_list_t additional_brokerlists;
+
+        rd_dassert(thrd_is_current(rk->rk_thread));
+        if (rd_kafka_terminating(rk))
+                /* Avoid re-bootstrapping while terminating */
+                return;
+
+        rd_dassert(rk->rk_conf.metadata_recovery_strategy !=
+                   RD_KAFKA_METADATA_RECOVERY_STRATEGY_NONE);
+        if (rk->rk_conf.metadata_recovery_strategy ==
+            RD_KAFKA_METADATA_RECOVERY_STRATEGY_NONE)
+                /* This function should not be called in this case.
+                 * this is just a fail-safe. */
+                return;
+
+        rd_kafka_dbg(rk, ALL, "REBOOTSTRAP", "Starting re-bootstrap sequence");
+
+        rd_atomic32_set(&rk->rk_rebootstrap_in_progress, 1);
+        rd_kafka_reset_any_broker_down_reported(rk);
+
+        if (rk->rk_conf.brokerlist) {
+                rd_kafka_brokers_add0(
+                        rk,
+                        rk->rk_conf.brokerlist, rd_true
+                        /* resolve canonical bootstrap server
+                         * list names if requested*/);
+        }
+
+        rd_kafka_rdlock(rk);
+        if (rd_list_cnt(&rk->additional_brokerlists) == 0) {
+                rd_kafka_rdunlock(rk);
+                goto done;
+        }
+
+        rd_list_init_copy(&additional_brokerlists, &rk->additional_brokerlists);
+        rd_list_copy_to(&additional_brokerlists, &rk->additional_brokerlists,
+                        rd_list_string_copy, NULL);
+        rd_kafka_rdunlock(rk);
+
+        RD_LIST_FOREACH(brokerlist, &additional_brokerlists, i) {
+                rd_kafka_brokers_add0(rk, brokerlist,
+                        rd_false
+                        /* don't resolve canonical bootstrap server list
+                         * names even if requested */);
+        }
+        rd_list_destroy(&additional_brokerlists);
+done:
+        rd_atomic32_set(&rk->rk_rebootstrap_in_progress, 0);
+}
+
 static void rd_kafka_stats_emit_tmr_cb(rd_kafka_timers_t *rkts, void *arg) {
         rd_kafka_t *rk = rkts->rkts_rk;
         rd_kafka_stats_emit_all(rk);
@@ -2082,15 +2341,15 @@ static void rd_kafka_metadata_refresh_cb(rd_kafka_timers_t *rkts, void *arg) {
  * @locks none
  */
 static int rd_kafka_init_wait(rd_kafka_t *rk, int timeout_ms) {
-        struct timespec tspec;
         int ret;
+        rd_ts_t abs_timeout;
 
-        rd_timeout_init_timespec(&tspec, timeout_ms);
+        abs_timeout = rd_timeout_init(timeout_ms);
 
         mtx_lock(&rk->rk_init_lock);
         while (rk->rk_init_wait_cnt > 0 &&
-               cnd_timedwait_abs(&rk->rk_init_cnd, &rk->rk_init_lock, &tspec) ==
-                   thrd_success)
+               cnd_timedwait_abs(&rk->rk_init_cnd, &rk->rk_init_lock,
+                                 abs_timeout) == thrd_success)
                 ;
         ret = rk->rk_init_wait_cnt;
         mtx_unlock(&rk->rk_init_lock);
@@ -2099,17 +2358,38 @@ static int rd_kafka_init_wait(rd_kafka_t *rk, int timeout_ms) {
 }
 
 
+/* Forward declarations: defined after reply/fanout handlers */
+static rd_kafka_broker_t *rd_kafka_share_select_broker(rd_kafka_t *rk,
+                                                       rd_kafka_cgrp_t *rkcg);
+
+/**
+ * @brief Rate-limited log for a stalled share fetch (no progress on the
+ *        main-thread re-trigger path).
+ * @locality main thread
+ */
+static void rd_kafka_share_log_fetch_stall(rd_kafka_t *rk, const char *reason) {
+        rd_kafka_cgrp_t *rkcg = rk->rk_cgrp;
+        rd_ts_t now           = rd_clock();
+
+        if (rkcg->rkcg_share.fetch_stall_logged_last_ts == 0 ||
+            now >
+                rkcg->rkcg_share.fetch_stall_logged_last_ts + 5000000 /*5s*/) {
+                rd_kafka_dbg(rk, CONSUMER, "FETCHMORE", "Fetch stalled: %s",
+                             reason);
+                rkcg->rkcg_share.fetch_stall_logged_last_ts = now;
+        }
+}
+
 /**
  * Main loop for Kafka handler thread.
  */
 static int rd_kafka_thread_main(void *arg) {
-        rd_kafka_t *rk                        = arg;
-        rd_kafka_timer_t tmr_1s               = RD_ZERO_INIT;
-        rd_kafka_timer_t tmr_stats_emit       = RD_ZERO_INIT;
-        rd_kafka_timer_t tmr_metadata_refresh = RD_ZERO_INIT;
+        rd_kafka_t *rk                  = arg;
+        rd_kafka_timer_t tmr_stats_emit = RD_ZERO_INIT;
 
         rd_kafka_set_thread_name("main");
         rd_kafka_set_thread_sysname("rdk:main");
+        rd_kafka_thread_srand(rk, rd_true /* we're in an internal thread */);
 
         rd_kafka_interceptors_on_thread_start(rk, RD_KAFKA_THREAD_MAIN);
 
@@ -2121,14 +2401,14 @@ static int rd_kafka_thread_main(void *arg) {
         rd_kafka_wrunlock(rk);
 
         /* 1 second timer for topic scan and connection checking. */
-        rd_kafka_timer_start(&rk->rk_timers, &tmr_1s, 1000000,
+        rd_kafka_timer_start(&rk->rk_timers, &rk->one_s_tmr, 1000000,
                              rd_kafka_1s_tmr_cb, NULL);
         if (rk->rk_conf.stats_interval_ms)
                 rd_kafka_timer_start(&rk->rk_timers, &tmr_stats_emit,
                                      rk->rk_conf.stats_interval_ms * 1000ll,
                                      rd_kafka_stats_emit_tmr_cb, NULL);
         if (rk->rk_conf.metadata_refresh_interval_ms > 0)
-                rd_kafka_timer_start(&rk->rk_timers, &tmr_metadata_refresh,
+                rd_kafka_timer_start(&rk->rk_timers, &rk->metadata_refresh_tmr,
                                      rk->rk_conf.metadata_refresh_interval_ms *
                                          1000ll,
                                      rd_kafka_metadata_refresh_cb, NULL);
@@ -2156,6 +2436,46 @@ static int rd_kafka_thread_main(void *arg) {
                                  RD_KAFKA_Q_CB_CALLBACK, NULL, NULL);
                 if (rk->rk_cgrp) /* FIXME: move to timer-triggered */
                         rd_kafka_cgrp_serve(rk->rk_cgrp);
+
+                /* KIP-932: If share_fetch_more_records is set but no fetch
+                 * op is in-flight and partitions are assigned, re-trigger
+                 * the fetch flow by selecting a broker directly. */
+                if (RD_KAFKA_IS_SHARE_CONSUMER(rk) && rk->rk_cgrp &&
+                    !(rk->rk_cgrp->rkcg_flags & RD_KAFKA_CGRP_F_TERMINATE) &&
+                    rk->rk_cgrp->rkcg_share.share_fetch_more_records &&
+                    rk->rk_cgrp->rkcg_share
+                            .share_should_fetch_ops_in_flight_cnt == 0) {
+                        if (rd_list_cnt(&rk->rk_cgrp->rkcg_toppars) == 0) {
+                                rd_kafka_share_log_fetch_stall(
+                                    rk,
+                                    "share_fetch_more_records set but no "
+                                    "partitions are assigned");
+                        } else {
+                                rd_kafka_broker_t *rkb_sel =
+                                    rd_kafka_share_select_broker(rk,
+                                                                 rk->rk_cgrp);
+                                if (rkb_sel) {
+                                        rd_kafka_dbg(
+                                            rk, CONSUMER, "FETCHMORE",
+                                            "Re-triggering fetch for "
+                                            "share_fetch_more_records=true "
+                                            "and no fetch in-flight");
+                                        rd_kafka_share_enqueue_fetch_op(
+                                            rk, rkb_sel, rd_true, rd_false);
+                                        rd_kafka_broker_destroy(rkb_sel);
+                                        rk->rk_cgrp->rkcg_share
+                                            .fetch_stall_logged_last_ts = 0;
+                                } else {
+                                        rd_kafka_share_log_fetch_stall(
+                                            rk,
+                                            "no eligible broker (assigned "
+                                            "partition leaders are down, "
+                                            "terminating, or already have a "
+                                            "fetch in flight)");
+                                }
+                        }
+                }
+
                 rd_kafka_timers_run(&rk->rk_timers, RD_POLL_NOWAIT);
         }
 
@@ -2168,10 +2488,10 @@ static int rd_kafka_thread_main(void *arg) {
         rd_kafka_q_disable(rk->rk_ops);
         rd_kafka_q_purge(rk->rk_ops);
 
-        rd_kafka_timer_stop(&rk->rk_timers, &tmr_1s, 1);
+        rd_kafka_timer_stop(&rk->rk_timers, &rk->one_s_tmr, 1);
         if (rk->rk_conf.stats_interval_ms)
                 rd_kafka_timer_stop(&rk->rk_timers, &tmr_stats_emit, 1);
-        rd_kafka_timer_stop(&rk->rk_timers, &tmr_metadata_refresh, 1);
+        rd_kafka_timer_stop(&rk->rk_timers, &rk->metadata_refresh_tmr, 1);
 
         /* Synchronise state */
         rd_kafka_wrlock(rk);
@@ -2205,7 +2525,6 @@ rd_kafka_t *rd_kafka_new(rd_kafka_type_t type,
         rd_kafka_resp_err_t ret_err = RD_KAFKA_RESP_ERR_NO_ERROR;
         int ret_errno               = 0;
         const char *conf_err;
-        char *group_remote_assignor_override = NULL;
 #ifndef _WIN32
         sigset_t newset, oldset;
 #endif
@@ -2260,10 +2579,7 @@ rd_kafka_t *rd_kafka_new(rd_kafka_type_t type,
                                 * freed from rd_kafka_destroy_internal()
                                 * as the rk itself is destroyed. */
 
-        /* Seed PRNG, don't bother about HAVE_RAND_R, since it is pretty cheap.
-         */
-        if (rk->rk_conf.enable_random_seed)
-                call_once(&rd_kafka_global_srand_once, rd_kafka_global_srand);
+        rd_kafka_thread_srand(rk, rd_false /* we're on an app thread */);
 
         /* Call on_new() interceptors */
         rd_kafka_interceptors_on_new(rk, &rk->rk_conf);
@@ -2290,6 +2606,11 @@ rd_kafka_t *rd_kafka_new(rd_kafka_type_t type,
 
         rd_atomic64_init(&rk->rk_ts_last_poll, rk->rk_ts_created);
         rd_atomic32_init(&rk->rk_flushing, 0);
+        rd_atomic32_init(&rk->rk_broker_cnt, 0);
+        rd_atomic32_init(&rk->rk_logical_broker_cnt, 0);
+        rd_atomic32_init(&rk->rk_broker_up_cnt, 0);
+        rd_atomic32_init(&rk->rk_broker_down_cnt, 0);
+        rd_atomic32_init(&rk->rk_rebootstrap_in_progress, 0);
 
         rk->rk_rep             = rd_kafka_q_new(rk);
         rk->rk_ops             = rd_kafka_q_new(rk);
@@ -2302,6 +2623,7 @@ rd_kafka_t *rd_kafka_new(rd_kafka_type_t type,
                 rk->rk_logq->rkq_opaque = rk;
         }
 
+        rd_list_init(&rk->additional_brokerlists, 0, rd_free);
         TAILQ_INIT(&rk->rk_brokers);
         TAILQ_INIT(&rk->rk_topics);
         rd_kafka_timers_init(&rk->rk_timers, rk, rk->rk_ops);
@@ -2309,6 +2631,8 @@ rd_kafka_t *rd_kafka_new(rd_kafka_type_t type,
         rd_kafka_coord_cache_init(&rk->rk_coord_cache,
                                   rk->rk_conf.metadata_max_age_ms);
         rd_kafka_coord_reqs_init(rk);
+        rd_list_init(&rk->wait_decommissioned_thrds, 0, NULL);
+        rd_list_init(&rk->wait_decommissioned_brokers, 0, NULL);
 
         if (rk->rk_conf.dr_cb || rk->rk_conf.dr_msg_cb)
                 rk->rk_drmode = RD_KAFKA_DR_MODE_CB;
@@ -2341,10 +2665,35 @@ rd_kafka_t *rd_kafka_new(rd_kafka_type_t type,
 #if WITH_OAUTHBEARER_OIDC
         if (rk->rk_conf.sasl.oauthbearer.method ==
                 RD_KAFKA_SASL_OAUTHBEARER_METHOD_OIDC &&
-            !rk->rk_conf.sasl.oauthbearer.token_refresh_cb)
-                rd_kafka_conf_set_oauthbearer_token_refresh_cb(
-                    &rk->rk_conf, rd_kafka_oidc_token_refresh_cb);
+            !rk->rk_conf.sasl.oauthbearer.token_refresh_cb) {
+                /* Use JWT bearer */
+                rk->rk_conf.sasl.oauthbearer.builtin_token_refresh_cb = rd_true;
+
+                if (rk->rk_conf.sasl.oauthbearer.metadata_authentication.type ==
+                    RD_KAFKA_SASL_OAUTHBEARER_METADATA_AUTHENTICATION_TYPE_AZURE_IMDS) {
+                        rd_kafka_conf_set_oauthbearer_token_refresh_cb(
+                            &rk->rk_conf,
+                            rd_kafka_oidc_token_metadata_azure_imds_refresh_cb);
+                } else if (
+                    rk->rk_conf.sasl.oauthbearer.metadata_authentication.type ==
+                    RD_KAFKA_SASL_OAUTHBEARER_METADATA_AUTHENTICATION_TYPE_AWS_IAM) {
+                        rd_kafka_conf_set_oauthbearer_token_refresh_cb(
+                            &rk->rk_conf,
+                            rd_kafka_oidc_token_metadata_aws_iam_refresh_cb);
+                } else if (
+                    rk->rk_conf.sasl.oauthbearer.grant_type ==
+                    RD_KAFKA_SASL_OAUTHBEARER_GRANT_TYPE_CLIENT_CREDENTIALS) {
+                        rd_kafka_conf_set_oauthbearer_token_refresh_cb(
+                            &rk->rk_conf,
+                            rd_kafka_oidc_token_client_credentials_refresh_cb);
+                } else {
+                        rd_kafka_conf_set_oauthbearer_token_refresh_cb(
+                            &rk->rk_conf,
+                            rd_kafka_oidc_token_jwt_bearer_refresh_cb);
+                }
+        }
 #endif
+
 
         rk->rk_controllerid = -1;
 
@@ -2398,64 +2747,6 @@ rd_kafka_t *rd_kafka_new(rd_kafka_type_t type,
                 ret_err   = RD_KAFKA_RESP_ERR__INVALID_ARG;
                 ret_errno = EINVAL;
                 goto fail;
-        }
-
-        if (!rk->rk_conf.group_remote_assignor) {
-                rd_kafka_assignor_t *cooperative_assignor;
-
-                /* Detect if chosen assignor is cooperative
-                 * FIXME: remove this compatibility altogether
-                 * and apply the breaking changes that will be required
-                 * in next major version. */
-
-                cooperative_assignor =
-                    rd_kafka_assignor_find(rk, "cooperative-sticky");
-                rk->rk_conf.partition_assignors_cooperative =
-                    !rk->rk_conf.partition_assignors.rl_cnt ||
-                    (cooperative_assignor &&
-                     cooperative_assignor->rkas_enabled);
-
-                if (rk->rk_conf.group_protocol ==
-                    RD_KAFKA_GROUP_PROTOCOL_CONSUMER) {
-                        /* Default remote assignor to the chosen local one. */
-                        if (rk->rk_conf.partition_assignors_cooperative) {
-                                group_remote_assignor_override =
-                                    rd_strdup("uniform");
-                                rk->rk_conf.group_remote_assignor =
-                                    group_remote_assignor_override;
-                        } else {
-                                rd_kafka_assignor_t *range_assignor =
-                                    rd_kafka_assignor_find(rk, "range");
-                                if (range_assignor &&
-                                    range_assignor->rkas_enabled) {
-                                        rd_kafka_log(
-                                            rk, LOG_WARNING, "ASSIGNOR",
-                                            "\"range\" assignor is sticky "
-                                            "with group protocol CONSUMER");
-                                        group_remote_assignor_override =
-                                            rd_strdup("range");
-                                        rk->rk_conf.group_remote_assignor =
-                                            group_remote_assignor_override;
-                                } else {
-                                        rd_kafka_log(
-                                            rk, LOG_WARNING, "ASSIGNOR",
-                                            "roundrobin assignor isn't "
-                                            "available "
-                                            "with group protocol CONSUMER, "
-                                            "using the \"uniform\" one. "
-                                            "It's similar, "
-                                            "but it's also sticky");
-                                        group_remote_assignor_override =
-                                            rd_strdup("uniform");
-                                        rk->rk_conf.group_remote_assignor =
-                                            group_remote_assignor_override;
-                                }
-                        }
-                }
-        } else {
-                /* When users starts setting properties of the new protocol,
-                 * they can only use incremental_assign/unassign. */
-                rk->rk_conf.partition_assignors_cooperative = rd_true;
         }
 
         /* Create Mock cluster */
@@ -2546,28 +2837,74 @@ rd_kafka_t *rd_kafka_new(rd_kafka_type_t type,
                         rk->rk_consumer.q = rd_kafka_q_keep(rk->rk_rep);
                 }
 
-                rd_avg_init(
-                    &rk->rk_telemetry.rd_avg_rollover.rk_avg_poll_idle_ratio,
-                    RD_AVG_GAUGE, 0, 1, 2, rk->rk_conf.enable_metrics_push);
-                rd_avg_init(
-                    &rk->rk_telemetry.rd_avg_current.rk_avg_poll_idle_ratio,
-                    RD_AVG_GAUGE, 0, 1, 2, rk->rk_conf.enable_metrics_push);
-                rd_avg_init(
-                    &rk->rk_telemetry.rd_avg_rollover.rk_avg_rebalance_latency,
-                    RD_AVG_GAUGE, 0, 500 * 1000, 2,
-                    rk->rk_conf.enable_metrics_push);
-                rd_avg_init(
-                    &rk->rk_telemetry.rd_avg_current.rk_avg_rebalance_latency,
-                    RD_AVG_GAUGE, 0, 900000 * 1000, 2,
-                    rk->rk_conf.enable_metrics_push);
-                rd_avg_init(
-                    &rk->rk_telemetry.rd_avg_rollover.rk_avg_commit_latency,
-                    RD_AVG_GAUGE, 0, 500 * 1000, 2,
-                    rk->rk_conf.enable_metrics_push);
-                rd_avg_init(
-                    &rk->rk_telemetry.rd_avg_current.rk_avg_commit_latency,
-                    RD_AVG_GAUGE, 0, 500 * 1000, 2,
-                    rk->rk_conf.enable_metrics_push);
+                /* TODO: factor out a helper that initializes both the
+                 * rd_avg_current and rd_avg_rollover variants of a metric
+                 * in one call, to reduce the repetition below. */
+                if (RD_KAFKA_IS_SHARE_CONSUMER(rk)) {
+                        rd_avg_init(&rk->rk_telemetry.rd_avg_rollover
+                                         .rk_avg_share_poll_idle_ratio,
+                                    RD_AVG_GAUGE, 0, 1000 * 1000, 2,
+                                    rk->rk_conf.enable_metrics_push);
+                        rd_avg_init(&rk->rk_telemetry.rd_avg_current
+                                         .rk_avg_share_poll_idle_ratio,
+                                    RD_AVG_GAUGE, 0, 1000 * 1000, 2,
+                                    rk->rk_conf.enable_metrics_push);
+                        rd_avg_init(&rk->rk_telemetry.rd_avg_rollover
+                                         .rk_avg_share_time_between_poll,
+                                    RD_AVG_GAUGE, 0, 60 * 1000 * 1000, 2,
+                                    rk->rk_conf.enable_metrics_push);
+                        rd_avg_init(&rk->rk_telemetry.rd_avg_current
+                                         .rk_avg_share_time_between_poll,
+                                    RD_AVG_GAUGE, 0, 60 * 1000 * 1000, 2,
+                                    rk->rk_conf.enable_metrics_push);
+                        /* Rebalance latency is a consumer-group metric
+                         * recorded by the shared cgrp join-state machine
+                         * (rd_kafka_cgrp_set_join_state), which the share
+                         * consumer also drives, so it must be initialized
+                         * here too — otherwise its mutex is left zeroed and
+                         * the rd_avg_add() on reaching the STEADY state
+                         * dereferences an uninitialized lock (crashes on
+                         * Windows, where a zeroed CRITICAL_SECTION is
+                         * invalid). */
+                        rd_avg_init(&rk->rk_telemetry.rd_avg_rollover
+                                         .rk_avg_rebalance_latency,
+                                    RD_AVG_GAUGE, 0, 500 * 1000, 2,
+                                    rk->rk_conf.enable_metrics_push);
+                        rd_avg_init(&rk->rk_telemetry.rd_avg_current
+                                         .rk_avg_rebalance_latency,
+                                    RD_AVG_GAUGE, 0, 900000 * 1000, 2,
+                                    rk->rk_conf.enable_metrics_push);
+
+                        rd_atomic64_init(&rk->rk_telemetry.share_fetch_total,
+                                         0);
+                        rd_atomic64_init(
+                            &rk->rk_telemetry.acknowledgements_send_total, 0);
+                } else {
+                        rd_avg_init(&rk->rk_telemetry.rd_avg_rollover
+                                         .rk_avg_poll_idle_ratio,
+                                    RD_AVG_GAUGE, 0, 1, 2,
+                                    rk->rk_conf.enable_metrics_push);
+                        rd_avg_init(&rk->rk_telemetry.rd_avg_current
+                                         .rk_avg_poll_idle_ratio,
+                                    RD_AVG_GAUGE, 0, 1, 2,
+                                    rk->rk_conf.enable_metrics_push);
+                        rd_avg_init(&rk->rk_telemetry.rd_avg_rollover
+                                         .rk_avg_rebalance_latency,
+                                    RD_AVG_GAUGE, 0, 500 * 1000, 2,
+                                    rk->rk_conf.enable_metrics_push);
+                        rd_avg_init(&rk->rk_telemetry.rd_avg_current
+                                         .rk_avg_rebalance_latency,
+                                    RD_AVG_GAUGE, 0, 900000 * 1000, 2,
+                                    rk->rk_conf.enable_metrics_push);
+                        rd_avg_init(&rk->rk_telemetry.rd_avg_rollover
+                                         .rk_avg_commit_latency,
+                                    RD_AVG_GAUGE, 0, 500 * 1000, 2,
+                                    rk->rk_conf.enable_metrics_push);
+                        rd_avg_init(&rk->rk_telemetry.rd_avg_current
+                                         .rk_avg_commit_latency,
+                                    RD_AVG_GAUGE, 0, 500 * 1000, 2,
+                                    rk->rk_conf.enable_metrics_push);
+                }
 
         } else if (type == RD_KAFKA_PRODUCER) {
                 rk->rk_eos.transactional_id =
@@ -2746,14 +3083,17 @@ fail:
         /* If rk_conf is a struct-copy of the application configuration
          * we need to avoid rk_conf fields from being freed from
          * rd_kafka_destroy_internal() since they belong to app_conf.
-         * However, there are some internal fields, such as interceptors,
-         * that belong to rk_conf and thus needs to be cleaned up.
+         *
+         * NOTE: The interceptors in rk_conf are shallow-copied pointers to
+         * the same memory as app_conf, so they should NOT be destroyed here.
+         * They will be destroyed when the user calls rd_kafka_conf_destroy()
+         * on app_conf. Destroying them here would cause a double-free.
+         *
          * Legacy APIs, sigh.. */
         if (app_conf) {
-                if (group_remote_assignor_override)
-                        rd_free(group_remote_assignor_override);
                 rd_kafka_assignors_term(rk);
-                rd_kafka_interceptors_destroy(&rk->rk_conf);
+                /* Do NOT destroy interceptors here - they belong to app_conf
+                 * and will be freed when app_conf is destroyed by the user. */
                 memset(&rk->rk_conf, 0, sizeof(rk->rk_conf));
         }
 
@@ -2765,7 +3105,1454 @@ fail:
         return NULL;
 }
 
+rd_kafka_share_t *rd_kafka_share_consumer_new(rd_kafka_conf_t *conf,
+                                              char *errstr,
+                                              size_t errstr_size) {
+        rd_kafka_share_t *rkshare;
+        rd_kafka_t *rk;
 
+        if (conf == NULL) {
+                rd_snprintf(errstr, errstr_size,
+                            "rd_kafka_share_consumer_new(): "
+                            "conf argument must not be NULL");
+                return NULL;
+        }
+
+        /* Mark this conf as belonging to a share consumer. The field is
+         * library-internal (no property table entry); apps must construct
+         * share consumers via this function. The flag is read by
+         * rd_kafka_conf_finalize and RD_KAFKA_IS_SHARE_CONSUMER(rk).
+         * conf_finalize also rejects share-consumer-incompatible
+         * properties and applies the library-mandatory defaults for the
+         * rest. */
+        conf->share.is_share_consumer = rd_true;
+
+        rk = rd_kafka_new(RD_KAFKA_CONSUMER, conf, errstr, errstr_size);
+        if (!rk) {
+                /* If rd_kafka_new() failed it will have set the last error
+                 * and filled out errstr, so we don't need to do that here. */
+                return NULL;
+        }
+
+        rd_kafka_log(rk, LOG_WARNING, "SHARECONSUMER",
+                     "The share consumer is in \"Preview\" and is not "
+                     "recommended for production use");
+
+        rkshare                           = rd_calloc(1, sizeof(*rkshare));
+        rkshare->rkshare_rk               = rk;
+        rkshare->rkshare_unacked_cnt      = 0;
+        rkshare->rkshare_consumer_closing = rd_false;
+
+        /**
+         * TODO KIP-932: Check for uniform naming structure for all
+         * share consumer variables.
+         */
+        rk->rk_share_consumer.share_acknowledgement_commit_cb      = NULL;
+        rk->rk_share_consumer.acknowledgement_commit_cb_opaque     = NULL;
+        rk->rk_share_consumer.in_callback                          = rd_false;
+        rk->rk_share_consumer.acknowledgement_commit_cb_registered = rd_false;
+        rd_atomic64_init(&rk->rk_share_consumer.current_owner_thread,
+                         RD_KAFKA_SHARE_NO_CURRENT_THREAD);
+        rd_atomic32_init(&rk->rk_share_consumer.ref_count, 0);
+
+        /* Set backpointer from rk to rkshare for access in retry handlers */
+        rk->rk_rkshare = rkshare;
+
+        /* Inflight acks map keyed by topic name + partition */
+        RD_MAP_INIT(&rkshare->rkshare_inflight_acks, 16,
+                    rd_kafka_topic_partition_cmp, rd_kafka_topic_partition_hash,
+                    rd_kafka_topic_partition_destroy_free,
+                    rd_kafka_share_ack_batches_destroy_free);
+
+        return rkshare;
+}
+
+
+rd_kafka_error_t *rd_kafka_share_acquire(rd_kafka_share_t *rkshare) {
+        rd_kafka_t *rk;
+        int64_t tid;
+
+        if (unlikely(!rkshare))
+                return rd_kafka_error_new(RD_KAFKA_RESP_ERR__STATE,
+                                          "Share consumer handle is NULL");
+
+        rk = rkshare->rkshare_rk;
+
+        /* Claim ownership of the gate. If the gate is unowned, the CAS
+         * succeeds and this thread becomes the owner; if the gate is
+         * already ours, the CAS is skipped and we re-enter; if the
+         * gate is held by a different thread, the CAS fails and the
+         * call is rejected as concurrent access. */
+        tid = (int64_t)thrd_current_id();
+        if (rd_atomic64_get(&rk->rk_share_consumer.current_owner_thread) !=
+                tid &&
+            !rd_atomic64_cas(&rk->rk_share_consumer.current_owner_thread,
+                             RD_KAFKA_SHARE_NO_CURRENT_THREAD, tid)) {
+                int64_t other = rd_atomic64_get(
+                    &rk->rk_share_consumer.current_owner_thread);
+                return rd_kafka_error_new(
+                    RD_KAFKA_RESP_ERR__CONFLICT,
+                    "Share consumer is not safe for multi-threaded "
+                    "access. currentThread(id: %" PRId64
+                    ") otherThread(id: %" PRId64 ")",
+                    tid, other);
+        }
+
+        /* Reject re-entry from inside the user-defined acknowledgement
+         * commit callback. The gate is either freshly ours or was
+         * already ours (the callback runs on the owning thread), so
+         * do not touch ownership/ref_count — leave the outer caller's
+         * state intact. */
+        if (unlikely(rk->rk_share_consumer.in_callback))
+                return rd_kafka_error_new(
+                    RD_KAFKA_RESP_ERR__STATE,
+                    "Share consumer methods are not accessible from "
+                    "user-defined acknowledgement commit callback");
+
+        rd_dassert(rd_atomic32_get(&rk->rk_share_consumer.ref_count) >= 0);
+        rd_atomic32_add(&rk->rk_share_consumer.ref_count, 1);
+        return NULL;
+}
+
+void rd_kafka_share_release(rd_kafka_share_t *rkshare) {
+        rd_kafka_t *rk;
+
+        if (unlikely(!rkshare))
+                return;
+
+        rk = rkshare->rkshare_rk;
+
+        /* Decrement the re-entrancy ref_count; when it reaches 0 the
+         * outermost acquire has been released and the gate is freed
+         * so a different thread can claim it on a future call. */
+        rd_dassert(rd_atomic32_get(&rk->rk_share_consumer.ref_count) > 0);
+        if (rd_atomic32_sub(&rk->rk_share_consumer.ref_count, 1) == 0)
+                rd_atomic64_set(&rk->rk_share_consumer.current_owner_thread,
+                                RD_KAFKA_SHARE_NO_CURRENT_THREAD);
+}
+
+
+/**
+ * @brief Main thread handler for RD_KAFKA_OP_SHARE_ACK_COMMIT_CB_REGISTER op.
+ *
+ * Updates the registration flag on the main thread. No synchronization
+ * needed because this flag is only accessed from the main thread.
+ *
+ * @locality main thread
+ */
+static rd_kafka_op_res_t
+rd_kafka_share_ack_commit_cb_register_op(rd_kafka_t *rk,
+                                         rd_kafka_q_t *rkq,
+                                         rd_kafka_op_t *rko) {
+        if (rk->rk_rkshare) {
+                rk->rk_share_consumer.acknowledgement_commit_cb_registered =
+                    rko->rko_u.share_ack_commit_cb_register.registered;
+                rd_kafka_dbg(
+                    rk, CGRP, "SHAREACK", "Share ack callback %sregistered",
+                    rko->rko_u.share_ack_commit_cb_register.registered ? ""
+                                                                       : "un");
+        }
+        return RD_KAFKA_OP_RES_HANDLED;
+}
+
+
+rd_kafka_error_t *rd_kafka_share_set_acknowledgement_commit_cb(
+    rd_kafka_share_t *rkshare,
+    void (*share_acknowledgement_commit_cb)(
+        rd_kafka_share_t *rkshare,
+        rd_kafka_share_partition_offsets_list_t *partitions,
+        rd_kafka_resp_err_t err,
+        void *opaque),
+    void *opaque) {
+        rd_kafka_t *rk;
+        rd_bool_t was_set, now_set;
+        rd_kafka_error_t *error = NULL;
+
+        if (unlikely((error = rd_kafka_share_acquire(rkshare)) != NULL))
+                return error;
+
+        if (unlikely((error = rd_kafka_share_consumer_closed_error(rkshare)) !=
+                     NULL))
+                goto done;
+
+        rk = rkshare->rkshare_rk;
+
+        /* These fields are owned by app thread only - no lock needed. */
+        was_set =
+            (rk->rk_share_consumer.share_acknowledgement_commit_cb != NULL);
+        now_set = (share_acknowledgement_commit_cb != NULL);
+
+        rk->rk_share_consumer.share_acknowledgement_commit_cb =
+            share_acknowledgement_commit_cb;
+        rk->rk_share_consumer.acknowledgement_commit_cb_opaque = opaque;
+
+        /* Send op to main thread ONLY if registration state transitions
+         * (set ↔ unset). Changing callback from A→B doesn't need an op
+         * since the registered flag is already true on the main thread. */
+        if (was_set != now_set) {
+                rd_kafka_op_t *rko = rd_kafka_op_new_cb(
+                    rk, RD_KAFKA_OP_SHARE_ACK_COMMIT_CB_REGISTER,
+                    rd_kafka_share_ack_commit_cb_register_op);
+                rko->rko_u.share_ack_commit_cb_register.registered = now_set;
+                rd_kafka_q_enq(rk->rk_ops, rko);
+        }
+
+done:
+        rd_kafka_share_release(rkshare);
+        return error;
+}
+
+
+/**
+ * @locality main thread
+ * @locks none
+ */
+static rd_kafka_broker_t *rd_kafka_share_select_broker(rd_kafka_t *rk,
+                                                       rd_kafka_cgrp_t *rkcg) {
+        rd_kafka_broker_t *selected_rkb = NULL, *leader = NULL;
+        rd_list_t *toppars = &rkcg->rkcg_toppars;
+        int toppar_cnt     = rd_list_cnt(toppars);
+        size_t i;
+
+        if (toppar_cnt == 0)
+                return NULL;
+
+        /* Look through all partitions in order, find the first one which
+         * has a leader. */
+        rd_kafka_dbg(rk, CGRP, "SHARE",
+                     "Selecting broker for share fetch from %d assigned "
+                     "partitions, last picked index = %" PRIusz,
+                     toppar_cnt, rkcg->rkcg_share.last_partition_picked);
+
+        for (i = 0; i < (size_t)toppar_cnt; i++) {
+                rd_kafka_toppar_t *rktp;
+                rkcg->rkcg_share.last_partition_picked += 1;
+                if (rkcg->rkcg_share.last_partition_picked >=
+                    (size_t)toppar_cnt)
+                        rkcg->rkcg_share.last_partition_picked = 0;
+
+                rktp = rd_list_elem(
+                    toppars, (int)rkcg->rkcg_share.last_partition_picked);
+                rd_kafka_toppar_keep(rktp);
+
+                rd_kafka_toppar_lock(rktp);
+                leader = rktp->rktp_leader;
+                if (leader)
+                        rd_kafka_broker_keep(leader);
+                rd_kafka_toppar_unlock(rktp);
+
+                /* Criteria to choose a broker:
+                 * 1. It should be the leader of a partition.
+                 * 2. The broker or instance must not be terminating.
+                 * 3. A share-fetch op must not already be enqueued on it.
+                 * 4. The broker must currently be UP.
+                 *
+                 * The rkb_state read is intentionally unlocked: a stale
+                 * UP value at worst costs one stray op (broker thread
+                 * rejects with ERR__STATE), bounded to one per state
+                 * transition. Without this guard, a DOWN leader causes
+                 * an unbounded main<->broker thread bounce loop. */
+                if (leader) {
+                        if (!rd_kafka_broker_or_instance_terminating(leader) &&
+                            !leader->rkb_share_fetch_enqueued &&
+                            leader->rkb_state == RD_KAFKA_BROKER_STATE_UP) {
+                                rd_kafka_broker_keep(leader);
+                                selected_rkb = leader;
+                                rd_kafka_dbg(
+                                    rk, CGRP, "SHARE",
+                                    "Selected broker %s (%p) for share "
+                                    "fetch "
+                                    "for partition %s [%" PRId32 "]",
+                                    rd_kafka_broker_name(selected_rkb),
+                                    selected_rkb,
+                                    rktp->rktp_rkt->rkt_topic->str,
+                                    rktp->rktp_partition);
+                        }
+                        /* Release the snapshot reference taken under rktp lock
+                         * above. */
+                        rd_kafka_broker_destroy(leader);
+                }
+
+                rd_kafka_toppar_destroy(rktp);
+
+                if (selected_rkb)
+                        break;
+        }
+        return selected_rkb;
+}
+
+
+/**
+ * @brief Enqueue a SHARE_FETCH_FANOUT op and set the fetch guard flag
+ *        if the op requests more records.
+ * @locality app thread
+ */
+static void rd_kafka_share_fetch_fanout_enqueue(rd_kafka_t *rk,
+                                                rd_kafka_op_t *rko) {
+        if (rko->rko_u.share_fetch_fanout.fetch_more_records)
+                rk->rk_rkshare->rkshare_fetch_more_records_requested = rd_true;
+        rd_kafka_q_enq(rk->rk_ops, rko);
+}
+
+
+/**
+ * @brief Enqueue a SHARE_FETCH_FANOUT op on the main queue.
+ * @param backoff_ms If >0 the op will be enqueued after this many milliseconds.
+ * Else, it will be immediate.
+ * @locality app thread
+ */
+static void rd_kafka_share_fetch_fanout(rd_kafka_t *rk,
+                                        rd_bool_t fetch_more_records,
+                                        rd_list_t *ack_batches) {
+        rd_kafka_op_t *rko = rd_kafka_op_new_cb(
+            rk, RD_KAFKA_OP_SHARE_FETCH_FANOUT, rd_kafka_share_fetch_fanout_op);
+        rko->rko_u.share_fetch_fanout.fetch_more_records = fetch_more_records;
+        rko->rko_replyq = RD_KAFKA_REPLYQ(rk->rk_ops, 0);
+
+        /* Attach pre-built ack_details (ownership transferred to op) */
+        rko->rko_u.share_fetch_fanout.ack_batches = ack_batches;
+
+        rd_kafka_share_fetch_fanout_enqueue(rk, rko);
+}
+
+static void rd_kafka_share_enqueue_sync_ack_op(rd_kafka_t *rk,
+                                               rd_kafka_broker_t *rkb);
+rd_kafka_op_res_t rd_kafka_share_fetch_reply_op(rd_kafka_t *rk,
+                                                rd_kafka_op_t *rko_orig);
+
+/**
+ * @brief rko_op_cb wrapper for rd_kafka_share_fetch_reply_op.
+ *
+ * Using rko_op_cb causes rd_kafka_op_reply() to stamp RD_KAFKA_OP_CB
+ * instead of RD_KAFKA_OP_REPLY, which bypasses the handle_std
+ * __DESTROY silent-discard path (rdkafka_op.c:987-991).
+ *
+ * @locality main thread
+ */
+static rd_kafka_op_res_t rd_kafka_share_fetch_reply_op_cb(rd_kafka_t *rk,
+                                                          rd_kafka_q_t *rkq,
+                                                          rd_kafka_op_t *rko) {
+        return rd_kafka_share_fetch_reply_op(rk, rko);
+}
+
+/**
+ * Handles RD_KAFKA_OP_SHARE_FETCH | RD_KAFKA_OP_REPLY.
+ * @locality main thread
+ */
+rd_kafka_op_res_t rd_kafka_share_fetch_reply_op(rd_kafka_t *rk,
+                                                rd_kafka_op_t *rko_orig) {
+        rd_kafka_broker_t *reply_rkb =
+            rko_orig->rko_u.share_fetch.target_broker;
+        rd_kafka_cgrp_t *rkcg     = rd_kafka_cgrp_get(rk);
+        rd_bool_t should_fetch    = rko_orig->rko_u.share_fetch.should_fetch;
+        rd_bool_t records_fetched = rko_orig->rko_u.share_fetch.records_fetched;
+        rd_bool_t should_leave    = rko_orig->rko_u.share_fetch.should_leave;
+        rd_list_t *ack_details    = rko_orig->rko_u.share_fetch.ack_details;
+
+        /* The reply handler is expected to be invoked on the main thread,
+         * unless the client is terminating with NO_CONSUMER_CLOSE in which
+         * case it can be invoked on the replying's broker thread
+         * (main thread would have come out of its event loop by the time broker
+         * replies)
+         */
+        rd_dassert(thrd_is_current(rk->rk_thread) ||
+                   rko_orig->rko_err == RD_KAFKA_RESP_ERR__DESTROY);
+        rd_kafka_dbg(rk, CGRP, "SHAREFETCH",
+                     "Share fetch reply: %s, should_fetch=%d, "
+                     "records_fetched=%d, should_leave=%d, broker=%s",
+                     rd_kafka_err2str(rko_orig->rko_err), should_fetch,
+                     records_fetched, should_leave,
+                     reply_rkb ? rd_kafka_broker_name(reply_rkb) : "none");
+
+
+        /* Per-partition errors are carried on each batch's
+         * rktpar->err. The broker thread sets these on both
+         * success (per-partition error from response via parser)
+         * and top-level error (top-level err on each batch via
+         * rd_kafka_share_fetch_op_reply_and_update_ack_details_with_err
+         * helper).
+         *
+         * Defensive: if the helper was bypassed (e.g. q_enq on
+         * a disabled rkb_ops queue at rdkafka_queue.h:440 falls
+         * through to rd_kafka_op_reply directly) the batch err
+         * is still _IN_PROGRESS from build_ack_details. Override
+         * with rko_err so the sentinel doesn't leak to the
+         * app. _IN_PROGRESS check is sufficient because the
+         * normal helper path overwrites _IN_PROGRESS first
+         * (buf callback init -> INVALID_RECORD_STATE -> per-
+         * partition err or top-level err). */
+        if (ack_details && rko_orig->rko_err) {
+                rd_kafka_share_ack_batches_t *batch;
+                int k;
+                RD_LIST_FOREACH(batch, ack_details, k) {
+                        if (batch->rktpar->err ==
+                            RD_KAFKA_RESP_ERR__IN_PROGRESS)
+                                batch->rktpar->err = rko_orig->rko_err;
+                }
+        }
+
+        /*
+         * Step 1: Dispatch acknowledgement callbacks.
+         * Per-partition errors were set by the broker thread.
+         */
+        rd_kafka_share_dispatch_ack_callbacks(
+            rk, rko_orig->rko_u.share_fetch.ack_details);
+
+        reply_rkb->rkb_share_fetch_enqueued = rd_false;
+
+        if (should_fetch)
+                rkcg->rkcg_share.share_should_fetch_ops_in_flight_cnt--;
+
+        if (should_leave) {
+                rkcg->rkcg_share.share_session_leave_remaining_cnt--;
+                return RD_KAFKA_OP_RES_HANDLED;
+        }
+
+        /*
+         * Step 2: If records were fetched and broker is not terminating,
+         * reset the global fetch guard so the next FANOUT can select
+         * a new fetch broker.
+         */
+        if (records_fetched && rko_orig->rko_err != RD_KAFKA_RESP_ERR__DESTROY)
+                rkcg->rkcg_share.share_fetch_more_records = rd_false;
+
+        /*
+         * Step 3: If the consumer has been marked for termination,
+         * enqueue a session leave op on the replying broker thread and return
+         */
+        if (rkcg->rkcg_flags & RD_KAFKA_CGRP_F_TERMINATE) {
+                if (!rd_kafka_destroy_flags_no_consumer_close(rkcg->rkcg_rk))
+                        rd_kafka_share_enqueue_fetch_op(
+                            rkcg->rkcg_rk, reply_rkb, rd_false, rd_true);
+                return RD_KAFKA_OP_RES_HANDLED;
+        }
+
+        /*
+         * Step 4: Handle commit_sync reply if this op belongs to
+         * the current commit_sync request.
+         */
+        if (rko_orig->rko_u.share_fetch.commit_sync_request_id != 0 &&
+            rko_orig->rko_u.share_fetch.commit_sync_request_id ==
+                rkcg->rkcg_commit_sync_request.id) {
+                rd_kafka_dbg(
+                    rk, CGRP, "SHARE",
+                    "Commit sync reply from broker %s: %s, "
+                    "remaining brokers: %d",
+                    rd_kafka_broker_name(reply_rkb),
+                    rd_kafka_err2str(rko_orig->rko_err),
+                    rkcg->rkcg_commit_sync_request.brokers_awaiting_result_cnt);
+                rd_kafka_share_commit_sync_apply_result(rk, rkcg, ack_details);
+        }
+
+        /*
+         * Step 5: Dispatch pending commit_sync to the replying broker
+         * (highest priority). Acks must always be sent.
+         */
+        if (!reply_rkb->rkb_share_fetch_enqueued &&
+            !rd_kafka_broker_or_instance_terminating(reply_rkb) &&
+            reply_rkb->rkb_pending_commit_sync.sync_ack_details) {
+                rd_kafka_dbg(rk, CGRP, "SHARE",
+                             "Dispatching pending sync acks to broker %s",
+                             rd_kafka_broker_name(reply_rkb));
+                rd_kafka_share_enqueue_sync_ack_op(rk, reply_rkb);
+        }
+
+        /*
+         * Step 6: If this was the fetch broker but no records were received,
+         * try to select another broker to fetch from.
+         *
+         * TODO: KIP-932: Handle the case where all assignments are removed
+         * while a fetch is in progress. In that scenario, no records are
+         * returned and rd_kafka_share_select_broker() will always return
+         * NULL (no assigned partitions), leaving fetch_more_records stuck
+         * at true indefinitely. Need to detect this (e.g. check if
+         * assignments are empty) and reset fetch_more_records.
+         */
+        if (should_fetch && !records_fetched &&
+            rkcg->rkcg_share.share_fetch_more_records &&
+            !rd_kafka_terminating(rk)) {
+                rd_kafka_broker_t *selected_rkb;
+
+                selected_rkb = rd_kafka_share_select_broker(rk, rkcg);
+                if (selected_rkb) {
+                        rd_kafka_dbg(rk, CGRP, "SHARE",
+                                     "Re-selecting broker %s for share fetch "
+                                     "(previous broker %s returned no records)",
+                                     rd_kafka_broker_name(selected_rkb),
+                                     rd_kafka_broker_name(reply_rkb));
+
+                        rd_kafka_share_enqueue_fetch_op(rk, selected_rkb,
+                                                        rd_true, rd_false);
+                        rd_kafka_broker_destroy(selected_rkb);
+                } else {
+                        rd_kafka_dbg(rk, CGRP, "SHARE",
+                                     "No broker available for share fetch "
+                                     "retry, will retry on next FANOUT");
+                }
+        }
+
+        /*
+         * Step 7: If the replying broker has cached async ack details,
+         * send an ack-only SHARE_FETCH op to it.
+         */
+        if (reply_rkb->rkb_share_async_ack_details &&
+            !reply_rkb->rkb_share_fetch_enqueued &&
+            !rd_kafka_broker_or_instance_terminating(reply_rkb)) {
+                rd_kafka_dbg(rk, CGRP, "SHARE",
+                             "Enqueuing ack-only SHARE_FETCH to broker %s "
+                             "to flush pending acks",
+                             rd_kafka_broker_name(reply_rkb));
+                rd_kafka_share_enqueue_fetch_op(rk, reply_rkb, rd_false,
+                                                rd_false);
+        }
+
+        return RD_KAFKA_OP_RES_HANDLED;
+}
+
+
+/**
+ * @brief Create and enqueue a SHARE_FETCH op on a broker.
+ *
+ * Moves any cached ack details from rkb_share_async_ack_details
+ * into the op, sets rkb_share_fetch_enqueued, and enqueues the op
+ * on the broker's ops queue.
+ *
+ * @param rk Client instance
+ * @param rkb Broker to enqueue on. Must not have rkb_share_fetch_enqueued set.
+ * @param should_fetch Whether the broker should fetch records.
+ * @param should_leave Whether the broker should close the session.
+ *
+ * @locality main thread
+ */
+void rd_kafka_share_enqueue_fetch_op(rd_kafka_t *rk,
+                                     rd_kafka_broker_t *rkb,
+                                     rd_bool_t should_fetch,
+                                     rd_bool_t should_leave) {
+        rd_kafka_op_t *rko_sf;
+
+        rd_assert(!(should_fetch && should_leave));
+        rko_sf = rd_kafka_op_new(RD_KAFKA_OP_SHARE_FETCH);
+        rko_sf->rko_u.share_fetch.should_leave = should_leave;
+        rko_sf->rko_u.share_fetch.abs_timeout =
+            rd_timeout_init(rk->rk_conf.socket_timeout_ms);
+        rko_sf->rko_u.share_fetch.should_fetch = should_fetch;
+
+        /* Move ack details from broker cache to op */
+        rko_sf->rko_u.share_fetch.ack_details =
+            rkb->rkb_share_async_ack_details;
+        rkb->rkb_share_async_ack_details = NULL;
+
+        rd_kafka_broker_keep(rkb);
+        rko_sf->rko_u.share_fetch.target_broker = rkb;
+        rko_sf->rko_replyq = RD_KAFKA_REPLYQ(rk->rk_ops, 0);
+        rko_sf->rko_op_cb  = rd_kafka_share_fetch_reply_op_cb;
+        rko_sf->rko_rk     = rk;
+
+        /* Set fetch guard flag to prevent multiple in-flight fetches to the
+         * same broker.*/
+        rd_assert(!rkb->rkb_share_fetch_enqueued);
+        rkb->rkb_share_fetch_enqueued = rd_true;
+
+        if (should_fetch)
+                rd_kafka_cgrp_get(rk)
+                    ->rkcg_share.share_should_fetch_ops_in_flight_cnt++;
+
+        rd_kafka_dbg(rk, CGRP, "SHAREFETCH",
+                     "Enqueuing share fetch op on broker %s "
+                     "(%s fetch, %s leave, %s acks)",
+                     rd_kafka_broker_name(rkb), should_fetch ? "with" : "no",
+                     should_leave ? "with" : "no",
+                     rko_sf->rko_u.share_fetch.ack_details ? "with" : "no");
+
+        rd_kafka_q_enq(rkb->rkb_ops, rko_sf);
+}
+
+/**
+ * @brief Segregate ack batches by partition leader and dispatch
+ * SHARE_FETCH ops to brokers that have pending acks or are the
+ * selected fetch broker.
+ *
+ * Common logic shared by both SHARE_FETCH_FANOUT and
+ * SHARE_COMMIT_ASYNC_FANOUT handlers.
+ *
+ * @param rk Client instance.
+ * @param ack_batches List of ack batches to segregate and dispatch.
+ *                    Ownership is transferred: the list is destroyed
+ *                    after segregation. May be NULL if no acks.
+ * @param selected_rkb The broker selected for fetching, or NULL for
+ *                     ack-only dispatch. If non-NULL, that broker's
+ *                     op will have should_fetch=true.
+ *
+ * @locality main thread
+ */
+static void
+rd_kafka_share_segregate_and_dispatch_acks(rd_kafka_t *rk,
+                                           rd_list_t *ack_batches,
+                                           rd_kafka_broker_t *selected_rkb) {
+        rd_kafka_broker_t *rkb;
+
+        if (ack_batches) {
+                rd_kafka_share_segregate_acks_by_leader(rk, ack_batches);
+
+                /* Ownership of elements transferred to broker ack_details.
+                 * Destroy the container. */
+                rd_list_destroy(ack_batches);
+        }
+
+        /**
+         * TODO KIP-932: Instead of iterating through all brokers every time,
+         * we could keep track of which brokers have pending acks or is
+         * selected for fetch in a separate list, and only iterate through
+         * that list here.
+         */
+        rd_kafka_rdlock(rk);
+        TAILQ_FOREACH(rkb, &rk->rk_brokers, rkb_link) {
+                rd_bool_t has_acks = (rkb->rkb_share_async_ack_details != NULL);
+                rd_bool_t is_fetch_broker = (rkb == selected_rkb);
+
+                if (rd_kafka_broker_or_instance_terminating(rkb) ||
+                    RD_KAFKA_BROKER_IS_LOGICAL(rkb))
+                        continue;
+
+                /* Skip brokers with nothing to do */
+                if (!has_acks && !is_fetch_broker)
+                        continue;
+
+                /* If a request is already in-flight on this broker,
+                 * acks stay cached in rkb_share_async_ack_details
+                 * and will be sent with the next request. */
+                if (rkb->rkb_share_fetch_enqueued) {
+                        rd_kafka_dbg(rk, CGRP, "SHARE",
+                                     "Broker %s has in-flight request, "
+                                     "with acks: %s, "
+                                     "is fetch broker: %s",
+                                     rd_kafka_broker_name(rkb),
+                                     has_acks ? "yes" : "no",
+                                     is_fetch_broker ? "yes" : "no");
+                        continue;
+                }
+
+                rd_kafka_share_enqueue_fetch_op(rk, rkb, is_fetch_broker,
+                                                rd_false);
+        }
+        rd_kafka_rdunlock(rk);
+}
+
+/**
+ * Op callback for RD_KAFKA_OP_SHARE_FETCH_FANOUT.
+ * @locality main thread
+ */
+rd_kafka_op_res_t rd_kafka_share_fetch_fanout_op(rd_kafka_t *rk,
+                                                 rd_kafka_q_t *rkq,
+                                                 rd_kafka_op_t *rko) {
+        rd_kafka_broker_t *selected_rkb = NULL;
+        rd_kafka_cgrp_t *rkcg           = rd_kafka_cgrp_get(rk);
+        rd_bool_t fetch_more_records =
+            rko->rko_u.share_fetch_fanout.fetch_more_records;
+        rd_bool_t has_fanout_acks =
+            (rko->rko_u.share_fetch_fanout.ack_batches &&
+             rd_list_cnt(rko->rko_u.share_fetch_fanout.ack_batches) > 0);
+
+        /*
+         * Step 1: Global fetch guard — select a fetch broker.
+         * Select if:
+         * (a) fetch requested and no fetch is already in progress, OR
+         * (b) fetch_more_records is already set but no broker actually
+         *     has a fetch enqueued (stuck state from failed re-selection).
+         */
+        if (fetch_more_records) {
+                rd_bool_t need_select = rd_false;
+
+                if (!rkcg->rkcg_share.share_fetch_more_records) {
+                        rkcg->rkcg_share.share_fetch_more_records = rd_true;
+                        need_select                               = rd_true;
+                } else if (rkcg->rkcg_share
+                               .share_should_fetch_ops_in_flight_cnt == 0) {
+                        need_select = rd_true;
+                }
+
+                if (need_select) {
+                        selected_rkb = rd_kafka_share_select_broker(rk, rkcg);
+
+                        if (selected_rkb)
+                                rd_kafka_dbg(
+                                    rk, CGRP, "SHARE",
+                                    "Selected broker %s for fetching "
+                                    "messages",
+                                    rd_kafka_broker_name(selected_rkb));
+                        else
+                                rd_kafka_dbg(
+                                    rk, CGRP, "SHARE",
+                                    "No broker available for share fetch");
+                }
+        }
+
+        if (!selected_rkb && !has_fanout_acks) {
+                rd_kafka_dbg(rk, CGRP, "SHARE", "No fetch or acks to fan out");
+                return RD_KAFKA_OP_RES_HANDLED;
+        }
+
+        /*
+         * Step 2: Segregate acks by partition leader and dispatch
+         * SHARE_FETCH ops to brokers with pending acks or the selected
+         * fetch broker.
+         */
+        rd_kafka_share_segregate_and_dispatch_acks(
+            rk,
+            has_fanout_acks ? rko->rko_u.share_fetch_fanout.ack_batches : NULL,
+            selected_rkb);
+        rko->rko_u.share_fetch_fanout.ack_batches = NULL;
+
+        RD_IF_FREE(selected_rkb, rd_kafka_broker_destroy);
+
+        return RD_KAFKA_OP_RES_HANDLED;
+}
+
+/**
+ * @brief Return an error if the share consumer is closed or closing.
+ *
+ * @param rkshare Share consumer instance.
+ * @returns error if closed/closing, NULL otherwise. Caller owns the error.
+ */
+rd_kafka_error_t *
+rd_kafka_share_consumer_closed_error(rd_kafka_share_t *rkshare) {
+        if (unlikely(rd_kafka_share_consumer_closed(rkshare) ||
+                     rkshare->rkshare_consumer_closing))
+                return rd_kafka_error_new(RD_KAFKA_RESP_ERR__STATE,
+                                          "Share consumer is closed");
+        return NULL;
+}
+
+rd_kafka_resp_err_t
+rd_kafka_share_consumer_closed_err(rd_kafka_share_t *rkshare) {
+        rd_kafka_error_t *error;
+        rd_kafka_resp_err_t err;
+
+        error = rd_kafka_share_consumer_closed_error(rkshare);
+        if (!error)
+                return RD_KAFKA_RESP_ERR_NO_ERROR;
+
+        err = rd_kafka_error_code(error);
+        rd_kafka_error_destroy(error);
+        return err;
+}
+
+/**
+ * @brief Record the start of a share consume batch.
+ *
+ *        Enforces max.poll.interval.ms for the share consumer.
+ *        While blocked waiting for messages, sets rk_ts_last_poll to
+ *        INT64_MAX so the wait isn't counted against the interval.
+ *        Records the time-between-poll telemetry sample.
+ */
+static void rd_kafka_share_record_poll_start(rd_kafka_t *rk, int timeout_ms) {
+        rd_ts_t now;
+
+        /* max.poll.interval.ms enforcement: always mark the consumer as
+         * blocked inside librdkafka for the duration of the batch. */
+        rd_atomic64_set(&rk->rk_ts_last_poll, INT64_MAX);
+
+        /* The remaining work is telemetry sampling only. */
+        if (!rk->rk_conf.enable_metrics_push)
+                return;
+
+        now                                          = rd_clock();
+        rk->rk_telemetry.rk_share_poll.ts_poll_start = now;
+
+        /* First poll has no previous timestamp to compare against, so the
+         * first sample contributes 0 to the average. */
+        if (rk->rk_telemetry.rk_share_poll.ts_last_poll_start)
+                rk->rk_telemetry.rk_share_poll.time_since_last_poll =
+                    now - rk->rk_telemetry.rk_share_poll.ts_last_poll_start;
+        else
+                rk->rk_telemetry.rk_share_poll.time_since_last_poll = 0;
+
+        /* Store in microseconds; calculator scales to ms at read time.
+         * Storing in ms here would truncate sub-millisecond samples to 0
+         * (e.g., 999 μs / 1000 = 0), under-reporting at high poll rates. */
+        rd_avg_add(
+            &rk->rk_telemetry.rd_avg_current.rk_avg_share_time_between_poll,
+            rk->rk_telemetry.rk_share_poll.time_since_last_poll);
+        rk->rk_telemetry.rk_share_poll.ts_last_poll_start = now;
+}
+
+/**
+ * @brief Record the end of a share consume batch.
+ *
+ *        Enforces max.poll.interval.ms for the share consumer.
+ *        Records the last poll time and expedites the next heartbeat if the
+ *        interval had been exceeded. Records the poll idle ratio sample
+ *        (pollTime / (pollTime + timeSinceLastPoll), mirroring Java's formula).
+ */
+static void rd_kafka_share_record_poll_end(rd_kafka_t *rk) {
+        rd_ts_t end, poll_time, total;
+
+        end = rd_clock();
+
+        /* max.poll.interval.ms enforcement: record the poll time and, if the
+         * interval had been exceeded, expedite the next heartbeat to rejoin. */
+        rd_atomic64_set(&rk->rk_ts_last_poll, end);
+        if (unlikely(rk->rk_cgrp && rk->rk_cgrp->rkcg_flags &
+                                        RD_KAFKA_CGRP_F_MAX_POLL_EXCEEDED))
+                rd_kafka_cgrp_consumer_expedite_next_heartbeat(
+                    rk->rk_cgrp, "app polled after poll interval exceeded");
+
+        /* The remaining work is telemetry sampling only. */
+        if (!rk->rk_conf.enable_metrics_push)
+                return;
+
+        poll_time = end - rk->rk_telemetry.rk_share_poll.ts_poll_start;
+        total = poll_time + rk->rk_telemetry.rk_share_poll.time_since_last_poll;
+        if (total > 0) {
+                int64_t poll_idle_ratio = poll_time * 1000000 / total;
+                rd_avg_add(&rk->rk_telemetry.rd_avg_current
+                                .rk_avg_share_poll_idle_ratio,
+                           poll_idle_ratio);
+        }
+}
+
+size_t rd_kafka_messages_count(const rd_kafka_messages_t *messages) {
+        if (!messages)
+                return 0;
+        return messages->cnt;
+}
+
+rd_kafka_message_t *rd_kafka_messages_get(const rd_kafka_messages_t *messages,
+                                          size_t index) {
+        return messages->elems[index];
+}
+
+void rd_kafka_messages_destroy(rd_kafka_messages_t *messages) {
+        size_t i;
+        if (!messages)
+                return;
+        for (i = 0; i < messages->cnt; i++) {
+                rd_kafka_message_destroy(messages->elems[i]);
+        }
+        rd_free(messages);
+}
+
+
+rd_kafka_error_t *rd_kafka_share_poll(rd_kafka_share_t *rkshare,
+                                      int timeout_ms,
+                                      rd_kafka_messages_t **rkmessages) {
+        rd_kafka_t *rk = rkshare->rkshare_rk;
+        rd_kafka_cgrp_t *rkcg;
+        rd_bool_t has_records;
+        rd_bool_t has_pending_acks;
+        rd_kafka_error_t *error = NULL;
+        rd_list_t *ack_batches  = NULL;
+        rd_bool_t need_fetch_more_records;
+
+        /* Always NULL the out param so error/empty paths are well-defined. */
+        *rkmessages = NULL;
+
+        if (unlikely((error = rd_kafka_share_acquire(rkshare)) != NULL))
+                return error;
+
+        /* TODO KIP-932: the non-fatal errors returned from the other paths
+         * below (consumer-group-not-initialized, consumer-closed, and the
+         * not-all-acknowledged guard) should be marked retriable so the app
+         * knows it can retry the share_poll call, consistent with the
+         * retriable errors built in rd_kafka_q_serve_share_rkmessages(). */
+        if (unlikely(!(rkcg = rd_kafka_cgrp_get(rk)))) {
+                error = rd_kafka_error_new(RD_KAFKA_RESP_ERR__STATE,
+                                           "rd_kafka_share_poll(): "
+                                           "Consumer group not initialized");
+                goto done;
+        }
+
+        if (unlikely((error = rd_kafka_share_consumer_closed_error(rkshare)) !=
+                     NULL))
+                goto done;
+
+        /* Drain rk_rep for all pending callbacks (non-blocking) */
+        rd_kafka_q_serve(rk->rk_rep, RD_POLL_NOWAIT, 0, RD_KAFKA_Q_CB_CALLBACK,
+                         rd_kafka_poll_cb, NULL);
+
+        /* In implicit ack mode, convert all ACQUIRED records to ACCEPT
+         * before extracting ack details. In explicit mode, the app has
+         * already acknowledged records via the acknowledge APIs, so
+         * only extract what's been explicitly acknowledged. */
+        rd_kafka_share_acknowledge_all_if_implicit(rkshare);
+
+        error = rd_kafka_share_ensure_all_acknowledged_if_explicit(rkshare);
+        if (error)
+                goto done;
+
+        /* Fail early if no subscription is active.
+         * rkshare_subscribed is app-thread-owned and set/cleared by
+         * rd_kafka_share_subscribe / rd_kafka_share_unsubscribe under
+         * the same rkshare_acquire/release lock that guards this call. */
+        if (unlikely(!rkshare->rkshare_subscribed)) {
+                error = rd_kafka_error_new(
+                    RD_KAFKA_RESP_ERR__STATE,
+                    "Consumer is not subscribed to any topics");
+                goto done;
+        }
+
+        rd_kafka_share_record_poll_start(rk, timeout_ms);
+
+        ack_batches = rd_kafka_share_build_ack_details(rk->rk_rkshare);
+
+        has_records      = rd_kafka_q_len(rkcg->rkcg_q) > 0;
+        has_pending_acks = ack_batches != NULL;
+
+        /* Only request fetch if no fetch FANOUT is already in flight */
+        need_fetch_more_records =
+            !has_records &&
+            !rk->rk_rkshare->rkshare_fetch_more_records_requested;
+
+        if (need_fetch_more_records || has_pending_acks)
+                rd_kafka_share_fetch_fanout(rk, need_fetch_more_records,
+                                            ack_batches);
+
+        error = rd_kafka_q_serve_share_rkmessages(rkcg->rkcg_q, timeout_ms,
+                                                  rkmessages);
+
+        /* Drain rk_rep for callbacks again before returning */
+        rd_kafka_q_serve(rk->rk_rep, RD_POLL_NOWAIT, 0, RD_KAFKA_Q_CB_CALLBACK,
+                         rd_kafka_poll_cb, NULL);
+
+        rd_kafka_share_record_poll_end(rk);
+
+done:
+        rd_kafka_share_release(rkshare);
+        return error;
+}
+
+/**
+ * @brief Main thread handler for SHARE_COMMIT_ASYNC_FANOUT op.
+ *
+ * Segregates acks by partition leader and sends ack-only
+ * SHARE_FETCH ops to the respective brokers.
+ *
+ * @locality main thread
+ */
+rd_kafka_op_res_t rd_kafka_share_commit_async_fanout_op(rd_kafka_t *rk,
+                                                        rd_kafka_q_t *rkq,
+                                                        rd_kafka_op_t *rko) {
+        rd_bool_t has_acks =
+            (rko->rko_u.share_commit_async_fanout.ack_batches &&
+             rd_list_cnt(rko->rko_u.share_commit_async_fanout.ack_batches) > 0);
+
+        if (!has_acks) {
+                rd_kafka_dbg(rk, CGRP, "SHARE",
+                             "No acks to commit in "
+                             "SHARE_COMMIT_ASYNC_FANOUT");
+                return RD_KAFKA_OP_RES_HANDLED;
+        }
+
+        rd_kafka_share_segregate_and_dispatch_acks(
+            rk, rko->rko_u.share_commit_async_fanout.ack_batches,
+            NULL /* ack-only, no fetch */);
+        rko->rko_u.share_commit_async_fanout.ack_batches = NULL;
+
+        return RD_KAFKA_OP_RES_HANDLED;
+}
+
+/**
+ * @brief Merge ack batches from \p src_list into \p dst_list.
+ *
+ * For each batch in src_list, finds a matching topic-partition in
+ * dst_list. If found, deep-copies entries from src into existing
+ * batch and re-sorts by start_offset. If not found, moves the
+ * batch as-is.
+ *
+ * @param dst_list Destination list (rd_kafka_share_ack_batches_t*).
+ * @param src_list Source list (rd_kafka_share_ack_batches_t*).
+ *                 Elements are moved or destroyed; list is emptied.
+ *
+ * @locality main thread
+ */
+static void rd_kafka_share_merge_ack_lists(rd_list_t *dst_list,
+                                           rd_list_t *src_list) {
+        rd_kafka_share_ack_batches_t *batch;
+
+        while ((batch = rd_list_pop(src_list))) {
+                rd_kafka_share_ack_batches_t *existing;
+
+                existing =
+                    rd_kafka_share_find_ack_batch(dst_list, batch->rktpar);
+                if (existing) {
+                        rd_kafka_share_ack_batch_entry_t *entry;
+                        int j;
+                        RD_LIST_FOREACH(entry, &batch->entries, j) {
+                                rd_list_add(
+                                    &existing->entries,
+                                    rd_kafka_share_ack_batch_entry_copy(entry));
+                        }
+                        rd_list_sort(&existing->entries,
+                                     rd_kafka_share_ack_entries_sort_cmp_ptr);
+                        rd_kafka_share_ack_batches_destroy(batch);
+                } else {
+                        rd_list_add(dst_list, batch);
+                }
+        }
+}
+
+/**
+ * @brief Timeout callback for commit_sync.
+ *
+ * Fires when the commit_sync timeout expires. For each broker with
+ * pending_commit_sync, merges those acks into async_ack_details so
+ * they are sent asynchronously later. Fills all partitions still
+ * marked as IN_PROGRESS with REQUEST_TIMED_OUT. Sends the response.
+ *
+ * @locality main thread (timer thread -> main thread)
+ */
+static void rd_kafka_share_commit_sync_timeout_cb(rd_kafka_timers_t *rkts,
+                                                  void *arg) {
+        rd_kafka_t *rk        = rkts->rkts_rk;
+        rd_kafka_cgrp_t *rkcg = rd_kafka_cgrp_get(rk);
+        rd_kafka_broker_t *rkb;
+        rd_kafka_topic_partition_list_t *results;
+        int i;
+
+        rd_kafka_dbg(
+            rk, CGRP, "SHARE",
+            "Commit sync timeout fired, "
+            "pending brokers: %d",
+            rkcg->rkcg_commit_sync_request.brokers_awaiting_result_cnt);
+
+        /* Move pending_commit_sync acks to async_ack_details */
+        rd_kafka_rdlock(rk);
+        TAILQ_FOREACH(rkb, &rk->rk_brokers, rkb_link) {
+                if (!rkb->rkb_pending_commit_sync.sync_ack_details)
+                        continue;
+
+                if (!rkb->rkb_share_async_ack_details)
+                        rkb->rkb_share_async_ack_details = rd_list_new(
+                            rd_list_cnt(
+                                rkb->rkb_pending_commit_sync.sync_ack_details),
+                            rd_kafka_share_ack_batches_destroy_free);
+
+                rd_kafka_share_merge_ack_lists(
+                    rkb->rkb_share_async_ack_details,
+                    rkb->rkb_pending_commit_sync.sync_ack_details);
+
+                rd_list_destroy(rkb->rkb_pending_commit_sync.sync_ack_details);
+                rkb->rkb_pending_commit_sync.sync_ack_details       = NULL;
+                rkb->rkb_pending_commit_sync.abs_timeout            = 0;
+                rkb->rkb_pending_commit_sync.commit_sync_request_id = 0;
+        }
+        rd_kafka_rdunlock(rk);
+
+        /* TODO: Verify that __TIMED_OUT (local timeout) is the correct
+         *  error here rather than REQUEST_TIMED_OUT (broker error). */
+        /* Fill partitions still IN_PROGRESS with REQUEST_TIMED_OUT
+         * to surface the commit_sync deadline expiry to the caller. */
+        results = rkcg->rkcg_commit_sync_request.results;
+        for (i = 0; i < results->cnt; i++) {
+                rd_kafka_topic_partition_t *rktpar = &results->elems[i];
+                if (rktpar->err == RD_KAFKA_RESP_ERR__IN_PROGRESS)
+                        rktpar->err = RD_KAFKA_RESP_ERR_REQUEST_TIMED_OUT;
+        }
+
+        rd_kafka_share_commit_sync_send_response(rkcg);
+}
+
+/**
+ * @brief Create and enqueue a sync ack-only SHARE_FETCH op on a broker.
+ *
+ * Moves ack details, abs_timeout, and commit_sync_request_id from
+ * rkb_pending_commit_sync into the op.
+ *
+ * @param rk Client instance.
+ * @param rkb Broker to enqueue on. Must have pending_commit_sync data.
+ *
+ * @locality main thread
+ */
+static void rd_kafka_share_enqueue_sync_ack_op(rd_kafka_t *rk,
+                                               rd_kafka_broker_t *rkb) {
+        rd_kafka_op_t *rko_sf;
+
+        rko_sf = rd_kafka_op_new(RD_KAFKA_OP_SHARE_FETCH);
+        rko_sf->rko_u.share_fetch.should_leave = rd_false;
+        rko_sf->rko_u.share_fetch.abs_timeout =
+            rkb->rkb_pending_commit_sync.abs_timeout;
+        rko_sf->rko_u.share_fetch.should_fetch = rd_false;
+        rko_sf->rko_u.share_fetch.commit_sync_request_id =
+            rkb->rkb_pending_commit_sync.commit_sync_request_id;
+
+        /* Move ack details from pending_commit_sync to op */
+        rko_sf->rko_u.share_fetch.ack_details =
+            rkb->rkb_pending_commit_sync.sync_ack_details;
+        rkb->rkb_pending_commit_sync.sync_ack_details       = NULL;
+        rkb->rkb_pending_commit_sync.abs_timeout            = 0;
+        rkb->rkb_pending_commit_sync.commit_sync_request_id = 0;
+
+        rd_kafka_broker_keep(rkb);
+        rko_sf->rko_u.share_fetch.target_broker = rkb;
+        rko_sf->rko_replyq = RD_KAFKA_REPLYQ(rk->rk_ops, 0);
+        rko_sf->rko_op_cb  = rd_kafka_share_fetch_reply_op_cb;
+        rko_sf->rko_rk     = rk;
+
+        rkb->rkb_share_fetch_enqueued = rd_true;
+
+        rd_kafka_dbg(
+            rk, CGRP, "SHARE",
+            "Enqueuing sync ack op on broker %s "
+            "(abs_timeout %" PRId64 ", commit_sync_request_id %" PRId64 ")",
+            rd_kafka_broker_name(rkb), rko_sf->rko_u.share_fetch.abs_timeout,
+            rko_sf->rko_u.share_fetch.commit_sync_request_id);
+
+        rd_kafka_q_enq(rkb->rkb_ops, rko_sf);
+}
+
+/**
+ * @brief Dispatch pending sync ack requests to free brokers.
+ *
+ * Phase 2 of sync dispatch: iterates all brokers. For each broker
+ * that has pending_commit_sync, increments brokers_awaiting_result_cnt.
+ * If the broker is free (no inflight request), dispatches the
+ * pending sync acks immediately.
+ *
+ * @param rk Client instance.
+ * @param rkcg Consumer group handle.
+ *
+ * @locality main thread
+ */
+static void rd_kafka_share_dispatch_pending_sync_acks(rd_kafka_t *rk,
+                                                      rd_kafka_cgrp_t *rkcg) {
+        rd_kafka_broker_t *rkb;
+
+        rd_kafka_rdlock(rk);
+        TAILQ_FOREACH(rkb, &rk->rk_brokers, rkb_link) {
+                if (!rkb->rkb_pending_commit_sync.sync_ack_details)
+                        continue;
+
+                rkcg->rkcg_commit_sync_request.brokers_awaiting_result_cnt++;
+
+                if (rkb->rkb_share_fetch_enqueued ||
+                    rd_kafka_broker_or_instance_terminating(rkb)) {
+                        rd_kafka_dbg(rk, CGRP, "SHARE",
+                                     "Broker %s has in-flight request, "
+                                     "sync acks stored in pending_commit_sync",
+                                     rd_kafka_broker_name(rkb));
+                        continue;
+                }
+
+                /* Broker is free — dispatch pending sync acks */
+                rd_kafka_share_enqueue_sync_ack_op(rk, rkb);
+        }
+        rd_kafka_rdunlock(rk);
+}
+
+/**
+ * @brief Main thread handler for SHARE_COMMIT_SYNC_FANOUT op.
+ *
+ * Stores the commit_sync request state, segregates acks by leader
+ * into pending_commit_sync, then dispatches to free brokers and
+ * starts the timeout timer.
+ *
+ * @locality main thread
+ */
+rd_kafka_op_res_t rd_kafka_share_commit_sync_fanout_op(rd_kafka_t *rk,
+                                                       rd_kafka_q_t *rkq,
+                                                       rd_kafka_op_t *rko) {
+        rd_kafka_cgrp_t *rkcg = rd_kafka_cgrp_get(rk);
+        rd_list_t *ack_batches =
+            rko->rko_u.share_commit_sync_fanout.ack_batches;
+        rd_ts_t abs_timeout = rko->rko_u.share_commit_sync_fanout.abs_timeout;
+        rd_kafka_topic_partition_list_t *results =
+            rko->rko_u.share_commit_sync_fanout.results;
+        int i;
+        int64_t timeout_us;
+
+        /* Take ownership from op */
+        rko->rko_u.share_commit_sync_fanout.ack_batches = NULL;
+        rko->rko_u.share_commit_sync_fanout.results     = NULL;
+
+        /* Initialize commit_sync request state */
+        rkcg->rkcg_share.commit_sync_request_id_counter++;
+        if (rkcg->rkcg_share.commit_sync_request_id_counter == INT64_MAX)
+                rkcg->rkcg_share.commit_sync_request_id_counter = 1;
+        rkcg->rkcg_commit_sync_request.id =
+            rkcg->rkcg_share.commit_sync_request_id_counter;
+        rkcg->rkcg_commit_sync_request.abs_timeout = abs_timeout;
+        rkcg->rkcg_commit_sync_request.replyq      = rko->rko_replyq.q;
+        rkcg->rkcg_commit_sync_request.results     = results;
+        rkcg->rkcg_commit_sync_request.brokers_awaiting_result_cnt = 0;
+
+        rko->rko_replyq.q = NULL; /* Ownership transferred to rkcg */
+
+        /* Initialize all partition errors to IN_PROGRESS sentinel */
+        for (i = 0; i < results->cnt; i++)
+                results->elems[i].err = RD_KAFKA_RESP_ERR__IN_PROGRESS;
+
+        if (!ack_batches || rd_list_cnt(ack_batches) == 0) {
+                rd_kafka_dbg(rk, CGRP, "SHARE",
+                             "No acks to commit in "
+                             "SHARE_COMMIT_SYNC_FANOUT, "
+                             "sending immediate response");
+
+                for (i = 0; i < results->cnt; i++)
+                        results->elems[i].err = RD_KAFKA_RESP_ERR_NO_ERROR;
+
+                rd_kafka_share_commit_sync_send_response(rkcg);
+                RD_IF_FREE(ack_batches, rd_list_destroy);
+                return RD_KAFKA_OP_RES_HANDLED;
+        }
+
+        /* Phase 1: Segregate all acks into rkb_pending_commit_sync */
+        rd_kafka_share_segregate_sync_acks_by_leader(rk, rkcg, ack_batches,
+                                                     abs_timeout);
+
+        /* Phase 2: Dispatch pending sync acks to free brokers */
+        rd_kafka_share_dispatch_pending_sync_acks(rk, rkcg);
+
+        if (rkcg->rkcg_commit_sync_request.brokers_awaiting_result_cnt == 0) {
+                rd_kafka_dbg(rk, CGRP, "SHARE",
+                             "No brokers available for commit sync, "
+                             "sending immediate response");
+                rd_kafka_share_commit_sync_send_response(rkcg);
+                return RD_KAFKA_OP_RES_HANDLED;
+        }
+
+        /* Start timeout timer */
+        timeout_us = abs_timeout - rd_clock();
+        if (timeout_us <= 0)
+                timeout_us = 1;
+
+        rd_kafka_timer_start_oneshot(
+            &rk->rk_timers, &rkcg->rkcg_commit_sync_request.tmr,
+            rd_true /*restart*/, timeout_us,
+            rd_kafka_share_commit_sync_timeout_cb, NULL);
+
+        rd_kafka_dbg(rk, CGRP, "SHARE",
+                     "Commit sync fanout: waiting for %d broker results, "
+                     "timeout in %" PRId64 " ms",
+                     rkcg->rkcg_commit_sync_request.brokers_awaiting_result_cnt,
+                     timeout_us / 1000);
+
+        return RD_KAFKA_OP_RES_HANDLED;
+}
+
+/**
+ * @brief Asynchronously commit all pending acknowledgements.
+ *
+ * Builds ack details from the inflight map and enqueues a
+ * SHARE_COMMIT_ASYNC_FANOUT op on the main thread to send
+ * them to brokers. Does not fetch new records.
+ *
+ * In implicit ack mode, all ACQUIRED records are first converted
+ * to ACCEPT before building the ack details.
+ *
+ * @param rkshare Share consumer instance.
+ * @returns NULL on success, or an rd_kafka_error_t* on failure.
+ *
+ * @locality app thread
+ */
+rd_kafka_error_t *rd_kafka_share_commit_async(rd_kafka_share_t *rkshare) {
+        rd_kafka_t *rk = rkshare->rkshare_rk;
+        rd_kafka_op_t *rko;
+        rd_list_t *ack_batches;
+        rd_kafka_error_t *error = NULL;
+
+        if (unlikely((error = rd_kafka_share_acquire(rkshare)) != NULL))
+                return error;
+
+        if (unlikely((error = rd_kafka_share_consumer_closed_error(rkshare)) !=
+                     NULL))
+                goto done;
+
+        rd_kafka_dbg(rk, CGRP, "SHARE", "Committing asynchronously");
+
+        /* Drain rk_rep for all pending callbacks (non-blocking) */
+        rd_kafka_q_serve(rk->rk_rep, RD_POLL_NOWAIT, 0, RD_KAFKA_Q_CB_CALLBACK,
+                         rd_kafka_poll_cb, NULL);
+
+        rd_kafka_share_acknowledge_all_if_implicit(rkshare);
+
+        ack_batches = rd_kafka_share_build_ack_details(rk->rk_rkshare);
+
+        if (!ack_batches) {
+                rd_kafka_dbg(rk, CGRP, "SHARE",
+                             "No pending acknowledgements to commit");
+                goto done;
+        }
+
+        rko = rd_kafka_op_new_cb(rk, RD_KAFKA_OP_SHARE_COMMIT_ASYNC_FANOUT,
+                                 rd_kafka_share_commit_async_fanout_op);
+        rko->rko_u.share_commit_async_fanout.ack_batches = ack_batches;
+
+        rd_kafka_q_enq(rk->rk_ops, rko);
+
+done:
+        rd_kafka_share_release(rkshare);
+        return error;
+}
+
+/**
+ * @brief Synchronously commit all pending acknowledgements.
+ *
+ * Builds ack details from the inflight map and enqueues a
+ * SHARE_COMMIT_SYNC_FANOUT op on the main thread. Blocks the
+ * app thread on a temp queue until the main thread sends a
+ * response (or timeout fires).
+ *
+ * In implicit ack mode, all ACQUIRED records are first converted
+ * to ACCEPT before building the ack details.
+ *
+ * @param rkshare Share consumer instance.
+ * @param timeout_ms Timeout in milliseconds.
+ * @param partitions [out] Per-partition results. Each partition's err
+ *                   field contains the result. The caller must destroy
+ *                   the returned list with
+ *                   rd_kafka_topic_partition_list_destroy().
+ *                   Set to NULL if no acks were pending.
+ *
+ * @returns NULL on success, or an rd_kafka_error_t* on failure.
+ *          The returned error must be freed with rd_kafka_error_destroy().
+ *
+ * @locality app thread
+ */
+rd_kafka_error_t *
+rd_kafka_share_commit_sync(rd_kafka_share_t *rkshare,
+                           int timeout_ms,
+                           rd_kafka_topic_partition_list_t **partitions) {
+        rd_kafka_t *rk = rkshare->rkshare_rk;
+        rd_kafka_op_t *rko;
+        rd_kafka_op_t *rko_reply;
+        rd_list_t *ack_batches;
+        rd_kafka_q_t *tmpq;
+        rd_ts_t abs_timeout;
+        rd_kafka_topic_partition_list_t *results;
+        rd_kafka_error_t *error = NULL;
+        int i;
+
+        *partitions = NULL;
+
+        if (unlikely((error = rd_kafka_share_acquire(rkshare)) != NULL))
+                return error;
+
+        if (unlikely((error = rd_kafka_share_consumer_closed_error(rkshare)) !=
+                     NULL))
+                goto done;
+
+        rd_kafka_dbg(rk, CGRP, "SHARE",
+                     "Committing synchronously with timeout %d ms", timeout_ms);
+
+        /* Drain rk_rep for all pending callbacks (non-blocking) */
+        rd_kafka_q_serve(rk->rk_rep, RD_POLL_NOWAIT, 0, RD_KAFKA_Q_CB_CALLBACK,
+                         rd_kafka_poll_cb, NULL);
+
+        rd_kafka_share_acknowledge_all_if_implicit(rkshare);
+
+        ack_batches = rd_kafka_share_build_ack_details(rk->rk_rkshare);
+
+        if (!ack_batches) {
+                rd_kafka_dbg(rk, CGRP, "SHARE",
+                             "No pending acknowledgements to commit");
+                goto done;
+        }
+
+        abs_timeout = rd_timeout_init(timeout_ms);
+
+        /* Build per-partition results list from ack batches */
+        results = rd_kafka_topic_partition_list_new(rd_list_cnt(ack_batches));
+        for (i = 0; i < rd_list_cnt(ack_batches); i++) {
+                rd_kafka_share_ack_batches_t *batch =
+                    rd_list_elem(ack_batches, i);
+                rd_kafka_topic_partition_list_add_copy(results, batch->rktpar);
+        }
+
+        /* Create temp queue for blocking */
+        tmpq = rd_kafka_q_new(rk);
+
+        /* Create SYNC_FANOUT op */
+        rko = rd_kafka_op_new_cb(rk, RD_KAFKA_OP_SHARE_COMMIT_SYNC_FANOUT,
+                                 rd_kafka_share_commit_sync_fanout_op);
+        rko->rko_u.share_commit_sync_fanout.ack_batches = ack_batches;
+        rko->rko_u.share_commit_sync_fanout.abs_timeout = abs_timeout;
+        rko->rko_u.share_commit_sync_fanout.results     = results;
+        rko->rko_replyq = RD_KAFKA_REPLYQ(tmpq, 0);
+
+        rd_kafka_q_enq(rk->rk_ops, rko);
+
+        /* Block on temp queue — main thread always sends a response
+         * (either from broker replies or timeout callback) */
+        rko_reply = rd_kafka_q_pop(tmpq, RD_POLL_INFINITE, 0);
+
+        rd_kafka_q_destroy_owner(tmpq);
+
+        /* Extract per-partition results from reply */
+        rd_dassert(rko_reply->rko_type ==
+                   RD_KAFKA_OP_SHARE_COMMIT_SYNC_FANOUT_REPLY);
+        *partitions = rko_reply->rko_u.share_commit_sync_fanout_reply.results;
+        rko_reply->rko_u.share_commit_sync_fanout_reply.results = NULL;
+
+        rd_kafka_op_destroy(rko_reply);
+
+        /* Drain rk_rep for callbacks again before returning */
+        rd_kafka_q_serve(rk->rk_rep, RD_POLL_NOWAIT, 0, RD_KAFKA_Q_CB_CALLBACK,
+                         rd_kafka_poll_cb, NULL);
+
+done:
+        rd_kafka_share_release(rkshare);
+        return error;
+}
+
+/**
+ * Schedules a rebootstrap of the cluster immediately.
+ *
+ * @locks none
+ * @locks_acquired rd_kafka_timers_lock()
+ * @locality any
+ */
+void rd_kafka_rebootstrap(rd_kafka_t *rk) {
+        if (rk->rk_conf.metadata_recovery_strategy ==
+            RD_KAFKA_METADATA_RECOVERY_STRATEGY_NONE)
+                return;
+
+        if (rd_atomic32_set(&rk->rk_rebootstrap_in_progress, 1) == 0) {
+                /* Only when not already in progress 0 -> 1.
+                 * After setting down a learned broker it could reconnect and
+                 * disconnect again before previous reboostrap completes,
+                 * causing a new re-bootstrap. */
+                rd_kafka_timer_start_oneshot(
+                    &rk->rk_timers, &rk->rebootstrap_tmr, rd_true /*restart*/,
+                    0, rd_kafka_rebootstrap_tmr_cb, NULL);
+        }
+}
+
+/**
+ * Starts rebootstrap timer with the configured interval. Only if not
+ * started or stopped.
+ *
+ * @locks none
+ * @locks_acquired rd_kafka_timers_lock()
+ * @locality any
+ */
+void rd_kafka_rebootstrap_tmr_start_maybe(rd_kafka_t *rk) {
+        if (rk->rk_conf.metadata_recovery_strategy ==
+            RD_KAFKA_METADATA_RECOVERY_STRATEGY_NONE)
+                return;
+
+        rd_kafka_timer_start_oneshot(
+            &rk->rk_timers, &rk->rebootstrap_tmr, rd_false /*don't restart*/,
+            rk->rk_conf.metadata_recovery_rebootstrap_trigger_ms * 1000LL,
+            rd_kafka_rebootstrap_tmr_cb, NULL);
+}
+
+/**
+ * Stops rebootstrap timer, for example after a successful metadata response.
+ *
+ * @return 1 if the timer was started (before being stopped), else 0.
+ *
+ * @locks none
+ * @locks_acquired rd_kafka_timers_lock()
+ * @locality any
+ */
+int rd_kafka_rebootstrap_tmr_stop(rd_kafka_t *rk) {
+        if (rk->rk_conf.metadata_recovery_strategy ==
+            RD_KAFKA_METADATA_RECOVERY_STRATEGY_NONE)
+                return 0;
+
+        return rd_kafka_timer_stop(&rk->rk_timers, &rk->rebootstrap_tmr,
+                                   rd_true /* lock */);
+}
 
 /**
  * Counts usage of the legacy/simple consumer (rd_kafka_consume_start() with
@@ -3178,12 +4965,12 @@ static rd_kafka_op_res_t rd_kafka_consume_callback0(
         struct consume_ctx ctx = {.consume_cb = consume_cb, .opaque = opaque};
         rd_kafka_op_res_t res;
 
-        rd_kafka_app_poll_start(rkq->rkq_rk, 0, timeout_ms);
+        rd_kafka_app_poll_start(rkq->rkq_rk, rkq, 0, timeout_ms);
 
         res = rd_kafka_q_serve(rkq, timeout_ms, max_cnt, RD_KAFKA_Q_CB_RETURN,
                                rd_kafka_consume_cb, &ctx);
 
-        rd_kafka_app_polled(rkq->rkq_rk);
+        rd_kafka_app_polled(rkq->rkq_rk, rkq);
 
         return res;
 }
@@ -3249,7 +5036,7 @@ rd_kafka_consume0(rd_kafka_t *rk, rd_kafka_q_t *rkq, int timeout_ms) {
         rd_ts_t now                   = rd_clock();
         rd_ts_t abs_timeout           = rd_timeout_init0(now, timeout_ms);
 
-        rd_kafka_app_poll_start(rk, now, timeout_ms);
+        rd_kafka_app_poll_start(rk, rkq, now, timeout_ms);
 
         rd_kafka_yield_thread = 0;
         while ((
@@ -3266,7 +5053,7 @@ rd_kafka_consume0(rd_kafka_t *rk, rd_kafka_q_t *rkq, int timeout_ms) {
                         /* Callback called rd_kafka_yield(), we must
                          * stop dispatching the queue and return. */
                         rd_kafka_set_last_error(RD_KAFKA_RESP_ERR__INTR, EINTR);
-                        rd_kafka_app_polled(rk);
+                        rd_kafka_app_polled(rk, rkq);
                         return NULL;
                 }
 
@@ -3278,7 +5065,7 @@ rd_kafka_consume0(rd_kafka_t *rk, rd_kafka_q_t *rkq, int timeout_ms) {
                 /* Timeout reached with no op returned. */
                 rd_kafka_set_last_error(RD_KAFKA_RESP_ERR__TIMED_OUT,
                                         ETIMEDOUT);
-                rd_kafka_app_polled(rk);
+                rd_kafka_app_polled(rk, rkq);
                 return NULL;
         }
 
@@ -3293,7 +5080,7 @@ rd_kafka_consume0(rd_kafka_t *rk, rd_kafka_q_t *rkq, int timeout_ms) {
 
         rd_kafka_set_last_error(0, 0);
 
-        rd_kafka_app_polled(rk);
+        rd_kafka_app_polled(rk, rkq);
 
         return rkmessage;
 }
@@ -3344,7 +5131,6 @@ rd_kafka_resp_err_t rd_kafka_poll_set_consumer(rd_kafka_t *rk) {
 }
 
 
-
 rd_kafka_message_t *rd_kafka_consumer_poll(rd_kafka_t *rk, int timeout_ms) {
         rd_kafka_cgrp_t *rkcg;
 
@@ -3384,17 +5170,34 @@ static rd_kafka_error_t *rd_kafka_consumer_close_q(rd_kafka_t *rk,
         /* If a fatal error has been raised and this is an
          * explicit consumer_close() from the application we return
          * a fatal error. Otherwise let the "silent" no_consumer_close
-         * logic be performed to clean up properly. */
-        if (!rd_kafka_destroy_flags_no_consumer_close(rk) &&
+         * logic be performed to clean up properly.
+         *
+         * Share consumers are exempt: an explicit close() must still
+         * flush pending acks and send the share-session leave even when
+         * a fatal error is set. The destroy-after-fatal path is
+         * unaffected because it sets NO_CONSUMER_CLOSE (so the
+         * !no_consumer_close clause is already false there, and the cgrp
+         * terminate handler drops the acks regardless). */
+        if (!RD_KAFKA_IS_SHARE_CONSUMER(rk) &&
+            !rd_kafka_destroy_flags_no_consumer_close(rk) &&
             (error = rd_kafka_get_fatal_error(rk)))
                 return error;
 
         rd_kafka_dbg(rk, CONSUMER | RD_KAFKA_DBG_CGRP, "CLOSE",
                      "Closing consumer");
 
-        /* Redirect cgrp queue to the rebalance queue to make sure all posted
-         * ops (e.g., rebalance callbacks) are served by
-         * the application/caller. */
+        if (RD_KAFKA_IS_SHARE_CONSUMER(rk)) {
+                /* Unlike regular consumer, the rk_rep queue is not forwarded to
+                 * rkcg_q by default, so we need this additional step to ensure
+                 * callbacks from rk_rep queue can be served by the
+                 * application/caller */
+                rd_kafka_q_fwd_set(rk->rk_rep, rkq);
+        }
+
+        /* For regular consumers, this redirects cgrp queue to the rebalance
+         * queue to make sure all posted ops (e.g., rebalance callbacks) are
+         * served by the application/caller. For share consumers, this will take
+         * care of forwarding only the cgrp ops */
         rd_kafka_q_fwd_set(rkcg->rkcg_q, rkq);
 
         /* Tell cgrp subsystem to terminate. A TERMINATE op will be posted
@@ -3412,10 +5215,42 @@ rd_kafka_error_t *rd_kafka_consumer_close_queue(rd_kafka_t *rk,
         return rd_kafka_consumer_close_q(rk, rkqu->rkqu_q);
 }
 
-rd_kafka_resp_err_t rd_kafka_consumer_close(rd_kafka_t *rk) {
+/**
+ * @brief Asynchronously close the share consumer.
+ * @param rkshare Share consumer instance.
+ * @param rkqu Queue for forwarding events/callbacks during close.
+ * @returns `rd_kafka_error_t *` - NULL on success, error object on failure
+ */
+rd_kafka_error_t *rd_kafka_share_consumer_close_queue(rd_kafka_share_t *rkshare,
+                                                      rd_kafka_queue_t *rkqu) {
+        rd_kafka_error_t *error = NULL;
+
+        if (unlikely((error = rd_kafka_share_acquire(rkshare)) != NULL))
+                return error;
+
+        /* TODO KIP-932: Guard this with checks for rkshare
+         * and rkshare->rkshare_rk */
+        if (unlikely((error = rd_kafka_share_consumer_closed_error(rkshare)) !=
+                     NULL))
+                goto done;
+
+        rkshare->rkshare_consumer_closing = rd_true;
+        error = rd_kafka_consumer_close_queue(rkshare->rkshare_rk, rkqu);
+        if (error) {
+                rkshare->rkshare_consumer_closing = rd_false;
+                goto done;
+        }
+
+done:
+        rd_kafka_share_release(rkshare);
+        return error;
+}
+
+
+rd_kafka_error_t *rd_kafka_consumer_close0(rd_kafka_t *rk) {
         rd_kafka_error_t *error;
-        rd_kafka_resp_err_t err = RD_KAFKA_RESP_ERR__TIMED_OUT;
         rd_kafka_q_t *rkq;
+        rd_bool_t got_terminate = rd_false;
 
         /* Create a temporary reply queue to handle the TERMINATE reply op. */
         rkq = rd_kafka_q_new(rk);
@@ -3423,12 +5258,8 @@ rd_kafka_resp_err_t rd_kafka_consumer_close(rd_kafka_t *rk) {
         /* Initiate the close (async) */
         error = rd_kafka_consumer_close_q(rk, rkq);
         if (error) {
-                err = rd_kafka_error_is_fatal(error)
-                          ? RD_KAFKA_RESP_ERR__FATAL
-                          : rd_kafka_error_code(error);
-                rd_kafka_error_destroy(error);
                 rd_kafka_q_destroy_owner(rkq);
-                return err;
+                return error;
         }
 
         /* Disable the queue if termination is immediate or the user
@@ -3440,7 +5271,7 @@ rd_kafka_resp_err_t rd_kafka_consumer_close(rd_kafka_t *rk) {
                 rd_kafka_dbg(rk, CONSUMER, "CLOSE",
                              "Disabling and purging temporary queue to quench "
                              "close events");
-                err = RD_KAFKA_RESP_ERR_NO_ERROR;
+                got_terminate = rd_true;
                 rd_kafka_q_disable(rkq);
                 /* Purge ops already enqueued */
                 rd_kafka_q_purge(rkq);
@@ -3451,7 +5282,9 @@ rd_kafka_resp_err_t rd_kafka_consumer_close(rd_kafka_t *rk) {
                         rd_kafka_op_res_t res;
                         if ((rko->rko_type & ~RD_KAFKA_OP_FLAGMASK) ==
                             RD_KAFKA_OP_TERMINATE) {
-                                err = rko->rko_err;
+                                error          = rko->rko_error;
+                                rko->rko_error = NULL;
+                                got_terminate  = rd_true;
                                 rd_kafka_op_destroy(rko);
                                 break;
                         }
@@ -3466,15 +5299,59 @@ rd_kafka_resp_err_t rd_kafka_consumer_close(rd_kafka_t *rk) {
 
         rd_kafka_q_destroy_owner(rkq);
 
-        if (err)
+        if (!got_terminate)
+                error = rd_kafka_error_new(
+                    RD_KAFKA_RESP_ERR__TIMED_OUT, "%s",
+                    "Timed out waiting for a TERMINATE reply to arrive");
+
+        if (error)
                 rd_kafka_dbg(rk, CONSUMER | RD_KAFKA_DBG_CGRP, "CLOSE",
                              "Consumer closed with error: %s",
-                             rd_kafka_err2str(err));
+                             rd_kafka_error_string(error));
         else
                 rd_kafka_dbg(rk, CONSUMER | RD_KAFKA_DBG_CGRP, "CLOSE",
                              "Consumer closed");
 
+        return error;
+}
+
+rd_kafka_resp_err_t rd_kafka_consumer_close(rd_kafka_t *rk) {
+        rd_kafka_error_t *error;
+        rd_kafka_resp_err_t err;
+
+        error = rd_kafka_consumer_close0(rk);
+        if (!error)
+                return RD_KAFKA_RESP_ERR_NO_ERROR;
+
+        err = rd_kafka_error_is_fatal(error) ? RD_KAFKA_RESP_ERR__FATAL
+                                             : rd_kafka_error_code(error);
+        rd_kafka_error_destroy(error);
         return err;
+}
+
+rd_kafka_error_t *rd_kafka_share_consumer_close(rd_kafka_share_t *rkshare) {
+        rd_kafka_error_t *error = NULL;
+        rd_kafka_t *rk;
+
+        if (unlikely((error = rd_kafka_share_acquire(rkshare)) != NULL))
+                return error;
+
+        /* TODO KIP-932: Guard this with checks for rkshare and
+         * rkshare->rkshare_rk. Check if this is needed for other APIs
+         * as well.
+         */
+        if (unlikely((error = rd_kafka_share_consumer_closed_error(rkshare)) !=
+                     NULL))
+                goto done;
+
+        rk                                = rkshare->rkshare_rk;
+        rkshare->rkshare_consumer_closing = rd_true;
+        error                             = rd_kafka_consumer_close0(rk);
+        rkshare->rkshare_consumer_closing = rd_false;
+
+done:
+        rd_kafka_share_release(rkshare);
+        return error;
 }
 
 
@@ -3483,6 +5360,15 @@ int rd_kafka_consumer_closed(rd_kafka_t *rk) {
                 return 0;
 
         return rd_atomic32_get(&rk->rk_cgrp->rkcg_terminated);
+}
+
+/**
+ * @brief Check if the share consumer is closed.
+ * @param rkshare Share consumer instance.
+ * @returns 1 if the consumer is closed, else 0.
+ */
+int rd_kafka_share_consumer_closed(rd_kafka_share_t *rkshare) {
+        return rd_kafka_consumer_closed(rkshare->rkshare_rk);
 }
 
 
@@ -3681,6 +5567,7 @@ rd_kafka_resp_err_t rd_kafka_query_watermark_offsets(rd_kafka_t *rk,
         struct rd_kafka_partition_leader *leader;
         rd_list_t leaders;
         rd_kafka_resp_err_t err;
+        int tmout;
 
         partitions = rd_kafka_topic_partition_list_new(1);
         rktpar =
@@ -3727,9 +5614,13 @@ rd_kafka_resp_err_t rd_kafka_query_watermark_offsets(rd_kafka_t *rk,
 
         /* Wait for reply (or timeout) */
         while (state.err == RD_KAFKA_RESP_ERR__IN_PROGRESS) {
-                rd_kafka_q_serve(rkq, RD_POLL_INFINITE, 0,
-                                 RD_KAFKA_Q_CB_CALLBACK, rd_kafka_poll_cb,
-                                 NULL);
+                tmout = rd_timeout_remains(ts_end);
+                if (rd_timeout_expired(tmout)) {
+                        state.err = RD_KAFKA_RESP_ERR__TIMED_OUT;
+                        break;
+                }
+                rd_kafka_q_serve(rkq, tmout, 0, RD_KAFKA_Q_CB_CALLBACK,
+                                 rd_kafka_poll_cb, NULL);
         }
 
         rd_kafka_q_destroy_owner(rkq);
@@ -3799,6 +5690,7 @@ static void rd_kafka_get_offsets_for_times_resp_cb(rd_kafka_t *rk,
                                                    rd_kafka_buf_t *request,
                                                    void *opaque) {
         struct _get_offsets_for_times *state;
+        int actions = 0;
 
         if (err == RD_KAFKA_RESP_ERR__DESTROY) {
                 /* 'state' has gone out of scope when offsets_for_times()
@@ -3809,9 +5701,21 @@ static void rd_kafka_get_offsets_for_times_resp_cb(rd_kafka_t *rk,
         state = opaque;
 
         err = rd_kafka_handle_ListOffsets(rk, rkb, err, rkbuf, request,
-                                          state->results, NULL);
+                                          state->results, &actions);
         if (err == RD_KAFKA_RESP_ERR__IN_PROGRESS)
                 return; /* Retrying */
+
+        if (actions & RD_KAFKA_ERR_ACTION_REFRESH) {
+                rd_kafka_topic_partition_t *rktpar;
+                /* Remove its cache in case the topic isn't a known topic. */
+                rd_kafka_wrlock(rk);
+                RD_KAFKA_TPLIST_FOREACH(rktpar, state->results) {
+                        if (rktpar->err)
+                                rd_kafka_metadata_cache_delete_by_name(
+                                    rk, rktpar->topic);
+                }
+                rd_kafka_wrunlock(rk);
+        }
 
         /* Retry if no broker connection is available yet. */
         if (err == RD_KAFKA_RESP_ERR__TRANSPORT && rkb &&
@@ -3920,6 +5824,10 @@ rd_kafka_op_res_t rd_kafka_poll_cb(rd_kafka_t *rk,
                 return RD_KAFKA_OP_RES_PASS; /* Return as event */
         }
 
+        // rd_kafka_dbg(rk, CGRP, "CB", "Received cb_type %d op_type 0x%04x",
+        // cb_type,
+        //              rko->rko_type);
+
         switch ((int)rko->rko_type) {
         case RD_KAFKA_OP_FETCH:
                 if (!rk->rk_conf.consume_cb ||
@@ -3927,10 +5835,10 @@ rd_kafka_op_res_t rd_kafka_poll_cb(rd_kafka_t *rk,
                     cb_type == RD_KAFKA_Q_CB_FORCE_RETURN)
                         return RD_KAFKA_OP_RES_PASS; /* Dont handle here */
                 else {
-                        rk->rk_ts_last_poll_end = rd_clock();
-                        struct consume_ctx ctx  = {.consume_cb =
-                                                      rk->rk_conf.consume_cb,
-                                                  .opaque = rk->rk_conf.opaque};
+                        rkq->rkq_ts_last_poll_end = rd_clock();
+                        struct consume_ctx ctx    = {.consume_cb =
+                                                         rk->rk_conf.consume_cb,
+                                                     .opaque = rk->rk_conf.opaque};
 
                         return rd_kafka_consume_cb(rk, rkq, rko, cb_type, &ctx);
                 }
@@ -3962,6 +5870,24 @@ rd_kafka_op_res_t rd_kafka_poll_cb(rd_kafka_t *rk,
                                             rko->rko_u.offset_commit.partitions,
                                             rko->rko_u.offset_commit.opaque);
                 break;
+
+        case RD_KAFKA_OP_SHARE_ACK_COMMIT_CB_EXECUTE: {
+                rd_kafka_share_t *rkshare = rk->rk_rkshare;
+                /* Lookup callback at invoke time.
+                 * Locality: app thread */
+                if (!rkshare ||
+                    !rk->rk_share_consumer.share_acknowledgement_commit_cb)
+                        return RD_KAFKA_OP_RES_PASS; /* Dont handle here */
+                /* Set reentrancy flag so share consumer APIs called from
+                 * within the callback can detect and reject the call. */
+                rk->rk_share_consumer.in_callback = rd_true;
+                rk->rk_share_consumer.share_acknowledgement_commit_cb(
+                    rkshare, rko->rko_u.share_ack_commit_cb_execute.partitions,
+                    rko->rko_err,
+                    rk->rk_share_consumer.acknowledgement_commit_cb_opaque);
+                rk->rk_share_consumer.in_callback = rd_false;
+                break;
+        }
 
         case RD_KAFKA_OP_FETCH_STOP | RD_KAFKA_OP_REPLY:
                 /* Reply from toppar FETCH_STOP */
@@ -4080,6 +6006,9 @@ rd_kafka_op_res_t rd_kafka_poll_cb(rd_kafka_t *rk,
         case RD_KAFKA_OP_TERMINATE:
                 /* nop: just a wake-up */
                 res = RD_KAFKA_OP_RES_YIELD;
+                if (rko->rko_u.terminated.cb) {
+                        rko->rko_u.terminated.cb(rk, rko->rko_u.terminated.rkb);
+                }
                 rd_kafka_op_destroy(rko);
                 break;
 
@@ -4135,6 +6064,18 @@ rd_kafka_op_res_t rd_kafka_poll_cb(rd_kafka_t *rk,
                 res = rd_kafka_metadata_update_op(rk, rko->rko_u.metadata.mdi);
                 break;
 
+        case RD_KAFKA_OP_SHARE_FETCH_RESPONSE:
+                /* TODO KIP-932: RD_KAFKA_OP_SHARE_FETCH_RESPONSE should never
+                   be handled from this cb in Share Consumer except maybe in
+                   case of closing as this op we don't forward rk_rep queue to
+                   rkcg.q. This op is handled separately in
+                   rd_kafka_share_poll() during normal working of Share
+                   Consumer. Check what is the correct way to handle this op
+                   while closing. */
+                rd_kafka_assert(rk, rk->rk_rkshare->rkshare_consumer_closing);
+                res = RD_KAFKA_OP_RES_PASS;
+                break;
+
         default:
                 /* If op has a callback set (e.g., OAUTHBEARER_REFRESH),
                  * call it. */
@@ -4157,8 +6098,9 @@ rd_kafka_op_res_t rd_kafka_poll_cb(rd_kafka_t *rk,
 int rd_kafka_poll(rd_kafka_t *rk, int timeout_ms) {
         int r;
 
-        r = rd_kafka_q_serve(rk->rk_rep, timeout_ms, 0, RD_KAFKA_Q_CB_CALLBACK,
-                             rd_kafka_poll_cb, NULL);
+        r = rd_kafka_q_serve_maybe_consume(rk->rk_rep, timeout_ms, 0,
+                                           RD_KAFKA_Q_CB_CALLBACK,
+                                           rd_kafka_poll_cb, NULL);
         return r;
 }
 
@@ -4166,8 +6108,9 @@ int rd_kafka_poll(rd_kafka_t *rk, int timeout_ms) {
 rd_kafka_event_t *rd_kafka_queue_poll(rd_kafka_queue_t *rkqu, int timeout_ms) {
         rd_kafka_op_t *rko;
 
-        rko = rd_kafka_q_pop_serve(rkqu->rkqu_q, rd_timeout_us(timeout_ms), 0,
-                                   RD_KAFKA_Q_CB_EVENT, rd_kafka_poll_cb, NULL);
+        rko = rd_kafka_q_pop_serve_maybe_consume(
+            rkqu->rkqu_q, rd_timeout_us(timeout_ms), 0, RD_KAFKA_Q_CB_EVENT,
+            rd_kafka_poll_cb, NULL);
 
 
         if (!rko)
@@ -4179,8 +6122,9 @@ rd_kafka_event_t *rd_kafka_queue_poll(rd_kafka_queue_t *rkqu, int timeout_ms) {
 int rd_kafka_queue_poll_callback(rd_kafka_queue_t *rkqu, int timeout_ms) {
         int r;
 
-        r = rd_kafka_q_serve(rkqu->rkqu_q, timeout_ms, 0,
-                             RD_KAFKA_Q_CB_CALLBACK, rd_kafka_poll_cb, NULL);
+        r = rd_kafka_q_serve_maybe_consume(rkqu->rkqu_q, timeout_ms, 0,
+                                           RD_KAFKA_Q_CB_CALLBACK,
+                                           rd_kafka_poll_cb, NULL);
         return r;
 }
 
@@ -4811,8 +6755,8 @@ static void rd_kafka_DescribeGroups_resp_cb(rd_kafka_t *rk,
                         goto err;
                 }
 
+                gi->broker.id = rkb->rkb_nodeid;
                 rd_kafka_broker_lock(rkb);
-                gi->broker.id   = rkb->rkb_nodeid;
                 gi->broker.host = rd_strdup(rkb->rkb_origname);
                 gi->broker.port = rkb->rkb_port;
                 rd_kafka_broker_unlock(rkb);
@@ -5011,6 +6955,9 @@ rd_kafka_list_groups(rd_kafka_t *rk,
         /* Query each broker for its list of groups */
         rd_kafka_rdlock(rk);
         TAILQ_FOREACH(rkb, &rk->rk_brokers, rkb_link) {
+                if (rd_kafka_broker_or_instance_terminating(rkb))
+                        continue;
+
                 rd_kafka_error_t *error;
                 rd_kafka_broker_lock(rkb);
                 if (rkb->rkb_nodeid == -1 || RD_KAFKA_BROKER_IS_LOGICAL(rkb)) {
@@ -5122,13 +7069,8 @@ const char *rd_kafka_get_debug_contexts(void) {
 
 
 int rd_kafka_path_is_dir(const char *path) {
-#ifdef _WIN32
-        struct _stat st;
-        return (_stat(path, &st) == 0 && st.st_mode & S_IFDIR);
-#else
-        struct stat st;
-        return (stat(path, &st) == 0 && S_ISDIR(st.st_mode));
-#endif
+        rd_bool_t is_dir;
+        return rd_file_stat(path, &is_dir) && is_dir;
 }
 
 
@@ -5237,18 +7179,12 @@ rd_kafka_Uuid_t *rd_kafka_Uuid_copy(const rd_kafka_Uuid_t *uuid) {
  * @remark Must be freed after use using rd_kafka_Uuid_destroy().
  */
 rd_kafka_Uuid_t rd_kafka_Uuid_random() {
-        int i;
         unsigned char rand_values_bytes[16] = {0};
         uint64_t *rand_values_uint64        = (uint64_t *)rand_values_bytes;
-        unsigned char *rand_values_app;
-        rd_kafka_Uuid_t ret = RD_KAFKA_UUID_ZERO;
-        for (i = 0; i < 16; i += 2) {
-                uint16_t rand_uint16 = (uint16_t)rd_jitter(0, INT16_MAX - 1);
-                /* No need to convert endianess here because it's still only
-                 * a random value. */
-                rand_values_app = (unsigned char *)&rand_uint16;
-                rand_values_bytes[i] |= rand_values_app[0];
-                rand_values_bytes[i + 1] |= rand_values_app[1];
+        rd_kafka_Uuid_t ret                 = RD_KAFKA_UUID_ZERO;
+        if (!rd_rand_bytes(rand_values_bytes, sizeof(rand_values_bytes))) {
+                rd_assert(!*"BUG: a random UUID cannot be requested without "
+                           "a reliable entropy source");
         }
 
         rand_values_bytes[6] &= 0x0f; /* clear version */
@@ -5280,7 +7216,7 @@ void rd_kafka_Uuid_destroy(rd_kafka_Uuid_t *uuid) {
  *
  * @remark  Must be freed after use.
  */
-const char *rd_kafka_Uuid_str(const rd_kafka_Uuid_t *uuid) {
+char *rd_kafka_Uuid_str(const rd_kafka_Uuid_t *uuid) {
         int i, j;
         unsigned char bytes[16];
         char *ret = rd_calloc(37, sizeof(*ret));

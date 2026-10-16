@@ -89,7 +89,9 @@ Y_UNIT_TEST_SUITE(TYtOptimizeYqlExpr) {
         // NOTE: metadata loader unconditionally drops ExpandApplyForLambdas flag
         // in DoApplyAsyncChanges, so ExpandApply transformation is in such an unusual place
         transformers.push_back(TTransformStage(
-            CreateFunctorTransformer(&ExpandApply),
+            CreateFunctorTransformer([&](const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
+                return ExpandApply(input, output, ctx, *typeAnnotationContext);
+            }),
             "ExpandApply",
             issueCode));
         transformers.push_back(TTransformStage(CreateFunctorTransformer(

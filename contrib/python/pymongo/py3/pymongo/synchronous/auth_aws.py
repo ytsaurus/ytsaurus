@@ -13,9 +13,11 @@
 # limitations under the License.
 
 """MONGODB-AWS Authentication helpers."""
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Mapping, Type
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any
 
 import bson
 from bson.binary import Binary
@@ -46,12 +48,9 @@ def _authenticate_aws(credentials: MongoCredential, conn: Connection) -> None:
 
     set_use_cached_credentials(True)
 
-    if conn.max_wire_version < 9:
-        raise ConfigurationError("MONGODB-AWS authentication requires MongoDB version 4.4 or later")
-
     class AwsSaslContext(pymongo_auth_aws.AwsSaslContext):  # type: ignore
         # Dependency injection:
-        def binary_type(self) -> Type[Binary]:
+        def binary_type(self) -> type[Binary]:
             """Return the bson.binary.Binary type."""
             return Binary
 

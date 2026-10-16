@@ -32,7 +32,7 @@ public:
         TSessionId sessionId)
         : Client_(std::move(client))
         , SessionId_(sessionId)
-        , Logger(ChunkClientLogger().WithTag("ChunkId: %v", SessionId_.ChunkId))
+        , Logger(ChunkClientLogger().WithTag("ChunkId", SessionId_.ChunkId))
         , ChunkUploadSession_(New<TS3MultiPartUploadSession>(
             Client_,
             mediumDescriptor->GetS3ObjectPlacementForChunk(SessionId_.ChunkId),
@@ -51,7 +51,7 @@ public:
 
     TFuture<void> Open() override
     {
-        YT_LOG_DEBUG("Offshore S3 writer opened");
+        YT_TLOG_DEBUG("Offshore S3 writer opened");
 
         return ChunkUploadSession_->Start();
     }
@@ -92,6 +92,9 @@ public:
         // finalize the meta in parallel with the completion of the chunk upload itself.
         ChunkMeta_->CopyFrom(*FinalizeChunkMeta(std::move(chunkMeta), BlocksExt_));
         auto chunkMetaBlob = SerializeChunkMeta(GetChunkId(), ChunkMeta_);
+
+        ChunkInfo_.set_disk_space(DataSize_ + std::ssize(chunkMetaBlob));
+
         auto closeFutures = std::vector{
             ChunkUploadSession_->Complete(),
             ChunkMetaUploadSession_->Upload(std::move(chunkMetaBlob)),
@@ -153,7 +156,7 @@ public:
 
     TFuture<void> Cancel() override
     {
-        YT_UNIMPLEMENTED();
+        return ChunkUploadSession_->Abort(TError("S3 writer canceled"));
     }
 
 private:

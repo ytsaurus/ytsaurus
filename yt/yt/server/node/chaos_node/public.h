@@ -36,6 +36,7 @@ DECLARE_REFCOUNTED_STRUCT(IShortcutSnapshotStore)
 DECLARE_REFCOUNTED_STRUCT(IReplicationCardObserver)
 DECLARE_REFCOUNTED_STRUCT(IMigratedReplicationCardRemover)
 DECLARE_REFCOUNTED_STRUCT(IForeignMigratedReplicationCardRemover)
+DECLARE_REFCOUNTED_STRUCT(TSecondaryIndexPendingTransition)
 
 enum class EChaosSnapshotVersion;
 

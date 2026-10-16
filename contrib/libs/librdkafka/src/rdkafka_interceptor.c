@@ -701,12 +701,26 @@ rd_kafka_conf_interceptor_add_on_new(rd_kafka_conf_t *conf,
 }
 
 
+/* Interceptors are not supported for share consumers. The hooks are
+ * either share-incompatible (on_consume fires only on the regular fetch
+ * path; on_commit is tied to offset commits which share consumers do not
+ * perform) or out of scope for the share consumer, and the Java share
+ * consumer rejects interceptors (ConsumerInterceptor) outright. All
+ * handle-level interceptor registrations are therefore rejected for share
+ * consumers. */
+#define RD_KAFKA_INTERCEPTOR_REJECT_IF_SHARE(rk)                               \
+        do {                                                                   \
+                if (RD_KAFKA_IS_SHARE_CONSUMER(rk))                            \
+                        return RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED;             \
+        } while (0)
+
 rd_kafka_resp_err_t rd_kafka_interceptor_add_on_destroy(
     rd_kafka_t *rk,
     const char *ic_name,
     rd_kafka_interceptor_f_on_destroy_t *on_destroy,
     void *ic_opaque) {
         assert(!rk->rk_initialized);
+        RD_KAFKA_INTERCEPTOR_REJECT_IF_SHARE(rk);
         return rd_kafka_interceptor_method_add(
             &rk->rk_conf.interceptors.on_destroy, ic_name, (void *)on_destroy,
             ic_opaque);
@@ -718,6 +732,7 @@ rd_kafka_interceptor_add_on_send(rd_kafka_t *rk,
                                  rd_kafka_interceptor_f_on_send_t *on_send,
                                  void *ic_opaque) {
         assert(!rk->rk_initialized);
+        RD_KAFKA_INTERCEPTOR_REJECT_IF_SHARE(rk);
         return rd_kafka_interceptor_method_add(
             &rk->rk_conf.interceptors.on_send, ic_name, (void *)on_send,
             ic_opaque);
@@ -729,6 +744,7 @@ rd_kafka_resp_err_t rd_kafka_interceptor_add_on_acknowledgement(
     rd_kafka_interceptor_f_on_acknowledgement_t *on_acknowledgement,
     void *ic_opaque) {
         assert(!rk->rk_initialized);
+        RD_KAFKA_INTERCEPTOR_REJECT_IF_SHARE(rk);
         return rd_kafka_interceptor_method_add(
             &rk->rk_conf.interceptors.on_acknowledgement, ic_name,
             (void *)on_acknowledgement, ic_opaque);
@@ -741,6 +757,7 @@ rd_kafka_resp_err_t rd_kafka_interceptor_add_on_consume(
     rd_kafka_interceptor_f_on_consume_t *on_consume,
     void *ic_opaque) {
         assert(!rk->rk_initialized);
+        RD_KAFKA_INTERCEPTOR_REJECT_IF_SHARE(rk);
         return rd_kafka_interceptor_method_add(
             &rk->rk_conf.interceptors.on_consume, ic_name, (void *)on_consume,
             ic_opaque);
@@ -753,6 +770,7 @@ rd_kafka_resp_err_t rd_kafka_interceptor_add_on_commit(
     rd_kafka_interceptor_f_on_commit_t *on_commit,
     void *ic_opaque) {
         assert(!rk->rk_initialized);
+        RD_KAFKA_INTERCEPTOR_REJECT_IF_SHARE(rk);
         return rd_kafka_interceptor_method_add(
             &rk->rk_conf.interceptors.on_commit, ic_name, (void *)on_commit,
             ic_opaque);
@@ -765,6 +783,7 @@ rd_kafka_resp_err_t rd_kafka_interceptor_add_on_request_sent(
     rd_kafka_interceptor_f_on_request_sent_t *on_request_sent,
     void *ic_opaque) {
         assert(!rk->rk_initialized);
+        RD_KAFKA_INTERCEPTOR_REJECT_IF_SHARE(rk);
         return rd_kafka_interceptor_method_add(
             &rk->rk_conf.interceptors.on_request_sent, ic_name,
             (void *)on_request_sent, ic_opaque);
@@ -777,6 +796,7 @@ rd_kafka_resp_err_t rd_kafka_interceptor_add_on_response_received(
     rd_kafka_interceptor_f_on_response_received_t *on_response_received,
     void *ic_opaque) {
         assert(!rk->rk_initialized);
+        RD_KAFKA_INTERCEPTOR_REJECT_IF_SHARE(rk);
         return rd_kafka_interceptor_method_add(
             &rk->rk_conf.interceptors.on_response_received, ic_name,
             (void *)on_response_received, ic_opaque);
@@ -789,6 +809,7 @@ rd_kafka_resp_err_t rd_kafka_interceptor_add_on_thread_start(
     rd_kafka_interceptor_f_on_thread_start_t *on_thread_start,
     void *ic_opaque) {
         assert(!rk->rk_initialized);
+        RD_KAFKA_INTERCEPTOR_REJECT_IF_SHARE(rk);
         return rd_kafka_interceptor_method_add(
             &rk->rk_conf.interceptors.on_thread_start, ic_name,
             (void *)on_thread_start, ic_opaque);
@@ -801,6 +822,7 @@ rd_kafka_resp_err_t rd_kafka_interceptor_add_on_thread_exit(
     rd_kafka_interceptor_f_on_thread_exit_t *on_thread_exit,
     void *ic_opaque) {
         assert(!rk->rk_initialized);
+        RD_KAFKA_INTERCEPTOR_REJECT_IF_SHARE(rk);
         return rd_kafka_interceptor_method_add(
             &rk->rk_conf.interceptors.on_thread_exit, ic_name,
             (void *)on_thread_exit, ic_opaque);
@@ -813,6 +835,7 @@ rd_kafka_resp_err_t rd_kafka_interceptor_add_on_broker_state_change(
     rd_kafka_interceptor_f_on_broker_state_change_t *on_broker_state_change,
     void *ic_opaque) {
         assert(!rk->rk_initialized);
+        RD_KAFKA_INTERCEPTOR_REJECT_IF_SHARE(rk);
         return rd_kafka_interceptor_method_add(
             &rk->rk_conf.interceptors.on_broker_state_change, ic_name,
             (void *)on_broker_state_change, ic_opaque);

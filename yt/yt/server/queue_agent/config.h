@@ -2,24 +2,24 @@
 
 #include "private.h"
 
-#include <yt/yt/server/lib/cypress_election/config.h>
-
 #include <yt/yt/server/lib/misc/config.h>
+
+#include <yt/yt/ytlib/api/native/public.h>
+
+#include <yt/yt/ytlib/queue_client/public.h>
 
 #include <yt/yt/client/ypath/public.h>
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/ytlib/api/native/public.h>
+#include <yt/yt/library/cypress_election/config.h>
 
-#include <yt/yt/ytlib/discovery_client/public.h>
-
-#include <yt/yt/ytlib/queue_client/public.h>
+#include <yt/yt/library/discovery_client/public.h>
 
 #include <yt/yt/library/dynamic_config/config.h>
 
-#include <yt/yt/library/server_program/config.h>
-
 #include <yt/yt/library/program/config.h>
+
+#include <yt/yt/library/server_program/config.h>
 
 #include <yt/yt/core/concurrency/config.h>
 
@@ -69,6 +69,9 @@ struct TCypressSynchronizerDynamicConfig
     //! stage for crt-objects in the dynamic config.
     std::string ChaosReplicatedTableQueueAgentStage;
 
+    //! List of objects to ignore in the cypress synchronizer.
+    std::vector<NYPath::TRichYPath> IgnoredObjectList;
+
     REGISTER_YSON_STRUCT(TCypressSynchronizerDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -78,12 +81,49 @@ DEFINE_REFCOUNTED_TYPE(TCypressSynchronizerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMultiConsumerNamesGarbageCollectorDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    //! Garbage collection pass period.
+    TDuration PassPeriod;
+
+    //! Flag for disabling multi consumer names garbage collector entirely.
+    bool Enable;
+
+    REGISTER_YSON_STRUCT(TMultiConsumerNamesGarbageCollectorDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMultiConsumerNamesGarbageCollectorDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TQueueExportManagerConfig
+    : public NYTree::TYsonStruct
+{
+    //! Overrides the user used for exporting queues.
+    //! By default (or if null) queue agent user is used.
+    //! NB(apachee): Used to separate master request limits for queue agent and exports.
+    std::optional<std::string> User;
+
+    REGISTER_YSON_STRUCT(TQueueExportManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueueExportManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TQueueAgentConfig
     : public NYTree::TYsonStruct
 {
     //! Identifies a family of queue agents.
     //! Each queue agent only handles queues and consumers with the corresponding attribute set to its own stage.
     std::string Stage;
+
+    TQueueExportManagerConfigPtr QueueExportManager;
 
     REGISTER_YSON_STRUCT(TQueueAgentConfig);
 
@@ -125,6 +165,12 @@ struct TQueueExporterDynamicConfig
      * \note #InvocationCount must be int max as exports are retried indefinitely.
     */
     TExponentialBackoffOptions RetryBackoff;
+
+    //! If true, the queue exporter will check that #LastChunk and #RowCount in tablet progress refer to the same chunk.
+    bool EnableRowCountCheck;
+
+    //! Maximum number of hunk chunks in a batch to fetch their attributes from master.
+    int MaxHunkChunkCountPerFetch;
 
     NConcurrency::TPeriodicExecutorOptions GetPeriodicExecutorOptions() const;
 
@@ -173,6 +219,10 @@ struct TQueueControllerDynamicConfig
     bool EnableVerboseLogging;
     std::vector<NYPath::TRichYPath> VerboseLoggingObjects;
 
+    //! Maximum number of rows read from a multi consumer user table per select query while
+    //! paginating over consumer names.
+    i64 MultiConsumerSelectBatchSize;
+
     REGISTER_YSON_STRUCT(TQueueControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -219,6 +269,8 @@ struct TQueueAgentDynamicConfig
     //! NB: Even when set to true, mutating requests are only performed for objects with the corresponding stage.
     bool HandleReplicatedObjects;
 
+    TDuration QueueAgentChannelRequestTimeout;
+
     REGISTER_YSON_STRUCT(TQueueAgentDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -260,10 +312,12 @@ struct TQueueAgentBootstrapConfig
 
     NYTree::IMapNodePtr CypressAnnotations;
 
-    NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
+    NCypressElection::TCypressElectionManagerConfigPtr CypressSynchronizerElectionManager;
+
+    NCypressElection::TCypressElectionManagerConfigPtr MultiConsumerNamesGarbageCollectorElectionManager;
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
-    TString DynamicConfigPath;
+    NYPath::TYPath DynamicConfigPath;
 
     REGISTER_YSON_STRUCT(TQueueAgentBootstrapConfig);
 
@@ -297,6 +351,9 @@ struct TQueueAgentComponentDynamicConfig
     TQueueAgentShardingManagerDynamicConfigPtr QueueAgentShardingManager;
     TQueueAgentDynamicConfigPtr QueueAgent;
     TCypressSynchronizerDynamicConfigPtr CypressSynchronizer;
+    TMultiConsumerNamesGarbageCollectorDynamicConfigPtr MultiConsumerNamesGarbageCollector;
+
+    NQueueClient::TQueueAgentDynamicStateDynamicConfigPtr DynamicState;
 
     REGISTER_YSON_STRUCT(TQueueAgentComponentDynamicConfig);
 

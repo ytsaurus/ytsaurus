@@ -1,0 +1,80 @@
+package NYT.NFlow.NController.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+import "yt/flow/library/cpp/misc/proto/node_info.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqHandshake
+{
+    required NYT.NFlow.NProto.TNodeInfo node_info = 6;
+    repeated string worker_groups = 5;
+
+    message TWorkerCapability
+    {
+        required string key = 1;
+        required int64 value = 2;
+    }
+
+    repeated TWorkerCapability worker_capabilities = 7;
+}
+
+message TRspHandshake
+{
+    required NYT.NProto.TGuid connection_incarnation_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqHeartbeat
+{
+    required string worker_rpc_address = 1;
+    required NYT.NProto.TGuid connection_incarnation_id = 2;
+    required uint64 heartbeat_seq_no = 3;
+
+    optional bytes execution_spec_versions = 4 [(NYT.NYson.NProto.yson_string) = true];
+
+    message TRunningJob
+    {
+        required NYT.NProto.TGuid job_id = 1;
+        required bytes job_status = 2 [(NYT.NYson.NProto.yson_string) = true];
+    }
+
+    repeated TRunningJob running_jobs = 5;
+
+    optional bytes worker_status = 6 [(NYT.NYson.NProto.yson_string) = true];
+}
+
+message TRspHeartbeat
+{
+    optional bytes execution_spec = 1 [(NYT.NYson.NProto.yson_string) = true];
+
+    message TStateRow
+    {
+        required int64 sequence_id = 1;
+        optional string name = 2;
+        optional string key_left = 3;
+        optional string key_right = 4;
+        optional string value = 5;
+    }
+
+    repeated TStateRow state_update = 2;
+
+    message TJobDynamicComputationPartitionSpec
+    {
+        required NYT.NProto.TGuid job_id = 1;
+        required bytes spec = 2 [(NYT.NYson.NProto.yson_string) = true];
+    }
+
+    repeated TJobDynamicComputationPartitionSpec jobs_dynamic_computation_partition_specs = 3;
+
+    optional bytes message_transfering_info = 4 [(NYT.NYson.NProto.yson_string) = true];
+
+    // Set by the controller when the worker is excluded from scheduling because
+    // its FlowCoreVersion does not match the pipeline's FlowCoreTarget. The string
+    // contains the active target.
+    optional string flow_core_target_mismatch = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////

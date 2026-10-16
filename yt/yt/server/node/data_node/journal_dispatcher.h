@@ -34,10 +34,10 @@ struct IJournalDispatcher
         const TJournalChunkPtr& chunk,
         bool enableMultiplexing) = 0;
 
-    //! Asynchronously checks if a given journal chunk is sealed.
-    virtual TFuture<bool> IsJournalSealed(
+    //! Synchronously checks if a given journal chunk is sealed.
+    virtual bool IsJournalSealed(
         const TStoreLocationPtr& location,
-        TChunkId chunkId) = 0;
+        TChunkId chunkId) const = 0;
 
     //! Asynchronously marks a given journal chunk as sealed.
     virtual TFuture<void> SealJournal(TJournalChunkPtr chunk) = 0;

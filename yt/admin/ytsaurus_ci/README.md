@@ -14,6 +14,19 @@ Compatibility is defined only between component pairs (no transitivity).
 ya make -r yt/admin/ytsaurus_ci
 ```
 
+## Secrets
+
+Commands that talk to the backend need a **Cloud Function token**
+(`--cloud-function-token`). Instead of passing it on every call, you can put it
+into a file and it will be picked up automatically:
+
+- `~/.yt/ytsaurus_ci_token`
+- `~/.yc/cf_token`
+
+The first of these that exists and is non-empty is used; an explicit
+`--cloud-function-token` always overrides the files. `run-scenario` additionally
+needs a **GitHub token** via `--git-token`.
+
 ## Commands
 
 ### View Compatibility Matrix
@@ -55,6 +68,11 @@ ya make -r yt/admin/ytsaurus_ci
 
 - `--git-api-url` — GitHub API URL (default: `https://api.github.com`)
 - `--version-filter` — version filter (JSON string, default: `{}`)
+- `--upgrade-config` — for `upgrade` scenarios, name of a single upgrade to run
+  from the scenario's upgrade file (`configs/upgrades.yaml`); if omitted, every
+  upgrade in that file is run. An unknown name fails with the list of available
+  ones.
+- `--priority` — task priority (`NORMAL` by default)
 - `--apply` — apply changes (create task)
 - `--force` — overwrite existing task
 - `--verbose` — verbose output
@@ -74,6 +92,14 @@ ya make -r yt/admin/ytsaurus_ci
   --git-token <token> \
   --cloud-function-token <token> \
   --apply
+
+# Run a single upgrade from configs/upgrades.yaml
+./yt/admin/ytsaurus_ci/ytsaurus_ci run-scenario \
+  --scenario upgrade \
+  --upgrade-config 25.4-to-26.1-simple \
+  --git-token <token> \
+  --cloud-function-token <token> \
+  --apply
 ```
 
 ### Reproduce Test
@@ -82,6 +108,32 @@ ya make -r yt/admin/ytsaurus_ci
 ./yt/admin/ytsaurus_ci/ytsaurus_ci reproduce \
   --job-id <job_id> \
   --cloud-function-token <token>
+```
+
+### Task info
+
+Get the status, priority, failed checks and artifact (logs) URLs of a task:
+
+```bash
+# human-readable
+./yt/admin/ytsaurus_ci/ytsaurus_ci job-info --job-id <job_id>
+
+# raw JSON
+./yt/admin/ytsaurus_ci/ytsaurus_ci job-info --job-id <job_id> --json
+```
+
+`list-tasks` lists task ids, optionally filtered (`--status`,
+`--components-key-filter`, `--passed`, `--json`).
+
+## Debugging a failed task (Claude Code skill)
+
+There is a Claude Code skill, **`yt-ci`**, that automates finding *why* a task
+failed from a `job-id`.
+
+Call it from Claude Code by typing the slash command with the job-id:
+
+```
+/yt-ci <job_id>
 ```
 
 ## Graph (matrix) filtering
@@ -115,6 +167,13 @@ Defines all components and their image sources.
   - `dev` — dev versions (nightly builds)
   - `release` — release versions with versioning
 
+  Each origin entry describes where the image lives:
+  - `registry` — `ghcr` (default, `ghcr.io`) or `yandex_cr` (`cr.yandex`)
+  - `org` — registry namespace: the GitHub org for `ghcr`, the Yandex Cloud Container Registry ID for `yandex_cr`
+  - `repo` — repository/namespace within `org`
+  - `container` — image name
+  - `image_tag` — regexp matched against the registry's list of tags for the image, with named groups `version`/`commit_hash`
+
 **Example:**
 
 ```yaml
@@ -122,6 +181,7 @@ ytsaurus:
   requirements: configs/compat-ytsaurus.yaml
   origins:
     stable:
+      org: ytsaurus
       repo: ytsaurus
       container: ytsaurus
       image_tag: '^stable-(?P<version>{{ version }})-relwithdebinfo$'
@@ -150,6 +210,20 @@ Compatibility files for each component (e.g., `compat-ytsaurus.yaml`, `compat-op
 - empty — all versions
 - Specific value or condition — filter by version
 - `main` — dev versions only (trunk)
+
+### `configs/upgrades.yaml`
+
+**Examples:**
+
+```yaml
+# One target: bump only ytsaurus, keep everything else pinned to the source.
+25.4-to-26.1-simple:
+  version_filter:
+    ytsaurus: "25.4"
+    operator: "0.31.0"
+  upgrade_to:
+    ytsaurus: "26.1"
+```
 
 ## Test Canonization
 

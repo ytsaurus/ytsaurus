@@ -116,6 +116,14 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("pending_restart_lease_timeout", &TThis::PendingRestartLeaseTimeout)
         .Default(TDuration::Minutes(10));
 
+    registrar.Parameter("temporarily_unavailable_data_center_lease_timeout", &TThis::TemporarilyUnavailableDataCenterLeaseTimeout)
+        .GreaterThan(TDuration::Zero())
+        .Default(TDuration::Days(1));
+
+    registrar.Parameter("temporarily_unavailable_data_center_lease_timeout_splay", &TThis::TemporarilyUnavailableDataCenterLeaseTimeoutSplay)
+        .GreaterThanOrEqual(TDuration::Zero())
+        .Default(TDuration::Hours(1));
+
     registrar.Parameter("reset_node_pending_restart_maintenance_period", &TThis::ResetNodePendingRestartMaintenancePeriod)
         .Default(TDuration::Seconds(2));
 
@@ -137,13 +145,10 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_node_incomplete_state_duration", &TThis::MaxNodeIncompleteStateDuration)
         .Default(TDuration::Days(1));
 
+    registrar.Parameter("max_node_dispose_state_duration", &TThis::MaxNodeDisposeStateDuration)
+        .Default(TDuration::Hours(1));
+
     registrar.Parameter("no_restarting_nodes_disposal", &TThis::NoRestartingNodesDisposal)
-        .Default(false);
-
-    registrar.Parameter("return_master_cells_connection_configs_on_node_registration", &TThis::ReturnMasterCellsConnectionConfigsOnNodeRegistration)
-        .Default(false);
-
-    registrar.Parameter("return_master_cells_connection_configs_on_node_heartbeat", &TThis::ReturnMasterCellsConnectionConfigsOnNodeHeartbeat)
         .Default(false);
 }
 

@@ -64,7 +64,7 @@ private:
     void AddDataSource(int tableIndex, const NTableClient::TTableSchemaPtr& schema, bool dynamic, std::optional<NTableClient::TRlsReadSpec> rlsReadSpec);
     std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> ConvertChunkStripeListIntoDataSliceDescriptors(
         const NChunkPools::TChunkStripeListPtr& chunkStripeList);
-    void AddDataSlice(int tableIndex, NChunkClient::TLegacyDataSlicePtr dataSlice);
+    void AddDataSlice(int tableIndex, NChunkClient::TDataSlicePtr dataSlice);
     void PrepareVersionedSliceFetcher(const TInputTable& inputTable);
     void FetchVersionedDataSlices();
     void AddUnversionedDataSlices(const TInputTable& inputTable);

@@ -6,15 +6,14 @@ import (
 	"errors"
 
 	"github.com/containerd/typeurl/v2"
-	rpc "github.com/gogo/googleapis/google/rpc"
-	gogotypes "github.com/gogo/protobuf/types"
-	"github.com/golang/protobuf/proto" //nolint:staticcheck
 	"github.com/golang/protobuf/ptypes/any"
+	"github.com/moby/buildkit/errdefs"
 	"github.com/moby/buildkit/util/bklog"
 	"github.com/moby/buildkit/util/stack"
 	spb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 type TypedError interface {
@@ -46,7 +45,7 @@ func ToGRPC(ctx context.Context, err error) error {
 
 	// If the original error was wrapped with more context than the GRPCStatus error,
 	// copy the original message to the GRPCStatus error
-	if err.Error() != st.Message() {
+	if errorHasMoreContext(err, st) {
 		pb := st.Proto()
 		pb.Message = err.Error()
 		st = status.FromProto(pb)
@@ -73,6 +72,21 @@ func ToGRPC(ctx context.Context, err error) error {
 	return st.Err()
 }
 
+// errorHasMoreContext checks if the original error provides more context by having
+// a different message or additional details than the Status.
+func errorHasMoreContext(err error, st *status.Status) bool {
+	if errMessage := err.Error(); len(errMessage) > len(st.Message()) {
+		// check if the longer message in errMessage is only due to
+		// prepending with the status code
+		var grpcStatusError *grpcStatusError
+		if errors.As(err, &grpcStatusError) {
+			return st.Code() != grpcStatusError.st.Code() || st.Message() != grpcStatusError.st.Message()
+		}
+		return true
+	}
+	return false
+}
+
 func withDetails(ctx context.Context, s *status.Status, details ...proto.Message) (*status.Status, error) {
 	if s.Code() == codes.OK {
 		return nil, errors.New("no error details for status with code OK")
@@ -94,6 +108,13 @@ func withDetails(ctx context.Context, s *status.Status, details ...proto.Message
 }
 
 func Code(err error) codes.Code {
+	if errdefs.IsInternal(err) {
+		if errdefs.IsResourceExhausted(err) {
+			return codes.ResourceExhausted
+		}
+		return codes.Internal
+	}
+
 	if se, ok := err.(interface {
 		Code() codes.Code
 	}); ok {
@@ -118,7 +139,7 @@ func Code(err error) codes.Code {
 }
 
 func WrapCode(err error, code codes.Code) error {
-	return &withCode{error: err, code: code}
+	return &withCodeError{error: err, code: code}
 }
 
 func AsGRPCStatus(err error) (*status.Status, bool) {
@@ -164,8 +185,10 @@ func FromGRPC(err error) error {
 
 	// details that we don't understand are copied as proto
 	for _, d := range pb.Details {
-		m, err := typeurl.UnmarshalAny(gogoAny(d))
+		m, err := typeurl.UnmarshalAny(d)
 		if err != nil {
+			bklog.L.Debugf("failed to unmarshal error detail with type %q: %v", d.GetTypeUrl(), err)
+			n.Details = append(n.Details, d)
 			continue
 		}
 
@@ -175,6 +198,7 @@ func FromGRPC(err error) error {
 		case TypedErrorProto:
 			details = append(details, v)
 		default:
+			bklog.L.Debugf("unknown detail with type %T", v)
 			n.Details = append(n.Details, d)
 		}
 	}
@@ -198,20 +222,6 @@ func FromGRPC(err error) error {
 	return stack.Enable(err)
 }
 
-func ToRPCStatus(st *spb.Status) *rpc.Status {
-	details := make([]*gogotypes.Any, len(st.Details))
-
-	for i, d := range st.Details {
-		details[i] = gogoAny(d)
-	}
-
-	return &rpc.Status{
-		Code:    int32(st.Code),
-		Message: st.Message,
-		Details: details,
-	}
-}
-
 type grpcStatusError struct {
 	st *status.Status
 }
@@ -227,16 +237,16 @@ func (e *grpcStatusError) GRPCStatus() *status.Status {
 	return e.st
 }
 
-type withCode struct {
+type withCodeError struct {
 	code codes.Code
 	error
 }
 
-func (e *withCode) Code() codes.Code {
+func (e *withCodeError) Code() codes.Code {
 	return e.code
 }
 
-func (e *withCode) Unwrap() error {
+func (e *withCodeError) Unwrap() error {
 	return e.error
 }
 
@@ -246,12 +256,5 @@ func each(err error, fn func(error)) {
 		Unwrap() error
 	}); ok {
 		each(wrapped.Unwrap(), fn)
-	}
-}
-
-func gogoAny(in *any.Any) *gogotypes.Any {
-	return &gogotypes.Any{
-		TypeUrl: in.TypeUrl,
-		Value:   in.Value,
 	}
 }

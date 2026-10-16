@@ -120,9 +120,13 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         ValidateErasureCodec(eraseCodecValue, chunkManagerConfig->ForbiddenErasureCodecs);
     }
 
+    auto dynamicConfig = GetBootstrap()->GetConfigManager()->GetConfig()->TableManager;
+
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
     bool dynamic = combinedAttributes->GetAndRemove<bool>("dynamic", false);
-    auto optionalTabletCellBundleName = context.ExplicitAttributes->FindAndRemove<std::string>(EInternedAttributeKey::TabletCellBundle.Unintern());
+
+    std::optional<std::string> optionalTabletCellBundleName;
+    optionalTabletCellBundleName = combinedAttributes->FindAndRemove<std::string>(EInternedAttributeKey::TabletCellBundle.Unintern());
     bool optimizeForIsExplicit = context.ExplicitAttributes->Contains("optimize_for");
     auto optimizeFor = combinedAttributes->GetAndRemove<EOptimizeFor>(
         "optimize_for",
@@ -137,8 +141,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto enableStripedErasure = combinedAttributes->GetAndRemove<bool>("use_striped_erasure", false);
     auto replicationProgress = combinedAttributes->FindAndRemove<TReplicationProgress>("replication_progress");
     auto trimmedRowCounts = combinedAttributes->GetAndRemove<std::vector<i64>>("trimmed_row_counts", {});
+    auto cumulativeDataWeights = combinedAttributes->GetAndRemove<std::vector<i64>>("cumulative_data_weights", {});
     auto hunkStorageId = combinedAttributes->FindAndRemove<TObjectId>("hunk_storage_id");
-    auto hasHunkChunkList = combinedAttributes->Find<bool>("has_hunk_chunk_list");
+    auto hasHunkChunkList = combinedAttributes->FindAndRemove<bool>("has_hunk_chunk_list");
     bool commitOrderingIsExplicit = context.ExplicitAttributes->Contains(EInternedAttributeKey::CommitOrdering.Unintern());
     auto commitOrdering = combinedAttributes->FindAndRemove<NTransactionClient::ECommitOrdering>(EInternedAttributeKey::CommitOrdering.Unintern());
 
@@ -171,7 +176,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto constrainedSchema = combinedAttributes->FindAndRemove<TConstrainedTableSchema>("schema");
     if (constrainedSchema && !constrainedSchema->ColumnToConstraint().empty()) {
         THROW_ERROR_EXCEPTION("Cannot specify constraints in \"schema\" option, use \"constrained_schema\" instead")
-            << TErrorAttribute("constraints", constrainedSchema->ColumnToConstraint());
+            .With("constraints", constrainedSchema->ColumnToConstraint());
     }
     auto tableSchema = constrainedSchema ? New<TCompactTableSchema>(constrainedSchema->TableSchema()) : nullptr;
     auto schemaId = combinedAttributes->GetAndRemove<TObjectId>("schema_id", NullObjectId);
@@ -180,7 +185,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto constraints = combinedAttributes->FindAndRemove<TColumnNameToConstraintMap>("constraints");
     auto schemaMode = combinedAttributes->GetAndRemove<ETableSchemaMode>("schema_mode", ETableSchemaMode::Weak);
 
-    auto dynamicConfig = GetBootstrap()->GetConfigManager()->GetConfig()->TableManager;
     if ((constrainedSchema || constraints) && !dynamicConfig->EnableColumnConstraintsForTables) {
         THROW_ERROR_EXCEPTION("Creation of tables with column constraints is prohibited by system administrator");
     }
@@ -196,7 +200,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
     if ((constraints || constrainedSchema) && !effectiveTableSchema) {
         THROW_ERROR_EXCEPTION("Cannot create table with constraints and without schema")
-            << TErrorAttribute("constraints", constraints);
+            .With("constraints", constraints);
     }
     std::optional<NTableClient::TColumnStableNameToConstraintMap> effectiveConstraints;
     TTableSchemaPtr schema;
@@ -252,6 +256,34 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                 0,
                 *optionalTabletCount,
                 ssize(trimmedRowCounts));
+        }
+    }
+
+    if (!cumulativeDataWeights.empty()) {
+        if (!dynamic) {
+            THROW_ERROR_EXCEPTION("\"cumulative_data_weights\" can only be provided for dynamic tables");
+        }
+        if (log) {
+            THROW_ERROR_EXCEPTION("\"cumulative_data_weights\" cannot not be provided for table of type %Qlv",
+                type);
+        }
+        if (effectiveTableSchema->IsSorted()) {
+            THROW_ERROR_EXCEPTION("\"cumulative_data_weights\" can only be set for ordered tables");
+        }
+        if (!optionalTabletCount) {
+            THROW_ERROR_EXCEPTION("\"cumulative_data_weights\" cannot be specified without \"tablet_count\"");
+        }
+        if (ssize(cumulativeDataWeights) != *optionalTabletCount) {
+            THROW_ERROR_EXCEPTION("\"cumulative_data_weights\" has invalid size: expected %v or %v, got %v",
+                0,
+                *optionalTabletCount,
+                ssize(cumulativeDataWeights));
+        }
+        for (auto dataWeight : cumulativeDataWeights) {
+            if (dataWeight < 0) {
+                THROW_ERROR_EXCEPTION("Cumulative data weight must be nonnegative, got %v",
+                    dataWeight);
+            }
         }
     }
 
@@ -336,12 +368,20 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
             tabletManager->MakeTableDynamic(
                 node,
-                trimmedRowCounts.empty() ? 0 : trimmedRowCounts[0]);
+                trimmedRowCounts.empty() ? 0 : trimmedRowCounts[0],
+                cumulativeDataWeights.empty() ? 0 : cumulativeDataWeights[0]);
 
+            // NB: The first tablet is created by MakeTableDynamic, the rest are created by the reshard below.
             std::vector<i64> adjustedTrimmedRowCounts;
             if (!trimmedRowCounts.empty()) {
                 adjustedTrimmedRowCounts = std::move(trimmedRowCounts);
                 adjustedTrimmedRowCounts.erase(adjustedTrimmedRowCounts.begin());
+            }
+
+            std::vector<i64> adjustedCumulativeDataWeights;
+            if (!cumulativeDataWeights.empty()) {
+                adjustedCumulativeDataWeights = std::move(cumulativeDataWeights);
+                adjustedCumulativeDataWeights.erase(adjustedCumulativeDataWeights.begin());
             }
 
             if (node->IsTrackedQueueObject()) {
@@ -365,6 +405,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                         *optionalTabletCount,
                         /*pivotKeys*/ {},
                         adjustedTrimmedRowCounts,
+                        adjustedCumulativeDataWeights,
                         /*create*/ true);
                 } else if (optionalPivotKeys) {
                     tabletManager->PrepareReshard(
@@ -374,6 +415,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                         optionalPivotKeys->size(),
                         *optionalPivotKeys,
                         adjustedTrimmedRowCounts,
+                        adjustedCumulativeDataWeights,
                         /*create*/ true);
                 }
             }
@@ -386,14 +428,16 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                         /*lastTabletIndex*/ 0,
                         *optionalTabletCount,
                         /*pivotKeys*/ {},
-                        adjustedTrimmedRowCounts);
+                        adjustedTrimmedRowCounts,
+                        adjustedCumulativeDataWeights);
                 } else if (optionalPivotKeys) {
                     tabletManager->Reshard(node,
                         /*firstTabletIndex*/ 0,
                         /*lastTabletIndex*/ 0,
                         optionalPivotKeys->size(),
                         *optionalPivotKeys,
-                        adjustedTrimmedRowCounts);
+                        adjustedTrimmedRowCounts,
+                        adjustedCumulativeDataWeights);
                 }
             }
 
@@ -476,11 +520,10 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
             secondaryIndex->SetIndexTableId({});
             int refCounter = objectManager->UnrefObject(secondaryIndex);
 
-            YT_LOG_ALERT_IF(refCounter > 0,
-                "Failed to drop secondary index upon index table removal (IndexTableId: %v, IndexId: %v, IndexRefCounter: %v)",
-                table->GetId(),
-                secondaryIndex->GetId(),
-                refCounter);
+            YT_TLOG_ALERT_IF(refCounter > 0, "Failed to drop secondary index upon index table removal")
+                .With("IndexTableId", table->GetId())
+                .With("IndexId", secondaryIndex->GetId())
+                .With("IndexRefCounter", refCounter);
 
             table->SetIndexTo(nullptr);
         }
@@ -489,11 +532,10 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
             secondaryIndex->SetTableId({});
             int refCounter = objectManager->UnrefObject(secondaryIndex);
 
-            YT_LOG_ALERT_IF(refCounter > 0,
-                "Failed to drop secondary index upon table removal (TableId: %v, IndexId: %v, IndexRefCounter: %v)",
-                table->GetId(),
-                secondaryIndex->GetId(),
-                refCounter);
+            YT_TLOG_ALERT_IF(refCounter > 0, "Failed to drop secondary index upon table removal")
+                .With("TableId", table->GetId())
+                .With("IndexId", secondaryIndex->GetId())
+                .With("IndexRefCounter", refCounter);
         }
 
         if (!table->SecondaryIndices().empty()) {
@@ -577,16 +619,35 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     ENodeCloneMode mode,
     TAccount* account)
 {
-    if (!factory->ShouldAllowSecondaryIndexAbandonment() && !IsHiveMutation()) {
-        if (sourceNode->GetIndexTo()) {
-            THROW_ERROR_EXCEPTION("Cannot copy table %v because it acts as an index to table %v, consider specifying "
-                "\"allow_secondary_index_abandonment\" option",
-                sourceNode->GetId(),
-                sourceNode->GetIndexTo()->GetTableId());
-        } else if (!sourceNode->SecondaryIndices().empty()) {
-            THROW_ERROR_EXCEPTION("Cannot copy table %v because it has secondary indices, consider specifying "
-                "\"allow_secondary_index_abandonment\" option",
-                sourceNode->GetId());
+    auto* trunkSourceNode = sourceNode->GetTrunkNode();
+
+    if (!IsHiveMutation()) {
+        if (mode == ENodeCloneMode::Move) {
+            if (auto sourceSecondaryIndex = trunkSourceNode->GetIndexTo()) {
+                THROW_ERROR_EXCEPTION_IF(factory->GetTransaction(),
+                    "Cannot move table %v with index %v within a transaction",
+                    trunkSourceNode->GetId(),
+                    sourceSecondaryIndex->GetId());
+                factory->RegisterMovedIndex(sourceSecondaryIndex, clonedTrunkNode, /*isIndexTable*/ true);
+            }
+            for (auto sourceSecondaryIndex : GetValuesSortedByKey(trunkSourceNode->SecondaryIndices())) {
+                THROW_ERROR_EXCEPTION_IF(factory->GetTransaction(),
+                    "Cannot move table %v with index %v within a transaction",
+                    trunkSourceNode->GetId(),
+                    sourceSecondaryIndex->GetId());
+                factory->RegisterMovedIndex(sourceSecondaryIndex, clonedTrunkNode, /*isIndexTable*/ false);
+            }
+        } else if (!factory->ShouldAllowSecondaryIndexAbandonment()) {
+            if (trunkSourceNode->GetIndexTo()) {
+                THROW_ERROR_EXCEPTION("Cannot copy table %v because it acts as an index to table %v, consider specifying "
+                    "\"allow_secondary_index_abandonment\" option",
+                    trunkSourceNode->GetId(),
+                    trunkSourceNode->GetIndexTo()->GetTableId());
+            } else if (!trunkSourceNode->SecondaryIndices().empty()) {
+                THROW_ERROR_EXCEPTION("Cannot copy table %v because it has secondary indices, consider specifying "
+                    "\"allow_secondary_index_abandonment\" option",
+                    trunkSourceNode->GetId());
+            }
         }
     }
 
@@ -602,7 +663,6 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     }
     clonedTrunkNode->SetHunkErasureCodec(sourceNode->GetHunkErasureCodec());
 
-    auto* trunkSourceNode = sourceNode->GetTrunkNode();
     if (trunkSourceNode->HasCustomDynamicTableAttributes()) {
         clonedTrunkNode->InitializeCustomDynamicTableAttributes();
         clonedTrunkNode->GetCustomDynamicTableAttributes()->CopyFrom(
@@ -612,6 +672,16 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     const auto& tableManager = this->GetBootstrap()->GetTableManager();
     if (clonedTrunkNode->IsTrackedQueueObject()) {
         tableManager->RegisterQueue(clonedTrunkNode);
+    }
+
+    if (clonedTrunkNode->IsForeign()) {
+        tableManager->ScheduleStatisticsUpdate(
+            clonedTrunkNode,
+            TStatisticsUpdateRequest{
+                .UpdateDataStatistics = true,
+                .UpdateTabletResourceUsage = true,
+                .UseNativeContentRevisionCas = true,
+            });
     }
 }
 

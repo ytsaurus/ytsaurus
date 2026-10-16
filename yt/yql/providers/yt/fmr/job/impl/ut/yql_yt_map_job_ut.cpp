@@ -44,11 +44,11 @@ Y_UNIT_TEST_SUITE(MapTests) {
             .Output = {fmrOutputRef}
         };
         TFmrUserJobSettings settings{.ThreadPoolSize = 3, .QueueSizeLimit = 100};
-        FillMapFmrJob(mapJob, mapTaskParams, {}, tableDataServiceHostsFile.Name(), settings, MakeFileYtJobService());
+        FillMapFmrJob(mapJob, mapTaskParams, {}, MakeFileTableDataServiceDiscovery({.Path = tableDataServiceHostsFile.Name()}), {}, settings, MakeFileYtJobService());
 
         {
             auto functionRegistry = CreateFunctionRegistry(CreateBuiltinRegistry());
-            TScopedAlloc alloc(__LOCATION__, NKikimr::TAlignedPagePoolCounters(),functionRegistry->SupportsSizedAllocators());
+            TScopedAlloc alloc(__LOCATION__);
             alloc.Ref().ForcefullySetMemoryYellowZone(false);
 
             TTypeEnvironment env(alloc);

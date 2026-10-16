@@ -89,11 +89,12 @@ private:
     void ValidateCellType(TCellId cellId, EObjectType expectedCellType)
     {
         auto cellType = TypeFromId(cellId);
-        YT_LOG_ALERT_AND_THROW_UNLESS(cellType == expectedCellType,
-            "Cell type mismatch while registering transaction actions (CellId: %v, CellType: %v, ExpectedCellType: %v)",
-            cellId,
-            cellType,
-            expectedCellType);
+        YT_TLOG_ALERT_AND_THROW_UNLESS(
+            cellType == expectedCellType,
+            "Cell type mismatch while registering transaction actions")
+            .With("CellId", cellId)
+            .With("CellType", cellType)
+            .With("ExpectedCellType", expectedCellType);
     }
 };
 

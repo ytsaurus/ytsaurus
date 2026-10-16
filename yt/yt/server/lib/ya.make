@@ -34,11 +34,11 @@ RECURSE(
     cell_server
     cellar_agent
     chaos_cache
+    chaos_election
     chaos_node
     chunk_pools
     chunk_server
     controller_agent
-    cypress_election
     cypress_registrar
     discovery_server
     distributed_chunk_session_server
@@ -64,7 +64,6 @@ RECURSE(
     security_server
     shell
     shuffle_server
-    signature
     squash_fs
     component_state_checker
     table_server

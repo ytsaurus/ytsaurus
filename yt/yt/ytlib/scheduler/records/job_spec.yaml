@@ -16,7 +16,7 @@ types:
         sort_order: Ascending
 
       - cpp_name: Spec
-        cpp_type: TString
+        cpp_type: std::string
         column_name: spec
         column_type: String
 
@@ -26,6 +26,6 @@ types:
         column_type: Int64
 
       - cpp_name: Type
-        cpp_type: TString
+        cpp_type: std::string
         column_name: type
         column_type: String

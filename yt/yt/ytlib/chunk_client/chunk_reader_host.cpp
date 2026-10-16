@@ -26,6 +26,12 @@ using namespace NNodeTrackerClient;
 
 namespace {
 
+const TInternRegistryPtr<TNodeDescriptor>& GetNodeDescriptorInternRegistry()
+{
+    static const auto Registry = New<TInternRegistry<TNodeDescriptor>>();
+    return Registry;
+}
+
 THashMap<TClusterName, TChunkReaderHostPtr> CreateHostMap(
     const TChunkReaderHostPtr& baseHost,
     const std::vector<TMultiChunkReaderHost::TClusterContext>& clusterContextList)
@@ -71,6 +77,13 @@ const TPerCategoryThrottlerProvider& GetUnlimitedPerCategoryThrottlerProvider()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TInternedNodeDescriptor InternNodeDescriptor(TNodeDescriptor descriptor)
+{
+    return GetNodeDescriptorInternRegistry()->Intern(std::move(descriptor));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPerCategoryThrottlerProvider MakeUniformPerCategoryThrottlerProvider(IThroughputThrottlerPtr throttler)
 {
     return BIND([throttler = std::move(throttler)] (EWorkloadCategory /*category*/) {
@@ -83,6 +96,26 @@ TPerCategoryThrottlerProvider MakeUniformPerCategoryThrottlerProvider(IThroughpu
 TChunkReaderHost::TChunkReaderHost(
     NNative::IClientPtr client,
     TNodeDescriptor localDescriptor,
+    IBlockCachePtr blockCache,
+    IClientChunkMetaCachePtr chunkMetaCache,
+    TPerCategoryThrottlerProvider bandwidthThrottlerProvider,
+    IThroughputThrottlerPtr rpsThrottler,
+    IThroughputThrottlerPtr mediumThrottler,
+    TTrafficMeterPtr trafficMeter)
+    : TChunkReaderHost(
+        std::move(client),
+        InternNodeDescriptor(std::move(localDescriptor)),
+        std::move(blockCache),
+        std::move(chunkMetaCache),
+        std::move(bandwidthThrottlerProvider),
+        std::move(rpsThrottler),
+        std::move(mediumThrottler),
+        std::move(trafficMeter))
+{ }
+
+TChunkReaderHost::TChunkReaderHost(
+    NNative::IClientPtr client,
+    TInternedNodeDescriptor localDescriptor,
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,
     TPerCategoryThrottlerProvider bandwidthThrottlerProvider,

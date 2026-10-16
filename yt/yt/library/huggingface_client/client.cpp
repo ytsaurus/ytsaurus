@@ -22,8 +22,8 @@ using namespace NHttp;
 
 namespace {
 
-const TString DefaultHuggingfaceUrl = "https://huggingface.co";
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "HuggingFace");
+const std::string DefaultHuggingfaceUrl = "https://huggingface.co";
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "HuggingFace");
 
 NHttp::IClientPtr CreateHttpClient(
     IPollerPtr poller,
@@ -43,16 +43,16 @@ NHttp::IClientPtr CreateHttpClient(
 THuggingfaceClient::THuggingfaceClient(
     const std::optional<std::string>& token,
     IPollerPtr poller,
-    const std::optional<TString>& urlOverride)
+    const std::optional<std::string>& urlOverride)
     : Url_(urlOverride.value_or(DefaultHuggingfaceUrl))
     , Token_(token)
     , Client_(CreateHttpClient(
         std::move(poller),
         MaxRedirectCount,
-        /*allowHttp*/ Url_.StartsWith("http://")))
+        /*allowHttp*/ Url_.starts_with("http://")))
 { }
 
-std::vector<TString> THuggingfaceClient::GetParquetFileUrls(const TString& dataset, const TString& subset, const TString& split)
+std::vector<std::string> THuggingfaceClient::GetParquetFileUrls(const std::string& dataset, const std::string& subset, const std::string& split)
 {
     auto headers = New<THeaders>();
     if (Token_) {
@@ -60,20 +60,23 @@ std::vector<TString> THuggingfaceClient::GetParquetFileUrls(const TString& datas
     }
 
     auto url = Format("%v/api/datasets/%v/parquet/%v/%v", Url_, dataset, subset, split);
-    YT_LOG_INFO("Getting parquet file list (Url: %v)", url);
+    YT_TLOG_INFO("Getting parquet file list")
+        .With("Url", url);
     auto response = WaitFor(Client_->Get(url, headers))
         .ValueOrThrow();
 
     if (response->GetStatusCode() != EStatusCode::OK) {
         THROW_ERROR_EXCEPTION("Failed to get Parquet files list")
-            << TErrorAttribute("status_code", response->GetStatusCode());
+            .With("status_code", response->GetStatusCode());
     }
 
     auto data = response->ReadAll();
     auto result = ParseParquetFileUrls(data.ToStringBuf());
-    YT_LOG_INFO("Parquet file list received (Count: %v)", result.size());
+    YT_TLOG_INFO("Parquet file list received")
+        .With("Count", result.size());
     for (const auto& url : result) {
-        YT_LOG_DEBUG("Parquet file (Url: %v)", url);
+        YT_TLOG_DEBUG("Parquet file")
+            .With("Url", url);
     }
 
     return result;
@@ -91,19 +94,19 @@ IAsyncZeroCopyInputStreamPtr THuggingfaceClient::DownloadFile(const std::string&
 
     if (response->GetStatusCode() != EStatusCode::OK) {
         THROW_ERROR_EXCEPTION("Failed to download file, HTTP proxy discovery request returned an error")
-            << TErrorAttribute("status_code", response->GetStatusCode());
+            .With("status_code", response->GetStatusCode());
     }
 
     return response;
 }
 
-std::vector<TString> THuggingfaceClient::ParseParquetFileUrls(TStringBuf data)
+std::vector<std::string> THuggingfaceClient::ParseParquetFileUrls(TStringBuf data)
 {
     NJson::TJsonValue jsonValue;
     if (!NJson::ReadJsonTree(data, &jsonValue) || !jsonValue.IsArray()) {
         THROW_ERROR_EXCEPTION("Invalid HTTP response: cannot parse http body to JSON list");
     }
-    std::vector<TString> result;
+    std::vector<std::string> result;
     for (const auto& fileUrl : jsonValue.GetArray()) {
         if (!fileUrl.IsString()) {
             THROW_ERROR_EXCEPTION("Invalid HTTP response: expected string element in JSON list");

@@ -7,7 +7,7 @@
 
 #include <yt/yt/server/lib/tablet_balancer/balancing_helpers.h>
 #include <yt/yt/server/lib/tablet_balancer/config.h>
-#include <yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.h>
+#include <yt/yt/server/lib/tablet_balancer/parameterized_move_helpers.h>
 #include <yt/yt/server/lib/tablet_balancer/table.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet_cell_bundle.h>
 
@@ -31,7 +31,7 @@ class TMoveIterationBase
 {
 public:
     TMoveIterationBase(
-        TString groupName,
+        std::string groupName,
         TBundleSnapshotPtr bundleSnapshot,
         TTabletBalancingGroupConfigPtr groupConfig,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
@@ -44,27 +44,27 @@ public:
 
     void StartIteration() const override
     {
-        YT_LOG_INFO("Balancing tablets via move started (BundleName: %v, Group: %v, MoveBalancingType: %v)",
-            BundleName_,
-            GroupName_,
-            GetActionSubtypeName());
+        YT_TLOG_INFO("Balancing tablets via move started")
+            .With("BundleName", BundleName_)
+            .With("Group", GroupName_)
+            .With("MoveBalancingType", GetActionSubtypeName());
     }
 
     void LogDisabledBalancing() const override
     {
-        YT_LOG_INFO("Balancing tablets via move is disabled (BundleName: %v, Group: %v, MoveBalancingType: %v)",
-            BundleName_,
-            GroupName_,
-            GetActionSubtypeName());
+        YT_TLOG_INFO("Balancing tablets via move is disabled")
+            .With("BundleName", BundleName_)
+            .With("Group", GroupName_)
+            .With("MoveBalancingType", GetActionSubtypeName());
     }
 
     void FinishIteration(int actionCount) const override
     {
-        YT_LOG_INFO("Balancing tablets via move finished (BundleName: %v, Group: %v, MoveBalancingType: %v, ActionCount: %v)",
-            BundleName_,
-            GroupName_,
-            GetActionSubtypeName(),
-            actionCount);
+        YT_TLOG_INFO("Balancing tablets via move finished")
+            .With("BundleName", BundleName_)
+            .With("Group", GroupName_)
+            .With("MoveBalancingType", GetActionSubtypeName())
+            .With("ActionCount", actionCount);
     }
 
     const std::string& GetBundleName() const override
@@ -72,7 +72,7 @@ public:
         return BundleName_;
     }
 
-    const TString& GetGroupName() const override
+    const std::string& GetGroupName() const override
     {
         return GroupName_;
     }
@@ -92,7 +92,7 @@ public:
         return GroupConfig_;
     }
 
-    TGuard<NYT::NThreading::TSpinLock> StartApplyingActions() const override
+    TGuard<NYT::TSpinLock> StartApplyingActions() const override
     {
         return Guard(BundleSnapshot_->PublishedObjectLock);
     }
@@ -127,6 +127,12 @@ protected:
             GroupConfig_,
             BundleSnapshot_->Bundle->Config);
 
+        auto [orderedHasTrue, orderedHasFalse] = EvaluateFeatureFlag(
+            &TFeatureFlagConfig::EnableSmoothMovementForOrdered,
+            DynamicConfig_,
+            GroupConfig_,
+            BundleSnapshot_->Bundle->Config);
+
         if (hasFalse) {
             return descriptors;
         }
@@ -135,15 +141,26 @@ protected:
             const auto& tablet = GetOrCrash(BundleSnapshot_->Bundle->Tablets, descriptor.TabletId);
             const auto* table = tablet->Table;
 
+            // Support smooth movement for frozen tablets: YT-17388.
+            if (tablet->State != ETabletState::Mounted) {
+                continue;
+            }
+
+            bool smooth = table->TableConfig->EnableSmoothMovement.value_or(hasTrue);
+
+            bool flagForOrdered = !orderedHasFalse && table->TableConfig->EnableSmoothMovementForOrdered.value_or(orderedHasTrue);
+
             if (!table->Sorted) {
+                smooth &= flagForOrdered;
+            }
+
+            if (TypeFromId(table->Id) == EObjectType::ReplicationLogTable) {
+                smooth &= flagForOrdered;
+            } else if (TypeFromId(table->Id) != EObjectType::Table) {
                 continue;
             }
 
-            if (TypeFromId(table->Id) != EObjectType::Table) {
-                continue;
-            }
-
-            descriptor.Smooth = table->TableConfig->EnableSmoothMovement.value_or(hasTrue);
+            descriptor.Smooth = smooth;
         }
 
         return descriptors;
@@ -182,7 +199,6 @@ public:
         return BIND(
             ReassignOrdinaryTablets,
             BundleSnapshot_->Bundle,
-            /*movableTables*/ std::nullopt,
             Logger())
             .AsyncVia(invoker)
             .Run()
@@ -235,8 +251,6 @@ public:
         return BIND(
             ReassignInMemoryTablets,
             BundleSnapshot_->Bundle,
-            /*movableTables*/ std::nullopt,
-            /*ignoreTableWiseConfig*/ false,
             Logger())
             .AsyncVia(invoker)
             .Run()
@@ -264,17 +278,19 @@ class TParameterizedMoveIterationBase
 {
 public:
     TParameterizedMoveIterationBase(
-        TString groupName,
+        std::string groupName,
         TBundleSnapshotPtr bundleSnapshot,
         TTableParameterizedMetricTrackerPtr metricTracker,
         TTabletBalancingGroupConfigPtr groupConfig,
-        TTabletBalancerDynamicConfigPtr dynamicConfig)
+        TTabletBalancerDynamicConfigPtr dynamicConfig,
+        IThreadPoolPtr workerPool)
         : TMoveIterationBase(
             std::move(groupName),
             std::move(bundleSnapshot),
             std::move(groupConfig),
             std::move(dynamicConfig))
         , MetricTracker_(std::move(metricTracker))
+        , WorkerPool_(std::move(workerPool))
     { }
 
     bool IsGroupBalancingEnabled() const override
@@ -283,7 +299,8 @@ public:
     }
 
 protected:
-    TTableParameterizedMetricTrackerPtr MetricTracker_;
+    const TTableParameterizedMetricTrackerPtr MetricTracker_;
+    const IThreadPoolPtr WorkerPool_;
 
     TParameterizedReassignSolverConfig GetReassignSolverConfig()
     {
@@ -292,7 +309,7 @@ protected:
             .NodeDeviationThreshold = DynamicConfig_->ParameterizedNodeDeviationThreshold,
             .CellDeviationThreshold = DynamicConfig_->ParameterizedCellDeviationThreshold,
             .MinRelativeMetricImprovement = DynamicConfig_->ParameterizedMinRelativeMetricImprovement,
-            .Metric = DynamicConfig_->DefaultParameterizedMetric,
+            .Metrics = {DynamicConfig_->DefaultParameterizedMetric},
             .Factors = DynamicConfig_->ParameterizedFactors,
         }.MergeWith(
             GroupConfig_->Parameterized,
@@ -306,19 +323,7 @@ class TParameterizedMoveIteration
     : public TParameterizedMoveIterationBase
 {
 public:
-    TParameterizedMoveIteration(
-        TString groupName,
-        TBundleSnapshotPtr bundleSnapshot,
-        TTableParameterizedMetricTrackerPtr metricTracker,
-        TTabletBalancingGroupConfigPtr groupConfig,
-        TTabletBalancerDynamicConfigPtr dynamicConfig)
-        : TParameterizedMoveIterationBase(
-            std::move(groupName),
-            std::move(bundleSnapshot),
-            std::move(metricTracker),
-            std::move(groupConfig),
-            std::move(dynamicConfig))
-    { }
+    using TParameterizedMoveIterationBase::TParameterizedMoveIterationBase;
 
     EBalancingMode GetBalancingMode() const override
     {
@@ -334,6 +339,7 @@ public:
             GetReassignSolverConfig(),
             GroupName_,
             MetricTracker_,
+            WorkerPool_,
             Logger())
             .AsyncVia(invoker)
             .Run()
@@ -366,18 +372,20 @@ class TReplicaMoveIteration
 {
 public:
     TReplicaMoveIteration(
-        TString groupName,
+        std::string groupName,
         TBundleSnapshotPtr bundleSnapshot,
         TTableParameterizedMetricTrackerPtr metricTracker,
         TTabletBalancingGroupConfigPtr groupConfig,
         TTabletBalancerDynamicConfigPtr dynamicConfig,
+        IThreadPoolPtr workerPool,
         std::string selfClusterName)
         : TParameterizedMoveIterationBase(
             std::move(groupName),
             std::move(bundleSnapshot),
             std::move(metricTracker),
             std::move(groupConfig),
-            std::move(dynamicConfig))
+            std::move(dynamicConfig),
+            std::move(workerPool))
         , SelfClusterName_(std::move(selfClusterName))
     { }
 
@@ -389,10 +397,9 @@ public:
     void Prepare() override
     {
         if (BundleSnapshot_->ReplicaBalancingFetchFailed) {
-            YT_LOG_INFO("Balancing tablets via replica move is not possible because "
-                "last statistics fetch failed (BundleName: %v, Group: %v)",
-                BundleName_,
-                GroupName_);
+            YT_TLOG_INFO("Balancing tablets via replica move is not possible because last statistics fetch failed")
+                .With("BundleName", BundleName_)
+                .With("Group", GroupName_);
             THROW_ERROR_EXCEPTION(
                 NTabletBalancer::EErrorCode::StatisticsFetchFailed,
                 "Not all statistics for replica move balancing were fetched");
@@ -416,11 +423,10 @@ public:
 
             for (const auto& [cluster, minorTablePaths] : table->GetReplicaBalancingMinorTables(SelfClusterName_)) {
                 if (BundleSnapshot_->BannedReplicaClusters.contains(cluster)) {
-                    YT_LOG_DEBUG("Skipping cluster because statistics of the banned replica were not fetched "
-                        "(BundleName: %v, Group: %v, Cluster: %v)",
-                        BundleName_,
-                        GroupName_,
-                        cluster);
+                    YT_TLOG_DEBUG("Skipping cluster because statistics of the banned replica were not fetched")
+                        .With("BundleName", BundleName_)
+                        .With("Group", GroupName_)
+                        .With("Cluster", cluster);
                     continue;
                 }
 
@@ -440,16 +446,16 @@ public:
                             "Not all statistics was fetched successfully. Attributes or statistics of table %v on cluster %Qv was not found",
                             minorTablePath,
                             cluster)
-                            << TErrorAttribute("table_id", it->second);
+                            .With("table_id", it->second);
                     }
                 }
             }
         }
 
-        YT_LOG_INFO("Preparations for balancing tablets via move finished (BundleName: %v, Group: %v, MoveBalancingType: %v)",
-            BundleName_,
-            GroupName_,
-            GetActionSubtypeName());
+        YT_TLOG_INFO("Preparations for balancing tablets via move finished")
+            .With("BundleName", BundleName_)
+            .With("Group", GroupName_)
+            .With("MoveBalancingType", GetActionSubtypeName());
     }
 
     TFuture<std::vector<TMoveDescriptor>> ReassignTablets(const IInvokerPtr& invoker) override
@@ -461,6 +467,7 @@ public:
             GetReassignSolverConfig(),
             GroupName_,
             MetricTracker_,
+            WorkerPool_,
             Logger())
             .AsyncVia(invoker)
             .Run()
@@ -514,26 +521,29 @@ IMoveIterationPtr CreateInMemoryMoveIteration(
 }
 
 IMoveIterationPtr CreateParameterizedMoveIteration(
-    TString groupName,
+    std::string groupName,
     TBundleSnapshotPtr bundleSnapshot,
     TTableParameterizedMetricTrackerPtr metricTracker,
     TTabletBalancingGroupConfigPtr groupConfig,
-    TTabletBalancerDynamicConfigPtr dynamicConfig)
+    TTabletBalancerDynamicConfigPtr dynamicConfig,
+    IThreadPoolPtr workerPool)
 {
     return New<TParameterizedMoveIteration>(
         std::move(groupName),
         std::move(bundleSnapshot),
         std::move(metricTracker),
         std::move(groupConfig),
-        std::move(dynamicConfig));
+        std::move(dynamicConfig),
+        std::move(workerPool));
 }
 
 IMoveIterationPtr CreateReplicaMoveIteration(
-    TString groupName,
+    std::string groupName,
     TBundleSnapshotPtr bundleSnapshot,
     TTableParameterizedMetricTrackerPtr metricTracker,
     TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig,
+    IThreadPoolPtr workerPool,
     std::string selfClusterName)
 {
     return New<TReplicaMoveIteration>(
@@ -542,6 +552,7 @@ IMoveIterationPtr CreateReplicaMoveIteration(
         std::move(metricTracker),
         std::move(groupConfig),
         std::move(dynamicConfig),
+        std::move(workerPool),
         std::move(selfClusterName));
 }
 

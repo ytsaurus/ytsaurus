@@ -33,6 +33,27 @@ func NewAPI(ytc yt.Client, cfg APIConfig, ctl strawberry.Controller, l log.Logge
 	}
 }
 
+func (a *API) Controller() strawberry.Controller {
+	return a.ctl
+}
+
+func (a *API) checkOpletActionAllowed(action string) error {
+	if !a.cfg.Deprecated {
+		return nil
+	}
+	return yterrors.Err(fmt.Sprintf(
+		"%s is not supported for deprecated strawberry family %q",
+		action,
+		a.ctl.Family()))
+}
+
+func (a *API) checkOpletActivationAllowed(value any) error {
+	if active, _ := value.(bool); active {
+		return a.checkOpletActionAllowed("starting oplets")
+	}
+	return nil
+}
+
 func getUser(ctx context.Context) (string, error) {
 	user, ok := auth.ContextRequester(ctx)
 	if !ok {
@@ -194,6 +215,48 @@ func (a *API) CheckPermissionToPool(ctx context.Context, poolTrees []string, poo
 	return nil
 }
 
+func (a *API) CheckPermissionToNetworkProject(ctx context.Context, networkProject string) error {
+	user, err := getUser(ctx)
+	if err != nil {
+		a.l.Error("failed to get user", log.Error(err))
+		return err
+	}
+
+	networkProjectPath := ypath.Path("//sys/network_projects").Child(networkProject)
+
+	response, err := a.Ytc.CheckPermission(ctx, user, yt.PermissionUse, networkProjectPath, nil)
+	if err != nil {
+		return err
+	}
+	if response.Action != yt.ActionAllow {
+		return yterrors.Err(
+			fmt.Sprintf("use permission to network_project %v denied for user %v", networkProject, user),
+			yterrors.Attr("network_project", networkProject),
+			yterrors.Attr("permission", yt.PermissionUse),
+			yterrors.Attr("user", user))
+	}
+
+	if a.cfg.RobotUsername != "" {
+		response, err = a.Ytc.CheckPermission(ctx, a.cfg.RobotUsername, yt.PermissionUse, networkProjectPath, nil)
+		if err != nil {
+			return err
+		}
+		if response.Action != yt.ActionAllow {
+			return yterrors.Err(
+				fmt.Sprintf("use permission to network_project %v denied for system user %v; "+
+					"in order to use the network_project in the controller, you need to grant use permission to our system user %v",
+					networkProject,
+					a.cfg.RobotUsername,
+					a.cfg.RobotUsername),
+				yterrors.Attr("network_project", networkProject),
+				yterrors.Attr("permission", yt.PermissionUse),
+				yterrors.Attr("user", a.cfg.RobotUsername))
+		}
+	}
+
+	return nil
+}
+
 func (a *API) validatePoolOption(ctx context.Context, poolValue any, poolTreesValue any) error {
 	pool, ok := poolValue.(string)
 	if !ok {
@@ -337,6 +400,10 @@ func (a *API) Create(
 	specletOptions map[string]any,
 	secrets map[string]any,
 ) error {
+	if err := a.checkOpletActionAllowed("creating oplets"); err != nil {
+		return err
+	}
+
 	// It's not necessary to check an operation existence, but we do it to provide better error messages.
 	if err := a.CheckExistence(ctx, alias, false /*shouldExist*/); err != nil {
 		return err
@@ -344,6 +411,15 @@ func (a *API) Create(
 
 	pool, poolIsSet := specletOptions["pool"]
 	poolTrees := specletOptions["pool_trees"]
+
+	if networkProject, networkProjectIsSet := specletOptions["network_project"]; networkProjectIsSet {
+		if err := validateString(networkProject); err != nil {
+			return err
+		}
+		if err := a.CheckPermissionToNetworkProject(ctx, networkProject.(string)); err != nil {
+			return err
+		}
+	}
 
 	if active, ok := specletOptions["active"]; ok {
 		if err := validateBool(active); err != nil {
@@ -552,6 +628,12 @@ func (a *API) setOption(
 	value any,
 	options *yt.SetNodeOptions,
 ) error {
+	if key == "active" {
+		if err := a.checkOpletActivationAllowed(value); err != nil {
+			return err
+		}
+	}
+
 	// NB: pool and pool_trees options require validation.
 	if key == "pool" || key == "pool_trees" {
 		return a.EditOptions(ctx, alias, map[string]any{key: value}, nil)
@@ -696,9 +778,21 @@ func (a *API) SetSpeclet(ctx context.Context, alias string, speclet map[string]a
 	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
 		return err
 	}
+	if err := a.checkOpletActivationAllowed(speclet["active"]); err != nil {
+		return err
+	}
 
 	if pool, ok := speclet["pool"]; ok {
 		if err := a.validatePoolOption(ctx, pool, speclet["pool_trees"]); err != nil {
+			return err
+		}
+	}
+
+	if networkProject, networkProjectIsSet := speclet["network_project"]; networkProjectIsSet {
+		if err := validateString(networkProject); err != nil {
+			return err
+		}
+		if err := a.CheckPermissionToNetworkProject(ctx, networkProject.(string)); err != nil {
 			return err
 		}
 	}
@@ -755,6 +849,9 @@ func (a *API) EditOptions(
 	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
 		return err
 	}
+	if err := a.checkOpletActivationAllowed(optionsToSet["active"]); err != nil {
+		return err
+	}
 
 	if len(optionsToSet) == 0 && len(optionsToRemove) == 0 {
 		return nil
@@ -773,6 +870,7 @@ func (a *API) EditOptions(
 	speclet := node.Speclet
 
 	poolOptionsChanged := false
+	networkProjectOptionsChanged := false
 
 	for _, key := range optionsToRemove {
 		delete(speclet, key)
@@ -786,10 +884,22 @@ func (a *API) EditOptions(
 		if key == "pool" || key == "pool_trees" {
 			poolOptionsChanged = true
 		}
+		if key == "network_project" {
+			networkProjectOptionsChanged = true
+		}
 	}
 
 	if pool, ok := speclet["pool"]; ok && poolOptionsChanged {
 		if err := a.validatePoolOption(ctx, pool, speclet["pool_trees"]); err != nil {
+			return err
+		}
+	}
+
+	if networkProject, networkProjectIsSet := speclet["network_project"]; networkProjectIsSet && networkProjectOptionsChanged {
+		if err := validateString(networkProject); err != nil {
+			return err
+		}
+		if err := a.CheckPermissionToNetworkProject(ctx, networkProject.(string)); err != nil {
 			return err
 		}
 	}
@@ -818,6 +928,10 @@ func (a *API) getAgentInfoForUntrackedStage() strawberry.AgentInfo {
 }
 
 func (a *API) Start(ctx context.Context, alias string, untracked bool, userClient yt.Client) error {
+	if err := a.checkOpletActionAllowed("starting oplets"); err != nil {
+		return err
+	}
+
 	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
 		return err
 	}
@@ -968,6 +1082,14 @@ func (a *API) DescribeOptions(ctx context.Context, alias string) ([]strawberry.O
 		return nil, err
 	}
 
+	return a.describeOptions(specletYson)
+}
+
+func (a *API) DescribeDefaultOptions() ([]strawberry.OptionGroupDescriptor, error) {
+	return a.describeOptions(yson.RawValue("{}"))
+}
+
+func (a *API) describeOptions(specletYson yson.RawValue) ([]strawberry.OptionGroupDescriptor, error) {
 	strawberrySpeclet, err := strawberry.ParseSpeclet(specletYson)
 	if err != nil {
 		return nil, err

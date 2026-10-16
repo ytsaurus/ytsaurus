@@ -378,6 +378,87 @@ INSTANTIATE_TEST_SUITE_P(Sorted,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSchemalessChunkBlockSamplingTest
+    : public ::testing::TestWithParam<std::tuple<EOptimizeFor, double>>
+{ };
+
+TEST_P(TSchemalessChunkBlockSamplingTest, LowerKeyBound)
+{
+    auto [optimizeFor, samplingRate] = GetParam();
+    auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("key", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("value", EValueType::String),
+    });
+    auto nameTable = TNameTable::FromSchemaStable(*schema);
+
+    TChunkedMemoryPool pool;
+    const std::string value(100'000, 'z');
+    std::vector<TUnversionedRow> rows;
+    for (int index = 0; index < 100; ++index) {
+        auto row = TMutableUnversionedRow::Allocate(&pool, 2);
+        row[0] = MakeUnversionedInt64Value(index, nameTable->GetId("key"));
+        row[1] = MakeUnversionedStringValue(value, nameTable->GetId("value"));
+        rows.push_back(row);
+    }
+
+    auto memoryWriter = New<TMemoryWriter>();
+    auto writerConfig = New<TChunkWriterConfig>();
+    writerConfig->BlockSize = 256;
+    auto writerOptions = New<TChunkWriterOptions>();
+    writerOptions->OptimizeFor = optimizeFor;
+    auto chunkWriter = CreateSchemalessChunkWriter(
+        writerConfig,
+        writerOptions,
+        schema,
+        nameTable,
+        memoryWriter,
+        /*writeBlocksOptions*/ {},
+        /*dataSink*/ std::nullopt);
+    Y_UNUSED(chunkWriter->Write(rows));
+    ASSERT_TRUE(WaitForFast(chunkWriter->Close()).IsOK());
+    ASSERT_GT(std::ssize(memoryWriter->GetBlocks()), 1);
+
+    auto chunkState = New<TChunkState>(TChunkState{
+        .BlockCache = GetNullBlockCache(),
+        .TableSchema = schema,
+    });
+    ToProto(chunkState->ChunkSpec.mutable_chunk_id(), NullChunkId);
+    auto readerConfig = New<TChunkReaderConfig>();
+    readerConfig->SamplingMode = ESamplingMode::Block;
+    readerConfig->SamplingRate = samplingRate;
+    auto lowerReadLimit = ReadLimitFromLegacyReadLimit(
+        TLegacyReadLimit().SetLegacyKey(YsonToKey("50")),
+        /*isUpper*/ false,
+        /*keyLength*/ 1);
+    auto chunkReader = CreateSchemalessRangeChunkReader(
+        CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
+        std::move(chunkState),
+        New<TColumnarChunkMeta>(*memoryWriter->GetChunkMeta()),
+        readerConfig,
+        TChunkReaderOptions::GetDefault(),
+        CreateMemoryReader(memoryWriter->GetChunkMeta(), memoryWriter->GetBlocks()),
+        nameTable,
+        /*chunkReadOptions*/ {},
+        schema->GetSortColumns(),
+        /*omittedInaccessibleColumns*/ {},
+        TColumnFilter(),
+        TReadRange(lowerReadLimit, TReadLimit()));
+
+    std::vector<TUnversionedRow> expected;
+    if (samplingRate == 1.0) {
+        expected.assign(rows.begin() + 50, rows.end());
+    }
+    CheckSchemalessResult(expected, chunkReader, /*keyColumnCount*/ 1);
+}
+
+INSTANTIATE_TEST_SUITE_P(Formats,
+    TSchemalessChunkBlockSamplingTest,
+    ::testing::Combine(
+        ::testing::Values(EOptimizeFor::Scan, EOptimizeFor::Lookup),
+        ::testing::Values(0.0, 1.0)));
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOrderedDynamicStoreChunksTest
     : public ::testing::Test
     , public TSchemalessChunkTestBase

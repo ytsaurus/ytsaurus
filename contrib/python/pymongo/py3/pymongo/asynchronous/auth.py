@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Authentication helpers."""
+
 from __future__ import annotations
 
 import functools
@@ -20,13 +21,11 @@ import hashlib
 import hmac
 import socket
 from base64 import standard_b64decode, standard_b64encode
+from collections.abc import Coroutine, Mapping, MutableMapping
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Coroutine,
-    Mapping,
-    MutableMapping,
     Optional,
     cast,
 )
@@ -184,7 +183,7 @@ async def _canonicalize_hostname(hostname: str, option: str | bool) -> str:
     if option in [False, "none"]:
         return hostname
 
-    af, socktype, proto, canonname, sockaddr = (
+    _af, _socktype, _proto, canonname, sockaddr = (
         await _getaddrinfo(
             hostname,
             None,
@@ -344,20 +343,17 @@ async def _authenticate_x509(credentials: MongoCredential, conn: AsyncConnection
 
 
 async def _authenticate_default(credentials: MongoCredential, conn: AsyncConnection) -> None:
-    if conn.max_wire_version >= 7:
-        if conn.negotiated_mechs:
-            mechs = conn.negotiated_mechs
-        else:
-            source = credentials.source
-            cmd = conn.hello_cmd()
-            cmd["saslSupportedMechs"] = source + "." + credentials.username
-            mechs = (await conn.command(source, cmd, publish_events=False)).get(
-                "saslSupportedMechs", []
-            )
-        if "SCRAM-SHA-256" in mechs:
-            return await _authenticate_scram(credentials, conn, "SCRAM-SHA-256")
-        else:
-            return await _authenticate_scram(credentials, conn, "SCRAM-SHA-1")
+    if conn.negotiated_mechs:
+        mechs = conn.negotiated_mechs
+    else:
+        source = credentials.source
+        cmd = conn.hello_cmd()
+        cmd["saslSupportedMechs"] = source + "." + credentials.username
+        mechs = (await conn.command(source, cmd, publish_events=False)).get(
+            "saslSupportedMechs", []
+        )
+    if "SCRAM-SHA-256" in mechs:
+        return await _authenticate_scram(credentials, conn, "SCRAM-SHA-256")
     else:
         return await _authenticate_scram(credentials, conn, "SCRAM-SHA-1")
 

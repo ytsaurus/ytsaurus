@@ -56,7 +56,6 @@ CORE_TARGETS=(
     "${YTSAURUS_SOURCE_PATH}/contrib/libs/libiconv/dynamic"
     
     # Build required binaries and libraries
-    "${YTSAURUS_SOURCE_PATH}/yt/yql/plugin/dynamic"
     "${YTSAURUS_SOURCE_PATH}/yt/yql/dq_vanilla_job"
     "${YTSAURUS_SOURCE_PATH}/yt/yql/dq_vanilla_job.lite"
     "${YTSAURUS_SOURCE_PATH}/yql/essentials/udfs/logs/dsv"
@@ -67,8 +66,7 @@ CORE_TARGETS=(
 ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} "${CORE_TARGETS[@]}"
 
 # Build common yql udfs.
-UDF_NAMES=(
-    compress_base
+TRUSTED_UDF_NAMES=(
     datetime2
     digest
     file
@@ -84,7 +82,6 @@ UDF_NAMES=(
     re2
     set
     stat
-    streaming
     string
     top
     topfreq
@@ -94,24 +91,32 @@ UDF_NAMES=(
     yson2
 )
 
+# Other bundled UDFs are treated as user-defined code.
+USER_UDF_NAMES=(
+    compress_base
+    streaming
+)
+
 TARGETS=()
-for udf in "${UDF_NAMES[@]}"; do
+for udf in "${TRUSTED_UDF_NAMES[@]}" "${USER_UDF_NAMES[@]}"; do
     TARGETS+=("${YTSAURUS_SOURCE_PATH}/yql/essentials/udfs/common/${udf}")
 done
 
 ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses -DSTRIP=yes --output=${YQL_BUILD_PATH} "${TARGETS[@]}"
 
 if [[ "$BUILD_FLAGS" != *"--bazel-remote-put"* ]]; then
-    for udf_name in "${UDF_NAMES[@]}"; do
+    for udf_name in "${TRUSTED_UDF_NAMES[@]}" "${USER_UDF_NAMES[@]}"; do
         strip --remove-section=.gnu_debuglink ${YTSAURUS_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}/*.so
     done
 fi
 
 if [ "$build_python_udfs" == "yes" ]; then
   # Build yql system python udfs inside a docker container.
+  # Extra docker mounts (e.g. the host ya cache/token) are provided by the caller via EXTRA_MOUNTS.
   docker container run --rm --name yql-python-udfs-build \
     -v $YTSAURUS_SOURCE_PATH:/ytsaurus \
     -v $YQL_BUILD_PATH:/yql_build \
+    ${EXTRA_MOUNTS:-} \
     --env YTSAURUS_SOURCE_PATH=/ytsaurus \
     --env YQL_BUILD_PATH=/yql_build \
     --env "BUILD_FLAGS=$BUILD_FLAGS" \
@@ -125,8 +130,18 @@ if [ $(id -u) -ne 0 ]; then
   sudo chown -R $(id -u):$(id -g) $YQL_BUILD_PATH
 fi
 
-# Copy all shared libraries to a single directory
-mkdir -p ${YQL_BUILD_PATH}/yql_shared_libraries/yql
+# Copy shared libraries into user and trusted directories.
+shared_libraries_dir=${YQL_BUILD_PATH}/yql_shared_libraries/yql
+trusted_udfs_dir=${shared_libraries_dir}/trusted_udfs
+mkdir -p "${trusted_udfs_dir}"
 if [[ "$BUILD_FLAGS" != *"--bazel-remote-put"* ]]; then
-    find ${YQL_BUILD_PATH} -name 'lib*.so' -print0 | xargs -0 -I '{}' cp -n '{}' ${YQL_BUILD_PATH}/yql_shared_libraries/yql
+    find "${YQL_BUILD_PATH}" -path "${shared_libraries_dir}" -prune -o -name 'lib*.so' -print0 \
+        | xargs -0 -r -I '{}' cp -n '{}' "${shared_libraries_dir}"
+
+    for udf_name in "${TRUSTED_UDF_NAMES[@]}"; do
+        udf_library_name=lib${udf_name%_base}_udf.so
+        mv "${shared_libraries_dir}/${udf_library_name}" "${trusted_udfs_dir}"
+    done
+    mv "${shared_libraries_dir}/libclickhouse_udf.so" \
+        "${shared_libraries_dir}/libclickhouse_client_udf.so" "${trusted_udfs_dir}"
 fi

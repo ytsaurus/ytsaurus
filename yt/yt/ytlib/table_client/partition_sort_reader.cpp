@@ -376,14 +376,14 @@ private:
         RowDescriptorBuffer_.reserve(EstimatedRowCount_);
         Buckets_.reserve(EstimatedRowCount_ + EstimatedBucketCount_);
 
-        YT_LOG_INFO("Input size estimated (RowCount: %v, BucketCount: %v)",
-            EstimatedRowCount_,
-            EstimatedBucketCount_);
+        YT_TLOG_INFO("Input size estimated")
+            .With("RowCount", EstimatedRowCount_)
+            .With("BucketCount", EstimatedBucketCount_);
     }
 
     void ReadInput()
     {
-        YT_LOG_INFO("Started reading input");
+        YT_TLOG_INFO("Started reading input");
 
         bool isNetworkReleased = false;
 
@@ -453,28 +453,30 @@ private:
             YT_VERIFY(bucketCount <= EstimatedBucketCount_);
         }
 
-        YT_LOG_INFO("Finished reading input (RowCount: %v, BucketCount: %v)",
-            TotalRowCount_,
-            bucketCount);
+        YT_TLOG_INFO("Finished reading input")
+            .With("RowCount", TotalRowCount_)
+            .With("BucketCount", bucketCount);
     }
 
     void DoSortBucket(int bucketIndex)
     {
-        YT_LOG_DEBUG("Started sorting bucket (Index: %v)", bucketIndex);
+        YT_TLOG_DEBUG("Started sorting bucket")
+            .With("Index", bucketIndex);
 
         int startIndex = BucketStartIndexes_[bucketIndex];
         int endIndex = BucketStartIndexes_[bucketIndex + 1] - 1;
         std::sort(Buckets_.begin() + startIndex, Buckets_.begin() + endIndex, SortComparator_);
 
-        YT_LOG_DEBUG("Finished sorting bucket (Index: %v)", bucketIndex);
+        YT_TLOG_DEBUG("Finished sorting bucket")
+            .With("Index", bucketIndex);
     }
 
     void StartMerge()
     {
-        YT_LOG_INFO("Started waiting for sort");
+        YT_TLOG_INFO("Started waiting for sort");
         WaitFor(AllSucceeded(SortFutures_))
             .ThrowOnError();
-        YT_LOG_INFO("Finished waiting for sort");
+        YT_TLOG_INFO("Finished waiting for sort");
 
         InvokeMerge();
     }
@@ -482,7 +484,7 @@ private:
     void DoMerge()
     {
         try {
-            YT_LOG_INFO("Started merge");
+            YT_TLOG_INFO("Started merge");
 
             for (int index = 0; index < std::ssize(BucketStartIndexes_) - 1; ++index) {
                 BucketHeap_.push_back(BucketStartIndexes_[index]);
@@ -520,7 +522,7 @@ private:
                 flushBatch();
             }
 
-            YT_LOG_INFO("Finished merge");
+            YT_TLOG_INFO("Finished merge");
         } catch (const std::exception& ex) {
             SortedIndexesBatchQueue_.Enqueue(MakeFuture<std::vector<i32>>(ex));
         }

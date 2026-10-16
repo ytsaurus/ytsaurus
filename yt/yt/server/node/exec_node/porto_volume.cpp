@@ -42,21 +42,51 @@ const std::string& TPortoVolumeBase::GetPath() const
 
 TFuture<void> TPortoVolumeBase::Link(
     TGuid tag,
-    const TString& target,
-    bool sholdCheckTargetDirExists)
+    const std::string& target)
 {
     return TAsyncLockWriterGuard::Acquire(&Lock_)
-        .AsUnique().Apply(BIND([tag, target, sholdCheckTargetDirExists, this, this_ = MakeStrong(this)] (
+        .AsUnique().Apply(BIND([tag, target, this, this_ = MakeStrong(this)] (
             TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard)
         {
             // Targets_ is protected with guard.
             Y_UNUSED(guard);
 
+            const auto& Logger = ExecNodeLogger();
+
+            YT_TLOG_DEBUG("Starting linking volume")
+                .With("Tag", tag)
+                .With("Target", target)
+                .With("VolumePath", GetPath());
+
             Targets_.push_back(target);
 
-            // TODO(dgolear): Switch to std::string.
-            auto source = TString(GetPath());
-            return LayerLocation_->LinkVolume(tag, source, target, sholdCheckTargetDirExists);
+            auto source = GetPath();
+            return LayerLocation_->LinkVolume(tag, source, target);
+        }))
+        .ToUncancelable();
+}
+
+TFuture<void> TPortoVolumeBase::Unlink()
+{
+    return TAsyncLockWriterGuard::Acquire(&Lock_)
+        .AsUnique()
+        .Apply(BIND([this, this_ = MakeStrong(this)] (
+            TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard)
+        {
+            // Targets_ is protected with guard.
+            Y_UNUSED(guard);
+
+            const auto& Logger = ExecNodeLogger();
+
+            YT_TLOG_DEBUG("Starting unlinking volume")
+                .With("Targets", Targets_)
+                .With("VolumePath", GetPath());
+
+            auto targets = std::move(Targets_);
+            Targets_.clear();
+
+            auto source = GetPath();
+            return UnlinkTargets(LayerLocation_, source, targets);
         }));
 }
 
@@ -71,17 +101,17 @@ TFuture<void> TPortoVolumeBase::Remove()
                 volumePath = VolumeMeta_.MountPath
             ] (TErrorOr<TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>>&& guardOrError) mutable {
                 auto Logger = ExecNodeLogger()
-                    .WithTag("VolumePath: %v", volumePath);
+                    .WithTag("VolumePath", volumePath);
 
-                YT_LOG_FATAL_UNLESS(guardOrError.IsOK(), guardOrError, "Failed to acquire lock");
+                YT_TLOG_FATAL_UNLESS(guardOrError.IsOK(), "Failed to acquire lock")
+                    .With(guardOrError);
 
                 auto guard = std::move(guardOrError.Value());
                 auto removeFuture = removalCallback(targets).Apply(BIND(
                     [guard = std::move(guard), Logger] (const TError& error) {
                         if (!error.IsOK()) {
-                            YT_LOG_ERROR(
-                                error,
-                                "Failed to remove volume");
+                            YT_TLOG_ERROR("Failed to remove volume")
+                                .With(error);
                         }
                         return error;
                     }));
@@ -98,7 +128,7 @@ bool TPortoVolumeBase::IsCached() const
 }
 
 TFuture<void> TPortoVolumeBase::DoRemoveVolumeCommon(
-    const TString& volumeType,
+    const std::string& volumeType,
     TTagSet tagSet,
     TLayerLocationPtr location,
     TVolumeMeta volumeMeta,
@@ -111,13 +141,12 @@ TFuture<void> TPortoVolumeBase::DoRemoveVolumeCommon(
     const auto& volumePath = volumeMeta.MountPath;
 
     auto Logger = ExecNodeLogger()
-        .WithTag("VolumeType: %v, VolumeId: %v, VolumePath: %v, PortoPlacePath: %v",
-            volumeType,
-            volumeId,
-            volumePath,
-            volumeMeta.PortoPlacePath);
+        .WithTag("VolumeType", volumeType)
+        .WithTag("VolumeId", volumeId)
+        .WithTag("VolumePath", volumePath)
+        .WithTag("PortoPlacePath", volumeMeta.PortoPlacePath);
 
-    YT_LOG_DEBUG("Removing volume");
+    YT_TLOG_DEBUG("Removing volume");
 
     return location->RemoveVolume(tagSet, volumeId, std::move(volumeMeta.PortoPlacePath))
         .Apply(BIND(
@@ -127,9 +156,10 @@ TFuture<void> TPortoVolumeBase::DoRemoveVolumeCommon(
                 volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)
             ] (const TError& error) {
                 if (!error.IsOK()) {
-                    YT_LOG_WARNING(error, "Failed to remove volume");
+                    YT_TLOG_WARNING("Failed to remove volume")
+                        .With(error);
                 } else {
-                    YT_LOG_DEBUG("Removed volume");
+                    YT_TLOG_DEBUG("Removed volume");
                 }
 
                 // Perform post-removal cleanup if provided (e.g., device finalization, overlay cleanup)
@@ -149,16 +179,17 @@ void TPortoVolumeBase::SetRemoveCallback(TCallback<TFuture<void>()> callback)
             location = LayerLocation_,
             volumePath = ToString(VolumeMeta_.MountPath),
             callback = std::move(callback)
-        ] (const std::vector<TString>& targets) {
+        ] (const std::vector<std::string>& targets) {
             return UnlinkTargets(location, volumePath, targets)
                 .AsUnique().Apply(BIND([volumePath, callback = std::move(callback)] (TError&& error) {
                     auto Logger = ExecNodeLogger()
-                        .WithTag("VolumePath: %v", volumePath);
+                        .WithTag("VolumePath", volumePath);
 
                     if (!error.IsOK()) {
-                        YT_LOG_WARNING(error, "Failed to unlink targets");
+                        YT_TLOG_WARNING("Failed to unlink targets")
+                            .With(error);
                     } else {
-                        YT_LOG_DEBUG("Unlinked targets");
+                        YT_TLOG_DEBUG("Unlinked targets");
                     }
                     // Now remove the actual volume.
                     return callback();
@@ -166,13 +197,13 @@ void TPortoVolumeBase::SetRemoveCallback(TCallback<TFuture<void>()> callback)
         });
 }
 
-TFuture<void> TPortoVolumeBase::UnlinkTargets(TLayerLocationPtr location, TString source, const std::vector<TString>& targets)
+TFuture<void> TPortoVolumeBase::UnlinkTargets(TLayerLocationPtr location, std::string source, const std::vector<std::string>& targets)
 {
     auto Logger = ExecNodeLogger()
-        .WithTag("VolumePath: %v", source);
+        .WithTag("VolumePath", source);
 
-    YT_LOG_DEBUG("Unlinking targets (Targets: %v)",
-        targets);
+    YT_TLOG_DEBUG("Unlinking targets")
+        .With("Targets", targets);
 
     if (targets.empty()) {
         return OKFuture;
@@ -235,7 +266,7 @@ TRWNbdVolume::TRWNbdVolume(
     TTagSet tagSet,
     TVolumeMeta volumeMeta,
     TLayerLocationPtr layerLocation,
-    TString nbdDeviceId,
+    std::string nbdDeviceId,
     INbdServerPtr nbdServer)
     : TPortoVolumeBase(
         std::move(tagSet),
@@ -258,16 +289,11 @@ TRWNbdVolume::~TRWNbdVolume()
     YT_UNUSED_FUTURE(Remove());
 }
 
-bool TRWNbdVolume::IsRootVolume() const
-{
-    return true;
-}
-
 TFuture<void> TRWNbdVolume::DoRemove(
     TTagSet tagSet,
     TLayerLocationPtr location,
     TVolumeMeta volumeMeta,
-    TString nbdDeviceId,
+    std::string nbdDeviceId,
     INbdServerPtr nbdServer)
 {
     // First, unregister device. At this point device is removed from NBD
@@ -284,10 +310,10 @@ TFuture<void> TRWNbdVolume::DoRemove(
     auto postRemovalCleanup = BIND_NO_PROPAGATE(
         [device = std::move(device)] (const TLogger& Logger) -> TFuture<void> {
             if (device) {
-                YT_LOG_DEBUG("Finalizing RW NBD device");
+                YT_TLOG_DEBUG("Finalizing RW NBD device");
                 return device->Finalize();
             } else {
-                YT_LOG_WARNING("Failed to finalize device; unknown device");
+                YT_TLOG_WARNING("Failed to finalize device; unknown device");
                 return OKFuture;
             }
         })
@@ -312,7 +338,7 @@ TRONbdVolume::TRONbdVolume(
     TTagSet tagSet,
     TVolumeMeta volumeMeta,
     TLayerLocationPtr layerLocation,
-    TString nbdDeviceId,
+    std::string nbdDeviceId,
     INbdServerPtr nbdServer)
     : TCachedVolume(
         std::move(tagSet),
@@ -340,7 +366,7 @@ TFuture<void> TRONbdVolume::DoRemove(
     TTagSet tagSet,
     TLayerLocationPtr location,
     TVolumeMeta volumeMeta,
-    TString nbdDeviceId,
+    std::string nbdDeviceId,
     INbdServerPtr nbdServer)
 {
     // First, unregister device. At this point device is removed from NBD
@@ -357,10 +383,10 @@ TFuture<void> TRONbdVolume::DoRemove(
     auto postRemovalCleanup = BIND_NO_PROPAGATE(
         [device = std::move(device)] (const TLogger& Logger) -> TFuture<void> {
             if (device) {
-                YT_LOG_DEBUG("Finalizing RO NBD device");
+                YT_TLOG_DEBUG("Finalizing RO NBD device");
                 return device->Finalize();
             } else {
-                YT_LOG_WARNING("Failed to finalize device; unknown device");
+                YT_TLOG_WARNING("Failed to finalize device; unknown device");
                 return OKFuture;
             }
         })
@@ -406,11 +432,6 @@ TOverlayVolume::TOverlayVolume(
 TOverlayVolume::~TOverlayVolume()
 {
     YT_UNUSED_FUTURE(Remove());
-}
-
-bool TOverlayVolume::IsRootVolume() const
-{
-    return false;
 }
 
 TFuture<void> TOverlayVolume::DoRemove(
@@ -473,11 +494,6 @@ TTmpfsVolume::~TTmpfsVolume()
     YT_UNUSED_FUTURE(Remove());
 }
 
-bool TTmpfsVolume::IsRootVolume() const
-{
-    return false;
-}
-
 TFuture<void> TTmpfsVolume::DoRemove(
     TTagSet tagSet,
     TLayerLocationPtr location,
@@ -513,11 +529,6 @@ TLoopVolume::TLoopVolume(
 TLoopVolume::~TLoopVolume()
 {
     YT_UNUSED_FUTURE(Remove());
-}
-
-bool TLoopVolume::IsRootVolume() const
-{
-    return false;
 }
 
 TFuture<void> TLoopVolume::DoRemove(

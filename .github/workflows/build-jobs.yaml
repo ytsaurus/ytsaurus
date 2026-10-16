@@ -10,10 +10,6 @@ on:
         # cmake or ya-make
         type: string
         default: ''
-      build-strawberry:
-        default: false
-        required: false
-        type: boolean
       build-ytsaurus:
         default: false
         required: false
@@ -23,6 +19,14 @@ on:
         required: false
         type: boolean
       build-chyt:
+        default: false
+        required: false
+        type: boolean
+      build-flow:
+        default: false
+        required: false
+        type: boolean
+      build-flow-tests:
         default: false
         required: false
         type: boolean
@@ -73,20 +77,9 @@ jobs:
     timeout-minutes: 480
     steps:
       - name: Prepare python virtual environment
+        if: ${{ inputs.cpp-build-system != 'cmake' }}
         run: |
           python3.11 -m venv ../venv
-
-  strawberry:
-    needs: venv
-    runs-on: ${{ inputs.runs-on-value }}
-    if: ${{ inputs.build-strawberry }}
-    timeout-minutes: 480
-    steps:
-      - name: Build strawberry controller
-        run: |
-          cd ../ytsaurus/ytsaurus/yt/chyt/controller/cmd/chyt-controller
-          export HOME=${RUNNER_WORKSPACE}
-          /opt/go/bin/go build
 
   gpuagent:
     needs: venv
@@ -103,6 +96,8 @@ jobs:
   cmake_build:
     needs: venv
     runs-on: ${{ inputs.runs-on-value }}
+    env:
+      BUILD_ENV_CONTAINER_NAME: cmake-build-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.build-type }}
     timeout-minutes: 480
     if: ${{ inputs.cpp-build-system == 'cmake' }}
     strategy:
@@ -111,115 +106,164 @@ jobs:
         build-type: ${{ fromJson(inputs.build-types) }}
 
     steps:
+      - name: Pull CMake build environment
+        run: |
+          function retry {
+              local retries=30
+              local count=0
+              until "$@"; do
+                  exit_code=$?
+                  count=$(($count + 1))
+                  if [ $count -lt $retries ]; then
+                      echo "Attempt $count failed with exit code $exit_code. Retrying..."
+                  else
+                      echo "Attempt $count failed with exit code $exit_code. No more retries."
+                      return $exit_code
+                  fi
+              done
+              return 0
+          }
+
+          retry docker pull ghcr.io/ytsaurus/build-env:latest
+
+      - name: Run CMake build environment
+        run: |
+          docker run --rm --detach \
+            --privileged \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
+            --volume "${RUNNER_WORKSPACE}:${RUNNER_WORKSPACE}" \
+            --network host \
+            --workdir "${GITHUB_WORKSPACE}" \
+            --name "${BUILD_ENV_CONTAINER_NAME}" \
+            ghcr.io/ytsaurus/build-env:latest \
+            tail -f /dev/null
+
+      - name: Prepare python virtual environment
+        run: |
+          docker exec "${BUILD_ENV_CONTAINER_NAME}" \
+            python3.11 -m venv ../venv
+
       - name: Create build directories
         run: |
-          for prefix in build \
-                        build_yql
-          do
-            build_dir=${prefix}_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
-            mkdir -p ../${build_dir}
-            cd ../${build_dir}
-            rm -rf *
-          done
+          docker exec "${BUILD_ENV_CONTAINER_NAME}" bash --noprofile --norc -e -o pipefail -c '
+            for prefix in build \
+                          build_yql
+            do
+              build_dir=${prefix}_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+              mkdir -p ../${build_dir}
+              cd ../${build_dir}
+              rm -rf *
+            done
+          '
 
       - name: Configure ytsaurus (${{ matrix.build-type }})
         if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker || inputs.build-python }}
+        env:
+          BUILD_CACHE_BAZEL_HOST: ${{ vars.BUILD_CACHE_BAZEL_HOST }}
+          BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+          BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
         run: |
-          mkdir -p ~/.conan2/
-          cat > ~/.conan2/global.conf <<EOF
-          core.net.http:timeout=5
-          core.sources:download_urls=["origin", "https://c3i.jfrog.io/artifactory/conan-center-backup-sources"]
-          EOF
-
-          CMAKE_BUILD_TYPE="RelWithDebInfo"
-          if [ "${{ matrix.build-type }}" = "release" ]; then
-            CMAKE_BUILD_TYPE="Release"
-          fi
-
-          cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
-          cmake \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
-            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ytsaurus/clang.toolchain \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DREQUIRED_LLVM_TOOLING_VERSION=18 \
-            -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=./cmake/conan_provider.cmake \
-            ../ytsaurus/ytsaurus
-
-          ccache --set-config base_dir="$(realpath ..)"
-          ccache --set-config remote_only=true
-          ccache --set-config remote_storage="http://${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}:${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}@${{ vars.BUILD_CACHE_BAZEL_HOST }}|layout=bazel"
-
-          if [ "${{ inputs.update-remote-cache }}" == "false" ]; then
-            ccache --set-config read_only=true
-          fi
+          docker exec \
+            --env BUILD_CACHE_BAZEL_HOST \
+            --env BUILD_CACHE_BAZEL_USERNAME \
+            --env BUILD_CACHE_BAZEL_PASSWORD \
+            "${BUILD_ENV_CONTAINER_NAME}" \
+            bash --noprofile --norc -e -o pipefail -c '
+            CMAKE_BUILD_TYPE="RelWithDebInfo"
+            if [ "${{ matrix.build-type }}" = "release" ]; then
+              CMAKE_BUILD_TYPE="Release"
+            fi
+            READ_ONLY=""
+            if [ "${{ inputs.update-remote-cache }}" == "false" ]; then
+              READ_ONLY="--read-only-cache"
+            fi
+            ./ytsaurus/yt/yt/scripts/build_cmake.sh configure \
+              --source-path ../ytsaurus/ytsaurus \
+              --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
+              --build-type "${CMAKE_BUILD_TYPE}" \
+              --ccache-remote-storage "http://${BUILD_CACHE_BAZEL_USERNAME}:${BUILD_CACHE_BAZEL_PASSWORD}@${BUILD_CACHE_BAZEL_HOST}|layout=bazel" \
+              ${READ_ONLY}
+          '
 
       - name: Build Python packages (cmake, ${{ matrix.build-type }})
         if: ${{ inputs.build-python }}
         run: |
-          build_dir=../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
-          cd ${build_dir}
-          ninja yson_lib driver_lib driver_rpc_lib
-
-          strip yt/yt/python/yson_shared/libyson_lib.so
-          strip yt/yt/python/driver/native_shared/libdriver_lib.so
-          strip yt/yt/python/driver/rpc_shared/libdriver_rpc_lib.so
-
-          cd ../ytsaurus
-
-          source ../venv/bin/activate
-          YTSAURUS_COMMIT_HASH=${GITHUB_SHA} ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${build_dir}
+          docker exec --env GITHUB_SHA "${BUILD_ENV_CONTAINER_NAME}" \
+            bash --noprofile --norc -e -o pipefail -c '
+            ./ytsaurus/yt/yt/scripts/build_cmake.sh build-python \
+              --source-path ../ytsaurus/ytsaurus \
+              --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
+              --venv-path ../venv \
+              --commit-hash ${GITHUB_SHA}
+          '
 
       - name: Build ytsaurus (cmake, ${{ matrix.build-type }})
         if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
         run: |
-          cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type}}
-          if [ "${{ matrix.build-type }}" == "release" ]; then
-            ninja
-          else
-            ninja ytserver-all ytserver-clickhouse
-          fi
+          docker exec "${BUILD_ENV_CONTAINER_NAME}" bash --noprofile --norc -e -o pipefail -c '
+            TARGETS=""
+            if [ "${{ matrix.build-type }}" != "relwithdebinfo" ]; then
+              TARGETS="ytserver-all ytserver-clickhouse"
+            fi
+            ./ytsaurus/yt/yt/scripts/build_cmake.sh build \
+              --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
+              --targets "${TARGETS}"
+          '
+
+      - name: Build flow (cmake, ${{ matrix.build-type }})
+        if: ${{ inputs.build-flow }}
+        run: |
+          docker exec "${BUILD_ENV_CONTAINER_NAME}" bash --noprofile --norc -e -o pipefail -c '
+            ./ytsaurus/yt/yt/scripts/build_cmake.sh build \
+              --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
+              --targets "flow_server"
+          '
 
       - name: Build YQL agent (cmake, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
         run: |
-          cd ../build_yql_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+          docker exec "${BUILD_ENV_CONTAINER_NAME}" bash --noprofile --norc -e -o pipefail -c '
+            cd ../build_yql_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
 
-          ninja libcompress_udf.so
-          ninja libdatetime2_udf.so
-          ninja libdigest_udf.so
-          ninja libdsv_udf.so
-          ninja libfile_udf.so
-          ninja libhistogram_udf.so
-          ninja libhyperloglog_udf.so
-          ninja libhyperscan_udf.so
-          ninja libip_udf.so
-          ninja libjson2_udf.so
-          ninja libjson_udf.so
-          ninja libmath_udf.so
-          ninja libpire_udf.so
-          ninja libprotobuf_udf.so
-          ninja libre2_udf.so
-          ninja libset_udf.so
-          ninja libstat_udf.so
-          ninja libstreaming_udf.so
-          ninja libstring_udf.so
-          ninja libtopfreq_udf.so
-          ninja libtop_udf.so
-          ninja libunicode_udf.so
-          ninja liburl_udf.so
-          ninja libyqlplugin.so
-          ninja libyson2_udf.so
+            ninja libcompress_udf.so
+            ninja libdatetime2_udf.so
+            ninja libdigest_udf.so
+            ninja libdsv_udf.so
+            ninja libfile_udf.so
+            ninja libhistogram_udf.so
+            ninja libhyperloglog_udf.so
+            ninja libhyperscan_udf.so
+            ninja libip_udf.so
+            ninja libjson2_udf.so
+            ninja libjson_udf.so
+            ninja libmath_udf.so
+            ninja libpire_udf.so
+            ninja libprotobuf_udf.so
+            ninja libre2_udf.so
+            ninja libset_udf.so
+            ninja libstat_udf.so
+            ninja libstreaming_udf.so
+            ninja libstring_udf.so
+            ninja libtopfreq_udf.so
+            ninja libtop_udf.so
+            ninja libunicode_udf.so
+            ninja liburl_udf.so
+            ninja libyson2_udf.so
 
-          cd ../build_${{ matrix.build-type }}
-          ninja mrjob
-          ninja ytserver-yql-agent
+            cd ../build_${{ matrix.build-type }}
+            ninja mrjob
+            ninja ytserver-yql-agent
+          '
+
+      - name: Stop CMake build environment
+        if: ${{ always() }}
+        run: |
+          docker rm -f "${BUILD_ENV_CONTAINER_NAME}" || true
 
   ya-make_build:
     needs: venv
     runs-on: ${{ inputs.runs-on-value }}
-    timeout-minutes: 480
+    timeout-minutes: 720
     if: ${{ inputs.cpp-build-system == 'ya-make' }}
     strategy:
       fail-fast: false
@@ -229,7 +273,7 @@ jobs:
       - name: Calculate variables
         id: vars
         run: |
-          BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --bazel-remote-store --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }}"
+          BUILD_FLAGS="--thinlto --stat -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --bazel-remote-store --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }}"
 
           if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
             BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-username=${{ secrets.BUILD_CACHE_BAZEL_USERNAME }} --bazel-remote-password=${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}"
@@ -273,15 +317,16 @@ jobs:
 
           BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=yes -DUSE_ARCADIA_PYTHON=no -DUSE_LOCAL_PYTHON -DPYTHON_CONFIG=python3.11-config -DPYTHON_BIN=python3.11"
 
+          PYTHON_SHARED_TARGETS="\
+            ../ytsaurus/ytsaurus/yt/yt/python/yson_shared \
+            ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared \
+            ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared"
+
           if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-            ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} --bazel-remote-put ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
-            ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} --bazel-remote-put ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
-            ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} --bazel-remote-put ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
+            ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} --bazel-remote-put ${PYTHON_SHARED_TARGETS}
           fi
 
-          ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
-          ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
-          ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
+          ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ${PYTHON_SHARED_TARGETS}
 
           if [ "${{ inputs.skip-python-packages }}" == "false" ]; then
             cd ../ytsaurus
@@ -297,24 +342,22 @@ jobs:
 
           BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
 
+          YTSAURUS_TARGETS="\
+            ../ytsaurus/ytsaurus/yt/yt/server/all \
+            ../ytsaurus/ytsaurus/yt/chyt/server/bin \
+            ../ytsaurus/ytsaurus/yt/chyt/trampoline \
+            ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_operations_archive \
+            ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_queue_agent_state \
+            ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_query_tracker_state"
+
           if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/chyt/trampoline
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_operations_archive
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_queue_agent_state
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_query_tracker_state
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ${YTSAURUS_TARGETS}
           fi
 
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/chyt/trampoline
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_operations_archive
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_queue_agent_state
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_query_tracker_state
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${YTSAURUS_TARGETS}
 
       - name: Build ytsaurus tests dependencies (ya-make, ${{ matrix.build-type }})
-        if: ${{ (inputs.build-ytsaurus || inputs.build-query-tracker) && inputs.build-ytsaurus-tests && (matrix.build-type == 'release') }}
+        if: ${{ (inputs.build-ytsaurus || inputs.build-query-tracker) && inputs.build-ytsaurus-tests && (matrix.build-type == 'relwithdebinfo') }}
         run: |
           cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
 
@@ -323,29 +366,68 @@ jobs:
           BUILD_FLAGS=$(echo ${BUILD_FLAGS} | sed 's/--thinlto//')
 
           FOLDERS_WITH_UNITTESTS=""
-          for makefile in $(find ../ytsaurus/ytsaurus/ -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
+          for makefile in $(find ../ytsaurus/ytsaurus/ \
+              -path "../ytsaurus/ytsaurus/contrib/ydb" -prune -o \
+              -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
             folder=$(dirname ${makefile})
             echo ${folder}
             FOLDERS_WITH_UNITTESTS="${FOLDERS_WITH_UNITTESTS} ${folder}"
           done
 
-          if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare --bazel-remote-put ${FOLDERS_WITH_UNITTESTS}
-          fi
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare ${FOLDERS_WITH_UNITTESTS}
 
-          for build_folder in yt/yt/tests/integration/size_s \
-                              yt/yt/tests/integration/size_m \
-                              yt/yt/tests/integration/size_l \
-                              yt/yt/tests/integration/size_xl
-          do
-            echo ${build_folder}
-            build_folder=../ytsaurus/ytsaurus/${build_folder}
-            if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-              ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${build_folder} -A --test-prepare --bazel-remote-put
+          INTEGRATION_TEST_TARGETS="\
+            ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_s \
+            ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_m \
+            ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_l \
+            ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_xl"
+
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${INTEGRATION_TEST_TARGETS} -A --test-prepare
+
+      - name: Build flow tests dependencies (ya-make, ${{ matrix.build-type }})
+        if: ${{ inputs.build-flow-tests && (matrix.build-type == 'relwithdebinfo') }}
+        run: |
+          cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+
+          BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
+
+          BUILD_FLAGS=$(echo ${BUILD_FLAGS} | sed 's/--thinlto//')
+
+          # Programs and C++ unit tests required by the exported Flow examples.
+          FLOW_PROGRAM_TARGETS="../ytsaurus/ytsaurus/yt/yt/flow/bin/flow_server"
+          for test_dir in ../ytsaurus/ytsaurus/yt/yt/flow/examples/{cpp,go}/*/test; do
+            if [ -d "${test_dir}" ]; then
+              FLOW_PROGRAM_TARGETS="${FLOW_PROGRAM_TARGETS} $(dirname "${test_dir}")"
             fi
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${build_folder} -A --test-prepare
           done
+
+          FLOW_CPP_UNITTEST_TARGETS=""
+          for unittest_dir in \
+            ../ytsaurus/ytsaurus/yt/yt/flow/examples/cpp/*/unittest \
+            ../ytsaurus/ytsaurus/yt/yt/flow/examples/cpp/*/pipeline/unittest
+          do
+            if [ -d "${unittest_dir}" ]; then
+              FLOW_CPP_UNITTEST_TARGETS="${FLOW_CPP_UNITTEST_TARGETS} ${unittest_dir}"
+            fi
+          done
+
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${FLOW_PROGRAM_TARGETS}
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare ${FLOW_CPP_UNITTEST_TARGETS}
+
+      - name: Build flow (ya-make, ${{ matrix.build-type }})
+        if: ${{ inputs.build-flow }}
+        run: |
+          cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+
+          BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
+
+          FLOW_TARGETS="../ytsaurus/ytsaurus/yt/yt/flow/bin/flow_server"
+
+          if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ${FLOW_TARGETS}
+          fi
+
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${FLOW_TARGETS}
 
       - name: Build YQL agent (ya-make, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}

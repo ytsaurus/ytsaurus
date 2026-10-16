@@ -36,7 +36,16 @@ void ThrowInactiveLifeStage(const TObject* object);
 
 TError CheckObjectName(TStringBuf name);
 
+void ValidateObjectName(
+    const std::string& name,
+    NObjectClient::EObjectType objectType,
+    int maxNameLength);
+
 std::variant<TObjectId, TStringBuf, TError> ParseObjectNameOrId(TStringBuf name);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsNativeSequoiaNode(const TObject* object);
 
 ////////////////////////////////////////////////////////////////////////////////
 

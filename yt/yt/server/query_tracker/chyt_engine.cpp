@@ -9,9 +9,7 @@
 
 #include <yt/chyt/client/query_service_proxy.h>
 
-#include <yt/yt/library/clickhouse_discovery/config.h>
 #include <yt/yt/library/clickhouse_discovery/discovery.h>
-#include <yt/yt/library/clickhouse_discovery/discovery_v2.h>
 #include <yt/yt/library/clickhouse_discovery/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -55,13 +53,15 @@ struct TChytSettings
 {
     std::optional<std::string> Cluster;
 
-    std::optional<TString> Clique;
+    std::optional<std::string> Clique;
 
     std::optional<ui64> Instance;
 
     TDuration QueryTimeout;
 
-    THashMap<TString, TString> QuerySettings;
+    bool AnnotateResultSchemaWithNativeTypes;
+
+    THashMap<std::string, std::string> QuerySettings;
 
     REGISTER_YSON_STRUCT(TChytSettings);
 
@@ -75,6 +75,8 @@ struct TChytSettings
             .Default();
         registrar.Parameter("query_timeout", &TThis::QueryTimeout)
             .Default(DefaultChytQueryTimeout);
+        registrar.Parameter("annotate_result_schema_with_native_types", &TThis::AnnotateResultSchemaWithNativeTypes)
+            .Default(false);
         registrar.Parameter("query_settings", &TThis::QuerySettings)
             .Default();
         registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -99,9 +101,8 @@ public:
         const IChannelFactoryPtr& channelFactory,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
         const TClusterDirectoryPtr& clusterDirectory,
-        const IInvokerPtr& controlInvoker,
-        const TDuration notIndexedQueriesTTL)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, notIndexedQueriesTTL)
+        const IInvokerPtr& controlInvoker)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
         , Settings_(ConvertTo<TChytSettingsPtr>(SettingsNode_))
         , Config_(config)
         , Clique_(Settings_->Clique.value_or(config->DefaultClique))
@@ -113,7 +114,7 @@ public:
 
     void Start() override
     {
-        YT_LOG_DEBUG("Starting CHYT query");
+        YT_TLOG_DEBUG("Starting CHYT query");
         OnQueryStarted();
         StartProgressWriter();
 
@@ -140,7 +141,7 @@ public:
 private:
     const TChytSettingsPtr Settings_;
     const TChytEngineConfigPtr Config_;
-    TString Clique_;
+    std::string Clique_;
     std::string Cluster_;
     NApi::NNative::IConnectionPtr NativeConnection_;
     NApi::IClientPtr QueryClient_;
@@ -148,7 +149,7 @@ private:
     IChannelFactoryPtr ChannelFactory_;
 
     IDiscoveryPtr Discovery_;
-    THashMap<TString, NYTree::IAttributeDictionaryPtr> Instances_;
+    THashMap<std::string, NYTree::IAttributeDictionaryPtr> Instances_;
 
     TFuture<TExecuteQueryResponse> AsyncQueryResult_;
     std::atomic<bool> Cancelled_ = false;
@@ -195,7 +196,7 @@ private:
 
     void CheckPermission()
     {
-        YT_LOG_DEBUG("Checking permission");
+        YT_TLOG_DEBUG("Checking permission");
 
         auto principalAclPath = Format("//sys/access_control_object_namespaces/chyt/%v/principal", ToYPathLiteral(Clique_));
         TCheckPermissionOptions options;
@@ -211,13 +212,13 @@ private:
 
     void InitializeInstances()
     {
-        YT_LOG_DEBUG("Initializing instances");
+        YT_TLOG_DEBUG("Initializing instances");
 
         Discovery_ = CreateDiscovery();
         auto error = WaitFor(Discovery_->UpdateList());
         if (!error.IsOK()) {
             if (error.FindMatching(NDiscoveryClient::EErrorCode::NoSuchGroup)) {
-                error = TError("Ensure that the clique %Qv has started properly and its jobs are successfully running", Clique_) << error;
+                error = TError("Ensure that the clique %Qv has started properly and its jobs are successfully running", Clique_).With(error);
             }
             THROW_ERROR(error);
         }
@@ -227,12 +228,12 @@ private:
 
     IDiscoveryPtr CreateDiscovery()
     {
-        YT_LOG_DEBUG("Getting discovery");
+        YT_TLOG_DEBUG("Getting discovery");
 
-        auto config = New<TDiscoveryV2Config>();
+        auto config = New<TDiscoveryConfig>();
         config->GroupId = Format("/chyt/%v", Clique_);
         config->ReadQuorum = 1;
-        return CreateDiscoveryV2(
+        return NClickHouseServer::CreateDiscoveryFromNativeConnection(
             std::move(config),
             NativeConnection_,
             ChannelFactory_,
@@ -241,7 +242,7 @@ private:
             Logger);
     }
 
-    TString GetStringRepresentation(const INodePtr& node)
+    std::string GetStringRepresentation(const INodePtr& node)
     {
         switch (node->GetType()) {
             case ENodeType::Int64:
@@ -255,12 +256,12 @@ private:
             case ENodeType::String:
                 return node->AsString()->GetValue();
             default:
-                THROW_ERROR_EXCEPTION("Can't convert non-scalar data to string (Type: %v)", node->GetType());
+                THROW_ERROR_EXCEPTION("Cannot convert non-scalar data of type %Qlv to string", node->GetType());
         }
     }
 
     void DFSForUnrecognizedSettings(
-        THashMap<TString, TString>& flattenedSettings,
+        THashMap<std::string, std::string>& flattenedSettings,
         const INodePtr& node)
     {
         auto type = node->GetType();
@@ -284,10 +285,10 @@ private:
         }
     }
 
-    THashMap<TString, TString> GetUnrecognizedFlattenedSettings()
+    THashMap<std::string, std::string> GetUnrecognizedFlattenedSettings()
     {
         auto unrecognized = Settings_->GetLocalUnrecognized();
-        THashMap<TString, TString> flattenedSettings;
+        THashMap<std::string, std::string> flattenedSettings;
         DFSForUnrecognizedSettings(flattenedSettings, unrecognized);
         return flattenedSettings;
     }
@@ -307,6 +308,9 @@ private:
 
         SetAuthenticationIdentity(req, TAuthenticationIdentity(User_));
         req->set_row_count_limit(Config_->RowCountLimit);
+        if (Settings_->AnnotateResultSchemaWithNativeTypes) {
+            req->set_annotate_result_schema_with_native_types(true);
+        }
         ToProto(req->mutable_query_id(), QueryId_);
         auto* chytRequest = req->mutable_chyt_request();
         chytRequest->set_query(Query_);
@@ -335,7 +339,13 @@ private:
             YT_UNUSED_FUTURE(progressPollerExecutor->Stop());
         }));
 
-        return WaitFor(rsp).ValueOrThrow();
+        auto result = WaitFor(rsp);
+
+        // Do a final progress poll after query completion to capture any progress
+        // updates that arrived after the last periodic poll and before query finish.
+        PollQueryProgress(proxy, instanceChannel->GetEndpointDescription());
+
+        return result.ValueOrThrow();
     }
 
     void PollQueryProgress(TQueryServiceProxy coordinator, std::string endpoint)
@@ -361,7 +371,9 @@ private:
                 IsProgressImplemented_ = false;
                 return;
             }
-            YT_LOG_ERROR(errorOrProgress, "Failed to get progress from coordinator (InstanceEndpoint: %v)", endpoint);
+            YT_TLOG_ERROR("Failed to get progress from coordinator")
+                .With("InstanceEndpoint", endpoint)
+                .With(errorOrProgress);
         }
     }
 
@@ -419,9 +431,13 @@ private:
 
         std::vector<TErrorOr<TWireRowset>> wireRowsetOrErrors;
         wireRowsetOrErrors.reserve(rsp->Attachments().size());
-        for (const auto& ref : rsp->Attachments()) {
+        for (int index = 0; index < std::ssize(rsp->Attachments()); ++index) {
+            const auto& ref = rsp->Attachments()[index];
             if (!ref.Empty()) {
-                wireRowsetOrErrors.emplace_back(TWireRowset{.Rowset = ref});
+                wireRowsetOrErrors.emplace_back(TWireRowset{
+                    .Rowset = ref,
+                    .IsTruncated = index < rsp->is_truncated_size() && rsp->is_truncated(index),
+                });
             }
         }
         OnQueryCompletedWire(wireRowsetOrErrors);
@@ -441,15 +457,19 @@ public:
             StateClient_->GetNativeConnection()->GetConfig()->BusClient)))
     { }
 
-    IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
+    bool IsSafeToRestartQuery() const override
     {
-        return New<TChytQueryHandler>(StateClient_, StateRoot_, ChytConfig_, ChannelFactory_, activeQuery, ClusterDirectory_, ControlQueue_->GetInvoker(), NotIndexedQueriesTTL_);
+        return false;
     }
 
-    void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
+    IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
+    {
+        return New<TChytQueryHandler>(StateClient_, StateRoot_, ChytConfig_, ChannelFactory_, activeQuery, ClusterDirectory_, ControlQueue_->GetInvoker());
+    }
+
+    void Reconfigure(const TEngineConfigBasePtr& config) override
     {
         ChytConfig_ = DynamicPointerCast<TChytEngineConfig>(config);
-        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
     }
 
     std::optional<IProxyEngineProviderPtr> GetProxyEngineProvider() override
@@ -464,7 +484,6 @@ private:
     TChytEngineConfigPtr ChytConfig_;
     TClusterDirectoryPtr ClusterDirectory_;
     IChannelFactoryPtr ChannelFactory_;
-    TDuration NotIndexedQueriesTTL_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

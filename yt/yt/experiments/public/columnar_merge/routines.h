@@ -39,7 +39,7 @@ struct TReaderData
     NTableClient::TChunkLookupHashTablePtr LookupHashTable;
     NTableClient::TChunkColumnMappingPtr ColumnMapping;
 
-    TReaderData(const IIOEnginePtr& ioEngine, TTableSchemaPtr schema, TString chunkFileName);
+    TReaderData(const IIOEnginePtr& ioEngine, TTableSchemaPtr schema, std::string chunkFileName);
 
     TReaderData(TTableSchemaPtr schema, NChunkClient::TRefCountedChunkMetaPtr meta, std::vector<NChunkClient::TBlock> blocks);
 
@@ -63,13 +63,13 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateMergingReader(
     const IIOEnginePtr& ioEngine,
     const TTableSchemaPtr schema,
     TSharedRange<TItem> readItems,
-    const std::vector<TString>& chunkFileNames,
+    const std::vector<std::string>& chunkFileNames,
     TReaderOptions options);
 
 NTableClient::IVersionedReaderPtr CreateCompactionReader(
     const IIOEnginePtr& ioEngine,
     TTableSchemaPtr schema,
-    const std::vector<TString>& chunkFileNames,
+    const std::vector<std::string>& chunkFileNames,
     TReaderOptions options);
 
 void Shutdown();

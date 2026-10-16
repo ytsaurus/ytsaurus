@@ -54,7 +54,9 @@ func newFixedSizeReservoir(s *storage) *FixedSizeReservoir {
 	r := &FixedSizeReservoir{
 		storage: s,
 	}
-	r.reset()
+	if cap(r.measurements) > 0 {
+		r.reset()
+	}
 	return r
 }
 
@@ -86,6 +88,10 @@ func (*FixedSizeReservoir) randomFloat64() float64 {
 // parameters are the value and dropped (filtered) attributes of the
 // measurement respectively.
 func (r *FixedSizeReservoir) Offer(ctx context.Context, t time.Time, n Value, a []attribute.KeyValue) {
+	if cap(r.measurements) == 0 {
+		return
+	}
+
 	// The following algorithm is "Algorithm L" from Li, Kim-Hung (4 December
 	// 1994). "Reservoir-Sampling Algorithms of Time Complexity
 	// O(n(1+log(N/n)))". ACM Transactions on Mathematical Software. 20 (4):
@@ -130,11 +136,11 @@ func (r *FixedSizeReservoir) Offer(ctx context.Context, t time.Time, n Value, a 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if int(r.count) < cap(r.measurements) {
-		r.store(int(r.count), newMeasurement(ctx, t, n, a))
+		r.store(ctx, int(r.count), t, n, a)
 	} else if r.count == r.next {
 		// Overwrite a random existing measurement with the one offered.
 		idx := int(rand.Int64N(int64(cap(r.measurements))))
-		r.store(idx, newMeasurement(ctx, t, n, a))
+		r.store(ctx, idx, t, n, a)
 		r.advance()
 	}
 	r.count++
@@ -194,6 +200,10 @@ func (r *FixedSizeReservoir) advance() {
 //
 // The Reservoir state is preserved after this call.
 func (r *FixedSizeReservoir) Collect(dest *[]Exemplar) {
+	if cap(r.measurements) == 0 {
+		*dest = (*dest)[:0]
+		return
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.storage.Collect(dest)

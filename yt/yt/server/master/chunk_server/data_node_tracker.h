@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/actions/signal.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,6 +89,8 @@ struct IDataNodeTracker
 
     // COMPAT(koloshmet)
     virtual TInstant GetChunkLocationLastSeenTime(const TChunkLocation& location) const = 0;
+
+    virtual void OnProfiling(NProfiling::TSensorBuffer* buffer) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDataNodeTracker)

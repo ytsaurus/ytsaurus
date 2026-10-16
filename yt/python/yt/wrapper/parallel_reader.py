@@ -178,20 +178,22 @@ def make_read_parallel_request(
         raise
 
 
-def _prepare_ranges_for_parallel_read(
+def _prepare_ranges_for_parallel_files_read(
     offset: int,
     length: int,
     data_size: int,
+    chunk_count: int,
     data_size_per_thread: int,
 ) -> List[_RangesForParallerReadType]:
-    if not data_size_per_thread:
-        data_size_per_thread = DEFAULT_DATA_SIZE_PER_THREAD
-
     offset = get_value(offset, 0)
     offset = min(offset, data_size)
 
     length = get_value(length, data_size)
     length = min(length, data_size - offset)
+
+    if not data_size_per_thread:
+        data_size_per_thread = int(data_size / chunk_count) if data_size and chunk_count else 0
+        data_size_per_thread = max(DEFAULT_DATA_SIZE_PER_THREAD, data_size_per_thread)
 
     result: List[_RangesForParallerReadType] = []
     while offset < data_size and length > 0:
@@ -199,6 +201,8 @@ def _prepare_ranges_for_parallel_read(
         result.append({"range" : (offset, range_size)})
         offset += range_size
         length -= range_size
+
+    logger.debug(f"Parallel reader: chunks={len(result)}, {data_size=}, {data_size_per_thread=}")
 
     return result
 
@@ -237,6 +241,7 @@ def _slice_row_ranges_for_parallel_read(
     replication_factor: int,
     data_size_per_thread: Optional[int] = None,
 ) -> Tuple[List[_RangesForParallerReadType], int]:
+
     def _get_ranges(ranges, rows_per_task):
         result: List[_RangesForParallerReadType] = []
         for range in ranges:

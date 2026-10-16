@@ -21,7 +21,7 @@ private:
     const TMountConfigOptimizerConfigPtr Config_;
     const TTableMountConfigPtr BaseMountConfig_;
     std::unique_ptr<TOptimizer> Optimizer_;
-    std::vector<TString> ParameterNames_;
+    std::vector<std::string> ParameterNames_;
 
     TTableMountConfigPtr GetPatchedConfig(const std::vector<double>& values) const;
 };

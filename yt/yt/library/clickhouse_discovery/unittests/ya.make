@@ -3,7 +3,6 @@ GTEST(unittester-library-clickhouse-discovery)
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
-    discovery_ut.cpp
     helpers_ut.cpp
 )
 

@@ -14,4 +14,4 @@ type ClusterInitializer interface {
 	ACONamespace() string
 }
 
-type ClusterInitializerFactory = func(l log.Logger, ytc yt.Client, root ypath.Path) ClusterInitializer
+type ClusterInitializerFactory = func(l log.Logger, ytc yt.Client, familyRoot ypath.Path) ClusterInitializer

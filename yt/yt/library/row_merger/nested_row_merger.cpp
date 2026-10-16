@@ -12,6 +12,8 @@
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 namespace NYT::NRowMerger {
 
 using namespace NTableClient;
@@ -111,7 +113,7 @@ TAggregateFunction* GetSimpleAggregateFunction(TStringBuf name, EValueType type)
             return &AggregateSumDouble;
         } else {
             THROW_ERROR_EXCEPTION("Unsupported simple aggregate for type")
-                << TErrorAttribute("type", type);
+                .With("type", type);
         }
     } else if (name == "max") {
         if (type == EValueType::Int64) {
@@ -124,11 +126,11 @@ TAggregateFunction* GetSimpleAggregateFunction(TStringBuf name, EValueType type)
             return &AggregateMaxString;
         } else {
             THROW_ERROR_EXCEPTION("Unsupported simple aggregate for type")
-                << TErrorAttribute("type", type);
+                .With("type", type);
         }
     } else {
         THROW_ERROR_EXCEPTION("Unsupported simple aggregate")
-            << TErrorAttribute("aggregate_function", name);
+            .With("aggregate_function", name);
     }
 }
 
@@ -155,15 +157,15 @@ TNestedColumnsSchema GetNestedColumnsSchema(const TTableSchema& tableSchema)
         if (nestedTableName.empty()) {
             nestedTableName = nestedColumn->NestedTableName;
         } else if (nestedTableName != nestedColumn->NestedTableName) {
-            YT_LOG_ALERT("Multiple nested tables are not supported yet (FirstName: %v, SecondName: %v, ColumnName: %v)",
-                nestedTableName,
-                nestedColumn->NestedTableName,
-                column.Name());
+            YT_TLOG_ALERT("Multiple nested tables are not supported yet")
+                .With("FirstName", nestedTableName)
+                .With("SecondName", nestedColumn->NestedTableName)
+                .With("ColumnName", column.Name());
 
             THROW_ERROR_EXCEPTION("Multiple nested tables are not supported yet")
-                << TErrorAttribute("first_name", nestedTableName)
-                << TErrorAttribute("second_name", nestedColumn->NestedTableName)
-                << TErrorAttribute("column_name", column.Name());
+                .With("first_name", nestedTableName)
+                .With("second_name", nestedColumn->NestedTableName)
+                .With("column_name", column.Name());
         }
 
         auto elementType = GetNestedColumnElementType(column.LogicalType().Get());
@@ -183,7 +185,7 @@ TNestedColumnsSchema GetNestedColumnsSchema(const TTableSchema& tableSchema)
                         aggregateFunction = &AggregateSumDouble;
                     } else {
                         THROW_ERROR_EXCEPTION("Unsupported nested element type")
-                            << TErrorAttribute("type", elementType);
+                            .With("type", elementType);
                     }
                 } else if (nestedColumn->Aggregate == "max") {
                     if (elementType == EValueType::Int64) {
@@ -194,11 +196,11 @@ TNestedColumnsSchema GetNestedColumnsSchema(const TTableSchema& tableSchema)
                         aggregateFunction = &AggregateMaxDouble;
                     } else {
                         THROW_ERROR_EXCEPTION("Unsupported nested element type")
-                            << TErrorAttribute("type", elementType);
+                            .With("type", elementType);
                     }
                 } else {
                     THROW_ERROR_EXCEPTION("Unsupported aggregate function for nested column")
-                        << TErrorAttribute("aggregate_function", nestedColumn->Aggregate);
+                        .With("aggregate_function", nestedColumn->Aggregate);
                 }
             }
 
@@ -298,9 +300,9 @@ int UnpackNestedValuesList(std::vector<TUnversionedValue>* parsedValues, TString
         auto validateType = [] (EValueType expected, EValueType actual, const auto& value) {
             if (expected != actual) {
                 THROW_ERROR_EXCEPTION("Type mismatch")
-                    << TErrorAttribute("expected", expected)
-                    << TErrorAttribute("actual", actual)
-                    << TErrorAttribute("value", value);
+                    .With("expected", expected)
+                    .With("actual", actual)
+                    .With("value", value);
             }
         };
 
@@ -337,7 +339,7 @@ int UnpackNestedValuesList(std::vector<TUnversionedValue>* parsedValues, TString
                 }
                 default:
                     THROW_ERROR_EXCEPTION("Unexpected value")
-                        << TErrorAttribute("type", currentType);
+                        .With("type", currentType);
             }
 
             if (parsedValues) {
@@ -351,8 +353,8 @@ int UnpackNestedValuesList(std::vector<TUnversionedValue>* parsedValues, TString
         return itemCount;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error unpacking nested values list")
-            << TErrorAttribute("data", data)
-            << ex;
+            .With("data", data)
+            .With(ex);
     }
 }
 
@@ -517,8 +519,8 @@ TUnversionedValue TNestedTableMerger::PackValuesFast(
 
 TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRange<char> discard, EValueType /*type*/, TChunkedMemoryPool* memoryPool)
 {
-    TString resultYson;
-    TStringOutput output(resultYson);
+    std::string resultYson;
+    TStdStringOutput output(resultYson);
     NYson::TYsonWriter writer(&output);
 
     YT_ASSERT(values.size() == discard.size());
@@ -599,15 +601,15 @@ void TNestedTableMerger::UnpackKeyColumn(
 {
     // Expect each nested column has equal stream count.
     if (std::ssize(keyColumn) != mergeStreamCount) {
-        YT_LOG_ALERT("Merge stream count mismatch (ColumnId: %v, Expected: %v, Actual: %v)",
-            keyColumnId,
-            mergeStreamCount,
-            std::ssize(keyColumn));
+        YT_TLOG_ALERT("Merge stream count mismatch")
+            .With("ColumnId", keyColumnId)
+            .With("Expected", mergeStreamCount)
+            .With("Actual", std::ssize(keyColumn));
 
         THROW_ERROR_EXCEPTION("Merge stream count mismatch")
-            << TErrorAttribute("column_id", keyColumnId)
-            << TErrorAttribute("expected", mergeStreamCount)
-            << TErrorAttribute("actual", std::ssize(keyColumn));
+            .With("column_id", keyColumnId)
+            .With("expected", mergeStreamCount)
+            .With("actual", std::ssize(keyColumn));
     }
 
     auto& unpackedColumn = UnpackedKeys_[keyColumnId];
@@ -629,16 +631,16 @@ void TNestedTableMerger::UnpackKeyColumn(
         } else {
             if (Timestamps_[index] != timestamp) {
                 THROW_ERROR_EXCEPTION("Timestamp mismatch in nested key columns")
-                    << TErrorAttribute("column_id", keyColumnId)
-                    << TErrorAttribute("expected", Timestamps_[index])
-                    << TErrorAttribute("actual", timestamp);
+                    .With("column_id", keyColumnId)
+                    .With("expected", Timestamps_[index])
+                    .With("actual", timestamp);
             }
 
             if (EndOffsets_[index] != std::ssize(unpackedColumn)) {
                 THROW_ERROR_EXCEPTION("Mismatch item count in nested key columns")
-                    << TErrorAttribute("column_id", keyColumnId)
-                    << TErrorAttribute("expected", EndOffsets_[index])
-                    << TErrorAttribute("actual", std::ssize(unpackedColumn));
+                    .With("column_id", keyColumnId)
+                    .With("expected", EndOffsets_[index])
+                    .With("actual", std::ssize(unpackedColumn));
             }
         }
     }
@@ -706,10 +708,10 @@ void TNestedTableMerger::UnpackKeyColumns(
         int startOffset = 0;
         for (int i = 0; i < std::ssize(EndOffsets_); ++i) {
             if (startOffset == EndOffsets_[i]) {
-                Timestamps_.push_back(i);
+                Timestamps_.push_back(NTransactionClient::TTimestamp(i));
             } else {
                 while (startOffset < EndOffsets_[i]) {
-                    Timestamps_.push_back(i);
+                    Timestamps_.push_back(NTransactionClient::TTimestamp(i));
                     ++startOffset;
                 }
             }
@@ -786,7 +788,7 @@ void TNestedTableMerger::UnpackValueColumn(
 
         if (timestampIt == Timestamps_.end() && *timestampIt != value.Timestamp) {
             THROW_ERROR_EXCEPTION("Cannot find matching timestamp for value column")
-                << TErrorAttribute("timestamp", value.Timestamp);
+                .With("timestamp", value.Timestamp);
         }
 
         if (value.Type == EValueType::Null) {

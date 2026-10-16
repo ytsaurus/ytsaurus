@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create, get, set, exists, copy, move, link, remove, wait,
     start_transaction, commit_transaction, abort_all_transactions,
-    raises_yt_error, create_user, ls, lock,
+    raises_yt_error, create_user, ls, lock, multicell_sleep,
 )
 
 from yt_sequoia_helpers import (
@@ -12,15 +12,12 @@ from yt_sequoia_helpers import (
 
 from yt.sequoia_tools import DESCRIPTORS
 
-from yt.common import YtError
-
 import pytest
 
 
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestGrafting(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -85,15 +82,15 @@ class TestGrafting(YTEnvSetup):
     @authors("kvk1920", "gritukan")
     def test_cannot_create_rootstock_in_transaction(self):
         tx = start_transaction()
-        with pytest.raises(YtError):
+        with raises_yt_error("Rootstocks cannot be created in transaction"):
             create("rootstock", "//tmp/p", tx=tx)
 
     @authors("kvk1920", "gritukan")
     def test_cannot_copy_move_rootstock(self):
         create("rootstock", "//tmp/r")
-        with raises_yt_error("Cannot clone a rootstock"):
+        with raises_yt_error("Cannot clone a (portal|rootstock)"):
             copy("//tmp/r&", "//tmp/r2")
-        with raises_yt_error("Cannot clone a rootstock"):
+        with raises_yt_error("Cannot clone a (portal|rootstock)"):
             move("//tmp/r&", "//tmp/r2")
 
     @authors("kvk1920")
@@ -101,6 +98,10 @@ class TestGrafting(YTEnvSetup):
         rootstock_id = create("rootstock", "//tmp/r")
         scion_id = get(f"#{rootstock_id}&/@scion_id")
         assert get("//tmp/r/@id") == scion_id
+
+        assert get(f"#{rootstock_id}/@id") == scion_id
+        assert get(f"#{rootstock_id}&/@id") == rootstock_id
+        assert get(f"#{scion_id}&/@id") == scion_id
 
     @authors("kvk1920")
     def test_scion_removal(self):
@@ -115,12 +116,12 @@ class TestGrafting(YTEnvSetup):
     @authors("kvk1920")
     def test_sequoia_map_node_explicit_creation_is_forbidden(self):
         create("rootstock", "//tmp/sequoia")
-        with raises_yt_error("is internal type and should not be used directly"):
+        with raises_yt_error(".* is internal type and should not be used directly; use .* instead"):
             create("sequoia_map_node", "//tmp/sequoia/m")
 
     @authors("kvk1920")
     def test_create_rootstock_in_unexisting_map_node(self):
-        with raises_yt_error("Node //tmp has no child with key \"unexisting\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             create("rootstock", "//tmp/unexisting/r")
 
     @authors("kvk1920")
@@ -137,12 +138,30 @@ class TestGrafting(YTEnvSetup):
         with raises_yt_error("Rootstock cannot be removed under transaction"):
             remove("//tmp/sequoia", tx=tx)
 
+    @authors("kvk1920")
+    def test_scion_leak(self):
+        set("//sys/@config/cell_master/logging/suppressed_messages", ["Ignoring rootstock absence"])
+        multicell_sleep()
+
+        create("rootstock", "//tmp/sequoia")
+        tree = {"a": {"b": {}}, "c": 123, "d": "str"}
+        set("//tmp/sequoia", tree, force=True)
+        scion_id = get("//tmp/sequoia/@id")
+        d_id = get("//tmp/sequoia/d/@id")
+        create("map_node", "//tmp/sequoia&", force=True)
+        set("//sys/@config/cypress_manager/ignore_rootstock_absence_on_scion_removal", True)
+        remove(f"#{scion_id}")
+        assert not exists(f"#{d_id}")
+        create("rootstock", "//tmp/sequoia", force=True)
+        set("//tmp/sequoia", tree, force=True)
+        assert get("//tmp/sequoia") == tree
+        assert get("//tmp/sequoia&/@type") == "rootstock"
+
 
 ##################################################################
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestGraftingTmpCleanup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -180,7 +199,6 @@ class TestGraftingTmpCleanup(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSequoiaSymlinks(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -240,7 +258,10 @@ class TestSequoiaSymlinks(YTEnvSetup):
 
         s = create("map_node", "//tmp/s")
         link("//tmp/s", "//cypress/m1/m2/link_to_sequoia")
+        assert exists("//tmp/link_to_cypress/m2/link_to_sequoia")
+
         assert s == get("//tmp/link_to_cypress/m2/link_to_sequoia/@id")
+        assert get("//tmp/link_to_cypress/m2/@count") == 1
 
         tx = start_transaction()
         lock("//tmp/link_to_cypress/m2/link_to_sequoia", mode="snapshot", tx=tx)

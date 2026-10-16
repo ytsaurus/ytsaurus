@@ -56,7 +56,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, SuspendCoordinator)
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         const auto& coordinatorManager = Slot_->GetCoordinatorManager();
         coordinatorManager->SuspendCoordinator(std::move(context));
@@ -64,7 +64,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, ResumeCoordinator)
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         const auto& coordinatorManager = Slot_->GetCoordinatorManager();
         coordinatorManager->ResumeCoordinator(std::move(context));
@@ -74,9 +74,9 @@ private:
     {
         auto chaosObjectId = FromProto<TChaosObjectId>(request->chaos_object_id());
 
-        context->SetRequestInfo("ChaosObjectId: %v, Type: %v",
-            chaosObjectId,
-            TypeFromId(chaosObjectId));
+        context->AnnotateRequest()
+            .With("ChaosObjectId", chaosObjectId)
+            .With("Type", TypeFromId(chaosObjectId));
 
         const auto& coordinatorManager = Slot_->GetCoordinatorManager();
         coordinatorManager->ForsakeShortcut(std::move(context));
@@ -90,11 +90,11 @@ private:
         auto transactionStartTimestamp = request->transaction_start_timestamp();
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
 
-        context->SetRequestInfo("TransactionId: %v, TransactionStartTimestamp: %v, TransactionTimeout: %v, ActionCount: %v",
-            transactionId,
-            transactionStartTimestamp,
-            transactionTimeout,
-            request->actions_size());
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId)
+            .With("TransactionStartTimestamp", transactionStartTimestamp)
+            .With("TransactionTimeout", transactionTimeout)
+            .With("ActionCount", request->actions_size());
 
         const auto& transactionManager = Slot_->GetTransactionManager();
         YT_UNUSED_FUTURE(transactionManager
@@ -105,8 +105,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCardEra)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        context->SetRequestInfo("ReplicationCardId: %v",
-            replicationCardId);
+        context->AnnotateRequest()
+            .With("ReplicationCardId", replicationCardId);
 
         ValidateLeader();
 
@@ -115,8 +115,8 @@ private:
 
         response->set_replication_era(shortcut.Era);
 
-        context->SetResponseInfo("Era: %v",
-            shortcut.Era);
+        context->AnnotateResponse()
+            .With("Era", shortcut.Era);
         context->Reply();
     }
 

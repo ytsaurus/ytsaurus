@@ -89,7 +89,7 @@ public:
         const TExecNodeDescriptorPtr& nodeDescriptor,
         ESchedulingSegmentModuleType moduleType);
 
-    static TString GetNodeTagFromModuleName(
+    static std::string GetNodeTagFromModuleName(
         const std::string& moduleName,
         ESchedulingSegmentModuleType moduleType);
 
@@ -151,8 +151,9 @@ private:
         TUpdateSchedulingSegmentsContext* context) const;
 
     void CollectCurrentResourceAmountPerSegment(TUpdateSchedulingSegmentsContext* context) const;
-    void ResetOperationModuleAssignments(TUpdateSchedulingSegmentsContext* context) const;
     void CollectFairResourceAmountPerSegment(TUpdateSchedulingSegmentsContext* context) const;
+    void LogOperationFairShareTransitions(TUpdateSchedulingSegmentsContext* context) const;
+    void ResetOperationModuleAssignments(TUpdateSchedulingSegmentsContext* context) const;
     void AssignOperationsToModules(TUpdateSchedulingSegmentsContext* context) const;
 
     void ValidateInfinibandClusterTags(TUpdateSchedulingSegmentsContext* context) const;

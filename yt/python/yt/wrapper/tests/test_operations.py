@@ -2448,3 +2448,24 @@ print(op.id)
             assert config_file[:3] == b'ENC'
             assert yt.get(other_table + "/@row_count") == 10
             assert "_PICKLING_KEY" not in op_attributes["spec"]["mapper"]["environment"].keys()
+
+    @authors("asklit")
+    def test_pickle_encrypt_native(self):
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.write_table(table, [{"x": i} for i in range(10)])
+
+        def simple_mapper(row):
+            yield row
+
+        with set_config_option("clear_local_temp_files", False):
+            with set_config_option("pickling/encryption_engine", "native_chacha"):
+                with set_config_option("pickling/encrypt_pickle_files", 1):
+                    op = yt.run_map(simple_mapper, table, other_table)
+                op_attributes = yt.get_operation(operation_id=op.id)
+                config_path = list(filter(lambda f: f.endswith("config_dump"), op_attributes["spec"]["mapper"]["command"].split(" ")))[0]
+                with open(config_path, "rb") as fh:
+                    config_data = fh.read()
+                assert config_data[:4] == b'ENC2'
+                assert yt.get(other_table + "/@row_count") == 10
+                assert "_PICKLING_KEY" in op_attributes["spec"]["mapper"]["environment"].keys()

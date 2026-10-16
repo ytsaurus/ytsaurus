@@ -1,44 +1,38 @@
 Metadata-Version: 2.1
 Name: simplejson
-Version: 3.20.2
+Version: 4.1.1
 Summary: Simple, fast, extensible JSON encoder/decoder for Python
 Home-page: https://github.com/simplejson/simplejson
 Author: Bob Ippolito
 Author-email: bob@redivi.com
-License: MIT License
+License: MIT OR AFL-2.1
 Platform: any
 Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: WebAssembly :: Emscripten
 Classifier: Intended Audience :: Developers
-Classifier: License :: OSI Approved :: MIT License
-Classifier: License :: OSI Approved :: Academic Free License (AFL)
 Classifier: Programming Language :: Python
 Classifier: Programming Language :: Python :: 2
-Classifier: Programming Language :: Python :: 2.5
-Classifier: Programming Language :: Python :: 2.6
 Classifier: Programming Language :: Python :: 2.7
 Classifier: Programming Language :: Python :: 3
-Classifier: Programming Language :: Python :: 3.3
-Classifier: Programming Language :: Python :: 3.4
-Classifier: Programming Language :: Python :: 3.5
-Classifier: Programming Language :: Python :: 3.6
-Classifier: Programming Language :: Python :: 3.7
 Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
 Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: GraalPy
 Classifier: Programming Language :: Python :: Implementation :: PyPy
 Classifier: Topic :: Software Development :: Libraries :: Python Modules
-Requires-Python: >=2.5, !=3.0.*, !=3.1.*, !=3.2.*
+Requires-Python: >=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, !=3.5.*, !=3.6.*, !=3.7.*
 
 simplejson
 ----------
 
 simplejson is a simple, fast, complete, correct and extensible
-JSON <http://json.org> encoder and decoder for Python 3.3+
-with legacy support for Python 2.5+.  It is pure Python code
+JSON <http://json.org> encoder and decoder for Python 3.8+
+with legacy support for Python 2.7.  It is pure Python code
 with no dependencies, but includes an optional C extension
 for a serious speed boost.
 
@@ -47,8 +41,9 @@ https://simplejson.readthedocs.io/
 
 simplejson is the externally maintained development version of the
 json library included with Python (since 2.6). This version is tested
-with the latest Python 3.8 and maintains backwards compatibility
-with Python 3.3+ and the legacy Python 2.5 - Python 2.7 releases.
+with Python 3.14 (including free-threaded builds) and maintains
+backwards compatibility with Python 3.8+. A legacy Python 2.7 wheel
+is also published.
 
 The encoder can be specialized to provide serialization in any kind of
 situation, without any special support by the objects to be serialized
@@ -67,5 +62,30 @@ Python 2.2. This is based on a very old version of simplejson,
 is not maintained, and should only be used as a last resort.
 
 .. _python2.2: https://github.com/simplejson/simplejson/tree/python2.2
+
+RawJSON
+~~~~~~~
+
+``RawJSON`` allows embedding pre-encoded JSON strings into output without
+re-encoding them.
+
+This can be useful in advanced cases where JSON content is already
+serialized and re-encoding would be unnecessary.
+
+Example usage::
+
+    from simplejson import dumps, RawJSON
+
+    payload = {
+        "status": "ok",
+        "data": RawJSON('{"a": 1, "b": 2}')
+    }
+
+    print(dumps(payload))
+    # Output: {"status": "ok", "data": {"a": 1, "b": 2}}
+
+**Caveat:** ``RawJSON`` should be used with care. It bypasses normal
+serialization and validation, and is not recommended for general use
+unless the embedded JSON content is fully trusted.
 
 

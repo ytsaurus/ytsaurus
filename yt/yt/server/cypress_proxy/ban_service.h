@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/cypress_proxy/config.h>
+
 namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,4 +24,4 @@ IBanServicePtr CreateBanService(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NCypressProxy
+} // namespace NYT::NCypressProxy

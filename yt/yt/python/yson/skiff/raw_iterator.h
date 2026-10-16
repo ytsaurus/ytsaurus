@@ -2,12 +2,11 @@
 
 #include "raw_consumer.h"
 #include "public.h"
+#include "multi_table_parser.h"
 #include "../rows_iterator_base.h"
 
 #include <yt/yt/python/common/helpers.h>
 #include <yt/yt/python/common/stream.h>
-
-#include <yt/yt/library/skiff_ext/parser.h>
 
 #include <CXX/Extensions.hxx> // pycxx
 #include <CXX/Objects.hxx> // pycxx
@@ -45,7 +44,7 @@ private:
     TStreamReader InputStream_;
 
     std::unique_ptr<TPythonSkiffRawRecordBuilder> Consumer_;
-    std::unique_ptr<NSkiffExt::TSkiffMultiTableParser<TPythonSkiffRawRecordBuilder>> Parser_;
+    std::unique_ptr<TSkiffMultiTableParser<TPythonSkiffRawRecordBuilder>> Parser_;
 
     std::unique_ptr<IInputStream> InputStreamHolder_;
     bool IsStreamFinished_ = false;

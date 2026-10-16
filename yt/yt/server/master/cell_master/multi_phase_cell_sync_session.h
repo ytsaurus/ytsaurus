@@ -33,6 +33,8 @@ public:
     void ScheduleSyncWithUpstream();
     void ScheduleSyncWithSequoiaTransactions();
 
+    void SuppressSyncWithSequoiaTransactions();
+
     TFuture<void> Sync(const NObjectClient::TCellTagList& cellTags, TFuture<void> additionalFuture = {});
     TFuture<void> Sync(const NObjectClient::TCellTagList& cellTags, std::vector<TFuture<void>> additionalFutures);
 
@@ -40,7 +42,8 @@ private:
     TBootstrap* const Bootstrap_;
     const NLogging::TLogger Logger;
 
-    enum class ESyncRequest {
+    enum class ESyncRequest
+    {
         DontNeed,
         Need,
         Done,
@@ -48,6 +51,7 @@ private:
 
     ESyncRequest SyncWithUpstream_ = ESyncRequest::DontNeed;
     ESyncRequest SyncWithSequoiaTransactions_ = ESyncRequest::DontNeed;
+    bool SuppressSyncWithSequoiaTransactions_ = false;
     NObjectClient::TCellTagList SyncedWithCellTags_;
 
     bool RegisterCellToSyncWith(NObjectClient::TCellTag cellTag);

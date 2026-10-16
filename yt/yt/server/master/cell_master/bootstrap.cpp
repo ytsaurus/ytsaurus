@@ -7,6 +7,7 @@
 #include "epoch_history_manager.h"
 #include "hive_profiling_manager.h"
 #include "hydra_facade.h"
+#include "master_cell_group_manager.h"
 #include "master_hydra_service.h"
 #include "multicell_manager.h"
 #include "multicell_statistics_collector.h"
@@ -89,6 +90,7 @@
 #include <yt/yt/server/master/sequoia_server/cypress_proxy_tracker.h>
 #include <yt/yt/server/master/sequoia_server/cypress_proxy_tracker_service.h>
 #include <yt/yt/server/master/sequoia_server/ground_update_queue_manager.h>
+#include <yt/yt/server/master/sequoia_server/prelock_tracker.h>
 #include <yt/yt/server/master/sequoia_server/sequoia_manager.h>
 #include <yt/yt/server/master/sequoia_server/sequoia_transaction_service.h>
 
@@ -152,9 +154,11 @@
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
 
+#include <yt/yt/core/https/server.h>
+
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
-#include <yt/yt/ytlib/discovery_client/config.h>
+#include <yt/yt/library/discovery_client/config.h>
 
 #include <yt/yt/library/orchid/orchid_service.h>
 
@@ -169,6 +173,7 @@
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
+#include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
 
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
@@ -213,6 +218,7 @@ namespace NYT::NCellMaster {
 using namespace NAdmin;
 using namespace NApi;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NCellarClient;
 using namespace NCellServer;
 using namespace NChaosServer;
@@ -255,8 +261,8 @@ using NTransactionServer::ITransactionManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "MasterBoot");
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, DryRunLogger, "MasterDryRun");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "MasterBoot");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, DryRunLogger, "MasterDryRun");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -327,7 +333,7 @@ TCellTag TBootstrap::GetPrimaryCellTag() const
     return PrimaryCellTag_;
 }
 
-const std::set<TCellTag>& TBootstrap::GetSecondaryCellTags() const
+const TCellTagSet& TBootstrap::GetSecondaryCellTags() const
 {
     return SecondaryCellTags_;
 }
@@ -347,6 +353,11 @@ const TDynamicClusterConfigPtr& TBootstrap::GetDynamicConfig() const
     return ConfigManager_->GetConfig();
 }
 
+const IMasterCellGroupManagerPtr& TBootstrap::GetMasterCellGroupManager() const
+{
+    return MasterCellGroupManager_;
+}
+
 const IMulticellManagerPtr& TBootstrap::GetMulticellManager() const
 {
     return MulticellManager_;
@@ -355,6 +366,11 @@ const IMulticellManagerPtr& TBootstrap::GetMulticellManager() const
 const IMulticellStatisticsCollectorPtr& TBootstrap::GetMulticellStatisticsCollector() const
 {
     return MulticellStatisticsCollector_;
+}
+
+const ISequoiaActionsExecutorPtr& TBootstrap::GetSequoiaActionsExecutor() const
+{
+    return SequoiaActionsExecutor_;
 }
 
 const IIncumbentManagerPtr& TBootstrap::GetIncumbentManager() const
@@ -582,6 +598,11 @@ const ISequoiaManagerPtr& TBootstrap::GetSequoiaManager() const
     return SequoiaManager_;
 }
 
+const IPrelockTrackerPtr& TBootstrap::GetPrelockTracker() const
+{
+    return PrelockTracker_;
+}
+
 const ICypressProxyTrackerPtr& TBootstrap::GetCypressProxyTracker() const
 {
     return CypressProxyTracker_;
@@ -665,7 +686,7 @@ TFuture<void> TBootstrap::Run()
 }
 
 void TBootstrap::LoadSnapshot(
-    const TString& fileName,
+    const std::string& fileName,
     ESerializationDumpMode dumpMode,
     TSerializationDumpScopeFilter dumpScopeFilter,
     bool checkInvariants)
@@ -677,7 +698,7 @@ void TBootstrap::LoadSnapshot(
         .ThrowOnError();
 }
 
-void TBootstrap::ReplayChangelogs(std::vector<TString> changelogFileNames)
+void TBootstrap::ReplayChangelogs(std::vector<std::string> changelogFileNames)
 {
     BIND(&TBootstrap::DoReplayChangelogs, MakeStrong(this), Passed(std::move(changelogFileNames)))
         .AsyncVia(GetControlInvoker())
@@ -729,7 +750,9 @@ void TBootstrap::DoRun()
 
 void TBootstrap::DoInitialize()
 {
-    ITableDescriptor::ScheduleInitialization();
+    if (!Config_->SkipSequoiaInitialization) {
+        ITableDescriptor::ScheduleInitialization();
+    }
 
     Config_->PrimaryMaster->ValidateAllPeersPresent();
     for (auto cellConfig : Config_->SecondaryMasters) {
@@ -748,9 +771,9 @@ void TBootstrap::DoInitialize()
         expectedLocalHostName != actualLocalHostName)
     {
         THROW_ERROR_EXCEPTION("Local address differs from expected address specified in config")
-            << TErrorAttribute("local_address", actualLocalHostName)
-            << TErrorAttribute("localhost_name", Config_->ExpectedLocalHostName)
-            << TErrorAttribute("localhost_name_override", addressResolverConfig->LocalHostNameOverride);
+            .With("local_address", actualLocalHostName)
+            .With("localhost_name", Config_->ExpectedLocalHostName)
+            .With("localhost_name_override", addressResolverConfig->LocalHostNameOverride);
     }
 
     auto localAddress = BuildServiceAddress(expectedLocalHostName, Config_->RpcPort);
@@ -793,20 +816,23 @@ void TBootstrap::DoInitialize()
     }
 
     if (PrimaryMaster_) {
-        YT_LOG_INFO("Running as primary master (CellId: %v, CellTag: %v, SecondaryCellTags: %v, PeerId: %v)",
-            CellId_,
-            CellTag_,
-            SecondaryCellTags_,
-            localPeerId);
+        YT_TLOG_INFO("Running as primary master")
+            .With("CellId", CellId_)
+            .With("CellTag", CellTag_)
+            .With("SecondaryCellTags", SecondaryCellTags_)
+            .With("PeerId", localPeerId);
     } else if (SecondaryMaster_) {
-        YT_LOG_INFO("Running as secondary master (CellId: %v, CellTag: %v, PrimaryCellTag: %v, PeerId: %v)",
-            CellId_,
-            CellTag_,
-            PrimaryCellTag_,
-            localPeerId);
+        YT_TLOG_INFO("Running as secondary master")
+            .With("CellId", CellId_)
+            .With("CellTag", CellTag_)
+            .With("PrimaryCellTag", PrimaryCellTag_)
+            .With("PeerId", localPeerId);
     }
 
-    ClusterConnection_ = NNative::CreateConnection(Config_->ClusterConnection);
+    NNative::TConnectionOptions connectionOptions;
+    connectionOptions.CreateChaosCellDirectorySynchronizer = false;
+
+    ClusterConnection_ = NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
 
     RootClient_ = ClusterConnection_->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(NSecurityClient::RootUserName));
 
@@ -882,6 +908,8 @@ void TBootstrap::DoInitialize()
     // NB: It is important to register multicell manager's automaton part before node tracker's,
     // because its state depends on proper list of master cells.
     MulticellManager_ = CreateMulticellManager(this);
+
+    MasterCellGroupManager_ = CreateMasterCellGroupManager(this);
 
     WorldInitializer_ = CreateWorldInitializer(this);
 
@@ -969,6 +997,8 @@ void TBootstrap::DoInitialize()
 
     SequoiaManager_ = CreateSequoiaManager(this);
 
+    PrelockTracker_ = CreatePrelockTracker(this);
+
     CypressProxyTracker_ = CreateCypressProxyTracker(this, ChannelFactory_);
 
     ReplicatedTableTracker_ = CreateMasterReplicatedTableTracker(Config_->ReplicatedTableTracker, this);
@@ -982,8 +1012,8 @@ void TBootstrap::DoInitialize()
     InitializeTimestampProvider();
 
     if (MulticellManager_->IsPrimaryMaster() && Config_->EnableTimestampManager) {
-        YT_LOG_DEBUG("Initializing internal clocks (ClockClusterTag: %v)",
-            GetCellTag());
+        YT_TLOG_DEBUG("Initializing internal clocks")
+            .With("ClockClusterTag", GetCellTag());
 
         TimestampManager_ = New<TTimestampManager>(
             Config_->TimestampManager,
@@ -1011,6 +1041,7 @@ void TBootstrap::DoInitialize()
     // Recalculates roles for master cells.
     // If you need to know cell roles, initialize it below MulticellManager_.
     MulticellManager_->Initialize();
+    MasterCellGroupManager_->Initialize();
     IncumbentManager_->Initialize();
     SecurityManager_->Initialize();
     TransactionManager_->Initialize();
@@ -1020,6 +1051,7 @@ void TBootstrap::DoInitialize()
     ExecNodeTracker_->Initialize();
     CellarNodeTracker_->Initialize();
     TabletNodeTracker_->Initialize();
+    PrelockTracker_->Initialize();
     CypressManager_->Initialize();
     PortalManager_->Initialize();
     ChunkManager_->Initialize();
@@ -1169,12 +1201,17 @@ void TBootstrap::DoStart()
 
     HydraFacade_->Initialize();
 
-    YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+    YT_TLOG_INFO("Listening for HTTP requests")
+        .With("Port", Config_->MonitoringPort);
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+    if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+        HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+    }
 
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
+        HttpsServer_,
         ServiceLocator_->GetServiceOrThrow<TSolomonExporterPtr>(),
         &MonitoringManager_,
         &orchidRoot);
@@ -1226,6 +1263,10 @@ void TBootstrap::DoStart()
         CreateVirtualNode(GroundUpdateQueueManager_->GetOrchidService()));
     SetNodeByYPath(
         orchidRoot,
+        "/multicell_manager",
+        CreateVirtualNode(MulticellManager_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
         "/reign",
         ConvertTo<INodePtr>(GetCurrentReign()));
     SetNodeByYPath(
@@ -1235,20 +1276,26 @@ void TBootstrap::DoStart()
     SetNodeByYPath(
         orchidRoot,
         "/ground_reign",
-        ConvertToNode(GetCurrentGroundReign()));
+        ConvertToNode(ToUnderlying(GetCurrentGroundReign())));
     SetBuildAttributes(
         orchidRoot,
         "master");
 
     HttpServer_->Start();
+    if (HttpsServer_) {
+        YT_TLOG_INFO("Listening for HTTPS requests")
+            .With("Port", HttpsServer_->GetAddress().GetPort());
+        HttpsServer_->Start();
+    }
 
-    YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+    YT_TLOG_INFO("Listening for RPC requests")
+        .With("Port", Config_->RpcPort);
     RpcServer_->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker(), NativeAuthenticator_));
     RpcServer_->Start();
 }
 
 void TBootstrap::DoLoadSnapshot(
-    const TString& fileName,
+    const std::string& fileName,
     ESerializationDumpMode dumpMode,
     TSerializationDumpScopeFilter dumpScopeFilter,
     bool checkInvariants)
@@ -1256,8 +1303,8 @@ void TBootstrap::DoLoadSnapshot(
     auto snapshotId = TryFromString<int>(NFS::GetFileNameWithoutExtension(fileName));
     if (snapshotId.Empty()) {
         snapshotId = InvalidSegmentId;
-        YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Can't parse snapshot name as id, using id %v as substitute",
-            snapshotId);
+        YT_TLOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Cannot parse snapshot name as id, using a substitute")
+            .With("SnapshotId", snapshotId);
     }
     auto snapshotReader = CreateLocalSnapshotReader(fileName, *snapshotId, GetSnapshotIOInvoker());
 
@@ -1280,7 +1327,7 @@ void TBootstrap::DoLoadSnapshot(
     }
 }
 
-void TBootstrap::DoReplayChangelogs(const std::vector<TString>& changelogFileNames)
+void TBootstrap::DoReplayChangelogs(const std::vector<std::string>& changelogFileNames)
 {
     const auto& hydraManager = HydraFacade_->GetHydraManager();
     auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
@@ -1294,7 +1341,7 @@ void TBootstrap::DoReplayChangelogs(const std::vector<TString>& changelogFileNam
 
     auto dispatcher = CreateFileChangelogDispatcher(
         std::move(ioEngine),
-        /*memoryUsageTracker*/ nullptr,
+        /*indexMemoryUsageTracker*/ nullptr,
         changelogsConfig,
         "DryRunChangelogDispatcher",
         /*profiler*/ {});
@@ -1303,8 +1350,8 @@ void TBootstrap::DoReplayChangelogs(const std::vector<TString>& changelogFileNam
         auto changelogId = TryFromString<int>(NFS::GetFileNameWithoutExtension(changelogFileName));
         if (changelogId.Empty()) {
             changelogId = InvalidSegmentId;
-            YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Can't parse changelog name as id, using id %v as substitute",
-                changelogId);
+            YT_TLOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Cannot parse changelog name as id, using a substitute")
+                .With("ChangelogId", changelogId);
         }
 
         auto changelog = WaitFor(dispatcher->OpenChangelog(*changelogId, changelogFileName, changelogsConfig))

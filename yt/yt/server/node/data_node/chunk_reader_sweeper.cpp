@@ -11,7 +11,8 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/mpsc_stack.h>
-#include <yt/yt/core/misc/ring_queue.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 namespace NYT::NDataNode {
 
@@ -44,7 +45,7 @@ void TChunkReaderSweeper::ScheduleChunkReaderSweep(IChunkPtr chunk)
 
 void TChunkReaderSweeper::OnChunkReaderSweep()
 {
-    ChunkReaderSweepStack_.DequeueAll(true, [&] (auto&& entry) {
+    ChunkReaderSweepStack_.DequeueAll(true, [&] (auto& entry) {
         ChunkReaderSweepQueue_.push(std::move(entry));
     });
 

@@ -1,4 +1,5 @@
 import sys, pickle
+import unittest
 from unittest import TestCase
 
 import simplejson as json
@@ -66,3 +67,42 @@ class TestErrors(TestCase):
         self.assertEqual(err.doc, e.doc)
         self.assertEqual(err.pos, e.pos)
         self.assertEqual(err.end, e.end)
+
+    @unittest.skipIf(sys.version_info < (3, 11), 'add_note requires Python 3.11+')
+    def test_add_note_list_recursion(self):
+        x = []
+        x.append(x)
+        try:
+            json.dumps(x)
+        except ValueError as exc:
+            self.assertEqual(
+                exc.__notes__, ['when serializing list item 0'])
+        else:
+            self.fail('Expected ValueError')
+
+    @unittest.skipIf(sys.version_info < (3, 11), 'add_note requires Python 3.11+')
+    def test_add_note_dict_recursion(self):
+        x = {}
+        x['test'] = x
+        try:
+            json.dumps(x)
+        except ValueError as exc:
+            self.assertEqual(
+                exc.__notes__, ["when serializing dict item 'test'"])
+        else:
+            self.fail('Expected ValueError')
+
+    @unittest.skipIf(sys.version_info < (3, 11), 'add_note requires Python 3.11+')
+    def test_add_note_nested_error(self):
+        try:
+            json.dumps({'a': [1, object(), 3]})
+        except TypeError as exc:
+            self.assertEqual(len(exc.__notes__), 3)
+            self.assertEqual(exc.__notes__[0],
+                'when serializing object object')
+            self.assertEqual(exc.__notes__[1],
+                'when serializing list item 1')
+            self.assertEqual(exc.__notes__[2],
+                "when serializing dict item 'a'")
+        else:
+            self.fail('Expected TypeError')

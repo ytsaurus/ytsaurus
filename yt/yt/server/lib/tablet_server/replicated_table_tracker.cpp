@@ -21,10 +21,11 @@
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/virtual.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NTabletServer {
 
@@ -46,7 +47,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "ReplicatedTableTracker");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "ReplicatedTableTracker");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,7 +56,7 @@ void FormatValue(
     const TChangeReplicaModeCommand& command,
     TStringBuf /*spec*/)
 {
-    builder->AppendFormat("ReplicaId: %v, TargetMode: %v",
+    builder->AppendFormat("{ReplicaId: %v, TargetMode: %v}",
         command.ReplicaId,
         command.TargetMode);
 }
@@ -213,8 +214,8 @@ public:
         return Underlying_->GetOrPut(
             clusterName,
             [&] () -> TErrorOr<NApi::IClientPtr> {
-                YT_LOG_DEBUG("Creating cached client (Cluster: %v)",
-                    clusterName);
+                YT_TLOG_DEBUG("Creating cached client")
+                    .With("Cluster", clusterName);
 
                 if (auto client = Host_->CreateClusterClient(clusterName)) {
                     return client;
@@ -246,7 +247,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            Logger().WithTag("Cache: ClusterLivenessCheck"))
+            Logger().WithTag("Cache", "ClusterLivenessCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
 
@@ -291,7 +292,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            Logger().WithTag("Cache: ClusterIncomingReplicationCheck"))
+            Logger().WithTag("Cache", "ClusterIncomingReplicationCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
 
@@ -315,7 +316,7 @@ protected:
                     }
                     THROW_ERROR_EXCEPTION("Failed to check whether incoming replication to cluster %Qv is enabled",
                         key)
-                        << TError(resultOrError);
+                        .With(TError(resultOrError));
                 }
                 if (!ConvertTo<bool>(resultOrError.Value())) {
                     THROW_ERROR_EXCEPTION("Replica cluster %Qv incoming replication is disabled",
@@ -344,7 +345,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            Logger().WithTag("Cache: ClusterSafeModeCheck"))
+            Logger().WithTag("Cache", "ClusterSafeModeCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
 
@@ -391,7 +392,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            Logger().WithTag("Cache: HydraReadOnlyCheck"))
+            Logger().WithTag("Cache", "HydraReadOnlyCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
 
@@ -466,7 +467,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            Logger().WithTag("Cache: BundleHealth"))
+            Logger().WithTag("Cache", "BundleHealth"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
 
@@ -557,8 +558,8 @@ public:
         , ClusterIncomingReplicationChecker_(Config_->ClusterStateCache, ClusterClientCache_)
         , BundleHealthChecker_(Config_->BundleHealthCache, ClusterClientCache_)
     {
-        YT_LOG_INFO("Replicated table tracker created (Config: %v)",
-            ConvertToYsonString(config, EYsonFormat::Text));
+        YT_TLOG_INFO("Replicated table tracker created")
+            .With("Config", ConvertToYsonString(Config_, EYsonFormat::Text));
 
         MaxActionQueueSize_.store(Config_->MaxActionQueueSize);
 
@@ -797,7 +798,8 @@ public:
             if (!replicaLagTime) {
                 ReplicaLagTime_ = std::nullopt;
                 LastReplicaLagTimeUpdate_ = std::nullopt;
-                YT_LOG_DEBUG("Replica lag time is zero (ReplicaId %v)", Id_);
+                YT_TLOG_DEBUG("Replica lag time is zero")
+                    .With("ReplicaId", Id_);
                 return;
             }
 
@@ -812,11 +814,10 @@ public:
             ReplicaLagTime_ = cappedReplicaLagTime;
             LastReplicaLagTimeUpdate_ = now;
 
-            YT_LOG_DEBUG(
-                "Set replica lag time (ReplicaId %v, LagTime: %v, CappedLagTime: %v)",
-                Id_,
-                *replicaLagTime,
-                cappedReplicaLagTime);
+            YT_TLOG_DEBUG("Set replica lag time")
+                .With("ReplicaId", Id_)
+                .With("LagTime", *replicaLagTime)
+                .With("CappedLagTime", cappedReplicaLagTime);
         }
 
         const TCounter& GetReplicaModeSwitchCounter() const
@@ -872,7 +873,7 @@ public:
                 {
                     return TError("Tablet cell bundle health check failed for %v times in a row",
                         IterationsWithoutAcceptableBundleHealth_)
-                        << bundleHealthOrError;
+                        .With(bundleHealthOrError);
                 }
             } else {
                 IterationsWithoutAcceptableBundleHealth_ = 0;
@@ -965,10 +966,11 @@ public:
             auto oldState = State_;
             ChangeState(/*good*/ false, GetReplicaModeFromState(oldState));
 
-            YT_LOG_DEBUG(error, "Table replica check failed (ReplicaId: %v, State: %v -> %v)",
-                Id_,
-                oldState,
-                State_);
+            YT_TLOG_DEBUG("Table replica check failed")
+                .With("ReplicaId", Id_)
+                .With("OldState", oldState)
+                .With("NewState", State_)
+                .With(error);
         }
 
         void OnCheckSucceeded()
@@ -977,10 +979,10 @@ public:
             ChangeState(/*good*/ true, GetReplicaModeFromState(oldState));
 
             if (oldState != State_) {
-                YT_LOG_DEBUG("Table replica check succeeded (ReplicaId: %v, State: %v -> %v)",
-                    Id_,
-                    oldState,
-                    State_);
+                YT_TLOG_DEBUG("Table replica check succeeded")
+                    .With("ReplicaId", Id_)
+                    .With("OldState", oldState)
+                    .With("NewState", State_);
             }
         }
 
@@ -1092,6 +1094,34 @@ public:
             Options_ = std::move(options);
         }
 
+        void UpdatePreferredSyncReplicaClusters(const THashSet<std::string>& preferredSyncReplicaClusters)
+        {
+            if (LastPreferredSyncReplicaClusters_ == preferredSyncReplicaClusters) {
+                return;
+            }
+
+            YT_TLOG_DEBUG("Effective preferred sync replica clusters changed; resetting switch cooldown")
+                .With("TableId", Id_)
+                .With("OldClusters", LastPreferredSyncReplicaClusters_)
+                .With("NewClusters", preferredSyncReplicaClusters);
+
+            LastPreferredSyncReplicaClusters_ = preferredSyncReplicaClusters;
+            for (auto contentType : TEnumTraits<ETableReplicaContentType>::GetDomainValues()) {
+                LastPreferredSyncReplicaSwitchTimes_[contentType] = TInstant::Zero();
+            }
+        }
+
+        bool IsPreferredSyncReplicaSwitchAllowed(ETableReplicaContentType contentType, TInstant now) const
+        {
+            return now - LastPreferredSyncReplicaSwitchTimes_[contentType] >=
+                TableTracker_->GetConfig()->PreferredSyncReplicaSwitchCooldown;
+        }
+
+        void OnPreferredSyncReplicaSwitch(ETableReplicaContentType contentType, TInstant now)
+        {
+            LastPreferredSyncReplicaSwitchTimes_[contentType] = now;
+        }
+
         void UpdateReplicaStates()
         {
             for (auto replicaId : ReplicaIds_) {
@@ -1163,14 +1193,13 @@ public:
                 changeReplicaState(EReplicaState::GoodSync, EReplicaState::GoodAsync);
             }
 
-            YT_LOG_DEBUG("Grouped replicas by target state "
-                "(TableId: %v, ContentType: %v, GoodSync: %v, BadSync: %v, GoodAsync: %v, BadAsync: %v)",
-                Id_,
-                contentType,
-                MakeFormattableView(replicasByState[EReplicaState::GoodSync], TReplicaIdFormatter()),
-                MakeFormattableView(replicasByState[EReplicaState::BadSync], TReplicaIdFormatter()),
-                MakeFormattableView(replicasByState[EReplicaState::GoodAsync], TReplicaIdFormatter()),
-                MakeFormattableView(replicasByState[EReplicaState::BadAsync], TReplicaIdFormatter()));
+            YT_TLOG_DEBUG("Grouped replicas by target state")
+                .With("TableId", Id_)
+                .With("ContentType", contentType)
+                .With("GoodSync", MakeFormattableView(replicasByState[EReplicaState::GoodSync], TReplicaIdFormatter()))
+                .With("BadSync", MakeFormattableView(replicasByState[EReplicaState::BadSync], TReplicaIdFormatter()))
+                .With("GoodAsync", MakeFormattableView(replicasByState[EReplicaState::GoodAsync], TReplicaIdFormatter()))
+                .With("BadAsync", MakeFormattableView(replicasByState[EReplicaState::BadAsync], TReplicaIdFormatter()));
 
             return replicasByState;
         }
@@ -1200,6 +1229,9 @@ public:
         TTableCollocationId CollocationId_;
         THashSet<TTableReplicaId> ReplicaIds_;
 
+        THashSet<std::string> LastPreferredSyncReplicaClusters_;
+        TEnumIndexedArray<ETableReplicaContentType, TInstant> LastPreferredSyncReplicaSwitchTimes_;
+
         bool Destroyed_ = false;
     };
 
@@ -1209,7 +1241,7 @@ private:
     const TActionQueuePtr RttThread_;
     const IInvokerPtr RttInvoker_;
     const TProfiler Profiler_;
-    const TCompositeMapServicePtr OrchidService_;
+    const ICompositeMapServicePtr OrchidService_;
 
     std::atomic<bool> Initialized_ = false;
     std::atomic<bool> TrackingEnabled_ = false;
@@ -1218,7 +1250,7 @@ private:
     TDynamicReplicatedTableTrackerConfigPtr Config_;
 
     std::atomic<i64> MaxActionQueueSize_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ActionQueueLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ActionQueueLock_);
     std::deque<TClosure> ActionQueue_;
 
     struct TTableCollocation
@@ -1305,7 +1337,7 @@ private:
         }
 
         if (!UseNewReplicatedTableTracker(Config_)) {
-            YT_LOG_DEBUG("New replicated table tracker is disabled");
+            YT_TLOG_DEBUG("New replicated table tracker is disabled");
             ScheduleTrackerIteration();
             return;
         }
@@ -1323,10 +1355,11 @@ private:
                     UpdateReplicaStates();
                     UpdateReplicaModes();
                 } else {
-                    YT_LOG_INFO("Replicated table tracker is disabled");
+                    YT_TLOG_INFO("Replicated table tracker is disabled");
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Replicated table tracker iteration failed");
+                YT_TLOG_WARNING("Replicated table tracker iteration failed")
+                    .With(ex);
             }
         }
 
@@ -1342,7 +1375,7 @@ private:
                 ActionQueue_.clear();
                 guard.Release();
 
-                YT_LOG_DEBUG("Replicated table tracker started loading from snapshot");
+                YT_TLOG_DEBUG("Replicated table tracker started loading from snapshot");
 
                 // NB: RTT thread is blocked intentionally here.
                 auto snapshot = Host_->GetSnapshot()
@@ -1350,7 +1383,7 @@ private:
                     .ValueOrThrow();
                 DoLoadFromSnapshot(std::move(snapshot));
 
-                YT_LOG_DEBUG("Replicated table tracker finished loading from snapshot");
+                YT_TLOG_DEBUG("Replicated table tracker finished loading from snapshot");
 
                 continue;
             }
@@ -1378,31 +1411,30 @@ private:
             ++trackedTableCount;
         }
 
-        YT_LOG_DEBUG("Replicated table tracker check iteration finished "
-            "(TrackedTableCount: %v, TableCount: %v)",
-            trackedTableCount,
-            IdToTable_.size());
+        YT_TLOG_DEBUG("Replicated table tracker check iteration finished")
+            .With("TrackedTableCount", trackedTableCount)
+            .With("TableCount", IdToTable_.size());
     }
+
+    struct TReplicaFamily
+    {
+        TTableId TableId;
+        ETableReplicaContentType ContentType;
+
+        bool operator==(const TReplicaFamily& other) const
+        {
+            return TableId == other.TableId && ContentType == other.ContentType;
+        }
+
+        operator size_t() const
+        {
+            return MultiHash(TableId, ContentType);
+        }
+    };
 
     void UpdateReplicaModes()
     {
         std::vector<TChangeReplicaModeCommand> commands;
-
-        struct TReplicaFamily
-        {
-            TTableId TableId;
-            ETableReplicaContentType ContentType;
-
-            bool operator==(const TReplicaFamily& other) const
-            {
-                return TableId == other.TableId && ContentType == other.ContentType;
-            }
-
-            operator size_t() const
-            {
-                return MultiHash(TableId, ContentType);
-            }
-        };
 
         THashMap<TReplicaFamily, TReplicasByState> replicaFamilyToReplicasByState;
         for (auto& [tableId, table] : IdToTable_) {
@@ -1411,13 +1443,27 @@ private:
             }
 
             for (auto contentType : TEnumTraits<ETableReplicaContentType>::GetDomainValues()) {
+                auto replicasByState = table.GroupReplicasByTargetState(contentType);
+                bool hasReplicas = false;
+                for (const auto& replicas : replicasByState) {
+                    if (!replicas.empty()) {
+                        hasReplicas = true;
+                        break;
+                    }
+                }
+
+                // Tables without tracked replicas of this content type must not clear the collocation's common replica clusters.
+                if (!hasReplicas) {
+                    continue;
+                }
+
                 EmplaceOrCrash(
                     replicaFamilyToReplicasByState,
                     TReplicaFamily{
                         .TableId = tableId,
                         .ContentType = contentType,
                     },
-                    table.GroupReplicasByTargetState(contentType));
+                    std::move(replicasByState));
             }
         }
 
@@ -1465,11 +1511,10 @@ private:
                     }
                 }
 
-                YT_LOG_DEBUG("Identified good clusters for collocation "
-                    "(CollocationId: %v, ContentType: %v, GoodClusters: %v)",
-                    collocationId,
-                    contentType,
-                    goodReplicaClusters);
+                YT_TLOG_DEBUG("Identified good clusters for collocation")
+                    .With("CollocationId", collocationId)
+                    .With("ContentType", contentType)
+                    .With("GoodClusters", goodReplicaClusters);
 
                 auto it = EmplaceOrCrash(
                     collocationIdToClusterPriorities[contentType],
@@ -1487,10 +1532,18 @@ private:
             }
         }
 
+        auto now = TInstant::Now();
+
+        THashSet<TReplicaFamily> replicaFamiliesWithSwitchInducesByPreferredList;
+
         for (auto& [replicaFamily, replicasByState] : replicaFamilyToReplicasByState) {
             auto& table = GetOrCrash(IdToTable_, replicaFamily.TableId);
 
             auto preferredReplicas = table.GetPreferredSyncReplicaClusters();
+            table.UpdatePreferredSyncReplicaClusters(preferredReplicas);
+            auto isPreferredSyncReplicaSwitchAllowed = table.IsPreferredSyncReplicaSwitchAllowed(
+                replicaFamily.ContentType,
+                now);
 
             THashMap<std::string, int> goodReplicaPriorities;
             if (table.GetCollocationId() == NullObjectId) {
@@ -1506,65 +1559,125 @@ private:
                     table.GetCollocationId());
             }
 
-            auto tableCommands = GenerateCommandsForTable(
+            auto commandGenerationResult = GenerateCommandsForTable(
                 &replicasByState,
-                preferredReplicas,
+                isPreferredSyncReplicaSwitchAllowed
+                    ? preferredReplicas
+                    : THashSet<std::string>{},
                 goodReplicaPriorities);
 
-            YT_LOG_DEBUG_IF(!tableCommands.empty(),
-                "Generated replica mode change commands "
-                "(TableId: %v, ContentType: %v, CollocationId: %v, PreferredReplicas: %v, Commands: %v)",
-                replicaFamily.TableId,
-                replicaFamily.ContentType,
-                table.GetCollocationId(),
-                preferredReplicas,
-                tableCommands);
+            YT_TLOG_DEBUG_UNLESS(commandGenerationResult.Commands.empty(),
+                "Generated replica mode change commands")
+                .With("TableId", replicaFamily.TableId)
+                .With("ContentType", replicaFamily.ContentType)
+                .With("CollocationId", table.GetCollocationId())
+                .With("PreferredReplicas", preferredReplicas)
+                .With("IsSwitchInducedByPreferredList", commandGenerationResult.IsSwitchInducedByPreferredList)
+                .With("Commands", commandGenerationResult.Commands)
+                .With("IsPreferredSyncReplicaSwitchAllowed", isPreferredSyncReplicaSwitchAllowed);
 
-            std::move(tableCommands.begin(), tableCommands.end(), std::back_inserter(commands));
+            // Any switch in collocation induced by preferred list affects whole collocation.
+            if (commandGenerationResult.IsSwitchInducedByPreferredList) {
+                if (table.GetCollocationId() == NullObjectId) {
+                    replicaFamiliesWithSwitchInducesByPreferredList.insert(replicaFamily);
+                } else {
+                    const auto& collocation = GetOrCrash(IdToCollocation_, table.GetCollocationId());
+                    for (auto tableId : collocation.TableIds) {
+                        if (IdToTable_.contains(tableId)) {
+                            replicaFamiliesWithSwitchInducesByPreferredList.insert(TReplicaFamily{
+                                .TableId = tableId,
+                                .ContentType = replicaFamily.ContentType,
+                            });
+                        }
+                    }
+                }
+            }
+
+            std::move(
+                commandGenerationResult.Commands.begin(),
+                commandGenerationResult.Commands.end(),
+                std::back_inserter(commands));
         }
 
-        YT_LOG_DEBUG("Replicated table tracker replica mode update iteration finished (UpdateCommandCount: %v)",
-            commands.size());
+        YT_TLOG_DEBUG("Replicated table tracker replica mode update iteration finished")
+            .With("UpdateCommandCount", commands.size());
 
         if (commands.empty()) {
             return;
         }
 
         Host_->ApplyChangeReplicaModeCommands(std::move(commands)).Subscribe(BIND(
-            [=] (const TErrorOr<TApplyChangeReplicaCommandResults>& resultsOrError) {
-                if (!resultsOrError.IsOK()) {
-                    YT_LOG_ERROR(resultsOrError, "Failed to apply change replica mode commands");
-                    return;
-                }
-
-                bool failed = false;
-                for (const auto& commandResultOrError : resultsOrError.Value()) {
-                    if (!commandResultOrError.IsOK()) {
-                        YT_LOG_ERROR(commandResultOrError, "Failed to apply change replica mode command");
-                        failed = true;
-                    }
-                }
-
-                if (failed) {
-                    return;
-                }
-
-                YT_LOG_DEBUG("Successfully applied change replica mode commands (CommandCount: %v)",
-                    resultsOrError.Value().size());
-            })
+            &TNewReplicatedTableTracker::OnReplicaModeChangeCommandsApplied,
+            MakeStrong(this),
+            std::move(replicaFamiliesWithSwitchInducesByPreferredList))
             .Via(RttInvoker_));
     }
 
-    std::vector<TChangeReplicaModeCommand> GenerateCommandsForTable(
+    void OnReplicaModeChangeCommandsApplied(
+        const THashSet<TReplicaFamily>& replicaFamiliesWithSwitchInducesByPreferredList,
+        const TErrorOr<TApplyChangeReplicaCommandResults>& resultsOrError)
+    {
+        if (!resultsOrError.IsOK()) {
+            YT_TLOG_ERROR("Failed to apply change replica mode commands")
+                .With(resultsOrError);
+            return;
+        }
+
+        const auto& results = resultsOrError.Value();
+
+        bool failed = false;
+        for (int index = 0; index < std::ssize(results); ++index) {
+            const auto& commandResultOrError = results[index];
+            if (!commandResultOrError.IsOK()) {
+                YT_TLOG_ERROR("Failed to apply change replica mode command")
+                    .With("CommandIndex", index)
+                    .With(commandResultOrError);
+                failed = true;
+            }
+        }
+
+        if (failed) {
+            return;
+        }
+
+        // In case of any failure we skip these updates below for every replica family.
+        // This robust way is enough because any partial errors are highly unlikely.
+        auto now = TInstant::Now();
+        for (const auto& replicaFamily : replicaFamiliesWithSwitchInducesByPreferredList) {
+            if (auto* table = FindTable(replicaFamily.TableId)) {
+                table->OnPreferredSyncReplicaSwitch(replicaFamily.ContentType, now);
+            }
+        }
+
+        YT_TLOG_DEBUG("Successfully applied change replica mode commands")
+            .With("CommandCount", resultsOrError.Value().size())
+            .With("PreferredReplicaSwitchFamilyCount", replicaFamiliesWithSwitchInducesByPreferredList.size());
+    }
+
+    struct TCommandGenerationResult
+    {
+        std::vector<TChangeReplicaModeCommand> Commands;
+
+        bool IsSwitchInducedByPreferredList;
+    };
+
+    TCommandGenerationResult GenerateCommandsForTable(
         TReplicasByState* replicasByState,
         const THashSet<std::string>& preferredReplicas,
         const THashMap<std::string, int>& goodReplicaPriorities)
     {
-        auto& syncReplicas = (*replicasByState)[EReplicaState::GoodSync];
-        auto& asyncReplicas = (*replicasByState)[EReplicaState::GoodAsync];
-        auto syncReplicaCount = syncReplicas.size();
+        auto prioritizeReplicas = [&] (
+            TReplicasByState* currentReplicaByState,
+            const THashSet<std::string>& currentPreferredReplicas)
+        {
+            auto& syncReplicas = (*currentReplicaByState)[EReplicaState::GoodSync];
+            auto& asyncReplicas = (*currentReplicaByState)[EReplicaState::GoodAsync];
+            auto syncReplicaCount = syncReplicas.size();
 
-        if (!syncReplicas.empty() && !asyncReplicas.empty()) {
+            if (syncReplicas.empty() || asyncReplicas.empty()) {
+                return;
+            }
+
             // Priorities:
             // 4 - good-sync and preferred
             // 3 - good-async and preferred
@@ -1577,7 +1690,7 @@ private:
                 auto it = goodReplicaPriorities.find(replica->GetClusterName());
                 if (it != goodReplicaPriorities.end()) {
                     result += it->second;
-                    if (preferredReplicas.contains(replica->GetClusterName())) {
+                    if (currentPreferredReplicas.contains(replica->GetClusterName())) {
                         result += 2;
                     }
                 }
@@ -1613,24 +1726,59 @@ private:
 
             syncReplicas = std::move(newSyncReplicas);
             asyncReplicas = std::move(newAsyncReplicas);
+        };
+
+        // Need these only in case preferred replica switch is allowed.
+        THashSet<TTableReplicaId> syncReplicaIds;
+        THashSet<TTableReplicaId> syncReplicaIdsWithoutPreferred;
+        if (preferredReplicas.empty()) {
+            prioritizeReplicas(replicasByState, {});
+        } else {
+            auto replicasByStateWithoutPreferred = *replicasByState;
+            prioritizeReplicas(&replicasByStateWithoutPreferred, {});
+
+            prioritizeReplicas(replicasByState, preferredReplicas);
+
+            auto getSyncReplicaIds = [] (const TReplicasByState& currentReplicaByState) {
+                THashSet<TTableReplicaId> syncReplicaIds;
+                for (auto* replica : currentReplicaByState[EReplicaState::GoodSync]) {
+                    syncReplicaIds.insert(replica->GetId());
+                }
+                return syncReplicaIds;
+            };
+
+            syncReplicaIds = getSyncReplicaIds(*replicasByState);
+            syncReplicaIdsWithoutPreferred = getSyncReplicaIds(replicasByStateWithoutPreferred);
         }
 
-        std::vector<TChangeReplicaModeCommand> commands;
+        TCommandGenerationResult result;
+        result.IsSwitchInducedByPreferredList = true;
+
         for (auto state : TEnumTraits<EReplicaState>::GetDomainValues()) {
             for (auto* replica : (*replicasByState)[state]) {
                 auto currentMode = GetReplicaModeFromState(replica->GetState());
                 auto targetMode = GetReplicaModeFromState(state);
                 if (currentMode != targetMode) {
-                    commands.push_back(TChangeReplicaModeCommand{
+                    result.Commands.push_back(TChangeReplicaModeCommand{
                         .ReplicaId = replica->GetId(),
                         .TargetMode = targetMode,
                     });
+
+                    // Look for any replica with mode switched due to any reason except preferred.
+                    if (syncReplicaIds.contains(replica->GetId()) == syncReplicaIdsWithoutPreferred.contains(replica->GetId())) {
+                        result.IsSwitchInducedByPreferredList = false;
+                    }
+
                     replica->GetReplicaModeSwitchCounter().Increment();
                 }
             }
         }
 
-        return commands;
+        if (result.Commands.empty()) {
+            result.IsSwitchInducedByPreferredList = false;
+        }
+
+        return result;
     }
 
     void UpdateReplicaLagTimes()
@@ -1641,7 +1789,8 @@ private:
         }
 
         if (!ReplicaLagTimesOrError_.IsOK()) {
-            YT_LOG_ERROR(ReplicaLagTimesOrError_, "Failed to compute replica lag times");
+            YT_TLOG_ERROR("Failed to compute replica lag times")
+                .With(ReplicaLagTimesOrError_);
             return;
         }
 
@@ -1655,9 +1804,9 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Successfully updated replica lag times (RequestedReplicaCount: %v, UpdatedReplicaCount: %v)",
-            IdToReplica_.size(),
-            updateCount);
+        YT_TLOG_DEBUG("Successfully updated replica lag times")
+            .With("RequestedReplicaCount", IdToReplica_.size())
+            .With("UpdatedReplicaCount", updateCount);
     }
 
     TReplicatedTable* GetTable(TTableId tableId)
@@ -1690,8 +1839,8 @@ private:
         if (std::ssize(ActionQueue_) >= MaxActionQueueSize_.load()) {
             RequestLoadingFromSnapshot(guard);
             guard.Release();
-            YT_LOG_WARNING("Action queue is reset due to overflow (MaxActionQueueSize: %v)",
-                MaxActionQueueSize_.load());
+            YT_TLOG_WARNING("Action queue is reset due to overflow")
+                .With("MaxActionQueueSize", MaxActionQueueSize_.load());
             return;
         }
 
@@ -1707,9 +1856,9 @@ private:
 
             auto it = IdToTable_.find(tableId);
             if (it == IdToTable_.end()) {
-                YT_LOG_DEBUG("Replicated table created (TableId: %v, Options: %v)",
-                    tableId,
-                    ConvertToYsonString(data.Options, EYsonFormat::Text).AsStringBuf());
+                YT_TLOG_DEBUG("Replicated table created")
+                    .With("TableId", tableId)
+                    .With("Options", ConvertToYsonString(data.Options, EYsonFormat::Text).AsStringBuf());
 
                 auto it = EmplaceOrCrash(
                     IdToTable_,
@@ -1728,9 +1877,9 @@ private:
                     it->second.SetCollocationId(*tableCollocationId);
                 }
             } else {
-                YT_LOG_DEBUG("Replicated table updated (TableId: %v, Options: %v)",
-                    tableId,
-                    ConvertToYsonString(data.Options, EYsonFormat::Text).AsStringBuf());
+                YT_TLOG_DEBUG("Replicated table updated")
+                    .With("TableId", tableId)
+                    .With("Options", ConvertToYsonString(data.Options, EYsonFormat::Text).AsStringBuf());
 
                 it->second.SetOptions(std::move(data.Options));
             }
@@ -1740,8 +1889,8 @@ private:
     void OnReplicatedTableDestroyed(TTableId tableId)
     {
         EnqueueAction(BIND([=, this, this_ = MakeStrong(this)] {
-            YT_LOG_DEBUG("Replicated table destroyed (TableId: %v)",
-                tableId);
+            YT_TLOG_DEBUG("Replicated table destroyed")
+                .With("TableId", tableId);
 
             auto* table = GetTable(tableId);
             if (table->GetCollocationId() != NullObjectId) {
@@ -1780,22 +1929,20 @@ private:
 
             auto* table = GetTable(tableId);
 
-            auto formattedParameters = Format(
-                "TableId: %v, ReplicaId: %v, Mode: %v, Enabled: %v, ClusterName: %v, "
-                "TablePath: %v, ContentType: %v, TrackingEnabled: %v",
-                tableId,
-                replicaId,
-                data.Mode,
-                data.Enabled,
-                data.ClusterName,
-                data.TablePath,
-                data.ContentType,
-                data.TrackingEnabled);
+            auto replicaTags = NLogging::TLoggingTagList()
+                .With("TableId", tableId)
+                .With("ReplicaId", replicaId)
+                .With("Mode", data.Mode)
+                .With("Enabled", data.Enabled)
+                .With("ClusterName", data.ClusterName)
+                .With("TablePath", data.TablePath)
+                .With("ContentType", data.ContentType)
+                .With("TrackingEnabled", data.TrackingEnabled);
 
             auto it = IdToReplica_.find(replicaId);
             if (it == IdToReplica_.end()) {
-                YT_LOG_DEBUG("Table replica created (%v)",
-                    formattedParameters);
+                YT_TLOG_DEBUG("Table replica created")
+                    .With(replicaTags);
 
                 EmplaceOrCrash(
                     IdToReplica_,
@@ -1803,8 +1950,8 @@ private:
                     TReplica(this, table, std::move(data)));
                 EmplaceOrCrash(*table->GetReplicaIds(), replicaId);
             } else {
-                YT_LOG_DEBUG("Table replica updated (%v)",
-                    formattedParameters);
+                YT_TLOG_DEBUG("Table replica updated")
+                    .With(replicaTags);
 
                 it->second.SetMode(data.Mode);
                 it->second.SetEnabled(data.Enabled);
@@ -1817,8 +1964,8 @@ private:
     void OnReplicaDestroyed(TTableReplicaId replicaId)
     {
         EnqueueAction(BIND([=, this, this_ = MakeStrong(this)] {
-            YT_LOG_DEBUG("Table replica destroyed (ReplicaId: %v)",
-                replicaId);
+            YT_TLOG_DEBUG("Table replica destroyed")
+                .With("ReplicaId", replicaId);
 
             YT_VERIFY(IsTableReplicaType(TypeFromId(replicaId)));
 
@@ -1838,10 +1985,10 @@ private:
     void OnReplicationCollocationCreated(TTableCollocationData data)
     {
         EnqueueAction(BIND([=, this, this_ = MakeStrong(this), data = std::move(data)] () mutable {
-            YT_LOG_DEBUG("Replication collocation created (CollocationId: %v, TableIds: %v, Options: %v)",
-                data.Id,
-                data.TableIds,
-                ConvertToYsonString(data.Options, EYsonFormat::Text).AsStringBuf());
+            YT_TLOG_DEBUG("Replication collocation created")
+                .With("CollocationId", data.Id)
+                .With("TableIds", data.TableIds)
+                .With("Options", ConvertToYsonString(data.Options, EYsonFormat::Text).AsStringBuf());
 
             YT_VERIFY(IsCollocationType(TypeFromId(data.Id)));
 
@@ -1869,8 +2016,8 @@ private:
     void OnReplicationCollocationDestroyed(TTableCollocationId collocationId)
     {
         EnqueueAction(BIND([=, this, this_ = MakeStrong(this)] {
-            YT_LOG_DEBUG("Replication collocation destroyed (CollocationId: %v)",
-                collocationId);
+            YT_TLOG_DEBUG("Replication collocation destroyed")
+                .With("CollocationId", collocationId);
 
             YT_VERIFY(IsCollocationType(TypeFromId(collocationId)));
 
@@ -1887,11 +2034,11 @@ private:
 
     void ApplyConfigChange(TDynamicReplicatedTableTrackerConfigPtr config)
     {
-        YT_LOG_DEBUG("Applying config change (NewConfig: %v)",
-            ConvertToYsonString(config, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Applying config change")
+            .With("NewConfig", ConvertToYsonString(config, EYsonFormat::Text));
 
         if (UseNewReplicatedTableTracker(Config_) != UseNewReplicatedTableTracker(config)) {
-            YT_LOG_DEBUG("New replicated table tracker is turned on; will load state from snapshot");
+            YT_TLOG_DEBUG("New replicated table tracker is turned on; will load state from snapshot");
             RequestLoadingFromSnapshot();
         }
 
@@ -1906,7 +2053,7 @@ private:
         MaxActionQueueSize_.store(Config_->MaxActionQueueSize);
     }
 
-    void RequestLoadingFromSnapshot(const TGuard<NThreading::TSpinLock>& /*guard*/)
+    void RequestLoadingFromSnapshot(const TGuard<TSpinLock>& /*guard*/)
     {
         Host_->RequestLoadingFromSnapshot();
         ActionQueue_.clear();
@@ -1966,9 +2113,9 @@ private:
         return OrchidService_;
     }
 
-    TCompositeMapServicePtr CreateOrchidService()
+    ICompositeMapServicePtr CreateOrchidService()
     {
-        return New<TCompositeMapService>()
+        return CreateCompositeMapService()
             ->AddAttribute(EInternedAttributeKey::Opaque, BIND([] (IYsonConsumer* consumer) {
                     BuildYsonFluently(consumer)
                         .Value(true);

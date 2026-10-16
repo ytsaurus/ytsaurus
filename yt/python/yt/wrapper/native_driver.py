@@ -1,5 +1,5 @@
 from .config import get_config, get_option, set_option, get_backend_type
-from .common import require, generate_uuid, update, get_value
+from .common import require, generate_uuid, update, get_value, hide_secure_vault
 from .constants import RPC_PACKAGE_INSTALLATION_TEXT, ENABLE_YP_SERVICE_DISCOVERY
 from .default_config import DefaultConfigRetriesType
 from .errors import create_response_error, YtError
@@ -237,8 +237,15 @@ def get_driver_instance(client):
                     "(driver_connection_type: {0}, client_backend: {1})"
                     .format(driver_config["connection_type"], client_backend))
 
+            # Abandon master transactions on a failed commit so the SDK's own retry can
+            # re-commit them; honored only by the RPC proxy client.
+            driver_config["abandon_master_transactions_on_failed_commit"] = True
+
         if client_config["proxy"]["rpc_proxy_role"] is not None:
             driver_config.setdefault("proxy_role", client_config["proxy"]["rpc_proxy_role"])
+
+        if client_config["driver_enable_fork_detection"]:
+            driver_config.setdefault("enable_fork_detection", True)
 
         lazy_import_driver_bindings()
         if driver_bindings is None:
@@ -460,7 +467,7 @@ def make_request(
 
     request_id = generate_uuid(get_option("_random_generator", client))
 
-    logger.debug("Executing command %s with parameters %s and id %s", command_name, repr(params), request_id)
+    logger.debug("Executing command %s with parameters %s and id %s", command_name, repr(hide_secure_vault(params)), request_id)
 
     driver_user_name = get_config(client)["driver_user_name"]
     if driver_user_name is not None:

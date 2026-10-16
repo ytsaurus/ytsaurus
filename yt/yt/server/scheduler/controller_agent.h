@@ -14,11 +14,11 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/library/vector_hdrf/job_resources.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NScheduler {
 
@@ -52,6 +52,7 @@ struct TScheduleAllocationRequest
     TJobResources NodeResourceLimits;
     TDiskResources NodeDiskResources;
     TScheduleAllocationSpec Spec;
+    std::optional<std::string> AllocationGroupName;
 };
 
 using TScheduleAllocationRequestPtr = std::unique_ptr<TScheduleAllocationRequest>;
@@ -94,7 +95,7 @@ public:
     TControllerAgent(
         const TAgentId& id,
         const NNodeTrackerClient::TAddressMap& agentAddresses,
-        THashSet<TString> tags,
+        THashSet<std::string> tags,
         NRpc::IChannelPtr channel,
         const IInvokerPtr& invoker,
         const IInvokerPtr& heartbeatInvoker,
@@ -118,7 +119,7 @@ public:
     /*
      * \note Thread affinity: any
      */
-    const THashSet<TString>& GetTags() const;
+    const THashSet<std::string>& GetTags() const;
     /*
      * \note Thread affinity: any
      */
@@ -136,7 +137,7 @@ public:
     /*
      * \note Thread affinity: any
      */
-    TGuard<NThreading::TSpinLock> AcquireInnerStateLock();
+    TGuard<TSpinLock> AcquireInnerStateLock();
 
     /*
      * \note Thread affinity: any
@@ -180,12 +181,12 @@ public:
 private:
     const TAgentId Id_;
     const NNodeTrackerClient::TAddressMap AgentAddresses_;
-    const THashSet<TString> Tags_;
+    const THashSet<std::string> Tags_;
     const NRpc::IChannelPtr Channel_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InnerStateLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, InnerStateLock_);
 
     std::atomic<EControllerAgentState> State_;
 
@@ -207,7 +208,7 @@ private:
     TSchedulerToAgentOperationEventOutboxPtr OperationEventsOutbox_;
     TScheduleAllocationRequestOutboxPtr ScheduleAllocationRequestsOutbox_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MemoryStatisticsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, MemoryStatisticsLock_);
     std::optional<TControllerAgentMemoryStatistics> MemoryStatistics_;
 
     std::optional<TError> MaybeError_;

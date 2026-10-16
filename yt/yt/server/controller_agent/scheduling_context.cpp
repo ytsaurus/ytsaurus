@@ -26,13 +26,13 @@ using NYT::FromProto;
 TSchedulingContext::TSchedulingContext(
     TAllocationId allocationId,
     TJobNodeDescriptor nodeDescriptor,
-    std::optional<TString> poolPath)
+    std::optional<std::string> poolPath)
     : AllocationId_(allocationId)
     , NodeDescriptor_(std::move(nodeDescriptor))
     , PoolPath_(std::move(poolPath))
 { }
 
-const std::optional<TString>& TSchedulingContext::GetPoolPath() const
+const std::optional<std::string>& TSchedulingContext::GetPoolPath() const
 {
     return PoolPath_;
 }
@@ -68,12 +68,14 @@ TAllocationSchedulingContext::TAllocationSchedulingContext(
     TJobResources resourceLimits,
     NScheduler::TDiskResources diskResources,
     TJobNodeDescriptor nodeDescriptor,
-    std::optional<TString> poolPath,
-    const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec)
+    std::optional<std::string> poolPath,
+    const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec,
+    std::optional<std::string> requestedTaskName)
     : TSchedulingContext(allocationId, std::move(nodeDescriptor), std::move(poolPath))
     , ResourceLimits_(resourceLimits)
     , DiskResources_(std::move(diskResources))
     , ScheduleAllocationSpec_(scheduleAllocationSpec)
+    , RequestedTaskName_(std::move(requestedTaskName))
 { }
 
 bool TAllocationSchedulingContext::CanSatisfyDemand(const NScheduler::TJobResourcesWithQuota& demand) const
@@ -87,7 +89,12 @@ const NScheduler::NProto::TScheduleAllocationSpec* TAllocationSchedulingContext:
     return &ScheduleAllocationSpec_;
 }
 
-TString TAllocationSchedulingContext::ToString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const
+const std::optional<std::string>& TAllocationSchedulingContext::GetRequestedTaskName() const
+{
+    return RequestedTaskName_;
+}
+
+std::string TAllocationSchedulingContext::ToString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const
 {
     TStringBuilder builder;
     builder.Reserve(256);
@@ -97,16 +104,17 @@ TString TAllocationSchedulingContext::ToString(const NChunkClient::TMediumDirect
     FormatCommonPart(builder);
 
     builder.AppendFormat(
-        ", ResourceLimits: %v, DiskResources: %v",
+        ", ResourceLimits: %v, DiskResources: %v, RequestedTaskName: %v",
         ResourceLimits_,
-        NScheduler::ToString(DiskResources_, mediumDirectory));
+        NScheduler::ToString(DiskResources_, mediumDirectory),
+        RequestedTaskName_);
 
     builder.AppendChar('}');
 
     return builder.Flush();
 }
 
-TString TAllocationSchedulingContext::GetResourcesString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const
+std::string TAllocationSchedulingContext::GetResourcesString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const
 {
     TStringBuilder builder;
     builder.Reserve(128);
@@ -129,7 +137,7 @@ TJobSchedulingContext::TJobSchedulingContext(
     TAllocationId allocationId,
     NScheduler::TDiskQuota diskQuota,
     TJobNodeDescriptor nodeDescriptor,
-    std::optional<TString> poolPath)
+    std::optional<std::string> poolPath)
     : TSchedulingContext(allocationId, std::move(nodeDescriptor), std::move(poolPath))
     , DiskQuota_(std::move(diskQuota))
 { }
@@ -146,7 +154,7 @@ const NScheduler::NProto::TScheduleAllocationSpec* TJobSchedulingContext::GetSch
     return nullptr;
 }
 
-TString TJobSchedulingContext::ToString(const NChunkClient::TMediumDirectoryPtr& /*mediumDirectory*/) const
+std::string TJobSchedulingContext::ToString(const NChunkClient::TMediumDirectoryPtr& /*mediumDirectory*/) const
 {
     TStringBuilder builder;
     builder.Reserve(256);
@@ -164,7 +172,7 @@ TString TJobSchedulingContext::ToString(const NChunkClient::TMediumDirectoryPtr&
     return builder.Flush();
 }
 
-TString TJobSchedulingContext::GetResourcesString(const NChunkClient::TMediumDirectoryPtr& /*mediumDirectory*/) const
+std::string TJobSchedulingContext::GetResourcesString(const NChunkClient::TMediumDirectoryPtr& /*mediumDirectory*/) const
 {
     TStringBuilder builder;
     builder.Reserve(128);

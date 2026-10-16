@@ -4,10 +4,10 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 
-	"go.ytsaurus.tech/yt/go/yt"
+	"github.com/spf13/cobra"
+
 	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
@@ -15,15 +15,9 @@ func corsHandler(conf *ytmsvc.CORSConfig) func(next http.Handler) http.Handler {
 	return ytmsvc.CORS(conf)
 }
 
-func buildChytUrl(chytClusterProxy, chytAlias, paramsStr string) string {
-	clusterUrlStr := chytClusterProxy
-
-	ytConfig := yt.Config{
-		Proxy: chytClusterProxy,
+func newCORSConfigFromCmd(cmd *cobra.Command) *ytmsvc.CORSConfig {
+	return &ytmsvc.CORSConfig{
+		AllowedHosts:        ytmsvc.Must(cmd.Flags().GetStringSlice("allowed-hosts")),
+		AllowedHostSuffixes: ytmsvc.Must(cmd.Flags().GetStringSlice("allowed-host-suffixes")),
 	}
-	if clusterUrl, err := ytConfig.GetClusterURL(); err == nil {
-		clusterUrlStr = clusterUrl.Address
-	}
-
-	return fmt.Sprintf("http://%s/query?database=*%s&%s", clusterUrlStr, chytAlias, paramsStr)
 }

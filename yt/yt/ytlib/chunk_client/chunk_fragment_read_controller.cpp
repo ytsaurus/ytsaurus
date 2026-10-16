@@ -244,9 +244,9 @@ public:
             responseFragments,
             std::move(blockCache),
             std::move(options))
-        , Codec_(NErasure::GetCodec(codecId))
-        , TotalPartCount_(Codec_->GetTotalPartCount())
-        , DataPartCount_(Codec_->GetDataPartCount())
+        , Codec_(NErasure::GetCodecOrThrow(codecId))
+        , TotalPartCount_(Codec_->GetParams().TotalPartCount)
+        , DataPartCount_(Codec_->GetParams().DataPartCount)
         , Replicas_(TotalPartCount_)
     { }
 

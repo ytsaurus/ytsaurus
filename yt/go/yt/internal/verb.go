@@ -22,6 +22,16 @@ const (
 	VerbWriteTable Verb = "write_table"
 	VerbReadTable  Verb = "read_table"
 
+	VerbStartDistributedWriteSession  Verb = "start_distributed_write_session"
+	VerbPingDistributedWriteSession   Verb = "ping_distributed_write_session"
+	VerbFinishDistributedWriteSession Verb = "finish_distributed_write_session"
+	VerbWriteTableFragment            Verb = "write_table_fragment"
+
+	VerbStartDistributedWriteFileSession  Verb = "start_distributed_write_file_session"
+	VerbPingDistributedWriteFileSession   Verb = "ping_distributed_write_file_session"
+	VerbFinishDistributedWriteFileSession Verb = "finish_distributed_write_file_session"
+	VerbWriteFileFragment                 Verb = "write_file_fragment"
+
 	VerbListOperations      Verb = "list_operations"
 	VerbStartOperation      Verb = "start_operation"
 	VerbGetOperation        Verb = "get_operation"
@@ -60,6 +70,8 @@ const (
 
 	VerbPushQueueProducer Verb = "push_queue_producer"
 
+	VerbPullQueueConsumer Verb = "pull_queue_consumer"
+
 	VerbMountTable   Verb = "mount_table"
 	VerbUnmountTable Verb = "unmount_table"
 	VerbRemountTable Verb = "remount_table"
@@ -78,11 +90,14 @@ const (
 	VerbGetQueryResult  Verb = "get_query_result"
 	VerbReadQueryResult Verb = "read_query_result"
 	VerbAlterQuery      Verb = "alter_query"
+
+	VerbPartitionTables    Verb = "partition_tables"
+	VerbReadTablePartition Verb = "read_table_partition"
 )
 
 func (v Verb) hasInput() bool {
 	switch v {
-	case VerbSet, VerbMultisetAttributes, VerbWriteFile, VerbWriteTable:
+	case VerbSet, VerbMultisetAttributes, VerbWriteFile, VerbWriteTable, VerbWriteTableFragment, VerbWriteFileFragment:
 		return true
 
 	case VerbInsertRows, VerbDeleteRows, VerbLookupRows, VerbLockRows, VerbPushQueueProducer:
@@ -97,7 +112,7 @@ func (v Verb) hasInput() bool {
 
 func (v Verb) IsHeavy() bool {
 	switch v {
-	case VerbReadFile, VerbWriteFile, VerbReadTable, VerbWriteTable:
+	case VerbReadFile, VerbWriteFile, VerbReadTable, VerbWriteTable, VerbWriteTableFragment, VerbWriteFileFragment:
 		return true
 
 	case VerbLocateSkynetShare:
@@ -113,6 +128,12 @@ func (v Verb) IsHeavy() bool {
 		return true
 
 	case VerbReadQueryResult:
+		return true
+
+	case VerbPullQueueConsumer:
+		return true
+
+	case VerbPartitionTables, VerbReadTablePartition:
 		return true
 	}
 
@@ -137,6 +158,12 @@ func (v Verb) volatile() bool {
 		return false
 
 	case VerbStartQuery, VerbAbortQuery, VerbGetQuery, VerbListQueries, VerbGetQueryResult, VerbReadQueryResult, VerbAlterQuery:
+		return false
+
+	case VerbPullQueueConsumer:
+		return false
+
+	case VerbPartitionTables, VerbReadTablePartition:
 		return false
 	}
 

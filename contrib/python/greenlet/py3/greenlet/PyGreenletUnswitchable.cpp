@@ -114,7 +114,7 @@ static PyGetSetDef green_unswitchable_getsets[] = {
       .name="force_switch_error",
       .get=(getter)green_unswitchable_getforce,
       .set=(setter)green_unswitchable_setforce,
-      .doc=NULL
+      .doc=nullptr
     },
     {
       .name="force_slp_switch_error",
@@ -126,21 +126,24 @@ static PyGetSetDef green_unswitchable_getsets[] = {
 };
 
 PyTypeObject PyGreenletUnswitchable_Type = {
-    .ob_base=PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name="greenlet._greenlet.UnswitchableGreenlet",
-    .tp_dealloc= (destructor)green_dealloc, /* tp_dealloc */
-    .tp_flags=G_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
-    .tp_doc="Undocumented internal class",                        /* tp_doc */
-    .tp_traverse=(traverseproc)green_traverse, /* tp_traverse */
-    .tp_clear=(inquiry)green_clear,         /* tp_clear */
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "greenlet._greenlet.UnswitchableGreenlet",
+    .tp_dealloc = (destructor)green_dealloc,
+    .tp_flags = G_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+    .tp_doc = "Undocumented internal class for testing error conditions",
+    .tp_traverse = (traverseproc)green_traverse,
+    .tp_clear = (inquiry)green_clear,
 
-    .tp_getset=green_unswitchable_getsets,                      /* tp_getset */
-    .tp_base=&PyGreenlet_Type,                                  /* tp_base */
-    .tp_init=(initproc)green_init,               /* tp_init */
-    .tp_alloc=PyType_GenericAlloc,                  /* tp_alloc */
-    .tp_new=(newfunc)green_unswitchable_new,                          /* tp_new */
-    .tp_free=PyObject_GC_Del,                   /* tp_free */
-    .tp_is_gc=(inquiry)green_is_gc,         /* tp_is_gc */
+    .tp_getset = green_unswitchable_getsets,
+    .tp_base = &PyGreenlet_Type,
+    .tp_init = (initproc)green_init,
+    .tp_alloc = PyType_GenericAlloc,
+    .tp_new = (newfunc)green_unswitchable_new,
+    .tp_free = PyObject_GC_Del,
+#ifndef Py_GIL_DISABLED
+    // See comments in the base type
+    .tp_is_gc = (inquiry)green_is_gc,
+#endif
 };
 
 

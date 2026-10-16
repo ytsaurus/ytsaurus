@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/nbd/random_access_file_reader.h>
+#include <yt/yt/server/lib/nbd/image/random_access_file_reader.h>
 
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 
@@ -22,7 +22,7 @@ namespace NYT::NSquashFS {
 struct TSquashFSData
 {
     TBlobOutput Head;
-    std::vector<NNbd::IRandomAccessFileReaderPtr> Readers;
+    std::vector<NNbd::NImage::IRandomAccessFileReaderPtr> Readers;
     TBlobOutput Tail;
 };
 
@@ -39,7 +39,7 @@ public:
     {
         i64 Offset;
         i64 Size;
-        NNbd::IRandomAccessFileReaderPtr Reader;
+        NNbd::NImage::IRandomAccessFileReaderPtr Reader;
     };
 
     explicit TSquashFSLayout(TSquashFSData data);
@@ -88,9 +88,9 @@ struct ISquashFSLayoutBuilder
     // Adds directories and file to file system.
     // Takes absolute address to file, its permissions and size.
     virtual void AddFile(
-        TString path,
+        std::string path,
         ui16 permissions,
-        NNbd::IRandomAccessFileReaderPtr reader) = 0;
+        NNbd::NImage::IRandomAccessFileReaderPtr reader) = 0;
 
     // Builds squashFs that contains all directories and files added previously.
     virtual TSquashFSLayoutPtr Build() = 0;

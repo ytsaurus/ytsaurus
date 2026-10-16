@@ -19,7 +19,10 @@ class TVersionedFloatingPointColumnTest
     , public ::testing::WithParamInterface<ESimpleLogicalValueType>
 {
 protected:
-    static constexpr TTimestamp TimestampBase = 1000000;
+    static constexpr TTimestamp Timestamp(ui64 delta = 0)
+    {
+        return TTimestamp(1000000 + delta);
+    }
 
     struct TValue
     {
@@ -58,9 +61,9 @@ protected:
     void AppendExtremeRow(std::vector<TVersionedRow>* rows)
     {
         rows->push_back(CreateRow({
-            {std::numeric_limits<double>::max(), TimestampBase},
-            {std::numeric_limits<double>::min(), TimestampBase + 1},
-            {std::nullopt, TimestampBase + 2}}));
+            {std::numeric_limits<double>::max(), Timestamp()},
+            {std::numeric_limits<double>::min(), Timestamp(1)},
+            {std::nullopt, Timestamp(2)}}));
     }
 
     std::vector<TVersionedRow> CreateDirectDense()
@@ -69,8 +72,8 @@ protected:
 
         for (int i = 0; i < 100 * 100; ++i) {
             rows.push_back(CreateRow({
-                {i * 3.25 , TimestampBase + i * 10},
-                {i * 10 * 3.25, TimestampBase + (i + 2) * 10}}));
+                {i * 3.25 , Timestamp(i * 10)},
+                {i * 10 * 3.25, Timestamp((i + 2) * 10)}}));
         }
         rows.push_back(CreateRowWithValues({}));
         AppendExtremeRow(&rows);
@@ -82,8 +85,8 @@ protected:
         std::vector<TVersionedRow> rows;
         for (int i = 0; i < 1000; ++i) {
             rows.push_back(CreateRow({
-                {i * 3.25, TimestampBase + i * 10},
-                {i * 10 * 3.25, TimestampBase + (i + 2) * 10}}));
+                {i * 3.25, Timestamp(i * 10)},
+                {i * 10 * 3.25, Timestamp((i + 2) * 10)}}));
 
             for (int j = 0; j < 10; ++j) {
                 rows.push_back(CreateRowWithValues({}));
@@ -154,7 +157,7 @@ protected:
 
 TEST_P(TVersionedFloatingPointColumnTest, ReadValues)
 {
-    DoReadValues(TimestampBase + 80000);
+    DoReadValues(Timestamp(80000));
 }
 
 TEST_P(TVersionedFloatingPointColumnTest, ReadValuesMinTimestamp)

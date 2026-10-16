@@ -17,6 +17,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/library/vector_hdrf
+    yt/yt/library/vector_hdrf/unittests/mock
     yt/yt/core/test_framework
 )
 
@@ -24,4 +25,5 @@ END()
 
 RECURSE(
     fetch_scheduling_data
+    mock
 )

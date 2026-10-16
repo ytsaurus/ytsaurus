@@ -96,6 +96,13 @@ public:
                 readers.push_back(reader);
             }
 
+            if (MergeJobSpecExt_.has_push_based_shuffle_valid_task_job_indexes()) {
+                return CreatePushBasedShuffleMergingReader(
+                    readers,
+                    MergeJobSpecExt_.push_based_shuffle_valid_task_job_indexes(),
+                    sortColumns);
+            }
+
             auto sortComparator = GetComparator(sortColumns);
             return CreateSortedMergingReader(
                 readers,
@@ -159,7 +166,7 @@ public:
                 THROW_ERROR_EXCEPTION(
                     "Sort order violation in a sorted merge job detected; one of the possible reasons is "
                     "that there are overlapping ranges specified on one of the input tables that is not allowed")
-                    << ex;
+                    .With(ex);
             }
             throw;
         }

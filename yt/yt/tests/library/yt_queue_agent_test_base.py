@@ -6,7 +6,7 @@ from yt_commands import (execute_batch, get, get_batch_output, get_connection_or
                          sync_create_cells, exists, select_rows, sync_reshard_table, print_debug, get_driver, register_queue_consumer, sync_freeze_table, sync_unfreeze_table,
                          create_table_replica, sync_enable_table_replica, advance_consumer, insert_rows, wait_for_tablet_state, abort_transactions, raises_yt_error)
 
-from yt_helpers import parse_yt_time, calculate_object_diff
+from yt_helpers import parse_yt_time, calculate_object_diff, wait_success
 
 from yt.common import YtError, update_inplace, update
 
@@ -60,8 +60,8 @@ class GenericObjectPath(YPath):
 
 
 class QueueConsumerRegistration:
-    def __init__(self, queue_cluster, queue_path, consumer_cluster, consumer_path, vital, partitions=None):
-        self.key = (queue_cluster, queue_path, consumer_cluster, consumer_path)
+    def __init__(self, queue_cluster, queue_path, consumer_cluster, consumer_path, vital, partitions=None, consumer_name=None):
+        self.key = (queue_cluster, queue_path, consumer_cluster, consumer_path, consumer_name)
         self.value = (vital, partitions)
 
     def __eq__(self, other):
@@ -77,30 +77,46 @@ class QueueConsumerRegistration:
         return hash(self.key + self.value)
 
     @staticmethod
-    def _normalize_partitions(partitions):
-        if partitions is None:
-            return partitions
-        if partitions == YsonEntity():
+    def _normalize_none(value):
+        if value == YsonEntity():
             return None
-        return tuple(partitions)
+        return value
+
+    @staticmethod
+    def _normalize_partitions(partitions):
+        partitions = QueueConsumerRegistration._normalize_none(partitions)
+        return tuple(partitions) if partitions is not None else None
 
     @classmethod
     def from_select(cls, r):
         return cls(r["queue_cluster"], r["queue_path"], r["consumer_cluster"], r["consumer_path"], r["vital"],
-                   cls._normalize_partitions(r["partitions"]))
+                   cls._normalize_partitions(r["partitions"]), cls._normalize_none(r["consumer_name"]))
 
     @classmethod
     def from_orchid(cls, r):
         queue_ypath = GenericObjectPath(r["queue"])
         consumer_ypath = GenericObjectPath(r["consumer"])
-        return cls(queue_ypath.get_cluster(), queue_ypath.get_path(), consumer_ypath.get_cluster(),
-                   consumer_ypath.get_path(), r["vital"], cls._normalize_partitions(r["partitions"]))
+        return cls(
+            queue_ypath.get_cluster(),
+            queue_ypath.get_path(),
+            consumer_ypath.get_cluster(),
+            consumer_ypath.get_path(),
+            r["vital"],
+            cls._normalize_partitions(r["partitions"]),
+            cls._normalize_none(consumer_ypath.get_queue_consumer_name()),
+        )
 
     @classmethod
     def from_list_registrations(cls, r):
-        return cls(r["queue_path"].attributes["cluster"], str(r["queue_path"]),
-                   r["consumer_path"].attributes["cluster"], str(r["consumer_path"]),
-                   r["vital"], cls._normalize_partitions(r["partitions"]))
+        return cls(
+            r["queue_path"].attributes["cluster"],
+            str(r["queue_path"]),
+            r["consumer_path"].attributes["cluster"],
+            str(r["consumer_path"]),
+            r["vital"],
+            cls._normalize_partitions(r["partitions"]),
+            cls._normalize_none(r["consumer_path"].attributes.get("queue_consumer_name", None)),
+        )
 
 
 ##################################################################
@@ -166,9 +182,9 @@ class OrchidWithRegularPasses(OrchidBase):
     def get_pass_error(self):
         return YtError.from_dict(get(f"{self.orchid_path()}/pass_error"))
 
-    def wait_fresh_pass(self):
-        pass_index = self.get_pass_index()
-        wait(lambda: self.get_pass_index() >= pass_index + 2, sleep_backoff=0.15)
+    def wait_fresh_pass(self, ignore_exceptions: bool = False):
+        pass_index = wait_success(self.get_pass_index, ignore_exceptions=ignore_exceptions)
+        wait(lambda: self.get_pass_index() >= pass_index + 2, sleep_backoff=0.15, ignore_exceptions=ignore_exceptions)
 
     def validate_no_pass_error(self):
         error = self.get_pass_error()
@@ -320,6 +336,17 @@ class ConsumerOrchid(ObjectOrchid):
         return status["queues"][queue_ref], partitions[queue_ref]
 
 
+class MultiConsumerOrchid(ObjectOrchid):
+    OBJECT_TYPE = "multi_consumer"
+
+    def get_queue_consumer_names(self) -> list[str]:
+        result = self.get_status()
+        return result["queue_consumer_names"]
+
+    def get_named_consumer_status(self, consumer_name: str) -> dict:
+        return get(f"{self.orchid_path()}/status/consumers/{consumer_name}")
+
+
 class QueueAgentOrchid(OrchidWithRegularPasses):
     ENTITY_NAME = "queue_agent"
 
@@ -389,6 +416,9 @@ class QueueAgentOrchid(OrchidWithRegularPasses):
     def get_owned_consumer_orchids(self):
         return [self.get_consumer_orchid(consumer) for consumer in self.list_consumers()]
 
+    def get_multi_consumer_orchid(self, consumer_ref: str | GenericObjectPath):
+        return MultiConsumerOrchid(str(consumer_ref), self.agent_id)
+
     def get_controller_info(self):
         return get(f"{self.orchid_path()}/controller_info")
 
@@ -406,6 +436,10 @@ class QueueAgentShardingManagerOrchid(OrchidWithRegularPasses, OrchidSingleLeade
 
 class CypressSynchronizerOrchid(OrchidWithRegularPasses, OrchidSingleLeaderMixin):
     ENTITY_NAME = "cypress_synchronizer"
+
+
+class MultiConsumerNamesGarbageCollectorOrchid(OrchidWithRegularPasses, OrchidSingleLeaderMixin):
+    ENTITY_NAME = "multi_consumer_names_garbage_collector"
 
 
 ##################################################################
@@ -780,12 +814,6 @@ class QueueConsumerRegistrationManagerBase(YTEnvSetup):
         "disable_list_all_registrations": True,
         "implementation": "async_expiring_cache",
         "bypass_caching": False,
-        "cache": {
-            "federation_config": {
-                "cluster_health_check_period": 1000,
-                "bundle_name": "default",
-            },
-        },
     }
 
     QUEUE_CONSUMER_REGISTRATION_MANAGER_LEGACY_IMPLEMENTATION_CHECK = False
@@ -976,8 +1004,15 @@ class QueueConsumerRegistrationManagerBase(YTEnvSetup):
 
         applied_config = {}
 
+        def drop_null_values(value):
+            if isinstance(value, dict):
+                return {key: drop_null_values(subvalue) for key, subvalue in value.items() if subvalue is not None}
+            return value
+
         def check_orchid_value(proxy, effective_config, unrecognized_config_options, native=False):
-            compared_config = config if native else proxy_config
+            # Null-valued optional fields are omitted from the effective config, so they cannot be
+            # matched against it; drop them before comparing.
+            compared_config = drop_null_values(config if native else proxy_config)
 
             print_debug(f"Checking orchid value for proxy {proxy}")
             # TODO(apachee): Move unrecognized config options check to verify, since once it works we should ignore
@@ -1068,6 +1103,21 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
 
     USE_OLD_QUEUE_EXPORTER_IMPL = False
 
+    BASE_QUEUE_AGENT_CONFIG = {
+        "election_manager": {
+            "transaction_timeout": 5000,
+            "transaction_ping_period": 100,
+            "lock_acquisition_period": 100,
+            "leader_cache_update_period": 100,
+        },
+        "multi_consumer_names_garbage_collector_election_manager": {
+            "transaction_timeout": 5000,
+            "transaction_ping_period": 100,
+            "lock_acquisition_period": 100,
+            "leader_cache_update_period": 100,
+        },
+    }
+
     BASE_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent_sharding_manager": {
             "pass_period": 100,
@@ -1098,12 +1148,31 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
             "clusters": ["primary"],
             "pass_period": 100,
         },
+        "multi_consumer_names_garbage_collector": {
+            "pass_period": 100,
+        },
+        # NB(apachee): setup_class recreates the dynamic config document from scratch,
+        # so the defaults from get_dynamic_queue_agent_config do not apply here.
+        "dynamic_state": {
+            # Retries should be enabled explicitly in tests.
+            "retry_backoff": {
+                "invocation_count": 0,
+                # Keep the backoffs negligible for tests that do enable retries.
+                "min_backoff": 1,
+                "max_backoff": 1,
+                "backoff_jitter": 0.0,
+            },
+        },
     }
 
     INSTANCES = None
 
     DO_PREPARE_TABLES_ON_SETUP = True
     QUEUE_AGENT_DO_WAIT_FOR_GLOBAL_SYNC_ON_SETUP = False
+
+    @classmethod
+    def _is_multi_consumer_supported(cls) -> bool:
+        return "queue-agent" not in cls.ARTIFACT_COMPONENTS.get("25_4", [])
 
     @classmethod
     def modify_queue_agent_config(cls, config):
@@ -1125,6 +1194,8 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
 
     @classmethod
     def setup_class(cls):
+        cls.DELTA_QUEUE_AGENT_CONFIG = update(cls.BASE_QUEUE_AGENT_CONFIG, cls.DELTA_QUEUE_AGENT_CONFIG)
+
         super(TestQueueAgentBase, cls).setup_class()
 
         queue_agent_config = cls.Env._cluster_configuration["queue_agent"][0]
@@ -1270,35 +1341,71 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
         return make_batch_request("create", type="table", path=path, attributes=attributes)
 
     @staticmethod
-    def _create_consumer(path, mount=True, without_meta=False, driver=None, **kwargs):
-        if without_meta or not mount:
-            attributes = {
-                "dynamic": True,
-                "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META if without_meta else init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
-                "treat_as_queue_consumer": True,
-            }
-            attributes.update(kwargs)
-            create("table", path, attributes=attributes, driver=driver)
-            if mount:
-                sync_mount_table(path, driver=driver)
-            return
+    def _create_consumer(path, mount=True, without_meta=False, driver=None, multi_consumer=False, **kwargs):
+        if mount:
+            if multi_consumer:
+                assert not without_meta
+                create("queue_multi_consumer", path, driver=driver, attributes=kwargs)
+                return
 
-        create("queue_consumer", path, driver=driver, attributes=kwargs)
+            if not without_meta:
+                create("queue_consumer", path, driver=driver, attributes=kwargs)
+                return
 
-    def _create_registered_consumer(self, consumer_path, queue_path, vital=False, without_meta=False, **kwargs):
-        self._create_consumer(consumer_path, **kwargs)
-        register_queue_consumer(queue_path, consumer_path, vital=vital)
+        if multi_consumer:
+            schema = init_queue_agent_state.MULTI_CONSUMER_OBJECT_TABLE_SCHEMA
+        elif without_meta:
+            schema = init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META
+        else:
+            schema = init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA
+
+        attributes = {
+            "dynamic": True,
+            "schema": schema,
+            "treat_as_queue_consumer": True,
+        }
+        attributes.update(kwargs)
+        create("table", path, attributes=attributes, driver=driver)
+        if mount:
+            sync_mount_table(path, driver=driver)
+
+    def _create_registered_consumer(
+        self,
+        consumer_path: str | GenericObjectPath,
+        queue_path: str,
+        vital: bool = False,
+        without_meta: bool = False,
+        consumer_name: str | None = None,
+        consumer_cluster: str = "primary",
+        **kwargs,
+    ) -> GenericObjectPath:
+        assert not (consumer_name and without_meta), "Multi consumer and without meta are not supported together"
+        if not exists(consumer_path):
+            self._create_consumer(consumer_path, without_meta=without_meta, multi_consumer=consumer_name is not None, **kwargs)
+
+        consumer_ref = GenericObjectPath(consumer_path, consumer_cluster, consumer_name)
+        register_queue_consumer(queue_path, consumer_ref, vital=vital)
+
+        return consumer_ref
 
     def _advance_consumer(self, consumer_path, queue_path, partition_index, offset, client_side=False, via_insert=False):
         self._advance_consumers(consumer_path, queue_path, {partition_index: offset}, client_side, via_insert)
 
     def _advance_consumers(self, consumer_path, queue_path, partition_index_to_offset, client_side=False, via_insert=False):
         if via_insert:
-            insert_rows(consumer_path, [{
+            base_dict = {
                 "queue_cluster": "primary",
                 "queue_path": queue_path,
+            }
+            if isinstance(consumer_path, GenericObjectPath):
+                if consumer_path.get_queue_consumer_name():
+                    base_dict["queue_consumer_name"] = consumer_path.get_queue_consumer_name()
+                consumer_path = str(consumer_path)
+
+            insert_rows(consumer_path, [{
                 "partition_index": partition_index,
                 "offset": offset,
+                **base_dict,
             } for partition_index, offset in partition_index_to_offset.items()])
         else:
             for partition_index, offset in partition_index_to_offset.items():
@@ -1399,8 +1506,13 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
         def queue_agent_sharding_manager_elected():
             return len(QueueAgentShardingManagerOrchid.get_leaders(instances=instances)) == 1
 
+        def multi_consumer_names_garbage_collector_elected():
+            return len(MultiConsumerNamesGarbageCollectorOrchid.get_leaders(instances=instances)) == 1
+
         wait(lambda: cypress_synchronizer_elected(), sleep_backoff=0.15)
         wait(lambda: queue_agent_sharding_manager_elected(), sleep_backoff=0.15)
+        if cls._is_multi_consumer_supported():
+            wait(lambda: multi_consumer_names_garbage_collector_elected(), sleep_backoff=0.15)
 
     @classmethod
     def _wait_for_discovery(cls, instances=None):
@@ -1428,8 +1540,9 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
     # Waits for a complete pass by all queue agent components.
     # More specifically, it performs the following (in order):
     #     1. Waits for a complete pass by the leading cypress synchronizer.
-    #     2. Waits for a complete pass by the leading queue agent manager.
-    #     3. Waits for a complete pass by all queue agents.
+    #     2. Waits for a complete pass by the leading multi consumer names garbage collector.
+    #     3. Waits for a complete pass by the leading queue agent manager.
+    #     4. Waits for a complete pass by all queue agents.
     @classmethod
     def _wait_for_component_passes(cls, instances=None, skip_cypress_synchronizer=False):
         if instances is None:
@@ -1442,6 +1555,12 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
 
         if not skip_cypress_synchronizer:
             leading_cypress_synchronizer_orchid.wait_fresh_pass()
+
+        if cls._is_multi_consumer_supported():
+            wait(lambda: len(MultiConsumerNamesGarbageCollectorOrchid.get_leaders(instances=instances)) == 1)
+            leading_multi_consumer_names_garbage_collector_orchid = \
+                MultiConsumerNamesGarbageCollectorOrchid.leader_orchid(instances=instances)
+            leading_multi_consumer_names_garbage_collector_orchid.wait_fresh_pass()
 
         cls._wait_for_discovery(instances=instances)
         leading_queue_agent_sharding_manager.wait_fresh_pass()

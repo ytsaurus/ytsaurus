@@ -18,8 +18,16 @@ namespace NYT::NCellarAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename EQueue>
-TAutomatonInvokerHood<EQueue>::TAutomatonInvokerHood(std::string threadName)
-    : AutomatonQueue_(NConcurrency::CreateEnumIndexedFairShareActionQueue<EQueue>(threadName))
+TAutomatonInvokerHood<EQueue>::TAutomatonInvokerHood(
+    std::string threadName,
+    NProfiling::IRegistryPtr registry,
+    const NProfiling::TTagSet& extraTags)
+    : AutomatonQueue_(NConcurrency::CreateEnumIndexedFairShareActionQueue<EQueue>(
+        threadName,
+        /*bucketToQueues*/ {},
+        /*threadOptions*/ {},
+        std::move(registry),
+        extraTags))
 {
     ResetEpochInvokers();
     ResetGuardedInvokers();

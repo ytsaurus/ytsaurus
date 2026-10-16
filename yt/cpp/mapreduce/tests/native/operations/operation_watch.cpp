@@ -118,6 +118,8 @@ TEST(OperationWatch, AbortedOperationWatch_OperationAbort)
 
 void CompletedOperationWatchImpl(bool useOperationComplete)
 {
+    TZeroWaitLockPollIntervalGuard pollIntervalGuard;
+
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -147,7 +149,7 @@ void CompletedOperationWatchImpl(bool useOperationComplete)
     }
 
     auto fut = operation->Watch();
-    fut.Wait(TDuration::Seconds(10));
+    fut.Wait();
     EXPECT_NO_THROW(fut.GetValue());
     EXPECT_EQ(GetOperationState(client, operation->GetId()), "completed");
     EXPECT_EQ(operation->GetBriefState(), EOperationBriefState::Completed);

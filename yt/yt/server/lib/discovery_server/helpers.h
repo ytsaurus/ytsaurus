@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/discovery_server/config.h>
 
-#include <yt/yt/ytlib/discovery_client/helpers.h>
+#include <yt/yt/library/discovery_client/helpers.h>
 
 #include <yt/yt/core/ytree/attributes.h>
 #include <yt/yt/core/rpc/public.h>
@@ -24,6 +24,7 @@ struct TGossipMemberInfo
 
 void ToProto(NProto::TGossipMemberInfo* protoMemberInfo, const TGossipMemberInfo& MemberInfo);
 void FromProto(TGossipMemberInfo* memberInfo, const NProto::TGossipMemberInfo& protoMemberInfo);
+void FromProto(TGossipMemberInfo* memberInfo, NProto::TGossipMemberInfo&& protoMemberInfo);
 
 ////////////////////////////////////////////////////////////////////////////////
 

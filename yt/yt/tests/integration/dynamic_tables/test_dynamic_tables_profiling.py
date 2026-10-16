@@ -1,5 +1,7 @@
+
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from .test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
+from yt_dynamic_tables_base import SmoothMovementHelper
 
 from yt_commands import (
     authors, print_debug, wait, create, get, set, create_user, remount_table,
@@ -10,6 +12,7 @@ from yt_commands import (
 )
 
 from yt_helpers import profiler_factory
+from yt_type_helpers import struct_type, optional_type
 
 from yt.common import YtError
 from yt.yson import YsonEntity
@@ -229,9 +232,21 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
     def test_bundle_solomon_tag(self):
         default_cell = sync_create_cells(1)[0]
 
+        def enable_deduce(arg):
+            update_nodes_dynamic_config({
+                "cellar_node": {
+                    "deduce_profiling_tag_from_bundle_name": arg,
+                }
+            })
+
         def get_solomon_tags(cell_id):
-            node_address = get("#%s/@peers/0/address" % cell_id)
-            return get("//sys/cluster_nodes/%s/orchid/monitoring/solomon/dynamic_tags" % node_address)
+            node_address = get(f"#{cell_id}/@peers/0/address")
+            return get(f"//sys/cluster_nodes/{node_address}/orchid/monitoring/solomon/dynamic_tags")
+
+        def has_alert(cell_id):
+            node_address = get(f"#{cell_id}/@peers/0/address")
+            alerts = get(f"//sys/cluster_nodes/{node_address}/@alerts")
+            return any("Conflicting profiling tags" in str(a) for a in alerts)
 
         wait(lambda: get_solomon_tags(default_cell) == {"tablet_cell_bundle": "default"})
 
@@ -239,6 +254,12 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         bundle_cells = sync_create_cells(20, tablet_cell_bundle="b1")
 
         wait(lambda: get_solomon_tags(default_cell) == {})
+        wait(lambda: has_alert(default_cell))
+
+        enable_deduce(False)
+        wait(lambda: not has_alert(default_cell))
+        enable_deduce(True)
+
         remove_tablet_cell(default_cell)
 
         for cell_id in bundle_cells:
@@ -248,6 +269,10 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
 
         for cell_id in bundle_cells:
             wait(lambda: get_solomon_tags(cell_id) == {"tablet_cell_bundle": "tag1"})
+
+        enable_deduce(False)
+        for cell_id in bundle_cells:
+            wait(lambda: get_solomon_tags(cell_id) == {})
 
     @authors("prime")
     def test_profiling_path_letters(self):
@@ -332,7 +357,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
 
         insert_rows(table_sorted, [{"key": 0, "value": "a" * 100}])
         sync_flush_table(table_sorted)
-        wait_sorted(data_weight=29,
+        wait_sorted(data_weight=24,
                     uncompressed_data_size=277,
                     row_count=1,
                     chunk_count=1,
@@ -342,7 +367,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
 
         insert_rows(table_sorted, [{"key": 2, "value": "c" * 100}, {"key": 3, "value": "b" * 100}])
         sync_flush_table(table_sorted)
-        wait_sorted(data_weight=87,
+        wait_sorted(data_weight=72,
                     uncompressed_data_size=567,
                     row_count=3,
                     chunk_count=2,
@@ -421,7 +446,6 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         wait(lambda: max_block_size_summary.get_max() == 312.0)
 
 
-@pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesProfiling(TestOrderedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {"cluster_connection": {"timestamp_provider": {"update_period": 100}}}
@@ -531,49 +555,34 @@ class TestStatisticsReporterBase:
         def make_struct(name):
             return {
                 "name": name,
-                "type_v3": {
-                    "type_name": "struct",
-                    "members": [
-                        {"name": "count", "type": "int64"},
-                        {"name": "rate", "type": "double"},
-                        {"name": "rate_10m", "type": "double"},
-                        {"name": "rate_1h", "type": "double"},
-                    ],
-                }
+                "type_v3": optional_type(struct_type([
+                    ("count", "int64"),
+                    ("rate", "double"),
+                    ("rate_10m", "double"),
+                    ("rate_1h", "double"),
+                ])),
             }
+
+        nodes = ls("//sys/tablet_nodes")
+        node_address = nodes[0]
+        keys = get("//sys/cluster_nodes/" + node_address + "/orchid/performance_counter_names")
+
+        schema = [
+            {"name": "table_id", "type_v3": "string", "sort_order": "ascending"},
+            {"name": "tablet_id", "type_v3": "string", "sort_order": "ascending"},
+        ] + [
+            make_struct(name) for name in keys
+        ] + [
+            {"name": "uncompressed_data_size", "type_v3": optional_type("int64")},
+            {"name": "compressed_data_size", "type_v3": optional_type("int64")},
+        ]
 
         create(
             "table",
             table_path,
             attributes={
                 "dynamic": True,
-                "schema": [
-                    {"name": "table_id", "type_v3": "string", "sort_order": "ascending"},
-                    {"name": "tablet_id", "type_v3": "string", "sort_order": "ascending"},
-                    make_struct("dynamic_row_read"),
-                    make_struct("dynamic_row_read_data_weight"),
-                    make_struct("dynamic_row_lookup"),
-                    make_struct("dynamic_row_lookup_data_weight"),
-                    make_struct("dynamic_row_write"),
-                    make_struct("dynamic_row_write_data_weight"),
-                    make_struct("dynamic_row_delete"),
-                    make_struct("static_chunk_row_read"),
-                    make_struct("static_chunk_row_read_data_weight"),
-                    make_struct("static_hunk_chunk_row_read_data_weight"),
-                    make_struct("static_chunk_row_lookup"),
-                    make_struct("static_chunk_row_lookup_data_weight"),
-                    make_struct("static_hunk_chunk_row_lookup_data_weight"),
-                    make_struct("user_data_bytes_transmitted"),
-                    make_struct("system_data_bytes_transmitted"),
-                    make_struct("compaction_data_weight"),
-                    make_struct("partitioning_data_weight"),
-                    make_struct("lookup_error"),
-                    make_struct("write_error"),
-                    make_struct("lookup_cpu_time"),
-                    make_struct("select_cpu_time"),
-                    {"name": "uncompressed_data_size", "type_v3": "int64"},
-                    {"name": "compressed_data_size", "type_v3": "int64"},
-                ],
+                "schema": schema,
                 "mount_config": {
                     "min_data_ttl": 0,
                     "max_data_ttl": 86400000,
@@ -632,7 +641,8 @@ class TestStatisticsReporterBase:
         response = lookup_rows(
             statistics_table_path, [{"table_id": table_id, "tablet_id": tablet_id}],
             verbose=False)
-        result = response[0][name][counter] if response else None
+        value = response[0].get(name) if response else None
+        result = value[counter] if value else None
         print_debug(f"Got counter {name}.{counter} for table {table_id}, tablet {tablet_id}: {result}")
         return result
 
@@ -695,6 +705,129 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         _check_dynamic_row_write_counter_after_unmount(
             expected_value=9,
             rows=[{"key": i, "value": "F"} for i in range(3, 10)])
+
+    @authors("dave11ar")
+    def test_update_statistics_in_statistics_reporter_after_reshard(self):
+        self._create_sorted_table(
+            "//tmp/t",
+            mount_config={
+                "enable_compaction_and_partitioning": False,
+                "dynamic_store_auto_flush_period": YsonEntity(),
+            })
+        sync_mount_table("//tmp/t")
+
+        table_id = get("//tmp/t/@id")
+        original_tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        def _write_and_flush(begin, end):
+            insert_rows("//tmp/t", [{"key": i, "value": "v"} for i in range(begin, end)])
+            sync_flush_table("//tmp/t")
+
+        _write_and_flush(0, 50)
+        _write_and_flush(50, 100)
+        _write_and_flush(100, 150)
+        _write_and_flush(150, 200)
+
+        expected_counter = 200
+        threshold = 5
+
+        wait(lambda: self._get_counter(
+            table_id,
+            original_tablet_id,
+            "dynamic_row_write") == expected_counter)
+
+        new_tablet_ids = []
+
+        def _check_sum_counter():
+            sum_counter = sum(filter(
+                None,
+                (self._get_counter(table_id, tablet_id, "dynamic_row_write") for tablet_id in new_tablet_ids)))
+
+            return abs(expected_counter - sum_counter) <= threshold
+
+        def _reshard_and_check(pivots):
+            sync_unmount_table("//tmp/t")
+            sync_reshard_table("//tmp/t", pivots)
+            sync_mount_table("//tmp/t")
+
+            nonlocal new_tablet_ids
+            new_tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+
+            wait(_check_sum_counter)
+
+        _reshard_and_check([[], [50], [100], [150]])
+        _reshard_and_check([[], [50], [150]])
+        _reshard_and_check([[], [100]])
+        _reshard_and_check([[]])
+
+    @authors("dave11ar")
+    def test_statistics_reporter_table_reshard(self):
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        table_id = get("//tmp/t/@id")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "v"}])
+        sync_flush_table("//tmp/t")
+
+        def _set_enable(enable):
+            update_nodes_dynamic_config({
+                "tablet_node" : {
+                    "statistics_reporter" : {
+                        "enable": enable
+                    }
+                }
+            })
+
+        def _wait_counter():
+            wait(lambda: self._get_counter(
+                table_id,
+                tablet_id,
+                "dynamic_row_write") == 1)
+
+        _wait_counter()
+
+        _set_enable(False)
+
+        sync_unmount_table("//tmp/t")
+
+        insert_rows(
+            self.STATISTICS_TABLE_PATH,
+            [{"table_id": table_id, "tablet_id": tablet_id, "dynamic_row_write": None}],
+            update=True)
+
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "v"}])
+
+        _set_enable(True)
+
+        _wait_counter()
+
+    @authors("atalmenev")
+    def test_performance_counters_after_smooth_move(self):
+        set("//sys/tablet_cell_bundles/default/@cell_balancer_config/enable_tablet_cell_smoothing", False)
+        sync_create_cells(1)
+
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        table_id = get("//tmp/t/@id")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "A"}])
+        wait(lambda: self._get_counter(table_id, tablet_id, "dynamic_row_write") == 1,
+             ignore_exceptions=True)
+
+        with SmoothMovementHelper(tablet_id).forwarding_context():
+            insert_rows("//tmp/t", [{"key": 1, "value": "B"}])
+            wait(lambda: self._get_counter(table_id, tablet_id, "dynamic_row_write") == 2,
+                 ignore_exceptions=True)
+
+        insert_rows("//tmp/t", [{"key": 2, "value": "B"}])
+        wait(lambda: self._get_counter(table_id, tablet_id, "dynamic_row_write") == 3,
+             ignore_exceptions=True)
 
     @authors("sabdenovch")
     def test_select_cpu_performance_counters(self):
@@ -891,10 +1024,10 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         # Also note that data_bytes_transmitted is not stable between runs.
         expected = {
             "lookup": (1660, 1710),
-            # NB: This is strange, the value is always 360 but rarely 440 or 334. Maybe some miscounting happens.
-            "lookup_hunks": (334, 440),
+            # NB: This is strange, the value is always 360 but rarely 440 or 334 or 333. Maybe some miscounting happens.
+            "lookup_hunks": (300, 440),
             "select": (3320, 3420),
-            "select_hunks": (1180, 1210),
+            "select_hunks": (1000, 1210),
             "compaction": (1660, 1710),
             "compaction_hunks": (760, 800),
         }
@@ -1021,7 +1154,7 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         # Also note that data_bytes_transmitted is not stable between runs.
         if optimize_for == "scan":
             expected = {
-                "select": (1300, 1550),
+                "select": (1100, 1550),
             }
         else:
             expected = {

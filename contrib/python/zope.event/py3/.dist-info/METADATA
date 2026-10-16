@@ -1,12 +1,15 @@
 Metadata-Version: 2.4
 Name: zope.event
-Version: 6.1
+Version: 6.2
 Summary: Very basic event publishing system
-Home-page: https://github.com/zopefoundation/zope.event
-Author: Zope Foundation and Contributors
-Author-email: zope-dev@zope.dev
-License: ZPL-2.1
-Keywords: event framework dispatch subscribe publish
+Author-email: Zope Foundation and contributors <zope-dev@zope.dev>
+Maintainer-email: Plone Foundation and contributors <zope-dev@zope.dev>
+License-Expression: ZPL-2.1
+Project-URL: Documentation, https://zopeevent.readthedocs.io/
+Project-URL: Source, https://github.com/zopefoundation/zope.event
+Project-URL: Issues, https://github.com/zopefoundation/zope.event/issues
+Project-URL: Changelog, https://raw.githubusercontent.com/zopefoundation/zope.event/master/CHANGES.rst
+Keywords: event,framework,dispatch,subscribe,publish
 Classifier: Development Status :: 5 - Production/Stable
 Classifier: Intended Audience :: Developers
 Classifier: Operating System :: OS Independent
@@ -23,22 +26,13 @@ Classifier: Programming Language :: Python :: Implementation :: PyPy
 Classifier: Framework :: Zope :: 3
 Classifier: Topic :: Software Development :: Libraries :: Python Modules
 Requires-Python: >=3.10
+Description-Content-Type: text/x-rst
 License-File: LICENSE.txt
 Provides-Extra: docs
 Requires-Dist: Sphinx; extra == "docs"
 Provides-Extra: test
 Requires-Dist: zope.testrunner>=6.4; extra == "test"
-Dynamic: author
-Dynamic: author-email
-Dynamic: classifier
-Dynamic: description
-Dynamic: home-page
-Dynamic: keywords
-Dynamic: license
 Dynamic: license-file
-Dynamic: provides-extra
-Dynamic: requires-python
-Dynamic: summary
 
 ==========
 zope.event
@@ -70,6 +64,13 @@ Please see http://zopeevent.readthedocs.io/ for the documentation.
 ==========================
  ``zope.event`` Changelog
 ==========================
+
+6.2 (2026-04-28)
+================
+
+- Move package metadata from setup.py to pyproject.toml.
+
+- Allow ``setuptools < 82`` as build system. 
 
 
 6.1 (2025-11-07)

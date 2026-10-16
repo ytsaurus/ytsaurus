@@ -23,6 +23,9 @@ TChangelogStoreScanResult ScanChangelogStore(
     const std::function<i64(int changelogId)> recordCountGetter,
     const std::function<TSharedRef(int changelogId, i64 recordId)>& recordReader);
 
+TFuture<std::pair<NHydra::NProto::TMutationHeader, TSharedRef>> ReadFirstMutationFromChangelog(
+    const IChangelogPtr& changelog);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHydra

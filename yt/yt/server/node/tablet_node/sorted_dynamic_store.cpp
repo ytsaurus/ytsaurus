@@ -19,6 +19,7 @@
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/hunks.h>
 #include <yt/yt/ytlib/table_client/performance_counters.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
@@ -39,7 +40,6 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/linear_probe.h>
-#include <yt/yt/core/misc/skip_list.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -116,16 +116,31 @@ void RecalculatePrepareTimestamp(TLockDescriptor* lock)
         ? nullptr
         : lock->SharedWriteTransactions.front().Transaction;
 
+    auto sharedWritePrepareTimestamp = sharedWritePrepareTransaction
+        ? sharedWritePrepareTransaction->GetPrepareTimestamp()
+        : NotPreparedTimestamp;
+
+    // COMPAT(savrus): An active transaction has NullTimestamp while its lock entry has NotPreparedTimestamp.
+    if (!HasMutationContext() ||
+        GetCurrentMutationEffectiveReign() >= ETabletReign::FixSharedWriteLockPrepareTimestamp ||
+        (GetCurrentMutationEffectiveReign() >= ETabletReign::FixSharedWriteLockPrepareTimestamp_26_1 &&
+         GetCurrentMutationEffectiveReign() < ETabletReign::Start_26_2))
+    {
+        sharedWritePrepareTimestamp = lock->SharedWriteTransactions.empty()
+            ? NotPreparedTimestamp
+            : lock->SharedWriteTransactions.front().PrepareTimestamp;
+    }
+
     YT_ASSERT(writePrepareTimestamp <= NotPreparedTimestamp);
-    YT_ASSERT(sharedWritePrepareTransaction == nullptr || sharedWritePrepareTransaction->GetPrepareTimestamp() <= NotPreparedTimestamp);
+    YT_ASSERT(sharedWritePrepareTimestamp <= NotPreparedTimestamp);
     YT_ASSERT(writePrepareTimestamp == NotPreparedTimestamp || sharedWritePrepareTransaction == nullptr);
 
-    if (sharedWritePrepareTransaction == nullptr || writePrepareTimestamp <= sharedWritePrepareTransaction->GetPrepareTimestamp()) {
+    if (writePrepareTimestamp <= sharedWritePrepareTimestamp) {
         lock->PreparedTransaction = lock->WriteTransaction;
         lock->PrepareTimestamp.store(writePrepareTimestamp);
     } else {
         lock->PreparedTransaction = sharedWritePrepareTransaction;
-        lock->PrepareTimestamp.store(sharedWritePrepareTransaction->GetPrepareTimestamp());
+        lock->PrepareTimestamp.store(sharedWritePrepareTimestamp);
     }
 }
 
@@ -738,7 +753,7 @@ public:
             auto row = ProduceRow(Iterator_.GetCurrent());
             if (row) {
                 rows.push_back(row);
-                DataWeight_ += NTableClient::GetDataWeight(row);
+                DataWeight_ += NTableClient::GetDataWeightAfterHunkDecoding(row, Store_->Schema_);
             }
 
             Iterator_.MoveNext();
@@ -897,7 +912,7 @@ public:
             rows.push_back(row);
             ++RowCount_;
             ExistingRowCount_ += static_cast<bool>(row);
-            DataWeight_ += NTableClient::GetDataWeight(row);
+            DataWeight_ += NTableClient::GetDataWeightAfterHunkDecoding(row, Store_->Schema_);
         }
 
         if (rows.empty()) {
@@ -959,8 +974,8 @@ TSortedDynamicStore::TSortedDynamicStore(
         RowBuffer_->GetPool(),
         RowKeyComparer_))
     , RevisionProvider_(tablet->GetSerializationType() == ETabletTransactionSerializationType::Coarse
-        ? static_cast<IRevisionProviderPtr>(New<TTwoLevelRevisionProvider>())
-        : static_cast<IRevisionProviderPtr>(New<TThreeLevelRevisionProvider>()))
+        ? CreateTwoLevelRevisionProvider()
+        : CreateThreeLevelRevisionProvider())
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -969,10 +984,20 @@ TSortedDynamicStore::TSortedDynamicStore(
             Tablet_->GetHashTableSize(),
             RowKeyComparer_,
             Tablet_->GetPhysicalSchema()->GetKeyColumnCount());
+
+        if (Context_->GetAccountActiveStoreLookupHashTableToTabletStatic()) {
+            YT_ASSERT(GetStoreState() == EStoreState::ActiveDynamic);
+
+            if (auto nodeMemoryTracker = Tablet_->TryGetNodeMemoryUsageTracker()) {
+                LookupHashTableActiveStoreTabletStaticGuard_ = TMemoryUsageTrackerGuard::Acquire(
+                    nodeMemoryTracker->WithCategory(EMemoryCategory::TabletStatic),
+                    LookupHashTable_->GetByteSize());
+            }
+        }
     }
 
-    YT_LOG_DEBUG("Sorted dynamic store created (LookupHashTable: %v)",
-        static_cast<bool>(LookupHashTable_));
+    YT_TLOG_DEBUG("Sorted dynamic store created")
+        .With("LookupHashTable", static_cast<bool>(LookupHashTable_));
 }
 
 TSortedDynamicStore::~TSortedDynamicStore() = default;
@@ -1051,14 +1076,14 @@ TDuration TSortedDynamicStore::WaitOnBlockedRow(
             TTransactionId blockingTransactionId = {})
         {
             auto error = TError(errorCode, message)
-                << TErrorAttribute("lock", LockIndexToName_[lockIndex])
-                << TErrorAttribute("tablet_id", TabletId_)
-                << TErrorAttribute("table_path", TablePath_)
-                << TErrorAttribute("key", RowToKey(row))
-                << TErrorAttribute("timeout", maxBlockedRowWaitTime)
-                << TErrorAttribute("timestamp", timestamp);
+                .With("lock", LockIndexToName_[lockIndex])
+                .With("tablet_id", TabletId_)
+                .With("table_path", TablePath_)
+                .With("key", RowToKey(row))
+                .With("timeout", maxBlockedRowWaitTime)
+                .With("timestamp", timestamp);
             if (blockingTransactionId) {
-                error <<= TErrorAttribute("blocking_transaction_id", blockingTransactionId);
+                error.Add("blocking_transaction_id", blockingTransactionId);
             }
 
             THROW_ERROR(std::move(error));
@@ -1182,7 +1207,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
 
     OnDynamicMemoryUsageUpdated();
 
-    auto dataWeight = NTableClient::GetDataWeight(row);
+    auto dataWeight = NTableClient::GetDataWeightAfterHunkDecoding(row, Schema_);
     if (isDelete) {
         PerformanceCounters_->DynamicRowDelete.Counter.fetch_add(1, std::memory_order::relaxed);
     } else {
@@ -1262,7 +1287,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
 
     OnDynamicMemoryUsageUpdated();
 
-    auto dataWeight = NTableClient::GetDataWeight(row);
+    auto dataWeight = NTableClient::GetDataWeightAfterHunkDecoding(row, Schema_);
     PerformanceCounters_->DynamicRowWrite.Counter.fetch_add(1, std::memory_order::relaxed);
     PerformanceCounters_->DynamicRowWriteDataWeight.Counter.fetch_add(dataWeight, std::memory_order::relaxed);
     ++context->RowCount;
@@ -1847,10 +1872,13 @@ void TSortedDynamicStore::OnSetPassive()
 {
     YT_VERIFY(FlushRevision_ == InvalidRevision);
     FlushRevision_ = GetLatestRevision();
+    LookupHashTableActiveStoreTabletStaticGuard_.Release();
 }
 
 void TSortedDynamicStore::OnSetRemoved()
-{ }
+{
+    LookupHashTableActiveStoreTabletStaticGuard_.Release();
+}
 
 TSortedDynamicRow TSortedDynamicStore::AllocateRow()
 {
@@ -1987,7 +2015,7 @@ TError TSortedDynamicStore::CheckRowLocks(
                 error = TError(
                     NTabletClient::EErrorCode::TransactionLockConflict,
                     "Write failed due to concurrent read lock")
-                    << TErrorAttribute("winner_transaction_commit_timestamp", lastReadTimestamp);
+                    .With("winner_transaction_commit_timestamp", lastReadTimestamp);
             }
 
             if (lock->ReadLockCount > 0) {
@@ -1995,7 +2023,7 @@ TError TSortedDynamicStore::CheckRowLocks(
                 error = TError(
                     NTabletClient::EErrorCode::TransactionLockConflict,
                     "Write failed due to concurrent read lock")
-                    << TErrorAttribute("read_lock_count", lock->ReadLockCount);
+                    .With("read_lock_count", lock->ReadLockCount);
             }
 
             if (!lock->SharedWriteTransactions.empty()) {
@@ -2003,8 +2031,8 @@ TError TSortedDynamicStore::CheckRowLocks(
                 error = TError(
                     NTabletClient::EErrorCode::TransactionLockConflict,
                     "Write failed due to concurrent shared write lock")
-                    << TErrorAttribute("winner_transaction_id", lock->SharedWriteTransactions.begin()->Transaction->GetId())
-                    << TErrorAttribute("shared_write_lock_count", lock->SharedWriteTransactions.size());
+                    .With("winner_transaction_id", lock->SharedWriteTransactions.begin()->Transaction->GetId())
+                    .With("shared_write_lock_count", lock->SharedWriteTransactions.size());
             }
         }
 
@@ -2017,7 +2045,7 @@ TError TSortedDynamicStore::CheckRowLocks(
                 error = TError(
                     NTabletClient::EErrorCode::TransactionLockConflict,
                     "Row lock conflict due to concurrent write")
-                    << TErrorAttribute("winner_transaction_commit_timestamp", lastExclusiveTimestamp);
+                    .With("winner_transaction_commit_timestamp", lastExclusiveTimestamp);
             }
 
             if (lockType != ELockType::SharedWrite) {
@@ -2026,7 +2054,7 @@ TError TSortedDynamicStore::CheckRowLocks(
                     error = TError(
                         NTabletClient::EErrorCode::TransactionLockConflict,
                         "Row lock conflict due to concurrent shared write")
-                        << TErrorAttribute("winner_transaction_commit_timestamp", lastSharedWriteTimestamp);
+                        .With("winner_transaction_commit_timestamp", lastSharedWriteTimestamp);
                 }
             }
 
@@ -2034,7 +2062,7 @@ TError TSortedDynamicStore::CheckRowLocks(
                 error = TError(
                     NTabletClient::EErrorCode::TransactionLockConflict,
                     "Row lock conflict due to concurrent write")
-                    << TErrorAttribute("winner_transaction_id", lock->WriteTransaction->GetId());
+                    .With("winner_transaction_id", lock->WriteTransaction->GetId());
             }
 
             if (lockType == ELockType::SharedStrong || lockType == ELockType::SharedWeak) {
@@ -2043,8 +2071,8 @@ TError TSortedDynamicStore::CheckRowLocks(
                     error = TError(
                         NTabletClient::EErrorCode::TransactionLockConflict,
                         "Write failed due to concurrent shared write lock")
-                        << TErrorAttribute("winner_transaction_id", lock->SharedWriteTransactions.begin()->Transaction->GetId())
-                        << TErrorAttribute("shared_write_lock_count", lock->SharedWriteTransactions.size());
+                        .With("winner_transaction_id", lock->SharedWriteTransactions.begin()->Transaction->GetId())
+                        .With("shared_write_lock_count", lock->SharedWriteTransactions.size());
                 }
             }
 
@@ -2054,7 +2082,7 @@ TError TSortedDynamicStore::CheckRowLocks(
                     error = TError(
                         NTabletClient::EErrorCode::TransactionLockConflict,
                         "Write failed due to concurrent read lock")
-                        << TErrorAttribute("read_lock_count", lock->ReadLockCount);
+                        .With("read_lock_count", lock->ReadLockCount);
                 }
 
                 auto lastReadTimestamp = GetLastReadTimestamp(row, index);
@@ -2062,18 +2090,18 @@ TError TSortedDynamicStore::CheckRowLocks(
                     error = TError(
                         NTabletClient::EErrorCode::TransactionLockConflict,
                         "Write failed due to concurrent read lock")
-                        << TErrorAttribute("winner_transaction_commit_timestamp", lastReadTimestamp);
+                        .With("winner_transaction_commit_timestamp", lastReadTimestamp);
                 }
             }
         }
 
         if (!error.IsOK()) {
             error = std::move(error)
-                << TErrorAttribute("loser_transaction_id", transaction->GetId())
-                << TErrorAttribute("tablet_id", TabletId_)
-                << TErrorAttribute("table_path", TablePath_)
-                << TErrorAttribute("key", RowToKey(row))
-                << TErrorAttribute("lock", LockIndexToName_[index]);
+                .With("loser_transaction_id", transaction->GetId())
+                .With("tablet_id", TabletId_)
+                .With("table_path", TablePath_)
+                .With("key", RowToKey(row))
+                .With("lock", LockIndexToName_[index]);
             break;
         }
     }
@@ -2597,9 +2625,9 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
     auto nodeMemoryUsageTracker = Tablet_->TryGetNodeMemoryUsageTracker();
 
     return BIND([=, this, this_ = MakeStrong(this)] (TSaveContext& context) {
-        YT_LOG_DEBUG("Store snapshot serialization started");
+        YT_TLOG_DEBUG("Store snapshot serialization started");
 
-        YT_LOG_DEBUG("Opening table reader");
+        YT_TLOG_DEBUG("Opening table reader");
         WaitFor(tableReader->Open())
             .ThrowOnError();
 
@@ -2633,7 +2661,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
             .MaxRowsPerRead = SnapshotRowsPerRead
         };
 
-        YT_LOG_DEBUG("Serializing store snapshot");
+        YT_TLOG_DEBUG("Serializing store snapshot");
 
         std::vector<TTimestamp> lastReadLockTimestamps;
         std::vector<TTimestamp> lastExclusiveLockTimestamps;
@@ -2643,7 +2671,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
         i64 rowCount = 0;
         while (auto batch = tableReader->Read(options)) {
             if (batch->IsEmpty()) {
-                YT_LOG_DEBUG("Waiting for table reader");
+                YT_TLOG_DEBUG("Waiting for table reader");
                 WaitFor(tableReader->GetReadyEvent())
                     .ThrowOnError();
                 continue;
@@ -2678,7 +2706,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
             }
 
             if (!tableWriter->Write(std::move(rows))) {
-                YT_LOG_DEBUG("Waiting for table writer");
+                YT_TLOG_DEBUG("Waiting for table writer");
                 WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
             }
@@ -2702,20 +2730,20 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
         Save(context, lastReadLockTimestamps);
 
         // NB: This also closes chunkWriter.
-        YT_LOG_DEBUG("Closing table writer");
+        YT_TLOG_DEBUG("Closing table writer");
         WaitFor(tableWriter->Close())
             .ThrowOnError();
 
         Save(context, *chunkWriter->GetChunkMeta());
 
         auto blocks = TBlock::Unwrap(chunkWriter->GetBlocks());
-        YT_LOG_DEBUG("Writing store blocks (RowCount: %v, BlockCount: %v)",
-            rowCount,
-            blocks.size());
+        YT_TLOG_DEBUG("Writing store blocks")
+            .With("RowCount", rowCount)
+            .With("BlockCount", blocks.size());
 
         Save(context, blocks);
 
-        YT_LOG_DEBUG("Store snapshot serialization complete");
+        YT_TLOG_DEBUG("Store snapshot serialization complete");
     });
 }
 
@@ -2887,7 +2915,13 @@ TSortedDynamicStoreRevision TSortedDynamicStore::RegisterRevision(TTimestamp tim
 
 void TSortedDynamicStore::OnDynamicMemoryUsageUpdated()
 {
-    auto hashTableSize = LookupHashTable_ ? LookupHashTable_->GetByteSize() : 0;
+    bool accountLookupHashTableToTabletDynamic = static_cast<bool>(LookupHashTable_);
+    if (GetStoreState() == EStoreState::ActiveDynamic && Context_->GetAccountActiveStoreLookupHashTableToTabletStatic()) {
+        accountLookupHashTableToTabletDynamic = false;
+    }
+    auto hashTableSize = accountLookupHashTableToTabletDynamic
+        ? LookupHashTable_->GetByteSize()
+        : 0;
     SetDynamicMemoryUsage(GetUncompressedDataSize() + hashTableSize);
 }
 
@@ -2898,6 +2932,7 @@ void TSortedDynamicStore::InsertIntoLookupHashTable(
     if (LookupHashTable_) {
         if (GetRowCount() >= LookupHashTable_->GetSize()) {
             LookupHashTable_.reset();
+            LookupHashTableActiveStoreTabletStaticGuard_.Release();
         } else {
             LookupHashTable_->Insert(keyBegin, dynamicRow);
         }

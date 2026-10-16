@@ -14,7 +14,7 @@ For each table, the key space is divided by a set of boundary keys into non-over
 
 {% cut "Example of tablet statistics" %}
 
-```json
+```yson
 {
     "chunk_count" = 1;
     "compressed_data_size" = 324;
@@ -85,7 +85,7 @@ Tablet cells have the attributes indicated in the table:
 
 {% cut "Cell state example" %}
 
-```json
+```yson
 {
     "health" = "good";
     "decommissioned" = %false;

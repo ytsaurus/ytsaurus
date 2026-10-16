@@ -5,6 +5,8 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NTabletNode {
@@ -12,6 +14,8 @@ namespace {
 
 using namespace NApi;
 using namespace NTableClient;
+
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +33,7 @@ TEST(TReplicationLogTest, TestDeleteMessagesBuilding)
 
     versionedRowBuilder.AddKey(MakeUnversionedInt64Value(1, 0));
     versionedRowBuilder.AddKey(MakeUnversionedInt64Value(2, 1));
-    versionedRowBuilder.AddDeleteTimestamp(0x123);
+    versionedRowBuilder.AddDeleteTimestamp(0x123_ts);
     auto versionedRow = versionedRowBuilder.FinishRow();
 
     TUnversionedRowBuilder unversionedRowBuilder;

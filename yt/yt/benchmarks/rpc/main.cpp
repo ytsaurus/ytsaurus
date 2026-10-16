@@ -18,6 +18,7 @@
 namespace NYT {
 
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NProfiling;
@@ -26,7 +27,7 @@ using namespace NRpc::NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, RpcBenchmarkLogger, "RpcBenchmark");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, RpcBenchmarkLogger, "RpcBenchmark");
 constinit const auto Logger = RpcBenchmarkLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,7 +80,8 @@ void RunServer(int port)
     rpcServer->RegisterService(New<TEchoService>(echoQueue->GetInvoker()));
     rpcServer->Start();
 
-    YT_LOG_INFO("Echo server is running on port %v", port);
+    YT_TLOG_INFO("Echo server is running")
+        .With("Port", port);
 
     TDelayedExecutor::WaitForDuration(TDuration::Max());
 }
@@ -104,7 +106,9 @@ void RunBenchmark(int port, int iterations)
         YT_VERIFY(rsp->s() == message);
     }
 
-    YT_LOG_INFO("Processed %v requests in %v", iterations, timer.GetElapsedTime());
+    YT_TLOG_INFO("Finished processing requests")
+        .With("RequestCount", iterations)
+        .With("ElapsedTime", timer.GetElapsedTime());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

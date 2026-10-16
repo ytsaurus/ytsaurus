@@ -14,6 +14,10 @@ void TDynamicReplicatedTableTrackerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(3));
     registrar.Parameter("update_period", &TThis::UpdatePeriod)
         .Default(TDuration::Seconds(3));
+    registrar.Parameter("preferred_sync_replica_switch_cooldown", &TThis::PreferredSyncReplicaSwitchCooldown)
+        .Default(TDuration::Minutes(3))
+        .DontSerializeDefault()
+        .GreaterThanOrEqual(TDuration::Zero());
     registrar.Parameter("general_check_timeout", &TThis::GeneralCheckTimeout)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("replicator_hint", &TThis::ReplicatorHint)

@@ -530,7 +530,10 @@ public class EntitySkiffSerializer<T> {
         if (precision <= 18) {
             return 8;
         }
-        return 16;
+        if (precision <= 38) {
+            return 16;
+        }
+        return 32;
     }
 
     private <ObjectType> ObjectType deserializeComplexObject(

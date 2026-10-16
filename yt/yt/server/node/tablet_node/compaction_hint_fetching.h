@@ -4,7 +4,26 @@
 
 #include <yt/yt/server/lib/lsm/compaction_hints.h>
 
+#include <yt/yt/core/misc/backoff_strategy.h>
+
 namespace NYT::NTabletNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCompactionHintFetchThrottlers
+    : public TRefCounted
+{
+public:
+    DEFINE_BYREF_RO_PROPERTY(NLsm::TStoreCompactionHintArray<NConcurrency::IReconfigurableThroughputThrottlerPtr>, RequestThrottlers);
+
+public:
+    explicit TCompactionHintFetchThrottlers(
+        const NLsm::TStoreCompactionHintArray<TCompactionHintFetcherConfigPtr>& configs);
+
+    void Reconfigure(const NLsm::TStoreCompactionHintArray<TCompactionHintFetcherConfigPtr>& configs);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCompactionHintFetchThrottlers)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +55,9 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NLsm::TStoreCompactionHint::TPayload, Payload);
 
 public:
-    explicit TCompactionHintFetchPipeline(TSortedChunkStore* store);
+    TCompactionHintFetchPipeline(
+        TSortedChunkStore* store,
+        const TExponentialBackoffOptions& retryBackoffOptions);
 
     // Add the pipeline to the fetcher queue. Called externally when the pipeline is created.
     void Enqueue();
@@ -53,6 +74,12 @@ protected:
 
     void ExecuteParse(const std::function<void()>& parser) const;
 
+    IMemoryUsageTrackerPtr MaybeGetMemoryUsageTracker() const;
+
+    NChunkClient::TClientChunkReadOptions CreateChunkReadOptions() const;
+
+    i64 GetEstimatedChunkMetaSize() const;
+
     void OnStoreHasNoHint();
 
     void FinishFetch(NLsm::TStoreCompactionHint::TPayload&& payload);
@@ -61,6 +88,8 @@ protected:
     void SubscribeWithErrorHandling(const TFutureType<T>& future, THandler&& handler);
 
 private:
+    TBackoffStrategy RetryBackoff_;
+
     virtual void DoFetch() = 0;
 
     IInvokerPtr GetEpochAutomatonInvoker() const;
@@ -89,13 +118,16 @@ public:
         TTabletCellId cellId,
         NLogging::TLogger logger,
         const NProfiling::TProfiler& profiler,
-        TCompactionHintFetcherConfigPtr config);
+        TCompactionHintFetcherConfigPtr config,
+        NConcurrency::IReconfigurableThroughputThrottlerPtr requestThrottler);
 
     void Start(IInvokerPtr epochAutomatonInvoker, TCompactionHintFetcherConfigPtr config);
 
     void Stop();
 
     void Reconfigure(const TCompactionHintFetcherConfigPtr& config);
+
+    const TExponentialBackoffOptions& GetRetryBackoffOptions() const;
 
     void EnqueuePipeline(const TCompactionHintFetchPipelinePtr& pipeline);
 

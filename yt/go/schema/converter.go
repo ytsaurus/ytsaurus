@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	"go.ytsaurus.tech/library/go/ptr"
-	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
+	"go.ytsaurus.tech/yt/go/proto/client/api/common"
 	"go.ytsaurus.tech/yt/go/yson"
 )
 
-func ConvertFromProto(rpcSchema *rpc_proxy.TTableSchema) (Schema, error) {
+func ConvertFromProto(rpcSchema *common.TTableSchema) (Schema, error) {
 	schema := Schema{
 		Strict:     ptr.Bool(rpcSchema.GetStrict()),
 		UniqueKeys: rpcSchema.GetUniqueKeys(),
@@ -100,6 +100,14 @@ func convertType(valueType *int32) Type {
 		return TypeInterval
 	case 0x100d:
 		return TypeFloat32
+	case 0x1010:
+		return TypeDate32
+	case 0x1011:
+		return TypeDatetime64
+	case 0x1012:
+		return TypeTimestamp64
+	case 0x1013:
+		return TypeInterval64
 	default:
 		return TypeAny
 	}

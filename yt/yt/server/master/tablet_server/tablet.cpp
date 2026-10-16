@@ -72,7 +72,7 @@ void TTableReplicaInfo::Populate(
     NTabletClient::NProto::TTableReplicaStatistics* statistics) const
 {
     statistics->set_committed_replication_row_index(GetCommittedReplicationRowIndex());
-    statistics->set_current_replication_timestamp(GetCurrentReplicationTimestamp());
+    statistics->set_current_replication_timestamp(ToProto(GetCurrentReplicationTimestamp()));
 }
 
 void TTableReplicaInfo::MergeFrom(
@@ -84,7 +84,7 @@ void TTableReplicaInfo::MergeFrom(
         statistics.committed_replication_row_index()));
     SetCurrentReplicationTimestamp(std::max(
         GetCurrentReplicationTimestamp(),
-        statistics.current_replication_timestamp()));
+        FromProto<NTransactionClient::TTimestamp>(statistics.current_replication_timestamp())));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,7 +135,6 @@ void FromProto(
 
 TTablet::TTablet(TTabletId id)
     : TTabletBase(id)
-    , RetainedTimestamp_(MinTimestamp)
 { }
 
 std::string TTablet::GetLowercaseObjectName() const
@@ -264,7 +263,7 @@ TTableReplicaInfo* TTablet::GetReplicaInfo(const TTableReplica* replica)
 
 TDuration TTablet::ComputeReplicationLagTime(TTimestamp latestTimestamp, const TTableReplicaInfo& replicaInfo) const
 {
-    auto lastWriteTimestamp = NodeStatistics_.last_write_timestamp();
+    auto lastWriteTimestamp = FromProto<NTransactionClient::TTimestamp>(NodeStatistics_.last_write_timestamp());
     if (lastWriteTimestamp == NullTimestamp) {
         return TDuration::Zero();
     }
@@ -292,29 +291,53 @@ TTabletStatistics TTablet::GetTabletStatistics(bool fromAuxiliaryCell) const
     tabletStatistics.PreloadFailedStoreCount = nodeStatistics.preload_failed_store_count();
     tabletStatistics.OverlappingStoreCount = nodeStatistics.overlapping_store_count();
     tabletStatistics.DynamicMemoryPoolSize = nodeStatistics.dynamic_memory_pool_size();
-    tabletStatistics.HunkUncompressedDataSize = GetHunkUncompressedDataSize();
-    tabletStatistics.HunkCompressedDataSize = GetHunkCompressedDataSize();
+    // TODO(akozhikhov): Get rid of HunkCompressedDataSize?
+    tabletStatistics.HunkUncompressedDataSize = GetHunkDataSize();
+    tabletStatistics.HunkCompressedDataSize = GetHunkDataSize();
     tabletStatistics.MemorySize = GetTabletStaticMemorySize();
     tabletStatistics.TabletCount = 1;
     tabletStatistics.TabletCountPerMemoryMode[GetInMemoryMode()] = 1;
 
-    for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-        if (const auto* chunkList = GetChunkList(contentType)) {
-            const auto& treeStatistics = chunkList->Statistics();
+    auto& chunkTreeStatistics = GetChunkList()->Statistics();
 
-            tabletStatistics.UnmergedRowCount += treeStatistics.RowCount;
-            tabletStatistics.UncompressedDataSize += treeStatistics.UncompressedDataSize;
-            tabletStatistics.CompressedDataSize += treeStatistics.CompressedDataSize;
+    tabletStatistics.UnmergedRowCount += chunkTreeStatistics.RowCount;
+    tabletStatistics.UncompressedDataSize += chunkTreeStatistics.UncompressedDataSize;
+    tabletStatistics.UncompressedDataSize += chunkTreeStatistics.HunkDataSize;
+    tabletStatistics.CompressedDataSize += chunkTreeStatistics.CompressedDataSize;
+    tabletStatistics.CompressedDataSize += chunkTreeStatistics.HunkDataSize;
+    tabletStatistics.ChunkCount += chunkTreeStatistics.ChunkCount;
 
-            for (const auto& entry : table->Replication()) {
-                tabletStatistics.DiskSpacePerMedium[entry.GetMediumIndex()] += CalculateDiskSpaceUsage(
-                    entry.Policy().GetReplicationFactor(),
-                    treeStatistics.RegularDiskSpace,
-                    treeStatistics.ErasureDiskSpace);
-            }
-            tabletStatistics.ChunkCount += treeStatistics.ChunkCount;
+    auto accumulateDiskSpaceStatistics = [&] (const auto& replication, auto regularDiskSpace, auto erasureDiskSpace) {
+        for (const auto& entry : replication) {
+            tabletStatistics.DiskSpacePerMedium[entry.GetMediumIndex()] += CalculateDiskSpaceUsage(
+                entry.Policy().GetReplicationFactor(),
+                regularDiskSpace,
+                erasureDiskSpace);
+        }
+    };
+
+    accumulateDiskSpaceStatistics(
+        table->Replication(),
+        chunkTreeStatistics.RegularDiskSpace,
+        chunkTreeStatistics.ErasureDiskSpace);
+
+    if (chunkTreeStatistics.HunkRegularDiskSpace != 0 || chunkTreeStatistics.HunkErasureDiskSpace > 0) {
+        if (table->HunkReplication().GetSize() == 0) {
+            accumulateDiskSpaceStatistics(
+                table->Replication(),
+                chunkTreeStatistics.HunkRegularDiskSpace,
+                chunkTreeStatistics.HunkErasureDiskSpace);
+        } else {
+            accumulateDiskSpaceStatistics(
+                table->HunkReplication(),
+                chunkTreeStatistics.HunkRegularDiskSpace,
+                chunkTreeStatistics.HunkErasureDiskSpace);
         }
     }
+
+    // NB: Hunk chunks are not unique to a tablet so when accumulating over tablets this field will account duplicates.
+    auto& hunkChunkTreeStatistics = GetHunkChunkList()->HunkStatistics();
+    tabletStatistics.ChunkCount += hunkChunkTreeStatistics.ChunkCount;
 
     return tabletStatistics;
 }
@@ -324,14 +347,14 @@ i64 TTablet::GetTabletMasterMemoryUsage() const
     return sizeof(TTablet) + GetDataWeight(GetPivotKey()) + EdenStoreIds_.size() * sizeof(TStoreId);
 }
 
-i64 TTablet::GetHunkUncompressedDataSize() const
+i64 TTablet::GetHunkDataWeight() const
 {
-    return GetHunkChunkList()->Statistics().UncompressedDataSize;
+    return GetChunkList()->Statistics().HunkDataWeight;
 }
 
-i64 TTablet::GetHunkCompressedDataSize() const
+i64 TTablet::GetHunkDataSize() const
 {
-    return GetHunkChunkList()->Statistics().CompressedDataSize;
+    return GetChunkList()->Statistics().HunkDataSize;
 }
 
 ETabletBackupState TTablet::GetBackupState() const
@@ -364,9 +387,9 @@ void TTablet::ValidateUnmount()
     for (auto it : GetIteratorsSortedByKey(Replicas())) {
         const auto& [weakReplica, replicaInfo] = *it;
         if (!IsObjectAlive(weakReplica)) {
-            YT_LOG_ALERT("Found zombie replica during tablet unmount validation (TabletId: %v, ReplicaId: %v)",
-                GetId(),
-                weakReplica->GetId());
+            YT_TLOG_ALERT("Found zombie replica during tablet unmount validation")
+                .With("TabletId", GetId())
+                .With("ReplicaId", weakReplica->GetId());
             continue;
         }
         auto* replica = weakReplica.Get();

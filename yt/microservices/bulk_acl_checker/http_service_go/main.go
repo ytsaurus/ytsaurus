@@ -72,11 +72,15 @@ func GetServedClustersHandler() ytmsvc.HTTPHandlerE {
 		type Response struct {
 			Clusters []string `json:"clusters"`
 		}
-		response := Response{}
+		response := Response{
+			Clusters: []string{},
+		}
 		Cache.Mutex.Lock()
 		defer Cache.Mutex.Unlock()
-		for cluster := range Cache.Clusters {
-			response.Clusters = append(response.Clusters, cluster)
+		for cluster, cacheItem := range Cache.Clusters {
+			if cacheItem != nil {
+				response.Clusters = append(response.Clusters, cluster)
+			}
 		}
 		return response, nil
 	}
@@ -109,7 +113,8 @@ func ReadClickhouseDictRequest(input io.Reader) (result []bac_lib.ClickHouseDict
 
 func GetDropCacheHandler() ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
-		Cache.LRU.Purge()
+		Cache.ACLLRU.Purge()
+		Cache.BannedLRU.Purge()
 		return ytmsvc.ResponseStatusOK, nil
 	}
 }

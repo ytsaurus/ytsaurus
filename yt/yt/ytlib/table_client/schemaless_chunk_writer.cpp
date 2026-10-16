@@ -3,6 +3,7 @@
 #include "chunk_meta_extensions.h"
 #include "config.h"
 #include "helpers.h"
+#include "hunks.h"
 #include "partitioner.h"
 #include "rows_digest.h"
 #include "schemaless_block_writer.h"
@@ -85,8 +86,8 @@ using namespace NYTree;
 using namespace NYson;
 
 using NYT::FromProto;
-using NYT::TRange;
 using NYT::ToProto;
+using NYT::TRange;
 
 static const i64 PartitionRowCountThreshold = 1000 * 1000;
 static const i64 PartitionRowCountLimit = std::numeric_limits<i32>::max() - PartitionRowCountThreshold;
@@ -109,8 +110,8 @@ void ValidateRowWeight(i64 weight, const TChunkWriterConfigPtr& config, const TC
 
     THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::RowWeightLimitExceeded,
         "Row weight is too large")
-        << TErrorAttribute("row_weight", weight)
-        << TErrorAttribute("row_weight_limit", config->MaxRowWeight);
+        .With("row_weight", weight)
+        .With("row_weight_limit", config->MaxRowWeight);
 }
 
 void ValidateKeyWeight(i64 weight, const TChunkWriterConfigPtr& config, const TChunkWriterOptionsPtr& options)
@@ -121,8 +122,8 @@ void ValidateKeyWeight(i64 weight, const TChunkWriterConfigPtr& config, const TC
 
     THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::RowWeightLimitExceeded,
         "Key weight is too large")
-        << TErrorAttribute("key_weight", weight)
-        << TErrorAttribute("key_weight_limit", config->MaxKeyWeight);
+        .With("key_weight", weight)
+        .With("key_weight_limit", config->MaxKeyWeight);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -141,7 +142,7 @@ public:
         TNameTablePtr nameTable,
         const TChunkTimestamps& chunkTimestamps,
         const std::optional<NChunkClient::TDataSink>& dataSink)
-        : Logger(TableClientLogger().WithTag("ChunkWriterId: %v", TGuid::Create()))
+        : Logger(TableClientLogger().WithTag("ChunkWriterId", TGuid::Create()))
         , Schema_(std::move(schema))
         , ChunkTimestamps_(chunkTimestamps)
         , ChunkNameTable_(nameTable ? std::move(nameTable) : TNameTable::FromSchemaStable(*Schema_))
@@ -190,7 +191,7 @@ public:
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-        if (RowCount_.load(std::memory_order_relaxed) == 0) {
+        if (RowCount_.load(std::memory_order::relaxed) == 0) {
             // Empty chunk.
             return OKFuture;
         }
@@ -234,7 +235,7 @@ public:
     TDataStatistics GetDataStatistics() const override
     {
         auto dataStatistics = EncodingChunkWriter_->GetDataStatistics();
-        dataStatistics.set_row_count(RowCount_.load(std::memory_order_relaxed));
+        dataStatistics.set_row_count(RowCount_.load(std::memory_order::relaxed));
         return dataStatistics;
     }
 
@@ -255,7 +256,7 @@ public:
 
     i64 GetDataWeight() const override
     {
-        return DataWeight_.load(std::memory_order_relaxed);
+        return DataWeight_.load(std::memory_order::relaxed);
     }
 
     std::optional<TRowsDigest> GetDigest() const override
@@ -339,15 +340,15 @@ protected:
         auto& miscExt = EncodingChunkWriter_->MiscExt();
         miscExt.set_sorted(IsSorted());
         miscExt.set_unique_keys(Schema_->IsUniqueKeys());
-        miscExt.set_row_count(RowCount_.load(std::memory_order_relaxed));
-        miscExt.set_data_weight(DataWeight_.load(std::memory_order_relaxed));
+        miscExt.set_row_count(RowCount_.load(std::memory_order::relaxed));
+        miscExt.set_data_weight(DataWeight_.load(std::memory_order::relaxed));
         miscExt.set_is_compatible_with_dynamic_table_constraints(IsCompatibleWithDynamicTableConstraints_);
 
         if (ChunkTimestamps_.MinTimestamp != NullTimestamp) {
-            miscExt.set_min_timestamp(ChunkTimestamps_.MinTimestamp);
+            miscExt.set_min_timestamp(ToProto(ChunkTimestamps_.MinTimestamp));
         }
         if (ChunkTimestamps_.MaxTimestamp != NullTimestamp) {
-            miscExt.set_max_timestamp(ChunkTimestamps_.MaxTimestamp);
+            miscExt.set_max_timestamp(ToProto(ChunkTimestamps_.MaxTimestamp));
         }
 
         if (Options_->EnableSkynetSharing) {
@@ -448,19 +449,20 @@ protected:
         ValidateKeyWeight(weight, Config_, Options_);
 
         for (int index = keyColumnCount; index < static_cast<int>(row.GetCount()); ++index) {
-            auto valueWeight = NTableClient::GetDataWeight(row[index]);
+            const auto& value = row[index];
+            auto valueWeight = GetDataWeightWithoutHunkEncoding(value);
             if (valueWeight > MaxStringValueLength) {
                 IsCompatibleWithDynamicTableConstraints_ = false;
             }
             weight += valueWeight;
         }
+        ValidateRowWeight(weight, Config_, Options_);
 
         if (weight > MaxClientVersionedRowDataWeight) {
             IsCompatibleWithDynamicTableConstraints_ = false;
         }
 
-        ValidateRowWeight(weight, Config_, Options_);
-        DataWeight_.fetch_add(weight, std::memory_order_relaxed);
+        DataWeight_.fetch_add(weight, std::memory_order::relaxed);
         DataWeightSinceLastBlockFlush_ += weight;
 
         return weight;
@@ -598,7 +600,7 @@ public:
 
         for (auto row : rows) {
             UpdateDataWeight(row);
-            i64 rowCount = RowCount_.fetch_add(1, std::memory_order_relaxed) + 1;
+            i64 rowCount = RowCount_.fetch_add(1, std::memory_order::relaxed) + 1;
             BlockWriter_->WriteRow(row);
 
             if (BlockWriter_->GetBlockSize() >= BlockSize_ ||
@@ -633,7 +635,7 @@ private:
     {
         if (BlockWriter_->GetRowCount() > 0) {
             auto block = BlockWriter_->FlushBlock();
-            block.Meta.set_chunk_row_count(RowCount_.load(std::memory_order_relaxed));
+            block.Meta.set_chunk_row_count(RowCount_.load(std::memory_order::relaxed));
             RegisterBlock(block, LastKey_.Get());
         }
 
@@ -739,7 +741,7 @@ public:
                 columnWriter->WriteUnversionedValues(range);
             }
 
-            RowCount_.fetch_add(range.Size(), std::memory_order_relaxed);
+            RowCount_.fetch_add(range.Size(), std::memory_order::relaxed);
 
             startRowIndex = rowIndex;
 
@@ -822,8 +824,8 @@ private:
     void FinishBlock(int blockWriterIndex, TUnversionedRow lastRow)
     {
         DataWeightSinceLastBlockFlush_ = 0;
-        auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.data_blocks_size(), RowCount_.load(std::memory_order_relaxed));
-        block.Meta.set_chunk_row_count(RowCount_.load(std::memory_order_relaxed));
+        auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.data_blocks_size(), RowCount_.load(std::memory_order::relaxed));
+        block.Meta.set_chunk_row_count(RowCount_.load(std::memory_order::relaxed));
         RegisterBlock(block, lastRow);
     }
 
@@ -942,11 +944,11 @@ public:
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
         i64 blockRowCount = block.Meta.row_count();
-        i64 rowCount = RowCount_.fetch_add(blockRowCount, std::memory_order_relaxed) + blockRowCount;
+        i64 rowCount = RowCount_.fetch_add(blockRowCount, std::memory_order::relaxed) + blockRowCount;
         block.Meta.set_chunk_row_count(rowCount);
 
         // For partition chunks we may assume that data weight is equal to uncompressed data size.
-        DataWeight_.fetch_add(block.Meta.uncompressed_size(), std::memory_order_relaxed);
+        DataWeight_.fetch_add(block.Meta.uncompressed_size(), std::memory_order::relaxed);
 
         PartitionsExt_.set_row_counts(
             block.Meta.partition_index(),
@@ -1008,7 +1010,8 @@ private:
     {
         TUnversionedChunkWriterBase::PrepareChunkMeta();
 
-        YT_LOG_DEBUG("Partition totals: %v", PartitionsExt_.ShortDebugString());
+        YT_TLOG_DEBUG("Partition totals")
+            .With("PartitionsExt", PartitionsExt_.ShortDebugString());
 
         auto meta = EncodingChunkWriter_->GetMeta();
         SetProtoExtension(meta->mutable_extensions(), PartitionsExt_);
@@ -1079,11 +1082,13 @@ public:
         if (LastKeyHolder_) {
             auto lastKeyHolderFixed = LegacyKeyToKeyFriendlyOwningRow(LastKeyHolder_, Options_->TableSchema->GetKeyColumnCount());
             if (LastKeyHolder_ != lastKeyHolderFixed) {
-                YT_LOG_DEBUG("Table last key fixed (LastKey: %v -> %v)", LastKeyHolder_, lastKeyHolderFixed);
+                YT_TLOG_DEBUG("Table last key fixed")
+                    .WithFormat("LastKey", "%v -> %v", LastKeyHolder_, lastKeyHolderFixed);
                 LastKeyHolder_ = lastKeyHolderFixed;
             }
             LastKey_ = TKey::FromRow(LastKeyHolder_);
-            YT_LOG_DEBUG("Writer is in sorted append mode (LastKey: %v)", LastKey_);
+            YT_TLOG_DEBUG("Writer is in sorted append mode")
+                .With("LastKey", LastKey_);
         }
 
         if (Options_->TableSchema) {
@@ -1141,7 +1146,7 @@ protected:
 
             if (!row) {
                 THROW_ERROR_EXCEPTION("Unexpected null row")
-                    << TErrorAttribute("row_index", rowIndex);
+                    .With("row_index", rowIndex);
             }
 
             ValidateDuplicateIds(row);
@@ -1289,8 +1294,8 @@ private:
         }
 
         THROW_ERROR_EXCEPTION("Too many columns in row")
-            << TErrorAttribute("column_count", columnCount)
-            << TErrorAttribute("max_column_count", MaxColumnId);
+            .With("column_count", columnCount)
+            .With("max_column_count", MaxColumnId);
     }
 
     void ValidateDuplicateIds(TUnversionedRow row)
@@ -1308,8 +1313,8 @@ private:
             auto& idMark = IdValidationMarks_[id];
             if (idMark == mark) {
                 auto name = NameTable_->GetNameOrThrow(id);
-                THROW_ERROR_EXCEPTION("Duplicate %Qv column in unversioned row", name)
-                    << TErrorAttribute("id", id);
+                THROW_ERROR_EXCEPTION("Duplicate column %Qv in unversioned row", name)
+                    .With("id", id);
             }
             idMark = mark;
         }
@@ -1414,9 +1419,10 @@ private:
                 "Sort order violation: %v > %v",
                 currentKey,
                 nextKey)
-                << TErrorAttribute("comparator", comparator);
+                .With("comparator", comparator);
             if (Options_->ExplodeOnValidationError) {
-                YT_LOG_FATAL(error);
+                YT_TLOG_FATAL("Sort order violation")
+                    .With(error);
             }
         }
 
@@ -1470,7 +1476,7 @@ public:
         YT_VERIFY(BlockSize_ > 0);
         YT_VERIFY(BufferSize_ > 0);
 
-        Logger.AddTag("PartitionMultiChunkWriterId: %v", TGuid::Create());
+        Logger.AddTag("PartitionMultiChunkWriterId", TGuid::Create());
 
         int partitionCount = Partitioner_->GetPartitionCount();
         BlockWriters_.reserve(partitionCount);
@@ -1524,7 +1530,8 @@ public:
             return readyForMore && !switched;
         } catch (const std::exception& ex) {
             Error_ = TError(ex);
-            YT_LOG_WARNING(Error_, "Partition multi chunk writer failed");
+            YT_TLOG_WARNING("Partition multi chunk writer failed")
+                .With(Error_);
             return false;
         }
     }
@@ -1652,11 +1659,11 @@ private:
         blockWriter.reset(new THorizontalBlockWriter(Schema_, Options_->MemoryUsageTracker, BlockReserveSize_));
         CurrentBufferCapacity_ += blockWriter->GetCapacity();
 
-        YT_LOG_DEBUG("Flushing partition block (PartitionIndex: %v, BlockSize: %v, BlockRowCount: %v, CurrentBufferCapacity: %v)",
-            partitionIndex,
-            block.Meta.uncompressed_size(),
-            block.Meta.row_count(),
-            CurrentBufferCapacity_);
+        YT_TLOG_DEBUG("Flushing partition block")
+            .With("PartitionIndex", partitionIndex)
+            .With("BlockSize", block.Meta.uncompressed_size())
+            .With("BlockRowCount", block.Meta.row_count())
+            .With("CurrentBufferCapacity", CurrentBufferCapacity_);
 
         return CurrentWriter_->WriteBlock(std::move(block));
     }
@@ -1918,7 +1925,7 @@ public:
             std::move(createChunkWriter),
             std::move(nameTable),
             schema->ToUnversionedUpdate(),
-            std::move(schema),
+            schema,
             std::move(lastKey),
             std::move(trafficMeter),
             std::move(throttler),
@@ -2127,7 +2134,7 @@ public:
             std::move(createChunkWriter),
             std::move(nameTable),
             ToLatestTimestampSchema(schema),
-            std::move(schema),
+            schema,
             std::move(lastKey),
             std::move(trafficMeter),
             std::move(throttler),
@@ -2153,7 +2160,7 @@ private:
             const auto& timestampColumn = row[columnIndex];
             writeTimestamps[columnIndex - columnCount] = timestampColumn.Type == EValueType::Null
                 ? MinTimestamp
-                : timestampColumn.Data.Uint64;
+                : NTransactionClient::TTimestamp(timestampColumn.Data.Uint64);
         }
 
         SortUnique(writeTimestamps, std::greater<TTimestamp>());
@@ -2172,7 +2179,7 @@ private:
             const auto& timestampColumn = row[columnIndex + valueColumnCount];
             *currentValue = MakeVersionedValue(row[columnIndex], timestampColumn.Type == EValueType::Null
                 ? MinTimestamp
-                : timestampColumn.Data.Uint64);
+                : NTransactionClient::TTimestamp(timestampColumn.Data.Uint64));
         }
 
         std::copy(writeTimestamps.begin(), writeTimestamps.end(), versionedRow.BeginWriteTimestamps());
@@ -2309,8 +2316,8 @@ TTableSchemaPtr GetChunkSchema(
         if (chunkSortColumns->size() < tableSchemaSortColumns.size()) {
             THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation,
                 "Chunk sort columns list is shorter than table schema sort columns")
-                << TErrorAttribute("chunk_sort_columns_count", chunkSortColumns->size())
-                << TErrorAttribute("table_sort_column_count", tableSchemaSortColumns.size());
+                .With("chunk_sort_columns_count", chunkSortColumns->size())
+                .With("table_sort_column_count", tableSchemaSortColumns.size());
         }
 
         if (tableUniqueKeys && !tableSchemaSortColumns.empty()) {
@@ -2334,7 +2341,7 @@ TTableSchemaPtr GetChunkSchema(
     if (chunkSchema->IsUniqueKeys() && !chunkSchema->IsSorted()) {
         THROW_ERROR_EXCEPTION(
             NTableClient::EErrorCode::InvalidSchemaValue,
-            "Non-sorted schema can't have unique keys requirement");
+            "Non-sorted schema cannot have unique keys requirement");
     }
 
     return chunkSchema;
@@ -2373,13 +2380,12 @@ void PatchWriterConfigs(
         ReconfigureYsonStruct(writerConfig, chunkWriterConfig);
     }
 
-    YT_LOG_DEBUG("Table upload options generated, table writer options and config patched "
-        "(Account: %v, CompressionCodec: %v, ErasureCodec: %v, EnableStripedErasure: %v, EnableSkynetSharing: %v)",
-        options->Account,
-        options->CompressionCodec,
-        options->ErasureCodec,
-        options->EnableStripedErasure,
-        options->EnableSkynetSharing);
+    YT_TLOG_DEBUG("Table upload options generated, table writer options and config patched")
+        .With("Account", options->Account)
+        .With("CompressionCodec", options->CompressionCodec)
+        .With("ErasureCodec", options->ErasureCodec)
+        .With("EnableStripedErasure", options->EnableStripedErasure)
+        .With("EnableSkynetSharing", options->EnableSkynetSharing);
 }
 
 
@@ -2462,11 +2468,10 @@ std::tuple<TMasterTableSchemaId, TTransactionId> BeginTableUpload(
                 });
 
             if (!checkResult.second.IsOK()) {
-                YT_LOG_FATAL(
-                    checkResult.second,
-                    "Chunk schema is incompatible with a table schema (ChunkSchema: %v, TableSchema: %v)",
-                    *chunkSchema,
-                    *tableUploadOptions.TableSchema.Get());
+                YT_TLOG_FATAL("Chunk schema is incompatible with a table schema")
+                    .With("ChunkSchema", *chunkSchema)
+                    .With("TableSchema", *tableUploadOptions.TableSchema.Get())
+                    .With(checkResult.second);
             }
             ToProto(req->mutable_chunk_schema(), chunkSchema);
         }
@@ -2494,8 +2499,8 @@ std::tuple<TMasterTableSchemaId, TTransactionId> BeginTableUpload(
     auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
     auto chunkSchemaId = FromProto<TMasterTableSchemaId>(rsp->upload_chunk_schema_id());
 
-    YT_LOG_DEBUG("Table upload started (UploadTransactionId: %v)",
-        uploadTransactionId);
+    YT_TLOG_DEBUG("Table upload started")
+        .With("UploadTransactionId", uploadTransactionId);
 
     return std::tuple(chunkSchemaId, uploadTransactionId);
 }
@@ -2515,7 +2520,7 @@ std::tuple<TLegacyOwningKey, TChunkListId, int> GetTableUploadParams(
     TChunkListId chunkListId;
     int maxColumnCount;
 
-    YT_LOG_DEBUG("Requesting table upload parameters");
+    YT_TLOG_DEBUG("Requesting table upload parameters");
 
     auto proxy = CreateObjectServiceReadProxy(
         client,
@@ -2542,10 +2547,10 @@ std::tuple<TLegacyOwningKey, TChunkListId, int> GetTableUploadParams(
 
     maxColumnCount = rsp->max_heavy_columns();
 
-    YT_LOG_DEBUG("Table upload parameters received (ChunkListId: %v, HasLastKey: %v, MaxHeavyColumns: %v)",
-        chunkListId,
-        static_cast<bool>(writerLastKey),
-        maxColumnCount);
+    YT_TLOG_DEBUG("Table upload parameters received")
+        .With("ChunkListId", chunkListId)
+        .With("HasLastKey", static_cast<bool>(writerLastKey))
+        .With("MaxHeavyColumns", maxColumnCount);
 
     return std::tuple(std::move(writerLastKey), chunkListId, maxColumnCount);
 }
@@ -2623,9 +2628,9 @@ public:
         , Throttler_(std::move(throttler))
         , BlockCache_(std::move(blockCache))
         , WriteBlocksOptions_(std::move(writeBlocksOptions))
-        , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v",
-            richPath.GetPath(),
-            TransactionId_))
+        , Logger(TableClientLogger()
+            .WithTag("Path", richPath.GetPath())
+            .WithTag("TransactionId", TransactionId_))
     {
         if (Transaction_) {
             StartListenTransaction(Transaction_);
@@ -2733,7 +2738,7 @@ private:
         TTableSchemaPtr chunkSchema;
 
         {
-            YT_LOG_DEBUG("Requesting extended table attributes");
+            YT_TLOG_DEBUG("Requesting extended table attributes");
 
             auto node = NDetail::GetTableAttributes(
                 Client_,
@@ -2826,7 +2831,7 @@ private:
             Throttler_,
             BlockCache_);
 
-        YT_LOG_DEBUG("Table opened");
+        YT_TLOG_DEBUG("Table opened");
     }
 
     void DoClose()
@@ -2835,7 +2840,7 @@ private:
         auto nativeCellTag = CellTagFromId(ObjectId_);
         auto objectIdPath = FromObjectId(ObjectId_);
 
-        YT_LOG_DEBUG("Closing table");
+        YT_TLOG_DEBUG("Closing table");
 
         auto underlyingWriterCloseError = WaitFor(UnderlyingWriter_->Close());
 
@@ -2845,7 +2850,7 @@ private:
             YT_VERIFY(UploadTransaction_); // Shouldn't be closing an unopened writer.
             Y_UNUSED(WaitFor(UploadTransaction_->Abort()));
             THROW_ERROR_EXCEPTION("Error closing chunk writer")
-                << underlyingWriterCloseError;
+                .With(underlyingWriterCloseError);
         }
 
         NDetail::EndTableUpload(
@@ -2860,10 +2865,12 @@ private:
         UploadTransaction_->Detach();
 
         // Log all statistics.
-        YT_LOG_DEBUG("Writer data statistics (DataStatistics: %v)", UnderlyingWriter_->GetDataStatistics());
-        YT_LOG_DEBUG("Writer compression codec statistics (CodecStatistics: %v)", UnderlyingWriter_->GetCompressionStatistics());
+        YT_TLOG_DEBUG("Writer data statistics")
+            .With("DataStatistics", UnderlyingWriter_->GetDataStatistics());
+        YT_TLOG_DEBUG("Writer compression codec statistics")
+            .With("CodecStatistics", UnderlyingWriter_->GetCompressionStatistics());
 
-        YT_LOG_DEBUG("Table closed");
+        YT_TLOG_DEBUG("Table closed");
     }
 };
 
@@ -2931,9 +2938,9 @@ public:
         , Throttler_(std::move(throttler))
         , BlockCache_(std::move(blockCache))
         , WriteBlocksOptions_(std::move(writeBlocksOptions))
-        , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v",
-            cookie.PatchInfo.RichPath,
-            TransactionId_))
+        , Logger(TableClientLogger()
+            .WithTag("Path", cookie.PatchInfo.RichPath)
+            .WithTag("TransactionId", TransactionId_))
     { }
 
     TFuture<void> Open()
@@ -3007,14 +3014,14 @@ private:
 
     void DoOpen()
     {
-        YT_LOG_DEBUG("Opening table fragment writer");
+        YT_TLOG_DEBUG("Opening table fragment writer");
 
         const auto& patchInfo = Cookie_.PatchInfo;
         auto writerConfig = CloneYsonStruct(Config_);
         writerConfig->WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", patchInfo.RichPath.GetPath()));
 
         {
-            YT_LOG_DEBUG("Generating table upload options from write fragment cookie");
+            YT_TLOG_DEBUG("Generating table upload options from write fragment cookie");
 
             auto attributesPtr = IAttributeDictionary::FromMap(patchInfo.TableAttributes->AsMap());
             const auto& attributes = *attributesPtr;
@@ -3038,7 +3045,7 @@ private:
         auto objectIdPath = FromObjectId(patchInfo.ObjectId);
 
         {
-            YT_LOG_DEBUG("Reading table upload parameters");
+            YT_TLOG_DEBUG("Reading table upload parameters");
 
             Options_->MaxHeavyColumns = patchInfo.MaxHeavyColumns;
 
@@ -3056,7 +3063,8 @@ private:
 
             if (rsp->chunk_list_ids_size() == 0) {
                 auto error = TError("Failed to allocate one singular chunk list");
-                YT_LOG_DEBUG(error);
+                YT_TLOG_DEBUG("Failed to allocate one singular chunk list")
+                    .With(error);
                 THROW_ERROR error;
             }
 
@@ -3064,11 +3072,10 @@ private:
             WriteResult_.CookieId = Cookie_.CookieId;
             WriteResult_.ChunkListId = FromProto<TChunkListId>(rsp->chunk_list_ids()[0]);
 
-            YT_LOG_DEBUG(
-                "Table upload parameters read (ChunkListId: %v, HasLastKey: %v, MaxHeavyColumns: %v)",
-                WriteResult_.ChunkListId,
-                static_cast<bool>(patchInfo.WriterLastKey),
-                Options_->MaxHeavyColumns);
+            YT_TLOG_DEBUG("Table upload parameters read")
+                .With("ChunkListId", WriteResult_.ChunkListId)
+                .With("HasLastKey", static_cast<bool>(patchInfo.WriterLastKey))
+                .With("MaxHeavyColumns", Options_->MaxHeavyColumns);
         }
 
         NChunkClient::TDataSink dataSink;
@@ -3096,7 +3103,7 @@ private:
             BlockCache_,
             BIND_NO_PROPAGATE(&TSchemalessTableFragmentWriter::ProcessBoundaryKeys, MakeWeak(this)));
 
-        YT_LOG_DEBUG("Opened table fragment writer");
+        YT_TLOG_DEBUG("Opened table fragment writer");
     }
 
     void ProcessBoundaryKeys(TKey minKey, TKey maxKey)
@@ -3120,23 +3127,25 @@ private:
 
     void DoClose()
     {
-        YT_LOG_DEBUG("Closing table fragment writer");
+        YT_TLOG_DEBUG("Closing table fragment writer");
 
         auto underlyingWriterCloseError = WaitFor(UnderlyingWriter_->Close());
 
         if (!underlyingWriterCloseError.IsOK()) {
             THROW_ERROR_EXCEPTION("Error closing underlying chunk writer")
-                << underlyingWriterCloseError;
+                .With(underlyingWriterCloseError);
         }
 
         const auto& signatureGenerator = Client_->GetNativeConnection()->GetSignatureGenerator();
         SignedResult_ = TSignedWriteFragmentResultPtr(signatureGenerator->Sign(ConvertToYsonString(WriteResult_).ToString()));
 
         // Log all statistics.
-        YT_LOG_DEBUG("Writer data statistics (DataStatistics: %v)", UnderlyingWriter_->GetDataStatistics());
-        YT_LOG_DEBUG("Writer compression codec statistics (CodecStatistics: %v)", UnderlyingWriter_->GetCompressionStatistics());
+        YT_TLOG_DEBUG("Writer data statistics")
+            .With("DataStatistics", UnderlyingWriter_->GetDataStatistics());
+        YT_TLOG_DEBUG("Writer compression codec statistics")
+            .With("CodecStatistics", UnderlyingWriter_->GetCompressionStatistics());
 
-        YT_LOG_DEBUG("Closed table fragment writer");
+        YT_TLOG_DEBUG("Closed table fragment writer");
     }
 };
 

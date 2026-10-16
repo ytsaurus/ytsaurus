@@ -12,6 +12,10 @@ namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const int DefaultVectorizedSubbatchSize = 100;
+
+////////////////////////////////////////////////////////////////////////////////
+
 #define DECLARE_VECTORIZED_REQUEST_BATCHER(ns, method) \
     using TVectorized##method##Batcher = TVectorizedRequestBatcher<ns::TReq##method, ns::TRsp##method>; \
     \
@@ -19,7 +23,8 @@ namespace NYT::NObjectClient {
         const NApi::NNative::IClientPtr& client, \
         const TIntrusivePtr<NYTree::TTypedYPathRequest<ns::TReq##method, ns::TRsp##method>>& typedRequestPtr, \
         TRange<TObjectId> objectIds, \
-        TTransactionId cypressTransactionId); \
+        TTransactionId cypressTransactionId, \
+        int subbatchSize = DefaultVectorizedSubbatchSize); \
     static_assert(true)
 
 ////////////////////////////////////////////////////////////////////////////////

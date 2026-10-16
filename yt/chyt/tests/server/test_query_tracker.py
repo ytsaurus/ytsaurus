@@ -1,6 +1,7 @@
 from yt_commands import (authors,
                          create, exists, read_table, write_table,
-                         raises_yt_error, create_user, set, make_ace, wait, get)
+                         raises_yt_error, create_user, set, make_ace, wait, get,
+                         start_transaction, abort_transaction)
 
 from yt.test_helpers import assert_items_equal
 
@@ -38,6 +39,62 @@ class TestQueriesChyt(ClickHouseTestBase):
     def test_simple_query(self, query_tracker):
         with Clique(1, alias="*ch_alias"):
             settings = {"clique": "ch_alias", "cluster": "primary"}
+            query = start_query("chyt", "select 1", settings=settings)
+            query.track()
+
+            query_info = query.get()
+            assert query_info["result_count"] == 1
+            assert_items_equal(query.read_result(0), [{"1": 1}])
+
+    @authors("buyval01")
+    def test_result_schema_contains_native_types(self, query_tracker):
+        with Clique(1, alias="*ch_alias"):
+            settings = {"clique": "ch_alias", "cluster": "primary"}
+            query_text = (
+                "select toUInt8(1) as uint8, "
+                "CAST(2, 'Nullable(Int16)') as nullable_int16, "
+                "toDateTime64('2019-01-01 00:00:00', 3, 'Asia/Istanbul') as datetime64, "
+                "CAST([1], 'Array(UInt8)') as array_uint8, "
+                "CAST('value', 'Variant(UInt64, String, Array(UInt64))') as variant"
+            )
+
+            query = start_query("chyt", query_text, settings=settings)
+            query.track()
+            schema = query.get_result(0)["schema"]
+            assert schema[0]["type_v3"] == "uint8"
+            assert schema[3]["type_v3"] == {
+                "type_name": "list",
+                "item": "uint8",
+            }
+
+            settings["annotate_result_schema_with_native_types"] = True
+            query = start_query("chyt", query_text, settings=settings)
+            query.track()
+            schema = query.get_result(0)["schema"]
+            assert [column["type_v3"]["tag"] for column in schema] == [
+                "UInt8",
+                "Nullable",
+                "DateTime64(3, 'Asia/Istanbul')",
+                "Array",
+                "Variant(Array(UInt64), String, UInt64)",
+            ]
+            assert schema[3]["type_v3"] == {
+                "type_name": "tagged",
+                "tag": "Array",
+                "item": {
+                    "type_name": "list",
+                    "item": {
+                        "type_name": "tagged",
+                        "tag": "UInt8",
+                        "item": "uint8",
+                    },
+                },
+            }
+
+    @authors("mpereskokova")
+    def test_simple_query_not_indexed(self, query_tracker):
+        with Clique(1, alias="*ch_alias"):
+            settings = {"clique": "ch_alias", "cluster": "primary", "is_indexed": False}
             query = start_query("chyt", "select 1", settings=settings)
             query.track()
 
@@ -117,6 +174,70 @@ class TestQueriesChyt(ClickHouseTestBase):
             query = start_query("chyt", query_text, settings=settings)
             query.track()
             assert_items_equal(query.read_result(0), expected)
+
+    @authors("nadya73")
+    def test_query_parameters(self, query_tracker):
+        with Clique(1, alias="*ch_alias"):
+            settings = {
+                "cluster": "primary",
+                "clique": "ch_alias",
+                "query_settings": {
+                    # A `param_<name>` key is a query parameter, not a setting --
+                    # the same convention the HTTP interface follows. Before this
+                    # was recognised on the query tracker path, the request failed
+                    # with "Setting param_word is neither a builtin setting nor
+                    # started with the prefix 'chyt_'".
+                    "param_word": "hello",
+                    # An ordinary setting alongside it must still be applied as a
+                    # setting: telling the two apart is the whole point.
+                    "limit": "2",
+                },
+            }
+            query = start_query(
+                "chyt",
+                "select number, {word:String} as word from numbers(10)",
+                settings=settings)
+            query.track()
+
+            assert_items_equal(query.read_result(0), [
+                {"number": 0, "word": "hello"},
+                {"number": 1, "word": "hello"},
+            ])
+
+    @authors("nadya73")
+    def test_transaction_query_parameter(self, query_tracker):
+        # `_yt_transaction_id` is a query parameter with a meaning of its own: the
+        # query then runs inside that transaction. Both directions are checked,
+        # because either alone could pass by accident -- a read that sees the
+        # pre-append state, and a write that lands in the transaction and stays
+        # invisible outside it until it is committed.
+        create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64"}]})
+        write_table("//tmp/t", [{"i": 1}])
+        create("table", "//tmp/tt", attributes={"schema": [{"name": "i", "type": "int64"}]})
+
+        with Clique(1, alias="*ch_alias"):
+            tx = start_transaction(timeout=300000)
+            try:
+                settings = {
+                    "cluster": "primary",
+                    "clique": "ch_alias",
+                    "query_settings": {"param__yt_transaction_id": tx},
+                }
+
+                # NB: `insert ... select` rather than `insert ... values`: inline
+                # VALUES data does not survive the query tracker's transport.
+                query = start_query(
+                    "chyt", 'insert into "//tmp/tt" select * from "//tmp/t"', settings=settings)
+                query.track()
+                assert read_table("//tmp/tt", tx=tx) == [{"i": 1}]
+                # Had the parameter been dropped, the row would be here already.
+                assert read_table("//tmp/tt") == []
+
+                query = start_query("chyt", 'select * from "//tmp/tt"', settings=settings)
+                query.track()
+                assert_items_equal(query.read_result(0), [{"i": 1}])
+            finally:
+                abort_transaction(tx)
 
     @authors("gudqeit")
     def test_query_error(self, query_tracker):
@@ -225,7 +346,7 @@ class TestQueriesChyt(ClickHouseTestBase):
                 authenticated_user="u1",
             )
 
-            with raises_yt_error(AuthorizationErrorCode):
+            with raises_yt_error(code=AuthorizationErrorCode):
                 query.track()
 
     @authors("mpereskokova")
@@ -415,6 +536,27 @@ class TestQueriesChyt(ClickHouseTestBase):
             assert all(row["type"] == "ExceptionWhileProcessing" for row in rows)
 
 
+class TestQueriesChytWithRowLimit(ClickHouseTestBase):
+    QUERY_TRACKER_DYNAMIC_CONFIG = {
+        "chyt_engine": {
+            "row_count_limit": 100,
+        },
+    }
+
+    @authors("ulya-sidorina")
+    def test_result_truncation(self, query_tracker):
+        with Clique(1, alias="*ch_alias"):
+            settings = {"clique": "ch_alias", "cluster": "primary"}
+
+            query = start_query("chyt", "select number from numbers(100)", settings=settings)
+            query.track()
+            assert not query.get_result(0)["is_truncated"]
+
+            query = start_query("chyt", "select number from numbers(101)", settings=settings)
+            query.track()
+            assert query.get_result(0)["is_truncated"]
+
+
 class TestChytEngineProgress(ClickHouseTestBase):
     def setup_method(self, method):
         super().setup_method(method)
@@ -477,9 +619,7 @@ class TestChytEngineProgress(ClickHouseTestBase):
         return self.QUERY_QUEUE.get()
 
     @authors("buyval01")
-    # TODO(buyval01): CHYT-1369
-    # @pytest.mark.parametrize("wait_progress_finish", [True, False])
-    @pytest.mark.parametrize("wait_progress_finish", [False])
+    @pytest.mark.parametrize("wait_progress_finish", [True, False])
     @pytest.mark.parametrize("enable_pull_mode", [False, True])
     def test_simple(self, query_tracker, wait_progress_finish, enable_pull_mode):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})

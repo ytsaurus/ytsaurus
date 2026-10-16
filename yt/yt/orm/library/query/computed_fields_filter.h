@@ -11,7 +11,7 @@ using TComputedFieldsDetector = std::function<bool(NQueryClient::NAst::TReferenc
 
 //! Splits filter expression into computable and non-computable parts.
 //! First part in pair does not contain computed fields.
-std::pair<NQueryClient::NAst::TExpressionPtr, NQueryClient::NAst::TExpressionPtr> SplitFilter(
+std::pair<NQueryClient::NAst::TExpressionPtr, NQueryClient::NAst::TExpressionPtr> SplitFilterByComputedFields(
     TObjectsHolder* context,
     TComputedFieldsDetector detector,
     NQueryClient::NAst::TExpressionPtr filter);

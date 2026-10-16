@@ -37,10 +37,14 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDictionaryAccessControl
-    : public IDictionaryAccessControl, public TAsyncExpiringCache<std::string, void>
+    : public IDictionaryAccessControl
+    , public TAsyncExpiringCache<std::string, void>
 {
 public:
-    TDictionaryAccessControl(TPermissionCachePtr permissionCache, TDictionaryAccessControlConfigPtr config, IInvokerPtr invoker)
+    TDictionaryAccessControl(
+        TPermissionCachePtr permissionCache,
+        TDictionaryAccessControlConfigPtr config,
+        IInvokerPtr invoker)
         : TAsyncExpiringCache(config->CacheConfig, invoker)
         , Invoker_(std::move(invoker))
         , ProcessSourcesExecutor_(New<TPeriodicExecutor>(
@@ -63,6 +67,16 @@ public:
     }
 
 private:
+    const IInvokerPtr Invoker_;
+    const TPeriodicExecutorPtr ProcessSourcesExecutor_;
+    const NSecurityClient::TPermissionCachePtr PermissionCache_;
+
+    DB::ContextMutablePtr ServerContext_;
+
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SourceToStorageIdsLock_);
+    THashMap<TYPath, std::vector<DB::StorageID>> SourceToStorageIds_;
+    std::vector<DB::StorageID> FullAccessStorageIds_;
+
     void CollectStorageIds()
     {
         WriterGuard(SourceToStorageIdsLock_);
@@ -72,16 +86,19 @@ private:
 
         auto results = ServerContext_->getExternalDictionariesLoader().getLoadResults();
         for (const auto& result : results) {
-            auto dictionary = std::dynamic_pointer_cast<const DB::IDictionary>(result.object);
-            if (!dictionary) {
+            if (!result.config) {
                 continue;
             }
 
-            if (auto path = GetTableDictionarySourcePath(dictionary->getSource())) {
+            const auto& dictionaryConfig = *result.config->config;
+            const auto& configKey = result.config->key_in_config;
+            auto storageId = DB::StorageID::fromDictionaryConfig(dictionaryConfig, configKey);
+
+            if (auto path = TryGetTableDictionarySourcePath(dictionaryConfig, configKey)) {
                 auto it = SourceToStorageIds_.emplace(*path, std::vector<DB::StorageID>()).first;
-                it->second.push_back(dictionary->getDictionaryID());
+                it->second.push_back(std::move(storageId));
             } else {
-                FullAccessStorageIds_.push_back(dictionary->getDictionaryID());
+                FullAccessStorageIds_.push_back(std::move(storageId));
             }
         }
     }
@@ -116,7 +133,6 @@ private:
         auto permissionResult = WaitFor(PermissionCache_->GetMany(permissionCacheKeys))
             .ValueOrDefault(std::vector<TErrorOr<TPermissionValue>>(permissionCacheKeys.size(), TError("", TError::DisableFormat)));
 
-
         std::vector<DB::AccessRights> userGrantedRights(users.size());
         std::vector<DB::AccessRights> userRevokedRights(users.size());
         {
@@ -125,6 +141,7 @@ private:
             for (size_t userIndex = 0; userIndex < users.size(); ++userIndex) {
                 for (const auto& storageId : FullAccessStorageIds_) {
                     userGrantedRights[userIndex].grant(DB::AccessType::dictGet, storageId.database_name, storageId.table_name);
+                    userGrantedRights[userIndex].grant(DB::AccessType::SELECT, storageId.database_name, storageId.table_name);
                 }
             }
 
@@ -136,6 +153,7 @@ private:
                         rights = &userRevokedRights[rightsIndex];
                     }
                     rights->grant(DB::AccessType::dictGet, storageId.database_name, storageId.table_name);
+                    rights->grant(DB::AccessType::SELECT, storageId.database_name, storageId.table_name);
                 }
             }
         }
@@ -154,17 +172,6 @@ private:
 
         return MakeFuture(std::vector<TError>(users.size()));
     }
-
-private:
-    IInvokerPtr Invoker_;
-    DB::ContextMutablePtr ServerContext_;
-    TPeriodicExecutorPtr ProcessSourcesExecutor_;
-
-    NSecurityClient::TPermissionCachePtr PermissionCache_;
-
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SourceToStorageIdsLock_);
-    THashMap<TYPath, std::vector<DB::StorageID>> SourceToStorageIds_;
-    std::vector<DB::StorageID> FullAccessStorageIds_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

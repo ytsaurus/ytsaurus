@@ -2,14 +2,13 @@
 
 #include "private.h"
 
-#include <yt/yt/server/lib/cypress_election/public.h>
-
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/server/lib/component_state_checker/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/library/cypress_election/public.h>
 #include <yt/yt/library/monitoring/public.h>
 #include <yt/yt/library/server_program/public.h>
 
@@ -46,6 +45,8 @@ public:
 
     const NApi::NNative::TConnectionCompoundConfigPtr GetClusterConnectionConfig() const;
 
+    const NApi::NNative::IClientPtr& GetClient() const;
+
 private:
     TAgentId AgentId_;
 
@@ -59,6 +60,11 @@ private:
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
     NCoreDump::ICoreDumperPtr CoreDumper_;
+
+    NConcurrency::TActionQueuePtr TokenManagerQueue_;
+    NBus::IBusServerPtr TokenBusServer_;
+    NRpc::IServerPtr TokenRpcServer_;
+    ITokenManagerPtr TokenManager_;
 
     NComponentStateChecker::IComponentStateCheckerPtr ComponentStateChecker_;
 

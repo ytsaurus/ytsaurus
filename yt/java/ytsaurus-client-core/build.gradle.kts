@@ -16,6 +16,14 @@ java {
     withJavadocJar()
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(11)
+}
+
+tasks.withType<Javadoc>().configureEach {
+    (options as CoreJavadocOptions).addStringOption("source", "11")
+}
+
 dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:5.8.2")
     api("org.apache.commons:commons-math3:3.6.1")

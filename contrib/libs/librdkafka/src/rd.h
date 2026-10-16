@@ -44,6 +44,11 @@
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L /* for timespec on solaris */
 #endif
+#else
+#ifndef _CRT_RAND_S
+#define _CRT_RAND_S  /* for rand_s() on MSVC. It needs to be defined before    \
+                      * including <stdlib.h>. */
+#endif
 #endif
 
 #include <stdio.h>
@@ -53,6 +58,7 @@
 #include <time.h>
 #include <assert.h>
 #include <limits.h>
+#include <sys/stat.h>
 
 #include "tinycthread.h"
 #include "rdsysqueue.h"
@@ -220,12 +226,18 @@ static RD_INLINE RD_UNUSED char *rd_strndup(const char *s, size_t len) {
 
 
 /* Round/align X upwards to STRIDE, which must be power of 2. */
-#define RD_ROUNDUP(X, STRIDE) (((X) + ((STRIDE)-1)) & ~(STRIDE - 1))
+#define RD_ROUNDUP(X, STRIDE) (((X) + ((STRIDE) - 1)) & ~(STRIDE - 1))
 
 #define RD_ARRAY_SIZE(A)          (sizeof((A)) / sizeof(*(A)))
 #define RD_ARRAYSIZE(A)           RD_ARRAY_SIZE(A)
 #define RD_SIZEOF(TYPE, MEMBER)   sizeof(((TYPE *)NULL)->MEMBER)
 #define RD_OFFSETOF(TYPE, MEMBER) ((size_t) & (((TYPE *)NULL)->MEMBER))
+/** Array foreach */
+#define RD_ARRAY_FOREACH_INDEX(ELEM, ARRAY, INDEX)                             \
+        for ((INDEX = 0, (ELEM) = (ARRAY)[INDEX]);                             \
+             INDEX < RD_ARRAY_SIZE(ARRAY);                                     \
+             (ELEM) =                                                          \
+                 (++INDEX < RD_ARRAY_SIZE(ARRAY) ? (ARRAY)[INDEX] : (ELEM)))
 
 /**
  * Returns the 'I'th array element from static sized array 'A'
@@ -405,14 +417,17 @@ static RD_INLINE RD_UNUSED int rd_refcnt_get(rd_refcnt_t *R) {
                  rd_refcnt_get(R), (R), WHAT, __FUNCTION__, __LINE__),         \
          rd_refcnt_sub0(R))
 
-#define rd_refcnt_sub(R)                                                       \
+#define rd_refcnt_sub_fl(FUNC, LINE, R)                                        \
         (fprintf(stderr, "REFCNT DEBUG: %-35s %d -1: %16p: %s:%d\n", #R,       \
-                 rd_refcnt_get(R), (R), __FUNCTION__, __LINE__),               \
+                 rd_refcnt_get(R), (R), (FUNC), (LINE)),                       \
          rd_refcnt_sub0(R))
+
+#define rd_refcnt_sub(R) rd_refcnt_sub_fl(__FUNCTION__, __LINE__, R)
 
 #else
 #define rd_refcnt_add_fl(FUNC, LINE, R) rd_refcnt_add0(R)
 #define rd_refcnt_add(R)                rd_refcnt_add0(R)
+#define rd_refcnt_sub_fl(FUNC, LINE, R) rd_refcnt_sub0(R)
 #define rd_refcnt_sub(R)                rd_refcnt_sub0(R)
 #endif
 
@@ -427,7 +442,7 @@ static RD_INLINE RD_UNUSED int rd_refcnt_get(rd_refcnt_t *R) {
 
 #define RD_INTERFACE_CALL(i, name, ...) (i->name(i->opaque, __VA_ARGS__))
 
-#define RD_CEIL_INTEGER_DIVISION(X, DEN) (((X) + ((DEN)-1)) / (DEN))
+#define RD_CEIL_INTEGER_DIVISION(X, DEN) (((X) + ((DEN) - 1)) / (DEN))
 
 /**
  * @brief Utility types to hold memory,size tuple.
@@ -437,5 +452,141 @@ typedef struct rd_chariov_s {
         char *ptr;
         size_t size;
 } rd_chariov_t;
+
+/**
+ * @brief Read the file at \p file_path in binary mode and return its contents.
+ *        The returned buffer is NULL-terminated,
+ *        the size parameter will contain the actual file size.
+ *
+ * @param file_path Path to the file to read.
+ * @param size Pointer to store the file size (optional).
+ * @param max_size Maximum file size to read (0 for no limit) (optional).
+ *
+ * @returns Newly allocated buffer containing the file contents.
+ *          NULL on error (file not found, too large, etc).
+ *
+ * @remark The returned pointer ownership is transferred to the caller.
+ *
+ * @locality Any thread
+ */
+static RD_INLINE RD_UNUSED char *
+rd_file_read(const char *file_path, size_t *size, size_t max_size) {
+        FILE *file;
+        char *buf = NULL;
+        size_t file_size;
+        size_t read_size;
+        if (!size)
+                size = &read_size;
+
+#ifndef _WIN32
+        file = fopen(file_path, "rb");
+#else
+        file  = NULL;
+        errno = fopen_s(&file, file_path, "rb");
+#endif
+        if (!file)
+                return NULL;
+
+        if (fseek(file, 0, SEEK_END) != 0)
+                goto err;
+
+        file_size = (size_t)ftell(file);
+        if (file_size < 0)
+                goto err;
+
+        if (fseek(file, 0, SEEK_SET) != 0)
+                goto err;
+
+        /* Check if file is too large */
+        if (max_size > 0 && file_size > max_size)
+                goto err;
+
+        /* Allocate buffer with extra byte for NULL terminator */
+        buf       = (char *)rd_malloc(file_size + 1);
+        read_size = fread(buf, 1, file_size, file);
+
+        if (read_size != file_size)
+                goto err;
+
+        /* NULL terminate the buffer */
+        buf[file_size] = '\0';
+        *size          = file_size;
+        fclose(file);
+        return buf;
+err:
+        fclose(file);
+        if (buf)
+                rd_free(buf);
+        return NULL;
+}
+
+static RD_INLINE RD_UNUSED FILE *
+rd_file_mkstemp(const char *prefix,
+                const char *mode,
+                char *tempfile_path_out,
+                size_t tempfile_path_out_size) {
+        FILE *tempfile;
+
+#ifdef _WIN32
+        char tempfolder_path[MAX_PATH];
+        char tempfile_path[MAX_PATH];
+        if (!GetTempPathA(MAX_PATH, tempfolder_path))
+                return NULL; /* Failed to get temp folder path */
+
+
+        if (!GetTempFileNameA(tempfolder_path, "TMP", 1, tempfile_path))
+                return NULL; /* Failed to create temp file name */
+
+        tempfile = fopen(tempfile_path, mode);
+#else
+        int tempfile_fd;
+        char tempfile_path[512];
+        rd_snprintf(tempfile_path, sizeof(tempfile_path), "/tmp/%sXXXXXX",
+                    prefix);
+        tempfile_fd = mkstemp(tempfile_path);
+        if (tempfile_fd < 0)
+                return NULL;
+
+        tempfile = fdopen(tempfile_fd, mode);
+#endif
+
+        if (!tempfile)
+                return NULL;
+
+        if (tempfile_path_out)
+                rd_snprintf(tempfile_path_out, tempfile_path_out_size, "%s",
+                            tempfile_path);
+        return tempfile;
+}
+
+/**
+ * @brief Retrive stat for a \p path .
+ *
+ * @param path Path to the file or directory.
+ * @param is_dir Pointer to store if the \p path is a directory (optional).
+ *
+ * @return `rd_true` if the path exists.
+ */
+static RD_INLINE RD_UNUSED rd_bool_t rd_file_stat(const char *path,
+                                                  rd_bool_t *is_dir) {
+#ifdef _WIN32
+        struct _stat st;
+        if (_stat(path, &st) == 0) {
+                if (is_dir)
+                        *is_dir = st.st_mode & S_IFDIR;
+                return rd_true;
+        }
+#else
+        struct stat st;
+        if (stat(path, &st) == 0) {
+                if (is_dir)
+                        *is_dir = S_ISDIR(st.st_mode);
+                return rd_true;
+        }
+#endif
+        if (is_dir)
+                *is_dir = rd_false;
+        return rd_false;
+}
 
 #endif /* _RD_H_ */

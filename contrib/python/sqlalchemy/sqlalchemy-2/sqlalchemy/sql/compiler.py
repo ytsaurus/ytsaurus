@@ -23,6 +23,7 @@ To generate user-defined SQL strings, see
 :doc:`/ext/compiler`.
 
 """
+
 from __future__ import annotations
 
 import collections
@@ -1815,6 +1816,13 @@ class SQLCompiler(Compiled):
                     ),
                 )
                 for bindparam in self.bind_names
+                # literal_execute parameters are rendered into the SQL string
+                # via their literal_processor and never bound as values, so
+                # they do not need a bind processor.  Skipping them also avoids
+                # invoking bind-processor construction that may require the
+                # DBAPI to be present (see asyncpg, psycopgcffi cases),
+                # facilitating testing.
+                if bindparam not in self.literal_execute_params
             )
             if value is not None
         }
@@ -2129,7 +2137,7 @@ class SQLCompiler(Compiled):
                     leep_res = self._literal_execute_expanding_parameter(
                         escaped_name, parameter, values
                     )
-                    (to_update, replacement_expr) = leep_res
+                    to_update, replacement_expr = leep_res
 
                     to_update_sets[escaped_name] = to_update
                     replacement_expressions[escaped_name] = replacement_expr
@@ -2381,7 +2389,13 @@ class SQLCompiler(Compiled):
         """
         return ""
 
-    def visit_override_binds(self, override_binds, **kw):
+    def visit_override_binds(
+        self,
+        override_binds,
+        add_to_result_map=None,
+        result_map_targets=(),
+        **kw,
+    ):
         """SQL compile the nested element of an _OverrideBinds with
         bindparams swapped out.
 
@@ -2396,6 +2410,16 @@ class SQLCompiler(Compiled):
         so it has to do the right thing at compile time as well.
 
         """
+
+        if add_to_result_map is not None:
+            # the ORM looks up result columns using the objects it placed
+            # into the loader option, which for a cached statement is the
+            # _OverrideBinds wrapper rather than the element inside of it.
+            # make sure the wrapper is present in the result map so that
+            # lookup succeeds.  See #13560
+            result_map_targets += (override_binds,)
+            kw["add_to_result_map"] = add_to_result_map
+            kw["result_map_targets"] = result_map_targets
 
         # get SQL text first
         sqltext = override_binds.element._compiler_dispatch(self, **kw)
@@ -3169,6 +3193,7 @@ class SQLCompiler(Compiled):
         if (
             self.dialect.div_is_floordiv
             and binary.right.type._type_affinity is sqltypes.Integer
+            and binary.left.type._type_affinity is sqltypes.Integer
         ):
             return (
                 self.process(binary.left, **kw)
@@ -4569,6 +4594,8 @@ class SQLCompiler(Compiled):
             "_label_select_column is only relevant within "
             "the columns clause of a SELECT or RETURNING"
         )
+        result_expr: Union[elements.Label[Any], _CompileLabel]
+
         if isinstance(column, elements.Label):
             if col_expr is not column:
                 result_expr = _CompileLabel(
@@ -6650,6 +6677,9 @@ class StrSQLCompiler(SQLCompiler):
         :ref:`faq_sql_expression_string`
 
     """
+
+    def get_select_precolumns(self, select: Select[Any], **kw: Any) -> str:
+        return "DISTINCT " if select._distinct else ""
 
     def _fallback_column_name(self, column):
         return "<name unknown>"

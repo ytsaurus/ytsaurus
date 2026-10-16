@@ -23,7 +23,9 @@ TS3UploadSessionBase::TS3UploadSessionBase(
     const NLogging::TLogger& logger)
     : Client_(std::move(client))
     , ObjectPlacement_(std::move(objectPlacement))
-    , Logger(logger.WithTag("Bucket: %v, Key: %v", ObjectPlacement_.Bucket, ObjectPlacement_.Key))
+    , Logger(logger
+        .WithTag("Bucket", ObjectPlacement_.Bucket)
+        .WithTag("Key", ObjectPlacement_.Key))
     , UnderlyingInvoker_(std::move(invoker))
     , UploadSessionCancelableContext_(New<TCancelableContext>())
 {
@@ -44,7 +46,8 @@ TFuture<void> TS3UploadSessionBase::Abort(TError error)
     CompletionPromise_.TrySet(error);
 
     auto completed = IsUploadCompleted();
-    YT_LOG_DEBUG("Aborting S3 upload session (State: %v)", completed);
+    YT_TLOG_DEBUG("Aborting S3 upload session")
+        .With("State", completed);
     return completed
         ? AbortCompletedUpload()
         : AbortIncompleteUpload();
@@ -60,12 +63,12 @@ TFuture<void> TS3UploadSessionBase::AbortCompletedUpload()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    YT_LOG_DEBUG("Deleting uploaded object due to session abort");
+    YT_TLOG_DEBUG("Deleting uploaded object due to session abort");
 
     // This method is idempotent and does not throw if the object does not exist.
     return Client_->DeleteObjects(TDeleteObjectsRequest{
-        .Bucket = TString(ObjectPlacement_.Bucket),
-        .Objects = {TString(ObjectPlacement_.Key)},
+        .Bucket = ObjectPlacement_.Bucket,
+        .Objects = {ObjectPlacement_.Key},
     })
         .AsVoid();
 }
@@ -91,10 +94,9 @@ TS3MultiPartUploadSession::TS3MultiPartUploadSession(
     YT_VERIFY(Options_.PartSize >= MinMultiPartUploadPartSize);
     YT_VERIFY(Options_.UploadWindowSize > 0);
 
-    YT_LOG_DEBUG(
-        "Created multi-part upload session (MinPartSize: %v, UploadWindowSize: %v)",
-        Options_.PartSize,
-        Options_.UploadWindowSize);
+    YT_TLOG_DEBUG("Created multi-part upload session")
+        .With("MinPartSize", Options_.PartSize)
+        .With("UploadWindowSize", Options_.UploadWindowSize);
 }
 
 TFuture<void> TS3MultiPartUploadSession::Start()
@@ -128,9 +130,9 @@ bool TS3MultiPartUploadSession::Add(std::vector<TSharedRef> data)
     BufferedData_.insert(BufferedData_.end(), std::make_move_iterator(data.begin()), std::make_move_iterator(data.end()));
     BufferedDataSize_ += size;
 
-    YT_LOG_DEBUG("Added data to multi-part upload session (Size: %v, BufferedDataSize: %v)",
-        size,
-        BufferedDataSize_);
+    YT_TLOG_DEBUG("Added data to multi-part upload session")
+        .With("Size", size)
+        .With("BufferedDataSize", BufferedDataSize_);
 
     CancelableInvoker_->Invoke(BIND(&TS3MultiPartUploadSession::SchedulePartUploadIfNeeded, MakeWeak(this)));
 
@@ -238,17 +240,16 @@ void TS3MultiPartUploadSession::GuardedSchedulePartUpload()
     int partIndex = std::ssize(PendingPartUploads_) + 1;
     auto partSize = data.Size();
 
-    YT_LOG_DEBUG(
-        "Scheduling part upload (UploadId: %v, PartIndex: %v, ObjectOffset: %v, Size: %v, Md5: %v)",
-        UploadId_,
-        partIndex,
-        CurrentObjectOffset_,
-        partSize,
-        md5);
+    YT_TLOG_DEBUG("Scheduling part upload")
+        .With("UploadId", UploadId_)
+        .With("PartIndex", partIndex)
+        .With("ObjectOffset", CurrentObjectOffset_)
+        .With("Size", partSize)
+        .With("Md5", md5);
 
     auto uploadFuture = Client_->UploadPart(TUploadPartRequest{
-        .Bucket = TString(ObjectPlacement_.Bucket),
-        .Key = TString(ObjectPlacement_.Key),
+        .Bucket = ObjectPlacement_.Bucket,
+        .Key = ObjectPlacement_.Key,
         .UploadId = UploadId_,
         .PartIndex = partIndex,
         .Data = std::move(data),
@@ -275,19 +276,20 @@ TUploadPartResponse TS3MultiPartUploadSession::OnPartUploadCompleted(const TErro
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (response.IsOK()) {
-        YT_LOG_DEBUG(
-            "Part upload completed (PartIndex: %v, PartSize: %v, ETag: %v)",
-            partIndex,
-            partSize,
-            response.Value().ETag);
+        YT_TLOG_DEBUG("Part upload completed")
+            .With("PartIndex", partIndex)
+            .With("PartSize", partSize)
+            .With("ETag", response.Value().ETag);
 
         UploadWindowSemaphore_->Release(partSize);
 
         return response.Value();
     }
 
-    auto error = TError("Error uploading part %v", partIndex) << response;
-    YT_LOG_ERROR(error);
+    auto error = TError("Error uploading part %v", partIndex).With(response);
+    YT_TLOG_ERROR("Error uploading part")
+        .With("PartIndex", partIndex)
+        .With(response);
 
     // This should lead to cancellation of all other pending uploads.
     // It is intended to be best-effort, some requests may still complete.
@@ -315,11 +317,11 @@ void TS3MultiPartUploadSession::DoStart()
 {
     YT_ASSERT_INVOKER_AFFINITY(CancelableInvoker_);
 
-    YT_LOG_DEBUG("Starting multi-part upload to S3");
+    YT_TLOG_DEBUG("Starting multi-part upload to S3");
 
     auto multiPartUploadOrError = WaitFor(Client_->CreateMultipartUpload(TCreateMultipartUploadRequest{
-        .Bucket = TString(ObjectPlacement_.Bucket),
-        .Key = TString(ObjectPlacement_.Key),
+        .Bucket = ObjectPlacement_.Bucket,
+        .Key = ObjectPlacement_.Key,
     }));
 
     if (!multiPartUploadOrError.IsOK()) {
@@ -344,9 +346,8 @@ void TS3MultiPartUploadSession::DoStart()
         State_ = ES3UploadSessionState::Started;
     }
 
-    YT_LOG_DEBUG(
-        "Multi-part upload started (UploadId: %v)",
-        multiPartUpload.UploadId);
+    YT_TLOG_DEBUG("Multi-part upload started")
+        .With("UploadId", multiPartUpload.UploadId);
 
     StartPromise_.TrySet();
 }
@@ -355,7 +356,7 @@ void TS3MultiPartUploadSession::DoComplete()
 {
     YT_ASSERT_INVOKER_AFFINITY(CancelableInvoker_);
 
-    YT_LOG_DEBUG("Completing multi-part upload to S3");
+    YT_TLOG_DEBUG("Completing multi-part upload to S3");
 
     SchedulePartUploadIfNeeded();
 
@@ -378,8 +379,8 @@ void TS3MultiPartUploadSession::DoComplete()
     }
 
     auto multiPartUploadOrError = WaitFor(Client_->CompleteMultipartUpload(TCompleteMultipartUploadRequest{
-        .Bucket = TString(ObjectPlacement_.Bucket),
-        .Key = TString(ObjectPlacement_.Key),
+        .Bucket = ObjectPlacement_.Bucket,
+        .Key = ObjectPlacement_.Key,
         .UploadId = UploadId_,
         .Parts = std::move(uploadedParts),
     }));
@@ -390,7 +391,9 @@ void TS3MultiPartUploadSession::DoComplete()
     }
 
     if (TryExchangeState(ES3UploadSessionState::Completing, ES3UploadSessionState::Completed)) {
-        YT_LOG_DEBUG("Multi-part upload completed (UploadId: %v, ETag: %v)", UploadId_, multiPartUploadOrError.Value().ETag);
+        YT_TLOG_DEBUG("Multi-part upload completed")
+            .With("UploadId", UploadId_)
+            .With("ETag", multiPartUploadOrError.Value().ETag);
 
         CompletionPromise_.Set();
     }
@@ -408,17 +411,20 @@ void TS3MultiPartUploadSession::DoAbortIncompleteUpload()
     }
 
     // Accessing UploadId_ is fine, since the value is read-only after the upload is started.
-    YT_VERIFY(!UploadId_.empty());
+    if (UploadId_.empty()) {
+        return;
+    }
 
-    YT_LOG_DEBUG("Aborting incomplete multi-part upload to S3 (UploadId: %v)", UploadId_);
+    YT_TLOG_DEBUG("Aborting incomplete multi-part upload to S3")
+        .With("UploadId", UploadId_);
     WaitFor(Client_->AbortMultipartUpload(TAbortMultipartUploadRequest{
-        .Bucket = TString(ObjectPlacement_.Bucket),
-        .Key = TString(ObjectPlacement_.Key),
+        .Bucket = ObjectPlacement_.Bucket,
+        .Key = ObjectPlacement_.Key,
         .UploadId = UploadId_,
     }))
         .ValueOrThrow();
 
-    YT_LOG_DEBUG("Incomplete multi-part upload aborted");
+    YT_TLOG_DEBUG("Incomplete multi-part upload aborted");
 }
 
 TFuture<void> TS3MultiPartUploadSession::AbortIncompleteUpload()
@@ -441,7 +447,7 @@ TS3SimpleUploadSession::TS3SimpleUploadSession(
         std::move(invoker),
         std::move(logger))
 {
-    YT_LOG_DEBUG("Created simple upload session");
+    YT_TLOG_DEBUG("Created simple upload session");
 }
 
 TFuture<void> TS3SimpleUploadSession::Upload(TSharedRef data)
@@ -457,11 +463,12 @@ void TS3SimpleUploadSession::DoUpload(TSharedRef data)
 {
     YT_ASSERT_INVOKER_AFFINITY(CancelableInvoker_);
 
-    YT_LOG_DEBUG("Uploading object to S3 (Size: %v)", data.Size());
+    YT_TLOG_DEBUG("Uploading object to S3")
+        .With("Size", data.Size());
 
     auto putObjectResponse = WaitFor(Client_->PutObject(TPutObjectRequest{
-        .Bucket = TString(ObjectPlacement_.Bucket),
-        .Key = TString(ObjectPlacement_.Key),
+        .Bucket = ObjectPlacement_.Bucket,
+        .Key = ObjectPlacement_.Key,
         .Data = std::move(data),
     }));
 
@@ -470,7 +477,8 @@ void TS3SimpleUploadSession::DoUpload(TSharedRef data)
         return;
     }
 
-    YT_LOG_DEBUG("Object upload completed (ETag: %v)", putObjectResponse.Value().ETag);
+    YT_TLOG_DEBUG("Object upload completed")
+        .With("ETag", putObjectResponse.Value().ETag);
 
     CompletionPromise_.TrySet();
 }

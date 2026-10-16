@@ -24,7 +24,7 @@ struct IChunkSliceFetcher
     // TODO(max42): interface should accept abstract data slice. Particular implementation
     // should hold a pointer to a physical data registry.
     virtual void AddDataSliceForSlicing(
-        NChunkClient::TLegacyDataSlicePtr dataSlice,
+        NChunkClient::TDataSlicePtr dataSlice,
         TComparator comparator,
         i64 sliceDataWeight,
         bool sliceByKeys,

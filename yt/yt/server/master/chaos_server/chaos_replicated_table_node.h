@@ -10,7 +10,7 @@
 
 #include <yt/yt/server/master/table_server/schemaful_node.h>
 
-#include <yt/yt/core/misc/property.h>
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NChaosServer {
 
@@ -21,7 +21,6 @@ class TChaosReplicatedTableNode
     , public NTableServer::TSchemafulNode
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(NChaosServer::TChaosCellBundlePtr, ChaosCellBundle);
     DEFINE_BYVAL_RW_PROPERTY(TReplicationCardId, ReplicationCardId);
     DEFINE_BYVAL_RW_PROPERTY(bool, OwnsReplicationCard);
     DEFINE_BYVAL_RW_PROPERTY(bool, TreatAsQueueConsumer);
@@ -33,6 +32,12 @@ public:
 
     TChaosReplicatedTableNode* GetTrunkNode();
     const TChaosReplicatedTableNode* GetTrunkNode() const;
+
+    //! Returns the bundle of the trunk node; safe to call for branched nodes.
+    TChaosCellBundleRawPtr GetChaosCellBundle() const;
+    //! Only trunk nodes carry a chaos cell bundle.
+    //! NB: Prefer IChaosManager::SetChaosCellBundle, which also validates permissions.
+    void SetChaosCellBundle(TChaosCellBundle* cellBundle);
 
     NYTree::ENodeType GetNodeType() const override;
 
@@ -55,6 +60,9 @@ public:
     bool IsTrackedQueueProducerObject() const;
     bool IsSorted() const;
     bool HasNonEmptySchema() const;
+
+private:
+    TChaosCellBundlePtr ChaosCellBundle_;
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TChaosReplicatedTableNode)

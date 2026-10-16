@@ -3,9 +3,14 @@
 #include "bootstrap.h"
 #include "location.h"
 #include "nbd_chunk_handler.h"
+#include "private.h"
 
 #include <yt/yt/server/tools/proc.h>
 #include <yt/yt/server/tools/tools.h>
+
+#include <yt/yt/core/concurrency/prioritized_invoker.h>
+
+#include <yt/yt/core/profiling/timing.h>
 
 #include <util/system/types.h>
 
@@ -15,6 +20,11 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NTools;
 using namespace NNode;
+using namespace NProfiling;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +40,9 @@ TNbdSession::TNbdSession(
     , Bootstrap_(std::move(bootstrap))
     , Id_(sessionId)
     , Options_(std::move(options))
+    , StorageHeavyInvoker_(CreateFixedPriorityInvoker(
+        Bootstrap_->GetStorageHeavyInvoker(),
+        Options_.WorkloadDescriptor.GetPriority()))
     , StoreLocation_(std::move(storeLocation))
     , Lease_(std::move(lease))
     , LockedChunkGuard_(std::move(lockedChunkGuard))
@@ -43,7 +56,9 @@ TNbdSession::TNbdSession(
         Id_.ChunkId,
         Options_.WorkloadDescriptor,
         StoreLocation_,
-        Bootstrap_->GetStorageHeavyInvoker());
+        StorageHeavyInvoker_,
+        Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor),
+        Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor));
 }
 
 /*
@@ -52,22 +67,50 @@ TNbdSession::TNbdSession(
 
 TFuture<TBlock> TNbdSession::Read(i64 offset, i64 length, ui64 cookie)
 {
-    // We are reading out some bytes to network so use out throttler.
-    auto readThrottler = Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor);
-    auto throttleFuture = readThrottler->Throttle(length);
-    return throttleFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] () {
-        return NbdChunkHandler_->Read(offset, length, cookie);
-    }));
+    YT_TLOG_DEBUG("Reading from NBD session")
+        .With("Offset", offset)
+        .With("Length", length)
+        .WithFormat("Cookie", "%x", cookie);
+
+    return NbdChunkHandler_->Read(offset, length, cookie);
+}
+
+TFuture<std::vector<TBlock>> TNbdSession::ReadBatch(
+    const std::vector<TNbdReadSubrequest>& subrequests,
+    ui64 cookie)
+{
+    YT_TLOG_DEBUG("Batch reading from NBD session")
+        .With("SubrequestCount", subrequests.size())
+        .WithFormat("Cookie", "%x", cookie);
+
+    return NbdChunkHandler_->ReadBatch(subrequests, cookie);
 }
 
 TFuture<NIO::TIOCounters> TNbdSession::Write(i64 offset, const TBlock& block, ui64 cookie)
 {
-    // We are writing in some bytes from network so use in throttler.
-    auto writeThrottler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);
-    auto throttleFuture = writeThrottler->Throttle(block.Size());
-    return throttleFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] () {
-        return NbdChunkHandler_->Write(offset, block, cookie);
-    }));
+    YT_TLOG_DEBUG("Writing to NBD session")
+        .With("Offset", offset)
+        .With("Length", block.Size())
+        .WithFormat("Cookie", "%x", cookie);
+
+    return NbdChunkHandler_->Write(offset, block, cookie);
+}
+
+TFuture<void> TNbdSession::Flush(ui64 cookie)
+{
+    YT_TLOG_DEBUG("Flushing NBD session")
+        .WithFormat("Cookie", "%x", cookie);
+
+    return NbdChunkHandler_->Flush(cookie);
+}
+
+TFuture<void> TNbdSession::FlushRange(i64 offset, i64 size)
+{
+    YT_TLOG_DEBUG("Flushing NBD session range")
+        .With("Offset", offset)
+        .With("Size", size);
+
+    return NbdChunkHandler_->FlushRange(offset, size);
 }
 
 //! Create NBD chunk and make filesystem on it.
@@ -85,7 +128,7 @@ TFuture<void> TNbdSession::Create()
             throw;
         }
     })
-    .AsyncVia(Bootstrap_->GetStorageHeavyInvoker()));
+    .AsyncVia(StorageHeavyInvoker_));
 }
 
 //! Remove NBD chunk.
@@ -98,7 +141,7 @@ TFuture<void> TNbdSession::Destroy()
         // Unlock NBD chunk and unregister session.
         Finished_.Fire(Error_);
     })
-    .AsyncVia(Bootstrap_->GetStorageHeavyInvoker()));
+    .AsyncVia(StorageHeavyInvoker_));
 }
 
 /*
@@ -193,8 +236,9 @@ i64 TNbdSession::GetIntermediateEmptyBlockCount() const
 }
 
 TFuture<ISession::TFinishResult> TNbdSession::Finish(
-    const NChunkClient::TRefCountedChunkMetaPtr& /* chunkMeta */,
-    std::optional<int> /* blockCount */)
+    const NChunkClient::TRefCountedChunkMetaPtr& /*chunkMeta*/,
+    std::optional<int> /*blockCount*/,
+    std::optional<NIO::TIOFairShareState> /*fairShareState*/)
 {
     THROW_ERROR_EXCEPTION("Not implemented");
 }
@@ -204,7 +248,9 @@ bool TNbdSession::ShouldUseProbePutBlocks() const
     YT_UNIMPLEMENTED();
 }
 
-void TNbdSession::ProbePutBlocks(i64)
+void TNbdSession::ProbePutBlocks(
+    i64 /*requestedCumulativeMemorySize*/,
+    std::optional<NIO::TIOFairShareState> /*fairShareState*/)
 {
     YT_UNIMPLEMENTED();
 }
@@ -220,26 +266,28 @@ i64 TNbdSession::GetMaxRequestedCumulativeBlockSize() const
 }
 
 TFuture<NIO::TIOCounters> TNbdSession::PutBlocks(
-    int /* startBlockIndex */,
-    std::vector<NChunkClient::TBlock> /* blocks */,
-    i64 /* cumulativeBlockSize */,
-    bool /* enableCaching */)
+    int /*startBlockIndex*/,
+    std::vector<NChunkClient::TBlock> /*blocks*/,
+    i64 /*cumulativeBlockSize*/,
+    std::optional<NIO::TIOFairShareState> /*fairShareState*/,
+    bool /*enableCaching*/)
 {
     THROW_ERROR_EXCEPTION("Not implemented");
 }
 
 TFuture<TNbdSession::TSendBlocksResult> TNbdSession::SendBlocks(
-    int /* startBlockIndex */,
-    int /* blockCount */,
-    i64 /* cumulativeBlockSize */,
-    TDuration /* requestTimeout */,
-    bool /* instantReplyOnThrottling */,
-    const NNodeTrackerClient::TNodeDescriptor& /* target */)
+    int /*startBlockIndex*/,
+    int /*blockCount*/,
+    i64 /*cumulativeBlockSize*/,
+    std::optional<NIO::TIOFairShareState> /*fairShareState*/,
+    TDuration /*requestTimeout*/,
+    bool /*instantReplyOnThrottling*/,
+    const NNodeTrackerClient::TNodeDescriptor& /*target*/)
 {
     THROW_ERROR_EXCEPTION("Not implemented");
 }
 
-TFuture<ISession::TFlushBlocksResult> TNbdSession::FlushBlocks(int /* blockIndex */)
+TFuture<ISession::TFlushBlocksResult> TNbdSession::FlushBlocks(int /*blockIndex*/)
 {
     THROW_ERROR_EXCEPTION("Not implemented");
 }

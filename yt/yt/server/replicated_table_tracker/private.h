@@ -8,8 +8,8 @@ namespace NYT::NReplicatedTableTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ReplicatedTableTrackerLogger, "StandaloneRtt");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ReplicatedTableTrackerProfiler, "/standalone_rtt");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ReplicatedTableTrackerLogger, "StandaloneRtt");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, ReplicatedTableTrackerProfiler, "/standalone_rtt");
 
 ////////////////////////////////////////////////////////////////////////////////
 

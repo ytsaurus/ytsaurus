@@ -29,20 +29,20 @@ using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetCryptoHash(TStringBuf secret)
+std::string GetCryptoHash(TStringBuf secret)
 {
     return NCrypto::TSha1Hasher()
         .Append(secret)
         .GetHexDigestLowerCase();
 }
 
-TString FormatUserIP(const TNetworkAddress& address)
+std::string FormatUserIP(const TNetworkAddress& address)
 {
     if (!address.IsIP()) {
         // Sometimes userIP is missing (e.g. user is connecting
         // from job using unix socket), but it is required by
         // Blackbox. Put placeholder in place of a real IP.
-        static const TString LocalUserIP = "127.0.0.1";
+        static const std::string LocalUserIP = "127.0.0.1";
         return LocalUserIP;
     }
     return ToString(
@@ -53,12 +53,12 @@ TString FormatUserIP(const TNetworkAddress& address)
         });
 }
 
-TString GetBlackboxCacheKeyFactorFromUserIP(
+std::string GetBlackboxCacheKeyFactorFromUserIP(
     EBlackboxCacheKeyMode mode,
     const TNetworkAddress& address)
 {
     if (mode == EBlackboxCacheKeyMode::Credentials) {
-        return TString();
+        return {};
     }
 
     if (mode == EBlackboxCacheKeyMode::CredentialsAndUserAddressProjectId &&
@@ -68,17 +68,22 @@ TString GetBlackboxCacheKeyFactorFromUserIP(
         return Format("project_id=%v", TMtnAddress(address.ToIP6Address()).GetProjectId());
     }
 
-    return Format("ip=%v", ToString(address));
+    return Format(
+        "ip=%v",
+        ToString(address, TNetworkAddressFormatOptions{
+            .IncludePort = false,
+            .IncludeTcpProtocol = false,
+        }));
 }
 
-TString GetLoginForTvmId(TTvmId tvmId)
+std::string GetLoginForTvmId(TTvmId tvmId)
 {
     return Format("tvm:%v", tvmId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const THashSet<TString> PrivateUrlParams{
+static const THashSet<std::string> PrivateUrlParams{
     "userip",
     "oauth_token",
     "sessionid",
@@ -126,12 +131,12 @@ void TSafeUrlBuilder::AppendParam(TStringBuf key, TStringBuf value)
     SafeUrl_.Advance(safeEnd - safeBegin);
 }
 
-TString TSafeUrlBuilder::FlushRealUrl()
+std::string TSafeUrlBuilder::FlushRealUrl()
 {
     return RealUrl_.Flush();
 }
 
-TString TSafeUrlBuilder::FlushSafeUrl()
+std::string TSafeUrlBuilder::FlushSafeUrl()
 {
     return SafeUrl_.Flush();
 }
@@ -157,7 +162,7 @@ void Serialize(const THashedCredentials& hashedCredentials, IYsonConsumer* consu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string SignCsrfToken(const std::string& userId, const TString& key, TInstant now)
+std::string SignCsrfToken(const std::string& userId, const std::string& key, TInstant now)
 {
     auto msg = userId + ":" + ToString(now.TimeT());
     return CreateSha256Hmac(key, msg) + ":" + ToString(now.TimeT());
@@ -166,10 +171,10 @@ std::string SignCsrfToken(const std::string& userId, const TString& key, TInstan
 TError CheckCsrfToken(
     const std::string& csrfToken,
     const std::string& userId,
-    const TString& key,
+    const std::string& key,
     TInstant expirationTime)
 {
-    std::vector<TString> parts;
+    std::vector<std::string> parts;
     StringSplitter(csrfToken).Split(':').AddTo(&parts);
     if (parts.size() != 2) {
         return TError("Malformed CSRF token");
@@ -178,15 +183,15 @@ TError CheckCsrfToken(
     auto signTime = TInstant::Seconds(FromString<time_t>(parts[1]));
     if (signTime < expirationTime) {
         return TError(NRpc::EErrorCode::InvalidCsrfToken, "CSRF token expired")
-            << TErrorAttribute("sign_time", signTime);
+            .With("sign_time", signTime);
     }
 
     auto msg = userId + ":" + ToString(signTime.TimeT());
     auto expectedToken = CreateSha256Hmac(key, msg);
     if (!ConstantTimeCompare(expectedToken, parts[0])) {
         return TError(NRpc::EErrorCode::InvalidCsrfToken, "Invalid CSFR token signature")
-            << TErrorAttribute("provided_signature", parts[0])
-            << TErrorAttribute("user_fingerprint", msg);
+            .With("provided_signature", parts[0])
+            .With("user_fingerprint", msg);
     }
 
     return {};
@@ -216,11 +221,9 @@ std::string ApplyStringReplacement(const std::string& input, const TStringReplac
         });
     }
 
-    YT_LOG_DEBUG(
-        "Login transformation for OAuth user info applied (Login: %v -> %v, RegexReplacementCount: %v)",
-        input,
-        output,
-        regexReplacementCount);
+    YT_TLOG_DEBUG("Login transformation for OAuth user info applied")
+        .WithFormat("Login", "%v -> %v", input, output)
+        .With("RegexReplacementCount", regexReplacementCount);
 
     return output;
 }
@@ -235,40 +238,49 @@ TError EnsureUserExists(
 {
     const auto& Logger = AuthLogger;
 
-    YT_LOG_DEBUG("Checking if user exists (Name: %v)", name);
+    YT_TLOG_DEBUG("Checking if user exists")
+        .With("Name", name);
     auto result = WaitFor(userManager->CheckUserExists(name));
     if (!result.IsOK()) {
         auto error = TError("Failed to verify if user exists")
-            << TErrorAttribute("name", name)
-            << std::move(result);
-        YT_LOG_WARNING(error);
+            .With("name", name)
+            .With(std::move(result));
+        YT_TLOG_WARNING("Failed to check user existence")
+            .With(error);
         return error;
     }
 
     if (result.Value()) {
-        YT_LOG_DEBUG("User exists (Name: %v)", name);
+        YT_TLOG_DEBUG("User exists")
+            .With("Name", name);
         return TError();
     }
 
-    YT_LOG_DEBUG("User does not exist (Name: %v)", name);
+    YT_TLOG_DEBUG("User does not exist")
+        .With("Name", name);
     if (!createIfNotExists) {
         auto error = TError(NRpc::EErrorCode::InvalidCredentials, "User does not exist")
-            << TErrorAttribute("name", name);
+            .With("name", name);
         return error;
     }
 
-    YT_LOG_DEBUG("Creating user (Name: %v, Tags: %v)", name, tags);
+    YT_TLOG_DEBUG("Creating user")
+        .With("Name", name)
+        .With("Tags", tags);
 
     auto userOrError = WaitFor(userManager->CreateUser(name, tags));
     if (userOrError.IsOK()) {
-        YT_LOG_DEBUG("User created (Name: %v)", name);
+        YT_TLOG_DEBUG("User created")
+            .With("Name", name);
         return TError();
     }
 
-    auto error = TError("Failed to create user")
-        << TErrorAttribute("name", name)
-        << std::move(userOrError);
-    YT_LOG_WARNING(error);
+    static constexpr auto Message = "Failed to create user"_sb;
+    auto error = TError(Message)
+        .With("name", name)
+        .With(std::move(userOrError));
+    YT_TLOG_WARNING(Message)
+        .With(error);
     return error;
 }
 
@@ -282,20 +294,28 @@ bool TryAddUserInGroups(
     const auto& Logger = AuthLogger;
 
     if (groups.empty()) {
-        YT_LOG_TRACE("Empty set of groups is provided (Name: %v, Groups: %v)", name, groups);
+        YT_TLOG_TRACE("Empty set of groups is provided")
+            .With("Name", name)
+            .With("Groups", groups);
         return true;
     }
 
-    YT_LOG_TRACE("Checking if user is a member of the groups (Name: %v, Groups: %v)", name, groups);
+    YT_TLOG_TRACE("Checking if user is a member of the groups")
+        .With("Name", name)
+        .With("Groups", groups);
     auto result = WaitFor(userManager->GetUserGroups(name));
     if (!result.IsOK()) {
-        YT_LOG_WARNING(result, "Failed to get user groups (Name: %v)", name);
+        YT_TLOG_WARNING("Failed to get user groups")
+            .With("Name", name)
+            .With(result);
         return false;
     }
 
     auto userGroups = result.Value();
 
-    YT_LOG_TRACE("Listing user groups (Name: %v, Groups: %v)", name, userGroups);
+    YT_TLOG_TRACE("Listing user groups")
+        .With("Name", name)
+        .With("Groups", userGroups);
 
     auto userGroupsSet = std::unordered_set<std::string>(userGroups.begin(), userGroups.end());
     bool userAddedToAllGroups = true;
@@ -304,16 +324,23 @@ bool TryAddUserInGroups(
             continue;
         }
 
-        YT_LOG_DEBUG("User is not a member of the group (Name: %v, Group: %v)", name, group);
+        YT_TLOG_DEBUG("User is not a member of the group")
+            .With("Name", name)
+            .With("Group", group);
 
         auto result = WaitFor(userManager->AddUserToGroup(name, group));
 
         userGroupsSet.insert(group);
 
         if (result.IsOK()) {
-            YT_LOG_DEBUG("User added into the group (Name: %v, Group: %v)", name, group);
+            YT_TLOG_DEBUG("User added into the group")
+                .With("Name", name)
+                .With("Group", group);
         } else {
-            YT_LOG_WARNING(result, "Failed to add user into the group (Name: %v, Group: %v)", name, group);
+            YT_TLOG_WARNING("Failed to add user into the group")
+                .With("Name", name)
+                .With("Group", group)
+                .With(result);
             userAddedToAllGroups = false;
         }
     }

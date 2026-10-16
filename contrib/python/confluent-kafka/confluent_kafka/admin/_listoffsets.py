@@ -13,6 +13,8 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+from typing import Dict, Optional
+
 from .. import cimpl
 
 
@@ -21,23 +23,29 @@ class OffsetSpec(ABC):
     Used in `AdminClient.list_offsets` to specify the desired offsets
     of the partition being queried.
     """
-    _values = {}
+
+    _values: Dict[int, 'OffsetSpec'] = {}
+    _max_timestamp: Optional['MaxTimestampSpec'] = None
+    _earliest: Optional['EarliestSpec'] = None
+    _latest: Optional['LatestSpec'] = None
 
     @property
     @abstractmethod
-    def _value(self):
+    def _value(self) -> int:
         pass
 
     @classmethod
-    def _fill_values(cls):
+    def _fill_values(cls) -> None:
         cls._max_timestamp = MaxTimestampSpec()
         cls._earliest = EarliestSpec()
         cls._latest = LatestSpec()
-        cls._values.update({
-            cimpl.OFFSET_SPEC_MAX_TIMESTAMP: cls._max_timestamp,
-            cimpl.OFFSET_SPEC_EARLIEST: cls._earliest,
-            cimpl.OFFSET_SPEC_LATEST: cls._latest,
-        })
+        cls._values.update(
+            {
+                cimpl.OFFSET_SPEC_MAX_TIMESTAMP: cls._max_timestamp,
+                cimpl.OFFSET_SPEC_EARLIEST: cls._earliest,
+                cimpl.OFFSET_SPEC_LATEST: cls._latest,
+            }
+        )
 
     @classmethod
     def earliest(cls):
@@ -52,10 +60,10 @@ class OffsetSpec(ABC):
         return cls._max_timestamp
 
     @classmethod
-    def for_timestamp(cls, timestamp):
+    def for_timestamp(cls, timestamp: int):
         return TimestampSpec(timestamp)
 
-    def __new__(cls, index):
+    def __new__(cls, index: int):
         # Trying to instantiate returns one of the subclasses.
         # Subclasses can be instantiated but aren't accessible externally.
         if index < 0:
@@ -63,7 +71,7 @@ class OffsetSpec(ABC):
         else:
             return cls.for_timestamp(index)
 
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
         if not isinstance(other, OffsetSpec):
             return NotImplemented
         return self._value < other._value
@@ -82,13 +90,13 @@ class TimestampSpec(OffsetSpec):
     """
 
     @property
-    def _value(self):
+    def _value(self) -> int:
         return self.timestamp
 
-    def __new__(cls, _):
+    def __new__(cls, _: int):
         return object.__new__(cls)
 
-    def __init__(self, timestamp):
+    def __init__(self, timestamp: int) -> None:
         self.timestamp = timestamp
 
 
@@ -103,7 +111,7 @@ class MaxTimestampSpec(OffsetSpec):
         return object.__new__(cls)
 
     @property
-    def _value(self):
+    def _value(self) -> int:
         return cimpl.OFFSET_SPEC_MAX_TIMESTAMP
 
 
@@ -116,7 +124,7 @@ class LatestSpec(OffsetSpec):
         return object.__new__(cls)
 
     @property
-    def _value(self):
+    def _value(self) -> int:
         return cimpl.OFFSET_SPEC_LATEST
 
 
@@ -129,7 +137,7 @@ class EarliestSpec(OffsetSpec):
         return object.__new__(cls)
 
     @property
-    def _value(self):
+    def _value(self) -> int:
         return cimpl.OFFSET_SPEC_EARLIEST
 
 
@@ -151,9 +159,10 @@ class ListOffsetsResultInfo:
     leader_epoch: int
         The leader epoch corresponding to the offset (optional).
     """
-    def __init__(self, offset, timestamp, leader_epoch):
+
+    def __init__(self, offset: int, timestamp: int, leader_epoch: int) -> None:
         self.offset = offset
         self.timestamp = timestamp
-        self.leader_epoch = leader_epoch
-        if self.leader_epoch < 0:
+        self.leader_epoch: Optional[int] = leader_epoch
+        if leader_epoch < 0:
             self.leader_epoch = None

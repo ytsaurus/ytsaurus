@@ -10,6 +10,8 @@
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 namespace NYT::NFormats {
 namespace {
 
@@ -22,7 +24,7 @@ using namespace NTableClient;
 
 TEST(TDsvWriterTest, StringScalar)
 {
-    TStringStream outputStream;
+    TStdStringStream outputStream;
     TDsvNodeConsumer consumer(&outputStream);
 
     consumer.OnStringScalar("0-2-xb-1234");
@@ -31,7 +33,7 @@ TEST(TDsvWriterTest, StringScalar)
 
 TEST(TDsvWriterTest, ListContainingDifferentTypes)
 {
-    TStringStream outputStream;
+    TStdStringStream outputStream;
     TDsvNodeConsumer consumer(&outputStream);
 
     consumer.OnBeginList();
@@ -60,7 +62,7 @@ TEST(TDsvWriterTest, ListContainingDifferentTypes)
 
 TEST(TDsvWriterTest, ListInsideList)
 {
-    TStringStream outputStream;
+    TStdStringStream outputStream;
     TDsvNodeConsumer consumer(&outputStream);
 
     consumer.OnBeginList();
@@ -70,7 +72,7 @@ TEST(TDsvWriterTest, ListInsideList)
 
 TEST(TDsvWriterTest, ListInsideMap)
 {
-    TStringStream outputStream;
+    TStdStringStream outputStream;
     TDsvNodeConsumer consumer(&outputStream);
 
     consumer.OnBeginMap();
@@ -80,7 +82,7 @@ TEST(TDsvWriterTest, ListInsideMap)
 
 TEST(TDsvWriterTest, MapInsideMap)
 {
-    TStringStream outputStream;
+    TStdStringStream outputStream;
     TDsvNodeConsumer consumer(&outputStream);
 
     consumer.OnBeginMap();
@@ -93,7 +95,7 @@ TEST(TDsvWriterTest, WithoutEsacping)
     auto config = New<TDsvFormatConfig>();
     config->EnableEscaping = false;
 
-    TStringStream outputStream;
+    TStdStringStream outputStream;
     TDsvNodeConsumer consumer(&outputStream, config);
 
     consumer.OnStringScalar("string_with_\t_\\_=_and_\n");
@@ -105,7 +107,7 @@ TEST(TDsvWriterTest, WithoutEsacping)
 
 TEST(TDsvWriterTest, ListUsingOnRaw)
 {
-    TStringStream outputStream;
+    TStdStringStream outputStream;
     TDsvNodeConsumer consumer(&outputStream);
 
     consumer.OnRaw("[10; 20; 30]", EYsonType::Node);
@@ -119,7 +121,7 @@ TEST(TDsvWriterTest, ListUsingOnRaw)
 
 TEST(TDsvWriterTest, MapUsingOnRaw)
 {
-    TStringStream outputStream;
+    TStdStringStream outputStream;
     TDsvNodeConsumer consumer(&outputStream);
 
     consumer.OnRaw("{a=b; c=d}", EYsonType::Node);
@@ -159,7 +161,7 @@ TEST(TDsvWriterTest, SimpleTabular)
 
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow()};
 
-    TStringStream outputStream;
+    TStdStringStream outputStream;
     auto config = New<TDsvFormatConfig>();
     config->EnableTableIndex = true;
 
@@ -193,7 +195,7 @@ TEST(TDsvWriterTest, AnyTabular)
 
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
-    TStringStream outputStream;
+    TStdStringStream outputStream;
     auto controlAttributes = New<TControlAttributesConfig>();
     auto writer = CreateSchemalessWriterForDsv(
         New<TDsvFormatConfig>(),
@@ -234,7 +236,7 @@ TEST(TTskvWriterTest, SimpleTabular)
 
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow(), row3.GetRow() };
 
-    TStringStream outputStream;
+    TStdStringStream outputStream;
     auto config = New<TDsvFormatConfig>();
     config->LinePrefix = "tskv";
 
@@ -273,7 +275,7 @@ TEST(TTskvWriterTest, Escaping)
 
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
-    TStringStream outputStream;
+    TStdStringStream outputStream;
     auto config = New<TDsvFormatConfig>();
     config->LinePrefix = "tskv";
 

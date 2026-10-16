@@ -1,0 +1,585 @@
+#include "pipeline.h"
+
+#include <yt/yt/flow/library/cpp/common/checksum.h>
+#include <yt/yt/flow/library/cpp/common/flow_core_version.h>
+
+#include <library/cpp/yt/logging/logger.h>
+
+#include <yt/yt/flow/library/cpp/native_client/public.h>
+
+#include <yt/yt/flow/library/cpp/vanilla/current_operation.h>
+
+#include <yt/yt/client/api/rpc_proxy/config.h>
+#include <yt/yt/client/api/rpc_proxy/connection.h>
+
+#include <yt/yt/client/api/options.h>
+#include <yt/yt/client/api/transaction.h>
+
+#include <yt/yt/client/table_client/name_table.h>
+
+#include <yt/yt/client/ypath/rich.h>
+
+#include <yt/yt/core/ypath/helpers.h>
+
+#include <yt/yt/core/ytree/convert.h>
+
+#include <util/system/env.h>
+
+namespace NYT::NFlow {
+
+using namespace NConcurrency;
+using namespace NYPath;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const NLogging::TLogger Logger("FlowClient");
+
+////////////////////////////////////////////////////////////////////////////////
+
+void SetTargetPipelineState(const TFlowExecuteTarget& target, const TYPath& root, EPipelineState state)
+{
+    TSetTargetPipelineStateArg argument;
+    argument.TargetPipelineState = state;
+    FlowExecute(target, root, argument);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsGracefulUpdateFromEnv()
+{
+    return FromString<bool>(GetEnv("YT_FLOW_GRACEFUL_UPDATE", "1"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLogReader
+{
+public:
+    TLogReader(NApi::IClientPtr client, NYPath::TYPath logTablePath)
+        : Client_(std::move(client))
+        , LogTablePath_(std::move(logTablePath))
+    { }
+
+    bool IsOpen() const
+    {
+        return CurrentOffset_.has_value();
+    }
+
+    void Open()
+    {
+        CurrentOffset_ = GetTotalRowCount();
+    }
+
+    // Reads one batch of log rows. Returns the number of rows actually read.
+    i64 Read(TStringBuf dataColumnName = "data")
+    {
+        YT_VERIFY(IsOpen());
+
+        auto logRows = WaitFor(Client_->PullQueue(
+            LogTablePath_,
+            /*offset*/ *CurrentOffset_,
+            /*partitionIndex*/ 0,
+            NQueueClient::TQueueRowBatchReadOptions{}))
+            .ValueOrThrow()
+            .Rowset;
+
+        const int valueColumnIndex = logRows->GetNameTable()->GetIdOrThrow(dataColumnName);
+        for (const auto& row : logRows->GetRows()) {
+            Cerr << row[valueColumnIndex].AsStringBuf() << Endl;
+        }
+
+        const i64 rowsRead = logRows->GetFinishOffset() - *CurrentOffset_;
+        CurrentOffset_ = logRows->GetFinishOffset();
+        return rowsRead;
+    }
+
+    // Reads all log rows committed up to the moment of the call.
+    void ReadAll(TStringBuf dataColumnName = "data")
+    {
+        YT_VERIFY(IsOpen());
+
+        const i64 targetOffset = GetTotalRowCount();
+        while (*CurrentOffset_ < targetOffset && Read(dataColumnName) > 0) {
+            // No-op.
+        }
+    }
+
+private:
+    NApi::IClientPtr Client_;
+    NYPath::TYPath LogTablePath_;
+
+    std::optional<i64> CurrentOffset_;
+
+    i64 GetTotalRowCount() const
+    {
+        auto info = WaitFor(Client_->GetTabletInfos(LogTablePath_, {0}))
+            .ValueOrThrow();
+        YT_VERIFY(info.size() == 1);
+        return info[0].TotalRowCount;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+void WaitRelativelySmallTime(TInstant activityStart, TDuration minWait, TDuration maxWait)
+{
+    NConcurrency::TDelayedExecutor::WaitForDuration(
+        // Try to overwait not more than 10% of time.
+        std::clamp((TInstant::Now() - activityStart) * 0.1, minWait, maxWait));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static TError MakeWaitPipelineStateTimeoutError(
+    EPipelineState targetState,
+    EPipelineState lastObservedState,
+    TDuration waitTimeout)
+{
+    // A graceful update stops the pipeline before installing the new specs, so a pipeline that
+    // cannot drain blocks the very update that would fix it; pausing skips the drain.
+    constexpr TStringBuf GracefulUpdateHint =
+        "; if it cannot drain (for example, its jobs fail every epoch), "
+        "set YT_FLOW_GRACEFUL_UPDATE=0 to pause the pipeline instead of stopping it; "
+        "see the hotfix constraints in the release documentation before doing so";
+
+    const bool drainStalled =
+        targetState == EPipelineState::Stopped &&
+        lastObservedState == EPipelineState::Draining;
+
+    return TError(
+        "Timed out after %v seconds waiting for pipeline state %Qlv; the pipeline is still in state %Qlv%v",
+        waitTimeout.Seconds(),
+        targetState,
+        lastObservedState,
+        drainStalled ? GracefulUpdateHint : TStringBuf())
+        .With("target_state", targetState)
+        .With("last_observed_state", lastObservedState)
+        .With("timeout", waitTimeout);
+}
+
+static void DoWaitPipelineState(
+    const TFlowExecuteTarget& target,
+    const TYPath& root,
+    EPipelineState targetState,
+    TDuration waitTimeout,
+    TDuration requestTimeout,
+    TLogReader* logReader)
+{
+    auto deadline = TInstant::Now() + waitTimeout;
+    static const int retries = 10;
+    EPipelineState currentState = EPipelineState::Unknown;
+    THashSet<EPipelineState> targetStates;
+    switch (targetState) {
+        case EPipelineState::Completed:
+            targetStates = {EPipelineState::Completed};
+            break;
+        case EPipelineState::Working:
+            targetStates = {EPipelineState::Completed, EPipelineState::Working};
+            break;
+        case EPipelineState::Stopped:
+            targetStates = {EPipelineState::Stopped};
+            break;
+        case EPipelineState::Draining:
+            targetStates = {EPipelineState::Stopped, EPipelineState::Draining};
+            break;
+        case EPipelineState::Paused:
+            targetStates = {EPipelineState::Paused, EPipelineState::Stopped};
+            break;
+        case EPipelineState::Pausing:
+            targetStates = {EPipelineState::Paused, EPipelineState::Stopped, EPipelineState::Pausing};
+            break;
+        case EPipelineState::Unknown:
+            return;
+    }
+
+    const auto startWaitingInstant = TInstant::Now();
+    while (true) {
+        int attempt = 0;
+        TError lastError;
+        while (true) {
+            const auto now = TInstant::Now();
+            if (now >= deadline) {
+                THROW_ERROR MakeWaitPipelineStateTimeoutError(targetState, currentState, waitTimeout)
+                    .WithIf(!lastError.IsOK(), lastError);
+            }
+
+            NApi::TFlowExecuteOptions options;
+            options.Timeout = std::min(requestTimeout, deadline - now);
+
+            try {
+                currentState = FlowExecute(target, root, TGetPipelineStateArg(), options).PipelineState;
+                break;
+            } catch (const std::exception& ex) {
+                lastError = TError(ex);
+                attempt += 1;
+                YT_TLOG_WARNING("Failed to get pipeline state")
+                    .With("Attempt", attempt)
+                    .With("MaxRetries", retries)
+                    .With(ex);
+                if (attempt == retries) {
+                    throw;
+                }
+            }
+        }
+        if (currentState == EPipelineState::Completed && targetState != EPipelineState::Completed) {
+            THROW_ERROR_EXCEPTION(
+                "Pipeline reached %Qv state while waiting for %Qv; "
+                "the controller cannot transition out of Completed. "
+                "Recreate the pipeline to recover.",
+                currentState,
+                targetState);
+        }
+        if (!targetStates.contains(currentState)) {
+            YT_TLOG_INFO("Still waiting")
+                .With("CurrentState", currentState)
+                .With("TargetState", targetState);
+        } else {
+            YT_TLOG_INFO("Wait finished")
+                .With("CurrentState", currentState)
+                .With("TargetState", targetState);
+            return;
+        }
+        if (logReader) {
+            logReader->Read();
+        }
+        WaitRelativelySmallTime(startWaitingInstant, TDuration::MilliSeconds(50), TDuration::Seconds(3));
+    }
+}
+
+void WaitPipelineState(
+    const std::string& clusterUrl,
+    const std::optional<std::string>& proxyRole,
+    const TYPath& root,
+    EPipelineState state,
+    TDuration waitTimeout,
+    TDuration requestTimeout)
+{
+    auto connection = NApi::NRpcProxy::CreateConnection(
+        NApi::NRpcProxy::TConnectionConfig::CreateFromClusterUrl(clusterUrl, proxyRole));
+    auto client = connection->CreateClient(NApi::GetClientOptionsFromEnvStatic());
+
+    WaitPipelineState(
+        std::move(client),
+        root,
+        state,
+        waitTimeout,
+        requestTimeout);
+}
+
+void WaitPipelineState(
+    const TFlowExecuteTarget& target,
+    const TYPath& root,
+    EPipelineState state,
+    TDuration waitTimeout,
+    TDuration requestTimeout)
+{
+    DoWaitPipelineState(
+        target,
+        root,
+        state,
+        waitTimeout,
+        requestTimeout,
+        /*logReader*/ nullptr);
+}
+
+void RunPipeline(
+    const std::string& clusterUrl,
+    const std::optional<std::string>& proxyRole,
+    const TYPath& root,
+    const TPipelineSpecPtr& spec,
+    const TDynamicPipelineSpecPtr& dynamicSpec,
+    bool setFlowCoreTarget,
+    std::optional<bool> graceful,
+    TDuration waitTimeout,
+    bool enablePipelineStopOrPause)
+{
+    auto connection = NApi::NRpcProxy::CreateConnection(
+        NApi::NRpcProxy::TConnectionConfig::CreateFromClusterUrl(clusterUrl, proxyRole));
+    auto client = connection->CreateClient(NApi::GetClientOptionsFromEnvStatic());
+
+    RunPipeline(
+        std::move(client),
+        root,
+        spec,
+        dynamicSpec,
+        setFlowCoreTarget,
+        graceful,
+        waitTimeout,
+        enablePipelineStopOrPause);
+}
+
+void RunPipeline(
+    const TFlowExecuteTarget& target,
+    const TYPath& root,
+    const TPipelineSpecPtr& spec,
+    const TDynamicPipelineSpecPtr& dynamicSpec,
+    bool setFlowCoreTarget,
+    std::optional<bool> graceful,
+    TDuration waitTimeout,
+    bool enablePipelineStopOrPause,
+    const std::optional<TVanillaOperationHandle>& vanillaOperation)
+{
+    const auto& client = target.Client;
+    if (!graceful) {
+        graceful = IsGracefulUpdateFromEnv();
+    }
+    ValidatePipelineSpec(spec);
+    ValidateDynamicPipelineSpec(dynamicSpec);
+
+    TLogReader controllerLogReader(client, NYPath::YPathJoin(root, ControllerLogsTableName));
+
+    const auto startWaitingInstant = TInstant::Now();
+    bool fatalError = false;
+
+    while (true) {
+        try {
+            bool alreadyExists = WaitFor(client->NodeExists(root))
+                .ValueOrThrow();
+
+            if (!alreadyExists) {
+                fatalError = true;
+                THROW_ERROR_EXCEPTION("Pipeline %Qv doesn't exist", root);
+            }
+
+            if (!controllerLogReader.IsOpen()) {
+                controllerLogReader.Open();
+            }
+
+            auto currentState = FlowExecute(target, root, TGetPipelineStateArg()).PipelineState;
+
+            if (currentState == EPipelineState::Completed) {
+                fatalError = true;
+
+                THROW_ERROR_EXCEPTION(
+                    "Pipeline state is %Qv; the controller cannot transition out of it, "
+                    "recreate the pipeline to recover",
+                    currentState);
+            }
+
+            // A runner permitted to stop or pause the pipeline handles the remaining states below,
+            // including a Draining or Pausing left by an earlier iteration of this loop. Unknown is
+            // how a pipeline looks while its controller has no synced flow view.
+            if (!enablePipelineStopOrPause &&
+                currentState != EPipelineState::Unknown &&
+                currentState != EPipelineState::Paused &&
+                currentState != EPipelineState::Stopped)
+            {
+                fatalError = true;
+
+                THROW_ERROR_EXCEPTION("Pipeline state is %Qv, but it must be stopped or paused to update its specs",
+                    currentState);
+            }
+
+            if (enablePipelineStopOrPause) {
+                const auto desiredState = *graceful
+                    ? EPipelineState::Stopped
+                    : EPipelineState::Paused;
+
+                if (currentState != desiredState && currentState != EPipelineState::Unknown) {
+                    if (*graceful) {
+                        SetTargetPipelineState(target, root, EPipelineState::Stopped);
+                        YT_TLOG_INFO("Sent stop");
+                    } else {
+                        SetTargetPipelineState(target, root, EPipelineState::Paused);
+                        YT_TLOG_INFO("Sent pause");
+                    }
+
+                    DoWaitPipelineState(
+                        target,
+                        root,
+                        desiredState,
+                        waitTimeout,
+                        DefaultWaitPipelineStateRequestTimeout,
+                        &controllerLogReader);
+
+                    YT_TLOG_INFO("Stopped");
+                }
+            }
+
+            if (setFlowCoreTarget) {
+                TSetFlowCoreTargetArg arg;
+                arg.FlowCoreTarget = TFlowCoreTarget(ResolveFlowCoreVersion());
+                arg.AllowUpdateOnPause = true;
+
+                YT_TLOG_INFO("Setting flow core target to Controller")
+                    .With("FlowCoreTarget", arg.FlowCoreTarget.Underlying());
+
+                auto result = FlowExecute(target, root, arg);
+
+                YT_TLOG_INFO("Updated flow core target")
+                    .With("NewVersion", result.Version)
+                    .With("FlowCoreTarget", arg.FlowCoreTarget.Underlying());
+            }
+
+            {
+                TSetPipelineSpecsArg arg;
+                arg.Spec = NYTree::ConvertToNode(spec);
+                arg.DynamicSpec = NYTree::ConvertToNode(dynamicSpec);
+                arg.AllowSpecUpdateOnPause = true;
+
+                // TODO: Enable strict validation later.
+                // arg.ValidateStrict = true;
+
+                auto result = FlowExecute(target, root, arg);
+
+                YT_TLOG_INFO("Updated pipeline specs")
+                    .With("NewSpecVersion", result.SpecVersion)
+                    .With("NewDynamicSpecVersion", result.DynamicSpecVersion);
+            }
+
+            SetTargetPipelineState(target, root, EPipelineState::Completed);
+            YT_TLOG_INFO("Sent start");
+
+            DoWaitPipelineState(
+                target,
+                root,
+                EPipelineState::Working,
+                waitTimeout,
+                DefaultWaitPipelineStateRequestTimeout,
+                &controllerLogReader);
+
+            break;
+        } catch (const std::exception& ex) {
+            YT_TLOG_ERROR("Failed to update pipeline")
+                .With(ex);
+
+            // The controller runs inside the operation, so a dead operation makes every retry hopeless.
+            if (vanillaOperation) {
+                vanillaOperation->ThrowIfTerminal();
+            }
+
+            // Drain everything the controller has produced, so the user sees the public log lines that explain the failure.
+            if (controllerLogReader.IsOpen()) {
+                try {
+                    controllerLogReader.ReadAll();
+                } catch (const std::exception& readEx) {
+                    YT_TLOG_WARNING("Failed to read controller log")
+                        .With(readEx);
+                }
+            }
+
+            if (fatalError) {
+                throw;
+            }
+
+            WaitRelativelySmallTime(startWaitingInstant, TDuration::MilliSeconds(250), TDuration::Seconds(5));
+        }
+    }
+}
+
+void WaitPipeline(
+    const std::string& clusterUrl,
+    const std::optional<std::string>& proxyRole,
+    const TYPath& root)
+{
+    auto pipelinePath = TRichYPath(root);
+    pipelinePath.SetCluster(clusterUrl);
+
+    auto connection = NApi::NRpcProxy::CreateConnection(
+        NApi::NRpcProxy::TConnectionConfig::CreateFromClusterUrl(clusterUrl, proxyRole));
+    auto client = connection->CreateClient(NApi::GetClientOptionsFromEnvStatic());
+
+    WaitPipeline(std::move(client), pipelinePath);
+}
+
+void TVanillaOperationHandle::ThrowIfTerminal() const
+{
+    NApi::TGetOperationOptions options;
+    options.Attributes = THashSet<std::string>{"state", "result"};
+    NApi::TOperation info;
+    try {
+        info = WaitFor(Client->GetOperation(OperationId, options))
+            .ValueOrThrow();
+    } catch (const std::exception& ex) {
+        YT_TLOG_WARNING("Failed to check vanilla operation")
+            .With("OperationId", OperationId)
+            .With(ex);
+        return;
+    }
+    if (!info.State || !IsVanillaOperationStateTerminal(*info.State)) {
+        return;
+    }
+    auto error = TError(
+        "Vanilla operation %v is %lv; the pipeline cannot run without it",
+        OperationId,
+        *info.State);
+    if (info.Result) {
+        if (auto resultError = NYTree::ConvertToNode(info.Result)->AsMap()->FindChild("error")) {
+            error.MutableInnerErrors()->push_back(NYTree::ConvertTo<TError>(resultError));
+        }
+    }
+    THROW_ERROR error;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void WaitPipeline(
+    const TFlowExecuteTarget& target,
+    const TRichYPath& pipelinePath,
+    TDuration controllerUnavailableTimeout,
+    const std::optional<TVanillaOperationHandle>& vanillaOperation)
+{
+    const auto& client = target.Client;
+    const auto& root = pipelinePath.GetPath();
+
+    YT_TLOG_INFO("Wait for pipeline to complete")
+        .With("Pipeline", pipelinePath);
+
+    TLogReader controllerLogReader(client, NYPath::YPathJoin(root, ControllerLogsTableName));
+
+    const auto startWaitingInstant = TInstant::Now();
+    std::optional<TInstant> firstFailureInstant;
+    while (true) {
+        try {
+            if (!controllerLogReader.IsOpen()) {
+                controllerLogReader.Open();
+            }
+
+            while (true) {
+                auto status = FlowExecute(target, root, TGetPipelineStateArg());
+
+                if (status.PipelineState == EPipelineState::Completed) {
+                    break;
+                }
+
+                YT_TLOG_INFO("Waiting pipeline to complete")
+                    .With("CurrentState", status.PipelineState)
+                    .With("Pipeline", pipelinePath);
+
+                controllerLogReader.Read();
+                firstFailureInstant.reset();
+
+                WaitRelativelySmallTime(startWaitingInstant, TDuration::MilliSeconds(50), TDuration::Seconds(3));
+            }
+
+            YT_TLOG_INFO("Pipeline completed")
+                .With("Pipeline", pipelinePath);
+            break;
+        } catch (const std::exception& ex) {
+            YT_TLOG_ERROR("Failed to check pipeline")
+                .With(ex);
+
+            if (vanillaOperation) {
+                vanillaOperation->ThrowIfTerminal();
+            }
+
+            // A single failure is normal (controller restart, leader re-election); only a
+            // sustained one means there is no controller left to tail.
+            auto now = TInstant::Now();
+            if (!firstFailureInstant) {
+                firstFailureInstant = now;
+            } else if (now - *firstFailureInstant > controllerUnavailableTimeout) {
+                YT_TLOG_WARNING("Controller has been unreachable for too long; stopped tailing the pipeline")
+                    .With("UnreachableFor", now - *firstFailureInstant)
+                    .With(ex);
+                return;
+            }
+
+            WaitRelativelySmallTime(startWaitingInstant, TDuration::MilliSeconds(250), TDuration::Seconds(5));
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow

@@ -174,6 +174,9 @@ public:
 
     virtual bool canContainDistributedTables() const { return true; }
 
+    /// Readers see either the old or the new table contents during replacement.
+    virtual bool supportsAtomicTableReplacement() const { return false; }
+
     /// Load a set of existing tables.
     /// You can call only once, right after the object is created.
     virtual void loadStoredObjects( /// NOLINT

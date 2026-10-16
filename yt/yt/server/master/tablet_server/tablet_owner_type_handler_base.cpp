@@ -84,7 +84,7 @@ void TTabletOwnerTypeHandlerBase<TImpl>::DoSerializeNode(
 
     auto* trunkNode = node->GetTrunkNode();
 
-    Save(*context, trunkNode->TabletCellBundle());
+    Save(*context, trunkNode->GetTabletCellBundle());
 
     Save(*context, trunkNode->HasCustomTabletOwnerAttributes());
     if (trunkNode->HasCustomTabletOwnerAttributes()) {

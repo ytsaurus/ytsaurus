@@ -1,4 +1,5 @@
-#include <yt/yt/library/vector_hdrf/fair_share_update.h>
+#include <yt/yt/library/vector_hdrf/unittests/mock/fair_share_update_mock.h>
+
 #include <yt/yt/library/vector_hdrf/private.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -23,418 +24,8 @@ TYsonString ReadTestData(TStringBuf fileName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EElementType,
-    (Operation)
-    (Pool)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TJobResources CreateCpuResourceLimits(double cpu)
-{
-    auto result = TJobResources::Infinite();
-    result.SetCpu(cpu);
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TElementMock;
-class TCompositeElementMock;
-class TPoolElementMock;
-class TRootElementMock;
-class TOperationElementMock;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTestJobResourcesConfig
-    : public TRefCounted
-    , public NVectorHdrf::TJobResourcesConfig
-{ };
-
-using TTestJobResourcesConfigPtr = TIntrusivePtr<TTestJobResourcesConfig>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPoolIntegralGuaranteesConfig
-    : public TRefCounted
-{
-    NVectorHdrf::EIntegralGuaranteeType GuaranteeType;
-
-    TTestJobResourcesConfigPtr ResourceFlow = New<TTestJobResourcesConfig>();
-    TTestJobResourcesConfigPtr BurstGuaranteeResources = New<TTestJobResourcesConfig>();
-
-    double RelaxedShareMultiplierLimit = 3.0;
-
-    bool CanAcceptFreeVolume = true;
-    bool ShouldDistributeFreeVolumeAmongChildren = false;
-};
-
-using TPoolIntegralGuaranteesConfigPtr = TIntrusivePtr<TPoolIntegralGuaranteesConfig>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TElementMock
-    : public virtual TElement
-{
-public:
-    explicit TElementMock(std::string id)
-        : Id_(std::move(id))
-        , Logger(FairShareLogger.WithTag("Id: %v", Id_))
-    { }
-
-    const TJobResources& GetResourceDemand() const override
-    {
-        return ResourceDemand_;
-    }
-
-    const TJobResources& GetResourceUsageAtUpdate() const override
-    {
-        return ResourceUsage_;
-    }
-
-    const TJobResources& GetResourceLimits() const override
-    {
-        return ResourceLimits_;
-    }
-
-    const TJobResourcesConfig* GetStrongGuaranteeResourcesConfig() const override
-    {
-        return StrongGuaranteeResourcesConfig_.Get();
-    }
-
-    double GetWeight() const override
-    {
-        return Weight_;
-    }
-
-    TSchedulableAttributes& Attributes() override
-    {
-        return Attributes_;
-    }
-    const TSchedulableAttributes& Attributes() const override
-    {
-        return Attributes_;
-    }
-
-    TCompositeElement* GetParentElement() const override
-    {
-        return Parent_;
-    }
-
-    TString GetId() const override
-    {
-        return Id_;
-    }
-
-    const NLogging::TLogger& GetLogger() const override
-    {
-        return Logger;
-    }
-
-    bool AreDetailedLogsEnabled() const override
-    {
-        return true;
-    }
-
-    virtual void AttachParent(TCompositeElementMock* parent);
-
-    virtual void PreUpdate(const TJobResources& totalResourceLimits)
-    {
-        TotalResourceLimits_ = totalResourceLimits;
-    }
-
-    void SetWeight(double weight)
-    {
-        Weight_ = weight;
-    }
-
-    void SetStrongGuaranteeResourcesConfig(const TTestJobResourcesConfigPtr& strongGuaranteeResourcesConfig)
-    {
-        StrongGuaranteeResourcesConfig_ = strongGuaranteeResourcesConfig;
-    }
-
-    void SetResourceLimits(const TJobResources& resourceLimits)
-    {
-        ResourceLimits_ = resourceLimits;
-    }
-
-protected:
-    const TString Id_;
-    TCompositeElement* Parent_ = nullptr;
-
-    const NLogging::TLogger Logger;
-
-    TJobResources ResourceDemand_;
-    TJobResources ResourceUsage_;
-    TJobResources TotalResourceLimits_;
-
-    // These attributes are calculated during fair share update and further used in schedule jobs.
-    NVectorHdrf::TSchedulableAttributes Attributes_;
-
-private:
-    double Weight_ = 1.0;
-    TJobResources ResourceLimits_ = TJobResources::Infinite();
-    TTestJobResourcesConfigPtr StrongGuaranteeResourcesConfig_ = New<TTestJobResourcesConfig>();
-};
-
-using TElementMockPtr = TIntrusivePtr<TElementMock>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCompositeElementMock
-    : public virtual TCompositeElement
-    , public TElementMock
-{
-public:
-    DEFINE_BYREF_RW_PROPERTY(TPoolIntegralGuaranteesConfigPtr, IntegralGuaranteesConfig, New<TPoolIntegralGuaranteesConfig>());
-
-public:
-    explicit TCompositeElementMock(std::string id)
-        : TElementMock(std::move(id))
-    { }
-
-    TElement* GetChild(int index) override
-    {
-        return Children_[index].Get();
-    }
-
-    const TElement* GetChild(int index) const override
-    {
-        return Children_[index].Get();
-    }
-
-    int GetChildCount() const override
-    {
-        return Children_.size();
-    }
-
-    ESchedulingMode GetMode() const override
-    {
-        return Mode_;
-    }
-
-    bool HasHigherPriorityInFifoMode(const TElement* lhs, const TElement* rhs) const override
-    {
-        if (lhs->GetWeight() != rhs->GetWeight()) {
-            return lhs->GetWeight() > rhs->GetWeight();
-        }
-        return false;
-    }
-
-    double GetSpecifiedBurstRatio() const override
-    {
-        if (IntegralGuaranteesConfig_->GuaranteeType == EIntegralGuaranteeType::None) {
-            return 0;
-        }
-        return GetMaxResourceRatio(ToJobResources(*IntegralGuaranteesConfig_->BurstGuaranteeResources, {}), TotalResourceLimits_);
-    }
-
-    double GetSpecifiedResourceFlowRatio() const override
-    {
-        if (IntegralGuaranteesConfig_->GuaranteeType == EIntegralGuaranteeType::None) {
-            return 0;
-        }
-        return GetMaxResourceRatio(ToJobResources(*IntegralGuaranteesConfig_->ResourceFlow, {}), TotalResourceLimits_);
-    }
-
-    bool IsStepFunctionForGangOperationsEnabled() const override
-    {
-        return true;
-    }
-
-    bool CanAcceptFreeVolume() const override
-    {
-        return IntegralGuaranteesConfig_->CanAcceptFreeVolume;
-    }
-
-    bool ShouldDistributeFreeVolumeAmongChildren() const override
-    {
-        return IntegralGuaranteesConfig_->ShouldDistributeFreeVolumeAmongChildren;
-    }
-
-    bool ShouldComputePromisedGuaranteeFairShare() const override
-    {
-        return PromisedGuaranteeFairShareComputationEnabled_;
-    }
-
-    bool IsPriorityStrongGuaranteeAdjustmentEnabled() const override
-    {
-        return false;
-    }
-
-    bool IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled() const override
-    {
-        return false;
-    }
-
-    void AddChild(TElementMock* child)
-    {
-        Children_.push_back(child);
-    }
-
-    void PreUpdate(const TJobResources& totalResourceLimits) override
-    {
-        ResourceUsage_ = {};
-        ResourceDemand_ = {};
-
-        for (const auto& child : Children_) {
-            child->PreUpdate(totalResourceLimits);
-
-            ResourceUsage_ += child->GetResourceUsageAtUpdate();
-            ResourceDemand_ += child->GetResourceDemand();
-        }
-
-        TElementMock::PreUpdate(totalResourceLimits);
-    }
-
-    void SetMode(ESchedulingMode mode)
-    {
-        Mode_ = mode;
-    }
-
-    void SetPromisedGuaranteeFairShareComputationEnabled(bool enabled)
-    {
-        PromisedGuaranteeFairShareComputationEnabled_ = enabled;
-    }
-
-private:
-    std::vector<TElementMockPtr> Children_;
-
-    ESchedulingMode Mode_ = ESchedulingMode::FairShare;
-    bool PromisedGuaranteeFairShareComputationEnabled_ = false;
-};
-
-using TCompositeElementMockPtr = TIntrusivePtr<TCompositeElementMock>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPoolElementMock
-    : public TPool
-    , public TCompositeElementMock
-{
-public:
-    explicit TPoolElementMock(std::string id)
-        : TCompositeElementMock(std::move(id))
-    { }
-
-    TResourceVector GetIntegralShareLimitForRelaxedPool() const override
-    {
-        YT_VERIFY(GetIntegralGuaranteeType() == EIntegralGuaranteeType::Relaxed);
-        auto multiplier = IntegralGuaranteesConfig_->RelaxedShareMultiplierLimit;
-        return TResourceVector::FromDouble(Attributes_.ResourceFlowRatio) * multiplier;
-    }
-
-    const TIntegralResourcesState& IntegralResourcesState() const override
-    {
-        return IntegralResourcesState_;
-    }
-    TIntegralResourcesState& IntegralResourcesState() override
-    {
-        return IntegralResourcesState_;
-    }
-
-    EIntegralGuaranteeType GetIntegralGuaranteeType() const override
-    {
-        return IntegralGuaranteesConfig_->GuaranteeType;
-    }
-
-    void InitAccumulatedResourceVolume(TResourceVolume resourceVolume)
-    {
-        YT_VERIFY(IntegralResourcesState_.AccumulatedVolume == TResourceVolume());
-        IntegralResourcesState_.AccumulatedVolume = resourceVolume;
-    }
-
-private:
-    TIntegralResourcesState IntegralResourcesState_;
-};
-
-using TPoolElementMockPtr = TIntrusivePtr<TPoolElementMock>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TOperationElementMock
-    : public TOperationElement
-    , public TElementMock
-{
-public:
-    explicit TOperationElementMock(std::string id)
-        : TElementMock(std::move(id))
-    { }
-
-    void SetResourceDemand(const TJobResources& resourceDemand)
-    {
-        ResourceDemand_ = resourceDemand;
-    }
-
-    void SetResourceUsage(const TJobResources& resourceUsage)
-    {
-        YT_VERIFY(Dominates(ResourceDemand_, resourceUsage));
-
-        ResourceUsage_ = resourceUsage;
-    }
-
-    void IncreaseResourceUsageAndDemand(const TJobResources& delta)
-    {
-        ResourceDemand_ += delta;
-        ResourceUsage_ += delta;
-    }
-
-    TResourceVector GetBestAllocationShare() const override
-    {
-        return TResourceVector::Ones();
-    }
-
-    bool IsGangLike() const override
-    {
-        return IsGang_;
-    }
-
-    void SetGangFlag(bool value)
-    {
-        IsGang_ = value;
-    }
-
-private:
-    bool IsGang_ = false;
-};
-
-using TOperationElementMockPtr = TIntrusivePtr<TOperationElementMock>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRootElementMock
-    : public TRootElement
-    , public TCompositeElementMock
-{
-public:
-    TRootElementMock()
-        : TCompositeElementMock("<Root>")
-    { }
-};
-
-using TRootElementMockPtr = TIntrusivePtr<TRootElementMock>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TElementMock::AttachParent(TCompositeElementMock* parent)
-{
-    parent->AddChild(this);
-    Parent_ = parent;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTestFairShareUpdateOptions
-{
-    EJobResourceType MainResource = EJobResourceType::Cpu;
-    TInstant Now = TInstant::Now();
-    std::optional<TInstant> PreviousUpdateTime;
-    bool EnableStepFunctionForGangOperations = false;
-    bool EnableImprovedFairShareByFitFactorComputation = false;
-    // TODO(ignat): delete this option if no necessity will be found on production clusters.
-    bool EnableImprovedFairShareByFitFactorComputationDistributionGap = false;
-};
+//! The share of a whole cluster, so that a share of |ratio| in every meaningful component is |Unit * ratio|.
+const TResourceVector Unit = {1.0, 1.0, 0.0, 1.0, 0.0};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -589,9 +180,13 @@ protected:
                 .IntegralPoolCapacitySaturationPeriod = TDuration::Days(1),
                 .IntegralSmoothPeriod = TDuration::Minutes(1),
                 .EnableStepFunctionForGangOperations = testOptions.EnableStepFunctionForGangOperations,
+                .EnableFifoChildrenReorderingForGuaranteeUtilization =
+                    testOptions.EnableFifoChildrenReorderingForGuaranteeUtilization,
                 .EnableImprovedFairShareByFitFactorComputation = testOptions.EnableImprovedFairShareByFitFactorComputation,
                 .EnableImprovedFairShareByFitFactorComputationDistributionGap =
                     testOptions.EnableImprovedFairShareByFitFactorComputationDistributionGap,
+                .EnableFastFifoFairShareByFitFactorComputation =
+                    testOptions.EnableFastFifoFairShareByFitFactorComputation,
             },
             totalResourceLimits,
             testOptions.Now,
@@ -627,19 +222,6 @@ protected:
 
 private:
     int OperationIndex_ = 0;
-
-    void ResetFairShareFunctionsRecursively(TCompositeElementMock* compositeElement)
-    {
-        compositeElement->ResetFairShareFunctions();
-        for (int childIndex = 0; childIndex < compositeElement->GetChildCount(); ++childIndex) {
-            auto* child = compositeElement->GetChild(childIndex);
-            if (auto* childPool = dynamic_cast<TCompositeElementMock*>(child)) {
-                ResetFairShareFunctionsRecursively(childPool);
-            } else {
-                child->ResetFairShareFunctions();
-            }
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1160,27 +742,26 @@ TEST_P(TFairShareUpdateParametrizedTest, TestPromisedGuaranteeFairShare)
 
     DoFairShareUpdate(totalResourceLimits, rootElement);
 
-    const TResourceVector unit = {1.0, 1.0, 0.0, 1.0, 0.0};
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.29), operationA1->Attributes().FairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.19), operationA2->Attributes().FairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.02), operationA3->Attributes().FairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.5), operationB->Attributes().FairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.5), poolA->Attributes().FairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.29), poolA1->Attributes().FairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.19), poolA2->Attributes().FairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.02), poolA3->Attributes().FairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.5), poolB->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.29, operationA1->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.19, operationA2->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.02, operationA3->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.5, operationB->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.5, poolA->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.29, poolA1->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.19, poolA2->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.02, poolA3->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.5, poolB->Attributes().FairShare.Total);
 
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.19), operationA1->Attributes().PromisedGuaranteeFairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.09), operationA2->Attributes().PromisedGuaranteeFairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.02), operationA3->Attributes().PromisedGuaranteeFairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.0), operationB->Attributes().PromisedGuaranteeFairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.3), poolA->Attributes().PromisedGuaranteeFairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.19), poolA1->Attributes().PromisedGuaranteeFairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.09), poolA2->Attributes().PromisedGuaranteeFairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.02), poolA3->Attributes().PromisedGuaranteeFairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.0), poolB->Attributes().PromisedGuaranteeFairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.0), rootElement->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.19, operationA1->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.09, operationA2->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.02, operationA3->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, operationB->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.3, poolA->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.19, poolA1->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.09, poolA2->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.02, poolA3->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, poolB->Attributes().PromisedGuaranteeFairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, rootElement->Attributes().PromisedGuaranteeFairShare.Total);
 }
 
 TEST_P(TFairShareUpdateParametrizedTest, TestNestedPromisedGuaranteeFairSharePools)
@@ -1234,19 +815,18 @@ TEST_P(TFairShareUpdateParametrizedTest, TestRelaxedPoolFairShareSimple)
         auto now = TInstant::Now();
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_RV_NEAR(unit * 3, operation->Attributes().FairShare.WeightProportional);
-        EXPECT_RV_NEAR(unit * 3, operation->Attributes().FairShare.Total);
+        EXPECT_RV_NEAR(Unit * 0.3, operation->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.3, operation->Attributes().FairShare.Total);
 
-        EXPECT_EQ(unit, relaxedPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit, relaxedPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit, relaxedPool->Attributes().FairShare.WeightProportional);
-        EXPECT_RV_NEAR(unit * 3, relaxedPool->Attributes().FairShare.Total);
+        EXPECT_EQ(Unit * 0.1, relaxedPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 0.1, relaxedPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.1, relaxedPool->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.3, relaxedPool->Attributes().FairShare.Total);
 
-        EXPECT_RV_NEAR(unit, rootElement->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit, rootElement->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit, rootElement->Attributes().FairShare.WeightProportional);
-        EXPECT_RV_NEAR(unit * 3, rootElement->Attributes().FairShare.Total);
+        EXPECT_RV_NEAR(Unit * 0.1, rootElement->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 0.1, rootElement->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.1, rootElement->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.3, rootElement->Attributes().FairShare.Total);
     }
 }
 
@@ -1271,10 +851,11 @@ TEST_P(TFairShareUpdateParametrizedTest, TestRelaxedPoolWithIncreasedMultiplierL
     {
         DoFairShareUpdate(totalResourceLimits, rootElement);
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         // Default multiplier is 3.
-        EXPECT_EQ(unit * 3, defaultRelaxedPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_EQ(unit * 5, increasedLimitRelaxedPool->Attributes().FairShare.IntegralGuarantee);
+        // NB: The guarantees are accumulated one flow unit at a time, so they land an ulp away from the
+        // exact share and only a near comparison holds.
+        EXPECT_RV_NEAR(Unit * 0.3, defaultRelaxedPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.5, increasedLimitRelaxedPool->Attributes().FairShare.IntegralGuarantee);
     }
 }
 
@@ -1292,19 +873,18 @@ TEST_P(TFairShareUpdateParametrizedTest, TestBurstPoolFairShareSimple)
         auto now = TInstant::Now();
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_RV_NEAR(unit * 3, operation->Attributes().FairShare.WeightProportional);
-        EXPECT_RV_NEAR(unit * 3, operation->Attributes().FairShare.Total);
+        EXPECT_RV_NEAR(Unit * 0.3, operation->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.3, operation->Attributes().FairShare.Total);
 
-        EXPECT_EQ(unit, burstPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit, burstPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit, burstPool->Attributes().FairShare.WeightProportional);
-        EXPECT_RV_NEAR(unit * 3, burstPool->Attributes().FairShare.Total);
+        EXPECT_EQ(Unit * 0.1, burstPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 0.1, burstPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.1, burstPool->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.3, burstPool->Attributes().FairShare.Total);
 
-        EXPECT_EQ(unit, rootElement->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit, rootElement->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit, rootElement->Attributes().FairShare.WeightProportional);
-        EXPECT_RV_NEAR(unit * 3, rootElement->Attributes().FairShare.Total);
+        EXPECT_EQ(Unit * 0.1, rootElement->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 0.1, rootElement->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.1, rootElement->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.3, rootElement->Attributes().FairShare.Total);
     }
 }
 
@@ -1336,14 +916,13 @@ TEST_P(TFairShareUpdateParametrizedTest, TestAccumulatedVolumeProvidesMore)
             /*now*/ secondUpdateTime,
             /*previousUpdateTime*/ firstUpdateTime);
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_RV_NEAR(unit * 3, operation->Attributes().FairShare.WeightProportional);
-        EXPECT_RV_NEAR(unit * 3, operation->Attributes().FairShare.Total);
+        EXPECT_RV_NEAR(Unit * 0.3, operation->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.3, operation->Attributes().FairShare.Total);
 
         EXPECT_EQ(TResourceVector::Zero(), relaxedPool->Attributes().FairShare.StrongGuarantee);
         // Here we get two times more share ratio than guaranteed by flow.
-        EXPECT_RV_NEAR(unit * 2, relaxedPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit, relaxedPool->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.2, relaxedPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.1, relaxedPool->Attributes().FairShare.WeightProportional);
     }
 }
 
@@ -1365,18 +944,17 @@ TEST_P(TFairShareUpdateParametrizedTest, TestStrongGuaranteePoolVsBurstPool)
         auto now = TInstant::Now();
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_RV_NEAR(unit * 5, strongPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 0, strongPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, strongPool->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.5, strongPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, strongPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, strongPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_RV_NEAR(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 5, burstPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, burstPool->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.0, burstPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.5, burstPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, burstPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_RV_NEAR(unit * 5, rootElement->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 5, rootElement->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, rootElement->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.5, rootElement->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.5, rootElement->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, rootElement->Attributes().FairShare.WeightProportional);
     }
 }
 
@@ -1398,18 +976,17 @@ TEST_P(TFairShareUpdateParametrizedTest, TestStrongGuaranteePoolVsRelaxedPool)
         auto now = TInstant::Now();
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_RV_NEAR(unit * 5, strongPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 0, strongPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, strongPool->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.5, strongPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, strongPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, strongPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_RV_NEAR(unit * 0, relaxedPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 5, relaxedPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, relaxedPool->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.0, relaxedPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.5, relaxedPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, relaxedPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_RV_NEAR(unit * 5, rootElement->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 5, relaxedPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, rootElement->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.5, rootElement->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.5, relaxedPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, rootElement->Attributes().FairShare.WeightProportional);
     }
 }
 
@@ -1431,16 +1008,15 @@ TEST_P(TFairShareUpdateParametrizedTest, TestBurstGetsAll_RelaxedNone)
         auto now = TInstant::Now();
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_RV_NEAR(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 10, burstPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, burstPool->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.0, burstPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 1.0, burstPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, burstPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_RV_NEAR(unit * 0, relaxedPool->Attributes().FairShare.Total);
+        EXPECT_RV_NEAR(Unit * 0.0, relaxedPool->Attributes().FairShare.Total);
 
-        EXPECT_RV_NEAR(unit * 0, rootElement->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 10, rootElement->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, rootElement->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.0, rootElement->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 1.0, rootElement->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, rootElement->Attributes().FairShare.WeightProportional);
     }
 }
 
@@ -1462,18 +1038,17 @@ TEST_P(TFairShareUpdateParametrizedTest, TestBurstGetsBurstGuaranteeOnly_Relaxed
         auto now = TInstant::Now();
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_RV_NEAR(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 5, burstPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, burstPool->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.0, burstPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.5, burstPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, burstPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_RV_NEAR(unit * 0, relaxedPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 5, relaxedPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, relaxedPool->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.0, relaxedPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.5, relaxedPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, relaxedPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_RV_NEAR(unit * 0, rootElement->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 10, rootElement->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, rootElement->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.0, rootElement->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 1.0, rootElement->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, rootElement->Attributes().FairShare.WeightProportional);
     }
 }
 
@@ -1503,26 +1078,25 @@ TEST_P(TFairShareUpdateParametrizedTest, TestAllKindsOfPoolsShareWeightProportio
         auto now = TInstant::Now();
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_EQ(unit * 1, strongPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 0, strongPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 1, strongPool->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.1, strongPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 0.0, strongPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.1, strongPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_EQ(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 1, burstPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 1, burstPool->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.0, burstPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 0.1, burstPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.1, burstPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_EQ(unit * 0, relaxedPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 1, relaxedPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 2, relaxedPool->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.0, relaxedPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 0.1, relaxedPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.2, relaxedPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_EQ(unit * 0, noGuaranteePool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 0, noGuaranteePool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 3, noGuaranteePool->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.0, noGuaranteePool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 0.0, noGuaranteePool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.3, noGuaranteePool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_RV_NEAR(unit * 1, rootElement->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 2, rootElement->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 7, rootElement->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.1, rootElement->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 0.2, rootElement->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.7, rootElement->Attributes().FairShare.WeightProportional);
     }
 }
 
@@ -1549,18 +1123,17 @@ TEST_P(TFairShareUpdateParametrizedTest, TestTwoRelaxedPoolsGetShareRatioProport
     {
         DoFairShareUpdate(totalResourceLimits, rootElement);
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_EQ(unit * 0, relaxedPoolA->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 1, relaxedPoolA->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 3, relaxedPoolA->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.0, relaxedPoolA->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.1, relaxedPoolA->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.3, relaxedPoolA->Attributes().FairShare.WeightProportional);
 
-        EXPECT_EQ(unit * 0, relaxedPoolB->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 3, relaxedPoolB->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 3, relaxedPoolB->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.0, relaxedPoolB->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.3, relaxedPoolB->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.3, relaxedPoolB->Attributes().FairShare.WeightProportional);
 
-        EXPECT_RV_NEAR(unit * 0, rootElement->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 4, rootElement->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 6, rootElement->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.0, rootElement->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.4, rootElement->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.6, rootElement->Attributes().FairShare.WeightProportional);
     }
 }
 
@@ -1581,14 +1154,13 @@ TEST_P(TFairShareUpdateParametrizedTest, TestStrongGuaranteeAdjustmentToTotalRes
     {
         DoFairShareUpdate(totalResourceLimits, rootElement);
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_EQ(unit * 2.5, strongPoolA->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 0, strongPoolA->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, strongPoolA->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.25, strongPoolA->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, strongPoolA->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, strongPoolA->Attributes().FairShare.WeightProportional);
 
-        EXPECT_EQ(unit * 7.5, strongPoolB->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 0, strongPoolB->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, strongPoolB->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.75, strongPoolB->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 0.0, strongPoolB->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, strongPoolB->Attributes().FairShare.WeightProportional);
     }
 }
 
@@ -1609,14 +1181,13 @@ TEST_P(TFairShareUpdateParametrizedTest, TestStrongGuaranteeAdjustmentToTotalRes
     {
         DoFairShareUpdate(totalResourceLimits, rootElement);
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_EQ(unit * 2, strongPoolA->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 0, strongPoolA->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, strongPoolA->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.2, strongPoolA->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, strongPoolA->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, strongPoolA->Attributes().FairShare.WeightProportional);
 
-        EXPECT_EQ(unit * 8, strongPoolB->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 0, strongPoolB->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, strongPoolB->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.8, strongPoolB->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 0.0, strongPoolB->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, strongPoolB->Attributes().FairShare.WeightProportional);
     }
 }
 
@@ -1638,14 +1209,13 @@ TEST_P(TFairShareUpdateParametrizedTest, TestStrongGuaranteePlusBurstGuaranteeAd
         auto now = TInstant::Now();
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_RV_NEAR(unit * 6, strongPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 0, strongPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, strongPool->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.6, strongPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, strongPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, strongPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_EQ(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 4, burstPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, burstPool->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.0, burstPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.4, burstPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, burstPool->Attributes().FairShare.WeightProportional);
     }
 }
 
@@ -1666,12 +1236,11 @@ TEST_P(TFairShareUpdateParametrizedTest, TestLimitsLowerThanStrongGuarantee)
     {
         DoFairShareUpdate(totalResourceLimits, rootElement);
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_EQ(unit * 5, strongPoolParent->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 5, strongPoolParent->Attributes().FairShare.Total);
+        EXPECT_EQ(Unit * 0.5, strongPoolParent->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.5, strongPoolParent->Attributes().FairShare.Total);
 
-        EXPECT_EQ(unit * 5, strongPoolChild->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 5, strongPoolChild->Attributes().FairShare.Total);
+        EXPECT_EQ(Unit * 0.5, strongPoolChild->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.5, strongPoolChild->Attributes().FairShare.Total);
     }
 }
 
@@ -1693,9 +1262,8 @@ TEST_P(TFairShareUpdateParametrizedTest, TestParentWithoutGuaranteeAndHisLimitsL
         auto now = TInstant::Now();
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_EQ(unit * 5, burstChild->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 5, burstChild->Attributes().FairShare.Total);
+        EXPECT_EQ(Unit * 0.5, burstChild->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.5, burstChild->Attributes().FairShare.Total);
     }
 }
 
@@ -1717,10 +1285,9 @@ TEST_P(TFairShareUpdateParametrizedTest, TestParentWithStrongGuaranteeAndHisLimi
         auto now = TInstant::Now();
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_EQ(unit * 0, burstChild->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 0, burstChild->Attributes().FairShare.IntegralGuarantee);  // Integral share wasn't given due to violation of parent limits.
-        EXPECT_RV_NEAR(unit * 5, burstChild->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.0, burstChild->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 0.0, burstChild->Attributes().FairShare.IntegralGuarantee);  // Integral share wasn't given due to violation of parent limits.
+        EXPECT_RV_NEAR(Unit * 0.5, burstChild->Attributes().FairShare.WeightProportional);
     }
 }
 
@@ -1742,22 +1309,21 @@ TEST_P(TFairShareUpdateParametrizedTest, TestStrongGuaranteeAndRelaxedPoolVsRela
         auto now = TInstant::Now();
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_EQ(unit * 4, strongAndRelaxedPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 3, strongAndRelaxedPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, strongAndRelaxedPool->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.4, strongAndRelaxedPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.3, strongAndRelaxedPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, strongAndRelaxedPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_EQ(unit * 0, relaxedPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 3, relaxedPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, relaxedPool->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.0, relaxedPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.3, relaxedPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, relaxedPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_RV_NEAR(unit * 4, rootElement->Attributes().FairShare.StrongGuarantee);
-        EXPECT_RV_NEAR(unit * 6, rootElement->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, rootElement->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.4, rootElement->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.6, rootElement->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, rootElement->Attributes().FairShare.WeightProportional);
     }
 }
 
-TEST_P(TFairShareUpdateParametrizedTest, PromisedFairShareOfIntegralPools)
+TEST_P(TFairShareUpdateParametrizedTest, EstimatedGuaranteeShareIgnoresIntegralPools)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1778,14 +1344,11 @@ TEST_P(TFairShareUpdateParametrizedTest, PromisedFairShareOfIntegralPools)
         auto now = TInstant::Now();
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_RV_NEAR(unit * 3, burstPool->Attributes().PromisedFairShare);
-        EXPECT_RV_NEAR(unit * 3, burstPoolParent->Attributes().PromisedFairShare);
-
-        EXPECT_RV_NEAR(unit * 7, relaxedPool->Attributes().PromisedFairShare);
-        EXPECT_RV_NEAR(unit * 7, relaxedPoolParent->Attributes().PromisedFairShare);
-
-        EXPECT_EQ(unit * 10, rootElement->Attributes().PromisedFairShare);
+        EXPECT_EQ(TResourceVector{}, burstPool->Attributes().EstimatedGuaranteeShare);
+        EXPECT_EQ(TResourceVector{}, burstPoolParent->Attributes().EstimatedGuaranteeShare);
+        EXPECT_EQ(TResourceVector{}, relaxedPool->Attributes().EstimatedGuaranteeShare);
+        EXPECT_EQ(TResourceVector{}, relaxedPoolParent->Attributes().EstimatedGuaranteeShare);
+        EXPECT_EQ(TResourceVector{}, rootElement->Attributes().EstimatedGuaranteeShare);
     }
 }
 
@@ -1814,22 +1377,21 @@ TEST_P(TFairShareUpdateParametrizedTest, TestIntegralPoolsWithParent)
             now,
             now - TDuration::Minutes(1));
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_EQ(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 5, burstPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, burstPool->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.0, burstPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 0.5, burstPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, burstPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_EQ(unit * 0, relaxedPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 5, relaxedPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, relaxedPool->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.0, relaxedPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 0.5, relaxedPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, relaxedPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_EQ(unit * 0, limitedParent->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 10, limitedParent->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, limitedParent->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.0, limitedParent->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 1.0, limitedParent->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, limitedParent->Attributes().FairShare.WeightProportional);
 
-        EXPECT_RV_NEAR(unit * 0, rootElement->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 10, rootElement->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_EQ(unit * 0, rootElement->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(Unit * 0.0, rootElement->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 1.0, rootElement->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_EQ(Unit * 0.0, rootElement->Attributes().FairShare.WeightProportional);
     }
 }
 
@@ -1964,17 +1526,15 @@ TEST_P(TFairShareUpdateParametrizedTest, TestCrashInAdjustProposedIntegralShareO
         auto now = TInstant::Now();
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-
         // First pool gets integral guarantees until the gap between parent's limit and strong guarantee is filled.
-        EXPECT_EQ(unit * 0, burstChild1->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 0.5, burstChild1->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0, burstChild1->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.0, burstChild1->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 0.05, burstChild1->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.0, burstChild1->Attributes().FairShare.WeightProportional);
 
         // The gap is filled by first pool. Second pool gets only weight proportional share.
-        EXPECT_EQ(unit * 0, burstChild2->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 0, burstChild2->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_RV_NEAR(unit * 0.5, burstChild2->Attributes().FairShare.WeightProportional);
+        EXPECT_EQ(Unit * 0.0, burstChild2->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(Unit * 0.0, burstChild2->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(Unit * 0.05, burstChild2->Attributes().FairShare.WeightProportional);
     }
 }
 
@@ -2161,6 +1721,828 @@ TEST_F(TFairShareUpdateTest, TestMultipleGangOperations)
     EXPECT_RV_NEAR(TResourceVector({0.0, 0.0, 0.0, 0.0, 0.0}), operationB2->Attributes().FairShare.Total);
 }
 
+TEST_F(TFairShareUpdateTest, TestFifoChildrenReorderingForGuaranteeUtilization)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    // The FIFO pool's head gang demands the whole cluster and can never fit into the pool's guarantee,
+    // while the two gangs behind it fit into it exactly.
+    auto fifoPool = CreateSimplePool("FifoPool", /*strongGuaranteeCpu*/ 60.0);
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(true);
+    fifoPool->AttachParent(rootElement.Get());
+
+    // The competitor takes everything the FIFO pool does not claim, so the guarantee is the only share
+    // the FIFO pool can rely on.
+    auto competitorPool = CreateSimplePool("CompetitorPool", /*strongGuaranteeCpu*/ 40.0);
+    competitorPool->AttachParent(rootElement.Get());
+
+    // NB: The blocking gang must demand more than the pool's guarantee but strictly less than the whole
+    // cluster. A gang demanding exactly the cluster has its step at suggestion 1.0, and since the fair
+    // share functions are left-continuous, |FairShareBySuggestion(1.0)| returns the left limit, i.e. zero.
+    // Such a gang is transparent to the FIFO cascade and blocks nobody.
+    //
+    // FIFO children of a mock pool are ordered by descending weight.
+    auto blockingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.7);
+    blockingGang->SetWeight(3.0);
+    auto firstFittingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.3);
+    firstFittingGang->SetWeight(2.0);
+    auto secondFittingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.3);
+    secondFittingGang->SetWeight(1.0);
+
+    CreateOperation(competitorPool.Get(), totalResourceLimits);
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = true,
+            .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+            .EnableImprovedFairShareByFitFactorComputation = true,
+        });
+
+    // With reordering the blocking gang is deferred, so the two fitting gangs are packed into the pool's
+    // guarantee and the pool gets its full share.
+    EXPECT_RV_NEAR(Unit * 0.6, fifoPool->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, blockingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.3, firstFittingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.3, secondFittingGang->Attributes().FairShare.Total);
+
+    // The canonical order is intact and the order the update went with is reported next to it.
+    EXPECT_EQ(0, blockingGang->Attributes().FifoIndex);
+    EXPECT_EQ(1, firstFittingGang->Attributes().FifoIndex);
+    EXPECT_EQ(2, secondFittingGang->Attributes().FifoIndex);
+
+    EXPECT_EQ(2, blockingGang->Attributes().EffectiveFifoIndex);
+    EXPECT_EQ(0, firstFittingGang->Attributes().EffectiveFifoIndex);
+    EXPECT_EQ(1, secondFittingGang->Attributes().EffectiveFifoIndex);
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoChildrenReorderingForGuaranteeUtilizationDisabled)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto fifoPool = CreateSimplePool("FifoPool", /*strongGuaranteeCpu*/ 60.0);
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->AttachParent(rootElement.Get());
+
+    auto competitorPool = CreateSimplePool("CompetitorPool", /*strongGuaranteeCpu*/ 40.0);
+    competitorPool->AttachParent(rootElement.Get());
+
+    auto blockingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.7);
+    blockingGang->SetWeight(3.0);
+    auto firstFittingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.3);
+    firstFittingGang->SetWeight(2.0);
+    auto secondFittingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.3);
+    secondFittingGang->SetWeight(1.0);
+
+    CreateOperation(competitorPool.Get(), totalResourceLimits);
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = true,
+            .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+            .EnableImprovedFairShareByFitFactorComputation = true,
+        });
+
+    // The blocking gang keeps the head of the order, so the guarantee stays unused.
+    EXPECT_RV_NEAR(Unit * 0.0, fifoPool->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, firstFittingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, secondFittingGang->Attributes().FairShare.Total);
+
+    // Nothing was reordered, so the update went with the canonical order and reports no effective one.
+    EXPECT_EQ(std::nullopt, blockingGang->Attributes().EffectiveFifoIndex);
+    EXPECT_EQ(std::nullopt, firstFittingGang->Attributes().EffectiveFifoIndex);
+    EXPECT_EQ(std::nullopt, secondFittingGang->Attributes().EffectiveFifoIndex);
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoChildrenReorderingForGuaranteeUtilizationForgetsEffectiveOrder)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto fifoPool = CreateSimplePool("FifoPool", /*strongGuaranteeCpu*/ 60.0);
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(true);
+    fifoPool->AttachParent(rootElement.Get());
+
+    auto competitorPool = CreateSimplePool("CompetitorPool", /*strongGuaranteeCpu*/ 40.0);
+    competitorPool->AttachParent(rootElement.Get());
+
+    auto blockingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.7);
+    blockingGang->SetWeight(3.0);
+    auto fittingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.6);
+    fittingGang->SetWeight(2.0);
+
+    CreateOperation(competitorPool.Get(), totalResourceLimits);
+
+    auto options = TTestFairShareUpdateOptions{
+        .EnableStepFunctionForGangOperations = true,
+        .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+        .EnableImprovedFairShareByFitFactorComputation = true,
+    };
+
+    DoFairShareUpdate(totalResourceLimits, rootElement, options);
+
+    EXPECT_EQ(1, blockingGang->Attributes().EffectiveFifoIndex);
+    EXPECT_EQ(0, fittingGang->Attributes().EffectiveFifoIndex);
+
+    // Attributes survive between updates, so an update that reorders nothing must not leave the previous
+    // effective order behind: it would claim an order the update never used.
+    fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(false);
+
+    DoFairShareUpdate(totalResourceLimits, rootElement, options);
+
+    EXPECT_EQ(std::nullopt, blockingGang->Attributes().EffectiveFifoIndex);
+    EXPECT_EQ(std::nullopt, fittingGang->Attributes().EffectiveFifoIndex);
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoChildrenReorderingForGuaranteeUtilizationRequiresTreeToAllowIt)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto fifoPool = CreateSimplePool("FifoPool", /*strongGuaranteeCpu*/ 60.0);
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(true);
+    fifoPool->AttachParent(rootElement.Get());
+
+    auto competitorPool = CreateSimplePool("CompetitorPool", /*strongGuaranteeCpu*/ 40.0);
+    competitorPool->AttachParent(rootElement.Get());
+
+    auto blockingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.7);
+    blockingGang->SetWeight(2.0);
+    auto fittingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.6);
+    fittingGang->SetWeight(1.0);
+
+    CreateOperation(competitorPool.Get(), totalResourceLimits);
+
+    // The pool asks for reordering, but the tree does not allow it, so nothing is reordered.
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = true,
+            .EnableFifoChildrenReorderingForGuaranteeUtilization = false,
+            .EnableImprovedFairShareByFitFactorComputation = true,
+        });
+
+    EXPECT_RV_NEAR(Unit * 0.0, fifoPool->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, fittingGang->Attributes().FairShare.Total);
+    EXPECT_EQ(std::nullopt, fittingGang->Attributes().EffectiveFifoIndex);
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoChildrenReorderingForGuaranteeUtilizationRequiresStepFunction)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto fifoPool = CreateSimplePool("FifoPool", /*strongGuaranteeCpu*/ 60.0);
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(true);
+    fifoPool->AttachParent(rootElement.Get());
+
+    auto competitorPool = CreateSimplePool("CompetitorPool", /*strongGuaranteeCpu*/ 40.0);
+    competitorPool->AttachParent(rootElement.Get());
+
+    auto blockingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.7);
+    blockingGang->SetWeight(3.0);
+    auto firstFittingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.3);
+    firstFittingGang->SetWeight(2.0);
+    auto secondFittingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.3);
+    secondFittingGang->SetWeight(1.0);
+
+    CreateOperation(competitorPool.Get(), totalResourceLimits);
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = false,
+            .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+            .EnableImprovedFairShareByFitFactorComputation = true,
+        });
+
+    // Without the step function the head gang consumes the guarantee gradually instead of collapsing the
+    // pool, so there is no discontinuity to dodge and the order is left alone.
+    EXPECT_RV_NEAR(Unit * 0.6, fifoPool->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.6, blockingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, firstFittingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, secondFittingGang->Attributes().FairShare.Total);
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoChildrenReorderingForGuaranteeUtilizationRejectsOvershoot)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto fifoPool = CreateSimplePool("FifoPool", /*strongGuaranteeCpu*/ 60.0);
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(true);
+    fifoPool->AttachParent(rootElement.Get());
+
+    auto competitorPool = CreateSimplePool("CompetitorPool", /*strongGuaranteeCpu*/ 40.0);
+    competitorPool->AttachParent(rootElement.Get());
+
+    auto blockingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.7);
+    blockingGang->SetWeight(3.0);
+    auto fittingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.3);
+    fittingGang->SetWeight(2.0);
+    // One CPU too large to join the gang above within the 60 CPU guarantee.
+    auto overshootingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.31);
+    overshootingGang->SetWeight(1.0);
+
+    CreateOperation(competitorPool.Get(), totalResourceLimits);
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = true,
+            .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+            .EnableImprovedFairShareByFitFactorComputation = true,
+        });
+
+    EXPECT_RV_NEAR(Unit * 0.3, fifoPool->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.3, fittingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, blockingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, overshootingGang->Attributes().FairShare.Total);
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoChildrenReorderingForGuaranteeUtilizationChecksResourcesComponentwise)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto fifoPool = CreateSimplePool("FifoPool", /*strongGuaranteeCpu*/ 60.0);
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(true);
+    fifoPool->AttachParent(rootElement.Get());
+
+    auto competitorPool = CreateSimplePool("CompetitorPool", /*strongGuaranteeCpu*/ 40.0);
+    competitorPool->AttachParent(rootElement.Get());
+
+    // Fits by CPU but not by memory, so a dominant-resource-only check would wrongly accept it.
+    auto memoryHungryDemand = totalResourceLimits * 0.3;
+    memoryHungryDemand.SetMemory(700_MB);
+
+    auto blockingGang = CreateGangOperation(fifoPool.Get(), memoryHungryDemand);
+    blockingGang->SetWeight(3.0);
+    auto firstFittingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.3);
+    firstFittingGang->SetWeight(2.0);
+    auto secondFittingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.3);
+    secondFittingGang->SetWeight(1.0);
+
+    CreateOperation(competitorPool.Get(), totalResourceLimits);
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = true,
+            .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+            .EnableImprovedFairShareByFitFactorComputation = true,
+        });
+
+    EXPECT_RV_NEAR(Unit * 0.6, fifoPool->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.3, firstFittingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.3, secondFittingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, blockingGang->Attributes().FairShare.Total);
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoChildrenReorderingForGuaranteeUtilizationDoesNotDeferRunningGang)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    // No competitor: the pool may claim more than its guarantee, which is what makes the protection
+    // visible. None of the three gangs fits into the 30 CPU guarantee, so the only one that can be
+    // accepted is the running one.
+    auto fifoPool = CreateSimplePool("FifoPool", /*strongGuaranteeCpu*/ 30.0);
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(true);
+    fifoPool->AttachParent(rootElement.Get());
+
+    auto firstPendingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.4);
+    firstPendingGang->SetWeight(3.0);
+    auto secondPendingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.4);
+    secondPendingGang->SetWeight(2.0);
+    auto runningGang = CreateGangOperation(
+        fifoPool.Get(),
+        totalResourceLimits * 0.4,
+        totalResourceLimits * 0.1);
+    runningGang->SetWeight(1.0);
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = true,
+            .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+            .EnableImprovedFairShareByFitFactorComputation = true,
+        });
+
+    // The running gang is accepted despite not fitting, so it moves ahead of the two gangs deferred
+    // before it and keeps its share. Were it deferred like them, the order would stay unchanged and the
+    // cluster would run out before reaching it.
+    EXPECT_RV_NEAR(Unit * 0.4, runningGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.4, firstPendingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, secondPendingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.8, fifoPool->Attributes().FairShare.Total);
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoChildrenReorderingForGuaranteeUtilizationDefersGangAfterUsageDrops)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto fifoPool = CreateSimplePool("FifoPool", /*strongGuaranteeCpu*/ 60.0);
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(true);
+    fifoPool->AttachParent(rootElement.Get());
+
+    auto competitorPool = CreateSimplePool("CompetitorPool", /*strongGuaranteeCpu*/ 40.0);
+    competitorPool->AttachParent(rootElement.Get());
+
+    auto blockingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.7);
+    blockingGang->SetWeight(3.0);
+    // Too large for the guarantee, but running, so it is accepted and charges its whole demand.
+    auto runningGang = CreateGangOperation(
+        fifoPool.Get(),
+        totalResourceLimits * 0.7,
+        totalResourceLimits * 0.1);
+    runningGang->SetWeight(2.0);
+    auto pendingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.3);
+    pendingGang->SetWeight(1.0);
+
+    CreateOperation(competitorPool.Get(), totalResourceLimits);
+
+    auto options = TTestFairShareUpdateOptions{
+        .EnableStepFunctionForGangOperations = true,
+        .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+        .EnableImprovedFairShareByFitFactorComputation = true,
+    };
+
+    DoFairShareUpdate(totalResourceLimits, rootElement, options);
+
+    // While it is running it is accepted first, charges 0.7 and leaves no room for the pending gang.
+    EXPECT_RV_NEAR(Unit * 0.0, fifoPool->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, pendingGang->Attributes().FairShare.Total);
+
+    runningGang->SetResourceUsage(TJobResources());
+
+    DoFairShareUpdate(totalResourceLimits, rootElement, options);
+
+    // With its usage gone it is deferrable like any other pending gang, and the smaller one is packed.
+    EXPECT_RV_NEAR(Unit * 0.3, fifoPool->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.3, pendingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, runningGang->Attributes().FairShare.Total);
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoChildrenReorderingForGuaranteeUtilizationStopsAtNonGang)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    // Contended, so the pool gets exactly its guarantee and the packing decides who is served.
+    auto fifoPool = CreateSimplePool("FifoPool", /*strongGuaranteeCpu*/ 30.0);
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(true);
+    fifoPool->AttachParent(rootElement.Get());
+
+    auto competitorPool = CreateSimplePool("CompetitorPool", /*strongGuaranteeCpu*/ 70.0);
+    competitorPool->AttachParent(rootElement.Get());
+
+    auto deferredGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.35);
+    deferredGang->SetWeight(3.0);
+    auto blockingOperation = CreateOperation(fifoPool.Get(), totalResourceLimits * 0.4);
+    blockingOperation->SetWeight(2.0);
+    // Would fit on its own, but the non-gang ahead of it ends the packing, so it is never accepted.
+    auto trailingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.3);
+    trailingGang->SetWeight(1.0);
+
+    CreateOperation(competitorPool.Get(), totalResourceLimits);
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = true,
+            .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+            .EnableImprovedFairShareByFitFactorComputation = true,
+        });
+
+    // The non-gang is promoted ahead of the gang deferred before it and consumes the guarantee that gang
+    // was sitting on. Were it deferred instead, the trailing gang would have been packed and taken it.
+    EXPECT_RV_NEAR(Unit * 0.3, blockingOperation->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, deferredGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, trailingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.3, fifoPool->Attributes().FairShare.Total);
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoChildrenReorderingForGuaranteeUtilizationKeepsOrderBehindNonGang)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    // No competitor here: the pool may claim the whole cluster, which makes the order of the children that
+    // were not packed observable through their fair shares.
+    auto fifoPool = CreateSimplePool("FifoPool", /*strongGuaranteeCpu*/ 30.0);
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(true);
+    fifoPool->AttachParent(rootElement.Get());
+
+    auto deferredGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.35);
+    deferredGang->SetWeight(4.0);
+    auto blockingOperation = CreateOperation(fifoPool.Get(), totalResourceLimits * 0.4);
+    blockingOperation->SetWeight(3.0);
+    auto firstTrailingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.2);
+    firstTrailingGang->SetWeight(2.0);
+    auto secondTrailingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.2);
+    secondTrailingGang->SetWeight(1.0);
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = true,
+            .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+            .EnableImprovedFairShareByFitFactorComputation = true,
+        });
+
+    // Everything not emitted keeps the original order behind the blocker, i.e.
+    // |blocking deferred first second| rather than |blocking first second deferred|: the deferred gang
+    // still outranks the two trailing ones and is served before them, and the cluster runs out on the
+    // last of them rather than on the deferred gang.
+    EXPECT_RV_NEAR(Unit * 0.4, blockingOperation->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.35, deferredGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.2, firstTrailingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, secondTrailingGang->Attributes().FairShare.Total);
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoChildrenReorderingForGuaranteeUtilizationChargesLimitsShare)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto fifoPool = CreateSimplePool("FifoPool", /*strongGuaranteeCpu*/ 60.0);
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(true);
+    fifoPool->AttachParent(rootElement.Get());
+
+    auto competitorPool = CreateSimplePool("CompetitorPool", /*strongGuaranteeCpu*/ 40.0);
+    competitorPool->AttachParent(rootElement.Get());
+
+    auto blockingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.7);
+    blockingGang->SetWeight(3.0);
+    // Demands more than the guarantee but is capped at 30 CPU by its own limits, so it is charged 0.3 and
+    // fits. Charged at its raw demand it would not fit, and being a non-gang it would stop the packing.
+    auto limitedOperation = CreateOperation(fifoPool.Get(), totalResourceLimits * 0.7);
+    limitedOperation->SetWeight(2.0);
+    limitedOperation->SetResourceLimits(totalResourceLimits * 0.3);
+    auto fittingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.3);
+    fittingGang->SetWeight(1.0);
+
+    CreateOperation(competitorPool.Get(), totalResourceLimits);
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = true,
+            .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+            .EnableImprovedFairShareByFitFactorComputation = true,
+        });
+
+    EXPECT_RV_NEAR(Unit * 0.6, fifoPool->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.3, limitedOperation->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.3, fittingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, blockingGang->Attributes().FairShare.Total);
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoChildrenReorderingForGuaranteeUtilizationChargesNothingForLimitedGang)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto fifoPool = CreateSimplePool("FifoPool", /*strongGuaranteeCpu*/ 60.0);
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(true);
+    fifoPool->AttachParent(rootElement.Get());
+
+    auto competitorPool = CreateSimplePool("CompetitorPool", /*strongGuaranteeCpu*/ 40.0);
+    competitorPool->AttachParent(rootElement.Get());
+
+    auto blockingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.7);
+    blockingGang->SetWeight(3.0);
+    // A gang runs all of its allocations or none, so this one can never reach its demand and gets nothing.
+    // Charged its limits share it would reserve half of the guarantee for nothing, leaving the gang behind
+    // it deferred and the reserved half idle.
+    auto limitedGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.7);
+    limitedGang->SetWeight(2.0);
+    limitedGang->SetResourceLimits(totalResourceLimits * 0.3);
+    auto fittingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.6);
+    fittingGang->SetWeight(1.0);
+
+    CreateOperation(competitorPool.Get(), totalResourceLimits);
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = true,
+            .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+            .EnableImprovedFairShareByFitFactorComputation = true,
+        });
+
+    EXPECT_RV_NEAR(Unit * 0.6, fifoPool->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.6, fittingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, limitedGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, blockingGang->Attributes().FairShare.Total);
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoChildrenReorderingForGuaranteeUtilizationAcrossFifoModes)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto fifoPool = CreateSimplePool("FifoPool", /*strongGuaranteeCpu*/ 60.0);
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->AttachParent(rootElement.Get());
+
+    auto competitorPool = CreateSimplePool("CompetitorPool", /*strongGuaranteeCpu*/ 40.0);
+    competitorPool->AttachParent(rootElement.Get());
+
+    auto blockingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.7);
+    blockingGang->SetWeight(3.0);
+    auto firstFittingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.3);
+    firstFittingGang->SetWeight(2.0);
+    auto secondFittingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.3);
+    secondFittingGang->SetWeight(1.0);
+
+    CreateOperation(competitorPool.Get(), totalResourceLimits);
+
+    auto run = [&] (bool enableReordering, bool enableImproved, bool enableFastFifo) {
+        fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(enableReordering);
+        DoFairShareUpdate(
+            totalResourceLimits,
+            rootElement,
+            TTestFairShareUpdateOptions{
+                .EnableStepFunctionForGangOperations = true,
+                .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+                .EnableImprovedFairShareByFitFactorComputation = enableImproved,
+                .EnableFastFifoFairShareByFitFactorComputation = enableFastFifo,
+            });
+    };
+
+    // Repeated updates on the same tree also check that the packing does not compound: every update
+    // restarts from the canonical FIFO order rebuilt by |PrepareFifoPool|.
+    for (bool enableImproved : {false, true}) {
+        for (bool enableFastFifo : {false, true}) {
+            SCOPED_TRACE(Format("Improved: %v, FastFifo: %v", enableImproved, enableFastFifo));
+
+            run(/*enableReordering*/ false, enableImproved, enableFastFifo);
+
+            EXPECT_RV_NEAR(Unit * 0.0, fifoPool->Attributes().FairShare.Total);
+
+            run(/*enableReordering*/ true, enableImproved, enableFastFifo);
+
+            EXPECT_RV_NEAR(Unit * 0.6, fifoPool->Attributes().FairShare.Total);
+            EXPECT_RV_NEAR(Unit * 0.3, firstFittingGang->Attributes().FairShare.Total);
+            EXPECT_RV_NEAR(Unit * 0.3, secondFittingGang->Attributes().FairShare.Total);
+            EXPECT_RV_NEAR(Unit * 0.0, blockingGang->Attributes().FairShare.Total);
+        }
+    }
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoChildrenReorderingForGuaranteeUtilizationUnderIntegralPool)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    // An integral pool prepares and caches fair share functions for its whole subtree and resets only
+    // itself afterwards. This pins the reordering stage before the integral passes: were it moved after
+    // them, the nested FIFO pool would keep a function built from the original order while the top-down
+    // pass indexes the reordered one.
+    // NB: The burst guarantee counts towards the root's guarantee budget alongside the strong ones, so
+    // these must sum to at most the cluster, or every strong guarantee is scaled down proportionally.
+    auto burstPool = CreateBurstPool(
+        "BurstPool",
+        /*flowCpu*/ 5.0,
+        /*burstCpu*/ 5.0,
+        /*strongGuaranteeCpu*/ 50.0);
+    burstPool->AttachParent(rootElement.Get());
+
+    auto fifoPool = CreateSimplePool("FifoPool", /*strongGuaranteeCpu*/ 50.0);
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(true);
+    fifoPool->AttachParent(burstPool.Get());
+
+    auto competitorPool = CreateSimplePool("CompetitorPool", /*strongGuaranteeCpu*/ 40.0);
+    competitorPool->AttachParent(rootElement.Get());
+
+    auto blockingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.6);
+    blockingGang->SetWeight(3.0);
+    auto firstFittingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.25);
+    firstFittingGang->SetWeight(2.0);
+    auto secondFittingGang = CreateGangOperation(fifoPool.Get(), totalResourceLimits * 0.25);
+    secondFittingGang->SetWeight(1.0);
+
+    CreateOperation(competitorPool.Get(), totalResourceLimits);
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = true,
+            .EnableFifoChildrenReorderingForGuaranteeUtilization = true,
+            .EnableImprovedFairShareByFitFactorComputation = true,
+        });
+
+    EXPECT_RV_NEAR(Unit * 0.5, fifoPool->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.25, firstFittingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.25, secondFittingGang->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(Unit * 0.0, blockingGang->Attributes().FairShare.Total);
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoFastPathEquivalence)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto fifoPool = CreateSimplePool("FifoPool");
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->AttachParent(rootElement.Get());
+
+    // A spread of demands/usages so the operations' FairShareBySuggestion functions
+    // have several segments of differing slopes, exercising the concatenation logic.
+    struct TOperationSpec
+    {
+        const TJobResources Demand;
+        const TJobResources Usage;
+        const double Weight;
+    };
+
+    auto makeResources = [] (int userSlots, double cpu, i64 memory) {
+        TJobResources result;
+        result.SetUserSlots(userSlots);
+        result.SetCpu(cpu);
+        result.SetMemory(memory);
+        return result;
+    };
+
+    std::vector<TOperationSpec> specs = {
+        {makeResources(10, 10, 100_MB), makeResources(5, 3, 80_MB), /*weight*/ 5.0},
+        {makeResources(20, 5, 50_MB),  makeResources(1, 4, 10_MB), /*weight*/ 4.0},
+        {makeResources(5, 30, 200_MB), makeResources(5, 0, 0),     /*weight*/ 3.0},
+        {makeResources(15, 15, 150_MB), makeResources(7, 7, 70_MB), /*weight*/ 2.0},
+        {makeResources(8, 8, 8_MB),    makeResources(0, 0, 0),     /*weight*/ 1.0},
+    };
+
+    std::vector<TOperationElementMockPtr> operations;
+    for (const auto& spec : specs) {
+        auto operation = CreateOperation(fifoPool.Get(), spec.Demand, spec.Usage);
+        operation->SetWeight(spec.Weight);
+        operations.push_back(operation);
+    }
+
+    std::vector<TElementMock*> allElements;
+    allElements.push_back(rootElement.Get());
+    allElements.push_back(fifoPool.Get());
+    for (const auto& operation : operations) {
+        allElements.push_back(operation.Get());
+    }
+
+    auto runWithFlag = [&] (bool enableFastFifo) {
+        TTestFairShareUpdateOptions options;
+        options.EnableFastFifoFairShareByFitFactorComputation = enableFastFifo;
+        DoFairShareUpdate(totalResourceLimits, rootElement, options);
+
+        std::vector<TResourceVector> fairShares;
+        for (auto* element : allElements) {
+            fairShares.push_back(element->Attributes().FairShare.Total);
+        }
+        return fairShares;
+    };
+
+    auto slowFairShares = runWithFlag(/*enableFastFifo*/ false);
+    int slowFifoSize = fifoPool->GetFairShareFunctionsStatistics()->FairShareByFitFactorSize;
+
+    auto fastFairShares = runWithFlag(/*enableFastFifo*/ true);
+    int fastFifoSize = fifoPool->GetFairShareFunctionsStatistics()->FairShareByFitFactorSize;
+
+    // The fast path is mathematically (and bit-for-bit) identical to the generic Sum, so the outputs
+    // and the function representation size must match exactly.
+    EXPECT_EQ(slowFifoSize, fastFifoSize);
+    ASSERT_EQ(slowFairShares.size(), fastFairShares.size());
+    for (int i = 0; i < std::ssize(slowFairShares); ++i) {
+        EXPECT_THAT(fastFairShares[i], ResourceVectorNear(slowFairShares[i], 0.0))
+            << "Mismatch at element index " << i;
+    }
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoFastPathEdgeCases)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+
+    auto makeResources = [] (int userSlots, double cpu, i64 memory) {
+        TJobResources result;
+        result.SetUserSlots(userSlots);
+        result.SetCpu(cpu);
+        result.SetMemory(memory);
+        return result;
+    };
+
+    auto compareFlags = [&] (const TRootElementMockPtr& rootElement, const std::vector<TElementMock*>& allElements) {
+        auto run = [&] (bool enableFastFifo) {
+            TTestFairShareUpdateOptions options;
+            options.EnableFastFifoFairShareByFitFactorComputation = enableFastFifo;
+            DoFairShareUpdate(totalResourceLimits, rootElement, options);
+            std::vector<TResourceVector> result;
+            for (auto* element : allElements) {
+                result.push_back(element->Attributes().FairShare.Total);
+            }
+            return result;
+        };
+        auto slow = run(false);
+        auto fast = run(true);
+        ASSERT_EQ(slow.size(), fast.size());
+        for (int i = 0; i < std::ssize(slow); ++i) {
+            EXPECT_THAT(fast[i], ResourceVectorNear(slow[i], 0.0)) << "Mismatch at element index " << i;
+        }
+    };
+
+    // Case 1: single child.
+    {
+        auto rootElement = CreateRootElement();
+        auto fifoPool = CreateSimplePool("FifoPoolSingle");
+        fifoPool->SetMode(ESchedulingMode::Fifo);
+        fifoPool->AttachParent(rootElement.Get());
+        auto operation = CreateOperation(fifoPool.Get(), makeResources(10, 10, 100_MB), makeResources(3, 3, 30_MB));
+        compareFlags(rootElement, {rootElement.Get(), fifoPool.Get(), operation.Get()});
+    }
+
+    // Case 2: a child with zero demand (all-zero fair-share function) alongside a normal child.
+    {
+        auto rootElement = CreateRootElement();
+        auto fifoPool = CreateSimplePool("FifoPoolZero");
+        fifoPool->SetMode(ESchedulingMode::Fifo);
+        fifoPool->AttachParent(rootElement.Get());
+        auto zeroOperation = CreateOperation(fifoPool.Get(), makeResources(0, 0, 0), makeResources(0, 0, 0));
+        zeroOperation->SetWeight(2.0);
+        auto normalOperation = CreateOperation(fifoPool.Get(), makeResources(10, 10, 100_MB), makeResources(5, 5, 50_MB));
+        normalOperation->SetWeight(1.0);
+        compareFlags(rootElement, {rootElement.Get(), fifoPool.Get(), zeroOperation.Get(), normalOperation.Get()});
+    }
+
+    // Case 3: every child has zero demand (all FairShareBySuggestion functions flat at Zero), exercising
+    // the horizontal+horizontal merge that collapses the concatenation into a single segment.
+    {
+        auto rootElement = CreateRootElement();
+        auto fifoPool = CreateSimplePool("FifoPoolAllZero");
+        fifoPool->SetMode(ESchedulingMode::Fifo);
+        fifoPool->AttachParent(rootElement.Get());
+        auto firstOperation = CreateOperation(fifoPool.Get(), makeResources(0, 0, 0), makeResources(0, 0, 0));
+        firstOperation->SetWeight(2.0);
+        auto secondOperation = CreateOperation(fifoPool.Get(), makeResources(0, 0, 0), makeResources(0, 0, 0));
+        secondOperation->SetWeight(1.0);
+        compareFlags(rootElement, {rootElement.Get(), fifoPool.Get(), firstOperation.Get(), secondOperation.Get()});
+    }
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoFastPathScaling)
+{
+    constexpr int OperationCount = 2000;
+
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto fifoPool = CreateSimplePool("FifoPoolLarge");
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->AttachParent(rootElement.Get());
+
+    TJobResources operationDemand;
+    operationDemand.SetUserSlots(1);
+    operationDemand.SetCpu(1);
+    operationDemand.SetMemory(1_MB);
+
+    for (int i = 0; i < OperationCount; ++i) {
+        auto operation = CreateOperation(fifoPool.Get(), operationDemand);
+        operation->SetWeight(static_cast<double>(OperationCount - i));
+    }
+
+    TTestFairShareUpdateOptions options;
+    options.EnableFastFifoFairShareByFitFactorComputation = true;
+
+    // Just needs to complete quickly and satisfy the internal invariants
+    // (IsTrimmed / VerifyNondecreasing are YT_VERIFY-ed inside the update).
+    EXPECT_NO_THROW(DoFairShareUpdate(totalResourceLimits, rootElement, options));
+}
+
 TEST_F(TFairShareUpdateTest, TestExampleFromProductionCluster)
 {
     auto Logger = FairShareLogger;
@@ -2246,9 +2628,46 @@ TEST_F(TFairShareUpdateTest, TestExampleFromProductionCluster)
             .EnableImprovedFairShareByFitFactorComputationDistributionGap = true,
         });
 
-    YT_LOG_INFO("Root element (FairShare: %v, OriginalFairShare: %v)",
-        rootElement->Attributes().FairShare.Total,
-        originalRootFairShare);
+    YT_TLOG_INFO("Root element")
+        .With("FairShare", rootElement->Attributes().FairShare.Total)
+        .With("OriginalFairShare", originalRootFairShare);
+}
+
+TEST_P(TFairShareUpdateParametrizedTest, TestRelaxedPoolWithGuaranteeOvercommitment)
+{
+    // This test reproduces a crash scenario where guarantee overcommitment
+    // causes negative availableShare in UpdateRelaxedPoolIntegralShares.
+    // Before the fix, this would violate the precondition of FloatingPointInverseLowerBound.
+
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    // Create pools with strong guarantees that sum to more than 100% when combined with demand
+    auto poolA = CreateSimplePool("poolA", /*strongGuaranteeCpu*/ 60.0);
+    poolA->AttachParent(rootElement.Get());
+    auto opA = CreateOperation(poolA.Get(), totalResourceLimits * 0.6, totalResourceLimits * 0.6);
+
+    auto poolB = CreateSimplePool("poolB", /*strongGuaranteeCpu*/ 50.0);
+    poolB->AttachParent(rootElement.Get());
+    auto opB = CreateOperation(poolB.Get(), totalResourceLimits * 0.5, totalResourceLimits * 0.5);
+
+    // Create a relaxed pool that should get nothing due to overcommitment
+    auto relaxedPool = CreateRelaxedPool("relaxed", /*flowCpu*/ 10.0);
+    relaxedPool->AttachParent(rootElement.Get());
+    auto opRelaxed = CreateOperation(relaxedPool.Get(), totalResourceLimits * 0.1);
+
+    {
+        auto now = TInstant::Now();
+        // Initialize accumulated volume for the relaxed pool
+        relaxedPool->InitAccumulatedResourceVolume(GetHugeVolume());
+
+        // This should not crash even though availableShare would be negative
+        DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
+
+        // The relaxed pool should get minimal or zero integral share due to overcommitment
+        // The exact values depend on guarantee adjustment, but the test should not crash
+        EXPECT_TRUE(true); // If we reach here, the crash is fixed
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

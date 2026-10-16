@@ -40,7 +40,7 @@ public:
     void Serialize(NYson::IYsonConsumer* consumer) const;
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     TTaskMap PendingTasks_;
     TTaskMap RunningTasks_;
     std::deque<TTaskInfoPtr> FailedTasks_;
@@ -109,7 +109,7 @@ struct TBackgroundActivityTaskInfoBase
 
     struct TRuntimeData
     {
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock);
 
         TInstant StartTime;
         TInstant FinishTime;
@@ -121,14 +121,14 @@ struct TBackgroundActivityTaskInfoBase
     const TGuid TaskId;
     const TTabletId TabletId;
     const NHydra::TRevision MountRevision;
-    const TString TablePath;
+    const NYPath::TYPath TablePath;
     const std::string TabletCellBundle;
 
     TBackgroundActivityTaskInfoBase(
         TGuid taskId,
         TTabletId tabletId,
         NHydra::TRevision mountRevision,
-        TString tablePath,
+        NYPath::TYPath tablePath,
         std::string tabletCellBundle);
 };
 

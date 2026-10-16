@@ -11,6 +11,9 @@ import (
 )
 
 func TestIntegrity(t *testing.T) {
+	// Verify hashing a string prefix and a uint64 suffix produces the same
+	// digest as hashing the equivalent byte sequence directly. This ensures
+	// Uint64 uses the expected little-endian byte encoding.
 	data := []byte{'1', '2', 3, 4, 5, 6, 7, 8, 9, 10}
 	h0 := New()
 	want := h0.String(string(data))
@@ -143,9 +146,9 @@ func BenchmarkUint64KB(b *testing.B) {
 
 func BenchmarkUint64(b *testing.B) {
 	h := New()
-	b.ResetTimer()
+
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for i := 0; b.Loop(); i++ {
 		h = h.Uint64(uint64(i))
 	}
 }
@@ -153,45 +156,45 @@ func BenchmarkUint64(b *testing.B) {
 func BenchmarkString(b *testing.B) {
 	h := New()
 	str := "benchmark_string_value"
-	b.ResetTimer()
+
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		h = h.String(str)
 	}
 }
 
 func BenchmarkBool(b *testing.B) {
 	h := New()
-	b.ResetTimer()
+
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for i := 0; b.Loop(); i++ {
 		h = h.Bool(i%2 == 0)
 	}
 }
 
 func BenchmarkFloat64(b *testing.B) {
 	h := New()
-	b.ResetTimer()
+
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for i := 0; b.Loop(); i++ {
 		h = h.Float64(float64(i) * 3.14159)
 	}
 }
 
 func BenchmarkInt64(b *testing.B) {
 	h := New()
-	b.ResetTimer()
+
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for i := 0; b.Loop(); i++ {
 		h = h.Int64(int64(i))
 	}
 }
 
 func BenchmarkSum64(b *testing.B) {
 	h := New().String("key").Uint64(42).Bool(true)
-	b.ResetTimer()
+
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = h.Sum64()
 	}
 }

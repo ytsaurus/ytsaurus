@@ -13,6 +13,7 @@
 #include <yt/yt/server/node/data_node/public.h>
 
 #include <yt/yt/server/lib/nbd/public.h>
+#include <yt/yt/server/lib/nbd/image/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
@@ -37,14 +38,11 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLayerLocationPtr DoPickLocation(
+TLayerLocationPtr PickLocation(
     const std::vector<TLayerLocationPtr>& locations,
     std::function<bool(const TLayerLocationPtr&, const TLayerLocationPtr&)> isBetter);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, class TValue>
-using TAsyncMapValueBase = TAsyncCacheValueBase<TKey, TValue>;
 
 // NB(pogorelov): It is pretty dirty map.
 // The cache shard capacity is calculated to be 1,
@@ -132,67 +130,41 @@ DECLARE_REFCOUNTED_CLASS(TNbdVolumeFactory)
 
 //! This class creates NBD volumes.
 class TNbdVolumeFactory
-    : public TVolumeCacheBase<TString>
+    : public TVolumeCacheBase<std::string>
 {
 public:
-    using TVolume = TCachedVolume<TString>;
+    using TVolume = TCachedVolume<std::string>;
     using TVolumePtr = TIntrusivePtr<TVolume>;
+    using TVolumeFactory = TExtendedCallback<IVolumePtr(
+        NProfiling::TTagSet tagSet,
+        TVolumeMeta volumeMeta,
+        TLayerLocationPtr layerLocation,
+        std::string nbdDeviceId,
+        NNbd::INbdServerPtr nbdServer)>;
 
     TNbdVolumeFactory(
         IBootstrap* const bootstrap,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         std::vector<TLayerLocationPtr> layerLocations);
 
+    //! Create or get from cache RO NBD volume.
     TFuture<IVolumePtr> GetOrCreateVolume(
         TGuid tag,
         TPrepareRONbdVolumeOptions options);
 
+    //! Create RW NBD volume.
     TFuture<IVolumePtr> CreateVolume(
         TGuid tag,
         TPrepareRWNbdVolumeOptions options);
 
 private:
-    using TVolumeFactory = TExtendedCallback<IVolumePtr(
-        NProfiling::TTagSet tagSet,
-        TVolumeMeta volumeMeta,
-        TLayerLocationPtr layerLocation,
-        TString nbdDeviceId,
-        NNbd::INbdServerPtr nbdServer)>;
-
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InsertLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, InsertLock_);
 
     static void ValidatePrepareRONbdVolumeOptions(const TPrepareRONbdVolumeOptions& options);
     static void ValidatePrepareRWNbdVolumeOptions(const TPrepareRWNbdVolumeOptions& options);
 
-    template <typename TNbdVolume>
-    static TVolumeFactory MakeVolumeFactory()
-    {
-        return BIND(
-            [] (
-                NProfiling::TTagSet tagSet,
-                TVolumeMeta volumeMeta,
-                TLayerLocationPtr layerLocation,
-                TString nbdDeviceId,
-                NNbd::INbdServerPtr nbdServer) -> IVolumePtr {
-
-            return New<TNbdVolume>(
-                std::move(tagSet),
-                std::move(volumeMeta),
-                std::move(layerLocation),
-                std::move(nbdDeviceId),
-                std::move(nbdServer));
-        });
-    }
-
-    TInsertCookie GetInsertCookie(const TString& deviceId, const NNbd::INbdServerPtr& nbdServer);
-
-    //! Make callback that subscribes job for NBD device errors.
-    TExtendedCallback<TVolumePtr(const TErrorOr<TVolumePtr>&)> MakeJobSubscriberForDeviceErrors(
-        TJobId jobId,
-        const TString& deviceId,
-        const NNbd::INbdServerPtr& nbdServer,
-        const NLogging::TLogger& Logger);
+    TInsertCookie GetInsertCookie(const std::string& deviceId, const NNbd::INbdServerPtr& nbdServer);
 
     TFuture<NNbd::IBlockDevicePtr> InitializeNbdDevice(
         const NNbd::IBlockDevicePtr& device,
@@ -214,7 +186,7 @@ private:
 
     // RO volumes start here.
 
-    NNbd::IImageReaderPtr CreateArtifactReader(
+    NNbd::NImage::IImageReaderPtr CreateArtifactReader(
         const NLogging::TLogger& Logger,
         const TArtifactKey& artifactKey);
 
@@ -232,7 +204,7 @@ private:
 
     // RW volumes start here.
 
-    TFuture<NNbd::IBlockDevicePtr> CreateRWNbdDevice(
+    TFuture<NNbd::IBlockDevicePtr> CreateRWChunkNbdDevice(
         TGuid tag,
         TPrepareRWNbdVolumeOptions options);
 
@@ -240,7 +212,7 @@ private:
     //! 1. Create RW NBD device.
     //! 2. Register RW NBD device with NBD server.
     //! 3. Create RW NBD porto volume connected to RW NBD device.
-    TFuture<IVolumePtr> PrepareRWNbdVolume(
+    TFuture<IVolumePtr> PrepareRWChunkNbdVolume(
         TGuid tag,
         TPrepareRWNbdVolumeOptions options);
 
@@ -255,7 +227,7 @@ private:
         TPrepareRWNbdVolumeOptions options);
 
     //! Find data node suitable to host NBD disk and open NBD session.
-    TFuture<std::optional<std::tuple<NRpc::IChannelPtr, NYT::NChunkClient::TSessionId>>> PrepareNbdSession(
+    TFuture<std::optional<std::tuple<NRpc::IChannelPtr, NYT::NChunkClient::TSessionId>>> PrepareRWChunkNbdSession(
         const TPrepareRWNbdVolumeOptions& options);
 };
 
@@ -352,6 +324,8 @@ private:
 
     void OnProfiling();
 };
+
+DEFINE_REFCOUNTED_TYPE(TLayerCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

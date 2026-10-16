@@ -54,14 +54,13 @@ typedef union {
 #define sinx_family in.sin_family
 #define sinx_addr   in.sin_addr
 #define RD_SOCKADDR_INX_LEN(sinx)                                              \
-        ((sinx)->sinx_family == AF_INET                                        \
-             ? sizeof(struct sockaddr_in)                                      \
-             : (sinx)->sinx_family == AF_INET6 ? sizeof(struct sockaddr_in6)   \
-                                               : sizeof(rd_sockaddr_inx_t))
+        ((sinx)->sinx_family == AF_INET    ? sizeof(struct sockaddr_in)        \
+         : (sinx)->sinx_family == AF_INET6 ? sizeof(struct sockaddr_in6)       \
+                                           : sizeof(rd_sockaddr_inx_t))
 #define RD_SOCKADDR_INX_PORT(sinx)                                             \
-        ((sinx)->sinx_family == AF_INET                                        \
-             ? (sinx)->in.sin_port                                             \
-             : (sinx)->sinx_family == AF_INET6 ? (sinx)->in6.sin6_port : 0)
+        ((sinx)->sinx_family == AF_INET    ? (sinx)->in.sin_port               \
+         : (sinx)->sinx_family == AF_INET6 ? (sinx)->in6.sin6_port             \
+                                           : 0)
 
 #define RD_SOCKADDR_INX_PORT_SET(sinx, port)                                   \
         do {                                                                   \

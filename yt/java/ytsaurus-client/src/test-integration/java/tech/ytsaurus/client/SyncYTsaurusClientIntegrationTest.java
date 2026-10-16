@@ -1,6 +1,9 @@
 package tech.ytsaurus.client;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -15,6 +18,7 @@ import tech.ytsaurus.client.operations.Mapper;
 import tech.ytsaurus.client.operations.MapperSpec;
 import tech.ytsaurus.client.operations.Statistics;
 import tech.ytsaurus.client.request.MapOperation;
+import tech.ytsaurus.client.request.ReadSerializationContext;
 import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.sync.SyncYTsaurusClient;
@@ -22,6 +26,7 @@ import tech.ytsaurus.core.common.YTsaurusError;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.operations.OperationContext;
 import tech.ytsaurus.core.operations.Yield;
+import tech.ytsaurus.ysontree.YTree;
 
 import static org.junit.Assert.assertThrows;
 
@@ -64,6 +69,52 @@ public class SyncYTsaurusClientIntegrationTest extends YTsaurusClientTestBase {
         }
 
         Assert.assertEquals(rows, receivedRows);
+    }
+
+    @Test
+    public void testReadArrow() {
+        var ytFixture = createYtFixture();
+        var client = SyncYTsaurusClient.wrap(ytFixture.getYt());
+
+        YPath table = ytFixture.getTestDirectory().child("sync-yt-read-arrow");
+        writeRows(client, table);
+
+        byte[] arrow = readArrow(client, table);
+        assertArrowStream(arrow);
+        String rawArrow = new String(arrow, StandardCharsets.ISO_8859_1);
+        Assert.assertTrue(rawArrow.contains("one"));
+        Assert.assertTrue(rawArrow.contains("two"));
+    }
+
+    @Test
+    public void testReadEmptyArrow() {
+        var ytFixture = createYtFixture();
+        var client = SyncYTsaurusClient.wrap(ytFixture.getYt());
+
+        YPath table = ytFixture.getTestDirectory().child("sync-yt-read-empty-arrow");
+        try (var writer = client.writeTable(new WriteTable<>(table, TableRow.class))) {
+            Assert.assertNotNull(writer);
+        }
+
+        assertArrowStream(readArrow(client, table));
+    }
+
+    @Test
+    public void testReadArrowFromMixedOptimizationChunks() {
+        var ytFixture = createYtFixture();
+        var client = SyncYTsaurusClient.wrap(ytFixture.getYt());
+
+        YPath table = ytFixture.getTestDirectory().child("sync-yt-read-mixed-arrow");
+        writeRows(client, table);
+        ytFixture.getYt().setNode(table + "/@optimize_for", YTree.stringNode("lookup")).join();
+        try (var writer = client.writeTable(new WriteTable<>(table.append(true), TableRow.class))) {
+            writer.accept(new TableRow("three", "три"));
+        }
+
+        String rawArrow = new String(readArrow(client, table), StandardCharsets.ISO_8859_1);
+        Assert.assertTrue(rawArrow.contains("one"));
+        Assert.assertTrue(rawArrow.contains("two"));
+        Assert.assertTrue(rawArrow.contains("three"));
     }
 
     @Test
@@ -230,5 +281,29 @@ public class SyncYTsaurusClientIntegrationTest extends YTsaurusClientTestBase {
             rows.forEach(writer);
         }
         return rows;
+    }
+
+    private static void append(ByteArrayOutputStream output, ByteBuffer buffer) {
+        byte[] bytes = new byte[buffer.remaining()];
+        buffer.get(bytes);
+        output.write(bytes, 0, bytes.length);
+    }
+
+    private static byte[] readArrow(SyncYTsaurusClient client, YPath table) {
+        var request = new ReadTable<>(table, ReadSerializationContext.binaryArrow());
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        try (var reader = client.readTable(request)) {
+            reader.forEachRemaining(buffer -> append(output, buffer));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return output.toByteArray();
+    }
+
+    private static void assertArrowStream(byte[] arrow) {
+        Assert.assertTrue("Arrow stream must contain an IPC continuation marker", arrow.length >= 4);
+        for (int index = 0; index < 4; ++index) {
+            Assert.assertEquals((byte) 0xff, arrow[index]);
+        }
     }
 }

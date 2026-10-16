@@ -49,6 +49,8 @@ namespace NClickHouseServer {
 
 TGuid ToGuid(DB::UUID uuid);
 
+int GetAscendingKeyPrefixLength(const NTableClient::TTableSchema& schema);
+
 //! Register a new user in CH AccessControl and grant them all the necessary permissions.
 //! This is suitable for internal CHYT users. For real users, it is preferable to use THost::PrepareClickHouseUser.
 void RegisterNewUser(
@@ -140,8 +142,8 @@ namespace DB {
 void Serialize(const QueryStatusInfo& queryStatusInfo, NYT::NYson::IYsonConsumer* consumer);
 void Serialize(const ProcessListForUserInfo& processListForUserInfo, NYT::NYson::IYsonConsumer* consumer);
 
-TString ToString(const Field& field);
-TString ToString(const Block& block);
+std::string ToString(const Field& field);
+std::string ToString(const Block& block);
 
 void FormatValue(NYT::TStringBuilderBase* builder, const Field& field, TStringBuf spec);
 void FormatValue(NYT::TStringBuilderBase* builder, const Block& block, TStringBuf spec);

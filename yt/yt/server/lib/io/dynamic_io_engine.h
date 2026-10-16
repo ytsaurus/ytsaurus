@@ -23,7 +23,7 @@ IDynamicIOEnginePtr CreateDynamicIOEngine(
     NYTree::INodePtr ioConfig,
     TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue,
     IHugePageManagerPtr hugePageManager,
-    TString locationId,
+    std::string locationId,
     NProfiling::TProfiler profiler,
     NLogging::TLogger logger);
 

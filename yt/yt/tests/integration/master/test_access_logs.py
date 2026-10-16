@@ -1,9 +1,9 @@
 import collections
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, with_portals_dir
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, copy, move,
+    authors, get_driver, insert_rows, wait, create, ls, get, set, copy, move,
     remove, link, commit_transaction,
     exists, start_transaction, abort_transaction, alter_table, write_table, sort, remount_table, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table,
@@ -12,9 +12,12 @@ from yt_commands import (
 from yt_helpers import get_current_time
 from yt_type_helpers import make_schema
 
+import yt.yson as yson
+
 from copy import deepcopy
 import json
 import os
+from time import sleep
 
 ##################################################################
 
@@ -37,6 +40,13 @@ class TestAccessLog(YTEnvSetup):
     def teardown_class(cls):
         for path, log in cls.OPENED_LOG_FILES.items():
             log.close()
+
+    @classmethod
+    def _get_access_log_path(cls, cluster_index, cell_index, peer_index):
+        return os.path.join(
+            cls.get_cluster_path(cluster_index),
+            "logs",
+            f"master-{cell_index}-{peer_index}.access.json.log")
 
     def _get_or_open_log(self, path):
         log = self.OPENED_LOG_FILES.get(path, None)
@@ -80,7 +90,7 @@ class TestAccessLog(YTEnvSetup):
 
         for peer_index in range(0, self.NUM_MASTERS):
             cell_index = self.master_cell_index_from_cell_tag(cell_tag)
-            path = os.path.join(self.path_to_run, "logs/master-{}-{}.access.json.log".format(cell_index, peer_index))
+            path = self._get_access_log_path(0, cell_index, peer_index)
             self._load_log(path)
             lines = self.LOADED_LOGS[path].get("lines")
             for line in lines:
@@ -129,6 +139,8 @@ class TestAccessLog(YTEnvSetup):
 
     @classmethod
     def modify_master_config(cls, config, multidaemon_config, cell_index, cell_tag, peer_index, cluster_index):
+        access_log_path = cls._get_access_log_path(cluster_index, cell_index, peer_index)
+
         if "logging" in config:
             config["logging"]["flush_period"] = 100
             config["logging"]["rules"].append(
@@ -141,22 +153,24 @@ class TestAccessLog(YTEnvSetup):
             )
             config["logging"]["writers"]["access"] = {
                 "type": "file",
-                "file_name": os.path.join(cls.path_to_run, f"logs/master-{cell_index}-{peer_index}.access.json.log"),
+                "file_name": access_log_path,
                 "accepted_message_format": "structured",
             }
+
+        access_writer_name = f"access-{cell_index}-{peer_index}"
 
         multidaemon_config["logging"]["flush_period"] = 100
         multidaemon_config["logging"]["rules"].append(
             {
                 "min_level": "debug",
-                "writers": [f"access-{cell_index}-{peer_index}"],
+                "writers": [access_writer_name],
                 "include_categories": ["Access"],
                 "message_format": "structured",
             }
         )
-        multidaemon_config["logging"]["writers"][f"access-{cell_tag}-{peer_index}"] = {
+        multidaemon_config["logging"]["writers"][access_writer_name] = {
             "type": "file",
-            "file_name": os.path.join(cls.path_to_run, f"logs/master-{cell_index}-{peer_index}.access.json.log"),
+            "file_name": access_log_path,
             "accepted_message_format": "structured",
         }
 
@@ -354,11 +368,19 @@ class TestAccessLog(YTEnvSetup):
         create("table", "//tmp/access_log/enabled")
         enabled_logs.append({"method": "Create", "path": "//tmp/access_log/enabled", "type": "table"})
 
+        if self.USE_SEQUOIA:
+            set("//sys/cypress_proxies/@config/enable_access_log", False)
+            sleep(0.5)
+
         set("//sys/@config/security_manager/enable_access_log", False)
 
         ts = str(generate_timestamp())
         create("table", "//tmp/access_log/{}".format(ts))
         disabled_logs.append({"method": "Create", "path": "//tmp/access_log/{}".format(ts), "type": "table"})
+
+        if self.USE_SEQUOIA:
+            set("//sys/cypress_proxies/@config/enable_access_log", True)
+            sleep(0.5)
 
         set("//sys/@config/security_manager/enable_access_log", True)
 
@@ -463,7 +485,9 @@ class TestAccessLog(YTEnvSetup):
 
         wait(lambda: not exists("//tmp/access_log/table"))
 
-        log_list.append({"path": "//tmp/access_log/table", "method": "TtlRemove"})
+        log_list.append({
+            "path": "//tmp/access_log/table",
+            "method": "TtlRemove"})
         self._validate_entries_against_log(log_list)
 
     def test_write_table(self):
@@ -667,6 +691,69 @@ class TestAccessLog(YTEnvSetup):
         ]
         self._validate_entries_against_log(log_list)
 
+    @authors("ifsmirnov")
+    def test_revise_insert_rows(self):
+        set("//sys/@config/tablet_manager/update_table_content_revision_on_heartbeat", True)
+        # TODO(ifsmirnov): YT-29373: Enable native-cell Revise logging for Sequoia tables.
+        if not self.USE_SEQUOIA:
+            set("//sys/@config/tablet_manager/log_revise_on_heartbeat_at_native_cell", True)
+
+        sync_create_cells(1)
+
+        create("map_node", "//tmp/access_log")
+
+        attributes = {"external_cell_tag": 12} if self.NUM_SECONDARY_MASTER_CELLS > 0 else {}
+        attributes["dynamic_store_auto_flush_period"] = yson.YsonEntity()
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+
+        create_dynamic_table("//tmp/access_log/table", schema=schema, **attributes)
+        sync_mount_table("//tmp/access_log/table")
+
+        driver = get_driver(2 if self.NUM_SECONDARY_MASTER_CELLS > 0 else 0)
+        table_id = get("//tmp/access_log/table/@id")
+
+        # Reads new logs and adds them to LOADED_LOGS.
+        self._validate_entries_against_log([])
+
+        # Cleaning LOADED_LOGS is used as a barrier to previous logs
+        # to check that Revise is logged after the insert.
+        self.LOADED_LOGS = {}
+
+        old_content_revision = get(f"#{table_id}/@content_revision", driver=driver)
+        insert_rows("//tmp/access_log/table", [{"key": 0, "value": "0"}])
+        wait(lambda: get(f"#{table_id}/@content_revision", driver=driver) != old_content_revision)
+
+        log_list = [{
+            "path": f"#{table_id}" if self.NUM_SECONDARY_MASTER_CELLS > 0 else "//tmp/access_log/table",
+            "type": "table",
+            "id": table_id,
+            "method": "Revise",
+            "revision_type": "content",
+        }]
+
+        cell_tag_to_log_filter = (
+            {12: {"prefix_path": f"#{table_id}", "tx_methods": False}}
+            if self.NUM_SECONDARY_MASTER_CELLS > 0
+            else None)
+        if self.NUM_SECONDARY_MASTER_CELLS > 0 and not self.USE_SEQUOIA:
+            log_list.append({
+                "path": "//tmp/access_log/table",
+                "type": "table",
+                "id": table_id,
+                "method": "Revise",
+                "revision_type": "content",
+            })
+            cell_tag_to_log_filter[get("//tmp/access_log/table/@native_cell_tag")] = {
+                "prefix_path": "//tmp/access_log/table",
+                "tx_methods": False,
+            }
+
+        self._validate_entries_against_log(log_list, cell_tag_to_log_filter=cell_tag_to_log_filter)
+
 
 ##################################################################
 
@@ -689,6 +776,7 @@ class TestAccessLogPortal(TestAccessLog):
         pass
 
     @authors("shakurov")
+    @with_portals_dir
     def test_logs_portal(self):
         log_list = []
 
@@ -724,3 +812,80 @@ class TestAccessLogPortal(TestAccessLog):
         self._validate_entries_against_log(log_list, cell_tag_to_log_filter={
             11: {"prefix_path": "//tmp/access_log", "tx_methods": False},
             12: {"prefix_path": "//portals/p1", "tx_methods": False}})
+
+
+##################################################################
+
+
+@authors("danilalexeev")
+class TestAccessLogSequoia(TestAccessLog):
+    ENABLE_MULTIDAEMON = False  # Checks structured logs.
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_NODES = 3
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["sequoia_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+    DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
+        "enable_access_log": True,
+    }
+
+    CELL_TAG_TO_LOG_FILTER = {
+        10: {"prefix_path": "//tmp/access_log", "tx_methods": False},
+        11: {"prefix_path": "//tmp/access_log", "tx_methods": False},
+    }
+
+    @classmethod
+    def _get_cypress_proxy_access_log_path(cls, cluster_index):
+        return os.path.join(cls.get_cluster_path(cluster_index), "logs", "cypress-proxy.access.json.log")
+
+    @classmethod
+    def modify_cypress_proxy_config(cls, config, cluster_index):
+        if "logging" not in config:
+            config["logging"] = {"flush_period": 100, "rules": [], "writers": {}}
+        config["logging"]["flush_period"] = 100
+        config["logging"]["rules"].append(
+            {
+                "min_level": "debug",
+                "writers": ["access"],
+                "include_categories": ["Access"],
+                "message_format": "structured",
+            }
+        )
+        config["logging"]["writers"]["access"] = {
+            "type": "file",
+            "file_name": cls._get_cypress_proxy_access_log_path(cluster_index),
+            "accepted_message_format": "structured",
+        }
+
+    def _filtered_log_lines(self, cell_tag, path_prefix=None, tx_methods=False):
+        def filter_predicate(parsed_line):
+            if path_prefix is not None and parsed_line.get("path", "").startswith(path_prefix):
+                return True
+            if tx_methods and parsed_line.get("method", "") in self.TRANSACTION_METHODS:
+                return True
+            return False
+
+        for peer_index in range(0, self.NUM_MASTERS):
+            cell_index = self.master_cell_index_from_cell_tag(cell_tag)
+            path = self._get_access_log_path(0, cell_index, peer_index)
+            self._load_log(path)
+            for line in self.LOADED_LOGS[path].get("lines", []):
+                if filter_predicate(line):
+                    yield line
+
+        # Bind Cypress proxy to the primary cell to avoid duplicates.
+        if cell_tag == 10:
+            proxy_log_path = self._get_cypress_proxy_access_log_path(0)
+            self._load_log(proxy_log_path)
+            for line in self.LOADED_LOGS[proxy_log_path].get("lines", []):
+                if filter_predicate(line):
+                    yield line
+
+    def test_mutation_id(self):
+        pass  # Proxy emits a random mutation_id per entry; master-peer dedup semantics do not apply.

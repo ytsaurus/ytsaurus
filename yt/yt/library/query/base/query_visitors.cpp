@@ -34,4 +34,20 @@ void TReferenceHarvester::OnReference(const TReferenceExpression* referenceExpr)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TReferenceReplacer::TReferenceReplacer(TStringBuf from, const TReferenceExpression* to)
+    : From_(from)
+    , To_(to)
+{ }
+
+TConstExpressionPtr TReferenceReplacer::OnReference(const TReferenceExpression* referenceExpr)
+{
+    if (referenceExpr->ColumnName == From_) {
+        return To_;
+    } else {
+        return referenceExpr;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient

@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
 from yt_commands import (
-    authors, clean_operations, wait_breakpoint, release_breakpoint, with_breakpoint, create, wait_no_assert,
+    authors, wait_breakpoint, release_breakpoint, with_breakpoint, create, wait_no_assert,
     remove, abort_job, ls,
     vanilla, map,
     update_controller_agent_config,
@@ -59,7 +59,6 @@ class ControllerFeatures(object):
         assert self.operation is not None
 
 
-@pytest.mark.enabled_multidaemon
 class TestControllerFeatures(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -95,19 +94,13 @@ class TestControllerFeatures(YTEnvSetup):
         remove("//sys/operations_archive", force=True)
         super(TestControllerFeatures, self).teardown_method(method)
 
-    @authors("alexkolodezny")
+    @authors("bystrovserg")
     @pytest.mark.parametrize("enable_controller_features_archivation", [True, False])
     def test_controller_features(self, enable_controller_features_archivation):
         update_controller_agent_config("enable_controller_features_archivation", enable_controller_features_archivation)
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"key": 1}])
-
-        op = map(
-            in_=["//tmp/t_in"],
-            out=[],
-            command="sleep 1",
-        )
 
         def check_features(op):
             features = ControllerFeatures(op.id)
@@ -116,31 +109,12 @@ class TestControllerFeatures(YTEnvSetup):
             if enable_controller_features_archivation:
                 assert not exists(get_operation_cypress_path(op.id) + "/@controller_features")
 
-        check_features(op)
-
-        op = map(
-            in_=["//tmp/t_in"],
-            out=[],
-            command="sleep 1 && exit 1",
-            spec={
-                "max_failed_job_count": 0,
-            },
-            track=False,
-        )
-
-        with raises_yt_error("Process exited with code 1"):
-            op.track()
-
-        check_features(op)
-
         op = map(
             in_=["//tmp/t_in"],
             out=[],
             command="sleep 1",
         )
 
-        clean_operations()
-
         check_features(op)
 
         op = map(
@@ -153,10 +127,8 @@ class TestControllerFeatures(YTEnvSetup):
             track=False,
         )
 
-        with raises_yt_error("Process exited with code 1"):
+        with raises_yt_error("Process exited with code .*"):
             op.track()
-
-        clean_operations()
 
         check_features(op)
 
@@ -197,7 +169,7 @@ class TestControllerFeatures(YTEnvSetup):
             track=False,
         )
 
-        with raises_yt_error("Process exited with code 1"):
+        with raises_yt_error("Process exited with code .*"):
             op.track()
 
         features = ControllerFeatures(op.id)
@@ -230,7 +202,6 @@ class TestControllerFeatures(YTEnvSetup):
         assert features.operation.tags["total_job_count"] == 1
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobStatisticFeatures(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
@@ -244,7 +215,7 @@ class TestJobStatisticFeatures(YTEnvSetup):
         op = map(
             in_="//tmp/t1",
             out="//tmp/t2",
-            command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null && python3 -c "import time; x = [i for i in range(10**7)]; time.sleep(2)"',
+            command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null && python3 -c "import time; x = [i for i in range(2 * 10**6)]; time.sleep(2)"',
         )
 
         def check_statistic():

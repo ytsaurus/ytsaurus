@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../fwd.h"
+#include <yt/cpp/roren/interface/fwd.h>
 
 namespace NRoren::NPrivate {
 

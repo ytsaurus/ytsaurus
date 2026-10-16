@@ -9,14 +9,16 @@
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
-#include <util/string/vector.h>
+#include <library/cpp/yt/string/stream.h>
+
+#include <util/string/split.h>
 
 #include <cstdio>
 
 namespace NYT::NFormats {
 namespace {
 
-using VectorStrok = TVector<TString>;
+using VectorStrok = std::vector<std::string>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +35,7 @@ protected:
     TYamredDsvFormatConfigPtr Config_;
     IUnversionedRowsetWriterPtr Writer_;
 
-    TStringStream OutputStream_;
+    TStdStringStream OutputStream_;
 
     int KeyAId_;
     int KeyBId_;
@@ -71,11 +73,10 @@ protected:
 
     // Splits output into key and sorted vector of values that are entries of the last YAMR column.
     // Returns true if success (there are >= 2 values after splitting by field separator), otherwise false.
-    bool ExtractKeyValue(TString output, TString& key, VectorStrok& value, char fieldSeparator = '\t')
+    bool ExtractKeyValue(std::string output, std::string& key, VectorStrok& value, char fieldSeparator = '\t')
     {
-        char delimiter[2] = {fieldSeparator, 0};
         // Splitting by field separator.
-        value = SplitString(output, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
+        StringSplitter(output).Split(fieldSeparator).Collect(&value);
         // We should at least have key and the rest of values.
         if (value.size() < 2)
             return false;
@@ -86,11 +87,10 @@ protected:
     }
 
     // The same function as previous, version with subkey.
-    bool ExtractKeySubkeyValue(TString output, TString& key, TString& subkey, VectorStrok& value, char fieldSeparator = '\t')
+    bool ExtractKeySubkeyValue(std::string output, std::string& key, std::string& subkey, VectorStrok& value, char fieldSeparator = '\t')
     {
-        char delimiter[2] = {fieldSeparator, 0};
         // Splitting by field separator.
-        value = SplitString(output, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
+        StringSplitter(output).Split(fieldSeparator).Collect(&value);
         // We should at least have key, subkey and the rest of values.
         if (value.size() < 3)
             return false;
@@ -102,11 +102,12 @@ protected:
     }
 
     // Compares output and expected output ignoring the order of entries in YAMR value column.
-    void CompareKeyValue(TString output, TString expected, char recordSeparator = '\n', char fieldSeparator = '\t')
+    void CompareKeyValue(std::string output, std::string expected, char recordSeparator = '\n', char fieldSeparator = '\t')
     {
-        char delimiter[2] = {recordSeparator, 0};
-        VectorStrok outputRows = SplitString(output, delimiter, 0 /* maxFields */ , KEEP_EMPTY_TOKENS);
-        VectorStrok expectedRows = SplitString(expected, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
+        VectorStrok outputRows;
+        VectorStrok expectedRows;
+        StringSplitter(output).Split(recordSeparator).Collect(&outputRows);
+        StringSplitter(expected).Split(recordSeparator).Collect(&expectedRows);
         EXPECT_EQ(outputRows.size(), expectedRows.size());
         // Since there is \n after each row, there will be an extra empty string in both vectors.
         EXPECT_EQ(outputRows.back(), "");
@@ -114,8 +115,8 @@ protected:
         outputRows.pop_back();
         expectedRows.pop_back();
 
-        TString outputKey;
-        TString expectedKey;
+        std::string outputKey;
+        std::string expectedKey;
         VectorStrok outputValue;
         VectorStrok expectedValue;
         for (int rowIndex = 0; rowIndex < std::ssize(outputRows); rowIndex++) {
@@ -127,11 +128,12 @@ protected:
     }
 
     // The same function as previous, version with subkey.
-    void CompareKeySubkeyValue(TString output, TString expected, char recordSeparator = '\n', char fieldSeparator = '\t')
+    void CompareKeySubkeyValue(std::string output, std::string expected, char recordSeparator = '\n', char fieldSeparator = '\t')
     {
-        char delimiter[2] = {recordSeparator, 0};
-        VectorStrok outputRows = SplitString(output, delimiter, 0 /* maxFields */ , KEEP_EMPTY_TOKENS);
-        VectorStrok expectedRows = SplitString(expected, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
+        VectorStrok outputRows;
+        VectorStrok expectedRows;
+        StringSplitter(output).Split(recordSeparator).Collect(&outputRows);
+        StringSplitter(expected).Split(recordSeparator).Collect(&expectedRows);
         EXPECT_EQ(outputRows.size(), expectedRows.size());
         // Since there is \n after each row, there will be an extra empty string in both vectors.
         EXPECT_EQ(outputRows.back(), "");
@@ -139,10 +141,10 @@ protected:
         outputRows.pop_back();
         expectedRows.pop_back();
 
-        TString outputKey;
-        TString expectedKey;
-        TString outputSubkey;
-        TString expectedSubkey;
+        std::string outputKey;
+        std::string expectedKey;
+        std::string outputSubkey;
+        std::string expectedSubkey;
         VectorStrok outputValue;
         VectorStrok expectedValue;
         for (int rowIndex = 0; rowIndex < std::ssize(outputRows); rowIndex++) {
@@ -183,11 +185,11 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Simple)
     WaitForFast(Writer_->Close())
         .ThrowOnError();
 
-    TString expectedOutput =
+    std::string expectedOutput =
         "a1\tvalue_x=x\n"
         "a2\tvalue_y=y\tkey_b=b\n";
 
-    TString output = OutputStream_.Str();
+    std::string output = OutputStream_.Str();
 
     CompareKeyValue(expectedOutput, output);
 }
@@ -218,11 +220,11 @@ TEST_F(TSchemalessWriterForYamredDsvTest, SimpleWithSubkey)
     WaitForFast(Writer_->Close())
         .ThrowOnError();
 
-    TString expectedOutput =
+    std::string expectedOutput =
         "a b1\tc\t\n"
         "a b2\tc\t\n";
 
-    TString output = OutputStream_.Str();
+    std::string output = OutputStream_.Str();
 
     CompareKeySubkeyValue(expectedOutput, output);
 }
@@ -269,7 +271,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
     WaitForFast(Writer_->Close())
         .ThrowOnError();
 
-    TString expectedOutput = TString(
+    std::string expectedOutput = std::string(
         "\xff\xff\xff\xff" "\x2a\x00\x00\x00" // Table index.
         "\xfd\xff\xff\xff" "\x17\x00\x00\x00" // Range index.
         "\xfc\xff\xff\xff" "\x11\x00\x00\x00\x00\x00\x00\x00" // Row index.
@@ -284,7 +286,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
 
         13 * 4 + 4 + 1 + 9 + 4 + 1 + 0);
 
-    TString output = OutputStream_.Str();
+    std::string output = OutputStream_.Str();
     EXPECT_EQ(expectedOutput, output)
         << "expected length: " << expectedOutput.length()
         << ", "
@@ -311,8 +313,8 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Escaping)
     WaitForFast(Writer_->Close())
         .ThrowOnError();
 
-    TString expectedOutput = "a\\n \\nb\\t\tvalue\\t_t=\\nva\\\\lue\\t\n";
-    TString output = OutputStream_.Str();
+    std::string expectedOutput = "a\\n \\nb\\t\tvalue\\t_t=\\nva\\\\lue\\t\n";
+    std::string output = OutputStream_.Str();
 
     EXPECT_EQ(expectedOutput, output);
 }
@@ -378,8 +380,8 @@ TEST_F(TSchemalessWriterForYamredDsvTest, NonStringValues)
     WaitForFast(Writer_->Close())
         .ThrowOnError();
 
-    TString expectedOutput = "-42\t18\tkey_b=true\tvalue_x=3.14\tvalue_y=yt\n";
-    TString output = OutputStream_.Str();
+    std::string expectedOutput = "-42\t18\tkey_b=true\tvalue_x=3.14\tvalue_y=yt\n";
+    std::string output = OutputStream_.Str();
 
     EXPECT_EQ(expectedOutput, output);
 }
@@ -405,8 +407,8 @@ TEST_F(TSchemalessWriterForYamredDsvTest, ErasingSubkeyColumnsWhenHasSubkeyIsFal
     WaitForFast(Writer_->Close())
         .ThrowOnError();
 
-    TString expectedOutput = "a\tkey_c=c\tvalue_x=x\n";
-    TString output = OutputStream_.Str();
+    std::string expectedOutput = "a\tkey_c=c\tvalue_x=x\n";
+    std::string output = OutputStream_.Str();
 
     EXPECT_EQ(expectedOutput, output);
 }

@@ -11,4 +11,6 @@ JAR_RESOURCE(4865466173)
 
 SRC_RESOURCE(4865465765)
 
+ORIGINAL_SOURCE(https://github.com/java-native-access/jna)
+
 END()

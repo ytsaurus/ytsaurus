@@ -1,20 +1,21 @@
 #include "chunk_sealer.h"
 
-#include "private.h"
 #include "chunk.h"
 #include "chunk_autotomizer.h"
 #include "chunk_list.h"
 #include "chunk_location.h"
-#include "chunk_tree.h"
 #include "chunk_manager.h"
 #include "chunk_owner_base.h"
+#include "chunk_replica_fetcher.h"
 #include "chunk_replicator.h"
+#include "chunk_scanner.h"
+#include "chunk_tree.h"
 #include "config.h"
 #include "helpers.h"
-#include "chunk_scanner.h"
 #include "job.h"
 #include "job_registry.h"
 #include "private.h"
+#include "public.h"
 
 #include <yt/yt/server/master/chunk_server/proto/chunk_autotomizer.pb.h>
 
@@ -35,8 +36,8 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
-#include <yt/yt/ytlib/chunk_client/session_id.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/session_id.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
@@ -109,7 +110,7 @@ public:
 
         // This is context switch, so we should check that chunk is still alive.
         // TODO(grphil): Do not fetch replicas here (they should be already fetched in chunk sealer).
-        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(Chunk_);
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(Chunk_, /*includeUnapproved*/ true);
         if (!replicasOrError.IsOK() || !IsObjectAlive(Chunk_)) {
             return false;
         }
@@ -189,10 +190,14 @@ public:
         , SuccessfulSealCounter_(ChunkServerProfiler().Counter("/chunk_sealer/successful_seals"))
         , UnsuccessfulSealCounter_(ChunkServerProfiler().Counter("/chunk_sealer/unsuccessful_seals"))
         , SuccessfulSealTime_(ChunkServerProfiler().TimeCounter("/chunk_sealer/successful_seal_time"))
-        , SealScanner_(std::make_unique<TChunkSealScanner>(
-            EChunkScanKind::Seal,
-            /*isJournal*/ true))
+        , GlobalScanner_(std::make_unique<TGlobalChunkScanner>(/*isJournal*/ true))
     {
+        for (auto priority : TEnumTraits<ESealPriority>::GetDomainValues()) {
+            SealQueues_[priority].emplace(
+                Bootstrap_,
+                EChunkScanKind::Seal);
+        }
+
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TChunkSealer::OnDynamicConfigChanged, MakeWeak(this)));
     }
@@ -201,7 +206,7 @@ public:
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-            SealScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+            GlobalScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
         }
 
         SealExecutor_ = New<TPeriodicExecutor>(
@@ -212,7 +217,7 @@ public:
 
         YT_VERIFY(!std::exchange(Running_, true));
 
-        YT_LOG_INFO("Chunk sealer started");
+        YT_TLOG_INFO("Chunk sealer started");
     }
 
     void Stop() override
@@ -222,7 +227,11 @@ public:
         }
 
         for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-            SealScanner_->Stop(shardIndex);
+            GlobalScanner_->Stop(shardIndex);
+        }
+
+        for (auto priority : TEnumTraits<ESealPriority>::GetDomainValues()) {
+            GetSealQueue(priority).Clear();
         }
 
         YT_UNUSED_FUTURE(SealExecutor_->Stop());
@@ -230,7 +239,7 @@ public:
 
         YT_VERIFY(std::exchange(Running_, false));
 
-        YT_LOG_INFO("Chunk sealer stopped");
+        YT_TLOG_INFO("Chunk sealer stopped");
     }
 
     bool IsEnabled() override
@@ -254,12 +263,17 @@ public:
 
     void OnChunkDestroyed(TChunk* chunk) override
     {
-        SealScanner_->OnChunkDestroyed(chunk);
+        GlobalScanner_->OnChunkDestroyed(chunk);
     }
 
     void OnProfiling(TSensorBuffer* buffer) const override
     {
-        buffer->AddGauge("/seal_queue_size", SealScanner_->GetQueueSize());
+        buffer->AddGauge("/global_scan_queue_size", GlobalScanner_->GetQueueSize());
+
+        for (auto priority : TEnumTraits<ESealPriority>::GetDomainValues()) {
+            TWithTagGuard tagGuard(buffer, "seal_priority", ToString(priority));
+            buffer->AddGauge("/seal_queue_size", GetSealQueue(priority).GetQueueSize());
+        }
     }
 
     // IJobController implementation.
@@ -333,7 +347,7 @@ public:
         }
 
         const auto& chunkReplicaFetcher = Bootstrap_->GetChunkManager()->GetChunkReplicaFetcher();
-        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunksToFetchReplicas);
+        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunksToFetchReplicas, /*includeUnapproved*/ true);
 
         for (const auto& scheduleJobContext : scheduleJobContexts) {
             if (resourceUsage.seal_slots() >= resourceLimits.seal_slots()) {
@@ -363,22 +377,20 @@ public:
                 if (auto it = queue.find(scheduleJobContext.ChunkIdWithIndex); it != queue.end()) {
                     ++it->second;
                     if (it->second > GetDynamicConfig()->MaxUnsuccessfulScheduleSealJobAttemptsPerChunkReplica) {
-                        YT_LOG_ALERT(
-                            "Too many unsuccessful attempts to schedule seal job for chunk replica (ChunkId: %v, ReplicaIndex: %v, FailedSealAttempts: %v)",
-                            scheduleJobContext.Chunk->GetId(),
-                            scheduleJobContext.ChunkIdWithIndex.ReplicaIndex,
-                            it->second);
+                        YT_TLOG_ALERT("Too many unsuccessful attempts to schedule seal job for chunk replica")
+                            .With("ChunkId", scheduleJobContext.Chunk->GetId())
+                            .With("ReplicaIndex", scheduleJobContext.ChunkIdWithIndex.ReplicaIndex)
+                            .With("FailedSealAttempts", it->second);
                     }
                 }
             };
 
             const auto& replicasOrError = GetOrCrash(replicas, scheduleJobContext.Chunk->GetId());
             if (!replicasOrError.IsOK()) {
-                YT_LOG_DEBUG(
-                    replicasOrError,
-                    "Failed to schedule chunk seal job, failed to fetch replicas (ChunkId: %v, ReplicaIndex: %v)",
-                    scheduleJobContext.Chunk->GetId(),
-                    scheduleJobContext.ChunkIdWithIndex.ReplicaIndex);
+                YT_TLOG_DEBUG("Failed to schedule chunk seal job, failed to fetch replicas")
+                    .With("ChunkId", scheduleJobContext.Chunk->GetId())
+                    .With("ReplicaIndex", scheduleJobContext.ChunkIdWithIndex.ReplicaIndex)
+                    .With(replicasOrError);
 
                 onSealFailed();
                 continue;
@@ -406,12 +418,12 @@ public:
     void OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks) override
     {
         if (TInstant::Now() - job->GetStartTime() > GetDynamicConfig()->JobTimeout) {
-            YT_LOG_WARNING("Job timed out, aborting (JobId: %v, JobType: %v, Address: %v, Duration: %v, ChunkId: %v)",
-                job->GetJobId(),
-                job->GetType(),
-                job->NodeAddress(),
-                TInstant::Now() - job->GetStartTime(),
-                job->GetChunkIdWithIndexes());
+            YT_TLOG_WARNING("Job timed out, aborting")
+                .With("JobId", job->GetJobId())
+                .With("JobType", job->GetType())
+                .With("Address", job->NodeAddress())
+                .With("Duration", TInstant::Now() - job->GetStartTime())
+                .With("ChunkId", job->GetChunkIdWithIndexes());
 
             callbacks->AbortJob(job);
         }
@@ -439,9 +451,10 @@ private:
 
     TPeriodicExecutorPtr SealExecutor_;
 
-    // Scanner tracks error count.
-    using TChunkSealScanner = TChunkScannerWithPayload<std::pair<int, TCpuInstant>>;
-    const std::unique_ptr<TChunkSealScanner> SealScanner_;
+    using TChunkSealQueue = TChunkScanQueueWithPayload<std::pair<int, TCpuInstant>>;
+
+    const std::unique_ptr<TGlobalChunkScanner> GlobalScanner_;
+    TEnumIndexedArray<ESealPriority, std::optional<TChunkSealQueue>> SealQueues_;
 
     bool Enabled_ = true;
     bool Running_ = false;
@@ -473,15 +486,6 @@ private:
         Semaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentChunkSeals);
     }
 
-    static bool IsSealNeeded(const TChunk* chunk)
-    {
-        return
-            IsObjectAlive(chunk) &&
-            chunk->IsJournal() &&
-            chunk->IsConfirmed() &&
-            !chunk->IsSealed();
-    }
-
     static bool IsAttached(const TChunk* chunk)
     {
         return chunk->HasParents();
@@ -509,7 +513,7 @@ private:
     static bool IsFirstUnsealedInChunkList(const TChunk* chunk)
     {
         for (auto [chunkTree, cardinality] : chunk->Parents()) {
-            const auto* chunkList = chunkTree->As<TChunkList>();
+            const auto* chunkList = chunkTree->AsChunkList();
             int index = GetChildIndex(chunkList, chunk);
             if (index > 0 && !chunkList->Children()[index - 1]->IsSealed()) {
                 return false;
@@ -549,31 +553,65 @@ private:
         }
 
         if (sealContext->RescheduleCount >= GetDynamicConfig()->MaxUnsuccessfulSealAttempts) {
-            YT_LOG_ALERT("Too many unsuccessful seal attempts for chunk (ChunkId: %v, AttemptsCount: %v)",
-                sealContext->Chunk->GetId(),
-                sealContext->RescheduleCount);
+            YT_TLOG_ALERT("Too many unsuccessful seal attempts for chunk")
+                .With("ChunkId", sealContext->Chunk->GetId())
+                .With("AttemptsCount", sealContext->RescheduleCount);
         }
 
-        if (IsSealNeeded(sealContext->Chunk.Get())) {
-            EnqueueChunk(
-                sealContext->Chunk.Get(),
-                sealContext->RescheduleCount,
-                sealContext->EnqueueTime,
-                delayed);
-        }
+        EnqueueChunk(
+            sealContext->Chunk.Get(),
+            sealContext->RescheduleCount + 1,
+            sealContext->EnqueueTime,
+            delayed);
+    }
+
+    TChunkSealQueue& GetSealQueue(ESealPriority priority)
+    {
+        return *SealQueues_[priority];
+    }
+
+    const TChunkSealQueue& GetSealQueue(ESealPriority priority) const
+    {
+        return *SealQueues_[priority];
+    }
+
+    TChunkSealQueue& GetQueueForChunk(const TChunk* chunk)
+    {
+        return GetSealQueue(GetChunkSealPriority(chunk));
     }
 
     void EnqueueChunk(TChunk* chunk, int errorCount, TCpuInstant enqueueTime, bool delayed = false)
     {
-        auto adjustedDelay = delayed
-            ? std::make_optional(DurationToCpuDuration(GetDynamicConfig()->ChunkSealBackoffTime))
-            : std::nullopt;
-        if (!SealScanner_->EnqueueChunk({chunk, {errorCount, enqueueTime}}, adjustedDelay)) {
+        if (!GlobalScanner_->IsRelevant(chunk)) {
             return;
         }
 
-        YT_LOG_DEBUG("Chunk added to seal queue (ChunkId: %v)",
-            chunk->GetId());
+        auto adjustedDelay = delayed
+            ? std::make_optional(DurationToCpuDuration(GetDynamicConfig()->ChunkSealBackoffTime))
+            : std::nullopt;
+
+        auto& queue = GetQueueForChunk(chunk);
+        if (!queue.EnqueueChunk({chunk, {errorCount, enqueueTime}}, adjustedDelay)) {
+            return;
+        }
+
+        YT_TLOG_DEBUG("Chunk added to seal queue")
+            .With("ChunkId", chunk->GetId())
+            .With("ChunkFormat", chunk->GetChunkFormat());
+    }
+
+    void OnGlobalScan()
+    {
+        auto maxChunkCount = GetDynamicConfig()->MaxChunksPerGlobalSealScan;
+        for (int chunkCount = 0;
+             chunkCount < maxChunkCount && GlobalScanner_->HasUnscannedChunk();
+             ++chunkCount)
+        {
+            auto* chunk = GlobalScanner_->DequeueChunk();
+            if (chunk && IsSealNeeded(chunk)) {
+                EnqueueChunk(chunk, 0, GetCpuInstant());
+            }
+        }
     }
 
     void OnRefresh()
@@ -584,31 +622,50 @@ private:
             return;
         }
 
+        const auto& config = GetDynamicConfig();
+        OnGlobalScan();
+
         std::vector<TEphemeralObjectPtr<TChunk>> chunksToFetchReplicas;
         std::vector<TSealContextPtr> pendingSeals;
-        int totalCount = 0;
-        while (totalCount < GetDynamicConfig()->MaxChunksPerSeal &&
-               SealScanner_->HasUnscannedChunk())
-        {
-            auto guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_);
-            if (!guard) {
-                return;
-            }
+        int sealSlots = config->MaxChunksPerSeal;
+        int scanSlots = config->MaxChunksPerSealQueueScan;
 
-            ++totalCount;
-            auto [chunk, payload] = SealScanner_->DequeueChunk();
-            if (!chunk) {
-                continue;
-            }
+        auto canPlanNewSeal = [&] {
+            return sealSlots > 0 && scanSlots > 0;
+        };
 
-            if (CanBeSealed(chunk)) {
+        // TODO(evanevannnn): Prevent lower-priority queue starvation if strict priority
+        // scheduling becomes a problem.
+        bool concurrentSealLimitReached = false;
+        for (auto priority : TEnumTraits<ESealPriority>::GetDomainValues()) {
+            auto& queue = GetSealQueue(priority);
+            while (canPlanNewSeal() && queue.HasUnscannedChunk(GetCpuInstant()))
+            {
+                auto guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_);
+                if (!guard) {
+                    concurrentSealLimitReached = true;
+                    break;
+                }
+
+                auto [chunk, payload] = queue.DequeueChunk();
+                --scanSlots;
+
+                if (!chunk || !GlobalScanner_->IsRelevant(chunk) || !CanBeSealed(chunk)) {
+                    continue;
+                }
+
                 chunksToFetchReplicas.emplace_back(chunk);
                 pendingSeals.emplace_back(New<TSealContext>(chunk, payload, std::move(guard)));
+                --sealSlots;
+            }
+
+            if (concurrentSealLimitReached) {
+                break;
             }
         }
 
         const auto& chunkReplicaFetcher = Bootstrap_->GetChunkManager()->GetChunkReplicaFetcher();
-        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunksToFetchReplicas);
+        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunksToFetchReplicas, /*includeUnapproved*/ true);
 
         for (auto sealContext : pendingSeals) {
             auto chunk = sealContext->Chunk.Get();
@@ -617,9 +674,9 @@ private:
             }
             const auto& replicasOrError = GetOrCrash(replicas, chunk->GetId());
             if (!replicasOrError.IsOK()) {
-                YT_LOG_DEBUG(replicasOrError, "Error fetching replicas to seal chunk (ChunkId: %v, Error: %v)",
-                    chunk->GetId(),
-                    replicasOrError);
+                YT_TLOG_DEBUG("Error fetching replicas to seal chunk")
+                    .With("ChunkId", chunk->GetId())
+                    .With(replicasOrError);
 
                 // We do not increase unsuccessful seal counter here, as it will be counted in unsuccessful replica fetching counters.
                 RescheduleSeal(sealContext, /*delayed*/ true);
@@ -642,13 +699,13 @@ private:
         auto enabledInConfig = GetDynamicConfig()->EnableChunkSealer;
 
         if (!enabledInConfig && Enabled_) {
-            YT_LOG_INFO("Chunk sealer disabled");
+            YT_TLOG_INFO("Chunk sealer disabled");
             Enabled_ = false;
             return;
         }
 
         if (enabledInConfig && !Enabled_) {
-            YT_LOG_INFO("Chunk sealer enabled");
+            YT_TLOG_INFO("Chunk sealer enabled");
             Enabled_ = true;
             return;
         }
@@ -669,8 +726,9 @@ private:
             auto totalSealTime = GetCpuInstant() - sealContext->EnqueueTime;
             SuccessfulSealTime_.Add(CpuDurationToDuration(totalSealTime));
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Error sealing journal chunk; backing off (ChunkId: %v)",
-                chunkId);
+            YT_TLOG_DEBUG("Error sealing journal chunk; backing off")
+                .With("ChunkId", chunkId)
+                .With(ex);
 
             UnsuccessfulSealCounter_.Increment();
 
@@ -697,10 +755,10 @@ private:
                 chunkId);
         }
 
-        YT_LOG_DEBUG("Sealing journal chunk (ChunkId: %v, Overlayed: %v, StartRowIndex: %v)",
-            chunkId,
-            overlayed,
-            maybeStartRowIndex);
+        YT_TLOG_DEBUG("Sealing journal chunk")
+            .With("ChunkId", chunkId)
+            .With("Overlayed", overlayed)
+            .With("StartRowIndex", maybeStartRowIndex);
 
         std::vector<TChunkReplicaDescriptor> abortedReplicas;
         {
@@ -725,7 +783,8 @@ private:
                 replicaLagLimit,
                 abortedReplicas,
                 dynamicConfig->JournalRpcTimeout,
-                Bootstrap_->GetNodeChannelFactory());
+                Bootstrap_->GetNodeChannelFactory(),
+                TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
             quorumInfo = WaitFor(future)
                 .ValueOrThrow();
         }
@@ -735,8 +794,8 @@ private:
         if (firstOverlayedRowIndex && *firstOverlayedRowIndex > maybeStartRowIndex) {
             THROW_ERROR_EXCEPTION("Sealing chunk %v would produce row gap",
                 chunkId)
-                << TErrorAttribute("start_row_index", maybeStartRowIndex)
-                << TErrorAttribute("first_overlayed_row_index", *quorumInfo.FirstOverlayedRowIndex);
+                .With("start_row_index", maybeStartRowIndex)
+                .With("first_overlayed_row_index", *quorumInfo.FirstOverlayedRowIndex);
         }
 
         i64 sealedRowCount = quorumInfo.RowCount;
@@ -753,38 +812,38 @@ private:
             !GetDynamicConfig()->Testing->ForceUnreliableSeal)
         {
             // Fast path: sealed row count can be reliably evaluated.
-            YT_LOG_DEBUG("Sealed row count evaluated (ChunkId: %v, SealedRowCount: %v)",
-                chunkId,
-                sealedRowCount);
+            YT_TLOG_DEBUG("Sealed row count evaluated")
+                .With("ChunkId", chunkId)
+                .With("SealedRowCount", sealedRowCount);
         } else {
             // Sealed row count cannot be reliably evaluated. We try to autotomize chunk, if possible,
             // otherwise just seal chunk unreliably and hope for the best.
-            YT_LOG_DEBUG("Sealed row count computed unreliably (ChunkId: %v, SealedRowCount: %v, RowCountConfirmedReplicaCount: %v, WriteQuorum: %v)",
-                chunkId,
-                sealedRowCount,
-                quorumInfo.RowCountConfirmedReplicaCount,
-                writeQuorum);
+            YT_TLOG_DEBUG("Sealed row count computed unreliably")
+                .With("ChunkId", chunkId)
+                .With("SealedRowCount", sealedRowCount)
+                .With("RowCountConfirmedReplicaCount", quorumInfo.RowCountConfirmedReplicaCount)
+                .With("WriteQuorum", writeQuorum);
 
             if (!dynamicConfig->EnableChunkAutotomizer) {
-                YT_LOG_DEBUG("Chunk automotizer is disabled; sealing chunk unreliably (ChunkId: %v)",
-                    chunkId);
+                YT_TLOG_DEBUG("Chunk automotizer is disabled; sealing chunk unreliably")
+                    .With("ChunkId", chunkId);
             } else if (!overlayed) {
-                YT_LOG_DEBUG("Cannot automotize chunk since it is not overlayed; sealing chunk unreliably (ChunkId: %v)",
-                    chunkId);
+                YT_TLOG_DEBUG("Cannot automotize chunk since it is not overlayed; sealing chunk unreliably")
+                    .With("ChunkId", chunkId);
             } else {
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 const auto& chunkAutotomizer = chunkManager->GetChunkAutotomizer();
                 if (chunkAutotomizer->IsChunkRegistered(chunkId)) {
                     // Fast path: if chunk is already registered in autotomizer, do not create useless mutation.
-                    YT_LOG_DEBUG("Chunk is already registered in autotomizer, skipping (ChunkId: %v)",
-                        chunkId);
+                    YT_TLOG_DEBUG("Chunk is already registered in autotomizer, skipping")
+                        .With("ChunkId", chunkId);
                 } else {
                     auto guaranteedQuorumRowCount = std::max<i64>(sealedRowCount - replicaLagLimit, 0);
                     chunkSealInfo.set_row_count(guaranteedQuorumRowCount);
 
-                    YT_LOG_DEBUG("Autotomizing chunk (ChunkId: %v, GuaranteedQuorumRowCount: %v)",
-                        chunkId,
-                        guaranteedQuorumRowCount);
+                    YT_TLOG_DEBUG("Autotomizing chunk")
+                        .With("ChunkId", chunkId)
+                        .With("GuaranteedQuorumRowCount", guaranteedQuorumRowCount);
 
                     NProto::TReqAutotomizeChunk request;
                     ToProto(request.mutable_chunk_id(), chunkId);
@@ -804,8 +863,8 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Requesting chunk seal (ChunkId: %v)",
-            chunkId);
+        YT_TLOG_DEBUG("Requesting chunk seal")
+            .With("ChunkId", chunkId);
 
         {
             TChunkServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
@@ -864,12 +923,11 @@ private:
             chunkWithIndexes);
         context->ScheduleJob(job);
 
-        YT_LOG_DEBUG("Seal job scheduled "
-            "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v)",
-            job->GetJobId(),
-            job->GetJobEpoch(),
-            job->NodeAddress(),
-            chunkWithIndexes);
+        YT_TLOG_DEBUG("Seal job scheduled")
+            .With("JobId", job->GetJobId())
+            .With("JobEpoch", job->GetJobEpoch())
+            .With("Address", job->NodeAddress())
+            .With("ChunkId", chunkWithIndexes);
 
         return true;
     }

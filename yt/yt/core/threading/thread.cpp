@@ -9,6 +9,7 @@
 #include <library/cpp/yt/misc/tls.h>
 
 #include <library/cpp/yt/system/exit.h>
+#include <library/cpp/yt/system/thread_id.h>
 
 #include <library/cpp/yt/threading/execution_stack.h>
 
@@ -40,6 +41,63 @@ constinit const auto Logger = ThreadingLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSignalHandlerStackGuard
+{
+#if !defined(_asan_enabled_) && !defined(_msan_enabled_) && defined(_unix_) && \
+    (_XOPEN_SOURCE >= 500 || \
+    /* Since glibc 2.12: */ _POSIX_C_SOURCE >= 200809L || \
+    /* glibc <= 2.19: */ _BSD_SOURCE)
+public:
+    TSignalHandlerStackGuard()
+        : Stack_(SignalHandlerStackSize)
+    {
+        void* stackStart = Stack_.GetStack();
+        size_t stackSize = Stack_.GetSize();
+        stack_t stack{
+            .ss_sp = stackStart,
+            .ss_flags = 0,
+            .ss_size = stackSize,
+        };
+        YT_VERIFY(sigaltstack(&stack, nullptr) == 0);
+
+        if (auto* logFile = TryGetShutdownLogFile()) {
+            ::fprintf(logFile, "%s\tSignal handler stack allocated (ThreadId: %" PRISZT ", Stack: %p-%p, Size: %zu)\n",
+                GetInstant().ToString().c_str(),
+                GetSystemThreadId(),
+                stackStart,
+                static_cast<void*>(static_cast<char*>(stackStart) + stackSize),
+                stackSize);
+        }
+    }
+
+    ~TSignalHandlerStackGuard()
+    {
+        // Disable the altstack before Stack_'s destructor frees the backing memory;
+        // otherwise a signal delivered after destruction may cause access to freed memory
+        // in the signal handler.
+        stack_t disable{
+            .ss_flags = SS_DISABLE
+        };
+        YT_VERIFY(sigaltstack(&disable, nullptr) == 0);
+
+        if (auto* logFile = TryGetShutdownLogFile()) {
+            ::fprintf(logFile, "%s\tSignal handler stack deallocated (ThreadId: %" PRISZT ")\n",
+                GetInstant().ToString().c_str(),
+                GetSystemThreadId());
+        }
+    }
+
+private:
+    TExecutionStack Stack_;
+
+    // Symbolizing deeply inlined frames overflowed 32 KB; pages are committed on first
+    // touch, so the extra size costs address space only.
+    static constexpr size_t SignalHandlerStackSize = 256_KB;
+#endif
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TThread::TThread(
     std::string threadName,
     TThreadOptions options)
@@ -59,7 +117,7 @@ TThreadId TThread::GetThreadId() const
     return ThreadId_;
 }
 
-TString TThread::GetThreadName() const
+std::string TThread::GetThreadName() const
 {
     return ThreadName_;
 }
@@ -144,7 +202,7 @@ void TThread::Stop()
                         GetInstant().ToString().c_str(),
                         ThreadName_.c_str(),
                         ThreadId_,
-                        GetCurrentThreadId());
+                        GetSystemThreadId());
                 }
                 StoppedEvent_.Wait();
             } else {
@@ -153,7 +211,7 @@ void TThread::Stop()
                         GetInstant().ToString().c_str(),
                         ThreadName_.c_str(),
                         ThreadId_,
-                        GetCurrentThreadId());
+                        GetSystemThreadId());
                 }
             }
             return;
@@ -165,7 +223,7 @@ void TThread::Stop()
             GetInstant().ToString().c_str(),
             ThreadName_.c_str(),
             ThreadId_,
-            GetCurrentThreadId());
+            GetSystemThreadId());
     }
 
     StopPrologue();
@@ -177,7 +235,7 @@ void TThread::Stop()
                 GetInstant().ToString().c_str(),
                 ThreadName_.c_str(),
                 ThreadId_,
-                GetCurrentThreadId());
+                GetSystemThreadId());
         }
         UnderlyingThread_.Join();
     } else {
@@ -186,7 +244,7 @@ void TThread::Stop()
                 GetInstant().ToString().c_str(),
                 ThreadName_.c_str(),
                 ThreadId_,
-                GetCurrentThreadId());
+                GetSystemThreadId());
         }
         UnderlyingThread_.Detach();
     }
@@ -198,7 +256,7 @@ void TThread::Stop()
             GetInstant().ToString().c_str(),
             ThreadName_.c_str(),
             ThreadId_,
-            GetCurrentThreadId());
+            GetSystemThreadId());
     }
 }
 
@@ -212,28 +270,25 @@ YT_PREVENT_TLS_CACHING void TThread::ThreadMainTrampoline()
 {
 #if defined(__linux__) && defined(__x86_64__)
     ::syscall(SYS_arch_prctl, ARCH_GET_FS, &FSBase_);
-
-    if (auto* logFile = TryGetShutdownLogFile()) {
-        ::fprintf(logFile, "%s\t*** Entered thread trampoline (ThreadName: %s, ThreadId: %d, FSBase: %lx)\n",
-            GetInstant().ToString().c_str(),
-            ThreadName_.c_str(),
-            GetCurrentThreadId(),
-            FSBase_
-        );
-    }
 #endif
 
     auto this_ = MakeStrong(this);
 
     ::TThread::SetCurrentThreadName(ThreadName_.c_str());
 
-    ThreadId_ = GetCurrentThreadId();
+    ThreadId_ = GetSystemThreadId();
     CurrentUniqueThreadId() = UniqueThreadId_;
 
     SetThreadPriority();
-    ConfigureSignalHandlerStack();
+
+    [[maybe_unused]] TSignalHandlerStackGuard signalHandlerStackGuard;
 
     StartedEvent_.NotifyAll();
+
+    YT_TLOG_DEBUG("Initializing thread")
+        .With("ThreadName", ThreadName_)
+        .With("ThreadId", GetSystemThreadId())
+        .With("FSBase", FSBase_);
 
     class TExitInterceptor
     {
@@ -244,7 +299,7 @@ YT_PREVENT_TLS_CACHING void TThread::ThreadMainTrampoline()
                 if (auto* logFile = TryGetShutdownLogFile()) {
                     ::fprintf(logFile, "%s\tThread exit interceptor triggered (ThreadId: %" PRISZT ")\n",
                         GetInstant().ToString().c_str(),
-                        GetCurrentThreadId());
+                        GetSystemThreadId());
                 }
                 Shutdown();
             }
@@ -295,40 +350,17 @@ void TThread::SetThreadPriority()
         };
         int result = sched_setscheduler(ThreadId_, SCHED_FIFO, &param);
         if (result == 0) {
-            YT_LOG_DEBUG("Thread real-time priority enabled (ThreadName: %v)",
-                ThreadName_);
+            YT_TLOG_DEBUG("Thread real-time priority enabled")
+                .With("ThreadName", ThreadName_);
         } else {
-            YT_LOG_DEBUG(TError::FromSystem(), "Cannot enable thread real-time priority: sched_setscheduler failed (ThreadName: %v)",
-                ThreadName_);
+            YT_TLOG_DEBUG("Cannot enable thread real-time priority: sched_setscheduler failed")
+                .With("ThreadName", ThreadName_)
+                .With(TError::FromSystem());
         }
     }
 #else
     Y_UNUSED(Options_);
     Y_UNUSED(Logger);
-#endif
-}
-
-YT_PREVENT_TLS_CACHING void TThread::ConfigureSignalHandlerStack()
-{
-#if !defined(_asan_enabled_) && !defined(_msan_enabled_) && defined(_unix_) && \
-    (_XOPEN_SOURCE >= 500 || \
-    /* Since glibc 2.12: */ _POSIX_C_SOURCE >= 200809L || \
-    /* glibc <= 2.19: */ _BSD_SOURCE)
-    thread_local bool Configured;
-    if (std::exchange(Configured, true)) {
-        return;
-    }
-
-    // The size of of the custom stack to be provided for signal handlers.
-    constexpr size_t SignalHandlerStackSize = 32_KB;
-    SignalHandlerStack_ = std::make_unique<TExecutionStack>(SignalHandlerStackSize);
-
-    stack_t stack{
-        .ss_sp = SignalHandlerStack_->GetStack(),
-        .ss_flags = 0,
-        .ss_size = SignalHandlerStack_->GetSize(),
-    };
-    YT_VERIFY(sigaltstack(&stack, nullptr) == 0);
 #endif
 }
 

@@ -1,6 +1,6 @@
 # Пакетная обработка запросов
 
-В данном разделе содержится информация о пакетной обработке запросов (batch-запросах), приведены примеры использования для [Python](../../../user-guide/storage/batch-requests.md#python_api), [C++](../../../user-guide/storage/batch-requests.md#c_plus_plus_api) и [Java](../../../user-guide/storage/batch-requests.md#java_api) API.
+В данном разделе содержится информация о пакетной обработке запросов (batch-запросах), приведены примеры использования для [Python](../../../user-guide/storage/batch-requests.md#python_api){% if audience == "internal" %}, [C++](../../../user-guide/storage/batch-requests.md#c_plus_plus_api) и [Java](../../../user-guide/storage/batch-requests.md#java_api) API {% else %} и [C++](../../../user-guide/storage/batch-requests.md#c_plus_plus_api){% endif %}.
 
 При работе с системой {{product-name}} каждая команда порождает отдельный запрос к мастер-серверу. Запрос несет в себе накладные расходы, зачастую более высокие, чем непосредственно выполнение команды. Поэтому объединение нескольких команд в один запрос может существенно ускорить процессы, которые посылают много легких команд к [Кипарису](../../../user-guide/storage/cypress.md) и основную часть времени находятся в ожидании ответа. Такой запрос называется **Batch-запросом**.
 
@@ -97,6 +97,8 @@ int main()
 */
 ```
 
+{% if audience == "internal" %}
+
 ## Java API { #java_api }
 
 В Java API доступен метод `executeBatch`, который позволяет, имея клиента для работы с Кипарисом `yt.cypress()`, создать объект типа `BatchRequest` для выполнения нескольких команд в рамках одного batch-запроса. Все команды, отправленные через `BatchRequest`, возвращают объекты типа `future`, которые будут выполнены после вызова метода `execute`. Пример использования представлен ниже.
@@ -116,3 +118,5 @@ boolean result = futures.forAll(x -> {
 	return node.isBooleanNode() && node.boolValue();
 });
 ```
+
+{% endif %}

@@ -1,17 +1,17 @@
 from yt_fast_intermediate_medium_base import TestFastIntermediateMediumBase
 
+from yt_helpers import with_push_based_shuffle
+
 from yt_commands import (
     authors, create, get, set, copy, remove, exists, wait,
-    create_account, create_user, assert_statistics, raises_yt_error, sorted_dicts,
-    make_ace, start_transaction, commit_transaction, insert_rows, read_table, write_table, sort, erase, get_operation,
-    sync_create_cells, sync_mount_table, sync_unmount_table, get_singular_chunk_id, create_dynamic_table)
+    create_account, create_user, assert_statistics, extract_statistic_v2, raises_yt_error, sorted_dicts,
+    make_ace, start_transaction, commit_transaction, insert_rows, delete_rows, read_table, write_table, sort, erase, get_operation,
+    sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table, get_singular_chunk_id, create_dynamic_table)
 
 from yt_type_helpers import (
     make_schema, normalize_schema, normalize_schema_v3, list_type, optional_type, make_column, make_sorted_column)
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError
-
 import pytest
 import math
 
@@ -226,7 +226,6 @@ def sort_maniac(in_, out, sort_by, validate_types=False):
     return op
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 18
@@ -244,16 +243,9 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
                 "min_partition_size": 1,
                 "max_value_count_per_simple_sort_job": 100,
                 "max_data_slices_per_job": 100,
-                "spec_template": {
-                    "use_new_sorted_pool": False,
-                }
             },
         }
     }
-
-    def skip_if_legacy_sorted_pool(self):
-        if not isinstance(self, TestSchedulerSortCommandsNewSortedPool):
-            pytest.skip("This test requires new sorted pool")
 
     @authors("ignat")
     def test_simple(self):
@@ -320,7 +312,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
         create("table", "//tmp/t_out")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to initialize sort operation"):
             sort(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -328,7 +320,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
                 spec={"max_input_data_weight": 5},
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Too many data slices in shuffle pool"):
             sort(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -340,7 +332,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Too many shuffle jobs"):
             sort(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -352,7 +344,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Too many data slices in merge pools"):
             sort(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -451,7 +443,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
         create("table", "//tmp/t_out")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Key weight is too large"):
             sort(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -460,6 +452,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             )
 
     @authors("psushin")
+    @with_push_based_shuffle()
     def test_max_value_count_per_simple_sort_job(self):
         schema = make_schema(
             [{"name": "key", "type": "string"}] +
@@ -495,7 +488,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
         create("table", "//tmp/t_out")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Foreign tables are not supported"):
             sort(in_="<foreign=true>//tmp/t_in", out="//tmp/t_out", sort_by="key")
 
     @authors("psushin")
@@ -553,7 +546,8 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        with pytest.raises(YtError):
+        # COMPAT(babenko)
+        with raises_yt_error("\"sort_by\" .*"):
             sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by=[])
 
     @authors("ignat")
@@ -574,7 +568,8 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         write_table("//tmp/t_in", {"foo": "bar"})
         write_table("//tmp/t_out", {"hello": "world"})
 
-        with pytest.raises(YtError):
+        # COMPAT(babenko)
+        with raises_yt_error(".*sort_by.* is different from output table key columns"):
             sort(in_="//tmp/t_in", out="<append=true>//tmp/t_out", sort_by="foo")
 
     @authors("ermolovd")
@@ -606,7 +601,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
         write_table("<append=%true>//tmp/t_in", [{"field": None}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="field")
 
     @authors("dakovalkov")
@@ -665,7 +660,8 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         write_table("//tmp/t_in", old_row)
         write_table("//tmp/t_out", new_row)
 
-        with pytest.raises(YtError):
+        # COMPAT(babenko)
+        with raises_yt_error(".*sort_by.* is different from output table key columns"):
             sort(
                 in_="//tmp/t_in",
                 out="<append=true>//tmp/t_out",
@@ -699,7 +695,8 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         else:
             write_table("//tmp/t_out", {"key": 3, "subkey": 3})
 
-        with pytest.raises(YtError):
+        # COMPAT(babenko)
+        with raises_yt_error(".*sort_by.* is different from output table key columns"):
             sort(
                 in_="//tmp/t_in",
                 out="<append=true>//tmp/t_out",
@@ -729,7 +726,8 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         write_table("//tmp/out", {"key": 1})
 
         for in_table in ["//tmp/in_0", "//tmp/in_2"]:
-            with pytest.raises(YtError):
+            # COMPAT(babenko)
+            with raises_yt_error(".*sort_by.* is different from output table key columns"):
                 sort(
                     in_=in_table,
                     out="<append=true>//tmp/out",
@@ -764,6 +762,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         assert len(read_table("//tmp/t_out")) == 50
 
     @authors("max42")
+    @with_push_based_shuffle()
     def test_incomplete_sample_fetching(self):
         max_sample_size = 64 * 1024
         v1 = {"key": "a" * max_sample_size + "a"}
@@ -796,10 +795,8 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
     @authors("psushin", "ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    @with_push_based_shuffle()
     def test_many_merge(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         v1 = {"key": "aaa"}
         v2 = {"key": "bb"}
         v3 = {"key": "bbxx"}
@@ -830,10 +827,8 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
     @authors("max42")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    @with_push_based_shuffle()
     def test_several_merge_jobs_per_partition(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         create("table", "//tmp/t_in")
         rows = [{"key": "k%03d" % (i), "value": "v%03d" % (i)} for i in range(500)]
         if sort_order == "descending":
@@ -945,7 +940,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             authenticated_user="test_user",
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             sort(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -958,7 +953,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("User .* has been denied .* access to intermediate account .*"):
             sort(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -1080,30 +1075,27 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_one_partition_with_merge(self, optimize_for, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         self.sort_with_options(optimize_for, sort_order, spec={"data_weight_per_sort_job": 1})
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    @with_push_based_shuffle()
     def test_two_partitions_no_merge(self, optimize_for, sort_order):
         self.sort_with_options(optimize_for, sort_order, spec={"partition_count": 2})
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    @with_push_based_shuffle()
     def test_ten_partitions_no_merge(self, optimize_for, sort_order):
         self.sort_with_options(optimize_for, sort_order, spec={"partition_count": 10})
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    @with_push_based_shuffle()
     def test_two_partitions_with_merge(self, optimize_for, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         self.sort_with_options(
             optimize_for,
             sort_order,
@@ -1250,7 +1242,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         assert get("//tmp/output_weak/@schema_mode") == "weak"
         assert get("//tmp/output_weak/@sorted")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No column with name .*"):
             sort(in_="//tmp/input_weak", out="//tmp/output_strict", sort_by=sort_by)
 
         # input loose
@@ -1264,7 +1256,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         assert get("//tmp/output_weak/@schema_mode") == "strong"
         assert get("//tmp/output_weak/@sorted")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             sort(in_="//tmp/input_loose", out="//tmp/output_strict", sort_by=sort_by)
 
     @authors("savrus")
@@ -1345,7 +1337,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
         assert get("//tmp/input/@sorted_by") == ["key"]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             sort(in_="//tmp/input", out="//tmp/output", sort_by="key")
 
     @authors("ermolovd")
@@ -1385,7 +1377,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
         sort_by = [{"name": "index", "sort_order": sort_order}]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             sort(
                 in_="//tmp/input",
                 out="//tmp/output",
@@ -1448,7 +1440,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             [{"key": 1, "value": "foo"} for i in range(2)],
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate key"):
             sort(
                 in_="//tmp/input",
                 out="//tmp/output",
@@ -1461,7 +1453,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         for i in range(2):
             write_table("<append=%true; sorted_by=[key]>//tmp/input", {"key": 1, "value": "foo"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate key"):
             sort(
                 in_="//tmp/input",
                 out="//tmp/output",
@@ -1537,6 +1529,65 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         verify_sort(["key1", "key2", "value"])
         verify_sort(["value", "key2", "key1"])
 
+    @authors("pogorelov")
+    def test_sort_empty_dynamic_table(self):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (26, 1):
+            pytest.skip()
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+
+        sync_create_cells(1)
+        create_dynamic_table("//tmp/t", schema=schema)
+
+        sync_mount_table("//tmp/t")
+
+        # Insert and immediately delete each key, flushing after every
+        # mutation. This produces separate store chunks per key so that the
+        # controller sees multiple versioned data slices (one per
+        # non-overlapping key range) instead of a single combined slice.
+        # Multiple data slices lead to multiple SimpleSort jobs, which
+        # forces the SimpleSort to be non-final: its empty outputs are
+        # forwarded to the SortedMerge stage, and the operation must
+        # correctly complete even though every job produces no rows.
+        for i in range(3):
+            insert_rows("//tmp/t", [{"key": i, "value": str(i)}])
+            sync_flush_table("//tmp/t")
+            delete_rows("//tmp/t", [{"key": i}])
+            sync_flush_table("//tmp/t")
+
+        sync_unmount_table("//tmp/t")
+
+        assert read_table("//tmp/t") == []
+
+        create("table", "//tmp/t_out")
+
+        op = sort(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            sort_by=["key"],
+            spec={
+                "data_weight_per_sort_job": 1,
+                "partition_count": 1,
+            },
+        )
+        assert read_table("//tmp/t_out") == []
+
+        progress = get_operation(op.id)["progress"]
+        statistics = progress["job_statistics_v2"]
+        assert extract_statistic_v2(statistics, "data.input.compressed_data_size", job_type="simple_sort") > 0
+        assert extract_statistic_v2(statistics, "chunk_reader_statistics.data_bytes_transmitted", job_type="simple_sort") > 0
+
+        # Make sure SimpleSort was not executed as a single final job: the
+        # operation must run several SimpleSort jobs whose empty outputs are
+        # then consumed by the following merge stage.
+        tasks = progress["tasks"]
+        simple_sort_tasks = [t for t in tasks if t["task_name"] == "simple_sort"]
+        assert len(simple_sort_tasks) == 1
+        assert simple_sort_tasks[0]["job_counter"]["completed"]["total"] > 1
+
     @authors("savrus", "psushin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_computed_columns(self, sort_order):
@@ -1582,7 +1633,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             write_table("//tmp/t2", {"k2": i})
 
         for schema_inference_mode in ("auto", "from_output"):
-            with pytest.raises(YtError):
+            with raises_yt_error("Column .* is not found in strict schema"):
                 # sort table with weak schema into table with computed column
                 sort(
                     in_="//tmp/t2",
@@ -1655,7 +1706,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         create("table", "//tmp/input1", attributes={"schema": schema})
         write_table("//tmp/input1", [{"key": 1, "value": "1"}, {"key": 2, "value": "2"}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Undefined reference .*"):
             sort(
                 in_="//tmp/input1{expr,value}",
                 out="//tmp/output",
@@ -1668,7 +1719,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         create("table", "//tmp/input2", attributes={"schema": schema})
         write_table("//tmp/input2", [{"key": 1, "value": "1"}, {"key": 2, "value": "2"}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Column .* expression mismatch|has different expressions in input and output"):
             sort(
                 in_="//tmp/input2",
                 out="//tmp/output",
@@ -1819,10 +1870,12 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in range(2)])
 
-        with pytest.raises(YtError):
+        # COMPAT(babenko)
+        with raises_yt_error("\"sort_by\" .*"):
             sort(in_="//tmp/t1", out="//tmp/t2", spec={"input_query": "a where a > 0"})
 
     @authors("gritukan")
+    @with_push_based_shuffle()
     def test_pivot_keys(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1849,7 +1902,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         rows = [{"key": "%02d" % i, "value": i} for i in range(50)]
         write_table("//tmp/t1", rows)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pivot keys should form a strictly increasing sequence"):
             sort(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -1882,6 +1935,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         assert check_operation_tasks(op, {"partition(0)", "partition(1)", "partition(2)", "final_sort"})
 
     @authors("gritukan")
+    @with_push_based_shuffle()
     def test_pivot_keys_descending(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1907,7 +1961,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         create("table", "//tmp/out")
         write_table("//tmp/in", [{"x": 1}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Column .* is not found in strict schema"):
             sort(in_="//tmp/in", out="//tmp/out", sort_by="foo")
 
     @authors("gritukan")
@@ -2034,6 +2088,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         assert data_flow_graph["edges"]["unordered_merge"]["sink"]["statistics"]["data_weight"] == data_weight
 
     @authors("max42")
+    @with_push_based_shuffle()
     def test_proper_key_comparison(self):
         # YT-13530.
         create(
@@ -2502,7 +2557,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             op.track()
             assert check_operation_tasks(op, ["simple_sort"])
         elif sort_type == "simple_sort_2_phase":
-            self.skip_if_legacy_sorted_pool()
             spec.update({
                 "data_weight_per_sort_job": 5000,
             })
@@ -2510,7 +2564,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             op.track()
             assert check_operation_tasks(op, ["simple_sort", "sorted_merge"])
         elif sort_type == "2_phase":
-            self.skip_if_legacy_sorted_pool()
             spec.update({
                 "partition_count": 3,
                 "data_weight_per_sort_job": 10 ** 8,
@@ -2528,7 +2581,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             op.track()
             assert check_operation_tasks(op, ["partition(0)", "partition(1)", "final_sort"])
         elif sort_type == "3_phase":
-            self.skip_if_legacy_sorted_pool()
             spec.update({
                 "partition_count": 2,
                 "data_weight_per_sort_job": 5000,
@@ -2543,7 +2595,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             op.track()
             assert check_operation_tasks(op, ["partition(0)", "intermediate_sort", "sorted_merge"])
         elif sort_type == "3_phase_hierarchical":
-            self.skip_if_legacy_sorted_pool()
             spec.update({
                 "partition_count": 3,
                 "max_partition_factor": 2,
@@ -2661,7 +2712,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -2669,22 +2719,4 @@ class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):
     MASTER_CELL_DESCRIPTORS = {
         "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host"]},
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestSchedulerSortCommandsNewSortedPool(TestSchedulerSortCommands):
-    ENABLE_MULTIDAEMON = True
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "sort_operation_options": {
-                "min_uncompressed_block_size": 1,
-                "min_partition_size": 1,
-                "max_value_count_per_simple_sort_job": 100,
-                "max_data_slices_per_job": 100,
-                "spec_template": {
-                    "use_new_sorted_pool": True,
-                },
-            },
-        }
     }

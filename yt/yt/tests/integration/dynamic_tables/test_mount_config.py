@@ -1,19 +1,16 @@
 from yt_dynamic_tables_base import DynamicTablesBase
 
 from yt_commands import (
-    authors, create, wait, get, set, remount_table,
+    authors, create, wait, get, set, remove, remount_table,
     sync_create_cells, sync_mount_table, raises_yt_error,
-    create_tablet_cell_bundle,
+    create_tablet_cell_bundle, start_transaction, abort_transaction, lock,
 )
 
 import yt.yson as yson
 
-import pytest
-
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestMountConfig(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -86,6 +83,46 @@ class TestMountConfig(DynamicTablesBase):
         sync_mount_table("//tmp/t")
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
 
+        set("//sys/@config/tablet_manager/io_config_template_patch", {
+            "store_reader_config": {
+                "retry_timeout": 180000 + 3,
+            },
+            "hunk_reader_config": {
+                "periodic_update_delay": 10000 + 3,
+            },
+            "store_writer_config": {
+                "max_meta_size": 31457280 + 3,
+            },
+            "hunk_writer_config": {
+                "desired_block_size": 16777216 + 3,
+            },
+        })
+
+        def _get_orchid(suffix):
+            return get(f"//sys/tablets/{tablet_id}/orchid{suffix}")
+
+        # Verify that the template patch is applied.
+        wait(lambda: _get_orchid("/store_reader_config/retry_timeout") == 180000 + 3)
+        assert _get_orchid("/hunk_reader_config/periodic_update_delay") == 10000 + 3
+        assert _get_orchid("/store_writer_config/max_meta_size") == 31457280 + 3
+        assert _get_orchid("/hunk_writer_config/desired_block_size") == 16777216 + 3
+        assert _get_orchid("/store_reader_config/suspicious_node_grace_period") == 5 * 60 * 1000
+        assert not _get_orchid("/store_reader_config/ban_peers_permanently")
+        assert _get_orchid("/store_writer_config/block_size") == 256 * 1024
+        assert _get_orchid("/store_writer_config/sample_rate") == 0.0005
+
+        set("//tmp/t/@chunk_reader", {"retry_timeout": 180000 + 2})
+        set("//tmp/t/@hunk_chunk_reader", {"periodic_update_delay": 10000 + 2})
+        set("//tmp/t/@chunk_writer", {"max_meta_size": 31457280 + 2})
+        set("//tmp/t/@hunk_chunk_writer", {"desired_block_size": 16777216 + 2})
+        remount_table("//tmp/t")
+
+        # Verify that explicit per-table settings override the template.
+        wait(lambda: _get_orchid("/store_reader_config/retry_timeout") == 180000 + 2)
+        assert _get_orchid("/hunk_reader_config/periodic_update_delay") == 10000 + 2
+        assert _get_orchid("/store_writer_config/max_meta_size") == 31457280 + 2
+        assert _get_orchid("/hunk_writer_config/desired_block_size") == 16777216 + 2
+
         set("//sys/@config/tablet_manager/io_config_patch", {
             "store_reader_config": {
                 "retry_timeout": 180000 + 1,
@@ -101,9 +138,6 @@ class TestMountConfig(DynamicTablesBase):
             },
         })
 
-        def _get_orchid(suffix):
-            return get(f"//sys/tablets/{tablet_id}/orchid{suffix}")
-
         # Verify that the patch is applied.
         wait(lambda: _get_orchid("/store_reader_config/retry_timeout") == 180000 + 1)
         assert _get_orchid("/hunk_reader_config/periodic_update_delay") == 10000 + 1
@@ -117,7 +151,7 @@ class TestMountConfig(DynamicTablesBase):
 
         # Verify that the patch overrides explicit per-table settings.
         remount_table("//tmp/t")
-        assert _get_orchid("/store_reader_config/retry_timeout") == 180000 + 1
+        wait(lambda: _get_orchid("/store_reader_config/retry_timeout") == 180000 + 1)
         assert _get_orchid("/hunk_reader_config/periodic_update_delay") == 10000 + 1
         assert _get_orchid("/store_writer_config/max_meta_size") == 31457280 + 1
         assert _get_orchid("/hunk_writer_config/desired_block_size") == 16777216 + 1
@@ -128,6 +162,36 @@ class TestMountConfig(DynamicTablesBase):
         assert _get_orchid("/hunk_reader_config/periodic_update_delay") == 10000 + 2
         assert _get_orchid("/store_writer_config/max_meta_size") == 31457280 + 2
         assert _get_orchid("/hunk_writer_config/desired_block_size") == 16777216 + 2
+
+        remove("//tmp/t/@chunk_reader")
+        remove("//tmp/t/@hunk_chunk_reader")
+        remove("//tmp/t/@chunk_writer")
+        remove("//tmp/t/@hunk_chunk_writer")
+        remount_table("//tmp/t")
+        wait(lambda: _get_orchid("/store_reader_config/retry_timeout") == 180000 + 3)
+        assert _get_orchid("/hunk_reader_config/periodic_update_delay") == 10000 + 3
+        assert _get_orchid("/store_writer_config/max_meta_size") == 31457280 + 3
+        assert _get_orchid("/hunk_writer_config/desired_block_size") == 16777216 + 3
+
+    @authors("ifsmirnov")
+    def test_explicit_writer_config_overrides_derived_config(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@chunk_writer", {
+            "prefer_local_host": False,
+            "upload_replication_factor": 10,
+        })
+        set("//tmp/t/@hunk_chunk_writer", {
+            "prefer_local_host": False,
+            "upload_replication_factor": 10,
+        })
+
+        sync_mount_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        assert not get(f"//sys/tablets/{tablet_id}/orchid/store_writer_config/prefer_local_host")
+        assert get(f"//sys/tablets/{tablet_id}/orchid/store_writer_config/upload_replication_factor") == 10
+        assert not get(f"//sys/tablets/{tablet_id}/orchid/hunk_writer_config/prefer_local_host")
+        assert get(f"//sys/tablets/{tablet_id}/orchid/hunk_writer_config/upload_replication_factor") == 10
 
     @authors("ifsmirnov")
     def test_deep_patch(self):
@@ -251,7 +315,13 @@ class TestMountConfig(DynamicTablesBase):
         with raises_yt_error():
             set("//sys/@config/tablet_manager/io_config_patch/xxx", "yyy")
         with raises_yt_error():
+            set("//sys/@config/tablet_manager/io_config_template_patch/xxx", "yyy")
+        with raises_yt_error():
             set("//sys/@config/tablet_manager/io_config_patch/hunk_writer_config", {
+                "node_channel": "abc",
+            })
+        with raises_yt_error():
+            set("//sys/@config/tablet_manager/io_config_template_patch/hunk_writer_config", {
                 "node_channel": "abc",
             })
 
@@ -285,6 +355,8 @@ class TestMountConfig(DynamicTablesBase):
         def _get_orchid(suffix):
             return get(f"//sys/tablets/{tablet_id}/orchid{suffix}")
 
+        default_retry_timeout = _get_orchid("/store_reader_config/retry_timeout")
+
         set("//sys/@config/tablet_manager/table_config_experiments/foo", {
             "fraction": 1.0,
             "tablet_cell_bundle": "\\w*_bundle",
@@ -293,6 +365,11 @@ class TestMountConfig(DynamicTablesBase):
                 "mount_config_patch": {
                     "min_compaction_store_count": 4,
                 },
+                "io_config_template_patch": {
+                    "store_reader_config": {
+                        "retry_timeout": 180000 + 4,
+                    },
+                },
             },
         })
         set("//sys/@config/tablet_manager/mount_config_template_patch/compaction_data_size_base", 1234)
@@ -300,12 +377,15 @@ class TestMountConfig(DynamicTablesBase):
         # Check that the experiment is not auto applied.
         wait(lambda: _get_orchid("/config/compaction_data_size_base") == 1234)
         assert _get_orchid("/config/min_compaction_store_count") == 3
+        assert _get_orchid("/store_reader_config/retry_timeout") == default_retry_timeout
 
         set("//sys/@config/tablet_manager/table_config_experiments/foo/auto_apply", True)
         wait(lambda: _get_orchid("/config/min_compaction_store_count") == 4)
+        assert _get_orchid("/store_reader_config/retry_timeout") == 180000 + 4
 
         set("//sys/@config/tablet_manager/table_config_experiments/foo/sorted", False)
         wait(lambda: _get_orchid("/config/min_compaction_store_count") == 3)
+        assert _get_orchid("/store_reader_config/retry_timeout") == default_retry_timeout
 
     @authors("dave11ar")
     def test_experiments_descriptors(self):
@@ -341,6 +421,68 @@ class TestMountConfig(DynamicTablesBase):
         wait(min_compaction_store_count_checker(dave11ar0_tablet_id, 4))
         wait(min_compaction_store_count_checker(dave11ar1_tablet_id, 3))
         wait(min_compaction_store_count_checker(ifsmirnov_tablet_id, 3))
+
+    @authors("dave11ar")
+    def test_experiments_excludes(self):
+        included_bundle = "included_bundle"
+        excluded_bundle = "excluded_bundle"
+
+        for bundle in [included_bundle, excluded_bundle]:
+            create_tablet_cell_bundle(bundle)
+            sync_create_cells(1, tablet_cell_bundle=bundle)
+
+        def create_table(table_path, bundle):
+            self._create_sorted_table(table_path, tablet_cell_bundle=bundle)
+            sync_mount_table(table_path)
+            return get(f"{table_path}/@tablets/0/tablet_id")
+
+        included_tablet_id = create_table("//tmp/included", included_bundle)
+        excluded_by_path_tablet_id = create_table("//tmp/excluded_by_path", included_bundle)
+        excluded_by_bundle_tablet_id = create_table("//tmp/excluded_by_bundle", excluded_bundle)
+
+        set("//sys/@config/tablet_manager/table_config_experiments/foo", {
+            "fraction": 1.0,
+            "path_re": "//tmp/.*",
+            "exclude_path_re": "//tmp/excluded_by_pa.*",
+            "tablet_cell_bundle": ".*_bundle",
+            "exclude_tablet_cell_bundle": "excluded_bund.*",
+            "patch": {
+                "mount_config_patch": {
+                    "min_compaction_store_count": 4,
+                },
+            },
+            "auto_apply": True,
+        })
+
+        def min_compaction_store_count_checker(tablet_id, value):
+            return lambda: get(f"//sys/tablets/{tablet_id}/orchid/config/min_compaction_store_count") == value
+
+        wait(min_compaction_store_count_checker(included_tablet_id, 4))
+        wait(min_compaction_store_count_checker(excluded_by_path_tablet_id, 3))
+        wait(min_compaction_store_count_checker(excluded_by_bundle_tablet_id, 3))
+
+    @authors("babenko")
+    def test_mount_config_experiments_under_tx(self):
+        create_tablet_cell_bundle("b")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+
+        set("//sys/@config/tablet_manager/table_config_experiments/foo", {
+            "fraction": 1.0,
+            "tablet_cell_bundle": "b",
+            "patch": {
+                "mount_config_patch": {
+                    "min_compaction_store_count": 4,
+                },
+            },
+        })
+        wait(lambda: "foo" in get("//tmp/t/@assigned_mount_config_experiments"))
+
+        # Branched nodes do not carry a tablet cell bundle; it must be taken from trunk.
+        tx = start_transaction()
+        lock("//tmp/t", mode="snapshot", tx=tx)
+        assert get("//tmp/t/@tablet_cell_bundle", tx=tx) == "b"
+        assert "foo" in get("//tmp/t/@assigned_mount_config_experiments", tx=tx)
+        abort_transaction(tx)
 
     @authors("ifsmirnov")
     def test_common_key_in_attributes_and_mount_config(self):
@@ -394,10 +536,33 @@ class TestMountConfig(DynamicTablesBase):
             with raises_yt_error(error):
                 create("table", "//tmp/q", attributes={"mount_config": {field: value}})
 
+    @authors("ifsmirnov")
+    def test_patch_applies_after_node_restart(self):
+        cell_id = sync_create_cells(1)[0]
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        set("//sys/@config/tablet_manager/mount_config_template_patch", {
+            "min_data_ttl": 100,
+        })
+        wait(lambda: get(f"#{tablet_id}/orchid/config/min_data_ttl") == 100)
+
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "invalid")
+        wait(lambda: get(f"#{cell_id}/@health") == "failed")
+
+        set("//sys/@config/tablet_manager/mount_config_template_patch", {
+            "min_data_ttl": 200,
+        })
+
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "")
+        wait(lambda: get(f"#{cell_id}/@health") == "good")
+
+        wait(lambda: get(f"#{tablet_id}/orchid/config/min_data_ttl") == 200)
+
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestMountConfigMulticell(TestMountConfig):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

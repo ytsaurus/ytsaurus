@@ -41,7 +41,7 @@ public:
     TPortoJobDirectoryManager(
         const TJobDirectoryManagerDynamicConfigPtr& config,
         bool enableDiskQuota,
-        const TString& path,
+        const std::string& path,
         int locationIndex)
         : Path_(path)
         , Executor_(CreatePortoExecutor(
@@ -55,11 +55,14 @@ public:
             .ValueOrThrow();
 
         for (const auto& volumePath : volumePaths) {
-            if (volumePath.StartsWith(Path_ + "/")) {
-                YT_LOG_DEBUG("Unlinking old volume left from previous run (Path: %v)", volumePath);
+            if (volumePath.starts_with(Path_ + "/")) {
+                YT_TLOG_DEBUG("Unlinking old volume left from previous run")
+                    .With("Path", volumePath);
                 auto error = WaitFor(Executor_->UnlinkVolume(volumePath, "self"));
                 if (error.FindMatching(EPortoErrorCode::VolumeNotFound) || error.FindMatching(EPortoErrorCode::VolumeNotLinked)) {
-                    YT_LOG_DEBUG(error, "Failed to unlink volume (Path: %v)", volumePath);
+                    YT_TLOG_DEBUG("Failed to unlink volume")
+                        .With("Path", volumePath)
+                        .With(error);
                 } else {
                     error.ThrowOnError();
                 }
@@ -67,7 +70,7 @@ public:
         }
     }
 
-    TFuture<void> ApplyQuota(const TString& path, const TJobDirectoryProperties& properties) override
+    TFuture<void> ApplyQuota(const std::string& path, const TJobDirectoryProperties& properties) override
     {
         if (!EnableDiskQuota_) {
             return OKFuture;
@@ -75,7 +78,7 @@ public:
         return DoCreateVolume(path, properties, false);
     }
 
-    TFuture<void> CreateTmpfsDirectory(const TString& path, const TJobDirectoryProperties& properties) override
+    TFuture<void> CreateTmpfsDirectory(const std::string& path, const TJobDirectoryProperties& properties) override
     {
         return DoCreateVolume(path, properties, true);
     }
@@ -85,13 +88,13 @@ public:
         Executor_->OnDynamicConfigChanged(newConfig->PortoExecutor);
     }
 
-    TFuture<void> CleanDirectories(const TString& pathPrefix) override
+    TFuture<void> CleanDirectories(const std::string& pathPrefix) override
     {
-        std::vector<TString> toRelease;
+        std::vector<std::string> toRelease;
         {
             auto guard = Guard(SpinLock_);
             auto it = ManagedVolumes_.lower_bound(pathPrefix);
-            while (it != ManagedVolumes_.end() && (*it == pathPrefix || it->StartsWith(pathPrefix + "/"))) {
+            while (it != ManagedVolumes_.end() && (*it == pathPrefix || it->starts_with(pathPrefix + "/"))) {
                 toRelease.push_back(*it);
                 it = ManagedVolumes_.erase(it);
             }
@@ -104,13 +107,16 @@ public:
 
         std::vector<TFuture<void>> asyncUnlinkResults;
         for (const auto& path : toRelease) {
-            YT_LOG_DEBUG("Releasing Porto volume (Path: %v)", path);
+            YT_TLOG_DEBUG("Releasing Porto volume")
+                .With("Path", path);
             try {
                 // NB(psushin): it is important to clean volume contents before removal.
                 // Otherwise Porto can hang up in sync call for a long time during unlink of quota backend.
                 RunTool<TRemoveDirContentAsRootTool>(path);
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to remove directory contents for Porto volume (Path: %v)", path);
+                YT_TLOG_WARNING("Failed to remove directory contents for Porto volume")
+                    .With("Path", path)
+                    .With(ex);
             }
 
             asyncUnlinkResults.emplace_back(Executor_->UnlinkVolume(path, "self"));
@@ -120,16 +126,16 @@ public:
     }
 
 private:
-    const TString Path_;
+    const std::string Path_;
     const IPortoExecutorPtr Executor_;
     const bool EnableDiskQuota_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    std::set<TString> ManagedVolumes_;
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
+    std::set<std::string> ManagedVolumes_;
 
-    TFuture<void> DoCreateVolume(const TString& path, const TJobDirectoryProperties& properties, bool isTmpfs)
+    TFuture<void> DoCreateVolume(const std::string& path, const TJobDirectoryProperties& properties, bool isTmpfs)
     {
-        THashMap<TString, TString> volumeProperties;
+        THashMap<std::string, std::string> volumeProperties;
 
         if (isTmpfs) {
             volumeProperties["backend"] = "tmpfs";
@@ -150,7 +156,7 @@ private:
             volumeProperties["inode_limit"] = ToString(*properties.InodeLimit);
         }
 
-        auto onVolumeCreated = BIND([this, this_ = MakeStrong(this)] (const TString& volumePath) {
+        auto onVolumeCreated = BIND([this, this_ = MakeStrong(this)] (const std::string& volumePath) {
             auto guard = Guard(SpinLock_);
             YT_VERIFY(ManagedVolumes_.insert(volumePath).second);
         });
@@ -163,7 +169,7 @@ private:
 IJobDirectoryManagerPtr CreatePortoJobDirectoryManager(
     TJobDirectoryManagerDynamicConfigPtr config,
     bool enableDiskQuota,
-    const TString& path,
+    const std::string& path,
     int locationIndex)
 {
     return New<TPortoJobDirectoryManager>(std::move(config), enableDiskQuota, path, locationIndex);
@@ -179,7 +185,7 @@ class TSimpleJobDirectoryManager
 public:
     TSimpleJobDirectoryManager(
         IInvokerPtr invoker,
-        const TString& path,
+        const std::string& path,
         bool detachedTmpfsUmount)
         : Invoker_(std::move(invoker))
         , Path_(path)
@@ -200,13 +206,13 @@ public:
             auto error = WaitFor(CleanDirectories(Path_));
             if (!error.IsOK()) {
                 THROW_ERROR_EXCEPTION("Failed to initialize simple job directory manager")
-                    << TErrorAttribute("path", Path_)
-                    << std::move(error);
+                    .With("path", Path_)
+                    .With(std::move(error));
             }
         }
     }
 
-    TFuture<void> ApplyQuota(const TString& path, const TJobDirectoryProperties& properties) override
+    TFuture<void> ApplyQuota(const std::string& path, const TJobDirectoryProperties& properties) override
     {
         if (!properties.InodeLimit && !properties.DiskSpaceLimit) {
             return OKFuture;
@@ -225,15 +231,15 @@ public:
         .Run();
     }
 
-    TFuture<void> CreateTmpfsDirectory(const TString& path, const TJobDirectoryProperties& properties) override
+    TFuture<void> CreateTmpfsDirectory(const std::string& path, const TJobDirectoryProperties& properties) override
     {
         auto config = New<TMountTmpfsConfig>();
         config->Path = path;
         config->Size = properties.DiskSpaceLimit.value_or(std::numeric_limits<i64>::max());
         config->UserId = properties.UserId;
 
-        YT_LOG_DEBUG("Mounting tmpfs (Config: %v)",
-            ConvertToYsonString(config, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Mounting tmpfs")
+            .With("Config", ConvertToYsonString(config, EYsonFormat::Text));
 
         return BIND([=, this, this_ = MakeStrong(this)] {
             RunTool<TMountTmpfsAsRootTool>(config);
@@ -243,7 +249,7 @@ public:
         .Run();
     }
 
-    TFuture<void> CleanDirectories(const TString& pathPrefix) override
+    TFuture<void> CleanDirectories(const std::string& pathPrefix) override
     {
         return BIND([=, this, this_ = MakeStrong(this)] {
             std::vector<std::string> toRelease;
@@ -259,13 +265,16 @@ public:
             });
 
             for (const auto& path : toRelease) {
-                YT_LOG_DEBUG("Removing mount point (Path: %v)", path);
+                YT_TLOG_DEBUG("Removing mount point")
+                    .With("Path", path);
                 try {
                     // Due to bug in the kernel, this can sometimes fail with "Directory is not empty" error.
                     // More info: https://bugzilla.redhat.com/show_bug.cgi?id=1066751
                     RunTool<TRemoveDirContentAsRootTool>(path);
                 } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Failed to remove mount point (Path: %v)", path);
+                    YT_TLOG_WARNING("Failed to remove mount point")
+                        .With("Path", path)
+                        .With(ex);
                 }
 
                 auto config = New<TUmountConfig>();
@@ -285,7 +294,7 @@ public:
 
 private:
     const IInvokerPtr Invoker_;
-    const TString Path_;
+    const std::string Path_;
     const bool DetachedTmpfsUmount_;
 
     std::set<std::string> Directories_;
@@ -293,7 +302,7 @@ private:
 
 IJobDirectoryManagerPtr CreateSimpleJobDirectoryManager(
     IInvokerPtr invoker,
-    const TString& path,
+    const std::string& path,
     bool detachedTmpfsUmount)
 {
     return New<TSimpleJobDirectoryManager>(

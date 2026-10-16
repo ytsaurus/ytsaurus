@@ -9,7 +9,7 @@
 
 #include <library/cpp/testing/common/env.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <util/string/cast.h>
 #include <util/stream/file.h>
@@ -49,7 +49,8 @@ void RunUnderProfiler(const std::string& name, std::function<void()> work, bool 
         .TmpDir = GetOutputPath().GetPath(),
         .KeepTmpDir = true,
         .RunTool = [] (const std::vector<std::string>& args) {
-            TShellCommand command{args[0], TList<TString>{args.begin()+1, args.end()}};
+            // TODO(babenko): TShellCommand has no std::string-based API.
+            TShellCommand command{TString(args[0]), TList<TString>{args.begin() + 1, args.end()}};
             command.Run();
 
             EXPECT_TRUE(command.GetExitCode() == 0)
@@ -140,7 +141,7 @@ TEST_F(TSpinlockProfilerTest, YTLocks)
     RunUnderProfiler<TBlockingProfiler>("ytlock.pb.gz", [] {
         std::atomic<bool> Stop = false;
 
-        NThreading::TSpinLock lock;
+        YT_DECLARE_SPIN_LOCK(TSpinLock, lock);
         std::thread slow([&] {
             while (!Stop) {
                 lock.Acquire();

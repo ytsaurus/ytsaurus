@@ -252,6 +252,8 @@ void TDynamicDistributedHydraManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_state_hash_checker", &TThis::EnableStateHashChecker)
         .Optional();
+    registrar.Parameter("enable_state_hash_checker_during_recovery", &TThis::EnableStateHashCheckerDuringRecovery)
+        .Optional();
     registrar.Parameter("max_state_hash_checker_entry_count", &TThis::MaxStateHashCheckerEntryCount)
         .Optional();
     registrar.Parameter("state_hash_checker_mutation_verification_sampling_rate", &TThis::StateHashCheckerMutationVerificationSamplingRate)
@@ -344,6 +346,7 @@ void TDistributedHydraManagerConfig::ApplyDynamicInplace(const TDynamicDistribut
     UpdateYsonStructField(AbandonLeaderLeaseRequestTimeout, dynamicConfig.AbandonLeaderLeaseRequestTimeout);
 
     UpdateYsonStructField(EnableStateHashChecker, dynamicConfig.EnableStateHashChecker);
+    UpdateYsonStructField(EnableStateHashCheckerDuringRecovery, dynamicConfig.EnableStateHashCheckerDuringRecovery);
     UpdateYsonStructField(MaxStateHashCheckerEntryCount, dynamicConfig.MaxStateHashCheckerEntryCount);
     UpdateYsonStructField(StateHashCheckerMutationVerificationSamplingRate, dynamicConfig.StateHashCheckerMutationVerificationSamplingRate);
 
@@ -474,6 +477,9 @@ void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_state_hash_checker", &TThis::EnableStateHashChecker)
         .Default(true);
 
+    registrar.Parameter("enable_state_hash_checker_during_recovery", &TThis::EnableStateHashCheckerDuringRecovery)
+        .Default(false);
+
     registrar.Parameter("max_state_hash_checker_entry_count", &TThis::MaxStateHashCheckerEntryCount)
         .GreaterThan(0)
         .Default(1000);
@@ -554,6 +560,10 @@ void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("mutation_handler_failure_log_level_overrides", &TThis::MutationHandlerFailureLogLevelOverrides)
         .Default();
 
+    registrar.Parameter("unknown_automaton_parts_log_level", &TThis::UnknownAutomatonPartsLogLevel)
+        .GreaterThanOrEqual(ELogLevel::Info)
+        .Default(ELogLevel::Fatal);
+
     registrar.Postprocessor([] (TThis* config) {
         if (!config->DisableLeaderLeaseGraceDelay && config->LeaderLeaseGraceDelay <= config->LeaderLeaseTimeout) {
             THROW_ERROR_EXCEPTION("\"leader_lease_grace_delay\" must be larger than \"leader_lease_timeout\"");
@@ -575,8 +585,8 @@ void TSerializationDumperConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TThis* config) {
         if (config->LowerLimit >= config->UpperLimit) {
             THROW_ERROR_EXCEPTION("\"upper_limit\" must be greater than \"lower_limit\"")
-                << TErrorAttribute("lower_limit", config->LowerLimit)
-                << TErrorAttribute("upper_limit", config->UpperLimit);
+                .With("lower_limit", config->LowerLimit)
+                .With("upper_limit", config->UpperLimit);
         }
     });
 }

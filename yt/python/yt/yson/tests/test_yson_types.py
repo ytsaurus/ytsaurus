@@ -6,11 +6,6 @@ from yt.yson.yson_types import (YsonEntity, YsonBoolean, YsonUnicode, YsonString
                                 YsonStringProxy, is_unicode, get_bytes, NotUnicodeError,
                                 make_byte_key)
 
-try:
-    from yt.packages.six import PY3 # noqa
-except ImportError:
-    from six import PY3 # noqa
-
 import pytest
 
 import copy
@@ -34,19 +29,17 @@ def test_boolean():
 
 
 def test_string():
-    if PY3:
-        a = YsonUnicode("Кириллица")
-        assert is_unicode(a)
-        assert get_bytes(a) == "Кириллица".encode("utf-8")
-        b = YsonUnicode("Мефодица")
-        assert is_unicode(b)
-        assert get_bytes(b, "cp1251") == "Мефодица".encode("cp1251")
+    a = YsonUnicode("Кириллица")
+    assert is_unicode(a)
+    assert get_bytes(a) == "Кириллица".encode("utf-8")
+    b = YsonUnicode("Мефодица")
+    assert is_unicode(b)
+    assert get_bytes(b, "cp1251") == "Мефодица".encode("cp1251")
     c = YsonString(b"Some bytes \xFF")
     assert not is_unicode(c)
     assert get_bytes(c) == b"Some bytes \xFF"
 
 
-@pytest.mark.skipif("not PY3")
 def test_string_proxy():
     a = YsonStringProxy()
     a._bytes = b"aba"
@@ -105,7 +98,6 @@ def test_string_proxy():
         re.findall("a", a)
 
 
-@pytest.mark.skipif("not PY3")
 def test_string_proxy_copy():
     a = YsonStringProxy()
     a._bytes = b"\xFFabc"
@@ -118,7 +110,6 @@ def test_string_proxy_copy():
     assert copy.deepcopy(d) == d
 
 
-@pytest.mark.skipif("not PY3")
 def test_make_byte_key():
     key1 = make_byte_key(b"key\xF1")
     key2 = make_byte_key(b"key\xF2")

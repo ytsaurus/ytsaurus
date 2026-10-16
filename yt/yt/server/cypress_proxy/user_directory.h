@@ -10,7 +10,7 @@
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NCypressProxy {
 
@@ -74,7 +74,7 @@ public:
     void Clear();
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
 
     THashMap<std::string, TUserDescriptorPtr> NameOrAliasToUserDescriptor_;
     THashMap<std::string, TGroupDescriptorPtr> NameOrAliasToGroupDescriptor_;

@@ -116,16 +116,14 @@ void TServerProgramBase::Configure(const TServerProgramConfigPtr& config)
     MemoryLockedSuccessfully_.Update(statistics.BytesLockedSuccessfully);
     MemoryLockedUnsuccessfully_.Update(statistics.BytesLockedUnsuccessfully);
 
-    YT_LOG_DEBUG_UNLESS(success,
-        "Mlock failed (Errors: %v, SuccessfullCalls: %v, UnsuccessfullCalls: %v, "
-        "BytesLocked: %v, BytesNotLocked: %v)",
-        MakeFormattableView(statistics.ErrorCodes, [] (TStringBuilderBase* builder, int errnum) {
+    YT_TLOG_DEBUG_UNLESS(success, "Mlock failed")
+        .With("Errors", MakeFormattableView(statistics.ErrorCodes, [] (TStringBuilderBase* builder, int errnum) {
             builder->AppendString(strerror(errnum));
-        }),
-        statistics.SuccessfulCallCount,
-        statistics.UnsuccessfulCallCount,
-        statistics.BytesLockedSuccessfully,
-        statistics.BytesLockedUnsuccessfully);
+        }))
+        .With("SuccessfullCalls", statistics.SuccessfulCallCount)
+        .With("UnsuccessfullCalls", statistics.UnsuccessfulCallCount)
+        .With("BytesLocked", statistics.BytesLockedSuccessfully)
+        .With("BytesNotLocked", statistics.BytesLockedUnsuccessfully);
 
     ConfigureSingletons(config);
 

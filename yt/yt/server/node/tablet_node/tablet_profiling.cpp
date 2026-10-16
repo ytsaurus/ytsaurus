@@ -149,6 +149,7 @@ TTablePullerCounters::TTablePullerCounters(const NProfiling::TProfiler& profiler
     , ThrottleTime(profiler.Timer("/table_puller/throttle_time"))
     , RelativeThrottlerThrottleTime(profiler.Timer("/table_puller/relative_throttler_throttle_time"))
     , MemoryUsage(profiler.Counter("/table_puller/memory_usage"))
+    , FatalErrorCount(profiler.Counter("/table_puller/fatal_error_count"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -219,8 +220,18 @@ TTabletCounters::TTabletCounters(const TProfiler& profiler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicaCounters::TReplicaCounters(const TProfiler& profiler)
-    : LagRowCount(profiler.WithDense().Gauge("/replica/lag_row_count"))
+TReplicaCounters::TReplicaCounters(
+    const TProfiler& profiler,
+    ETableReplicaMode mode)
+    : SyncReplicaCount(profiler
+        .WithDense()
+        .WithTag("mode", "sync")
+        .GaugeSummary("/replica/replica_count", ESummaryPolicy::Sum | ESummaryPolicy::OmitNameLabelSuffix))
+    , AsyncReplicaCount(profiler
+        .WithDense()
+        .WithTag("mode", "async")
+        .GaugeSummary("/replica/replica_count", ESummaryPolicy::Sum | ESummaryPolicy::OmitNameLabelSuffix))
+    , LagRowCount(profiler.WithDense().Gauge("/replica/lag_row_count"))
     , LagTime(profiler.WithDense().TimeGaugeSummary("/replica/lag_time"))
     , ReplicationThrottleTime(profiler.Timer("/replica/replication_throttle_time"))
     , ReplicationTransactionStartTime(profiler.Timer("/replica/replication_transaction_start_time"))
@@ -234,7 +245,16 @@ TReplicaCounters::TReplicaCounters(const TProfiler& profiler)
     , ReplicationErrorCount(profiler.WithDense().Counter("/replica/replication_error_count"))
     , ReplicationBytesThrottled(profiler.WithDense().Counter("/replica/replication_bytes_throttled"))
     , ChunkReaderStatisticsCounters(profiler.WithPrefix("/replica/chunk_reader_statistics"))
-{ }
+{
+    SetMode(mode);
+}
+
+void TReplicaCounters::SetMode(ETableReplicaMode mode)
+{
+    bool isSync = mode == ETableReplicaMode::Sync || mode == ETableReplicaMode::SyncToAsync;
+    SyncReplicaCount.Update(isSync);
+    AsyncReplicaCount.Update(!isSync);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -337,7 +357,8 @@ void TLsmCounters::ProfileCompaction(
     const NChunkClient::NProto::TDataStatistics& readerStatistics,
     const NChunkClient::NProto::TDataStatistics& writerStatistics,
     const IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
-    const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics)
+    const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics,
+    i64 hunkChunkWriterDataWeight)
 {
     auto& counters = CompactionCounters_
         [reason][isEden ? 1 : 0][EStoreCompactorActivityKind::Compaction];
@@ -347,6 +368,7 @@ void TLsmCounters::ProfileCompaction(
         writerStatistics,
         hunkChunkReaderStatistics,
         hunkChunkWriterStatistics,
+        hunkChunkWriterDataWeight,
         hunkChunkCountByReason);
 }
 
@@ -356,7 +378,8 @@ void TLsmCounters::ProfilePartitioning(
     const NChunkClient::NProto::TDataStatistics& readerStatistics,
     const NChunkClient::NProto::TDataStatistics& writerStatistics,
     const IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
-    const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics)
+    const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics,
+    i64 hunkChunkWriterDataWeight)
 {
     auto& counters = CompactionCounters_
         [reason][/*isEden*/ 1][EStoreCompactorActivityKind::Partitioning];
@@ -366,6 +389,7 @@ void TLsmCounters::ProfilePartitioning(
         writerStatistics,
         hunkChunkReaderStatistics,
         hunkChunkWriterStatistics,
+        hunkChunkWriterDataWeight,
         hunkChunkCountByReason);
 }
 
@@ -385,6 +409,7 @@ void TLsmCounters::DoProfileCompaction(
     const NChunkClient::NProto::TDataStatistics& writerStatistics,
     const IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
     const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics,
+    i64 hunkChunkWriterDataWeight,
     TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason)
 {
     counters->StoreChunks.InDataWeight.Increment(readerStatistics.unmerged_data_weight());
@@ -402,7 +427,7 @@ void TLsmCounters::DoProfileCompaction(
         counters->HunkChunks.InDataWeight.Increment(hunkChunkReaderStatistics->DataWeight());
         counters->HunkChunks.InStoreCount.Increment(inHunkChunkCount);
     }
-    counters->HunkChunks.OutDataWeight.Increment(hunkChunkWriterStatistics.data_weight());
+    counters->HunkChunks.OutDataWeight.Increment(hunkChunkWriterDataWeight);
     counters->HunkChunks.OutStoreCount.Increment(hunkChunkWriterStatistics.chunk_count());
 }
 
@@ -475,7 +500,10 @@ void TWriterProfiler::Update(
     const IHunkChunkWriterStatisticsPtr& hunkChunkWriterStatistics)
 {
     if (hunkChunkWriter) {
-        HunkChunkDataStatistics_ += hunkChunkWriter->GetDataStatistics();
+        auto dataStatistics = hunkChunkWriter->GetDataStatistics();
+        // NB: Data weight is not stored in hunk chunk data statistics, so we simply override it here.
+        dataStatistics.set_data_weight(hunkChunkWriter->GetDataWeight());
+        HunkChunkDataStatistics_ += dataStatistics;
     }
     HunkChunkWriterStatistics_ = hunkChunkWriterStatistics;
 }
@@ -621,13 +649,15 @@ TFetchTableRowsCounters* TTableProfiler::GetFetchTableRowsCounters(const std::op
     return FetchTableRowsCounters_.Get(Disabled_, userTag, Profiler_, MediumProfiler_, MediumHistogramProfiler_, Schema_);
 }
 
-TReplicaCounters TTableProfiler::GetReplicaCounters(const std::string& cluster)
+TReplicaCounters TTableProfiler::GetReplicaCounters(
+    const std::string& cluster,
+    ETableReplicaMode mode)
 {
     if (Disabled_) {
         return {};
     }
 
-    return TReplicaCounters{Profiler_.WithTag("replica_cluster", cluster)};
+    return TReplicaCounters{Profiler_.WithTag("replica_cluster", cluster), mode};
 }
 
 template <class TCounter, class TCallback>
@@ -638,11 +668,11 @@ TCounter* TTableProfiler::GetOrCreateCounter(std::optional<TCounter>* counter, T
         return &staticCounter;
     }
 
-    auto readerGuard = NThreading::ReaderGuard(SpinLock_);
+    auto readerGuard = ReaderGuard(SpinLock_);
     if (!counter->has_value()) {
         readerGuard.Release();
 
-        auto writerGuard = NThreading::WriterGuard(SpinLock_);
+        auto writerGuard = WriterGuard(SpinLock_);
         if (!counter->has_value()) {
             if constexpr (std::is_same_v<TCallback, std::monostate>) {
                 counter->emplace(Profiler_);

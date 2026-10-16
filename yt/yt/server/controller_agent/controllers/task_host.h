@@ -84,7 +84,9 @@ struct ITaskHost
     virtual bool ShouldSkipSanityCheck() = 0;
 
     virtual const TChunkListPoolPtr& GetOutputChunkListPool() const = 0;
+    virtual const TChunkListPoolPtr& GetOutputHunkChunkListPool() const = 0;
     virtual NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) = 0;
+    virtual NChunkClient::TChunkListId ExtractOutputHunkChunkList(NObjectClient::TCellTag cellTag) = 0;
     virtual NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) = 0;
     virtual void ReleaseChunkTrees(
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
@@ -145,9 +147,9 @@ struct ITaskHost
     virtual TJobletPtr CreateJoblet(
         TTask* task,
         TJobId jobId,
-        TString treeId,
+        std::string treeId,
         int taskJobIndex,
-        std::optional<TString> poolPath,
+        std::optional<std::string> poolPath,
         bool treeIsTentative) = 0;
 
     virtual TSharedRef BuildJobSpecProto(
@@ -179,9 +181,9 @@ struct ITaskHost
     virtual const std::vector<std::string>& GetOffloadingPoolTrees() = 0;
     virtual TJobExperimentBasePtr GetJobExperiment() = 0;
 
-    virtual bool IsIdleCpuPolicyAllowedInTree(const TString& treeId) const = 0;
+    virtual bool IsIdleCpuPolicyAllowedInTree(const std::string& treeId) const = 0;
 
-    virtual bool IsTreeProbing(const TString& treeId) const = 0;
+    virtual bool IsTreeProbing(const std::string& treeId) const = 0;
 
     virtual std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const = 0;
 

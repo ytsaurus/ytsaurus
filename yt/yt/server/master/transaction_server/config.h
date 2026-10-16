@@ -63,8 +63,12 @@ struct TDynamicTransactionManagerTestingConfig
     : public NYTree::TYsonStruct
 {
     bool ThrowOnLeaseRevocation;
+
+    std::optional<TDuration> PreparedTransactionsBarrierDelay;
+
     THashSet<TTransactionId> PrerequisiteCheckFailureDuringCommitOfTransactions;
-    std::optional<TDuration> SequoiaTransactionBarrierDelay;
+
+    TDuration ArtificialParticipantCommitDelay;
 
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerTestingConfig);
 
@@ -79,6 +83,7 @@ struct TDynamicTransactionManagerConfig
     : public NYTree::TYsonStruct
 {
     static constexpr auto DefaultProfilingPeriod = TDuration::MilliSeconds(1000);
+    static constexpr auto DefaultAlertFlushPeriod = TDuration::Seconds(10);
 
     TDuration MaxTransactionTimeout;
     int MaxTransactionDepth;
@@ -89,11 +94,14 @@ struct TDynamicTransactionManagerConfig
     TTransactionFinisherConfigPtr TransactionFinisher;
 
     TDuration ProfilingPeriod;
+    TDuration AlertFlushPeriod;
 
     bool IgnoreCypressTransactions;
 
     bool CheckTransactionIsCompatibleWithMethod;
     bool AlertTransactionIsNotCompatibleWithMethod;
+
+    bool EnableWaitUntilPreparedTransactionsFinished;
 
     // NB: If type is not present in this map, then all methods are allowed.
     THashMap<NObjectClient::EObjectType, THashSet<std::string>> TransactionTypeToMethodWhitelist;
@@ -110,11 +118,18 @@ struct TDynamicTransactionManagerConfig
     // COMPAT(shakurov)
     bool EnableStartForeignTransactionFixes;
 
-    // COMPAT(cherepashka)
-    bool EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases;
+    // Alert if a user has too many active native transactions on a cell.
+    // NB: Alert may not be triggered if threshold is exceeded by concurrent requests.
+    int ActiveTransactionCountAlertThreshold;
 
-    // COMPAT(aleksandra-zh)
-    int RecomputeStronglyOrderedTransactionRefs;
+    // Deny starting transactions if the user has too many active native transactions on the cell.
+    // NB: May be exceeded by concurrent requests.
+    int ActiveTransactionCountLimit;
+
+    bool EnforceActiveTransactionCountLimit;
+
+    // COMPAT(shakurov)
+    bool IgnoreMissingLeaseCellsOnForcedTransactionAbort;
 
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerConfig);
 

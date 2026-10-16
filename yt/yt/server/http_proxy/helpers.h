@@ -18,7 +18,7 @@ NYTree::IMapNodePtr ParseQueryString(TStringBuf queryString);
 
 void FixupNodesWithAttributes(const NYTree::IMapNodePtr& node);
 
-NYTree::IMapNodePtr HideSecretParameters(const TString& commandName, NYTree::IMapNodePtr parameters);
+NYTree::IMapNodePtr HideSecretParameters(const std::string& commandName, NYTree::IMapNodePtr parameters);
 
 struct TPythonWrapperVersion
 {

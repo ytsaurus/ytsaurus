@@ -17,6 +17,7 @@ SRCS(
     computed_columns_ut.cpp
     ch_to_yt_converter_ut.cpp
     helpers.cpp
+    key_filtering_ut.cpp
     read_range_inference_ut.cpp
     framework.cpp
     yt_to_ch_converter_ut.cpp

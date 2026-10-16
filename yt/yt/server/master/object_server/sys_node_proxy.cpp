@@ -80,8 +80,8 @@ private:
     {
         if (clusterName.size() > MaxClusterNameLength) {
             THROW_ERROR_EXCEPTION("Cluster name is too long")
-                << TErrorAttribute("cluster_name_length", clusterName.size())
-                << TErrorAttribute("max_cluster_name_length", MaxClusterNameLength);
+                .With("cluster_name_length", clusterName.size())
+                .With("max_cluster_name_length", MaxClusterNameLength);
         }
 
         auto isAsciiText = [] (char c) {

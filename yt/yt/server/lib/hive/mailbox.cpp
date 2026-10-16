@@ -33,10 +33,9 @@ void TPersistentMailboxState::Save(TSaveContext& context) const
 {
     using NYT::Save;
 
-    OutcomingMessages_.Read([&] (const auto& outcomingMessages) {
-        Save(context, outcomingMessages.FirstId);
-        Save(context, outcomingMessages.Messages);
-    });
+    auto outcomingMessages = OutcomingMessages_.Load();
+    Save(context, outcomingMessages.FirstId);
+    Save(context, outcomingMessages.Messages);
 
     Save(context, GetNextPersistentIncomingMessageId());
 }
@@ -45,10 +44,10 @@ void TPersistentMailboxState::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    OutcomingMessages_.Transform([&] (auto& outcomingMessages) {
-        Load(context, outcomingMessages.FirstId);
-        Load(context, outcomingMessages.Messages);
-    });
+    TOutcomingMessages outcomingMessages;
+    Load(context, outcomingMessages.FirstId);
+    Load(context, outcomingMessages.Messages);
+    OutcomingMessages_.Store(std::move(outcomingMessages));
 
     SetNextPersistentIncomingMessageId(Load<TMessageId>(context));
 }

@@ -209,14 +209,16 @@ public:
         const TJobResources& nodeLimits,
         const TDiskResources& diskResourceLimits,
         const std::string& /* treeId */,
-        const TString& /* poolPath */,
-        std::optional<TDuration> /* waitingForResourcesOnNodeTimeout */) override;
+        const NYPath::TYPath& /* poolPath */,
+        std::optional<TDuration> /* waitingForResourcesOnNodeTimeout */,
+        std::optional<std::string> /* allocationGroupName */,
+        TAllocationId allocationId) override;
 
     void UpdateGroupedNeededResources() override;
     TAllocationGroupResourcesMap GetGroupedNeededResources() const override;
     TAllocationGroupResourcesMap GetInitialGroupedNeededResources() const override;
 
-    TString GetLoggingProgress() const override;
+    std::string GetLoggingProgress() const override;
 
 private:
     using TJobBuckets = THashMap<EJobType, std::unique_ptr<TJobBucket>>;
@@ -229,7 +231,7 @@ private:
     TLockProtectedMap<TAllocationId, TJobDescription> AllocationIdToJobDescription_;
     NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     // Protected by Lock_.
     int PendingJobCount_ = 0;
     int CompletedJobCount_ = 0;
@@ -450,8 +452,10 @@ TFuture<TControllerScheduleAllocationResultPtr> TSimulatorOperationController::S
     const TJobResources& nodeLimits,
     const TDiskResources& /*diskResourceLimits*/,
     const std::string& /* treeId */,
-    const TString& /* poolPath */,
-    std::optional<TDuration> /* waitingForResourcesOnNodeTimeout */)
+    const NYPath::TYPath& /* poolPath */,
+    std::optional<TDuration> /* waitingForResourcesOnNodeTimeout */,
+    std::optional<std::string> /* allocationGroupName */,
+    TAllocationId specifiedAllocationId)
 {
     MaybeDelay(ScheduleJobDelay_);
 
@@ -466,8 +470,9 @@ TFuture<TControllerScheduleAllocationResultPtr> TSimulatorOperationController::S
         return MakeFuture(scheduleAllocationResult);
     }
 
-    auto jobId = TJobId(TGuid::Create());
-    auto allocationId = AllocationIdFromJobId(jobId);
+    auto allocationId = specifiedAllocationId
+        ? specifiedAllocationId
+        : AllocationIdFromJobId(TJobId(TGuid::Create()));
     scheduleAllocationResult->StartDescriptor.emplace(TAllocationStartDescriptor{
         .Id = allocationId,
         .ResourceLimits = jobToSchedule.ResourceLimits,
@@ -499,9 +504,9 @@ void TSimulatorOperationController::UpdateGroupedNeededResources()
             .AllocationCount = pendingJobCount,
         };
 
-        YT_LOG_DEBUG("Aggregated allocation group resources for jobs (JobType: %v, AllocationGroupResources: %v)",
-            jobType,
-            resources);
+        YT_TLOG_DEBUG("Aggregated allocation group resources for jobs")
+            .With("JobType", jobType)
+            .With("AllocationGroupResources", resources);
 
         result.emplace(FormatEnum(jobType), std::move(resources));
     }
@@ -520,7 +525,7 @@ TAllocationGroupResourcesMap  TSimulatorOperationController::GetInitialGroupedNe
     return InitialGroupedNeededResources_;
 }
 
-TString TSimulatorOperationController::GetLoggingProgress() const
+std::string TSimulatorOperationController::GetLoggingProgress() const
 {
     return Format(
         "Buckets = {T: %v, R: %v}, Jobs = {T: %v, R: %v, C: %v, P: %v, A: %v}",

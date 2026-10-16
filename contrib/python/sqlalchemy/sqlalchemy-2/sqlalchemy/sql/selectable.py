@@ -103,7 +103,6 @@ from ..util.typing import Literal
 from ..util.typing import Protocol
 from ..util.typing import Self
 
-
 and_ = BooleanClauseList.and_
 
 
@@ -1611,6 +1610,19 @@ class Join(roles.DMLTableRole, FromClause):
         """
         return Select(self.left, self.right).select_from(self)
 
+    @staticmethod
+    def _flat_element_name(
+        name: Optional[str], element: FromClause
+    ) -> Optional[str]:
+        if name and isinstance(element, NamedFromClause):
+            if isinstance(element.name, _anonymous_label):
+                # an anonymous name can't be embedded within a new name;
+                # alias the element anonymously, #13583
+                return None
+            return f"{name}_{element.name}"
+        else:
+            return name
+
     @util.preload_module("sqlalchemy.sql.util")
     def _anonymous_fromclause(
         self, name: Optional[str] = None, flat: bool = False
@@ -1620,17 +1632,11 @@ class Join(roles.DMLTableRole, FromClause):
             if isinstance(self.left, (FromGrouping, Join)):
                 left_name = name  # will recurse
             else:
-                if name and isinstance(self.left, NamedFromClause):
-                    left_name = f"{name}_{self.left.name}"
-                else:
-                    left_name = name
+                left_name = self._flat_element_name(name, self.left)
             if isinstance(self.right, (FromGrouping, Join)):
                 right_name = name  # will recurse
             else:
-                if name and isinstance(self.right, NamedFromClause):
-                    right_name = f"{name}_{self.right.name}"
-                else:
-                    right_name = name
+                right_name = self._flat_element_name(name, self.right)
             left_a, right_a = (
                 self.left._anonymous_fromclause(name=left_name, flat=flat),
                 self.right._anonymous_fromclause(name=right_name, flat=flat),
@@ -2238,7 +2244,10 @@ class CTE(
             name=name,
             recursive=self.recursive,
             nesting=self.nesting,
-            _cte_alias=self,
+            # an alias of an alias refers to the original CTE, #13583
+            _cte_alias=(
+                self._cte_alias if self._cte_alias is not None else self
+            ),
             _prefixes=self._prefixes,
             _suffixes=self._suffixes,
         )
@@ -4957,42 +4966,28 @@ class SelectState(util.MemoizedSlots, CompileState):
         if self.statement._correlate:
             to_correlate = self.statement._correlate
             if to_correlate:
-                froms = [
-                    f
-                    for f in froms
-                    if f
-                    not in _cloned_intersection(
-                        _cloned_intersection(
-                            froms, explicit_correlate_froms or ()
-                        ),
-                        to_correlate,
-                    )
-                ]
-
-        if self.statement._correlate_except is not None:
-            froms = [
-                f
-                for f in froms
-                if f
-                not in _cloned_difference(
+                to_remove = _cloned_intersection(
                     _cloned_intersection(
                         froms, explicit_correlate_froms or ()
                     ),
-                    self.statement._correlate_except,
+                    to_correlate,
                 )
-            ]
+                froms = [f for f in froms if f not in to_remove]
+
+        if self.statement._correlate_except is not None:
+            to_remove = _cloned_difference(
+                _cloned_intersection(froms, explicit_correlate_froms or ()),
+                self.statement._correlate_except,
+            )
+            froms = [f for f in froms if f not in to_remove]
 
         if (
             self.statement._auto_correlate
             and implicit_correlate_froms
             and len(froms) > 1
         ):
-            froms = [
-                f
-                for f in froms
-                if f
-                not in _cloned_intersection(froms, implicit_correlate_froms)
-            ]
+            to_remove = _cloned_intersection(froms, implicit_correlate_froms)
+            froms = [f for f in froms if f not in to_remove]
 
             if not len(froms):
                 raise exc.InvalidRequestError(
@@ -5063,7 +5058,7 @@ class SelectState(util.MemoizedSlots, CompileState):
                     raw_columns, left, right, onclause
                 )
             else:
-                (replace_from_obj_index) = self._join_place_explicit_left_side(
+                replace_from_obj_index = self._join_place_explicit_left_side(
                     left
                 )
 

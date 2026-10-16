@@ -13,7 +13,7 @@ from yt_commands import (
     sync_freeze_table, sync_unfreeze_table, sync_flush_table, sync_reshard_table,
     get_singular_chunk_id, update_op_parameters,
     disable_scheduler_jobs_on_node, set_node_banned, disable_write_sessions_on_node, disable_tablet_cells_on_node,
-    enable_tablet_cells_on_node)
+    enable_tablet_cells_on_node, raises_yt_error)
 
 from yt.common import YtError
 import yt.yson as yson
@@ -225,11 +225,11 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
             map(in_="<timestamp={}>//tmp/t".format(ts), out="//tmp/p", command="cat")
             assert read_table("//tmp/p") == [{"key": 1, "value": "a"}]
         else:
-            with pytest.raises(YtError):
+            with raises_yt_error("Requested timestamp is out of range for table"):
                 read_table("<timestamp={}>//tmp/t".format(ts))
 
             create("table", "//tmp/p")
-            with pytest.raises(YtError):
+            with raises_yt_error("Requested timestamp is out of range for table"):
                 map(in_="<timestamp={}>//tmp/t".format(ts), out="//tmp/p", command="cat")
 
     @pytest.mark.parametrize("freeze", [True, False])
@@ -261,7 +261,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
             actual = [{"key": 1, "value": "a"}]
             assert_items_equal(expected, actual)
         else:
-            with pytest.raises(YtError):
+            with raises_yt_error("Chunk .* is unavailable"):
                 # We've lost the data, but at least master didn't crash.
                 read_table(
                     "//tmp/t",
@@ -568,7 +568,6 @@ class TestReadSortedDynamicTablesMulticell(TestReadSortedDynamicTables):
 
 
 @authors("ifsmirnov")
-@pytest.mark.enabled_multidaemon
 class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1

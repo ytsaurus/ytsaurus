@@ -2,7 +2,9 @@
 
 #include <yt/yt/client/chunk_client/public.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <yt/yt/core/logging/log.h>
+
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NNodeTrackerClient {
 
@@ -35,18 +37,18 @@ public:
 
         auto it = SuspiciousNodesMarkTime_.find(nodeId);
         if (it == SuspiciousNodesMarkTime_.end() && suspicious) {
-            YT_LOG_DEBUG("Node is marked as suspicious (NodeId: %v, Address: %v)",
-                nodeId,
-                address);
+            YT_TLOG_DEBUG("Node is marked as suspicious")
+                .With("NodeId", nodeId)
+                .With("Address", address);
             SuspiciousNodesMarkTime_[nodeId] = TInstant::Now();
         }
         if (it != SuspiciousNodesMarkTime_.end() &&
             previousMarkTime == it->second &&
             !suspicious)
         {
-            YT_LOG_DEBUG("Node is not suspicious anymore (NodeId: %v, Address: %v)",
-                nodeId,
-                address);
+            YT_TLOG_DEBUG("Node is not suspicious anymore")
+                .With("NodeId", nodeId)
+                .With("Address", address);
             SuspiciousNodesMarkTime_.erase(nodeId);
         }
     }
@@ -81,7 +83,7 @@ private:
     const NLogging::TLogger Logger;
 
     // TODO(akozhikhov): Add periodic to clear old suspicious nodes.
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SuspiciousNodesSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SuspiciousNodesSpinLock_);
     THashMap<TNodeId, TInstant> SuspiciousNodesMarkTime_;
 };
 

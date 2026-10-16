@@ -1,14 +1,16 @@
-GTEST(unittester-yt-orm-library)
+GTEST(unittester-yt-orm-library-attributes)
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/orm/ya_cpp.make.inc)
 
 SRCS(
     attribute_path_ut.cpp
     attribute_processing_ut.cpp
+    enum_consumer_ut.cpp
     merge_attributes_ut.cpp
     patch_unwrapping_consumer_ut.cpp
     scalar_attribute_ut.cpp
     unwrapping_consumer_ut.cpp
+    asterisk_projection_ut.cpp
     wire_string_ut.cpp
 )
 
@@ -18,6 +20,8 @@ PEERDIR(
     yt/yt/orm/library/attributes/tests/proto
 
     yt/yt/orm/library/attributes
+
+    yt/yt/client
 
     yt/yt/core/test_framework
 )

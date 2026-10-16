@@ -16,11 +16,15 @@ SRCS(
     bootstrap.cpp
     config.cpp
     dynamic_config_manager.cpp
+    udf_meta_manager.cpp
     yql_agent.cpp
     yql_service.cpp
     interop.cpp
     type_builder.cpp
     data_builder.cpp
+    query_identity.cpp
+    token_manager.cpp
+    token_service.cpp
 )
 
 PEERDIR(
@@ -29,6 +33,7 @@ PEERDIR(
     library/cpp/yt/mlock
     library/cpp/yt/phdr_cache
 
+    yt/yt/library/cypress_election
     yt/yt/library/dynamic_config
     yt/yt/library/monitoring
     yt/yt/library/orchid
@@ -40,12 +45,13 @@ PEERDIR(
     yt/yt/client/formats
 
     yt/yt/server/lib/admin
-    yt/yt/server/lib/cypress_election
     yt/yt/server/lib/misc
     yt/yt/server/lib/component_state_checker
 
+    yt/yql/library/token_service
     yt/yql/plugin
-    yt/yql/plugin/bridge
+    yt/yql/plugin/native
+    yt/yql/plugin/qtworker
 
     yql/essentials/public/langver
     yql/essentials/public/result_format

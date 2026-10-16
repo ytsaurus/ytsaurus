@@ -39,7 +39,9 @@ target_link_libraries(yt-server-timestamp_provider PUBLIC
   yt-library-orchid
   yt-library-program
   yt-library-server_program
+  yt-yt-ytlib
   ytserver
+  server-lib-cypress_registrar
   server-lib-transaction_server
 )
 

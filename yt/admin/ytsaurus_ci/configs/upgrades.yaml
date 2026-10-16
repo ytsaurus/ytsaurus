@@ -1,0 +1,46 @@
+25.3-to-25.4:
+  version_filter:
+    ytsaurus: "25.3"
+    operator: "0.29.0"
+    chyt: "2.17.4"
+    strawberry: "0.0.16"
+    spyt: "2.7.3"
+    query_tracker: "0.1"
+  upgrade_to:
+    ytsaurus: "25.4"
+    operator: "0.30.0"
+    chyt: "2.18.1"
+    strawberry: "0.0.17"
+    spyt: "2.8.2"
+    query_tracker: "0.1"
+25.3-to-25.4-simple:
+  version_filter:
+    ytsaurus: "25.3"
+    operator: "0.30.0"
+    chyt: "2.17.4"
+    strawberry: "0.0.16"
+    spyt: "2.7.3"
+    query_tracker: "0.1"
+  upgrade_to:
+    ytsaurus: "25.4"
+25.4-to-26.1-simple:
+  version_filter:
+    ytsaurus: "25.4"
+    operator: "0.31.0"
+    chyt: "2.18.3"
+    strawberry: "0.0.17"
+    spyt: "2.7.3"
+    query_tracker: "0.1"
+  upgrade_to:
+    ytsaurus: "26.1"
+    spyt: "2.8.2"
+25.4-qt-0.1.1:
+  version_filter:
+    ytsaurus: "25.4"
+    operator: "0.30.0"
+    chyt: "2.17.4"
+    strawberry: "0.0.16"
+    spyt: "2.7.3"
+    query_tracker: "0.1"
+  upgrade_to:
+    query_tracker: "0.1.1"

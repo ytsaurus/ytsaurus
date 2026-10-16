@@ -1,0 +1,511 @@
+#include "lock.h"
+
+#include "yt_wrapper.h"
+
+#include <yql/essentials/utils/log/log.h>
+
+#include <yt/yt/client/api/transaction.h>
+#include <yt/yt/core/ytree/public.h>
+
+#include <contrib/ydb/library/actors/core/actor.h>
+#include <contrib/ydb/library/actors/core/actorsystem.h>
+#include <contrib/ydb/library/actors/core/hfunc.h>
+
+#include <library/cpp/yt/string/guid.h>
+#include <library/cpp/yson/node/node_io.h>
+#include <library/cpp/svnversion/svnversion.h>
+
+#include <contrib/ydb/library/yql/providers/dq/common/attrs.h>
+#include <contrib/ydb/library/yql/providers/dq/actors/actor_helpers.h>
+#include <contrib/ydb/library/yql/providers/dq/actors/events/events.h>
+
+#include <util/string/builder.h>
+#include <util/system/hostname.h>
+#include <util/system/getpid.h>
+
+namespace NYql {
+
+using namespace NActors;
+
+struct TLockRequest: public TActor<TLockRequest> {
+    TLockRequest(
+        const NYT::NApi::ITransactionPtr& transaction,
+        TActorId ytWrapper,
+        TActorId lockActorId,
+        TActorId parentId,
+        const TString prefix,
+        const TString lockName,
+        NYT::TNode attributes)
+        : TActor<TLockRequest>(&TLockRequest::Handler)
+        , Transaction(transaction)
+        , LockActorId(lockActorId)
+        , ParentId(parentId)
+        , Prefix(prefix)
+        , LockName(lockName)
+        , NodePath(prefix + "/" + lockName)
+        , InfoNodePath(NodePath + "/@")
+        , LockNodePath(NodePath + ".lock")
+        , Attributes(attributes)
+        , Revision(GetProgramCommitId())
+        , YtWrapper(ytWrapper)
+    { }
+
+    ~TLockRequest()
+    { }
+
+private:
+    STRICT_STFUNC(Handler, {
+        cFunc(TEvents::TEvPoison::EventType, PassAway);
+        CFunc(TEvents::TEvBootstrap::EventType, CreateLockNode);
+        HFunc(TEvCreateNodeResponse, OnCreateLockNode);
+        HFunc(TEvSetNodeResponse, OnNodeLocked);
+    });
+
+    STRICT_STFUNC(ReadInfoNodeHandler, {
+        cFunc(TEvents::TEvPoison::EventType, PassAway);
+        HFunc(TEvGetNodeResponse, SendBecomeFollower);
+    });
+
+    STRICT_STFUNC(GetOrCreateEpochHandler, {
+        cFunc(TEvents::TEvPoison::EventType, PassAway);
+        HFunc(TEvGetNodeResponse, OnGetEpochNode);
+        HFunc(TEvCreateNodeResponse, OnCreateEpochNode);
+    });
+
+    STRICT_STFUNC(SetAttributesHandler, {
+        cFunc(TEvents::TEvPoison::EventType, PassAway);
+        HFunc(TEvSetNodeResponse, OnSetAttribute);
+    });
+
+    TAutoPtr<IEventHandle> AfterRegister(const TActorId& self, const TActorId& parentId) override {
+        return new IEventHandle(self, parentId, new TEvents::TEvBootstrap, 0);
+    }
+
+    void OnCreateLockNode(TEvCreateNodeResponse::TPtr& ev, const TActorContext& ctx) {
+        auto result = std::get<0>(*ev->Get());
+        if (result.IsOK()) {
+            YQL_CLOG(TRACE, ProviderDq) << "Created lock node"
+                << " path=" << Prefix << "/" << LockName << ".lock"
+                << " node_id=" << ToString(result.ValueOrThrow());
+            NYT::NApi::TLockNodeOptions options;
+            options.Waitable = false;
+            auto* actorSystem = ctx.ActorSystem();
+            auto selfId = SelfId();
+            try {
+                YT_UNUSED_FUTURE(Transaction->LockNode("#" + ToString(result.ValueOrThrow()), NYT::NCypressClient::ELockMode::Exclusive, options).As<void>()
+                    .Apply(BIND([actorSystem, selfId](const NYT::TErrorOr<void>& result) {
+                        actorSystem->Send(selfId, new TEvSetNodeResponse(0, result));
+                    })));
+            } catch (...) {
+                Finish(ctx);
+            }
+        } else {
+            Finish(result, ctx);
+        }
+    }
+
+    void OnNodeLocked(TEvSetNodeResponse::TPtr& ev, const TActorContext& ctx) {
+        auto result = std::get<0>(*ev->Get());
+        if (result.IsOK()) {
+            YQL_CLOG(DEBUG, ProviderDq) << "Exclusive lock acquired for " << LockName;
+            GetOrCreateEpoch();
+        } else {
+            Finish(result, ctx);
+        }
+    }
+
+    void PassAway() override {
+        YQL_CLOG(DEBUG, ProviderDq) << "LockRequest stepping down: aborting txn=" << ToString(Transaction->GetId())
+                                   << " lock=" << LockName;
+        YT_UNUSED_FUTURE(Transaction->Abort());
+        Transaction.Reset();
+        Send(LockActorId, new TEvTick());
+        IActor::PassAway();
+    }
+
+    void OnGetEpochNode(TEvGetNodeResponse::TPtr& ev, const TActorContext& ctx) {
+        auto result = std::get<0>(*ev->Get());
+        try {
+            if (!result.IsOK() && !result.FindMatching(NYT::NYTree::EErrorCode::ResolveError)) {
+                Finish(result, ctx);
+            } else if (result.IsOK()) {
+                auto epoch = static_cast<ui32>(NYT::NodeFromYsonString(result.Value().AsStringBuf()).AsUint64());
+                SetInfoNodeAttributes(epoch);
+            } else {
+                NYT::NApi::TCreateNodeOptions createNodeOptions;
+                auto prereqId = Transaction->GetId();
+
+                createNodeOptions.IgnoreExisting = true;
+                createNodeOptions.PrerequisiteTransactionIds.push_back(prereqId);
+
+                Send(YtWrapper, new TEvCreateNode(NodePath, NYT::NObjectClient::EObjectType::StringNode, createNodeOptions));
+            }
+        } catch (...) {
+            Finish(ctx);
+        }
+    }
+
+    void OnCreateEpochNode(TEvCreateNodeResponse::TPtr& ev, const TActorContext& ctx) {
+        auto result = std::get<0>(*ev->Get());
+        if (result.IsOK()) {
+            SetInfoNodeAttributes(0);
+        } else {
+            Finish(result, ctx);
+        }
+    }
+
+    void SetInfoNodeAttributes(ui32 epoch) {
+        epoch += 1;
+        Epoch = epoch;
+
+        auto prereqId = Transaction->GetId();
+
+        NYT::NApi::TSetNodeOptions setNodeOptions;
+        setNodeOptions.PrerequisiteTransactionIds.push_back(prereqId);
+
+        auto attributesMap = Attributes.AsMap();
+        attributesMap[NCommonAttrs::EPOCH_ATTR] = NYT::TNode(epoch);
+        attributesMap[NCommonAttrs::REVISION_ATTR] = NYT::TNode(Revision);
+
+        AttributesCount = attributesMap.size();
+        Become(&TLockRequest::SetAttributesHandler);
+
+        for (const auto& [k, v]: attributesMap) {
+            Send(YtWrapper, new TEvSetNode(
+                InfoNodePath + k,
+                NYT::NYson::TYsonString(NYT::NodeToYsonString(v)),
+                setNodeOptions));
+        }
+    }
+
+    void OnSetAttribute(TEvSetNodeResponse::TPtr& ev, const TActorContext& ctx) {
+        auto result = std::get<0>(*ev->Get());
+        if (result.IsOK()) {
+            if (--AttributesCount == 0) {
+                SendBecomeLeader();
+                Finish(result, ctx);
+            }
+        } else {
+            Finish(result, ctx);
+        }
+    }
+
+    void GetOrCreateEpoch()
+    {
+        Become(&TLockRequest::GetOrCreateEpochHandler);
+
+        auto prereqId = Transaction->GetId();
+
+        NYT::NApi::TGetNodeOptions getNodeOptions;
+        getNodeOptions.PrerequisiteTransactionIds.push_back(prereqId);
+        Send(YtWrapper, new TEvGetNode(InfoNodePath + NCommonAttrs::EPOCH_ATTR, getNodeOptions));
+    }
+
+    void ReadInfoNode() {
+        Become(&TLockRequest::ReadInfoNodeHandler);
+
+        Send(YtWrapper, new TEvGetNode(InfoNodePath, NYT::NApi::TGetNodeOptions()));
+    }
+
+    void SendBecomeLeader() {
+        auto txnId = ToString(Transaction->GetId());
+        YQL_CLOG(DEBUG, ProviderDq) << "Lock: become leader"
+            << " lock=" << LockName
+            << " epoch=" << Epoch
+            << " tx=" << txnId;
+        auto attributes = NYT::NYson::TYsonString(NYT::NodeToYsonString(Attributes));
+        Send(ParentId, new TEvBecomeLeader(Epoch, txnId, attributes.ToString()));
+    }
+
+    void SendBecomeFollower(TEvGetNodeResponse::TPtr& ev, const TActorContext& ctx) {
+        Y_UNUSED(ctx);
+        auto result = std::get<0>(*ev->Get());
+        if (result.IsOK()) {
+            YQL_CLOG(DEBUG, ProviderDq) << "Lock: become follower"
+                << " lock=" << LockName;
+            Send(ParentId, new TEvBecomeFollower(result.ValueOrThrow().ToString()));
+        } else {
+            YQL_CLOG(WARN, ProviderDq) << "Lock: failed to read leader info"
+                << " lock=" << LockName
+                << " path=" << Prefix << "/" << LockName
+                << " error=" << ToString(result);
+        }
+        Send(SelfId(), new TEvents::TEvPoison());
+    }
+
+    template<typename T>
+    void Finish(const NYT::TErrorOr<T>& result, const TActorContext& ctx) {
+        if (result.IsOK()) {
+            auto* actorSystem = ctx.ActorSystem();
+            auto selfId = SelfId();
+            auto txnId = ToString(Transaction->GetId());
+            auto lockName = LockName;
+            Transaction->SubscribeAborted(BIND([actorSystem, selfId, txnId, lockName](const NYT::TError& error) {
+                YQL_CLOG(WARN, ProviderDq) << "Leader transaction aborted externally: txn=" << txnId
+                                           << " lock=" << lockName << " error=" << ToString(error);
+                actorSystem->Send(selfId, new TEvents::TEvPoison());
+            }));
+        } else {
+            if (result.FindMatching(NYT::NCypressClient::EErrorCode::ConcurrentTransactionLockConflict)) {
+                YQL_CLOG(INFO, ProviderDq) << "lock conflict, will follow leader"
+                    << " lock=" << LockName
+                    << " error=" << ToString(result);
+            } else {
+                YQL_CLOG(WARN, ProviderDq) << "lock request failed"
+                    << " lock=" << LockName
+                    << " error=" << ToString(result);
+            }
+            ReadInfoNode();
+        }
+    }
+
+    void Finish(const TActorContext& ctx) {
+        Y_UNUSED(ctx);
+        YQL_CLOG(WARN, ProviderDq) << "Lock request exception"
+            << " lock=" << LockName
+            << " error=" << CurrentExceptionMessage();
+        ReadInfoNode();
+    }
+
+    void CreateLockNode(const TActorContext& ctx) {
+        YQL_CLOG(TRACE, ProviderDq) << "Lock: creating lock node path=" << LockNodePath;
+        try {
+            auto* actorSystem = ctx.ActorSystem();
+            auto selfId = SelfId();
+            YT_UNUSED_FUTURE(Transaction->CreateNode(
+                LockNodePath,
+                NYT::NObjectClient::EObjectType::StringNode,
+                NYT::NApi::TCreateNodeOptions())
+                .Apply(BIND([actorSystem, selfId](const NYT::TErrorOr<NYT::NCypressClient::TNodeId>& result) {
+                    actorSystem->Send(selfId, new TEvCreateNodeResponse(0, result));
+                })));
+        } catch (...) {
+            Finish(ctx);
+        }
+    }
+
+    NYT::NApi::ITransactionPtr Transaction;
+
+    const TActorId LockActorId;
+    const TActorId ParentId;
+    const TString Prefix;
+    const TString LockName;
+    const TString NodePath;
+    const TString InfoNodePath;
+    const TString LockNodePath;
+    const NYT::TNode Attributes;
+
+    const TString Revision;
+    ui32 Epoch;
+    int AttributesCount = 0;
+
+    TActorId YtWrapper;
+};
+
+class TYtLock: public TRichActor<TYtLock> {
+public:
+    static constexpr char ActorName[] = "LOCK";
+
+    TYtLock(
+        const TActorId& ytWrapper,
+        const TString& prefix,
+        const TString& lockName,
+        const TString& lockAttributes,
+        bool temporary)
+        : TRichActor<TYtLock>(&TYtLock::Handler)
+        , YtWrapper(ytWrapper)
+        , Prefix(prefix)
+        , LockName(lockName)
+        , NodePath(prefix + "/" + lockName)
+        , InfoNodePath(NodePath + "/@")
+        , Attributes(NYT::NodeFromYsonString(lockAttributes))
+        , Temporary(temporary)
+        , Revision(GetProgramCommitId())
+    {
+        YQL_CLOG(DEBUG, ProviderDq) << "YT lock actor started"
+            << " lock=" << lockName
+            << " prefix=" << prefix
+            << " yt_wrapper=" << ytWrapper
+            << " temporary=" << temporary;
+    }
+
+private:
+    STRICT_STFUNC(Handler, {
+        cFunc(TEvents::TEvPoison::EventType, PassAway);
+        CFunc(TEvTick::EventType, OnTick);
+        HFunc(TEvStartTransactionResponse, OnStartTransactionResponse);
+        HFunc(TEvCreateNodeResponse, OnCreateNode);
+        HFunc(TEvGetNodeResponse, SendBecomeFollower);
+        cFunc(TEvBecomeFollower::EventType, OnFollowingForever);
+    });
+
+    void DoPassAway() override {
+        YQL_CLOG(DEBUG, ProviderDq) << "Unlock " << LockName;
+        Send(LockRequestActorId, new TEvents::TEvPoison());
+        if (Temporary) {
+            Send(YtWrapper, new TEvRemoveNode(NodePath, {}));
+        }
+    }
+
+    static TEvStartTransaction* GetStartTransactionCommand() {
+        NYT::NApi::TTransactionStartOptions options;
+        auto attrs = NYT::NYTree::CreateEphemeralAttributes();
+        attrs->Set("title", TStringBuilder{} << "Host name: " << HostName() << " Pid: " << GetPID());
+        options.Attributes = attrs;
+        auto command = new TEvStartTransaction(
+            NYT::NTransactionClient::ETransactionType::Master,
+            options
+        );
+        return command;
+    }
+
+    void TryLock() {
+        NYT::NApi::TCreateNodeOptions options;
+        options.Recursive = true;
+        options.IgnoreExisting = true;
+
+        TimerCookieHolder.Reset(NActors::ISchedulerCookie::Make2Way());
+
+        IEventBase* event = nullptr;
+        if (!FollowingMode) {
+            YQL_CLOG(DEBUG, ProviderDq) << "TryLock: creating prefix=" << Prefix
+                << " lock=" << LockName << " YtWrapper=" << YtWrapper;
+            event = new TEvCreateNode(Prefix, NYT::NObjectClient::EObjectType::MapNode, options);
+        } else {
+            YQL_CLOG(DEBUG, ProviderDq) << "TryLock: following, reading lock info prefix=" << Prefix
+                << " lock=" << LockName << " YtWrapper=" << YtWrapper << " info node path " << InfoNodePath;
+            event = new TEvGetNode(InfoNodePath, NYT::NApi::TGetNodeOptions());
+        }
+
+        TActivationContext::Schedule(
+            TDuration::Seconds(5),
+            new IEventHandle(YtWrapper, SelfId(), event, 0), TimerCookieHolder.Get());
+    }
+
+    void OnFollowingForever() {
+        FollowingMode = true;
+        YQL_CLOG(DEBUG, ProviderDq) << "Unlock and follow " << LockName;
+        Send(LockRequestActorId, new TEvents::TEvPoison());
+        TryLock();
+    }
+
+    void SendBecomeFollower(TEvGetNodeResponse::TPtr& ev, const TActorContext& ctx) {
+        Y_UNUSED(ctx);
+        auto result = std::get<0>(*ev->Get());
+        if (result.IsOK()) {
+            Send(ParentId, new TEvBecomeFollower(result.ValueOrThrow().ToString()));
+        } else {
+            YQL_CLOG(WARN, ProviderDq) << "SendBecomeFollower error: " << ToString(result);
+        }
+
+        TryLock(); // update leader info
+    }
+
+    void OnCreateNode(TEvCreateNodeResponse::TPtr& ev, const TActorContext& ctx) {
+        Y_UNUSED(ctx);
+        auto result = std::get<0>(*ev->Get());
+        if (FollowingMode) {
+            return;
+        }
+        if (result.IsOK()) {
+            YQL_CLOG(INFO, ProviderDq) << "Lock: prefix ready, starting transaction"
+                << " lock=" << LockName
+                << " prefix=" << Prefix;
+            Send(YtWrapper, GetStartTransactionCommand());
+        } else {
+            YQL_CLOG(WARN, ProviderDq) << "Lock: ensure-prefix failed"
+                << " lock=" << LockName
+                << " prefix=" << Prefix
+                << " error=" << ToString(result);
+            TryLock();
+        }
+    }
+
+    void OnStartTransactionResponse(TEvStartTransactionResponse::TPtr& ev, const TActorContext& ctx)
+    {
+        auto result = std::get<0>(*ev->Get());
+
+        if (result.IsOK()) {
+            if (FollowingMode) {
+                auto transaction = result.Value();
+                auto txnId = ToString(transaction->GetId());
+                auto lockName = LockName;
+                YQL_CLOG(INFO, ProviderDq) << "Lock: aborting transaction started after switching to follower mode"
+                    << " lock=" << lockName
+                    << " tx=" << txnId;
+                transaction->Abort().Subscribe(BIND([txnId, lockName](const NYT::TError& error) {
+                    if (!error.IsOK()) {
+                        YQL_CLOG(WARN, ProviderDq) << "Failed to abort transaction started after switching to follower mode"
+                            << " lock=" << lockName
+                            << " tx=" << txnId
+                            << " error=" << ToString(error);
+                    } else {
+                        YQL_CLOG(DEBUG, ProviderDq) << "Transaction started after switching to follower mode aborted"
+                            << " lock=" << lockName
+                            << " tx=" << txnId;
+                    }
+                }));
+                return;
+            }
+            YQL_CLOG(INFO, ProviderDq) << "Lock: transaction started"
+                << " lock=" << LockName
+                << " tx=" << ToString(result.Value()->GetId());
+            Send(LockRequestActorId, new TEvents::TEvPoison());
+            auto requestActor = new TLockRequest(
+                result.Value(),
+                YtWrapper,
+                SelfId(),
+                ParentId,
+                Prefix,
+                LockName,
+                Attributes
+            );
+
+            LockRequestActorId = ctx.Register(requestActor);
+        } else {
+            YQL_CLOG(WARN, ProviderDq) << "Lock: start transaction failed"
+                << " lock=" << LockName
+                << " error=" << ToString(result);
+
+            TryLock();
+        }
+    }
+
+    TAutoPtr<IEventHandle> AfterRegister(const TActorId& self, const TActorId& parentId) override {
+        ParentId = parentId;
+        return new IEventHandle(self, parentId, new TEvTick(), 0);
+    }
+
+    void OnTick(const TActorContext& ctx) {
+        Y_UNUSED(ctx);
+        TryLock();
+    }
+
+private:
+    const TActorId YtWrapper;
+    TActorId ParentId;
+    const TString Prefix;
+    const TString LockName;
+    const TString NodePath;
+    const TString InfoNodePath;
+    NYT::TNode Attributes;
+
+    TActorId LockRequestActorId;
+    const bool Temporary;
+
+    const TString Revision;
+    NActors::TSchedulerCookieHolder TimerCookieHolder;
+    bool FollowingMode = false;
+};
+
+NActors::IActor* CreateYtLock(
+    NActors::TActorId ytWrapper,
+    const TString& prefix,
+    const TString& lockName,
+    const TString& lockAttributesYson,
+    bool temporary)
+{
+    return new TYtLock(ytWrapper, prefix, lockName, lockAttributesYson, temporary);
+}
+
+} // namespace NYql

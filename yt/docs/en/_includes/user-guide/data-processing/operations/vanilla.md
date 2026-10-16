@@ -67,7 +67,7 @@ Vanilla operations additionally support one more option: `restart_completed_jobs
 
 ## Example specification
 
-```yaml
+```yson
 {
   tasks = {
     master = {
@@ -175,7 +175,7 @@ In gang operations, jobs have the following additional environment variables:
 
 To enable gang mode, add the `gang_options` parameter to the task specification:
 
-```yaml
+```yson
 {
   tasks = {
     worker = {

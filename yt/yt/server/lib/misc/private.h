@@ -8,8 +8,8 @@ namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TString DisabledLockFileName;
-extern const TString HealthCheckFileName;
+extern const std::string DisabledLockFileName;
+extern const std::string HealthCheckFileName;
 extern const NYPath::TYPath ClusterThrottlersConfigPath;
 
 ////////////////////////////////////////////////////////////////////////////////

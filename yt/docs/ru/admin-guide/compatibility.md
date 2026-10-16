@@ -1,6 +1,4 @@
-# Compatibility of cluster components
-
-> Note: This page is only available in English.
+# Совместимость компонент кластера
 
 ## {{product-name}}
 

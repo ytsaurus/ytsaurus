@@ -9,6 +9,7 @@ TEST_SRCS(
     test_juggler.py
     test_logserver.py
     test_odin.py
+    test_solomon.py
 )
 
 PEERDIR(
@@ -16,6 +17,7 @@ PEERDIR(
     yt/odin/lib/yt_odin/odinserver
     yt/odin/lib/yt_odin/storage
     yt/odin/lib/yt_odin/test_helpers
+    yt/odin/lib/yt_odin/webservice
     yt/python/client
     yt/python/yt/environment/arcadia_interop
     contrib/python/mock

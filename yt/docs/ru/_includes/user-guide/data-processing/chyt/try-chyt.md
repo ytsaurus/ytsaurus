@@ -89,8 +89,9 @@ CHYT можно пользоваться из Tableau посредством [Cl
 [ClickHouse]
 Driver = <path to driver libclickhouseodbc>
 # For example /usr/local/opt/clickhouse-odbc/lib/libclickhouseodbc.dylib
-user = $CHYT_ALIAS
+username = $CHYT_ALIAS
 password = $YT_TOKEN
+database = YT
 url = http://$YT_PROXY/chyt
 port = 80
 # trace = 1
@@ -127,6 +128,10 @@ SQL> SELECT * FROM "//tmp/sample_table"
 SQLRowCount returns 10
 10 rows fetched
 ```
+
+### Подключение внешних баз данных через ODBC { #external-odbc }
+
+CHYT также умеет выступать в роли ODBC-клиента и обращаться к внешним базам данных через ClickHouse ODBC bridge. О настройке и ограничениях см. в разделе [Подключение внешних баз данных через ODBC](../../../../user-guide/data-processing/chyt/reference/odbc.md).
 
 ## JDBC-интерфейс { #jdbc }
 

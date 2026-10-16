@@ -4,8 +4,6 @@
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
-#include <yt/yt/server/lib/signature/public.h>
-
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/misc/public.h>
@@ -20,7 +18,10 @@
 
 #include <yt/yt/library/tracing/jaeger/public.h>
 
+#include <yt/yt/library/signature/components/public.h>
+
 #include <yt/yt/core/bus/public.h>
+#include <yt/yt/core/bus/tcp/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
 
@@ -32,7 +33,7 @@
 
 #include <yt/yt/core/ytree/public.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NRpcProxy {
 
@@ -60,9 +61,9 @@ private:
     const NConcurrency::IPollerPtr HttpPoller_;
 
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
-    NBus::IBusServerPtr BusServer_;
-    NBus::IBusServerPtr PublicBusServer_;
-    NBus::IBusServerPtr TvmOnlyBusServer_;
+    NBus::NTcp::IBusServerPtr BusServer_;
+    NBus::NTcp::IBusServerPtr PublicBusServer_;
+    NBus::NTcp::IBusServerPtr TvmOnlyBusServer_;
     IApiServicePtr ApiService_;
     IApiServicePtr TvmOnlyApiService_;
     NRpc::IServicePtr DiscoveryService_;
@@ -72,6 +73,7 @@ private:
     NRpc::IServerPtr TvmOnlyRpcServer_;
     NRpc::IServerPtr GrpcServer_;
     NHttp::IServerPtr HttpServer_;
+    NHttp::IServerPtr HttpsServer_;
 
     NApi::NNative::IConnectionPtr Connection_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;

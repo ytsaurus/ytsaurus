@@ -3,6 +3,7 @@
 #include "config.h"
 #include "credentials.h"
 #include "cypress_cookie_store.h"
+#include "private.h"
 
 #include <yt/yt/client/api/client.h>
 
@@ -60,10 +61,9 @@ public:
     {
         const auto& cookieValue = GetOrCrash(credentials.Cookies, CypressCookieName);
 
-        YT_LOG_DEBUG(
-            "Authenticating user via native cookie (CookieMD5: %v, UserIP: %v)",
-            GetMD5HexDigestUpperCase(cookieValue),
-            FormatUserIP(credentials.UserIP));
+        YT_TLOG_DEBUG("Authenticating user via native cookie")
+            .With("CookieMD5", GetMD5HexDigestUpperCase(cookieValue))
+            .With("UserIP", FormatUserIP(credentials.UserIP));
 
         return CookieStore_->GetCookie(cookieValue)
             .Apply(BIND(&TCypressCookieAuthenticator::OnGotCookie, MakeStrong(this)))
@@ -72,7 +72,7 @@ public:
                     return TError(
                         NRpc::EErrorCode::InvalidCredentials,
                         "Unknown credentials")
-                        << resultOrError;
+                        .With(resultOrError);
                 }
 
                 return resultOrError;
@@ -86,26 +86,28 @@ private:
 
     const IClientPtr Client_;
 
-    TFuture<ui64> GetUserPasswordRevision(const std::string& user)
+    TFuture<ui64> GetUserPasswordRevision(const std::string& user, TStringBuf attribute)
     {
         auto path = Format("//sys/users/%v", ToYPathLiteral(user));
 
-        static const std::string PasswordRevisionAttribute = "password_revision";
-
         TGetNodeOptions options{
-            .Attributes = {PasswordRevisionAttribute},
+            .Attributes = {attribute},
         };
 
         return Client_->GetNode(path, options)
-            .Apply(BIND([] (const TYsonString& rsp) {
-                auto rspNode = ConvertToNode(rsp);
-                return rspNode->Attributes().Get<ui64>(PasswordRevisionAttribute);
+            .Apply(BIND([attribute] (const TYsonString& rsp) {
+                // ldap_password_revision may not exist on the user node — default to 0.
+                return ConvertToNode(rsp)->Attributes().Get<ui64>(attribute, /*default*/ 0);
             }));
     }
 
     TFuture<TAuthenticationResult> OnGotCookie(const TCypressCookiePtr& cookie)
     {
-        return GetUserPasswordRevision(cookie->User)
+        const auto& attribute = (cookie->AuthSource == EAuthSource::Ldap)
+            ? LdapPasswordRevisionAttribute
+            : PasswordRevisionAttribute;
+
+        return GetUserPasswordRevision(cookie->User, attribute)
             .Apply(BIND(&TCypressCookieAuthenticator::OnGotPasswordRevision, MakeStrong(this), cookie)
                 .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker()));
     }
@@ -117,15 +119,15 @@ private:
         if (cookie->PasswordRevision != passwordRevision) {
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
                 "Native cookie was issued for previous password revision")
-                << TErrorAttribute("cookie_password_revision", cookie->PasswordRevision)
-                << TErrorAttribute("password_revision", passwordRevision);
+                .With("cookie_password_revision", cookie->PasswordRevision)
+                .With("password_revision", passwordRevision);
         }
 
         auto now = TInstant::Now();
         if (cookie->ExpiresAt < now) {
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
                 "Native cookie expired")
-                << TErrorAttribute("cookie_expiration_time", cookie->ExpiresAt);
+                .With("cookie_expiration_time", cookie->ExpiresAt);
         }
 
         const auto& user = cookie->User;
@@ -133,7 +135,9 @@ private:
             .Login = user,
         };
 
-        if (cookie->ExpiresAt < now + Config_->CookieRenewalPeriod) {
+        if (cookie->AuthSource == EAuthSource::Cypress &&
+            cookie->ExpiresAt < now + Config_->CookieRenewalPeriod)
+        {
             auto latestCookie = CookieStore_->GetLastCookieForUser(user);
 
             // Very unlikely, but might happen during cookie duration reconfiguration.
@@ -145,43 +149,48 @@ private:
             if (latestCookie && latestCookie->ExpiresAt > now + Config_->CookieRenewalPeriod) {
                 result.SetCookie = latestCookie->ToHeader(Config_);
             } else {
+                auto expirationTimeout = (cookie->AuthSource == EAuthSource::Ldap)
+                    ? Config_->LdapCookieExpirationTimeout
+                    : Config_->CookieExpirationTimeout;
+
                 auto newCookie = New<TCypressCookie>();
                 newCookie->Value = GenerateCookieValue();
                 newCookie->User = user;
+                newCookie->AuthSource = cookie->AuthSource;
                 newCookie->PasswordRevision = passwordRevision;
-                newCookie->ExpiresAt = TInstant::Now() + Config_->CookieExpirationTimeout;
+                newCookie->ExpiresAt = TInstant::Now() + expirationTimeout;
 
-                YT_LOG_DEBUG("Issuing new cookie for renewal "
-                    "(User: %v, CookieMD5: %v, PasswordRevision: %v, ExpiresAt: %v)",
-                    user,
-                    GetMD5HexDigestUpperCase(newCookie->Value),
-                    passwordRevision,
-                    newCookie->ExpiresAt);
+                YT_TLOG_DEBUG("Issuing new cookie for renewal")
+                    .With("User", user)
+                    .With("CookieMD5", GetMD5HexDigestUpperCase(newCookie->Value))
+                    .With("PasswordRevision", passwordRevision)
+                    .With("ExpiresAt", newCookie->ExpiresAt);
 
                 auto error = WaitFor(CookieStore_->RegisterCookie(newCookie));
                 if (error.IsOK()) {
-                    YT_LOG_DEBUG("Issued new cookie for renewal (User: %v, CookieMD5: %v)",
-                        user,
-                        GetMD5HexDigestUpperCase(newCookie->Value));
+                    YT_TLOG_DEBUG("Issued new cookie for renewal")
+                        .With("User", user)
+                        .With("CookieMD5", GetMD5HexDigestUpperCase(newCookie->Value));
                     result.SetCookie = newCookie->ToHeader(Config_);
                 } else {
                     // NB: Cookie creation failure should not lead to authentication error.
-                    YT_LOG_DEBUG(error, "Failed to issue new cookie for renewal (User: %v, CookieMD5: %v)",
-                        user,
-                        GetMD5HexDigestUpperCase(newCookie->Value));
+                    YT_TLOG_DEBUG("Failed to issue new cookie for renewal")
+                        .With("User", user)
+                        .With("CookieMD5", GetMD5HexDigestUpperCase(newCookie->Value))
+                        .With(error);
                 }
             }
         }
 
-        std::optional<TString> setCookieMD5;
+        std::optional<std::string> setCookieMD5;
         if (auto setCookie = result.SetCookie) {
             setCookieMD5 = GetMD5HexDigestUpperCase(*setCookie);
         }
 
-        YT_LOG_DEBUG("User authenticated (User: %v, CookieMD5: %v, SetCookieMD5: %v)",
-            user,
-            GetMD5HexDigestUpperCase(cookie->Value),
-            setCookieMD5);
+        YT_TLOG_DEBUG("User authenticated")
+            .With("User", user)
+            .With("CookieMD5", GetMD5HexDigestUpperCase(cookie->Value))
+            .With("SetCookieMD5", setCookieMD5);
 
         return result;
     }

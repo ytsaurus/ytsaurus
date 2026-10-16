@@ -23,6 +23,9 @@ yt.select_rows("* from [//path/to/table]", with_timestamps=True)
 
 # Прочитать отдельные колонки и timestamp-ы.
 yt.select_rows("col_a, [$timestamp:col_a] as ts_a, [$timestamp:col_b] as ts_b from [//path/to/table]", with_timestamps=True)
+
+# Из CLI.
+yt select-rows 'col_a, [$timestamp:col_a] as ts_a, [$timestamp:col_b] as ts_b from [//path/to/table]' --params '{versioned_read_options = {read_mode = latest_timestamp}}' --format='<format=text>yson'
 ```
 
 ## Версионированный map-reduce
@@ -33,7 +36,7 @@ yt.select_rows("col_a, [$timestamp:col_a] as ts_a, [$timestamp:col_b] as ts_b fr
 
 ### Запись
 
-Для записи данных в map-reduce операциях в версионированном формате необходимо добавить в [rich YPath](../../../user-guide/storage/ypath#rich_ypath) выходной таблицы `<versioned_write_options = {read_mode = latest_timestamp}>`. Для колонок, для которых указан timestamp будет записан он, для остальных будет взят commit timestamp транзакции bulk insert. 
+Для записи данных в map-reduce операциях в версионированном формате необходимо добавить в [rich YPath](../../../user-guide/storage/ypath#rich_ypath) выходной таблицы `<versioned_write_options = {write_mode = latest_timestamp}>`. Для колонок, для которых указан timestamp будет записан он, для остальных будет взят commit timestamp транзакции bulk insert. 
 
 {% note warning "Внимание" %}
 

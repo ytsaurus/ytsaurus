@@ -1,23 +1,22 @@
 Metadata-Version: 2.4
 Name: pytest-benchmark
-Version: 5.2.3
+Version: 5.3.0
 Summary: A ``pytest`` fixture for benchmarking code. It will group the tests into rounds that are calibrated to the chosen timer.
 Author-email: Ionel Cristian Mărieș <contact@ionelmc.ro>
 License-Expression: BSD-2-Clause
-Project-URL: Sources, https://github.com/ionelmc/pytest-benchmark
-Project-URL: Documentation, https://pytest-benchmark.readthedocs.io/
 Project-URL: Changelog, https://pytest-benchmark.readthedocs.io/en/latest/changelog.html
+Project-URL: Documentation, https://pytest-benchmark.readthedocs.io/
 Project-URL: Issue Tracker, https://github.com/ionelmc/pytest-benchmark/issues
-Keywords: pytest,benchmark
+Project-URL: Sources, https://github.com/ionelmc/pytest-benchmark
+Keywords: benchmark,pytest
 Classifier: Development Status :: 5 - Production/Stable
 Classifier: Intended Audience :: Developers
-Classifier: Operating System :: Unix
-Classifier: Operating System :: POSIX
 Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX
+Classifier: Operating System :: Unix
 Classifier: Programming Language :: Python
 Classifier: Programming Language :: Python :: 3
 Classifier: Programming Language :: Python :: 3 :: Only
-Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
@@ -26,19 +25,19 @@ Classifier: Programming Language :: Python :: 3.14
 Classifier: Programming Language :: Python :: Implementation :: CPython
 Classifier: Programming Language :: Python :: Implementation :: PyPy
 Classifier: Topic :: Utilities
-Requires-Python: >=3.9
+Requires-Python: >=3.10
 Description-Content-Type: text/x-rst
 License-File: LICENSE
+Requires-Dist: py-cpuinfo2>=10.1
 Requires-Dist: pytest>=8.1
-Requires-Dist: py-cpuinfo
 Provides-Extra: aspect
 Requires-Dist: aspectlib; extra == "aspect"
+Provides-Extra: elasticsearch
+Requires-Dist: elasticsearch; extra == "elasticsearch"
 Provides-Extra: histogram
 Requires-Dist: pygal; extra == "histogram"
 Requires-Dist: pygaljs; extra == "histogram"
 Requires-Dist: setuptools; extra == "histogram"
-Provides-Extra: elasticsearch
-Requires-Dist: elasticsearch; extra == "elasticsearch"
 Dynamic: license-file
 
 ========
@@ -81,9 +80,9 @@ Overview
 .. |supported-implementations| image:: https://img.shields.io/pypi/implementation/pytest-benchmark.svg
     :alt: Supported implementations
     :target: https://pypi.org/project/pytest-benchmark
-.. |commits-since| image:: https://img.shields.io/github/commits-since/ionelmc/pytest-benchmark/v5.2.3.svg
+.. |commits-since| image:: https://img.shields.io/github/commits-since/ionelmc/pytest-benchmark/v5.3.0.svg
     :alt: Commits since latest release
-    :target: https://github.com/ionelmc/pytest-benchmark/compare/v5.2.3...master
+    :target: https://github.com/ionelmc/pytest-benchmark/compare/v5.3.0...master
 
 A ``pytest`` fixture for benchmarking code. It will group the tests into rounds that are calibrated to the chosen
 timer.
@@ -211,6 +210,11 @@ Histogram (``--benchmark-histogram``):
 
     Also, it has `nice tooltips <https://cdn.rawgit.com/ionelmc/pytest-benchmark/master/docs/sample.svg>`_.
 
+Compare between mode (``pytest-benchmark compare --between``):
+
+.. image:: https://github.com/ionelmc/pytest-benchmark/raw/master/docs/screenshot-compare-between.png
+    :alt: Screenshot of pytest summary in compare between mode
+
 Development
 ===========
 
@@ -230,6 +234,34 @@ Credits
 
 Changelog
 =========
+
+v5.3.0 (2026-08-23)
+--------------------
+
+* Added ``--benchmark-precision`` and ``--benchmark-confidence``:
+  instead of a fixed number of rounds, stop once the mean's relative margin of error falls below the given fraction.
+  Contributed by Aarni Koskela in `#318 <https://github.com/ionelmc/pytest-benchmark/pull/318>`_.
+* Added ``compare --between`` mode. Example: ``pytest-benchmark compare --between=min 0001 0002``.
+  Contributed by Aarni Koskela in `#302 <https://github.com/ionelmc/pytest-benchmark/pull/302>`_.
+* Modernized the CI/linting and added spellchecking.
+  Contributed by Aarni Koskela in
+  `#304 <https://github.com/ionelmc/pytest-benchmark/pull/304>`_,
+  `#306 <https://github.com/ionelmc/pytest-benchmark/pull/306>`_ and
+  `#319 <https://github.com/ionelmc/pytest-benchmark/pull/319>`_.
+* Defer the xdist auto-disable warning until a benchmark fixture is collected.
+  Contributed by xlyyddy in `#317 <https://github.com/ionelmc/pytest-benchmark/pull/317>`_
+  (fixes `#65 <https://github.com/ionelmc/pytest-benchmark/issues/65>`_).
+* Replaced deprecated argparse.FileType.
+  Contributed by Sophia Castellarin in `#310 <https://github.com/ionelmc/pytest-benchmark/pull/310>`_.
+* Fixed various spelling/typos.
+  Contributed by Daniel Holth and Hugo van Kemenade in
+  `#297 <https://github.com/ionelmc/pytest-benchmark/pull/297>`_ and
+  `#299 <https://github.com/ionelmc/pytest-benchmark/pull/299>`_.
+* Cleaned up various dead code.
+  Contributed by Hugo van Kemenade in
+  `#300 <https://github.com/ionelmc/pytest-benchmark/pull/300>`_ and
+  `#301 <https://github.com/ionelmc/pytest-benchmark/pull/301>`_.
+* CI now tests only with latest Pytest (now 9.1.1), Python 3.10-3.14 and PyPy 3.11.
 
 v5.2.3 (2025-11-09)
 --------------------

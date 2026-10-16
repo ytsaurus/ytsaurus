@@ -1487,8 +1487,9 @@ def query_parsing_search_reducer(_, rows):
     user = row.get("user")
     yield from do_query_parsing_for_search_map(row, engine, "")
     yield from do_query_parsing_for_search_map(row, "", "")
-    yield from do_query_parsing_for_search_map(row, "", user)
-    yield from do_query_parsing_for_search_map(row, engine, user)
+    if user != "":
+        yield from do_query_parsing_for_search_map(row, "", user)
+        yield from do_query_parsing_for_search_map(row, engine, user)
 
 
 def group_by_pk_search_reducer(keys, rows):
@@ -1947,6 +1948,61 @@ TRANSFORMS[21] = [
     Conversion(
         "finished_query_results",
         table_info=FINISHED_QUERY_RESULTS_V21,
+    ),
+]
+
+QUERY_PROGRESS_V22 = TableInfo(
+    [
+        ("query_id", "string"),
+        ("part_name", "string"),
+    ],
+    [
+        ("revision", "uint32"),
+        ("part_value", "string"),
+        ("$ttl", "uint64"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+        "min_data_ttl": 60000,
+        "merge_rows_on_flush": True,
+        "auto_compaction_period": 3600000,
+        "min_data_versions": 0,                     # Required with $ttl
+        "max_data_ttl": 18446744073709551615,       # (Max uint64 - 584'942'417 years) To save data with min_data_version = 0
+    },
+)
+
+TRANSFORMS[22] = [
+    Conversion(
+        "query_progresses",
+        table_info=QUERY_PROGRESS_V22,
+    ),
+]
+
+QUERIES_BY_USER_AND_MUTATION_ID_V23 = TableInfo(
+    [
+        ("user", "string"),
+        ("mutation_id", "string"),
+    ],
+    [
+        ("query_id", "string"),
+        ("$ttl", "uint64"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+        "min_data_ttl": 60000,
+        "merge_rows_on_flush": True,
+        "auto_compaction_period": 3600000,
+        "min_data_versions": 0,                     # Required with $ttl
+        "max_data_ttl": 18446744073709551615,       # (Max uint64 - 584'942'417 years) To save data with min_data_version = 0
+    },
+)
+
+TRANSFORMS[23] = [
+    Conversion(
+        "queries_by_user_and_mutation_id",
+        table_info=QUERIES_BY_USER_AND_MUTATION_ID_V23,
     ),
 ]
 

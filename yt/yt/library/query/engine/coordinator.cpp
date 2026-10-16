@@ -2,6 +2,7 @@
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/range_inferrer.h>
 #include <yt/yt/library/query/engine_api/new_range_inferrer.h>
+#include <yt/yt/library/query/engine_api/shuffling_reader.h>
 
 #include <yt/yt/library/query/base/private.h>
 #include <yt/yt/library/query/base/query.h>
@@ -24,7 +25,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Coordinator");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Coordinator");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,17 +46,25 @@ std::pair<TConstFrontQueryPtr, TConstQueryPtr> GetDistributedQueryPattern(const 
     bottomQuery->InferRanges = query->InferRanges;
     bottomQuery->IsFinal = false;
     bottomQuery->WhereClause = query->WhereClause;
+    bottomQuery->IsReverseScan = false;
+    bottomQuery->HierarchicalJoinsInWhereClause = query->HierarchicalJoinsInWhereClause;
+    bottomQuery->HierarchicalJoinsBeforeGroupBy = query->HierarchicalJoinsBeforeGroupBy;
 
     auto frontQuery = New<TFrontQuery>();
 
     frontQuery->GroupClause = query->GroupClause;
     frontQuery->HavingClause = query->HavingClause;
-    frontQuery->OrderClause = query->OrderClause;
+    // When the scan is reversed, tablets are read in descending key order so
+    // the merged stream is already sorted correctly. The front query only
+    // needs to apply OFFSET/LIMIT without re-sorting.
+    frontQuery->OrderClause = query->IsReverseScan ? nullptr : query->OrderClause;
     frontQuery->Offset = query->Offset;
     frontQuery->Limit = query->Limit;
     frontQuery->IsFinal = query->IsFinal;
     frontQuery->ProjectClause = query->ProjectClause;
+    frontQuery->HierarchicalJoinsAfterGroupBy = query->HierarchicalJoinsAfterGroupBy;
     frontQuery->Schema = bottomQuery->GetTableSchema();
+    frontQuery->IsReverseScan = query->IsReverseScan;
 
     return {frontQuery, bottomQuery};
 }
@@ -76,8 +85,8 @@ TSharedRange<TRowRange> GetPrunedRanges(
 {
     auto Logger = MakeQueryLogger(queryId);
 
-    YT_LOG_DEBUG("Inferring ranges from predicate (ForceLightRangeInference: %v)",
-        forceLightRangeInference);
+    YT_TLOG_DEBUG("Inferring ranges from predicate")
+        .With("ForceLightRangeInference", forceLightRangeInference);
 
     TSharedRange<TRowRange> result;
 
@@ -108,9 +117,9 @@ TSharedRange<TRowRange> GetPrunedRanges(
     };
 
     for (const auto& range : result) {
-        YT_LOG_DEBUG_IF(options.VerboseLogging, "Inferred range (TableId: %v, Range: %v)",
-            tableId,
-            keyRangeFormatter(range));
+        YT_TLOG_DEBUG_IF(options.VerboseLogging, "Inferred range")
+            .With("TableId", tableId)
+            .With("Range", keyRangeFormatter(range));
     }
 
     return result;
@@ -211,9 +220,9 @@ std::pair<TDataSource, TConstQueryPtr> InferRanges(
             options,
             memoryChunkProvider);
 
-        YT_LOG_DEBUG("Ranges are inferred (RangeCount: %v, TableId: %v)",
-            ranges.Size(),
-            tableId);
+        YT_TLOG_DEBUG("Ranges are inferred")
+            .With("RangeCount", ranges.Size())
+            .With("TableId", tableId);
 
         auto newQuery = New<TQuery>(*query);
 
@@ -226,10 +235,26 @@ std::pair<TDataSource, TConstQueryPtr> InferRanges(
 
         if (auto* orderClause = newQuery->OrderClause.Get()) {
             auto fixedKeyPrefix = GetLongestCommonPrimaryKeyPrefixLength(ranges);
+
+            auto canEnableReverseScanForOrderBy = [&] {
+                bool reverseScanAlreadyEnabledAtPrepareStage = newQuery->IsReverseScan;
+                bool haveMoreKeyRangeInfoThanAtPrepareStage = fixedKeyPrefix > 0;
+                return options.AllowReverseScanForOrderBy &&
+                    haveMoreKeyRangeInfoThanAtPrepareStage &&
+                    !reverseScanAlreadyEnabledAtPrepareStage &&
+                    CanReverseScanForOrderBy(fixedKeyPrefix, orderClause->OrderItems, newQuery->GetKeyColumns(), newQuery->GroupClause);
+            };
+
             if (CanOmitOrderBy(fixedKeyPrefix, orderClause->OrderItems, newQuery->GetKeyColumns())) {
-                YT_LOG_DEBUG("Omitting ORDER BY clause (FixedKeyPrefix: %v)", fixedKeyPrefix);
+                YT_TLOG_DEBUG("Omitting ORDER BY clause")
+                    .With("FixedKeyPrefix", fixedKeyPrefix);
 
                 newQuery->OrderClause.Reset();
+            } else if (canEnableReverseScanForOrderBy()) {
+                YT_TLOG_DEBUG("Enabling reverse scan for ORDER BY on fixed key prefix")
+                    .With("FixedKeyPrefix", fixedKeyPrefix);
+
+                newQuery->IsReverseScan = true;
             }
         }
 
@@ -253,22 +278,12 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TSubplanHolders)
-
-struct TSubplanHolders final
-    : public std::vector<TFutureHolder<TQueryStatistics>> // Use TFutureHolder to prevent leaking subqueries.
-{ };
-
-DEFINE_REFCOUNTED_TYPE(TSubplanHolders)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TAdaptiveReaderGenerator
 {
 public:
     TAdaptiveReaderGenerator(
         std::function<ISchemafulUnversionedReaderPtr()> getNextReader,
-        const TSubplanHoldersPtr& subplanHolders)
+        const TSubplanFutureHoldersPtr& subplanHolders)
         : GetNextReader_(getNextReader)
         , SubplanHolders_(subplanHolders)
     { }
@@ -297,7 +312,7 @@ private:
     static constexpr i64 PrefetchWindowGrowthFactor = 2;
 
     const std::function<ISchemafulUnversionedReaderPtr()> GetNextReader_;
-    const TSubplanHoldersPtr SubplanHolders_;
+    const TSubplanFutureHoldersPtr SubplanHolders_;
 
     std::queue<ISchemafulUnversionedReaderPtr> PrefetchWindow_;
     i64 PrefetchWindowSize_ = 1;
@@ -309,7 +324,7 @@ private:
 
 ISchemafulUnversionedReaderPtr CreateAdaptiveOrderedSchemafulReader(
     std::function<ISchemafulUnversionedReaderPtr()> getNextReader,
-    const NDetail::TSubplanHoldersPtr& subplanHolders,
+    const TSubplanFutureHoldersPtr& subplanHolders,
     i64 /*offset*/,
     i64 /*limit*/,
     bool useAdaptiveOrderedSchemafulReader)
@@ -318,7 +333,7 @@ ISchemafulUnversionedReaderPtr CreateAdaptiveOrderedSchemafulReader(
         return CreateOrderedSchemafulReader(std::move(getNextReader));
     }
 
-    YT_LOG_DEBUG("Use adaptive ordered schemaful reader");
+    YT_TLOG_DEBUG("Use adaptive ordered schemaful reader");
 
     auto generator = NDetail::TAdaptiveReaderGenerator(getNextReader, subplanHolders);
     auto readerGenerator = [generator = std::move(generator)] () mutable -> ISchemafulUnversionedReaderPtr {
@@ -326,6 +341,25 @@ ISchemafulUnversionedReaderPtr CreateAdaptiveOrderedSchemafulReader(
     };
     return CreateUnorderedSchemafulReader(readerGenerator, 1);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+EReportedScanOrder ToReportedScanOrder(EScanOrder scanOrder)
+{
+    switch (scanOrder) {
+        case EScanOrder::Unordered:
+            return EReportedScanOrder::Unordered;
+        case EScanOrder::Ordered:
+            return EReportedScanOrder::Ordered;
+        case EScanOrder::Reversed:
+            return EReportedScanOrder::Reversed;
+    }
+    YT_ABORT();
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -337,9 +371,12 @@ TQueryStatistics CoordinateAndExecute(
     i64 limit,
     bool useAdaptiveOrderedSchemafulReader,
     TSubQueryEvaluator evaluateSubQuery,
-    TTopQueryEvaluator evaluateTopQuery)
+    TTopQueryEvaluator evaluateTopQuery,
+    TSubplanFutureHoldersPtr subplanHolders)
 {
-    auto subplanHolders = New<NDetail::TSubplanHolders>();
+    if (!subplanHolders) {
+        subplanHolders = New<TSubplanFutureHolders>();
+    }
 
     auto responseFeatureFlags = NewPromise<TFeatureFlags>();
 
@@ -360,22 +397,30 @@ TQueryStatistics CoordinateAndExecute(
         return evaluateResult.Reader;
     };
 
-    YT_LOG_DEBUG("Creating reader (ScanOrder: %v, Prefetch: %v, SplitCount: %v, Offset: %v, Limit: %v, UseAdaptiveOrderedSchemafulReader: %v)",
-        scanOrder,
-        prefetch,
-        splitCount,
-        offset,
-        limit,
-        useAdaptiveOrderedSchemafulReader);
+    YT_TLOG_DEBUG("Creating reader")
+        .With("ScanOrder", scanOrder)
+        .With("Prefetch", prefetch)
+        .With("SplitCount", splitCount)
+        .With("Offset", offset)
+        .With("Limit", limit)
+        .With("UseAdaptiveOrderedSchemafulReader", useAdaptiveOrderedSchemafulReader);
 
     // TODO: Use separate condition for prefetch after protocol update
-    auto topReader = (scanOrder == EScanOrder::Ordered)
-        ? (prefetch
-            ? CreateFullPrefetchingOrderedSchemafulReader(std::move(subqueryReaderCreator))
-            : CreateAdaptiveOrderedSchemafulReader(std::move(subqueryReaderCreator), subplanHolders, offset, limit, useAdaptiveOrderedSchemafulReader))
-        : CreateUnorderedSchemafulReader(std::move(subqueryReaderCreator), /*concurrency*/ splitCount);
+    ISchemafulUnversionedReaderPtr topReader;
+    switch (scanOrder) {
+        case EScanOrder::Ordered:
+        case EScanOrder::Reversed:
+            topReader = prefetch
+                ? CreateFullPrefetchingOrderedSchemafulReader(std::move(subqueryReaderCreator))
+                : CreateAdaptiveOrderedSchemafulReader(std::move(subqueryReaderCreator), subplanHolders, offset, limit, useAdaptiveOrderedSchemafulReader);
+            break;
+        case EScanOrder::Unordered:
+            topReader = CreateUnorderedSchemafulReader(std::move(subqueryReaderCreator), /*concurrency*/ splitCount);
+            break;
+    }
 
     auto queryStatistics = evaluateTopQuery(std::move(topReader), responseFeatureFlags);
+    queryStatistics.ScanOrder = ToReportedScanOrder(scanOrder);
 
     for (int index = 0; index < std::ssize(*subplanHolders); ++index) {
         auto subqueryStatisticsOrError = WaitForFast((*subplanHolders)[index].Get());
@@ -388,6 +433,105 @@ TQueryStatistics CoordinateAndExecute(
     }
 
     return queryStatistics;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TQueryStatistics CoordinateAndExecuteWithShuffle(
+    int splitCount,
+    int groupKeyPrefix,
+    TSubQueryEvaluator evaluateSubQuery,
+    TMiddleQueryEvaluator evaluateMiddleQuery,
+    TTopQueryEvaluator evaluateTopQuery,
+    const IMemoryChunkProviderPtr& memoryChunkProvider)
+{
+    if (splitCount == 0) {
+        return {};
+    }
+
+    constexpr int ParallelizationFactor = 8;
+    int destinationCount = std::min(ParallelizationFactor, splitCount);
+
+    std::vector<TFuture<TQueryStatistics>> bottomSubqueryStatistics;
+    std::vector<TFuture<TFeatureFlags>> subqueryFeatureFlags;
+    std::vector<ISchemafulUnversionedReaderPtr> readers;
+    readers.reserve(splitCount);
+    bottomSubqueryStatistics.reserve(splitCount);
+    subqueryFeatureFlags.reserve(splitCount);
+    for (int index = 0; index < splitCount; ++index) {
+        auto bottomResult = evaluateSubQuery();
+        bottomSubqueryStatistics.push_back(std::move(bottomResult.Statistics));
+        subqueryFeatureFlags.push_back(bottomResult.ResponseFeatureFlags);
+        readers.push_back(bottomResult.Reader);
+    }
+
+    auto anyFeatureFlag = AnySucceeded(subqueryFeatureFlags, {.CancelInputOnShortcut = false});
+
+    auto [shuffledReaders, shuffleFutures] = ShuffleByPrefixHash(
+        readers,
+        groupKeyPrefix,
+        destinationCount,
+        GetCurrentInvoker(),
+        memoryChunkProvider);
+
+    readers.clear();
+    readers.reserve(shuffledReaders.size());
+    std::vector<TFuture<TQueryStatistics>> middleSubqueryStatistics;
+    middleSubqueryStatistics.reserve(shuffledReaders.size());
+    for (const auto& reader : shuffledReaders) {
+        auto middleResult = evaluateMiddleQuery(reader, anyFeatureFlag);
+        readers.push_back(std::move(middleResult.Reader));
+        middleSubqueryStatistics.push_back(std::move(middleResult.Statistics));
+    }
+
+    auto getNextReader = [readers = std::move(readers), index = 0] () mutable {
+        if (index >= std::ssize(readers)) {
+            return ISchemafulUnversionedReaderPtr();
+        }
+        return readers[index++];
+    };
+    auto finalReader = CreateUnorderedSchemafulReader(getNextReader, destinationCount);
+
+    // TODO(sabdenovch): No clue if MostFreshFeatureFlags would be more or less correct.
+    // Middle stage is executed locally, MostFreshFeatureFlags makes sense.
+    // But the data itself comes from the bottom subqueries, just shuffled and merged a little more.
+    // Input might have traits of different code versions.
+    auto statisticsFuture = BIND(evaluateTopQuery, finalReader, anyFeatureFlag)
+        .AsyncVia(GetCurrentInvoker())
+        .Run();
+
+    shuffleFutures.push_back(statisticsFuture.AsVoid());
+    for (const auto& future : middleSubqueryStatistics) {
+        shuffleFutures.push_back(future.AsVoid());
+    }
+    for (const auto& future : bottomSubqueryStatistics) {
+        shuffleFutures.push_back(future.AsVoid());
+    }
+
+    WaitFor(AllSucceeded(shuffleFutures))
+        .ThrowOnError();
+
+    auto statistics = WaitForFast(statisticsFuture)
+        .ValueOrThrow();
+
+    statistics.InnerStatistics = WaitForFast(AllSucceeded(middleSubqueryStatistics))
+        .ValueOrThrow();
+
+    statistics.InnerStatistics.front().InnerStatistics = WaitForFast(AllSucceeded(bottomSubqueryStatistics))
+        .ValueOrThrow();
+
+    statistics.GroupedRowCount.SetTotal(std::accumulate(
+        statistics.InnerStatistics.begin(),
+        statistics.InnerStatistics.end(),
+        static_cast<i64>(0),
+        [] (i64 groupedRowCount, const TQueryStatistics& innerStatistics) {
+            return groupedRowCount + innerStatistics.GroupedRowCount.GetTotal();
+        }));
+
+    // Shuffling is only ever chosen for an unordered scan, and the final reader here is unordered.
+    statistics.ScanOrder = EReportedScanOrder::Unordered;
+
+    return statistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

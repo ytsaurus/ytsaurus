@@ -186,9 +186,9 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosCellBundle)
             .SetWritable(true)
             .SetReplicated(true)
-            .SetPresent(IsObjectAlive(impl->ChaosCellBundle())));
+            .SetPresent(IsObjectAlive(impl->GetChaosCellBundle())));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosCellBundleId)
-            .SetPresent(IsObjectAlive(impl->ChaosCellBundle())));
+            .SetPresent(IsObjectAlive(impl->GetChaosCellBundle())));
         descriptors->push_back(EInternedAttributeKey::Dynamic);
         descriptors->push_back(EInternedAttributeKey::ReplicationCardId);
         descriptors->push_back(EInternedAttributeKey::OwnsReplicationCard);
@@ -245,11 +245,10 @@ private:
     {
         const auto* node = GetThisImpl();
         bool hasNonEmptySchema = node->HasNonEmptySchema();
-        const auto* trunkNode = node->GetTrunkNode();
 
         switch (key) {
             case EInternedAttributeKey::ChaosCellBundle:
-                if (const auto& bundle = trunkNode->ChaosCellBundle()) {
+                if (auto bundle = node->GetChaosCellBundle()) {
                     BuildYsonFluently(consumer)
                         .Value(bundle->GetName());
                     return true;
@@ -258,7 +257,7 @@ private:
                 }
 
             case EInternedAttributeKey::ChaosCellBundleId:
-                if (const auto& bundle = trunkNode->ChaosCellBundle()) {
+                if (auto bundle = node->GetChaosCellBundle()) {
                     BuildYsonFluently(consumer)
                         .Value(bundle->GetId());
                     return true;
@@ -461,7 +460,7 @@ private:
                 };
 
                 return GetReplicationCard(options)
-                    .Apply(BIND([=] (const TReplicationCardPtr& card) {
+                    .Apply(BIND([] (const TReplicationCardPtr& card) {
                         auto replicasLags = ComputeReplicasLag(card->Replicas);
                         auto lastEraTimestamp = GetLastEraTimestamp(card);
                         return BuildYsonStringFluently()
@@ -537,8 +536,8 @@ private:
             }
 
             case EInternedAttributeKey::AllReplicasReachedLastGlobalEra:
-                return GetReplicationCard(MinimalFetchOptions)
-                    .Apply(BIND([=] (const TReplicationCardPtr& card) {
+                return GetReplicationCard(FetchOptionsWithProgress, /*bypassCache*/ false)
+                    .Apply(BIND([] (const TReplicationCardPtr& card) {
                         auto lastEraTimestamp = GetLastEraTimestamp(card);
 
                         bool allReplicasReachedLastGlobalEra = true;
@@ -561,7 +560,7 @@ private:
 
                 // TODO(osidorkin): Write better implementation after replication card progress format is changed (YT-17817)
                 return TChaosReplicatedTableTabletsCountGetter::GetTabletsCountYson(
-                    GetReplicationCard({.IncludeHistory = true}),
+                    GetReplicationCard({.IncludeHistory = true}, /*bypassCache*/ false),
                     Bootstrap_->GetClusterConnection());
             }
 
@@ -603,12 +602,15 @@ private:
         return TBase::DoInvoke(context);
     }
 
-    TFuture<TReplicationCardPtr> GetReplicationCard(const TReplicationCardFetchOptions& options = {})
+    TFuture<TReplicationCardPtr> GetReplicationCard(
+        const TReplicationCardFetchOptions& options = {},
+        bool bypassCache = true)
     {
         return ::NYT::NChaosServer::GetReplicationCard(
             Bootstrap_->GetClusterConnection(),
             GetThisImpl()->GetReplicationCardId(),
-            options);
+            options,
+            bypassCache);
     }
 
     static TFuture<std::vector<TReplicationCardId>> GetCollocatedReplicationCards(
@@ -653,7 +655,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
     DeclareNonMutating();
     SuppressAccessTracking();
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     ValidateNotExternal();
     ValidateNoTransaction();
@@ -675,28 +677,26 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
     response->set_dynamic(true);
     ToProto(response->mutable_schema(), trunkTable->GetSchema()->AsCompactTableSchema());
 
+    auto setResponseInfo = [] (auto& context) {
+        context->AnnotateResponse()
+            .With("TabletCount", context->Response().tablets_size())
+            .With("TabletCellCount", context->Response().tablet_cells_size())
+            .With("ReplicaCount", context->Response().replicas_size())
+            .With("IndexCount", context->Response().indices_size());
+    };
+
     if (trunkTable->IsQueue()) {
         auto tabletCountFuture = TChaosReplicatedTableTabletsCountGetter::GetTabletCount(
-            GetReplicationCard({.IncludeHistory = true}),
+            GetReplicationCard({.IncludeHistory = true}, /*bypassCache*/ false),
             Bootstrap_->GetClusterConnection());
 
         context->ReplyFrom(tabletCountFuture.AsUnique().Apply(BIND(
-            [context, response] (int&& result) {
+            [context, response, setResponseInfo] (int&& result) {
                 response->set_tablet_count(result);
-
-                context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
-                    response->tablets_size(),
-                    response->tablet_cells_size(),
-                    response->replicas_size(),
-                    response->indices_size());
+                setResponseInfo(context);
             })));
     } else {
-        context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
-            response->tablets_size(),
-            response->tablet_cells_size(),
-            response->replicas_size(),
-            response->indices_size());
-
+        setResponseInfo(context);
         context->Reply();
     }
 }
@@ -708,7 +708,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
     if (request->has_constraints()) {
         auto constraints = FromProto<TColumnNameToConstraintMap>(request->constraints());
         THROW_ERROR_EXCEPTION("Table schema alter with constraints is not supported for chaos replicated tables")
-            << TErrorAttribute("constraints", constraints);
+            .With("constraints", constraints);
     }
 
     TCompactTableSchemaPtr schema;
@@ -729,8 +729,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
     }
 
     const auto& tableManager = Bootstrap_->GetTableManager();
-    context->SetRequestInfo("Schema: %v",
-        tableManager->GetHeavyTableSchemaSync(schema));
+    context->AnnotateRequest()
+        .With("Schema", tableManager->GetHeavyTableSchemaSync(schema));
 
     auto* table = LockThisImpl();
 
@@ -764,14 +764,19 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
         if (!config->EnableDescendingSortOrder || !config->EnableDescendingSortOrderDynamic) {
             ValidateNoDescendingSortOrder(effectiveSchema->GetSortOrders(), effectiveSchema->GetKeyColumns());
         }
+
+        if (!config->EnableAggregateStateType && effectiveSchema->HasAggregateStateColumns()) {
+            auto heavySchema = tableManager->GetHeavyTableSchemaSync(effectiveSchema);
+            ValidateNoAggregateStateType(*heavySchema);
+        }
     }
 
     if (table->IsTrackedQueueConsumerObject()) {
         bool isValidConsumerSchema = !effectiveSchema->IsEmpty() && effectiveSchema->IsSorted();
         if (!isValidConsumerSchema) {
             THROW_ERROR_EXCEPTION(
-                "Chaos replicated table object cannot be both a queue and a consumer.\
-                To transform consumer into queue set \"treat_as_queue_consumer\" attribute into False first");
+                "Chaos replicated table object cannot be both a queue and a consumer; "
+                "to transform consumer into queue set \"treat_as_queue_consumer\" attribute to %%false first");
         }
     }
 
@@ -779,8 +784,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
         bool isValidProducerSchema = !effectiveSchema->IsEmpty() && effectiveSchema->IsSorted();
         if (!isValidProducerSchema) {
             THROW_ERROR_EXCEPTION(
-                "Chaos replicated table object cannot be both a queue and a producer.\
-                To transform producer into queue set \"treat_as_queue_producer\" attribute into False first");
+                "Chaos replicated table object cannot be both a queue and a producer; "
+                "to transform producer into queue set \"treat_as_queue_producer\" attribute to %%false first");
         }
     }
 

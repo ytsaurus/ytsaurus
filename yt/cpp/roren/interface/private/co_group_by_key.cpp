@@ -1,9 +1,8 @@
 #include "co_group_by_key.h"
-
 #include "raw_transform.h"
 
-#include "../co_gbk_result.h"
-#include "../type_tag.h"
+#include <yt/cpp/roren/interface/co_gbk_result.h>
+#include <yt/cpp/roren/interface/type_tag.h>
 
 namespace NRoren::NPrivate {
 

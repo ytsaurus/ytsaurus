@@ -22,23 +22,32 @@ DECLARE_REFCOUNTED_STRUCT(TQueryCorpusReporterConfig)
 DECLARE_REFCOUNTED_CLASS(TProxyHeapUsageProfiler)
 DECLARE_REFCOUNTED_STRUCT(TApiTestingOptions)
 DECLARE_REFCOUNTED_CLASS(TMulticonnectionClientCache)
+DECLARE_REFCOUNTED_CLASS(TDetailedProfilingCounters)
+DECLARE_REFCOUNTED_CLASS(TApiService)
 
 DECLARE_REFCOUNTED_STRUCT(IAccessChecker)
 DECLARE_REFCOUNTED_STRUCT(IProxyCoordinator)
 DECLARE_REFCOUNTED_STRUCT(IApiService)
+DECLARE_REFCOUNTED_STRUCT(IApiServiceContext)
 DECLARE_REFCOUNTED_STRUCT(IQueryCorpusReporter)
 DECLARE_REFCOUNTED_STRUCT(IMultiproxyAccessValidator)
 
 enum class EMultiproxyEnabledMethods;
 enum class EMultiproxyMethodKind;
 
-// Pair <cluster-name,user-identity>
-using TMultiConnectionClientCacheKey = std::pair<std::optional<std::string>, NRpc::TAuthenticationIdentity>;
+using TMultiproxyMethodList = std::vector<std::pair<std::string, EMultiproxyMethodKind>>;
+
+//! TMultiConnectionClientCacheKey is a tuple containing
+//!   - cluster-name
+//!   - user-identity
+//!   - address of connection object.
+// N.B. The cache values are client objects that hold references to their connection objects, so using connection addresses as keys is safe.
+using TMultiConnectionClientCacheKey = std::tuple<std::optional<std::string>, NRpc::TAuthenticationIdentity, intptr_t>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, RpcProxyProfiler, "/rpc_proxy");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, RpcProxyLogger, "RpcProxy");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, RpcProxyProfiler, "/rpc_proxy");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, RpcProxyLogger, "RpcProxy");
 
 ////////////////////////////////////////////////////////////////////////////////
 

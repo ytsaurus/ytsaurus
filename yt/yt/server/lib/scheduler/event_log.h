@@ -32,6 +32,7 @@ DEFINE_ENUM(ELogEventType,
     (AccumulatedUsageInfo)
     (OperationStarvationStarted)
     (OperationStarvationFinished)
+    (ProgressSaved)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

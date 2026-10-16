@@ -9,4 +9,4 @@ const TString ValueColumn("Value");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NRoren::NPrivate::NKvState
+} // namespace NRoren::NPrivate::NKvState

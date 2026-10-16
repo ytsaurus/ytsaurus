@@ -1,5 +1,4 @@
 #include "table_puller_helpers.h"
-#include "tablet.h"
 
 #include <yt/yt/client/chaos_client/replication_card.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
@@ -8,6 +7,7 @@ namespace NYT::NTabletNode {
 
 using namespace NChaosClient;
 using namespace NTabletClient;
+using namespace NTransactionClient;
 using namespace NObjectClient;
 using namespace NLogging;
 
@@ -23,9 +23,9 @@ bool TBannedReplicaTracker::IsReplicaBanned(TReplicaId replicaId) const
     auto it = BannedReplicas_.find(replicaId);
     bool result = it != BannedReplicas_.end() && it->second.Counter > 0;
 
-    YT_LOG_TRACE("Banned replica tracker checking replica (ReplicaId: %v, Result: %v)",
-        replicaId,
-        result);
+    YT_TLOG_TRACE("Banned replica tracker checking replica")
+        .With("ReplicaId", replicaId)
+        .With("Result", result);
 
     return result;
 }
@@ -34,9 +34,9 @@ void TBannedReplicaTracker::BanReplica(TReplicaId replicaId, TError error)
 {
     BannedReplicas_[replicaId] = TBanInfo{ReplicaBanDuration_.value_or(std::size(BannedReplicas_)), std::move(error)};
 
-    YT_LOG_DEBUG("Banned replica tracker has banned replica (ReplicaId: %v, ReplicasSize: %v)",
-        replicaId,
-        BannedReplicas_.size());
+    YT_TLOG_DEBUG("Banned replica tracker has banned replica")
+        .With("ReplicaId", replicaId)
+        .With("ReplicasSize", BannedReplicas_.size());
 }
 
 void TBannedReplicaTracker::SyncReplicas(const TReplicationCardPtr& replicationCard)
@@ -48,7 +48,7 @@ void TBannedReplicaTracker::SyncReplicas(const TReplicationCardPtr& replicationC
             IsReplicaEnabled(replicaInfo.State) &&
             !BannedReplicas_.contains(replicaId))
         {
-            EmplaceOrCrash(BannedReplicas_, replicaId, TBanInfo{0, TError()});
+            EmplaceOrCrash(BannedReplicas_, replicaId, TBanInfo{});
         }
     }
 
@@ -85,12 +85,12 @@ const T& ChooseReplica(const std::vector<T>& candidates, const TReplicaInfo& sel
 }
 
 TQueueReplicaSelector::TQueueReplicaSelector(
-    NLogging::TLogger logger,
-    const TBannedReplicaTracker& bannedReplicaTracker,
-    bool stronglyPreferLocalQueue)
-    : Logger(std::move(logger))
-    , BannedReplicaTracker_(bannedReplicaTracker)
-    , StronglyPreferLocalQueue_(stronglyPreferLocalQueue)
+    TLogger logger,
+    std::optional<int> replicaBanDuration,
+    bool forceSameClusterQueue)
+    : Logger(logger)
+    , ForceSameClusterQueue_(forceSameClusterQueue)
+    , BannedReplicaTracker_(std::move(logger), replicaBanDuration)
     , LastPulledFromReplicaId_(NullObjectId)
     , NextPermittedTimeForProgressBehindAlert_(Now())
 { }
@@ -99,12 +99,13 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
     TReplicaId selfUpstreamReplicaId,
     const TReplicationCardPtr& replicationCard,
     const TReplicationProgress& replicationProgress,
+    const THashSet<std::string>& extraSameDcQueueClusters,
     TInstant now)
 {
     // If our progress is less than any queue replica progress, pull from that replica.
     // Otherwise pull from sync replica of oldest era corresponding to our progress.
 
-    YT_LOG_DEBUG("Pick replica to pull from");
+    YT_TLOG_DEBUG("Pick replica to pull from");
 
     auto* selfReplica = replicationCard->FindReplica(selfUpstreamReplicaId);
     if (!selfReplica) {
@@ -112,49 +113,49 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
     }
 
     if (!IsReplicationProgressGreaterOrEqual(replicationProgress, selfReplica->ReplicationProgress)) {
-        constexpr auto message = "Will not pull rows since actual replication progress is behind replication card replica progress";
-
         // TODO(ponasenko-rs): Remove alerts after testing period.
         if (now >= NextPermittedTimeForProgressBehindAlert_) {
-            YT_LOG_ALERT("%s (ReplicationProgress: %v, ReplicaInfo: %v)",
-                message,
-                replicationProgress,
-                *selfReplica);
+            YT_TLOG_ALERT("Will not pull rows since actual replication progress is behind replication card replica progress")
+                .With("ReplicationProgress", replicationProgress)
+                .With("ReplicaInfo", *selfReplica);
             NextPermittedTimeForProgressBehindAlert_ = now + TDuration::Days(1);
         }
 
-        return TError(message)
-            << TErrorAttribute("replication_progress", replicationProgress)
-            << TErrorAttribute("replica_info", *selfReplica);
+        return TError(
+            "Will not pull rows since actual replication progress is behind replication card replica progress")
+            .With("replication_progress", replicationProgress)
+            .With("replica_info", *selfReplica);
     }
 
     auto oldestTimestamp = GetReplicationProgressMinTimestamp(replicationProgress);
     auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
     if (historyItemIndex == -1) {
         return TError("Will not pull rows since replica history does not cover replication progress")
-            << TErrorAttribute("oldest_timestamp", oldestTimestamp)
-            << TErrorAttribute("history", selfReplica->History);
+            .With("oldest_timestamp", oldestTimestamp)
+            .With("history", selfReplica->History);
     }
 
     YT_VERIFY(historyItemIndex >= 0 && historyItemIndex < std::ssize(selfReplica->History));
     const auto& historyItem = selfReplica->History[historyItemIndex];
     if (historyItem.IsSync()) {
         return TError("Will not pull rows since oldest progress timestamp corresponds to sync history item")
-            << TErrorAttribute("oldest_timestamp", oldestTimestamp)
-            << TErrorAttribute("history_item", historyItem);
+            .With("oldest_timestamp", oldestTimestamp)
+            .With("history_item", historyItem);
     }
 
     if (!IsReplicaAsync(selfReplica->Mode)) {
-        YT_LOG_DEBUG("Pulling rows while replica is not async (ReplicaMode: %v)",
-            selfReplica->Mode);
+        YT_TLOG_DEBUG("Pulling rows while replica is not async")
+            .With("ReplicaMode", selfReplica->Mode);
         // NB: Allow this since sync replica could be catching up.
     }
 
-    auto findFreshQueueReplica = [&] () -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*> {
-        std::vector<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*>> candidates;
-        std::optional<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*>> lastFetchedCandidate;
+    auto findFreshQueueReplica = [&] () -> std::tuple<TReplicaId, TReplicaInfo*> {
+        std::vector<std::tuple<TReplicaId, TReplicaInfo*>> candidates;
+        std::vector<std::tuple<TReplicaId, TReplicaInfo*>> sameDcCandidates;
+        std::optional<std::tuple<TReplicaId, TReplicaInfo*>> lastFetchedCandidate;
 
         bool isSelfReplicaInLastEra = oldestTimestamp >= selfReplica->History.back().Timestamp;
+
         for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
             if (BannedReplicaTracker_.IsReplicaBanned(replicaId)) {
                 continue;
@@ -168,11 +169,11 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
             }
 
             if (selfReplica->ContentType == ETableReplicaContentType::Data) {
-                if (StronglyPreferLocalQueue_) {
-                    if (isSelfReplicaInLastEra &&
-                        selfReplica->ClusterName == replicaInfo.ClusterName)
-                    {
+                if (ForceSameClusterQueue_ && isSelfReplicaInLastEra) {
+                    if (selfReplica->ClusterName == replicaInfo.ClusterName) {
                         return {replicaId, &replicaInfo};
+                    } else if (extraSameDcQueueClusters.contains(replicaInfo.ClusterName)) {
+                        sameDcCandidates.emplace_back(replicaId, &replicaInfo);
                     }
                 }
 
@@ -199,6 +200,10 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
             }
         }
 
+        if (!sameDcCandidates.empty()) {
+            return sameDcCandidates[RandomNumber(sameDcCandidates.size())];
+        }
+
         if (lastFetchedCandidate) {
             return *lastFetchedCandidate;
         }
@@ -210,8 +215,8 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
         return {};
     };
 
-    auto findSyncQueueReplica = [&] () -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*, TTimestamp> {
-        std::vector<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*, TTimestamp>> candidates;
+    auto findSyncQueueReplica = [&] () -> std::tuple<TReplicaId, TReplicaInfo*, TTimestamp> {
+        std::vector<std::tuple<TReplicaId, TReplicaInfo*, TTimestamp>> candidates;
         for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
             if (BannedReplicaTracker_.IsReplicaBanned(replicaId)) {
                 continue;
@@ -231,9 +236,9 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
                 continue;
             }
 
-            YT_LOG_DEBUG("Found sync replica corresponding history item (ReplicaId %v, HistoryItem: %v)",
-                replicaId,
-                historyItem);
+            YT_TLOG_DEBUG("Found sync replica corresponding history item")
+                .With("ReplicaId", replicaId)
+                .With("HistoryItem", historyItem);
 
             // Pull from (past) sync replica until it changed mode or we became sync.
             // AsyncToSync -> SyncToAsync transition is possible, so check the previous state
@@ -260,18 +265,18 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
     };
 
     if (auto [queueReplicaId, queueReplica] = findFreshQueueReplica(); queueReplica) {
-        YT_LOG_DEBUG("Pull rows from fresh replica (ReplicaId: %v)",
-            queueReplicaId);
+        YT_TLOG_DEBUG("Pull rows from fresh replica")
+            .With("ReplicaId", queueReplicaId);
 
         LastPulledFromReplicaId_ = queueReplicaId;
         return std::tuple{queueReplicaId, queueReplica, NullTimestamp};
     }
 
     if (auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = findSyncQueueReplica(); queueReplicaInfo) {
-        YT_LOG_DEBUG("Pull rows from sync replica (ReplicaId: %v, OldestTimestamp: %v, UpperTimestamp: %v)",
-            queueReplicaId,
-            oldestTimestamp,
-            upperTimestamp);
+        YT_TLOG_DEBUG("Pull rows from sync replica")
+            .With("ReplicaId", queueReplicaId)
+            .With("OldestTimestamp", oldestTimestamp)
+            .With("UpperTimestamp", upperTimestamp);
 
         LastPulledFromReplicaId_ = queueReplicaId;
         return std::tuple{queueReplicaId, queueReplicaInfo, upperTimestamp};
@@ -284,6 +289,40 @@ void TQueueReplicaSelector::ResetLastPulledFromReplicaId()
 {
     LastPulledFromReplicaId_ = NullObjectId;
 }
+
+TBannedReplicaTracker& TQueueReplicaSelector::GetBannedReplicaTracker()
+{
+    return BannedReplicaTracker_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namspace NYT::NTabletNode
+TIterationTimeTracker::TIterationTimeTracker(int previousIterationWeight, int currentIterationWeight, TDuration initialDuration)
+    : PreviousIterationWeight_(previousIterationWeight)
+    , CurrentIterationWeight_(currentIterationWeight)
+    , SmoothedIterationDuration_(initialDuration)
+{
+    YT_VERIFY(PreviousIterationWeight_ >= 0);
+    YT_VERIFY(CurrentIterationWeight_ > 0);
+}
+
+TDuration TIterationTimeTracker::CalculateSmoothedIterationDuration(TInstant currentIterationInstant)
+{
+    if (LastIterationInstant_ != TInstant::Zero()) {
+        auto elapsedTime = currentIterationInstant - LastIterationInstant_;
+
+        int weightSum = PreviousIterationWeight_ + CurrentIterationWeight_;
+        auto weightedElapsedTime = elapsedTime * CurrentIterationWeight_;
+        auto weightedPreviousTime = SmoothedIterationDuration_ * PreviousIterationWeight_;
+
+        SmoothedIterationDuration_ = (weightedElapsedTime + weightedPreviousTime) / weightSum;
+    }
+
+    LastIterationInstant_ = currentIterationInstant;
+
+    return SmoothedIterationDuration_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTabletNode

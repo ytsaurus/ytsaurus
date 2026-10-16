@@ -1,0 +1,29 @@
+{
+    "spec" = {
+        "computations" = {
+            "idle" = {
+                "computation_class_name" = "TIdleComputation";
+                "source_streams" = {
+                    "random" = {
+                        "source_class_name" = "NYT::NFlow::TRandomSource";
+                        "parameters" = {};
+                    };
+                };
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "idle" = {
+                "source_streams" = {
+                    "random" = {
+                        "parameters" = {
+                            "partition_count" = 1;
+                            "partition_message_count" = 10;
+                        };
+                    };
+                };
+            };
+        };
+    };
+}

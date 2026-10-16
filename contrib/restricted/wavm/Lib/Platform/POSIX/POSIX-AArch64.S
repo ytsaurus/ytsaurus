@@ -28,6 +28,15 @@
 
 .text
 
+#ifdef __APPLE__
+	.globl _wavm_probe_stack
+	.align 16
+_wavm_probe_stack:
+	.cfi_startproc
+		br x30
+	.cfi_endproc
+#else
 BEGIN_FUNC(wavm_probe_stack)
 	br x30
 END_FUNC(wavm_probe_stack)
+#endif

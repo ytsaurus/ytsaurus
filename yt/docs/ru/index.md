@@ -59,6 +59,7 @@ h3 {
         <p>Обработка данных при помощи {{product-name}}: планировщик, парадигма MapReduce, поддерживаемые операции.</p>
         <ul>
             <li><b><a lang="ru" href="yql/index">YQL</a></b> — декларативный SQL-подобный язык запросов.</li>
+            <li><b><a lang="ru" href="flow/about">Flow</a></b> — фреймворк для потоковой обработки событий в реальном времени в экосистеме {{product-name}}.</li>
             <li><b><a lang="ru" href="user-guide/data-processing/chyt/about-chyt">CHYT</a></b> — кластер ClickHouse внутри {{product-name}}.</li>
             <li><b><a lang="ru" href="user-guide/data-processing/spyt/overview">SPYT</a></b> — кластер Apache Spark внутри {{product-name}}.</li>
         </ul>

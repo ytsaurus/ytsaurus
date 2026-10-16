@@ -1,4 +1,4 @@
-from yt_commands import authors, raises_yt_error, create, get, remove, write_table, read_table, exists
+from yt_commands import (authors, raises_yt_error, create, get, remove, write_table, read_table, exists)
 
 from yt_type_helpers import make_schema, normalize_schema
 
@@ -115,23 +115,23 @@ class TestMutations(ClickHouseTestBase):
             clique.make_query("insert into `//tmp/t`(list_optional_i32) values ([23, NULL]), ([]), ([57])")
             clique.make_query("insert into `//tmp/t`(list_i64, tuple_dbl_bool, struct_ui8_str, list_optional_i32) "
                               "values ([9,8,7], (6.02,0), (17,'qux'), [NULL,57,NULL,18])")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("insert into `//tmp/t`(list_i64) values (42)")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("insert into `//tmp/t`(list_i64) values ('foo')")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("insert into `//tmp/t`(list_i64) values (('foo', 'bar'))")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("insert into `//tmp/t`(tuple_dbl_bool) values ((3.14))")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("insert into `//tmp/t`(tuple_dbl_bool) values ((3.14,1,'foo'))")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("insert into `//tmp/t`(tuple_dbl_bool) values (('foo',1))")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("insert into `//tmp/t`(struct_ui8_str) values ((42))")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("insert into `//tmp/t`(struct_ui8_str) values ((42,'foo',3.14))")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("insert into `//tmp/t`(struct_ui8_str) values (('foo',42))")
             # TODO(max42): this crashes due to CH bug: CHYT-535
             # with raises_yt_error(QueryFailedError):
@@ -230,7 +230,7 @@ class TestMutations(ClickHouseTestBase):
             ])
 
             # Number of columns does not match.
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('insert into "//tmp/t" select i64, ui64 from "//tmp/s1"')
 
             # Columns are matched according to positions. Values are best-effort casted due to CH logic.
@@ -283,7 +283,7 @@ class TestMutations(ClickHouseTestBase):
             for result_type in schema:
                 assert result_type['type'] == column_name_to_type.get(result_type['name'], '')
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query(
                     'insert into "//tmp/t" select * from generateRandom() limit 10',
                     settings={"use_structure_from_insertion_table_in_table_functions": 0}
@@ -343,7 +343,7 @@ class TestMutations(ClickHouseTestBase):
             assert sum(row["a"] for row in aggregated_rows) == sum([row["a"] for row in rows])
 
             # Distributed INSERT is not suitable for cases below.
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("insert into concatYtTables(`//tmp/t_out`, `//tmp/t_out`) select * from `//tmp/t_in`")
 
             clique.make_query("insert into `<append=%false>//tmp/t_out` select * from `//tmp/t_in` "
@@ -378,7 +378,7 @@ class TestMutations(ClickHouseTestBase):
         }
         with Clique(1, config_patch=config_patch) as clique:
             # Parallel write is forbidden for dynamic tables.
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("insert into `//tmp/t_out_dynamic` select * from `//tmp/t_in`")
 
             clique.make_query("insert into `//tmp/t_out` select * from `//tmp/t_in`",
@@ -397,7 +397,7 @@ class TestMutations(ClickHouseTestBase):
             assert get("//tmp/t_out/@chunk_count") == threads_count * 2
 
             # Parallel overwrite insert is forbidden.
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("insert into `<append=%false>//tmp/t_out` select * from `//tmp/t_in`")
 
             clique.make_query("insert into `<append=%false>//tmp/t_out` select * from `//tmp/t_in`",
@@ -417,10 +417,10 @@ class TestMutations(ClickHouseTestBase):
             assert sum(row["a"] for row in aggregated_rows) == sum([row["a"] for row in rows])
 
             # Parallel insert is forbidden for sorted tables.
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("insert into `//tmp/t_out_sorted` select * from `//tmp/t_in_sorted`")
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("insert into `//tmp/t_out_sorted` select * from `//tmp/t_in` order by a")
 
             write_table("//tmp/t_out", [])
@@ -465,7 +465,7 @@ class TestMutations(ClickHouseTestBase):
             # Distributed insert as select.
             for _ in range(5):
                 number = random.randint(0, 99)
-                with raises_yt_error(QueryFailedError):
+                with raises_yt_error(code=QueryFailedError):
                     clique.make_query("insert into `//tmp/t_out` select throwIf(a = {}, 'Generate error') from `//tmp/t_in`".format(number))
                 read_table("//tmp/t_out", verbose=False) == []
                 assert get("//tmp/t_out/@chunk_count") == 0
@@ -474,7 +474,7 @@ class TestMutations(ClickHouseTestBase):
             for _ in range(5):
                 number = random.randint(0, 99)
                 query = 'create table "//tmp/t1" engine YtTable() as select throwIf(a = {}, "Generate error") from "//tmp/t_in"'.format(number)
-                with raises_yt_error(QueryFailedError):
+                with raises_yt_error(code=QueryFailedError):
                     clique.make_query(query)
                 assert not exists("//tmp/t1")
 
@@ -500,7 +500,7 @@ class TestMutations(ClickHouseTestBase):
             )
 
             # Table already exists.
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query(
                     'create table "//tmp/t"(i64 Int64, ui64 UInt64, str String, dbl Float64, i32 Int32) '
                     "engine YtTable() order by (str, i64)"
@@ -527,11 +527,11 @@ class TestMutations(ClickHouseTestBase):
             )
 
             # No non-trivial expressions.
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('create table "//tmp/t2"(i64 Int64) engine YtTable() order by (i64 * i64)')
 
             # Missing key column.
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('create table "//tmp/t2"(i Int64) engine YtTable() order by j')
 
             clique.make_query("create table \"//tmp/t_snappy\"(i Int64) engine YtTable('{compression_codec=snappy}')")
@@ -543,7 +543,7 @@ class TestMutations(ClickHouseTestBase):
             assert get("//tmp/t_snappy/@foo") == 42
 
             # Empty schema.
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('create table "//tmp/t2" engine YtTable()')
 
             # Underscore indicates that the columns should be ignored and schema from attributes should
@@ -645,14 +645,31 @@ class TestMutations(ClickHouseTestBase):
 
         with Clique(1) as clique:
             query = 'create table "//tmp/t1" engine YtTable() order by str as select throwIf(str = "xyz", "Generate error") from "//tmp/s1"'
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query(query)
             assert not exists("//tmp/t1")
 
             query = 'create table "//tmp/t1" engine YtTable() as select * from "//tmp/t1"'
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query(query)
             assert not exists("//tmp/t1")
+
+    @authors("a-dyu")
+    def test_create_table_as_select_writer_finish_exception(self):
+        create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        rows = [{"a": i} for i in range(100)]
+        write_table("//tmp/s1", rows, verbose=False)
+
+        settings = {"chyt.testing.throw_exception_in_writer_finish": 1}
+
+        with Clique(1) as clique:
+            with raises_yt_error():
+                clique.make_query(
+                    'create table "//tmp/t1" engine YtTable() as select * from "//tmp/s1"',
+                    settings=settings,
+                )
+
+            assert clique.get_active_instance_count() == 1
 
     @authors("max42")
     def test_create_table_as_table(self):
@@ -919,7 +936,7 @@ class TestMutations(ClickHouseTestBase):
             clique.make_query("DROP TABLE IF EXISTS my_db.unknown_table")
 
             clique.make_query("DROP TABLE my_db.my_table_renamed")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("DROP TABLE my_db.my_table_renamed")
 
             assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "other_table"}]

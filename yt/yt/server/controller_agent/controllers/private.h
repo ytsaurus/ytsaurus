@@ -12,6 +12,7 @@ struct THighThreadCountJobInfo
 {
     NJobTrackerClient::TJobId JobId;
     i64 ThreadCount = 0;
+    i64 Threshold = 0;
 
     PHOENIX_DECLARE_TYPE(THighThreadCountJobInfo, 0xfb21a9c1);
 };
@@ -46,6 +47,9 @@ DECLARE_REFCOUNTED_STRUCT(ITaskHost)
 
 DECLARE_REFCOUNTED_STRUCT(IAlertManager)
 DECLARE_REFCOUNTED_STRUCT(IAlertManagerHost)
+
+DECLARE_REFCOUNTED_STRUCT(IPushBasedShuffle)
+DECLARE_REFCOUNTED_CLASS(TPushBasedShuffleJobSpecBuilder)
 
 DECLARE_REFCOUNTED_CLASS(TDataBalancer)
 

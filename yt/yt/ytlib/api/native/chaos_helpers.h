@@ -20,7 +20,7 @@ DEFINE_ENUM(EBanMode,
 struct TReplicaBanDirective
 {
     EBanMode Mode = EBanMode::None;
-    NChaosClient::TReplicaId ReplicaId = NObjectClient::NullObjectId;
+    NChaosClient::TReplicaId ReplicaId;
 
     static TReplicaBanDirective FromError(const TError& error);
 };
@@ -32,7 +32,8 @@ std::vector<NTabletClient::TTableReplicaId> GetChaosTableInSyncReplicas(
     const NQueryClient::TColumnEvaluatorPtr& columnEvaluator,
     const TSharedRange<NTableClient::TLegacyKey>& keys,
     bool allKeys,
-    NHiveClient::TTimestamp userTimestamp);
+    NHiveClient::TTimestamp userTimestamp,
+    const NLogging::TLogger& logger);
 
 NChaosClient::TReplicationCardPtr GetSyncReplicationCard(
     const IConnectionPtr& connection,

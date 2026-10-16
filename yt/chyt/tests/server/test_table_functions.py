@@ -1,4 +1,4 @@
-from yt_commands import (create, authors, write_table, get,
+from yt_commands import (create, authors, write_table, get, set,
                          raises_yt_error)
 
 from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
@@ -158,10 +158,10 @@ class TestTableFunctions(ClickHouseTestBase):
                 {"$key": "link&", "key": "link", "type": "link"},
             ]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select key from ytNodeAttributes()')
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select key from ytNodeAttributes('//this_table_does_not_exist')")
 
     @authors("dakovalkov")
@@ -248,11 +248,113 @@ class TestTableFunctions(ClickHouseTestBase):
                 {"$path": "//tmp/dir2/30min/2021-01-03T02:00:00"},
             ]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select $path from ytListLogTables('//this_dir_does_not_exist')")
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select $path from ytListLogTables('//tmp/dir3')")
+
+            # Passing unix timestamps via toDateTime() should work correctly regardless of session timezone.
+            # Range [1609624800, 1609639200] = [2021-01-02T22:00:00Z, 2021-01-03T02:00:00Z].
+            query = "select $path from ytListLogTables('//tmp/dir1', toDateTime(1609624800), toDateTime(1609639200)) order by $key"
+            assert clique.make_query(query, settings={"session_timezone": "Europe/Moscow"}) == [
+                {"$path": "//tmp/dir1/1d/2021-01-02"},
+                {"$path": "//tmp/dir1/1d/2021-01-03"},
+            ]
+
+    @authors("iharbychyk")
+    def test_yt_list_queue_exports(self):
+        queue_path = "//tmp/queue"
+        queue_id = create(
+            "table",
+            queue_path,
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "data", "type": "string"},
+                ],
+            },
+        )
+
+        export_dir = "//tmp/export"
+        create("map_node", export_dir)
+        set(f"{export_dir}/@queue_static_export_destination", {"originating_queue_id": queue_id})
+
+        cron_export_dir = "//tmp/cron_export"
+        create("map_node", cron_export_dir)
+        set(f"{cron_export_dir}/@queue_static_export_destination", {"originating_queue_id": queue_id})
+
+        period = 3600
+        set(f"{queue_path}/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": period * 1000,
+            },
+            "cron": {
+                "export_directory": cron_export_dir,
+                "export_cron_schedule": "0 * * * *",
+            },
+        })
+
+        def create_export_table(unix_ts):
+            path = f"{export_dir}/{unix_ts}-{period}"
+            create(
+                "table",
+                path,
+                attributes={
+                    "schema": [
+                        {"name": "a", "type": "int64"},
+                    ],
+                },
+            )
+            return path
+
+        t0 = 1609459200  # 2021-01-01T00:00:00Z
+        table_paths = [
+            create_export_table(t0),
+            create_export_table(t0 + period),
+            create_export_table(t0 + 2 * period),
+        ]
+
+        with Clique(1) as clique:
+            query = f"select $path from ytListQueueExports('{export_dir}') order by $key"
+            assert clique.make_query(query) == [{"$path": path} for path in table_paths]
+
+            query = f"select $path from ytListQueueExports('{export_dir}', '2021-01-01T01:00:00') order by $key"
+            assert clique.make_query(query) == [{"$path": path} for path in table_paths[1:]]
+
+            query = f"select $path from ytListQueueExports('{export_dir}', '', '2021-01-01T02:00:00') order by $key"
+            assert clique.make_query(query) == [{"$path": path} for path in table_paths[:-1]]
+
+            query = (
+                f"select $path from ytListQueueExports('{export_dir}', "
+                "'2021-01-01T01:00:00', '2021-01-01T02:00:00') order by $key"
+            )
+            assert clique.make_query(query) == [{"$path": path} for path in table_paths[1:-1]]
+
+            query = (
+                f"select $path from ytListQueueExports('{export_dir}', "
+                "'2021-01-01T00:15:00', '2021-01-01T02:25:00') order by $key"
+            )
+            assert clique.make_query(query) == [{"$path": path} for path in table_paths]
+
+            query = (
+                f"select $path from ytListQueueExports('{export_dir}', "
+                "'2021-01-01T01:10:00', '2021-01-01T01:45:00') order by $key"
+            )
+            assert clique.make_query(query) == [{"$path": table_paths[1]}]
+
+            create("map_node", "//tmp/not_an_export_dir")
+            with raises_yt_error("does not correspond to a queue static export directory", code=QueryFailedError):
+                clique.make_query("select $path from ytListQueueExports('//tmp/not_an_export_dir')")
+
+            create("map_node", "//tmp/unconfigured_export")
+            set("//tmp/unconfigured_export/@queue_static_export_destination", {"originating_queue_id": queue_id})
+            with raises_yt_error("No static export configured with export directory", code=QueryFailedError):
+                clique.make_query("select $path from ytListQueueExports('//tmp/unconfigured_export')")
+
+            with raises_yt_error("uses a CRON schedule", code=QueryFailedError):
+                clique.make_query(f"select $path from ytListQueueExports('{cron_export_dir}')")
 
     @authors("dakovalkov", "buyval01")
     def test_yt_tables(self):
@@ -305,19 +407,22 @@ class TestTableFunctions(ClickHouseTestBase):
                 {"a": 2},
             ]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select * form ytTables()')
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 # dir1 contains subdir.
                 clique.make_query("select * from ytTables(ytListNodes('//tmp/dir1'))")
+
+            with raises_yt_error("No tables to read from"):
+                clique.make_query("select * from ytTables(ytListNodes('//tmp/dir1/subdir'))")
 
             subquery = "select $path from ytListTables('//tmp/dir1') where splitByChar('/',assumeNotNull($path))[-1] = 't0'"
             assert clique.make_query(subquery) == [
                 {"$path": "//tmp/dir1/t0"},
             ]
             # The new CH analyzer does not work with subqueries not wrapped in a table view function as function arguments.
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query(f"select * from ytTables({subquery})")
             assert clique.make_query(f"select * from ytTables(view({subquery})) order by a") == [
                 {"a": 0},

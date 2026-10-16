@@ -22,7 +22,7 @@ void TJournalHunkChunkWriterOptions::Register(TRegistrar registrar)
 {
     registrar.Postprocessor([&] (TJournalHunkChunkWriterOptions* options) {
         if (options->ErasureCodec != NErasure::ECodec::None &&
-            !NErasure::GetCodec(options->ErasureCodec)->IsBytewise())
+            !NErasure::GetCodecOrThrow(options->ErasureCodec)->GetParams().Bytewise)
         {
             THROW_ERROR_EXCEPTION("Only bytewise erasure codecs can be used, actual: %Qlv",
                 options->ErasureCodec);

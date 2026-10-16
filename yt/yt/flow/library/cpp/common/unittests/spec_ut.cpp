@@ -1,0 +1,3296 @@
+#include <yt/yt/flow/library/cpp/common/computation.h>
+#include <yt/yt/flow/library/cpp/common/computation_controller.h>
+#include <yt/yt/flow/library/cpp/common/flow_view.h>
+#include <yt/yt/flow/library/cpp/common/registry.h>
+#include <yt/yt/flow/library/cpp/common/resource.h>
+#include <yt/yt/flow/library/cpp/common/sink.h>
+#include <yt/yt/flow/library/cpp/common/sink_controller.h>
+#include <yt/yt/flow/library/cpp/common/source.h>
+#include <yt/yt/flow/library/cpp/common/source_controller.h>
+#include <yt/yt/flow/library/cpp/common/spec.h>
+#include <yt/yt/flow/library/cpp/common/traverse.h>
+
+#include <yt/yt/core/test_framework/framework.h>
+
+#include <yt/yt/core/misc/collection_helpers.h>
+
+#include <yt/yt/client/table_client/unversioned_row.h>
+
+namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using namespace NYTree;
+using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TNullComputationController;
+
+struct TNullComputation
+    : public IComputation
+{
+    using TComputationController = TNullComputationController;
+
+    TNullComputation(
+        TComputationContextPtr /*context*/,
+        TDynamicComputationContextPtr /*dynamicContext*/)
+    { }
+
+    void Run(const IComputationRunContextPtr& /*context*/) override
+    { }
+
+    void Reconfigure(TDynamicComputationContextPtr /*dynamicContext*/) override
+    { }
+
+    void SubscribeOnReconfigure(
+        NYT::TCallback<void()> /*callback*/,
+        EWatchReconfigure /*watchReconfigureMask*/) override
+    { }
+
+    void UpdateWatermarkState(TWatermarkStatePtr /*watermarkState*/) override
+    { }
+
+    void SetInputTraverse(THashMap<TStreamId, TStreamTraverseDataPtr> /*inputStreams*/) override
+    { }
+
+    TComputationStatusPtr GetStatus() override
+    {
+        auto status = New<TComputationStatus>();
+        status->PartitionStatus = GetEphemeralNodeFactory()->CreateMap();
+        return status;
+    }
+
+    TParametersPtr GetParametersBase() const override
+    {
+        return nullptr;
+    }
+
+    TDynamicParametersPtr GetDynamicParametersBase() const override
+    {
+        return nullptr;
+    }
+
+    TDynamicPartitionSpecPtr GetDynamicPartitionSpecBase() const override
+    {
+        return nullptr;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TNullComputationController
+    : public IComputationController
+{
+    TNullComputationController(
+        TComputationControllerContextPtr /*context*/,
+        TDynamicComputationControllerContextPtr /*dynamicContext*/)
+    { }
+
+    double ComputePartitionWeight(const TPartitionId& /*partitionId*/, const TFlowViewPtr& /*flowView*/) override
+    {
+        return 1.0;
+    }
+
+    TProcessPartitionTraverseDataResultPtr ProcessPartitionTraverseData(
+        const THashMap<TPartitionId, TNodeTraverseDataPtr>& /*traverseData*/,
+        const TNodeTraverseDataPtr& /*currentTraverseData*/,
+        const TFlowViewPtr& /*flowView*/) override
+    {
+        return New<TProcessPartitionTraverseDataResult>();
+    }
+
+    TPartitioningTopology DescribePartitioningTopology() override
+    {
+        return {.Value = TPartitioningTopology::TRange{}};
+    }
+
+    TPartitioningDescription DescribePartitioning(
+        const TPartitioningStatus& /*status*/) override
+    {
+        return {
+            .Value = TPartitioningDescription::TRange{
+                .SinkTopologyVersion = TVersion(0),
+            },
+        };
+    }
+
+    void Init(IInitContextPtr /*initContext*/) override
+    { }
+
+    void Sync() override
+    { }
+
+    void Commit() override
+    { }
+
+    void UpdateWatermarkState(TWatermarkStatePtr /*watermarkState*/) override
+    { }
+
+    TParametersPtr GetParametersBase() const override
+    {
+        return nullptr;
+    }
+
+    TDynamicParametersPtr GetDynamicParametersBase() const override
+    {
+        return nullptr;
+    }
+};
+
+YT_FLOW_DEFINE_COMPUTATION(TNullComputation);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TNullSourceController
+    : public ISourceController
+{
+    TNullSourceController(TSourceControllerContextPtr /*context*/, TDynamicSourceControllerContextPtr /*dynamicContext*/)
+    { }
+
+    std::optional<THashMap<TKey, NYTree::IMapNodePtr>> ListKeys() override
+    {
+        return {};
+    }
+
+    std::string GetGroup(const TKey& /*key*/) override
+    {
+        return "default";
+    }
+
+    void Init(IInitContextPtr /*initContext*/) override
+    { }
+
+    void Sync() override
+    { }
+
+    void Commit() override
+    { }
+
+    void ProcessPartitionStatuses(const THashMap<TKey, TExtendedSourcePartitionStatusPtr>& /*statuses*/) override
+    { }
+
+    std::optional<TStreamTraverseDataPtr> GetFutureKeysStreamTraverseData() override
+    {
+        return {};
+    }
+
+    TParametersPtr GetParametersBase() const override
+    {
+        return nullptr;
+    }
+
+    TDynamicParametersPtr GetDynamicParametersBase() const override
+    {
+        return nullptr;
+    }
+};
+
+struct TNullSource
+    : public ISource
+{
+    using TSourceController = TNullSourceController;
+
+    TNullSource(TSourceContextPtr /*context*/, TDynamicSourceContextPtr /*dynamicContext*/)
+    { }
+
+    void Init(IInitContextPtr /*initContext*/) override
+    { }
+
+    void Terminate() override
+    { }
+
+    void Sync() override
+    { }
+
+    void Commit() override
+    { }
+
+    TFuture<std::vector<TMessageBatch>> GetNextBatch(const TMessageBatcherSettingsPtr& /*batcherSettings*/) override
+    {
+        return {};
+    }
+
+    void MarkPublished(const TSourceMessageBatchCookie& /*cookie*/) override
+    { }
+
+    void MarkPersisted(const TSourceMessageBatchCookie& /*cookie*/) override
+    { }
+
+    TInflightStreamTraverseDataPtr BuildInflight() override
+    {
+        return New<TInflightStreamTraverseData>();
+    }
+
+    std::optional<TSystemTimestamp> GetPersistedEventWatermark() override
+    {
+        return {};
+    }
+
+    std::optional<TSystemTimestamp> GetReadEventWatermark() override
+    {
+        return {};
+    }
+
+    NYTree::IMapNodePtr GetPartitionStatus() override
+    {
+        return GetEphemeralNodeFactory()->CreateMap();
+    }
+
+    TParametersPtr GetParametersBase() const override
+    {
+        return nullptr;
+    }
+
+    TDynamicParametersPtr GetDynamicParametersBase() const override
+    {
+        return nullptr;
+    }
+
+    TDynamicPartitionSpecPtr GetDynamicPartitionSpecBase() const override
+    {
+        return nullptr;
+    }
+};
+
+YT_FLOW_DEFINE_SOURCE(TNullSource);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TNullSinkController
+    : public ISinkController
+{
+    TNullSinkController(TSinkControllerContextPtr /*context*/, TDynamicSinkControllerContextPtr /*dynamicContext*/)
+    { }
+
+    void Init(IInitContextPtr /*initContext*/) override
+    { }
+
+    void Sync() override
+    { }
+
+    void Commit() override
+    { }
+
+    void UpdateWatermarkState(TWatermarkStatePtr /*watermarkState*/) override
+    { }
+
+    std::optional<i64> GetReceiverChannelCount() override
+    {
+        return {};
+    }
+
+    TParametersPtr GetParametersBase() const override
+    {
+        return nullptr;
+    }
+
+    TDynamicParametersPtr GetDynamicParametersBase() const override
+    {
+        return nullptr;
+    }
+};
+
+struct TNullSink
+    : public ISink
+{
+    using TSinkController = TNullSinkController;
+
+    TNullSink(TSinkContextPtr /*context*/, TDynamicSinkContextPtr /*dynamicContext*/)
+    { }
+
+    void Init(IInitContextPtr /*initContext*/) override
+    { }
+
+    void Sync(NApi::IDynamicTableTransactionPtr /*transaction*/) override
+    { }
+
+    void Commit() override
+    { }
+
+    void Distribute(const TOutputMessageConstPtr& message, TOnDistributedCallback onDistributed) override
+    {
+        Y_UNUSED(message);
+        onDistributed();
+    }
+
+    TParametersPtr GetParametersBase() const override
+    {
+        return nullptr;
+    }
+
+    TDynamicParametersPtr GetDynamicParametersBase() const override
+    {
+        return nullptr;
+    }
+};
+
+YT_FLOW_DEFINE_SINK(TNullSink);
+
+struct TNullResource
+    : public IResource
+{
+    TNullResource(TResourceContextPtr /*context*/, TDynamicResourceContextPtr /*dynamicContext*/)
+    { }
+
+    TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/) override
+    {
+        return OKFuture;
+    }
+
+    void Reconfigure(const TDynamicResourceContextPtr& /*dynamicContext*/) override
+    { }
+
+    TResourceRevisionState GetRevisionState() const override
+    {
+        return {};
+    }
+
+    size_t GetDependenciesCount() const
+    {
+        return 0;
+    }
+
+    TYsonStructPtr GetParametersBase() const final
+    {
+        return nullptr;
+    }
+
+    TYsonStructPtr GetDynamicParametersBase() const final
+    {
+        return nullptr;
+    }
+};
+
+YT_FLOW_DEFINE_RESOURCE(TNullResource);
+
+////////////////////////////////////////////////////////////////////////////////
+// Fixtures for YT-path ownership validation.
+
+struct TWritingManagerParameters
+    : public IExternalStateManager::TParameters
+{
+    NYPath::TRichYPath Path;
+
+    REGISTER_YSON_STRUCT(TWritingManagerParameters);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("path", &TThis::Path)
+            .AddOption(EYTPathOwnership::ExclusiveWrite);
+    }
+};
+
+struct TSharedWriterManagerParameters
+    : public IExternalStateManager::TParameters
+{
+    NYPath::TRichYPath Path;
+
+    REGISTER_YSON_STRUCT(TSharedWriterManagerParameters);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("path", &TThis::Path)
+            .AddOption(EYTPathOwnership::SharedWrite);
+    }
+};
+
+struct TOpaqueManagerParameters
+    : public IExternalStateManager::TParameters
+{
+    NYPath::TRichYPath Table;
+
+    REGISTER_YSON_STRUCT(TOpaqueManagerParameters);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("table", &TThis::Table);
+    }
+};
+
+struct TNestedWriterSpec
+    : public NYTree::TYsonStruct
+{
+    NYPath::TRichYPath Path;
+
+    REGISTER_YSON_STRUCT(TNestedWriterSpec);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("path", &TThis::Path)
+            .AddOption(EYTPathOwnership::ExclusiveWrite)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TNestedWriterSpec)
+
+struct TEmbeddedWriterManagerParameters
+    : public IExternalStateManager::TParameters
+{
+    TIntrusivePtr<TNestedWriterSpec> State;
+
+    REGISTER_YSON_STRUCT(TEmbeddedWriterManagerParameters);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("state", &TThis::State)
+            .DefaultNew();
+    }
+};
+
+struct TEmptyManagerDynamicParameters
+    : public IExternalStateManager::TDynamicParameters
+{
+    REGISTER_YSON_STRUCT(TEmptyManagerDynamicParameters);
+
+    static void Register(TRegistrar /*registrar*/)
+    { }
+};
+
+template <class TStaticParameters>
+struct TFixtureExternalStateManager
+    : public IExternalStateManager
+{
+    YT_FLOW_EXTEND_PARAMETERS(TStaticParameters);
+    YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TEmptyManagerDynamicParameters);
+
+    TFixtureExternalStateManager(
+        TExternalStateManagerContextPtr /*context*/,
+        TDynamicExternalStateManagerContextPtr /*dynamicContext*/)
+    { }
+
+    IStateHolderPtr GetState(const TKey& /*key*/) override
+    {
+        return nullptr;
+    }
+
+    TFuture<void> PreloadKeyStates(const THashSet<TKey>& /*keys*/) override
+    {
+        return OKFuture;
+    }
+
+    NTableClient::TTableSchemaPtr GetKeySchema() const override
+    {
+        return nullptr;
+    }
+
+    void Sync(IRetryableTransactionPtr /*transaction*/) override
+    { }
+
+    void ValidateStateClass(const std::type_info& /*expectedStateType*/) const override
+    { }
+
+    IExternalStateManager::TParametersPtr GetParametersBase() const override
+    {
+        return nullptr;
+    }
+
+    IExternalStateManager::TDynamicParametersPtr GetDynamicParametersBase() const override
+    {
+        return nullptr;
+    }
+};
+
+struct TWritingExternalStateManager
+    : public TFixtureExternalStateManager<TWritingManagerParameters>
+{
+    using TFixtureExternalStateManager::TFixtureExternalStateManager;
+};
+
+struct TSharedWriterExternalStateManager
+    : public TFixtureExternalStateManager<TSharedWriterManagerParameters>
+{
+    using TFixtureExternalStateManager::TFixtureExternalStateManager;
+};
+
+struct TOpaqueExternalStateManager
+    : public TFixtureExternalStateManager<TOpaqueManagerParameters>
+{
+    using TFixtureExternalStateManager::TFixtureExternalStateManager;
+};
+
+struct TEmbeddedWriterExternalStateManager
+    : public TFixtureExternalStateManager<TEmbeddedWriterManagerParameters>
+{
+    using TFixtureExternalStateManager::TFixtureExternalStateManager;
+};
+
+YT_FLOW_DEFINE_EXTERNAL_STATE_MANAGER(TWritingExternalStateManager);
+YT_FLOW_DEFINE_EXTERNAL_STATE_MANAGER(TSharedWriterExternalStateManager);
+YT_FLOW_DEFINE_EXTERNAL_STATE_MANAGER(TOpaqueExternalStateManager);
+YT_FLOW_DEFINE_EXTERNAL_STATE_MANAGER(TEmbeddedWriterExternalStateManager);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TReadingJoinerParameters
+    : public IExternalStateJoiner::TParameters
+{
+    NYPath::TRichYPath Path;
+
+    REGISTER_YSON_STRUCT(TReadingJoinerParameters);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("path", &TThis::Path)
+            .AddOption(EYTPathOwnership::ReadOnly);
+    }
+};
+
+struct TEmptyJoinerDynamicParameters
+    : public IExternalStateJoiner::TDynamicParameters
+{
+    REGISTER_YSON_STRUCT(TEmptyJoinerDynamicParameters);
+
+    static void Register(TRegistrar /*registrar*/)
+    { }
+};
+
+struct TReadingExternalStateJoiner
+    : public IExternalStateJoiner
+{
+    YT_FLOW_EXTEND_PARAMETERS(TReadingJoinerParameters);
+    YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TEmptyJoinerDynamicParameters);
+
+    TReadingExternalStateJoiner(
+        TExternalStateJoinerContextPtr /*context*/,
+        TDynamicExternalStateJoinerContextPtr /*dynamicContext*/)
+    { }
+
+    IStateHolderPtr GetState(const TKey& /*key*/) override
+    {
+        return nullptr;
+    }
+
+    TFuture<void> PreloadKeyStates(const THashSet<TKey>& /*keys*/) override
+    {
+        return OKFuture;
+    }
+
+    NTableClient::TTableSchemaPtr GetKeySchema() const override
+    {
+        return nullptr;
+    }
+
+    const IPayloadConverterCachePtr& GetConverterCache() const override
+    {
+        static const IPayloadConverterCachePtr Null;
+        return Null;
+    }
+
+    const std::optional<THashSet<TStreamId>>& GetKeyProviderStreams() const override
+    {
+        static const std::optional<THashSet<TStreamId>> Null;
+        return Null;
+    }
+
+    bool HasKeySchemaOverride() const override
+    {
+        return false;
+    }
+
+    void Reset() override
+    { }
+
+    void ValidateStateClass(const std::type_info& /*expectedStateType*/) const override
+    { }
+
+    IExternalStateJoiner::TParametersPtr GetParametersBase() const override
+    {
+        return nullptr;
+    }
+
+    IExternalStateJoiner::TDynamicParametersPtr GetDynamicParametersBase() const override
+    {
+        return nullptr;
+    }
+};
+
+YT_FLOW_DEFINE_EXTERNAL_STATE_JOINER(TReadingExternalStateJoiner);
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TSpecTest, WatermarkGeneratorRequiresSourceStream)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    watermark_strategy = {
+                        watermark_generator = {};
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "\"watermark_generator\" requires at least one source stream");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TSpecTest, DuplicateOutputStreamIds)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c1 = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ s ];
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                };
+                c2 = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ s ];
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                }
+            };
+            streams = {
+                s = {
+                    schema = [];
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "Stream \"s\" is registered both in computation \"c2\" and \"c1\"");
+}
+
+TEST(TSpecTest, InputStreamReuse)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c1 = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ s ];
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                };
+                c2 = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    input_stream_ids = [ s ];
+                    group_by_schema = [];
+                };
+                c3 = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    input_stream_ids = [ s ];
+                    group_by_schema = [];
+                }
+            };
+            streams = {
+                s = {
+                    schema = [];
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    ValidatePipelineSpec(spec);
+}
+
+TEST(TSpecTest, UnknownInputStreamId)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    input_stream_ids = [ s ];
+                    group_by_schema = [];
+                }
+            };
+            streams = {
+                s = {
+                    schema = [];
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "Stream \"s\" does not have producer");
+}
+
+TEST(TSpecTest, SinkInputStreamNotInOwnOutputs)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                producer = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ s ];
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                };
+                consumer = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    input_stream_ids = [ s ];
+                    group_by_schema = [];
+                    sinks = {
+                        my_sink = {
+                            sink_class_name = "NYT::NFlow::TNullSink";
+                            input_stream_ids = [ s ];
+                        };
+                    };
+                };
+            };
+            streams = {
+                s = {
+                    schema = [];
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "Input stream \"s\" of sink \"my_sink\" in computation \"consumer\" is not an output stream of this computation");
+}
+
+TEST(TSpecTest, SinkInputStreamMatchesOwnOutput)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ s ];
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                    sinks = {
+                        my_sink = {
+                            sink_class_name = "NYT::NFlow::TNullSink";
+                            input_stream_ids = [ s ];
+                        };
+                    };
+                }
+            };
+            streams = {
+                s = {
+                    schema = [];
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    ValidatePipelineSpec(spec);
+}
+
+TEST(TSpecTest, UnknownRequiredResourceId)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ s ];
+                    required_resource_ids = { r = {}; };
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                }
+            };
+            streams = {
+                s = {
+                    schema = [];
+                }
+            }
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "Unknown resource \"r\" required in computation \"c\"");
+}
+
+TEST(TSpecTest, UnusedOutputStream)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ s ];
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                }
+            };
+            streams = {
+                s = {
+                    schema = [];
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    ValidatePipelineSpec(spec);
+}
+
+TEST(TSpecTest, CycleFound)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                injector = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ event ];
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                };
+                state = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    input_stream_ids = [ event; response; ];
+                    output_stream_ids = [ request ];
+                };
+                processor = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    input_stream_ids = [ request ];
+                    output_stream_ids = [ response ];
+                }
+            };
+            streams = {
+                event = {
+                    schema = [];
+                };
+                request = {
+                    schema = [];
+                };
+                response = {
+                    schema = [];
+                };
+            }
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    auto graph = BuildStreamGraph(spec);
+    THashMap<TStreamId, std::vector<TStreamId>> expected = {
+        {"event", {"request"}},
+        {"request", {"response"}},
+        {"response", {"request"}},
+    };
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "Stream graph should be acyclic");
+}
+
+TEST(TSpecTest, CycleResolved)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                injector = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ event ];
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                };
+                state = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    input_stream_ids = [ event; response; ];
+                    output_stream_ids = [ request ];
+                    streams_dependency = {
+                        request = [event];
+                    };
+
+                };
+                processor = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    input_stream_ids = [ request ];
+                    output_stream_ids = [ response ];
+                }
+            };
+            streams = {
+                event = {
+                    schema = [];
+                };
+                request = {
+                    schema = [];
+                };
+                response = {
+                    schema = [];
+                };
+            }
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    auto graph = BuildStreamGraph(spec);
+    THashMap<TStreamId, std::vector<TStreamId>> expected = {
+        {"injector/injected_stream", {"event"}},
+        {"event", {"request"}},
+        {"request", {"response"}},
+        {"response", {}},
+    };
+    ASSERT_EQ(graph, expected);
+    ValidatePipelineSpec(spec);
+}
+
+TEST(TSpecTest, StreamDependencyUnknownInput)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                injector = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ event ];
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                };
+                state = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    input_stream_ids = [ event; response; ];
+                    output_stream_ids = [ request ];
+                    streams_dependency = {
+                        request = [event; hit;];
+                    };
+
+                };
+                processor = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    input_stream_ids = [ request ];
+                    output_stream_ids = [ response ];
+                }
+            };
+            streams = {
+                event = {
+                    schema = [];
+                };
+                request = {
+                    schema = [];
+                };
+                response = {
+                    schema = [];
+                };
+            }
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "Unknown stream \"hit\" in computation \"state\" in \"streams_dependency\"");
+}
+
+TEST(TSpecTest, StreamDependencyUnknownOutput)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                injector = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ event ];
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                };
+                state = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    input_stream_ids = [ event; response; ];
+                    output_stream_ids = [ request ];
+                    streams_dependency = {
+                        request = [event];
+                        timer = [response];
+                    };
+
+                };
+                processor = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    input_stream_ids = [ request ];
+                    output_stream_ids = [ response ];
+                }
+            };
+            streams = {
+                event = {
+                    schema = [];
+                };
+                request = {
+                    schema = [];
+                };
+                response = {
+                    schema = [];
+                };
+            }
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "Unknown stream \"timer\" in computation \"state\" in \"streams_dependency\"");
+}
+
+TEST(TSpecTest, ComputeAllowedInputStreams)
+{
+    static const auto sort = [] (const THashSet<TStreamId>& streams) {
+        std::vector<TStreamId> result(streams.begin(), streams.end());
+        std::sort(result.begin(), result.end());
+        return result;
+    };
+
+    TStringBuf specYson(R""""(
+        {
+            computation_class_name = "NYT::NFlow::TNullComputation";
+            group_by_schema = [];
+            input_stream_ids = [ event; response_1; response_2 ];
+            output_stream_ids = [ request_1; request_2 ];
+            timer_streams = {
+                timer_1 = {};
+                timer_2 = {};
+            };
+            streams_dependency = {
+                request_1 = [event];
+                request_2 = [response_1; response_2; timer_1; timer_2];
+                timer_1 = [event; response_1];
+                timer_2 = [response_2];
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TComputationSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THAT(sort(ComputeAllowedInputStreams({}, spec)),
+        ::testing::ElementsAre());
+    EXPECT_THAT(sort(ComputeAllowedInputStreams({"request_1"}, spec)),
+        ::testing::ElementsAre(TStreamId("event")));
+    EXPECT_THAT(sort(ComputeAllowedInputStreams({"request_2"}, spec)),
+        ::testing::ElementsAre(TStreamId("response_1"), TStreamId("response_2"), TStreamId("timer_1"), TStreamId("timer_2")));
+    EXPECT_THAT(sort(ComputeAllowedInputStreams({"request_1", "request_2"}, spec)),
+        ::testing::ElementsAre(TStreamId("event"), TStreamId("response_1"), TStreamId("response_2"), TStreamId("timer_1"), TStreamId("timer_2")));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TSpecTest, BalanceWeightsDefaults)
+{
+    auto spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf("{}")));
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Cpu), 1.0);
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Memory), 0.0);
+}
+
+TEST(TSpecTest, BalanceWeightsParsing)
+{
+    auto spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+        "{balance_weights = {cpu = 3.0; memory = 1.0}}")));
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Cpu), 3.0);
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Memory), 1.0);
+
+    // The provided entries merge into the default map per key: unmentioned resources keep their
+    // default weights.
+    spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+        "{balance_weights = {memory = 1.0}}")));
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Cpu), 1.0);
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Memory), 1.0);
+}
+
+TEST(TSpecTest, BalanceWeightsValidation)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+            "{balance_weights = {cpu = -1.0; memory = 1.0}}"))),
+        "must be non-negative");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+            "{balance_weights = {cpu = 0.0; memory = 0.0}}"))),
+        "positive sum");
+
+    // An empty map merges nothing and keeps the defaults.
+    EXPECT_NO_THROW(
+        ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+            "{balance_weights = {}}"))));
+
+    EXPECT_ANY_THROW(
+        ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+            "{balance_weights = {disk = 1.0}}"))));
+}
+
+TEST(TSpecTest, WorkerCoefMaxRatioValidation)
+{
+    auto parse = [] (TStringBuf yson) {
+        return ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(yson));
+    };
+    EXPECT_ANY_THROW(parse("{worker_coef_max_ratio = 0.5}"));
+    EXPECT_ANY_THROW(parse("{worker_coef_max_ratio = 1001.0}"));
+    EXPECT_ANY_THROW(parse("{worker_coef_max_ratio = %inf}"));
+    EXPECT_NO_THROW(parse("{worker_coef_max_ratio = 1000.0}"));
+}
+
+TEST(TSpecTest, RebalanceTargetDeviationValidation)
+{
+    // The ResourceQueue balancer seeds Step 2 below (1 - deviation) of the consumption, so anything
+    // from one up disables provisioning instead of widening the tolerance. The check runs when a
+    // spec is set, not when a stored one is parsed, and only for that balancer: the CpuAware
+    // balancer uses the field as a score threshold where any value is meaningful.
+    auto parse = [] (TStringBuf yson) {
+        return ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(yson));
+    };
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidateDynamicPipelineSpec(parse("{job_manager = {balancer_type = resource_queue; rebalance_target_deviation = 1.0}}")),
+        "must be in [0, 1)");
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidateDynamicPipelineSpec(parse("{job_manager = {balancer_type = resource_queue; rebalance_target_deviation = -0.1}}")),
+        "must be in [0, 1)");
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidateDynamicPipelineSpec(parse(
+            "{job_manager = {worker_group_override = {l40 = {balancer_type = resource_queue; rebalance_target_deviation = 1.0}}}}")),
+        "worker_group_override/l40");
+
+    EXPECT_NO_THROW(
+        ValidateDynamicPipelineSpec(parse("{job_manager = {balancer_type = resource_queue; rebalance_target_deviation = 0.9}}")));
+    EXPECT_NO_THROW(
+        ValidateDynamicPipelineSpec(parse("{job_manager = {balancer_type = cpu_aware; rebalance_target_deviation = 2.0}}")));
+    // A stored spec of an older release with any value still parses.
+    EXPECT_NO_THROW(parse("{job_manager = {balancer_type = resource_queue; rebalance_target_deviation = 2.0}}"));
+}
+
+TEST(TSpecTest, EvenLoadThresholdsLegacyAliases)
+{
+    // The flat CPU thresholds of older specs feed the CPU entry of the per-resource map.
+    auto spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+        "{rebalance_min_cpu_spread = 1000.0; rebalance_min_cpu_ratio = 1.5}")));
+    const auto& cpu = spec->RebalanceEvenLoadThresholds.at(EBalanceResource::Cpu);
+    EXPECT_EQ(cpu->Spread, 1000.0);
+    EXPECT_EQ(cpu->Ratio, 1.5);
+    EXPECT_FALSE(spec->RebalanceEvenLoadThresholds.contains(EBalanceResource::Memory));
+
+    // An explicit per-resource field wins over the alias; the other field still comes from the alias.
+    spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+        "{rebalance_min_cpu_spread = 1000.0; rebalance_min_cpu_ratio = 1.5;"
+        " rebalance_even_load_thresholds = {cpu = {spread = 7.0}}}")));
+    const auto& mixed = spec->RebalanceEvenLoadThresholds.at(EBalanceResource::Cpu);
+    EXPECT_EQ(mixed->Spread, 7.0);
+    EXPECT_EQ(mixed->Ratio, 1.5);
+
+    // Without the aliases the map stays untouched.
+    spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf("{}")));
+    EXPECT_TRUE(spec->RebalanceEvenLoadThresholds.empty());
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+            "{rebalance_min_cpu_ratio = 0.5}"))),
+        "at least 1");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TSpecValidateParseabilityTest, Simple)
+{
+    auto pipelineSpecConfigString = TYsonString(TStringBuf(R""""(
+        {
+            computations = {
+                injector = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ event ];
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                            parameters = {};
+                        };
+                    };
+                    parameters = {};
+                };
+            };
+            streams = {
+                event = {
+                    schema = [];
+                };
+            }
+        }
+    )""""));
+
+    auto dynamicPipelineSpecConfigString = TYsonString(TStringBuf(R""""(
+        {
+            computations = {
+                injector = {
+                    source_streams = {
+                        injected_stream = {
+                            parameters = {};
+                        };
+                    };
+                    parameters = {};
+                };
+            };
+        }
+    )""""));
+
+    auto validate = [&] (auto mutator) {
+        auto spec = ConvertTo<IMapNodePtr>(pipelineSpecConfigString);
+        mutator(spec);
+        auto errors = TRegistry::Get()->ValidatePipelineSpecParseability(spec);
+        for (const auto& error : errors) {
+            THROW_ERROR_EXCEPTION(error);
+        }
+    };
+
+    EXPECT_NO_THROW(
+        validate([] (auto& /*spec*/) {
+            // Do nothing.
+        }));
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        validate([] (auto& spec) {
+            SetNodeByYPath(spec, "/unrecognized_field_1", ConvertTo<INodePtr>(42));
+        }),
+        "unrecognized_field_1");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        validate([] (auto& spec) {
+            SetNodeByYPath(spec, "/computations/injector/parameters/unrecognized_field_2", ConvertTo<INodePtr>(42));
+        }),
+        "unrecognized_field_2");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        validate([] (auto& spec) {
+            SetNodeByYPath(spec, "/computations/injector/source_streams/injected_stream/parameters/unrecognized_field_3", ConvertTo<INodePtr>(42));
+        }),
+        "unrecognized_field_3");
+
+    auto addSink = [] (auto& spec, bool malformedParameters) {
+        SetNodeByYPath(
+            spec,
+            "/computations/injector/sinks/my_sink",
+            ConvertTo<INodePtr>(TYsonString(TStringBuf(R""""(
+                {
+                    "sink_class_name" = "NYT::NFlow::TNullSink";
+                    "input_stream_ids" = ["event";];
+                    "parameters" = {};
+                })""""))),
+            /*force*/ true);
+        if (malformedParameters) {
+            SetNodeByYPath(
+                spec,
+                "/computations/injector/sinks/my_sink/parameters/unrecognized_field_4",
+                ConvertTo<INodePtr>(42));
+        }
+    };
+
+    EXPECT_NO_THROW(
+        validate([&] (auto& spec) {
+            addSink(spec, false);
+        }));
+    EXPECT_THROW_WITH_SUBSTRING(
+        validate([&] (auto& spec) {
+            addSink(spec, true);
+        }),
+        "unrecognized_field_4");
+
+    auto dynamicValidate = [&] (auto mutator) {
+        auto spec = ConvertTo<IMapNodePtr>(pipelineSpecConfigString);
+        auto dynamicSpec = ConvertTo<IMapNodePtr>(dynamicPipelineSpecConfigString);
+        mutator(spec, dynamicSpec);
+        auto errors = TRegistry::Get()->ValidateDynamicPipelineSpecParseability(ConvertTo<TPipelineSpecPtr>(spec), dynamicSpec);
+        for (const auto& error : errors) {
+            THROW_ERROR_EXCEPTION(error);
+        }
+    };
+
+    EXPECT_NO_THROW(
+        dynamicValidate([] (auto& /*spec*/, auto& /*dynamicSpec*/) {
+            // Do nothing.
+        }));
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        dynamicValidate([] (auto& /*spec*/, auto& dynamicSpec) {
+            SetNodeByYPath(dynamicSpec, "/unrecognized_field_1", ConvertTo<INodePtr>(42));
+        }),
+        "unrecognized_field_1");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        dynamicValidate([] (auto& /*spec*/, auto& dynamicSpec) {
+            SetNodeByYPath(dynamicSpec, "/computations/injector/parameters/unrecognized_field_2", ConvertTo<INodePtr>(42));
+        }),
+        "unrecognized_field_2");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        dynamicValidate([] (auto& /*spec*/, auto& dynamicSpec) {
+            SetNodeByYPath(dynamicSpec, "/computations/injector/source_streams/injected_stream/parameters/unrecognized_field_3", ConvertTo<INodePtr>(42));
+        }),
+        "unrecognized_field_3");
+
+    auto addSinkWithDynamicSpec = [] (auto& spec, auto& dynamicSpec, bool malformedParameters) {
+        SetNodeByYPath(
+            spec,
+            "/computations/injector/sinks/my_sink",
+            ConvertTo<INodePtr>(TYsonString(TStringBuf(R""""(
+                {
+                    "sink_class_name" = "NYT::NFlow::TNullSink";
+                    "input_stream_ids" = ["event";];
+                })""""))),
+            /*force*/ true);
+        SetNodeByYPath(
+            dynamicSpec,
+            "/computations/injector/sinks/my_sink",
+            ConvertTo<INodePtr>(TYsonString(TStringBuf(R""""(
+                {
+                    "parameters" = {};
+                })""""))),
+            /*force*/ true);
+        if (malformedParameters) {
+            SetNodeByYPath(
+                dynamicSpec,
+                "/computations/injector/sinks/my_sink/parameters/unrecognized_field_4",
+                ConvertTo<INodePtr>(42));
+        }
+    };
+
+    EXPECT_NO_THROW(
+        dynamicValidate([&] (auto& spec, auto& dynamicSpec) {
+            addSinkWithDynamicSpec(spec, dynamicSpec, false);
+        }));
+    EXPECT_THROW_WITH_SUBSTRING(
+        dynamicValidate([&] (auto& spec, auto& dynamicSpec) {
+            addSinkWithDynamicSpec(spec, dynamicSpec, true);
+        }),
+        "unrecognized_field_4");
+}
+
+TEST(TSpecValidateParseabilityTest, StaticResourceParametersStayOpaque)
+{
+    auto spec = ConvertTo<IMapNodePtr>(TYsonString(TStringBuf(R""""(
+        {
+            resources = {
+                resource = {
+                    resource_class_name = "NYT::NFlow::TNullResource";
+                    parameters = {
+                        implementation_specific = 42;
+                    };
+                };
+            };
+        }
+    )"""")));
+
+    EXPECT_TRUE(TRegistry::Get()->ValidatePipelineSpecParseability(spec).empty());
+}
+
+TEST(TSpecValidateParseabilityTest, StaticResourceClassesStayOpaque)
+{
+    auto spec = ConvertTo<IMapNodePtr>(TYsonString(TStringBuf(R""""(
+        {
+            resources = {
+                resource = {
+                    resource_class_name = "application-specific-resource";
+                };
+            };
+        }
+    )"""")));
+
+    EXPECT_TRUE(TRegistry::Get()->ValidatePipelineSpecParseability(spec).empty());
+}
+
+TEST(TSpecValidateParseabilityTest, DynamicSpecWithUnknownComputation)
+{
+    auto pipelineSpecConfigString = TYsonString(TStringBuf(R""""(
+        {
+            computations = {
+                c1 = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                };
+            };
+        }
+    )""""));
+
+    auto dynamicPipelineSpecConfigString = TYsonString(TStringBuf(R""""(
+        {
+            computations = {
+                unknown = {};
+            };
+        }
+    )""""));
+
+    auto spec = ConvertTo<TPipelineSpecPtr>(pipelineSpecConfigString);
+    auto dynamicSpec = ConvertTo<IMapNodePtr>(dynamicPipelineSpecConfigString);
+    auto errors = TRegistry::Get()->ValidateDynamicPipelineSpecParseability(spec, dynamicSpec);
+
+    EXPECT_FALSE(errors.empty());
+    EXPECT_THAT(ToString(errors[0]), ::testing::HasSubstr("unknown"));
+    EXPECT_THAT(ToString(errors[0]), ::testing::HasSubstr("does not exist in static spec"));
+}
+
+TEST(TSpecValidateParseabilityTest, DynamicSpecWithUnknownSourceStream)
+{
+    auto pipelineSpecConfigString = TYsonString(TStringBuf(R""""(
+        {
+            computations = {
+                c1 = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    source_streams = {
+                        s1 = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                };
+            };
+        }
+    )""""));
+
+    auto dynamicPipelineSpecConfigString = TYsonString(TStringBuf(R""""(
+        {
+            computations = {
+                c1 = {
+                    source_streams = {
+                        unknown = {};
+                    };
+                };
+            };
+        }
+    )""""));
+
+    auto spec = ConvertTo<TPipelineSpecPtr>(pipelineSpecConfigString);
+    auto dynamicSpec = ConvertTo<IMapNodePtr>(dynamicPipelineSpecConfigString);
+    auto errors = TRegistry::Get()->ValidateDynamicPipelineSpecParseability(spec, dynamicSpec);
+
+    EXPECT_FALSE(errors.empty());
+    EXPECT_THAT(ToString(errors[0]), ::testing::HasSubstr("unknown"));
+    EXPECT_THAT(ToString(errors[0]), ::testing::HasSubstr("c1"));
+    EXPECT_THAT(ToString(errors[0]), ::testing::HasSubstr("does not exist in static spec"));
+}
+
+TEST(TSpecValidateParseabilityTest, DynamicSpecWithUnknownSink)
+{
+    auto pipelineSpecConfigString = TYsonString(TStringBuf(R""""(
+        {
+            computations = {
+                c1 = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    sinks = {
+                        sink1 = {
+                            sink_class_name = "NYT::NFlow::TNullSink";
+                        };
+                    };
+                };
+            };
+        }
+    )""""));
+
+    auto dynamicPipelineSpecConfigString = TYsonString(TStringBuf(R""""(
+        {
+            computations = {
+                c1 = {
+                    sinks = {
+                        unknown = {};
+                    };
+                };
+            };
+        }
+    )""""));
+
+    auto spec = ConvertTo<TPipelineSpecPtr>(pipelineSpecConfigString);
+    auto dynamicSpec = ConvertTo<IMapNodePtr>(dynamicPipelineSpecConfigString);
+    auto errors = TRegistry::Get()->ValidateDynamicPipelineSpecParseability(spec, dynamicSpec);
+
+    EXPECT_FALSE(errors.empty());
+    EXPECT_THAT(ToString(errors[0]), ::testing::HasSubstr("unknown"));
+    EXPECT_THAT(ToString(errors[0]), ::testing::HasSubstr("c1"));
+    EXPECT_THAT(ToString(errors[0]), ::testing::HasSubstr("does not exist in static spec"));
+}
+
+TEST(TSpecValidateParseabilityTest, DynamicSpecWithValidKeys)
+{
+    auto pipelineSpecConfigString = TYsonString(TStringBuf(R""""(
+        {
+            computations = {
+                c1 = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    source_streams = {
+                        s1 = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                    sinks = {
+                        sink1 = {
+                            sink_class_name = "NYT::NFlow::TNullSink";
+                        };
+                    };
+                };
+            };
+        }
+    )""""));
+
+    auto dynamicPipelineSpecConfigString = TYsonString(TStringBuf(R""""(
+        {
+            computations = {
+                c1 = {
+                    source_streams = {
+                        s1 = {};
+                    };
+                    sinks = {
+                        sink1 = {};
+                    };
+                };
+            };
+        }
+    )""""));
+
+    auto spec = ConvertTo<TPipelineSpecPtr>(pipelineSpecConfigString);
+    auto dynamicSpec = ConvertTo<IMapNodePtr>(dynamicPipelineSpecConfigString);
+    auto errors = TRegistry::Get()->ValidateDynamicPipelineSpecParseability(spec, dynamicSpec);
+
+    EXPECT_TRUE(errors.empty());
+}
+
+TEST(TSpecValidateParseabilityTest, DynamicSpecWithUnknownResource)
+{
+    auto pipelineSpecConfigString = TYsonString(TStringBuf(R""""(
+        {
+            resources = {
+                r1 = {
+                    resource_class_name = "NYT::NFlow::TNullResource";
+                };
+            };
+        }
+    )""""));
+
+    auto dynamicPipelineSpecConfigString = TYsonString(TStringBuf(R""""(
+        {
+            resources = {
+                unknown = {};
+            };
+        }
+    )""""));
+
+    auto spec = ConvertTo<TPipelineSpecPtr>(pipelineSpecConfigString);
+    auto dynamicSpec = ConvertTo<IMapNodePtr>(dynamicPipelineSpecConfigString);
+    auto errors = TRegistry::Get()->ValidateDynamicPipelineSpecParseability(spec, dynamicSpec);
+
+    EXPECT_FALSE(errors.empty());
+    EXPECT_THAT(ToString(errors[0]), ::testing::HasSubstr("unknown"));
+    EXPECT_THAT(ToString(errors[0]), ::testing::HasSubstr("does not exist in static spec"));
+}
+
+TEST(TSpecValidateParseabilityTest, DynamicSpecWithResourceDynamicParameters)
+{
+    auto pipelineSpecConfigString = TYsonString(TStringBuf(R""""(
+        {
+            resources = {
+                r1 = {
+                    resource_class_name = "NYT::NFlow::TNullResource";
+                };
+            };
+        }
+    )""""));
+
+    auto dynamicPipelineSpecConfigString = TYsonString(TStringBuf(R""""(
+        {
+            resources = {
+                r1 = {
+                    parameters = {};
+                };
+            };
+        }
+    )""""));
+
+    auto spec = ConvertTo<TPipelineSpecPtr>(pipelineSpecConfigString);
+    auto dynamicSpec = ConvertTo<IMapNodePtr>(dynamicPipelineSpecConfigString);
+    auto errors = TRegistry::Get()->ValidateDynamicPipelineSpecParseability(spec, dynamicSpec);
+
+    EXPECT_TRUE(errors.empty());
+}
+
+TEST(TSpecValidateParseabilityTest, DynamicSpecWithResourceDynamicParametersUnrecognized)
+{
+    auto pipelineSpecConfigString = TYsonString(TStringBuf(R""""(
+        {
+            resources = {
+                r1 = {
+                    resource_class_name = "NYT::NFlow::TNullResource";
+                };
+            };
+        }
+    )""""));
+
+    auto dynamicPipelineSpecConfigString = TYsonString(TStringBuf(R""""(
+        {
+            resources = {
+                r1 = {
+                    parameters = {
+                        unrecognized_field = 42;
+                    };
+                };
+            };
+        }
+    )""""));
+
+    auto spec = ConvertTo<TPipelineSpecPtr>(pipelineSpecConfigString);
+    auto dynamicSpec = ConvertTo<IMapNodePtr>(dynamicPipelineSpecConfigString);
+    auto errors = TRegistry::Get()->ValidateDynamicPipelineSpecParseability(spec, dynamicSpec);
+
+    EXPECT_FALSE(errors.empty());
+    EXPECT_THAT(ToString(errors[0]), ::testing::HasSubstr("unrecognized_field"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TSpecTest, ReadDelayCycle)
+{
+    // Initial graph: injector/injected_stream -> event -> request -> response.
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                injector = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ event ];
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                    watermark_strategy = {
+                        watermark_alignment = {};
+                    };
+                };
+                state = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    input_stream_ids = [ event; response; ];
+                    output_stream_ids = [ request ];
+                    streams_dependency = {
+                        request = [event];
+                    };
+                };
+                processor = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    input_stream_ids = [ request ];
+                    output_stream_ids = [ response ];
+                }
+            };
+            streams = {
+                event = { schema = []; };
+                request = { schema = []; };
+                response = { schema = []; };
+            }
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    ValidatePipelineSpec(spec);
+
+    // Adding edge: response -> injector/injected_stream.
+    // And getting cycle: response -> injector/injected_stream -> event -> request -> response.
+    spec->Computations["injector"]->WatermarkStrategy->WatermarkAlignment->ReadDelays = {{TStreamId("response"), TDuration::Seconds(30)}};
+    auto graph = BuildStreamGraph(spec, /*addReadDelayEdges*/ true);
+    ASSERT_TRUE(graph.contains("response"));
+    ASSERT_THAT(graph["response"], ::testing::Contains(TStreamId("injector/injected_stream")));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "Stream graph should be acyclic");
+}
+
+TEST(TSpecTest, ReadDelayWithoutSourceStreams)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                reader = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    output_stream_ids = [ event ];
+                    source_streams = {
+                        s = { source_class_name = "NYT::NFlow::TNullSource"; };
+                    };
+                };
+                processor = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    input_stream_ids = [ event ];
+                    watermark_strategy = {
+                        watermark_alignment = {
+                            read_delays = {
+                                event = "30s";
+                            };
+                        };
+                    };
+                };
+            };
+            streams = {
+                event = { schema = []; };
+            }
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "has non-empty \"read_delays\" but no source streams");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TSpecTest, PreservesUnrecognizedFieldsOnRoundTrip)
+{
+    TStringBuf specYson(R""""(
+        {
+            unknown_field = 42;
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    unknown_computation_field = "value";
+                };
+            };
+        }
+    )"""");
+    auto roundTripped = ConvertTo<IMapNodePtr>(ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson)));
+
+    EXPECT_EQ(GetNodeByYPath(roundTripped, "/unknown_field")->GetValue<i64>(), 42);
+    EXPECT_EQ(GetNodeByYPath(roundTripped, "/computations/c/unknown_computation_field")->GetValue<std::string>(), "value");
+}
+
+TEST(TDynamicSpecTest, PreservesUnrecognizedFieldsOnRoundTrip)
+{
+    TStringBuf dynamicSpecYson(R""""(
+        {
+            unknown_field = 42;
+            computations = {
+                c = {
+                    unknown_computation_field = "value";
+                };
+            };
+        }
+    )"""");
+    auto roundTripped = ConvertTo<IMapNodePtr>(ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(dynamicSpecYson)));
+
+    EXPECT_EQ(GetNodeByYPath(roundTripped, "/unknown_field")->GetValue<i64>(), 42);
+    EXPECT_EQ(GetNodeByYPath(roundTripped, "/computations/c/unknown_computation_field")->GetValue<std::string>(), "value");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TDynamicSpecTest, ThrottlerIdsResolved)
+{
+    TStringBuf dynamicSpecYson(R""""(
+        {
+            throttlers = {
+                rows = { limit = 100.0; };
+                bytes = { limit = 10000.0; };
+            };
+            computations = {
+                c = {
+                    input_rows_throttler_id = "rows";
+                    input_bytes_throttler_id = "bytes";
+                };
+            };
+        }
+    )"""");
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(dynamicSpecYson));
+    ValidateDynamicPipelineSpec(dynamicSpec);
+}
+
+TEST(TDynamicSpecTest, UnknownInputRowsThrottlerId)
+{
+    TStringBuf dynamicSpecYson(R""""(
+        {
+            throttlers = {
+                known = { limit = 100.0; };
+            };
+            computations = {
+                c = {
+                    input_rows_throttler_id = "missing";
+                };
+            };
+        }
+    )"""");
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(dynamicSpecYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidateDynamicPipelineSpec(dynamicSpec); },
+        "Throttler \"missing\" referenced in input_rows_throttler_id is not declared in dynamic_spec/throttlers");
+}
+
+TEST(TDynamicSpecTest, UnknownInputBytesThrottlerId)
+{
+    TStringBuf dynamicSpecYson(R""""(
+        {
+            throttlers = {
+                known = { limit = 100.0; };
+            };
+            computations = {
+                c = {
+                    input_bytes_throttler_id = "missing";
+                };
+            };
+        }
+    )"""");
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(dynamicSpecYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidateDynamicPipelineSpec(dynamicSpec); },
+        "Throttler \"missing\" referenced in input_bytes_throttler_id is not declared in dynamic_spec/throttlers");
+}
+
+TEST(TDynamicSpecTest, ThrottlerClassesAndChunkRoundTrip)
+{
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(R""""(
+        {
+            throttlers = {
+                shared = {
+                    limit = 100.0;
+                    max_grant_amount = 17;
+                    classes = {
+                        vip = {weight = 5.0;};
+                        regular = {};
+                    };
+                };
+            };
+            computations = {
+                c = {
+                    input_rows_throttler_id = "shared";
+                    input_rows_throttler_class_id = "vip";
+                };
+            };
+        }
+    )""""));
+
+    ValidateDynamicPipelineSpec(dynamicSpec);
+    const auto& throttler = dynamicSpec->Throttlers.at(TThrottlerId("shared"));
+    EXPECT_EQ(throttler->MaxGrantAmount, 17);
+    EXPECT_EQ(throttler->Classes.at(TQuotaClassId("vip"))->Weight, 5.0);
+    EXPECT_EQ(throttler->Classes.at(TQuotaClassId("regular"))->Weight, 1.0);
+}
+
+TEST(TDynamicSpecTest, RejectsInvalidThrottlerClasses)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+            "{classes={default={weight=1.0;};};}")),
+        "reserved");
+    for (auto invalidSpec : {
+            "{classes={\"\"={weight=1.0;};};}",
+            "{classes={invalid={weight=0.0;};};}",
+            "{classes={invalid={weight=-1.0;};};}",
+            "{classes={invalid={weight=%nan;};};}",
+            "{classes={invalid={weight=%inf;};};}",
+            "{max_grant_amount=0;}",
+            "{max_grant_amount=-1;}",
+         })
+    {
+        EXPECT_THROW(
+                ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(invalidSpec)),
+                std::exception)
+            << invalidSpec;
+    }
+}
+
+TEST(TDynamicSpecTest, UnknownThrottlerClass)
+{
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(R""""(
+        {
+            throttlers = {
+                rows = {classes = {known = {};};};
+            };
+            computations = {
+                c = {
+                    input_rows_throttler_id = "rows";
+                    input_rows_throttler_class_id = "missing";
+                };
+            };
+        }
+    )""""));
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidateDynamicPipelineSpec(dynamicSpec); },
+        "Throttler class \"missing\"");
+}
+
+TEST(TDynamicSpecTest, ExplicitDefaultThrottlerClassIsAccepted)
+{
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(R""""(
+        {
+            throttlers = {rows = {};};
+            computations = {
+                c = {
+                    input_rows_throttler_id = "rows";
+                    input_rows_throttler_class_id = "default";
+                };
+            };
+        }
+    )""""));
+
+    EXPECT_NO_THROW(ValidateDynamicPipelineSpec(dynamicSpec));
+}
+
+TEST(TDynamicSpecTest, PerThrottlerClassesAreIndependent)
+{
+    // Classes on the row throttler only; the byte throttler declares none and
+    // is therefore served from the default class.
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(R""""(
+        {
+            throttlers = {
+                rows = {classes = {vip = {};};};
+                bytes = {limit = 100.0;};
+            };
+            computations = {
+                c = {
+                    input_rows_throttler_id = "rows";
+                    input_rows_throttler_class_id = "vip";
+                    input_bytes_throttler_id = "bytes";
+                };
+            };
+        }
+    )""""));
+
+    EXPECT_NO_THROW(ValidateDynamicPipelineSpec(dynamicSpec));
+}
+
+TEST(TDynamicSpecTest, ClassIsValidatedAgainstItsOwnThrottler)
+{
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(R""""(
+        {
+            throttlers = {
+                rows = {classes = {vip = {};};};
+                bytes = {classes = {bulk = {};};};
+            };
+            computations = {
+                c = {
+                    input_rows_throttler_id = "rows";
+                    input_rows_throttler_class_id = "vip";
+                    input_bytes_throttler_id = "bytes";
+                    input_bytes_throttler_class_id = "vip";
+                };
+            };
+        }
+    )""""));
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidateDynamicPipelineSpec(dynamicSpec); },
+        "input_bytes_throttler_class_id");
+}
+
+TEST(TDynamicSpecTest, ClassWithoutItsThrottlerIsRejected)
+{
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(R""""(
+        {
+            throttlers = {rows = {classes = {vip = {};};};};
+            computations = {
+                c = {
+                    input_rows_throttler_class_id = "vip";
+                };
+            };
+        }
+    )""""));
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidateDynamicPipelineSpec(dynamicSpec); },
+        "input_rows_throttler_class_id is set but input_rows_throttler_id is not");
+}
+
+TEST(TDynamicSpecTest, SharedThrottlerForRowsAndBytesIsRejected)
+{
+    // One throttler cannot meter both a message count and a byte size, so the
+    // two fields must never name it together — whatever the classes say.
+    auto makeSpec = [] (TStringBuf classes) {
+        auto specYson = Format(R""""(
+            {
+                throttlers = {shared = {classes = {vip = {}; bulk = {};};};};
+                computations = {
+                    c = {
+                        input_rows_throttler_id = "shared";
+                        input_bytes_throttler_id = "shared";
+                        %v
+                    };
+                };
+            }
+            )"""",
+            classes);
+        return ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(specYson));
+    };
+
+    for (auto classes : {
+            TStringBuf(""),
+            TStringBuf(R"(input_rows_throttler_class_id="vip";input_bytes_throttler_class_id="vip";)"),
+            TStringBuf(R"(input_rows_throttler_class_id="vip";input_bytes_throttler_class_id="bulk";)"),
+         })
+    {
+        auto dynamicSpec = makeSpec(classes);
+        EXPECT_THROW_WITH_SUBSTRING(
+            { ValidateDynamicPipelineSpec(dynamicSpec); },
+            "not both");
+    }
+}
+
+TEST(TDynamicSpecTest, SeparateThrottlersForRowsAndBytesAreAccepted)
+{
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(R""""(
+        {
+            throttlers = {
+                rows = {classes = {vip = {};};};
+                bytes = {limit = 100.0;};
+            };
+            computations = {
+                c = {
+                    input_rows_throttler_id = "rows";
+                    input_rows_throttler_class_id = "vip";
+                    input_bytes_throttler_id = "bytes";
+                };
+            };
+        }
+    )""""));
+
+    EXPECT_NO_THROW(ValidateDynamicPipelineSpec(dynamicSpec));
+}
+
+TEST(TDynamicSpecTest, PrefetchAmountUsesPerSecondLimit)
+{
+    // |limit| is a per-second rate, so the prefetch window is limit *
+    // request_period and |period| must not scale it.
+    auto spec = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+        "{limit=1000.0; period=10000; request_period=5000;}"));
+    EXPECT_EQ(spec->BuildPrefetchingConfig()->MaxPrefetchAmount, 5000);
+
+    auto shortPeriod = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+        "{limit=1000.0; period=100; request_period=5000;}"));
+    EXPECT_EQ(
+        shortPeriod->BuildPrefetchingConfig()->MaxPrefetchAmount,
+        spec->BuildPrefetchingConfig()->MaxPrefetchAmount);
+}
+
+TEST(TDynamicSpecTest, RejectsOutOfRangeThrottlerClassWeights)
+{
+    for (auto invalidSpec : {
+            "{classes={extreme={weight=1e-305;};};}",
+            "{classes={extreme={weight=1e305;};};}",
+         })
+    {
+        EXPECT_THROW_WITH_SUBSTRING(
+            ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(invalidSpec)),
+            "must be within");
+    }
+}
+
+TEST(TDynamicSpecTest, ClientConfigEqualityIgnoresServerOnlyFields)
+{
+    auto lhs = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(R""""(
+        {
+            limit = 100.0;
+            period = 1000;
+            request_period = 100;
+            classes = {vip = {weight = 5.0;};};
+            max_grant_amount = 10;
+        }
+    )""""));
+    auto rhs = CloneYsonStruct(lhs);
+    rhs->Classes.at(TQuotaClassId("vip"))->Weight = 1.0;
+    rhs->MaxGrantAmount = 100;
+    // |period| only sets the granularity of the server's leaky bucket; |limit|
+    // is already a per-second rate, so the client's prefetch sizing does not
+    // depend on it and a client need not be rebuilt when it changes.
+    rhs->Period = TDuration::Seconds(2);
+
+    EXPECT_TRUE(lhs->ClientConfigEquals(*rhs));
+
+    auto expectClientConfigDifference = [&] (auto change) {
+        auto changed = CloneYsonStruct(lhs);
+        change(changed);
+        EXPECT_FALSE(lhs->ClientConfigEquals(*changed));
+    };
+    expectClientConfigDifference([] (const auto& spec) {
+        spec->Limit = 200.0;
+    });
+    expectClientConfigDifference([] (const auto& spec) {
+        spec->RequestPeriod = TDuration::MilliSeconds(200);
+    });
+    expectClientConfigDifference([] (const auto& spec) {
+        ++spec->RetryingChannel->RetryAttempts;
+    });
+    expectClientConfigDifference([] (const auto& spec) {
+        spec->RpcTimeout = TDuration::Seconds(1);
+    });
+}
+
+TEST(TDynamicSpecTest, ClassWeightsAsLimitSumsDeclaredWeights)
+{
+    auto spec = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(R""""(
+        {
+            use_class_weights_as_limit = %true;
+            request_period = 1000;
+            classes = {
+                vip = {weight = 5.0;};
+                regular = {weight = 3.0;};
+                bulk = {weight = 1.0;};
+            };
+        }
+    )""""));
+
+    // The reserved default class is not part of the sum: a weight is the rate
+    // its class is served at, and classless traffic is not declared here.
+    EXPECT_EQ(spec->GetEffectiveLimit(), 9.0);
+    EXPECT_EQ(spec->BuildThroughputConfig()->Limit, 9.0);
+    EXPECT_EQ(spec->BuildPrefetchingConfig()->MaxPrefetchAmount, 9);
+}
+
+TEST(TDynamicSpecTest, ClassWeightsAsLimitTracksWeightChanges)
+{
+    auto spec = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+        "{use_class_weights_as_limit=%true; request_period=1000; classes={vip={weight=5.0;};};}"));
+    EXPECT_EQ(spec->GetEffectiveLimit(), 5.0);
+
+    // The limit is derived on demand rather than resolved once, so a hot
+    // reconfiguration of the weights moves it.
+    auto changed = CloneYsonStruct(spec);
+    changed->Classes.at(TQuotaClassId("vip"))->Weight = 2.0;
+    EXPECT_EQ(changed->GetEffectiveLimit(), 2.0);
+    // With the flag on a weight is a rate, so a change this large resizes the
+    // client's prefetch window and the client has to be rebuilt.
+    EXPECT_FALSE(spec->ClientConfigEquals(*changed));
+}
+
+TEST(TDynamicSpecTest, ClassWeightsAsLimitKeepsClientWhenPrefetchWindowHolds)
+{
+    // A client sizes only its prefetch window from the limit; the rate itself is
+    // enforced on the server. A weight change too small to move that window must
+    // therefore keep the client and the quota it has already prefetched.
+    auto spec = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+        "{use_class_weights_as_limit=%true; request_period=100; classes={vip={weight=5.0;};};}"));
+    auto changed = CloneYsonStruct(spec);
+    changed->Classes.at(TQuotaClassId("vip"))->Weight = 4.9;
+
+    EXPECT_NE(spec->GetEffectiveLimit(), changed->GetEffectiveLimit());
+    EXPECT_EQ(
+        spec->BuildPrefetchingConfig()->MaxPrefetchAmount,
+        changed->BuildPrefetchingConfig()->MaxPrefetchAmount);
+    EXPECT_TRUE(spec->ClientConfigEquals(*changed));
+}
+
+TEST(TDynamicSpecTest, ClassWeightsAsLimitSurvivesSerializationRoundTrip)
+{
+    // The dynamic spec is stored as a parsed struct and served back
+    // re-serialized, so the derived limit must not leak into |limit| — it would
+    // come back as an explicitly set field and be rejected on the next update.
+    auto spec = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+        "{use_class_weights_as_limit=%true; classes={vip={weight=5.0;};};}"));
+    auto roundTripped = ConvertTo<TDynamicThrottlerSpecPtr>(ConvertToNode(spec));
+
+    EXPECT_FALSE(roundTripped->Limit.has_value());
+    EXPECT_TRUE(roundTripped->UseClassWeightsAsLimit);
+    EXPECT_EQ(roundTripped->GetEffectiveLimit(), 5.0);
+}
+
+TEST(TDynamicSpecTest, RejectsClassWeightsAsLimitWithExplicitLimit)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+            "{limit=100.0; use_class_weights_as_limit=%true; classes={vip={};};}")),
+        "mutually exclusive");
+}
+
+TEST(TDynamicSpecTest, RejectsClassWeightsAsLimitWithoutClasses)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+            "{use_class_weights_as_limit=%true;}")),
+        "requires at least one class");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TResolveUseCompactInputMessagesTest, DefaultUintKeyEnablesCompact)
+{
+    TStringBuf specYson(R""""(
+        {
+            computation_class_name = "NYT::NFlow::TNullComputation";
+            group_by_schema = [];
+        }
+    )"""");
+    auto spec = ConvertTo<TComputationSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_TRUE(ResolveUseCompactInputMessages(spec));
+}
+
+TEST(TResolveUseCompactInputMessagesTest, NonUintKeyDisablesCompact)
+{
+    TStringBuf specYson(R""""(
+        {
+            computation_class_name = "NYT::NFlow::TNullComputation";
+            group_by_schema = [];
+            experimental_enable_non_uint_key = %true;
+        }
+    )"""");
+    auto spec = ConvertTo<TComputationSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_FALSE(ResolveUseCompactInputMessages(spec));
+}
+
+TEST(TResolveUseCompactInputMessagesTest, ExplicitFalseWins)
+{
+    TStringBuf specYson(R""""(
+        {
+            computation_class_name = "NYT::NFlow::TNullComputation";
+            group_by_schema = [];
+            use_compact_input_messages = %false;
+        }
+    )"""");
+    auto spec = ConvertTo<TComputationSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_FALSE(ResolveUseCompactInputMessages(spec));
+}
+
+TEST(TResolveUseCompactInputMessagesTest, ExplicitTrueWinsOverNonUintKey)
+{
+    TStringBuf specYson(R""""(
+        {
+            computation_class_name = "NYT::NFlow::TNullComputation";
+            group_by_schema = [];
+            use_compact_input_messages = %true;
+            experimental_enable_non_uint_key = %true;
+        }
+    )"""");
+    auto spec = ConvertTo<TComputationSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_TRUE(ResolveUseCompactInputMessages(spec));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TSpecTest, CompactInputMessagesEnabledWithNonUintKeyRejected)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                producer = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ s ];
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                };
+                consumer = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    input_stream_ids = [ s ];
+                    group_by_schema = [];
+                    use_compact_input_messages = %true;
+                    experimental_enable_non_uint_key = %true;
+                }
+            };
+            streams = {
+                s = {
+                    schema = [];
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "\"use_compact_input_messages\" cannot be enabled while \"experimental_enable_non_uint_key\" is set");
+}
+
+// The options are incompatible only when both are enabled: an explicitly disabled
+// use_compact_input_messages coexists with experimental_enable_non_uint_key.
+TEST(TSpecTest, CompactInputMessagesDisabledWithNonUintKeyAccepted)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                producer = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ s ];
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                };
+                consumer = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    input_stream_ids = [ s ];
+                    group_by_schema = [];
+                    use_compact_input_messages = %false;
+                    experimental_enable_non_uint_key = %true;
+                }
+            };
+            streams = {
+                s = {
+                    schema = [];
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    ValidatePipelineSpec(spec);
+}
+
+TEST(TSpecTest, CompactInputMessagesWithUintKeyAccepted)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                producer = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ s ];
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                };
+                consumer = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    input_stream_ids = [ s ];
+                    group_by_schema = [];
+                    use_compact_input_messages = %true;
+                }
+            };
+            streams = {
+                s = {
+                    schema = [];
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    ValidatePipelineSpec(spec);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TSpecTest, KeyVisitorStreamsRequireUintFirstColumn)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [];
+                    group_by_schema = [{name = key; type = string; sort_order = ascending}];
+                    source_streams = {};
+                    key_visitor_streams = {visit = {}};
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "Uint64 as the first column");
+}
+
+TEST(TSpecTest, KeyVisitorStreamsAreNotInAutoDependencyGraph)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ visits ];
+                    group_by_schema = [
+                        {name = hash; expression = "farm_hash(key)"; type = uint64; required = %true; sort_order = ascending};
+                        {name = key; type = string; sort_order = ascending};
+                    ];
+                    source_streams = {};
+                    key_visitor_streams = {visit_iter = {}};
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    const auto& deps = spec->Computations.at(TComputationId("c"))->StreamsDependency;
+    EXPECT_FALSE(deps.contains(TStreamId("visit_iter")))
+        << "key_visitor stream must not be auto-registered as a key";
+    EXPECT_FALSE(deps.at(TStreamId("visits")).contains(TStreamId("visit_iter")))
+        << "output stream must not auto-depend on the key_visitor stream";
+}
+
+TEST(TSpecTest, KeyVisitorStreamCanBeAddedToOutputDepsExplicitly)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ visits ];
+                    group_by_schema = [
+                        {name = hash; expression = "farm_hash(key)"; type = uint64; required = %true; sort_order = ascending};
+                        {name = key; type = string; sort_order = ascending};
+                    ];
+                    source_streams = {};
+                    key_visitor_streams = {visit_iter = {}};
+                    streams_dependency = {
+                        visits = [ visit_iter ];
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    const auto& depsForVisits = spec->Computations.at(TComputationId("c"))->StreamsDependency.at(TStreamId("visits"));
+    EXPECT_TRUE(depsForVisits.contains(TStreamId("visit_iter")))
+        << "explicit user-provided dependency on visit-stream must be preserved";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A visitor computation fed by both an input stream (`finite_keys`) and a source stream
+//! (`infinite_keys`), so a narrowed wait has something to leave out. |visitStreamBody| fills
+//! the key-visitor entry.
+TPipelineSpecPtr MakeKeyVisitorUpstreamSpec(TStringBuf visitStreamBody)
+{
+    auto specYson = Format(R""""(
+        {
+            computations = {
+                producer = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ finite_keys ];
+                    group_by_schema = [];
+                };
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    input_stream_ids = [ finite_keys ];
+                    group_by_schema = [
+                        {name = hash; expression = "farm_hash(key)"; type = uint64; required = %%true; sort_order = ascending};
+                        {name = key; type = string; sort_order = ascending};
+                    ];
+                    source_streams = {
+                        infinite_keys = {source_class_name = "NYT::NFlow::TNullSource"};
+                    };
+                    key_visitor_streams = {visit_iter = {%v}};
+                };
+            };
+            streams = {
+                finite_keys = {schema = [{name = key; type = string}]};
+            };
+        }
+    )"""",
+        visitStreamBody);
+    return ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+}
+
+THashSet<TStreamId> UpstreamStreamsOf(const TPipelineSpecPtr& spec)
+{
+    return ComputeKeyVisitorUpstreamStreams(
+        *spec->Computations.at(TComputationId("c")),
+        TStreamId("visit_iter"));
+}
+
+TKeyVisitorStreamSpecPtr VisitStreamSpecOf(const TPipelineSpecPtr& spec)
+{
+    return spec->Computations.at(TComputationId("c"))->KeyVisitorStreams.at(TStreamId("visit_iter"));
+}
+
+TEST(TSpecTest, KeyVisitorUpstreamStreamsDefaultToEveryInputAndSource)
+{
+    auto spec = MakeKeyVisitorUpstreamSpec("");
+    ValidatePipelineSpec(spec);
+
+    EXPECT_FALSE(VisitStreamSpecOf(spec)->UpstreamStreams);
+    EXPECT_EQ(
+        UpstreamStreamsOf(spec),
+        (THashSet<TStreamId>{TStreamId("finite_keys"), TStreamId("infinite_keys")}));
+}
+
+TEST(TSpecTest, KeyVisitorUpstreamStreamsNarrowTheWait)
+{
+    auto spec = MakeKeyVisitorUpstreamSpec("upstream_streams = [ finite_keys ]");
+    ValidatePipelineSpec(spec);
+
+    EXPECT_EQ(UpstreamStreamsOf(spec), (THashSet<TStreamId>{TStreamId("finite_keys")}))
+        << "the source stream the visitor did not list must not be waited for";
+}
+
+// Waiting for nothing is a legitimate ask: it is what a computation with no upstream at
+// all does implicitly, spelled out for one that does have upstreams.
+TEST(TSpecTest, KeyVisitorUpstreamStreamsMayBeEmpty)
+{
+    auto spec = MakeKeyVisitorUpstreamSpec("upstream_streams = []");
+    ValidatePipelineSpec(spec);
+
+    EXPECT_TRUE(VisitStreamSpecOf(spec)->UpstreamStreams)
+        << "an empty set is not the same as an absent one";
+    EXPECT_TRUE(UpstreamStreamsOf(spec).empty());
+}
+
+TEST(TSpecTest, KeyVisitorUpstreamStreamsRejectUnknownStream)
+{
+    auto spec = MakeKeyVisitorUpstreamSpec("upstream_streams = [ finite_keys; strangers ]");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "not an input or source stream");
+}
+
+// The visit stream cannot wait for itself; naming it is the natural typo, so it must not
+// pass for an upstream.
+TEST(TSpecTest, KeyVisitorUpstreamStreamsRejectVisitStreamItself)
+{
+    auto spec = MakeKeyVisitorUpstreamSpec("upstream_streams = [ visit_iter ]");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "not an input or source stream");
+}
+
+TEST(TSpecTest, StateJoinerKeyTypeMismatchNoOverride)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                source = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [ { name = Key; type = uint64; required = %true; } ];
+                };
+                joiner = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [ { name = Key; type = string; required = %true; } ];
+                    state_joiners = {
+                        "/from_source" = {
+                            computation_id = source;
+                            state_name = "/state";
+                        };
+                    };
+                }
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "key column 0 has type");
+}
+
+TEST(TSpecTest, StateJoinerKeyTypeMismatchWithOverride)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                source = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [ { name = Key; type = uint64; required = %true; } ];
+                };
+                joiner = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [ { name = Key; type = uint64; required = %true; } ];
+                    state_joiners = {
+                        "/from_source" = {
+                            computation_id = source;
+                            state_name = "/state";
+                            join_on = {
+                                key_schema_override = [ { name = Key; type = string; required = %true; } ];
+                            };
+                        };
+                    };
+                }
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "key column 0 has type");
+}
+
+TEST(TSpecTest, StateJoinerKeyTypesMatchNamesDiffer)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                source = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [ { name = SourceKey; type = uint64; required = %true; } ];
+                };
+                joiner = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [ { name = JoinerKey; type = uint64; required = %true; } ];
+                    state_joiners = {
+                        "/from_source" = {
+                            computation_id = source;
+                            state_name = "/state";
+                        };
+                    };
+                }
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    ValidatePipelineSpec(spec);
+}
+
+TEST(TSpecTest, KeyVisitorStreamIntoOverrideJoinerRejected)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [
+                        {name = hash; expression = "farm_hash(key)"; type = uint64; required = %true; sort_order = ascending};
+                        {name = key; type = string; sort_order = ascending};
+                    ];
+                    source_streams = {};
+                    key_visitor_streams = {visit_iter = {}};
+                    external_state_joiners = {
+                        "/j" = {
+                            external_state_joiner_class_name = "NYT::NFlow::TReadingExternalStateJoiner";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                            join_on = {
+                                key_schema_override = [ { name = key; type = string; required = %true; } ];
+                            };
+                        };
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "would feed it group-by keys");
+}
+
+TEST(TSpecTest, KeyVisitorStreamExcludedFromOverrideJoinerOk)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                producer = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ s ];
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                };
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    input_stream_ids = [ s ];
+                    group_by_schema = [
+                        {name = hash; expression = "farm_hash(key)"; type = uint64; required = %true; sort_order = ascending};
+                        {name = key; type = string; sort_order = ascending};
+                    ];
+                    source_streams = {};
+                    key_visitor_streams = {visit_iter = {}};
+                    external_state_joiners = {
+                        "/j" = {
+                            external_state_joiner_class_name = "NYT::NFlow::TReadingExternalStateJoiner";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                            join_on = {
+                                key_schema_override = [ { name = key; type = string; } ];
+                                key_provider_streams = [ s ];
+                            };
+                        };
+                    };
+                };
+            };
+            streams = {
+                s = {
+                    schema = [ {name = key; type = string;} ];
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    ValidatePipelineSpec(spec);
+}
+
+// Sweeping the joiner via external_names does not exempt the stream: visitor-driven joiners
+// reject key_schema_override at construction, so such a spec could never run anyway.
+TEST(TSpecTest, KeyVisitorStreamSweepingOverrideJoinerRejected)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [
+                        {name = hash; expression = "farm_hash(key)"; type = uint64; required = %true; sort_order = ascending};
+                        {name = key; type = string; sort_order = ascending};
+                    ];
+                    source_streams = {};
+                    key_visitor_streams = {visit_iter = {external_names = ["/j"]}};
+                    external_state_joiners = {
+                        "/j" = {
+                            external_state_joiner_class_name = "NYT::NFlow::TReadingExternalStateJoiner";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                            join_on = {
+                                key_schema_override = [ { name = key; type = string; required = %true; } ];
+                            };
+                        };
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "would feed it group-by keys");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TSpecYTPathOwnershipTest, TwoExclusiveWritersSamePathConflict)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    external_state_managers = {
+                        "/m1" = {
+                            external_state_manager_class_name = "NYT::NFlow::TWritingExternalStateManager";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                        };
+                        "/m2" = {
+                            external_state_manager_class_name = "NYT::NFlow::TWritingExternalStateManager";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                        };
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "claimed for writing");
+}
+
+TEST(TSpecYTPathOwnershipTest, ExclusiveWriteDifferentPathsOk)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    external_state_managers = {
+                        "/m1" = {
+                            external_state_manager_class_name = "NYT::NFlow::TWritingExternalStateManager";
+                            parameters = { path = "<cluster=primary>//tmp/state1"; };
+                        };
+                        "/m2" = {
+                            external_state_manager_class_name = "NYT::NFlow::TWritingExternalStateManager";
+                            parameters = { path = "<cluster=primary>//tmp/state2"; };
+                        };
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    ValidatePipelineSpec(spec);
+}
+
+TEST(TSpecYTPathOwnershipTest, ExclusiveWriteDifferentClustersOk)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    external_state_managers = {
+                        "/m1" = {
+                            external_state_manager_class_name = "NYT::NFlow::TWritingExternalStateManager";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                        };
+                        "/m2" = {
+                            external_state_manager_class_name = "NYT::NFlow::TWritingExternalStateManager";
+                            parameters = { path = "<cluster=secondary>//tmp/state"; };
+                        };
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    ValidatePipelineSpec(spec);
+}
+
+TEST(TSpecYTPathOwnershipTest, ReadOnlyPlusExclusiveWriteOk)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    external_state_managers = {
+                        "/m" = {
+                            external_state_manager_class_name = "NYT::NFlow::TWritingExternalStateManager";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                        };
+                    };
+                    external_state_joiners = {
+                        "/j" = {
+                            external_state_joiner_class_name = "NYT::NFlow::TReadingExternalStateJoiner";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                        };
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    ValidatePipelineSpec(spec);
+}
+
+TEST(TSpecYTPathOwnershipTest, ExclusiveWritePlusSharedWriteConflict)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    external_state_managers = {
+                        "/m1" = {
+                            external_state_manager_class_name = "NYT::NFlow::TWritingExternalStateManager";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                        };
+                        "/m2" = {
+                            external_state_manager_class_name = "NYT::NFlow::TSharedWriterExternalStateManager";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                        };
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "claimed for writing");
+}
+
+TEST(TSpecYTPathOwnershipTest, SharedWriteTwiceOk)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    external_state_managers = {
+                        "/m1" = {
+                            external_state_manager_class_name = "NYT::NFlow::TSharedWriterExternalStateManager";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                        };
+                        "/m2" = {
+                            external_state_manager_class_name = "NYT::NFlow::TSharedWriterExternalStateManager";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                        };
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    ValidatePipelineSpec(spec);
+}
+
+TEST(TSpecYTPathOwnershipTest, OpaqueManagerNotCheckedOk)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    external_state_managers = {
+                        "/m1" = {
+                            external_state_manager_class_name = "NYT::NFlow::TOpaqueExternalStateManager";
+                            parameters = { table = "<cluster=primary>//tmp/state"; };
+                        };
+                        "/m2" = {
+                            external_state_manager_class_name = "NYT::NFlow::TOpaqueExternalStateManager";
+                            parameters = { table = "<cluster=primary>//tmp/state"; };
+                        };
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    ValidatePipelineSpec(spec);
+}
+
+TEST(TSpecYTPathOwnershipTest, PathNormalizationConflict)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    external_state_managers = {
+                        "/m1" = {
+                            external_state_manager_class_name = "NYT::NFlow::TWritingExternalStateManager";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                        };
+                        "/m2" = {
+                            external_state_manager_class_name = "NYT::NFlow::TWritingExternalStateManager";
+                            parameters = { path = "<cluster=primary;ranges=[]>//tmp/state"; };
+                        };
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "claimed for writing");
+}
+
+TEST(TSpecYTPathOwnershipTest, UnsetEmbeddedExclusiveWritePathsOk)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c1 = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    external_state_managers = {
+                        "/m" = {
+                            external_state_manager_class_name = "NYT::NFlow::TEmbeddedWriterExternalStateManager";
+                            parameters = {};
+                        };
+                    };
+                };
+                c2 = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    external_state_managers = {
+                        "/m" = {
+                            external_state_manager_class_name = "NYT::NFlow::TEmbeddedWriterExternalStateManager";
+                            parameters = {};
+                        };
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    ValidatePipelineSpec(spec);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDeclarationSpecCase
+{
+    TStringBuf EntityKind;
+    TStringBuf SpecTemplate;
+    bool Dynamic;
+};
+
+void DeserializeDeclarationSpec(const TDeclarationSpecCase& testCase, TStringBuf id)
+{
+    static constexpr TStringBuf IdPlaceholder = R"("%v")";
+
+    auto specYson = std::string(testCase.SpecTemplate);
+    specYson.replace(specYson.find(IdPlaceholder), IdPlaceholder.size(), Format("%Qv", id));
+    if (testCase.Dynamic) {
+        ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(specYson));
+    } else {
+        ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    }
+}
+
+TEST(TPipelineSpecTest, DeclarationIdsMustMatchAllowedPattern)
+{
+    const std::vector<TDeclarationSpecCase> testCases = {
+        {"computation", R"({computations = {"%v" = {computation_class_name = "Foo"}}})", false},
+        {"stream", R"({streams = {"%v" = {schema = []}}})", false},
+        {"resource", R"({resources = {"%v" = {resource_class_name = "Foo"}}})", false},
+        {"timer stream", R"({computations = {c = {computation_class_name = "Foo"; timer_streams = {"%v" = {}}}}})", false},
+        {"key visitor stream", R"({computations = {c = {computation_class_name = "Foo"; key_visitor_streams = {"%v" = {}}}}})", false},
+        {"source stream", R"({computations = {c = {computation_class_name = "Foo"; source_streams = {"%v" = {source_class_name = "Foo"}}}}})", false},
+        {"sink", R"({computations = {c = {computation_class_name = "Foo"; sinks = {"%v" = {}}}}})", false},
+        {"file provider", R"({resources = {r = {resource_class_name = "Foo"; file_providers = {"%v" = {file_provider_class_name = "Foo"}}}}})", false},
+        {"throttler", R"({throttlers = {"%v" = {}}})", true},
+        {"quota class", R"({throttlers = {t = {classes = {"%v" = {}}}}})", true},
+    };
+
+    for (const auto& testCase : testCases) {
+        SCOPED_TRACE(testCase.EntityKind);
+        for (auto validId : {
+                TStringBuf("0"),
+                TStringBuf("A"),
+                TStringBuf("_"),
+                TStringBuf("-"),
+                TStringBuf("_a"),
+                TStringBuf("a_"),
+                TStringBuf("-a"),
+                TStringBuf("a-"),
+                TStringBuf("valid-ID_09")})
+        {
+            EXPECT_NO_THROW(DeserializeDeclarationSpec(testCase, validId));
+        }
+
+        for (auto invalidId : {
+                TStringBuf(),
+                TStringBuf("."),
+                TStringBuf("a.b"),
+                TStringBuf("a/b"),
+                TStringBuf("a:b"),
+                TStringBuf("a b"),
+                TStringBuf("a+"),
+                TStringBuf("a\\b"),
+                TStringBuf("a\xC3\xA9")})
+        {
+            EXPECT_THROW_WITH_SUBSTRING(
+                DeserializeDeclarationSpec(testCase, invalidId),
+                Format("Invalid %v ID %Qv", testCase.EntityKind, invalidId));
+            EXPECT_THROW_WITH_SUBSTRING(
+                DeserializeDeclarationSpec(testCase, invalidId),
+                "expected a non-empty ID matching [0-9A-Za-z_-]+");
+        }
+    }
+}
+
+enum class EDeclarationLocation
+{
+    Computation,
+    Stream,
+    Resource,
+    TimerStream,
+    KeyVisitorStream,
+    SourceStream,
+    Sink,
+    FileProvider,
+    Throttler,
+    QuotaClass,
+};
+
+void ValidateProgrammaticDeclaration(EDeclarationLocation location, TStringBuf id)
+{
+    auto pipelineSpec = New<TPipelineSpec>();
+    auto dynamicPipelineSpec = New<TDynamicPipelineSpec>();
+
+    switch (location) {
+        case EDeclarationLocation::Computation:
+            pipelineSpec->Computations[TComputationId(std::string(id))] = nullptr;
+            break;
+        case EDeclarationLocation::Stream:
+            pipelineSpec->Streams[TStreamId(std::string(id))] = nullptr;
+            break;
+        case EDeclarationLocation::Resource:
+            pipelineSpec->Resources[TResourceId(std::string(id))] = nullptr;
+            break;
+        case EDeclarationLocation::TimerStream: {
+            auto computationSpec = New<TComputationSpec>();
+            computationSpec->TimerStreams[TStreamId(std::string(id))] = nullptr;
+            pipelineSpec->Computations[TComputationId("c")] = std::move(computationSpec);
+            break;
+        }
+        case EDeclarationLocation::KeyVisitorStream: {
+            auto computationSpec = New<TComputationSpec>();
+            computationSpec->KeyVisitorStreams[TStreamId(std::string(id))] = nullptr;
+            pipelineSpec->Computations[TComputationId("c")] = std::move(computationSpec);
+            break;
+        }
+        case EDeclarationLocation::SourceStream: {
+            auto computationSpec = New<TComputationSpec>();
+            computationSpec->SourceStreams[TStreamId(std::string(id))] = nullptr;
+            pipelineSpec->Computations[TComputationId("c")] = std::move(computationSpec);
+            break;
+        }
+        case EDeclarationLocation::Sink: {
+            auto computationSpec = New<TComputationSpec>();
+            computationSpec->Sinks[TSinkId(std::string(id))] = nullptr;
+            pipelineSpec->Computations[TComputationId("c")] = std::move(computationSpec);
+            break;
+        }
+        case EDeclarationLocation::FileProvider: {
+            auto resourceSpec = New<TResourceSpec>();
+            resourceSpec->FileProviders[TFileProviderId(std::string(id))] = nullptr;
+            pipelineSpec->Resources[TResourceId("r")] = std::move(resourceSpec);
+            break;
+        }
+        case EDeclarationLocation::Throttler:
+            dynamicPipelineSpec->Throttlers[TThrottlerId(std::string(id))] = nullptr;
+            break;
+        case EDeclarationLocation::QuotaClass: {
+            auto throttlerSpec = New<TDynamicThrottlerSpec>();
+            throttlerSpec->Classes[TQuotaClassId(std::string(id))] = nullptr;
+            dynamicPipelineSpec->Throttlers[TThrottlerId("t")] = std::move(throttlerSpec);
+            break;
+        }
+    }
+
+    if (location == EDeclarationLocation::Throttler || location == EDeclarationLocation::QuotaClass) {
+        ValidateDynamicPipelineSpec(dynamicPipelineSpec);
+    } else {
+        ValidatePipelineSpec(pipelineSpec);
+    }
+}
+
+TEST(TPipelineSpecTest, ProgrammaticDeclarationIdsMustMatchAllowedPattern)
+{
+    const std::vector<std::pair<EDeclarationLocation, TStringBuf>> testCases = {
+        {EDeclarationLocation::Computation, "computation"},
+        {EDeclarationLocation::Stream, "stream"},
+        {EDeclarationLocation::Resource, "resource"},
+        {EDeclarationLocation::TimerStream, "timer stream"},
+        {EDeclarationLocation::KeyVisitorStream, "key visitor stream"},
+        {EDeclarationLocation::SourceStream, "source stream"},
+        {EDeclarationLocation::Sink, "sink"},
+        {EDeclarationLocation::FileProvider, "file provider"},
+        {EDeclarationLocation::Throttler, "throttler"},
+        {EDeclarationLocation::QuotaClass, "quota class"},
+    };
+
+    for (const auto& [location, entityKind] : testCases) {
+        SCOPED_TRACE(entityKind);
+        for (auto invalidId : {
+                TStringBuf(),
+                TStringBuf("."),
+                TStringBuf("a.b"),
+                TStringBuf("a/b"),
+                TStringBuf("a:b"),
+                TStringBuf("a b"),
+                TStringBuf("a+"),
+                TStringBuf("a\\b"),
+                TStringBuf("a\xC3\xA9")})
+        {
+            EXPECT_THROW_WITH_SUBSTRING(
+                ValidateProgrammaticDeclaration(location, invalidId),
+                Format("Invalid %v ID %Qv", entityKind, invalidId));
+            EXPECT_THROW_WITH_SUBSTRING(
+                ValidateProgrammaticDeclaration(location, invalidId),
+                "expected a non-empty ID matching [0-9A-Za-z_-]+");
+        }
+    }
+}
+
+TEST(TPipelineSpecTest, StaticSourceStreamIdMustMatchAllowedPattern)
+{
+    const TDeclarationSpecCase testCase{
+        "source stream",
+        R"({computations = {reader = {computation_class_name = "Foo"; source_streams = {"%v" = {source_class_name = "Foo"}}}}})",
+        false,
+    };
+    EXPECT_THROW_WITH_SUBSTRING(
+        DeserializeDeclarationSpec(testCase, "invalid/source"),
+        "Invalid source stream ID \"invalid/source\": expected a non-empty ID matching [0-9A-Za-z_-]+");
+}
+
+TEST(TPipelineSpecTest, DynamicSourceStreamIdIsNotValidated)
+{
+    auto invalidDynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(R"(
+        {
+            computations = {
+                reader = {
+                    source_streams = {"invalid/source" = {}};
+                };
+            };
+        }
+    )"));
+    EXPECT_NO_THROW(ValidateDynamicPipelineSpec(invalidDynamicSpec));
+
+    auto pipelineSpec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(R"(
+        {
+            computations = {
+                reader = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    output_stream_ids = [out];
+                    streams_dependency = {out = ["yabs-rt__topic"]};
+                    source_streams = {
+                        "yabs-rt__topic" = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                };
+            };
+            streams = {out = {schema = []}};
+        }
+    )"));
+    EXPECT_NO_THROW(ValidatePipelineSpec(pipelineSpec));
+
+    auto dynamicSpecNode = ConvertTo<IMapNodePtr>(TYsonStringBuf(R"(
+        {
+            computations = {
+                reader = {
+                    source_streams = {"yabs-rt__topic" = {}};
+                };
+            };
+        }
+    )"));
+    auto dynamicPipelineSpec = ConvertTo<TDynamicPipelineSpecPtr>(dynamicSpecNode);
+    EXPECT_NO_THROW(ValidateDynamicPipelineSpec(dynamicPipelineSpec));
+    EXPECT_TRUE(TRegistry::Get()->ValidateDynamicPipelineSpecParseability(pipelineSpec, dynamicSpecNode).empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TExternalStateManagerSpecTest, AutoPreloadDefaultsToTrue)
+{
+    auto spec = ConvertTo<TExternalStateManagerSpecPtr>(TYsonStringBuf(
+        R"({class_name = "NYT::NFlow::TSimpleExternalStateManager"; parameters = {}})"));
+    EXPECT_TRUE(spec->AutoPreload);
+}
+
+TEST(TExternalStateManagerSpecTest, AutoPreloadParsesFalse)
+{
+    auto spec = ConvertTo<TExternalStateManagerSpecPtr>(TYsonStringBuf(
+        R"({class_name = "NYT::NFlow::TSimpleExternalStateManager"; auto_preload = %false; parameters = {}})"));
+    EXPECT_FALSE(spec->AutoPreload);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYT::NFlow

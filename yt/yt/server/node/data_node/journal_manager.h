@@ -44,7 +44,7 @@ struct IJournalManager
 
     virtual i64 EstimateMultiplexedChangelogSize(i64 payloadSize) const = 0;
 
-    virtual TFuture<bool> IsChangelogSealed(TChunkId chunkId) = 0;
+    virtual bool IsChangelogSealed(TChunkId chunkId) const = 0;
 
     virtual TFuture<void> SealChangelog(const TJournalChunkPtr& chunk) = 0;
 };

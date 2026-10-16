@@ -6,7 +6,7 @@ namespace NYT::NMaintenanceTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, MaintenanceTrackerLogger, "MaintenanceTracker");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, MaintenanceTrackerLogger, "MaintenanceTracker");
 
 ////////////////////////////////////////////////////////////////////////////////
 

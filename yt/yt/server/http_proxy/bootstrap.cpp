@@ -16,8 +16,6 @@
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
-#include <yt/yt/server/lib/signature/components.h>
-
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
 
 #include <yt/yt/library/coredumper/public.h>
@@ -42,6 +40,8 @@
 #include <yt/yt/library/auth_server/config.h>
 #include <yt/yt/library/auth_server/cypress_cookie_login.h>
 #include <yt/yt/library/auth_server/cypress_cookie_manager.h>
+#include <yt/yt/library/auth_server/cypress_login_authenticator.h>
+#include <yt/yt/library/auth_server/ldap_authenticator.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
@@ -54,6 +54,8 @@
 #include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/library/fusion/service_locator.h>
+
+#include <yt/yt/library/signature/components/components.h>
 
 #include <yt/yt/client/driver/driver.h>
 #include <yt/yt/client/driver/config.h>
@@ -74,6 +76,8 @@
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/configurable_singleton_def.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/rpc/bus/server.h>
 
@@ -139,10 +143,14 @@ void TBootstrap::DoRun()
 void TBootstrap::DoInitialize()
 {
     MonitoringServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+    if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+        MonitoringHttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+    }
 
     IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         MonitoringServer_,
+        MonitoringHttpsServer_,
         ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
         &MonitoringManager_,
         &orchidRoot);
@@ -272,10 +280,20 @@ void TBootstrap::DoInitialize()
         RootClient_);
 
     if (Config_->Auth->CypressCookieManager) {
+        std::vector<NAuth::ILoginAuthenticatorPtr> authenticators;
+        if (Config_->Auth->LdapService) {
+            authenticators.push_back(NAuth::CreateLdapLoginAuthenticator(
+                Config_->Auth->LdapService,
+                NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+        }
+        if (Config_->Auth->CypressPasswordAuthenticator->Enabled) {
+            authenticators.push_back(NAuth::CreateCypressLoginAuthenticator(RootClient_));
+        }
         CypressCookieLoginHandler_ = CreateCypressCookieLoginHandler(
             Config_->Auth->CypressCookieManager->CookieGenerator,
             RootClient_,
-            AuthenticationManager_->GetCypressCookieManager()->GetCookieStore());
+            AuthenticationManager_->GetCypressCookieManager()->GetCookieStore(),
+            std::move(authenticators));
     }
 
     auto httpAuthenticator = New<THttpAuthenticator>(
@@ -332,7 +350,11 @@ void TBootstrap::DoInitialize()
             Config_->HttpsServer,
             Poller_,
             Acceptor_,
-            GetControlInvoker());
+            GetControlInvoker(),
+            NCrypto::TCertProfiler{
+                .Profiler = HttpProxyProfiler().WithPrefix("/https_server"),
+                .Invoker = GetControlInvoker()
+            });
         RegisterRoutes(ApiHttpsServer_);
     }
 
@@ -409,7 +431,7 @@ void TBootstrap::ReconfigureMemoryUsageTracker(
 }
 
 void TBootstrap::OnDynamicConfigChanged(
-    const TProxyDynamicConfigPtr& /*oldConfig*/,
+    const TProxyDynamicConfigPtr& oldConfig,
     const TProxyDynamicConfigPtr& newConfig)
 {
     TSingletonManager::Reconfigure(newConfig);
@@ -431,16 +453,23 @@ void TBootstrap::OnDynamicConfigChanged(
 
     DynamicConfig_.Store(newConfig);
 
-    BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
+    BusServer_->Reconfigure(newConfig->BusServer);
 
     Coordinator_->GetTraceSampler()->UpdateConfig(newConfig->Tracing);
 
-    if (newConfig->SignatureComponents) {
-        YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(newConfig->SignatureComponents));
+    if (newConfig->SignatureComponents || oldConfig->SignatureComponents) {
+        YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(
+            newConfig->SignatureComponents
+                ? newConfig->SignatureComponents
+                : Config_->SignatureComponents));
     }
 
-    Connection_->GetMasterCellDirectorySynchronizer()->Reconfigure(
-        newConfig->MasterCellDirectorySynchronizer.value_or(Config_->ClusterConnection->Static->MasterCellDirectorySynchronizer));
+    Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(newConfig->MasterCellDirectorySynchronizer);
+
+    AuthenticationManager_->Reconfigure(newConfig->Auth);
+    if (TvmOnlyAuthenticationManager_) {
+        TvmOnlyAuthenticationManager_->Reconfigure(newConfig->Auth);
+    }
 }
 
 void TBootstrap::HandleRequest(
@@ -457,7 +486,7 @@ void TBootstrap::HandleRequest(
                 .EndMap();
         });
     } else {
-        WaitFor(rsp->WriteBody(TSharedRef::FromString(GetVersion())))
+        WaitFor(rsp->WriteBody(TSharedRef::FromString(std::string(GetVersion()))))
             .ThrowOnError();
     }
 }
@@ -474,6 +503,11 @@ void TBootstrap::DoStart()
     DynamicConfigManager_->Start();
 
     MonitoringServer_->Start();
+    if (MonitoringHttpsServer_) {
+        YT_TLOG_INFO("Listening for HTTPS monitoring requests")
+            .With("Port", MonitoringHttpsServer_->GetAddress().GetPort());
+        MonitoringHttpsServer_->Start();
+    }
 
     // NB(pavook):
     // We don't wait for key rotation completion anywhere in bootstrap, because proxy bootstrap
@@ -627,7 +661,7 @@ void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
                 rsp->GetHeaders()->Add("Location", "https://oauth.yt.yandex.net");
             } else if (req->GetUrl().Path == "/" || req->GetUrl().Path == "/ui") {
                 rsp->SetStatus(EStatusCode::SeeOther);
-                rsp->GetHeaders()->Add("Location", config->UIRedirectUrl + "?" + req->GetUrl().RawQuery);
+                rsp->GetHeaders()->Add("Location", Format("%v?%v", config->UIRedirectUrl, req->GetUrl().RawQuery));
             } else {
                 rsp->SetStatus(EStatusCode::NotFound);
             }

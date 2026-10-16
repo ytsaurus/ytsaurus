@@ -17,13 +17,21 @@ MAX_ROWS_PER_TRANSACTION = 20000
 
 @yt.aggregator
 class WriterMapper(JobBase):
-    def __init__(self, schema, table, aggregate, update, spec):
+    def __init__(self, schema, table, aggregate, update, spec, epoch):
         super(WriterMapper, self).__init__(spec)
         self.aggregate = aggregate
         self.update = update
         self.table = table
+        self.epoch = epoch
     def __call__(self, records):
         client = self.create_client()
+        current_epoch = yt.get(self.table + "/@insert_rows_epoch", client=client)
+        if current_epoch > self.epoch:
+            # Job revived after operation completed
+            return
+        elif current_epoch < self.epoch:
+            raise RuntimeError(
+                f"Unexpected state: monotonic insert_rows epoch went back: {current_epoch} < {self.epoch}")
         params = {
             "path": self.table,
             "input_format": "yson",
@@ -47,8 +55,11 @@ class WriterMapper(JobBase):
         if False:
             yield None
 
-def write_data(schema, iter_table, table, aggregate, update, spec):
-    logger.info("Write data into dynamic table")
+def write_data(schema, iter_table, table, aggregate, update, spec, epoch):
+    logger.info("Write data into dynamic table (epoch %s)", epoch)
+    # Stamp the designated table attribute with the sequential number of this
+    # write_data call before launching the writer operation.
+    yt.set(table + "/@insert_rows_epoch", epoch)
     writing_completed = multiprocessing.Event()
 
     #  test_replicas_unmount_mount = False
@@ -69,7 +80,7 @@ def write_data(schema, iter_table, table, aggregate, update, spec):
             "physical": {"resource_limits": {"user_slots": spec.get_write_user_slot_count()}}}
     with yt.TempTable() as tmp_table:
         op = yt.run_map(
-            WriterMapper(schema, table, aggregate, update, spec),
+            WriterMapper(schema, table, aggregate, update, spec, epoch),
             iter_table,
             tmp_table,
             spec=op_spec,
@@ -185,15 +196,25 @@ def write_data_bulk_insert(schema, iter_table, table, aggregate, update, shard_c
 
 @yt.reduce_aggregator
 class OrderedWriterReducer(JobBase):
-    def __init__(self, schema, table, tablet_size_table, insertion_batch_size, spec):
+    def __init__(self, schema, table, tablet_size_table, insertion_batch_size, spec, epoch):
         super(OrderedWriterReducer, self).__init__(spec)
         self.tablet_size_table = tablet_size_table
         self.insertion_batch_size = insertion_batch_size
         self.table = table
         self.schema = schema
+        self.epoch = epoch
 
     def __call__(self, records):
         client = self.create_client()
+        # Check once per job lifetime that the table epoch still matches the
+        # one this writer was launched with.
+        current_epoch = yt.get(self.table + "/@insert_rows_epoch", client=client)
+        if current_epoch > self.epoch:
+            # Job revived after operation completed
+            return
+        elif current_epoch < self.epoch:
+            raise RuntimeError(
+                f"Unexpected state: monotonic insert_rows epoch went back: {current_epoch} < {self.epoch}")
         params = {
             "path": self.table,
             "input_format": "yson",
@@ -258,9 +279,12 @@ class OrderedWriterReducer(JobBase):
             yield None
 
 def write_ordered_data(
-    schema, data_table, table, tablet_size_table, tablet_count, offsets, spec, args):
+    schema, data_table, table, tablet_size_table, tablet_count, offsets, spec, args, epoch):
 
-    logger.info("Write data into dynamic table")
+    logger.info("Write data into dynamic table (epoch %s)", epoch)
+    # Stamp the designated table attribute with the sequential number of this
+    # write_data call before launching the writer operation.
+    yt.set(table + "/@insert_rows_epoch", epoch)
 
     pivot_keys = [(tablet_index, offsets[tablet_index]) for tablet_index in range(1, tablet_count)]
     logger.info("Pivot keys for ordered writer: %s", pivot_keys)
@@ -272,7 +296,7 @@ def write_ordered_data(
 
     with yt.TempTable() as fake_output:
         yt.run_reduce(
-            OrderedWriterReducer(schema, table, tablet_size_table, spec.ordered.insertion_batch_size, spec),
+            OrderedWriterReducer(schema, table, tablet_size_table, spec.ordered.insertion_batch_size, spec, epoch),
             data_table,
             fake_output,
             reduce_by=["tablet_index", "row_index"],

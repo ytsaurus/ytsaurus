@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/actions/bind.h>
 
-#include <yt/yt/core/misc/mpl.h>
+#include <library/cpp/yt/mpl/type_traits.h>
 
 namespace NYT::NCellBalancer {
 
@@ -44,20 +44,18 @@ void TSchedulerMutations::Log(const TLogger& Logger) const
         return doFormatValue(value, doFormatValue);
     };
 
-    auto onIndexedEntries = [&] (TStringBuf prefix, const auto& entries) {
+    auto onIndexedEntries = [&] (TStringBuf mutation, const auto& entries) {
         for (const auto& [key, value] : entries) {
-            YT_LOG_DEBUG("Mutation: %v (Key: %v, Value: %v)",
-                prefix,
-                key,
-                formatValue(value));
+            YT_TLOG_DEBUG(Format("Mutation: %v", mutation))
+                .With("Key", key)
+                .With("Value", formatValue(value));
         }
     };
 
-    auto onSet = [&] (TStringBuf prefix, const auto& entries) {
+    auto onSet = [&] (TStringBuf mutation, const auto& entries) {
         for (const auto& entry : entries) {
-            YT_LOG_DEBUG("Mutation: %v (Value: %v)",
-                prefix,
-                formatValue(entry));
+            YT_TLOG_DEBUG(Format("Mutation: %v", mutation))
+                .With("Value", formatValue(entry));
         }
     };
 
@@ -77,20 +75,21 @@ void TSchedulerMutations::Log(const TLogger& Logger) const
     onIndexedEntries("change proxy role", ChangedProxyRole);
     onSet("remove proxy role", RemovedProxyRole);
     for (const auto& mutation : CellsToRemove) {
-        YT_LOG_DEBUG("Mutation: remove cell (Value: %v)",
-            mutation.Mutation);
+        YT_TLOG_DEBUG("Mutation: remove cell")
+            .With("Value", mutation.Mutation);
     }
     onIndexedEntries("create cells", CellsToCreate);
     onIndexedEntries("lift system account limit", LiftedSystemAccountLimit);
     onIndexedEntries("lower system account limit", LoweredSystemAccountLimit);
     if (ChangedRootSystemAccountLimit) {
-        YT_LOG_DEBUG("Mutation: change root system account limit (Value: %v)",
-            ConvertToYsonString(ChangedRootSystemAccountLimit, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Mutation: change root system account limit")
+            .With("Value", ConvertToYsonString(ChangedRootSystemAccountLimit, EYsonFormat::Text));
     }
     if (BundlesDynamicConfig) {
         std::string configStr = ConvertToYsonString(*BundlesDynamicConfig, EYsonFormat::Text).ToString();
         TruncateStringInplace(&configStr, 100);
-        YT_LOG_DEBUG("Mutation: change bundles dynamic config (Value: %v)", configStr);
+        YT_TLOG_DEBUG("Mutation: change bundles dynamic config")
+            .With("Value", configStr);
     }
     onSet("node to cleanup", NodesToCleanup);
     onSet("proxy to cleanup", ProxiesToCleanup);
@@ -98,6 +97,7 @@ void TSchedulerMutations::Log(const TLogger& Logger) const
     onIndexedEntries("change bundle short name", ChangedBundleShortName);
     onIndexedEntries("change bundle node tag filter", ChangedNodeTagFilters);
     onIndexedEntries("initialize bundle target config", InitializedBundleTargetConfig);
+    onIndexedEntries("request node config update", NodeConfigUpdateRequests);
 }
 
 auto TSchedulerMutations::MakeOnAlertCallback() -> TOnAlertCallback
@@ -136,7 +136,41 @@ int TSchedulerMutations::GetMutationCount() const
         ssize(ChangedNodeTagFilters) +
         ssize(InitializedBundleTargetConfig) +
         (BundlesDynamicConfig ? 1 : 0) +
-        (ChangedRootSystemAccountLimit ? 1 : 0);
+        (ChangedRootSystemAccountLimit ? 1 : 0) +
+        ssize(NodeConfigUpdateRequests) +
+        0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSchedulerMutations::SetNodeDecommissioned(
+    const std::string& nodeAddress,
+    bool decommissioned,
+    std::string comment)
+{
+    ChangedDecommissionedFlag[nodeAddress] = WrapMutation(decommissioned);
+    if (decommissioned) {
+        YT_VERIFY(!comment.empty());
+        NodeDecommissionMaintenanceComments[nodeAddress] = std::move(comment);
+    } else {
+        YT_VERIFY(comment.empty());
+        NodeDecommissionMaintenanceComments.erase(nodeAddress);
+    }
+}
+
+void TSchedulerMutations::SetNodeBanned(
+    const std::string& nodeAddress,
+    bool banned,
+    std::string comment)
+{
+    ChangedBannedFlag[nodeAddress] = WrapMutation(banned);
+    if (banned) {
+        YT_VERIFY(!comment.empty());
+        NodeBanMaintenanceComments[nodeAddress] = std::move(comment);
+    } else {
+        YT_VERIFY(comment.empty());
+        NodeBanMaintenanceComments.erase(nodeAddress);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

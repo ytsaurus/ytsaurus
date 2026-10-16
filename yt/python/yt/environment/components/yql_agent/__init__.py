@@ -1,10 +1,17 @@
-from yt.common import wait, YtError
+from yt.common import wait, YtError, makedirp
 
 from yt.environment.configs_provider import _init_logging
 from yt.environment import YTServerComponentBase, YTComponent
 
 import logging
 import os
+import shutil
+
+from yt.environment.components.yql_agent.qtworker_configs import (
+    build_fs_conf,
+    build_gateways_conf,
+    build_worker_conf,
+)
 
 logger = logging.getLogger("YtLocal")
 
@@ -20,9 +27,17 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         super(YqlAgent, self).__init__()
         self.client = None
         self.artifacts_path = None
-        self.subprocesses_count = None
+        self.subprocess_count = None
         self.env = None
         self.remote_envs = []
+        self.enable_dq = False
+        self.enable_dq_worker = False
+        self._qtworker_enabled = False
+        self._qtworker_processes = []
+        self._qtworker_binary = None
+        self._qtworker_inspector_ports = {}
+        self._qtworker_instances = []
+        self._qtworker_skip_instances = set()
 
     def prepare(self, env, config, remote_envs=[]):
         logger.info("Preparing yql agent")
@@ -34,20 +49,33 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         self.config = config
         self.env = env
         self.remote_envs = remote_envs
+        self.enable_dq = config.get("enable_dq", False)
+        self.enable_dq_worker = config.get("enable_dq_worker", False)
+        if self.enable_dq and self.enable_dq_worker:
+            raise YtError("enable_dq and enable_dq_worker are mutually exclusive")
+        if self.enable_dq_worker and not self._is_qtworker_enabled(config):
+            raise YtError("enable_dq_worker requires enable_qtworker")
+        self.enable_qtworker = self._is_qtworker_enabled(config)
+
+        self._qtworker_dq_interconnect_port = None
+        self._qtworker_dq_grpc_port = None
+        if self.enable_dq_worker:
+            self._allocate_qtworker_dq_ports()
 
         if "artifacts_path" in config:
             self.artifacts_path = config["artifacts_path"]
         elif "mr_job_bin" not in config \
-                or "mr_job_udfs_dir" not in config \
-                or "yql_plugin_shared_library" not in config:
+                or "mr_job_udfs_dir" not in config:
             raise YtError("Artifacts path is not specified in yql agent config")
 
-        if "subprocesses_count" in config and config["subprocesses_count"] != 0:
-            self.subprocesses_count = config["subprocesses_count"]
+        if "subprocess_count" in config and config["subprocess_count"] != 0:
+            self.subprocess_count = config["subprocess_count"]
 
         self.max_supported_yql_version = config.get("max_supported_yql_version")
         self.default_yql_ui_version = config.get("default_yql_ui_version")
         self.allow_not_released_yql_versions = config.get("allow_not_released_yql_versions")
+
+        self.dynamic_config_update_period = config.get("dynamic_config_update_period")
 
         super(YqlAgent, self).prepare(env, config)
 
@@ -65,12 +93,246 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         with open(self.token_path, "w") as file:
             file.write(yql_agent_token)
 
+        if self.enable_qtworker:
+            self._prepare_qtworker()
+
         logger.info("Yql agent prepared")
+
+    def render_gateways_conf(self, index=0):
+        gateways_template = self.config.get("qtworker_gateways_conf")
+        if gateways_template and not self.enable_dq_worker:
+            with open(gateways_template) as gateways_file:
+                gateways_text = gateways_file.read()
+
+            replacements = {
+                "${cluster_name}": self.env.id,
+                "${cluster_address}": self.env.get_http_proxy_address(),
+                "${mr_job_bin}": self._resolve_mrjob(),
+                "${yt_debug_log_file}": os.path.join(
+                    self.env.logs_path, "qtworker_{}_yt_debug.log".format(index)),
+                "${remote_cluster_mappings}": "\n\n    ".join(
+                    "\n".join([
+                        "ClusterMapping {",
+                        "        Name: \"{}\"".format(remote_env.id),
+                        "        Cluster: \"{}\"".format(remote_env.get_http_proxy_address()),
+                        "    }",
+                    ])
+                    for remote_env in self.remote_envs
+                ),
+            }
+            for placeholder, value in replacements.items():
+                gateways_text = gateways_text.replace(placeholder, value)
+            return gateways_text
+
+        return build_gateways_conf(
+            cluster_name=self.env.id,
+            cluster_address=self.env.get_http_proxy_address(),
+            mr_job_bin=self._resolve_mrjob(),
+            yt_debug_log_file=os.path.join(
+                self.env.logs_path, "qtworker_{}_yt_debug.log".format(index)),
+            enable_dq=self.enable_dq_worker,
+            remote_clusters=[
+                (remote_env.id, remote_env.get_http_proxy_address())
+                for remote_env in self.remote_envs
+            ],
+        )
+
+    @staticmethod
+    def _is_qtworker_enabled(config):
+        return config.get("enable_qtworker", False)
+
+    def _allocate_qtworker_dq_ports(self):
+        self._qtworker_dq_interconnect_port = next(self.env._open_port_iterator)
+        self._qtworker_dq_grpc_port = next(self.env._open_port_iterator)
+
+    @staticmethod
+    def _build_dq_gateway_config():
+        return {
+            "default_settings": [
+                {"name": "EnableComputeActor", "value": "1"},
+                {"name": "MemoryLimit", "value": "3G"},
+            ]
+        }
+
+    def _prepare_qtworker_fs_conf(self, instance):
+        fs_conf = os.path.join(self.env.configs_path, "qtworker_fs_{}.conf".format(instance["index"]))
+        fs_text = build_fs_conf(filecache_path=os.path.join(instance["instance_root"], "filecache"))
+        with open(fs_conf, "w") as fs_out:
+            fs_out.write(fs_text)
+        instance["fs_conf"] = fs_conf
+
+    def _prepare_qtworker_worker_conf(self, instance):
+        instance_root = instance["instance_root"]
+        socket_dir = os.path.join(instance_root, "qt_socket_dir")
+
+        makedirp(os.path.join(instance_root, "run"))
+        makedirp(os.path.join(instance_root, "qtworker-tasks"))
+        makedirp(os.path.join(instance_root, "filecache"))
+        makedirp(socket_dir)
+
+        instance["socket_dir"] = socket_dir
+
+        core_port = next(self.env._open_port_iterator)
+        core_task_port = next(self.env._open_port_iterator)
+
+        udfs_dir = self._resolve_udfs_dir()
+
+        udf_resolver = self.config.get("qtworker_udf_resolver_path")
+        if udf_resolver is None:
+            raise YtError("qtworker_udf_resolver_path is not specified in config")
+
+        stub = self.config.get("qtworker_udf_dep_stub_path")
+        if not stub:
+            raise YtError("qtworker_udf_dep_stub_path is not specified in config")
+
+        qtworker_log_file = os.path.join(self.env.logs_path, "qtworker_{}.log".format(instance["index"]))
+
+        dq_params = None
+        if self.enable_dq_worker:
+            dq_params = {
+                "cluster_name": self.env.id,
+                "cluster_address": self.env.get_http_proxy_address(),
+                "token_path": self.token_path,
+                "user": self.USER_NAME,
+                "dq_vanilla_job": self._get_artifact_path("dq_vanilla_job"),
+                "dq_vanilla_job_lite": self._get_artifact_path("dq_vanilla_job.lite"),
+                "dq_yt_prefix": self.config.get("dq_yt_prefix", "//sys/yql_agent/dq/data/tmp"),
+                "dq_coordinator_prefix": self.config.get(
+                    "dq_coordinator_prefix", "//sys/yql_agent/dq_coord"),
+                "dq_port_start": self.config.get("qtworker_dq_port_start", 31401),
+                "dq_port_finish": self.config.get("qtworker_dq_port_finish", 31500),
+                "dq_worker_actor_start_port": self.config.get(
+                    "dq_worker_actor_start_port", 31302),
+                "dq_worker_same_actor_ports": self.config.get(
+                    "dq_worker_same_actor_ports", False),
+                "max_jobs": self.config.get("qtworker_dq_max_jobs", 1),
+                "jobs_per_operation": self.config.get("qtworker_dq_jobs_per_operation", 1),
+                "min_node_id": self.config.get("qtworker_dq_min_node_id", 512),
+                "memory_limit": self.config.get(
+                    "qtworker_dq_memory_limit", 8 * 1024 ** 3),
+                "cpu_limit": self.config.get("qtworker_dq_cpu_limit", 2),
+            }
+
+        worker_text = build_worker_conf(
+            instance_root=instance_root,
+            udfs_dir=udfs_dir,
+            udf_resolver_path=udf_resolver,
+            udf_dep_stub_path=stub,
+            token_path=self.token_path,
+            qtworker_log_file=qtworker_log_file,
+            qt_socket_dir=socket_dir,
+            inspector_port=instance["inspector_port"],
+            core_port=core_port,
+            core_task_port=core_task_port,
+            dq_interconnect_port=self._qtworker_dq_interconnect_port,
+            dq_grpc_port=self._qtworker_dq_grpc_port,
+            enable_dq=self.enable_dq_worker,
+            dq_params=dq_params,
+            log_level=self.config.get("qtworker_log_level", "DEBUG"),
+            token_resolver_socket_path=(
+                self._get_token_service_socket_path(instance["index"])
+                if self.config.get("use_token_resolver", False)
+                else None
+            ),
+        )
+
+        worker_conf = os.path.join(self.env.configs_path, "qtworker_worker_{}.conf".format(instance["index"]))
+        with open(worker_conf, "w") as worker_out:
+            worker_out.write(worker_text)
+        instance["worker_conf"] = worker_conf
+
+    def _prepare_qtworker_gateways_conf(self, instance):
+        gw_text = self.render_gateways_conf(instance["index"])
+
+        gw_conf = os.path.join(self.env.configs_path, "qtworker_gateways_{}.conf".format(instance["index"]))
+        with open(gw_conf, "w") as gw_out:
+            gw_out.write(gw_text)
+        instance["gateways_conf"] = gw_conf
+
+    def _prepare_qtworker(self):
+        binary = self.config.get("qtworker_path")
+        if not binary:
+            raise YtError("qtworker_path is not specified in config")
+
+        self._qtworker_enabled = True
+        self._qtworker_binary = binary
+        self._qtworker_processes = []
+        self._qtworker_instances = []
+        # Configs are prepared for all instances, including the skipped ones,
+        # so that a test may start the missing qtworker later via start_qtworker.
+        self._qtworker_skip_instances = set(self.config.get("qtworker_skip_instances") or [])
+
+        # Start a dedicated qtworker per yql agent instance, each bound to that
+        # agent's inspector port and using isolated ports, sockets and paths.
+        for index in sorted(self._qtworker_inspector_ports):
+            instance = {
+                "index": index,
+                "inspector_port": self._qtworker_inspector_ports[index],
+                "instance_root": os.path.join(self.env.path, "qtworker_instance_{}".format(index)),
+            }
+            self._prepare_qtworker_fs_conf(instance)
+            self._prepare_qtworker_gateways_conf(instance)
+            self._prepare_qtworker_worker_conf(instance)
+            self._qtworker_instances.append(instance)
 
     def run(self):
         logger.info("Starting yql agent")
         super(YqlAgent, self).run()
+        if self._qtworker_enabled:
+            logger.info("Starting qtworkers")
+            for instance in self._qtworker_instances:
+                if instance["index"] in self._qtworker_skip_instances:
+                    logger.info("Skipping qtworker start for yql agent %s", instance["index"])
+                    continue
+                self._start_qtworker(instance)
+            logger.info("Qtworkers started")
         logger.info("Yql agent started")
+
+    def _run_qtworker_role(self, instance, role: str):
+        lowercase_name = "qtworker_{}_{}".format(role, instance["index"])
+        self._qtworker_processes.append(lowercase_name)
+
+        self.env.prepare_external_component(
+            self._qtworker_binary,
+            lowercase_name,
+            f"qtworker {role}s",
+            [{}])  # qt_worker does not have the usual yson config
+
+        args = [
+            self._qtworker_binary,
+            "--role",
+            role,
+            "--cfg",
+            instance["worker_conf"],
+            "--fs-cfg",
+            instance["fs_conf"],
+            "--gateways-cfg",
+            instance["gateways_conf"],
+        ]
+
+        self.env.run_external_component(name=lowercase_name, args=args)
+
+    def _start_qtworker(self, instance):
+        self._run_qtworker_role(instance, "master")
+
+        for role in ["forker", "core"]:
+            socket_path = os.path.join(instance["socket_dir"], f"{role}.socket")
+            wait(lambda: os.path.exists(socket_path), ignore_exceptions=True)
+
+        self._run_qtworker_role(instance, "forker")
+        self._run_qtworker_role(instance, "core")
+        if self.enable_dq_worker:
+            self._run_qtworker_role(instance, "dq")
+
+    def start_qtworker(self, index):
+        for instance in self._qtworker_instances:
+            if instance["index"] == index:
+                if index not in self._qtworker_skip_instances:
+                    raise YtError("Qtworker instance {0} is already running".format(index))
+                self._qtworker_skip_instances.discard(index)
+                self._start_qtworker(instance)
+                return
+        raise YtError("There is no qtworker instance with index {0}".format(index))
 
     def wait(self):
         logger.info("Waiting for yql agent to become ready")
@@ -85,6 +347,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 "production": {
                     "channel": {
                         "addresses": self.addresses,
+                        "disable_balancing_on_single_address": False,
                     }
                 },
             },
@@ -114,21 +377,40 @@ class YqlAgent(YTServerComponentBase, YTComponent):
     def _get_artifact_path(self, subpath=""):
         return os.path.join(self.artifacts_path, subpath)
 
+    def _resolve_mrjob(self):
+        if self.artifacts_path:
+            return self._get_artifact_path("mrjob")
+        return self.config["mr_job_bin"]
+
+    def _resolve_udfs_dir(self):
+        if self.artifacts_path:
+            return self._get_artifact_path()
+        return self.config["mr_job_udfs_dir"]
+
+    def _resolve_yql_plugin_so(self):
+        if self.artifacts_path:
+            return self._get_artifact_path("libyqlplugin.so")
+        return self.config.get("yql_plugin_shared_library") or ""
+
+    def _get_token_service_socket_path(self, instance_index):
+        return os.path.join(
+            self.env.path,
+            "yql_agent_token_service_{}".format(instance_index),
+            "socket")
+
+    def override_common_settings(self, config, instance_index: int):
+        # TODO(mpereskokova): YQLOVERYT-333: Remove after rpc timeout set in dq
+        if self.enable_dq or self.enable_dq_worker:
+            config["rpc_dispatcher"]["alert_on_unset_request_timeout"] = False
+        return config
+
     def get_default_config(self, instance_index: int):
         self.token_path = os.path.join(self.env.configs_path, "yql_agent_token")
 
-        mr_job_bin, mr_job_udfs_dir, yql_plugin_shared_library = None, None, None
-        if self.artifacts_path:
-            mr_job_bin = self._get_artifact_path("mrjob")
-            mr_job_udfs_dir = self._get_artifact_path()
-            yql_plugin_shared_library = self._get_artifact_path("libyqlplugin.so")
-        else:
-            mr_job_bin = self.config["mr_job_bin"]
-            mr_job_udfs_dir = self.config["mr_job_udfs_dir"]
-            yql_plugin_shared_library = self.config["yql_plugin_shared_library"]
+        mr_job_bin, mr_job_udfs_dir, yql_plugin_shared_library = self._resolve_mrjob(), self._resolve_udfs_dir(), self._resolve_yql_plugin_so()
 
         process_plugin_config = None
-        if self.subprocesses_count:
+        if self.subprocess_count:
             logging_config = {}
             yql_agent_plugin_slots_path = os.path.join(self.env.path, 'yql_agent', str(instance_index), 'plugin_slots')
             _init_logging(
@@ -142,7 +424,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
 
             process_plugin_config = {
                 "enabled": True,
-                "slot_count": self.subprocesses_count,
+                "slot_count": self.subprocess_count,
                 "log_manager_template": logging_config,
                 "slots_root_path": yql_agent_plugin_slots_path
             }
@@ -180,6 +462,89 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             },
         }
 
+        if self.config.get("use_token_resolver", False):
+            config["yql_agent"]["use_token_resolver"] = True
+            config["yql_agent"]["token_service"] = {
+                "unix_socket_path": self._get_token_service_socket_path(instance_index),
+            }
+
+        if self.dynamic_config_update_period is not None:
+            config["dynamic_config_manager"] = {
+                "update_period": self.dynamic_config_update_period
+            }
+
+        # DQ in yql-agent: full config with embedded GWM (enable_dq), or client-only
+        # config pointing at qtworker GWM (enable_dq_worker, no yt_backends).
+        if self.enable_dq:
+            dq_vanilla_job = self._get_artifact_path("dq_vanilla_job")
+            dq_vanilla_job_lite = self._get_artifact_path("dq_vanilla_job.lite")
+
+            config["yql_agent"]["enable_dq"] = True
+            config["yql_agent"]["dq_gateway_config"] = self._build_dq_gateway_config()
+            dq_manager_config = {
+                "interconnect_port": self.config.get("dq_coordinator_interconnect_port", 31002),
+                "grpc_port": self.config.get("dq_coordinator_grpc_port", 31001),
+                "yt_backends": [
+                    {
+                        "cluster_name": self.env.id,
+                        "proxy_address": self.env.get_http_proxy_address(),
+                        "vanilla_job_lite": dq_vanilla_job_lite,
+                        "vanilla_job_file": [
+                            {
+                                "name": "dq_vanilla_job",
+                                "local_path": dq_vanilla_job,
+                            }
+                        ],
+                        "token_file": self.token_path,
+                        "user": self.USER_NAME,
+                        "use_tmp_fs": False,
+                        "max_jobs": 1,
+                        "jobs_per_operation": 1,
+                    },
+                ],
+                "yt_coordinator": {
+                    "cluster_name": self.env.id,
+                    "proxy_address": self.env.get_http_proxy_address(),
+                    "prefix": "//sys/yql_agent/dq_coord",
+                    "token_file": self.token_path,
+                    "user": self.USER_NAME,
+                },
+            }
+
+            worker_actor_start_port = self.config.get("dq_worker_actor_start_port")
+            if worker_actor_start_port is not None:
+                for backend in dq_manager_config["yt_backends"]:
+                    backend["actor_start_port"] = worker_actor_start_port
+                    # Without porto, multiple local workers on one host need distinct ports.
+                    backend["same_actor_ports"] = self.config.get("dq_worker_same_actor_ports", False)
+
+            config["yql_agent"]["dq_manager_config"] = dq_manager_config
+        elif self.enable_dq_worker:
+            config["yql_agent"]["enable_dq"] = True
+            config["yql_agent"]["dq_gateway_config"] = self._build_dq_gateway_config()
+            dq_yt_prefix = self.config.get("dq_yt_prefix", "//sys/yql_agent/dq/data/tmp")
+            config["yql_agent"]["dq_manager_config"] = {
+                "interconnect_port": self._qtworker_dq_interconnect_port,
+                "grpc_port": self._qtworker_dq_grpc_port,
+                "yt_backends": [
+                    {
+                        "cluster_name": self.env.id,
+                        "proxy_address": self.env.get_http_proxy_address(),
+                        "token_file": self.token_path,
+                        "user": self.USER_NAME,
+                        "prefix": dq_yt_prefix,
+                        "max_jobs": 0,
+                    },
+                ],
+                "yt_coordinator": {
+                    "cluster_name": self.env.id,
+                    "proxy_address": self.env.get_http_proxy_address(),
+                    "prefix": self.config.get("dq_coordinator_prefix", "//sys/yql_agent/dq_coord"),
+                    "token_file": self.token_path,
+                    "user": self.USER_NAME,
+                },
+            }
+
         modify_yql_agent_config = self.config.get('modify_yql_agent_config')
         if modify_yql_agent_config is not None:
             modify_yql_agent_config(config)
@@ -193,8 +558,22 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         if self.allow_not_released_yql_versions is not None:
             config["yql_agent"]["allow_not_released_yql_versions"] = self.allow_not_released_yql_versions
 
+        if self.enable_qtworker:
+            config["yql_agent"]["use_qtworker_yql_plugin"] = True
+
+            inspector_port = next(self.env._open_port_iterator)
+            self._qtworker_inspector_ports[instance_index] = inspector_port
+            config["yql_agent"]["qtworker_inspector_port"] = inspector_port
+            config["yql_agent"]["qtworker_gateways_config_path"] = os.path.join(self.env.configs_path, "qtworker_gateways_{}.conf".format(instance_index))
+
+            config["yql_agent"]["udf_meta_user"] = self.USER_NAME
+
         if process_plugin_config:
             config["yql_agent"]["process_plugin_config"] = process_plugin_config
+            config["yql_agent"]["file_storage_config"].setdefault(
+                "path",
+                os.path.join(process_plugin_config["slots_root_path"], "file_storage"),
+            )
 
         return config
 
@@ -203,11 +582,36 @@ class YqlAgent(YTServerComponentBase, YTComponent):
              ignore_exceptions=True,
              timeout=600)
 
+        if self._qtworker_enabled:
+            if self.addresses.index(address) in self._qtworker_skip_instances:
+                return
+
+            # The agent starts serving RPC before its plugin is able to execute queries
+            # (e.g. before qtworkers have registered), so wait for the plugin as well.
+            wait(lambda: self.client.get(f"//sys/yql_agent/instances/{address}/orchid/yql_agent/ready"),
+                 error_message=f"Yql agent {address} didn't become ready in time",
+                 ignore_exceptions=True,
+                 timeout=600)
+
     def stop(self):
-        logger.info("Stopping yql agent")
-        super(YqlAgent, self).stop()
-        self.client.remove(f"//sys/users/{self.USER_NAME}")
-        self.client.remove("//sys/yql_agent/instances", recursive=True, force=True)
-        self.client.remove(f"//sys/clusters/{self.env.id}/yql_agent", recursive=True, force=True)
-        self.client.remove("//sys/yql_agent", recursive=True, force=True)
-        logger.info("Yql agent stopped")
+        if self._qtworker_processes:
+            logger.info("Stopping qtworker processes")
+            for process in self._qtworker_processes:
+                self.env.kill_service(process)
+            logger.info("Qtworker processes stopped")
+            self._qtworker_processes = []
+
+        try:
+            logger.info("Stopping yql agent")
+            super(YqlAgent, self).stop()
+
+            self.client.remove(f"//sys/users/{self.USER_NAME}")
+            self.client.remove("//sys/yql_agent/instances", recursive=True, force=True)
+            self.client.remove(f"//sys/clusters/{self.env.id}/yql_agent", recursive=True, force=True)
+            self.client.remove("//sys/yql_agent", recursive=True, force=True)
+            logger.info("Yql agent stopped")
+        finally:
+            # Each qtworker instance leaves ~1-2 GB of file cache behind; its processes
+            # are already stopped, so wiping it is safe.
+            for instance in self._qtworker_instances:
+                shutil.rmtree(os.path.join(instance["instance_root"], "filecache"), ignore_errors=True)

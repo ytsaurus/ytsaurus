@@ -30,6 +30,7 @@ target_link_libraries(libs-tcmalloc-default INTERFACE
   contrib-libs-cxxsupp
   contrib-restricted-abseil-cpp
   libs-tcmalloc-malloc_extension
+  libs-tcmalloc-internal_utils
 )
 
 
@@ -50,6 +51,7 @@ target_link_libraries(libs-tcmalloc-default.global PUBLIC
   contrib-libs-cxxsupp
   contrib-restricted-abseil-cpp
   libs-tcmalloc-malloc_extension
+  libs-tcmalloc-internal_utils
 )
 
 target_sources(libs-tcmalloc-default.global PRIVATE
@@ -89,22 +91,15 @@ target_sources(libs-tcmalloc-default.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/transfer_cache.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/experiment.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/affinity.cc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/allocation_guard.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/cache_topology.cc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/environment.cc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/logging.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/memory_stats.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/memory_tag.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/mincore.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/numa.cc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/page_size.cc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/pageflags.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/percpu.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/percpu_rseq_unsupported.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/percpu_rseq_asm.S
   ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/proc_maps.cc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/residency.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/sysinfo.cc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/util.cc
 )
 

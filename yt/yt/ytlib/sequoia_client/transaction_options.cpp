@@ -2,6 +2,21 @@
 
 #include <yt/yt/ytlib/sequoia_client/proto/transaction_client.pb.h>
 
+namespace NYT::NSequoiaClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(TStringBuilderBase* builder, const TSequoiaTransactionFeatures& features, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("{UseSharedWriteLockForCypressTransactions: %v, CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator: %v}",
+        features.UseSharedWriteLocksForCypressTransactions,
+        features.CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NSequoiaClient
+
 namespace NYT::NSequoiaClient::NProto {
 
 ////////////////////////////////////////////////////////////////////////////////

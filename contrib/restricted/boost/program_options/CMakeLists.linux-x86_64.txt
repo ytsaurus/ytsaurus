@@ -37,7 +37,6 @@ target_link_libraries(restricted-boost-program_options PUBLIC
   restricted-boost-iterator
   restricted-boost-lexical_cast
   restricted-boost-smart_ptr
-  restricted-boost-static_assert
   restricted-boost-throw_exception
   restricted-boost-tokenizer
   restricted-boost-type_traits

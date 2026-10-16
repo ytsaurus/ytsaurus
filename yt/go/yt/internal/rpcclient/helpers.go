@@ -297,8 +297,9 @@ func convertAccessTrackingOptions(opts *yt.AccessTrackingOptions) *rpc_proxy.TSu
 	}
 
 	return &rpc_proxy.TSuppressableAccessTrackingOptions{
-		SuppressAccessTracking:       &opts.SuppressAccessTracking,
-		SuppressModificationTracking: &opts.SuppressModificationTracking,
+		SuppressAccessTracking:           &opts.SuppressAccessTracking,
+		SuppressModificationTracking:     &opts.SuppressModificationTracking,
+		SuppressExpirationTimeoutRenewal: &opts.SuppressExpirationTimeoutRenewal,
 	}
 }
 

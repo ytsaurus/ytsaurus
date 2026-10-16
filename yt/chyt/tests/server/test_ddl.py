@@ -1,21 +1,77 @@
 from helpers import get_object_attribute_cache_config
 
 from yt_commands import (authors, raises_yt_error, create, create_dynamic_table, exists, sync_mount_table, write_table,
-                         sync_create_cells)
+                         sync_create_cells, create_user, get, make_ace, set)
 
 from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
+
+import yt.yson as yson
 
 import time
 
 
 class TestClickHouseDdl(ClickHouseTestBase):
+    @authors("buyval01")
+    def test_sql_object_ddl_permissions(self):
+        create_user("manager")
+        create_user("reader")
+        schema = [
+            {"name": "a", "type": "uint64", "required": True},
+            {"name": "b", "type": "int64", "required": True},
+        ]
+        create("table", "//tmp/source", attributes={"schema": schema})
+        create("table", "//tmp/target", attributes={"schema": schema})
+        write_table("//tmp/source", [{"a": 1, "b": 2}])
+
+        with Clique(1, alias="test_alias") as clique:
+            set("//sys/access_control_object_namespaces/chyt/test_alias/principal/@acl", [
+                make_ace("allow", ["manager", "reader"], "use"),
+                make_ace("allow", "manager", "manage"),
+            ])
+            for path in (clique.storage_artifacts_path, clique.materialized_views_path):
+                set(path + "/@acl/end", make_ace(
+                    "deny", ["manager", "reader"], ["write", "remove"],
+                ))
+
+            objects = [
+                ("t_dict", "DROP DICTIONARY t_dict",
+                 "CREATE DICTIONARY t_dict (a UInt64, b Int64) PRIMARY KEY a "
+                 "SOURCE(Yt(Path '//tmp/source')) LAYOUT(FLAT()) LIFETIME(0)"),
+                ("mv", "DROP TABLE mv",
+                 'CREATE MATERIALIZED VIEW mv TO "//tmp/target" '
+                 'AS SELECT a, b FROM "//tmp/source"'),
+            ]
+            for name, drop_query, create_query in objects:
+                statement_path = clique.storage_artifacts_path + "/YT." + name
+                with raises_yt_error("Access denied"):
+                    clique.make_query(create_query, user="reader")
+                assert not exists(statement_path)
+
+                clique.make_query(create_query, user="manager")
+                if name == "mv":
+                    config = yson.loads(yson.get_bytes(get(statement_path + "/@value")))
+                    assert config["creator"] == "manager"
+                    view_id = get(statement_path + "/@id")
+                    assert exists(clique.materialized_views_path + "/progress/" + view_id)
+                else:
+                    assert clique.make_query(
+                        "SELECT dictGetInt64('t_dict', 'b', toUInt64(1)) AS b",
+                    ) == [{"b": 2}]
+
+                with raises_yt_error("Access denied"):
+                    clique.make_query(drop_query, user="reader")
+                assert exists(statement_path)
+
+                clique.make_query(drop_query, user="manager")
+                assert not exists(statement_path)
+
     @authors("evgenstf")
     def test_drop_nonexistent_table(self):
         patch = get_object_attribute_cache_config(500, 500, None, None)
         with Clique(1, config_patch=patch) as clique:
             assert not exists("//tmp/t")
             assert clique.make_query('exists "//tmp/t"') == [{"result": 0}]
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('drop table "//tmp/t"')
 
     @authors("evgenstf")
@@ -37,11 +93,11 @@ class TestClickHouseDdl(ClickHouseTestBase):
             write_table("//tmp/t", [{"a": "2012-12-12 20:00:00"}])
             create("table", "//tmp/s", attributes={"schema": [{"name": "a", "type": "string"}]})
             assert exists("//tmp/t") and exists("//tmp/s")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('rename table "//tmp/t" to "//tmp/s"')
             assert clique.make_query('select * from "//tmp/s"') == []
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('rename table "//tmp/tt" to "//tmp/ss"')
             assert not exists("//tmp/tt") and not exists("//tmp/ss")
 
@@ -61,7 +117,7 @@ class TestClickHouseDdl(ClickHouseTestBase):
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
             write_table("//tmp/t", [{"a": "2012-12-12 20:00:00"}])
             assert exists("//tmp/t")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('exchange tables "//tmp/t" and "//tmp/s"')
             assert not exists("//tmp/s")
 
@@ -81,14 +137,14 @@ class TestClickHouseDdl(ClickHouseTestBase):
         sync_create_cells(1)
 
         with Clique(1) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('truncate table "//tmp/t"')
 
             create_dynamic_table("//tmp/t1", schema=[{"name": "k", "type": "int64", "sort_order": "ascending"},
                                                      {"name": "v", "type": "string"}], enable_dynamic_store_read=True)
             sync_mount_table("//tmp/t1")
             assert exists("//tmp/t1")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('truncate table "//tmp/t1"')
 
     @authors("gudqeit")
@@ -105,8 +161,30 @@ class TestClickHouseDdl(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_create_table_unsupported_engine(self):
         with Clique(1) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('create table "//tmp/t_unsupported" (a String) engine Memory')
+
+    @authors("iharbychyk")
+    def test_create_table_wrong_sort_order(self):
+        with Clique(1) as clique:
+            create("table", "//tmp/t1", attributes={"schema": [
+                {"name": "s", "type": "string"},
+                {"name": "n", "type": "int64"},
+            ]})
+            write_table("//tmp/t1", [
+                {"s": "aba", "n": 4},
+                {"s": "aaa", "n": 3},
+                {"s": "cba", "n": 1},
+                {"s": "aab", "n": 2},
+            ])
+
+            with raises_yt_error(code=QueryFailedError):
+                clique.make_query('''
+                    create table "//tmp/t2" engine YtTable() order by n as
+                    select * from "//tmp/t1"
+                ''')
+
+            assert not exists("//tmp/t2")
 
 
 @enable_sequoia

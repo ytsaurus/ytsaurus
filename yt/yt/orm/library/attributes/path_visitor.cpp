@@ -102,7 +102,7 @@ TStringBuf TPathVisitorMixin::GetToken() const
     return Tokenizer_.GetToken();
 }
 
-const TString& TPathVisitorMixin::GetLiteralValue() const
+const std::string& TPathVisitorMixin::GetLiteralValue() const
 {
     return Tokenizer_.GetLiteralValue();
 }
@@ -124,7 +124,7 @@ void TPathVisitorMixin::Expect(NYPath::ETokenType type) const
         Tokenizer_.GetType());
 
     if (Tokenizer_.GetPreviousType() == NYPath::ETokenType::Slash) {
-        error <<= TErrorAttribute("note", "the path cannot normally end with a slash");
+        error.Add("note", "the path cannot normally end with a slash");
     }
 
     THROW_ERROR_EXCEPTION(error);

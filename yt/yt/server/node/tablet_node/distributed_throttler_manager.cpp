@@ -7,7 +7,7 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/discovery_client/config.h>
+#include <yt/yt/library/discovery_client/config.h>
 
 #include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
 
@@ -86,20 +86,19 @@ public:
                 try {
                     auto factoryName = MakeFactoryName(tablePath, kind);
 
-                    YT_LOG_DEBUG("Creating distributed throttler factory "
-                        "(TablePath: %v, ThrottlerKind: %v, RpcTimeout: %v, GroupId: %v)",
-                        tablePath,
-                        kind,
-                        rpcTimeout,
-                        factoryName);
+                    YT_TLOG_DEBUG("Creating distributed throttler factory")
+                        .With("TablePath", tablePath)
+                        .With("ThrottlerKind", kind)
+                        .With("RpcTimeout", rpcTimeout)
+                        .With("GroupId", factoryName);
 
                     it->second = DoCreateFactory(factoryName, cellTag, kind, profiler);
                 } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Failed to create distributed throttler factory "
-                        "(TablePath: %v, ThrottlerKind: %v, RpcTimeout: %v)",
-                        tablePath,
-                        kind,
-                        rpcTimeout);
+                    YT_TLOG_ERROR("Failed to create distributed throttler factory")
+                        .With("TablePath", tablePath)
+                        .With("ThrottlerKind", kind)
+                        .With("RpcTimeout", rpcTimeout)
+                        .With(ex);
 
                     Factories_.erase(it);
                     return admitUnlimitedThrottler
@@ -123,7 +122,7 @@ private:
     IBootstrap* const Bootstrap_;
     const NDiscoveryClient::TMemberId MemberId_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
     THashMap<TKey, IDistributedThrottlerFactoryPtr> Factories_;
 
     const TDynamicConfigChangedCallback DynamicConfigCallback_;

@@ -1,0 +1,363 @@
+import copy
+
+import pytest
+
+from yt.yt.flow.library.python.yt_sync_mini.yt_sync_mini import (
+    LOCAL_PRESETS,
+    _deep_merge,
+    _resolve_attributes,
+    _table_attributes,
+)
+from yt.yt.flow.library.python.pipeline_tables import (
+    PIPELINE_QUEUES_PRESET,
+    PIPELINE_SORTED_TABLE_PRESET,
+    PIPELINE_TABLES_PRESET,
+)
+from yt.yt.flow.library.python.pipeline_tables.definitions import _get_pipeline_table_definitions
+
+# ---------------------------------------------------------------------------
+# _deep_merge
+# ---------------------------------------------------------------------------
+
+
+def test_deep_merge_scalar_replaces():
+    """Scalar in ``src`` replaces scalar in ``into``."""
+    result = _deep_merge({"a": 1, "b": 2}, {"b": 99})
+    assert result == {"a": 1, "b": 99}
+
+
+def test_deep_merge_nested_dict_merges_keys():
+    """Nested dicts merge key-by-key, ``src`` wins on conflicts."""
+    into = {"mount_config": {"min_data_ttl": 0, "merge_rows_on_flush": True}}
+    src = {"mount_config": {"merge_rows_on_flush": False, "auto_compaction_period": 3600000}}
+    _deep_merge(into, src)
+    assert into == {
+        "mount_config": {
+            "min_data_ttl": 0,
+            "merge_rows_on_flush": False,
+            "auto_compaction_period": 3600000,
+        }
+    }
+
+
+def test_deep_merge_rejects_list_in_src():
+    """Lists in ``src`` are rejected — Flow presets are not expected to
+    contain list values, and silent replace-vs-concatenate semantics would
+    be ambiguous."""
+    with pytest.raises(TypeError, match="list-valued attribute 'x'"):
+        _deep_merge({}, {"x": [1, 2, 3]})
+
+
+def test_deep_merge_rejects_list_in_into():
+    """A list already present in ``into`` is also rejected — the asymmetric
+    case (replacing a list with a scalar) would be just as surprising."""
+    with pytest.raises(TypeError, match="list-valued attribute 'x'"):
+        _deep_merge({"x": [1, 2, 3]}, {"x": "replacement"})
+
+
+def test_deep_merge_rejects_list_in_nested_dict():
+    """Lists nested inside a dict that's being recursively merged are
+    rejected at the level they appear."""
+    with pytest.raises(TypeError, match="list-valued attribute 'replicas'"):
+        _deep_merge(
+            {"mount_config": {"min_data_ttl": 0}},
+            {"mount_config": {"replicas": ["a", "b"]}},
+        )
+
+
+def test_deep_merge_rejects_dict_replacing_scalar():
+    """A dict in ``src`` cannot replace a scalar in ``into`` for the same key
+    (would erase the scalar with a structured value and obscure a preset bug)."""
+    with pytest.raises(TypeError, match="mismatched shape"):
+        _deep_merge({"x": 0}, {"x": {"a": 1}})
+
+
+def test_deep_merge_rejects_scalar_replacing_dict():
+    """A scalar in ``src`` cannot replace a dict in ``into`` for the same key
+    (would silently erase a parent's nested config)."""
+    with pytest.raises(TypeError, match="mismatched shape"):
+        _deep_merge({"mount_config": {"min_data_ttl": 0}}, {"mount_config": 42})
+
+
+def test_deep_merge_inserts_new_dict_into_empty_slot():
+    """If ``into`` has no entry for ``key``, ``src``'s value (scalar or dict)
+    is inserted as-is. Only same-key shape mismatches are rejected."""
+    result = _deep_merge({}, {"mount_config": {"min_data_ttl": 0}})
+    assert result == {"mount_config": {"min_data_ttl": 0}}
+    result = _deep_merge({"existing": 1}, {"new": "value"})
+    assert result == {"existing": 1, "new": "value"}
+
+
+def test_deep_merge_deepcopies_src_values():
+    """Values pulled from ``src`` are deep-copied; mutating the result must
+    not affect ``src``. This is the safeguard against ``LOCAL_PRESETS``
+    being mutated across repeated bootstrap calls.
+    """
+    src = {"mount_config": {"min_data_ttl": 0}}
+    result = _deep_merge({}, src)
+    result["mount_config"]["min_data_ttl"] = 99
+    assert src == {"mount_config": {"min_data_ttl": 0}}
+
+
+def test_deep_merge_returns_into():
+    """``_deep_merge`` returns the mutated ``into`` for fluent chaining."""
+    into = {}
+    assert _deep_merge(into, {"a": 1}) is into
+
+
+# ---------------------------------------------------------------------------
+# _resolve_attributes — base cases
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_empty_spec_returns_empty():
+    assert _resolve_attributes({}, {}) == {}
+
+
+def test_resolve_clusters_only_no_parents():
+    """A spec with just ``clusters`` and no ``$merge_presets`` returns that
+    cluster's flattened ``attributes``."""
+    spec = {"clusters": {"_all_clusters": {"attributes": {"dynamic": True}}}}
+    assert _resolve_attributes(spec, {}) == {"dynamic": True}
+
+
+def test_resolve_multiple_clusters_collapsed():
+    """Multiple cluster keys (wildcard + concrete) collapse into one dict."""
+    spec = {
+        "clusters": {
+            "_all_clusters": {"attributes": {"dynamic": True}},
+            "markov": {"attributes": {"tablet_cell_bundle": "flow"}},
+        }
+    }
+    assert _resolve_attributes(spec, {}) == {
+        "dynamic": True,
+        "tablet_cell_bundle": "flow",
+    }
+
+
+def test_resolve_cluster_without_attributes_is_noop():
+    """A cluster overlay missing the ``attributes`` key is silently skipped."""
+    spec = {
+        "clusters": {
+            "_all_clusters": {"attributes": {"dynamic": True}},
+            "markov": {"main": True},  # no `attributes` payload
+        }
+    }
+    assert _resolve_attributes(spec, {}) == {"dynamic": True}
+
+
+# ---------------------------------------------------------------------------
+# _resolve_attributes — preset chain
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_parent_preset_pulled_in():
+    """Parent preset's attrs are merged before child's overlay."""
+    registry = {
+        "parent": {"clusters": {"_all_clusters": {"attributes": {"dynamic": True}}}},
+    }
+    spec = {
+        "$merge_presets": ["parent"],
+        "clusters": {"_all_clusters": {"attributes": {"erasure_codec": "none"}}},
+    }
+    assert _resolve_attributes(spec, registry) == {
+        "dynamic": True,
+        "erasure_codec": "none",
+    }
+
+
+def test_resolve_child_overrides_parent_scalar():
+    """Child's scalar in the same key wins over parent's scalar."""
+    registry = {
+        "parent": {"clusters": {"_all_clusters": {"attributes": {"erasure_codec": "reed_solomon_3_3"}}}},
+    }
+    spec = {
+        "$merge_presets": ["parent"],
+        "clusters": {"_all_clusters": {"attributes": {"erasure_codec": "none"}}},
+    }
+    assert _resolve_attributes(spec, registry)["erasure_codec"] == "none"
+
+
+def test_resolve_child_deep_merges_parent_dict():
+    """Child's nested dict adds keys to parent's dict instead of replacing it."""
+    registry = {
+        "parent": {
+            "clusters": {
+                "_all_clusters": {"attributes": {"mount_config": {"min_data_ttl": 0, "merge_rows_on_flush": True}}}
+            },
+        },
+    }
+    spec = {
+        "$merge_presets": ["parent"],
+        "clusters": {"_all_clusters": {"attributes": {"mount_config": {"enable_lookup_hash_table": True}}}},
+    }
+    assert _resolve_attributes(spec, registry)["mount_config"] == {
+        "min_data_ttl": 0,
+        "merge_rows_on_flush": True,
+        "enable_lookup_hash_table": True,
+    }
+
+
+def test_resolve_unknown_preset_raises():
+    """A ``$merge_presets`` entry absent from the registry is a hard error:
+    every name must resolve."""
+    spec = {
+        "$merge_presets": ["builtin:table_preset", "known"],
+        "clusters": {"_all_clusters": {"attributes": {"x": 1}}},
+    }
+    registry = {"known": {"clusters": {"_all_clusters": {"attributes": {"y": 2}}}}}
+    with pytest.raises(KeyError, match="builtin:table_preset"):
+        _resolve_attributes(spec, registry)
+
+
+def test_resolve_chain_depth_first():
+    """``$merge_presets`` chain is walked depth-first: grandparent first,
+    then parent, then this spec."""
+    registry = {
+        "grandparent": {"clusters": {"_all_clusters": {"attributes": {"a": 1, "b": "from_grandparent"}}}},
+        "parent": {
+            "$merge_presets": ["grandparent"],
+            "clusters": {"_all_clusters": {"attributes": {"b": "from_parent", "c": "from_parent"}}},
+        },
+    }
+    spec = {
+        "$merge_presets": ["parent"],
+        "clusters": {"_all_clusters": {"attributes": {"c": "from_child"}}},
+    }
+    assert _resolve_attributes(spec, registry) == {
+        "a": 1,
+        "b": "from_parent",  # parent beats grandparent
+        "c": "from_child",  # child beats parent
+    }
+
+
+def test_resolve_multiple_parents_left_to_right():
+    """When ``$merge_presets`` lists multiple parents, later parents win
+    over earlier ones (matches yt_sync's left-to-right merge order)."""
+    registry = {
+        "first": {"clusters": {"_all_clusters": {"attributes": {"key": "first"}}}},
+        "second": {"clusters": {"_all_clusters": {"attributes": {"key": "second"}}}},
+    }
+    spec = {"$merge_presets": ["first", "second"]}
+    assert _resolve_attributes(spec, registry) == {"key": "second"}
+
+
+def test_resolve_does_not_mutate_registry():
+    """Repeated resolution of the same preset must not bleed state into the
+    shared registry (regression guard for the deepcopy-on-merge contract)."""
+    snapshot = copy.deepcopy(LOCAL_PRESETS)
+    for _ in range(3):
+        for table_preset in PIPELINE_TABLES_PRESET.values():
+            _resolve_attributes(table_preset, LOCAL_PRESETS)
+    assert LOCAL_PRESETS == snapshot
+
+
+# ---------------------------------------------------------------------------
+# Real pipeline presets — end-to-end smoke
+# ---------------------------------------------------------------------------
+
+
+def _resolved(table_name):
+    return _resolve_attributes(PIPELINE_TABLES_PRESET[table_name], LOCAL_PRESETS)
+
+
+def test_real_preset_timers_inherits_sorted_base():
+    """``timers`` should carry the base sorted-table preset attributes
+    (compression/erasure/optimize_for/mount_config) plus its own
+    ``in_memory_mode: none`` and ``mount_config.enable_lookup_hash_table: False``."""
+    attrs = _resolved("timers")
+    # From PIPELINE_SORTED_TABLE_PRESET (with erasure stripped by the local
+    # registry).
+    assert attrs["dynamic"] is True
+    assert attrs["optimize_for"] == "scan"
+    assert attrs["chunk_format"] == "table_versioned_columnar"
+    assert attrs["erasure_codec"] == "none"
+    assert attrs["hunk_erasure_codec"] == "none"
+    assert attrs["mount_config"]["min_data_ttl"] == 0
+    assert attrs["mount_config"]["merge_rows_on_flush"] is True
+    assert attrs["mount_config"]["merge_deletions_on_flush"] is True
+    assert attrs["hunk_chunk_reader"] == {"fragment_read_hedging_delay": 50}
+    # From timers' own overlay.
+    assert attrs["in_memory_mode"] == "none"
+    assert attrs["mount_config"]["enable_lookup_hash_table"] is False
+
+
+# An installation is free to raise the tablet count of every sorted pipeline table; yacs and
+# wait_click_join both do. A table that wants a single tablet has to override the minimum along
+# with the desired count, or the pair ends up contradictory and the master rejects it outright
+# (see TMasterTableTabletBalancerConfig::CheckTabletSizeInequalities).
+@pytest.mark.parametrize("name", ["leader_election_lock", "flow_control"])
+def test_single_tablet_table_stays_single_under_a_wide_installation(name):
+    wide_registry = copy.deepcopy(LOCAL_PRESETS)
+    wide_registry["builtin:pipeline_sorted_table_preset"] = _deep_merge(
+        copy.deepcopy(wide_registry["builtin:pipeline_sorted_table_preset"]),
+        {
+            "clusters": {
+                "_all_data_clusters": {
+                    "attributes": {
+                        "tablet_balancer_config": {
+                            "min_tablet_count": 100,
+                            "desired_tablet_count": 200,
+                        },
+                    },
+                },
+            },
+        },
+    )
+
+    attrs = _resolve_attributes(PIPELINE_TABLES_PRESET[name], wide_registry)
+    balancer_config = attrs["tablet_balancer_config"]
+
+    assert balancer_config["desired_tablet_count"] == 1
+    assert balancer_config["min_tablet_count"] <= balancer_config["desired_tablet_count"]
+
+
+def test_shared_preset_keeps_internal_erasure():
+    """The shared preset dict is re-exported verbatim by yt_sync for
+    Yandex-internal deployments and must keep its erasure setting; only the
+    local registry strips it."""
+    attrs = PIPELINE_SORTED_TABLE_PRESET["clusters"]["_all_data_clusters"]["attributes"]
+    assert attrs["erasure_codec"] == "reed_solomon_3_3"
+    assert attrs["hunk_erasure_codec"] == "reed_solomon_3_3"
+
+
+def test_pipeline_definitions_merge_into_create_attributes():
+    table_definitions, queue_definitions = _get_pipeline_table_definitions()
+    definitions = {**table_definitions, **queue_definitions}
+    presets = {**PIPELINE_TABLES_PRESET, **PIPELINE_QUEUES_PRESET}
+
+    for name, descriptor in definitions.items():
+        attributes = _table_attributes(
+            name,
+            descriptor["schema"],
+            presets[name],
+            descriptor["attributes"],
+        )
+        assert attributes["schema"].attributes == descriptor["schema"].attributes
+        for key, expected in descriptor["attributes"].items():
+            if isinstance(expected, dict):
+                for nested_key, nested_expected in expected.items():
+                    assert attributes[key][nested_key] == nested_expected
+            else:
+                assert attributes[key] == expected
+
+
+@pytest.mark.parametrize("name", sorted({**PIPELINE_TABLES_PRESET, **PIPELINE_QUEUES_PRESET}))
+def test_mini_bootstrap_sets_no_erasure(name):
+    """No inner table bootstrapped by yt_sync_mini may carry erasure: writing
+    a reed_solomon_3_3 chunk needs six online data nodes, which small
+    opensource clusters do not have."""
+    presets = {**PIPELINE_TABLES_PRESET, **PIPELINE_QUEUES_PRESET}
+    attrs = _resolve_attributes(presets[name], LOCAL_PRESETS)
+    assert attrs.get("erasure_codec", "none") == "none"
+    assert attrs.get("hunk_erasure_codec", "none") == "none"
+
+
+@pytest.mark.parametrize("name", sorted({**PIPELINE_TABLES_PRESET, **PIPELINE_QUEUES_PRESET}))
+def test_mini_bootstrap_writes_no_replication_log_attribute(name):
+    """`replication_log` is a directive for yt_sync's chaos path, where it sizes the replication
+    log created next to a data replica. The tables bootstrapped here have no logs at all, so it
+    must not reach Cypress as an attribute of the table itself."""
+    presets = {**PIPELINE_TABLES_PRESET, **PIPELINE_QUEUES_PRESET}
+    attrs = _table_attributes(name, [], presets[name])
+    assert "replication_log" not in attrs

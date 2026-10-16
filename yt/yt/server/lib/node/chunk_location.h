@@ -10,7 +10,7 @@
 
 #include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NNode {
 
@@ -59,7 +59,7 @@ class TChunkLocationBase
 public:
     TChunkLocationBase(
         ELocationType type,
-        TString id,
+        std::string id,
         TChunkLocationConfigBasePtr config,
         TCallback<TBriefChunkLocationConfig()> getBriefConfigCallback,
         NObjectClient::TCellId cellId,
@@ -82,7 +82,7 @@ public:
     void SetIndex(TChunkLocationIndex index);
 
     //! Returns the disk family
-    const TString& GetDiskFamily() const;
+    const std::string& GetDiskFamily() const;
 
     //! Returns the IO Engine.
     const NIO::IIOEnginePtr& GetIOEngine() const;
@@ -93,7 +93,7 @@ public:
     const NProfiling::TProfiler& GetProfiler() const;
 
     //! Returns the root path of the location.
-    const TString& GetPath() const;
+    const std::string& GetPath() const;
 
     //! Returns the maximum number of bytes the chunks assigned to this location
     //! are allowed to use.
@@ -151,7 +151,7 @@ public:
     int GetChunkCount() const;
 
     //! Returns a full path for a primary chunk file.
-    TString GetChunkPath(TChunkId chunkId) const;
+    std::string GetChunkPath(TChunkId chunkId) const;
 
     //! Removes a chunk permanently or moves it to the trash (if available).
     virtual void RemoveChunkFiles(TChunkId chunkId, bool force);
@@ -166,9 +166,6 @@ public:
 
     //! Returns |true| if location is sick.
     bool IsSick() const;
-
-    //! Returns limit on the maximum memory used of probe put blocks.
-    i64 GetLegacyWriteMemoryLimit() const;
 
     //! Returns limit on the maximum memory used of location reads.
     i64 GetReadMemoryLimit() const;
@@ -205,10 +202,17 @@ public:
     //! Try changing location status to disabled. For this location disk must be active and test can run without I/O errors.
     bool OnDiskRepaired();
 
+    TFairShareHierarchicalSlotQueueSlotPtr<std::string> CreateFairShareQueueSlot(
+        i64 size,
+        std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
+        std::vector<TFairShareHierarchyLevel<std::string>> levels);
+
     TErrorOr<TLocationFairShareSlotPtr> AddFairShareQueueSlot(
         i64 size,
         std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
         std::vector<TFairShareHierarchyLevel<std::string>> levels);
+    TErrorOr<TLocationFairShareSlotPtr> AddFairShareQueueSlot(
+        TFairShareHierarchicalSlotQueueSlotPtr<std::string> slot);
 
     NIO::IIOEngineWorkloadModelPtr GetIOEngineModel() const;
 
@@ -227,8 +231,8 @@ protected:
 
     NProfiling::TProfiler Profiler_;
 
-    NThreading::TAtomicObject<TError> LocationDisabledAlert_;
-    NThreading::TAtomicObject<TError> LocationDiskFailedAlert_;
+    TAtomicObject<TError> LocationDisabledAlert_;
+    TAtomicObject<TError> LocationDiskFailedAlert_;
 
     NServer::TDiskHealthCheckerPtr HealthChecker_;
 
@@ -241,8 +245,8 @@ protected:
     NIO::IIOEngineWorkloadModelPtr IOEngineModel_;
     NIO::IIOEnginePtr IOEngine_;
 
-    static TString GetRelativeChunkPath(TChunkId chunkId);
-    static void ForceHashDirectories(const TString& rootPath);
+    static std::string GetRelativeChunkPath(TChunkId chunkId);
+    static void ForceHashDirectories(const std::string& rootPath);
 
     virtual bool ShouldSkipFileName(const std::string& fileName) const;
 
@@ -275,19 +279,24 @@ private:
     const ELocationType Type_;
     const TChunkLocationConfigBasePtr StaticConfig_;
 
+    // NB: These mirror the corresponding (still TString) config fields as std::string
+    // so that the accessors can return stable const std::string& references.
+    const std::string Path_;
+    const std::string DiskFamily_;
+
     TAtomicPtr<TChunkLocationConfigBase, /*EnableAcquireHazard*/ true> RuntimeConfig_;
 
     TCallback<TBriefChunkLocationConfig()> GetBriefConfigCallback_;
 
     NProfiling::TDynamicTagPtr MediumTag_;
 
-    NThreading::TAtomicObject<TChunkLocationUuid> Uuid_;
+    TAtomicObject<TChunkLocationUuid> Uuid_;
     TChunkLocationIndex Index_ = NNodeTrackerClient::InvalidChunkLocationIndex;
 
     TFairShareHierarchicalSlotQueuePtr<std::string> IOFairShareQueue_;
     NIO::IHugePageManagerPtr HugePageManager_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LockedChunksLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, LockedChunksLock_);
     THashSet<TChunkId> LockedChunkIds_;
 
     void ValidateWritable();
@@ -300,7 +309,7 @@ private:
     virtual i64 GetAdditionalSpace() const;
 
     virtual std::optional<TChunkDescriptor> RepairChunk(TChunkId chunkId) = 0;
-    virtual std::vector<TString> GetChunkPartNames(TChunkId chunkId) const = 0;
+    virtual std::vector<std::string> GetChunkPartNames(TChunkId chunkId) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkLocationBase)

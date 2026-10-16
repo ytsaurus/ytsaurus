@@ -42,11 +42,11 @@ void ExecutePathToNodeReduce(
                 // If we have multiple records for single transaction, we should keep the non tombstone one if it exists.
                 if (record.NodeId != NullObjectId) {
                     // If we have non tombstone record for transaction, all other records should be tombstone.
-                    YT_LOG_FATAL_IF(
+                    YT_TLOG_FATAL_IF(
                         existingRecordIt->second->NodeId != NullObjectId,
-                        "Multiple node creation records for the same path with the same transaction (TransactionId: %v, Path: %v",
-                        record.TransactionId,
-                        path);
+                        "Multiple node creation records for the same path with the same transaction")
+                        .With("TransactionId", record.TransactionId)
+                        .With("Path", path);
 
                     existingRecordIt->second = &record;
                 }

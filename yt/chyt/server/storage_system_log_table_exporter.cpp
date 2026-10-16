@@ -43,8 +43,8 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, SystemLogTableExporterLogger, "SystemLogTableExporter");
-static YT_DEFINE_GLOBAL(const NProfiling::TProfiler, SystemLogTableExporterProfiler, "/system_log_table_exporter");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, SystemLogTableExporterLogger, "SystemLogTableExporter");
+static YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, SystemLogTableExporterProfiler, "/system_log_table_exporter");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +94,7 @@ private:
     i64 TotalBytes_ = 0;
     i64 TotalRows_ = 0;
 
-    mutable YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    mutable YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
     std::deque<DB::Chunk> Chunks_;
 };
 
@@ -124,15 +124,6 @@ public:
 private:
     const TUnversionedOwningRow Row_;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTableSchema ExtendSchema(const TTableSchema& schema, const std::vector<TColumnSchema>& extraColumns)
-{
-    auto columns = schema.Columns();
-    columns.insert(columns.end(), extraColumns.begin(), extraColumns.end());
-    return TTableSchema(std::move(columns), schema.IsStrict(), schema.IsUniqueKeys());
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -344,6 +335,287 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSystemLogExporter
+    : public TRefCounted
+{
+public:
+    TSystemLogExporter(
+        const THost* host,
+        DB::StorageID storageId,
+        TYPath cypressTableDirectory,
+        NNative::IClientPtr client,
+        IInvokerPtr invoker,
+        TSystemLogTableExporterConfigPtr config,
+        TConversionSettingsPtr conversionSettings,
+        TTableSchema schema,
+        ITableExtenderPtr tableExtender,
+        TLogger logger)
+        : Host_(host)
+        , StorageId_(std::move(storageId))
+        , CypressTableDirectory_(std::move(cypressTableDirectory))
+        , Client_(std::move(client))
+        , Invoker_(std::move(invoker))
+        , Config_(std::move(config))
+        , ConversionSettings_(std::move(conversionSettings))
+        , InputSchema_(std::move(schema))
+        , NameTable_(TNameTable::FromSchema(InputSchema_))
+        , ColumnIndexToId_(GetColumnIndexToId(NameTable_, InputSchema_.GetColumnNames()))
+        , OutputSchema_(BuildOutputSchema(InputSchema_, tableExtender, NameTable_))
+        , TableExtender_(std::move(tableExtender))
+        , Logger(std::move(logger))
+    { }
+
+    void ConvertAndEnqueue(const DB::Block& header, const DB::Chunks& chunks)
+    {
+        EnsureInitialized();
+        YT_VERIFY(ArchiveReporter_);
+
+        auto extraRowBuffer = New<TRowBuffer>();
+
+        for (const auto& chunk : chunks) {
+            try {
+                auto block = header.cloneWithColumns(chunk.getColumns());
+                auto rowRange = ToMutableRowRange(
+                    block,
+                    block.getDataTypes(),
+                    ColumnIndexToId_,
+                    ConversionSettings_,
+                    TableExtender_->GetColumns().size());
+
+                TableExtender_->ExtendRows(rowRange, extraRowBuffer, NameTable_);
+
+                for (const auto& row : rowRange) {
+                    ArchiveReporter_->Enqueue(std::make_unique<TCompletedRowlet>(TUnversionedOwningRow(row)));
+                }
+                extraRowBuffer->Clear();
+            } catch (const std::exception& ex) {
+                YT_TLOG_ERROR("Failed to convert chunk to unversioned rows; chunk skipped")
+                    .With("RowCount", chunk.getNumRows())
+                    .With(ex);
+            }
+        }
+    }
+
+private:
+    const THost* const Host_;
+    const DB::StorageID StorageId_;
+    const TYPath CypressTableDirectory_;
+    const NNative::IClientPtr Client_;
+    const IInvokerPtr Invoker_;
+    const TSystemLogTableExporterConfigPtr Config_;
+    const TConversionSettingsPtr ConversionSettings_;
+
+    const TTableSchema InputSchema_;
+    const TNameTablePtr NameTable_;
+    const std::vector<int> ColumnIndexToId_;
+
+    const TTableSchema OutputSchema_;
+
+    const ITableExtenderPtr TableExtender_;
+
+    const TLogger Logger;
+
+    IArchiveReporterPtr ArchiveReporter_;
+
+    static TTableSchema BuildOutputSchema(
+        const TTableSchema& inputSchema,
+        const ITableExtenderPtr& tableExtender,
+        const TNameTablePtr& nameTable)
+    {
+        const std::vector<TColumnSchema> QueueSystemColumns = {
+            TColumnSchema("$timestamp", ESimpleLogicalValueType::Uint64),
+            TColumnSchema("$cumulative_data_weight", ESimpleLogicalValueType::Int64),
+        };
+
+        const auto& extraColumns = tableExtender->GetColumns();
+
+        for (const auto& column : extraColumns) {
+            nameTable->RegisterNameOrThrow(column.Name());
+        }
+
+        auto columns = inputSchema.Columns();
+        columns.reserve(columns.size() + extraColumns.size() + QueueSystemColumns.size());
+        columns.insert(columns.end(), extraColumns.begin(), extraColumns.end());
+        columns.insert(columns.end(), QueueSystemColumns.begin(), QueueSystemColumns.end());
+
+        return TTableSchema(std::move(columns), inputSchema.IsStrict(), inputSchema.IsUniqueKeys());
+    }
+
+    void EnsureInitialized()
+    {
+        // NB: System log flushing is performed in a single thread, so synchronization is not required.
+        if (ArchiveReporter_) {
+            return;
+        }
+
+        auto tablePath = EnsureTableReady();
+
+        auto handlerConfig = New<TArchiveHandlerConfig>();
+        handlerConfig->MaxInProgressDataSize = Config_->MaxInProgressDataSize;
+        handlerConfig->Path = tablePath;
+
+        ArchiveReporter_ = CreateArchiveReporter(
+            New<TArchiveVersionHolder>(),
+            Config_,
+            std::move(handlerConfig),
+            NameTable_,
+            StorageId_.getFullTableName(),
+            Client_,
+            Invoker_,
+            SystemLogTableExporterProfiler().WithTag("table_name", StorageId_.table_name));
+    }
+
+    TYPath EnsureTableReady()
+    {
+        while (true) {
+            auto [currentVersion, schema, tabletCount, mounted] = GetLatestTableInfo();
+
+            if (currentVersion != -1 && schema == OutputSchema_ && tabletCount == Config_->CreateTableTabletCount && mounted) {
+                return GetVersionedTablePath(currentVersion);
+            }
+
+            if (Host_->IsLeader()) {
+                if (currentVersion == -1 || schema != OutputSchema_ || tabletCount != Config_->CreateTableTabletCount) {
+                    ++currentVersion;
+                    CreateVersionedTable(currentVersion);
+                    mounted = MountVersionedTable(currentVersion);
+                } else if (!mounted) {
+                    mounted = MountVersionedTable(currentVersion);
+                }
+
+                if (mounted) {
+                    return GetVersionedTablePath(currentVersion);
+                }
+            } else {
+                YT_TLOG_DEBUG("Instance is not a leader; waiting for the leader to create and mount the table")
+                    .With("LastSeenVersion", currentVersion)
+                    .With("Mounted", mounted);
+            }
+
+            NConcurrency::TDelayedExecutor::WaitForDuration(Config_->StartupRetryBackoff);
+        }
+    }
+
+    TYPath GetLatestTablePath() const
+    {
+        return Format("%v/latest", CypressTableDirectory_);
+    }
+
+    TYPath GetVersionedTablePath(int version) const
+    {
+        return Format("%v/%v", CypressTableDirectory_, version);
+    }
+
+    struct TVersionedTableInfo
+    {
+        int Version = -1;
+        TTableSchema Schema;
+        int TabletCount;
+        bool Mounted = false;
+    };
+
+    TVersionedTableInfo GetLatestTableInfo()
+    {
+        YT_TLOG_DEBUG("Getting latest Cypress table info");
+
+        TGetNodeOptions options;
+        options.Attributes = {"key", "schema",  "tablet_count", "tablet_state"};
+
+        auto resultOrError = WaitFor(Client_->GetNode(GetLatestTablePath() + "/@", options));
+
+        if (resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            YT_TLOG_DEBUG("Cypress table does not exist")
+                .With(resultOrError);
+            return {};
+        }
+
+        auto result = ConvertToNode(resultOrError.ValueOrThrow())->AsMap();
+
+        int version = FromString<int>(result->GetChildValueOrThrow<TString>("key"));
+        auto schema = result->GetChildValueOrThrow<TTableSchema>("schema");
+        int tabletCount = result->GetChildValueOrThrow<int>("tablet_count");
+        bool mounted = (result->GetChildValueOrThrow<ETabletState>("tablet_state") == ETabletState::Mounted);
+
+        YT_TLOG_DEBUG("Got latest Cypress table info")
+            .With("Version", version)
+            .With("TabletCount", tabletCount)
+            .With("Mounted", mounted);
+
+        return {version, std::move(schema), tabletCount, mounted};
+    }
+
+    void CreateVersionedTable(int version)
+    {
+        // NB: All CreateNode calls are made with either IgnoreExisting or Force options,
+        // so these calls are idempotent and can be performed on several instances simultaneously
+        // without any synchronization.
+        TCreateNodeOptions options;
+        options.IgnoreExisting = true;
+
+        YT_TLOG_DEBUG("Creating Cypress table directory");
+
+        WaitFor(Client_->CreateNode(CypressTableDirectory_, EObjectType::MapNode, options))
+            .ThrowOnError();
+
+        auto attributes = ConvertToAttributes(Config_->CreateTableAttributes);
+        attributes->Set("atomicity", NTransactionClient::EAtomicity::None);
+        attributes->Set("dynamic", true);
+        attributes->Set("schema", OutputSchema_);
+        attributes->Set("tablet_count", Config_->CreateTableTabletCount);
+
+        options = {};
+        options.Attributes = attributes;
+        options.IgnoreExisting = true;
+
+        YT_TLOG_DEBUG("Creating versioned Cypress table")
+            .With("Version", version);
+
+        WaitFor(Client_->CreateNode(GetVersionedTablePath(version), EObjectType::Table, options))
+            .ThrowOnError();
+
+        attributes = CreateEphemeralAttributes();
+        attributes->Set("target_path", GetVersionedTablePath(version));
+
+        options = {};
+        options.Attributes = attributes;
+        options.Force = true;
+
+        YT_TLOG_DEBUG("Updating latest link node")
+            .With("Version", version);
+
+        WaitFor(Client_->CreateNode(GetLatestTablePath(), EObjectType::Link, options))
+            .ThrowOnError();
+
+        YT_TLOG_DEBUG("Cypress table created and set up")
+            .With("Version", version);
+    }
+
+    bool MountVersionedTable(int version)
+    {
+        YT_TLOG_DEBUG("Mounting table")
+            .With("Version", version);
+
+        auto error = WaitFor(Client_->MountTable(GetVersionedTablePath(version)));
+
+        auto innerError = error.FindMatching(NTabletClient::EErrorCode::InvalidTabletState);
+        if (innerError && innerError->Attributes().Contains("current_mount_transaction_id")) {
+            YT_TLOG_DEBUG("Mounting failed since table is locked by concurrent mount-unmount")
+                .With("Version", version);
+            return false;
+        }
+        error.ThrowOnError();
+
+        YT_TLOG_DEBUG("Table mounted")
+            .With("Version", version);
+        return true;
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TSystemLogExporter)
+DEFINE_REFCOUNTED_TYPE(TSystemLogExporter)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSystemLogTableExporterSink
     : public DB::SinkToStorage
 {
@@ -351,19 +623,11 @@ public:
     TSystemLogTableExporterSink(
         const DB::Block& header,
         TCircularChunkBufferPtr storageBuffer,
-        std::shared_ptr<const std::vector<int>> columnIndexToId,
-        TCompositeSettingsPtr compositeSettings,
-        IArchiveReporterPtr archiveReporter,
-        ITableExtenderPtr tableExtender,
-        TNameTablePtr nameTable,
+        TSystemLogExporterPtr logExporter,
         TLogger logger)
         : DB::SinkToStorage(header)
         , StorageBuffer_(std::move(storageBuffer))
-        , ColumnIndexToId_(std::move(columnIndexToId))
-        , CompositeSettings_(std::move(compositeSettings))
-        , ArchiveReporter_(std::move(archiveReporter))
-        , TableExtender_(std::move(tableExtender))
-        , NameTable_(std::move(nameTable))
+        , LogExporter_(std::move(logExporter))
         , Logger(std::move(logger))
     { }
 
@@ -379,29 +643,8 @@ public:
 
     void onFinish() override
     {
-        if (ArchiveReporter_) {
-            auto extraRowBuffer = New<TRowBuffer>();
-
-            for (const auto& chunk : NewChunks_) {
-                try {
-                    auto block = getHeader().cloneWithColumns(chunk.getColumns());
-                    auto rowRange = ToMutableRowRange(
-                        block,
-                        block.getDataTypes(),
-                        *ColumnIndexToId_,
-                        CompositeSettings_,
-                        TableExtender_->GetColumns().size());
-
-                    TableExtender_->ExtendRows(rowRange, extraRowBuffer, NameTable_);
-
-                    for (const auto& row : rowRange) {
-                        ArchiveReporter_->Enqueue(std::make_unique<TCompletedRowlet>(TUnversionedOwningRow(row)));
-                    }
-                    extraRowBuffer->Clear();
-                } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Failed to convert chunk to unverionsed rows; chunk skipped (RowCount: %v)", chunk.getNumRows());
-                }
-            }
+        if (LogExporter_) {
+            LogExporter_->ConvertAndEnqueue(getHeader(), NewChunks_);
         }
 
         StorageBuffer_->AddChunks(std::move(NewChunks_));
@@ -409,12 +652,7 @@ public:
 
 private:
     TCircularChunkBufferPtr StorageBuffer_;
-    const std::shared_ptr<const std::vector<int>> ColumnIndexToId_;
-
-    const TCompositeSettingsPtr CompositeSettings_;
-    IArchiveReporterPtr ArchiveReporter_;
-    const ITableExtenderPtr TableExtender_;
-    const TNameTablePtr NameTable_;
+    TSystemLogExporterPtr LogExporter_;
 
     const TLogger Logger;
 
@@ -427,37 +665,21 @@ class TStorageSystemLogTableExporter
     : public DB::IStorage
 {
 public:
-    explicit TStorageSystemLogTableExporter(
-        TSystemLogTableExporterConfigPtr config,
-        TYPath cypressTableDirectory,
-        NNative::IClientPtr client,
-        IInvokerPtr invoker,
+    TStorageSystemLogTableExporter(
         DB::StorageID storageId,
         DB::ColumnsDescription columnsDescription,
-        ITableExtenderPtr tableExtender)
+        TSystemLogTableExporterConfigPtr config,
+        TSystemLogExporterPtr logExporter,
+        TLogger logger)
         : DB::IStorage(std::move(storageId))
         , Config_(std::move(config))
-        , CypressTableDirectory_(std::move(cypressTableDirectory))
-        , Client_(std::move(client))
-        , Invoker_(std::move(invoker))
-        , CompositeSettings_(TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true))
-        , Schema_(ToTableSchema(columnsDescription, /*keyColumns*/ {}, CompositeSettings_))
-        , NameTable_(TNameTable::FromSchema(Schema_))
-        , ColumnIndexToId_(std::make_shared<const std::vector<int>>(
-            GetColumnIndexToId(NameTable_, Schema_.GetColumnNames())))
-        , Logger(SystemLogTableExporterLogger().WithTag("TableName: %v", getStorageID().getFullTableName()))
-        , Extender_(std::move(tableExtender))
+        , Logger(std::move(logger))
+        , LogExporter_(std::move(logExporter))
         , Data_(New<TCircularChunkBuffer>(Config_->MaxBytesToKeep, Config_->MaxRowsToKeep))
     {
         DB::StorageInMemoryMetadata storageMetadata;
         storageMetadata.setColumns(columnsDescription);
         setInMemoryMetadata(storageMetadata);
-
-        const auto& extraColumns = Extender_->GetColumns();
-        Schema_ = ExtendSchema(Schema_, extraColumns);
-        for (const auto& column : extraColumns) {
-            NameTable_->RegisterNameOrThrow(column.Name());
-        }
     }
 
     static constexpr auto Name = "SystemLogTableExporter";
@@ -465,48 +687,6 @@ public:
     String getName() const override
     {
         return Name;
-    }
-
-    void startup() override
-    {
-        if (!Config_->Enabled) {
-            return;
-        }
-
-        int lastVersion;
-        while (true) {
-            auto [currentVersion, schema, tabletCount, mounted] = GetLatestTableInfo();
-
-            if (currentVersion == -1 || schema != Schema_ || tabletCount != Config_->CreateTableTabletCount) {
-                ++currentVersion;
-                CreateVersionedTable(currentVersion);
-                mounted = MountVersionedTable(currentVersion);
-            } else if (!mounted) {
-                mounted = MountVersionedTable(currentVersion);
-            }
-
-            if (!mounted) {
-                NConcurrency::TDelayedExecutor::WaitForDuration(Config_->StartupRetryBackoff);
-                continue;
-            }
-
-            lastVersion = currentVersion;
-            break;
-        }
-
-        auto handlerConfig = New<TArchiveHandlerConfig>();
-        handlerConfig->MaxInProgressDataSize = Config_->MaxInProgressDataSize;
-        handlerConfig->Path = GetVersionedTablePath(lastVersion);
-
-        ArchiveReporter_ = CreateArchiveReporter(
-            New<TArchiveVersionHolder>(),
-            Config_,
-            std::move(handlerConfig),
-            NameTable_,
-            getStorageID().getFullTableName(),
-            Client_,
-            Invoker_,
-            SystemLogTableExporterProfiler().WithTag("table_name", getStorageID().table_name));
     }
 
     DB::Pipe read(
@@ -532,136 +712,17 @@ public:
         return std::make_shared<TSystemLogTableExporterSink>(
             metadataSnapshot->getSampleBlock(),
             Data_,
-            ColumnIndexToId_,
-            CompositeSettings_,
-            ArchiveReporter_,
-            Extender_,
-            NameTable_,
+            LogExporter_,
             Logger);
     }
 
 private:
     const TSystemLogTableExporterConfigPtr Config_;
-    const TYPath CypressTableDirectory_;
-    const NNative::IClientPtr Client_;
-    const IInvokerPtr Invoker_;
-    const TCompositeSettingsPtr CompositeSettings_;
-    TTableSchema Schema_;
-    TNameTablePtr NameTable_;
-    const std::shared_ptr<const std::vector<int>> ColumnIndexToId_;
     const TLogger Logger;
 
-    ITableExtenderPtr Extender_;
+    TSystemLogExporterPtr LogExporter_;
 
     TCircularChunkBufferPtr Data_;
-    IArchiveReporterPtr ArchiveReporter_;
-
-    TYPath GetLatestTablePath() const
-    {
-        return Format("%v/latest", CypressTableDirectory_);
-    }
-
-    TYPath GetVersionedTablePath(int version) const
-    {
-        return Format("%v/%v", CypressTableDirectory_, version);
-    }
-
-    struct TVersionedTableInfo
-    {
-        int Version = -1;
-        TTableSchema Schema;
-        int TabletCount;
-        bool Mounted = false;
-    };
-
-    TVersionedTableInfo GetLatestTableInfo()
-    {
-        YT_LOG_DEBUG("Getting latest Cypress table info");
-
-        TGetNodeOptions options;
-        options.Attributes = {"key", "schema",  "tablet_count", "tablet_state"};
-
-        auto resultOrError = WaitFor(Client_->GetNode(GetLatestTablePath() + "/@", options));
-
-        if (resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            YT_LOG_DEBUG(resultOrError, "Cypress table does not exist");
-            return {};
-        }
-
-        auto result = ConvertToNode(resultOrError.ValueOrThrow())->AsMap();
-
-        int version = FromString<int>(result->GetChildValueOrThrow<TString>("key"));
-        auto schema = result->GetChildValueOrThrow<TTableSchema>("schema");
-        int tabletCount = result->GetChildValueOrThrow<int>("tablet_count");
-        bool mounted = (result->GetChildValueOrThrow<ETabletState>("tablet_state") == ETabletState::Mounted);
-
-        YT_LOG_DEBUG("Got latest Cypress table info (Version: %v, TabletCount: %v, Mounted: %v)",
-            version,
-            tabletCount,
-            mounted);
-
-        return {version, std::move(schema), tabletCount, mounted};
-    }
-
-    void CreateVersionedTable(int version)
-    {
-        // NB: All CreateNode calls are made with either IgnoreExisting or Force options,
-        // so these calls are idempotent and can be performed on several instances simultaneously
-        // without any synchronization.
-        TCreateNodeOptions options;
-        options.IgnoreExisting = true;
-
-        YT_LOG_DEBUG("Creating Cypress table directory");
-
-        WaitFor(Client_->CreateNode(CypressTableDirectory_, EObjectType::MapNode, options))
-            .ThrowOnError();
-
-        auto attributes = ConvertToAttributes(Config_->CreateTableAttributes);
-        attributes->Set("atomicity", NTransactionClient::EAtomicity::None);
-        attributes->Set("dynamic", true);
-        attributes->Set("schema", Schema_);
-        attributes->Set("tablet_count", Config_->CreateTableTabletCount);
-
-        options = {};
-        options.Attributes = attributes;
-        options.IgnoreExisting = true;
-
-        YT_LOG_DEBUG("Creating versioned Cypress table (Version: %v)", version);
-
-        WaitFor(Client_->CreateNode(GetVersionedTablePath(version), EObjectType::Table, options))
-            .ThrowOnError();
-
-        attributes = CreateEphemeralAttributes();
-        attributes->Set("target_path", GetVersionedTablePath(version));
-
-        options = {};
-        options.Attributes = attributes;
-        options.Force = true;
-
-        YT_LOG_DEBUG("Updating latest link node (Version: %v)", version);
-
-        WaitFor(Client_->CreateNode(GetLatestTablePath(), EObjectType::Link, options))
-            .ThrowOnError();
-
-        YT_LOG_DEBUG("Cypress table created and set up (Version: %v)", version);
-    }
-
-    bool MountVersionedTable(int version)
-    {
-        YT_LOG_DEBUG("Mounting table (Version: %v)", version);
-
-        auto error = WaitFor(Client_->MountTable(GetVersionedTablePath(version)));
-
-        auto innerError = error.FindMatching(NTabletClient::EErrorCode::InvalidTabletState);
-        if (innerError && innerError->Attributes().Contains("current_mount_transaction_id")) {
-            YT_LOG_DEBUG("Mounting failed since table is locked by concurrent mount-unmount (Version: %v)", version);
-            return false;
-        }
-        error.ThrowOnError();
-
-        YT_LOG_DEBUG("Table mounted (Version: %v)", version);
-        return true;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -691,17 +752,37 @@ void RegisterStorageSystemLogTableExporter(
                 args.table_id.database_name);
         }
 
-        auto config = host->GetConfig()->SystemLogTableExporters;
-        auto tableExtender = CreateTableExtender(args.table_id.table_name, host);
+        auto exportersConfig = host->GetConfig()->SystemLogTableExporters;
+        auto config = GetOrDefault(exportersConfig->Tables, args.table_id.table_name, exportersConfig->Default);
+
+        auto logger = SystemLogTableExporterLogger().WithTag("TableName", args.table_id.getFullTableName());
+
+        TSystemLogExporterPtr logExporter;
+        if (config->Enabled) {
+            auto conversionSettings = TConversionSettings::Create(TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true));
+            auto inputSchema = ToTableSchema(args.columns, /*keyColumns*/ {}, conversionSettings);
+
+            auto tableExtender = CreateTableExtender(args.table_id.table_name, host);
+
+            logExporter = New<TSystemLogExporter>(
+                host,
+                args.table_id,
+                Format("%v/%v", exportersConfig->CypressRootDirectory, ToYPathLiteral(args.table_id.table_name)),
+                client,
+                invoker,
+                config,
+                std::move(conversionSettings),
+                std::move(inputSchema),
+                std::move(tableExtender),
+                logger);
+        }
 
         return std::make_shared<TStorageSystemLogTableExporter>(
-            GetOrDefault(config->Tables, args.table_id.table_name, config->Default),
-            Format("%v/%v", config->CypressRootDirectory, ToYPathLiteral(args.table_id.table_name)),
-            client,
-            invoker,
             args.table_id,
             args.columns,
-            std::move(tableExtender));
+            config,
+            std::move(logExporter),
+            std::move(logger));
     });
 }
 

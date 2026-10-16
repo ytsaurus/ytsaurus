@@ -14,7 +14,8 @@
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/config.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
-#include <yt/yt/core/misc/property.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NChunkClient {
 
@@ -86,11 +87,13 @@ public:
 
     TFuture<void> GetBlockFuture() const override
     {
+        YT_VERIFY(!Cookie_.IsActive());
         return Cookie_.GetValue().AsVoid();
     }
 
     TCachedBlock GetBlock() const override
     {
+        YT_VERIFY(!Cookie_.IsActive());
         const auto& future = Cookie_.GetValue();
         YT_VERIFY(future.GetOrCrash().IsOK());
         return future.GetOrCrash().Value()->CachedBlock();
@@ -102,12 +105,15 @@ public:
             return;
         }
 
+        YT_VERIFY(Cookie_.IsActive());
+        auto cookie = std::move(Cookie_);
+
         if (blockOrError.IsOK()) {
             auto block = PrepareBlockToCache(std::move(blockOrError).Value(), MemoryUsageTracker_);
-            auto entry = New<TAsyncBlockCacheEntry>(Cookie_.GetKey(), std::move(block));
-            Cookie_.EndInsert(std::move(entry));
+            auto entry = New<TAsyncBlockCacheEntry>(cookie.GetKey(), std::move(block));
+            cookie.EndInsert(std::move(entry));
         } else {
-            Cookie_.Cancel(static_cast<TError>(blockOrError));
+            cookie.Cancel(static_cast<TError>(blockOrError));
         }
     }
 
@@ -136,6 +142,8 @@ public:
             profiler)
         , Type_(type)
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
+        , LookupHitCounter_(profiler.Counter("/lookup_hit_count"))
+        , LookupMissCounter_(profiler.Counter("/lookup_miss_count"))
     {
         ChunkShards_.reset(new TChunkShard[Config_->ShardCount]);
     }
@@ -151,15 +159,15 @@ public:
             auto entry = New<TAsyncBlockCacheEntry>(id, TCachedBlock(block));
             cookie.EndInsert(std::move(entry));
 
-            YT_LOG_DEBUG("Block is put into cache (BlockId: %v, BlockType: %v, BlockSize: %v)",
-                id,
-                Type_,
-                block.Size());
+            YT_TLOG_DEBUG("Block is put into cache")
+                .With("BlockId", id)
+                .With("BlockType", Type_)
+                .With("BlockSize", block.Size());
         } else {
             // Already have the block cached, do nothing.
-            YT_LOG_TRACE("Block is already in cache (BlockId: %v, BlockType: %v)",
-                id,
-                Type_);
+            YT_TLOG_TRACE("Block is already in cache")
+                .With("BlockId", id)
+                .With("BlockType", Type_);
         }
     }
 
@@ -171,14 +179,23 @@ public:
 
         auto block = TAsyncSlruCacheBase::Find(id);
         if (block) {
-            YT_LOG_TRACE("Block cache hit (BlockId: %v, BlockType: %v)",
-                id,
-                Type_);
-            return block->CachedBlock();
+            const auto& cachedBlock = block->CachedBlock();
+            if (cachedBlock) {
+                LookupHitCounter_.Increment();
+            } else {
+                LookupMissCounter_.Increment();
+            }
+
+            YT_TLOG_TRACE("Block cache hit")
+                .With("BlockId", id)
+                .With("BlockType", Type_);
+            return cachedBlock;
         } else {
-            YT_LOG_TRACE("Block cache miss (BlockId: %v, BlockType: %v)",
-                id,
-                Type_);
+            LookupMissCounter_.Increment();
+
+            YT_TLOG_TRACE("Block cache miss")
+                .With("BlockId", id)
+                .With("BlockType", Type_);
             return {};
         }
     }
@@ -223,12 +240,15 @@ public:
 private:
     struct TChunkShard
     {
-        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ShardLock);
+        YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ShardLock);
         THashMap<TChunkId, THashSet<TBlockInfo>> ChunkToBlocks;
     };
 
     const EBlockType Type_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
+
+    const NProfiling::TCounter LookupHitCounter_;
+    const NProfiling::TCounter LookupMissCounter_;
 
     std::unique_ptr<TChunkShard[]> ChunkShards_;
 
@@ -263,7 +283,9 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return entry->CachedBlock().Size();
+        // Items of async cache are more complex than that and the real memory tax is higher,
+        // but promise states do constitute the bulk of it.
+        return entry->CachedBlock().Size() + sizeof(NYT::NDetail::TPromiseState<TAsyncBlockCacheEntryPtr>);
     }
 
     bool IsEnabled() const
@@ -284,9 +306,11 @@ public:
         TBlockCacheConfigPtr config,
         EBlockType supportedBlockTypes,
         IMemoryUsageTrackerPtr memoryTracker,
-        const NProfiling::TProfiler& profiler)
+        const NProfiling::TProfiler& profiler,
+        bool manageMemoryLimit)
         : MemoryUsageTracker_(std::move(memoryTracker))
         , SupportedBlockTypes_(supportedBlockTypes)
+        , ManageMemoryLimit_(manageMemoryLimit)
         , StaticConfig_(std::move(config))
     {
         i64 capacity = 0;
@@ -311,7 +335,10 @@ public:
         initType(EBlockType::MinHashDigest, StaticConfig_->MinHashDigest);
 
         // NB: We simply override the limit as underlying per-type caches are unaware of this cascading structure.
-        MemoryUsageTracker_->SetLimit(capacity);
+        // When memory limit management is delegated to an outer owner this cache must not touch the shared category limit.
+        if (ManageMemoryLimit_) {
+            MemoryUsageTracker_->SetLimit(capacity);
+        }
     }
 
     THashSet<TBlockInfo> GetCachedBlocksByChunkId(TChunkId chunkId, EBlockType type) override
@@ -414,12 +441,15 @@ public:
         reconfigureType(EBlockType::MinHashDigest, config->MinHashDigest);
 
         // NB: We simply override the limit as underlying per-type caches know nothing about this cascading structure.
-        MemoryUsageTracker_->SetLimit(newCapacity);
+        if (ManageMemoryLimit_) {
+            MemoryUsageTracker_->SetLimit(newCapacity);
+        }
     }
 
 private:
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
     const EBlockType SupportedBlockTypes_;
+    const bool ManageMemoryLimit_;
     const TBlockCacheConfigPtr StaticConfig_;
 
     TCompactFlatMap<EBlockType, TPerTypeClientBlockCachePtr, TEnumTraits<EBlockType>::GetDomainSize()> PerTypeCaches_;
@@ -431,14 +461,16 @@ IClientBlockCachePtr CreateClientBlockCache(
     TBlockCacheConfigPtr config,
     EBlockType supportedBlockTypes,
     IMemoryUsageTrackerPtr memoryUsageTracker,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TProfiler& profiler,
+    bool manageMemoryLimit)
 {
     YT_VERIFY(memoryUsageTracker);
     return New<TClientBlockCache>(
         std::move(config),
         supportedBlockTypes,
         std::move(memoryUsageTracker),
-        profiler);
+        profiler,
+        manageMemoryLimit);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -159,10 +159,10 @@ def check_sequoia_tables_reconstruction(yt_env, table_names=TABLE_NAMES):
 
     non_retriable_tables = [table_name for table_name in table_names if table_name not in RETIRABLE_TABLES]
     for table_name in non_retriable_tables:
-        assert check_tables_are_same(table_name)
+        wait(lambda: check_tables_are_same(table_name), ignore_exceptions=True)
 
     master_exit_read_only_sync()
     retriable_tables = [table_name for table_name in table_names if table_name in RETIRABLE_TABLES]
 
     for table_name in retriable_tables:
-        wait(lambda: check_tables_are_same(table_name))
+        wait(lambda: check_tables_are_same(table_name), ignore_exceptions=True)

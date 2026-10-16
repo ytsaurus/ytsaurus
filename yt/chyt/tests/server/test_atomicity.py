@@ -41,7 +41,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
         create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64"}]})
         rows = [{"a": i} for i in range(10)]
         write_table("//tmp/t_in", rows, verbose=False)
-        with Clique(1) as clique:
+        with Clique(1, disable_chunk_spec_cache=True) as clique:
             def remove_table():
                 wait_breakpoint("static")
                 remove("//tmp/t_in")
@@ -62,7 +62,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
                 assert_items_equal(result, rows)
 
             elif table_read_lock_mode == "none":
-                with raises_yt_error(QueryFailedError):
+                with raises_yt_error(code=QueryFailedError):
                     clique.make_query(query, settings=settings)
 
             thread.join()
@@ -81,7 +81,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
                 "chyt.execution.table_read_lock_mode": "sync",
             }
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 query = "insert into `//tmp/t_out` select throwIf(a = 50, 'Generate error') from `//tmp/t_in`"
                 clique.make_query(query, settings=settings)
             assert read_table("//tmp/t_out", verbose=False) == []

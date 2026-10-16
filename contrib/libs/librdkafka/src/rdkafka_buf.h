@@ -379,11 +379,12 @@ struct rd_kafka_buf_s { /* rd_kafka_buf_t */
                         rd_list_t *
                             topic_ids; /* Requested topic ids rd_kafka_Uuid_t */
                         char *reason;  /* Textual reason */
-                        rd_kafka_op_t *rko;    /* Originating rko with replyq
-                                                * (if any) */
                         rd_bool_t all_topics;  /**< Full/All topics requested */
                         rd_bool_t cgrp_update; /**< Update cgrp with topic
                                                 *   status from response. */
+                        int32_t cgrp_subscription_version;
+                        /**< Consumer group subscription version, to
+                         *   check before updating cgrp state. */
                         rd_bool_t force_racks; /**< Force the returned metadata
                                                 *   to contain partition to
                                                 *   rack mapping. */
@@ -524,7 +525,7 @@ struct rd_kafka_buf_s { /* rd_kafka_buf_t */
 #define rd_kafka_buf_skip_to(rkbuf, pos)                                       \
         do {                                                                   \
                 size_t __len1 =                                                \
-                    (size_t)(pos)-rd_slice_offset(&(rkbuf)->rkbuf_reader);     \
+                    (size_t)(pos) - rd_slice_offset(&(rkbuf)->rkbuf_reader);   \
                 if (__len1 &&                                                  \
                     !rd_slice_read(&(rkbuf)->rkbuf_reader, NULL, __len1))      \
                         rd_kafka_buf_check_len(rkbuf, __len1);                 \
@@ -757,6 +758,27 @@ struct rd_kafka_buf_s { /* rd_kafka_buf_t */
                         rd_kafka_buf_read_uvarint(rkbuf, &_uva);               \
                         _klen = ((int32_t)_uva) - 1;                           \
                 }                                                              \
+                (kbytes)->len = _klen;                                         \
+                if (RD_KAFKAP_BYTES_IS_NULL(kbytes)) {                         \
+                        (kbytes)->data = NULL;                                 \
+                        (kbytes)->len  = 0;                                    \
+                } else if (RD_KAFKAP_BYTES_LEN(kbytes) == 0)                   \
+                        (kbytes)->data = "";                                   \
+                else if (!((kbytes)->data = rd_slice_ensure_contig(            \
+                               &(rkbuf)->rkbuf_reader, _klen)))                \
+                        rd_kafka_buf_check_len(rkbuf, _klen);                  \
+        } while (0)
+
+/**
+ * Read standard BYTES representation (4+N), regardless of the buffer's
+ * flexible-version flag: for structures that always use the non-compact
+ * encoding, such as legacy v0..v1 MessageSets in FetchResponses >= v12.
+ * The 'kbytes' will be updated to point to rkbuf data.
+ */
+#define rd_kafka_buf_read_kbytes_fixed(rkbuf, kbytes)                          \
+        do {                                                                   \
+                int32_t _klen;                                                 \
+                rd_kafka_buf_read_i32a(rkbuf, _klen);                          \
                 (kbytes)->len = _klen;                                         \
                 if (RD_KAFKAP_BYTES_IS_NULL(kbytes)) {                         \
                         (kbytes)->data = NULL;                                 \

@@ -4,12 +4,11 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/yt/ytlib/table_client/timing_statistics.h>
-
 #include <yt/yt/client/api/public.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 #include <yt/yt/client/chunk_client/reader_base.h>
+#include <yt/yt/client/chunk_client/timing_statistics.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
@@ -51,7 +50,7 @@ struct IMultiReaderManager
 
     virtual NProto::TDataStatistics GetDataStatistics() const = 0;
     virtual TCodecStatistics GetDecompressionStatistics() const = 0;
-    virtual NTableClient::TTimingStatistics GetTimingStatistics() const = 0;
+    virtual TTimingStatistics GetTimingStatistics() const = 0;
 
     virtual bool IsFetchingCompleted() const = 0;
 

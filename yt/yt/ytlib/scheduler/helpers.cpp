@@ -1,5 +1,7 @@
 #include "helpers.h"
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include "config.h"
 #include "yt/yt/client/table_client/record_helpers.h"
 
@@ -99,7 +101,7 @@ const std::vector<std::string>& TJobShellInfo::GetOwners()
     return JobShell_->Owners;
 }
 
-const TString& TJobShellInfo::GetSubcontainerName()
+const std::string& TJobShellInfo::GetSubcontainerName()
 {
     return JobShell_->Subcontainer;
 }
@@ -161,7 +163,7 @@ TYPath GetSchedulerOrchidOperationPath(TOperationId operationId)
         ToYPathLiteral(ToString(operationId));
 }
 
-TYPath GetSchedulerOrchidAliasPath(const TString& alias)
+TYPath GetSchedulerOrchidAliasPath(const std::string& alias)
 {
     return
         "//sys/scheduler/orchid/scheduler/operations/" +
@@ -211,7 +213,7 @@ std::optional<std::string> FindControllerAgentAddressFromCypress(
     }
 
     const auto& response = responseOrError.ValueOrThrow();
-    return ConvertTo<TString>(TYsonString(response->value()));
+    return ConvertTo<std::string>(TYsonString(response->value()));
 }
 
 TYPath GetSnapshotPath(TOperationId operationId)
@@ -231,9 +233,9 @@ TYPath GetSecureVaultPath(TOperationId operationId)
 NYPath::TYPath GetJobPath(
     TOperationId operationId,
     TJobId jobId,
-    const TString& resourceName)
+    const std::string& resourceName)
 {
-    TString suffix;
+    std::string suffix;
     if (!resourceName.empty()) {
         suffix = "/" + resourceName;
     }
@@ -473,7 +475,7 @@ TSerializableAccessControlList TAccessControlRule::GetOrLookupAcl(const NApi::NN
     }
 }
 
-TString TAccessControlRule::GetAclString() const
+std::string TAccessControlRule::GetAclString() const
 {
     if (IsAcoName()) {
         return GetAcoName();
@@ -484,11 +486,12 @@ TString TAccessControlRule::GetAclString() const
     }
 }
 
-void TAccessControlRule::Persist(const TStreamPersistenceContext& context)
+void TAccessControlRule::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, AccessControlRule_);
+    PHOENIX_REGISTER_FIELD(1, AccessControlRule_);
 }
+
+PHOENIX_DEFINE_TYPE(TAccessControlRule);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -509,10 +512,10 @@ TError ValidateCheckPermissionsResults(
     auto Logger = logger;
 
     if (operationId) {
-        Logger.AddTag("OperationId: %v", operationId);
+        Logger.AddTag("OperationId", operationId);
     }
     if (jobId) {
-        Logger.AddTag("JobId: %v", jobId);
+        Logger.AddTag("JobId", jobId);
     }
 
     for (const auto& result : results) {
@@ -523,23 +526,23 @@ TError ValidateCheckPermissionsResults(
         auto error = TError(
             NSecurityClient::EErrorCode::AuthorizationError,
             "Operation access denied")
-            << TErrorAttribute("user", userStr)
-            << TErrorAttribute("required_permissions", permissionSet);
+            .With("user", userStr)
+            .With("required_permissions", permissionSet);
         if (operationId) {
             error = error
-                << TErrorAttribute("operation_id", operationId);
+                .With("operation_id", operationId);
         }
         if (jobId) {
             error = error
-                << TErrorAttribute("job_id", jobId);
+                .With("job_id", jobId);
         }
         return error;
     }
 
-    YT_LOG_DEBUG("Operation access successfully validated (User: %v, Permissions: %v, AccessControlRule: %v)",
-        user,
-        permissionSet,
-        accessControlRule.GetAclString());
+    YT_TLOG_DEBUG("Operation access successfully validated")
+        .With("User", user)
+        .With("Permissions", permissionSet)
+        .With("AccessControlRule", accessControlRule.GetAclString());
 
     return TError();
 }
@@ -586,7 +589,7 @@ TError CheckOperationAccessByAco(
         operationId,
         jobId,
         permissionSet,
-        acl,
+        std::move(acl),
         client,
         logger);
 }
@@ -596,7 +599,7 @@ TError CheckOperationAccessByAcl(
     TOperationId operationId,
     TJobId jobId,
     EPermissionSet permissionSet,
-    const TSerializableAccessControlList& acl,
+    TSerializableAccessControlList acl,
     const NNative::IClientPtr& client,
     const TLogger& logger)
 {
@@ -605,25 +608,21 @@ TError CheckOperationAccessByAcl(
     auto Logger = logger;
 
     if (operationId) {
-        Logger.AddTag("OperationId: %v", operationId);
+        Logger.AddTag("OperationId", operationId);
     }
     if (jobId) {
-        Logger.AddTag("JobId: %v", jobId);
+        Logger.AddTag("JobId", jobId);
     }
-
-    INodePtr aclNode;
 
     if (checkBaseAco) {
         const auto& baseAcoPrincipalAcl = GetAclFromAcoName(client, client->GetNativeConnection()->GetConfig()->OperationBaseAcoName);
-        auto finalAcl = acl;
-        finalAcl.Entries.insert(
-            finalAcl.Entries.end(),
+        acl.Entries.insert(
+            acl.Entries.end(),
             baseAcoPrincipalAcl.Entries.begin(),
             baseAcoPrincipalAcl.Entries.end());
-        aclNode = ConvertToNode(std::move(finalAcl));
-    } else {
-        aclNode = ConvertToNode(acl);
     }
+
+    auto aclNode = ConvertToNode(acl);
 
     TCheckPermissionByAclOptions options;
     options.IgnoreMissingSubjects = true;
@@ -639,9 +638,8 @@ TError CheckOperationAccessByAcl(
         .ValueOrThrow();
 
     if (!results.empty() && !results.front().MissingSubjects.empty()) {
-        YT_LOG_DEBUG(
-            "Operation has missing subjects in ACL (MissingSubjects: %v)",
-            results.front().MissingSubjects);
+        YT_TLOG_DEBUG("Operation has missing subjects in ACL")
+            .With("MissingSubjects", results.front().MissingSubjects);
     }
 
     return ValidateCheckPermissionsResults(
@@ -650,7 +648,7 @@ TError CheckOperationAccessByAcl(
         jobId,
         permissionSet,
         results,
-        TAccessControlRule(acl),
+        TAccessControlRule(std::move(acl)),
         logger);
 }
 
@@ -780,16 +778,16 @@ TError CheckPoolName(const std::string& poolName, const re2::RE2& regex)
 {
     if (poolName == RootPoolName) {
         return TError("Pool name cannot be equal to root pool name")
-            << TErrorAttribute("root_pool_name", RootPoolName);
+            .With("root_pool_name", RootPoolName);
     }
 
     if (poolName.length() > PoolNameMaxLength) {
         return TError("Pool name %Qv is too long", poolName)
-            << TErrorAttribute("length", poolName.length())
-            << TErrorAttribute("max_length", PoolNameMaxLength);
+            .With("length", poolName.length())
+            .With("max_length", PoolNameMaxLength);
     }
 
-    if (!NRe2::TRe2::FullMatch(NRe2::StringPiece(poolName), regex)) {
+    if (!NRe2::TRe2::FullMatch(re2::StringPiece(poolName), regex)) {
         return TError("Pool name %Qv must match regular expression %Qv", poolName, regex.pattern());
     }
 
@@ -971,56 +969,12 @@ void ToProto(
     }
 }
 
-void ToProto(NControllerAgent::NProto::TVolume* volumeProto, const TVolume& volume)
-{
-    if (volume.DiskRequest) {
-        if (auto nbdDiskRequest = volume.DiskRequest->TryGetConcrete<TNbdDiskRequest>()) {
-            auto protoDiskRequest = volumeProto->mutable_nbd_disk_request();
-            ToProto(protoDiskRequest, *nbdDiskRequest);
-        } else if (auto localDiskRequest = volume.DiskRequest->TryGetConcrete<TLocalDiskRequest>()) {
-            auto protoDiskRequest = volumeProto->mutable_local_disk_request();
-            ToProto(protoDiskRequest, *localDiskRequest);
-        } else if (auto tmpfsDiskRequest = volume.DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()) {
-            ToProto(volumeProto->mutable_tmpfs_storage_request(), *tmpfsDiskRequest);
-        } else {
-            YT_ABORT();
-        }
-    }
-}
-
-void FromProto(TVolume* volume, const NControllerAgent::NProto::TVolume& volumeProto)
-{
-    using TProtoMessage = NControllerAgent::NProto::TVolume::DiskRequestCase;
-    switch (volumeProto.disk_request_case()) {
-        case TProtoMessage::kLocalDiskRequest:
-            volume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Local);
-            FromProto(
-                &(*volume->DiskRequest->TryGetConcrete<TLocalDiskRequest>()),
-                volumeProto.local_disk_request());
-            break;
-        case TProtoMessage::kNbdDiskRequest:
-            volume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Nbd);
-            FromProto(
-                &(*volume->DiskRequest->TryGetConcrete<TNbdDiskRequest>()),
-                volumeProto.nbd_disk_request());
-            break;
-        case TProtoMessage::kTmpfsStorageRequest:
-            volume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Tmpfs);
-            FromProto(
-                &(*volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()),
-                volumeProto.tmpfs_storage_request());
-            break;
-        case TProtoMessage::DISK_REQUEST_NOT_SET:
-            YT_ABORT();
-    }
-}
-
 void FromProto(
     TVolumeMount* volumeMount,
     const NControllerAgent::NProto::TVolumeMount& volumeMountProto)
 {
     volumeMount->VolumeId = volumeMountProto.volume_id();
-    volumeMount->MountPath = volumeMountProto.mount_path();
+    volumeMount->MountPath = std::filesystem::path(std::string(volumeMountProto.mount_path()));
     volumeMount->ReadOnly = volumeMountProto.read_only();
 }
 
@@ -1031,107 +985,6 @@ void ToProto(
     volumeMountProto->set_volume_id(volumeMount.VolumeId);
     volumeMountProto->set_mount_path(volumeMount.MountPath);
     volumeMountProto->set_read_only(volumeMount.ReadOnly);
-}
-
-void FromProto(
-    TTmpfsVolumeConfig* tmpfsVolumeConfig,
-    const NControllerAgent::NProto::TTmpfsVolume& protoTmpfsVolume)
-{
-    tmpfsVolumeConfig->Size = protoTmpfsVolume.size();
-    tmpfsVolumeConfig->Path = protoTmpfsVolume.path();
-}
-
-void ToProto(NControllerAgent::NProto::TTmpfsVolume* protoTmpfsVolume, const TTmpfsVolumeConfig& tmpfsVolumeConfig)
-{
-    protoTmpfsVolume->set_size(tmpfsVolumeConfig.Size);
-    protoTmpfsVolume->set_path(tmpfsVolumeConfig.Path);
-}
-
-void FromProto(TStorageRequestConfig* diskRequestConfig, const NProto::TDeprecatedDiskRequest& protoDiskRequestConfig)
-{
-    switch (static_cast<NExecNode::EVolumeType>(protoDiskRequestConfig.type())) {
-        case NExecNode::EVolumeType::Nbd:
-            *diskRequestConfig = TStorageRequestConfig(NExecNode::EVolumeType::Nbd);
-            FromProto(&(*diskRequestConfig->TryGetConcrete<TNbdDiskRequest>()), protoDiskRequestConfig);
-            break;
-        case NExecNode::EVolumeType::Local:
-            *diskRequestConfig = TStorageRequestConfig(NExecNode::EVolumeType::Local);
-            FromProto(&(*diskRequestConfig->TryGetConcrete<TLocalDiskRequest>()), protoDiskRequestConfig);
-            break;
-        case NExecNode::EVolumeType::Tmpfs:
-            break;
-    }
-}
-
-void ToProto(NProto::TDeprecatedDiskRequest* protoDiskRequest, const TStorageRequestConfig& diskRequestConfig)
-{
-    if (auto nbdDiskRequest = diskRequestConfig.TryGetConcrete<TNbdDiskRequest>()) {
-        protoDiskRequest->set_type(static_cast<int>(NExecNode::EVolumeType::Nbd));
-        ToProto(protoDiskRequest, *nbdDiskRequest);
-    } else if (auto localDiskRequest = diskRequestConfig.TryGetConcrete<TLocalDiskRequest>()) {
-        protoDiskRequest->set_type(static_cast<int>(NExecNode::EVolumeType::Local));
-        ToProto(protoDiskRequest, *localDiskRequest);
-    } else if (auto tmpfsDiskRequest = diskRequestConfig.TryGetConcrete<TTmpfsStorageRequest>()) {
-        protoDiskRequest->set_type(static_cast<int>(NExecNode::EVolumeType::Tmpfs));
-        ToProto(protoDiskRequest, *tmpfsDiskRequest);
-    } else {
-        YT_ABORT();
-    }
-
-}
-
-void FromProto(TNbdDiskConfig* nbdDiskConfig, const NProto::TNbdDisk& protoNbdDisk)
-{
-    if (protoNbdDisk.has_data_node_address()) {
-        nbdDiskConfig->DataNodeAddress = protoNbdDisk.data_node_address();
-    }
-
-    nbdDiskConfig->DataNodeRpcTimeout = FromProto<TDuration>(protoNbdDisk.data_node_rpc_timeout());
-    nbdDiskConfig->MasterRpcTimeout = FromProto<TDuration>(protoNbdDisk.master_rpc_timeout());
-    nbdDiskConfig->DataNodeNbdServiceRpcTimeout = FromProto<TDuration>(protoNbdDisk.data_node_nbd_service_rpc_timeout());
-    nbdDiskConfig->DataNodeNbdServiceMakeTimeout = FromProto<TDuration>(protoNbdDisk.data_node_nbd_service_make_timeout());
-    nbdDiskConfig->MinDataNodeCount = protoNbdDisk.min_data_node_count();
-    nbdDiskConfig->MaxDataNodeCount = protoNbdDisk.max_data_node_count();
-}
-
-void ToProto(NProto::TNbdDisk* protoNbdDisk, const TNbdDiskConfig& nbdDiskConfig)
-{
-    if (nbdDiskConfig.DataNodeAddress) {
-        protoNbdDisk->set_data_node_address(*nbdDiskConfig.DataNodeAddress);
-    }
-    protoNbdDisk->set_data_node_rpc_timeout(ToProto(nbdDiskConfig.DataNodeRpcTimeout));
-    protoNbdDisk->set_master_rpc_timeout(ToProto(nbdDiskConfig.MasterRpcTimeout));
-    protoNbdDisk->set_min_data_node_count(nbdDiskConfig.MinDataNodeCount);
-    protoNbdDisk->set_max_data_node_count(nbdDiskConfig.MaxDataNodeCount);
-    protoNbdDisk->set_data_node_nbd_service_rpc_timeout(ToProto(nbdDiskConfig.DataNodeNbdServiceRpcTimeout));
-    protoNbdDisk->set_data_node_nbd_service_make_timeout(ToProto(nbdDiskConfig.DataNodeNbdServiceMakeTimeout));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void FromProto(TTmpfsStorageRequest* diskRequestConfig, const NProto::TTmpfsStorageRequest& protoDiskRequestConfig)
-{
-    FromProto(static_cast<TStorageRequestBase*>(diskRequestConfig), protoDiskRequestConfig.storage_request_common_parameters());
-
-    // COMPAT(krasovav): remove after YT-26820.
-    YT_VERIFY(protoDiskRequestConfig.has_tmpfs_index());
-    diskRequestConfig->TmpfsIndex = protoDiskRequestConfig.tmpfs_index();
-}
-
-void ToProto(NProto::TTmpfsStorageRequest* protoDiskRequestConfig, const TTmpfsStorageRequest& diskRequestConfig)
-{
-    ToProto(protoDiskRequestConfig->mutable_storage_request_common_parameters(), static_cast<const TStorageRequestBase&>(diskRequestConfig));
-
-    // COMPAT(krasovav): remove after YT-26820.
-    YT_VERIFY(diskRequestConfig.TmpfsIndex);
-    protoDiskRequestConfig->set_tmpfs_index(*diskRequestConfig.TmpfsIndex);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsDiskRequestTmpfs(const std::optional<TStorageRequestConfig>& diskRequest)
-{
-    return diskRequest && diskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

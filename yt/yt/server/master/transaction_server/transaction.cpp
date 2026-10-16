@@ -1,5 +1,6 @@
 #include "transaction.h"
 #include "private.h"
+#include "transaction_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
@@ -20,6 +21,7 @@ namespace NYT::NTransactionServer {
 
 using namespace NCellMaster;
 using namespace NChunkClient;
+using namespace NConcurrency;
 using namespace NCypressServer;
 using namespace NHydra;
 using namespace NObjectClient;
@@ -245,6 +247,17 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     TObject::Save(context);
     TTransactionBase::Save(context);
 
+    // All transactions should have this flag set to true, unless they were started before 24.2
+    // and something went wrong when attempting to abort it.
+    // But let's write a detailed message here anyway.
+    YT_TLOG_ALERT_UNLESS(
+        NativeTxExternalizationEnabled_,
+        "A Cypress transaction has NativeTxExternalizationEnabled set to false; "
+        "this can happen if the transaction was started too long ago; the new algorithm "
+        "relies on all transactions being externalized, so this may lead to data corruption; "
+        "please abort said transaction")
+        .With("TransactionId", Id_);
+
     using NYT::Save;
     Save(context, GetPersistentState());
     Save(context, Timeout_);
@@ -260,7 +273,6 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, LockedNodes_);
     Save(context, Locks_);
     Save(context, BranchedNodes_);
-    Save(context, StagedNodes_);
     Save(context, AccountResourceUsage_);
     Save(context, Acd_);
     Save(context, PrerequisiteTransactions_);
@@ -270,7 +282,8 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, TablesWithBackupCheckpoints_);
     Save(context, Depth_);
     Save(context, RecursiveLockCount_);
-    Save(context, NativeCommitMutationRevision_);
+    Save(context, NativeCommitRevision_.Mutation);
+    Save(context, NativeCommitRevision_.Sequoia);
     Save(context, GetTransactionLeasesState());
     Save(context, LeaseCellIds_);
     Save(context, SuccessorTransactionLeaseCount_);
@@ -279,6 +292,15 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, SequoiaWriteSet_);
     Save(context, AuthenticationIdentity_.User);
     Save(context, AuthenticationIdentity_.UserTag);
+    Save(context, InitiatorId_);
+    if (IsCypressTransactionType(GetType())) {
+        Save(context, NativeTxExternalizationEnabled_);
+    }
+
+    // Cookies are invalidated anyway, so let's save the keys only.
+    auto tags = GetKeys(BarrierTagToCookie_);
+    std::sort(tags.begin(), tags.end());
+    Save(context, tags);
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -301,7 +323,11 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, LockedNodes_);
     Load(context, Locks_);
     Load(context, BranchedNodes_);
-    Load(context, StagedNodes_);
+    // COMPAT(theevilbird)
+    if (context.GetVersion() < EMasterReign::RemoveStagedNodesInTransactions ||
+        (context.GetVersion() >= EMasterReign::Start_26_2 && context.GetVersion() < EMasterReign::RemoveStagedNodesInTransactions_26_2)) {
+        Load(context, StagedNodes_);
+    }
     Load(context, AccountResourceUsage_);
     Load(context, Acd_);
     Load(context, PrerequisiteTransactions_);
@@ -315,7 +341,17 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
         Load(context, upload);
     }
     Load(context, RecursiveLockCount_);
-    Load(context, NativeCommitMutationRevision_);
+    Load(context, NativeCommitRevision_.Mutation);
+
+    // Yes, this heavily relies on timestamps being significantly greater than
+    // every possible Hydra revision.
+    if (context.GetVersion() < EMasterReign::SequoiaRevision_26_1 ||
+        (context.GetVersion() >= EMasterReign::Start_26_2 && context.GetVersion() < EMasterReign::SequoiaRevision_26_2))
+    {
+        NativeCommitRevision_.Sequoia = NativeCommitRevision_.Mutation;
+    } else {
+        Load(context, NativeCommitRevision_.Sequoia);
+    }
     if (context.GetVersion() < EMasterReign::RemoveCompatsAroundStartTransaction) {
         bool isCypressTransaction;
         Load(context, isCypressTransaction);
@@ -332,20 +368,32 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
 
     Load(context, AuthenticationIdentity_.User);
     Load(context, AuthenticationIdentity_.UserTag);
+    // COMPAT(ivpiskarev)
+    if (context.GetVersion() >= EMasterReign::AddPerUserActiveTransactionCountLimit) {
+        Load(context, InitiatorId_);
+    } else {
+        // We are supposed to be in LoadValues, so all objects should have been
+        // allocated and should have correct ids.
+        InitiatorId_ = Acd_.GetOwner()->AsUser()->GetId();
+    }
 
-    if (context.GetVersion() < EMasterReign::RemoveNativeTxExternalizationEnabledFlag) {
+    auto version = context.GetVersion();
+    if (version < EMasterReign::RemoveNativeTxExternalizationEnabledFlag ||
+        (EMasterReign::AbortStuckTransactions <= version && version < EMasterReign::Start_26_2) ||
+        EMasterReign::AbortStuckTransactions_26_2 <= version)
+    {
         if (IsCypressTransactionType(GetType())) {
-            bool nativeTxExternalizationEnabled;
-            Load(context, nativeTxExternalizationEnabled);
+            Load(context, NativeTxExternalizationEnabled_);
+        }
+    }
 
-            // All transactions should have this flag set to true, unless they were started before 24.2.
-            // But let's write a detailed message here anyway.
-            YT_LOG_FATAL_UNLESS(
-                nativeTxExternalizationEnabled,
-                "A Cypress transaction has NativeTxExternalizationEnabled set to false; This can happen if a transaction "
-                "was started too long ago. New algorithm relies on all transactions being externalized. This issue may lead "
-                "to data corruption! Please abort said transaction in order for master to be able to be started (TransactionId: %v)",
-                Id_);
+    if ((EMasterReign::StrongOrderingTags <= context.GetVersion() && context.GetVersion() < EMasterReign::Start_26_2) ||
+        EMasterReign::StrongOrderingTags_26_2 <= context.GetVersion())
+    {
+        auto barrierTags = Load<std::vector<std::string>>(context);
+
+        for (const auto& tag : barrierTags) {
+            RegisterBarrierCookie(tag, InvalidAsyncBarrierCookie);
         }
     }
 }
@@ -366,12 +414,12 @@ TTransaction* TTransaction::GetTopmostTransaction()
 
 bool TTransaction::IsReplicatedToCell(TCellTag cellTag) const
 {
-    return std::find(ReplicatedToCellTags_.begin(), ReplicatedToCellTags_.end(), cellTag) != ReplicatedToCellTags_.end();
+    return ReplicatedToCellTags_.contains(cellTag);
 }
 
 bool TTransaction::IsExternalizedToCell(TCellTag cellTag) const
 {
-    return std::find(ExternalizedToCellTags_.begin(), ExternalizedToCellTags_.end(), cellTag) != ExternalizedToCellTags_.end();
+    return ExternalizedToCellTags_.contains(cellTag);
 }
 
 bool TTransaction::IsExternalized() const
@@ -412,11 +460,10 @@ void TTransaction::AttachLock(TLock* lock, const IObjectManagerPtr& objectManage
     while (currentTransaction) {
         currentTransaction->IncrementRecursiveLockCount();
 
-        YT_LOG_TRACE(
-            "Transaction recursive lock count increased (RecursiveLockCount: %v, TransactionId: %v, LockId: %v)",
-            currentTransaction->GetRecursiveLockCount(),
-            currentTransaction->GetId(),
-            lock->GetId());
+        YT_TLOG_TRACE("Transaction recursive lock count increased")
+            .With("RecursiveLockCount", currentTransaction->GetRecursiveLockCount())
+            .With("TransactionId", currentTransaction->GetId())
+            .With("LockId", lock->GetId());
 
         currentTransaction = currentTransaction->GetParent();
     }
@@ -439,11 +486,10 @@ void TTransaction::DetachLock(
     while (currentTransaction) {
         currentTransaction->DecrementRecursiveLockCount();
 
-        YT_LOG_TRACE(
-            "Transaction recursive lock count decreased (RecursiveLockCount: %v, TransactionId: %v, LockId: %v)",
-            currentTransaction->GetRecursiveLockCount(),
-            currentTransaction->GetId(),
-            lock->GetId());
+        YT_TLOG_TRACE("Transaction recursive lock count decreased")
+            .With("RecursiveLockCount", currentTransaction->GetRecursiveLockCount())
+            .With("TransactionId", currentTransaction->GetId())
+            .With("LockId", lock->GetId());
 
         currentTransaction = currentTransaction->GetParent();
     }
@@ -456,10 +502,9 @@ void TTransaction::IncrementRecursiveLockCount()
 
 void TTransaction::DecrementRecursiveLockCount()
 {
-    YT_LOG_ALERT_IF(--RecursiveLockCount_ < 0,
-        "Transaction recursive lock count is negative (TransactionId: %v, RecursiveLockCount: %v)",
-        GetId(),
-        RecursiveLockCount_);
+    YT_TLOG_ALERT_IF(--RecursiveLockCount_ < 0, "Transaction recursive lock count is negative")
+        .With("TransactionId", GetId())
+        .With("RecursiveLockCount", RecursiveLockCount_);
 }
 
 void TTransaction::SetTransactionLeasesState(ETransactionLeasesState newState)
@@ -479,7 +524,8 @@ void TTransaction::SetTransactionLeasesState(ETransactionLeasesState newState)
             LeasesRevokedPromise_ = NewPromise<void>();
         }
         LeasesRevokedPromise_.TrySet();
-        YT_LOG_DEBUG("Transaction leases revoked (TransactionId: %v)", Id_);
+        YT_TLOG_DEBUG("Transaction leases revoked")
+            .With("TransactionId", Id_);
     }
 }
 
@@ -501,6 +547,27 @@ void TTransaction::SetSuccessorTransactionLeaseCount(int newLeaseCount)
 int TTransaction::GetSuccessorTransactionLeaseCount() const
 {
     return SuccessorTransactionLeaseCount_;
+}
+
+bool TTransaction::IsNativeTxExternalizationEnabled() const
+{
+    return NativeTxExternalizationEnabled_;
+}
+
+void TTransaction::RegisterBarrierCookie(
+    const std::string& tag,
+    TAsyncBarrierCookie cookie)
+{
+    if (cookie == InvalidAsyncBarrierCookie) {
+        YT_VERIFY(!BarrierTagToCookie_.contains(tag));
+    }
+
+    BarrierTagToCookie_[tag] = cookie;
+}
+
+const THashMap<std::string, TAsyncBarrierCookie>& TTransaction::GetBarrierCookies() const
+{
+    return BarrierTagToCookie_;
 }
 
 auto TTransaction::GetActionStateFactory() -> IActionStateFactory*

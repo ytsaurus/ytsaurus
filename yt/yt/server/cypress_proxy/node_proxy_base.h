@@ -47,8 +47,7 @@ protected:
         NObjectClient::TCellId coordinatorCellId,
         bool commitSession);
 
-    void AbortSequoiaSessionForLaterForwardingToMaster(
-        std::optional<NSecurityClient::TSerializableAccessControlList> forwardEffectiveAcl = std::nullopt);
+    void AbortSequoiaSessionForLaterForwardingToMaster(TForwardToMasterPayload payload = {});
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeProxyBase)

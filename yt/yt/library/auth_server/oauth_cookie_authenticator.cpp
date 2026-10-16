@@ -61,10 +61,9 @@ public:
         auto accessTokenMD5 = GetMD5HexDigestUpperCase(accessToken);
         auto userIP = FormatUserIP(credentials.UserIP);
 
-        YT_LOG_DEBUG(
-            "Authenticating user via OAuth cookie (AccessTokenMD5: %v, UserIP: %v)",
-            accessTokenMD5,
-            userIP);
+        YT_TLOG_DEBUG("Authenticating user via OAuth cookie")
+            .With("AccessTokenMD5", accessTokenMD5)
+            .With("UserIP", userIP);
 
         return OAuthService_->GetUserInfo(accessToken)
             .Apply(BIND(
@@ -80,7 +79,7 @@ private:
     const ICypressUserManagerPtr UserManager_;
 
     TAuthenticationResult OnGetUserInfo(
-        const TString& accessTokenMD5,
+        const std::string& accessTokenMD5,
         const TOAuthUserInfoResult& userInfo)
     {
         auto error = EnsureUserExists(
@@ -90,20 +89,21 @@ private:
             Config_->DefaultUserTags);
 
         if (!error.IsOK()) {
-            YT_LOG_DEBUG(error, "Authentication via OAuth failed (AccessTokenMD5: %v)", accessTokenMD5);
-            error <<= TErrorAttribute("access_token_md5", accessTokenMD5);
+            YT_TLOG_DEBUG("Authentication via OAuth failed")
+                .With("AccessTokenMD5", accessTokenMD5)
+                .With(error);
+            error.Add("access_token_md5", accessTokenMD5);
             THROW_ERROR error;
         }
 
         auto result = TAuthenticationResult{
             .Login = userInfo.Login,
-            .Realm = TString(OAuthCookieRealm),
+            .Realm = std::string(OAuthCookieRealm),
         };
-        YT_LOG_DEBUG(
-            "Authentication via OAuth successful (AccessTokenMD5: %v, Login: %v, Realm: %v)",
-            accessTokenMD5,
-            result.Login,
-            result.Realm);
+        YT_TLOG_DEBUG("Authentication via OAuth successful")
+            .With("AccessTokenMD5", accessTokenMD5)
+            .With("Login", result.Login)
+            .With("Realm", result.Realm);
         return result;
     }
 };

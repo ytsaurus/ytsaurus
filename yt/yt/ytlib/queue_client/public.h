@@ -2,19 +2,28 @@
 
 #include "path.h"
 
+#include <yt/yt/core/logging/log.h>
+
 #include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/client/queue_client/common.h>
 
 #include <yt/yt/client/hydra/public.h>
 
+#include <library/cpp/yt/misc/leaky_global.h>
+
 namespace NYT::NQueueClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, QueueClientLogger, "QueueClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentStageChannelConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentConnectionConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentDynamicStateConfig)
+DECLARE_REFCOUNTED_STRUCT(TQueueAgentDynamicStateDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueConsumerRegistrationManagerBatchLookupConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueConsumerRegistrationManagerCacheConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueConsumerRegistrationManagerConfig)
@@ -37,6 +46,7 @@ DECLARE_REFCOUNTED_STRUCT(TGenericReplicatedTableMeta)
 
 DECLARE_REFCOUNTED_CLASS(TQueueTable)
 DECLARE_REFCOUNTED_CLASS(TConsumerTable)
+DECLARE_REFCOUNTED_CLASS(TMultiConsumerNameTable)
 DECLARE_REFCOUNTED_CLASS(TConsumerRegistrationTable)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentObjectMappingTable)
 DECLARE_REFCOUNTED_CLASS(TReplicatedTableMappingTable)
@@ -52,9 +62,10 @@ DECLARE_REFCOUNTED_CLASS(TQueueConsumerRegistrationManagerBase)
 
 struct TQueueTableRow;
 struct TConsumerTableRow;
+using TConsumerTableRowConstPtr = TIntrusivePtr<const TConsumerTableRow>;
+using TAtomicConsumerTableRowConstPtr = TAtomicIntrusivePtr<const TConsumerTableRow>;
 struct TConsumerRegistrationTableRow;
 struct TReplicatedTableMappingTableRow;
-using TConsumerRowMap = THashMap<TConsumerPath, TConsumerTableRow>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

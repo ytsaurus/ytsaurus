@@ -40,6 +40,8 @@
 
 #include <yt/yt/core/yson/string.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,12 +53,21 @@ DEFINE_ENUM(EGpuCheckType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Tmpfs volume as requested by the job spec.
+struct TTmpfsVolumeSpec
+{
+    i64 Size = 0;
+    std::string Path;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJob
     : public TRefCounted
 {
     struct TNameWithAddress
     {
-        TString Name;
+        std::string Name;
         NNet::TIP6Address Address;
     };
 
@@ -87,12 +98,12 @@ public:
     void OnJobProxySpawned();
 
     void PrepareArtifact(
-        const TString& artifactName,
+        const std::string& artifactName,
         const TString& pipePath);
 
     void OnArtifactPreparationFailed(
-        const TString& artifactName,
-        const TString& artifactPath,
+        const std::string& artifactName,
+        const std::string& artifactPath,
         const TError& error);
 
     void OnArtifactsPrepared();
@@ -155,17 +166,21 @@ public:
 
     void SetStderrSize(i64 value);
 
-    void SetStderr(const TString& value);
+    void SetStderr(const std::string& value);
 
-    void SetFailContext(const TString& value);
+    void SetFailContext(const std::string& value);
 
     void AddProfile(NJobAgent::TJobProfile value);
 
     void SetCoreInfos(NControllerAgent::TCoreInfos value);
 
-    const NJobAgent::TArtifactCacheStatistics& GetArtifactCacheStatistics() const;
+    const NJobAgent::TArtifactStatistics& GetArtifactStatistics() const;
 
     NYson::TYsonString GetStatistics() const;
+    NYson::TYsonString GetStatisticsForHeartbeat(bool omitDataStatisticsFromYson) const;
+    void FillStatisticsForHeartbeat(
+        TNonNullPtr<NControllerAgent::NProto::TJobStatus> status,
+        bool omitDataStatisticsFromYson) const;
     NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics() const;
     std::vector<NChunkClient::NProto::TDataStatistics> GetOutputDataStatistics() const;
 
@@ -175,9 +190,10 @@ public:
 
     void UpdateUserJobMonitoring();
 
-    void SetStatistics(const NYson::TYsonString& statisticsYson);
-    void SetTotalInputDataStatistics(NChunkClient::NProto::TDataStatistics dataStatistics);
-    void SetOutputDataStatistics(std::vector<NChunkClient::NProto::TDataStatistics> dataStatistics);
+    void SetStatistics(
+        const NYson::TYsonString& statisticsYson,
+        NChunkClient::NProto::TDataStatistics inputDataStatistics,
+        std::vector<NChunkClient::NProto::TDataStatistics> outputDataStatistics);
 
     TBriefJobInfo GetBriefInfo() const;
     NYTree::IYPathServicePtr GetOrchidService();
@@ -186,7 +202,7 @@ public:
 
     std::optional<NApi::TGetJobStderrResponse> GetStderr(const NApi::TGetJobStderrOptions& options);
 
-    std::optional<TString> GetFailContext();
+    std::optional<std::string> GetFailContext();
 
     const NControllerAgent::TCoreInfos& GetCoreInfos();
 
@@ -218,7 +234,7 @@ public:
     void DoInterrupt(
         TDuration timeout,
         NScheduler::EInterruptionReason interruptionReason,
-        std::optional<TString> preemptionReason,
+        std::optional<std::string> preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
     void DoFail(TError error);
@@ -244,14 +260,14 @@ public:
     void OnJobInterruptionTimeout(
         NScheduler::EInterruptionReason interruptionReason,
         TDuration interruptionTimeout,
-        const std::optional<TString>& preemptionReason);
+        const std::optional<std::string>& preemptionReason);
 
     TControllerAgentConnectorPool::TControllerAgentConnectorPtr GetControllerAgentConnector() const noexcept;
 
     void Interrupt(
         TDuration timeout,
         NScheduler::EInterruptionReason interruptionReason,
-        std::optional<TString> preemptionReason,
+        std::optional<std::string> preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
     NScheduler::EInterruptionReason GetInterruptionReason() const noexcept;
@@ -268,7 +284,7 @@ public:
     i64 GetJobProxyHeartbeatEpoch() const;
     bool UpdateJobProxyHearbeatEpoch(i64 epoch);
 
-    const std::vector<NScheduler::TTmpfsVolumeConfigPtr>& GetTmpfsVolumeInfos() const noexcept;
+    const std::vector<TTmpfsVolumeSpec>& GetTmpfsVolumeSpecs() const noexcept;
 
     bool HasUserJobSpec() const noexcept;
 
@@ -298,7 +314,7 @@ private:
 
     // NB(pogorelov): GuardedJobSpec_ is mutated only from job thread, so we can store reference to an object and
     // read it from job thread without lock.
-    NThreading::TAtomicObject<NControllerAgent::NProto::TJobSpec> GuardedJobSpec_;
+    TAtomicObject<NControllerAgent::NProto::TJobSpec> GuardedJobSpec_;
     // Thread affinity: JobThread
     const NControllerAgent::NProto::TJobSpec& JobSpec_;
     const NControllerAgent::NProto::TJobSpecExt& JobSpecExt_;
@@ -313,9 +329,9 @@ private:
 
     const bool HasUserJobSpec_;
 
-    const std::vector<NScheduler::TTmpfsVolumeConfigPtr> TmpfsVolumeInfos_;
+    const std::vector<TTmpfsVolumeSpec> TmpfsVolumeSpecs_;
 
-    THashSet<TString> RequestedMonitoringSensors_;
+    THashSet<std::string> RequestedMonitoringSensors_;
 
     // Used to terminate artifacts downloading in case of cancelation.
     TFuture<void> ArtifactsFuture_ = OKFuture;
@@ -324,9 +340,10 @@ private:
     double Progress_ = 0.0;
     i64 StderrSize_ = 0;
 
-    std::optional<TString> Stderr_;
-    std::optional<TString> FailContext_;
+    std::optional<std::string> Stderr_;
+    std::optional<std::string> FailContext_;
     std::vector<NJobAgent::TJobProfile> Profiles_;
+    std::optional<NJobAgent::TJobProfile> JobProxyPeakMemoryProfile_;
     NControllerAgent::TCoreInfos CoreInfos_;
 
     bool InterruptionRequested_ = false;
@@ -336,6 +353,14 @@ private:
     bool GracefulAbortRequested_ = false;
 
     NYson::TYsonString StatisticsYson_ = NYson::TYsonString(TStringBuf("{}"));
+    NYson::TYsonString StatisticsWithoutDataYson_ = NYson::TYsonString(TStringBuf("{}"));
+    bool HasJobProxyStatistics_ = false;
+    //! Data statistics included in the full StatisticsYson_.
+    //! Output statistics cover the first FullYsonOutputTableCount_ tables.
+    bool HasInputDataStatisticsInFullYson_ = false;
+    int FullYsonOutputTableCount_ = 0;
+    //! Captured from the configuration passed to job proxy.
+    std::optional<int> StatisticsOutputTableCountLimit_;
 
     using TGpuStatisticsWithUpdateTime = std::pair<TGpuStatistics, std::optional<TInstant>>;
     std::vector<TGpuStatisticsWithUpdateTime> GpuStatistics_;
@@ -356,11 +381,15 @@ private:
 
     std::optional<TInstant> PreparationStartTime_;
     std::optional<TInstant> NodeDirectoryPreparationStartTime_;
+    std::optional<TInstant> ArtifactsDownloadStartTime_;
     std::optional<TInstant> ArtifactsDownloadedTime_;
     std::optional<TInstant> StartTime_;
     std::optional<TInstant> ExecStartTime_;
     std::optional<TInstant> FinishTime_;
     std::optional<TInstant> ResultReceivedTime_;
+
+    std::optional<TInstant> PrepareLayersStartTime_;
+    std::optional<TInstant> PrepareLayersFinishTime_;
 
     std::optional<TInstant> PrepareRootVolumeStartTime_;
     std::optional<TInstant> PrepareRootVolumeFinishTime_;
@@ -391,7 +420,7 @@ private:
 
     std::atomic<bool> UseJobInputCache_ = false;
 
-    NThreading::TAtomicObject<THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr>> ProxiableChunks_;
+    TAtomicObject<THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr>> ProxiableChunks_;
 
     bool IsGpuRequested_;
 
@@ -413,7 +442,7 @@ private:
 
     TPromise<void> CleanupFinished_ = NewPromise<void>();
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, JobProbeLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, JobProbeLock_);
     NJobProxy::IJobProbePtr JobProbe_;
 
     NRpc::IChannelPtr JobProxyChannel_;
@@ -422,7 +451,7 @@ private:
     TNetworkAttributes NetworkAttributes_;
 
     // Artifact statistics.
-    NJobAgent::TArtifactCacheStatistics ArtifactCacheStatistics_;
+    NJobAgent::TArtifactStatistics ArtifactStatistics_;
 
     std::vector<TFuture<void>> ArtifactPrepareFutures_;
 
@@ -446,12 +475,19 @@ private:
 
     TJobFSSecretaryPtr FSSecretary_;
 
+    //! Interrupts this job on an NBD device error. Subscribed to each of the job's
+    //! NBD devices once its artifacts are prepared; the same instance is used to
+    //! unsubscribe on cleanup.
+    TCallback<void(const TError&)> NbdErrorInterrupter_;
+
     bool HasJobTrace_ = false;
     bool HasGpuCheckStderr_ = false;
 
     NYTree::IYPathServicePtr CreateStaticOrchidService();
     NYTree::IYPathServicePtr CreateJobProxyOrchidService();
     NYTree::IYPathServicePtr CreateDynamicOrchidService();
+    NYTree::IYPathServicePtr CreatePreliminaryGpuCheckOrchidService();
+    NYTree::IYPathServicePtr CreateTestingOrchidService();
 
     // Helpers.
 
@@ -470,7 +506,7 @@ private:
         TInstant time,
         TDuration timeout,
         NScheduler::EInterruptionReason interruptionReason,
-        const std::optional<TString>& preemptionReason,
+        const std::optional<std::string>& preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
     void DoSetResult(TError error);
@@ -510,7 +546,7 @@ private:
 
     TFuture<void> RunGpuCheckCommand(
         const TString& gpuCheckBinaryPath,
-        std::vector<TString> gpuCheckBinaryArgs,
+        std::vector<std::string> gpuCheckBinaryArgs,
         EGpuCheckType gpuCheckType);
 
     void OnGpuCheckCommandFinished(const TError& error);
@@ -540,6 +576,7 @@ private:
     // Finalization.
     void Cleanup();
 
+    void SubscribeJobToNbdDevices();
     void UnsubscribeJobFromNbdDevices();
 
     // Preparation.
@@ -552,7 +589,7 @@ private:
 
     TNetworkAttributes BuildNetworkAttributes(NControllerAgent::TNetworkProject networkProject) const;
 
-    TArtifactDownloadOptions MakeArtifactDownloadOptions() const;
+    TArtifactDownloadOptions MakeArtifactDownloadOptions();
 
     // Start async artifacts download.
     TFuture<std::vector<TArtifactPtr>> DownloadArtifacts();
@@ -577,7 +614,10 @@ private:
 
     void UpdateIOStatistics(const TStatistics& statistics);
 
-    void UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit);
+    void UpdateArtifactStatistics(
+        i64 compressedDataSize,
+        bool cacheHit,
+        bool isLayer);
 
     std::vector<TShellCommandConfigPtr> GetSetupCommands();
 
@@ -588,13 +628,13 @@ private:
 
     void InitializeJobProbe();
 
+    void InitializeJobProxyLogging();
+
     void ResetJobProbe();
 
     NJobProxy::IJobProbePtr GetJobProbeOrThrow();
 
     void ReportJobProxyProcessFinish(const TError& error);
-
-    static bool ShouldCleanSandboxes();
 
     bool NeedGpuLayers();
 
@@ -621,9 +661,13 @@ private:
 
     void OnJobFinalized();
 
+    bool HasInput() const;
+
+    void UpdateStatisticsYson(TStatistics statisticsWithoutData);
+
     void DeduceAndSetFinishedJobState();
 
-    static std::vector<NScheduler::TTmpfsVolumeConfigPtr> ParseTmpfsVolumeInfos(
+    static std::vector<TTmpfsVolumeSpec> ParseTmpfsVolumeSpecs(
         const NControllerAgent::NProto::TUserJobSpec* maybeUserJobSpec);
 };
 

@@ -7,7 +7,7 @@
 
 #include <yt/yt/server/lib/tablet_balancer/balancing_helpers.h>
 #include <yt/yt/server/lib/tablet_balancer/config.h>
-#include <yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.h>
+#include <yt/yt/server/lib/tablet_balancer/resharder.h>
 #include <yt/yt/server/lib/tablet_balancer/table.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet_cell.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet_cell_bundle.h>
@@ -85,40 +85,86 @@ public:
         return BundleSnapshot_->TableRegistry->GetProfilingCounters(table, GroupName_);
     }
 
-    std::vector<TReshardDescriptor> AnnotateInplaceReshardDescriptors(
-        std::vector<TReshardDescriptor> descriptors)
+    void AnnotateInplaceReshardDescriptors(
+        std::vector<TReshardDescriptor>* descriptors) const override
     {
-        auto [hasTrue, hasFalse] = EvaluateFeatureFlag(
-            &TFeatureFlagConfig::EnableInplaceReshard,
+        auto [inplaceSplitHasTrue, inplaceSplitHasFalse] = EvaluateFeatureFlag(
+            &TFeatureFlagConfig::EnableInplaceSplit,
             DynamicConfig_,
             GroupConfig_,
             BundleSnapshot_->Bundle->Config);
 
-        if (hasFalse) {
-            return descriptors;
+        auto [inplaceMergeHasTrue, inplaceMergeHasFalse] = EvaluateFeatureFlag(
+            &TFeatureFlagConfig::EnableInplaceMerge,
+            DynamicConfig_,
+            GroupConfig_,
+            BundleSnapshot_->Bundle->Config);
+
+        if (inplaceMergeHasFalse && inplaceSplitHasFalse) {
+            return;
         }
 
-        for (auto& descriptor : descriptors) {
-            const auto& tablet = GetOrCrash(BundleSnapshot_->Bundle->Tablets, descriptor.Tablets.front());
-            const auto* table = tablet->Table;
+        auto [smoothHasTrue, smoothHasFalse] = EvaluateFeatureFlag(
+            &TFeatureFlagConfig::EnableSmoothMovement,
+            DynamicConfig_,
+            GroupConfig_,
+            BundleSnapshot_->Bundle->Config);
 
-            YT_LOG_FATAL_IF(
-                TypeFromId(table->Id) != EObjectType::Table,
-                "Attempted to reshard object that is not a table "
-                "(ActualType: %v, ObjectId: %v, Path: %v, Bundle: %v)",
-                TypeFromId(table->Id),
-                table->Id,
-                table->Path,
-                table->Bundle);
+        for (auto& descriptor : *descriptors) {
+            const auto& firstTablet = GetOrCrash(BundleSnapshot_->Bundle->Tablets, descriptor.Tablets.front());
+            const auto* table = firstTablet->Table;
 
-            if (std::ssize(descriptor.Tablets) != 1) {
+            YT_TLOG_FATAL_IF(TypeFromId(table->Id) != EObjectType::Table, "Attempted to reshard object that is not a table")
+                .With("ActualType", TypeFromId(table->Id))
+                .With("ObjectId", table->Id)
+                .With("Path", table->Path)
+                .With("Bundle", table->Bundle);
+
+            if (descriptor.Tablets.size() == 1) {
+                descriptor.Inplace = !inplaceSplitHasFalse && table->TableConfig->EnableInplaceSplit.value_or(inplaceSplitHasTrue);
                 continue;
             }
 
-            descriptor.Inplace = table->TableConfig->EnableInplaceReshard.value_or(hasTrue);
-        }
+            // Inplace many-to-many reshard is not supported.
+            if (descriptor.TabletCount != 1) {
+                continue;
+            }
 
-        return descriptors;
+            auto firstCell = firstTablet->Cell.Lock();
+            if (!firstCell) {
+                continue;
+            }
+
+            THashSet<TTabletId> pendingTabletIds;
+            for (auto tabletId : descriptor.Tablets) {
+                const auto& otherTablet = GetOrCrash(BundleSnapshot_->Bundle->Tablets, tabletId);
+                auto otherCell = otherTablet->Cell.Lock();
+
+                YT_TLOG_FATAL_UNLESS(otherCell, "Failed to annotate reshard descriptor: tablet is not linked to any alive cell")
+                    .With("TabletId", tabletId)
+                    .With("TableId", table->Id)
+                    .With("Path", table->Path)
+                    .With("Bundle", table->Bundle)
+                    .With("TabletState", otherTablet->State)
+                    .With("MountTime", otherTablet->MountTime);
+
+                if (otherCell->Id != firstCell->Id) {
+                    pendingTabletIds.insert(tabletId);
+                }
+            }
+
+            bool inplaceMerge = !inplaceMergeHasFalse && table->TableConfig->EnableInplaceMerge.value_or(inplaceMergeHasTrue);
+            if (inplaceMerge) {
+                bool preferSmoothMove = !smoothHasFalse && table->TableConfig->EnableSmoothMovement.value_or(smoothHasTrue);
+
+                descriptor.Inplace = true;
+                // TODO(atalmenev): Choose target cell more carefully: check node memory capacity
+                // and prefer the cell with the most tablets from the merge group.
+                descriptor.TargetCellId = firstCell->Id;
+                descriptor.PendingTabletIds = std::move(pendingTabletIds);
+                descriptor.UseSmoothMovementToUniteTablets = preferSmoothMove;
+            }
+        }
     }
 
 protected:
@@ -149,9 +195,9 @@ public:
 
     void StartIteration() const override
     {
-        YT_LOG_INFO("Balancing tablets via reshard started (BundleName: %v, Group: %v)",
-            BundleName_,
-            GroupName_);
+        YT_TLOG_INFO("Balancing tablets via reshard started")
+            .With("BundleName", BundleName_)
+            .With("Group", GroupName_);
     }
 
     void Prepare(const TTabletBalancingGroupConfigPtr& /*groupConfig*/) override
@@ -182,10 +228,9 @@ public:
     {
         auto enableReplicaBalancing = !groupConfig->Parameterized->ReplicaClusters.empty();
         if (enableReplicaBalancing) {
-            YT_LOG_INFO("Balancing tablets via reshard by size is disabled, "
-                "the group will be replica balanced (BundleName: %v, Group: %v)",
-                BundleName_,
-                GroupName_);
+            YT_TLOG_INFO("Balancing tablets via reshard by size is disabled, the group will be replica balanced")
+                .With("BundleName", BundleName_)
+                .With("Group", GroupName_);
         }
         return !enableReplicaBalancing;
     }
@@ -195,11 +240,10 @@ public:
         auto parameterizedBalancingEnabled = table->IsParameterizedReshardBalancingEnabled(
             DynamicConfig_->EnableParameterizedReshardByDefault);
         if (parameterizedBalancingEnabled) {
-            YT_LOG_DEBUG("Will not balance table via reshard by size because "
-                "parameterized reshard is enabled for this table (BundleName: %v, Group: %v, TableId: %v)",
-                BundleName_,
-                GroupName_,
-                table->Id);
+            YT_TLOG_DEBUG("Will not balance table via reshard by size because parameterized reshard is enabled for this table")
+                .With("BundleName", BundleName_)
+                .With("Group", GroupName_)
+                .With("TableId", table->Id);
         }
         return !parameterizedBalancingEnabled;
     }
@@ -226,10 +270,7 @@ public:
             IsPickPivotKeysEnabled(),
             Logger())
             .AsyncVia(invoker)
-            .Run()
-            .Apply(BIND(
-                &TSizeReshardIteration::AnnotateInplaceReshardDescriptors,
-                MakeStrong(this)));
+            .Run();
     }
 
     void UpdateProfilingCounters(
@@ -247,10 +288,10 @@ public:
 
     void FinishIteration(int actionCount) const override
     {
-        YT_LOG_INFO("Balancing tablets via reshard finished (BundleName: %v, Group: %v, ActionCount: %v)",
-            BundleName_,
-            GroupName_,
-            actionCount);
+        YT_TLOG_INFO("Balancing tablets via reshard finished")
+            .With("BundleName", BundleName_)
+            .With("Group", GroupName_)
+            .With("ActionCount", actionCount);
     }
 };
 
@@ -274,9 +315,9 @@ public:
 
     void StartIteration() const override
     {
-        YT_LOG_INFO("Balancing tablets via parameterized reshard started (BundleName: %v, Group: %v)",
-            BundleName_,
-            GroupName_);
+        YT_TLOG_INFO("Balancing tablets via parameterized reshard started")
+            .With("BundleName", BundleName_)
+            .With("Group", GroupName_);
     }
 
     void Prepare(const TTabletBalancingGroupConfigPtr& groupConfig) override
@@ -286,7 +327,7 @@ public:
             BundleSnapshot_->PerformanceCountersKeys,
             TParameterizedResharderConfig{
                 .EnableReshardByDefault = DynamicConfig_->EnableParameterizedReshardByDefault,
-                .Metric = DynamicConfig_->DefaultParameterizedMetric,
+                .Metrics = {DynamicConfig_->DefaultParameterizedMetric},
             }.MergeWith(groupConfig->Parameterized),
             GroupName_,
             Logger());
@@ -304,18 +345,17 @@ public:
     bool IsGroupBalancingEnabled(const TTabletBalancingGroupConfigPtr& groupConfig) const override
     {
         if (!groupConfig->Parameterized->ReplicaClusters.empty()) {
-            YT_LOG_INFO("Balancing tablets via parameterized reshard is disabled, "
-                "the group will be replica balanced (BundleName: %v, Group: %v)",
-                BundleName_,
-                GroupName_);
+            YT_TLOG_INFO("Balancing tablets via parameterized reshard is disabled, the group will be replica balanced")
+                .With("BundleName", BundleName_)
+                .With("Group", GroupName_);
         }
 
         auto enable = groupConfig->Parameterized->EnableReshard.value_or(
             DynamicConfig_->EnableParameterizedReshardByDefault);
         if (!enable) {
-            YT_LOG_INFO("Balancing tablets via parameterized reshard is disabled (BundleName: %v, Group: %v)",
-                BundleName_,
-                GroupName_);
+            YT_TLOG_INFO("Balancing tablets via parameterized reshard is disabled")
+                .With("BundleName", BundleName_)
+                .With("Group", GroupName_);
         }
         return enable;
     }
@@ -326,10 +366,7 @@ public:
     {
         return BIND(&IParameterizedResharder::BuildTableActionDescriptors, Resharder_, table)
             .AsyncVia(invoker)
-            .Run()
-            .Apply(BIND(
-                &TParameterizedReshardIteration::AnnotateInplaceReshardDescriptors,
-                MakeStrong(this)));
+            .Run();
     }
 
     void UpdateProfilingCounters(
@@ -341,26 +378,23 @@ public:
         } else if (std::ssize(descriptor.Tablets) == 1) {
             GetProfilingCounters(table).ParameterizedReshardSplits.Increment(1);
         } else {
-            YT_LOG_ALERT(
-                "Non-trivial reshards are forbidden in parameterized balancing, "
-                "but for some reason they appeared (Bundle: %v, Group: %v, "
-                "TableId: %v, TablePath: %v, TabletCount: %v, Tablets: %v, CorrelationId: %v)",
-                BundleName_,
-                GroupName_,
-                table->Id,
-                table->Path,
-                descriptor.TabletCount,
-                descriptor.Tablets,
-                descriptor.CorrelationId);
+            YT_TLOG_ALERT("Non-trivial reshards are forbidden in parameterized balancing, but for some reason they appeared")
+                .With("Bundle", BundleName_)
+                .With("Group", GroupName_)
+                .With("TableId", table->Id)
+                .With("TablePath", table->Path)
+                .With("TabletCount", descriptor.TabletCount)
+                .With("Tablets", descriptor.Tablets)
+                .With("CorrelationId", descriptor.CorrelationId);
         }
     }
 
     void FinishIteration(int actionCount) const override
     {
-        YT_LOG_INFO("Balancing tablets via parameterized reshard finished (BundleName: %v, Group: %v, ActionCount: %v)",
-            BundleName_,
-            GroupName_,
-            actionCount);
+        YT_TLOG_INFO("Balancing tablets via parameterized reshard finished")
+            .With("BundleName", BundleName_)
+            .With("Group", GroupName_)
+            .With("ActionCount", actionCount);
     }
 
 private:
@@ -389,9 +423,9 @@ public:
 
     void StartIteration() const override
     {
-        YT_LOG_INFO("Balancing tablets via replica reshard started (BundleName: %v, Group: %v)",
-            BundleName_,
-            GroupName_);
+        YT_TLOG_INFO("Balancing tablets via replica reshard started")
+            .With("BundleName", BundleName_)
+            .With("Group", GroupName_);
     }
 
     void Prepare(const TTabletBalancingGroupConfigPtr& groupConfig) override
@@ -401,10 +435,9 @@ public:
         YT_VERIFY(!groupConfig->Parameterized->ReplicaClusters.empty());
 
         if (BundleSnapshot_->ReplicaBalancingFetchFailed) {
-            YT_LOG_INFO("Balancing tablets via replica reshard is not possible because "
-                "last statistics fetch failed (BundleName: %v, Group: %v)",
-                BundleName_,
-                GroupName_);
+            YT_TLOG_INFO("Balancing tablets via replica reshard is not possible because last statistics fetch failed")
+                .With("BundleName", BundleName_)
+                .With("Group", GroupName_);
             THROW_ERROR_EXCEPTION(
                 NTabletBalancer::EErrorCode::StatisticsFetchFailed,
                 "Not all statistics for replica reshard balancing were fetched");
@@ -429,7 +462,8 @@ public:
             }
 
             if (!table->ReplicaMode) {
-                YT_LOG_DEBUG("Cannot reshard table because replica mode was not fetched (TableId: %v)", id);
+                YT_TLOG_DEBUG("Cannot reshard table because replica mode was not fetched")
+                    .With("TableId", id);
                 continue;
             }
 
@@ -481,13 +515,10 @@ public:
             referenceTable->second,
             DynamicConfig_->ActionManager->MaxTabletCountPerAction,
             Logger()
-                .WithTag("BundleName: %v", BundleName_)
-                .WithTag("TableId: %v", table->Id))
+                .WithTag("BundleName", BundleName_)
+                .WithTag("TableId", table->Id))
             .AsyncVia(invoker)
-            .Run()
-            .Apply(BIND(
-                &TReplicaReshardIteration::AnnotateInplaceReshardDescriptors,
-                MakeStrong(this)));
+            .Run();
     }
 
     void UpdateProfilingCounters(
@@ -505,10 +536,10 @@ public:
 
     void FinishIteration(int actionCount) const override
     {
-        YT_LOG_INFO("Balancing tablets via replica reshard finished (BundleName: %v, Group: %v, ActionCount: %v)",
-            BundleName_,
-            GroupName_,
-            actionCount);
+        YT_TLOG_INFO("Balancing tablets via replica reshard finished")
+            .With("BundleName", BundleName_)
+            .With("Group", GroupName_)
+            .With("ActionCount", actionCount);
     }
 
 private:
@@ -543,11 +574,10 @@ private:
         THashMap<TTableId, TAlienTablePtr> alienTables;
         for (const auto& [cluster, minorTablePaths] : table->GetReplicaBalancingMinorTables(SelfClusterName_)) {
             if (BundleSnapshot_->BannedReplicaClusters.contains(cluster)) {
-                YT_LOG_DEBUG("Skipping cluster because statistics of the banned replica were not fetched "
-                    "(BundleName: %v, Group: %v, Cluster: %v)",
-                    BundleName_,
-                    GroupName_,
-                    cluster);
+                YT_TLOG_DEBUG("Skipping cluster because statistics of the banned replica were not fetched")
+                    .With("BundleName", BundleName_)
+                    .With("Group", GroupName_)
+                    .With("Cluster", cluster);
                 continue;
             }
 
@@ -560,10 +590,9 @@ private:
 
                 auto minorTableIt = BundleSnapshot_->AlienTables.find(it->second);
                 if (minorTableIt == BundleSnapshot_->AlienTables.end()) {
-                    YT_LOG_DEBUG("Alien table attributes or statistics was not fetched successfully "
-                        "(MajorTableId: %v, MinorTableId: %v)",
-                        table->Id,
-                        it->second);
+                    YT_TLOG_DEBUG("Alien table attributes or statistics was not fetched successfully")
+                        .With("MajorTableId", table->Id)
+                        .With("MinorTableId", it->second);
                     return TReferenceTableSearchResponse{.AreAllReplicasValid = false};
                 }
 
@@ -571,9 +600,9 @@ private:
                 EmplaceOrCrash(alienTables, minorTable->Id, minorTable);
 
                 if (!minorTable->ReplicaMode) {
-                    YT_LOG_DEBUG("Cannot find replica mode for minor table (MajorTableId: %v, MinorTableId: %v)",
-                        table->Id,
-                        minorTable->Id);
+                    YT_TLOG_DEBUG("Cannot find replica mode for minor table")
+                        .With("MajorTableId", table->Id)
+                        .With("MinorTableId", minorTable->Id);
                     return TReferenceTableSearchResponse{.AreAllReplicasValid = false};
                 }
 

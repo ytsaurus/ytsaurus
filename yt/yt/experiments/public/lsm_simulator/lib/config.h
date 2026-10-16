@@ -114,8 +114,8 @@ struct TMountConfigOptimizerConfig
         double Max;
         double Weight;
         bool Integer;
-        std::vector<TString> LessThan;
-        std::vector<TString> LessThanOrEqual;
+        std::vector<std::string> LessThan;
+        std::vector<std::string> LessThanOrEqual;
 
         REGISTER_YSON_STRUCT(TParameter);
 
@@ -134,7 +134,7 @@ struct TMountConfigOptimizerConfig
         }
     };
 
-    THashMap<TString, TIntrusivePtr<TParameter>> Parameters;
+    THashMap<std::string, TIntrusivePtr<TParameter>> Parameters;
 
     int NumIterations;
     int NumDirections;
@@ -174,7 +174,7 @@ struct TLsmSimulatorConfig
     i64 MinValueSize;
     i64 MaxValueSize;
 
-    TString InsertionPolicy;
+    std::string InsertionPolicy;
 
     std::vector<TWriterSpecPtr> Writers;
     TDuration InsertionPeriod;
@@ -193,8 +193,8 @@ struct TLsmSimulatorConfig
 
     bool EnableStructureLogging;
 
-    std::vector<TString> LoggingFields;
-    std::vector<TString> LoggingFieldsFinal;
+    std::vector<std::string> LoggingFields;
+    std::vector<std::string> LoggingFieldsFinal;
     TDuration LoggingPeriod;
     THashSet<int> ResetStatisticsAfterLoggers;
     bool SumCompactionAndPartitioningInLogging;

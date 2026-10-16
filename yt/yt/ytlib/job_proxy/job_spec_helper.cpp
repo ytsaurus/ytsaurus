@@ -59,7 +59,8 @@ public:
         }
         auto dataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(GetJobSpecExt().extensions());
         if (dataSourceDirectoryExt) {
-            YT_LOG_DEBUG("Data source directory extension received\n%v", dataSourceDirectoryExt->DebugString());
+            YT_TLOG_DEBUG("Data source directory extension received")
+                .With("Extension", dataSourceDirectoryExt->DebugString());
             DataSourceDirectory_ = FromProto<TDataSourceDirectoryPtr>(*dataSourceDirectoryExt);
         }
     }

@@ -16,10 +16,10 @@ find_package(linux-headers-generic REQUIRED)
 
 find_package(Python3 REQUIRED)
 
-add_executable(record_codegen-yt_record_codegen-tests-cpp)
+add_executable(unittester-tools-record-codegen)
 
 
-target_link_libraries(record_codegen-yt_record_codegen-tests-cpp PUBLIC
+target_link_libraries(unittester-tools-record-codegen PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
@@ -29,11 +29,11 @@ target_link_libraries(record_codegen-yt_record_codegen-tests-cpp PUBLIC
   yt-yt-client
 )
 
-target_allocator(record_codegen-yt_record_codegen-tests-cpp
+target_allocator(unittester-tools-record-codegen
   system_allocator
 )
 
-target_link_options(record_codegen-yt_record_codegen-tests-cpp PRIVATE
+target_link_options(unittester-tools-record-codegen PRIVATE
   -ldl
   -lrt
   -Wl,--no-as-needed
@@ -44,7 +44,7 @@ target_link_options(record_codegen-yt_record_codegen-tests-cpp PRIVATE
   -lutil
 )
 
-target_sources(record_codegen-yt_record_codegen-tests-cpp PRIVATE
+target_sources(unittester-tools-record-codegen PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/tests/cpp/test_simple_mapping.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/tests/records/simple_mapping.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/tests/records/simple_mapping.record.h
@@ -53,14 +53,14 @@ target_sources(record_codegen-yt_record_codegen-tests-cpp PRIVATE
 
 add_test(
   NAME
-  record_codegen-yt_record_codegen-tests-cpp
+  unittester-tools-record-codegen
   COMMAND
-  record_codegen-yt_record_codegen-tests-cpp
+  unittester-tools-record-codegen
 )
 
 set_property(
   TEST
-  record_codegen-yt_record_codegen-tests-cpp
+  unittester-tools-record-codegen
   PROPERTY
   LABELS
   SMALL
@@ -68,7 +68,7 @@ set_property(
 
 set_property(
   TEST
-  record_codegen-yt_record_codegen-tests-cpp
+  unittester-tools-record-codegen
   PROPERTY
   ENVIRONMENT
 )
@@ -101,11 +101,11 @@ add_custom_command(
   library/cpp/yt/yson_string/string.h
 )
 
-vcs_info(record_codegen-yt_record_codegen-tests-cpp)
+vcs_info(unittester-tools-record-codegen)
 
 set_property(
   TEST
-  record_codegen-yt_record_codegen-tests-cpp
+  unittester-tools-record-codegen
   PROPERTY
   PROCESSORS
   1

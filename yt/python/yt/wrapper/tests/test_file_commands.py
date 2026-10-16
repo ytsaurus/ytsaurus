@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from .conftest import authors
-from .helpers import TEST_DIR, set_config_option, set_config_options, failing_heavy_request
+from .helpers import TEST_DIR, CUSTOM_MEDIUM, set_config_option, set_config_options, failing_heavy_request
 
 from yt.wrapper.common import MB
 from yt.wrapper.driver import make_request
@@ -253,47 +253,37 @@ class TestFileCommands(object):
         assert "//tmp/yt_wrapper/file_storage" == yt.file_commands._get_remote_temp_files_directory()
 
 
-@pytest.fixture(scope="function")
-def custom_medium(yt_env_additional_media):
-    medium = 'custom_medium'
-    if not yt.exists(f"//sys/media/{medium}"):
-        yt.create("domestic_medium", attributes={"name": medium})
-        yt.set(f"//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{medium}", 10 * 1024**3)
-
-    return medium
-
-
+@pytest.mark.usefixtures("yt_env_custom_medium")
 class TestCustomMediumWrite:
     @authors("abodrov")
     @pytest.mark.parametrize("write_parallel", [True, False])
-    def test_storage_attributes_from_parent_preserved_on_multi_chunk(self, write_parallel, custom_medium):
-
-        yt.create("map_node", "//tmp/custom_medium_dir", attributes={"primary_medium": custom_medium}, recursive=True)
+    def test_storage_attributes_from_parent_preserved_on_multi_chunk(self, write_parallel):
+        yt.create("map_node", "//tmp/custom_medium_dir", attributes={"primary_medium": CUSTOM_MEDIUM}, recursive=True)
         with set_config_option("write_parallel/enable", write_parallel):
             with set_config_option("write_retries/chunk_size", 10):
                 yt.write_file(yt.YPath("//tmp/custom_medium_dir/file"), b"1" * (MB // 2))
 
-        assert yt.get("//tmp/custom_medium_dir/file/@primary_medium") == custom_medium
-        assert yt.get("//tmp/custom_medium_dir/file/@media").keys() == {custom_medium}
+        assert yt.get("//tmp/custom_medium_dir/file/@primary_medium") == CUSTOM_MEDIUM
+        assert yt.get("//tmp/custom_medium_dir/file/@media").keys() == {CUSTOM_MEDIUM}
 
     @authors("abodrov")
     @pytest.mark.parametrize("write_parallel", [True, False])
-    def test_storage_attributes_from_file_preserved_on_multi_chunk(self, write_parallel, custom_medium):
-        yt.create("file", "//tmp/custom_medium_file", attributes={"primary_medium": custom_medium}, recursive=True)
+    def test_storage_attributes_from_file_preserved_on_multi_chunk(self, write_parallel):
+        yt.create("file", "//tmp/custom_medium_file", attributes={"primary_medium": CUSTOM_MEDIUM}, recursive=True)
         with set_config_option("write_parallel/enable", write_parallel):
             with set_config_option("write_retries/chunk_size", 10):
                 yt.write_file(yt.YPath("//tmp/custom_medium_file"), b"1" * (MB // 2))
 
-        assert yt.get("//tmp/custom_medium_file/@primary_medium") == custom_medium
-        assert yt.get("//tmp/custom_medium_file/@media").keys() == {custom_medium}
+        assert yt.get("//tmp/custom_medium_file/@primary_medium") == CUSTOM_MEDIUM
+        assert yt.get("//tmp/custom_medium_file/@media").keys() == {CUSTOM_MEDIUM}
 
     @authors("abodrov")
     @pytest.mark.parametrize("write_parallel", [True, False])
-    def test_storage_attributes_from_path_override_directory(self, write_parallel, custom_medium):
+    def test_storage_attributes_from_path_override_directory(self, write_parallel):
         yt.create(
             "map_node",
             "//tmp/custom_storage_attributes_dir",
-            attributes={"primary_medium": custom_medium, "compression_codec": "zlib_3", "erasure_codec": "isa_lrc_12_2_2"},
+            attributes={"primary_medium": CUSTOM_MEDIUM, "compression_codec": "zlib_3", "erasure_codec": "isa_lrc_12_2_2"},
             recursive=True
         )
         path_attributes = {"primary_medium": "default", "compression_codec": "lz4", "erasure_codec": "none"}
@@ -304,4 +294,4 @@ class TestCustomMediumWrite:
 
         attribtues = yt.get(path + "/@", attributes=["primary_medium", "compression_codec", "erasure_codec"])
         # TODO(YT-23841): Use primary medium from write query
-        assert attribtues == path_attributes | {"primary_medium": custom_medium}
+        assert attribtues == path_attributes | {"primary_medium": CUSTOM_MEDIUM}

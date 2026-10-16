@@ -119,6 +119,10 @@ void TMinHashDigestConfig::Register(TRegistrar registrar)
 
 void TCompactionHintsConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("min_compaction_data_size", &TThis::MinCompactionDataSize)
+        .GreaterThanOrEqual(0)
+        .Default(8_MB);
+
     registrar.Parameter("row_digest", &TThis::RowDigest)
         .DefaultNew();
     registrar.Parameter("min_hash_digest", &TThis::MinHashDigest)
@@ -139,9 +143,14 @@ void TGradualCompactionConfig::Register(TRegistrar registrar)
 
 void TOverloadReactiveBalancingConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("metric", &TThis::Metric);
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Parameter("metric", &TThis::Metric)
+        .Optional();
     registrar.Parameter("limit", &TThis::Limit)
-        .GreaterThanOrEqual(0);
+        .GreaterThanOrEqual(0)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -221,6 +230,9 @@ void TTestingTableMountConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("compaction_delay", &TThis::CompactionDelay)
         .Default();
+
+    registrar.Parameter("reject_replicated_content_receiving", &TThis::RejectReplicatedContentReceiving)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -281,6 +293,8 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_partitioning_store_count", &TThis::MaxPartitioningStoreCount)
         .Default(5)
         .GreaterThan(0);
+    registrar.Parameter("max_old_eden_chunk_partitioning_lag", &TThis::MaxOldEdenChunkPartitioningLag)
+        .Optional();
 
     registrar.Parameter("min_compaction_store_count", &TThis::MinCompactionStoreCount)
         .Default(3)
@@ -351,6 +365,8 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("compaction_hints", &TThis::CompactionHints)
         .DefaultNew();
+    registrar.Parameter("disable_periodic_compaction_only_if_digests_allowed", &TThis::DisablePeriodicCompactionOnlyIfDigestsAllowed)
+        .Default(false);
 
     registrar.Parameter("enable_lookup_hash_table", &TThis::EnableLookupHashTable)
         .Default(false);
@@ -536,7 +552,7 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .Default(500_MB);
 
     registrar.Parameter("overload_reactive_balancing", &TThis::OverloadReactiveBalancing)
-        .Optional();
+        .Default();
 
     registrar.Parameter("validate_row_index_in_chaos_replication", &TThis::ValidateRowIndexInChaosReplication)
         .Default(false);
@@ -544,10 +560,13 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("check_conflict_horizon", &TThis::CheckConflictHorizon)
         .Default(true);
 
+    registrar.Parameter("per_row_serialization_blocked_row_wait_quantum", &TThis::PerRowSerializationBlockedRowWaitQuantum)
+        .Default(TDuration::MilliSeconds(100));
+
     registrar.Parameter("testing", &TThis::Testing)
         .Default();
 
-    registrar.Parameter("table_puller_strongly_prefer_local_queue", &TThis::TablePullerStronglyPreferLocalQueue)
+    registrar.Parameter("table_puller_force_same_cluster_queue", &TThis::TablePullerForceSameClusterQueue)
         .Default(false);
 
     registrar.Postprocessor([&] (TCustomTableMountConfig* config) {

@@ -17,7 +17,10 @@ PEERDIR(
     yt/yt/library/program
     yt/yt/library/server_program
 
+    yt/yt/ytlib
+
     yt/yt/server/lib
+    yt/yt/server/lib/cypress_registrar
     yt/yt/server/lib/transaction_server
 )
 

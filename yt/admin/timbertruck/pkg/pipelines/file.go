@@ -13,8 +13,12 @@ type LogFile interface {
 	Close() error
 }
 
+func IsZstdPath(filepath string) bool {
+	return strings.HasSuffix(filepath, ".zst") || strings.HasSuffix(filepath, ".zstd")
+}
+
 func openLogFile(logger *slog.Logger, filepath string, filePosition FilePosition) (f LogFile, err error) {
-	if strings.HasSuffix(filepath, ".zst") {
+	if IsZstdPath(filepath) {
 		return newCompressedFile(logger, filepath, filePosition)
 	} else {
 		return OpenFollowingFile(filepath, filePosition.LogicalOffset)

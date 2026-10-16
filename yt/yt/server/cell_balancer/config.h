@@ -4,13 +4,13 @@
 
 #include <yt/yt/server/master/tablet_server/config.h>
 
-#include <yt/yt/server/lib/cypress_election/config.h>
-
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
+
+#include <yt/yt/library/cypress_election/config.h>
 
 #include <yt/yt/library/dynamic_config/public.h>
 
@@ -97,6 +97,9 @@ struct TBundleControllerConfig
     bool EnableChaosBundleManagement;
     TChaosConfigPtr ChaosConfig;
 
+    bool AnnotateNewNodes;
+    bool AnnotateNewProxies;
+
     REGISTER_YSON_STRUCT(TBundleControllerConfig);
 
     static void Register(TRegistrar registrar);
@@ -112,6 +115,8 @@ struct TNodeTrackerDynamicConfig
     bool Enable;
 
     TDuration HeartbeatTimeout;
+
+    int MaxDetectedOfflineNodes;
 
     REGISTER_YSON_STRUCT(TNodeTrackerDynamicConfig);
 
@@ -133,6 +138,31 @@ struct TBundleControllerDynamicConfig
 
     std::optional<TDuration> RemoveInstanceCypressNodeAfter;
     std::optional<TDuration> OfflineInstanceGracePeriod;
+
+    // When set, an instance that has been offline longer than threshold
+    // is scheduled for deallocation. Ignored in the without-allocations mode.
+    std::optional<TDuration> DeallocateOfflineInstanceAfter;
+
+    int MaxConcurrentCypressWriteRequests;
+
+    // Restricts maintenance removal to requests created by the current user.
+    bool RemoveMaintenanceRequestsOnlyByCurrentUser;
+
+    // Limits the number of nodes which are released via decommission.
+    // Used to throttle tablet cell restart rate.
+    int MaxReleasedNodesPerIteration;
+
+    // For unittests.
+    bool FlushLogAfterMutations;
+
+    std::optional<bool> EnableChaosBundleManagement;
+
+    TDuration ForeignClusterRequestTimeout;
+
+    std::optional<bool> AnnotateNewNodes;
+    std::optional<bool> AnnotateNewProxies;
+
+    bool UseDataNodeRacks;
 
     REGISTER_YSON_STRUCT(TBundleControllerDynamicConfig);
 
@@ -157,7 +187,7 @@ struct TCellBalancerBootstrapConfig
     TBundleControllerConfigPtr BundleController;
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
-    TString DynamicConfigPath;
+    NYPath::TYPath DynamicConfigPath;
 
     REGISTER_YSON_STRUCT(TCellBalancerBootstrapConfig);
 

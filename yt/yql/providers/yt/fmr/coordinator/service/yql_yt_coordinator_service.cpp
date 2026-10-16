@@ -28,6 +28,7 @@ public:
     ui32 WorkersNum;
     int Verbosity;
     TString FmrOperationSpecFilePath;
+    TString CoordinatorYsonPath;
     TString TableDataServiceDiscoveryFilePath;
     TString UnderlyingGatewayType;
     TString LoggerFormat;
@@ -59,6 +60,7 @@ int main(int argc, const char *argv[]) {
         opts.AddLongOption('v', "verbosity", "Logging verbosity level").StoreResult(&options.Verbosity).DefaultValue(static_cast<int>(TLOG_ERR));
         opts.AddLongOption("mem-limit", "Set memory limit in megabytes").Handler1T<ui32>(0, SetAddressSpaceLimit);
         opts.AddLongOption('s', "fmr-operation-spec-path", "Path to file with fmr operation spec settings").Optional().StoreResult(&options.FmrOperationSpecFilePath);
+        opts.AddLongOption("coordinator-yson-path", "Path to YSON file with coordinator settings").Optional().StoreResult(&options.CoordinatorYsonPath);
         opts.AddLongOption('d', "table-data-service-discovery-file-path", "Table data service discovery file path").StoreResult(&options.TableDataServiceDiscoveryFilePath);
         opts.AddLongOption('g', "gateway-type", "Type of underlying gateway (native, file)").StoreResult(&options.UnderlyingGatewayType).DefaultValue("native");
         opts.AddLongOption('f', "logger-format", "Logs formatting type").StoreResult(&options.LoggerFormat).DefaultValue("legacy");
@@ -76,20 +78,24 @@ int main(int argc, const char *argv[]) {
 
         options.InitLogger();
 
-        TFmrCoordinatorSettings coordinatorSettings{};
-        coordinatorSettings.WorkersNum = options.WorkersNum;
-
         TString underlyingGatewayType = options.UnderlyingGatewayType;
         if (underlyingGatewayType != "native" && underlyingGatewayType != "file") {
             throw yexception() << " Incorrect gateway type " << underlyingGatewayType << " passed in parameters";
         }
         bool isNative = underlyingGatewayType == "native";
 
+        TMaybe<NYT::TNode> fmrOperationSpec;
         if (options.FmrOperationSpecFilePath) {
             TFileInput input(options.FmrOperationSpecFilePath);
-            auto fmrOperationSpec = NYT::NodeFromYsonStream(&input);
-            coordinatorSettings.DefaultFmrOperationSpec = fmrOperationSpec;
+            fmrOperationSpec = NYT::NodeFromYsonStream(&input);
         }
+        TMaybe<NYT::TNode> coordinatorYson;
+        if (options.CoordinatorYsonPath) {
+            TFileInput input(options.CoordinatorYsonPath);
+            coordinatorYson = NYT::NodeFromYsonStream(&input);
+        }
+        auto coordinatorSettings = GetDefaultCoordinatorSettings(coordinatorYson, fmrOperationSpec);
+        coordinatorSettings.WorkersNum = options.WorkersNum;
 
         TFmrCoordinatorServerSettings coordinatorServerSettings{.Port = options.Port, .Host = options.Host};
 

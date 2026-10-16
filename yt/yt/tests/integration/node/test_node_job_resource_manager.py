@@ -211,3 +211,148 @@ class TestNodeJobResourceManagerProfiling(YTEnvSetup):
         wait(lambda: resource_usage_metric.get({"state": "releasing"}) == 0)
 
         op2.abort()
+
+
+class TestWaitingAllocationsOnResourceAvailabilityChange(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "resource_limits": {
+            "memory_limits": {
+                "user_jobs": {
+                    "type": "static",
+                    "value": 1000 * 10 ** 6,
+                },
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 2,
+                "cpu": 2,
+            },
+        },
+        "exec_node": {
+            "job_proxy": {
+                "check_user_job_memory_limit": False,
+            },
+        },
+    }
+
+    def _allocations_path(self, node):
+        return f"//sys/cluster_nodes/{node}/orchid/exec_node/job_controller/allocations"
+
+    def _wait_for_allocations(self, node, count):
+        allocations_path = self._allocations_path(node)
+        wait(lambda: len(ls(allocations_path)) == count)
+        return set(ls(allocations_path))
+
+    def _get_allocation_states(self, node, allocation_ids):
+        allocations_path = self._allocations_path(node)
+        present_ids = set(ls(allocations_path))
+        assert present_ids == allocation_ids, \
+            f"Allocation set changed: expected {allocation_ids}, got {present_ids}"
+        return [
+            get(f"{allocations_path}/{allocation_id}")["state"]
+            for allocation_id in allocation_ids
+        ]
+
+    def _wait_for_waiting_allocations(self, node, allocation_ids):
+        wait(lambda: all(
+            state == "waiting"
+            for state in self._get_allocation_states(node, allocation_ids)))
+
+    def _wait_for_running_allocations(self, node, allocation_ids):
+        wait(lambda: all(
+            state == "running"
+            for state in self._get_allocation_states(node, allocation_ids)))
+
+    # Time the node waits before its first attempt to acquire resources for an
+    # allocation, leaving the test a window to lower the node resource limits so that
+    # the attempt fails and the allocation stays waiting.
+    RESOURCE_ACQUISITION_DELAY = 3000
+
+    def _enable_delayed_resource_acquisition(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "test_resource_acquisition_delay": self.RESOURCE_ACQUISITION_DELAY,
+                },
+            },
+            "job_resource_manager": {
+                "resource_availability_check_period": 100,
+            },
+        })
+
+    def _wait_out_failed_acquisition_attempt(self):
+        # Wait out the acquisition delay so that the node actually attempts to acquire
+        # resources under the lowered limits and fails. Only a failed attempt arms the
+        # retry that a subsequent resource limit increase triggers.
+        time.sleep(self.RESOURCE_ACQUISITION_DELAY / 1000 + 2)
+
+    @authors("pogorelov")
+    def test_waiting_allocations_retried_after_user_jobs_limit_increase(self):
+        node = ls("//sys/cluster_nodes")[0]
+        self._enable_delayed_resource_acquisition()
+
+        op = run_sleeping_vanilla(
+            job_count=1,
+            task_patch={
+                "memory_limit": 400 * 10 ** 6,
+            })
+
+        try:
+            allocation_ids = self._wait_for_allocations(node, count=1)
+
+            # Lower the limit below the job's demand so that the allocation cannot
+            # acquire resources, before the node's first (delayed) attempt.
+            update_nodes_dynamic_config(
+                value={
+                    "user_jobs": {
+                        "type": "static",
+                        "value": 200 * 10 ** 6,
+                    },
+                },
+                path="resource_limits/memory_limits")
+
+            self._wait_out_failed_acquisition_attempt()
+            self._wait_for_waiting_allocations(node, allocation_ids)
+
+            update_nodes_dynamic_config(
+                value={
+                    "user_jobs": {
+                        "type": "static",
+                        "value": 1000 * 10 ** 6,
+                    },
+                },
+                path="resource_limits/memory_limits")
+
+            self._wait_for_running_allocations(node, allocation_ids)
+        finally:
+            op.abort()
+
+    @authors("pogorelov")
+    def test_waiting_allocations_retried_after_cpu_limit_increase(self):
+        node = ls("//sys/cluster_nodes")[0]
+        self._enable_delayed_resource_acquisition()
+
+        op = run_sleeping_vanilla(
+            job_count=1,
+            task_patch={
+                "cpu_limit": 1,
+            })
+
+        try:
+            allocation_ids = self._wait_for_allocations(node, count=1)
+
+            # cpu=0 leaves no cpu for the allocation (it demands cpu=1), so it stays waiting.
+            update_nodes_dynamic_config({"resource_limits": {"overrides": {"cpu": 0}}})
+
+            self._wait_out_failed_acquisition_attempt()
+            self._wait_for_waiting_allocations(node, allocation_ids)
+
+            update_nodes_dynamic_config({"resource_limits": {"overrides": {"cpu": 2}}})
+
+            self._wait_for_running_allocations(node, allocation_ids)
+        finally:
+            op.abort()

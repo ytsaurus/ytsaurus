@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	dto "github.com/prometheus/client_model/go"
-	"go.uber.org/atomic"
 )
 
 // PrometheusMetrics converts Prometheus metrics to Solomon metrics.
@@ -31,19 +30,11 @@ func PrometheusMetrics(metrics []*dto.MetricFamily) (*Metrics, error) {
 
 			switch *mf.Type {
 			case dto.MetricType_COUNTER:
-				s.metrics = append(s.metrics, &Counter{
-					name:       mf.GetName(),
-					metricType: typeCounter,
-					tags:       tags,
-					value:      *atomic.NewInt64(int64(metric.Counter.GetValue())),
-				})
+				counter := NewCounter(mf.GetName(), int64(metric.Counter.GetValue()), WithTags(tags))
+				s.metrics = append(s.metrics, &counter)
 			case dto.MetricType_GAUGE:
-				s.metrics = append(s.metrics, &Gauge{
-					name:       mf.GetName(),
-					metricType: typeGauge,
-					tags:       tags,
-					value:      *atomic.NewFloat64(metric.Gauge.GetValue()),
-				})
+				gauge := NewGauge(mf.GetName(), metric.Gauge.GetValue(), WithTags(tags))
+				s.metrics = append(s.metrics, &gauge)
 			case dto.MetricType_HISTOGRAM:
 				bounds := make([]float64, 0, len(metric.Histogram.Bucket))
 				values := make([]int64, 0, len(metric.Histogram.Bucket))
@@ -60,14 +51,14 @@ func PrometheusMetrics(metrics []*dto.MetricFamily) (*Metrics, error) {
 					values = append(values, bucketValue)
 				}
 
-				s.metrics = append(s.metrics, &Histogram{
-					name:         mf.GetName(),
-					metricType:   typeHistogram,
-					tags:         tags,
-					bucketBounds: bounds,
-					bucketValues: values,
-					infValue:     *atomic.NewInt64(int64(metric.Histogram.GetSampleCount()) - prevValuesSum),
-				})
+				histogram := NewHistogram(
+					mf.GetName(),
+					bounds,
+					values,
+					int64(metric.Histogram.GetSampleCount())-prevValuesSum,
+					WithTags(tags),
+				)
+				s.metrics = append(s.metrics, &histogram)
 			case dto.MetricType_SUMMARY:
 				bounds := make([]float64, 0, len(metric.Summary.Quantile))
 				values := make([]int64, 0, len(metric.Summary.Quantile))
@@ -86,24 +77,22 @@ func PrometheusMetrics(metrics []*dto.MetricFamily) (*Metrics, error) {
 
 				mName := mf.GetName()
 
-				s.metrics = append(s.metrics, &Histogram{
-					name:         mName,
-					metricType:   typeHistogram,
-					tags:         tags,
-					bucketBounds: bounds,
-					bucketValues: values,
-					infValue:     *atomic.NewInt64(int64(*metric.Summary.SampleCount) - prevValuesSum),
-				}, &Counter{
-					name:       mName + "_count",
-					metricType: typeCounter,
-					tags:       tags,
-					value:      *atomic.NewInt64(int64(*metric.Summary.SampleCount)),
-				}, &Gauge{
-					name:       mName + "_sum",
-					metricType: typeGauge,
-					tags:       tags,
-					value:      *atomic.NewFloat64(*metric.Summary.SampleSum),
-				})
+				histogram := NewHistogram(
+					mName,
+					bounds,
+					values,
+					int64(*metric.Summary.SampleCount)-prevValuesSum,
+					WithTags(tags),
+				)
+				counter := NewCounter(mName+"_count", int64(*metric.Summary.SampleCount), WithTags(tags))
+				gauge := NewGauge(mName+"_sum", *metric.Summary.SampleSum, WithTags(tags))
+
+				s.metrics = append(
+					s.metrics,
+					&histogram,
+					&counter,
+					&gauge,
+				)
 			default:
 				return nil, fmt.Errorf("unsupported type: %s", mf.Type.String())
 			}

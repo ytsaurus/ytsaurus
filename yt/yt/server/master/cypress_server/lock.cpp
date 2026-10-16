@@ -1,4 +1,5 @@
 #include "lock.h"
+#include "node.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
@@ -64,6 +65,16 @@ bool TLockRequest::operator==(const TLockRequest& other) const
     return Mode == other.Mode && Key == other.Key;
 }
 
+std::strong_ordering TLockRequest::operator<=>(const TLockRequest& other) const
+{
+    return std::tie(Mode, Key) <=> std::tie(other.Mode, other.Key);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TLockRequest& lockRequest, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("{Mode: %v, Key: %v}", lockRequest.Mode, lockRequest.Key);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool TCypressNodeLockingState::TTransactionLockPairComparator::operator()(
@@ -74,6 +85,10 @@ bool TCypressNodeLockingState::TTransactionLockPairComparator::operator()(
     YT_ASSERT(lhs.second);
     YT_ASSERT(rhs.first);
     YT_ASSERT(rhs.second);
+
+    if (lhs.first->GetDepth() != rhs.first->GetDepth()) {
+        return lhs.first->GetDepth() > rhs.first->GetDepth();
+    }
 
     if (lhs.first->GetId() != rhs.first->GetId()) {
         return lhs.first->GetId() < rhs.first->GetId();
@@ -90,6 +105,10 @@ bool TCypressNodeLockingState::TTransactionLockPairComparator::operator()(
     YT_ASSERT(rhs.first);
     YT_ASSERT(rhs.second);
 
+    if (lhs->GetDepth() != rhs.first->GetDepth()) {
+        return lhs->GetDepth() > rhs.first->GetDepth();
+    }
+
     if (lhs->GetId() != rhs.first->GetId()) {
         return lhs->GetId() < rhs.first->GetId();
     }
@@ -104,6 +123,10 @@ bool TCypressNodeLockingState::TTransactionLockPairComparator::operator()(
     YT_ASSERT(lhs.first);
     YT_ASSERT(lhs.second);
     YT_ASSERT(rhs);
+
+    if (lhs.first->GetDepth() != rhs->GetDepth()) {
+        return lhs.first->GetDepth() > rhs->GetDepth();
+    }
 
     if (lhs.first->GetId() != rhs->GetId()) {
         return lhs.first->GetId() < rhs->GetId();
@@ -125,6 +148,10 @@ bool TCypressNodeLockingState::TTransactionKeyLockTupleComparator::operator()(
 
     const auto* lhsTransaction = get<TTransaction*>(lhs);
     const auto* rhsTransaction = get<TTransaction*>(rhs);
+    if (lhsTransaction->GetDepth() != rhsTransaction->GetDepth()) {
+        return lhsTransaction->GetDepth() > rhsTransaction->GetDepth();
+    }
+
     if (lhsTransaction->GetId() != rhsTransaction->GetId()) {
         return lhsTransaction->GetId() < rhsTransaction->GetId();
     }
@@ -150,6 +177,10 @@ bool TCypressNodeLockingState::TTransactionKeyLockTupleComparator::operator()(
 
     const auto* lhsTransaction = lhs.first;
     const auto* rhsTransaction = get<TTransaction*>(rhs);
+    if (lhsTransaction->GetDepth() != rhsTransaction->GetDepth()) {
+        return lhsTransaction->GetDepth() > rhsTransaction->GetDepth();
+    }
+
     if (lhsTransaction->GetId() != rhsTransaction->GetId()) {
         return lhsTransaction->GetId() < rhsTransaction->GetId();
     }
@@ -173,6 +204,10 @@ bool TCypressNodeLockingState::TTransactionKeyLockTupleComparator::operator()(
 
     const auto* lhsTransaction = get<TTransaction*>(lhs);
     const auto* rhsTransaction = rhs.first;
+    if (lhsTransaction->GetDepth() != rhsTransaction->GetDepth()) {
+        return lhsTransaction->GetDepth() > rhsTransaction->GetDepth();
+    }
+
     if (lhsTransaction->GetId() != rhsTransaction->GetId()) {
         return lhsTransaction->GetId() < rhsTransaction->GetId();
     }
@@ -195,6 +230,10 @@ bool TCypressNodeLockingState::TTransactionKeyLockTupleComparator::operator()(
     YT_ASSERT(get<TLock*>(rhs));
 
     const auto* rhsTransaction = get<TTransaction*>(rhs);
+    if (lhs->GetDepth() != rhsTransaction->GetDepth()) {
+        return lhs->GetDepth() > rhsTransaction->GetDepth();
+    }
+
     if (lhs->GetId() != rhsTransaction->GetId()) {
         return lhs->GetId() < rhsTransaction->GetId();
     }
@@ -211,6 +250,10 @@ bool TCypressNodeLockingState::TTransactionKeyLockTupleComparator::operator()(
     YT_ASSERT(rhs);
 
     const auto* lhsTransaction = get<TTransaction*>(lhs);
+    if (lhsTransaction->GetDepth() != rhs->GetDepth()) {
+        return lhsTransaction->GetDepth() > rhs->GetDepth();
+    }
+
     if (lhsTransaction->GetId() != rhs->GetId()) {
         return lhsTransaction->GetId() < rhs->GetId();
     }
@@ -354,4 +397,3 @@ void TLock::Load(NCellMaster::TLoadContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer
-

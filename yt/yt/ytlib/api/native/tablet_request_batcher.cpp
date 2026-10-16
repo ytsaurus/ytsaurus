@@ -274,8 +274,8 @@ private:
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::TooManyRowsInTransaction,
                 "Transaction affects too many rows in tablet")
-                << TErrorAttribute("tablet_id", TabletId_)
-                << TErrorAttribute("limit", Options_.MaxRowsPerTablet);
+                .With("tablet_id", TabletId_)
+                .With("limit", Options_.MaxRowsPerTablet);
         }
     }
 };

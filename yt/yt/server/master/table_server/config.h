@@ -10,6 +10,18 @@ namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDynamicTableManagerTestingConfig
+    : public NYTree::TYsonStructLite
+{
+    std::optional<TDuration> GetMountInfoDelay;
+
+    REGISTER_YSON_STRUCT_LITE(TDynamicTableManagerTestingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDynamicTableManagerConfig
     : public NYTree::TYsonStruct
 {
@@ -22,6 +34,8 @@ struct TDynamicTableManagerConfig
 
     // COMPAT(h0pless): Remove this in 26.2.
     bool ValidateNoDescendingSortOrder;
+
+    TDynamicTableManagerTestingConfig Testing;
 
     REGISTER_YSON_STRUCT(TDynamicTableManagerConfig)
 

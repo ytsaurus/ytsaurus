@@ -636,6 +636,10 @@ Arguments:
 Return type:
 U for ListFold, optional U for ListFold1.
 
+`ListFold` supports [linear types](../types/linear.md), `Linear<T>`, in state type `U`. If the state contains linear values, `updateLambda` must consume each of them exactly once on every iteration and return state of the same type.
+
+In Query Tracker, select language version 2026.02 or later to use a linear state in `ListFold`.
+
 #### Examples
 
 ```yql
@@ -648,6 +652,17 @@ SELECT
     ListFold([], 3, $y) AS fold_empty,                 -- 3
     ListFold1($l, $z, $y) AS fold1,                    -- 17
     ListFold1([], $z, $y) AS fold1_empty;              -- Null
+```
+
+A linear state makes it possible to modify a mutable dictionary without copying it on every iteration:
+
+```yql
+SELECT Block(($arg) -> {
+    $dict = ListFold([1, 2, 3, 2, 1], ToMutDict({0: 0}, $arg), ($item, $state) -> {
+        RETURN MutDictInsert($state, $item, 1);
+    });
+    RETURN ListSort(DictKeys(FromMutDict($dict)));
+}); -- [0, 1, 2, 3]
 ```
 
 #### Signature
@@ -699,7 +714,7 @@ ListFold1Map(List<T>?, (T)->Tuple<U,S>, (T, S)->Tuple<U,S>)->List<U>?
 
 ## ListFromRange {#listfromrange}
 
-Generate a sequence of numbers or dates with the specified step. It's similar to `xrange` in Python 2, but additionally supports dates and floating points.
+Generate a sequence of numbers or dates with the specified step. It's similar to `xrange` in Python 2, but additionally supports dates, `Decimal`, and floating-point numbers.
 
 Arguments:
 
@@ -711,6 +726,7 @@ Features:
 
 * *The end is not included, i.e. `ListFromRange(1,3) == AsList(1,2)`.
 *  The type for the resulting elements is selected as the broadest from the argument types. For example, `ListFromRange(1, 2, 0.5)` results in a `Double` list.
+* `Decimal` ranges are supported starting with language version [2026.02](../changelog/2026.02.md). In Query Tracker, select language version 2026.02 or later. The start, end, and explicit step must have exactly the same `Decimal(N, M)` type.
 * If start and end have one of the date types, the step must have the `Interval` type.
 * The list is "lazy", but if it's used incorrectly, it can still consume a lot of RAM.
 * If the step is positive and the end is less than or equal to the start, the result list is empty.
@@ -718,13 +734,15 @@ Features:
 * If the step is neither positive nor negative (0 or NaN), the result list is empty.
 * If one of the parameters is optional, the result will be an optional list.
 * If one of the parameters is `NULL`, the result is `NULL`.
+* If a `Float`, `Double`, or `Decimal` parameter is `NaN` or infinite, the list is empty.
 
 #### Examples
 
 ```yql
 SELECT
     ListFromRange(-2, 2), -- [-2, -1, 0, 1]
-    ListFromRange(2, 1, -0.5); -- [2.0, 1.5]
+    ListFromRange(2, 1, -0.5), -- [2.0, 1.5]
+    ListFromRange(Decimal("1.00", 5, 2), Decimal("2.00", 5, 2), Decimal("0.25", 5, 2)); -- [1.00, 1.25, 1.50, 1.75]
 ```
 
 ```yql

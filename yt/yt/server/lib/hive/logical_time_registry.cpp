@@ -62,6 +62,12 @@ TLogicalTimeRegistry::TLamportClock* TLogicalTimeRegistry::GetClock()
     return &Clock_;
 }
 
+void TLogicalTimeRegistry::Clear()
+{
+    TimeInfoMap_.clear();
+    TimeInfoMapSize_ = 0;
+}
+
 std::pair<TLogicalTime, TConsistentState> TLogicalTimeRegistry::GetConsistentState(std::optional<TLogicalTime> logicalTime)
 {
     if (TimeInfoMap_.empty()) {
@@ -105,14 +111,12 @@ void TLogicalTimeRegistry::OnTick(TLogicalTime logicalTime)
 
     NHydra::TVersion version = mutationContext->GetVersion();
     // COMPAT(h0pless): HydraLogicalRecordId.
-    constexpr int ChaosReignBase = 300000;
     constexpr int ChaosReignHydraLogicalRecordId = 300301;
-    constexpr int TabletReignBase = 100000;
     constexpr int TabletReignHydraLogicalRecordId = 101401;
     auto mutationReign = mutationContext->Request().Reign;
-    if (ChaosReignBase < mutationReign && mutationReign < ChaosReignHydraLogicalRecordId) {
+    if (IsChaosReign(mutationReign) && mutationReign < ChaosReignHydraLogicalRecordId) {
         version = mutationContext->GetPhysicalVersion();
-    } else if (TabletReignBase < mutationReign && mutationReign < TabletReignHydraLogicalRecordId) {
+    } else if (IsTabletReign(mutationReign) && mutationReign < TabletReignHydraLogicalRecordId) {
         version = mutationContext->GetPhysicalVersion();
     }
 

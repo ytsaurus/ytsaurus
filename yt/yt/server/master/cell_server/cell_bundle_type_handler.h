@@ -31,7 +31,7 @@ protected:
         NYTree::IAttributeDictionary* attributes,
         NTabletClient::TTabletCellOptionsPtr options);
 
-    NObjectClient::TCellTagList DoGetReplicationCellTags(const TImpl* cellBundle) override;
+    NObjectClient::TCellTagSet DoGetReplicationCellTags(const TImpl* cellBundle) override;
     NSecurityServer::TAccessControlDescriptor* DoFindAcd(TImpl* cellBundle) override;
     void DoZombifyObject(TImpl* cellBundle) override;
     void DoDestroyObject(TImpl* cellBundle) noexcept override;

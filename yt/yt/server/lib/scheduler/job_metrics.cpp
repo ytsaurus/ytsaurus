@@ -1,5 +1,7 @@
 #include "job_metrics.h"
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/server/lib/job_agent/structs.h>
 
 #include <yt/yt/ytlib/controller_agent/serialize.h>
@@ -27,15 +29,15 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCustomJobMetricDescription::Persist(const TStreamPersistenceContext& context)
+void TCustomJobMetricDescription::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, StatisticsPath);
-    Persist(context, ProfilingName);
-    Persist(context, SummaryValueType);
-    Persist(context, JobStateFilter);
+    PHOENIX_REGISTER_FIELD(1, StatisticsPath);
+    PHOENIX_REGISTER_FIELD(2, ProfilingName);
+    PHOENIX_REGISTER_FIELD(3, SummaryValueType);
+    PHOENIX_REGISTER_FIELD(4, JobStateFilter);
 }
+
+PHOENIX_DEFINE_TYPE(TCustomJobMetricDescription);
 
 bool operator==(const TCustomJobMetricDescription& lhs, const TCustomJobMetricDescription& rhs)
 {
@@ -66,7 +68,7 @@ void Deserialize(TCustomJobMetricDescription& customJobMetricDescription, NYTree
 {
     auto mapNode = node->AsMap();
     customJobMetricDescription.StatisticsPath = mapNode->GetChildValueOrThrow<TStatisticPath>("statistics_path");
-    customJobMetricDescription.ProfilingName = mapNode->GetChildValueOrThrow<TString>("profiling_name");
+    customJobMetricDescription.ProfilingName = mapNode->GetChildValueOrThrow<std::string>("profiling_name");
 
     if (auto summaryValueTypeNode = mapNode->FindChild("summary_value_type")) {
         customJobMetricDescription.SummaryValueType = summaryValueTypeNode->GetValue<ESummaryValueType>();
@@ -122,6 +124,7 @@ TJobMetrics TJobMetrics::FromJobStatistics(
         std::pair{EJobMetricName::ExecTime, &TTimeStatistics::ExecDuration},
         std::pair{EJobMetricName::PrepareTime, &TTimeStatistics::PrepareDuration},
         std::pair{EJobMetricName::PrepareRootFSTime, &TTimeStatistics::PrepareRootFSDuration},
+        std::pair{EJobMetricName::PrepareLayersTime, &TTimeStatistics::PrepareLayersDuration},
         std::pair{EJobMetricName::ValidateRootFSTime, &TTimeStatistics::ValidateRootFSDuration},
         std::pair{EJobMetricName::PrepareNonRootVolumesTime, &TTimeStatistics::PrepareNonRootVolumesDuration},
         std::pair{EJobMetricName::LinkVolumesTime, &TTimeStatistics::LinkVolumesDuration},
@@ -189,13 +192,13 @@ void TJobMetrics::Profile(NProfiling::ISensorWriter* writer) const
     }
 }
 
-void TJobMetrics::Persist(const TPersistenceContext& context)
+void TJobMetrics::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Values_);
-    Persist(context, CustomValues_);
+    PHOENIX_REGISTER_FIELD(1, Values_);
+    PHOENIX_REGISTER_FIELD(2, CustomValues_);
 }
+
+PHOENIX_DEFINE_TYPE(TJobMetrics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -349,7 +352,7 @@ void FromProto(
 
 size_t THash<NYT::NScheduler::TCustomJobMetricDescription>::operator()(const NYT::NScheduler::TCustomJobMetricDescription& jobMetricDescription) const
 {
-    return THash<TString>()(jobMetricDescription.ProfilingName);
+    return THash<std::string>()(jobMetricDescription.ProfilingName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

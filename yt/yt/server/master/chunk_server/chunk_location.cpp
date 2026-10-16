@@ -45,6 +45,14 @@ void TChunkLocation::SetId(NObjectServer::TObjectId id)
     Id_ = id;
 }
 
+bool TChunkLocation::IsRegisteredOrOnline() const
+{
+    return
+        State_ == EChunkLocationState::Online &&
+        NObjectServer::IsObjectAlive(Node_) &&
+        Node_->HasAliveLocalState();
+}
+
 void TChunkLocation::ReserveReplicas(int sizeHint)
 {
     Replicas_.reserve(sizeHint);

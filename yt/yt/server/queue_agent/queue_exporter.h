@@ -1,7 +1,7 @@
 #pragma once
 
-#include "private.h"
 #include "config.h"
+#include "private.h"
 #include "queue_exporter_profile_manager.h"
 
 #include <yt/yt/server/lib/alert_manager/alert_manager.h>
@@ -12,9 +12,9 @@
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/yt/client/ypath/rich.h>
-
 #include <yt/yt/client/queue_client/config.h>
+
+#include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/library/auth/auth.h>
 
@@ -92,8 +92,13 @@ struct TQueueExportProfilingCounters final
     //! Number of exported tables, which can be created, but haven't been yet. It is derived
     //! from #TimeLag.
     NProfiling::TGauge TableLag;
+    //! Detected mismatches between #LastChunk and #RowCount in tablet export progress
+    //! vs. chunk specs. Registered on #queuePassProfiler for queue_path/queue_tag aggregation.
+    NProfiling::TCounter RowCountMismatches;
 
-    explicit TQueueExportProfilingCounters(const NProfiling::TProfiler& profiler);
+    TQueueExportProfilingCounters(
+        const NProfiling::TProfiler& queueProfiler,
+        const NProfiling::TProfiler& queuePassProfiler);
 };
 
 using TQueueExportProfilingCountersPtr = TIntrusivePtr<TQueueExportProfilingCounters>;
@@ -122,11 +127,10 @@ struct IQueueExporter
 DEFINE_REFCOUNTED_TYPE(IQueueExporter)
 
 IQueueExporterPtr CreateQueueExporter(
-    TString exportName,
-    NQueueClient::TQueuePath queue,
+    std::string exportName,
+    NQueueClient::TTablePath queue,
     NQueueClient::TQueueStaticExportConfigPtr exportConfig,
     TQueueExporterDynamicConfig dynamicConfig,
-    NHiveClient::TClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker,
     IQueueExportManagerPtr queueExportManager,
     NAlertManager::IAlertCollectorPtr alertCollector,

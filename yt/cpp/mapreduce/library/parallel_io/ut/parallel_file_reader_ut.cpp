@@ -330,3 +330,186 @@ TEST(TParallelFileReaderTest, ExceptionFromReadJob)
     auto reader = CreateParallelFileReader(client, "nonExistentFile", TParallelFileReaderOptions().BatchSize(10).ThreadCount(NumThreads));
     EXPECT_THROW(reader->ReadNextBatch(), yexception);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+    // Every part past the first is appended in a separate session, so several parts make the file multichunk.
+    TFile GetTestFileWithChunks(const TTestFixture& fixture, const IClientPtr& client, const TVector<size_t>& chunkSizes)
+    {
+        auto path = fixture.GetWorkingDir() + "/partitioned_file";
+        TString content;
+        for (auto chunkSize : chunkSizes) {
+            auto part = GenerateRandomData(chunkSize, /*seed*/ content.size() + 1);
+            auto writer = client->CreateFileWriter(TRichYPath(path).Append(!content.empty()));
+            writer->Write(part);
+            writer->Finish();
+            content += part;
+        }
+        return TFile{path, content};
+    }
+
+    TVector<TFilePartition> GetPartitions(const IClientPtr& client, const TFile& file, size_t partitionSize)
+    {
+        TVector<TFileReadRange> ranges;
+        for (size_t begin = 0; begin < file.Content.size(); begin += partitionSize) {
+            auto end = std::min(begin + partitionSize, file.Content.size());
+            ranges.push_back(TFileReadRange().Begin(begin).End(end));
+        }
+        return client->GetFilePartitions(file.Path, ranges).Partitions;
+    }
+
+    class TFailingFileReader
+        : public IFileReader
+    {
+    protected:
+        size_t DoRead(void* /*buf*/, size_t /*len*/) override
+        {
+            ythrow yexception() << "Partition stream failure";
+        }
+    };
+
+    class TFailingPartitionClientMock
+        : public TClientMock
+    {
+    public:
+        IFileReaderPtr CreateFilePartitionReader(const TString& /*cookie*/, const TFilePartitionReaderOptions& /*options*/) override
+        {
+            ++ReaderCount_;
+            return ::MakeIntrusive<TFailingFileReader>();
+        }
+
+        int GetReaderCount() const
+        {
+            return ReaderCount_;
+        }
+
+    private:
+        std::atomic<int> ReaderCount_ = 0;
+    };
+} // namespace
+
+TEST(TParallelFilePartitionReaderTest, ReadAllSingleThread)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto file = GetTestFileWithChunks(fixture, client, {10_KB, 10_KB, 10_KB});
+    auto partitions = GetPartitions(client, file, 7_KB);
+
+    auto reader = CreateParallelFilePartitionReader(client, partitions, TParallelFilePartitionReaderOptions().ThreadCount(1));
+
+    EXPECT_EQ(file.Content, reader->ReadAll());
+}
+
+TEST(TParallelFilePartitionReaderTest, ReadNextBatchMultiThread)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto file = GetTestFileWithChunks(fixture, client, {10_KB, 10_KB, 10_KB});
+    auto partitions = GetPartitions(client, file, 7_KB);
+
+    auto reader = CreateParallelFilePartitionReader(client, partitions);
+
+    size_t offset = 0;
+    size_t index = 0;
+    while (auto blob = reader->ReadNextBatch()) {
+        ASSERT_LT(index, partitions.size());
+        EXPECT_EQ(static_cast<i64>(blob->Size()), partitions[index].Length);
+        EXPECT_EQ(file.Content.substr(offset, blob->Size()), blob->AsStringBuf());
+        offset += blob->Size();
+        ++index;
+    }
+    EXPECT_EQ(index, partitions.size());
+    EXPECT_EQ(offset, file.Content.size());
+}
+
+TEST(TParallelFilePartitionReaderTest, ReadInGivenOrder)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto file = GetTestFileWithChunks(fixture, client, {10_KB, 10_KB});
+    auto partitions = GetPartitions(client, file, 7_KB);
+    std::reverse(partitions.begin(), partitions.end());
+
+    TString expected;
+    for (size_t index = partitions.size(); index > 0; --index) {
+        expected += file.Content.substr((index - 1) * 7_KB, 7_KB);
+    }
+
+    auto reader = CreateParallelFilePartitionReader(client, partitions);
+
+    EXPECT_EQ(expected, reader->ReadAll());
+}
+
+TEST(TParallelFilePartitionReaderTest, SkipEmptyPartitions)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto file = GetTestFileWithChunks(fixture, client, {10_KB});
+
+    TVector<TFileReadRange> ranges = {
+        TFileReadRange().Begin(0).End(0),
+        TFileReadRange().Begin(0).End(5_KB),
+        TFileReadRange().Begin(5_KB).End(5_KB),
+        TFileReadRange().Begin(5_KB),
+    };
+    auto partitions = client->GetFilePartitions(file.Path, ranges).Partitions;
+
+    auto reader = CreateParallelFilePartitionReader(client, partitions);
+
+    size_t batchCount = 0;
+    TString result;
+    while (auto blob = reader->ReadNextBatch()) {
+        EXPECT_EQ(5_KB, blob->Size());
+        result += blob->AsStringBuf();
+        ++batchCount;
+    }
+    EXPECT_EQ(2u, batchCount);
+    EXPECT_EQ(file.Content, result);
+}
+
+TEST(TParallelFilePartitionReaderTest, ReadNoPartitions)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+
+    auto reader = CreateParallelFilePartitionReader(client, {});
+
+    EXPECT_FALSE(reader->ReadNextBatch());
+    EXPECT_EQ("", reader->ReadAll());
+}
+
+TEST(TParallelFilePartitionReaderTest, ReadAllStrictLimiter)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto file = GetTestFileWithChunks(fixture, client, {10_KB, 10_KB, 10_KB});
+    auto partitions = GetPartitions(client, file, 7_KB);
+
+    auto ramLimiter = ::MakeIntrusive<TResourceLimiter>(7_KB + 1);
+    auto reader = CreateParallelFilePartitionReader(client, partitions, TParallelFilePartitionReaderOptions().RamLimiter(ramLimiter));
+
+    EXPECT_EQ(file.Content, reader->ReadAll());
+}
+
+TEST(TParallelFilePartitionReaderTest, BadMemoryLimit)
+{
+    auto client = ::MakeIntrusive<TClientMock>();
+    TVector<TFilePartition> partitions = {TFilePartition{.Cookie = "cookie", .Length = 11}};
+
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        (CreateParallelFilePartitionReader(client, partitions, TParallelFilePartitionReaderOptions().RamLimiter(::MakeIntrusive<TResourceLimiter>(10u)))),
+        yexception,
+        "");
+}
+
+TEST(TParallelFilePartitionReaderTest, ExceptionFromReadJob)
+{
+    auto client = ::MakeIntrusive<TFailingPartitionClientMock>();
+    TVector<TFilePartition> partitions = {TFilePartition{.Cookie = "cookie", .Length = 10}};
+
+    auto reader = CreateParallelFilePartitionReader(client, partitions, TParallelFilePartitionReaderOptions().ThreadCount(1));
+
+    EXPECT_THROW(reader->ReadNextBatch(), yexception);
+    EXPECT_EQ(1, client->GetReaderCount());
+}

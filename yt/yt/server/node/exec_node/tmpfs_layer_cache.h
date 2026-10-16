@@ -50,7 +50,7 @@ public:
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         IInvokerPtr controlInvoker,
         IMemoryUsageTrackerPtr memoryUsageTracker,
-        const TString& cacheName,
+        const std::string& cacheName,
         NContainers::IPortoExecutorPtr portoExecutor,
         TAbsorbLayerCallback absorbLayer);
 
@@ -69,23 +69,23 @@ private:
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const IInvokerPtr ControlInvoker_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
-    const TString CacheName_;
+    const std::string CacheName_;
     IBootstrap* const Bootstrap_;
-    NContainers::IPortoExecutorPtr PortoExecutor_;
-    TAbsorbLayerCallback AbsorbLayer_;
+    const NContainers::IPortoExecutorPtr PortoExecutor_;
+    const TAbsorbLayerCallback AbsorbLayer_;
 
     TLayerLocationPtr TmpfsLocation_;
 
     THashMap<NYPath::TYPath, TFetchedArtifactKey> CachedLayerDescriptors_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DataSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, DataSpinLock_);
     THashMap<TArtifactKey, TLayerPtr> CachedLayers_;
     NConcurrency::TPeriodicExecutorPtr LayerUpdateExecutor_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AlertSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, AlertSpinLock_);
     TError Alert_;
 
-    TPromise<void> Initialized_ = NewPromise<void>();
+    const TPromise<void> Initialized_ = NewPromise<void>();
 
     const NProfiling::TProfiler Profiler_;
 

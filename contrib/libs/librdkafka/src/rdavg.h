@@ -45,8 +45,9 @@ typedef struct rd_avg_s {
         } ra_v;
         mtx_t ra_lock;
         int ra_enabled;
-        enum { RD_AVG_GAUGE,
-               RD_AVG_COUNTER,
+        enum {
+                RD_AVG_GAUGE,
+                RD_AVG_COUNTER,
         } ra_type;
 #if WITH_HDRHISTOGRAM
         rd_hdr_histogram_t *ra_hdr;

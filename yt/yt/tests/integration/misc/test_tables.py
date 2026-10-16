@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, with_portals_dir
 
 from yt_commands import (
     authors, print_debug, wait, create, get, set,
@@ -9,8 +9,6 @@ from yt_commands import (
     get_singular_chunk_id, get_chunk_replication_factor, set_all_nodes_banned,
     get_recursive_disk_space, get_chunk_owner_disk_space, raises_yt_error, sorted_dicts,
 )
-
-from yt_sequoia_helpers import not_implemented_in_sequoia
 
 from yt_helpers import (
     wait_until_unlocked
@@ -33,7 +31,6 @@ import random
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestTables(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 10
@@ -100,7 +97,7 @@ class TestTables(YTEnvSetup):
 
         set_all_nodes_banned(True)
 
-        with raises_yt_error("is unavailable"):
+        with raises_yt_error("Chunk .* is unavailable"):
             read_table("//tmp/table")
 
         set_all_nodes_banned(False)
@@ -127,7 +124,7 @@ class TestTables(YTEnvSetup):
         next_key = 4 if sort_order == "ascending" else -1
         write_table("<append=true>//tmp/table", {"key": next_key})
         assert not get("//tmp/table/@sorted")
-        with raises_yt_error("Attribute \"sorted_by\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             get("//tmp/table/@sorted_by")
 
     @authors("monster")
@@ -238,7 +235,7 @@ class TestTables(YTEnvSetup):
             first_chunk, second_chunk = second_chunk, first_chunk
         sorted_by = [{"name": "a", "sort_order": sort_order}]
         write_table("//tmp/table", first_chunk, sorted_by=sorted_by)
-        with raises_yt_error(yt_error_codes.SortOrderViolation):
+        with raises_yt_error(code=yt_error_codes.SortOrderViolation):
             write_table("<append=true>//tmp/table", second_chunk, sorted_by=sorted_by)
         wait_until_unlocked("//tmp/table")
 
@@ -255,7 +252,7 @@ class TestTables(YTEnvSetup):
             first_chunk, second_chunk = second_chunk, first_chunk
         sorted_by = [{"name": "a", "sort_order": sort_order}]
         write_table("//tmp/table", first_chunk)
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort columns mismatch"):
             write_table("<append=true>//tmp/table", second_chunk, sorted_by=sorted_by)
         wait_until_unlocked("//tmp/table")
 
@@ -268,7 +265,7 @@ class TestTables(YTEnvSetup):
         sorted_by_ab = [{"name": "a", "sort_order": sort_order}, {"name": "b", "sort_order": sort_order}]
         write_table("//tmp/table", [{"a": 0}], sorted_by=sorted_by_a)
         next_key = 1 if sort_order == "ascending" else -1
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort columns mismatch"):
             write_table(
                 "<append=true>//tmp/table",
                 [{"a": next_key, "b": 0}],
@@ -291,7 +288,7 @@ class TestTables(YTEnvSetup):
         rows = [{"b": 0}, {"b": 1}]
         if sort_order == "descending":
             rows = rows[::-1]
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort columns mismatch"):
             write_table(
                 "<append=true>//tmp/table",
                 [{"b": 0}, {"b": 1}],
@@ -312,7 +309,7 @@ class TestTables(YTEnvSetup):
             first_chunk, second_chunk = second_chunk, first_chunk
         sorted_by = [{"name": "a", "sort_order": sort_order}]
         write_table("<append=true>//tmp/table", first_chunk, sorted_by=sorted_by, tx=tx1)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take .* lock for node .* since .* lock is taken by concurrent transaction .*"):
             write_table(
                 "<append=true>//tmp/table",
                 second_chunk,
@@ -332,7 +329,7 @@ class TestTables(YTEnvSetup):
             "//tmp/table",
             [{"a": 0}],
             sorted_by=[{"name": "a", "sort_order": "ascending"}])
-        with raises_yt_error("Sort columns mismatch while trying to append sorted data into a non-empty table"):
+        with raises_yt_error("Sort columns mismatch"):
             write_table(
                 "<append=true>//tmp/table",
                 [{"a": 0}],
@@ -382,7 +379,7 @@ class TestTables(YTEnvSetup):
         wait_until_unlocked("//tmp/table")
 
         # check max_row_weight limit
-        with raises_yt_error("Validation failed at /max_row_weight"):
+        with raises_yt_error("Validation failed at .*"):
             write_table("//tmp/table", {"a": "long_string"}, table_writer={"max_row_weight": 2})
         wait_until_unlocked("//tmp/table")
 
@@ -397,7 +394,7 @@ class TestTables(YTEnvSetup):
         wait_until_unlocked("//tmp/table")
 
         # check duplicate ids
-        with raises_yt_error("Duplicate \"a\" column in unversioned row"):
+        with raises_yt_error("Duplicate column .*"):
             write_table("//tmp/table", b"{a=version1; a=version2}", is_raw=True)
         wait_until_unlocked("//tmp/table")
 
@@ -406,7 +403,7 @@ class TestTables(YTEnvSetup):
         content = b"some_data"
         create("file", "//tmp/file")
         write_file("//tmp/file", content)
-        with raises_yt_error("expected any of \"[table]\", actual \"file\""):
+        with raises_yt_error("Invalid type of .*: expected .*, actual .*"):
             read_table("//tmp/file")
 
     @authors("psushin")
@@ -417,7 +414,7 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/table/@optimize_for") == optimize_for
         assert get("//tmp/table/@schema_mode") == "weak"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("\"append\" and \"schema\" are not compatible"):
             # append and schema are not compatible
             write_table(
                 "<append=true; schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table",
@@ -425,7 +422,7 @@ class TestTables(YTEnvSetup):
             )
         wait_until_unlocked("//tmp/table")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("\"sorted_by\" and \"schema\" are not compatible"):
             # sorted_by and schema are not compatible
             write_table(
                 "<sorted_by=[a]; schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table",
@@ -433,7 +430,7 @@ class TestTables(YTEnvSetup):
             )
         wait_until_unlocked("//tmp/table")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate column .*"):
             # invalid schema - duplicate columns
             write_table(
                 "<schema=[{name=key; type=int64};{name=key; type=string}]>//tmp/table",
@@ -488,7 +485,7 @@ class TestTables(YTEnvSetup):
         write_table("<compression_codec=lz4>//tmp/table", [{"key": 0}])
         assert get("//tmp/table/@compression_codec") == "lz4"
 
-        with raises_yt_error("attributes \"append\" and \"compression_codec\" are not compatible"):
+        with raises_yt_error("YPath attributes \"append\" and \"compression_codec\" are not compatible"):
             write_table("<append=true;compression_codec=lz4>//tmp/table", [{"key": 0}])
         wait_until_unlocked("//tmp/table")
 
@@ -516,12 +513,12 @@ class TestTables(YTEnvSetup):
         write_table("//tmp/table", rows)
 
         key = 1 if sort_order == "ascending" else 0
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate key"):
             write_table("<append=true>//tmp/table", [{"key": key}])
         wait_until_unlocked("//tmp/table")
 
         key = 2 if sort_order == "ascending" else -1
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate key"):
             write_table("<append=true>//tmp/table", [{"key": key}, {"key": key}])
         wait_until_unlocked("//tmp/table")
 
@@ -1048,7 +1045,7 @@ class TestTables(YTEnvSetup):
 
         alter_table("//tmp/table", schema=schema1, tx=tx1)
 
-        with raises_yt_error("since \"exclusive\" lock is taken by concurrent transaction"):
+        with raises_yt_error("Cannot take .* lock for node .* since .* lock is taken by concurrent transaction .*"):
             alter_table("//tmp/table", schema=schema2, tx=tx2)
 
         assert normalize_schema(get("//tmp/table/@schema")) == schema
@@ -1235,11 +1232,11 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/t")
         assert get("//tmp/t/@replication_factor") == 3
 
-        with raises_yt_error("cannot be removed"):
+        with raises_yt_error("Attribute .* cannot be removed"):
             remove("//tmp/t/@replication_factor")
-        with raises_yt_error("Replication factor 0 is out of range [1,20]"):
+        with raises_yt_error("Replication factor .* is out of range"):
             set("//tmp/t/@replication_factor", 0)
-        with raises_yt_error("Cannot parse \"i32\" from \"end_of_stream\""):
+        with raises_yt_error("Cannot parse"):
             set("//tmp/t/@replication_factor", {})
 
         tx = start_transaction()
@@ -1473,27 +1470,27 @@ class TestTables(YTEnvSetup):
         create_static_descending(suffix)
         alter_static_regular_to_static_descending(suffix)
         merge_static_regular_to_static_descending(suffix)
-        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
+        with raises_yt_error(code=yt_error_codes.InvalidSchemaValue):
             alter_static_descending_to_dynamic_descending(suffix)
-        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
+        with raises_yt_error(code=yt_error_codes.InvalidSchemaValue):
             create_dynamic_descending(suffix)
-        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
+        with raises_yt_error(code=yt_error_codes.InvalidSchemaValue):
             alter_dynamic_regular_to_dynamic_descending(suffix)
 
         # No tables are allowed to have descending sort order.
         suffix = "deny_all"
         set("//sys/@config/enable_descending_sort_order", False)
-        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
+        with raises_yt_error(code=yt_error_codes.InvalidSchemaValue):
             create_static_descending(suffix)
-        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
+        with raises_yt_error(code=yt_error_codes.InvalidSchemaValue):
             alter_static_regular_to_static_descending(suffix)
-        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
+        with raises_yt_error(code=yt_error_codes.InvalidSchemaValue):
             alter_static_descending_to_dynamic_descending(suffix)
-        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
+        with raises_yt_error(code=yt_error_codes.InvalidSchemaValue):
             merge_static_regular_to_static_descending(suffix)
-        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
+        with raises_yt_error(code=yt_error_codes.InvalidSchemaValue):
             create_dynamic_descending(suffix)
-        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
+        with raises_yt_error(code=yt_error_codes.InvalidSchemaValue):
             alter_dynamic_regular_to_dynamic_descending(suffix)
         set("//sys/@config/table_manager/validate_no_descending_sort_order", initial_value)
 
@@ -1681,7 +1678,7 @@ class TestTables(YTEnvSetup):
         @authors("savrus")
         def test_negative(schema, rows):
             init_table("//tmp/t", schema)
-            with pytest.raises(YtError):
+            with raises_yt_error("Invalid type|No column with name|Sort order violation|Duplicate key"):
                 write_table("<append=%true>//tmp/t", rows)
             wait_until_unlocked("//tmp/t")
 
@@ -1764,7 +1761,7 @@ class TestTables(YTEnvSetup):
         yson_without_type_conversion = yson.loads(b"yson")
         yson_with_type_conversion = yson.loads(b"<enable_type_conversion=%true>yson")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             write_table("//tmp/t", row, is_raw=True, input_format=yson_without_type_conversion)
         wait_until_unlocked("//tmp/t")
 
@@ -1805,19 +1802,19 @@ class TestTables(YTEnvSetup):
             ],
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Values of column .* must be consecutive but values .* and .* violate this property"):
             read_blob_table("//tmp/ttt", part_size=6)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Values of column .* must be consecutive but values .* and .* violate this property"):
             read_blob_table("//tmp/ttt[#2:#4]", part_size=3)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Values of column .* must be consecutive but values .* and .* violate this property"):
             read_blob_table("//tmp/ttt[:#3]", part_size=6)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter"):
             read_blob_table("//tmp/ttt[:#1]")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Values of column \"part_index\" must be consecutive but"):
             read_blob_table("//tmp/ttt[:#1]", start_part_index=1, part_size=6)
 
         assert b"hello " == read_blob_table("//tmp/ttt[:#1]", part_size=6)
@@ -1828,15 +1825,15 @@ class TestTables(YTEnvSetup):
 
         assert b"hello world!" == read_blob_table("//tmp/ttt[x]", part_size=6)
         assert b"AAA" == read_blob_table("//tmp/ttt[y]", part_size=3)
-        with pytest.raises(YtError):
+        with raises_yt_error("Inconsistent part size"):
             read_blob_table("//tmp/ttt[x:z]", part_size=3)
 
         assert b"abacabaabac" == read_blob_table("//tmp/ttt[za]", part_size=7)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Inconsistent part size"):
             read_blob_table("//tmp/ttt[zb]", part_size=7)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Inconsistent part size"):
             read_blob_table("//tmp/ttt[zc]", part_size=7)
 
         write_table(
@@ -1917,7 +1914,7 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/table")
         write_table("//tmp/table", {"b": "hello"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Reader deadline expired"):
             read_table("//tmp/table", table_reader={"max_read_duration": 0})
 
     def _print_chunk_list_recursive(self, chunk_list):
@@ -2003,7 +2000,7 @@ class TestTables(YTEnvSetup):
         commit_transaction(tx=tx1)
         assert not get("//tmp/t/@sorted")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort columns mismatch"):
             write_table(
                 "<append=true;sorted_by={}>//tmp/t".format(sorted_by),
                 [{"key": 15 * mul}, {"key": 20 * mul}, {"key": 25 * mul}],
@@ -2060,21 +2057,21 @@ class TestTables(YTEnvSetup):
                     [make_row(-1, 2, 3), make_row(-4, 5, 6)])
         assert read_table("//tmp/t1") == [make_row(-1, 2, 3), make_row(-4, 5, 6)]
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             write_table("<chunk_sort_columns=[{name=a;sort_order=descending}]>//tmp/t1", [make_row(-31, 41, 59)])
         wait_until_unlocked("//tmp/t1")
 
-        with raises_yt_error(yt_error_codes.IncompatibleKeyColumns):
+        with raises_yt_error(code=yt_error_codes.IncompatibleKeyColumns):
             write_table("<chunk_sort_columns=[{name=a;sort_order=ascending};{name=b;sort_order=ascending}]>//tmp/t1",
                         [make_row(-31, 41, 59)])
         wait_until_unlocked("//tmp/t1")
 
-        with raises_yt_error(yt_error_codes.IncompatibleKeyColumns):
+        with raises_yt_error(code=yt_error_codes.IncompatibleKeyColumns):
             write_table("<chunk_sort_columns=[{name=f;sort_order=ascending};{name=b;sort_order=ascending}]>//tmp/t1",
                         [make_row(-31, 41, 59)])
         wait_until_unlocked("//tmp/t1")
 
-        with raises_yt_error(yt_error_codes.IncompatibleKeyColumns):
+        with raises_yt_error(code=yt_error_codes.IncompatibleKeyColumns):
             write_table(
                 "<chunk_sort_columns=["
                 "{name=a;sort_order=descending};{name=b;sort_order=ascending};{name=d;sort_order=ascending}"
@@ -2082,7 +2079,7 @@ class TestTables(YTEnvSetup):
                 [{"a": -31, "b": 41, "d": 59, "c": 23}])
         wait_until_unlocked("//tmp/t1")
 
-        with raises_yt_error(yt_error_codes.SortOrderViolation):
+        with raises_yt_error(code=yt_error_codes.SortOrderViolation):
             write_table(
                 "<chunk_sort_columns=["
                 "{name=a;sort_order=descending};{name=b;sort_order=ascending};{name=c;sort_order=ascending}"
@@ -2179,7 +2176,7 @@ class TestTables(YTEnvSetup):
             },
         )
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             write_table(
                 "<chunk_sort_columns=[a];append=true>//tmp/t1",
                 make_rows([1, 2, 2, 3]),
@@ -2243,13 +2240,13 @@ class TestTables(YTEnvSetup):
         )
 
         # Keys inside chunks are not unique.
-        with raises_yt_error(yt_error_codes.UniqueKeyViolation):
+        with raises_yt_error(code=yt_error_codes.UniqueKeyViolation):
             write_table(
                 "<chunk_sort_columns=[a];chunk_unique_keys=true;append=true>//tmp/t1",
                 make_rows([2, 2]),
             )
         wait_until_unlocked("//tmp/t1")
-        with raises_yt_error(yt_error_codes.UniqueKeyViolation):
+        with raises_yt_error(code=yt_error_codes.UniqueKeyViolation):
             write_table(
                 "<chunk_sort_columns=[a];chunk_unique_keys=true;append=true>//tmp/t2",
                 make_rows([2, 2]),
@@ -2258,12 +2255,12 @@ class TestTables(YTEnvSetup):
 
         # `key_column_count' infers from table schema.
         write_table("<chunk_unique_keys=true;append=true>//tmp/t1", make_rows([3]))
-        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
+        with raises_yt_error(code=yt_error_codes.InvalidSchemaValue):
             write_table("<chunk_unique_keys=true;append=true>//tmp/t2", make_rows([3]))
         wait_until_unlocked("//tmp/t2")
 
         # Keys are not ordered between chunks.
-        with raises_yt_error(yt_error_codes.SortOrderViolation):
+        with raises_yt_error(code=yt_error_codes.SortOrderViolation):
             write_table(
                 "<chunk_sort_columns=[a];chunk_unique_keys=true;append=true>//tmp/t1",
                 make_rows([0]),
@@ -2410,13 +2407,13 @@ class TestTables(YTEnvSetup):
         write_table("<append=true>//tmp/t", rows[1])
         assert get("//tmp/t/@chunk_count") == 2
 
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             alter_table("//tmp/t", schema=bad_schema_1)
 
-        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
+        with raises_yt_error(code=yt_error_codes.InvalidSchemaValue):
             alter_table("//tmp/t", schema=bad_schema_2)
 
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             alter_table("//tmp/t", schema=bad_schema_3)
 
         alter_table("//tmp/t", schema=new_schema)
@@ -2434,7 +2431,7 @@ class TestTables(YTEnvSetup):
             ]
             assert get("//tmp/t_out/@chunk_count") == 1
 
-            with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+            with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
                 alter_table("//tmp/t", schema=old_schema)
 
     @authors("akozhikhov")
@@ -2607,7 +2604,7 @@ class TestTables(YTEnvSetup):
             else:
                 # NB: After table altering last key becomes [42, #], which is greater than
                 # [42, 23] in descending sort order.
-                with raises_yt_error(yt_error_codes.SortOrderViolation):
+                with raises_yt_error(code=yt_error_codes.SortOrderViolation):
                     append_fn(dst)
 
         validate_or_expect_error(append_via_write_table, "write_table")
@@ -2945,7 +2942,7 @@ class TestTables(YTEnvSetup):
             write_table("<append=%true>//tmp/t", chunk_rows)
             rows.extend(chunk_rows)
 
-        with raises_yt_error("Access denied for user \"u\""):
+        with raises_yt_error("Access denied"):
             read_table("//tmp/t", authenticated_user="u")
 
         assert read_table("//tmp/t", omit_inaccessible_rows=True, authenticated_user="u") == rows[1:3] + [rows[6]]
@@ -2974,18 +2971,17 @@ class TestTables(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestTablesChunkFormats(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
 
     @authors("babenko")
     def test_validate_chunk_format_on_create(self):
-        with raises_yt_error("Error parsing EChunkFormat"):
+        with raises_yt_error("Error parsing .* value"):
             create("table", "//tmp/t", attributes={"chunk_format": "nonexisting_format"})
-        with raises_yt_error(yt_error_codes.InvalidTableChunkFormat):
+        with raises_yt_error(code=yt_error_codes.InvalidTableChunkFormat):
             create("table", "//tmp/t", attributes={"chunk_format": "file_default"})
-        with raises_yt_error(yt_error_codes.InvalidTableChunkFormat):
+        with raises_yt_error(code=yt_error_codes.InvalidTableChunkFormat):
             create("table", "//tmp/t", attributes={"optimize_for": "lookup", "chunk_format": "table_unversioned_columnar"})
 
     @authors("babenko")
@@ -3016,7 +3012,6 @@ def check_multicell_statistics(path, chunk_count_map):
         assert statistics[cell_tag]["chunk_count"] == chunk_count_map[cell_tag]
 
 
-@pytest.mark.enabled_multidaemon
 class TestTablesMulticell(TestTables):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -3212,11 +3207,11 @@ class TestTablesMulticell(TestTables):
         )
         write_table("//tmp/t", [{"foo": "bar"}])
 
-        with raises_yt_error(yt_error_codes.UnsupportedChunkFeature):
+        with raises_yt_error(code=yt_error_codes.UnsupportedChunkFeature):
             read_table("//tmp/t")
 
         create("table", "//tmp/t_out")
-        with raises_yt_error(yt_error_codes.UnsupportedChunkFeature):
+        with raises_yt_error(code=yt_error_codes.UnsupportedChunkFeature):
             remote_copy(
                 in_="//tmp/t",
                 out="//tmp/t_out",
@@ -3224,11 +3219,8 @@ class TestTablesMulticell(TestTables):
             )
 
     @authors("shakurov")
-    @not_implemented_in_sequoia  # Cross-cell copy.
+    @with_portals_dir
     def test_cloned_table_statistics_yt_18290(self):
-        if not self.ENABLE_TMP_PORTAL:
-            create("map_node", "//portals", force=True)
-
         create("table", "//tmp/t")
         tx = start_transaction()
         write_table("<append=%true>//tmp/t", [{"foo": "bar"}], tx=tx)
@@ -3360,7 +3352,6 @@ class TestTablesMulticell(TestTables):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestTablesPortal(TestTablesMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -3372,7 +3363,6 @@ class TestTablesPortal(TestTablesMulticell):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestTablesShardedTx(TestTablesPortal):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 4
@@ -3386,7 +3376,6 @@ class TestTablesShardedTx(TestTablesPortal):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestTablesSequoia(TestTablesShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -3440,7 +3429,6 @@ class TestTablesSequoia(TestTablesShardedTx):
             check_path(f"#{m_id}/t2")
 
 
-@pytest.mark.enabled_multidaemon
 class TestTablesRpcProxy(TestTables):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

@@ -41,8 +41,8 @@ class TYtDatabase
     : public TYtDatabaseBase
 {
 public:
-    TYtDatabase()
-        : TYtDatabaseBase("YT")
+    explicit TYtDatabase(THost* host)
+        : TYtDatabaseBase("YT", host)
     { }
 
     DB::DatabaseTablesIteratorPtr getTablesIterator(
@@ -112,9 +112,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::DatabasePtr CreateYTDatabase()
+DB::DatabasePtr CreateYTDatabase(THost* host)
 {
-    return std::make_shared<TYtDatabase>();
+    return std::make_shared<TYtDatabase>(host);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

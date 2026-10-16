@@ -38,8 +38,8 @@ TObjectServiceCacheKey::TObjectServiceCacheKey(
     TCellTag cellTag,
     const std::string& user,
     TYPath path,
-    TString service,
-    TString method,
+    std::string service,
+    std::string method,
     TSharedRef requestBody,
     bool suppressUpstreamSync,
     bool suppressTransactionCoordinatorSync)
@@ -183,9 +183,8 @@ TObjectServiceCache::TCookie::TCookie(TUnderlyingCookie&& underlyingCookie, TObj
     , ExpiredEntry_(std::move(expiredEntry))
 { }
 
-
 TObjectServiceCache::TCookie::TCookie(TCookie&& other) noexcept
-    : TUnderlyingCookie(std::move(other))
+    : TUnderlyingCookie(std::move(static_cast<TUnderlyingCookie&>(other)))
     , ExpiredEntry_(std::move(other.ExpiredEntry_))
 { }
 
@@ -195,8 +194,8 @@ TObjectServiceCache::TCookie& TObjectServiceCache::TCookie::operator=(TCookie&& 
         return *this;
     }
 
-    TUnderlyingCookie::operator=(std::move(other));
     ExpiredEntry_ = std::move(other.ExpiredEntry_);
+    TUnderlyingCookie::operator=(std::move(other));
 
     return *this;
 }
@@ -301,28 +300,28 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
     bool cacheHit = false;
     if (entry) {
         if (refreshRevision && entry->GetRevision() != NHydra::NullRevision && entry->GetRevision() <= refreshRevision) {
-            YT_LOG_DEBUG("Cache entry refresh requested (RequestId: %v, Key: %v, Revision: %x, Success: %v)",
-                requestId,
-                key,
-                entry->GetRevision(),
-                entry->GetSuccess());
+            YT_TLOG_DEBUG("Cache entry refresh requested")
+                .With("RequestId", requestId)
+                .With("Key", key)
+                .WithFormat("Revision", "%x", entry->GetRevision())
+                .With("Success", entry->GetSuccess());
 
             tryRemove();
         } else if (IsExpired(entry, expireAfterSuccessfulUpdateTime, expireAfterFailedUpdateTime)) {
-            YT_LOG_DEBUG("Cache entry expired (RequestId: %v, Key: %v, Revision: %x, Success: %v)",
-                requestId,
-                key,
-                entry->GetRevision(),
-                entry->GetSuccess());
+            YT_TLOG_DEBUG("Cache entry expired")
+                .With("RequestId", requestId)
+                .With("Key", key)
+                .WithFormat("Revision", "%x", entry->GetRevision())
+                .With("Success", entry->GetSuccess());
 
             tryRemove();
         } else {
             cacheHit = true;
-            YT_LOG_DEBUG("Cache hit (RequestId: %v, Key: %v, Revision: %x, Success: %v)",
-                requestId,
-                key,
-                entry->GetRevision(),
-                entry->GetSuccess());
+            YT_TLOG_DEBUG("Cache hit")
+                .With("RequestId", requestId)
+                .With("Key", key)
+                .WithFormat("Revision", "%x", entry->GetRevision())
+                .With("Success", entry->GetSuccess());
         }
 
         TouchEntry(entry);
@@ -372,11 +371,11 @@ void TObjectServiceCache::EndLookup(
 {
     const auto& key = cookie.GetKey();
 
-    YT_LOG_DEBUG("Cache population request succeeded (RequestId: %v, Key: %v, Revision: %x, Success: %v)",
-        requestId,
-        key,
-        revision,
-        success);
+    YT_TLOG_DEBUG("Cache population request succeeded")
+        .With("RequestId", requestId)
+        .With("Key", key)
+        .WithFormat("Revision", "%x", revision)
+        .With("Success", success);
 
     TObjectServiceCacheEntryPtr expiredEntry;
     {
@@ -413,10 +412,15 @@ int TObjectServiceCache::GetAdvisedEntryStickyGroupSize(const TObjectServiceCach
 {
     auto totalByteRate = entry->GetTotalByteRate();
     int advisedSize = 1 + static_cast<int>(totalByteRate / EntryByteRateLimit_.load(std::memory_order::relaxed));
-    return std::clamp(
+    advisedSize = std::clamp(
         advisedSize,
         MinAdvisedStickyGroupSize_.load(std::memory_order::relaxed),
         MaxAdvisedStickyGroupSize_.load(std::memory_order::relaxed));
+    YT_TLOG_DEBUG("Cache entry sticky group size calculated")
+        .With("Key", entry->GetKey())
+        .With("TotalByteRate", totalByteRate)
+        .With("AdvisedSize", advisedSize);
+    return advisedSize;
 }
 
 IYPathServicePtr TObjectServiceCache::GetOrchidService()
@@ -435,7 +439,7 @@ void TObjectServiceCache::Reconfigure(const TObjectServiceCacheDynamicConfigPtr&
     MaxAdvisedStickyGroupSize_.store(config->MaxAdvisedStickyGroupSize);
 }
 
-TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const std::string& user, const TString& method)
+TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const std::string& user, const std::string& method)
 {
     auto key = std::tuple(user, method);
 
@@ -462,11 +466,11 @@ void TObjectServiceCache::OnAdded(const TObjectServiceCacheEntryPtr& entry)
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& key = entry->GetKey();
-    YT_LOG_DEBUG("Cache entry added (Key: %v, Revision: %x, Success: %v, TotalSpace: %v)",
-        key,
-        entry->GetRevision(),
-        entry->GetSuccess(),
-        entry->GetTotalSpace());
+    YT_TLOG_DEBUG("Cache entry added")
+        .With("Key", key)
+        .WithFormat("Revision", "%x", entry->GetRevision())
+        .With("Success", entry->GetSuccess())
+        .With("TotalSpace", entry->GetTotalSpace());
 }
 
 void TObjectServiceCache::OnRemoved(const TObjectServiceCacheEntryPtr& entry)
@@ -474,11 +478,11 @@ void TObjectServiceCache::OnRemoved(const TObjectServiceCacheEntryPtr& entry)
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& key = entry->GetKey();
-    YT_LOG_DEBUG("Cache entry removed (Key: %v, Revision: %x, Success: %v, TotalSpace: %v)",
-        key,
-        entry->GetRevision(),
-        entry->GetSuccess(),
-        entry->GetTotalSpace());
+    YT_TLOG_DEBUG("Cache entry removed")
+        .With("Key", key)
+        .WithFormat("Revision", "%x", entry->GetRevision())
+        .With("Success", entry->GetSuccess())
+        .With("TotalSpace", entry->GetTotalSpace());
 
     auto guard = ReaderGuard(ExpiredEntriesLock_);
 
@@ -491,7 +495,8 @@ void TObjectServiceCache::MaybeEraseTopEntry(const TObjectServiceCacheKey& key)
 {
     auto guard = WriterGuard(TopEntriesLock_);
     if (TopEntries_.erase(key) > 0) {
-        YT_LOG_DEBUG("Removed entry from top (Key: %v)", key);
+        YT_TLOG_DEBUG("Removed entry from top")
+            .With("Key", key);
     }
 }
 
@@ -521,10 +526,9 @@ void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry, b
 
         if (entry->GetByteRate() >= topEntryByteRateThreshold) {
             if (TopEntries_.emplace(key, entry).second) {
-                YT_LOG_DEBUG("Added entry to top (Key: %v, ByteRate: %v -> %v)",
-                    key,
-                    previous,
-                    current);
+                YT_TLOG_DEBUG("Added entry to top")
+                    .With("Key", key)
+                    .WithFormat("ByteRate", "%v -> %v", previous, current);
             }
         }
     }
@@ -534,10 +538,9 @@ void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry, b
 
         if (entry->GetByteRate() < topEntryByteRateThreshold) {
             if (TopEntries_.erase(key) > 0) {
-                YT_LOG_DEBUG("Removed entry from top (Key: %v, ByteRate: %v -> %v)",
-                    key,
-                    previous,
-                    current);
+                YT_TLOG_DEBUG("Removed entry from top")
+                    .With("Key", key)
+                    .WithFormat("ByteRate", "%v -> %v", previous, current);
             }
         }
     }

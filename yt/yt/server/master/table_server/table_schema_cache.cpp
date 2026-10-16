@@ -8,6 +8,8 @@
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
@@ -19,7 +21,7 @@ using namespace NYson;
 void FormatValue(TStringBuilderBase* builder, const TCompactTableSchemaPtr& schema, TStringBuf spec)
 {
     if (schema) {
-        FormatValue(builder, schema->AsWireProto(), spec);
+        FormatValue(builder, EscapeC(TStringBuf(schema->AsWireProto())), spec);
     } else {
         builder->AppendString(TStringBuf("<null>"));
     }
@@ -31,7 +33,7 @@ TTableSchemaCache::TTableSchemaCache(TAsyncExpiringCacheConfigPtr config)
     : TAsyncExpiringCache<TCompactTableSchemaPtr, TTableSchemaPtr>(
         std::move(config),
         NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-        TableServerLogger().WithTag("Cache: TableSchema"),
+        TableServerLogger().WithTag("Cache", "TableSchema"),
         TableServerProfiler().WithPrefix("/table_schema_cache"))
 { }
 
@@ -87,7 +89,7 @@ TErrorOr<TTableSchemaPtr> TTableSchemaCache::ConvertToHeavyTableSchema(const TCo
     } catch (const std::exception& ex) {
         auto result = TError(NCellServer::EErrorCode::CompactSchemaParseError,
             "Failed to parse table schema");
-        result <<= TError(ex);
+        result.Add(TError(ex));
         return result;
     }
 }
@@ -98,7 +100,7 @@ TYsonTableSchemaCache::TYsonTableSchemaCache(const TWeakPtr<ITableManager>& weak
     : TAsyncExpiringCache<TCompactTableSchemaPtr, TYsonString>(
         config,
         NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-        TableServerLogger().WithTag("Cache: YsonTableSchema"),
+        TableServerLogger().WithTag("Cache", "YsonTableSchema"),
         TableServerProfiler().WithPrefix("/yson_table_schema_cache"))
     , WeakTableManager_(weakTableManager)
 { }
@@ -128,7 +130,7 @@ TFuture<TYsonString> TYsonTableSchemaCache::DoGet(
     } catch (const std::exception& ex) {
         auto result = TError(NCellServer::EErrorCode::CompactSchemaParseError,
             "Failed to convert table schema to yson string");
-        result <<= TError(ex);
+        result.Add(TError(ex));
         return result;
     }
 }

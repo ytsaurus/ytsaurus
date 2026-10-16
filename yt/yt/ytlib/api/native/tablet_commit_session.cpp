@@ -4,6 +4,7 @@
 #include "client.h"
 #include "config.h"
 #include "connection.h"
+#include "helpers.h"
 #include "tablet_request_batcher.h"
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
@@ -11,6 +12,8 @@
 #include <yt/yt/ytlib/table_client/hunks.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
+
+#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -20,10 +23,34 @@ namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
 using namespace NLogging;
+using namespace NObjectClient;
 using namespace NRpc;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsRetryableFirstBatchError(const TError& error)
+{
+    static const THashSet<TErrorCode> retryableCodes = {
+        NTabletClient::EErrorCode::NoSuchTablet,
+        NTabletClient::EErrorCode::TabletNotMounted,
+        NTabletClient::EErrorCode::TabletServantIsNotActive,
+        NTabletClient::EErrorCode::TestingFailureBeforeWrite,
+        NTabletClient::EErrorCode::ReadOnlySmoothMovementStage,
+        NRpc::EErrorCode::NoSuchService,
+        NRpc::EErrorCode::NoSuchRealm,
+    };
+
+    return error.FindMatching(retryableCodes).has_value();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,10 +70,11 @@ public:
         , Config_(Client_->GetNativeConnection()->GetConfig())
         , Options_(std::move(options))
         , Transaction_(std::move(transaction))
+        , CellCommitSessionProvider_(std::move(cellCommitSessionProvider))
+        , Logger(logger.WithTag("TabletId", tabletInfo->TabletId))
+        , CellCommitSession_(CellCommitSessionProvider_->GetOrCreateCellCommitSession(tabletInfo->CellId))
         , TabletInfo_(std::move(tabletInfo))
         , TableInfo_(std::move(tableInfo))
-        , CellCommitSession_(cellCommitSessionProvider->GetOrCreateCellCommitSession(TabletInfo_->CellId))
-        , Logger(logger.WithTag("TabletId: %v", TabletInfo_->TabletId))
     {
         auto maxRowsPerTablet = Client_->GetOptions().GetAuthenticatedUser() == NSecurityClient::ReplicatorUserName
             ? std::nullopt
@@ -63,6 +91,8 @@ public:
             },
             TableInfo_->Schemas[ETableSchemaKind::Primary],
             std::move(columnEvaluator));
+
+        CellCommitSession_->RegisterTabletCommitSession(TabletInfo_->TabletId);
     }
 
     void SubmitUnversionedRow(
@@ -96,27 +126,37 @@ public:
         auto prepared = Batcher_->PrepareBatches();
         Batches_ = std::move(prepared.Batches);
 
-        auto batchCount = std::ssize(Batches_);
+        int batchCount = std::ssize(Batches_);
         CellCommitSession_
             ->GetPrepareSignatureGenerator()
-            ->RegisterRequests(batchCount);
-        CellCommitSession_
-            ->GetCommitSignatureGenerator()
             ->RegisterRequests(batchCount);
 
         return std::move(prepared.MergedRows);
     }
 
+    void CalculateBatchSignatures() override
+    {
+        YT_VERIFY(!Batches_.empty());
+        YT_VERIFY(BatchPrepareSignatures_.empty());
+
+        BatchPrepareSignatures_.resize(Batches_.size());
+
+        auto* signatureGenerator = CellCommitSession_->GetPrepareSignatureGenerator();
+        for (int batchIndex = 0; batchIndex < std::ssize(Batches_); ++batchIndex) {
+            BatchPrepareSignatures_[batchIndex] = signatureGenerator->GenerateSignature();
+        }
+    }
+
     // NB: Concurrent #Invoke calls with different retry indices are possible.
     TFuture<void> Invoke(int retryIndex) override
     {
+        YT_VERIFY(!Batches_.empty());
+        YT_VERIFY(Batches_.size() == BatchPrepareSignatures_.size());
+
         if (retryIndex == 0) {
-            YT_VERIFY(!Batches_.empty());
             for (const auto& batch : Batches_) {
                 batch->Materialize(Config_->WriteRowsRequestCodec);
             }
-
-            CalculateBatchSignatures();
         }
 
         auto cellId = TabletInfo_->CellId;
@@ -160,29 +200,26 @@ private:
     const TConnectionDynamicConfigPtr Config_;
     const TTabletCommitOptions Options_;
     const TWeakPtr<TTransaction> Transaction_;
-    const TTabletInfoPtr TabletInfo_;
-    const TTableMountInfoPtr TableInfo_;
-    const ICellCommitSessionPtr CellCommitSession_;
+    const ICellCommitSessionProviderPtr CellCommitSessionProvider_;
     const TLogger Logger;
+
+    ICellCommitSessionPtr CellCommitSession_;
+    TTabletInfoPtr TabletInfo_;
+    TTableMountInfoPtr TableInfo_;
 
     std::optional<THunkChunksInfo> HunkChunksInfo_;
 
     ITabletRequestBatcherPtr Batcher_;
 
     std::vector<std::unique_ptr<ITabletRequestBatcher::TBatch>> Batches_;
-
-    struct TBatchSignatures
-    {
-        TTransactionSignature PrepareSignature;
-        TTransactionSignature CommitSignature;
-    };
-    std::vector<TBatchSignatures> BatchSignatures_;
+    std::vector<TTransactionSignature> BatchPrepareSignatures_;
 
     bool IsVersioned_ = false;
     bool Prepared_ = false;
 
     struct TCommitContext final
     {
+        int LocalRetryIndex = 0;
         int RetryIndex;
         int BatchIndex = 0;
         IChannelPtr CellChannel;
@@ -226,16 +263,14 @@ private:
 
         ToProto(req->mutable_transaction_id(), transaction->GetId());
         if (transaction->GetAtomicity() == EAtomicity::Full) {
-            req->set_transaction_start_timestamp(transaction->GetStartTimestamp());
+            req->set_transaction_start_timestamp(ToProto(transaction->GetStartTimestamp()));
             req->set_transaction_timeout(ToProto(transaction->GetTimeout()));
         }
         ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
         req->set_mount_revision(ToProto(TabletInfo_->MountRevision));
         req->set_durability(ToProto(transaction->GetDurability()));
 
-        const auto& batchSignatures = BatchSignatures_[batchIndex];
-        req->set_prepare_signature(batchSignatures.PrepareSignature);
-        req->set_commit_signature(batchSignatures.CommitSignature);
+        req->set_prepare_signature(BatchPrepareSignatures_[batchIndex]);
 
         req->set_generation(commitContext->RetryIndex);
 
@@ -256,7 +291,7 @@ private:
         }
         req->Attachments().push_back(batch->RequestData);
 
-        if (HunkChunksInfo_) {
+        if (batchIndex == 0 && HunkChunksInfo_) {
             ToProto(req->mutable_hunk_chunks_info(), *HunkChunksInfo_);
         }
 
@@ -264,19 +299,16 @@ private:
             ToProto(req->mutable_prerequisite_transaction_ids(), Options_.PrerequisiteTransactionIds);
         }
 
-        YT_LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, "
-            "PrepareSignature: %x, CommitSignature: %x, Versioned: %v, "
-            "UpstreamReplicaId: %v%v, PrerequisiteTransactionIds: %v)",
-            batchIndex,
-            Batches_.size(),
-            batch->RowCount,
-            req->prepare_signature(),
-            req->commit_signature(),
-            req->versioned(),
-            Options_.UpstreamReplicaId,
-            MakeFormatterWrapper([&] (auto* builder) {
+        YT_TLOG_DEBUG("Sending transaction rows")
+            .WithFormat("BatchIndex", "%v/%v", batchIndex, Batches_.size())
+            .With("RowCount", batch->RowCount)
+            .With("CellId", TabletInfo_->CellId)
+            .WithFormat("PrepareSignature", "%x", req->prepare_signature())
+            .With("Versioned", req->versioned())
+            .With("UpstreamReplicaId", Options_.UpstreamReplicaId)
+            .With("HunkChunksInfo", MakeFormatterWrapper([&] (auto* builder) {
                 if (HunkChunksInfo_) {
-                    builder->AppendFormat(", HunkCellId: %v, HunkTabletId: %v, HunkChunkRefs: %v",
+                    builder->AppendFormat("{CellId: %v, HunkTabletId: %v, HunkChunkRefs: %v}",
                         HunkChunksInfo_->CellId,
                         HunkChunksInfo_->HunkTabletId,
                         MakeFormattableView(
@@ -284,29 +316,217 @@ private:
                             [&] (auto* builder, const auto& info) {
                                 builder->AppendFormat("%v: %v", info.first, info.second.HunkCount);
                             }));
+                } else {
+                    builder->AppendString(TStringBuf("<null>"));
                 }
-            }),
-            Options_.PrerequisiteTransactionIds);
+            }))
+            .With("PrerequisiteTransactionIds", Options_.PrerequisiteTransactionIds)
+            .WithIf(commitContext->LocalRetryIndex != 0, "LocalRetryIndex", commitContext->LocalRetryIndex);
 
         req->Invoke().Subscribe(
             BIND(&TTabletCommitSession::OnResponse, MakeStrong(this), commitContext));
+    }
+
+    TFuture<void> InvalidateTableMountCache(
+        TCommitContextPtr commitContext,
+        const TError& firstBatchError)
+    {
+        try {
+            // May throw if retry count limit is exceeded.
+            auto delay = InvalidateMountCacheAndGetRetryDelay(
+                Client_->GetNativeConnection(),
+                /*profilingInfo*/ nullptr,
+                Logger,
+                firstBatchError,
+                &commitContext->LocalRetryIndex,
+                /*tabletIdHint*/ TabletInfo_->TabletId);
+
+            if (delay) {
+                return TDelayedExecutor::MakeDelayed(delay);
+            }
+
+            return OKFuture;
+        } catch (const std::exception& ex) {
+            return MakeFuture(firstBatchError.With("retry_skip_reason", "retry_limit_exceeded"));
+        }
+    }
+
+    TError ProcessUpdatedMountInfo(
+        TCommitContextPtr commitContext,
+        TTableMountInfoPtr tableMountInfo,
+        const TError& firstBatchError)
+    {
+        auto newTabletInfo = tableMountInfo->FindTabletById(TabletInfo_->TabletId);
+        if (!newTabletInfo) {
+            YT_TLOG_DEBUG("Cannot retry sending transaction rows because updated mount info does not contain this tablet");
+            return firstBatchError.With("retry_skip_reason", "no_such_tablet");
+        }
+
+        if (newTabletInfo->LogicalMountRevision != TabletInfo_->LogicalMountRevision) {
+            YT_TLOG_DEBUG("Cannot retry sending transaction rows because logical mount revision changed")
+                .WithFormat("OldMountRevision", "%x", TabletInfo_->MountRevision)
+                .WithFormat("NewMountRevision", "%x", newTabletInfo->MountRevision)
+                .WithFormat("OldLogicalMountRevision", "%x", TabletInfo_->LogicalMountRevision)
+                .WithFormat("NewLogicalMountRevision", "%x", newTabletInfo->LogicalMountRevision);
+            return firstBatchError.With("retry_skip_reason", "logical_mount_revision_changed");
+        }
+
+        auto updateMountInfo = [&] (auto&& tabletInfo, auto&& tableInfo, bool cellChanged) {
+            YT_TLOG_DEBUG("Retrying sending transaction rows")
+                .With("TabletMovedToDifferentCell", cellChanged)
+                .WithFormat("LogicalMountRevision", "%x", TabletInfo_->LogicalMountRevision)
+                .WithFormat("OldMountRevision", "%x", TabletInfo_->MountRevision)
+                .WithFormat("NewMountRevision", "%x", newTabletInfo->MountRevision)
+                .With("CellId", TabletInfo_->CellId)
+                .WithIf(cellChanged, "NewCellId", newTabletInfo->CellId);
+
+            TabletInfo_ = std::move(tabletInfo);
+            TableInfo_ = std::move(tableInfo);
+        };
+
+        if (TabletInfo_->CellId == newTabletInfo->CellId) {
+            updateMountInfo(std::move(newTabletInfo), std::move(tableMountInfo), /*cellChanged*/ false);
+            return {};
+        }
+
+        auto validateCellCommitSession = [&] (const auto& cellCommitSession, auto cellId) -> TError {
+            if (cellCommitSession->HasRegisteredActions()) {
+                YT_TLOG_DEBUG("Cannot retry sending transaction rows because cell commit session has registered transaction actions")
+                    .With("CellId", cellId);
+                return firstBatchError.With("retry_skip_reason", "has_transaction_actions");
+            }
+
+            if (TypeFromId(cellId) != EObjectType::TabletCell) {
+                YT_TLOG_ALERT("Cannot retry sending transaction rows because cell has unexpected type")
+                    .With("CellId", cellId)
+                    .With("CellType", TypeFromId(cellId));
+                return firstBatchError.With("retry_skip_reason", "invalid_cell_type");
+            }
+            return {};
+        };
+
+        if (auto error = validateCellCommitSession(CellCommitSession_, TabletInfo_->CellId); !error.IsOK()) {
+            return error;
+        }
+
+        if (!Config_->UseUniformPrepareSignatures) {
+            YT_TLOG_DEBUG("Cannot retry sending transaction rows because uniform prepare signature is disabled");
+            return firstBatchError.With("retry_skip_reason", "uniform_prepare_signature_disabled");
+        }
+
+        const auto& cellCommitSession = CellCommitSessionProvider_->GetOrCreateCellCommitSession(newTabletInfo->CellId);
+        if (auto error = validateCellCommitSession(cellCommitSession, newTabletInfo->CellId); !error.IsOK()) {
+            return error;
+        }
+
+        int batchCount = std::ssize(Batches_);
+        CellCommitSession_->GetPrepareSignatureGenerator()->UnregisterRequests(batchCount);
+        CellCommitSession_->UnregisterTabletCommitSession(TabletInfo_->TabletId);
+        //TODO(alexelexa, kvk1920): update commit signatures as well.
+
+        cellCommitSession->GetPrepareSignatureGenerator()->RegisterRequests(batchCount, /*adjustRequestIndex*/ true);
+        cellCommitSession->RegisterTabletCommitSession(TabletInfo_->TabletId);
+        commitContext->CellChannel = Client_->GetCellChannelOrThrow(newTabletInfo->CellId);
+
+        CellCommitSession_ = std::move(cellCommitSession);
+        updateMountInfo(std::move(newTabletInfo), std::move(tableMountInfo), /*cellChanged*/ true);
+        return {};
+    }
+
+    void OnFirstBatchRetryFailed(
+        TCommitContextPtr commitContext,
+        TError firstBatchError,
+        std::string retrySkipReason = {},
+        TError maybeAnnotatedError = {})
+    {
+        if (maybeAnnotatedError.Attributes().Contains("retry_skip_reason")) {
+            firstBatchError = maybeAnnotatedError;
+        }
+
+        if (!firstBatchError.Attributes().Contains("retry_skip_reason")) {
+            YT_VERIFY(!retrySkipReason.empty());
+            firstBatchError.Add("retry_skip_reason", std::move(retrySkipReason));
+        }
+
+        HandleErrorOrInvokeNextBatch(commitContext, firstBatchError);
+    }
+
+    void RetrySendingFirstBatch(
+        TCommitContextPtr commitContext,
+        const TError& firstBatchError)
+    {
+        InvalidateTableMountCache(commitContext, firstBatchError)
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& rsp) {
+                if (!rsp.IsOK()) {
+                    OnFirstBatchRetryFailed(commitContext, firstBatchError, "failed_to_invalidate_mount_cache", rsp);
+                    return;
+                }
+
+                try {
+                    Client_->GetTableMountCache()->GetTableInfo(TableInfo_->Path)
+                        .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TTableMountInfoPtr>& tableMountInfo) {
+                            if (!tableMountInfo.IsOK()) {
+                                YT_TLOG_DEBUG("Cannot retry sending transaction rows because updating mount info failed")
+                                    .With(tableMountInfo);
+                                OnFirstBatchRetryFailed(commitContext, firstBatchError, "failed_to_update_mount_info");
+                                return;
+                            }
+
+                            auto error = ProcessUpdatedMountInfo(commitContext, tableMountInfo.Value(), firstBatchError);
+                            if (!error.IsOK()) {
+                                OnFirstBatchRetryFailed(commitContext, error);
+                                return;
+                            }
+
+                            InvokeNextBatch(commitContext);
+                        }));
+                } catch (const std::exception& ex) {
+                    OnFirstBatchRetryFailed(commitContext, firstBatchError, "failed_to_update_mount_info");
+                }
+            }));
     }
 
     void OnResponse(
         TCommitContextPtr commitContext,
         const TTabletServiceProxy::TErrorOrRspWritePtr& rspOrError)
     {
-        if (!rspOrError.IsOK()) {
-            auto error = TError("Error sending transaction rows")
-                << TErrorAttribute("table_id", TableInfo_->TableId)
-                << TErrorAttribute("tablet_id", TabletInfo_->TabletId)
-                << TErrorAttribute("cell_id", TabletInfo_->CellId)
-                << TErrorAttribute("batch_index", commitContext->BatchIndex)
-                << rspOrError;
-            YT_LOG_DEBUG(error);
-            Client_->GetTableMountCache()->InvalidateOnError(error, /*forceRetry*/ true);
-            commitContext->CommitPromise.Set(error);
+        if (!rspOrError.IsOK() &&
+            commitContext->BatchIndex == 0 &&
+            commitContext->RetryIndex == 0 &&
+            Config_->LocalTabletWriteRetryCount > 0 &&
+            IsRetryableFirstBatchError(rspOrError))
+        {
+            if (commitContext->LocalRetryIndex < Config_->LocalTabletWriteRetryCount) {
+                RetrySendingFirstBatch(commitContext, rspOrError);
+            } else {
+                OnFirstBatchRetryFailed(commitContext, rspOrError, "retry_limit_exceeded");
+            }
             return;
+        }
+
+        HandleErrorOrInvokeNextBatch(commitContext, rspOrError);
+    }
+
+    void HandleErrorOrInvokeNextBatch(
+        TCommitContextPtr commitContext,
+        const TError& error)
+    {
+        if (!error.IsOK()) {
+            auto wrappedError = TError("Error sending transaction rows")
+                .With("table_id", TableInfo_->TableId)
+                .With("tablet_id", TabletInfo_->TabletId)
+                .With("cell_id", TabletInfo_->CellId)
+                .With("batch_index", commitContext->BatchIndex)
+                .With(error);
+            Client_->GetTableMountCache()->InvalidateOnError(
+                wrappedError,
+                /*forceRetry*/ true,
+                /*tabletIdHint*/ TabletInfo_->TabletId);
+            commitContext->CommitPromise.Set(wrappedError);
+            return;
+        } else if (commitContext->LocalRetryIndex > 0 && commitContext->BatchIndex == 0) {
+            YT_TLOG_DEBUG("Successfully retried sending transaction rows of the first batch")
+                .With("RetryIndex", commitContext->LocalRetryIndex);
         }
 
         auto owner = Transaction_.Lock();
@@ -314,33 +534,11 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Transaction rows sent successfully (BatchIndex: %v/%v)",
-            commitContext->BatchIndex,
-            Batches_.size());
+        YT_TLOG_DEBUG("Transaction rows sent successfully")
+            .WithFormat("BatchIndex", "%v/%v", commitContext->BatchIndex, Batches_.size());
 
         commitContext->BatchIndex++;
         InvokeNextBatch(commitContext);
-    }
-
-    void CalculateBatchSignatures()
-    {
-        YT_VERIFY(BatchSignatures_.empty());
-        BatchSignatures_.resize(Batches_.size());
-
-        for (int batchIndex = 0; batchIndex < std::ssize(Batches_); ++batchIndex) {
-            auto& batchSignatures = BatchSignatures_[batchIndex];
-
-            auto prepareSignature = CellCommitSession_
-                ->GetPrepareSignatureGenerator()
-                ->GenerateSignature();
-            auto commitSignature = CellCommitSession_
-                ->GetCommitSignatureGenerator()
-                ->GenerateSignature();
-            batchSignatures = TBatchSignatures{
-                .PrepareSignature = prepareSignature,
-                .CommitSignature = commitSignature,
-            };
-        }
     }
 };
 
@@ -411,9 +609,8 @@ private:
 
         auto retryIndex = BackoffStrategy_.GetInvocationIndex();
 
-        YT_LOG_DEBUG("Committing tablet sessions (AttemptIndex: %v/%v)",
-            retryIndex,
-            BackoffStrategy_.GetInvocationCount());
+        YT_TLOG_DEBUG("Committing tablet sessions")
+            .WithFormat("AttemptIndex", "%v/%v", retryIndex, BackoffStrategy_.GetInvocationCount());
 
         YT_UNUSED_FUTURE(DoCommitSessions(retryIndex)
             .Apply(BIND(&TTabletSessionsCommitter::OnSessionsCommitted, MakeStrong(this))));
@@ -424,9 +621,8 @@ private:
         auto retryIndex = BackoffStrategy_.GetInvocationIndex();
 
         if (error.IsOK()) {
-            YT_LOG_DEBUG("Tablet sessions committed (AttemptIndex: %v/%v)",
-                retryIndex,
-                BackoffStrategy_.GetInvocationCount());
+            YT_TLOG_DEBUG("Tablet sessions committed")
+                .WithFormat("AttemptIndex", "%v/%v", retryIndex, BackoffStrategy_.GetInvocationCount());
 
             Counters_.SuccessfulTabletSessionCommitCounter.Increment();
             if (retryIndex > 0) {
@@ -439,21 +635,22 @@ private:
 
         Errors_.push_back(error);
 
-        YT_LOG_DEBUG(error, "Tablet sessions commit attempt failed (AttemptIndex: %v/%v)",
-            retryIndex,
-            BackoffStrategy_.GetInvocationCount());
+        YT_TLOG_DEBUG("Tablet sessions commit attempt failed")
+            .WithFormat("AttemptIndex", "%v/%v", retryIndex, BackoffStrategy_.GetInvocationCount())
+            .With(error);
 
         if (BackoffStrategy_.Next()) {
             auto backoff = BackoffStrategy_.GetBackoff();
-            YT_LOG_DEBUG("Waiting before next tablet sessions commit attempt (Backoff: %v)",
-                backoff);
+            YT_TLOG_DEBUG("Waiting before next tablet sessions commit attempt")
+                .With("Backoff", backoff);
 
             auto backoffFuture = TDelayedExecutor::MakeDelayed(backoff);
             YT_UNUSED_FUTURE(backoffFuture.Apply(BIND(&TTabletSessionsCommitter::CommitSessions, MakeStrong(this))));
         } else {
             auto error = TError("Failed to commit tablet sessions")
-                << Errors_;
-            YT_LOG_DEBUG(error);
+                .With(Errors_);
+            YT_TLOG_DEBUG("Failed to commit tablet sessions")
+                .With("Errors", Errors_);
 
             Counters_.FailedTabletSessionCommitCounter.Increment();
 
@@ -463,6 +660,12 @@ private:
 
     TFuture<void> DoCommitSessions(int retryIndex)
     {
+        if (retryIndex == 0) {
+            for (const auto& session : Sessions_) {
+                session->CalculateBatchSignatures();
+            }
+        }
+
         std::vector<TFuture<void>> commitFutures;
         commitFutures.reserve(Sessions_.size());
         for (const auto& session : Sessions_) {

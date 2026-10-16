@@ -17,6 +17,8 @@
 
 #include <yt/yt/library/query/base/public.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,7 +33,7 @@ TOptions CreateOperationOptions(const TOptions& options, const NYTree::INodePtr&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TrimCommandForBriefSpec(const TString& command);
+std::string TrimCommandForBriefSpec(const std::string& command);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,7 +84,7 @@ void BuildFileSpecs(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetIntermediatePath(int streamIndex);
+NYPath::TYPath GetIntermediatePath(int streamIndex);
 
 NChunkClient::TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
     const std::string& intermediateAccount,
@@ -184,6 +186,54 @@ TFuture<std::optional<T>> WithSoftTimeout(
 NScheduler::TDiskQuota CreateDiskQuota(
     const NScheduler::TDiskRequestConfigPtr& diskRequestConfig,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateAndEnrichVolumeSpec(
+    const TControllerAgentConfigPtr& config,
+    const TOperationSpecBasePtr& operationSpec,
+    const IOperationControllerHostPtr& host,
+    TNonNullPtr<NScheduler::TUserJobSpec> spec,
+    TNonNullPtr<NScheduler::TUserJobSpec> providedSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void BuildVolumeSpec(
+    NControllerAgent::NProto::TVolume* volumeProto,
+    const NScheduler::TVolume& volume,
+    const THashMap<TStringBuf, const NControllerAgent::TUserFile*>& layerPathToUserFile);
+
+void BuildTmpfsVolumeSpec(
+    NControllerAgent::NProto::TTmpfsVolume* protoTmpfsVolume,
+    const NScheduler::TTmpfsVolumeConfig& tmpfsVolumeConfig);
+
+void BuildChunkNbdDiskSpec(
+    NScheduler::NProto::TChunkNbdDisk* protoChunkNbdDisk,
+    const NScheduler::TNbdDiskConfig& nbdDiskConfig);
+
+void BuildNbdDiskRequestSpec(
+    NScheduler::NProto::TNbdDiskRequest* protoDiskRequestConfig,
+    const NScheduler::TNbdDiskRequest& diskRequestConfig);
+
+void BuildLocalDiskRequestSpec(
+    NScheduler::NProto::TLocalDiskRequest* protoDiskRequestConfig,
+    const NScheduler::TLocalDiskRequest& diskRequestConfig);
+
+void BuildCommonDiskRequestSpec(
+    NScheduler::NProto::TDiskRequest* protoDiskRequestConfig,
+    const NScheduler::TDiskRequestConfig& diskRequestConfig);
+
+void BuildTmpfsStorageRequestSpec(
+    NScheduler::NProto::TTmpfsStorageRequest* protoDiskRequestConfig,
+    const NScheduler::TTmpfsStorageRequest& diskRequestConfig);
+
+void BuildCommonStorageRequestSpec(
+    NScheduler::NProto::TStorageRequestCommonParameters* protoDiskRequestConfig,
+    const NScheduler::TStorageRequestBase& diskRequestConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsDiskRequestTmpfs(const std::optional<NScheduler::TStorageRequestConfig>& diskRequest);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -48,7 +48,7 @@ struct TControllerTransactionIds
     NTransactionClient::TTransactionId DebugCompletionId;
     std::vector<TRichTransactionId> InputIds;
 
-    static const std::vector<TString> AttributeKeys;
+    static const std::vector<std::string> AttributeKeys;
 
     NYTree::IAttributeDictionaryPtr ToCypressAttributes() const;
     static TControllerTransactionIds FromCypressAttributes(NYTree::IAttributeDictionaryPtr attributes);
@@ -75,7 +75,7 @@ struct TOperationTransactions
 
 //! The second argument is a human-readable name of the transaction (e.g. "input" or "async"),
 //! that can be used for logging.
-using TAttachTransactionCallback = std::function<NApi::ITransactionPtr(NTransactionClient::TTransactionId, const TString&)>;
+using TAttachTransactionCallback = std::function<NApi::ITransactionPtr(NTransactionClient::TTransactionId, const std::string&)>;
 
 TOperationTransactions AttachControllerTransactions(
     TAttachTransactionCallback attachTransaction,

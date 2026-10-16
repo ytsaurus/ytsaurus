@@ -1,11 +1,23 @@
 GTEST(unittester-library-auth_server)
 
+EXPLICIT_DATA()
+
 SRCS(
+    auth_cache_ut.cpp
     blackbox_ut.cpp
+    login_auth_ut.cpp
     yc_auth_ut.cpp
     mock_http_server.cpp
     secret_vault_ut.cpp
 )
+
+IF (NOT OS_WINDOWS)
+    IF (NOT OPENSOURCE OR YT_CUSTOM_INTERNAL_BUILD)
+        SRCS(
+            ldap_ut.cpp
+        )
+    ENDIF()
+ENDIF()
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 

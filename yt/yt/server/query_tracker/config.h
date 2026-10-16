@@ -2,8 +2,6 @@
 
 #include "private.h"
 
-#include <yt/yt/server/lib/cypress_election/config.h>
-
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -13,6 +11,8 @@
 #include <yt/yt/core/http/config.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
+
+#include <yt/yt/library/cypress_election/config.h>
 
 #include <yt/yt/library/dynamic_config/config.h>
 
@@ -32,6 +32,8 @@ struct TEngineConfigBase
     // Resulting rowset is passed via wire protocol.
     // Wire protocol reader validates that rowset doesn't contain values above this limit.
     i64 ResultingRowsetValueLengthLimit;
+
+    std::optional<TDuration> NotIndexedQueriesTtl;
 
     REGISTER_YSON_STRUCT(TEngineConfigBase);
 
@@ -62,7 +64,7 @@ DEFINE_REFCOUNTED_TYPE(TYqlEngineConfig)
 struct TChytEngineConfig
     : public TEngineConfigBase
 {
-    TString DefaultClique;
+    std::string DefaultClique;
     std::string DefaultCluster;
     TDuration ProgressPollPeriod;
 
@@ -104,7 +106,6 @@ struct TSpytEngineConfig
     NHttp::TClientConfigPtr HttpClient;
 
     TDuration TokenExpirationTimeout;
-    TDuration RefreshTokenPeriod;
     TDuration StatusPollPeriod;
 
     TSpytProxyConfigPtr ProxyConfig;
@@ -139,6 +140,7 @@ struct TQueryTrackerProxyConfig
     i64 MaxQueryFileCount;
     i64 MaxQueryFileNameSizeBytes;
     i64 MaxQueryFileContentSizeBytes;
+    TDuration QueriesByMutationIdTtl;
 
     REGISTER_YSON_STRUCT(TQueryTrackerProxyConfig);
 
@@ -158,7 +160,7 @@ struct TQueryTrackerDynamicConfig
     TDuration ActiveQueryPingPeriod;
     TDuration QueryFinishBackoff;
     TDuration HealthCheckPeriod;
-    TDuration NotIndexedQueriesTTL;
+    TDuration NotIndexedQueriesTtl;
 
     TEngineConfigBasePtr MockEngine;
     TQLEngineConfigPtr QLEngine;
@@ -192,9 +194,9 @@ struct TQueryTrackerBootstrapConfig
     NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
-    TString DynamicConfigPath;
+    NYPath::TYPath DynamicConfigPath;
 
-    TString Root;
+    NYPath::TYPath Root;
 
     REGISTER_YSON_STRUCT(TQueryTrackerBootstrapConfig);
 

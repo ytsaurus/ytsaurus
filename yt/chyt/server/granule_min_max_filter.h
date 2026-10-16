@@ -10,7 +10,7 @@ namespace NYT::NClickHouseServer {
 
 NTableClient::IGranuleFilterPtr CreateGranuleMinMaxFilter(
     const DB::SelectQueryInfo& queryInfo,
-    TCompositeSettingsPtr settings,
+    TConversionSettingsPtr settings,
     const NTableClient::TTableSchemaPtr& schema,
     const DB::ContextPtr& context,
     const std::vector<std::string>& realColumnNames);

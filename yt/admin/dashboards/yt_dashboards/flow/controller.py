@@ -70,7 +70,7 @@ def add_partitions_by_current_job_status_cell(row):
         return (FlowController(f"yt.flow.controller.job_status.{status}")
             .aggr("computation_id")
             .aggr("previous_job_finish_reason")
-            .query_transformation(f'alias({{query}}, "{alias}")'))
+            .legend_format(alias))
 
     description = dedent("""\
         Statuses of jobs of not finished partitions.
@@ -79,6 +79,13 @@ def add_partitions_by_current_job_status_cell(row):
 
         **Unknown/Recovering/Has_retryable_errors** are bad statuses.
         If you constantly have jobs in these statuses, your pipeline degrades significantly.
+
+        **Failed** means that the job has finished with an error and is waiting to be dropped;
+        the partition gets a new job on one of the next scheduling iterations.
+
+        **Gracefully moving** means that the balancer is moving the partition to another worker:
+        the job has finished its epoch and is waiting to be recreated there. This is a regular
+        balancing state, not a failure.
 
         **Warming up** is semi-good status. These jobs are working, but not for a long time.
 
@@ -95,6 +102,8 @@ def add_partitions_by_current_job_status_cell(row):
                     job_status("working_young", "Warming up (working ≤ 5 min after recovering)"),
                     job_status("working_with_retryable_error", "Has retryable errors"),
                     job_status("preparing", "Recovering (new job is preparing)"),
+                    job_status("gracefully_moving", "Gracefully moving (balancer moves the partition)"),
+                    job_status("failed", "Failed (job finished with an error)"),
                     job_status("unknown", "Unknown"),
                     job_status("stopped", "Stopped"))
                     .min(0.8)
@@ -106,6 +115,8 @@ def add_partitions_by_current_job_status_cell(row):
                     "Warming up (working ≤ 5 min after recovering)": "#b7e500",
                     "Has retryable errors": "#cc0000",
                     "Recovering (new job is preparing)": "#ffa500",
+                    "Gracefully moving (balancer moves the partition)": "#00cccc",
+                    "Failed (job finished with an error)": "#610000",
                     "Unknown": "#11114e",
                     "Stopped": "#84c1ff",
                 },
@@ -113,18 +124,68 @@ def add_partitions_by_current_job_status_cell(row):
     )
 
 
-def build_flow_layout_mutations():
+def build_flow_layout_mutations(backend: str = "monitoring"):
+    if backend == "monitoring":
+        layout_mutations = FlowController("yt.flow.controller.mutations.*.rate")
+        job_manage_mutations = FlowController("yt.flow.controller.job_manager.*.rate")
+    else:
+        layout_mutations = enumerated_rates(
+            "yt.flow.controller.mutations.{name}.rate", CONTROLLER_MUTATIONS)
+        job_manage_mutations = enumerated_rates(
+            "yt.flow.controller.job_manager.{name}.rate", JOB_MANAGER_COUNTERS)
+
     return (Rowset()
         .stack(False)
         .row()
             .apply_func(add_partitions_by_current_job_status_cell)
-            .cell("Layout mutations", FlowController("yt.flow.controller.mutations.*.rate").unit("UNIT_COUNTS_PER_SECOND"))
-            .cell("Job manage mutations", FlowController("yt.flow.controller.job_manager.*.rate").unit("UNIT_COUNTS_PER_SECOND"))
+            .cell("Layout mutations", layout_mutations.unit("UNIT_COUNTS_PER_SECOND"))
+            .cell("Job manage mutations", job_manage_mutations.unit("UNIT_COUNTS_PER_SECOND"))
             .cell("", EmptyCell())
     ).owner
 
 
-def add_controller_failed_iterations_cell(row):
+# Controller components running regular iterations; must match the activity
+# names registered in yt/yt/flow/library/cpp/controller/controller.cpp.
+CONTROLLER_REGULAR_ACTIVITIES = [
+    "schedule",
+    "build_cache",
+    "collect_feedback",
+    "update_metrics",
+    "write_own_retryable_errors",
+]
+
+# Mutation counters registered in TMutationMetrics
+# (yt/yt/flow/library/cpp/controller/controller.cpp).
+CONTROLLER_MUTATIONS = [
+    "create_partition",
+    "update_partition_state",
+    "remove_partition",
+    "create_job",
+    "remove_job",
+    "update_job_lease",
+]
+
+# Counters registered in TJobManager (yt/yt/flow/library/cpp/controller/job_manager.cpp).
+JOB_MANAGER_COUNTERS = [
+    "failed_jobs",
+    "succeeded_jobs",
+    "lost_jobs",
+    "partitioning_mutations",
+    "distributing_mutations",
+]
+
+
+def enumerated_rates(name_template, names):
+    # PromQL rate() drops the metric name, so a "*" glob would collapse all
+    # sensors into indistinguishable series; enumerate them instead.
+    return MultiSensor(*(
+        MonitoringExpr(FlowController(name_template.format(name=name)))
+            .alias(name)
+        for name in names
+    ))
+
+
+def add_controller_failed_iterations_cell(row, backend: str = "monitoring"):
     description = dedent("""\
         **Expect to see zero values on this panel if the pipeline is stable.**
 
@@ -134,24 +195,38 @@ def add_controller_failed_iterations_cell(row):
         **build_cache** - the component that updates cached flow view (flow view is large, and its serialization is time-consuming).
     """)
 
+    if backend == "monitoring":
+        content = (FlowController("yt.flow.controller.*.iterations_failed.rate")
+            .unit("UNIT_COUNTS_PER_SECOND"))
+    else:
+        content = enumerated_rates(
+            "yt.flow.controller.{name}.iterations_failed.rate",
+            CONTROLLER_REGULAR_ACTIVITIES,
+        ).unit("UNIT_COUNTS_PER_SECOND")
+
     return (row
             .cell(
                 "Controller failed iterations",
-                FlowController("yt.flow.controller.*.iterations_failed.rate")
-                    .unit("UNIT_COUNTS_PER_SECOND"),
+                content,
                 description=description)
     )
 
 
-def build_controller_iterations():
+def build_controller_iterations(backend: str = "monitoring"):
+    if backend == "monitoring":
+        total_iterations = FlowController("yt.flow.controller.*.iterations_total.rate")
+    else:
+        total_iterations = enumerated_rates(
+            "yt.flow.controller.{name}.iterations_total.rate", CONTROLLER_REGULAR_ACTIVITIES)
+
     return (Rowset()
         .stack(False)
         .row()
             .cell(
                 "Controller total iterations",
-                FlowController("yt.flow.controller.*.iterations_total.rate")
+                total_iterations
                     .unit("UNIT_COUNTS_PER_SECOND"))
-            .apply_func(add_controller_failed_iterations_cell)
+            .apply_func(lambda row: add_controller_failed_iterations_cell(row, backend=backend))
             .cell(
                 "Controller iteration duration",
                 MonitoringExpr(FlowController("yt.flow.controller.*iteration_time.max"))
@@ -240,13 +315,10 @@ def build_watermark_heuristics():
                 build_availability_partitions("unavailable_partitions"),
                 description=description)
             .cell(
-                "Unavailable idle partitions",
-                build_availability_partitions("unavailable_idle_partitions"),
-                description=description)
-            .cell(
                 "Confirmed unavailable partitions",
                 build_availability_partitions("confirmed_unavailable_partitions"),
                 description=confirmed_unavailable_description)
+            .cell("", EmptyCell())
             .cell("", EmptyCell())
     )
 
@@ -273,17 +345,57 @@ def build_alignment_timestamp():
     )
 
 
-def build_flow_controller():
+def build_file_resources():
+    def target(metric):
+        return (
+            FlowController(f"yt.flow.controller.resource_controller.{metric}")
+            .all("resource", "file_provider_id", "revision_id", "display_version")
+            .aggr("host")
+        )
+
+    return (
+        Rowset()
+        .stack(False)
+        .row()
+        .cell(
+            "Resource/File/Active",
+            target("file_provider_target_revision").value("state", "active").unit("UNIT_COUNT"),
+            description="Controller target. The revision label identifies cached bytes; display_version identifies the source version.",
+        )
+        .cell(
+            "Resource/File/Preparing",
+            target("file_provider_target_revision").value("state", "preparing").unit("UNIT_COUNT"),
+            description="Candidate awaiting validation before becoming the active target.",
+        )
+        .row()
+        .cell(
+            "Resource/File/Instances",
+            FlowController("yt.flow.controller.resource_controller.file_provider_revision_instance_count")
+            .all("resource", "file_provider_id", "revision_id", "state")
+            .aggr("host")
+            .unit("UNIT_COUNT"),
+            description="Worker-reported revision states, distinct from the controller target.",
+        )
+        .cell(
+            "Resource/File/Age",
+            target("file_provider_target_revision_age").all("state").unit("UNIT_SECONDS"),
+            description="Now minus the source timestamp of each target revision. Unknown timestamps are omitted; this is not time since download or rollout.",
+        )
+    )
+
+
+def build_flow_controller(backend="monitoring"):
     def fill(d):
         d.add(build_pipeline_state())
-        d.add(build_resource_usage("controller", add_component_to_title=False))
+        d.add(build_resource_usage("controller", add_component_to_title=False, backend=backend))
         d.add(build_flow_layout())
-        d.add(build_flow_layout_mutations())
-        d.add(build_controller_iterations())
+        d.add(build_file_resources())
+        d.add(build_flow_layout_mutations(backend))
+        d.add(build_controller_iterations(backend))
         d.add(build_heartbeats())
         d.add(build_watermark_heuristics())
         d.add(build_alignment_timestamp())
         d.add(build_extra_cpu("controller"))
         d.add(build_yt_rpc("controller"))
 
-    return create_dashboard("controller", fill)
+    return create_dashboard("controller", fill, backend=backend)

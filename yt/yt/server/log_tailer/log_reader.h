@@ -15,14 +15,14 @@ namespace NYT::NLogTailer {
 
 struct TLogRecord
 {
-    TString Timestamp;
-    TString Message;
-    TString JobId;
-    TString Category;
-    TString LogLevel;
-    TString ThreadId;
-    TString FiberId;
-    TString TraceId;
+    std::string Timestamp;
+    std::string Message;
+    std::string JobId;
+    std::string Category;
+    std::string LogLevel;
+    std::string ThreadId;
+    std::string FiberId;
+    std::string TraceId;
     ui64 Increment;
     ui64 Size;
 };
@@ -36,7 +36,7 @@ public:
     TLogFileReader(
         TLogFileConfigPtr config,
         TBootstrap* bootstrap,
-        std::vector<std::pair<TString, TString>> extraLogTableColumns);
+        std::vector<std::pair<std::string, std::string>> extraLogTableColumns);
 
     void ReadLog();
 
@@ -66,7 +66,7 @@ private:
     i64 FileOffset_ = 0;
     i64 TotalBytesRead_ = 0;
 
-    std::vector<std::pair<TString, TString>> ExtraLogTableColumns_;
+    std::vector<std::pair<std::string, std::string>> ExtraLogTableColumns_;
 
     ui64 NextIncrement_ = 0;
 

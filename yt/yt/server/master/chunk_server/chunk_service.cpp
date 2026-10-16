@@ -1,19 +1,19 @@
 #include "chunk_service.h"
 
-#include "private.h"
-#include "config.h"
 #include "chunk.h"
 #include "chunk_manager.h"
-#include "chunk_replicator.h"
-#include "helpers.h"
 #include "chunk_owner_base.h"
-#include "dynamic_store.h"
 #include "chunk_owner_node_proxy.h"
 #include "chunk_replica_fetcher.h"
+#include "chunk_replicator.h"
+#include "config.h"
+#include "dynamic_store.h"
+#include "helpers.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
-#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
 #include <yt/yt/server/master/cell_master/multi_phase_cell_sync_session.h>
@@ -25,7 +25,11 @@
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
+#include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
+
+#include <yt/yt/server/master/table_server/public.h>
+#include <yt/yt/server/master/table_server/table_manager.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_replication_session.h>
@@ -65,6 +69,7 @@ using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NRpc;
 using namespace NDataNodeTrackerClient;
+using namespace NTableClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -121,14 +126,20 @@ public:
             .SetConcurrencyLimit(10'000)
             .SetRequestQueueProvider(CreateChunkRequestQueueProvider_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ConfirmChunk)
+            // We use Rpc heavy invoker to process request and build response as it may take a big part in execution time.
+            .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker())
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SealChunk)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ScheduleChunkSeal)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunkLists)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UnstageChunkTree)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AttachChunkTrees)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DetachChunkTrees)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecuteBatch)
             .SetCancelable(true)
@@ -153,6 +164,14 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    // COMPAT(danilalexeev) ExecuteBatch will be removed in the future.
+    TPerUserRequestQueueProvider::TReconfigurationCallback ReconfigurationCallback_;
+    TPerUserRequestQueueProviderPtr CreateChunkRequestQueueProvider_;
+    TPerUserRequestQueueProviderPtr ExecuteBatchRequestQueueProvider_;
+
+    std::atomic<bool> EnableCypressTransactionsInSequoia_;
+    std::atomic<bool> ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_;
+
     void OnLeaderActive()
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -160,13 +179,6 @@ private:
         CreateChunkRequestQueueProvider_->ReconfigureAllQueues();
         ExecuteBatchRequestQueueProvider_->ReconfigureAllQueues();
     }
-
-    // COMPAT(danilalexeev) ExecuteBatch will be removed in the future.
-    TPerUserRequestQueueProvider::TReconfigurationCallback ReconfigurationCallback_;
-    TPerUserRequestQueueProviderPtr CreateChunkRequestQueueProvider_;
-    TPerUserRequestQueueProviderPtr ExecuteBatchRequestQueueProvider_;
-
-    std::atomic<bool> EnableCypressTransactionsInSequoia_;
 
     static TPerUserRequestQueueProvider::TReconfigurationCallback CreateReconfigurationCallback(TBootstrap* bootstrap)
     {
@@ -182,10 +194,8 @@ private:
                     }
 
                     const auto& Logger = ChunkServerLogger();
-                    YT_LOG_ALERT_IF(
-                        user->GetPendingRemoval(),
-                        "User pending for removal has accessed chunk service (User: %v)",
-                        user->GetName());
+                    YT_TLOG_ALERT_IF(user->GetPendingRemoval(), "User pending for removal has accessed chunk service")
+                        .With("User", user->GetName());
 
                     queue->SetQueueSizeLimit(10'000);
 
@@ -239,6 +249,9 @@ private:
         EnableCypressTransactionsInSequoia_.store(
             sequoiaManagerConfig->Enable && sequoiaManagerConfig->EnableCypressTransactionsInSequoia,
             std::memory_order::release);
+        ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.store(
+            sequoiaManagerConfig->ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator,
+            std::memory_order::release);
 
         const auto& chunkServiceConfig = config->ChunkService;
         const auto& oldChunkServiceConfig = oldConfig->ChunkService;
@@ -249,7 +262,8 @@ private:
             auto* requestQueue = methodInfo->GetDefaultRequestQueue();
             requestQueue->ConfigureWeightThrottler(weightThrottlerConfig);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to configure request weight throttler for ChunkService.ExecuteBatch default request queue");
+            YT_TLOG_ALERT("Failed to configure request weight throttler for ChunkService.ExecuteBatch default request queue")
+                .With(ex);
         }
 
         auto configureRequestQueueProvider = [&] (const auto& queueProvider) {
@@ -304,8 +318,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateChunks)
     {
-        context->SetRequestInfo("SubrequestCount: %v",
-            request->subrequests_size());
+        context->AnnotateRequest()
+            .With("SubrequestCount", request->subrequests_size());
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::LeaderOrFollower);
@@ -379,8 +393,8 @@ private:
             req->SetTimeout(context->GetTimeout());
             NRpc::SetCurrentAuthenticationIdentity(req);
 
-            YT_LOG_DEBUG("Forwarding touch request to remote replicator (ChunkCount: %v)",
-                req->subrequests_size());
+            YT_TLOG_DEBUG("Forwarding touch request to remote replicator")
+                .With("ChunkCount", req->subrequests_size());
             YT_UNUSED_FUTURE(req->Invoke());
         }
 
@@ -389,8 +403,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateDynamicStores)
     {
-        context->SetRequestInfo("SubrequestCount: %v",
-            request->subrequests_size());
+        context->AnnotateRequest()
+            .With("SubrequestCount", request->subrequests_size());
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::LeaderOrFollower);
@@ -438,9 +452,14 @@ private:
                     auto replicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk, /*includeUnapproved*/ true)
                         .ValueOrThrow();
 
+                    if (!IsObjectAlive(ephemeralChunk)) {
+                        subresponse->set_missing(true);
+                        continue;
+                    }
+
                     BuildChunkSpec(
                         Bootstrap_,
-                        chunk.Get(),
+                        ephemeralChunk.Get(),
                         replicas,
                         rowIndex,
                         /*tabletIndex*/ {},
@@ -478,8 +497,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, TouchChunks)
     {
-        context->SetRequestInfo("SubrequestCount: %v",
-            request->subrequests_size());
+        context->AnnotateRequest()
+            .With("SubrequestCount", request->subrequests_size());
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::LeaderOrFollower);
@@ -500,8 +519,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AllocateWriteTargets)
     {
-        context->SetRequestInfo("SubrequestCount: %v",
-            request->subrequests_size());
+        context->AnnotateRequest()
+            .With("SubrequestCount", request->subrequests_size());
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::LeaderOrFollower);
@@ -555,10 +574,10 @@ private:
                 auto* medium = chunkManager->GetMediumByIndexOrThrow(sessionId.MediumIndex);
                 if (medium->IsOffshore()) {
                     THROW_ERROR_EXCEPTION("Write targets allocation for offshore media is forbidden")
-                        << TErrorAttribute("chunk_id", sessionId.ChunkId)
-                        << TErrorAttribute("medium_index", medium->GetIndex())
-                        << TErrorAttribute("medium_name", medium->GetName())
-                        << TErrorAttribute("medium_type", medium->GetType());
+                        .With("chunk_id", sessionId.ChunkId)
+                        .With("medium_index", medium->GetIndex())
+                        .With("medium_name", medium->GetName())
+                        .With("medium_type", medium->GetType());
                 }
 
                 TNodeList forbiddenNodes;
@@ -604,7 +623,7 @@ private:
                     // This is really weird.
                     if (it == replicas.end()) {
                         THROW_ERROR_EXCEPTION("Replicas were not fetched for chunk")
-                            << TErrorAttribute("chunk_id", sessionId.ChunkId);
+                            .With("chunk_id", sessionId.ChunkId);
                     }
 
                     const auto& chunkReplicas = it->second
@@ -634,36 +653,31 @@ private:
                     subresponse->add_replicas(ToProto(replica));
                 }
 
-                YT_LOG_DEBUG("Write targets allocated "
-                    "(SessionId: %v%v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-                    "PreferredHostName: %v, ForbiddenAddresses: %v, AllocatedAddresses: %v, Targets: %v)",
-                    sessionId,
-                    MakeFormatterWrapper([&] (auto* builder) {
-                        if (hasConsistentReplicaPlacementHash) {
-                            builder->AppendFormat(
-                                ", ConsistentReplicaPlacementHash: %x",
-                                consistentReplicaPlacementHash);
-                        }
-                    }),
-                    desiredTargetCount,
-                    minTargetCount,
-                    replicationFactorOverride,
-                    preferredHostName,
-                    forbiddenAddresses,
-                    allocatedAddresses,
-                    MakeFormattableView(targets, TNodePtrAddressFormatter()));
+                YT_TLOG_DEBUG("Write targets allocated")
+                    .With("SessionId", sessionId)
+                    .WithFormatIf(
+                        hasConsistentReplicaPlacementHash,
+                        "ConsistentReplicaPlacementHash",
+                        "%x",
+                        consistentReplicaPlacementHash)
+                    .With("DesiredTargetCount", desiredTargetCount)
+                    .With("MinTargetCount", minTargetCount)
+                    .With("ReplicationFactorOverride", replicationFactorOverride)
+                    .With("PreferredHostName", preferredHostName)
+                    .With("ForbiddenAddresses", forbiddenAddresses)
+                    .With("AllocatedAddresses", allocatedAddresses)
+                    .With("Targets", MakeFormattableView(targets, TNodePtrAddressFormatter()));
             } catch (const std::exception& ex) {
                 auto error = TError(ex);
-                YT_LOG_DEBUG(error, "Error allocating write targets "
-                    "(SessionId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-                    "PreferredHostName: %v, ForbiddenAddresses: %v, AllocatedAddresses: %v)",
-                    sessionId,
-                    desiredTargetCount,
-                    minTargetCount,
-                    replicationFactorOverride,
-                    preferredHostName,
-                    forbiddenAddresses,
-                    allocatedAddresses);
+                YT_TLOG_DEBUG("Error allocating write targets")
+                    .With("SessionId", sessionId)
+                    .With("DesiredTargetCount", desiredTargetCount)
+                    .With("MinTargetCount", minTargetCount)
+                    .With("ReplicationFactorOverride", replicationFactorOverride)
+                    .With("PreferredHostName", preferredHostName)
+                    .With("ForbiddenAddresses", forbiddenAddresses)
+                    .With("AllocatedAddresses", allocatedAddresses)
+                    .With(error);
                 ToProto(subresponse->mutable_error(), error);
             }
         }
@@ -675,9 +689,9 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        context->SetRequestInfo("TransactionId: %v, ChunkCount: %v",
-            transactionId,
-            request->chunks_size());
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId)
+            .With("ChunkCount", request->chunks_size());
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -693,9 +707,9 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        context->SetRequestInfo("TransactionId: %v, ChunkCount: %v",
-            transactionId,
-            request->chunks_size());
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId)
+            .With("ChunkCount", request->chunks_size());
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -713,7 +727,7 @@ private:
 
         auto syncSession = New<TMultiPhaseCellSyncSession>(
             Bootstrap_,
-            ChunkServerLogger().WithTag("RequestId: %v", context->GetRequestId()));
+            ChunkServerLogger().WithTag("RequestId", context->GetRequestId()));
         WaitFor(syncSession->Sync(cellTagsToSyncWith))
             .ThrowOnError();
 
@@ -727,8 +741,8 @@ private:
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
-        context->SetRequestInfo("ChunkId: %v",
-            chunkId);
+        context->AnnotateRequest()
+            .With("ChunkId", chunkId);
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::LeaderOrFollower);
@@ -749,8 +763,8 @@ private:
             }
         }
 
-        context->SetResponseInfo("NodeCount: %v",
-            response->nodes_size());
+        context->AnnotateResponse()
+            .With("NodeCount", response->nodes_size());
         context->Reply();
     }
 
@@ -761,21 +775,14 @@ private:
             request->suppress_upstream_sync() ||
             GetSuppressUpstreamSync(context->RequestHeader());
 
-        context->SetRequestInfo(
-            "CreateChunkCount: %v, "
-            "ConfirmChunkCount: %v, "
-            "SealChunkCount: %v, "
-            "CreateChunkListsCount: %v, "
-            "UnstageChunkTreeCount: %v, "
-            "AttachChunkTreesCount: %v, "
-            "SuppressUpstreamSync: %v",
-            request->create_chunk_subrequests_size(),
-            request->confirm_chunk_subrequests_size(),
-            request->seal_chunk_subrequests_size(),
-            request->create_chunk_lists_subrequests_size(),
-            request->unstage_chunk_tree_subrequests_size(),
-            request->attach_chunk_trees_subrequests_size(),
-            suppressUpstreamSync);
+        context->AnnotateRequest()
+            .With("CreateChunkCount", request->create_chunk_subrequests_size())
+            .With("ConfirmChunkCount", request->confirm_chunk_subrequests_size())
+            .With("SealChunkCount", request->seal_chunk_subrequests_size())
+            .With("CreateChunkListsCount", request->create_chunk_lists_subrequests_size())
+            .With("UnstageChunkTreeCount", request->unstage_chunk_tree_subrequests_size())
+            .With("AttachChunkTreesCount", request->attach_chunk_trees_subrequests_size())
+            .With("SuppressUpstreamSync", suppressUpstreamSync);
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -803,8 +810,7 @@ private:
 
         // COMPAT(kvk1920)
         for (const auto& subrequest : request->confirm_chunk_subrequests()) {
-            YT_LOG_ALERT_UNLESS(subrequest.location_uuids_supported(),
-                "Chunk confirmation request without location uuids is received");
+            YT_TLOG_ALERT_UNLESS(subrequest.location_uuids_supported(), "Chunk confirmation request without location uuids is received");
         }
 
         // TODO(shakurov): use mutation idempotizer for all mutations (not
@@ -818,7 +824,8 @@ private:
             context,
             chunkManager->CreateExecuteBatchMutation(context),
             enableMutationBoomerangs,
-            AreCypressTransactionsInSequoiaEnabled());
+            AreCypressTransactionsInSequoiaEnabled(),
+            ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.load(std::memory_order::acquire));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AttachChunkTrees)
@@ -826,11 +833,9 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto parentId = FromProto<TChunkListId>(request->parent_id());
 
-        context->SetRequestInfo(
-            "TransactionId: %v, "
-            "ParentId: %v",
-            transactionId,
-            parentId);
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId)
+            .With("ParentId", parentId);
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -848,17 +853,33 @@ private:
             context,
             chunkManager->CreateAttachChunkTreesMutation(context),
             enableMutationBoomerangs,
-            AreCypressTransactionsInSequoiaEnabled());
+            AreCypressTransactionsInSequoiaEnabled(),
+            ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.load(std::memory_order::acquire));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, DetachChunkTrees)
+    {
+        auto parentId = FromProto<TChunkListId>(request->parent_id());
+
+        context->AnnotateRequest()
+            .With("ParentId", parentId)
+            .With("ChildCount", request->child_ids_size());
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto mutation = chunkManager->CreateDetachChunkTreesMutation(context);
+        mutation->SetCurrentTraceContext();
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UnstageChunkTree)
     {
         auto chunkTreeId = FromProto<TChunkId>(request->chunk_tree_id());
-        context->SetRequestInfo(
-            "ChunkTreeId: %v, "
-            "Recursive: %v",
-            chunkTreeId,
-            request->recursive());
+        context->AnnotateRequest()
+            .With("ChunkTreeId", chunkTreeId)
+            .With("Recursive", request->recursive());
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -872,11 +893,9 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CreateChunkLists)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        context->SetRequestInfo(
-            "TransactionId: %v, "
-            "Count: %v",
-            transactionId,
-            request->count());
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId)
+            .With("Count", request->count());
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -894,15 +913,15 @@ private:
             context,
             chunkManager->CreateCreateChunkListsMutation(context),
             enableMutationBoomerangs,
-            AreCypressTransactionsInSequoiaEnabled());
+            AreCypressTransactionsInSequoiaEnabled(),
+            ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.load(std::memory_order::acquire));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SealChunk)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        context->SetRequestInfo(
-            "ChunkId: %v",
-            chunkId);
+        context->AnnotateRequest()
+            .With("ChunkId", chunkId);
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -913,12 +932,26 @@ private:
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ScheduleChunkSeal)
+    {
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        context->AnnotateRequest()
+            .With("ChunkId", chunkId);
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto mutation = chunkManager->CreateScheduleChunkSealMutation(context);
+        mutation->SetCurrentTraceContext();
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CreateChunk)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        context->SetRequestInfo(
-            "TransactionId: %v",
-            transactionId);
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId);
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -944,73 +977,125 @@ private:
             context,
             chunkManager->CreateCreateChunkMutation(context),
             enableMutationBoomerangs,
-            AreCypressTransactionsInSequoiaEnabled());
+            AreCypressTransactionsInSequoiaEnabled(),
+            ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.load(std::memory_order::acquire));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ConfirmChunk)
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        context->SetRequestInfo(
-            "ChunkId: %v",
-            chunkId);
+        context->AnnotateRequest()
+            .With("ChunkId", chunkId);
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
 
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& configManager = Bootstrap_->GetConfigManager();
+        CheckChunkMetaOnConfirmation(request->chunk_meta())
+            .ThrowOnError();
+        auto schemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
 
-        const auto& sequoiaChunkReplicasConfig = configManager->GetConfig()->ChunkManager->SequoiaChunkReplicas;
+        auto doConfirmChunks = [
+            this,
+            this_ = MakeStrong(this),
+            context,
+            chunkId,
+            schemaId
+        ] () -> std::optional<TError> {
+            YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        // COMPAT(kvk1920)
-        if (!request->location_uuids_supported()) {
-            THROW_ERROR_EXCEPTION("Chunk confirmation without location uuids is forbidden");
-        }
-
-        ValidateChunkMetaOnConfirmation(request->chunk_meta());
-
-        // Fastpath.
-        auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
-        if (chunk->IsConfirmed()) {
-            YT_LOG_DEBUG("Chunk is already confirmed (ChunkId: %v)",
-                chunkId);
-            if (context->Request().request_statistics()) {
-                ToProto(context->Response().mutable_statistics(), chunk->GetStatistics().ToDataStatistics());
-            }
-            context->Reply();
-            return;
-        }
-
-        auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkId, sequoiaChunkReplicasConfig);
-        if (chunkSequoiaConfig.StoreInSequoia) {
-            auto requestStatistics = context->Request().request_statistics();
-            if (sequoiaChunkReplicasConfig->BatchChunkConfirmation) {
-                // Be carefull with raw request.
-                WaitFor(chunkManager->ConfirmSequoiaChunkBatched(std::move(context->Request())))
-                    .ThrowOnError();
-            } else {
-                WaitFor(chunkManager->ConfirmSequoiaChunk(&context->Request()))
-                    .ThrowOnError();
-            }
             ValidatePeer(EPeerKind::Leader);
 
-            if (requestStatistics) {
-                auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
-                if (!chunk->IsConfirmed()) {
-                    YT_LOG_ALERT("Chunk is not confirmed after confirm (ChunkId: %v)", chunkId);
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::TransientFailure,
-                        "Chunk %v is not confirmed after confirm",
-                        chunkId);
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            const auto& configManager = Bootstrap_->GetConfigManager();
+            const auto& tableManager = Bootstrap_->GetTableManager();
+
+            const auto& sequoiaChunkReplicasConfig = configManager->GetConfig()->ChunkManager->SequoiaChunkReplicas;
+
+            // Fastpath.
+            auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
+            if (chunk->IsConfirmed()) {
+                YT_TLOG_DEBUG("Chunk is already confirmed")
+                    .With("ChunkId", chunkId);
+
+                if (context->Request().request_statistics()) {
+                    // NB: Do not include referenced hunk data in case of a non-hunk chunk because it is irrelevant
+                    // to the confirming writer. All hunk statistics are known within the same writing session.
+                    auto dataStatistics = IsHunkChunkFormat(chunk->GetChunkFormat())
+                        ? chunk->GetHunkStatistics().ToDataStatistics()
+                        : chunk->GetStatistics(/*includeReferencedHunkData*/ false).ToDataStatistics();
+                    ToProto(
+                        context->Response().mutable_statistics(),
+                        dataStatistics);
                 }
-                ToProto(context->Response().mutable_statistics(), chunk->GetStatistics().ToDataStatistics());
-                // Do not set revision as ally replicas do not work for Sequoia anyway.
+                context->Reply();
+                return std::nullopt;
             }
-            context->Reply();
-        } else {
-            auto mutation = chunkManager->CreateConfirmChunkMutation(&context->Request(), &context->Response());
-            mutation->SetCurrentTraceContext();
-            YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+
+            const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
+            if (chunkManagerConfig->EnableChunkSchemas && schemaId != NullTableSchemaId) {
+                Y_UNUSED(tableManager->GetMasterTableSchemaOrThrow(schemaId));
+            }
+
+            auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkId, sequoiaChunkReplicasConfig);
+            if (chunkSequoiaConfig.StoreInSequoia) {
+                auto requestStatistics = context->Request().request_statistics();
+                if (sequoiaChunkReplicasConfig->BatchChunkConfirmation) {
+                    auto requestId = context->GetRequestId();
+                    auto result = WaitFor(chunkManager->ConfirmSequoiaChunkBatched(std::move(context->Request()), requestId));
+                    if (!result.IsOK()) {
+                        if (auto error = chunkManager->ExtractConfirmSequoiaChunkError(requestId); !error.IsOK()) {
+                            return error;
+                        } else {
+                            return TError(NRpc::EErrorCode::TransientFailure, "Chunk batched confirmation failed due to another chunk")
+                                .With(result);
+                        }
+                    }
+                } else {
+                    auto result = WaitFor(chunkManager->ConfirmSequoiaChunk(&context->Request()));
+                    if (!result.IsOK()) {
+                        return result;
+                    }
+                }
+                ValidatePeer(EPeerKind::Leader);
+
+                if (requestStatistics) {
+                    auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
+                    if (!chunk->IsConfirmed()) {
+                        YT_TLOG_ALERT("Chunk is not confirmed after confirm")
+                            .With("ChunkId", chunkId);
+                        return TError(NRpc::EErrorCode::TransientFailure,
+                            "Chunk %v is not confirmed after confirm",
+                            chunkId);
+                    }
+
+                    // NB: Do not include referenced hunk data in case of a non-hunk chunk because it is irrelevant
+                    // to the confirming writer. All hunk statistics are known within the same writing session.
+                    auto dataStatistics = IsHunkChunkFormat(chunk->GetChunkFormat())
+                        ? chunk->GetHunkStatistics().ToDataStatistics()
+                        : chunk->GetStatistics(/*includeReferencedHunkData*/ false).ToDataStatistics();
+                    ToProto(
+                        context->Response().mutable_statistics(),
+                        dataStatistics);
+                    // Do not set revision as ally replicas do not work for Sequoia anyway.
+                }
+                context->Reply();
+            } else {
+                auto mutation = chunkManager->CreateConfirmChunkMutation(&context->Request(), &context->Response());
+                mutation->SetCurrentTraceContext();
+                YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+            }
+            return std::nullopt;
+        };
+
+        auto confirmError = WaitFor(BIND(doConfirmChunks)
+            .AsyncVia(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkService))
+            .Run())
+            .ValueOrThrow();
+
+        if (confirmError) {
+            confirmError->ThrowOnError();
         }
     }
 
@@ -1021,13 +1106,20 @@ private:
 
         auto cellTag = CellTagFromId(transactionId);
         auto cellId = multicellManager->GetCellId(cellTag);
-        auto syncFuture = hiveManager->SyncWith(cellId, /*enableBatching*/ true);
+        std::vector<TFuture<void>> syncFutures;
+        syncFutures.reserve(2);
+        syncFutures.push_back(hiveManager->SyncWith(cellId, /*enableBatching*/ true));
 
-        YT_LOG_DEBUG("Request will synchronize with another cell (RequestId: %v, CellTag: %v)",
-            context->GetRequestId(),
-            cellTag);
+        YT_TLOG_DEBUG("Request will synchronize with another cell")
+            .With("RequestId", context->GetRequestId())
+            .With("CellTag", cellTag);
 
-        WaitFor(syncFuture)
+        if (IsCypressTransactionMirroredToSequoia(transactionId) && AreCypressTransactionsInSequoiaEnabled()) {
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            syncFutures.push_back(transactionManager->WaitUntilAllPreparedTransactionsFinished());
+        }
+
+        WaitFor(AllSucceeded(syncFutures))
             .ThrowOnError();
     }
 };

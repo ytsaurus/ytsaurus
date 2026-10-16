@@ -143,7 +143,7 @@ To configure the operation behavior when erasure-coded chunks are unavailable, y
 
 ## C++ and Python Wrapper
 
-Running operations via С~++ or Python Wrapper is associated with a number of priming works in addition to the calling of the corresponding driver command. Those include:
+Running operations via C++ or Python Wrapper is associated with a number of priming works in addition to the calling of the corresponding driver command. Those include:
 * Uploading files to the [File cache](../../../../user-guide/storage/file-cache.md).
 
    **Note**: Automatic file upload to the cache always takes place outside of the user transaction, which may lead to conflicts on Cypress nodes if the file cache directory was not created in advance.
@@ -186,3 +186,9 @@ For any operation, you can specify the `cluster` attribute on one or more input 
 The cluster name should be the same as one would use for RemoteCopy operations.
 
 Files delivered to each job (`/mapper/file_paths` or `/reducer/file_paths` section) can be read only from a local cluster. So if you need to use them from a remote cluster, transfer them in advance using the RemoteCopy operation.
+
+{% note info %}
+
+Reading data from another cluster (remote read) is subject to inter-cluster network bandwidth limits. For more information, see [Inter-cluster Network Bandwidth Throttling](../../../../user-guide/data-processing/operations/cluster-throttlers.md).
+
+{% endnote %}

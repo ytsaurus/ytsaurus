@@ -1,0 +1,351 @@
+{
+    "panels": [
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "cps"
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "cps"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\".+\", service=~\"yt-queue-agent\", __name__=~\"yt_queue_agent_queue_partition_rows_written\", partition_index=~\"\", queue_cluster=~\"$queue_cluster\", queue_path=~\"$queue_path\"}[$__rate_interval])",
+                    "legendFormat": "Rows written",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\".+\", service=~\"yt-queue-agent\", __name__=~\"yt_queue_agent_queue_partition_rows_trimmed\", partition_index=~\"\", queue_cluster=~\"$queue_cluster\", queue_path=~\"$queue_path\"}[$__rate_interval])",
+                    "legendFormat": "Row trimmed",
+                    "refId": "B"
+                }
+            ],
+            "title": "Rows written & trimmed",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "Bps"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\".+\", service=~\"yt-queue-agent\", __name__=~\"yt_queue_agent_queue_partition_data_weight_written\", partition_index=~\"\", queue_cluster=~\"$queue_cluster\", queue_path=~\"$queue_path\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "Data weight written",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "count"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 6
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\".+\", service=~\"yt-queue-agent\", __name__=~\"yt_queue_agent_queue_partitions\", queue_cluster=~\"$queue_cluster\", queue_path=~\"$queue_path\"}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Partition count",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "count"
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "count"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 6
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\".+\", service=~\"yt-queue-agent\", __name__=~\"yt_queue_agent_queue_consumers\", queue_cluster=~\"$queue_cluster\", queue_path=~\"$queue_path\", vital=~\"true\"}",
+                    "legendFormat": "Vital",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\".+\", service=~\"yt-queue-agent\", __name__=~\"yt_queue_agent_queue_consumers\", queue_cluster=~\"$queue_cluster\", queue_path=~\"$queue_path\", vital=~\"false\"}",
+                    "legendFormat": "Non-vital",
+                    "refId": "B"
+                }
+            ],
+            "title": "Consumer count",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "count"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 12
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\".+\", service=~\"yt-queue-agent\", __name__=~\"yt_queue_agent_queue_partition_row_count\", partition_index=~\"\", queue_cluster=~\"$queue_cluster\", queue_path=~\"$queue_path\"}",
+                    "legendFormat": "Row count",
+                    "refId": "A"
+                }
+            ],
+            "title": "Queue stored row count",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 12
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\".+\", service=~\"yt-queue-agent\", __name__=~\"yt_queue_agent_queue_partition_data_weight\", partition_index=~\"\", queue_cluster=~\"$queue_cluster\", queue_path=~\"$queue_path\"}",
+                    "legendFormat": "Data weight",
+                    "refId": "A"
+                }
+            ],
+            "title": "Queue stored data weight",
+            "type": "timeseries"
+        }
+    ],
+    "tags": [],
+    "templating": {
+        "list": [
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "hide": 0,
+                "label": "Queue cluster",
+                "name": "queue_cluster",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "hide": 0,
+                "label": "Queue path",
+                "name": "queue_path",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            }
+        ],
+        "permissions": [
+            {
+                "cluster": "$queue_cluster",
+                "path": "$queue_path",
+                "permission": "read"
+            }
+        ]
+    },
+    "title": "Queue metrics [Autogenerated]"
+}

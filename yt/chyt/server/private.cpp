@@ -6,7 +6,7 @@ namespace NYT::NClickHouseServer {
 
 const std::string CacheUserName("yt-clickhouse-cache");
 const std::string ChytSqlObjectsUserName("chyt-sql-objects");
-const std::string DictionariesUserName("yt-clikhouse-dictionaries");
+const std::string DictionariesUserName("yt-clickhouse-dictionaries");
 const std::string InternalRemoteUserName("$remote");
 const std::vector<std::string> TableAttributesToFetch{
     "id",
@@ -16,6 +16,8 @@ const std::vector<std::string> TableAttributesToFetch{
     "external",
     "external_cell_tag",
     "revision",
+    "content_revision",
+    "chunk_merger_info",
     "boundary_keys",
     "enable_dynamic_store_read",
     "chyt_banned",

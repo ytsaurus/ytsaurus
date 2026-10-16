@@ -194,6 +194,75 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: get(f"//sys/cluster_nodes/{nodes[0]}/@decommissioned"))
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 6)
 
+    def _get_chunk_replicator_profiler(self, chunk_id):
+        replicator_address = get(f"#{chunk_id}/@chunk_replicator_address")
+        if self.is_multicell():
+            cell_tag = get(f"#{chunk_id}/@native_cell_tag")
+            return profiler_factory().at_secondary_master(cell_tag, replicator_address)
+        else:
+            return profiler_factory().at_primary_master(replicator_address)
+
+    @authors("aleksandra-zh")
+    def test_repair_queue_size_profiling(self):
+        create("table", "//tmp/t")
+        set("//tmp/t/@erasure_codec", "reed_solomon_3_3")
+        write_table("//tmp/t", {"a": "b"})
+
+        sync_control_chunk_replicator(False)
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        nodes = get(f"#{chunk_id}/@stored_replicas")
+
+        profiler = self._get_chunk_replicator_profiler(chunk_id)
+
+        def get_missing_repair_queue_size():
+            return sum(
+                projection["value"]
+                for projection in profiler.get_all("chunk_server/repair_queue_size", tags={})
+            )
+
+        set_node_banned(nodes[0], True, wait_for_master=False)
+
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 5)
+        wait(lambda: get_missing_repair_queue_size() > 0)
+
+        sync_control_chunk_replicator(True)
+
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 6)
+        wait(lambda: get_missing_repair_queue_size() == 0)
+
+    @authors("aleksandra-zh")
+    def test_replication_queue_size_profiling(self):
+        set("//sys/@config/chunk_manager/destroyed_replicas_profiling_period", 100)
+
+        create("table", "//tmp/t", attributes={"replication_factor": 3})
+        write_table("//tmp/t", {"a": "b"})
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+
+        sync_control_chunk_replicator(False)
+
+        nodes = get(f"#{chunk_id}/@stored_replicas")
+        set_node_banned(nodes[0], True, wait_for_master=False)
+
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 2)
+
+        profiler = self._get_chunk_replicator_profiler(chunk_id)
+
+        def get_total_push_replication_queue_size():
+            return sum(
+                projection["value"]
+                for projection in profiler.get_all("chunk_server/push_replication_queue_size", tags={})
+            )
+
+        wait(lambda: get_total_push_replication_queue_size() > 0)
+
+        sync_control_chunk_replicator(True)
+
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+        wait(lambda: get_total_push_replication_queue_size() == 0)
+
     @authors("aleksandra-zh")
     def test_decommission_erasure_via_replication(self):
         set("//sys/@config/chunk_manager/enable_repair_via_replication", True)
@@ -261,9 +330,15 @@ class TestChunkServer(YTEnvSetup):
 
         known_requisition_indexes = frozenset(ls(master_orchid_path))
         set("//tmp/t/@replication_factor", 4)
-        sleep(0.3)
-        new_requisition_indexes = frozenset(ls(master_orchid_path)) - known_requisition_indexes
-        assert len(new_requisition_indexes) == 1
+
+        new_requisition_indexes = None
+
+        def has_new_requisition_index():
+            nonlocal new_requisition_indexes
+            new_requisition_indexes = frozenset(ls(master_orchid_path)) - known_requisition_indexes
+            return len(new_requisition_indexes) == 1
+
+        wait(has_new_requisition_index)
         new_requisition_index = next(iter(new_requisition_indexes))
 
         new_requisition = get("{0}/{1}".format(master_orchid_path, new_requisition_index))
@@ -361,7 +436,7 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: {req["account"] for req in get(f"#{chunk}/@requisition")} == {"b"})
 
     @authors("gritukan")
-    def test_historically_non_vital(self):
+    def test_historically_non_vital_simple(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
         chunk_id = get_singular_chunk_id("//tmp/t")
@@ -372,8 +447,8 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: get(f"#{chunk_id}/@historically_non_vital"))
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 1)
 
-        node = get(f"#{chunk_id}/@stored_replicas")[0]
-        set_node_banned(node, True)
+        for node in get(f"#{chunk_id}/@stored_replicas"):
+            set_node_banned(node, True)
 
         wait(lambda: chunk_id in get("//sys/lost_chunks"))
         assert get("//sys/@lost_vital_chunk_count") == 0
@@ -486,12 +561,18 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 4)
 
     @authors("kvk1920")
-    def test_last_seen_replicas(self):
+    @pytest.mark.parametrize("erasure", [False, True])
+    def test_last_seen_replicas(self, erasure):
+        expected_replica_count = 6 if erasure else 3
+
         # This makes current test deterministic.
         nodes = ls("//sys/data_nodes")
-        set_nodes_banned(nodes[3:], True)
+        set_nodes_banned(nodes[expected_replica_count:], True)
 
         create("table", "//tmp/t")
+        if erasure:
+            set("//tmp/t/@erasure_codec", "reed_solomon_3_3")
+
         write_table("//tmp/t", [{"key": 42, "value": "hello!"}])
         chunk_id = get_singular_chunk_id("//tmp/t")
 
@@ -501,19 +582,20 @@ class TestChunkServer(YTEnvSetup):
         def get_last_seen_replicas():
             return [str(r) for r in get(f"#{chunk_id}/@last_seen_replicas")]
 
-        # Last seen replica count is 5 for regular chunks.
         for _ in range(6):
-            wait(lambda: len(get_stored_replicas()) == 3)
+            wait(lambda: len(get_stored_replicas()) == expected_replica_count)
             set_node_banned(nodes[0], True)
-            wait(lambda: len(get_stored_replicas()) == 2)
+            wait(lambda: len(get_stored_replicas()) == expected_replica_count - 1)
             set_node_banned(nodes[0], False)
-            wait(lambda: len(get_stored_replicas()) == 3)
+            wait(lambda: len(get_stored_replicas()) == expected_replica_count)
 
         stored_replicas = get_stored_replicas()
         last_seen_replicas = get_last_seen_replicas()
         assert stored_replicas == builtins.set(last_seen_replicas)
-        # First last seen replica is the newest one.
-        assert nodes[0] == last_seen_replicas[0]
+
+        if not erasure:
+            # First last seen replica is the newest one.
+            assert nodes[0] == last_seen_replicas[0]
 
     @authors("grphil")
     def test_fetch_only_online_replicas(self):
@@ -573,6 +655,16 @@ class TestChunkServer(YTEnvSetup):
         set("//sys/@config/chunk_manager/replica_approve_timeout", 2000)
         wait(lambda: self._get_replicator_queue_size() == 0)
 
+    @authors("grphil")
+    def test_fetch_chunk_multiple_times(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"a": "b"}])
+        concatenate(["//tmp/t", "//tmp/t"], "//tmp/t")
+        assert get("//tmp/t/@chunk_count") == 2
+
+        # This will fetch replicas for chunk twice.
+        get("//tmp/t/@chunk_media_statistics")
+
 
 ##################################################################
 
@@ -623,7 +715,7 @@ class TestMaxWriteSessionLimit(YTEnvSetup):
         wait(lambda: trivial(counter), ignore_exceptions=True)
 
     @authors("koloshmet")
-    @flaky(max_runs=3)
+    @pytest.mark.timeout(120)
     def test_dynamic_limits(self):
         set("//sys/@config/chunk_manager/enable_node_write_session_limit_on_write_target_allocation", True)
         set("//sys/@config/chunk_manager/enable_node_write_session_limit_for_user_on_write_target_allocation", True)
@@ -636,8 +728,16 @@ class TestMaxWriteSessionLimit(YTEnvSetup):
             return None
 
         def write_tables(table_prefix, expect_exceptions):
+            # The per-location write-session limit is observed only when many
+            # write-target allocations reach the master simultaneously, before
+            # the in-flight sessions are reconciled. Spreading the writers out
+            # (or using too few) lets them all slip in under the limit, which is
+            # exactly what made write_tables_until_failure retry for a long time
+            # and time out. When we expect the limit to be hit, fire a larger
+            # simultaneous burst so it is tripped within the first attempt or two.
+            table_count = 30 if expect_exceptions else 10
             tables = []
-            for i in range(10):
+            for i in range(table_count):
                 table_name = table_prefix.format(i)
                 create("table", table_name)
                 tables.append(table_name)
@@ -648,7 +748,7 @@ class TestMaxWriteSessionLimit(YTEnvSetup):
             for table_name in tables:
                 yw = yt.YtClient(proxy=self.Env.get_proxy_address(), config={"write_retries": {"enable": False}})
 
-                def writer():
+                def writer(table_name=table_name, yw=yw):
                     try:
                         yw.write_table(table_name, gen(), raw=True, format=yt.YsonFormat())
                     except Exception as e:
@@ -675,55 +775,52 @@ class TestMaxWriteSessionLimit(YTEnvSetup):
                     chunk_id = get_singular_chunk_id(table_name)
                     wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
 
-        update_nodes_dynamic_config({
-            "data_node": {
-                "store_location_config_per_medium": {
-                    "default": {
-                        "session_count_limit": 10,
+        # Mirror the retry pattern used in test_zero_limits: even with the
+        # config in place, the session-count tracking can racily admit all
+        # writers before any node-side feedback arrives, so retry the
+        # contended write with a fresh table prefix until the limit is
+        # actually observed.
+        def write_tables_until_failure(table_prefix):
+            attempt = [0]
+
+            def try_once():
+                attempt[0] += 1
+                write_tables(f"{table_prefix}_a{attempt[0]}_{{}}", True)
+                return True
+            wait(try_once, ignore_exceptions=True)
+
+        def set_session_count_limit(limit):
+            update_nodes_dynamic_config({
+                "data_node": {
+                    "store_location_config_per_medium": {
+                        "default": {
+                            "session_count_limit": limit,
+                        }
                     }
                 }
-            }
-        })
+            })
+            wait(lambda: all(
+                get(f"//sys/cluster_nodes/{node}/@statistics/media/default/max_write_sessions_per_location",
+                    default=None) == limit
+                for node in ls("//sys/cluster_nodes")))
 
-        sleep(1)
+        set_session_count_limit(10)
 
         write_tables("//tmp/t1{}", False)
 
         set("//sys/@config/chunk_manager/node_write_session_limit_fraction_on_write_target_allocation", 0.1)
+        multicell_sleep()
 
-        sleep(1)
+        write_tables_until_failure("//tmp/t2")
 
-        write_tables("//tmp/t2{}", True)
-
-        update_nodes_dynamic_config({
-            "data_node": {
-                "store_location_config_per_medium": {
-                    "default": {
-                        "session_count_limit": 100,
-                    }
-                }
-            }
-        })
-
-        sleep(1)
+        set_session_count_limit(100)
 
         write_tables("//tmp/t3{}", False)
 
-        update_nodes_dynamic_config({
-            "data_node": {
-                "store_location_config_per_medium": {
-                    "default": {
-                        "session_count_limit": 100000,
-                    }
-                }
-            }
-        })
-
         set("//sys/@config/chunk_manager/node_write_session_limit_fraction_on_write_target_allocation", 0.001)
+        multicell_sleep()
 
-        sleep(1)
-
-        write_tables("//tmp/t4{}", True)
+        write_tables_until_failure("//tmp/t4")
 
 
 ##################################################################
@@ -749,7 +846,6 @@ def _find_median_absolute_deviation(series):
     return _find_median(absolute_deviations)
 
 
-@pytest.mark.enabled_multidaemon
 class TestTwoRandomChoicesWriteTargetAllocation(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -785,7 +881,6 @@ class TestTwoRandomChoicesWriteTargetAllocation(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestTwoRandomChoicesWriteTargetAllocationMulticell(TestTwoRandomChoicesWriteTargetAllocation):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -886,12 +981,18 @@ class TestNodePendingRestart(TestNodePendingRestartBase):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 4)
+        if self.USE_SEQUOIA:
+            wait(lambda: len(get(f"#{chunk_id}/@unapproved_sequoia_replicas")) == 0)
 
         nodes = get(f"#{chunk_id}/@stored_replicas")
         for node in nodes[:2]:
             add_maintenance("cluster_node", node, "pending_restart", "")
 
-        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 5)
+        wait(lambda: get(f"#{chunk_id}/@replication_status/default/temporarily_unavailable"))
+
+        status = get(f"#{chunk_id}/@replication_status/default")
+        assert not status["underreplicated"]
+        assert len(get(f"#{chunk_id}/@stored_replicas")) == 4
 
     @authors("danilalexeev")
     def test_temporarily_unavailable_erasure_replicas(self):
@@ -1008,10 +1109,10 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
             "profiling_period": 100,
         },
         "chunk_manager": {
-            "data_node_tracker": {
-                "enable_per_location_full_heartbeats": True,
-            },
             "disposed_pending_restart_node_chunk_refresh_delay": 0,
+            "always_fetch_non_online_replicas": False,
+            "refresh_node_on_online": True,
+            "refresh_node_on_registered": False,
         },
         "cell_master": {
             "logging": {
@@ -1044,8 +1145,6 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
 
     def _wait_chunk_is_replicated(self, chunk_id, replicas_count):
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == replicas_count)
-        import sys
-        print("HJJKHJKH", self.is_sequoia_used(), file=sys.stderr)
         if self.is_sequoia_used():
             wait(lambda: len(get(f"#{chunk_id}/@unapproved_sequoia_replicas")) == 0)
         else:
@@ -1063,7 +1162,6 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
                 "pending_restart_lease_timeout": 100000
             },
         })
-        set("//sys/@config/chunk_manager/always_fetch_non_online_replicas", False)
         self._wait_for_profiler_ready()
 
         create("table", "//tmp/t", attributes={"replication_factor": 3})
@@ -1077,6 +1175,7 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
 
         add_maintenance("cluster_node", node, "pending_restart", "")
         set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
+        set("//sys/@config/chunk_manager/enable_chunk_refresh", False)
 
         self.Env.kill_service("node", indexes=[node_index])
 
@@ -1086,7 +1185,8 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
 
         assert get("//sys/cluster_nodes/{}/@state".format(node)) == "online"
 
-        self.Env.start_nodes()
+        # Observe the intermediate state before waiting for node readiness.
+        self.Env.start_nodes(sync=False)
 
         wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "restarted")
         assert node not in get(f"#{chunk_id}/@stored_replicas")
@@ -1096,7 +1196,10 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
         assert node in get(f"#{chunk_id}/@stored_replicas")
         assert len(get(f"#{chunk_id}/@stored_replicas")) == 3
 
-        sleep(1)
+        set("//sys/@config/chunk_manager/enable_chunk_refresh", True)
+
+        # Wait until refresh is finished.
+        sleep(4 + get("//sys/@config/chunk_manager/replica_approve_timeout") // 1000)
 
         assert len(get(f"#{chunk_id}/@stored_replicas")) == 3
         assert node in get(f"#{chunk_id}/@stored_replicas")
@@ -1130,7 +1233,8 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
 
         self.Env.kill_service("node", indexes=[node_index])
 
-        self.Env.start_nodes()
+        # Observe the intermediate state before waiting for node readiness.
+        self.Env.start_nodes(sync=False)
         wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "restarted")
         remove("//tmp/t")
         assert get("//sys/cluster_nodes/{}/@state".format(node)) == "restarted"
@@ -1324,6 +1428,88 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
         wait(lambda: node2 in replicas)
         wait(lambda: node1 not in replicas)
 
+    @authors("grphil")
+    def test_replica_state_changes(self):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "testing_options": {
+                    "full_heartbeat_session_sleep_duration": 1000,
+                },
+            },
+            "node_tracker": {
+                "pending_restart_lease_timeout": 100000
+            },
+        })
+
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
+        create("journal", "//tmp/j")
+        write_journal(
+            "//tmp/j",
+            [{"payload": "xxx"}],
+            journal_writer={
+                "dont_close": False,
+                "dont_seal": True,
+            }
+        )
+        chunk_id = get("//tmp/j/@chunk_ids")[0]
+        self._wait_chunk_is_replicated(chunk_id, 3)
+
+        def check_replicas(expected_state):
+            replicas = get(f"#{chunk_id}/@stored_replicas")
+            if len(replicas) != 3:
+                return False
+            for replica in replicas:
+                if replica.attributes["state"] != expected_state:
+                    return False
+            return True
+
+        wait(lambda: check_replicas("unsealed"))
+
+        sleep(5)
+
+        assert check_replicas("unsealed")
+
+        node = str(get(f"#{chunk_id}/@stored_replicas")[0])
+        node_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node))
+
+        shutil.copytree(
+            self.Env.configs["node"][node_index]["data_node"]["store_locations"][0]["path"],
+            self.Env.configs["node"][node_index]["data_node"]["store_locations"][0]["path"] + "tmp")
+
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", True)
+        wait(lambda: check_replicas("sealed"))
+
+        def get_replica_state():
+            replicas = get(f"#{chunk_id}/@stored_replicas")
+            for replica in replicas:
+                if str(replica) == node:
+                    return replica.attributes["state"]
+            return None
+
+        assert get_replica_state() == "sealed"
+
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
+        set("//sys/@config/chunk_manager/enable_chunk_refresh", False)
+
+        set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
+        add_maintenance("cluster_node", node, "pending_restart", "")
+        self.Env.kill_service("node", indexes=[node_index])
+
+        shutil.rmtree(self.Env.configs["node"][node_index]["data_node"]["store_locations"][0]["path"])
+        shutil.move(
+            self.Env.configs["node"][node_index]["data_node"]["store_locations"][0]["path"] + "tmp",
+            self.Env.configs["node"][node_index]["data_node"]["store_locations"][0]["path"])
+
+        self.Env.start_nodes(sync=False)
+
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "restarted")
+        assert self._get_locations_being_disposed_count() == 0
+
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "online")
+        assert self._get_locations_being_disposed_count() == 0
+
+        assert get_replica_state() == "unsealed"
+
 
 class TestNoDisposalForRestartingNodesSequoia(TestNoDisposalForRestartingNodes):
     USE_SEQUOIA = True
@@ -1334,21 +1520,37 @@ class TestNoDisposalForRestartingNodesSequoia(TestNoDisposalForRestartingNodes):
             "profiling_period": 100,
         },
         "chunk_manager": {
-            "data_node_tracker": {
-                "enable_per_location_full_heartbeats": True,
-            },
             "disposed_pending_restart_node_chunk_refresh_delay": 0,
+            "always_fetch_non_online_replicas": False,
+            "refresh_node_on_online": True,
+            "refresh_node_on_registered": False,
             "replica_approve_timeout": 5000,
             "sequoia_chunk_replicas": {
                 "enable": True,
+                "blob_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "replicas_percentage": 100,
+                    "fetch_replicas_from_sequoia": True,
+                    "store_sequoia_replicas_on_master": True,
+                    "process_removed_sequoia_replicas_on_master": True,
+                    "validate_sequoia_replicas_fetch": True,
+                    "allow_extra_master_replicas_during_validation": False,
+                },
+                "journal_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "replicas_percentage": 100,
+                    "fetch_replicas_from_sequoia": True,
+                    "store_sequoia_replicas_on_master": True,
+                    "process_removed_sequoia_replicas_on_master": True,
+                    "validate_sequoia_replicas_fetch": True,
+                    "allow_extra_master_replicas_during_validation": False,
+                },
                 "enable_sequoia_chunk_refresh": True,
-                "enable_global_sequoia_chunk_refresh": False,  # TODO(grphil): Do not apply DELTA_DYNAMIC_MASTER_CONFIG to ground
                 "sequoia_chunk_refresh_period": 100,
-                "replicas_percentage": 100,
-                "fetch_replicas_from_sequoia": True,
             }
         },
     }
+    # TODO(grphil): Add tests for location refresh after node restart is fixed.
 
 
 class TestNoDisposalForRestartingNodesSequoiaOnly(TestNoDisposalForRestartingNodes):
@@ -1360,23 +1562,165 @@ class TestNoDisposalForRestartingNodesSequoiaOnly(TestNoDisposalForRestartingNod
             "profiling_period": 100,
         },
         "chunk_manager": {
-            "data_node_tracker": {
-                "enable_per_location_full_heartbeats": True,
-            },
             "disposed_pending_restart_node_chunk_refresh_delay": 0,
+            "always_fetch_non_online_replicas": False,
+            "refresh_node_on_online": True,
+            "refresh_node_on_registered": False,
             "replica_approve_timeout": 5000,
             "sequoia_chunk_replicas": {
                 "enable": True,
+                "blob_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "replicas_percentage": 100,
+                    "fetch_replicas_from_sequoia": True,
+                    "store_sequoia_replicas_on_master": False,
+                    "process_removed_sequoia_replicas_on_master": False,
+                },
+                "journal_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "replicas_percentage": 100,
+                    "fetch_replicas_from_sequoia": True,
+                    "store_sequoia_replicas_on_master": False,
+                    "process_removed_sequoia_replicas_on_master": False,
+                },
                 "enable_sequoia_chunk_refresh": True,
-                "enable_global_sequoia_chunk_refresh": False,  # TODO(grphil): Do not apply DELTA_DYNAMIC_MASTER_CONFIG to ground
-                "replicas_percentage": 100,
-                "fetch_replicas_from_sequoia": True,
-                "store_sequoia_replicas_on_master": False,
-                "processed_removed_sequoia_replicas_on_master": False,
-                "validate_sequoia_replicas_fetch": False,
+                "sequoia_chunk_refresh_period": 100,
             }
         },
     }
+
+
+##################################################################
+
+
+class TestFullHeartbeatLocationBackpressure(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_NODES = 1
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "node_tracker": {
+            "profiling_period": 100,
+        },
+        "chunk_manager": {
+            "data_node_tracker": {
+                "testing": {
+                    "suppress_registration_revision_validation": True,
+                },
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "master_connector": {
+                "heartbeat_period": 300,
+                "heartbeat_period_splay": 50,
+            },
+        },
+    }
+
+    @authors("aleksandra-zh")
+    def test_overlapping_full_heartbeat_for_location_rejected(self):
+        node = ls("//sys/cluster_nodes")[0]
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "master_connector": {
+                    "full_heartbeat_timeout": 1000,
+                    "location_full_heartbeat_timeout": 1000,
+                },
+            },
+        })
+
+        leader_address = get_active_primary_master_leader_address(self)
+        profiler = profiler_factory().at_primary_master(leader_address)
+
+        set("//sys/@config/chunk_manager/data_node_tracker/expected_data_node_heartbeat_duration", 100)
+        set("//sys/@config/chunk_manager/data_node_tracker/testing/full_heartbeat_delay", 5000)
+
+        self.Env.kill_nodes()
+        self.Env.start_nodes(sync=False)
+
+        wait(lambda: profiler.gauge("node_tracker/locations_with_ongoing_full_heartbeat").get() >= 1)
+        wait(lambda: profiler.counter("node_tracker/full_heartbeats_rejected_due_to_ongoing_heartbeat").get() >= 1)
+
+        set("//sys/@config/chunk_manager/data_node_tracker/testing/full_heartbeat_delay", 0)
+
+        wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "online")
+
+
+##################################################################
+
+
+class TestSequoiaReplicasBatchingWithHeartbeatThrottling(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    USE_SEQUOIA = True
+
+    NUM_NODES = 1
+
+    DELTA_MASTER_CONFIG = {
+        "logging": {
+            "abort_on_alert": False,
+        },
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "master_connector": {
+                "heartbeat_period": 500,
+                "heartbeat_period_splay": 50,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "node_tracker": {
+            "profiling_period": 100,
+        },
+        "chunk_manager": {
+            "data_node_tracker": {
+                "max_concurrent_location_full_heartbeats": 1,
+                "max_concurrent_incremental_heartbeats": 2,
+                "max_concurrent_chunk_replicas_during_full_heartbeat": 1,
+                "max_concurrent_chunk_replicas_during_incremental_heartbeat": 2,
+            },
+            "replica_approve_timeout": 5000,
+            "refresh_delay": 100,
+            "sequoia_chunk_replicas": {
+                "enable": True,
+                "blob_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "replicas_percentage": 100,
+                    "fetch_replicas_from_sequoia": True,
+                    "store_sequoia_replicas_on_master": True,
+                    "process_removed_sequoia_replicas_on_master": True,
+                    "validate_sequoia_replicas_fetch": True,
+                    "allow_extra_master_replicas_during_validation": False,
+                },
+                "enable_sequoia_chunk_refresh": True,
+                "sequoia_chunk_refresh_period": 100,
+                "batch_incremental_heartbeat": True,
+                "batch_incremental_heartbeat_period": 1000000,
+                "max_requests_in_incremental_heartbeat_batch": 1,
+                "max_replicas_in_incremental_heartbeat_batch": 1,
+            }
+        },
+    }
+
+    @authors("grphil")
+    @pytest.mark.parametrize("replicas_throttling", [True, False])
+    @pytest.mark.parametrize("flush_on_throttling", [True, False])
+    def test_incremental_heartbeat_batches_are_flushed(self, replicas_throttling, flush_on_throttling):
+        set("//sys/@config/chunk_manager/data_node_tracker/enable_chunk_replicas_throttling_in_heartbeats", replicas_throttling)
+        set("//sys/@config/chunk_manager/data_node_tracker/flush_batched_incremental_heartbeats_on_throttling", flush_on_throttling)
+
+        create("table", "//tmp/t", attributes={"erasure_codec": "reed_solomon_3_3"})
+        write_table("//tmp/t", {"a": "b"})
+        chunk = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get(f"#{chunk}/@stored_sequoia_replicas")) == 6)
 
 
 ##################################################################
@@ -1386,9 +1730,6 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
     ENABLE_MULTIDAEMON = False  # There are specific component kills.
     DELTA_NODE_CONFIG = {
         "data_node": {
-            "master_connector": {
-                "delay_before_full_heartbeat_report": 4000,
-            },
             "lease_transaction_timeout": 2000,
             "lease_transaction_ping_period": 1000,
         },
@@ -1396,6 +1737,13 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
 
     @authors("danilalexeev")
     def test_no_missing_replicas_erasure(self):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "testing_options": {
+                    "full_heartbeat_session_sleep_duration": 4000,
+                },
+            },
+        })
         set("//sys/@config/chunk_manager/disposed_pending_restart_node_chunk_refresh_delay", 10000)
 
         create("table", "//tmp/t", attributes={"erasure_codec": "reed_solomon_3_3"})
@@ -1422,7 +1770,7 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
         assert not status["parity_missing"]
 
         self.Env.kill_service("node", indexes=node_indexes)
-        self.Env.start_nodes()
+        self.Env.start_nodes(sync=False)
 
         # explicit statistics
         def check1():
@@ -1481,14 +1829,14 @@ class TestChunkServerMulticell(TestChunkServer):
     @authors("babenko")
     def test_validate_chunk_host_cell_role1(self):
         set("//sys/@config/multicell_manager/cell_descriptors/12", {"roles": ["cypress_node_host"]})
-        with raises_yt_error("cannot host chunks"):
+        with raises_yt_error("Cell with tag .* cannot host chunks"):
             create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 12})
 
     @authors("aleksandra-zh")
     @cannot_be_implemented_in_sequoia("to be dropped")
     def test_validate_chunk_host_cell_role2(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {})
-        with raises_yt_error("cannot host chunks"):
+        with raises_yt_error("Cell with tag .* cannot host chunks"):
             create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 12})
 
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", False)
@@ -1668,14 +2016,14 @@ class TestChunkServerMulticell(TestChunkServer):
         create("table", "//tmp/t", attributes={"external_cell_tag": 11})
         for i in range(10):
             write_table("<append=%true>//tmp/t", [{"a": i}])
-        with raises_yt_error("it still hosts chunks"):
+        with raises_yt_error("Role .* cannot be removed from master cell .*, because it still hosts chunks"):
             set("//sys/@config/multicell_manager/cell_descriptors/11", {"roles": ["cypress_node_host"]})
 
         set("//sys/@config/multicell_manager/cell_descriptors/11", {"roles": ["dedicated_chunk_host", "cypress_node_host"]})
-        with raises_yt_error("it still hosts chunks"):
+        with raises_yt_error("Role .* cannot be removed from master cell .*, because it still hosts chunks"):
             set("//sys/@config/multicell_manager/cell_descriptors/11", {"roles": ["cypress_node_host"]})
 
-    @authors("koloshmet")
+    @authors("danilalexeev", "koloshmet")
     def test_historically_non_vital_multicell(self):
         set("//sys/@config/chunk_manager/update_historically_non_vital_in_unexport", True)
 
@@ -1692,9 +2040,17 @@ class TestChunkServerMulticell(TestChunkServer):
         assert not get(f"#{chunk_id}/@historically_non_vital")
         assert len(get(f"#{chunk_id}/@exports")) == 1
 
+        # Wait for the destination's requisition before lowering the source's replication factor.
+        wait(lambda: get(
+            f"#{chunk_id}/@external_requisitions/12/0/replication_policy/replication_factor",
+            default=0) == 3)
+
         set("//tmp/t1/@replication_factor", 1)
-        sleep(1)
+        wait(lambda: get(f"#{chunk_id}/@local_requisition/0/replication_policy/replication_factor") == 1)
+        assert not get(f"#{chunk_id}/@historically_non_vital")
+
         remove("//tmp/concat")
+        wait(lambda: not get(f"#{chunk_id}/@exports"))
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 1)
         assert get(f"#{chunk_id}/@historically_non_vital")
 
@@ -1715,8 +2071,52 @@ class TestChunkServerPortal(TestChunkServerMulticell):
         "13": {"roles": ["chunk_host"]},
     }
 
+    @authors("danilalexeev")
+    def test_cluster_statistics_reach_all_secondary_cells(self):
+        drivers = [get_driver(index) for index in range(self.NUM_SECONDARY_MASTER_CELLS + 1)]
+        statistic_path = "//sys/@lost_vital_chunk_count"
 
-@pytest.mark.enabled_multidaemon
+        wait(lambda: all(get(statistic_path, driver=driver) == 0 for driver in drivers))
+
+        chunk_ids = {}
+        for cell_tag in (11, 12):
+            path = f"//tmp/missing_chunk_{cell_tag}"
+            create("table", path, attributes={
+                "external_cell_tag": cell_tag,
+                "replication_factor": 3,
+            })
+            write_table(path, {"key": "value"})
+            chunk_id = get_singular_chunk_id(path)
+            assert get(f"#{chunk_id}/@vital")
+            assert not get(f"#{chunk_id}/@historically_non_vital")
+            chunk_ids[cell_tag] = chunk_id
+        nodes = ls("//sys/cluster_nodes")
+
+        def all_cells_report_missing_chunks():
+            expected_count = sum(
+                get("//sys/local_lost_vital_chunks/@count", driver=driver)
+                for driver in drivers
+            )
+            return expected_count > 0 and all(
+                get(statistic_path, driver=driver) == expected_count
+                for driver in drivers
+            )
+
+        try:
+            set_nodes_banned(nodes, True)
+            wait(lambda: all(
+                chunk_id in ls("//sys/local_lost_vital_chunks", driver=drivers[cell_tag - 10])
+                for cell_tag, chunk_id in chunk_ids.items()
+            ))
+            # Cells 12 and 13 receive aggregate statistics; node host 11
+            # recomputes the total, including its own missing chunk.
+            wait(all_cells_report_missing_chunks)
+        finally:
+            set_nodes_banned(nodes, False)
+
+        wait(lambda: all(get(statistic_path, driver=driver) == 0 for driver in drivers))
+
+
 class TestChunkServerSequoia(TestChunkServerMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1980,7 +2380,6 @@ class TestChunkServerReplicaRemovalMulticell(TestChunkServerReplicaRemoval):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestLastFinishedJobStoreLimit(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2023,7 +2422,6 @@ class TestLastFinishedJobStoreLimit(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestMultipleErasurePartsPerNode(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2054,7 +2452,6 @@ class TestMultipleErasurePartsPerNode(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestConsistentChunkReplicaPlacementBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -2551,11 +2948,137 @@ class TestChunkWeightStatisticsHistogram(YTEnvSetup):
         with pytest.raises(StopIteration):
             next(checker_state)
 
+    def teardown_method(self, method):
+        leader_address = get_active_primary_master_leader_address(self)
+        orchid_path = f"//sys/primary_masters/{leader_address}/orchid/chunk_manager/verbosely_logged_chunks"
+        for chunk_id in get(orchid_path, default=[]):
+            set(f"#{chunk_id}/@enable_verbose_logging", False)
+        super().teardown_method(method)
+
+    def _get_verbose_logging_chunk_count(self):
+        leader_address = get_active_primary_master_leader_address(self)
+        profiler = profiler_factory().at_primary_master(leader_address)
+        return profiler.gauge("chunk_server/verbosely_logged_chunk_count").get()
+
+    @authors("evanevannnn")
+    def test_verbose_chunk_logging_attribute(self):
+        set("//sys/@config/chunk_manager/max_verbosely_logged_chunks", 10)
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        # Default value must be false.
+        assert not get(f"#{chunk_id}/@enable_verbose_logging")
+
+        set(f"#{chunk_id}/@enable_verbose_logging", True)
+        assert get(f"#{chunk_id}/@enable_verbose_logging")
+
+        set(f"#{chunk_id}/@enable_verbose_logging", False)
+        assert not get(f"#{chunk_id}/@enable_verbose_logging")
+
+    @authors("evanevannnn")
+    def test_verbose_chunk_logging_limit(self):
+        set("//sys/@config/chunk_manager/max_verbosely_logged_chunks", 2)
+
+        chunk_ids = []
+        for i in range(3):
+            create("table", f"//tmp/t{i}")
+            write_table(f"//tmp/t{i}", {"a": "b"})
+            chunk_ids.append(get_singular_chunk_id(f"//tmp/t{i}"))
+
+        set(f"#{chunk_ids[0]}/@enable_verbose_logging", True)
+        set(f"#{chunk_ids[1]}/@enable_verbose_logging", True)
+
+        with raises_yt_error("Too many chunks with verbose logging enabled"):
+            set(f"#{chunk_ids[2]}/@enable_verbose_logging", True)
+
+        # Disabling logging for one chunk should free up a slot.
+        set(f"#{chunk_ids[0]}/@enable_verbose_logging", False)
+        set(f"#{chunk_ids[2]}/@enable_verbose_logging", True)
+        assert get(f"#{chunk_ids[2]}/@enable_verbose_logging")
+
+    @authors("evanevannnn")
+    def test_verbose_chunk_logging_superuser_only(self):
+        set("//sys/@config/chunk_manager/max_verbosely_logged_chunks", 10)
+
+        create_user("u")
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        with raises_yt_error("Access denied"):
+            set(f"#{chunk_id}/@enable_verbose_logging", True, authenticated_user="u")
+
+        assert not get(f"#{chunk_id}/@enable_verbose_logging")
+
+    @authors("evanevannnn")
+    def test_verbose_chunk_logging_cleanup_on_destroy(self):
+        set("//sys/@config/chunk_manager/max_verbosely_logged_chunks", 10)
+
+        wait(lambda: self._get_verbose_logging_chunk_count() == 0)
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        set(f"#{chunk_id}/@enable_verbose_logging", True)
+        wait(lambda: self._get_verbose_logging_chunk_count() == 1)
+
+        # Removing the table destroys the chunk and must free its slot.
+        remove("//tmp/t")
+        gc_collect()
+        wait(lambda: self._get_verbose_logging_chunk_count() == 0)
+
+    @authors("evanevannnn")
+    def test_verbose_chunk_logging_persistence(self):
+        set("//sys/@config/chunk_manager/max_verbosely_logged_chunks", 10)
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        set(f"#{chunk_id}/@enable_verbose_logging", True)
+        assert get(f"#{chunk_id}/@enable_verbose_logging")
+
+        build_snapshot(cell_id=get("//sys/@cell_id"))
+
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        assert get(f"#{chunk_id}/@enable_verbose_logging")
+
+    @authors("evanevannnn")
+    def test_verbose_chunk_logging_alert(self):
+        def has_alert(msg):
+            for alert in get("//sys/@master_alerts"):
+                if msg in str(alert):
+                    return True
+            return False
+
+        set("//sys/@config/chunk_manager/max_verbosely_logged_chunks", 10)
+        set("//sys/@config/chunk_manager/max_verbose_logging_enabled_duration", 1000)
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        assert not has_alert("Chunk stays in verbose logging set for too long")
+
+        set(f"#{chunk_id}/@enable_verbose_logging", True)
+
+        # The alert must eventually fire once the chunk stays in the set past the threshold.
+        wait(lambda: has_alert("Chunk stays in verbose logging set for too long"))
+
+        # Disabling logging must clear the alert (the alert source is self-clearing).
+        set(f"#{chunk_id}/@enable_verbose_logging", False)
+        wait(lambda: not has_alert("Chunk stays in verbose logging set for too long"))
+
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestChunkCreationThrottler(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2564,7 +3087,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
 
     @authors("h0pless")
     def test_per_user_bytes_throttler_root(self):
-        with raises_yt_error("Cannot set \"chunk_service_request_bytes_throttler\" for \"root\""):
+        with raises_yt_error("Cannot set"):
             set("//sys/users/root/@chunk_service_request_bytes_throttler", {"limit": 1337})
 
     @authors("h0pless")
@@ -2598,7 +3121,6 @@ class TestChunkCreationThrottler(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestChunkServerCypressIntegration(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
@@ -2618,3 +3140,41 @@ class TestChunkServerCypressIntegration(YTEnvSetup):
         # Should not raise
         set(f"//sys/chunks/{chunk_id}/@a", "a")
         assert get(f"//sys/chunks/{chunk_id}/@a") == "a"
+
+
+##################################################################
+
+
+class TestChunkRefreshQueueWaitTime(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "chunk_refresh_period": 100,
+            "chunk_refresh_delay": 0,
+        }
+    }
+
+    def _get_master_profiler(self):
+        return profiler_factory().at_primary_master(ls("//sys/primary_masters")[0])
+
+    @authors("aleksandra-zh")
+    def test_refresh_queue_wait_time_counter(self):
+        profiler = self._get_master_profiler()
+        blob_gauge = profiler.gauge("chunk_server/blob_refresh_queue_wait_time")
+
+        # Disable refresh so the chunk sits in the queue long enough for us to observe wait time.
+        set("//sys/@config/chunk_manager/enable_chunk_refresh", False)
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        wait(lambda: get_singular_chunk_id("//tmp/t") is not None)
+
+        sleep(0.5)
+
+        set("//sys/@config/chunk_manager/enable_chunk_refresh", True)
+
+        # The blob gauge must report a nonzero wait time once the chunk is dequeued.
+        wait(lambda: blob_gauge.get() is not None and blob_gauge.get() > 0)

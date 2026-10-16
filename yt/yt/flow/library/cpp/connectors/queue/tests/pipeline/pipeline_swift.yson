@@ -1,0 +1,47 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "TReader";
+                "watermark_strategy" = {
+                    "watermark_generator" = {
+                        "use_source_watermark" = true;
+                    };
+                };
+                "output_stream_ids" = ["data"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "<sink_class_name>";
+                        "input_stream_ids" = ["data"];
+                        "parameters" = {
+                            "write_flow_queue_meta" = true;
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "data" = {
+                "schema" = [
+                    {name = "data"; type = "string"; required = %true;};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {
+                "parameters" = {
+                };
+            };
+        };
+    };
+}

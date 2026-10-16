@@ -99,7 +99,7 @@ TRawRowHolder StateFromTKV(const void* rawTKV)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NRoren::NPrivate::NProfileState
+} // namespace NRoren::NPrivate::NProfileState
 
 namespace NRoren {
 

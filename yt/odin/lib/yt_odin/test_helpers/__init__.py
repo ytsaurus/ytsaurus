@@ -107,10 +107,9 @@ def configure_odin(yt_cluster_url, checks_path):
     storage_file = tempfile.mkstemp()[1]
     storage_factory = lambda: FileStorage(storage_file)  # noqa
 
-    socket_path = os.path.join(
-        tempfile.gettempdir(),
-        "{}.sock".format(generate_unique_id("configure_checks"))
-    )
+    # Short dir: sandbox tempdir overflows the ~108-byte AF_UNIX limit.
+    socket_dir = tempfile.mkdtemp(prefix="odin_", dir="/tmp")
+    socket_path = os.path.join(socket_dir, "checks.sock")
 
     odin_module.RELOAD_CHECKS = True
     odin = Odin(
@@ -128,6 +127,7 @@ def configure_odin(yt_cluster_url, checks_path):
         yield odin
     finally:
         odin.terminate()
+        shutil.rmtree(socket_dir, ignore_errors=True)
 
 
 def configure_and_run_checks(yt_cluster_url, checks_path):
@@ -159,6 +159,7 @@ class YtTestEnvironment(object):
             master_cache_count=yt_instance_params.get("master_cache_count", 1),
             queue_agent_count=yt_instance_params.get("queue_agent_count", 0),
             queue_agent_config=yt_instance_params.get("queue_agent_config", {}),
+            tcmalloc_profile_sampling_rate=yt_instance_params.get("tcmalloc_profile_sampling_rate", 0),
             path=path,
             id=self.yt_instance_id,
             fqdn="localhost",
@@ -206,6 +207,14 @@ def prepare_yt():
 @pytest.fixture(scope="function")
 def yt_env(request):
     environment = YtTestEnvironment()
+    request.addfinalizer(lambda: environment.cleanup())
+    return environment
+
+
+@pytest.fixture(scope="function")
+def yt_env_with_tagged_memory_profiling(request):
+    # This check reads tcmalloc tagged memory statistics, so leave heap sampling enabled.
+    environment = YtTestEnvironment({"tcmalloc_profile_sampling_rate": None})
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 

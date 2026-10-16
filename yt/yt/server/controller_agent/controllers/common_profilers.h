@@ -6,7 +6,7 @@
 
 #include <yt/yt/library/syncmap/map.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -33,21 +33,21 @@ private:
     NProfiling::TTimeCounter TotalAbortedJobTime_ =
         ControllerAgentProfiler().TimeCounter("/jobs/total_aborted_wall_time");
 
-    using TStartedJobCounterKey = std::tuple<EJobType, TString>;
-    using TAbortedJobCounterKey = std::tuple<EJobType, EAbortReason, TString>;
-    using TAbortedJobByErrorCounterKey = std::tuple<EJobType, int, TString>;
-    using TFailedJobCounterKey = std::tuple<EJobType, TString>;
-    using TCompletedJobCounterKey = std::tuple<EJobType, EInterruptionReason, TString>;
+    using TStartedJobCounterKey = std::tuple<EJobType, std::string>;
+    using TAbortedJobCounterKey = std::tuple<EJobType, EAbortReason, std::string>;
+    using TAbortedJobByErrorCounterKey = std::tuple<EJobType, int, std::string>;
+    using TFailedJobCounterKey = std::tuple<EJobType, std::string>;
+    using TCompletedJobCounterKey = std::tuple<EJobType, EInterruptionReason, std::string>;
 
     struct TInProgressJobCounter
         : public TRefCounted
     {
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, Lock);
         i64 Count = 0;
         NProfiling::TGauge Gauge;
     };
     using TInProgressJobCounterPtr = TIntrusivePtr<TInProgressJobCounter>;
-    using TInProgressJobCounterKey = std::tuple<EJobState, EJobType, TString>;
+    using TInProgressJobCounterKey = std::tuple<EJobState, EJobType, std::string>;
 
     NConcurrency::TSyncMap<TStartedJobCounterKey, NProfiling::TCounter> StartedJobCounters_;
     NConcurrency::TSyncMap<TAbortedJobCounterKey, NProfiling::TCounter> AbortedJobCounters_;
@@ -57,10 +57,10 @@ private:
     NConcurrency::TSyncMap<TInProgressJobCounterKey, TInProgressJobCounterPtr> InProgressJobCounters_;
 
     template <class EErrorCodeType>
-    void ProfileAbortedJobByError(const TString& treeId, EJobType jobType, const TError& error, EErrorCodeType errorCode);
+    void ProfileAbortedJobByError(const std::string& treeId, EJobType jobType, const TError& error, EErrorCodeType errorCode);
 
-    void UpdateInProgressJobCount(EJobState jobState, EJobType jobType, const TString& treeId, bool increment);
-    void ProfileFinishedJob(EJobType jobType, std::optional<EJobState> previousJobState, const TString& treeId);
+    void UpdateInProgressJobCount(EJobState jobState, EJobType jobType, const std::string& treeId, bool increment);
+    void ProfileFinishedJob(EJobType jobType, std::optional<EJobState> previousJobState, const std::string& treeId);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProfiler)

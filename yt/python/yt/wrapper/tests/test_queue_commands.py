@@ -45,7 +45,7 @@ class TestQueueCommands(object):
         assert list(yt.select_rows("* from [//sys/queue_agents/consumer_registrations]")) == [
             {
                 "queue_cluster": "primary", "queue_path": queue,
-                "consumer_cluster": "primary", "consumer_path": consumer,
+                "consumer_cluster": "primary", "consumer_path": consumer, "consumer_name": None,
                 "vital": vital,
                 "partitions": partitions,
             }

@@ -11,11 +11,12 @@
 
 #include <yt/yt/core/net/connection.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NKafkaProxy {
 
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NConcurrency;
 using namespace NKafka;
 
@@ -31,7 +32,7 @@ class TConnection
 {
 public:
     TConnection(
-        TProxyBootstrapConfigPtr config,
+        TKafkaServerConfigPtr config,
         NNet::IConnectionPtr connection,
         IInvokerPtr invoker,
         TRequestCallback requesCallback,
@@ -88,7 +89,7 @@ public:
 private:
     const TConnectionId ConnectionId_;
 
-    const TProxyBootstrapConfigPtr Config_;
+    const TKafkaServerConfigPtr Config_;
 
     const NNet::IConnectionPtr Connection_;
     const IPollerPtr Poller_;
@@ -188,7 +189,7 @@ private:
                 fragments.push_back(std::move(sharedFragment));
             } else {
                 auto clonedFragment = TSharedMutableRef::Allocate<TKafkaConnectionTag>(
-                    fragment.size());
+                    fragment.size(), {.InitializeStorage = false});
                 memcpy(clonedFragment.begin(), fragment.begin(), fragment.size());
                 fragments.push_back(std::move(clonedFragment));
             }
@@ -206,7 +207,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IConnectionPtr CreateConnection(
-    TProxyBootstrapConfigPtr config,
+    TKafkaServerConfigPtr config,
     NNet::IConnectionPtr connection,
     IInvokerPtr invoker,
     TRequestCallback requesCallback,

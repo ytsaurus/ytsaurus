@@ -4,6 +4,7 @@ public:
         http:
             mapreduce-example: '[GitHub](https://github.com/ytsaurus/ytsaurus/tree/main/yt/docs/code-examples/python/http-proxy.py)'
             tmp-dir: '//tmp/yt_examples'
+            light-proxy: <light-proxy>
         common:
             heavy-proxy: <heavy-proxy>
 

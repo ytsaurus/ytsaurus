@@ -18,6 +18,7 @@ PEERDIR(
     yt/yt/ytlib
     yt/yt/server/lib/hive
     yt/yt/server/lib/election
+    yt/yt/server/lib/tablet_balancer
     yt/yt/server/lib/transaction_supervisor
 )
 

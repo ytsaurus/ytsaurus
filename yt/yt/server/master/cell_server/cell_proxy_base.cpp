@@ -93,10 +93,14 @@ void TCellProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* des
     TBase::ListSystemAttributes(descriptors);
 
     const auto* cell = GetThisImpl();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
     descriptors->push_back(EInternedAttributeKey::LeadingPeerId);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Health)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HealthHistory)
+        .SetOpaque(true)
+        .SetPresent(multicellManager->IsPrimaryMaster()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LocalHealth)
         .SetOpaque(true));
     descriptors->push_back(EInternedAttributeKey::Peers);
@@ -155,6 +159,14 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
             }
             return true;
 
+        case EInternedAttributeKey::HealthHistory:
+            if (!multicellManager->IsPrimaryMaster()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(cell->HealthHistory());
+            return true;
+
         case EInternedAttributeKey::LocalHealth:
             BuildYsonFluently(consumer)
                 .Value(cell->GetHealth());
@@ -187,6 +199,10 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
                                 .DoIf(!peer.LastRevocationReason.IsOK(), [&] (auto fluent) {
                                     fluent
                                         .Item("last_revocation_reason").Value(peer.LastRevocationReason);
+                                })
+                                .DoIf(!peer.LastHydraRestartReason.IsOK(), [&] (auto fluent) {
+                                    fluent
+                                        .Item("last_hydra_restart_reason").Value(peer.LastHydraRestartReason);
                                 })
                                 .DoIf(transaction, [&] (TFluentMap fluent) {
                                     fluent

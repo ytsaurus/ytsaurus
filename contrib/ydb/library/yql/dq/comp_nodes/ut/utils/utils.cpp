@@ -32,6 +32,34 @@ TRuntimeNode ToBlockList(TProgramBuilder& pgmBuilder, TRuntimeNode list) {
 
 NUdf::TUnboxedValuePod ToBlocks(TComputationContext& ctx, size_t blockSize, const TArrayRef<TType* const> types,
                                 const NUdf::TUnboxedValuePod& values) {
+    const size_t single[] = {blockSize};
+    return ToBlocks(ctx, single, types, values);
+}
+
+NUdf::TUnboxedValuePod ToBlocks(TComputationContext& ctx, TArrayRef<const size_t> blockSizes,
+                                const TArrayRef<TType* const> types, const NUdf::TUnboxedValuePod& values) {
+    Y_ABORT_UNLESS(!blockSizes.empty(), "at least one block size is required");
+    const auto& holderFactory = ctx.HolderFactory;
+    const size_t width = types.size();
+    const size_t total = values.GetListLength();
+
+    if (width == 0) {
+        TDefaultListRepresentation listValues;
+        size_t converted = 0;
+        size_t blockIndex = 0;
+        while (converted < total) {
+            const size_t blockSize = blockSizes[blockIndex++ % blockSizes.size()];
+            Y_ABORT_UNLESS(blockSize > 0, "block size must be positive");
+            const size_t thisBlock = std::min(blockSize, total - converted);
+            NUdf::TUnboxedValue* items = nullptr;
+            const auto tuple = holderFactory.CreateDirectArrayHolder(1, items);
+            items[0] = MakeBlockCount(holderFactory, thisBlock, NYql::DefaultDatumTestValidationMode);
+            listValues = listValues.Append(std::move(tuple));
+            converted += thisBlock;
+        }
+        return holderFactory.CreateDirectListHolder(std::move(listValues));
+    }
+
     const auto maxLength =
         CalcBlockLen(std::accumulate(types.cbegin(), types.cend(), 0ULL, [](size_t max, const TType* type) {
             return std::max(max, CalcMaxBlockItemSize(type));
@@ -41,14 +69,14 @@ NUdf::TUnboxedValuePod ToBlocks(TComputationContext& ctx, size_t blockSize, cons
         return MakeArrayBuilder(TTypeInfoHelper(), type, ctx.ArrowMemoryPool, maxLength, &ctx.Builder->GetPgBuilder());
     });
 
-    const auto& holderFactory = ctx.HolderFactory;
-    const size_t width = types.size();
-    const size_t total = values.GetListLength();
     NUdf::TUnboxedValue iterator = values.GetListIterator();
     NUdf::TUnboxedValue current;
     size_t converted = 0;
+    size_t blockIndex = 0;
     TDefaultListRepresentation listValues;
     while (converted < total) {
+        const size_t blockSize = blockSizes[blockIndex++ % blockSizes.size()];
+        Y_ABORT_UNLESS(blockSize > 0, "block size must be positive");
         for (size_t i = 0; i < blockSize && iterator.Next(current); i++, converted++) {
             for (size_t j = 0; j < builders.size(); j++) {
                 const NUdf::TUnboxedValuePod& item = current.GetElement(j);
@@ -68,9 +96,9 @@ NUdf::TUnboxedValuePod ToBlocks(TComputationContext& ctx, size_t blockSize, cons
             NUdf::TUnboxedValue* items = nullptr;
             const auto tuple = holderFactory.CreateDirectArrayHolder(width + 1, items);
             for (size_t i = 0; i < width; i++) {
-                items[i] = holderFactory.CreateArrowBlock(std::move(chunk[i]));
+                items[i] = holderFactory.CreateArrowBlock(std::move(chunk[i]), NYql::DefaultDatumTestValidationMode);
             }
-            items[width] = MakeBlockCount(holderFactory, chunkLen);
+            items[width] = MakeBlockCount(holderFactory, chunkLen, NYql::DefaultDatumTestValidationMode);
 
             listValues = listValues.Append(std::move(tuple));
         }
@@ -132,7 +160,7 @@ TType* MakeJoinType(TDqProgramBuilder& pgmBuilder, EJoinKind joinKind, TType* le
 
 // List<Tuple<...>> -> Stream<Multi<...>>
 TRuntimeNode ToWideStream(TProgramBuilder& pgmBuilder, TRuntimeNode list) {
-    auto wideFlow = pgmBuilder.ExpandMap(pgmBuilder.ToFlow(list), [&](TRuntimeNode tupleNode) -> TRuntimeNode::TList {
+    auto wideFlow = pgmBuilder.ExpandMap(pgmBuilder.ToFlow(list, {}), [&](TRuntimeNode tupleNode) -> TRuntimeNode::TList {
         TTupleType* tupleType = AS_TYPE(TTupleType, tupleNode.GetStaticType());
         TRuntimeNode::TList wide;
         wide.reserve(tupleType->GetElementsCount());
@@ -147,13 +175,13 @@ TRuntimeNode ToWideStream(TProgramBuilder& pgmBuilder, TRuntimeNode list) {
 // Stream<Multi<...>> -> List<Tuple<...>>
 TRuntimeNode FromWideStream(TProgramBuilder& pgmBuilder, TRuntimeNode stream) {
     return pgmBuilder.Collect(
-        pgmBuilder.NarrowMap(pgmBuilder.ToFlow(stream),
+        pgmBuilder.NarrowMap(pgmBuilder.ToFlow(stream, {}),
                              [&](TRuntimeNode::TList items) -> TRuntimeNode { return pgmBuilder.NewTuple(items); }));
 }
 
 // List<Tuple<...>> -> WideFlow
 TRuntimeNode ToWideFlow(TProgramBuilder& pgmBuilder, TRuntimeNode list) {
-    auto wideFlow = pgmBuilder.ExpandMap(pgmBuilder.ToFlow(list), [&](TRuntimeNode tupleNode) -> TRuntimeNode::TList {
+    auto wideFlow = pgmBuilder.ExpandMap(pgmBuilder.ToFlow(list, {}), [&](TRuntimeNode tupleNode) -> TRuntimeNode::TList {
         TTupleType* tupleType = AS_TYPE(TTupleType, tupleNode.GetStaticType());
         TRuntimeNode::TList wide;
         wide.reserve(tupleType->GetElementsCount());
@@ -184,7 +212,7 @@ TVector<NUdf::TUnboxedValue> ConvertListToVector(const NUdf::TUnboxedValue& list
 // Stream<Multi<...>> -> Stream<Tuple<...>>
 TRuntimeNode FromWideStreamToTupleStream(TProgramBuilder& pgmBuilder, TRuntimeNode stream) {
     return pgmBuilder.FromFlow(
-        pgmBuilder.NarrowMap(pgmBuilder.ToFlow(stream),
+        pgmBuilder.NarrowMap(pgmBuilder.ToFlow(stream, {}),
                              [&](TRuntimeNode::TList items) -> TRuntimeNode { return pgmBuilder.NewTuple(items); }));
 }
 

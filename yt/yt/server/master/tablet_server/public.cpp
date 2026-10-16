@@ -6,8 +6,6 @@ namespace NYT::NTabletServer {
 
 const std::string DefaultTabletCellBundleName("default");
 
-const TTimeFormula DefaultTabletBalancerSchedule = MakeTimeFormula("minutes % 5 == 0");
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer

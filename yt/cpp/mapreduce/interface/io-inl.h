@@ -4,7 +4,6 @@
 #error "Direct inclusion of this file is not allowed, use io.h"
 #include "io.h" // For the sake of sane code completion.
 #endif
-#undef IO_INL_H_
 
 #include "finish_or_die.h"
 
@@ -123,6 +122,8 @@ struct IReaderImplBase
     virtual i64 GetTabletIndex() const;
     virtual bool IsEndOfStream() const;
     virtual bool IsRawReaderExhausted() const;
+    virtual void Abort();
+    virtual bool IsAborted() const;
 };
 
 struct INodeReaderImpl
@@ -161,7 +162,7 @@ namespace NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 // We don't include <yt/cpp/mapreduce/interface/logging/yt_log.h> in this file
-// to avoid macro name clashes (specifically YT_LOG_DEBUG)
+// to avoid macro name clashes (specifically YT_TLOG_DEBUG)
 void LogTableReaderStatistics(ui64 rowCount, TMaybe<size_t> byteCount);
 
 template <class T>
@@ -221,6 +222,16 @@ public:
     i64 GetTabletIndex() const
     {
         return Reader_->GetTabletIndex();
+    }
+
+    void Abort()
+    {
+        Reader_->Abort();
+    }
+
+    bool IsAborted() const
+    {
+        return Reader_->IsAborted();
     }
 
 protected:

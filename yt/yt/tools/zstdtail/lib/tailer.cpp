@@ -63,7 +63,7 @@ public:
 
             onSuccess();
 
-            YT_LOG_DEBUG("Watch created");
+            YT_TLOG_DEBUG("Watch created");
 
             std::unique_ptr<TFile> file;
             try {
@@ -75,7 +75,7 @@ public:
 
             onSuccess();
 
-            YT_LOG_DEBUG("File opened");
+            YT_TLOG_DEBUG("File opened");
 
             RunForFile(file.get(), std::exchange(firstRun, false));
         }
@@ -103,7 +103,7 @@ private:
             return false;
         }
 
-        YT_LOG_DEBUG("File was rotated");
+        YT_TLOG_DEBUG("File was rotated");
         return true;
     }
 
@@ -111,10 +111,11 @@ private:
     {
         if (firstRun) {
             auto offset = LocateLastFrame(file);
-            YT_LOG_DEBUG("Tailing file from last frame (Offset: %v)", offset);
+            YT_TLOG_DEBUG("Tailing file from last frame")
+                .With("Offset", offset);
             return offset;
         } else {
-            YT_LOG_DEBUG("Tailing file from start");
+            YT_TLOG_DEBUG("Tailing file from start");
             return 0;
         }
     }
@@ -140,7 +141,7 @@ private:
         for (;;) {
             auto frameKind = TryDetectFrameKind(file, offset);
             if (!frameKind) {
-                YT_LOG_DEBUG("Error detecting frame kind, sleeping and retrying");
+                YT_TLOG_DEBUG("Error detecting frame kind, sleeping and retrying");
                 if (!onError()) {
                     return;
                 }
@@ -151,7 +152,7 @@ private:
                 case EZstdFrameType::Data: {
                     auto inSize = TryDecodeDataFrame(file, offset);
                     if (!inSize) {
-                        YT_LOG_DEBUG("Error decoding data frame, sleeping and retrying");
+                        YT_TLOG_DEBUG("Error decoding data frame, sleeping and retrying");
                         if (!onError()) {
                             return;
                         }
@@ -166,7 +167,8 @@ private:
                 case EZstdFrameType::Sync:
                     onSuccess();
                     offset += ZstdSyncTagSize;
-                    YT_LOG_DEBUG("Zstd sync tag skipped (Offset: %v)", offset);
+                    YT_TLOG_DEBUG("Zstd sync tag skipped")
+                        .With("Offset", offset);
                     break;
 
                 case EZstdFrameType::Unknown:
@@ -192,20 +194,21 @@ private:
                     THROW_ERROR_EXCEPTION("Uexpected end of file");
                 }
 
-                YT_LOG_DEBUG("Input read (Offset: %v, BytesRead: %v)",
-                    readOffset,
-                    bytesRead);
+                YT_TLOG_DEBUG("Input read")
+                    .With("Offset", readOffset)
+                    .With("BytesRead", bytesRead);
 
                 auto scanRef = TRef(buffer.data(), bytesRead);
                 i64 scanRefStartOffset = readOffset;
                 for (;;) {
                     auto newSyncTagOffset = FindLastZstdSyncTagOffset(scanRef, scanRefStartOffset);
                     if (!newSyncTagOffset) {
-                        YT_LOG_DEBUG("No zstd sync tag found");
+                        YT_TLOG_DEBUG("No zstd sync tag found");
                         break;
                     }
 
-                    YT_LOG_DEBUG("Zstd sync tag found (Offset: %v)", newSyncTagOffset);
+                    YT_TLOG_DEBUG("Zstd sync tag found")
+                        .With("Offset", newSyncTagOffset);
 
                     lastSyncTagOffset = newSyncTagOffset;
                     i64 delta = *lastSyncTagOffset - scanRefStartOffset + 1;
@@ -214,16 +217,17 @@ private:
                 }
 
                 if (lastSyncTagOffset) {
-                    YT_LOG_DEBUG("Last zstd sync tag found (TagOffset: %v)", lastSyncTagOffset);
+                    YT_TLOG_DEBUG("Last zstd sync tag found")
+                        .With("TagOffset", lastSyncTagOffset);
                     break;
                 }
 
                 if (readOffset == 0) {
-                    YT_LOG_DEBUG("Already at the beginning of the file");
+                    YT_TLOG_DEBUG("Already at the beginning of the file");
                     break;
                 }
 
-                YT_LOG_DEBUG("Rewinding read offset");
+                YT_TLOG_DEBUG("Rewinding read offset");
                 readOffset = std::max(readOffset - (BufferSize - ZstdSyncTagSize), static_cast<i64>(0));
             }
         }
@@ -233,22 +237,25 @@ private:
 
     std::optional<EZstdFrameType> TryDetectFrameKind(TFile* file, i64 offset)
     {
-        YT_LOG_DEBUG("Detecting frame kind (Offset: %v)", offset);
+        YT_TLOG_DEBUG("Detecting frame kind")
+            .With("Offset", offset);
 
         std::array<char, ZstdFrameSignatureSize> buffer;
         if (file->Pread(buffer.data(), buffer.size(), offset) != buffer.size()) {
-            YT_LOG_DEBUG("Cannot read a complete frame signature");
+            YT_TLOG_DEBUG("Cannot read a complete frame signature");
             return std::nullopt;
         }
 
         auto type = DetectZstdFrameType(TRef(buffer.begin(), buffer.end()));
-        YT_LOG_DEBUG("Frame kind detected (Type: %v)", type);
+        YT_TLOG_DEBUG("Frame kind detected")
+            .With("Type", type);
         return type;
     }
 
     std::optional<i64> TryDecodeDataFrame(TFile* file, i64 offset)
     {
-        YT_LOG_DEBUG("Decoding data frame (Offset: %v)", offset);
+        YT_TLOG_DEBUG("Decoding data frame")
+            .With("Offset", offset);
 
         std::vector<char> inBuffer(BufferSize);
         ::ZSTD_inBuffer zstdInBuffer{inBuffer.data(), /*size*/ 0, /*pos*/ 0};
@@ -265,15 +272,15 @@ private:
                     zstdInBuffer.pos = 0;
                     zstdInBuffer.size = file->Pread(inBuffer.data(), inBuffer.size(), offset);
                     if (zstdInBuffer.size != 0) {
-                        YT_LOG_DEBUG("Input buffer refilled (Offset: %v, BytesRead: %v)",
-                            offset,
-                            zstdInBuffer.size);
+                        YT_TLOG_DEBUG("Input buffer refilled")
+                            .With("Offset", offset)
+                            .With("BytesRead", zstdInBuffer.size);
                         offset += zstdInBuffer.size;
                         break;
                     }
 
-                    YT_LOG_DEBUG("Empty read, sleeping and retrying (Offset: %v)",
-                        offset);
+                    YT_TLOG_DEBUG("Empty read, sleeping and retrying")
+                        .With("Offset", offset);
                     Sleep();
                 }
             }
@@ -283,50 +290,52 @@ private:
             auto result = ::ZSTD_decompressStream(ZstdContext_.get(), &zstdOutBuffer, &zstdInBuffer);
             if (::ZSTD_isError(result)) {
                 THROW_ERROR_EXCEPTION("Error decompressing zstd frame")
-                    << TError("%v", ::ZSTD_getErrorName(result));
+                    .With(TError("%v", ::ZSTD_getErrorName(result)));
             }
 
             auto inSize = zstdInBuffer.pos - oldInPos;
             totalInSize += inSize;
 
-            YT_LOG_DEBUG("Data frame part decoded (InSize: %v, OutSize: %v)",
-                inSize,
-                zstdOutBuffer.pos);
+            YT_TLOG_DEBUG("Data frame part decoded")
+                .With("InSize", inSize)
+                .With("OutSize", zstdOutBuffer.pos);
 
             Listener_->OnData(TRef(outBuffer.data(), zstdOutBuffer.pos));
 
             totalOutSize += zstdOutBuffer.pos;
 
             if (result == 0) {
-                YT_LOG_DEBUG("Data frame finished");
+                YT_TLOG_DEBUG("Data frame finished");
                 break;
             }
         }
 
-        YT_LOG_DEBUG("Data frame decoded (TotalInSize: %v, TotalOutSize: %v)",
-            totalInSize,
-            totalOutSize);
+        YT_TLOG_DEBUG("Data frame decoded")
+            .With("TotalInSize", totalInSize)
+            .With("TotalOutSize", totalOutSize);
 
         return totalInSize;
     }
 
     bool TrySkipZstdSyncFrame(TFile* file, i64 offset)
     {
-        YT_LOG_DEBUG("Skipping zstd sync frame (Offset: %v)", offset);
+        YT_TLOG_DEBUG("Skipping zstd sync frame")
+            .With("Offset", offset);
 
         std::array<char, ZstdSyncTagSize> buffer;
         if (file->Pread(buffer.data(), buffer.size(), offset) != buffer.size()) {
-            YT_LOG_DEBUG("Cannot read a complete zstd sync frame");
+            YT_TLOG_DEBUG("Cannot read a complete zstd sync frame");
             return false;
         }
 
         auto tagOffset = FindLastZstdSyncTagOffset(TRef(buffer.data(), buffer.size()), offset);
-        YT_LOG_DEBUG("Zstd sync tag found (TagOffset: %v)", tagOffset);
+        YT_TLOG_DEBUG("Zstd sync tag found")
+            .With("TagOffset", tagOffset);
         if (tagOffset != offset) {
             THROW_ERROR_EXCEPTION("Broken zstd sync frame at offset %v", offset);
         }
 
-        YT_LOG_DEBUG("Zstd sync frame skipped");
+        YT_TLOG_DEBUG("Zstd sync frame skipped");
         return true;
     }
 

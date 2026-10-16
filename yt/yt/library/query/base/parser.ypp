@@ -173,7 +173,7 @@
 
 %type <TTableDescriptor> table-descriptor
 %type <std::optional<std::string>> optional-alias
-%type <TTableHintPtr> optional-hint
+%type <TTableHint> optional-hint
 
 %type <bool> is-desc
 %type <bool> is-left
@@ -334,11 +334,11 @@ optional-alias
 optional-hint
     : KwWithHint StringLiteral[hint]
         {
-            $$ = ConvertTo<TTableHintPtr>(NYson::TYsonStringBuf($hint));
+            $$ = ConvertTo<TTableHint>(NYson::TYsonStringBuf($hint));
         }
     |
         {
-            $$ = New<TTableHint>();
+            $$ = TTableHint();
         }
 ;
 
@@ -380,7 +380,7 @@ from-clause-tail
             // COMPAT
             if ($expr.size() == 1) {
                 if (auto queryExpr = $expr[0]->As<TQueryExpression>()) {
-                    auto subqueryHead = New<TQueryAstHead>();
+                    auto subqueryHead = head->New<TQueryAstHead>();
                     subqueryHead->Ast = std::move(queryExpr->Query);
                     subqueryHead->AliasMap = std::move(queryExpr->AliasMap);
                     subqueryHead->Alias = std::move($alias);
@@ -1206,8 +1206,8 @@ void TParser::error(const location_type& location, const std::string& message)
     auto rightContextEnd = std::min<size_t>(location.second + 16, source.size());
 
     THROW_ERROR_EXCEPTION("Error while parsing query: %v", message)
-        << TErrorAttribute("position", Format("%v-%v", location.first, location.second))
-        << TErrorAttribute("query", Format("%v >>>>> %v <<<<< %v",
+        .With("position", Format("%v-%v", location.first, location.second))
+        .With("query", Format("%v >>>>> %v <<<<< %v",
             source.substr(leftContextStart, location.first - leftContextStart),
             source.substr(location.first, location.second - location.first),
             source.substr(location.second, rightContextEnd - location.second)));

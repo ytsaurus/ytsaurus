@@ -16,12 +16,18 @@ using namespace NRpc;
 TMasterHydraServiceBase::TMasterHydraServiceBase(
     TBootstrap* bootstrap,
     const NRpc::TServiceDescriptor& descriptor,
-    TDefaultInvokerKind defaultInvokerKind,
+    std::variant<EAutomatonThreadQueue, IInvokerPtr> defaultInvoker,
     NLogging::TLogger logger,
     NRpc::TServiceOptions options)
     : THydraServiceBase(
         bootstrap->GetHydraFacade()->GetHydraManager(),
-        SelectDefaultInvoker(defaultInvokerKind, bootstrap),
+        Visit(defaultInvoker,
+            [&] (EAutomatonThreadQueue threadQueue) {
+                return bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(threadQueue);
+            },
+            [] (IInvokerPtr invoker) {
+                return invoker;
+            }),
         descriptor,
         std::move(logger),
         CreateMulticellUpstreamSynchronizer(bootstrap),
@@ -45,19 +51,6 @@ void TMasterHydraServiceBase::ValidateClusterInitialized()
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     Bootstrap_->GetWorldInitializer()->ValidateInitialized();
-}
-
-IInvokerPtr TMasterHydraServiceBase::SelectDefaultInvoker(
-    TDefaultInvokerKind invokerKind,
-    TBootstrap* bootstrap)
-{
-    return Visit(invokerKind,
-        [&] (EAutomatonThreadQueue threadQueue) {
-            return bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(threadQueue);
-        },
-        [&] (TRpcHeavyDefaultInvoker /*rpcHeavy*/) {
-            return TDispatcher::Get()->GetHeavyInvoker();
-        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

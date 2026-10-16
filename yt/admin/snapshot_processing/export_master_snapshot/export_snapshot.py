@@ -40,7 +40,13 @@ schema_columns = [
     ("dynamic",                                 "any",          False,      True),
     ("erasure_codec",                           "string",       False,      True),
     ("expiration_time",                         "string",       False,      True),
+    ("expiration_time_arming_time",             "string",       False,      True),
+    ("expiration_time_last_reset_time",         "string",       False,      True),
+    ("expiration_time_user",                    "string",       False,      True),
     ("expiration_timeout",                      "int64",        False,      True),
+    ("expiration_timeout_last_reset_time",      "string",       False,      True),
+    ("expiration_timeout_arming_time",          "string",       False,      True),
+    ("expiration_timeout_user",                 "string",       False,      True),
     ("external",                                "boolean",      True,       True),
     ("force_nightly_compress",                  "any",          False,      True),
     ("id",                                      "string",       True,       True),
@@ -64,6 +70,8 @@ schema_columns = [
     ("owner",                                   "string",       False,      True),
     ("parent_id",                               "string",       False,      True),
     ("path",                                    "string",       True,       False),
+    ("pipeline_format_version",                 "any",          False,      True),
+    ("pipeline_name",                           "any",          False,      True),
     ("primary_medium",                          "string",       False,      True),
     ("ref_counter",                             "int64",        True,       True),
     ("replication_factor",                      "int64",        False,      True),
@@ -75,6 +83,7 @@ schema_columns = [
     ("schema_mode",                             "string",       False,      True),
     ("security_tags",                           "any",          False,      True),
     ("sorted",                                  "any",          False,      True),
+    ("table_backup_enabled",                    "boolean",      False,      True),
     ("tablet_cell_bundle",                      "string",       False,      True),
     ("tablet_state",                            "string",       False,      True),
     ("target_path",                             "string",       False,      True),
@@ -82,6 +91,7 @@ schema_columns = [
     ("uncompressed_data_size",                  "int64",        False,      True),
     ("user_attribute_keys",                     "any",          False,      True),
     ("versioned_resource_usage",                "any",          False,      True),
+    ("_nirvana_meta",                           "any",          False,      True),
 ]
 
 

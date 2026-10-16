@@ -119,13 +119,13 @@ void TSimpleVersionedBlockWriter::WriteRow(TVersionedRow row)
 
     TimestampCount_ += row.GetWriteTimestampCount();
     for (auto timestamp : row.WriteTimestamps()) {
-        WritePod(TimestampStream_, timestamp);
+        WritePod(TimestampStream_, timestamp.Underlying());
         UpdateMinMaxTimestamp(timestamp);
     }
 
     TimestampCount_ += row.GetDeleteTimestampCount();
     for (auto timestamp : row.DeleteTimestamps()) {
-        WritePod(TimestampStream_, timestamp);
+        WritePod(TimestampStream_, timestamp.Underlying());
         UpdateMinMaxTimestamp(timestamp);
     }
 
@@ -142,7 +142,7 @@ void TSimpleVersionedBlockWriter::WriteRow(TVersionedRow row)
             ++lastId;
         } else {
             WriteValue(ValueStream_, ValueNullFlags_, ValueAggregateFlags_, value);
-            WritePod(ValueStream_, value.Timestamp);
+            WritePod(ValueStream_, value.Timestamp.Underlying());
             ++valueCount;
         }
     }
@@ -629,7 +629,7 @@ char* TIndexedVersionedBlockWriter::EncodeTimestampData(char* buffer)
 
     auto writeTimestamps = [&] (const auto& range) {
         for (auto timestamp : range) {
-            WritePod(buffer, timestamp);
+            WritePod(buffer, timestamp.Underlying());
             UpdateMinMaxTimestamp(timestamp);
         }
     };
@@ -704,7 +704,7 @@ char* TIndexedVersionedBlockWriter::EncodeValueGroupData(char* buffer, int group
                 value,
                 &nullFlagsBitmap,
                 &aggregateFlagsBitmap);
-            WritePod(buffer, value.Timestamp);
+            WritePod(buffer, value.Timestamp.Underlying());
 
             ++valueIndexInGroup;
         }

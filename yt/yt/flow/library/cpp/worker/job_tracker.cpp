@@ -1,0 +1,971 @@
+#include "job_tracker.h"
+
+#include "buffer_state_manager.h"
+#include "input_buffer.h"
+#include "input_manager.h"
+#include "job.h"
+#include "job_spec.h"
+#include "lineage_tracker.h"
+
+#include "message_distributor.h"
+#include "traced_invoker.h"
+
+
+#include "private.h"
+
+#include <yt/yt/flow/library/cpp/common/external_metrics_reporter.h>
+#include <yt/yt/flow/library/cpp/common/flow_view.h>
+#include <yt/yt/flow/library/cpp/common/message.h>
+#include <yt/yt/flow/library/cpp/common/payload_converter.h>
+#include <yt/yt/flow/library/cpp/common/resource_manager.h>
+#include <yt/yt/flow/library/cpp/common/state_cache.h>
+#include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
+
+#include <yt/yt/flow/library/cpp/misc/ema.h>
+#include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
+#include <yt/yt/flow/library/cpp/misc/status_profiler.h>
+
+#include <yt/yt/core/actions/codicil_guarded_invoker.h>
+
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/fair_share_thread_pool.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
+
+#include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/ema_counter.h>
+
+#include <yt/yt/flow/library/cpp/common/column_evaluator_cache.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+
+#include <yt/yt/library/ytprof/heap_profiler.h>
+
+#include <library/cpp/yt/string/guid.h>
+
+namespace NYT::NFlow::NWorker {
+
+using namespace NApi;
+using namespace NConcurrency;
+using namespace NQueryClient;
+using namespace NTracing;
+using namespace NYPath;
+using namespace NYson;
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+IClientPtr TJobTrackerContext::GetClient() const
+{
+    THROW_ERROR_EXCEPTION_UNLESS(PipelinePath.GetCluster().has_value(), "Pipeline path must have cluster");
+    return ClientsCache->GetClient(*PipelinePath.GetCluster());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = WorkerLogger;
+
+constexpr auto JobIdTag = "job_id";
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TFailedJob
+    : public IJob
+{
+    TFailedJob(
+        TJobId jobId,
+        TComputationId computationId,
+        TJobStreamLimitUsageStates streamLimitUsageStates,
+        TError error)
+        : JobId_(jobId)
+        , ComputationId_(std::move(computationId))
+        , StreamLimitUsageStates_(std::move(streamLimitUsageStates))
+        , Error_(std::move(error))
+        , Timestamp_(TInstant::Now())
+    { }
+
+    TFuture<void> Start() override
+    {
+        return OKFuture;
+    }
+
+    TFuture<void> Reconfigure(i64 /*specGeneration*/, TDynamicJobSpecPtr /*dynamicSpec*/) override
+    {
+        return OKFuture;
+    }
+
+    TFuture<void> UpdateWatermarkState(TWatermarkStatePtr /*watermarkState*/) override
+    {
+        return OKFuture;
+    }
+
+    TFuture<void> UpdateTraverseData(TToPartitionTraverseDataPtr /*traverse*/) override
+    {
+        return OKFuture;
+    }
+
+    void UpdateMessageTransferingInfo(TMessageTransferingInfoPtr /*messageTransferingInfo*/) override
+    { }
+
+    TFuture<void> Stop() override
+    {
+        return OKFuture;
+    }
+
+    TFuture<void> Stop(TError /*error*/) override
+    {
+        return OKFuture;
+    }
+
+    TJobId GetJobId() override
+    {
+        return JobId_;
+    }
+
+    TComputationId GetComputationId() override
+    {
+        return ComputationId_;
+    }
+
+    TJobOrchidStatePtr GetOrchidState() override
+    {
+        auto readStreamUsages = [] (const TStreamLimitUsageStateMap& streams) {
+            THashMap<TStreamId, TStreamUsage> usages;
+            usages.reserve(streams.size());
+            for (const auto& [streamId, state] : streams) {
+                usages.emplace(streamId, state->Read());
+            }
+            return usages;
+        };
+
+        auto state = New<TJobOrchidState>();
+        state->InputStreams = readStreamUsages(StreamLimitUsageStates_.Input);
+        state->OutputStreams = readStreamUsages(StreamLimitUsageStates_.Output);
+        return state;
+    }
+
+    IInputBufferPtr GetInputBuffer() override
+    {
+        return nullptr;
+    }
+
+    TJobRuntimeCountersPtr GetRuntimeCounters() override
+    {
+        return RuntimeCounters_;
+    }
+
+    TFuture<TJobStatusPtr> GetStatus() override
+    {
+        auto status = New<TJobStatus>();
+        status->JobId = GetJobId();
+        status->IsFinished = true;
+        status->StartTime = Timestamp_;
+        status->FinishTime = Timestamp_;
+        status->UpdateTime = TInstant::Now();
+        status->Error = Error_;
+        return MakeFuture(status);
+    }
+
+private:
+    const TJobId JobId_;
+    const TComputationId ComputationId_;
+    const TJobStreamLimitUsageStates StreamLimitUsageStates_;
+    const TError Error_;
+    const TInstant Timestamp_;
+    const TJobRuntimeCountersPtr RuntimeCounters_ = New<TJobRuntimeCounters>();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TExternalPerformanceMetricsReporter
+    : public IExternalPerformanceMetricsReporter
+{
+public:
+    TExternalPerformanceMetricsReporter()
+        : ElapsedCpuTimeMicros_(0)
+        , MemoryUsage_(0)
+    { }
+
+    void SetMemoryUsage(size_t memoryUsage) override
+    {
+        MemoryUsage_.store(memoryUsage, std::memory_order::relaxed);
+    }
+
+    void AddCpuTime(TDuration cpuTime) override
+    {
+        ElapsedCpuTimeMicros_.fetch_add(cpuTime.MicroSeconds(), std::memory_order::relaxed);
+    }
+
+    size_t GetMemoryUsage()
+    {
+        return MemoryUsage_.load(std::memory_order::relaxed);
+    }
+
+    TDuration GetElapsedCpuTime()
+    {
+        return TDuration::MicroSeconds(ElapsedCpuTimeMicros_.load(std::memory_order::relaxed));
+    }
+
+private:
+    std::atomic<ui64> ElapsedCpuTimeMicros_;
+    std::atomic<size_t> MemoryUsage_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TExternalPerformanceMetricsReporter);
+
+////////////////////////////////////////////////////////////////////////////////
+
+int GetJobThreadPoolSize(const TDynamicPipelineSpecPtr& dynamicSpec, const TNodeInfoPtr& nodeInfo)
+{
+    if (auto size = dynamicSpec->JobTracker->JobThreads) {
+        return *size;
+    }
+    if (nodeInfo->VcpuFactor && nodeInfo->VcpuLimit) {
+        return std::ceil(*nodeInfo->VcpuLimit / 1000.0 / *nodeInfo->VcpuFactor);
+    }
+    return TDynamicJobTrackerSpec::DefaultJobThreads;
+}
+
+bool ShouldMarkPerformanceCountersSteady(i64 nonEmptyIterations, i64 inputMessages, TDuration jobAge)
+{
+    // The first iteration with input carries the initialization (state download, index build), so
+    // the counters are marked steady once it has completed. An idle job is marked after a delay
+    // instead: its near-zero rates must reach the balancer rather than stay unmeasured until input
+    // arrives. A first iteration still consuming its input is not idle.
+    return nonEmptyIterations >= 1 || (inputMessages == 0 && jobAge >= IdleMetricsSteadyDelay);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobTracker
+    : public IJobTracker
+{
+public:
+    explicit TJobTracker(TJobTrackerContextPtr context)
+        : Context_(std::move(context))
+        , ExecutionSpec_(New<TExecutionSpec>())
+        , LineageTracker_(New<TLineageTracker>())
+        , BufferStateManager_(CreateBufferStateManager(
+            Context_->ControlInvoker,
+            Context_->JobDirectory,
+            GetDynamicPipelineSpec()->JobTracker->BufferStateManager,
+            &TInstant::Now,
+            Context_->WorkerGroups))
+        , EvaluatorCache_(CreateFastColumnEvaluatorCache())
+        , JobControlThreadPool_(CreateFairShareThreadPool(GetDynamicPipelineSpec()->JobTracker->JobControlThreads, "JobControl"))
+        , JobThreadPool_(CreateFairShareThreadPool(GetJobThreadPoolSize(GetDynamicPipelineSpec(), Context_->WorkerNodeInfo), "Jobs"))
+        , LoadThroughputThrottler_(New<TLoadThroughputThrottler>("yt_load", Logger(), WorkerProfiler()))
+        , StateCache_(New<TStateCache>(
+            GetDynamicPipelineSpec()->JobTracker->StateCache,
+            WorkerProfiler().WithPrefix("/state_cache")))
+        , PerformanceCountersUpdater_(New<TPeriodicExecutor>(
+            Context_->ControlInvoker,
+            BIND(&TJobTracker::UpdatePerformanceCounters, MakeWeak(this)),
+            TDuration::Seconds(1)))
+        , JobStartCounter_(WorkerProfiler()
+                .Counter("/job_start"))
+        , HungStoppingJobs_(WorkerProfiler().Gauge("/hung_stopping_jobs"))
+    {
+        ResourceManager_ = CreateResourceManagerForPipelineSpec(
+            ExecutionSpec_->PipelineSpec->GetValue()->Resources,
+            ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources,
+            ExecutionSpec_->PipelineSpec->GetValue()->Computations,
+            ExecutionSpec_->ResourceTargetRevisions->GetValue());
+
+        PerformanceCountersUpdater_->Start();
+    }
+
+    TPipelineSpecPtr GetPipelineSpec() const
+    {
+        return ExecutionSpec_->PipelineSpec->GetValue();
+    }
+
+    TDynamicPipelineSpecPtr GetDynamicPipelineSpec() const
+    {
+        return ExecutionSpec_->DynamicPipelineSpec->GetValue();
+    }
+
+    void CancelAllJobs(TError error) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(Control);
+
+        TForbidContextSwitchGuard contextSwitchGuard;
+
+        YT_TLOG_INFO("Cancelling all jobs")
+            .With("JobCount", JobIdToRuntimeState_.size());
+
+        for (const auto& [jobId, state] : JobIdToRuntimeState_) {
+            YT_UNUSED_FUTURE(state.Job->Stop(error));
+        }
+    }
+
+    TFuture<std::vector<TJobStatusPtr>> GetStatuses() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(Control);
+        UpdateMetrics();
+
+        std::vector<TFuture<TJobStatusPtr>> futures;
+        {
+            TForbidContextSwitchGuard contextSwitchGuard;
+            bool markSteadyAfterFirstIteration = ExecutionSpec_ &&
+                ExecutionSpec_->DynamicPipelineSpec->GetValue()->JobTracker->MarkPerformanceMetricsSteadyAfterFirstIteration;
+            for (const auto& [jobId, state] : JobIdToRuntimeState_) {
+                auto performanceMetrics = state.PerformanceCounters.BuildMetrics();
+                performanceMetrics->MetricsSteadyPending = markSteadyAfterFirstIteration && !state.MetricsSteady;
+                performanceMetrics->FlowCoreVersion = Context_->WorkerNodeInfo->FlowCoreVersion;
+                performanceMetrics->PipelineSpecVersion = state.PipelineSpecVersion;
+                futures.push_back(state.Job->GetStatus().Apply(BIND([performanceMetrics] (const TJobStatusPtr& status) {
+                    // TODO(gryzlov-ad): Move status filling from Job to JobTracker.
+                    status->PerformanceMetrics = performanceMetrics;
+                    return status;
+                })));
+            }
+        }
+
+        return AllSucceeded(futures);
+    }
+
+    THashMap<TResourceId, TWorkerResourceStatusPtr> GetResourceStatuses() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(Control);
+
+        return ResourceManager_->CollectResourceStatuses();
+    }
+
+    THashMap<TResourceId, EPreloadedResourceState> GetPreloadedStates() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(Control);
+
+        return ResourceManager_->GetPreloadedStates();
+    }
+
+    TLineageRatios GetLineageRatios(TInstant now) override
+    {
+        return LineageTracker_->GetRatios(now);
+    }
+
+    void Reconfigure(
+        TExecutionSpecPtr newExecutionSpec,
+        const THashMap<TJobId, TDynamicPartitionSpecPtr>& newDynamicComputationPartitionSpecs) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(Control);
+
+        TForbidContextSwitchGuard contextSwitchGuard;
+
+        auto oldExecutionSpec = ExecutionSpec_;
+        ExecutionSpec_ = newExecutionSpec;
+        auto oldExecutionSpecGeneration = ExecutionSpecGeneration_;
+        ExecutionSpecGeneration_ = newExecutionSpec->GetEpoch();
+        auto oldDynamicJobSpecs = DynamicJobSpecs_;
+        DynamicJobSpecs_ = BuildNewJobSpecs(oldDynamicJobSpecs, newDynamicComputationPartitionSpecs, oldExecutionSpec, ExecutionSpec_);
+
+        bool dynamicPipelineSpecChanged =
+            oldExecutionSpec->DynamicPipelineSpec->GetVersion() != ExecutionSpec_->DynamicPipelineSpec->GetVersion();
+        if (dynamicPipelineSpecChanged) {
+            const auto& jobTrackerSpec = ExecutionSpec_->DynamicPipelineSpec->GetValue()->JobTracker;
+            JobControlThreadPool_->SetThreadCount(jobTrackerSpec->JobControlThreads);
+            JobThreadPool_->SetThreadCount(GetJobThreadPoolSize(ExecutionSpec_->DynamicPipelineSpec->GetValue(), Context_->WorkerNodeInfo));
+            BufferStateManager_->Reconfigure(jobTrackerSpec->BufferStateManager);
+            LoadThroughputThrottler_->Reconfigure(jobTrackerSpec->LoadThroughputThrottler);
+            StateCache_->Reconfigure(jobTrackerSpec->StateCache);
+            // Throttlers flow to computations through TDynamicComputationContext;
+            // each computation's factory reconfigures itself on ApplyPendingStates.
+        }
+
+        // Drop too old jobs.
+        if (oldExecutionSpec->PipelineSpec->GetVersion() != ExecutionSpec_->PipelineSpec->GetVersion()) {
+            auto predecessorInstanceStates = ResourceManager_->GetResourceInstanceStates();
+            DropAllJobs();
+            ResourceManager_ = CreateResourceManagerForPipelineSpec(
+                ExecutionSpec_->PipelineSpec->GetValue()->Resources,
+                ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources,
+                ExecutionSpec_->PipelineSpec->GetValue()->Computations,
+                ExecutionSpec_->ResourceTargetRevisions->GetValue(),
+                predecessorInstanceStates);
+        } else {
+            for (const auto& jobId : GetKeys(JobIdToRuntimeState_)) {
+                if (!ExecutionSpec_->Layout->Jobs.contains(jobId)) {
+                    DropJob(jobId);
+                }
+            }
+        }
+
+        // A no-op right after a manager rebuild: the new manager is constructed with the
+        // current state embedded.
+        if (dynamicPipelineSpecChanged ||
+            oldExecutionSpec->ResourceTargetRevisions->GetVersion() != ExecutionSpec_->ResourceTargetRevisions->GetVersion())
+        {
+            ResourceManager_->Reconfigure(
+                ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources,
+                ExecutionSpec_->ResourceTargetRevisions->GetValue());
+        }
+
+        // Update preloaded resources based on WorkerSpecs. Skip a spec of a previous incarnation of
+        // this address: the controller will replace it.
+        auto workerSpecIt = ExecutionSpec_->Layout->WorkerSpecs.find(Context_->WorkerNodeInfo->RpcAddress);
+        if (workerSpecIt == ExecutionSpec_->Layout->WorkerSpecs.end()) {
+            ResourceManager_->UpdatePreloadedResources({});
+        } else if (const auto& incarnationId = workerSpecIt->second->WorkerIncarnationId;
+            !incarnationId || *incarnationId == Context_->WorkerNodeInfo->IncarnationId)
+        {
+            ResourceManager_->UpdatePreloadedResources(workerSpecIt->second->PreloadResources);
+        }
+
+        for (const auto& [jobId, state] : JobIdToRuntimeState_) {
+            if (auto newSpecIt = DynamicJobSpecs_.find(jobId); newSpecIt != DynamicJobSpecs_.end()) {
+                auto specChanged = [&] {
+                    if (auto oldSpecIt = oldDynamicJobSpecs.find(jobId); oldSpecIt != oldDynamicJobSpecs.end()) {
+                        return newSpecIt->second != oldSpecIt->second;
+                    }
+                    return true;
+                };
+                if (specChanged() || oldExecutionSpecGeneration != ExecutionSpecGeneration_) {
+                    YT_UNUSED_FUTURE(state.Job->Reconfigure(ExecutionSpecGeneration_, newSpecIt->second));
+                }
+            }
+        }
+
+        if (oldExecutionSpec->InputStreamsTraverse->GetVersion() != ExecutionSpec_->InputStreamsTraverse->GetVersion()) {
+            for (const auto& [jobId, state] : JobIdToRuntimeState_) {
+                auto job = GetOrCrash(ExecutionSpec_->Layout->Jobs, jobId);
+                auto partitionState = GetOrCrash(ExecutionSpec_->Layout->Partitions, job->PartitionId)->State;
+                YT_UNUSED_FUTURE(UpdateTraverseData(state.Job, partitionState));
+            }
+        }
+
+        if (oldExecutionSpec->WatermarkState->GetVersion() != ExecutionSpec_->WatermarkState->GetVersion()) {
+            for (const auto& [jobId, state] : JobIdToRuntimeState_) {
+                YT_UNUSED_FUTURE(UpdateWatermarkState(state.Job));
+            }
+        }
+
+        for (const auto& [jobId, newDynamicComputationPartitionSpec] : newDynamicComputationPartitionSpecs) {
+            auto jobIt = ExecutionSpec_->Layout->Jobs.find(jobId);
+            if (jobIt == ExecutionSpec_->Layout->Jobs.end() || JobIdToRuntimeState_.contains(jobId)) {
+                continue;
+            }
+            auto job = jobIt->second;
+            YT_TLOG_FATAL_UNLESS(
+                job->WorkerAddress == Context_->WorkerNodeInfo->RpcAddress && job->WorkerIncarnationId == Context_->WorkerNodeInfo->IncarnationId,
+                "Worker received invalid dynamic computation partition specs")
+                .With("WrongJobId", jobId)
+                .With("ActualIncarnationId", Context_->WorkerNodeInfo->IncarnationId)
+                .With("JobAssignedIncarnationId", job->WorkerIncarnationId);
+            YT_UNUSED_FUTURE(StartJob(jobId));
+        }
+    }
+
+    void UpdateMessageTransferingInfo(TMessageTransferingInfoPtr messageTransferingInfo) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(Control);
+        MessageTransferingInfo_ = std::move(messageTransferingInfo);
+        // Update buffer state manager so new jobs start with warm demand estimates.
+        BufferStateManager_->UpdateMessageTransferingInfo(MessageTransferingInfo_);
+        for (const auto& [jobId, jobRuntimeState] : JobIdToRuntimeState_) {
+            jobRuntimeState.Job->UpdateMessageTransferingInfo(MessageTransferingInfo_);
+        }
+    }
+
+    void UpdateMetrics()
+    {
+        YT_ASSERT_THREAD_AFFINITY(Control);
+
+        THashMap<TComputationId, ui64> counts;
+        for (const auto& [jobId, state] : JobIdToRuntimeState_) {
+            counts[state.Job->GetComputationId()] += 1;
+        }
+
+        auto now = TInstant::Now();
+        i64 hungStoppingJobs = 0;
+        for (auto it = JobStopTimes_.begin(); it != JobStopTimes_.end();) {
+            const auto& [weakPtr, stopTime] = it->second;
+            if (weakPtr.IsExpired()) {
+                JobStopTimes_.erase(it++);
+                continue;
+            }
+            if (stopTime != TInstant::Max()) {
+                auto lag = now - stopTime;
+                if (lag > TDuration::Minutes(1)) {
+                    ++hungStoppingJobs;
+                    YT_TLOG_ERROR("Job can not stop in time")
+                        .With("JobId", it->first)
+                        .With("StoppingLag", lag);
+                }
+            }
+            ++it;
+        }
+        HungStoppingJobs_.Update(hungStoppingJobs);
+
+        for (const auto& [computationId, count] : counts) {
+            JobCountPerComputationGauges_.emplace(
+                computationId,
+                WorkerProfiler()
+                    .WithTag("computation_id", computationId.Underlying())
+                    .Gauge("/job_count"));
+        }
+
+        for (auto& [computationId, gauge] : JobCountPerComputationGauges_) {
+            if (auto* count = counts.FindPtr(computationId)) {
+                gauge.Update(*count);
+            } else {
+                gauge.Update(0);
+            }
+        }
+    }
+
+    NYTree::IYPathServicePtr CreateOrchidService() override
+    {
+        return IYPathService::FromProducer(BIND(&TJobTracker::BuildOrchid, MakeStrong(this)))
+            ->Via(Context_->ControlInvoker);
+    }
+
+    ~TJobTracker() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(Control);
+
+        DropAllJobs();
+    }
+
+private:
+    // TODO(gryzlov-ad): Add inner invoker for periodic job CPU/memory monitoring and buffer management.
+    const TJobTrackerContextPtr Context_;
+    TExecutionSpecPtr ExecutionSpec_;
+    i64 ExecutionSpecGeneration_ = -1;
+    THashMap<TJobId, TDynamicJobSpecPtr> DynamicJobSpecs_;
+
+    const TLineageTrackerPtr LineageTracker_;
+    const IBufferStateManagerPtr BufferStateManager_;
+    const IColumnEvaluatorCachePtr EvaluatorCache_;
+    const IFairShareThreadPoolPtr JobControlThreadPool_;
+    const IFairShareThreadPoolPtr JobThreadPool_;
+    const TLoadThroughputThrottlerPtr LoadThroughputThrottler_;
+    const TStateCachePtr StateCache_;
+
+    IResourceManagerPtr ResourceManager_;
+
+    TMessageTransferingInfoPtr MessageTransferingInfo_;
+
+    class TJobPerformanceCounters
+    {
+    public:
+        explicit TJobPerformanceCounters(const NProfiling::TProfiler& profiler)
+            : Profiler_(profiler)
+            , CpuTimeCounter_(profiler.TimeCounter("/cpu_time"))
+            , MemoryUsageGauge_(profiler.Gauge("/memory_usage"))
+        { }
+
+        void Update(TDuration cpuTime, size_t memoryUsage, i64 inputMessageCount)
+        {
+            auto now = TInstant::Now();
+            CpuTimeEmaCounter_.Update(cpuTime.SecondsFloat(), now);
+            InputMessagesEmaCounter_.Update(inputMessageCount, now);
+            MemoryUsageEma_.Set(static_cast<i64>(memoryUsage), now);
+
+            CpuTimeCounter_.Add(std::max(cpuTime, TotalCpuTime_) - TotalCpuTime_);
+            TotalCpuTime_ = cpuTime;
+            MemoryUsageGauge_.Update(memoryUsage);
+        }
+
+        //! Marks the present as the moment the windows start describing steady-state work. The
+        //! windows themselves keep running: what was measured before decays out of them on its own
+        //! (the long window keeps 13% of it after ten minutes), and the memory average stays
+        //! available instead of vanishing for a whole window after a reset.
+        void MarkSteady()
+        {
+            StartTime_ = TInstant::Now();
+        }
+
+        TNodePerformanceMetricsPtr BuildMetrics() const
+        {
+            auto metrics = New<TNodePerformanceMetrics>();
+            metrics->CpuUsageCurrent = CpuTimeEmaCounter_.ImmediateRate;
+            metrics->CpuUsage30s = CpuTimeEmaCounter_.GetRate(0);
+            metrics->CpuUsage10m = CpuTimeEmaCounter_.GetRate(1);
+            metrics->MessagesPerSecond30s = InputMessagesEmaCounter_.GetRate(0);
+            metrics->MessagesPerSecond10m = InputMessagesEmaCounter_.GetRate(1);
+            metrics->MetricsStartTime = StartTime_;
+            metrics->MemoryUsageCurrent = MemoryUsageEma_.Last();
+            metrics->MemoryUsage30s = MemoryUsageEma_.Average()[0];
+            metrics->MemoryUsage10m = MemoryUsageEma_.Average()[1];
+            return metrics;
+        }
+
+    private:
+        static constexpr int TimeWindowsCount = 2;
+        static constexpr TDuration ShortWindow = TDuration::Seconds(30);
+        static constexpr TDuration LongWindow = TDuration::Minutes(10);
+        TEmaCounter<double, TimeWindowsCount> CpuTimeEmaCounter_{{ShortWindow, LongWindow}};
+        TEmaCounter<double, TimeWindowsCount> InputMessagesEmaCounter_{{ShortWindow, LongWindow}};
+        TInstant StartTime_ = TInstant::Now();
+        TMultiWindowEma<i64, TimeWindowsCount, /*CalculateRate*/ false> MemoryUsageEma_{{ShortWindow, LongWindow}};
+
+        const NProfiling::TProfiler Profiler_;
+        TDuration TotalCpuTime_ = TDuration::Zero();
+        NProfiling::TTimeCounter CpuTimeCounter_;
+        NProfiling::TGauge MemoryUsageGauge_;
+    };
+
+    struct TJobRuntimeState
+    {
+        IJobPtr Job;
+        TJobPerformanceCounters PerformanceCounters;
+        TJobCpuTimeAccountantPtr CpuTimeAccountant;
+        TExternalPerformanceMetricsReporterPtr ExternalMetricsReporter;
+        //! Version of the pipeline spec the job was started with; reported with its metrics.
+        TVersion PipelineSpecVersion;
+        TInstant StartTime;
+        bool MetricsSteady = false;
+    };
+
+    THashMap<TJobId, TJobRuntimeState> JobIdToRuntimeState_;
+    THashMap<TJobId, std::pair<TWeakPtr<IJob>, TInstant>> JobStopTimes_; // To track hung jobs.
+    TPeriodicExecutorPtr PerformanceCountersUpdater_;
+
+    THashMap<TComputationId, NProfiling::TGauge> JobCountPerComputationGauges_;
+    NProfiling::TCounter JobStartCounter_;
+    NProfiling::TGauge HungStoppingJobs_;
+
+    DECLARE_THREAD_AFFINITY_SLOT(Control);
+
+    IResourceManagerPtr CreateResourceManagerForPipelineSpec(
+        const THashMap<TResourceId, TResourceSpecPtr>& resources,
+        const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicResourceSpecs,
+        const THashMap<TComputationId, TComputationSpecPtr>& computations,
+        const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions,
+        const THashMap<TResourceId, TResourceInstanceState>& predecessorInstanceStates = {})
+    {
+        auto context = New<TResourceManagerContext>();
+        context->PipelineAuthenticator = Context_->PipelineAuthenticator;
+        context->ClientsCache = Context_->ClientsCache;
+        context->PipelinePath = Context_->PipelinePath;
+        context->FileStorage = Context_->FileStorage;
+        context->Logger = WorkerLogger().WithTag("Manager", "Resource");
+        context->Invoker = JobThreadPool_->GetInvoker("ResourceManager");
+        context->Profiler = WorkerProfiler();
+        context->StatusProfiler = Context_->StatusProfiler->WithPrefix("/resource_manager");
+        context->IsController = false;
+        context->Computations = computations;
+        return CreateResourceManager(
+            std::move(context),
+            resources,
+            dynamicResourceSpecs,
+            targetRevisions,
+            predecessorInstanceStates);
+    }
+
+    void UpdatePerformanceCounters()
+    {
+        YT_ASSERT_THREAD_AFFINITY(Control);
+
+        auto snapshot = NYTProf::GetGlobalMemoryUsageSnapshot();
+        auto now = TInstant::Now();
+        bool markSteadyAfterFirstIteration = ExecutionSpec_ &&
+            ExecutionSpec_->DynamicPipelineSpec->GetValue()->JobTracker->MarkPerformanceMetricsSteadyAfterFirstIteration;
+        for (auto& [jobId, state] : JobIdToRuntimeState_) {
+            const auto& runtimeCounters = state.Job->GetRuntimeCounters();
+            if (markSteadyAfterFirstIteration && !state.MetricsSteady &&
+                ShouldMarkPerformanceCountersSteady(runtimeCounters->NonEmptyIterationCount.load(), runtimeCounters->InputMessageCount.load(), now - state.StartTime))
+            {
+                state.PerformanceCounters.MarkSteady();
+                state.MetricsSteady = true;
+            }
+            // A sum memory usage for particular job inside main Flow process and corresponding companion process.
+            auto memoryUsage = snapshot->GetUsage(JobIdTag, ToString(jobId)) + state.ExternalMetricsReporter->GetMemoryUsage();
+            // The maximum node CPU load is generally same in terms of VCPU load, but might be very different in CPU load.
+            // Thus, to balance the load evenly on a diverse set of workers, we should recalculate to VCPU in performance counters.
+            auto cpuTime = (state.CpuTimeAccountant->GetCpuTime() + state.ExternalMetricsReporter->GetElapsedCpuTime()) * Context_->WorkerNodeInfo->VcpuFactor.value_or(1);
+            state.PerformanceCounters.Update(cpuTime, memoryUsage, runtimeCounters->InputMessageCount.load());
+        }
+    }
+
+    TFuture<void> StartJob(const TJobId& jobId)
+    {
+        YT_ASSERT_THREAD_AFFINITY(Control);
+
+        YT_VERIFY(!JobIdToRuntimeState_.contains(jobId));
+
+        const auto& job = GetOrCrash(ExecutionSpec_->Layout->Jobs, jobId);
+        const auto& partition = GetOrCrash(ExecutionSpec_->Layout->Partitions, job->PartitionId);
+
+        YT_TLOG_INFO("Executing start job")
+            .With("JobId", jobId)
+            .With("PartitionId", partition->PartitionId)
+            .With("ComputationId", partition->ComputationId);
+
+        auto jobSpec = BuildJobSpec(jobId);
+
+        auto jobContext = New<TJobContext>();
+        jobContext->WorkerAddress = Context_->WorkerNodeInfo->RpcAddress;
+        jobContext->ClientsCache = Context_->ClientsCache;
+        jobContext->PipelinePath = Context_->PipelinePath;
+        jobContext->EvaluatorCache = EvaluatorCache_;
+        jobContext->ConverterCache = CreatePayloadConverterCache(EvaluatorCache_);
+        jobContext->MessageDistributor = Context_->MessageDistributor;
+        jobContext->StreamSpecStorage = Context_
+            ->StreamSpecStorage
+            ->GetComputationStreamSpecStorage(partition->ComputationId);
+
+        auto jobIdString = ToString(jobId);
+        auto traceContext = TTraceContext::NewRoot(Format("Job-%v", jobIdString));
+        traceContext->SetAllocationTag(JobIdTag, jobIdString);
+        traceContext->AddLoggingTagFormat(
+            "JobPropagatingTag",
+            "%v/%v",
+            partition->ComputationId,
+            partition->PartitionId);
+
+        auto cpuTimeAccountant = New<TJobCpuTimeAccountant>();
+        auto wrapInvoker = [&] (const auto& underlying) {
+            auto tracedInvoker = CreateTracedInvoker(underlying, traceContext, cpuTimeAccountant);
+            auto codicil = Format("ComputationId: %v, PartitionId: %v, JobId: %v, %v",
+                partition->ComputationId,
+                partition->PartitionId,
+                jobId,
+                traceContext->GetLoggingTags());
+            auto codicilInvoker = CreateCodicilGuardedInvoker(tracedInvoker, codicil);
+            return codicilInvoker;
+        };
+
+        jobContext->ControlSerializedInvoker = wrapInvoker(CreateSerializedInvoker(JobControlThreadPool_->GetInvoker("JobControl"), "JobControl"));
+        jobContext->PoolInvoker = wrapInvoker(JobThreadPool_->GetInvoker(Format("Computation-%v", jobSpec->Partition->ComputationId)));
+        jobContext->SerializedInvoker = CreateSerializedInvoker(jobContext->PoolInvoker, "Job");
+
+        jobContext->ClockClusterTag = Context_->ClockClusterTag;
+        jobContext->ResourceManager = ResourceManager_;
+
+        auto streamLimitUsageStates = BufferStateManager_->RegisterJob(jobId, jobSpec);
+        jobContext->PartitionBufferState = CreatePartitionBufferState(
+            BufferStateManager_,
+            jobId,
+            streamLimitUsageStates.Output);
+        jobContext->LoadThroughputThrottler = LoadThroughputThrottler_;
+        jobContext->JobStateCache = StateCache_->WithJob(
+            jobId,
+            WorkerProfiler()
+                .WithTag("computation_id", jobSpec->Partition->ComputationId.Underlying())
+                .WithPrefix("/computation")
+                .WithPrefix("/job_state_cache"));
+        jobContext->LineageTracker = LineageTracker_;
+
+        auto externalMetricsReporter = New<TExternalPerformanceMetricsReporter>();
+        jobContext->ExternalMetricsReporter = externalMetricsReporter;
+
+        jobContext->HttpClient = Context_->HttpClient;
+        jobContext->HttpsClient = Context_->HttpsClient;
+        jobContext->Poller = Context_->Poller;
+        jobContext->DistributedThrottlerControllerChannelProvider = Context_->DistributedThrottlerChannel;
+
+        auto dynamicJobSpec = GetOrCrash(DynamicJobSpecs_, jobId);
+
+        auto traverseData = BuildTraverseData(partition->ComputationId, partition->State);
+        auto watermarkState = BuildWatermarkState(partition->ComputationId);
+
+        auto preparedJob = [&] () -> IJobPtr {
+            try {
+                return CreateJob(
+                    jobContext,
+                    streamLimitUsageStates,
+                    ExecutionSpec_->GetEpoch(),
+                    jobSpec,
+                    dynamicJobSpec,
+                    traverseData,
+                    watermarkState);
+            } catch (const std::exception& ex) {
+                YT_TLOG_ERROR("Job creation failed")
+                    .With(ex);
+                return New<TFailedJob>(
+                    jobId,
+                    jobSpec->Partition->ComputationId,
+                    std::move(streamLimitUsageStates),
+                    TError(ex));
+            }
+        }();
+
+        preparedJob->UpdateMessageTransferingInfo(MessageTransferingInfo_);
+        Context_->InputManager->AddJob(jobId, preparedJob->GetInputBuffer());
+
+        EmplaceOrCrash(
+            JobIdToRuntimeState_,
+            jobId,
+            TJobRuntimeState{
+                .Job = preparedJob,
+                .PerformanceCounters = TJobPerformanceCounters{
+                    WorkerProfiler()
+                        .WithTag("computation_id", jobSpec->Partition->ComputationId.Underlying())
+                        .WithPrefix("/computation")},
+                .CpuTimeAccountant = std::move(cpuTimeAccountant),
+                .ExternalMetricsReporter = externalMetricsReporter,
+                .PipelineSpecVersion = ExecutionSpec_->PipelineSpec->GetVersion(),
+                .StartTime = TInstant::Now(),
+            });
+        EmplaceOrCrash(JobStopTimes_, jobId, std::pair{MakeWeak(preparedJob), TInstant::Max()});
+        JobStartCounter_.Increment();
+        return preparedJob->Start();
+    }
+
+    void DropAllJobs()
+    {
+        YT_ASSERT_THREAD_AFFINITY(Control);
+
+        TForbidContextSwitchGuard contextSwitchGuard;
+
+        for (const auto& jobId : GetKeys(JobIdToRuntimeState_)) {
+            DropJob(jobId);
+        }
+    }
+
+    void DropJob(const TJobId& jobId)
+    {
+        YT_ASSERT_THREAD_AFFINITY(Control);
+
+        YT_TLOG_INFO("Executing drop job")
+            .With("JobId", jobId);
+
+        if (auto it = JobIdToRuntimeState_.find(jobId); it != JobIdToRuntimeState_.end()) {
+            auto job = it->second.Job;
+            JobIdToRuntimeState_.erase(it);
+            GetOrCrash(JobStopTimes_, jobId).second = TInstant::Now();
+            YT_UNUSED_FUTURE(job->Stop());
+            Context_->InputManager->RemoveJob(jobId);
+            BufferStateManager_->RemoveJob(jobId);
+        } else {
+            YT_TLOG_WARNING("Unknown job")
+                .With("JobId", jobId);
+        }
+    }
+
+    TFuture<void> UpdateTraverseData(const IJobPtr& job, EPartitionState state)
+    {
+        return job->UpdateTraverseData(BuildTraverseData(job->GetComputationId(), state));
+    }
+
+    TFuture<void> UpdateWatermarkState(const IJobPtr& job)
+    {
+        return job->UpdateWatermarkState(BuildWatermarkState(job->GetComputationId()));
+    }
+
+    TJobSpecPtr BuildJobSpec(const TJobId& jobId) const
+    {
+        const auto& job = GetOrCrash(ExecutionSpec_->Layout->Jobs, jobId);
+        const auto& partition = GetOrCrash(ExecutionSpec_->Layout->Partitions, job->PartitionId);
+        auto jobSpec = New<TJobSpec>();
+        jobSpec->ComputationSpec = GetOrCrash(ExecutionSpec_->PipelineSpec->GetValue()->Computations, partition->ComputationId);
+        jobSpec->ExtendedComputationSpec = GetOrCrash(ExecutionSpec_->ExtendedPipelineSpec->GetValue()->Computations, partition->ComputationId);
+        jobSpec->Job = job;
+        jobSpec->Partition = partition;
+        return jobSpec;
+    }
+
+    static THashMap<TJobId, TDynamicJobSpecPtr> BuildNewJobSpecs(
+        const THashMap<TJobId, TDynamicJobSpecPtr>& oldDynamicJobSpecs,
+        const THashMap<TJobId, TDynamicPartitionSpecPtr>& newDynamicComputationPartitionSpecs,
+        const TExecutionSpecPtr& oldExecutionSpec,
+        const TExecutionSpecPtr& newExecutionSpec)
+    {
+        YT_VERIFY(newExecutionSpec);
+        THashMap<TJobId, TDynamicJobSpecPtr> result;
+        for (const auto& [jobId, newDynamicComputationPartitionSpec] : newDynamicComputationPartitionSpecs) {
+            const auto layoutJobIt = newExecutionSpec->Layout->Jobs.find(jobId);
+            if (layoutJobIt == newExecutionSpec->Layout->Jobs.end()) {
+                continue;
+            }
+            const auto& partition = GetOrCrash(newExecutionSpec->Layout->Partitions, layoutJobIt->second->PartitionId);
+
+            auto oldDynamicJobSpec = GetOrDefault(oldDynamicJobSpecs, jobId);
+
+            auto newDynamicJobSpec = New<TDynamicJobSpec>();
+
+            if (oldDynamicJobSpec && oldExecutionSpec && oldExecutionSpec->DynamicPipelineSpec->GetVersion() == newExecutionSpec->DynamicPipelineSpec->GetVersion()) {
+                newDynamicJobSpec->DynamicComputationSpec = oldDynamicJobSpec->DynamicComputationSpec;
+            } else {
+                newDynamicJobSpec->DynamicComputationSpec = NYTree::CloneYsonStruct(GetOrDefault(
+                    newExecutionSpec->DynamicPipelineSpec->GetValue()->Computations,
+                    partition->ComputationId,
+                    New<TDynamicComputationSpec>()));
+                const auto& state = newExecutionSpec->PipelineState->GetValue();
+                if (state == EPipelineState::Stopped || state == EPipelineState::Draining) {
+                    newDynamicJobSpec->DynamicComputationSpec->Draining = true;
+                }
+            }
+
+            if (oldDynamicJobSpec &&
+                AreNodesEqual(
+                    ConvertToNode(oldDynamicJobSpec->DynamicComputationPartitionSpec),
+                    ConvertToNode(newDynamicComputationPartitionSpec)))
+            {
+                newDynamicJobSpec->DynamicComputationPartitionSpec = oldDynamicJobSpec->DynamicComputationPartitionSpec;
+            } else {
+                newDynamicJobSpec->DynamicComputationPartitionSpec = newDynamicComputationPartitionSpec;
+            }
+
+            // Pointer-copy so the factory can diff specs by identity.
+            newDynamicJobSpec->Throttlers = newExecutionSpec->DynamicPipelineSpec->GetValue()->Throttlers;
+
+            if (oldDynamicJobSpec &&
+                oldDynamicJobSpec->DynamicComputationPartitionSpec == newDynamicJobSpec->DynamicComputationPartitionSpec &&
+                oldDynamicJobSpec->DynamicComputationSpec == newDynamicJobSpec->DynamicComputationSpec &&
+                oldDynamicJobSpec->Throttlers == newDynamicJobSpec->Throttlers)
+            {
+                newDynamicJobSpec = oldDynamicJobSpec;
+            }
+
+            result[jobId] = newDynamicJobSpec;
+        }
+        return result;
+    }
+
+    TToPartitionTraverseDataPtr BuildTraverseData(const TComputationId& computationId, EPartitionState state) const
+    {
+        auto traverse = New<TToPartitionTraverseData>();
+        for (const auto& streamId : GetOrCrash(ExecutionSpec_->PipelineSpec->GetValue()->Computations, computationId)->InputStreamIds) {
+            if (state == EPartitionState::Executing || state == EPartitionState::Completing) {
+                traverse->InputStreams[streamId] = GetOrCrash(ExecutionSpec_->InputStreamsTraverse->GetValue(), streamId);
+            } else if (state == EPartitionState::Interrupting) {
+                auto streamTraverse = GetOrCrash(ExecutionSpec_->InputStreamsTraverse->GetValue(), streamId);
+                auto streamSpec = GetOrCrash(ExecutionSpec_->PipelineSpec->GetValue()->Streams, streamId);
+                traverse->InputStreams[streamId] = MakeCompletedStreamTraverseData(
+                    streamTraverse->Epoch,
+                    /*systemWatermark*/ streamTraverse->SystemWatermark,
+                    /*eventWatermark*/ streamTraverse->SystemWatermark);
+            } else {
+                YT_TLOG_FATAL("Unexpected partition state")
+                    .With("PartitionState", state);
+            }
+        }
+        return traverse;
+    }
+
+    TWatermarkStatePtr BuildWatermarkState(const TComputationId& /*computationId*/) const
+    {
+        return ExecutionSpec_->WatermarkState->GetValue();
+    }
+
+    void BuildOrchid(IYsonConsumer* consumer)
+    {
+        YT_ASSERT_THREAD_AFFINITY(Control);
+
+        THashMap<TJobId, TJobOrchidStatePtr> jobStates;
+        jobStates.reserve(JobIdToRuntimeState_.size());
+        for (const auto& [jobId, state] : JobIdToRuntimeState_) {
+            jobStates.emplace(jobId, state.Job->GetOrchidState());
+        }
+
+        // clang-format off
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("jobs").Value(jobStates)
+            .EndMap();
+        // clang-format on
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IJobTrackerPtr CreateJobTracker(TJobTrackerContextPtr context)
+{
+    return New<TJobTracker>(std::move(context));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow::NWorker

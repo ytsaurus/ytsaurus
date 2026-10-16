@@ -1,16 +1,228 @@
 ## Kubernetes operator
 
 
-Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsaurus-k8s-operator/pkgs/container/ytop-chart).
+Is released as helm charts on [GitHub Packages](https://github.com/ytsaurus/ytsaurus-k8s-operator/pkgs/container/ytop-chart).
 
 
 
 
 **Releases:**
 
+{% cut "**v0.36.0**" %}
+
+**Release date:** 2026-08-20
+
+
+**Release page:** [v0.36.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/v0.36.0)
+
+
+**Helm chart:** [0.36.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/1154294264?tag=0.36.0)
+
+
+#### What's Changed
+* Tag API module during release by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/862
+* Added `minReadyInstanceCount` into OnDelete logic evaluation by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/866
+* Add option to focus on test-case by name by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/868
+* Requeue reconcile after update step progress and fix race at UpdateIsPossible by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/864
+* Set memory limit in HTTP and RPC proxy configs by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/861
+* Default location QUOTA should came from volume storage LIMIT by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/860
+* Cleanup rolling update calculations by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/837
+* Added ytProxy into DQEngine spec by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/872
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/v0.35.0...v0.36.0
+
+{% endcut %}
+
+
+{% cut "**v0.35.0**" %}
+
+**Release date:** 2026-08-18
+
+
+**Release page:** [v0.35.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/v0.35.0)
+
+
+**Helm chart:** [0.35.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/1146043475?tag=0.35.0)
+
+
+#### What's Changed
+* Support multiple init-job scripts per job [1] by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/834
+* Build master snapshots using native client in init job [2] by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/846
+* Fix admin user creation [3] by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/841
+* Support yson structured logs and multi-category filter in timbertruck by @tinarsky in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/847
+* Secondary Masters Maintenance [4] by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/740
+* Postprocess the timbertruck sidecar config by @tinarsky in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/848
+* Run PR checks against merge commit by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/850
+* pkg/ypatch: handle setting attribute with missing parent by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/802
+* api: add global terminationGracePeriodSeconds by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/688
+* Use master instance options for yt-client-init-job-user by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/852
+* Fix cluster maintenance by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/853
+* Fix PR checks by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/855
+* Add current workflow file into setup-go cache-dependency-path by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/858
+* Pin Telegram action, gate runs on secrets, and set workflow permissions by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/857
+
+#### New Contributors
+* @tinarsky made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/847
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/v0.34.0...v0.35.0
+
+{% endcut %}
+
+
+{% cut "**v0.34.0**" %}
+
+**Release date:** 2026-08-04
+
+
+**Release page:** [v0.34.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/v0.34.0)
+
+
+**Helm chart:** [0.34.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/1146033798?tag=0.34.0)
+
+
+#### What's Changed
+* Increase events burst and rate limit by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/840
+* Start caches/discovery/tablets after master [1] by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/830
+* Fix HydraPersistenceUploader and Timbertruck mount paths by @ilyaibraev in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/796
+* Disable e2e tests for multicell master initialization by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/842
+* Fix init job (re)start consistency by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/843
+* Add option for test debug by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/826
+* Support tracing configuration by @tindarid in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/845
+* Disable stockpile by default by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/836
+* Support timbertruck for all components by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/817
+
+#### New Contributors
+* @tindarid made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/845
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/v0.33.0...v.0.34.0
+
+{% endcut %}
+
+
+{% cut "**v0.33.0**" %}
+
+**Release date:** 2026-07-22
+
+
+**Release page:** [v0.33.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/v0.33.0)
+
+
+**Helm chart:** [0.33.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/1056412217?tag=0.33.0)
+
+
+#### What's Changed
+* Fix "Conflicting profiling tags" alert at tablet nodes by @ifsmirnov in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/819
+* Set full address in //sys/@ui_config/chyt_controller_base_url by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/818
+* Go 1.25.x update dependencies by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/803
+* Implement per_job_directory mode for Exec-node by @epsilond1 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/768
+* Update test/r8r/canondata by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/822
+* Propagate resources to init containers by @Gufran in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/828
+* Drop support for YTsaurus 24.1 and older by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/831
+* Reduce mandatory k8s version to >=1.25 by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/831
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/v0.32.1...v0.33.0
+
+{% endcut %}
+
+
+{% cut "**v0.32.1**" %}
+
+**Release date:** 2026-06-04
+
+
+**Release page:** [v0.32.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/v0.32.1)
+
+
+**Helm chart:** [0.32.1](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/968345595?tag=0.32.1)
+
+
+#### What's Changed
+* Use configmap for timbertruck config and fix update flow when TT is enabled by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/812
+* Fix manual restart of init jobs by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/810
+* Remove default insecure admin password and token by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/814
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/v0.32.0...v0.32.1
+
+{% endcut %}
+
+
+{% cut "**v0.32.0**" %}
+
+**Release date:** 2026-05-29
+
+
+**Release page:** [v0.32.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/v0.32.0)
+
+
+**Helm chart:** [0.32.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/902118332?tag=0.32.0)
+
+
+#### What's Changed
+* config/samples: add yt-scripts for cgroup-v2 by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/762
+* EnableFullUpdate and UpdateSelector are removed by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/765
+* More verbose diagnostics for count of pods by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/789
+* API: add option imagePullSecret for job images in CRI-O by @Copilot in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/792
+* METAX GPU support by @futujaos in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/793
+* Wait until user is really get superusers permissions by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/795
+* Use json for logging by default by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/799
+* Add YQL agent option to enable DQ engine by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/804
+* Sanitize token operations by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/806
+* add PodMonitor support by @kruftik in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/807
+
+#### Rolling / OnDelete Update
+* Added onDelete strategy into tablet nodes by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/761
+* Added logic to skip tablet cells removal if tnd is in onDelete strategy by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/769
+* Added runsMasterSafetySteps componentManager status in order to skip safety steps when we're in onDelete mode by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/781
+* Upgrade masters before starting other components by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/790
+* Fixed pre-check failure triggering reconciler exponential backoff by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/797
+
+#### Secondary Master Cells
+* API: add cluster maintenance by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/747
+* API: Prepare for secondary master cells [1] by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/782
+* API: cleanup master caches spec [2] by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/785
+* Refactor master quorum / update possibility check [3] by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/774
+* Secondary Masters Initialization [4] by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/791
+
+#### Fixes
+* Refactor init jobs by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/758
+* Fix applying global pod options for UI and strawberry by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/737
+* API: minReadyInstanceCount must be int32 by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/746
+* Fixed proxie's bug with lack of tls volumes during the rolling update by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/751
+* Fix pod removal and readiness logic by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/756
+* Improved `arePodsUpdatedToNewRevision` for onDelete logic by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/759
+* Fixed `rollingUpdate` bug for exec-nodes and added e2e test by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/773
+* Construct ytsaurus client logger from controller logger by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/800
+
+#### Testing
+* Cleanup test for deprecated `EnableAntiAffinity` by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/745
+* test: add release 25.3 by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/752
+* Update helm in workflows by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/733
+* test/r8r: fix race in collecting events by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/757
+* update canondata by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/767
+* Added github-actions-run-errors skill for claude by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/777
+* Add option for DEBUG build with sanitizers by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/750
+* Replace BeTrue/BeFalse with BeTrueBecause/BeFalseBecause in tests by @Copilot in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/771
+* run integration tests for all versions by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/779
+* test/e2e: more verbose waiting for operation status by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/784
+* Use chyt/query-tracker images without debuginfo in samples and compat test by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/778
+* test: upload logs snapshot as artifact by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/783
+* Add workflows to check that PR branch is up-to-date by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/794
+* Fix e2e tests by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/805
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/v0.31.0...v0.32.0
+
+{% endcut %}
+
+
 {% cut "**v0.31.0**" %}
 
 **Release date:** 2026-03-12
+
+
+**Release page:** [v0.31.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/v0.31.0)
+
+
+**Helm chart:** [0.31.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/732908203?tag=0.31.0)
 
 
 #### What's Changed
@@ -81,6 +293,12 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 **Release date:** 2026-02-02
 
 
+**Release page:** [v0.30.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/v0.30.0)
+
+
+**Helm chart:** [0.30.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/667678795?tag=0.30.0)
+
+
 #### What's Changed
 * Remove kube-rbac-proxy by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/637
 * Only create default pool if not present by @Gufran in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/646
@@ -105,7 +323,7 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 * Validate update plan consistency by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/603
 * Added ytop_strategy_on_delete_waiting_time_seconds prometheus metric by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/641
 * Fixed bug in scheduler's UpdatePreCheck by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/660
-* Improved arePodsUpdatedToNewRevision for onDelete logic by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/661
+* Improved `arePodsUpdatedToNewRevision` for onDelete logic by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/661
 * Added config checksum and pod-annotation, updated onDelete e2e by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/652
 * Added ca, ds and msc into new update strategy by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/662
 * Changed return value for some component with ComponentStatusReadyAfter by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/663
@@ -131,9 +349,16 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 
 {% endcut %}
 
+
 {% cut "**0.29.0**" %}
 
 **Release date:** 2025-12-19
+
+
+**Release page:** [0.29.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.29.0)
+
+
+**Helm chart:** [0.29.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/617929635?tag=0.29.0)
 
 
 #### New Features
@@ -163,6 +388,12 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 {% cut "**0.28.0**" %}
 
 **Release date:** 2025-12-09
+
+
+**Release page:** [0.28.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.28.0)
+
+
+**Helm chart:** [0.28.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/604937890?tag=0.28.0)
 
 
 #### What's Changed
@@ -219,6 +450,12 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 **Release date:** 2025-09-22
 
 
+**Release page:** [0.27.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.27.0)
+
+
+**Helm chart:** [0.27.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/522515753?tag=0.27.0)
+
+
 #### Major changes
 * Add support for CRI-O by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/525
 * Introduce cypress patches by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/531
@@ -262,6 +499,12 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 **Release date:** 2025-08-20
 
 
+**Release page:** [0.26.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.26.0)
+
+
+**Helm chart:** [0.26.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/491862233?tag=0.26.0)
+
+
 #### Features
 * Introduced a new Timbertruck component to delivery logs to cypress by @ilyaibraev in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/509
 * Added cypress proxies by @koloshmet in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/519
@@ -289,6 +532,12 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 {% cut "**0.25.0**" %}
 
 **Release date:** 2025-07-23
+
+
+**Release page:** [0.25.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.25.0)
+
+
+**Helm chart:** [0.25.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/471953965?tag=0.25.0)
 
 
 #### Features
@@ -320,6 +569,12 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 **Release date:** 2025-05-20
 
 
+**Release page:** [0.24.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.24.0)
+
+
+**Helm chart:** [0.24.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/419797949?tag=0.24.0)
+
+
 #### Minor
 * Rerun init queue agent script during QA update by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/479
 
@@ -331,6 +586,12 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 {% cut "**0.23.1**" %}
 
 **Release date:** 2025-04-04
+
+
+**Release page:** [0.23.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.23.1)
+
+
+**Helm chart:** [0.23.1](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/388993495?tag=0.23.1)
 
 
 #### Minor
@@ -345,6 +606,12 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 {% cut "**0.23.0**" %}
 
 **Release date:** 2025-04-02
+
+
+**Release page:** [0.23.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.23.0)
+
+
+**Helm chart:** [0.23.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/387207486?tag=0.23.0)
 
 
 #### Minor
@@ -374,6 +641,12 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 **Release date:** 2025-03-07
 
 
+**Release page:** [0.22.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.22.0)
+
+
+**Helm chart:** [0.22.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/369818188?tag=0.22.0)
+
+
 #### Features
 * Update to YTsaurus 24.2 is supported
 
@@ -398,6 +671,12 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 **Release date:** 2025-02-10
 
 
+**Release page:** [0.21.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.21.0)
+
+
+**Helm chart:** [0.21.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/361365252?tag=0.21.0)
+
+
 #### Features
 * Support the ability to deploy a Kafka proxy by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/407
 
@@ -418,6 +697,12 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 **Release date:** 2025-01-20
 
 
+**Release page:** [0.20.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.20.0)
+
+
+**Helm chart:** [0.20.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/342298010?tag=0.20.0)
+
+
 #### Minor
 * Support not creating non-existing users by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/416
 * Added DNSConfig into Instance and YTsaurusSpec by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/420
@@ -425,7 +710,7 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 * Add log_manager_template for job proxy by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/428
 
 #### Release notes
-This release makes yt operator compatible with ytsaurus 24.2.
+This release makes yt operator compatible with ytsaurus 24.2. 
 Update to this version will launch job for setting correct enable_real_chunks_value values in cypress and exec nodes will be updated with a new config.
 
 **Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.19.0...release/0.20.0
@@ -436,6 +721,12 @@ Update to this version will launch job for setting correct enable_real_chunks_va
 {% cut "**0.19.0**" %}
 
 **Release date:** 2025-01-09
+
+
+**Release page:** [0.19.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.19.0)
+
+
+**Helm chart:** [0.19.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/333778227?tag=0.19.0)
 
 
 #### Minor
@@ -453,6 +744,12 @@ Update to this version will launch job for setting correct enable_real_chunks_va
 **Release date:** 2024-12-13
 
 
+**Release page:** [0.18.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.18.1)
+
+
+**Helm chart:** [0.18.1](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/322387466?tag=0.18.1)
+
+
 #### Minor
 * more validation by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/393
 #### Bugfix
@@ -466,6 +763,12 @@ Update to this version will launch job for setting correct enable_real_chunks_va
 {% cut "**0.18.0**" %}
 
 **Release date:** 2024-11-26
+
+
+**Release page:** [0.18.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.18.0)
+
+
+**Helm chart:** [0.18.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/312306352?tag=0.18.0)
 
 
 #### Warning
@@ -506,8 +809,14 @@ The bug was fixed in [0.18.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/
 **Release date:** 2024-10-11
 
 
+**Release page:** [0.17.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.17.0)
+
+
+**Helm chart:** [0.17.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/293977708?tag=0.17.0)
+
+
 #### Minor
-* Separate CHYT init options into makeDefault and createPublicClique by @achulkov2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/347
+* Separate CHYT init options into `makeDefault` and `createPublicClique` by @achulkov2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/347
 #### Bugfix
 * Fix queue agent init script usage for 24.* by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/356
 
@@ -520,6 +829,12 @@ The bug was fixed in [0.18.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/
 **Release date:** 2024-09-13
 
 
+**Release page:** [0.16.2](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.16.2)
+
+
+**Helm chart:** [0.16.2](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/273430407?tag=0.16.2)
+
+
 #### Bugfix
 * Fix strawberry controller image for 2nd job by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/345
 
@@ -530,6 +845,12 @@ The bug was fixed in [0.18.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/
 {% cut "**0.16.1**" %}
 
 **Release date:** 2024-09-13
+
+
+**Release page:** [0.16.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.16.1)
+
+
+**Helm chart:** [0.16.1](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/273375484?tag=0.16.1)
 
 
 #### Warning
@@ -546,6 +867,12 @@ Use 0.16.2 instead.
 {% cut "**0.16.0**" %}
 
 **Release date:** 2024-09-12
+
+
+**Release page:** [0.16.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.16.0)
+
+
+**Helm chart:** [0.16.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/272705267?tag=0.16.0)
 
 
 #### Warning
@@ -569,6 +896,12 @@ Use 0.16.2 instead.
 {% cut "**0.15.0**" %}
 
 **Release date:** 2024-09-04
+
+
+**Release page:** [0.15.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.15.0)
+
+
+**Helm chart:** [0.15.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/268358441?tag=0.15.0)
 
 
 #### Backward incompatible changes
@@ -595,14 +928,20 @@ Use 0.16.2 instead.
 **Release date:** 2024-08-22
 
 
+**Release page:** [0.14.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.14.0)
+
+
+**Helm chart:** [0.14.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/261892792?tag=0.14.0)
+
+
 #### Backward incompatible changes
 Before this release `StrawberryController` was unconditionally configured with `{address_resolver={enable_ipv4=%true;enable_ipv6=%true}}` in its static config. From now on it respects common `useIpv6` and `useIpv4` fields, which can be set in the [YtsaurusSpec](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/docs/api.md#ytsaurusspec).
-If for some reason it is required to have configuration different from
+If for some reason it is required to have configuration different from 
 ```yaml
 useIpv6: true
 useIpv4: true
 ```
-for the main Ytsaurus spec and at the same time `enable_ipv4=%true;enable_ipv6=%true` for the `StrawberryController`, it is possible to achieve that by using `configOverrides` ConfigMap with
+for the main Ytsaurus spec and at the same time `enable_ipv4=%true;enable_ipv6=%true` for the `StrawberryController`, it is possible to achieve that by using `configOverrides` ConfigMap with 
 ```yaml
 data:
     strawberry-controller.yson: |
@@ -616,7 +955,7 @@ data:
         };
       };
     }
-```
+``` 
 
 #### Minor
 * Add no more than one ytsaurus spec per namespace validation by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/305
@@ -638,6 +977,12 @@ data:
 **Release date:** 2024-07-30
 
 
+**Release page:** [0.13.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.13.1)
+
+
+**Helm chart:** [0.13.1](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/250876401?tag=0.13.1)
+
+
 #### Bugfixes
 * Revert deprecation of useInsecureCookies in #310 by @sgburtsev in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/317
 
@@ -652,13 +997,19 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-07-23
 
 
+**Release page:** [0.13.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.13.0)
+
+
+**Helm chart:** [0.13.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/247522829?tag=0.13.0)
+
+
 #### Features
 * Add per-component terminationGracePeriodSeconds by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/304
 * Added externalProxy parameter for UI by @sgburtsev in https://github.com/ytsaurus/yt-k8s-operator/pull/308
 * Size as Quantity in LogRotationPolicy by @sgburtsev in https://github.com/ytsaurus/yt-k8s-operator/pull/309
 * Use `secure` instead of `useInsecureCookies`, pass caBundle to UI by @sgburtsev in https://github.com/ytsaurus/yt-k8s-operator/pull/310
 
-#### Minor
+#### Minor 
 * Add all YTsaurus CRD into category "ytsaurus-all" "yt-all" by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/311
 
 #### Bugfixes
@@ -672,6 +1023,12 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 {% cut "**0.12.0**" %}
 
 **Release date:** 2024-06-28
+
+
+**Release page:** [0.12.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.12.0)
+
+
+**Helm chart:** [0.12.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/236432165?tag=0.12.0)
 
 
 #### Features
@@ -694,11 +1051,17 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-06-27
 
 
+**Release page:** [0.11.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.11.0)
+
+
+**Helm chart:** [0.11.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/236035237?tag=0.11.0)
+
+
 #### Features
 * SetHostnameAsFQDN option is added to all components. Default is true by @qurname2 in https://github.com/ytsaurus/yt-k8s-operator/pull/302
 * Add per-component option hostNetwork by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/287
 
-#### Minor
+#### Minor 
 * Add option for per location disk space quota by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/279
 * Add into exec node pods environment variables for CRI tools by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/283
 * Add per-instance-group podLabels and podAnnotations by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/289
@@ -720,10 +1083,16 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-06-07
 
 
+**Release page:** [0.10.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.10.0)
+
+
+**Helm chart:** [0.10.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/229520332?tag=0.10.0)
+
+
 #### Features
-#### Minor
+#### Minor 
  - Add everyone-share QT ACO by @Krisha11 in #272
- - Add channel in qt config by @Krisha11 in #273
+ - Add channel in qt config by @Krisha11 in #273 
  - Add option for per location disk space quota #279
 #### Bugfixes
 - Fix exec node resource calculation on non-isolated CRI-powered job environment #277
@@ -738,12 +1107,18 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-05-30
 
 
+**Release page:** [0.9.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.9.1)
+
+
+**Helm chart:** [0.9.1](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222950367?tag=0.9.1)
+
+
 #### Features
-#### Minor
+#### Minor 
  - Add 'physical_host' to cypress_annotations for CMS and UI сompatibility #252
  - added WATCH_NAMESPACE env and LeaderElectionNamespace #168
  - Add configuration for solomon exporter: specify host and some instance tags #258
- - Add sidecars support to primary masters containers #259
+ - Add sidecars support to primary masters containers #259 
  - Add option for containerd registry config path #264
 #### Bugfixes
  - Fix CRI job environment for remote exec nodes #261
@@ -757,9 +1132,15 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-04-23
 
 
+**Release page:** [0.9.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.9.0)
+
+
+**Helm chart:** [0.9.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222974140?tag=0.9.0)
+
+
 #### Features
 - Add experimental (behaviour may change) UpdateSelector field #211 to be able to update components separately
-#### Minor
+#### Minor 
 - Enable TmpFS when possible #235
 - Disable disk quota for slot locations #236
 - Forward docker image environment variables to user job #248
@@ -775,13 +1156,19 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-04-12
 
 
+**Release page:** [0.8.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.8.0)
+
+
+**Helm chart:** [0.8.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222976310?tag=0.8.0)
+
+
 #### Features
-#### Minor
+#### Minor 
 - Increased default value for MaxSnapshotCountToKeep and MaxChangelogCountToKeep
 - Tune default bundle replication factor #210
 - Set EnableServiceLinks=false for all pods #218
 #### Bugfixes
-- Fix authentication configuration for RPC Proxy #207
+- Fix authentication configuration for RPC Proxy #207 
 - Job script updated on restart #224
 - Use secure random and base64 for tokens #202
 - Fix running jobs with custom docker_image when default job image is not set #217
@@ -794,13 +1181,19 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-04-04
 
 
+**Release page:** [0.7.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.7.0)
+
+
+**Helm chart:** [0.7.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222976364?tag=0.7.0)
+
+
 #### Features
   * Add Remote exec nodes support #75
   * Add MasterCaches support #122
   * Enable TLS certificate auto-update for http proxies #167
   * CRI containerd job environment #105
 
-#### Minor
+#### Minor 
   * Support RuntimeClassName in InstanceSpec
   * Configurable monitoring port #146
   * Not triggering full update for data nodes update
@@ -826,6 +1219,12 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 {% cut "**0.6.0**" %}
 
 **Release date:** 2024-02-26
+
+
+**Release page:** [0.6.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.6.0)
+
+
+**Helm chart:** [0.6.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222976440?tag=0.6.0)
 
 
 #### Features
@@ -863,6 +1262,12 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2023-11-29
 
 
+**Release page:** [0.5.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.5.0)
+
+
+**Helm chart:** [0.5.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222976486?tag=0.5.0)
+
+
 **Features**
 - Added `minReadyInstanceCount` into Ytsaurus components which allows not to wait when all pods are ready.
 - Support queue agent.
@@ -898,6 +1303,12 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2023-10-03
 
 
+**Release page:** [0.4.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.4.1)
+
+
+**Helm chart:** [0.4.1](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222976536?tag=0.4.1)
+
+
 **Features**
 - Support per-instance-group config override
 - Support TLS for RPC proxies
@@ -911,6 +1322,12 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 {% cut "**0.4.0**" %}
 
 **Release date:** 2023-09-26
+
+
+**Release page:** [0.4.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.4.0)
+
+
+**Helm chart:** [0.4.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222976570?tag=0.4.0)
 
 
 **Features**
@@ -946,6 +1363,12 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 {% cut "**0.3.1**" %}
 
 **Release date:** 2023-08-14
+
+
+**Release page:** [0.3.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.3.1)
+
+
+**Helm chart:** [0.3.1](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222976640?tag=0.3.1)
 
 
 **Features**

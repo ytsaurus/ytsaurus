@@ -15,6 +15,14 @@ java {
     withJavadocJar()
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(11)
+}
+
+tasks.withType<Javadoc>().configureEach {
+    (options as CoreJavadocOptions).addStringOption("source", "11")
+}
+
 dependencies {
     implementation(project(":yt:java:annotations"))
     implementation(project(":yt:java:ytsaurus-client"))

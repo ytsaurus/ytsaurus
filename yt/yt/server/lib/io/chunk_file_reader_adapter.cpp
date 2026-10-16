@@ -37,7 +37,11 @@ public:
         const std::optional<TPartitionTags>& partitionTags,
         const std::optional<std::vector<int>>& /*extensionTags*/) override
     {
-        return Underlying_->GetMeta(options.ClientOptions, {}, partitionTags);
+        return Underlying_->GetMeta(
+            options.ClientOptions,
+            /*fairShareSlotId*/ {},
+            /*fairShareState*/ {},
+            partitionTags);
     }
 
     TChunkId GetChunkId() const override

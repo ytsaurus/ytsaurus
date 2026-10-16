@@ -35,12 +35,12 @@ target_link_libraries(yt-server-queue_agent PUBLIC
   yutil
   server-lib-admin
   server-lib-alert_manager
-  server-lib-cypress_election
   server-lib-cypress_registrar
   server-lib-misc
   yt-yt-ytlib
   yt-yt-client
   yt-client-federated
+  yt-library-cypress_election
   yt-library-dynamic_config
   yt-library-monitoring
   yt-library-orchid
@@ -57,7 +57,11 @@ target_sources(yt-server-queue_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/cypress_synchronizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/multi_consumer_controller.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/multi_consumer_names_garbage_collector.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/multi_consumer_profile_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/object.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/ytree_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/pass_profiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/performance_counters.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/profile_manager.cpp

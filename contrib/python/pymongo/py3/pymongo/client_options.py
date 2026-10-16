@@ -16,9 +16,11 @@
 
 .. seealso:: This module is compatible with both the synchronous and asynchronous PyMongo APIs.
 """
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, cast
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from bson.codec_options import _parse_codec_options
 from pymongo import common
@@ -108,7 +110,7 @@ def _parse_ssl_options(
         "tlscrlfile",
     ):
         # Any non-null value of these options implies tls=True.
-        if opt in options and options[opt]:
+        if options.get(opt):
             enabled_tls_opts.append(opt)
     for opt in (
         "tlsallowinvalidcertificates",
@@ -128,7 +130,7 @@ def _parse_ssl_options(
             raise ConfigurationError(
                 "TLS has not been enabled but the "
                 "following tls parameters have been set: "
-                "%s. Please set `tls=True` or remove." % ", ".join(enabled_tls_opts)
+                "{}. Please set `tls=True` or remove.".format(", ".join(enabled_tls_opts))
             )
 
     if use_tls:
@@ -234,6 +236,16 @@ class ClientOptions:
         self.__timeout = options.get("timeoutms")
         self.__server_monitoring_mode = options.get(
             "servermonitoringmode", common.SERVER_MONITORING_MODE
+        )
+        self.__max_adaptive_retries = (
+            options.get("max_adaptive_retries", common.MAX_ADAPTIVE_RETRIES)
+            if "max_adaptive_retries" in options
+            else options.get("maxadaptiveretries", common.MAX_ADAPTIVE_RETRIES)
+        )
+        self.__enable_overload_retargeting = (
+            options.get("enable_overload_retargeting", common.ENABLE_OVERLOAD_RETARGETING)
+            if "enable_overload_retargeting" in options
+            else options.get("enableoverloadretargeting", common.ENABLE_OVERLOAD_RETARGETING)
         )
 
     @property
@@ -346,3 +358,19 @@ class ClientOptions:
         .. versionadded:: 4.5
         """
         return self.__server_monitoring_mode
+
+    @property
+    def max_adaptive_retries(self) -> int:
+        """The configured maxAdaptiveRetries option.
+
+        .. versionadded:: 4.17
+        """
+        return self.__max_adaptive_retries
+
+    @property
+    def enable_overload_retargeting(self) -> bool:
+        """The configured enableOverloadRetargeting option.
+
+        .. versionadded:: 4.17
+        """
+        return self.__enable_overload_retargeting

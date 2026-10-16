@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, exists, remove,
+    authors, wait, create, ls, get, set, exists, remove, get_driver,
     create_account, create_network_project,
     create_user, create_group, create_tablet_cell_bundle, make_ace,
     add_member, remove_member, remove_group, remove_user,
@@ -49,7 +49,7 @@ class TestUsers(YTEnvSetup):
 
         set("//sys/users/u/@banned", True)
         assert get("//sys/users/u/@banned")
-        with raises_yt_error("User \"u\" is banned"):
+        with raises_yt_error("User .* is banned"):
             get("//tmp", authenticated_user="u")
 
         set("//sys/users/u/@banned", False)
@@ -73,7 +73,7 @@ class TestUsers(YTEnvSetup):
         assert is_banned("u")
 
         assert not is_banned("root")
-        with raises_yt_error("User \"root\" cannot be banned"):
+        with raises_yt_error("User .* cannot be banned"):
             set("//sys/users/root/@banned", True)
         assert not is_banned("root")
 
@@ -83,10 +83,60 @@ class TestUsers(YTEnvSetup):
         set("//sys/users/u/@write_request_rate_limit", 1)
         set("//sys/users/u/@read_request_rate_limit", 1)
 
-        with raises_yt_error("cannot be negative"):
+        with raises_yt_error(".* cannot be negative"):
             set("//sys/users/u/@read_request_rate_limit", -1)
-        with raises_yt_error("cannot be negative"):
+        with raises_yt_error(".* cannot be negative"):
             set("//sys/users/u/@write_request_rate_limit", -1)
+
+    @authors("shakurov")
+    def test_clusterwide_request_rate_limit_default(self):
+        create_user("u1")
+        assert get("//sys/users/u1/@request_limits/write_request_rate/clusterwide") == 100
+        assert get("//sys/users/u1/@request_limits/read_request_rate/clusterwide") == 100
+        assert get("//sys/users/u1/@request_limits/request_queue_size/clusterwide") == 100
+
+        create_user("u2", attributes={"request_limits": {
+            "write_request_rate": {"clusterwide": 200},
+            "read_request_rate": {"clusterwide": 200},
+            "request_queue_size": {"clusterwide": 200},
+        }})
+        assert get("//sys/users/u2/@request_limits/write_request_rate/clusterwide") == 200
+        assert get("//sys/users/u2/@request_limits/read_request_rate/clusterwide") == 200
+        assert get("//sys/users/u2/@request_limits/request_queue_size/clusterwide") == 200
+
+        create_user("u3", attributes={"request_limits": {
+            "write_request_rate": {"default": 300},
+            "read_request_rate": {"default": 300},
+            "request_queue_size": {"default": 300},
+        }})
+        assert get("//sys/users/u3/@request_limits/write_request_rate/clusterwide") == 300
+        assert get("//sys/users/u3/@request_limits/read_request_rate/clusterwide") == 300
+        assert get("//sys/users/u3/@request_limits/request_queue_size/clusterwide") == 300
+
+        create_user("u4", attributes={"request_limits": {
+            "write_request_rate": {"clusterwide": 400, "default": 500},
+            "read_request_rate": {"clusterwide": 400, "default": 500},
+            "request_queue_size": {"clusterwide": 400, "default": 500},
+        }})
+        assert get("//sys/users/u4/@request_limits/write_request_rate/clusterwide") == 400
+        assert get("//sys/users/u4/@request_limits/read_request_rate/clusterwide") == 400
+        assert get("//sys/users/u4/@request_limits/request_queue_size/clusterwide") == 400
+
+        set("//sys/users/u4/@request_limits/write_request_rate/clusterwide", 600)
+        set("//sys/users/u4/@request_limits/read_request_rate/clusterwide", 600)
+        set("//sys/users/u4/@request_limits/request_queue_size/clusterwide", 600)
+
+        assert get("//sys/users/u4/@request_limits/write_request_rate/clusterwide") == 600
+        assert get("//sys/users/u4/@request_limits/read_request_rate/clusterwide") == 600
+        assert get("//sys/users/u4/@request_limits/request_queue_size/clusterwide") == 600
+
+        set("//sys/users/u4/@request_limits/write_request_rate/default", 700)
+        set("//sys/users/u4/@request_limits/read_request_rate/default", 700)
+        set("//sys/users/u4/@request_limits/request_queue_size/default", 700)
+
+        assert get("//sys/users/u4/@request_limits/write_request_rate/clusterwide") == 600
+        assert get("//sys/users/u4/@request_limits/read_request_rate/clusterwide") == 600
+        assert get("//sys/users/u4/@request_limits/request_queue_size/clusterwide") == 600
 
     @authors("h0pless")
     def test_request_rate_limit_root(self):
@@ -96,7 +146,7 @@ class TestUsers(YTEnvSetup):
     @authors("babenko")
     def test_request_queue_size_limit1(self):
         create_user("u")
-        with raises_yt_error("cannot be negative"):
+        with raises_yt_error(".* cannot be negative"):
             set("//sys/users/u/@request_queue_size_limit", -1)
 
     @authors("babenko")
@@ -108,7 +158,7 @@ class TestUsers(YTEnvSetup):
     def test_request_queue_size_limit3(self):
         create_user("u")
         set("//sys/users/u/@request_queue_size_limit", 0)
-        with raises_yt_error("has exceeded its request queue size limit"):
+        with raises_yt_error("User .* has exceeded its request queue size limit"):
             ls("/", authenticated_user="u")
         set("//sys/users/u/@request_queue_size_limit", 1)
         ls("/", authenticated_user="u")
@@ -180,9 +230,9 @@ class TestUsers(YTEnvSetup):
     @authors("babenko", "ignat")
     def test_create_user2(self):
         create_user("max")
-        with raises_yt_error("User \"max\" already exists"):
+        with raises_yt_error("User .* already exists"):
             create_user("max")
-        with raises_yt_error("User \"max\" already exists"):
+        with raises_yt_error("User .* already exists"):
             create_group("max")
 
     @authors("babenko", "ignat")
@@ -193,9 +243,9 @@ class TestUsers(YTEnvSetup):
     @authors("babenko", "ignat")
     def test_create_group2(self):
         create_group("devs")
-        with raises_yt_error("Group \"devs\" already exists"):
+        with raises_yt_error("Group .* already exists"):
             create_user("devs")
-        with raises_yt_error("Group \"devs\" already exists"):
+        with raises_yt_error("Group .* already exists"):
             create_group("devs")
 
     @authors("babenko", "ignat")
@@ -221,7 +271,7 @@ class TestUsers(YTEnvSetup):
         assert get("//sys/groups/devs/@members") == ["max"]
         assert get("//sys/groups/devs/@members") == ["max"]
 
-        with raises_yt_error(yt_error_codes.IsAlreadyPresentInGroup):
+        with raises_yt_error(code=yt_error_codes.IsAlreadyPresentInGroup):
             add_member("max", "devs")
 
     @authors("asaitgalin", "babenko", "ignat")
@@ -263,7 +313,7 @@ class TestUsers(YTEnvSetup):
 
         add_member("g2", "g1")
         add_member("g3", "g2")
-        with raises_yt_error("would produce a cycle"):
+        with raises_yt_error("Adding group .* to group .* would produce a cycle"):
             add_member("g1", "g3")
 
     @authors("ignat")
@@ -288,17 +338,17 @@ class TestUsers(YTEnvSetup):
         create_user("u")
         create_group("g")
 
-        with raises_yt_error("is not present in group"):
+        with raises_yt_error("Member .* is not present in group .*"):
             remove_member("u", "g")
 
         add_member("u", "g")
-        with raises_yt_error("is already present in group"):
+        with raises_yt_error("Member .* is already present in group .*"):
             add_member("u", "g")
 
     @authors("babenko")
     def test_membership7(self):
         create_group("g")
-        with raises_yt_error("would produce a cycle"):
+        with raises_yt_error("Adding group .* to group .* would produce a cycle"):
             add_member("g", "g")
 
     @authors("ignat")
@@ -427,16 +477,16 @@ class TestUsers(YTEnvSetup):
     def test_network_projects(self):
         create_network_project("a")
 
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_network_project("a")
 
         set("//sys/network_projects/a/@project_id", 123)
         assert get("//sys/network_projects/a/@project_id") == 123
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot parse"):
             set("//sys/network_projects/a/@project_id", "abc")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error casting long value .* to unsigned int: value is out of expected range .*"):
             set("//sys/network_projects/a/@project_id", -1)
 
         set("//sys/network_projects/a/@name", "b")
@@ -467,7 +517,7 @@ class TestUsers(YTEnvSetup):
         create("table", "//tmp/t1", attributes={"external": False})
 
         create_user("u")
-        with raises_yt_error("is not allowed to create explicitly non-external nodes"):
+        with raises_yt_error("User .* is not allowed to create explicitly non-external nodes"):
             create(
                 "table",
                 "//tmp/t2",
@@ -479,7 +529,7 @@ class TestUsers(YTEnvSetup):
         create("table", "//tmp/t3", attributes={"external": False}, authenticated_user="u")
 
         set("//sys/users/u/@allow_external_false", False)
-        with raises_yt_error("is not allowed to create explicitly non-external nodes"):
+        with raises_yt_error("User .* is not allowed to create explicitly non-external nodes"):
             create(
                 "table",
                 "//tmp/t4",
@@ -792,7 +842,6 @@ class TestUsers(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestRequestThrottling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -1062,3 +1111,20 @@ class TestUsersMulticell(TestUsers):
         create("table", "//tmp/p/t", authenticated_user="u")
         wait(lambda: self._get_last_seen_time("u") > last_seen, timeout=2)
         assert self._get_last_seen_time("u") - last_seen < datetime.timedelta(seconds=2)
+
+    @authors("danilalexeev")
+    def test_last_seen_via_sequoia_node_host(self):
+        cell_descriptor_path = "//sys/@config/multicell_manager/cell_descriptors/12"
+        original_descriptor = get(cell_descriptor_path)
+        set(cell_descriptor_path, {"roles": ["sequoia_node_host"]})
+
+        try:
+            create_user("u")
+            wait(lambda: exists("//sys/users/u", driver=get_driver(2)))
+            last_seen = self._get_last_seen_time("u")
+
+            get("//sys/@cell_id", authenticated_user="u", driver=get_driver(2))
+
+            wait(lambda: self._get_last_seen_time("u") > last_seen, timeout=10)
+        finally:
+            set(cell_descriptor_path, original_descriptor)

@@ -2,13 +2,13 @@ import collections
 import itertools
 import math
 
-from sqlglot import exp, generator, planner, tokens
-from sqlglot.dialects.dialect import Dialect, inline_array_sql
+from sqlglot import exp, planner, tokens
+from sqlglot.dialects.dialect import Dialect
 from sqlglot.errors import ExecuteError
 from sqlglot.executor.context import Context
 from sqlglot.executor.env import ENV
 from sqlglot.executor.table import RowReader, Table
-from sqlglot.helper import subclasses
+from sqlglot.generators.python import PythonGenerator
 
 
 class PythonExecutor:
@@ -80,14 +80,14 @@ class PythonExecutor:
 
     def table(self, expressions):
         return Table(
-            expression.alias_or_name if isinstance(expression, exp.Expression) else expression
+            expression.alias_or_name if isinstance(expression, exp.Expr) else expression
             for expression in expressions
         )
 
     def scan(self, step, context):
         source = step.source
 
-        if source and isinstance(source, exp.Expression):
+        if source and isinstance(source, exp.Expr):
             source = source.name or source.alias
 
         if source is None:
@@ -140,11 +140,29 @@ class PythonExecutor:
             start = max(r.stop for r in column_ranges.values())
             column_ranges[name] = range(start, len(table.columns) + start)
             join_context = self.context({name: table})
+            condition = self.generate(join["condition"])
+            condition_context = (
+                self.context(
+                    {
+                        name: Table(
+                            source_context.columns + join_context.columns,
+                            column_range=column_range,
+                        )
+                        for name, column_range in column_ranges.items()
+                    }
+                )
+                if condition
+                else None
+            )
 
             if join.get("source_key"):
-                table = self.hash_join(join, source_context, join_context)
+                table = self.hash_join(
+                    join, source_context, join_context, condition, condition_context
+                )
             else:
-                table = self.nested_loop_join(join, source_context, join_context)
+                table = self.nested_loop_join(
+                    join, source_context, join_context, condition, condition_context
+                )
 
             source_context = self.context(
                 {
@@ -152,10 +170,6 @@ class PythonExecutor:
                     for name, column_range in column_ranges.items()
                 }
             )
-            condition = self.generate(join["condition"])
-            if condition:
-                source_context.filter(condition)
-
         if not step.condition and not step.projections:
             return source_context
 
@@ -175,41 +189,91 @@ class PythonExecutor:
                 }
             )
 
-    def nested_loop_join(self, _join, source_context, join_context):
-        table = Table(source_context.columns + join_context.columns)
+    @staticmethod
+    def _join_matches(row, condition, condition_context):
+        if not condition:
+            return True
 
-        for reader_a, _ in source_context:
-            for reader_b, _ in join_context:
-                table.append(reader_a.row + reader_b.row)
+        condition_context.set_row(row)
+        return condition_context.eval(condition) is True
+
+    def nested_loop_join(self, join, source_context, join_context, condition, condition_context):
+        table = Table(source_context.columns + join_context.columns)
+        source_rows = source_context.table.rows
+        join_rows = join_context.table.rows
+        matched_source = set()
+        matched_join = set()
+
+        for source_index, source_row in enumerate(source_rows):
+            for join_index, join_row in enumerate(join_rows):
+                row = source_row + join_row
+                if self._join_matches(row, condition, condition_context):
+                    table.append(row)
+                    matched_source.add(source_index)
+                    matched_join.add(join_index)
+
+        self._append_unmatched_join_rows(
+            table, join, source_rows, join_rows, matched_source, matched_join
+        )
 
         return table
 
-    def hash_join(self, join, source_context, join_context):
+    def hash_join(self, join, source_context, join_context, condition, condition_context):
         source_key = self.generate_tuple(join["source_key"])
         join_key = self.generate_tuple(join["join_key"])
-        left = join.get("side") == "LEFT"
-        right = join.get("side") == "RIGHT"
-
         results = collections.defaultdict(lambda: ([], []))
 
-        for reader, ctx in source_context:
-            results[ctx.eval_tuple(source_key)][0].append(reader.row)
-        for reader, ctx in join_context:
-            results[ctx.eval_tuple(join_key)][1].append(reader.row)
+        for index, (reader, ctx) in enumerate(source_context):
+            key = ctx.eval_tuple(source_key)
+            if all(value is not None for value in key):
+                results[key][0].append((index, reader.row))
+        for index, (reader, ctx) in enumerate(join_context):
+            key = ctx.eval_tuple(join_key)
+            if all(value is not None for value in key):
+                results[key][1].append((index, reader.row))
 
         table = Table(source_context.columns + join_context.columns)
-        nulls = [(None,) * len(join_context.columns if left else source_context.columns)]
+        matched_source = set()
+        matched_join = set()
 
-        for a_group, b_group in results.values():
-            if left:
-                b_group = b_group or nulls
-            elif right:
-                a_group = a_group or nulls
+        for source_group, join_group in results.values():
+            for (source_index, source_row), (join_index, join_row) in itertools.product(
+                source_group, join_group
+            ):
+                row = source_row + join_row
+                if self._join_matches(row, condition, condition_context):
+                    table.append(row)
+                    matched_source.add(source_index)
+                    matched_join.add(join_index)
 
-            for a_row, b_row in itertools.product(a_group, b_group):
-                table.append(a_row + b_row)
+        self._append_unmatched_join_rows(
+            table,
+            join,
+            source_context.table.rows,
+            join_context.table.rows,
+            matched_source,
+            matched_join,
+        )
 
         return table
+
+    @staticmethod
+    def _append_unmatched_join_rows(
+        table, join, source_rows, join_rows, matched_source, matched_join
+    ):
+        side = join.get("side")
+        if side in ("LEFT", "FULL"):
+            join_nulls = (None,) * (len(table.columns) - len(source_rows[0]) if source_rows else 0)
+            for index, row in enumerate(source_rows):
+                if index not in matched_source:
+                    table.append(row + join_nulls)
+
+        if side in ("RIGHT", "FULL"):
+            source_width = len(table.columns) - (len(join_rows[0]) if join_rows else 0)
+            source_nulls = (None,) * source_width
+            for index, row in enumerate(join_rows):
+                if index not in matched_join:
+                    table.append(source_nulls + row)
 
     def aggregate(self, step, context):
         group_by = self.generate_tuple(step.group.values())
@@ -310,9 +374,23 @@ class PythonExecutor:
         sink = self.table(left.columns)
 
         if issubclass(step.op, exp.Intersect):
-            sink.rows = list(set(left.rows).intersection(set(right.rows)))
+            right_counts = collections.Counter(right.rows)
+            seen = set()
+            for row in left.rows:
+                if right_counts[row] and (not step.distinct or row not in seen):
+                    sink.append(row)
+                    seen.add(row)
+                    if not step.distinct:
+                        right_counts[row] -= 1
         elif issubclass(step.op, exp.Except):
-            sink.rows = list(set(left.rows).difference(set(right.rows)))
+            right_counts = collections.Counter(right.rows)
+            seen = set()
+            for row in left.rows:
+                if right_counts[row] and not step.distinct:
+                    right_counts[row] -= 1
+                elif not right_counts[row] and (not step.distinct or row not in seen):
+                    sink.append(row)
+                    seen.add(row)
         elif issubclass(step.op, exp.Union) and step.distinct:
             sink.rows = list(set(left.rows).union(set(right.rows)))
         else:
@@ -324,109 +402,8 @@ class PythonExecutor:
         return self.context({step.name: sink})
 
 
-def _ordered_py(self, expression):
-    this = self.sql(expression, "this")
-    desc = "True" if expression.args.get("desc") else "False"
-    nulls_first = "True" if expression.args.get("nulls_first") else "False"
-    return f"ORDERED({this}, {desc}, {nulls_first})"
-
-
-def _rename(self, e):
-    try:
-        values = list(e.args.values())
-
-        if len(values) == 1:
-            values = values[0]
-            if not isinstance(values, list):
-                return self.func(e.key, values)
-            return self.func(e.key, *values)
-
-        if isinstance(e, exp.Func) and e.is_var_len_args:
-            args = itertools.chain.from_iterable(x if isinstance(x, list) else [x] for x in values)
-            return self.func(e.key, *args)
-
-        return self.func(e.key, *values)
-    except Exception as ex:
-        raise Exception(f"Could not rename {repr(e)}") from ex
-
-
-def _case_sql(self, expression):
-    this = self.sql(expression, "this")
-    chain = self.sql(expression, "default") or "None"
-
-    for e in reversed(expression.args["ifs"]):
-        true = self.sql(e, "true")
-        condition = self.sql(e, "this")
-        condition = f"{this} = ({condition})" if this else condition
-        chain = f"{true} if {condition} else ({chain})"
-
-    return chain
-
-
-def _lambda_sql(self, e: exp.Lambda) -> str:
-    names = {e.name.lower() for e in e.expressions}
-
-    e = e.transform(
-        lambda n: (
-            exp.var(n.name) if isinstance(n, exp.Identifier) and n.name.lower() in names else n
-        )
-    ).assert_is(exp.Lambda)
-
-    return f"lambda {self.expressions(e, flat=True)}: {self.sql(e, 'this')}"
-
-
-def _div_sql(self: generator.Generator, e: exp.Div) -> str:
-    denominator = self.sql(e, "expression")
-
-    if e.args.get("safe"):
-        denominator += " or None"
-
-    sql = f"DIV({self.sql(e, 'this')}, {denominator})"
-
-    if e.args.get("typed"):
-        sql = f"int({sql})"
-
-    return sql
-
-
 class Python(Dialect):
     class Tokenizer(tokens.Tokenizer):
         STRING_ESCAPES = ["\\"]
 
-    class Generator(generator.Generator):
-        TRANSFORMS = {
-            **{klass: _rename for klass in subclasses(exp.__name__, exp.Binary)},
-            **{klass: _rename for klass in exp.ALL_FUNCTIONS},
-            exp.Case: _case_sql,
-            exp.Alias: lambda self, e: self.sql(e.this),
-            exp.Array: inline_array_sql,
-            exp.And: lambda self, e: self.binary(e, "and"),
-            exp.Between: _rename,
-            exp.Boolean: lambda self, e: "True" if e.this else "False",
-            exp.Cast: lambda self, e: f"CAST({self.sql(e.this)}, exp.DataType.Type.{e.args['to']})",
-            exp.Column: lambda self,
-            e: f"scope[{self.sql(e, 'table') or None}][{self.sql(e.this)}]",
-            exp.Concat: lambda self, e: self.func(
-                "SAFECONCAT" if e.args.get("safe") else "CONCAT", *e.expressions
-            ),
-            exp.Distinct: lambda self, e: f"set({self.sql(e, 'this')})",
-            exp.Div: _div_sql,
-            exp.Extract: lambda self,
-            e: f"EXTRACT('{e.name.lower()}', {self.sql(e, 'expression')})",
-            exp.In: lambda self,
-            e: f"{self.sql(e, 'this')} in {{{self.expressions(e, flat=True)}}}",
-            exp.Interval: lambda self, e: f"INTERVAL({self.sql(e.this)}, '{self.sql(e.unit)}')",
-            exp.Is: lambda self, e: (
-                self.binary(e, "==") if isinstance(e.this, exp.Literal) else self.binary(e, "is")
-            ),
-            exp.JSONExtract: lambda self, e: self.func(e.key, e.this, e.expression, *e.expressions),
-            exp.JSONPath: lambda self, e: f"[{','.join(self.sql(p) for p in e.expressions[1:])}]",
-            exp.JSONPathKey: lambda self, e: f"'{self.sql(e.this)}'",
-            exp.JSONPathSubscript: lambda self, e: f"'{e.this}'",
-            exp.Lambda: _lambda_sql,
-            exp.Not: lambda self, e: f"not {self.sql(e.this)}",
-            exp.Null: lambda *_: "None",
-            exp.Or: lambda self, e: self.binary(e, "or"),
-            exp.Ordered: _ordered_py,
-            exp.Star: lambda *_: "1",
-        }
+    Generator = PythonGenerator

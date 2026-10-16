@@ -24,6 +24,8 @@
 
 #include <yt/yt/client/chunk_client/public.h>
 
+#include <yt/yt/library/containers/porto_helpers.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/misc/adjusted_exponential_moving_average.h>
@@ -51,7 +53,7 @@ using namespace NYson;
 using NVectorHdrf::EIntegralGuaranteeType;
 using NYT::ToProto;
 
-extern const TString OperationAliasPrefix;
+extern const std::string OperationAliasPrefix;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,7 +65,7 @@ void ValidateOperationAcl(const TSerializableAccessControlList& acl)
         if (ace.Action != ESecurityAction::Allow && ace.Action != ESecurityAction::Deny) {
             THROW_ERROR_EXCEPTION("Action %Qlv is forbidden to specify in operation ACE",
                 ace.Action)
-                << TErrorAttribute("ace", ace);
+                .With("ace", ace);
         }
         if (Any(ace.Permissions & ~(EPermission::Read | EPermission::Manage | EPermission::Administer))) {
             THROW_ERROR_EXCEPTION("Only %Qlv, %Qlv and %Qlv permissions are allowed in operation ACL, got %v",
@@ -71,7 +73,7 @@ void ValidateOperationAcl(const TSerializableAccessControlList& acl)
                 EPermission::Manage,
                 EPermission::Administer,
                 ConvertToYsonString(ace.Permissions, EYsonFormat::Text))
-                << TErrorAttribute("ace", ace);
+                .With("ace", ace);
         }
     }
 }
@@ -107,7 +109,7 @@ void ValidateProfilers(const std::vector<TJobProfilerSpecPtr>& profilers)
 
     if (totalProbability > 1.0) {
         THROW_ERROR_EXCEPTION("Total probability of enabled profilers is too large")
-            << TErrorAttribute("total_probability", totalProbability);
+            .With("total_probability", totalProbability);
     }
 }
 
@@ -116,7 +118,7 @@ void ValidateOutputTablePaths(std::vector<NYPath::TRichYPath> paths)
     SortBy(paths, [] (const auto& path) { return path.GetPath(); });
     if (auto duplicatePath = AdjacentFind(paths); duplicatePath != paths.end()) {
         THROW_ERROR_EXCEPTION("Duplicate entries in output_table_paths are not allowed")
-            << TErrorAttribute("non_unique_output_table", *duplicatePath);
+            .With("non_unique_output_table", *duplicatePath);
     }
 }
 
@@ -156,8 +158,8 @@ void RegisterNbdDisk(TYsonStructRegistrar<TConfig>& registrar)
         // NBD disk size shall not exceed NExecNode::MaxNbdDiskSize.
         if (config->NbdDisk && config->DiskSpace > NExecNode::MaxNbdDiskSize) {
             THROW_ERROR_EXCEPTION("\"disk_space\" exceeds maximum limit for NBD disk")
-                << TErrorAttribute("max_disk_space", NExecNode::MaxNbdDiskSize)
-                << TErrorAttribute("disk_space", config->DiskSpace);
+                .With("max_disk_space", NExecNode::MaxNbdDiskSize)
+                .With("disk_space", config->DiskSpace);
         }
     });
 }
@@ -168,7 +170,7 @@ void RegisterNbdDisk(TYsonStructRegistrar<TConfig>& registrar)
 
 static constexpr int MaxAllowedProfilingTagCount = 200;
 
-TPoolName::TPoolName(TString pool, std::optional<TString> parent)
+TPoolName::TPoolName(std::string pool, std::optional<std::string> parent)
 {
     if (parent) {
         Pool_ = *parent +  Delimiter + pool;
@@ -180,24 +182,24 @@ TPoolName::TPoolName(TString pool, std::optional<TString> parent)
 
 const char TPoolName::Delimiter = '$';
 
-const TString& TPoolName::GetPool() const
+const std::string& TPoolName::GetPool() const
 {
     return Pool_;
 }
 
-const std::optional<TString>& TPoolName::GetParentPool() const
+const std::optional<std::string>& TPoolName::GetParentPool() const
 {
     return ParentPool_;
 }
 
-const TString& TPoolName::GetSpecifiedPoolName() const
+const std::string& TPoolName::GetSpecifiedPoolName() const
 {
     return ParentPool_ ? *ParentPool_ : Pool_;
 }
 
-TPoolName TPoolName::FromString(const TString& value)
+TPoolName TPoolName::FromString(const std::string& value)
 {
-    std::vector<TString> parts;
+    std::vector<std::string> parts;
     StringSplitter(value).Split(Delimiter).AddTo(&parts);
     switch (parts.size()) {
         case 1:
@@ -211,7 +213,7 @@ TPoolName TPoolName::FromString(const TString& value)
     }
 }
 
-TString TPoolName::ToString() const
+std::string TPoolName::ToString() const
 {
     return Pool_;
 }
@@ -225,7 +227,7 @@ void Deserialize(TPoolName& value, TYsonPullParserCursor* cursor)
 {
     MaybeSkipAttributes(cursor);
     EnsureYsonToken("TPoolName", *cursor, EYsonItemType::StringValue);
-    value = TPoolName::FromString(ExtractTo<TString>(cursor));
+    value = TPoolName::FromString(ExtractTo<std::string>(cursor));
 }
 
 void Serialize(const TPoolName& value, IYsonConsumer* consumer)
@@ -377,6 +379,9 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("settle_job_delay", &TThis::SettleJobDelay)
         .Default();
+    registrar.Parameter("schedule_allocation_cpu_multiplier", &TThis::ScheduleAllocationCpuMultiplier)
+        .GreaterThan(0.0)
+        .Default();
     registrar.Parameter("fail_settle_job_requests", &TThis::FailSettleJobRequests)
         .Default(false);
     registrar.Parameter("testing_speculative_launch_mode", &TThis::TestingSpeculativeLaunchMode)
@@ -489,8 +494,8 @@ void TAutoMergeConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TAutoMergeConfig* config) {
         if (config->JobIO->TableWriter->DesiredChunkWeight < config->ChunkSizeThreshold) {
             THROW_ERROR_EXCEPTION("Desired chunk weight cannot be less than chunk size threshold")
-                << TErrorAttribute("chunk_size_threshold", config->ChunkSizeThreshold)
-                << TErrorAttribute("desired_chunk_weight", config->JobIO->TableWriter->DesiredChunkWeight);
+                .With("chunk_size_threshold", config->ChunkSizeThreshold)
+                .With("desired_chunk_weight", config->JobIO->TableWriter->DesiredChunkWeight);
         }
 
         if (config->Mode == EAutoMergeMode::Manual) {
@@ -501,8 +506,8 @@ void TAutoMergeConfig::Register(TRegistrar registrar)
             }
             if (*config->MaxIntermediateChunkCount < *config->ChunkCountPerMergeJob) {
                 THROW_ERROR_EXCEPTION("Maximum intermediate chunk count cannot be less than chunk count per merge job")
-                    << TErrorAttribute("max_intermediate_chunk_count", *config->MaxIntermediateChunkCount)
-                    << TErrorAttribute("chunk_count_per_merge_job", *config->ChunkCountPerMergeJob);
+                    .With("max_intermediate_chunk_count", *config->MaxIntermediateChunkCount)
+                    .With("chunk_count_per_merge_job", *config->ChunkCountPerMergeJob);
             }
         }
     });
@@ -540,14 +545,17 @@ void TSamplingConfig::Register(TRegistrar registrar)
     registrar.Parameter("io_block_size", &TThis::IOBlockSize)
         .Default(16_MB);
 
+    registrar.Parameter("sampling_seed", &TThis::SamplingSeed)
+        .Default();
+
     registrar.Postprocessor([] (TSamplingConfig* config) {
         if (config->SamplingRate && (*config->SamplingRate < 0.0 || *config->SamplingRate > 1.0)) {
             THROW_ERROR_EXCEPTION("Sampling rate should be in range [0.0, 1.0]")
-                << TErrorAttribute("sampling_rate", config->SamplingRate);
+                .With("sampling_rate", config->SamplingRate);
         }
         if (config->MaxTotalSliceCount && *config->MaxTotalSliceCount <= 0) {
             THROW_ERROR_EXCEPTION("max_total_slice_count should be positive")
-                << TErrorAttribute("max_total_slice_count", config->MaxTotalSliceCount);
+                .With("max_total_slice_count", config->MaxTotalSliceCount);
         }
     });
 }
@@ -565,27 +573,30 @@ void TTmpfsVolumeConfig::Register(TRegistrar registrar)
 void TNbdDiskConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("data_node_rpc_timeout", &TThis::DataNodeRpcTimeout)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Minutes(4));
     registrar.Parameter("data_node_nbd_service_rpc_timeout", &TThis::DataNodeNbdServiceRpcTimeout)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Minutes(2));
     registrar.Parameter("data_node_nbd_service_make_timeout", &TThis::DataNodeNbdServiceMakeTimeout)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Minutes(5));
     registrar.Parameter("data_node_address", &TThis::DataNodeAddress)
         .Default();
     registrar.Parameter("master_rpc_timeout", &TThis::MasterRpcTimeout)
-        .Default(TDuration::Seconds(5));
+        .Default(TDuration::Seconds(10));
     registrar.Parameter("min_data_node_count", &TThis::MinDataNodeCount)
         .GreaterThanOrEqual(1)
         .Default(1);
     registrar.Parameter("max_data_node_count", &TThis::MaxDataNodeCount)
         .GreaterThanOrEqual(1)
         .Default(3);
+    registrar.Parameter("multiplexing_parallelism", &TThis::MultiplexingParallelism)
+        .GreaterThanOrEqual(1)
+        .Default(NExecNode::DefaultNbdMultiplexingParallelism);
 
     registrar.Postprocessor([&] (TNbdDiskConfig* config) {
         if (config->MinDataNodeCount > config->MaxDataNodeCount) {
             THROW_ERROR_EXCEPTION("Invalid \"min_data_node_count\", \"max_data_node_count\" pair")
-                << TErrorAttribute("min_data_node_count", config->MinDataNodeCount)
-                << TErrorAttribute("max_data_node_count", config->MaxDataNodeCount);
+                .With("min_data_node_count", config->MinDataNodeCount)
+                .With("max_data_node_count", config->MaxDataNodeCount);
         }
     });
 }
@@ -595,8 +606,11 @@ void TStorageRequestBase::Register(TRegistrar registrar)
     RegisterDiskSpace(registrar);
 }
 
-void TTmpfsStorageRequest::Register(TRegistrar /*registrar*/)
-{ }
+void TTmpfsStorageRequest::Register(TRegistrar registrar)
+{
+    registrar.Parameter("tmpfs_index", &TThis::TmpfsIndex)
+        .Default();
+}
 
 void TDiskRequestConfig::Register(TRegistrar registrar)
 {
@@ -631,6 +645,10 @@ void TJobShell::Register(TRegistrar registrar)
 
     registrar.Parameter("owners", &TThis::Owners)
         .Default();
+
+    registrar.Postprocessor([] (TJobShell* jobShell) {
+        NContainers::ValidatePortoContainerSubpath(jobShell->Subcontainer);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -650,9 +668,9 @@ void TUserJobMonitoringConfig::Register(TRegistrar registrar)
         .Default(false);
 }
 
-const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
+const std::vector<std::string>& TUserJobMonitoringConfig::GetDefaultSensorNames()
 {
-    static const std::vector<TString> DefaultSensorNames = {
+    static const std::vector<std::string> DefaultSensorNames = {
         "cpu/burst",
         "cpu/user",
         "cpu/system",
@@ -743,7 +761,7 @@ void TJobFailsTolerance::Register(TRegistrar registrar)
             for (const auto& [key, value] : field) {
                 THROW_ERROR_EXCEPTION_UNLESS(
                     value >= 0,
-                    "Maximum value of fails for each exit code must be non-negative! (ExitCode: %v, MaxFailsCount: %v)",
+                    "Maximum number of fails for exit code %v must be non-negative, got %v",
                     key,
                     value);
             }
@@ -1015,7 +1033,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("enable_virtual_sandbox", &TThis::EnableVirtualSandbox)
         .Default(false);
 
-    registrar.Parameter("enable_root_volume_disk_quota", &TThis::EnableRootVolumeDiskQuota)
+    registrar.Parameter("disable_rbind_root_volume", &TThis::DisableRbindRootVolume)
+        .Alias("enable_root_volume_disk_quota")
         .Default(false);
 
     registrar.Parameter("chunk_availability_policy", &TThis::ChunkAvailabilityPolicy)
@@ -1043,6 +1062,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("bypass_hunk_remote_copy_prohibition", &TThis::BypassHunkRemoteCopyProhibition)
         .Default();
 
+    registrar.Parameter("allow_unfrozen_input_tables", &TThis::AllowUnfrozenInputTables)
+        .Default(false);
+
     registrar.Parameter("cuda_profiler_layer_path", &TThis::CudaProfilerLayerPath)
         .Default();
 
@@ -1065,7 +1087,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_multiple_jobs_in_allocation", &TThis::EnableMultipleJobsInAllocation)
-        .Default();
+        .Default(true);
 
     registrar.Parameter("update_secondary_index", &TThis::UpdateSecondaryIndex)
         .Default(true);
@@ -1087,9 +1109,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
             NControllerAgent::ValidateEnvironmentVariableName(spec->TemporaryTokenEnvironmentVariableName);
         }
 
-        if (spec->Alias && !spec->Alias->StartsWith(OperationAliasPrefix)) {
+        if (spec->Alias && !spec->Alias->starts_with(OperationAliasPrefix)) {
             THROW_ERROR_EXCEPTION("Operation alias should start with %Qv", OperationAliasPrefix)
-                << TErrorAttribute("operation_alias", spec->Alias);
+                .With("operation_alias", spec->Alias);
         }
 
         constexpr int MaxAnnotationsYsonTextLength = 10_KB;
@@ -1124,11 +1146,11 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         ValidateProfilers(spec->Profilers);
 
         {
-            THashSet<TString> jobShellNames;
+            THashSet<std::string> jobShellNames;
             for (const auto& jobShell : spec->JobShells) {
                 if (!jobShellNames.emplace(jobShell->Name).second) {
                     THROW_ERROR_EXCEPTION("Job shell names should be distinct")
-                        << TErrorAttribute("duplicate_shell_name", jobShell->Name);
+                        .With("duplicate_shell_name", jobShell->Name);
                 }
             }
         }
@@ -1197,6 +1219,9 @@ void TSidecarJobSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("graceful_shutdown", &TThis::GracefulShutdown)
         .Default();
+
+    registrar.Parameter("sidecar_volume_mounts", &TThis::SidecarVolumeMounts)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1222,8 +1247,8 @@ void TJobExperimentConfig::Register(TRegistrar registrar)
         if (config->BaseLayerPath && config->NetworkProject) {
             THROW_ERROR_EXCEPTION(
                 "Options \"base_layer_path\" and \"network_project\" cannot be specified simultaneously")
-                << TErrorAttribute("base_layer_path", config->BaseLayerPath)
-                << TErrorAttribute("network_project", config->NetworkProject);
+                .With("base_layer_path", config->BaseLayerPath)
+                .With("network_project", config->NetworkProject);
         }
     });
 }
@@ -1258,6 +1283,8 @@ void TVolume::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("layers", &TThis::Layers)
         .Default();
+    registrar.Parameter("allow_reusing", &TThis::AllowReusing)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1457,7 +1484,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("volumes", &TThis::Volumes)
         .Default();
 
-    registrar.Parameter("job_volumes_mounts", &TThis::JobVolumeMounts)
+    registrar.Parameter("job_volume_mounts", &TThis::JobVolumeMounts)
+        // TODO(krasovav): Deprecate this.
+        .Alias("job_volumes_mounts")
         .Default();
 
     registrar.Postprocessor([] (TUserJobSpec* spec) {
@@ -1469,9 +1498,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION(
                 "Options \"tmpfs_size\" and \"tmpfs_path\" cannot be specified "
                 "simultaneously with \"tmpfs_volumes\"")
-                << TErrorAttribute("tmpfs_size", spec->TmpfsSize)
-                << TErrorAttribute("tmpfs_path", spec->TmpfsPath)
-                << TErrorAttribute("tmpfs_volumes", spec->DeprecatedTmpfsVolumes);
+                .With("tmpfs_size", spec->TmpfsSize)
+                .With("tmpfs_path", spec->TmpfsPath)
+                .With("tmpfs_volumes", spec->DeprecatedTmpfsVolumes);
         }
 
         if (spec->TmpfsPath) {
@@ -1482,201 +1511,13 @@ void TUserJobSpec::Register(TRegistrar registrar)
             spec->TmpfsPath = std::nullopt;
             spec->TmpfsSize = std::nullopt;
         }
-
-        std::vector<TTmpfsVolumeConfigPtr> tmpDeprecatedTmpfsVolumes;
-        TDeprecatedDiskRequestConfigPtr tmpDeprecatedDiskRequestConfig;
-        std::vector<NYPath::TRichYPath> tmpDeprecatedLayerPaths;
-
-        // This is necessary so that the fields("disk_request", "tmpfs", "layers") are not removed from the specification,
-        // so that the user is not afraid of not seeing them there.
-        if (spec->IsFirstIterationPostprocessorComplete) {
-            tmpDeprecatedTmpfsVolumes = std::move(spec->DeprecatedTmpfsVolumes);
-            tmpDeprecatedDiskRequestConfig = std::move(spec->DeprecatedDiskRequest);
-            tmpDeprecatedLayerPaths = std::move(spec->DeprecatedLayerPaths);
-        }
-
-        if (!spec->DeprecatedTmpfsVolumes.empty() && !spec->Volumes.empty()) {
-            THROW_ERROR_EXCEPTION(
-                "Option \"tmpfs_volumes\" cannot be specified simultaneously with \"volumes\"")
-                << TErrorAttribute("tmpfs_volumes", spec->DeprecatedTmpfsVolumes)
-                << TErrorAttribute("volumes", spec->Volumes);
-        }
-
         if (spec->DiskSpaceLimit && spec->DeprecatedDiskRequest) {
             THROW_ERROR_EXCEPTION(
                 "Options \"disk_space_limit\" and \"inode_limit\" cannot be specified "
                 "together with \"disk_request\"")
-                << TErrorAttribute("disk_space_limit", spec->DiskSpaceLimit)
-                << TErrorAttribute("inode_limit", spec->InodeLimit)
-                << TErrorAttribute("disk_request", spec->DeprecatedDiskRequest);
-        }
-
-
-        if (spec->DiskSpaceLimit && !spec->Volumes.empty()) {
-            THROW_ERROR_EXCEPTION(
-                "Options \"disk_space_limit\" cannot be specified "
-                "together with \"volumes\" which contains not only tmpfs volumes")
-                << TErrorAttribute("disk_space_limit", spec->DiskSpaceLimit)
-                << TErrorAttribute("inode_limit", spec->InodeLimit)
-                << TErrorAttribute("volumes", spec->Volumes);
-        }
-
-        if (spec->DeprecatedDiskRequest && !spec->Volumes.empty()) {
-            THROW_ERROR_EXCEPTION(
-                "Option \"disk_request\" cannot be specified simultaneously with \"volumes\"")
-                << TErrorAttribute("disk_request", spec->DeprecatedDiskRequest)
-                << TErrorAttribute("volumes", spec->Volumes);
-        }
-
-        if (!spec->DeprecatedLayerPaths.empty() && !spec->Volumes.empty()) {
-            THROW_ERROR_EXCEPTION(
-                "Option \"layer_paths\" cannot be specified simultaneously with \"volumes\"")
-                << TErrorAttribute("layer_paths", spec->DeprecatedDiskRequest)
-                << TErrorAttribute("volumes", spec->Volumes);
-        }
-
-        {
-            THashSet<std::string> requestedVolumeIds;
-            for (const auto& volumeMount : spec->JobVolumeMounts) {
-                requestedVolumeIds.insert(volumeMount->VolumeId);
-                if (!spec->Volumes.contains(volumeMount->VolumeId)) {
-                    THROW_ERROR_EXCEPTION("Volume was requested but not described")
-                        << TErrorAttribute("volume_id", volumeMount->VolumeId);
-                }
-            }
-
-            for (const auto& [id, volume] : spec->Volumes) {
-                if (!requestedVolumeIds.contains(id)) {
-                    THROW_ERROR_EXCEPTION("Volume was described but not used")
-                        << TErrorAttribute("volume_id", id);
-                }
-            }
-        }
-
-        auto makeNewNameForVolume = [index = 0] () mutable {
-            return ToString(index++);
-        };
-
-        TVolumePtr newVolume;
-        TVolumeMountPtr newVolumeMount;
-        std::optional<std::string> newNameForNewVolume = makeNewNameForVolume();
-
-        bool hasRootFSInJobVolumeMounts = [&] () {
-            auto it = std::find_if(spec->JobVolumeMounts.begin(), spec->JobVolumeMounts.end(), [] (const auto& volumeMount) {
-                return volumeMount->MountPath == "/";
-            });
-            return it != spec->JobVolumeMounts.end();
-        }();
-        if (!hasRootFSInJobVolumeMounts) {
-            newVolume = New<TVolume>();
-
-            newVolumeMount = New<TVolumeMount>();
-            newVolumeMount->MountPath = "/";
-            newVolumeMount->VolumeId = *newNameForNewVolume;
-            newVolumeMount->ReadOnly = false;
-        }
-
-        if (spec->DeprecatedDiskRequest) {
-            if (spec->DeprecatedDiskRequest->NbdDisk) {
-                newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Nbd);
-                auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Nbd>();
-                *diskRequest = spec->DeprecatedDiskRequest;
-            } else {
-                newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Local);
-                auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>();
-                *diskRequest = spec->DeprecatedDiskRequest;
-            }
-        }
-
-        for (const auto& volumeFromOldSpec : spec->DeprecatedTmpfsVolumes) {
-            auto nameForNewVolume = makeNewNameForVolume();
-
-            auto volumeMount = New<TVolumeMount>();
-            volumeMount->MountPath = volumeFromOldSpec->Path;
-            volumeMount->VolumeId = nameForNewVolume;
-            volumeMount->ReadOnly = false;
-            spec->JobVolumeMounts.push_back(std::move(volumeMount));
-
-            auto newVolume = New<TVolume>();
-            newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Tmpfs);
-            (*newVolume->DiskRequest)->DiskSpace = volumeFromOldSpec->Size;
-            spec->Volumes[nameForNewVolume] = std::move(newVolume);
-        }
-
-        for (const auto& volumeMount : spec->JobVolumeMounts) {
-            auto it = spec->Volumes.find(volumeMount->VolumeId);
-            if (!IsDiskRequestTmpfs(it->second->DiskRequest)) {
-                continue;
-            }
-
-            if (!NFS::IsPathRelativeAndInvolvesNoTraversal(volumeMount->MountPath)) {
-                THROW_ERROR_EXCEPTION("Tmpfs path %v does not point inside the sandbox directory",
-                    volumeMount->MountPath);
-            }
-        }
-
-        i64 totalTmpfsSize = 0;
-        int tmpfsVolumeIndex = 0;
-        for (auto& [_, volume] : spec->Volumes) {
-            if (!IsDiskRequestTmpfs(volume->DiskRequest)) {
-                continue;
-            }
-            totalTmpfsSize += (*volume->DiskRequest)->DiskSpace;
-
-            // COMPAT (krasovav)
-            volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()->TmpfsIndex = tmpfsVolumeIndex++;
-        }
-
-        // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).
-        if (totalTmpfsSize > spec->MemoryLimit) {
-            THROW_ERROR_EXCEPTION("Total size of tmpfs volumes must be less than or equal to memory limit")
-                << TErrorAttribute("tmpfs_size", totalTmpfsSize)
-                << TErrorAttribute("memory_limit", spec->MemoryLimit);
-        }
-
-        std::vector<std::string_view> tmpfsPaths;
-        tmpfsPaths.reserve(spec->Volumes.size());
-        for (const auto& volumeMount : spec->JobVolumeMounts) {
-            auto leftVolumeIt = spec->Volumes.find(volumeMount->VolumeId);
-            if (!IsDiskRequestTmpfs(leftVolumeIt->second->DiskRequest)) {
-                continue;
-            }
-
-            tmpfsPaths.push_back(volumeMount->MountPath);
-        }
-
-        if (spec->MemoryReserveFactor &&
-            (*spec->MemoryReserveFactor == 1.0 || !spec->IgnoreMemoryReserveFactorLessThanOne))
-        {
-            spec->UserJobMemoryDigestLowerBound = spec->UserJobMemoryDigestDefaultValue = *spec->MemoryReserveFactor;
-        }
-
-        auto memoryDigestLowerLimit = static_cast<double>(totalTmpfsSize) / spec->MemoryLimit;
-        spec->UserJobMemoryDigestDefaultValue = std::min(
-            1.0,
-            std::max(spec->UserJobMemoryDigestDefaultValue, memoryDigestLowerLimit));
-        spec->UserJobMemoryDigestLowerBound = std::min(
-            1.0,
-            std::max(spec->UserJobMemoryDigestLowerBound, memoryDigestLowerLimit));
-        spec->UserJobMemoryDigestDefaultValue = std::max(spec->UserJobMemoryDigestLowerBound, spec->UserJobMemoryDigestDefaultValue);
-
-        for (const auto& [variableName, _] : spec->Environment) {
-            NControllerAgent::ValidateEnvironmentVariableName(variableName);
-        }
-
-        if (!spec->DiskSpaceLimit && spec->InodeLimit) {
-            THROW_ERROR_EXCEPTION("Option \"inode_limit\" can be specified only with \"disk_space_limit\"");
-        }
-
-        if (spec->DiskSpaceLimit) {
-            newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Local);
-            auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>();
-
-            diskRequest->DiskSpace = *spec->DiskSpaceLimit;
-            diskRequest->InodeCount = spec->InodeLimit;
-
-            spec->DiskSpaceLimit = std::nullopt;
-            spec->InodeLimit = std::nullopt;
+                .With("disk_space_limit", spec->DiskSpaceLimit)
+                .With("inode_limit", spec->InodeLimit)
+                .With("disk_request", spec->DeprecatedDiskRequest);
         }
 
         if (spec->Profilers) {
@@ -1691,45 +1532,18 @@ void TUserJobSpec::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("Option \"enable_shuffle_service_in_job_proxy\" cannot be enabled when \"enable_rpc_proxy_in_job_proxy\" is disabled");
         }
 
-        auto copyLayersToVolume = [] (TVolumePtr& volume, const std::vector<NYPath::TRichYPath>& layerPaths) {
-            volume->Layers.reserve(layerPaths.size());
-            for (const auto& layerPath : layerPaths) {
-                auto newLayer = New<TLayer>();
-                newLayer->Path = layerPath;
-                volume->Layers.push_back(std::move(newLayer));
-            }
-        };
-
-        if (!spec->DeprecatedLayerPaths.empty()) {
-            copyLayersToVolume(newVolume, spec->DeprecatedLayerPaths);
+        for (const auto& [variableName, _] : spec->Environment) {
+            NControllerAgent::ValidateEnvironmentVariableName(variableName);
         }
 
-        if (newVolume) {
-            spec->Volumes[*newNameForNewVolume] = std::move(newVolume);
-            spec->JobVolumeMounts.push_back(std::move(newVolumeMount));
-        }
-
-        std::sort(spec->JobVolumeMounts.begin(), spec->JobVolumeMounts.end(), [] (const auto& lhs, const auto& rhs) {
-            return lhs->MountPath < rhs->MountPath;
-        });
-
-        {
-            THashSet<std::string_view> allUniqueVolumeMountPaths;
-            for (const auto& volumeMount : spec->JobVolumeMounts) {
-                allUniqueVolumeMountPaths.insert(volumeMount->MountPath);
-            }
-            if (allUniqueVolumeMountPaths.size() != spec->JobVolumeMounts.size()) {
-                THROW_ERROR_EXCEPTION("Options \"job_volume_mounts\" must contains only unique mount path")
-                    << TErrorAttribute("job_volume_mounts", spec->JobVolumeMounts);
+        for (const auto& [sidecarName, _] : spec->Sidecars) {
+            if (auto error = NContainers::CheckPortoContainerNameComponent(sidecarName); !error.IsOK()) {
+                THROW_ERROR_EXCEPTION("Invalid sidecar name %Qv in option \"sidecars\"", sidecarName)
+                    .With(std::move(error));
             }
         }
 
-        if (!spec->IsFirstIterationPostprocessorComplete) {
-            spec->DeprecatedTmpfsVolumes = std::move(tmpDeprecatedTmpfsVolumes);
-            spec->DeprecatedDiskRequest = std::move(tmpDeprecatedDiskRequestConfig);
-            spec->DeprecatedLayerPaths = std::move(tmpDeprecatedLayerPaths);
-        }
-        spec->IsFirstIterationPostprocessorComplete = true;
+        // If you want to perform any actions on the volumes, it’s best to do them in the ValidateAndEnrichVolumeSpec function.
     });
 }
 
@@ -1752,7 +1566,7 @@ void TOptionalUserJobSpec::Register(TRegistrar registrar)
 
 bool TOptionalUserJobSpec::IsNontrivial() const
 {
-    return Command != TString();
+    return Command != std::string();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1791,14 +1605,14 @@ void TVanillaTaskSpec::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TVanillaTaskSpec* spec) {
         if (spec->GangOptions && spec->RestartCompletedJobs) {
             THROW_ERROR_EXCEPTION(
-                "\"gang_options\" and \"restart_completed_jobs\" can not be turned on both");
+                "\"gang_options\" and \"restart_completed_jobs\" cannot be turned on both");
         }
 
         if (spec->GangOptions && spec->GangOptions->Size && *spec->GangOptions->Size > spec->JobCount) {
             THROW_ERROR_EXCEPTION(
                 "\"gang_options.size\" must be less than or equal to \"job_count\"")
-                << TErrorAttribute("gang_options.size", *spec->GangOptions->Size)
-                << TErrorAttribute("job_count", spec->JobCount);
+                .With("gang_options.size", *spec->GangOptions->Size)
+                .With("job_count", spec->JobCount);
         }
     });
 }
@@ -1911,13 +1725,13 @@ void TSimpleOperationSpecBase::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TSimpleOperationSpecBase* spec) {
         if (spec->StrictDataWeightPerJobVerification && spec->DataWeightPerJob > spec->MaxDataWeightPerJob) {
             THROW_ERROR_EXCEPTION("\"data_weight_per_job\" cannot be greater than \"max_data_weight_per_job\"")
-                << TErrorAttribute("data_weight_per_job", spec->DataWeightPerJob)
-                << TErrorAttribute("max_data_weight_per_job", spec->MaxDataWeightPerJob);
+                .With("data_weight_per_job", spec->DataWeightPerJob)
+                .With("max_data_weight_per_job", spec->MaxDataWeightPerJob);
         }
         if (spec->CompressedDataSizePerJob > spec->MaxCompressedDataSizePerJob) {
             THROW_ERROR_EXCEPTION("\"compressed_data_size_per_job\" cannot be greater than \"max_compressed_data_size_per_job\"")
-                << TErrorAttribute("compressed_data_size_per_job", spec->CompressedDataSizePerJob)
-                << TErrorAttribute("max_compressed_data_size_per_job", spec->MaxCompressedDataSizePerJob);
+                .With("compressed_data_size_per_job", spec->CompressedDataSizePerJob)
+                .With("max_compressed_data_size_per_job", spec->MaxCompressedDataSizePerJob);
         }
     });
 }
@@ -2013,18 +1827,10 @@ void TEraseOperationSpec::Register(TRegistrar registrar)
 
 void TSortedOperationSpec::Register(TRegistrar registrar)
 {
-    registrar.Parameter("use_new_sorted_pool", &TThis::UseNewSortedPool)
-        .Default(false);
     registrar.Parameter("merge_by", &TThis::MergeBy)
         .Default();
     registrar.Parameter("min_maniac_data_weight", &TThis::MinManiacDataWeight)
         .Default();
-
-    registrar.Postprocessor([] (TSortedOperationSpec* spec) {
-        if (spec->MinManiacDataWeight && !spec->UseNewSortedPool) {
-            THROW_ERROR_EXCEPTION("\"min_maniac_data_weight\" is only allowed for new sorted pool");
-        }
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2157,20 +1963,40 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
         .GreaterThan(0)
         .LessThanOrEqual(1)
         .Default(0.7);
-    registrar.Parameter("use_new_sorted_pool", &TThis::UseNewSortedPool)
-        .Default(false);
 
     registrar.Parameter("samples_per_partition", &TThis::SamplesPerPartition)
         .Default(1000)
         .GreaterThan(1);
 
     registrar.Parameter("enable_final_partitions_merging", &TThis::EnableFinalPartitionsMerging)
-        .Default(false);
+        .Default();
 
     registrar.Parameter("force_job_size_adjuster", &TThis::ForceJobSizeAdjuster)
         .Default(false);
 
+    registrar.Parameter("use_push_based_shuffle", &TThis::UsePushBasedShuffle)
+        .Default(false);
+
     registrar.Postprocessor([] (TSortOperationSpecBase* spec) {
+        if (spec->UsePushBasedShuffle) {
+            THROW_ERROR_EXCEPTION_IF(
+                spec->EnablePartitionedDataBalancing,
+                "Option %Qv is not supported by push-based shuffle",
+                "enable_partitioned_data_balancing");
+            THROW_ERROR_EXCEPTION_IF(
+                spec->EnableFinalPartitionsMerging.value_or(false),
+                "Option %Qv is not supported by push-based shuffle",
+                "enable_final_partitions_merging");
+            THROW_ERROR_EXCEPTION_IF(
+                spec->IntermediateDirectUploadNodeCount.has_value(),
+                "Option %Qv is not applicable to push-based shuffle",
+                "intermediate_direct_upload_node_count");
+            THROW_ERROR_EXCEPTION_IF(
+                spec->ProbingRatio.has_value(),
+                "Option %Qv is not supported by push-based shuffle",
+                "probing_ratio");
+        }
+
         NTableClient::ValidateSortColumns(spec->SortBy);
 
         // Validate pivot_keys.
@@ -2180,13 +2006,13 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
                     ValidateDataValueType(value.Type);
                 }
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION(TError("Pivot keys are invalid") << ex);
+                THROW_ERROR_EXCEPTION(TError("Pivot keys are invalid").With(ex));
             }
 
             if (pivotKey.GetCount() > std::ssize(spec->SortBy)) {
                 THROW_ERROR_EXCEPTION("Pivot key cannot be longer than sort_by")
-                    << TErrorAttribute("key", pivotKey)
-                    << TErrorAttribute("sort_by", spec->SortBy);
+                    .With("key", pivotKey)
+                    .With("sort_by", spec->SortBy);
             }
         }
 
@@ -2196,34 +2022,43 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
             const auto& nextUpperBound = TKeyBound::FromRow() < spec->PivotKeys[index + 1];
             if (sortComparator.CompareKeyBounds(upperBound, nextUpperBound) >= 0) {
                 THROW_ERROR_EXCEPTION("Pivot keys should form a strictly increasing sequence")
-                    << TErrorAttribute("pivot_key", spec->PivotKeys[index])
-                    << TErrorAttribute("next_pivot_key", spec->PivotKeys[index + 1])
-                    << TErrorAttribute("comparator", sortComparator);
+                    .With("pivot_key", spec->PivotKeys[index])
+                    .With("next_pivot_key", spec->PivotKeys[index + 1])
+                    .With("comparator", sortComparator);
             }
         }
 
-        THROW_ERROR_EXCEPTION_IF(
-            spec->EnableFinalPartitionsMerging && spec->PartitionCount.has_value(),
-            "Option %Qv cannot be specified when %Qv is enabled",
-            "partition_count",
-            "enable_final_partitions_merging");
+        if (spec->EnableFinalPartitionsMerging.value_or(false)) {
+            THROW_ERROR_EXCEPTION_IF(
+                spec->PartitionCount.has_value(),
+                "Option %Qv cannot be specified when %Qv is enabled",
+                "partition_count",
+                "enable_final_partitions_merging");
 
-        THROW_ERROR_EXCEPTION_IF(
-            !spec->EnableFinalPartitionsMerging && spec->PartitionDataWeightForMerging.has_value(),
-            "Option %Qv cannot be specified when %Qv is not enabled",
-            "partition_data_weight_for_merging",
-            "enable_final_partitions_merging");
+            THROW_ERROR_EXCEPTION_IF(
+                !spec->PivotKeys.empty(),
+                "Option %Qv cannot be specified when %Qv is enabled",
+                "pivot_keys",
+                "enable_final_partitions_merging");
+        }
 
-        if (spec->EnableFinalPartitionsMerging &&
-            spec->PartitionDataWeightForMerging.has_value() &&
-            *spec->PartitionDataWeightForMerging > spec->DataWeightPerShuffleJob)
-        {
-            THROW_ERROR_EXCEPTION(
-                "Option %Qv cannot be greater than %Qv",
+        if (spec->PartitionDataWeightForMerging.has_value()) {
+            THROW_ERROR_EXCEPTION_IF(
+                !spec->EnableFinalPartitionsMerging.value_or(false),
+                "Option %Qv cannot be specified when %Qv is not enabled",
                 "partition_data_weight_for_merging",
-                "data_weight_per_sort_job")
-                << TErrorAttribute("partition_data_weight_for_merging", *spec->PartitionDataWeightForMerging)
-                << TErrorAttribute("data_weight_per_sort_job", spec->DataWeightPerShuffleJob);
+                "enable_final_partitions_merging");
+
+            if (spec->EnableFinalPartitionsMerging.value_or(false) &&
+                *spec->PartitionDataWeightForMerging > spec->DataWeightPerShuffleJob)
+            {
+                THROW_ERROR_EXCEPTION(
+                    "Option %Qv cannot be greater than %Qv",
+                    "partition_data_weight_for_merging",
+                    "data_weight_per_sort_job")
+                    .With("partition_data_weight_for_merging", *spec->PartitionDataWeightForMerging)
+                    .With("data_weight_per_sort_job", spec->DataWeightPerShuffleJob);
+            }
         }
     });
 }
@@ -2243,6 +2078,9 @@ void TSortOperationSpec::Register(TRegistrar registrar)
 
     // Provide custom names for shared settings.
     registrar.BaseClassParameter("partition_job_count", &TSortOperationSpec::PartitionJobCount)
+        .Default()
+        .GreaterThan(0);
+    registrar.BaseClassParameter("max_partition_job_count", &TSortOperationSpec::MaxPartitionJobCount)
         .Default()
         .GreaterThan(0);
     registrar.BaseClassParameter("data_weight_per_partition_job", &TSortOperationSpec::DataWeightPerPartitionJob)
@@ -2290,7 +2128,7 @@ void TSortOperationSpec::Register(TRegistrar registrar)
 
     registrar.Postprocessor([&] (TSortOperationSpec* spec) {
         if (spec->SortBy.empty()) {
-            THROW_ERROR_EXCEPTION("\"sort_by\" option should be set in Sort operations");
+            THROW_ERROR_EXCEPTION("\"sort_by\" parameter is required");
         }
 
         if (spec->Sampling && spec->Sampling->SamplingRate) {
@@ -2331,11 +2169,14 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
     registrar.BaseClassParameter("map_job_count", &TMapReduceOperationSpec::PartitionJobCount)
         .Default()
         .GreaterThan(0);
+    registrar.BaseClassParameter("max_map_job_count", &TMapReduceOperationSpec::MaxPartitionJobCount)
+        .Default()
+        .GreaterThan(0);
     registrar.BaseClassParameter("data_weight_per_map_job", &TMapReduceOperationSpec::DataWeightPerPartitionJob)
         .Alias("data_size_per_map_job")
         .Default()
         .GreaterThan(0);
-    registrar.BaseClassParameter("compressed_data_size_per_map_job", &TSortOperationSpec::CompressedDataSizePerPartitionJob)
+    registrar.BaseClassParameter("compressed_data_size_per_map_job", &TMapReduceOperationSpec::CompressedDataSizePerPartitionJob)
         .Default()
         .GreaterThan(0);
     registrar.BaseClassParameter("map_locality_timeout", &TMapReduceOperationSpec::PartitionLocalityTimeout)
@@ -2386,13 +2227,51 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
     });
 
     registrar.Postprocessor([] (TMapReduceOperationSpec* spec) {
-        auto throwError = [] (NTableClient::EControlAttribute attribute, const TString& jobType) {
+        if (spec->UsePushBasedShuffle) {
+            THROW_ERROR_EXCEPTION_IF(
+                spec->MapperOutputTableCount != 0,
+                "Push-based shuffle does not support nonzero %Qv",
+                "mapper_output_table_count");
+            THROW_ERROR_EXCEPTION_IF(
+                spec->InputQuery.has_value(),
+                "Option %Qv is not supported by push-based shuffle",
+                "input_query");
+            THROW_ERROR_EXCEPTION_IF(
+                !spec->HasNontrivialMapper() && spec->EnableTableIndexIfHasTrivialMapper,
+                "Option %Qv is not supported by push-based shuffle",
+                "enable_table_index_if_has_trivial_mapper");
+            THROW_ERROR_EXCEPTION_IF(
+                spec->DisableSortedInputInReducer,
+                "Option %Qv is not supported by push-based shuffle",
+                "disable_sorted_input_in_reducer");
+            THROW_ERROR_EXCEPTION_IF(
+                spec->HasNontrivialReduceCombiner() || spec->ForceReduceCombiners,
+                "Reduce combiners are not supported by push-based shuffle");
+            THROW_ERROR_EXCEPTION_IF(
+                spec->Reducer->EnableInputTableIndex.value_or(false) ||
+                    spec->MergeJobIO->ControlAttributes->EnableTableIndex ||
+                    spec->SortJobIO->ControlAttributes->EnableTableIndex,
+                "Reducer-side %Qlv control attribute is not supported by push-based shuffle",
+                NTableClient::EControlAttribute::TableIndex);
+
+            if (spec->HasNontrivialMapper()) {
+                THROW_ERROR_EXCEPTION_IF(
+                    std::ssize(spec->Mapper->OutputStreams) != 1,
+                    "Push-based shuffle requires the mapper to declare exactly one output stream")
+                    .With("output_stream_count", std::ssize(spec->Mapper->OutputStreams));
+                THROW_ERROR_EXCEPTION_IF(
+                    !spec->Mapper->OutputStreams[0]->Schema->IsStrict(),
+                    "Push-based shuffle requires a strict mapper output stream schema");
+            }
+        }
+
+        auto throwError = [] (NTableClient::EControlAttribute attribute, const std::string& jobType) {
             THROW_ERROR_EXCEPTION(
                 "%Qlv control attribute is not supported by %Qlv jobs in map-reduce operation",
                 attribute,
                 jobType);
         };
-        auto validateControlAttributes = [&] (const NFormats::TControlAttributesConfigPtr& attributes, const TString& jobType) {
+        auto validateControlAttributes = [&] (const NFormats::TControlAttributesConfigPtr& attributes, const std::string& jobType) {
             if (attributes->EnableRowIndex) {
                 throwError(NTableClient::EControlAttribute::RowIndex, jobType);
             }
@@ -2458,15 +2337,15 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
                 if (stream->Schema->GetSortColumns() != spec->SortBy) {
                     THROW_ERROR_EXCEPTION("Schemas of mapper output streams should have exactly the same "
                         "\"sort_by\" sort column prefix")
-                        << TErrorAttribute("violating_schema", stream->Schema)
-                        << TErrorAttribute("sort_by", spec->SortBy);
+                        .With("violating_schema", stream->Schema)
+                        .With("sort_by", spec->SortBy);
                 }
                 auto sortColumnNames = GetColumnNames(spec->SortBy);
                 const auto& firstStream = spec->Mapper->OutputStreams.front();
                 if (*stream->Schema->Filter(sortColumnNames) != *firstStream->Schema->Filter(sortColumnNames)) {
                     THROW_ERROR_EXCEPTION("Key columns of mapper output streams should have the same names and types")
-                        << TErrorAttribute("lhs_schema", firstStream->Schema)
-                        << TErrorAttribute("rhs_schema", stream->Schema);
+                        .With("lhs_schema", firstStream->Schema)
+                        .With("rhs_schema", stream->Schema);
                 }
             }
         }
@@ -2527,10 +2406,10 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
             (spec->HasNontrivialMapper() && !spec->Mapper->OutputStreams.empty() && spec->MapperOutputTableCount >= std::ssize(spec->Mapper->OutputStreams)))
         {
             auto error = TError("There should be at least one non-mapper output table; maybe you need \"map\" operation instead?")
-                << TErrorAttribute("mapper_output_table_count", spec->MapperOutputTableCount)
-                << TErrorAttribute("output_table_count", spec->OutputTablePaths.size());
+                .With("mapper_output_table_count", spec->MapperOutputTableCount)
+                .With("output_table_count", spec->OutputTablePaths.size());
             if (spec->HasNontrivialMapper()) {
-                error = error << TErrorAttribute("mapper_output_stream_count", spec->Mapper->OutputStreams.size());
+                error = error.With("mapper_output_stream_count", spec->Mapper->OutputStreams.size());
             }
             THROW_ERROR error;
         }
@@ -2657,6 +2536,11 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
 
             ValidateOutputTablePaths(taskSpec->OutputTablePaths);
 
+            if (taskSpec->RestartExitCode && (spec->FailOnJobRestart || taskSpec->FailOnJobRestart)) {
+                THROW_ERROR_EXCEPTION("\"restart_exit_code\" cannot be set together with \"fail_on_job_restart\"")
+                    .With("task_name", taskName);
+            }
+
             if (taskSpec->CollectiveOptions) {
                 collectiveTaskName = taskName;
             }
@@ -2676,27 +2560,27 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
 
         if (taskWithGangOptionsName && collectiveTaskName) {
             THROW_ERROR_EXCEPTION(
-                "Operation with \"collective_options\" can not have tasks with \"gang_options\"")
-                << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName);
+                "Operation with \"collective_options\" cannot have tasks with \"gang_options\"")
+                .With("task_with_gang_options_name", taskWithGangOptionsName);
         }
         if (taskWithGangOptionsName && spec->FailOnJobRestart) {
             THROW_ERROR_EXCEPTION(
-                "Operation with \"fail_on_job_restart\" enabled can not have tasks with \"gang_options\"")
-                << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName);
+                "Operation with \"fail_on_job_restart\" enabled cannot have tasks with \"gang_options\"")
+                .With("task_with_gang_options_name", taskWithGangOptionsName);
         }
 
         if (taskWithGangOptionsName && taskWithFailOnJobRestartName) {
             THROW_ERROR_EXCEPTION(
-                "Operation can not have both task with \"gang_options\" and task with \"fail_on_job_restart\"")
-                << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName)
-                << TErrorAttribute("task_with_fail_on_job_restart_name", taskWithFailOnJobRestartName);
+                "Operation cannot have both task with \"gang_options\" and task with \"fail_on_job_restart\"")
+                .With("task_with_gang_options_name", taskWithGangOptionsName)
+                .With("task_with_fail_on_job_restart_name", taskWithFailOnJobRestartName);
         }
 
         if (taskWithOutputTableName && taskWithGangOptionsName) {
             THROW_ERROR_EXCEPTION(
                 "Gang operations having output tables are not currently supported")
-                << TErrorAttribute("task_with_output_table_name", taskWithOutputTableName)
-                << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName);
+                .With("task_with_output_table_name", taskWithOutputTableName)
+                .With("task_with_gang_options_name", taskWithGangOptionsName);
         }
 
         if (spec->Sampling && spec->Sampling->SamplingRate) {
@@ -2813,9 +2697,6 @@ void TSchedulableConfig::Register(TRegistrar registrar)
     registrar.Parameter("resource_limits", &TThis::ResourceLimits)
         .DefaultNew();
 
-    registrar.Parameter("strong_guarantee_resources", &TThis::StrongGuaranteeResources)
-        .Alias("min_share_resources")
-        .DefaultNew();
     registrar.Parameter("scheduling_tag_filter", &TThis::SchedulingTagFilter)
         .Alias("scheduling_tag")
         .Default();
@@ -2918,6 +2799,10 @@ void TPoolConfig::Register(TRegistrar registrar)
     registrar.Parameter("abc", &TThis::Abc)
         .Default();
 
+    registrar.Parameter("strong_guarantee_resources", &TThis::StrongGuaranteeResources)
+        .Alias("min_share_resources")
+        .DefaultNew();
+
     registrar.Parameter("integral_guarantees", &TThis::IntegralGuarantees)
         .DefaultNew();
 
@@ -2936,6 +2821,9 @@ void TPoolConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_step_function_for_gang_operations", &TThis::EnableStepFunctionForGangOperations)
         .Default(true);
+
+    registrar.Parameter("enable_fifo_children_reordering_for_guarantee_utilization", &TThis::EnableFifoChildrenReorderingForGuaranteeUtilization)
+        .Default();
 
     registrar.Parameter("metering_tags", &TThis::MeteringTags)
         .Default();
@@ -2980,7 +2868,7 @@ void TPoolConfig::Register(TRegistrar registrar)
     });
 }
 
-void TPoolConfig::Validate(const TString& poolName)
+void TPoolConfig::Validate(const std::string& poolName)
 {
     Postprocess();
 
@@ -2990,29 +2878,29 @@ void TPoolConfig::Validate(const TString& poolName)
             "max_running_operation_count",
             *MaxOperationCount,
             *MaxRunningOperationCount)
-            << TErrorAttribute("pool_name", poolName);
+            .With("pool_name", poolName);
     }
     if (AllowedProfilingTags.size() > MaxAllowedProfilingTagCount) {
         THROW_ERROR_EXCEPTION("Limit for the number of allowed profiling tags exceeded")
-            << TErrorAttribute("allowed_profiling_tag_count", AllowedProfilingTags.size())
-            << TErrorAttribute("max_allowed_profiling_tag_count", MaxAllowedProfilingTagCount)
-            << TErrorAttribute("pool_name", poolName);
+            .With("allowed_profiling_tag_count", AllowedProfilingTags.size())
+            .With("max_allowed_profiling_tag_count", MaxAllowedProfilingTagCount)
+            .With("pool_name", poolName);
     }
     if (IntegralGuarantees->BurstGuaranteeResources->IsNonTrivial() &&
         IntegralGuarantees->GuaranteeType == EIntegralGuaranteeType::Relaxed)
     {
         THROW_ERROR_EXCEPTION("Burst guarantees cannot be specified for integral guarantee type \"relaxed\"")
-            << TErrorAttribute("integral_guarantee_type", IntegralGuarantees->GuaranteeType)
-            << TErrorAttribute("burst_guarantee_resources", IntegralGuarantees->BurstGuaranteeResources)
-            << TErrorAttribute("pool_name", poolName);
+            .With("integral_guarantee_type", IntegralGuarantees->GuaranteeType)
+            .With("burst_guarantee_resources", IntegralGuarantees->BurstGuaranteeResources)
+            .With("pool_name", poolName);
     }
     if (!MeteringTags.empty() && !Abc) {
         THROW_ERROR_EXCEPTION("Metering tags can be specified only for pool with specified abc attribute")
-            << TErrorAttribute("pool_name", poolName);
+            .With("pool_name", poolName);
     }
 
     if (Mode == ESchedulingMode::Fifo && CreateEphemeralSubpools) {
-        THROW_ERROR_EXCEPTION("Fifo pool cannot create ephemeral subpools");
+        THROW_ERROR_EXCEPTION("FIFO pool cannot create ephemeral subpools");
     }
 }
 
@@ -3226,13 +3114,13 @@ void Deserialize(TOperationRuntimeParameters& parameters, INodePtr node)
     if (auto acl = mapNode->FindChild("acl")) {
         Deserialize(parameters.Acl, acl);
     }
-    parameters.SchedulingOptionsPerPoolTree = ConvertTo<THashMap<TString, TOperationPoolTreeRuntimeParametersPtr>>(
+    parameters.SchedulingOptionsPerPoolTree = ConvertTo<THashMap<std::string, TOperationPoolTreeRuntimeParametersPtr>>(
         mapNode->GetChildOrThrow("scheduling_options_per_pool_tree"));
     if (auto child = mapNode->FindChild("scheduling_tag_filter")) {
         Deserialize(parameters.SchedulingTagFilter, child);
     }
     if (auto optionsPerJobShell = mapNode->FindChild("options_per_job_shell")) {
-        parameters.OptionsPerJobShell = ConvertTo<THashMap<TString, TOperationJobShellRuntimeParametersPtr>>(optionsPerJobShell);
+        parameters.OptionsPerJobShell = ConvertTo<THashMap<std::string, TOperationJobShellRuntimeParametersPtr>>(optionsPerJobShell);
     }
     if (auto annotations = mapNode->FindChild("annotations")) {
         Deserialize(parameters.Annotations, annotations);
@@ -3372,7 +3260,7 @@ TOperationPoolTreeRuntimeParametersPtr UpdatePoolTreeRuntimeParameters(
         return UpdateYsonStruct(origin, ConvertToNode(update));
     } catch (const std::exception& exception) {
         THROW_ERROR_EXCEPTION("Error updating operation pool tree runtime parameters")
-            << exception;
+            .With(exception);
     }
 }
 

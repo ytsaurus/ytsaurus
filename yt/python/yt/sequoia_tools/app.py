@@ -4,7 +4,6 @@ from typing import Optional, Protocol, cast
 import yt.wrapper as yt
 
 from .config import ConfigProvider
-from .helpers import make_ground_reign_path
 
 import logging
 logger = logging.getLogger(__name__)
@@ -14,6 +13,10 @@ _READ_KWARGS = {
     "suppress_transaction_coordinator_sync": True,
     "suppress_upstream_sync": True,
 }
+
+
+def make_ground_reign_path(root_path: str) -> str:
+    return f"{root_path}/@ground_reign"
 
 
 class UserInteraction(Protocol):

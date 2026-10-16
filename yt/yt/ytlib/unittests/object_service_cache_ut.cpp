@@ -40,13 +40,13 @@ TEST(TObjectServiceCacheTest, TestStaleResponse)
         NYPath::TYPath("//sys"), // path
         "ObjectService", // service
         "Execute", // method
-        TSharedRef::FromString("request"),
+        TSharedRef::FromString(std::string("request")),
         /*suppressUpstreamSync*/ false,
         /*suppressTransactionCoordinatorSync*/ false);
 
     auto requestId = NRpc::TRequestId::Create();
     auto expirationTime = TDuration::MilliSeconds(10);
-    auto data = TSharedRefArray(TSharedRef::FromString("response"));
+    auto data = TSharedRefArray(TSharedRef::FromString(std::string("response")));
     NHydra::TRevision currentRevision(1);
 
     auto beginLookup = [&] (TDuration stalenessBound, NHydra::TRevision revision) {
@@ -134,13 +134,13 @@ TEST(TObjectServiceCacheTest, TestStaleError)
         NYPath::TYPath("//sys"), // path
         "ObjectService", // service
         "Execute", // method
-        TSharedRef::FromString("request"),
+        TSharedRef::FromString(std::string("request")),
         /*suppressUpstreamSync*/ false,
         /*suppressTransactionCoordinatorSync*/ false);
 
     auto requestId = NRpc::TRequestId::Create();
     auto expirationTime = TDuration::MilliSeconds(10);
-    auto data = TSharedRefArray(TSharedRef::FromString("response"));
+    auto data = TSharedRefArray(TSharedRef::FromString(std::string("response")));
     NHydra::TRevision currentRevision(1);
 
     auto beginLookup = [&] (TDuration stalenessBound, NHydra::TRevision revision) {

@@ -25,9 +25,12 @@ TFuture<TMutationResponse> TMutation::CommitAndLog(NLogging::TLogger logger)
     auto callback =
         BIND([Logger = std::move(logger), type = Request_.Type] (const TErrorOr<TMutationResponse>& result) {
             if (result.IsOK()) {
-                YT_LOG_DEBUG("Mutation commit succeeded (MutationType: %v)", type);
+                YT_TLOG_DEBUG("Mutation commit succeeded")
+                    .With("MutationType", type);
             } else {
-                YT_LOG_DEBUG(result, "Mutation commit failed (MutationType: %v)", type);
+                YT_TLOG_DEBUG("Mutation commit failed")
+                    .With("MutationType", type)
+                    .With(result);
             }
             return result;
         });
@@ -56,7 +59,7 @@ TFuture<TMutationResponse> TMutation::CommitAndReply(NRpc::IServiceContextPtr co
     return Commit().Apply(std::move(callback));
 }
 
-void TMutation::SetRequestData(TSharedRef data, TString type)
+void TMutation::SetRequestData(TSharedRef data, std::string type)
 {
     Request_.Data = std::move(data);
     Request_.Type = std::move(type);
@@ -101,7 +104,7 @@ void TMutation::SetCurrentTraceContext()
     SetTraceContext(NTracing::TryGetCurrentTraceContext());
 }
 
-const TString& TMutation::GetType() const
+const std::string& TMutation::GetType() const
 {
     return Request_.Type;
 }

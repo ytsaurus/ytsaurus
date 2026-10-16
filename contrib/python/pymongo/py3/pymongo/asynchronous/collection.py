@@ -13,25 +13,19 @@
 # limitations under the License.
 
 """Collection level utilities for Mongo."""
+
 from __future__ import annotations
 
 import warnings
 from collections import abc
+from collections.abc import Coroutine, Iterable, Iterator, Mapping, MutableMapping, Sequence
 from typing import (
     TYPE_CHECKING,
     Any,
-    AsyncContextManager,
     Callable,
-    Coroutine,
     Generic,
-    Iterable,
-    Iterator,
-    Mapping,
-    MutableMapping,
     NoReturn,
     Optional,
-    Sequence,
-    Type,
     TypeVar,
     Union,
     cast,
@@ -239,9 +233,9 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
         if not name or ".." in name:
             raise InvalidName("collection names cannot be empty")
         if "$" in name and not (name.startswith(("oplog.$main", "$cmd"))):
-            raise InvalidName("collection names must not contain '$': %r" % name)
+            raise InvalidName(f"collection names must not contain '$': {name!r}")
         if name[0] == "." or name[-1] == ".":
-            raise InvalidName("collection names must not start or end with '.': %r" % name)
+            raise InvalidName(f"collection names must not start or end with '.': {name!r}")
         if "\x00" in name:
             raise InvalidName("collection names must not contain the null character")
 
@@ -340,8 +334,7 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
         read_preference: Optional[_ServerMode] = ...,
         write_concern: Optional[WriteConcern] = ...,
         read_concern: Optional[ReadConcern] = ...,
-    ) -> AsyncCollection[_DocumentType]:
-        ...
+    ) -> AsyncCollection[_DocumentType]: ...
 
     @overload
     def with_options(
@@ -350,8 +343,7 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
         read_preference: Optional[_ServerMode] = ...,
         write_concern: Optional[WriteConcern] = ...,
         read_concern: Optional[ReadConcern] = ...,
-    ) -> AsyncCollection[_DocumentTypeArg]:
-        ...
+    ) -> AsyncCollection[_DocumentTypeArg]: ...
 
     def with_options(
         self,
@@ -397,15 +389,6 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
             write_concern or self.write_concern,
             read_concern or self.read_concern,
         )
-
-    def _write_concern_for_cmd(
-        self, cmd: Mapping[str, Any], session: Optional[AsyncClientSession]
-    ) -> WriteConcern:
-        raw_wc = cmd.get("writeConcern")
-        if raw_wc is not None:
-            return WriteConcern(**raw_wc)
-        else:
-            return self._write_concern_for(session)
 
     # See PYTHON-3084.
     __iter__ = None
@@ -571,11 +554,6 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
         await change_stream._initialize_cursor()
         return change_stream
 
-    async def _conn_for_writes(
-        self, session: Optional[AsyncClientSession], operation: str
-    ) -> AsyncContextManager[AsyncConnection]:
-        return await self._database.client._conn_for_writes(session, operation)
-
     async def _command(
         self,
         conn: AsyncConnection,
@@ -652,7 +630,10 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
             if "size" in options:
                 options["size"] = float(options["size"])
             cmd.update(options)
-        async with await self._conn_for_writes(session, operation=_Op.CREATE) as conn:
+
+        async def inner(
+            session: Optional[AsyncClientSession], conn: AsyncConnection, _retryable_write: bool
+        ) -> None:
             if qev2_required and conn.max_wire_version < 21:
                 raise ConfigurationError(
                     "Driver support of Queryable Encryption is incompatible with server. "
@@ -668,6 +649,8 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
                 collation=collation,
                 session=session,
             )
+
+        await self.database.client._retryable_write(False, inner, session, _Op.CREATE)
 
     async def _create(
         self,
@@ -1018,10 +1001,6 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
             else:
                 update_doc["arrayFilters"] = array_filters
         if hint is not None:
-            if not acknowledged and conn.max_wire_version < 8:
-                raise ConfigurationError(
-                    "Must be connected to MongoDB 4.2+ to use hint on unacknowledged update commands."
-                )
             if not isinstance(hint, str):
                 hint = helpers_shared._index_document(hint)
             update_doc["hint"] = hint
@@ -1178,8 +1157,7 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
             predicate specified either by its string name, or in the same
             format as passed to
             :meth:`~pymongo.asynchronous.collection.AsyncCollection.create_index` (e.g.
-            ``[('field', ASCENDING)]``). This option is only supported on
-            MongoDB 4.2 and above.
+            ``[('field', ASCENDING)]``).
         :param session: a
             :class:`~pymongo.asynchronous.client_session.AsyncClientSession`.
         :param let: Map of parameter names and values. Values must be
@@ -1294,8 +1272,7 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
             predicate specified either by its string name, or in the same
             format as passed to
             :meth:`~pymongo.asynchronous.collection.AsyncCollection.create_index` (e.g.
-            ``[('field', ASCENDING)]``). This option is only supported on
-            MongoDB 4.2 and above.
+            ``[('field', ASCENDING)]``).
         :param session: a
             :class:`~pymongo.asynchronous.client_session.AsyncClientSession`.
         :param let: Map of parameter names and values. Values must be
@@ -1400,8 +1377,7 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
             predicate specified either by its string name, or in the same
             format as passed to
             :meth:`~pymongo.asynchronous.collection.AsyncCollection.create_index` (e.g.
-            ``[('field', ASCENDING)]``). This option is only supported on
-            MongoDB 4.2 and above.
+            ``[('field', ASCENDING)]``).
         :param session: a
             :class:`~pymongo.asynchronous.client_session.AsyncClientSession`.
         :param let: Map of parameter names and values. Values must be
@@ -1523,10 +1499,6 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
             else:
                 delete_doc["collation"] = collation
         if hint is not None:
-            if not acknowledged and conn.max_wire_version < 9:
-                raise ConfigurationError(
-                    "Must be connected to MongoDB 4.4+ to use hint on unacknowledged delete commands."
-                )
             if not isinstance(hint, str):
                 hint = helpers_shared._index_document(hint)
             delete_doc["hint"] = hint
@@ -1889,8 +1861,14 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
 
           - The `limit` option can not be used with an exhaust cursor.
 
-          - Exhaust cursors are not supported by mongos and can not be
-            used with a sharded cluster.
+          - When connected to mongos, exhaust cursors require MongoDB 7.1 or
+            newer; an older one raises
+            :class:`~pymongo.errors.InvalidOperation` on the first iteration.
+            On a cluster midway through an upgrade the same call may succeed
+            or raise depending on which mongos it reaches. Behind a load
+            balancer no version check applies; a pre-7.1 mongos there ignores
+            the exhaust request and the cursor falls back to ordinary getMore
+            batches.
 
           - A :class:`~pymongo.cursor.AsyncCursor` instance created with the
             :attr:`~pymongo.cursor.CursorType.EXHAUST` cursor_type requires an
@@ -1899,6 +1877,12 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
             completely iterated the underlying :class:`~socket.socket`
             connection will be closed and discarded without being returned to
             the connection pool.
+
+        .. versionchanged:: 4.18
+           :attr:`~pymongo.cursor.CursorType.EXHAUST` is now permitted when
+           connected to mongos 7.1 or newer. Against an older mongos the
+           resulting :class:`~pymongo.errors.InvalidOperation` is now raised on
+           the first iteration of the cursor rather than by this method.
 
         .. versionchanged:: 4.0
            Removed the ``modifiers`` option.
@@ -2240,9 +2224,10 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
             command (like maxTimeMS) can be passed as keyword arguments.
         """
         names = []
-        async with await self._conn_for_writes(session, operation=_Op.CREATE_INDEXES) as conn:
-            supports_quorum = conn.max_wire_version >= 9
 
+        async def inner(
+            session: Optional[AsyncClientSession], conn: AsyncConnection, _retryable_write: bool
+        ) -> list[str]:
             def gen_indexes() -> Iterator[Mapping[str, Any]]:
                 for index in indexes:
                     if not isinstance(index, IndexModel):
@@ -2255,12 +2240,6 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
 
             cmd = {"createIndexes": self.name, "indexes": list(gen_indexes())}
             cmd.update(kwargs)
-            if "commitQuorum" in kwargs and not supports_quorum:
-                raise ConfigurationError(
-                    "Must be connected to MongoDB 4.4+ to use the "
-                    "commitQuorum option for createIndexes"
-                )
-
             await self._command(
                 conn,
                 cmd,
@@ -2269,7 +2248,11 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
                 write_concern=self._write_concern_for(session),
                 session=session,
             )
-        return names
+            return names
+
+        return await self.database.client._retryable_write(
+            False, inner, session, _Op.CREATE_INDEXES
+        )
 
     async def create_index(
         self,
@@ -2332,7 +2315,7 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
             :class:`~pymongo.collation.Collation`.
           - `wildcardProjection`: Allows users to include or exclude specific
             field paths from a `wildcard index`_ using the {"$**" : 1} key
-            pattern. Requires MongoDB >= 4.2.
+            pattern.
           - `hidden`: if ``True``, this index will be hidden from the query
             planner and will not be evaluated as part of query plan
             selection. Requires MongoDB >= 4.4.
@@ -2422,7 +2405,6 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
             kwargs["comment"] = comment
         await self._drop_index("*", session=session, **kwargs)
 
-    @_csot.apply
     async def drop_index(
         self,
         index_or_name: _IndexKeyHint,
@@ -2490,7 +2472,10 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
         cmd.update(kwargs)
         if comment is not None:
             cmd["comment"] = comment
-        async with await self._conn_for_writes(session, operation=_Op.DROP_INDEXES) as conn:
+
+        async def inner(
+            session: Optional[AsyncClientSession], conn: AsyncConnection, _retryable_write: bool
+        ) -> None:
             await self._command(
                 conn,
                 cmd,
@@ -2499,6 +2484,8 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
                 write_concern=self._write_concern_for(session),
                 session=session,
             )
+
+        await self.database.client._retryable_write(False, inner, session, _Op.DROP_INDEXES)
 
     async def list_indexes(
         self,
@@ -2763,16 +2750,21 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
         cmd = {"createSearchIndexes": self.name, "indexes": list(gen_indexes())}
         cmd.update(kwargs)
 
-        async with await self._conn_for_writes(
-            session, operation=_Op.CREATE_SEARCH_INDEXES
-        ) as conn:
+        async def inner(
+            session: Optional[AsyncClientSession], conn: AsyncConnection, _retryable_write: bool
+        ) -> list[str]:
             resp = await self._command(
                 conn,
                 cmd,
                 read_preference=ReadPreference.PRIMARY,
                 codec_options=_UNICODE_REPLACE_CODEC_OPTIONS,
+                session=session,
             )
             return [index["name"] for index in resp["indexesCreated"]]
+
+        return await self.database.client._retryable_write(
+            False, inner, session, _Op.CREATE_SEARCH_INDEXES
+        )
 
     async def drop_search_index(
         self,
@@ -2799,14 +2791,20 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
         cmd.update(kwargs)
         if comment is not None:
             cmd["comment"] = comment
-        async with await self._conn_for_writes(session, operation=_Op.DROP_SEARCH_INDEXES) as conn:
+
+        async def inner(
+            session: Optional[AsyncClientSession], conn: AsyncConnection, _retryable_write: bool
+        ) -> None:
             await self._command(
                 conn,
                 cmd,
                 read_preference=ReadPreference.PRIMARY,
                 allowable_errors=["ns not found", 26],
                 codec_options=_UNICODE_REPLACE_CODEC_OPTIONS,
+                session=session,
             )
+
+        await self.database.client._retryable_write(False, inner, session, _Op.DROP_SEARCH_INDEXES)
 
     async def update_search_index(
         self,
@@ -2835,14 +2833,20 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
         cmd.update(kwargs)
         if comment is not None:
             cmd["comment"] = comment
-        async with await self._conn_for_writes(session, operation=_Op.UPDATE_SEARCH_INDEX) as conn:
+
+        async def inner(
+            session: Optional[AsyncClientSession], conn: AsyncConnection, _retryable_write: bool
+        ) -> None:
             await self._command(
                 conn,
                 cmd,
                 read_preference=ReadPreference.PRIMARY,
                 allowable_errors=["ns not found", 26],
                 codec_options=_UNICODE_REPLACE_CODEC_OPTIONS,
+                session=session,
             )
+
+        await self.database.client._retryable_write(False, inner, session, _Op.UPDATE_SEARCH_INDEX)
 
     async def options(
         self,
@@ -2893,9 +2897,9 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
     @_csot.apply
     async def _aggregate(
         self,
-        aggregation_command: Type[_AggregationCommand],
+        aggregation_command: type[_AggregationCommand],
         pipeline: _Pipeline,
-        cursor_class: Type[AsyncCommandCursor],  # type: ignore[type-arg]
+        cursor_class: type[AsyncCommandCursor],  # type: ignore[type-arg]
         session: Optional[AsyncClientSession],
         let: Optional[Mapping[str, Any]] = None,
         comment: Optional[Any] = None,
@@ -2918,6 +2922,7 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
             session,
             retryable=not cmd._performs_write,
             operation=_Op.AGGREGATE,
+            is_aggregate_write=cmd._performs_write,
         )
 
     async def aggregate(
@@ -3123,17 +3128,21 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
         if comment is not None:
             cmd["comment"] = comment
         write_concern = self._write_concern_for_cmd(cmd, session)
+        client = self._database.client
 
-        async with await self._conn_for_writes(session, operation=_Op.RENAME) as conn:
-            async with self._database.client._tmp_session(session) as s:
-                return await conn.command(
-                    "admin",
-                    cmd,
-                    write_concern=write_concern,
-                    parse_write_concern_error=True,
-                    session=s,
-                    client=self._database.client,
-                )
+        async def inner(
+            session: Optional[AsyncClientSession], conn: AsyncConnection, _retryable_write: bool
+        ) -> MutableMapping[str, Any]:
+            return await conn.command(
+                "admin",
+                cmd,
+                write_concern=write_concern,
+                parse_write_concern_error=True,
+                session=session,
+                client=client,
+            )
+
+        return await client._retryable_write(False, inner, session, _Op.RENAME)
 
     async def distinct(
         self,
@@ -3270,14 +3279,6 @@ class AsyncCollection(common.BaseObject, Generic[_DocumentType]):
                     )
                 cmd["arrayFilters"] = list(array_filters)
             if hint is not None:
-                if conn.max_wire_version < 8:
-                    raise ConfigurationError(
-                        "Must be connected to MongoDB 4.2+ to use hint on find and modify commands."
-                    )
-                elif not acknowledged and conn.max_wire_version < 9:
-                    raise ConfigurationError(
-                        "Must be connected to MongoDB 4.4+ to use hint on unacknowledged find and modify commands."
-                    )
                 cmd["hint"] = hint
             out = await self._command(
                 conn,

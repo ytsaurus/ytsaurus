@@ -1,0 +1,262 @@
+#include <yt/yt/core/test_framework/framework.h>
+
+#include <yt/yt/flow/library/cpp/controller/config.h>
+
+#include <yt/yt/core/ytree/convert.h>
+
+namespace NYT::NFlow::NController {
+namespace {
+
+using namespace NYson;
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TControllerConfigPtr LoadControllerConfig(TStringBuf yson)
+{
+    return ConvertTo<TControllerConfigPtr>(TYsonString(yson));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// The election backend config is polymorphic, and a polymorphic struct holds nothing until it is
+// either loaded or explicitly default-constructed. Every one of these cases must end up with a
+// usable concrete config, since the connector dereferences it unconditionally.
+
+TEST(TElectionManagerConfigTest, DefaultsToCypressWhenAbsent)
+{
+    auto config = LoadControllerConfig("{}");
+
+    EXPECT_EQ(config->ElectionManager.GetType(), EElectionBackend::Cypress);
+    auto backendConfig = config->ElectionManager.GetConcrete<TCypressElectionBackendConfig>();
+    EXPECT_EQ(backendConfig->LeaderLeaseTtl, TDuration::Seconds(5));
+    EXPECT_EQ(backendConfig->LockAcquisitionPeriod, TDuration::Seconds(1));
+}
+
+// Deployed configs predate the "backend" parameter and name the Cypress settings directly.
+TEST(TElectionManagerConfigTest, DefaultsToCypressWhenBackendIsOmitted)
+{
+    auto config = LoadControllerConfig(R"({election_manager={transaction_timeout="7s"}})");
+
+    EXPECT_EQ(config->ElectionManager.GetType(), EElectionBackend::Cypress);
+    EXPECT_EQ(
+        config->ElectionManager.GetConcrete<TCypressElectionBackendConfig>()->LeaderLeaseTtl,
+        TDuration::Seconds(7));
+}
+
+TEST(TElectionManagerConfigTest, DyntableBackend)
+{
+    auto config = LoadControllerConfig(
+        R"({election_manager={backend=dyntable;leader_lease_ttl="15s";detach_timeout="20s";lock_acquisition_period="2s"}})");
+
+    EXPECT_EQ(config->ElectionManager.GetType(), EElectionBackend::Dyntable);
+    auto backendConfig = config->ElectionManager.GetConcrete<TDyntableElectionBackendConfig>();
+    EXPECT_EQ(backendConfig->LeaderLeaseTtl, TDuration::Seconds(15));
+    EXPECT_EQ(backendConfig->DetachTimeout, TDuration::Seconds(20));
+    // The shared parameters are registered by the base struct and apply to every backend.
+    EXPECT_EQ(backendConfig->LockAcquisitionPeriod, TDuration::Seconds(2));
+}
+
+TEST(TElectionManagerConfigTest, ChaosBackend)
+{
+    auto config = LoadControllerConfig(
+        R"({election_manager={backend=chaos;chaos_cell_bundle="test-chaos";leader_lease_ttl="13s";lock_acquisition_period="2s"}})");
+
+    EXPECT_EQ(config->ElectionManager.GetType(), EElectionBackend::Chaos);
+    auto backendConfig = config->ElectionManager.GetConcrete<TChaosElectionBackendConfig>();
+    EXPECT_EQ(backendConfig->ChaosCellBundle, "test-chaos");
+    EXPECT_EQ(backendConfig->LeaderLeaseTtl, TDuration::Seconds(13));
+    // The shared parameters are registered by the base struct and apply to every backend.
+    EXPECT_EQ(backendConfig->LockAcquisitionPeriod, TDuration::Seconds(2));
+}
+
+// The leader lease parameters were named per backend before they were unified. The deployed
+// configs still spell them the old way, so the aliases have to keep resolving.
+
+TEST(TElectionManagerConfigTest, ReadsTheLegacyCypressLeaderLeaseNames)
+{
+    auto config = LoadControllerConfig(
+        R"({election_manager={backend=cypress;transaction_timeout="7s";transaction_ping_period="3s"}})");
+
+    auto backendConfig = config->ElectionManager.GetConcrete<TCypressElectionBackendConfig>();
+    EXPECT_EQ(backendConfig->LeaderLeaseTtl, TDuration::Seconds(7));
+    EXPECT_EQ(backendConfig->LeaderLeasePingPeriod, TDuration::Seconds(3));
+}
+
+TEST(TElectionManagerConfigTest, ReadsTheLegacyChaosLeaderLeaseNames)
+{
+    auto config = LoadControllerConfig(
+        R"({lease_manager={lease_timeout="10m"};)"
+        R"(election_manager={backend=chaos;lease_timeout="7s";lease_ping_period="3s"}})");
+
+    auto backendConfig = config->ElectionManager.GetConcrete<TChaosElectionBackendConfig>();
+    EXPECT_EQ(backendConfig->LeaderLeaseTtl, TDuration::Seconds(7));
+    EXPECT_EQ(backendConfig->LeaderLeasePingPeriod, TDuration::Seconds(3));
+}
+
+// A parameter of another backend is simply unrecognized, as anywhere else in a yson struct:
+// switching the backend silently drops the settings that no longer apply. Deployed templates rely
+// on this — they render the chaos settings from the same block that selects the backend.
+TEST(TElectionManagerConfigTest, IgnoresForeignBackendParameters)
+{
+    auto config = LoadControllerConfig(
+        R"({election_manager={backend=dyntable;transaction_timeout="7s";chaos_cell_bundle="bigb-chaos"}})");
+
+    EXPECT_EQ(config->ElectionManager.GetType(), EElectionBackend::Dyntable);
+    auto backendConfig = config->ElectionManager.GetConcrete<TDyntableElectionBackendConfig>();
+    EXPECT_EQ(backendConfig->LeaderLeaseTtl, TDuration::Minutes(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Nothing refreshes the leader row between two fenced commits, so a ttl that does not cover the
+// scheduling cadence demotes the leader in the middle of healthy work. The config must not load.
+
+TEST(TElectionManagerConfigTest, RejectsLeaderLeaseTtlBelowTheCadence)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        LoadControllerConfig(R"({scheduler_period="5s";election_manager={backend=dyntable;leader_lease_ttl="500ms"}})"),
+        "leader_lease_ttl");
+}
+
+TEST(TElectionManagerConfigTest, AcceptsLeaderLeaseTtlCoveringTheCadence)
+{
+    auto config = LoadControllerConfig(
+        R"({scheduler_period="1s";election_manager={backend=dyntable;leader_lease_ttl="10s"}})");
+
+    EXPECT_EQ(
+        config->ElectionManager.GetConcrete<TDyntableElectionBackendConfig>()->LeaderLeaseTtl,
+        TDuration::Seconds(10));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// The pipeline-wide deadline has to outlast a change of leader: the replica waits out the leader
+// lease before it can take over, and only then refreshes the deadline it inherited.
+
+TEST(TElectionManagerConfigTest, RejectsLeaseTimeoutBelowTheLeaderLeaseTtl)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        LoadControllerConfig(
+            R"({scheduler_period="1s";lease_manager={lease_timeout="20s";lease_ping_period="1s"};)"
+            R"(election_manager={backend=dyntable;leader_lease_ttl="10s"}})"),
+        "lease_timeout");
+}
+
+TEST(TElectionManagerConfigTest, AcceptsLeaseTimeoutCoveringTheLeaderLeaseTtl)
+{
+    auto config = LoadControllerConfig(
+        R"({scheduler_period="1s";lease_manager={lease_timeout="60s";lease_ping_period="1s"};)"
+        R"(election_manager={backend=dyntable;leader_lease_ttl="10s"}})");
+
+    EXPECT_EQ(config->LeaseManager->LeaseTimeout, TDuration::Seconds(60));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// The dyntable deadline is rewritten once per refresh period, so what the successor inherits is
+// short of the full timeout by that period. A timeout that covers the ttls exactly is not enough.
+
+TEST(TElectionManagerConfigTest, RejectsDyntableLeaseTimeoutEatenByALongRefreshPeriod)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        LoadControllerConfig(
+            R"({lease_manager={lease_timeout="100s";lease_ping_period="30s"};)"
+            R"(election_manager={backend=dyntable;leader_lease_ttl="30s"}})"),
+        "lease_timeout");
+}
+
+TEST(TElectionManagerConfigTest, AcceptsDyntableLeaseTimeoutCoveringTheRefreshPeriod)
+{
+    auto config = LoadControllerConfig(
+        R"({lease_manager={lease_timeout="120s";lease_ping_period="30s"};)"
+        R"(election_manager={backend=dyntable;leader_lease_ttl="30s"}})");
+
+    EXPECT_EQ(config->LeaseManager->LeaseTimeout, TDuration::Seconds(120));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Prolongation is the only thing keeping the job leases alive, so the timeout has to outlast a few
+// rounds of it whatever the backend elects the leader.
+
+TEST(TElectionManagerConfigTest, RejectsLeaseTimeoutBelowSeveralPingPeriods)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        LoadControllerConfig(
+            R"({lease_manager={lease_timeout="60s";lease_ping_period="30s"};)"
+            R"(election_manager={backend=cypress}})"),
+        "lease_ping_period");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Chaos job leases are pinged by the leader alone, so they have to outlast the whole handover:
+// the dead leader's own lease, the lock acquisition and the warm-up of the replacement.
+
+TEST(TElectionManagerConfigTest, RejectsLeaseTimeoutBelowTheChaosHandover)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        LoadControllerConfig(
+            R"({warm_up_time="5s";lease_manager={lease_timeout="30s";lease_ping_period="1s"};)"
+            R"(election_manager={backend=chaos;leader_lease_ttl="15s";lock_acquisition_period="1s"}})"),
+        "lease_timeout");
+}
+
+TEST(TElectionManagerConfigTest, AcceptsLeaseTimeoutCoveringTheChaosHandover)
+{
+    auto config = LoadControllerConfig(
+        R"({warm_up_time="5s";lease_manager={lease_timeout="60s";lease_ping_period="2s"};)"
+        R"(election_manager={backend=chaos;leader_lease_ttl="15s";lock_acquisition_period="1s"}})");
+
+    EXPECT_EQ(config->LeaseManager->LeaseTimeout, TDuration::Seconds(60));
+}
+
+// The handover is covered by what is LEFT of a job lease, and a lease is up to a ping period old
+// when the leader dies. A timeout that covers the handover exactly is therefore not enough: with
+// this ping period the lease reaches the handover with twenty seconds already spent.
+TEST(TElectionManagerConfigTest, RejectsLeaseTimeoutEatenByALongPingPeriod)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        LoadControllerConfig(
+            R"({warm_up_time="5s";lease_manager={lease_timeout="80s";lease_ping_period="20s"};)"
+            R"(election_manager={backend=chaos;lease_timeout="30s";lock_acquisition_period="1s"}})"),
+        "lease_timeout");
+}
+
+// The same handover with the ping period paid for on top.
+TEST(TElectionManagerConfigTest, AcceptsLeaseTimeoutCoveringTheHandoverAndThePingPeriod)
+{
+    auto config = LoadControllerConfig(
+        R"({warm_up_time="5s";lease_manager={lease_timeout="92s";lease_ping_period="20s"};)"
+        R"(election_manager={backend=chaos;lease_timeout="30s";lock_acquisition_period="1s"}})");
+
+    EXPECT_EQ(config->LeaseManager->LeaseTimeout, TDuration::Seconds(92));
+}
+
+// The dyntable relation is checked against its own leader lease, so a chaos config must not be
+// judged by it and the other way round.
+TEST(TElectionManagerConfigTest, DoesNotApplyTheChaosCheckToOtherBackends)
+{
+    auto config = LoadControllerConfig(
+        R"({warm_up_time="5s";lease_manager={lease_timeout="30s";lease_ping_period="1s"};)"
+        R"(election_manager={backend=cypress}})");
+
+    EXPECT_EQ(config->ElectionManager.GetType(), EElectionBackend::Cypress);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// The check is specific to the dyntable backend: a Cypress leader is fenced by its lock
+// transaction, which its own pings keep alive regardless of the scheduling cadence.
+TEST(TElectionManagerConfigTest, DoesNotConstrainTheCypressBackend)
+{
+    auto config = LoadControllerConfig(R"({scheduler_period="5s";election_manager={backend=cypress}})");
+
+    EXPECT_EQ(config->ElectionManager.GetType(), EElectionBackend::Cypress);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYT::NFlow::NController

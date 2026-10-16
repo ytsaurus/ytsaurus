@@ -9,6 +9,8 @@
 
 #include <yt/yt/client/table_client/key.h>
 
+#include <library/cpp/yt/logging/tag.h>
+
 namespace NYT::NLsm {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,7 +27,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Mounted);
     DEFINE_BYVAL_RW_PROPERTY(TTableMountConfigPtr, MountConfig);
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, MountRevision);
-    DEFINE_BYVAL_RW_PROPERTY(std::string, LoggingTag);
+    DEFINE_BYREF_RW_PROPERTY(NLogging::TLoggingTagList, LoggingTags);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, IsForcedRotationPossible);
     DEFINE_BYVAL_RW_PROPERTY(bool, IsOverflowRotationNeeded);

@@ -11,13 +11,13 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/discovery_client/discovery_client.h>
-#include <yt/yt/ytlib/discovery_client/member_client.h>
+#include <yt/yt/library/discovery_client/discovery_client.h>
+#include <yt/yt/library/discovery_client/member_client.h>
 
 #include <yt/yt/library/numeric/binary_search.h>
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
@@ -36,7 +36,7 @@ static const std::string RealmIdAttributeKey = "realm_id";
 static const std::string LeaderIdAttributeKey = "leader_id";
 static const std::string LocalThrottlersAttributeKey = "local_throttlers";
 static const std::string GlobalThrottlersAttributeKey = "global_throttlers";
-static const double MinThorttlerLimit = 0.01;
+static const double MinThrottlerLimit = 0.01;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,7 +95,7 @@ public:
             // Set limit to zero for now. The actual limit will be given by the
             // leader on the first heartbeat. This makes monitoring graphs nice.
             double limit = 0;
-            Initialize(limit);
+            EnsureProfilingInitialized(limit);
             Underlying_->SetLimit(limit);
         }
     }
@@ -112,7 +112,7 @@ public:
         auto guard = Guard(HistoricUsageAggregatorLock_);
 
         auto usage = HistoricUsageAggregator_.GetAverage();
-        if (Initialized_) {
+        if (ProfilingInitialized_.load(std::memory_order::acquire)) {
             Usage_.Update(usage);
         }
         return usage;
@@ -207,7 +207,7 @@ public:
 
         auto queueTotalAmount = Underlying_->GetQueueTotalAmount();
 
-        if (Initialized_) {
+        if (ProfilingInitialized_.load(std::memory_order::acquire)) {
             QueueTotalAmount_.Update(queueTotalAmount);
         }
 
@@ -227,7 +227,7 @@ public:
     {
         Underlying_->SetLimit(limit);
 
-        if (Initialized_) {
+        if (ProfilingInitialized_.load(std::memory_order::acquire)) {
             Limit_.Update(limit.value_or(-1));
         }
     }
@@ -246,7 +246,7 @@ public:
     {
         auto duration = Underlying_->GetEstimatedOverdraftDuration();
 
-        if (Initialized_) {
+        if (ProfilingInitialized_.load(std::memory_order::acquire)) {
             EstimatedOverdraftDuration_.Update(duration);
         }
 
@@ -275,16 +275,18 @@ public:
         };
     }
 
-    void Initialize(std::optional<double> limit = std::nullopt)
+    void EnsureProfilingInitialized(std::optional<double> limit = std::nullopt)
     {
-        if (Initialized_) {
+        // Using _acquire_ here to provide _synchronizes-with_ for accessing counters
+        // in case of concurrent "ensuring".
+        if (ProfilingInitialized_.load(std::memory_order::acquire)) {
             return;
         }
 
-        // We make sure that solomon counters are initialized only once.
-        auto guard = TGuard(InitializationLock_);
+        // Make sure that solomon counters are initialized exactly once.
+        auto guard = TGuard(ProfilingInitializationLock_);
 
-        if (Initialized_) {
+        if (ProfilingInitialized_.load(std::memory_order::relaxed)) {
             return;
         }
 
@@ -308,7 +310,7 @@ public:
         EstimatedOverdraftDuration_ = Profiler_.TimeGauge("/estimated_overdraft_duration");
         EstimatedOverdraftDuration_.Update(TDuration::Zero());
 
-        Initialized_ = true;
+        ProfilingInitialized_.store(true, std::memory_order::release);
     }
 
 private:
@@ -329,24 +331,21 @@ private:
     TCounter TotalUsage_;
     TGauge QueueTotalAmount_;
     TTimeGauge EstimatedOverdraftDuration_;
-    std::atomic<bool> Initialized_ = false;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InitializationLock_);
+    std::atomic<bool> ProfilingInitialized_ = false;
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ProfilingInitializationLock_);
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, HistoricUsageAggregatorLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, HistoricUsageAggregatorLock_);
     TAverageAdjustedExponentialMovingAverage HistoricUsageAggregator_;
 
     void UpdateHistoricUsage(i64 amount)
     {
         auto guard = Guard(HistoricUsageAggregatorLock_);
         HistoricUsageAggregator_.UpdateAt(TInstant::Now(), amount);
-        Acquired_.Increment(amount);
-        if (amount > 0) {
-            Initialize();
-        }
-        if (Initialized_) {
-            Usage_.Update(HistoricUsageAggregator_.GetAverage());
-        }
 
+        EnsureProfilingInitialized();
+
+        Usage_.Update(HistoricUsageAggregator_.GetAverage());
+        Acquired_.Increment(amount);
         TotalUsage_.Increment(amount);
     }
 };
@@ -371,7 +370,7 @@ DECLARE_REFCOUNTED_STRUCT(TThrottlers)
 
 struct TThrottlers final
 {
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock);
     THashMap<TThrottlerId, TWeakPtr<TWrappedThrottler>> Throttlers;
 };
 
@@ -418,7 +417,9 @@ public:
             config->ObsoleteMembersRemovalPeriod))
         , Throttlers_(std::move(throttlers))
         , ShardCount_(shardCount)
-        , Logger(logger.WithTag("GroupId: %v, ShardCount: %v", GroupId_, ShardCount_))
+        , Logger(logger
+            .WithTag("GroupId", GroupId_)
+            .WithTag("ShardCount", ShardCount_))
         , Config_(std::move(config))
         , MemberShards_(ShardCount_)
         , ThrottlerShards_(ShardCount_)
@@ -489,9 +490,9 @@ public:
             for (const auto& throttlerId : throttlerIdsByShard[i]) {
                 auto& limit = shard.ThrottlerIdToTotalLimit[throttlerId];
                 limit = throttlerIdToTotalLimit[throttlerId];
-                YT_LOG_DEBUG("Setting throttler total limit (ThrottlerId: %v, Limit: %v)",
-                    throttlerId,
-                    limit);
+                YT_TLOG_DEBUG("Setting throttler total limit")
+                    .With("ThrottlerId", throttlerId)
+                    .With("Limit", limit);
             }
         }
     }
@@ -503,10 +504,9 @@ public:
         auto guard = WriterGuard(shard->TotalLimitsLock);
         auto& limit = shard->ThrottlerIdToTotalLimit[throttlerId];
         if (auto oldLimit = limit; newLimit != oldLimit) {
-            YT_LOG_DEBUG("Changing throttler total limit (ThrottlerId: %v, Limit: %v -> %v)",
-                throttlerId,
-                oldLimit,
-                newLimit);
+            YT_TLOG_DEBUG("Changing throttler total limit")
+                .With("ThrottlerId", throttlerId)
+                .WithFormat("Limit", "%v -> %v", oldLimit, newLimit);
             limit = newLimit;
         }
     }
@@ -577,7 +577,8 @@ public:
             for (const auto& throttlerId : throttlerIdsByShard[i]) {
                 auto totalLimitIt = throttlerShard.ThrottlerIdToTotalLimit.find(throttlerId);
                 if (totalLimitIt == throttlerShard.ThrottlerIdToTotalLimit.end()) {
-                    YT_LOG_WARNING("There is no total limit for throttler (ThrottlerId: %v)", throttlerId);
+                    YT_TLOG_WARNING("There is no total limit for throttler")
+                        .With("ThrottlerId", throttlerId);
                     continue;
                 }
 
@@ -594,9 +595,9 @@ public:
                     }
                     auto limitIt = throttlerIdToLimits.find(throttlerId);
                     if (limitIt == throttlerIdToLimits.end()) {
-                        YT_LOG_DEBUG("There is no limit for throttler (ThrottlerId: %v, MemberId: %v)",
-                            throttlerId,
-                            memberId);
+                        YT_TLOG_DEBUG("There is no limit for throttler")
+                            .With("ThrottlerId", throttlerId)
+                            .With("MemberId", memberId);
                     } else {
                         EmplaceOrCrash(result, throttlerId, limitIt->second);
                     }
@@ -642,26 +643,26 @@ private:
 
     struct TMemberShard
     {
-        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MemberIdToLastUpdateTimeLock);
+        YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, MemberIdToLastUpdateTimeLock);
         THashMap<TMemberId, TInstant> MemberIdToLastUpdateTime;
 
-        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MemberIdToLimitLock);
+        YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, MemberIdToLimitLock);
         THashMap<TMemberId, THashMap<TThrottlerId, double>> MemberIdToLimit;
 
-        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MemberIdToThrottlersLocalUsageLock);
+        YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, MemberIdToThrottlersLocalUsageLock);
         THashMap<TMemberId, THashMap<TThrottlerId, TThrottlerLocalUsage>> MemberIdToThrottlersLocalUsage;
     };
     std::vector<TMemberShard> MemberShards_;
 
     struct TThrottlerShard
     {
-        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, TotalLimitsLock);
+        YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, TotalLimitsLock);
         THashMap<TThrottlerId, std::optional<double>> ThrottlerIdToTotalLimit;
 
-        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, UniformLimitLock);
+        YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, UniformLimitLock);
         THashMap<TThrottlerId, double> ThrottlerIdToUniformLimit;
 
-        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, LastUpdateTimeLock);
+        YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, LastUpdateTimeLock);
         THashMap<TThrottlerId, TInstant> ThrottlerIdToLastUpdateTime;
     };
     std::vector<TThrottlerShard> ThrottlerShards_;
@@ -669,7 +670,7 @@ private:
     std::atomic<bool> UpdateTotalLimitsExplicitlySet_ = false;
 
     // This map is used to keep member weights for exponential smoothing. We do not need to shard it.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ThrottlerIdToMemberWeightsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ThrottlerIdToMemberWeightsLock_);
     THashMap<TThrottlerId, THashMap<TMemberId, double>> ThrottlerIdToMemberWeights_;
 
     DECLARE_RPC_SERVICE_METHOD(NDistributedThrottler::NProto, Heartbeat)
@@ -685,9 +686,9 @@ private:
 
         const auto& memberId = request->member_id();
 
-        context->SetRequestInfo("MemberId: %v, ThrottlerCount: %v",
-            memberId,
-            request->throttlers().size());
+        context->AnnotateRequest()
+            .With("MemberId", memberId)
+            .With("ThrottlerCount", request->throttlers().size());
 
         if (!request->throttlers().empty()) {
             // Get usages of member's throttlers.
@@ -713,9 +714,8 @@ private:
             UpdateMemberThrottlersLocalUsage(memberId, std::move(throttlerIdToLocalUsage));
         }
 
-        context->SetResponseInfo("MemberId: %v, ThrottlerCount: %v",
-            memberId,
-            response->throttlers().size());
+        context->AnnotateResponse()
+            .With("ThrottlerCount", response->throttlers().size());
 
         context->Reply();
     }
@@ -734,9 +734,9 @@ private:
         const auto& throttlerId = request->throttler_id();
         auto amount = request->amount();
 
-        context->SetRequestInfo("ThrottlerId: %v, Amount: %v",
-            throttlerId,
-            amount);
+        context->AnnotateRequest()
+            .With("ThrottlerId", throttlerId)
+            .With("Amount", amount);
 
         Throttle(throttlerId, amount).Subscribe(BIND([=] (const TError& error) {
             context->Reply(error);
@@ -774,22 +774,23 @@ private:
         return &MemberShards_[GetShardIndex(memberId)];
     }
 
-    TThrottlerShard* GetThrottlerShard(const TMemberId& memberId)
+    TThrottlerShard* GetThrottlerShard(const TThrottlerId& throttlerId)
     {
-        return &ThrottlerShards_[GetShardIndex(memberId)];
+        return &ThrottlerShards_[GetShardIndex(throttlerId)];
     }
 
     void UpdateUniformLimitDistribution()
     {
         auto amountRspOrError = WaitFor(DiscoveryClient_->GetGroupMeta(GroupId_));
         if (!amountRspOrError.IsOK()) {
-            YT_LOG_WARNING(amountRspOrError, "Error updating throttler limits");
+            YT_TLOG_WARNING("Error updating throttler limits")
+                .With(amountRspOrError);
             return;
         }
 
         auto totalCount = amountRspOrError.Value().MemberCount;
         if (totalCount == 0) {
-            YT_LOG_WARNING("No members in current group");
+            YT_TLOG_WARNING("No members in current group");
             return;
         }
 
@@ -804,9 +805,9 @@ private:
 
                     auto uniformLimit = std::max<double>(0, *optionalTotalLimit / totalCount);
                     EmplaceOrCrash(throttlerIdToUniformLimit, throttlerId, uniformLimit);
-                    YT_LOG_TRACE("Uniform distribution limit updated (ThrottlerId: %v, UniformLimit: %v)",
-                        throttlerId,
-                        uniformLimit);
+                    YT_TLOG_TRACE("Uniform distribution limit updated")
+                        .With("ThrottlerId", throttlerId)
+                        .With("UniformLimit", uniformLimit);
                 }
             }
 
@@ -871,9 +872,9 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG("Removing obsolete members (MemberCount: %v, Shard: %v)",
-                obsoleteMembers.size(),
-                i);
+            YT_TLOG_DEBUG("Removing obsolete members")
+                .With("MemberCount", obsoleteMembers.size())
+                .With("Shard", i);
 
             // Remove obsolete members.
             auto memberIdToLastUpdateTimeGuard = WriterGuard(shard.MemberIdToLastUpdateTimeLock);
@@ -961,8 +962,8 @@ private:
         for (const auto& [throttlerId, memberToLocalUsage] : throttlerIdToMemberLocalUsages) {
             auto optionalTotalLimit = GetOrCrash(throttlerIdToTotalLimit, throttlerId);
             if (!optionalTotalLimit) {
-                YT_LOG_WARNING("Skip throttler without total limit (ThrottlerId: %v)",
-                    throttlerId);
+                YT_TLOG_WARNING("Skip throttler without total limit")
+                    .With("ThrottlerId", throttlerId);
                 continue;
             }
 
@@ -983,25 +984,24 @@ private:
 
             auto freeLimit = config->ExtraLimitRatio * totalLimit + Max<double>(0, totalLimit - newTotalLimit);
 
-            YT_LOG_DEBUG("Updating throttler member limits (ThrottlerId: %v, TotalLimit: %v, NewTotalLimit: %v, DefaultLimit: %v, FreeLimit: %v, MemberCount: %v)",
-                throttlerId,
-                totalLimit,
-                newTotalLimit,
-                defaultLimit,
-                freeLimit,
-                memberToLocalUsage.size());
+            YT_TLOG_DEBUG("Updating throttler member limits")
+                .With("ThrottlerId", throttlerId)
+                .With("TotalLimit", totalLimit)
+                .With("NewTotalLimit", newTotalLimit)
+                .With("DefaultLimit", defaultLimit)
+                .With("FreeLimit", freeLimit)
+                .With("MemberCount", memberToLocalUsage.size());
 
             for (const auto& [memberId, localUsage] : memberToLocalUsage) {
                 auto memberFreeLimit = freeLimit / memberToLocalUsage.size();
                 auto memberNewLimit = std::min(localUsage.Rate, defaultLimit) + memberFreeLimit;
 
-                YT_LOG_TRACE(
-                    "Updating throttler limit (ThrottlerId: %v, MemberId: %v, UsageRate: %v, OldLimit: %v, NewLimit: %v)",
-                    throttlerId,
-                    memberId,
-                    localUsage.Rate,
-                    localUsage.Limit,
-                    memberNewLimit);
+                YT_TLOG_TRACE("Updating throttler limit")
+                    .With("ThrottlerId", throttlerId)
+                    .With("MemberId", memberId)
+                    .With("UsageRate", localUsage.Rate)
+                    .With("OldLimit", localUsage.Limit)
+                    .With("NewLimit", memberNewLimit);
 
                 EmplaceOrCrash(memberIdToLimit[GetShardIndex(memberId)][memberId], throttlerId, memberNewLimit);
             }
@@ -1022,16 +1022,16 @@ private:
         for (const auto& [throttlerId, memberToLocalUsage] : throttlerIdToMemberLocalUsages) {
             auto optionalTotalLimit = GetOrCrash(throttlerIdToTotalLimit, throttlerId);
             if (!optionalTotalLimit) {
-                YT_LOG_WARNING("Skip throttler without total limit (ThrottlerId: %v)",
-                    throttlerId);
+                YT_TLOG_WARNING("Skip throttler without total limit")
+                    .With("ThrottlerId", throttlerId);
                 continue;
             }
 
             double totalLimit = *optionalTotalLimit;
             if (totalLimit <= 0) {
-                YT_LOG_ERROR("Unexpected total limit (ThrottlerId: %v, TotalLimit: %v)",
-                    throttlerId,
-                    totalLimit);
+                YT_TLOG_ERROR("Unexpected total limit")
+                    .With("ThrottlerId", throttlerId)
+                    .With("TotalLimit", totalLimit);
                 continue;
             }
 
@@ -1039,13 +1039,13 @@ private:
             double totalQueueAmount = GetOrCrash(throttlerIdToGlobalUsage, throttlerId).QueueTotalAmount;
             double totalFreeLimit = config->ExtraLimitRatio * totalLimit + Max<double>(0, totalLimit - totalRate);
 
-            YT_LOG_DEBUG("Updating throttler member limits (ThrottlerId: %v, TotalLimit: %v, TotalRate: %v, TotalQueueAmount: %v, TotalFreeLimit: %v, MemberCount: %v)",
-                throttlerId,
-                totalLimit,
-                totalRate,
-                totalQueueAmount,
-                totalFreeLimit,
-                memberToLocalUsage.size());
+            YT_TLOG_DEBUG("Updating throttler member limits")
+                .With("ThrottlerId", throttlerId)
+                .With("TotalLimit", totalLimit)
+                .With("TotalRate", totalRate)
+                .With("TotalQueueAmount", totalQueueAmount)
+                .With("TotalFreeLimit", totalFreeLimit)
+                .With("MemberCount", memberToLocalUsage.size());
 
             // We use lock here just for safety since most of the time there is no concurrency.
             auto guard = TGuard(ThrottlerIdToMemberWeightsLock_);
@@ -1065,18 +1065,17 @@ private:
                 // Calculate new member limit.
                 auto newLimit = weight * totalLimit;
 
-                // Avoid infinitely small limits that might lead to and overflow when using them as a divisor.
-                if (newLimit < MinThorttlerLimit) {
+                // Avoid infinitely small limits that might lead to overflow when using them as a divisor.
+                if (newLimit < MinThrottlerLimit) {
                     newLimit = 0;
                 }
 
-                YT_LOG_TRACE(
-                    "Updating throttler limit (ThrottlerId: %v, MemberId: %v, Rate: %v, OldLimit: %v, NewLimit: %v)",
-                    throttlerId,
-                    memberId,
-                    localUsage.Rate,
-                    localUsage.Limit,
-                    newLimit);
+                YT_TLOG_TRACE("Updating throttler limit")
+                    .With("ThrottlerId", throttlerId)
+                    .With("MemberId", memberId)
+                    .With("Rate", localUsage.Rate)
+                    .With("OldLimit", localUsage.Limit)
+                    .With("NewLimit", newLimit);
 
                 EmplaceOrCrash(memberIdToLimit[GetShardIndex(memberId)][memberId], throttlerId, newLimit);
             }
@@ -1097,8 +1096,8 @@ private:
         for (const auto& [throttlerId, memberToLocalUsage] : throttlerIdToMemberLocalUsages) {
             auto optionalTotalLimit = GetOrCrash(throttlerIdToTotalLimit, throttlerId);
             if (!optionalTotalLimit) {
-                YT_LOG_WARNING("Skip throttler without total limit (ThrottlerId: %v)",
-                    throttlerId);
+                YT_TLOG_WARNING("Skip throttler without total limit")
+                    .With("ThrottlerId", throttlerId);
                 continue;
             }
 
@@ -1120,14 +1119,14 @@ private:
             double totalQueueAmount = GetOrCrash(throttlerIdToGlobalUsage, throttlerId).QueueTotalAmount;
             double totalFreeLimit = config->ExtraLimitRatio * totalLimit + Max<double>(0, totalLimit - truncatedTotalLimit);
 
-            YT_LOG_DEBUG("Updating throttler member limits (ThrottlerId: %v, TotalLimit: %v, TruncatedTotalLimit: %v, MemberLimitThreshold: %v, TotalFreeLimit: %v, TotalQueueAmount: %v, MemberCount: %v)",
-                throttlerId,
-                totalLimit,
-                truncatedTotalLimit,
-                memberLimitThreshold,
-                totalFreeLimit,
-                totalQueueAmount,
-                memberToLocalUsage.size());
+            YT_TLOG_DEBUG("Updating throttler member limits")
+                .With("ThrottlerId", throttlerId)
+                .With("TotalLimit", totalLimit)
+                .With("TruncatedTotalLimit", truncatedTotalLimit)
+                .With("MemberLimitThreshold", memberLimitThreshold)
+                .With("TotalFreeLimit", totalFreeLimit)
+                .With("TotalQueueAmount", totalQueueAmount)
+                .With("MemberCount", memberToLocalUsage.size());
 
             // We use lock here just for safety since most of the time there is no concurrency.
             auto guard = TGuard(ThrottlerIdToMemberWeightsLock_);
@@ -1150,19 +1149,18 @@ private:
                 // Calculate new member limit.
                 auto newLimit = Min(localUsage.Rate, memberLimitThreshold) + freeLimit;
 
-                // Avoid infinitely small limits that might lead to and overflow when using them as a divisor.
-                if (newLimit < MinThorttlerLimit) {
+                // Avoid infinitely small limits that might lead to overflow when using them as a divisor.
+                if (newLimit < MinThrottlerLimit) {
                     newLimit = 0;
                 }
 
-                YT_LOG_TRACE(
-                    "Updating throttler limit (ThrottlerId: %v, MemberId: %v, Rate: %v, OldLimit: %v, NewLimit: %v, FreeLimit: %v)",
-                    throttlerId,
-                    memberId,
-                    localUsage.Rate,
-                    localUsage.Limit,
-                    newLimit,
-                    freeLimit);
+                YT_TLOG_TRACE("Updating throttler limit")
+                    .With("ThrottlerId", throttlerId)
+                    .With("MemberId", memberId)
+                    .With("Rate", localUsage.Rate)
+                    .With("OldLimit", localUsage.Limit)
+                    .With("NewLimit", newLimit)
+                    .With("FreeLimit", freeLimit);
 
                 EmplaceOrCrash(memberIdToLimit[GetShardIndex(memberId)][memberId], throttlerId, newLimit);
             }
@@ -1193,9 +1191,9 @@ private:
             for (const auto& [memberId, throttlerIdToLocalUsage] : shard.MemberIdToThrottlersLocalUsage) {
                 for (const auto& [throttlerId, throttlerLocalUsage] : throttlerIdToLocalUsage) {
                     if (!throttlerIdToTotalLimit.contains(throttlerId)) {
-                        YT_LOG_DEBUG("Unknown throttler (MemberId: %v, ThrottlerId: %v)",
-                            memberId,
-                            throttlerId);
+                        YT_TLOG_DEBUG("Unknown throttler")
+                            .With("MemberId", memberId)
+                            .With("ThrottlerId", throttlerId);
                         continue;
                     }
 
@@ -1215,7 +1213,7 @@ private:
             }
         }
 
-        // Calcluate new member limits.
+        // Calculate new member limits.
         std::vector<THashMap<TMemberId, THashMap<TThrottlerId, double>>> memberIdToLimit;
         switch (config->MemberWeightMode) {
             case EDistributedThrottlerMemberWeightMode::Uniform:
@@ -1263,7 +1261,7 @@ public:
         const NLogging::TLogger& logger,
         IAuthenticatorPtr authenticator,
         TProfiler profiler,
-        std::optional<i64> memberPriority)
+        std::optional<i64> memberPriorityHint)
         : ChannelFactory_(std::move(channelFactory))
         , Connection_(std::move(connection))
         , GroupId_(std::move(groupId))
@@ -1290,10 +1288,10 @@ public:
             BIND(&TDistributedThrottlerFactory::UpdateThrottlersAttributes, MakeWeak(this)),
             config->ThrottlersAttributesUpdatePeriod))
         , RealmId_(TGuid::Create())
-        , Logger(logger.WithTag("SelfMemberId: %v, GroupId: %v, RealmId: %v",
-            MemberId_,
-            GroupId_,
-            RealmId_))
+        , Logger(logger
+            .WithTag("SelfMemberId", MemberId_)
+            .WithTag("GroupId", GroupId_)
+            .WithTag("RealmId", RealmId_))
         , Profiler_(std::move(profiler))
         , Config_(config)
         , DistributedThrottlerService_(New<TDistributedThrottlerService>(
@@ -1306,9 +1304,12 @@ public:
             Throttlers_,
             Logger,
             std::move(authenticator)))
-        , MemberPriority_(memberPriority)
+        , MemberPriority_(GenerateMemberPriority(
+            config->MemberPriorityGenerator,
+            memberPriorityHint))
     {
-        YT_LOG_INFO("Starting distributed throttler factory");
+        YT_TLOG_INFO("Starting distributed throttler factory")
+            .With("MemberPriority", MemberPriority_);
 
         IsLeader_ = Profiler_.Gauge("/leader");
         IsLeader_.Update(0);
@@ -1317,23 +1318,7 @@ public:
         attributes->Set(RealmIdAttributeKey, RealmId_);
         attributes->Set(AddressAttributeKey, address);
 
-        if (MemberPriority_) {
-            MemberClient_->SetPriority(MemberPriority_.value());
-        } else {
-            // Generate and set member priority.
-            switch (config->MemberPriorityGenerator) {
-                case EDistributedThrottlerMemberPriorityGenerator::StartTime:
-                    MemberClient_->SetPriority(TInstant::Now().Seconds());
-                    break;
-                case EDistributedThrottlerMemberPriorityGenerator::Random:
-                    MemberClient_->SetPriority(RandomNumber<ui64>());
-                    break;
-                default:
-                    THROW_ERROR_EXCEPTION("Unsupported member priority generator %Qlv",
-                        config->MemberPriorityGenerator);
-                    break;
-            }
-        }
+        MemberClient_->SetPriority(MemberPriority_);
     }
 
     void InitializeRefCounted()
@@ -1345,7 +1330,7 @@ public:
 
     ~TDistributedThrottlerFactory()
     {
-        YT_LOG_INFO("Stopping distributed throttler factory");
+        YT_TLOG_INFO("Stopping distributed throttler factory");
 
         DistributedThrottlerService_->Finalize();
         YT_UNUSED_FUTURE(MemberClient_->Stop());
@@ -1434,7 +1419,8 @@ public:
                 Start();
             }
 
-            YT_LOG_DEBUG("Distributed throttler created (ThrottlerId: %v)", throttlerId);
+            YT_TLOG_DEBUG("Distributed throttler created")
+                .With("ThrottlerId", throttlerId);
         }
 
         updateUpdateQueue(wrappedThrottler);
@@ -1484,8 +1470,8 @@ public:
 
     void UpdateTotalLimits(THashMap<TThrottlerId, std::optional<double>> throttlerIdToTotalLimit) override
     {
-        YT_LOG_DEBUG("Update total limits (Throttlers: %v)",
-            throttlerIdToTotalLimit);
+        YT_TLOG_DEBUG("Update total limits")
+            .With("Throttlers", throttlerIdToTotalLimit);
 
         DistributedThrottlerService_->UpdateTotalLimits(
             std::move(throttlerIdToTotalLimit));
@@ -1511,17 +1497,41 @@ private:
 
     const TThrottlersPtr Throttlers_ = New<TThrottlers>();
     const TDistributedThrottlerServicePtr DistributedThrottlerService_;
-    const std::optional<i64> MemberPriority_;
+
+    // This value is responsible for choosing the leader.
+    // Member with the lowest value wins.
+    const i64 MemberPriority_;
 
     std::atomic<bool> Active_ = false;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
     std::optional<TMemberId> LeaderId_;
     IChannelPtr LeaderChannel_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, UpdateQueueLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, UpdateQueueLock_);
     TRingQueue<std::pair<TThrottlerId, TWeakPtr<TWrappedThrottler>>> UpdateQueue_;
     THashSet<TThrottlerId> UnreportedThrottlers_;
+
+    static i64 GenerateMemberPriority(
+        EDistributedThrottlerMemberPriorityGenerator generator,
+        std::optional<i64> memberPriorityHint)
+    {
+        if (memberPriorityHint) {
+            return *memberPriorityHint;
+        }
+
+        switch (generator) {
+            case EDistributedThrottlerMemberPriorityGenerator::StartTime:
+                return TInstant::Now().Seconds();
+
+            case EDistributedThrottlerMemberPriorityGenerator::Random:
+                return RandomNumber<ui64>();
+
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported member priority generator %Qlv",
+                    generator);
+        }
+    }
 
     void Start()
     {
@@ -1555,7 +1565,7 @@ private:
         {
             auto guard = ReaderGuard(Lock_);
             if (!LeaderId_) {
-                YT_LOG_DEBUG("Unable to update throttler limit: no active leader");
+                YT_TLOG_DEBUG("Unable to update throttler limit: no active leader");
                 UpdateLeaderExecutor_->ScheduleOutOfBand();
                 return;
             }
@@ -1648,9 +1658,9 @@ private:
         for (const auto& [throttlerId, limit] : limits) {
             const auto& throttler = GetOrCrash(throttlers, throttlerId);
             throttler->SetLimit(limit);
-            YT_LOG_TRACE("Throttler limit updated (ThrottlerId: %v, Limit: %v)",
-                throttlerId,
-                limit);
+            YT_TLOG_TRACE("Throttler limit updated")
+                .With("ThrottlerId", throttlerId)
+                .With("Limit", limit);
         }
         DistributedThrottlerService_->UpdateMemberThrottlersLocalUsage(MemberId_, std::move(throttlerIdToLocalUsage));
     }
@@ -1682,8 +1692,9 @@ private:
                 throttlers = std::move(throttlers)
             ] (const TErrorOr<TDistributedThrottlerProxy::TRspHeartbeatPtr>& rspOrError) {
                 if (!rspOrError.IsOK()) {
-                    YT_LOG_WARNING(rspOrError, "Failed updating throttler limit (LeaderId: %v)",
-                        leaderId);
+                    YT_TLOG_WARNING("Failed updating throttler limit")
+                        .With("LeaderId", leaderId)
+                        .With(rspOrError);
                     return;
                 }
 
@@ -1693,10 +1704,10 @@ private:
                     const auto& throttlerId = rspThrottler.id();
                     const auto& throttler = GetOrCrash(throttlers, throttlerId);
                     throttler->SetLimit(limit);
-                    YT_LOG_TRACE("Throttler limit updated (LeaderId: %v, ThrottlerId: %v, Limit: %v)",
-                        leaderId,
-                        throttlerId,
-                        limit);
+                    YT_TLOG_TRACE("Throttler limit updated")
+                        .With("LeaderId", leaderId)
+                        .With("ThrottlerId", throttlerId)
+                        .With("Limit", limit);
                 }
             }));
     }
@@ -1720,7 +1731,8 @@ private:
         auto rspFuture = DiscoveryClient_->ListMembers(GroupId_, options);
         auto rspOrError = WaitFor(rspFuture.AsUnique());
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Error updating leader");
+            YT_TLOG_WARNING("Error updating leader")
+                .With(rspOrError);
             return;
         }
 
@@ -1732,17 +1744,17 @@ private:
         const auto& leader = members[0];
         auto optionalAddress = leader.Attributes->Find<std::string>(AddressAttributeKey);
         if (!optionalAddress) {
-            YT_LOG_WARNING("Leader does not have '%v' attribute (LeaderId: %v)",
-                AddressAttributeKey,
-                leader.Id);
+            YT_TLOG_WARNING("Leader does not have the attribute")
+                .With("Attribute", AddressAttributeKey)
+                .With("LeaderId", leader.Id);
             return;
         }
 
         auto optionalRealmId = leader.Attributes->Find<TRealmId>(RealmIdAttributeKey);
         if (!optionalRealmId) {
-            YT_LOG_WARNING("Leader does not have '%v' attribute (LeaderId: %v)",
-                RealmIdAttributeKey,
-                leader.Id);
+            YT_TLOG_WARNING("Leader does not have the attribute")
+                .With("Attribute", RealmIdAttributeKey)
+                .With("LeaderId", leader.Id);
             return;
         }
 
@@ -1754,9 +1766,9 @@ private:
             if (LeaderId_ == leaderId) {
                 return;
             }
-            YT_LOG_INFO("Leader changed (OldLeaderId: %v, NewLeaderId: %v)",
-                LeaderId_,
-                leaderId);
+            YT_TLOG_INFO("Leader changed")
+                .With("OldLeaderId", LeaderId_)
+                .With("NewLeaderId", leaderId);
             {
                 auto* attributes = MemberClient_->GetAttributes();
                 attributes->Set(LeaderIdAttributeKey, leaderId);
@@ -1796,9 +1808,9 @@ private:
     {
         auto mode = Config_.Acquire()->Mode;
 
-        YT_LOG_DEBUG("Update %Qv member attribute (Mode: %v)",
-            LocalThrottlersAttributeKey,
-            mode);
+        YT_TLOG_DEBUG("Updating member attribute")
+            .With("Attribute", LocalThrottlersAttributeKey)
+            .With("Mode", mode);
 
         auto guard = ReaderGuard(Throttlers_->Lock);
         auto yson = NYTree::BuildYsonStringFluently()
@@ -1836,7 +1848,8 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Update %Qv member attribute", GlobalThrottlersAttributeKey);
+        YT_TLOG_DEBUG("Updating member attribute")
+            .With("Attribute", GlobalThrottlersAttributeKey);
 
         auto yson = NYTree::BuildYsonStringFluently()
             .DoMapFor(*throttlerToGlobalUsage, [&] (NYTree::TFluentMap fluent, const auto& item) {
@@ -1877,7 +1890,7 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     NLogging::TLogger logger,
     IAuthenticatorPtr authenticator,
     TProfiler profiler,
-    std::optional<i64> memberPriority)
+    std::optional<i64> memberPriorityHint)
 {
     return New<TDistributedThrottlerFactory>(
         CloneYsonStruct(std::move(config)),
@@ -1891,7 +1904,7 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         std::move(logger),
         std::move(authenticator),
         std::move(profiler),
-        std::move(memberPriority));
+        std::move(memberPriorityHint));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

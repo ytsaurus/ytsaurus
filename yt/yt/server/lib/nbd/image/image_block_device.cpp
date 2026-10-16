@@ -1,0 +1,196 @@
+#include "image_block_device.h"
+
+#include "image_reader.h"
+
+#include <yt/yt/server/lib/nbd/block_device_detail.h>
+#include <yt/yt/server/lib/nbd/profiler.h>
+
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/replication_reader.h>
+
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/yt/ytlib/file_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/file_client/file_ypath_proxy.h>
+
+#include <yt/yt/library/nbd/image/config.h>
+
+#include <yt/yt/library/profiling/tagged_counters.h>
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
+
+namespace NYT::NNbd::NImage {
+
+using namespace NYTree;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NTracing;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TImageBlockDevice
+    : public TBlockDeviceBase
+{
+public:
+    TImageBlockDevice(
+        std::string exportId,
+        TImageBlockDeviceConfigPtr config,
+        IImageReaderPtr reader,
+        IInvokerPtr invoker,
+        const NLogging::TLogger& logger)
+        : ExportId_(std::move(exportId))
+        , Config_(std::move(config))
+        , Reader_(std::move(reader))
+        , Invoker_(std::move(invoker))
+        , Logger(logger.WithTag("ExportId", ExportId_))
+        , TagSet_(TNbdProfilerCounters::MakeTagSet(Reader_->GetPath()))
+        , TraceContext_(GetOrCreateTraceContext("ImageBlockDevice"))
+    {
+        TNbdProfilerCounters::Get()->GetGauge(TagSet_, "/device/count")
+            .Update(FileBlockDeviceCount().Increment(TagSet_));
+        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/created")
+            .Increment(1);
+    }
+
+    ~TImageBlockDevice()
+    {
+        TNbdProfilerCounters::Get()->GetGauge(TagSet_, "/device/count")
+            .Update(FileBlockDeviceCount().Decrement(TagSet_));
+        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/removed")
+            .Increment(1);
+
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+        YT_TLOG_INFO("Destroying file system block device")
+            .With("Path", Reader_->GetPath());
+    }
+
+    i64 GetTotalSize() const override
+    {
+        return Reader_->GetSize();
+    }
+
+    i64 GetBlockSize() const override
+    {
+        // Byte-addressable backend; advertise the conventional sector size.
+        return 512;
+    }
+
+    bool IsReadOnly() const override
+    {
+        return true;
+    }
+
+    std::string GetDescription() const override
+    {
+        return Format("Image{Path: %v}", Reader_->GetPath());
+    }
+
+    std::string GetProfileSensorTag() const override
+    {
+        return Reader_->GetPath();
+    }
+
+    TFuture<TReadResponse> Read(
+        i64 offset,
+        i64 length,
+        const TReadOptions& options) override
+    {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
+        return Reader_->Read(offset, length, options)
+            .Apply(BIND([this, this_ = MakeStrong(this), tagSet = TagSet_] (const TErrorOr<TSharedRef>& result) {
+                auto statistics = Reader_->GetStatistics();
+                TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_bytes_from_cache")
+                    .Increment(statistics.DataBytesReadFromCache);
+                TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_bytes_from_disk")
+                    .Increment(statistics.DataBytesReadFromDisk);
+                TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_meta_bytes_from_disk")
+                    .Increment(statistics.MetaBytesReadFromDisk);
+
+                return TReadResponse(result.ValueOrThrow(), false);
+            }));
+    }
+
+    TFuture<TWriteResponse> Write(
+        i64 /*offset*/,
+        const TSharedRef& /*data*/,
+        const TWriteOptions& /*options*/) override
+    {
+        return MakeFuture<TWriteResponse>(TError("Writes are not supported"));
+    }
+
+    TFuture<void> Flush(const TFlushOptions& /*options*/) override
+    {
+        return OKFuture;
+    }
+
+    TFuture<void> Initialize() override
+    {
+        return BIND(&TImageBlockDevice::DoInitialize, MakeStrong(this))
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
+    TFuture<void> Finalize() override
+    {
+        return OKFuture;
+    }
+
+private:
+    const std::string ExportId_;
+    const TImageBlockDeviceConfigPtr Config_;
+    const IImageReaderPtr Reader_;
+    const IInvokerPtr Invoker_;
+    const NLogging::TLogger Logger;
+    const NProfiling::TTagSet TagSet_;
+    const TTraceContextPtr TraceContext_;
+
+    void DoInitialize()
+    {
+        YT_TLOG_INFO("Initializing File system block device")
+            .With("Path", Reader_->GetPath());
+
+        Reader_->Initialize();
+
+        YT_TLOG_INFO("Initialized File system block device")
+            .With("Path", Reader_->GetPath());
+    }
+
+    static NProfiling::TTaggedCounters<int>& FileBlockDeviceCount()
+    {
+        static NProfiling::TTaggedCounters<int> result;
+        return result;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IBlockDevicePtr CreateImageBlockDevice(
+    std::string exportId,
+    TImageBlockDeviceConfigPtr config,
+    IImageReaderPtr reader,
+    IInvokerPtr invoker,
+    NLogging::TLogger logger)
+{
+    return New<TImageBlockDevice>(
+        std::move(exportId),
+        std::move(config),
+        std::move(reader),
+        std::move(invoker),
+        std::move(logger));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NNbd::NImage

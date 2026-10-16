@@ -10,7 +10,7 @@ namespace NYT::NContainers::NCri {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCriImageCacheEntry
-    : public TAsyncCacheValueBase<TString, TCriImageCacheEntry>
+    : public TAsyncCacheValueBase<std::string, TCriImageCacheEntry>
     , private TIntrusiveListItem<TCriImageCacheEntry>
 {
 public:
@@ -35,7 +35,7 @@ public:
 
 private:
     TIntrusiveList<TCriImageCacheEntry> Aliases_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCriImageCacheEntry)

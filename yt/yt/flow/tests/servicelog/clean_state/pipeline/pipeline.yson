@@ -1,0 +1,73 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["event"];
+                "source_streams" = {
+                    "main_source" = {
+                        "source_class_name" = "NYT::NFlow::TServiceLogSource";
+                        "parameters" = {
+                            "table_joiner" = {
+                                "fetchers" = [
+                                    {
+                                        "table_path" = "//path/to/state";
+                                    };
+                                ];
+                            };
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "state_keeper" = {
+                "computation_class_name" = "TStateKeeper";
+                "group_by_schema" = [
+                    {"name" = "hash"; "type" = "uint64"; expression="farm_hash(key, text_key)"; required = %true;};
+                    {"name" = "key"; "type" = "int64";};
+                    {"name" = "text_key"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["event"];
+                "output_stream_ids" = [];
+                "external_state_managers" = {
+                    "/state" = {
+                        "external_state_manager_class_name" = "NYT::NFlow::TSimpleExternalStateManager";
+                        "parameters" = {"path" = "//path/to/state";};
+                    };
+                };
+            };
+        };
+        "streams" = {
+            "event" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "int64";};
+                    {"name" = "text_key"; "type" = "string";};
+                    {"name" = "value"; "type" = "int64";};
+                ];
+            };
+            
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {
+                "max_rows_per_batch" = 500;
+                source_streams = {
+                    "main_source" = {
+                        "parameters" = {
+                            "desired_partition_count" = 5;
+                        };
+                    };
+                };
+            };
+            "state_keeper" = {
+                "parameters" = {
+                    "desired_partition_count" = 7;
+                }
+            };
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+    };
+}

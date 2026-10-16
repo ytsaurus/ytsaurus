@@ -57,6 +57,11 @@ private:
 
     void ScheduleLeaderReassignment(TCellBase* cell, int newLeaderPeerId);
 
+    // Smooths leader distribution across nodes for multipeer cells.
+    // For each area, counts leaders per node and reassigns leaders from
+    // overloaded nodes to underloaded ones via their followers.
+    void ScheduleLeaderSmoothing(NCellarClient::ECellarType cellarType);
+
     void SchedulePeerAssignment(TCellBase* cell, ICellBalancer* balancer);
     void SchedulePeerRevocation(TCellBase* cell, ICellBalancer* balancer);
     bool SchedulePeerCountChange(TCellBase* cell, NCellBalancerClient::NProto::TReqReassignPeers* request);

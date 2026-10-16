@@ -115,6 +115,17 @@ public:
         return UnderlyingReader_->GetDataStatistics();
     }
 
+    NApi::TTableReaderTimingStatistics GetTimingStatistics() const override
+    {
+        auto timing = UnderlyingReader_->GetTimingStatistics();
+        // NB(achains): The adapter has no phases of its own,
+        // so its total time is the lifetime of the wrapped reader.
+        return NApi::TTableReaderTimingStatistics{
+            .DataReadTiming = timing,
+            .TotalTime = timing.GetTotalTime(),
+        };
+    }
+
     TFuture<void> GetReadyEvent() const override
     {
         return UnderlyingReader_->GetReadyEvent();
@@ -291,10 +302,10 @@ void ValidateDynamicTableTimestamp(
             THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::TimestampOutOfRange,
                 "Requested timestamp is out of range for table %v",
                 path.GetPath())
-                << TErrorAttribute("requested_timestamp", requested)
-                << TErrorAttribute("retained_timestamp", retained)
-                << TErrorAttribute("unflushed_timestamp", unflushed)
-                << TErrorAttribute("enable_dynamic_store_read", enableDynamicStoreRead);
+                .With("requested_timestamp", requested)
+                .With("retained_timestamp", retained)
+                .With("unflushed_timestamp", unflushed)
+                .With("enable_dynamic_store_read", enableDynamicStoreRead);
         }
     }
 
@@ -303,8 +314,8 @@ void ValidateDynamicTableTimestamp(
         if (retention > requested) {
             THROW_ERROR_EXCEPTION("Retention timestamp for table %v should not be greater than read timestamp",
                 path.GetPath())
-                << TErrorAttribute("read_timestamp", requested)
-                << TErrorAttribute("retention_timestamp", retention);
+                .With("read_timestamp", requested)
+                .With("retention_timestamp", retention);
         }
     }
 }
@@ -322,7 +333,7 @@ TInputTableInfo CollectInputTableInfo(
     const TGetUserObjectBasicAttributesOptions& getBasicAttributesOptions,
     const TLogger& logger)
 {
-    auto Logger = logger.WithTag("Path: %v", path.GetPath());
+    auto Logger = logger.WithTag("Path", path.GetPath());
 
     TUserObject userObject(path);
 
@@ -341,7 +352,7 @@ TInputTableInfo CollectInputTableInfo(
             userObject.Type);
     }
 
-    YT_LOG_INFO("Requesting table chunk count");
+    YT_TLOG_INFO("Requesting table chunk count");
 
     int chunkCount;
     // XXX(babenko): YT-11825
@@ -375,7 +386,8 @@ TInputTableInfo CollectInputTableInfo(
         schema = attributes->Get<TTableSchemaPtr>("schema");
     }
 
-    YT_LOG_INFO("Fetching chunk specs (ChunkCount: %v)", chunkCount);
+    YT_TLOG_INFO("Fetching chunk specs")
+        .With("ChunkCount", chunkCount);
 
     auto chunkSpecs = FetchChunkSpecs(
         client,
@@ -404,6 +416,7 @@ TInputTableInfo CollectInputTableInfo(
     auto rlsReadSpec = TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
         schema,
         userObject.RowLevelAcl,
+        client->GetOptions().GetAuthenticatedUser(),
         Logger());
 
     return TInputTableInfo{
@@ -595,12 +608,11 @@ std::optional<i64> EstimateReadDataSizeForColumns(
     }
 
     if (columnMeta.columns_size() != expectedColumnSize) {
-        YT_LOG_ALERT("Unexpected chunk columns size in column meta "
-            "(ChunkId: %v, SchemaStrict: %v, ExpectedColumnSize: %v, ActualColumnSize: %v)",
-            chunkId,
-            schema->IsStrict(),
-            expectedColumnSize,
-            columnMeta.columns_size());
+        YT_TLOG_ALERT("Unexpected chunk columns size in column meta")
+            .With("ChunkId", chunkId)
+            .With("SchemaStrict", schema->IsStrict())
+            .With("ExpectedColumnSize", expectedColumnSize)
+            .With("ActualColumnSize", columnMeta.columns_size());
         return compressedDataSize;
     }
 
@@ -627,6 +639,16 @@ std::optional<i64> EstimateReadDataSizeForColumns(
         }
     }
 
+    auto logReadEstimationWarning = [&] (i64 readSize) {
+        YT_TLOG_WARNING("Read estimation is greater than the chunk's compressed data size")
+            .With("ChunkId", chunkId)
+            .With("ReadSize", readSize)
+            .With("CompressedDataSize", compressedDataSize)
+            .With("IsSchemaStrict", schema->IsStrict())
+            .With("ColumnCount", schema->GetColumnCount())
+            .With("ReadColumnCount", std::ssize(columnStableNames));
+    };
+
     auto erasurePlacementExt = FindProtoExtension<TErasurePlacementExt>(meta.extensions());
     if (erasurePlacementExt) {
         auto dataBlockPlacement = BuildDataBlocksPlacementInParts(
@@ -641,6 +663,10 @@ std::optional<i64> EstimateReadDataSizeForColumns(
             }
         }
 
+        if (readSize > compressedDataSize + 1) {
+            logReadEstimationWarning(readSize);
+        }
+
         // Estimation is not exact sometimes and there are cases when readSize = compressedDataSize + 1.
         return std::min(readSize, compressedDataSize);
     }
@@ -653,13 +679,9 @@ std::optional<i64> EstimateReadDataSizeForColumns(
         readSize += blocksExt.blocks(blockIndex).size();
     }
 
-    YT_LOG_WARNING_IF(
-        readSize > compressedDataSize,
-        "Read estimation is greater than the chunk's compressed data size (ChunkId: %v, IsSchemaStrict: %v, ColumnCount: %v, ReadColumnCount: %v)",
-        chunkId,
-        schema->IsStrict(),
-        schema->GetColumnCount(),
-        std::ssize(columnStableNames));
+    if (readSize > compressedDataSize) {
+        logReadEstimationWarning(readSize);
+    }
 
     return std::min(readSize, compressedDataSize);
 }
@@ -920,17 +942,38 @@ IAttributeDictionaryPtr ResolveExternalTable(
     const TYPath& path,
     TTableId* tableId,
     TCellTag* externalCellTag,
-    const std::vector<std::string>& extraAttributeKeys)
+    const std::vector<std::string>& extraAttributeKeys,
+    std::optional<EMasterFeature> requiredServerFeature)
 {
     TMasterReadOptions options;
-    auto proxy = std::make_unique<TObjectServiceProxy>(CreateObjectServiceReadProxy(
+    auto proxy = CreateObjectServiceReadProxy(
         client,
         options.ReadFrom,
         PrimaryMasterCellTagSentinel,
-        client->GetNativeConnection()->GetStickyGroupSizeCache()));
+        client->GetNativeConnection()->GetStickyGroupSizeCache());
 
+    return ResolveExternalTable(
+        &proxy,
+        path,
+        tableId,
+        externalCellTag,
+        extraAttributeKeys,
+        requiredServerFeature);
+}
+
+IAttributeDictionaryPtr ResolveExternalTable(
+    TObjectServiceProxy* proxy,
+    const TYPath& path,
+    TTableId* tableId,
+    TCellTag* externalCellTag,
+    const std::vector<std::string>& extraAttributeKeys,
+    std::optional<EMasterFeature> requiredServerFeature)
+{
     {
         auto req = TObjectYPathProxy::GetBasicAttributes(path);
+        if (requiredServerFeature) {
+            req->RequireServerFeature(*requiredServerFeature);
+        }
         auto rspOrError = WaitFor(proxy->Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of table %v", path);
         const auto& rsp = rspOrError.Value();
@@ -1043,7 +1086,7 @@ void ToProto(
         return;
     }
     std::string allDigests;
-    allDigests.reserve(TColumnarHyperLogLogDigest::RegisterCount);
+    allDigests.reserve(TColumnarHyperLogLogDigest::RegisterCount * std::ssize(statistics.ColumnHyperLogLogDigests));
     for (const auto& digest : statistics.ColumnHyperLogLogDigests) {
         allDigests += TStringBuf(
             digest.Data().begin(),

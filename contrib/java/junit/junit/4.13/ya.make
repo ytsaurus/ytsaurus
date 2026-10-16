@@ -9,6 +9,9 @@ PEERDIR(
 )
 
 JAR_RESOURCE(1311705661)
+
 SRC_RESOURCE(1311705810)
+
+ORIGINAL_SOURCE(http://github.com/junit-team/junit4/tree/master)
 
 END()

@@ -290,13 +290,13 @@ private:
 };
 
 static thread_local Deadline currentDeadline;
-	
-void setCurrentDeadline(std::optional<struct timespec> deadline)
+
+__attribute__((__noinline__)) void setCurrentDeadline(std::optional<struct timespec> deadline)
 {
 	currentDeadline.setDeadline(deadline);
 }
-	
-bool isCurrentDeadlineReached()
+
+__attribute__((__noinline__)) bool isCurrentDeadlineReached()
 {
 	return currentDeadline.isDeadlineReached();
 }

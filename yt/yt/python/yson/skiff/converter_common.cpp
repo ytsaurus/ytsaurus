@@ -22,7 +22,7 @@ bool IsTiTypeOptional(Py::Object pySchema)
     return GetAttr(pySchema, IsTiTypeOptionalFieldName).as_bool();
 }
 
-PyObjectPtr GetSchemaType(const TString& name)
+PyObjectPtr GetSchemaType(const std::string& name)
 {
     return PyObjectPtr(GetModuleAttribute("yt.wrapper.schema.internal_schema", name));
 }
@@ -45,10 +45,10 @@ EPythonType GetPythonType(Py::Object pyType)
     }
 }
 
-TString GetRowClassName(Py::Object pySchema)
+std::string GetRowClassName(Py::Object pySchema)
 {
     auto pyType = GetAttr(GetAttr(pySchema, StructSchemaFieldName), PyTypeFieldName);
-    return TString(GetAttr(pyType, QualNameFieldName).as_string());
+    return GetAttr(pyType, QualNameFieldName).as_string();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

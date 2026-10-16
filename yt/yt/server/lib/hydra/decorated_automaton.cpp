@@ -9,6 +9,7 @@
 #include "snapshot_load_context.h"
 #include "state_hash_checker.h"
 #include "epoch.h"
+#include "persistent_response_keeper.h"
 
 #include <yt/yt/server/lib/misc/fork_executor.h>
 
@@ -47,6 +48,8 @@
 #include <library/cpp/yt/logging/backends/stream/stream_log_manager.h>
 
 #include <library/cpp/yt/memory/blob.h>
+
+#include <library/cpp/yt/system/local_host.h>
 
 #include <util/random/random.h>
 
@@ -279,7 +282,7 @@ public:
         , LogicalTime_(Owner_->GetLogicalTime())
         , SelfPeerId_(owner->GetEpochContext()->CellManager->GetSelfPeerId())
     {
-        Logger = Owner_->Logger().WithTag("SnapshotId: %v", SnapshotId_);
+        Logger = Owner_->Logger().WithTag("SnapshotId", SnapshotId_);
     }
 
     ~TSnapshotBuilderBase()
@@ -353,7 +356,7 @@ protected:
 
         YT_VERIFY(!LockAcquired_.exchange(true));
 
-        YT_LOG_INFO("Snapshot builder lock acquired");
+        YT_TLOG_INFO("Snapshot builder lock acquired");
     }
 
     void ReleaseLock()
@@ -366,13 +369,14 @@ protected:
 
         auto delay = Owner_->Config_->Get()->BuildSnapshotDelay;
         if (delay != TDuration::Zero()) {
-            YT_LOG_DEBUG("Working in testing mode, sleeping (BuildSnapshotDelay: %v)", delay);
+            YT_TLOG_DEBUG("Working in testing mode, sleeping")
+                .With("BuildSnapshotDelay", delay);
             TDelayedExecutor::WaitForDuration(delay);
         }
 
         if (!LockReleased_.exchange(true)) {
             YT_VERIFY(Owner_->BuildingSnapshot_.exchange(false));
-            YT_LOG_INFO("Snapshot builder lock released");
+            YT_TLOG_INFO("Snapshot builder lock released");
         }
     }
 
@@ -420,12 +424,12 @@ private:
     public:
         TCommunicationChannel(
             const NLogging::TLogger& Logger,
-            const TString& kind)
+            const std::string& kind)
         {
             Pipe_ = TPipeFactory().Create();
-            YT_LOG_INFO("Communication channel created (Kind: %v, Pipe: %v)",
-                kind,
-                Pipe_);
+            YT_TLOG_INFO("Communication channel created")
+                .With("Kind", kind)
+                .With("Pipe", Pipe_);
 
             InputStream_ = Pipe_.CreateAsyncReader();
             OutputFile_ = std::make_unique<TFile>(FHANDLE(Pipe_.ReleaseWriteFD()));
@@ -510,13 +514,13 @@ private:
         };
 
         const auto& Logger = context.Logger;
-        YT_LOG_INFO("Child process forked");
+        YT_TLOG_INFO("Child process forked");
 
         Owner_->SaveSnapshot(context)
             .BlockingGet()
             .ThrowOnError();
 
-        YT_LOG_INFO("Child process is exiting");
+        YT_TLOG_INFO("Child process is exiting");
 
         CloseChannelOutputs();
     }
@@ -539,7 +543,7 @@ private:
 
     void SnapshotTransferLoop()
     {
-        YT_LOG_INFO("Snapshot transfer loop started");
+        YT_TLOG_INFO("Snapshot transfer loop started");
 
         WaitFor(SnapshotWriter_->Open())
             .ThrowOnError();
@@ -567,13 +571,13 @@ private:
                 .ThrowOnError();
         }
 
-        YT_LOG_INFO("Snapshot transfer loop completed (Size: %v)",
-            size);
+        YT_TLOG_INFO("Snapshot transfer loop completed")
+            .With("Size", size);
     }
 
     void LogTransferLoop()
     {
-        YT_LOG_INFO("Log transfer loop started");
+        YT_TLOG_INFO("Log transfer loop started");
 
         auto zeroCopyReader = CreateZeroCopyAdapter(LogChannel_->GetInputStream(), LogTransferBlockSize);
 
@@ -601,32 +605,33 @@ private:
 
         LogMessageFromChild(message);
 
-        YT_LOG_INFO("Log transfer loop completed");
+        YT_TLOG_INFO("Log transfer loop completed");
     }
 
     void LogMessageFromChild(TStringBuf message)
     {
         if (!message.empty()) {
-            YT_LOG_INFO("Message from child: %v", message);
+            YT_TLOG_INFO("Message from child")
+                .With("Message", message);
         }
     }
 
     void OnFinished()
     {
-        YT_LOG_INFO("Waiting for transfer loop to finish");
+        YT_TLOG_INFO("Waiting for transfer loop to finish");
         WaitFor(SnapshotTransferFuture_)
             .ThrowOnError();
-        YT_LOG_INFO("Transfer loop finished");
+        YT_TLOG_INFO("Transfer loop finished");
 
-        YT_LOG_INFO("Waiting for log loop to finish");
+        YT_TLOG_INFO("Waiting for log loop to finish");
         WaitFor(LogTransferFuture_)
             .ThrowOnError();
-        YT_LOG_INFO("Transfer log finished");
+        YT_TLOG_INFO("Transfer log finished");
 
-        YT_LOG_INFO("Waiting for snapshot writer to close");
+        YT_TLOG_INFO("Waiting for snapshot writer to close");
         WaitFor(SnapshotWriter_->Close())
             .ThrowOnError();
-        YT_LOG_INFO("Snapshot writer closed");
+        YT_TLOG_INFO("Snapshot writer closed");
     }
 };
 
@@ -692,11 +697,13 @@ public:
 
         auto guard = Guard(SpinLock_);
         if (UnderlyingStream_) {
-            YT_LOG_TRACE("Got async snapshot block (Size: %v)", blockCopy.Size());
+            YT_TLOG_TRACE("Got async snapshot block")
+                .With("Size", blockCopy.Size());
             AsyncSize_ += block.Size();
             return ForwardBlock(blockCopy);
         } else {
-            YT_LOG_TRACE("Got sync snapshot block (Size: %v)", blockCopy.Size());
+            YT_TLOG_TRACE("Got sync snapshot block")
+                .With("Size", blockCopy.Size());
             SyncBlocks_.push_back(blockCopy);
             SyncSize_ += block.Size();
             return SuspendedPromise_ ? SuspendedPromise_.ToFuture() : OKFuture;
@@ -718,7 +725,7 @@ public:
 private:
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     TPromise<void> SuspendedPromise_;
     i64 SyncSize_ = 0;
     i64 AsyncSize_ = 0;
@@ -763,7 +770,7 @@ private:
 
         OpenWriterFuture_ = SnapshotWriter_->Open();
 
-        YT_LOG_INFO("Snapshot sync phase started");
+        YT_TLOG_INFO("Snapshot sync phase started");
 
         TSnapshotSaveContext context{
             .Writer = SwitchableSnapshotWriter_,
@@ -771,7 +778,7 @@ private:
         };
         SaveSnapshotFuture_ = Owner_->SaveSnapshot(context);
 
-        YT_LOG_INFO("Snapshot sync phase completed");
+        YT_TLOG_INFO("Snapshot sync phase completed");
 
         SwitchableSnapshotWriter_->Suspend();
 
@@ -787,16 +794,16 @@ private:
         WaitFor(OpenWriterFuture_)
             .ThrowOnError();
 
-        YT_LOG_INFO("Switching to async snapshot writer");
+        YT_TLOG_INFO("Switching to async snapshot writer");
 
         SwitchableSnapshotWriter_->ResumeAsAsync(SnapshotWriter_);
 
         WaitFor(SaveSnapshotFuture_)
             .ThrowOnError();
 
-        YT_LOG_INFO("Snapshot async phase completed (SyncSize: %v, AsyncSize: %v)",
-            SwitchableSnapshotWriter_->GetSyncSize(),
-            SwitchableSnapshotWriter_->GetAsyncSize());
+        YT_TLOG_INFO("Snapshot async phase completed")
+            .With("SyncSize", SwitchableSnapshotWriter_->GetSyncSize())
+            .With("AsyncSize", SwitchableSnapshotWriter_->GetAsyncSize());
 
         WaitFor(SwitchableSnapshotWriter_->Close())
             .ThrowOnError();
@@ -818,6 +825,7 @@ struct TDecoratedAutomaton::TMutationApplicationResult
     TCallback<void(TMutationContext*)> HandlerToReset;
     // May be null if response keeper says so (or if it's disabled, suppressed etc.)
     std::function<void()> ResponseKeeperPromiseSetter;
+    std::optional<i64> GroundUpdateQueueSequenceNumber;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -905,7 +913,7 @@ void TDecoratedAutomaton::ResetState()
             TPhysicalVersion(),
             TInstant::Zero(),
             /*randomSeed*/ 0,
-            /*localHostNameOverride*/ TSharedRef::FromString(UnknownHostName));
+            /*localHostNameOverride*/ UnknownHostName);
         THydraContextGuard hydraContextGuard(&hydraContext);
 
         ClearState();
@@ -1002,15 +1010,16 @@ TFuture<void> TDecoratedAutomaton::SaveSnapshot(const TSnapshotSaveContext& cont
     TForbidContextSwitchGuard contextSwitchGuard;
 
     const auto& Logger = context.Logger;
-    YT_LOG_INFO("Started saving snapshot");
+    YT_TLOG_INFO("Started saving snapshot");
 
     return
         Automaton_->SaveSnapshot(context).Apply(
             BIND([Logger = Logger] (const TError& error) {
                 if (error.IsOK()) {
-                    YT_LOG_INFO("Snapshot saved successfully");
+                    YT_TLOG_INFO("Snapshot saved successfully");
                 } else {
-                    YT_LOG_ERROR(error, "Error saving snapshot");
+                    YT_TLOG_ERROR("Error saving snapshot")
+                        .With(error);
                     THROW_ERROR(error);
                 }
             }));
@@ -1032,9 +1041,9 @@ void TDecoratedAutomaton::LoadSnapshot(
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-    YT_LOG_INFO("Started loading snapshot (SnapshotId: %v, ReadOnly: %v)",
-        snapshotId,
-        readOnly);
+    YT_TLOG_INFO("Started loading snapshot")
+        .With("SnapshotId", snapshotId)
+        .With("ReadOnly", readOnly);
 
     TWallTimer timer;
     auto finally = Finally([&] {
@@ -1071,18 +1080,19 @@ void TDecoratedAutomaton::LoadSnapshot(
             Automaton_->PrepareState();
         }
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Snapshot load failed; clearing state");
+        YT_TLOG_ERROR("Snapshot load failed; clearing state")
+            .With(ex);
         ClearState();
         throw;
     } catch (const TFiberCanceledException&) {
-        YT_LOG_INFO("Snapshot load fiber was canceled");
+        YT_TLOG_INFO("Snapshot load fiber was canceled");
         throw;
     } catch (...) {
-        YT_LOG_ERROR("Snapshot load failed with an unknown error");
+        YT_TLOG_ERROR("Snapshot load failed with an unknown error");
         throw;
     }
 
-    YT_LOG_INFO("Finished loading snapshot");
+    YT_TLOG_INFO("Finished loading snapshot");
 
     AutomatonVersion_.Store(version);
     RandomSeed_ = randomSeed;
@@ -1109,11 +1119,11 @@ void TDecoratedAutomaton::LoadSnapshot(
 
 void TDecoratedAutomaton::CheckInvariants()
 {
-    YT_LOG_INFO("Invariants check started");
+    YT_TLOG_INFO("Invariants check started");
 
     Automaton_->CheckInvariants();
 
-    YT_LOG_INFO("Invariants check completed");
+    YT_TLOG_INFO("Invariants check completed");
 }
 
 void TDecoratedAutomaton::ApplyMutationsDuringRecovery(const std::vector<TSharedRef>& recordsData)
@@ -1162,15 +1172,16 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
 
     TFiberMinLogLevelGuard minLogLevelGuard(Config_->Get()->RecoveryMinLogLevel);
     TFiberMessageTagGuard messageTagGuard(
-        Format("PhysicalMutationVersion: %v, Recovery: %v",
-            mutationVersion,
-            true),
+        NLogging::TLoggingTagList()
+            .With("PhysicalMutationVersion", mutationVersion)
+            .With("Recovery", true),
         TFiberMessageTagGuard::EMode::Replace);
 
     TMutationApplicationResult result;
     DoApplyMutation(&mutationContext, mutationVersion, &result);
     result.MutationId = request.MutationId;
     result.ResponseData = mutationContext.TakeResponseData();
+    result.GroundUpdateQueueSequenceNumber = mutationContext.GetGroundUpdateQueueSequenceNumber();
     // NB: result.LocalCommitPromise is left null.
     return result;
 }
@@ -1185,19 +1196,29 @@ TFuture<TMutationResponse> TDecoratedAutomaton::TryBeginKeptRequest(const TMutat
         return TFuture<TMutationResponse>();
     }
 
-    if (!request.MutationId) {
+    auto mutationId = request.MutationId;
+    if (!mutationId) {
         return TFuture<TMutationResponse>();
     }
 
-    auto asyncResponseData = Options_.ResponseKeeper->TryBeginRequest(request.MutationId, request.Retry);
+    const auto& responseKeeper = Options_.ResponseKeeper;
+
+    auto asyncResponseData = responseKeeper->TryBeginRequest(mutationId, request.Retry);
     if (!asyncResponseData) {
         return TFuture<TMutationResponse>();
     }
 
-    return asyncResponseData.Apply(BIND([] (const TSharedRefArray& data) {
+    return asyncResponseData.Apply(BIND([responseKeeper, mutationId] (const TSharedRefArray& data) {
+        std::optional<i64> groundUpdateQueueSequenceNumber = std::nullopt;
+        if (responseKeeper->IsPersistent()) {
+            auto persistentResponseKeeper = static_cast<IPersistentResponseKeeper*>(responseKeeper.Get());
+            groundUpdateQueueSequenceNumber = persistentResponseKeeper->GetGroundUpdateQueueSequenceNumber(mutationId);
+        }
+
         return TMutationResponse{
             EMutationResponseOrigin::ResponseKeeper,
-            data
+            data,
+            groundUpdateQueueSequenceNumber
         };
     }));
 }
@@ -1214,7 +1235,8 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot(
         TError error("Cannot build a snapshot %v because last built snapshot id %v is greater",
             snapshotId,
             LastSuccessfulSnapshotId_.load());
-        YT_LOG_INFO(error, "Error building snapshot");
+        YT_TLOG_INFO("Error building snapshot")
+            .With(error);
         return MakeFuture<TRemoteSnapshotParams>(error);
     }
 
@@ -1223,23 +1245,24 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot(
             snapshotId,
             sequenceNumber,
             SequenceNumber_.load());
-        YT_LOG_INFO(error, "Error building snapshot");
+        YT_TLOG_INFO("Error building snapshot")
+            .With(error);
         return MakeFuture<TRemoteSnapshotParams>(error);
     }
 
     // We are already building this snapshot.
     if (NextSnapshotId_ == snapshotId) {
-        YT_LOG_INFO("Snapshot is already being built (SnapshotId: %v)",
-            NextSnapshotId_);
+        YT_TLOG_INFO("Snapshot is already being built")
+            .With("SnapshotId", NextSnapshotId_);
         return SnapshotParamsPromise_;
     }
 
     YT_VERIFY(NextSnapshotId_ < snapshotId);
 
-    YT_LOG_INFO("Will build snapshot (SnapshotId: %v, SequenceNumber: %v, ReadOnly: %v)",
-        snapshotId,
-        sequenceNumber,
-        readOnly);
+    YT_TLOG_INFO("Will build snapshot")
+        .With("SnapshotId", snapshotId)
+        .With("SequenceNumber", sequenceNumber)
+        .With("ReadOnly", readOnly);
 
     NextSnapshotSequenceNumber_ = sequenceNumber;
     NextSnapshotId_ = snapshotId;
@@ -1275,9 +1298,9 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
                 setPromises();
             }
         } catch (const std::exception& ex) { // COMPAT(shakurov): Just being paranoid.
-            YT_LOG_ALERT(ex,
-                "Finalizing request end has thrown (MutationId: %v)",
-                result.MutationId);
+            YT_TLOG_ALERT("Finalizing request end has thrown")
+                .With("MutationId", result.MutationId)
+                .With(ex);
         }
 
         try {
@@ -1285,12 +1308,13 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
                 promise.TrySet(TMutationResponse{
                     EMutationResponseOrigin::Commit,
                     result.ResponseData,
+                    result.GroundUpdateQueueSequenceNumber,
                 });
             }
         } catch (const std::exception& ex) { // COMPAT(shakurov): Just being paranoid.
-            YT_LOG_ALERT(ex,
-                "Setting a commit promise has thrown (MutationId: %v)",
-                result.MutationId);
+            YT_TLOG_ALERT("Setting a commit promise has thrown")
+                .With("MutationId", result.MutationId)
+                .With(ex);
         }
 
         if (result.HandlerToReset) {
@@ -1299,36 +1323,36 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
     }
 }
 
-TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
+TStringBuf TDecoratedAutomaton::SanitizeLocalHostName() const
 {
     auto localHost = GetLocalHostName();
 
     if (Options_.EnableLocalHostSanitizing) {
         THashSet<std::string> hosts;
         for (const auto& peer : GetEpochContext()->CellManager->GetClusterPeersAddresses()) {
-            hosts.insert(TString(GetServiceHostName(peer)));
+            hosts.insert(std::string(GetServiceHostName(peer)));
         }
 
         if (auto sanitizedLocalHost = NHydra::SanitizeLocalHostName(hosts, localHost)) {
-            YT_LOG_INFO("Local host name sanitized (Hosts: %v, LocalHost: %v, SanitizedLocalHost: %v)",
-                hosts,
-                localHost,
-                *sanitizedLocalHost);
+            YT_TLOG_INFO("Local host name sanitized")
+                .With("Hosts", hosts)
+                .With("LocalHost", localHost)
+                .With("SanitizedLocalHost", *sanitizedLocalHost);
             return *sanitizedLocalHost;
         }
 
-        YT_LOG_ALERT(
-            "Failed to sanitize host name, falling back to default placeholder (Hosts: %v, LocalHost: %v, SanitizedLocalHost: %v)",
-            hosts,
-            localHost,
-            UnknownHostName);
+        YT_TLOG_ALERT("Failed to sanitize host name, falling back to default placeholder")
+            .With("Hosts", hosts)
+            .With("LocalHost", localHost)
+            .With("SanitizedLocalHost", UnknownHostName);
 
-        return TSharedRef::FromString(UnknownHostName);
+        return UnknownHostName;
     }
 
-    YT_LOG_INFO("Local host name sanitization disabled, using local host name as is (LocalHost: %v)", localHost);
+    YT_TLOG_INFO("Local host name sanitization disabled, using local host name as is")
+        .With("LocalHost", localHost);
 
-    return TSharedRef::FromString(localHost);
+    return InternHostName(localHost);
 }
 
 TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutation(
@@ -1355,7 +1379,7 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
 
     TMutationApplicationResult result;
     TFiberMessageTagGuard messageTagGuard(
-        Format("PhysicalMutationVersion: %v", mutation->Version),
+        NLogging::TLoggingTagList().With("PhysicalMutationVersion", mutation->Version),
         TFiberMessageTagGuard::EMode::Replace);
 
     {
@@ -1380,7 +1404,7 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
     // Mutation could remain alive for quite a while even after it has been applied at leader,
     // e.g. when some follower is down. The handler could be holding something heavy and needs to be dropped.
     result.HandlerToReset = std::move(mutation->Request.Handler);
-
+    result.GroundUpdateQueueSequenceNumber = mutationContext.GetGroundUpdateQueueSequenceNumber();
     return result;
 }
 
@@ -1410,7 +1434,17 @@ void TDecoratedAutomaton::DoApplyMutation(
         auto logicalMutationVersion = mutationContext->GetVersion();
 
         TCodicilGuard codicilGuard([&] (TCodicilFormatter* formatter) {
-            formatter->AppendString(Logger.GetTag());
+            NLogging::TTaggedPayloadReader tagReader(NLogging::AsView(Logger.GetTags().GetPayload()));
+            bool firstTag = true;
+            while (auto tag = tagReader.TryReadTag()) {
+                if (!firstTag) {
+                    formatter->AppendString(", "_sb);
+                }
+                firstTag = false;
+                formatter->AppendString(tag->Key);
+                formatter->AppendString(": "_sb);
+                formatter->AppendString(tag->Value);
+            }
             formatter->AppendString(", Version: ");
             formatter->AppendNumber(logicalMutationVersion.SegmentId);
             formatter->AppendString(":");
@@ -1419,6 +1453,8 @@ void TDecoratedAutomaton::DoApplyMutation(
             formatter->AppendNumber(logicalMutationVersion.RecordId);
             formatter->AppendString("), SequenceNumber: ");
             formatter->AppendNumber(mutationContext->GetSequenceNumber());
+            formatter->AppendString(", Term: ");
+            formatter->AppendNumber(mutationContext->GetTerm());
             formatter->AppendString(", MutationType: ");
             formatter->AppendString(mutationContext->Request().Type);
             if (mutationId) {
@@ -1430,14 +1466,14 @@ void TDecoratedAutomaton::DoApplyMutation(
         if (request.Type == EnterReadOnlyMutationType || request.Type == ExitReadOnlyMutationType) {
             ReadOnly_ = request.Type == EnterReadOnlyMutationType;
 
-            YT_LOG_DEBUG("Received %v read-only mutation (Version: %v, SequenceNumber: %v, MutationId: %v)",
-                request.Type == EnterReadOnlyMutationType ? "enable" : "disable",
-                TAutomatonVersion(
+            YT_TLOG_DEBUG("Received read-only mutation")
+                .With("Enable", request.Type == EnterReadOnlyMutationType)
+                .With("Version", TAutomatonVersion(
                     physicalMutationVersion.SegmentId,
                     physicalMutationVersion.RecordId,
-                    logicalMutationVersion.RecordId),
-                mutationContext->GetSequenceNumber(),
-                mutationId);
+                    logicalMutationVersion.RecordId))
+                .With("SequenceNumber", mutationContext->GetSequenceNumber())
+                .With("MutationId", mutationId);
 
             if (!ReadOnly_) {
                 // Arbitrary amount of time can be spent in read-only without the term changing.
@@ -1467,19 +1503,15 @@ void TDecoratedAutomaton::DoApplyMutation(
 
     auto sequenceNumber = ++SequenceNumber_;
 
-    YT_LOG_FATAL_IF(
-        sequenceNumber != mutationContext->GetSequenceNumber(),
-        "Sequence numbers differ (AutomatonSequenceNumber: %v, MutationSequenceNumber: %v)",
-        sequenceNumber,
-        mutationContext->GetSequenceNumber());
+    YT_TLOG_FATAL_IF(sequenceNumber != mutationContext->GetSequenceNumber(), "Sequence numbers differ")
+        .With("AutomatonSequenceNumber", sequenceNumber)
+        .With("MutationSequenceNumber", mutationContext->GetSequenceNumber());
 
-    YT_LOG_FATAL_IF(
-        RandomSeed_ != mutationContext->GetPrevRandomSeed(),
-        "Mutation random seeds differ (AutomatonRandomSeed: %x, MutationPrevRandomSeed: %x, MutationRandomSeed: %x, MutationSequenceNumber: %v)",
-        RandomSeed_.load(),
-        mutationContext->GetPrevRandomSeed(),
-        mutationContext->GetRandomSeed(),
-        mutationContext->GetSequenceNumber());
+    YT_TLOG_FATAL_IF(RandomSeed_ != mutationContext->GetPrevRandomSeed(), "Mutation random seeds differ")
+        .WithFormat("AutomatonRandomSeed", "%x", RandomSeed_.load())
+        .WithFormat("MutationPrevRandomSeed", "%x", mutationContext->GetPrevRandomSeed())
+        .WithFormat("MutationRandomSeed", "%x", mutationContext->GetRandomSeed())
+        .With("MutationSequenceNumber", mutationContext->GetSequenceNumber());
     RandomSeed_ = mutationContext->GetRandomSeed();
 
     if (physicalMutationVersion.SegmentId == automatonVersion.GetSegmentId()) {
@@ -1507,7 +1539,8 @@ void TDecoratedAutomaton::DoApplyMutation(
     MutationSizeSinceLastSnapshot_ += mutationSize;
 
     if (Config_->Get()->EnableStateHashChecker) {
-        auto peerId = GetEpochContext()->CellManager->GetSelfPeerId();
+        const auto& cellManager = GetEpochContext()->CellManager;
+        auto peerId = cellManager->GetSelfPeerId();
         StateHashChecker_->Report(sequenceNumber, StateHash_, peerId);
     }
 
@@ -1632,8 +1665,8 @@ void TDecoratedAutomaton::AcquireSystemLock()
     while (UserLock_.load() != 0) {
         SpinLockPause();
     }
-    YT_LOG_DEBUG("System lock acquired (Lock: %v)",
-        result);
+    YT_TLOG_DEBUG("System lock acquired")
+        .With("Lock", result);
 }
 
 void TDecoratedAutomaton::ReleaseSystemLock()
@@ -1641,8 +1674,8 @@ void TDecoratedAutomaton::ReleaseSystemLock()
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     int result = --SystemLock_;
-    YT_LOG_DEBUG("System lock released (Lock: %v)",
-        result);
+    YT_TLOG_DEBUG("System lock released")
+        .With("Lock", result);
 }
 
 void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
@@ -1650,13 +1683,14 @@ void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
     YT_VERIFY(!EpochContext_.Exchange(std::move(epochContext)));
 
     SanitizedLocalHostName_ = SanitizeLocalHostName();
-    YT_VERIFY(!SanitizedLocalHostName_.Empty());
+    YT_VERIFY(!SanitizedLocalHostName_.empty());
 }
 
 void TDecoratedAutomaton::CancelSnapshot(const TError& error)
 {
     if (SnapshotParamsPromise_ && SnapshotParamsPromise_.ToFuture().Cancel(error)) {
-        YT_LOG_INFO(error, "Snapshot canceled");
+        YT_TLOG_INFO("Snapshot canceled")
+            .With(error);
     }
     SnapshotParamsPromise_.Reset();
 }
@@ -1672,7 +1706,7 @@ void TDecoratedAutomaton::StopEpoch()
     CancelSnapshot(error);
 
     EpochContext_.Store(nullptr);
-    SanitizedLocalHostName_.Reset();
+    SanitizedLocalHostName_ = {};
 }
 
 void TDecoratedAutomaton::OnSnapshotBuilt(const TErrorOr<TRemoteSnapshotParams>& snapshotInfoOrError)
@@ -1706,10 +1740,10 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
         return;
     }
 
-    YT_LOG_INFO("Building snapshot (SnapshotId: %v, SequenceNumber: %v, ReadOnly: %v)",
-        NextSnapshotId_,
-        NextSnapshotSequenceNumber_,
-        NextSnapshotReadOnly_);
+    YT_TLOG_INFO("Building snapshot")
+        .With("SnapshotId", NextSnapshotId_)
+        .With("SequenceNumber", NextSnapshotSequenceNumber_)
+        .With("ReadOnly", NextSnapshotReadOnly_);
 
     auto builder =
         // XXX(babenko): ASAN + fork = possible deadlock; cf. https://st.yandex-team.ru/DEVTOOLS-5425

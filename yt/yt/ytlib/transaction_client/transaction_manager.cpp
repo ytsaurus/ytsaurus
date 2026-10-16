@@ -46,7 +46,7 @@
 
 #include <yt/yt/core/ytree/public.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <util/generic/algorithm.h>
 
@@ -68,12 +68,11 @@ using namespace NTransactionSupervisor;
 using namespace NYTree;
 using namespace NCypressClient;
 
-using NYT::ToProto;
-using NYT::FromProto;
-
 using NNative::IConnection;
 using NNative::IConnectionPtr;
 using NNative::TConnectionDynamicConfigPtr;
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -128,13 +127,13 @@ private:
             TDuration timeout)
         {
             if (timeout < BatchPeriod_.load()) {
-                YT_LOG_DEBUG("Sending single ping as transaction timeout is lower than batch period (TransactionId: %v)",
-                    transactionId);
+                YT_TLOG_DEBUG("Sending single ping as transaction timeout is lower than batch period")
+                    .With("TransactionId", transactionId);
                 return SendPingTransaction(transactionId, pingAncestors);
             }
 
-            YT_LOG_DEBUG("Adding transaction to ping batch (TransactionId: %v)",
-                transactionId);
+            YT_TLOG_DEBUG("Adding transaction to ping batch")
+                .With("TransactionId", transactionId);
 
             auto promise = NewPromise<void>();
             auto future = promise.ToFuture();
@@ -147,13 +146,13 @@ private:
                 });
 
                 if (auto batchSize = BatchSize_.load(); std::ssize(pingRequests) >= batchSize) {
-                    YT_LOG_DEBUG("Sending ping batch as it has reached maximum size (BatchSize: %v)",
-                        batchSize);
+                    YT_TLOG_DEBUG("Sending ping batch as it has reached maximum size")
+                        .With("BatchSize", batchSize);
                     TDelayedExecutor::Submit(BIND(&TPingBatcher::DoSendPingTransactions, MakeStrong(this), std::exchange(pingRequests, {})), TDuration::Zero());
                 } else if (std::ssize(pingRequests) == 1) {
                     auto batchPeriod = BatchPeriod_.load();
-                    YT_LOG_DEBUG("Scheduled new ping batch (BatchPeriod: %v)",
-                        batchPeriod);
+                    YT_TLOG_DEBUG("Scheduled new ping batch")
+                        .With("BatchPeriod", batchPeriod);
                     TDelayedExecutor::Submit(BIND(&TPingBatcher::SendPingTransactions, MakeStrong(this)), batchPeriod);
                 }
             });
@@ -176,7 +175,7 @@ private:
         std::atomic<TDuration> BatchPeriod_;
         std::atomic<i64> BatchSize_;
 
-        NThreading::TAtomicObject<std::vector<TBatchedPingRequest>> PingRequests_;
+        TAtomicObject<std::vector<TBatchedPingRequest>> PingRequests_;
 
         TFuture<void> SendPingTransaction(
             TTransactionId transactionId,
@@ -214,7 +213,8 @@ private:
             Y_UNUSED(req->Invoke().Apply(
                 BIND([pingRequests](const TErrorOr<TTransactionSupervisorServiceProxy::TRspPingTransactionsPtr>& rspOrError) {
                     if (!rspOrError.IsOK()) {
-                        YT_LOG_ERROR(rspOrError, "Failed to ping transactions");
+                        YT_TLOG_ERROR("Failed to ping transactions")
+                            .With(rspOrError);
                         for (const auto& pingRequest : pingRequests) {
                             pingRequest.Promise.Set(TError(rspOrError));
                         }
@@ -257,10 +257,10 @@ private:
 
     TAtomicIntrusivePtr<TTransactionManagerConfig> Config_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     THashSet<TWeakPtr<TTransaction::TImpl>, TTransparentWeakPtrHasher, TEqualTo<>> AliveTransactions_;
 
-    NThreading::TAtomicObject<THashMap<TCellId, TPingBatcherWithChannel>> PingBatchers_;
+    TAtomicObject<THashMap<TCellId, TPingBatcherWithChannel>> PingBatchers_;
 
     static bool ContainsTransactionSuccessorHasLeasesError(const TError& error, TTransactionId id)
     {
@@ -276,7 +276,6 @@ private:
         return BIND_NO_PROPAGATE([id] (const TError& error) {
             return
                 IsRetriableError(error) ||
-                error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError)||
                 ContainsTransactionSuccessorHasLeasesError(error, id);
         });
     }
@@ -287,7 +286,6 @@ private:
             return
                 IsRetriableError(error) ||
                 error.FindMatching(NTransactionClient::EErrorCode::InvalidTransactionState) ||
-                error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError) ||
                 ContainsTransactionSuccessorHasLeasesError(error, id);
         });
     }
@@ -369,13 +367,13 @@ class TTransaction::TImpl
 public:
     explicit TImpl(TIntrusivePtr<TTransactionManager::TImpl> owner)
         : Owner_(owner)
-        , Logger(TransactionClientLogger().WithTag("ConnectionCellTag: %v", Owner_->PrimaryCellTag_))
+        , Logger(TransactionClientLogger().WithTag("ConnectionCellTag", Owner_->PrimaryCellTag_))
     { }
 
     ~TImpl()
     {
-        YT_LOG_DEBUG("Destroying transaction (TransactionId: %v)",
-            Id_);
+        YT_TLOG_DEBUG("Destroying transaction")
+            .With("TransactionId", Id_);
 
         Unregister();
     }
@@ -433,12 +431,12 @@ public:
 
         Register();
 
-        YT_LOG_DEBUG("Master transaction attached (TransactionId: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v, PingerAddress: %v)",
-            Id_,
-            AutoAbort_,
-            Ping_,
-            PingAncestors_,
-            PingerAddress_);
+        YT_TLOG_DEBUG("Master transaction attached")
+            .With("TransactionId", Id_)
+            .With("AutoAbort", AutoAbort_)
+            .With("Ping", Ping_)
+            .With("PingAncestors", PingAncestors_)
+            .With("PingerAddress", PingerAddress_);
 
         if (Ping_) {
             RunPeriodicPings();
@@ -494,8 +492,8 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Transaction abort requested (TransactionId: %v)",
-            Id_);
+        YT_TLOG_DEBUG("Transaction abort requested")
+            .With("TransactionId", Id_);
         SetAborted(TError("Transaction aborted by user request"));
 
         if (Atomicity_ != EAtomicity::Full) {
@@ -527,8 +525,8 @@ public:
             State_ = ETransactionState::Detached;
         }
 
-        YT_LOG_DEBUG("Transaction detached (TransactionId: %v)",
-            Id_);
+        YT_TLOG_DEBUG("Transaction detached")
+            .With("TransactionId", Id_);
     }
 
     ETransactionType GetType() const
@@ -609,15 +607,49 @@ public:
 
             if (RegisteredParticipantIds_.insert(cellId).second) {
                 bool prepareOnly = IsReplicatedToMasterCell(cellId);
-                YT_LOG_DEBUG("Transaction participant registered (TransactionId: %v, CellId: %v, PrepareOnly: %v)",
-                    Id_,
-                    cellId,
-                    prepareOnly);
+                YT_TLOG_DEBUG("Transaction participant registered")
+                    .With("TransactionId", Id_)
+                    .With("CellId", cellId)
+                    .With("PrepareOnly", prepareOnly);
                 if (prepareOnly) {
                     YT_VERIFY(PrepareOnlyRegisteredParticipantIds_.insert(cellId).second);
                 }
             }
         }
+    }
+
+    void UnregisterParticipant(TCellId cellId)
+    {
+        YT_VERIFY(TypeFromId(cellId) == EObjectType::TabletCell);
+
+        YT_VERIFY(!CoordinatorCellId_);
+
+        if (Atomicity_ != EAtomicity::Full) {
+            return;
+        }
+
+        auto guard = Guard(SpinLock_);
+        if (State_ != ETransactionState::Active) {
+            return;
+        }
+
+        if (!RegisteredParticipantIds_.erase(cellId)) {
+            YT_TLOG_ALERT("Attempted to unregister nonexistent transaction participant, ignored")
+                .With("TransactionId", Id_)
+                .With("CellId", cellId);
+            return;
+        }
+
+        bool prepareOnly = PrepareOnlyRegisteredParticipantIds_.erase(cellId) > 0;
+        YT_TLOG_DEBUG("Transaction participant unregistered")
+            .With("TransactionId", Id_)
+            .With("CellId", cellId)
+            .With("PrepareOnly", prepareOnly);
+    }
+
+    void SetExpectedPrepareSignatures(THashMap<TCellId, TTransactionSignature> participantExpectedPrepareSignatures)
+    {
+        ParticipantExpectedPrepareSignatures_ = std::move(participantExpectedPrepareSignatures);
     }
 
     void ChooseCoordinator(const TTransactionCommitOptions& options)
@@ -629,6 +661,18 @@ public:
         }
 
         CoordinatorCellId_ = DoChooseCoordinator(options);
+    }
+
+    void ChoosePreliminaryCoordinator(const TTransactionCommitOptions& options)
+    {
+        YT_VERIFY(!PreliminaryCoordinatorCellId_);
+        YT_VERIFY(!CoordinatorCellId_);
+
+        if (Atomicity_ != EAtomicity::Full || RegisteredParticipantIds_.empty()) {
+            return;
+        }
+
+        PreliminaryCoordinatorCellId_ = DoChooseCoordinator(options);
     }
 
     TFuture<void> ValidateNoDownedParticipants()
@@ -688,12 +732,13 @@ private:
     bool PingAncestors_ = false;
     std::optional<std::string> PingerAddress_;
     std::optional<TDuration> Timeout_;
+    std::optional<EMasterTransactionExpirationMode> MasterExpirationMode_;
     EAtomicity Atomicity_ = EAtomicity::Full;
     EDurability Durability_ = EDurability::Sync;
     TCellTag ClockClusterTag_ = InvalidCellTag;
     std::vector<TTransactionId> PrerequisiteTransactionIds_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     ETransactionState State_ = ETransactionState::Initializing;
 
@@ -703,7 +748,11 @@ private:
     THashSet<TCellId> RegisteredParticipantIds_;
     THashSet<TCellId> PrepareOnlyRegisteredParticipantIds_;
 
+    THashMap<TCellId, TTransactionSignature> ParticipantExpectedPrepareSignatures_;
+
     TCellId CoordinatorCellId_;
+    //! Preliminary transaction coordinator to use unless it is removed from the participant list.
+    TCellId PreliminaryCoordinatorCellId_;
 
     TError Error_;
 
@@ -825,6 +874,9 @@ private:
         if (!options.Ping) {
             THROW_ERROR_EXCEPTION("Cannot switch off pings for a tablet transaction");
         }
+        if (options.MasterExpirationMode) {
+            THROW_ERROR_EXCEPTION("Cannot set master expiration mode for a tablet transaction");
+        }
         if (options.Atomicity == EAtomicity::Full && options.Durability != EDurability::Sync) {
             THROW_ERROR_EXCEPTION("Durability must be %Qlv for tablet transactions with %Qlv atomicity",
                 EDurability::Sync,
@@ -887,6 +939,7 @@ private:
             PingAncestors_ = options.PingAncestors;
             PingerAddress_ = options.PingerAddress;
             Timeout_ = options.Timeout;
+            MasterExpirationMode_ = options.MasterExpirationMode;
             Atomicity_ = options.Atomicity;
             Durability_ = options.Durability;
             PrerequisiteTransactionIds_ = options.PrerequisiteTransactionIds;
@@ -899,8 +952,8 @@ private:
                         ClockClusterTag_ = options.ClockClusterTag == InvalidCellTag
                             ? Owner_->ClockManager_->GetCurrentClockTag()
                             : options.ClockClusterTag;
-                        YT_LOG_DEBUG("Generating transaction start timestamp (ClockClusterTag: %v)",
-                            ClockClusterTag_);
+                        YT_TLOG_DEBUG("Generating transaction start timestamp")
+                            .With("ClockClusterTag", ClockClusterTag_);
                         return connection->GetTimestampProvider()->GenerateTimestamps(1, ClockClusterTag_)
                             .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
                     }
@@ -924,9 +977,9 @@ private:
 
         Register();
 
-        YT_LOG_DEBUG("Starting transaction (StartTimestamp: %v, Type: %v)",
-            StartTimestamp_,
-            Type_);
+        YT_TLOG_DEBUG("Starting transaction")
+            .With("StartTimestamp", StartTimestamp_)
+            .With("Type", Type_);
 
         switch (Type_) {
             case ETransactionType::Master:
@@ -1028,15 +1081,18 @@ private:
         const auto& rsp = rspOrError.Value();
         Id_ = FromProto<TTransactionId>(rsp->id());
 
-        YT_LOG_DEBUG("Master transaction started (TransactionId: %v, CellTag: %v, ReplicatedToCellTags: %v, "
-            "StartTimestamp: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
-            Id_,
-            CoordinatorMasterCellTag_,
-            ReplicatedToMasterCellTags_,
-            StartTimestamp_,
-            AutoAbort_,
-            Ping_,
-            PingAncestors_);
+        YT_TLOG_DEBUG("Master transaction started")
+            .With("TransactionId", Id_)
+            .With("CellTag", CoordinatorMasterCellTag_)
+            .With("ReplicatedToCellTags", ReplicatedToMasterCellTags_)
+            .With("StartTimestamp", StartTimestamp_)
+            .With("AutoAbort", AutoAbort_)
+            .With("Ping", Ping_)
+            .With("PingAncestors", PingAncestors_);
+
+        if (MasterExpirationMode_ == EMasterTransactionExpirationMode::Pessimistic) {
+            PingLeaseDeadline_.store(TInstant::Now() + GetTimeout());
+        }
 
         if (Ping_) {
             RunPeriodicPings();
@@ -1060,10 +1116,10 @@ private:
 
         State_ = ETransactionState::Active;
 
-        YT_LOG_DEBUG("Atomic tablet transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v)",
-            Id_,
-            StartTimestamp_,
-            AutoAbort_);
+        YT_TLOG_DEBUG("Atomic tablet transaction started")
+            .With("TransactionId", Id_)
+            .With("StartTimestamp", StartTimestamp_)
+            .With("AutoAbort", AutoAbort_);
 
         // Start ping scheduling.
         // Participants will be added into it upon arrival.
@@ -1087,9 +1143,9 @@ private:
 
         State_ = ETransactionState::Active;
 
-        YT_LOG_DEBUG("Non-atomic tablet transaction started (TransactionId: %v, Durability: %v)",
-            Id_,
-            Durability_);
+        YT_TLOG_DEBUG("Non-atomic tablet transaction started")
+            .With("TransactionId", Id_)
+            .With("Durability", Durability_);
 
         return OKFuture;
     }
@@ -1111,9 +1167,9 @@ private:
 
         FireCommitted();
 
-        YT_LOG_DEBUG("Transaction committed (TransactionId: %v, CommitTimestamps: %v)",
-            Id_,
-            result.CommitTimestamps);
+        YT_TLOG_DEBUG("Transaction committed")
+            .With("TransactionId", Id_)
+            .With("CommitTimestamps", result.CommitTimestamps);
     }
 
     bool ShouldUseCypressTransactionService()
@@ -1145,9 +1201,9 @@ private:
     TFuture<TTransactionCommitResult> DoCommitCypressTransaction(const TTransactionCommitOptions& options, bool dynamicTablesLocked = false)
     {
         try {
-            YT_LOG_DEBUG("Committing Cypress transaction (TransactionId: %v, CoordinatorCellId: %v)",
-                Id_,
-                CoordinatorCellId_);
+            YT_TLOG_DEBUG("Committing Cypress transaction")
+                .With("TransactionId", Id_)
+                .With("CoordinatorCellId", CoordinatorCellId_);
 
             auto connection = LockConnection();
 
@@ -1184,14 +1240,16 @@ private:
     {
         auto supervisorParticipantCellIds = GetSupervisorParticipantIds();
         auto supervisorPrepareOnlyParticipantCellIds = GetSupervisorPrepareOnlyParticipantIds();
-        YT_LOG_DEBUG("Committing transaction (TransactionId: %v, CoordinatorCellId: %v, ParticipantCellIds: %v, "
-            "PrepareOnlyParticipantCellIds: %v, CellIdsToSyncWithBeforePrepare: %v, AllowAlienCoordinator: %v)",
-            Id_,
-            CoordinatorCellId_,
-            supervisorParticipantCellIds,
-            supervisorPrepareOnlyParticipantCellIds,
-            options.CellIdsToSyncWithBeforePrepare,
-            options.AllowAlienCoordinator);
+        YT_TLOG_DEBUG("Committing transaction")
+            .With("TransactionId", Id_)
+            .With("CoordinatorCellId", CoordinatorCellId_)
+            .With("ParticipantCellIds", supervisorParticipantCellIds)
+            .With("PrepareOnlyParticipantCellIds", supervisorPrepareOnlyParticipantCellIds)
+            .With("CellIdsToSyncWithBeforePrepare", options.CellIdsToSyncWithBeforePrepare)
+            .With("AllowAlienCoordinator", options.AllowAlienCoordinator);
+
+        // Strong ordering cannot be enforced for 1PC transactions.
+        bool shouldForce2PC = options.Force2PC || !options.StrongOrderingTags.empty();
 
         auto coordinatorChannel = options.AllowAlienCoordinator
             ? GetParticipantChannelOrThrow(CoordinatorCellId_)
@@ -1215,16 +1273,34 @@ private:
         ToProto(req->mutable_participant_cell_ids(), supervisorParticipantCellIds);
         ToProto(req->mutable_prepare_only_participant_cell_ids(), supervisorPrepareOnlyParticipantCellIds);
         ToProto(req->mutable_cell_ids_to_sync_with_before_prepare(), options.CellIdsToSyncWithBeforePrepare);
-        req->set_force_2pc(options.Force2PC);
+        req->set_force_2pc(shouldForce2PC);
         req->set_generate_prepare_timestamp(options.GeneratePrepareTimestamp);
         req->set_inherit_commit_timestamp(options.InheritCommitTimestamp);
         req->set_coordinator_prepare_mode(ToProto(options.CoordinatorPrepareMode));
         req->set_coordinator_commit_mode(ToProto(options.CoordinatorCommitMode));
-        req->set_max_allowed_commit_timestamp(options.MaxAllowedCommitTimestamp);
+        req->set_max_allowed_commit_timestamp(ToProto(options.MaxAllowedCommitTimestamp));
         req->set_clock_cluster_tag(ToProto(ClockClusterTag_));
-        req->set_strongly_ordered(options.StronglyOrdered);
+
+        for (const auto& [cellId, tags] : options.StrongOrderingTags) {
+            auto* entry = req->add_strong_ordering_tags_map();
+            ToProto(entry->mutable_cell_id(), cellId);
+            ToProto(entry->mutable_strong_ordering_tags(), tags);
+        }
+
+        // COMPAT(h0pless): Remove strongly_ordered flag in favour in ordering tags after 26.1.
+        if (!options.StrongOrderingTags.empty()) {
+            req->set_strongly_ordered(true);
+        }
+
         req->set_dynamic_tables_locked(dynamicTablesLocked);
         SetOrGenerateMutationId(req, options.MutationId, options.Retry);
+
+        for (auto cellId : supervisorParticipantCellIds) {
+            req->add_expected_prepare_signatures(
+                GetOrDefault(ParticipantExpectedPrepareSignatures_, cellId, FinalTransactionSignature));
+        }
+        req->set_coordinator_expected_prepare_signature(
+            GetOrDefault(ParticipantExpectedPrepareSignatures_, CoordinatorCellId_, FinalTransactionSignature));
 
         return req->Invoke().Apply(
             BIND(
@@ -1257,7 +1333,7 @@ private:
                 THROW_ERROR_EXCEPTION(
                     "Cell %v is not a participant and thus cannot be explicitly chosen as coordinator",
                     options.CoordinatorCellId)
-                    << TErrorAttribute("transaction_id", Id_);
+                    .With("transaction_id", Id_);
             }
             return options.CoordinatorCellId;
         }
@@ -1279,6 +1355,10 @@ private:
             THROW_ERROR_EXCEPTION("No coordinator can be chosen");
         }
 
+        if (std::find(candidateIds.begin(), candidateIds.end(), PreliminaryCoordinatorCellId_) != candidateIds.end()) {
+            return PreliminaryCoordinatorCellId_;
+        }
+
         return candidateIds[RandomNumber(candidateIds.size())];
     }
 
@@ -1295,15 +1375,19 @@ private:
             return OKFuture;
         }
 
-        YT_VERIFY(CoordinatorCellId_);
-        auto coordinatorChannel = GetParticipantChannelOrThrow(CoordinatorCellId_);
+        auto coordinatorCellId = CoordinatorCellId_
+            ? CoordinatorCellId_
+            : PreliminaryCoordinatorCellId_;
+        YT_VERIFY(coordinatorCellId);
+        auto coordinatorChannel = GetParticipantChannelOrThrow(coordinatorCellId);
+
         auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), Owner_->GetCheckDownedParticipantsRetryChecker());
         auto req = proxy.GetDownedParticipants();
         req->SetUser(Owner_->User_);
         ToProto(req->mutable_cell_ids(), participantIds);
 
         return req->Invoke().Apply(
-            BIND([this, this_ = MakeStrong(this), participantIds = std::move(participantIds)] (
+            BIND([this, this_ = MakeStrong(this), participantIds = std::move(participantIds), coordinatorCellId] (
                 const TTransactionSupervisorServiceProxy::TErrorOrRspGetDownedParticipantsPtr& rspOrError)
             {
                 if (rspOrError.IsOK()) {
@@ -1312,19 +1396,19 @@ private:
                     Owner_->DownedCellTracker_->Update(participantIds, downedParticipantIds);
 
                     if (!downedParticipantIds.empty()) {
-                        YT_LOG_DEBUG("Some transaction participants are known to be down (CellIds: %v)",
-                            downedParticipantIds);
+                        YT_TLOG_DEBUG("Some transaction participants are known to be down")
+                            .With("CellIds", downedParticipantIds);
                         return TError(
                             NTransactionClient::EErrorCode::SomeParticipantsAreDown,
                             "Some transaction participants are known to be down")
-                            << TErrorAttribute("downed_participants", downedParticipantIds);
+                            .With("downed_participants", downedParticipantIds);
                     }
                 } else {
-                    YT_LOG_WARNING("Error updating downed participants (CellId: %v)",
-                        CoordinatorCellId_);
+                    YT_TLOG_WARNING("Error updating downed participants")
+                        .With("CellId", coordinatorCellId);
                     return TError("Error updating downed participants at cell %v",
-                        CoordinatorCellId_)
-                        << rspOrError;
+                        coordinatorCellId)
+                        .With(rspOrError);
                 }
                 return TError();
             }));
@@ -1343,12 +1427,11 @@ private:
         TError error)
     {
         UpdateDownedParticipants();
-        auto wrappedError = TError(
-            NTransactionClient::EErrorCode::AtomicTransactionCommitFailure,
-            "Error committing transaction %v at cell %v",
+        auto wrappedError = TError("Error committing transaction %v at cell %v",
             Id_,
             coordinatorCellId)
-            << std::move(error);
+            .With(ShouldBeStrippedErrorAttributeKey, true)
+            .With(std::move(error));
         OnFailure(wrappedError);
         return MakeFuture<TTransactionCommitResult>(std::move(wrappedError));
     }
@@ -1446,9 +1529,9 @@ private:
     TFuture<void> DoPingCypressTransaction(TCellId cellId, const TPrerequisitePingOptions& options)
     {
         try {
-            YT_LOG_DEBUG("Pinging Cypress transaction (TransactionId: %v, MasterCellId: %v)",
-                Id_,
-                cellId);
+            YT_TLOG_DEBUG("Pinging Cypress transaction")
+                .With("TransactionId", Id_)
+                .With("MasterCellId", cellId);
 
             auto connection = LockConnection();
 
@@ -1524,9 +1607,9 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG("Pinging transaction (TransactionId: %v, CellId: %v)",
-                Id_,
-                cellId);
+            YT_TLOG_DEBUG("Pinging transaction")
+                .With("TransactionId", Id_)
+                .With("CellId", cellId);
 
             auto channel = FindParticipantChannel(cellId);
             if (!channel) {
@@ -1570,10 +1653,16 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (rspOrError.IsOK()) {
-            YT_LOG_DEBUG("Transaction pinged (TransactionId: %v, CellId: %v)",
-                Id_,
-                cellId);
-            PingLeaseDeadline_.store(TInstant::Now() + GetTimeout());
+            YT_TLOG_DEBUG("Transaction pinged")
+                .With("TransactionId", Id_)
+                .With("CellId", cellId);
+            // Only pessimistic transactions track a ping lease; optimistic ones keep the deadline at
+            // TInstant::Max() so they never self-fence. Tablet transactions default to pessimistic.
+            if (Type_ == ETransactionType::Tablet ||
+                MasterExpirationMode_ == EMasterTransactionExpirationMode::Pessimistic)
+            {
+                PingLeaseDeadline_.store(TInstant::Now() + GetTimeout());
+            }
             return TError();
         } else if (
             rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction &&
@@ -1583,9 +1672,9 @@ private:
             // Hard error.
             // NB: For tablet cells, transactions are started asynchronously so NoSuchTransaction
             // is not considered fatal.
-            YT_LOG_DEBUG("Transaction has expired or was aborted (TransactionId: %v, CellId: %v)",
-                Id_,
-                cellId);
+            YT_TLOG_DEBUG("Transaction has expired or was aborted")
+                .With("TransactionId", Id_)
+                .With("CellId", cellId);
             auto error = TError(
                 NTransactionClient::EErrorCode::NoSuchTransaction,
                 "Transaction %v has expired or was aborted at cell %v",
@@ -1597,28 +1686,29 @@ private:
             return error;
         } else {
             // Soft error.
-            YT_LOG_DEBUG(rspOrError, "Error pinging transaction (TransactionId: %v, CellId: %v)",
-                Id_,
-                cellId);
+            YT_TLOG_DEBUG("Error pinging transaction")
+                .With("TransactionId", Id_)
+                .With("CellId", cellId)
+                .With(rspOrError);
             return TError("Failed to ping transaction %v at cell %v",
                 Id_,
                 cellId)
-                << rspOrError;
+                .With(rspOrError);
         }
     }
 
     void RunPeriodicPings()
     {
         if (!IsPingableState()) {
-            YT_LOG_DEBUG("Transaction is not in pingable state (TransactionId: %v, State: %v)",
-                Id_,
-                GetState());
+            YT_TLOG_DEBUG("Transaction is not in pingable state")
+                .With("TransactionId", Id_)
+                .With("State", GetState());
             return;
         }
 
         if (IsPingLeaseExpired()) {
-            YT_LOG_DEBUG("Transaction could not be pinged within timeout and is considered expired (TransactionId: %v)",
-                Id_);
+            YT_TLOG_DEBUG("Transaction could not be pinged within timeout and is considered expired")
+                .With("TransactionId", Id_);
             SetAborted(TError("Transaction could not be pinged within timeout and is considered expired"));
             return;
         }
@@ -1626,9 +1716,9 @@ private:
         SendPing()
             .Subscribe(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this), startTime = TInstant::Now()] (const TError& /*error*/) {
                 if (!IsPingableState()) {
-                    YT_LOG_DEBUG("Transaction is not in pingable state (TransactionId: %v, State: %v)",
-                        Id_,
-                        GetState());
+                    YT_TLOG_DEBUG("Transaction is not in pingable state")
+                        .With("TransactionId", Id_)
+                        .With("State", GetState());
                     return;
                 }
 
@@ -1647,14 +1737,15 @@ private:
 
     bool IsPingLeaseExpired()
     {
-        return Type_ == ETransactionType::Tablet && PingLeaseDeadline_.load() < TInstant::Now();
+        // Optimistic transactions keep the deadline at TInstant::Max(), so no mode check is needed.
+        return PingLeaseDeadline_.load() < TInstant::Now();
     }
 
 
     TFuture<void> SendAbort(const TTransactionAbortOptions& options = {})
     {
-        YT_LOG_DEBUG("Aborting transaction (TransactionId: %v)",
-            Id_);
+        YT_TLOG_DEBUG("Aborting transaction")
+            .With("TransactionId", Id_);
 
         std::vector<TFuture<void>> asyncResults;
         auto participantIds = GetRegisteredParticipantIds();
@@ -1678,9 +1769,9 @@ private:
     TFuture<void> DoAbortCypressTransaction(TCellId cellId, const TTransactionAbortOptions& options)
     {
         try {
-            YT_LOG_DEBUG("Aborting Cypress transaction (TransactionId: %v, MasterCellId: %v)",
-                Id_,
-                cellId);
+            YT_TLOG_DEBUG("Aborting Cypress transaction")
+                .With("TransactionId", Id_)
+                .With("MasterCellId", cellId);
 
             auto connection = LockConnection();
 
@@ -1705,23 +1796,24 @@ private:
                 // NB: "this" could be dying; can't capture it.
                 BIND([=, transactionId = Id_, Logger = Logger] (const TCypressTransactionServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {
                     if (rspOrError.IsOK()) {
-                        YT_LOG_DEBUG("Transaction aborted (TransactionId: %v, CellId: %v)",
-                            transactionId,
-                            cellId);
+                        YT_TLOG_DEBUG("Transaction aborted")
+                            .With("TransactionId", transactionId)
+                            .With("CellId", cellId);
                         return TError();
                     } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
-                        YT_LOG_DEBUG("Transaction has expired or was already aborted, ignored (TransactionId: %v, CellId: %v)",
-                            transactionId,
-                            cellId);
+                        YT_TLOG_DEBUG("Transaction has expired or was already aborted, ignored")
+                            .With("TransactionId", transactionId)
+                            .With("CellId", cellId);
                         return TError();
                     } else {
-                        YT_LOG_WARNING(rspOrError, "Error aborting transaction (TransactionId: %v, CellId: %v)",
-                            transactionId,
-                            cellId);
+                        YT_TLOG_WARNING("Error aborting transaction")
+                            .With("TransactionId", transactionId)
+                            .With("CellId", cellId)
+                            .With(rspOrError);
                         return TError("Error aborting transaction %v at cell %v",
                             transactionId,
                             cellId)
-                            << rspOrError;
+                            .With(rspOrError);
                     }
                 }));
         } catch (const std::exception& ex) {
@@ -1736,9 +1828,9 @@ private:
             return OKFuture;
         }
 
-        YT_LOG_DEBUG("Sending abort to participant (TransactionId: %v, ParticipantCellId: %v)",
-            Id_,
-            cellId);
+        YT_TLOG_DEBUG("Sending abort to participant")
+            .With("TransactionId", Id_)
+            .With("ParticipantCellId", cellId);
 
         auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), Owner_->GetAbortRetryChecker(Id_));
         auto req = proxy.AbortTransaction();
@@ -1752,23 +1844,24 @@ private:
             // NB: "this" could be dying; can't capture it.
             BIND([=, transactionId = Id_, Logger = Logger] (const TTransactionSupervisorServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {
                 if (rspOrError.IsOK()) {
-                    YT_LOG_DEBUG("Transaction aborted (TransactionId: %v, CellId: %v)",
-                        transactionId,
-                        cellId);
+                    YT_TLOG_DEBUG("Transaction aborted")
+                        .With("TransactionId", transactionId)
+                        .With("CellId", cellId);
                     return TError();
                 } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
-                    YT_LOG_DEBUG("Transaction has expired or was already aborted, ignored (TransactionId: %v, CellId: %v)",
-                        transactionId,
-                        cellId);
+                    YT_TLOG_DEBUG("Transaction has expired or was already aborted, ignored")
+                        .With("TransactionId", transactionId)
+                        .With("CellId", cellId);
                     return TError();
                 } else {
-                    YT_LOG_WARNING(rspOrError, "Error aborting transaction (TransactionId: %v, CellId: %v)",
-                        transactionId,
-                        cellId);
+                    YT_TLOG_WARNING("Error aborting transaction")
+                        .With("TransactionId", transactionId)
+                        .With("CellId", cellId)
+                        .With(rspOrError);
                     return TError("Error aborting transaction %v at cell %v",
                         transactionId,
                         cellId)
-                        << rspOrError;
+                        .With(rspOrError);
                 }
             }));
     }
@@ -1951,6 +2044,11 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
     return Impl_->Commit(options);
 }
 
+void TTransaction::SetExpectedPrepareSignatures(THashMap<TCellId, TTransactionSignature> participantExpectedPrepareSignatures)
+{
+    Impl_->SetExpectedPrepareSignatures(std::move(participantExpectedPrepareSignatures));
+}
+
 TFuture<void> TTransaction::Abort(const TTransactionAbortOptions& options)
 {
     return Impl_->Abort(options);
@@ -2011,9 +2109,19 @@ void TTransaction::RegisterParticipant(TCellId cellId)
     Impl_->RegisterParticipant(cellId);
 }
 
+void TTransaction::UnregisterParticipant(NObjectClient::TCellId cellId)
+{
+    Impl_->UnregisterParticipant(cellId);
+}
+
 void TTransaction::ChooseCoordinator(const TTransactionCommitOptions& options)
 {
     Impl_->ChooseCoordinator(options);
+}
+
+void TTransaction::ChoosePreliminaryCoordinator(const TTransactionCommitOptions& options)
+{
+    Impl_->ChoosePreliminaryCoordinator(options);
 }
 
 TFuture<void> TTransaction::ValidateNoDownedParticipants()

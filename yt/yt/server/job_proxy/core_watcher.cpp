@@ -13,7 +13,6 @@
 #include <yt/yt/ytlib/table_client/blob_table_writer.h>
 
 #include <yt/yt/library/pipe_io/pipe.h>
-#include <yt/yt/library/pipe_io/pipe_io_dispatcher.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
@@ -26,8 +25,6 @@
 #include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
-
-#include <library/cpp/yt/system/handle_eintr.h>
 
 #include <util/folder/iterator.h>
 #include <util/folder/path.h>
@@ -53,7 +50,7 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, CoreWatcherLogger, "CoreWatcher");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, CoreWatcherLogger, "CoreWatcher");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,30 +63,24 @@ TCoreResult::TCoreResult()
 
 TGpuCoreReader::TGpuCoreReader(const std::string& corePipePath)
     : Path_(corePipePath)
-{
-    Fd_ = HandleEintr(::open, corePipePath.c_str(), O_RDONLY | O_CLOEXEC | O_NONBLOCK);
-    if (Fd_ < 0) {
-        THROW_ERROR_EXCEPTION("Failed to open GPU core dump pipe")
-            << TErrorAttribute("path", Path_)
-            << TError::FromSystem();
-    }
-}
+    , Reader_(TNamedPipe::FromPath(corePipePath)->CreateAsyncReader())
+{ }
 
 i64 TGpuCoreReader::GetBytesAvailable() const
 {
     int pipeSize;
-    if (::ioctl(Fd_, FIONREAD, &pipeSize) < 0) {
+    if (::ioctl(Reader_->GetHandle(), FIONREAD, &pipeSize) < 0) {
         THROW_ERROR_EXCEPTION("Fail to perform ioctl on GPU core dump pipe")
-            << TErrorAttribute("path", Path_)
-            << TError::FromSystem();
+            .With("path", Path_)
+            .With(TError::FromSystem());
     }
 
     return pipeSize;
 }
 
-IConnectionReaderPtr TGpuCoreReader::CreateAsyncReader()
+IConnectionReaderPtr TGpuCoreReader::IntoAsyncReader() &&
 {
-    return CreateInputConnectionFromFD(Fd_, Path_, TPipeIODispatcher::Get()->GetPoller(), MakeStrong(this));
+    return std::move(Reader_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,7 +109,7 @@ TCoreWatcher::TCoreWatcher(
     , Transaction_(transaction)
     , ChunkList_(chunkList)
     , SchemaId_(schemaId)
-    , Logger(CoreWatcherLogger().WithTag("JobId: %v", JobHost_->GetJobId()))
+    , Logger(CoreWatcherLogger().WithTag("JobId", JobHost_->GetJobId()))
 {
     PeriodicExecutor_->Start();
 }
@@ -128,13 +119,13 @@ TCoreResult TCoreWatcher::Finalize(std::optional<TDuration> finalizationTimeout)
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (finalizationTimeout && !CoreAppearedPromise_.IsSet()) {
-        YT_LOG_DEBUG("Waiting for at least one core to appear (FinalizationTimeout: %v)",
-            *finalizationTimeout);
+        YT_TLOG_DEBUG("Waiting for at least one core to appear")
+            .With("FinalizationTimeout", *finalizationTimeout);
         auto waitResult = WaitFor(GetCoreAppearedEvent()
             .WithTimeout(*finalizationTimeout));
         if (!waitResult.IsOK()) {
             YT_VERIFY(waitResult.FindMatching(NYT::EErrorCode::Timeout));
-            YT_LOG_INFO("Core did not appear during finalization timeout");
+            YT_TLOG_INFO("Core did not appear during finalization timeout");
         }
     }
 
@@ -146,7 +137,7 @@ TCoreResult TCoreWatcher::Finalize(std::optional<TDuration> finalizationTimeout)
         .Run())
         .ThrowOnError();
 
-    YT_LOG_DEBUG("Core watcher has stopped, no new cores will be processed");
+    YT_TLOG_DEBUG("Core watcher has stopped, no new cores will be processed");
 
     auto expectedCoreCount = NextCoreIndex_;
     if (finalizationTimeout && CoreFutures_.empty()) {
@@ -157,7 +148,7 @@ TCoreResult TCoreWatcher::Finalize(std::optional<TDuration> finalizationTimeout)
         .WithTimeout(Config_->CoresProcessingTimeout));
     if (!waitResult.IsOK()) {
         YT_VERIFY(waitResult.FindMatching(NYT::EErrorCode::Timeout));
-        YT_LOG_INFO("Cores processing did not finish within timeout");
+        YT_TLOG_INFO("Cores processing did not finish within timeout");
     }
 
     auto guard = Guard(CoreInfosLock_);
@@ -167,14 +158,14 @@ TCoreResult TCoreWatcher::Finalize(std::optional<TDuration> finalizationTimeout)
         coreInfos.resize(expectedCoreCount);
     }
 
-    YT_LOG_DEBUG("Finalizing core watcher (ExpectedCoreCount: %v)",
-        expectedCoreCount);
+    YT_TLOG_DEBUG("Finalizing core watcher")
+        .With("ExpectedCoreCount", expectedCoreCount);
 
     for (int coreIndex = 0; coreIndex < expectedCoreCount; ++coreIndex) {
         auto& coreInfo = coreInfos[coreIndex];
         if (!coreInfo.has_process_id()) {
-            YT_LOG_INFO("Core processing did not complete, adding dummy core instead (CoreIndex: %v)",
-                coreIndex);
+            YT_TLOG_INFO("Core processing did not complete, adding dummy core instead")
+                .With("CoreIndex", coreIndex);
             coreInfo.set_process_id(-1);
             coreInfo.set_executable_name("n/a");
             coreInfo.set_core_index(coreIndex);
@@ -194,17 +185,25 @@ void TCoreWatcher::DoWatchCores()
 {
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
-    YT_LOG_DEBUG("Looking for new cores (CoreDirectoryPath: %v)",
-        CoreDirectoryPath_);
+    YT_TLOG_DEBUG("Looking for new cores")
+        .With("CoreDirectoryPath", CoreDirectoryPath_);
 
     try {
-        for (const auto& file : TDirIterator(TString(CoreDirectoryPath_))) {
+        for (const auto& file : TDirIterator(TString(CoreDirectoryPath_), TDirIterator::TOptions().SetMaxLevel(1))) {
             auto fileName = TFsPath{file.fts_path}.GetName();
             if (GetFileExtension(fileName) == "pipe") {
+                if (!S_ISFIFO(file.fts_statp->st_mode)) {
+                    YT_TLOG_WARNING("Skipping invalid core pipe")
+                        .With("CorePipeFileName", fileName)
+                        .WithFormat("FileMode", "%o", file.fts_statp->st_mode)
+                        .With("StatErrno", file.fts_errno);
+                    continue;
+                }
+
                 auto name = GetFileNameWithoutExtension(fileName);
                 if (!SeenCoreNames_.contains(name)) {
-                    YT_LOG_INFO("New core pipe found (CorePipeFileName: %v)",
-                        fileName);
+                    YT_TLOG_INFO("New core pipe found")
+                        .With("CorePipeFileName", fileName);
 
                     int coreIndex = NextCoreIndex_;
                     ++NextCoreIndex_;
@@ -218,30 +217,41 @@ void TCoreWatcher::DoWatchCores()
                 }
             } else if (fileName == CudaGpuCoreDumpPipeName) {
                 if (!SeenCoreNames_.contains(fileName)) {
-                    YT_LOG_DEBUG("GPU core dump pipe found (FileName: %v)",
-                        fileName);
+                    if (!S_ISFIFO(file.fts_statp->st_mode)) {
+                        YT_TLOG_WARNING("Skipping invalid GPU core dump pipe")
+                            .With("GpuCorePipeFileName", fileName)
+                            .WithFormat("FileMode", "%o", file.fts_statp->st_mode)
+                            .With("StatErrno", file.fts_errno);
+                        continue;
+                    }
+
+                    YT_TLOG_DEBUG("GPU core dump pipe found")
+                        .With("FileName", fileName);
 
                     if (!GpuCoreReader_) {
                         const auto gpuCoreDumpPath = CoreDirectoryPath_ + "/" + fileName;
                         GpuCoreReader_ = New<TGpuCoreReader>(gpuCoreDumpPath);
-                        YT_LOG_DEBUG("GPU core reader created (CoreDumpPath: %v)",
-                            gpuCoreDumpPath);
+                        YT_TLOG_DEBUG("GPU core reader created")
+                            .With("CoreDumpPath", gpuCoreDumpPath);
                     }
 
                     auto bytesAvailable = GpuCoreReader_->GetBytesAvailable();
                     if (bytesAvailable > 0) {
-                        YT_LOG_INFO("GPU core dump streaming started (GpuCorePipeFileName: %v, BytesAvailable: %v)",
-                            fileName,
-                            bytesAvailable);
+                        YT_TLOG_INFO("GPU core dump streaming started")
+                            .With("GpuCorePipeFileName", fileName)
+                            .With("BytesAvailable", bytesAvailable);
 
                         int coreIndex = NextCoreIndex_++;
 
                         SeenCoreNames_.insert(fileName);
 
+                        auto coreReader = std::move(*GpuCoreReader_).IntoAsyncReader();
+                        GpuCoreReader_.Reset();
+
                         auto coreInfoFuture = BIND(
                             &TCoreWatcher::DoProcessGpuCore,
                             MakeStrong(this),
-                            GpuCoreReader_->CreateAsyncReader(),
+                            std::move(coreReader),
                             coreIndex)
                             .AsyncVia(IOInvoker_)
                             .Run();
@@ -251,7 +261,8 @@ void TCoreWatcher::DoWatchCores()
             }
         }
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Failed to watch new cores");
+        YT_TLOG_WARNING("Failed to watch new cores")
+            .With(ex);
     }
 }
 
@@ -259,9 +270,9 @@ void TCoreWatcher::DoProcessLinuxCore(const std::string& coreName, int coreIndex
 {
     YT_ASSERT_INVOKER_AFFINITY(IOInvoker_);
 
-    auto Logger = this->Logger().WithTag("CoreName: %v, CoreIndex: %v",
-        coreName,
-        coreIndex);
+    auto Logger = this->Logger()
+        .WithTag("CoreName", coreName)
+        .WithTag("CoreIndex", coreIndex);
 
     TCoreInfo coreInfo;
     coreInfo.set_core_index(coreIndex);
@@ -273,13 +284,13 @@ void TCoreWatcher::DoProcessLinuxCore(const std::string& coreName, int coreIndex
     auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&WriterLock_))
         .ValueOrThrow();
 
-    YT_LOG_INFO("Started processing core dump");
+    YT_TLOG_INFO("Started processing core dump");
 
     try {
         {
             auto coreInfoFile = CoreDirectoryPath_ + "/" + coreName + ".info";
-            YT_LOG_DEBUG("Reading core info file (CoreInfoFilePath: %v)",
-                coreInfoFile);
+            YT_TLOG_DEBUG("Reading core info file")
+                .With("CoreInfoFilePath", coreInfoFile);
 
             auto coreInfoReader = TUnbufferedFileInput(coreInfoFile);
             auto executableName = coreInfoReader.ReadLine();
@@ -296,9 +307,9 @@ void TCoreWatcher::DoProcessLinuxCore(const std::string& coreName, int coreIndex
             coreInfo.set_container(container);
             coreInfo.set_datetime(datetime);
 
-            YT_LOG_DEBUG("Info file read completed (ExecutableName: %v, ProcessId: %v)",
-                executableName,
-                processId);
+            YT_TLOG_DEBUG("Info file read completed")
+                .With("ExecutableName", executableName)
+                .With("ProcessId", processId);
         }
 
         auto corePipePath = CoreDirectoryPath_ + "/" + coreName + ".pipe";
@@ -306,11 +317,12 @@ void TCoreWatcher::DoProcessLinuxCore(const std::string& coreName, int coreIndex
         auto coreSize = DoReadCore(corePipe->CreateAsyncReader(), coreName, coreIndex);
         coreInfo.set_size(coreSize);
 
-        YT_LOG_DEBUG("Finished processing core dump");
+        YT_TLOG_DEBUG("Finished processing core dump");
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Error while processing core");
+        YT_TLOG_ERROR("Error while processing core")
+            .With(ex);
         auto error = TError("Error while processing core")
-            << ex;
+            .With(ex);
         ToProto(coreInfo.mutable_error(), error);
         if (!coreInfo.has_executable_name()) {
             coreInfo.set_executable_name("(n/a)");
@@ -342,17 +354,18 @@ void TCoreWatcher::DoProcessGpuCore(IAsyncInputStreamPtr coreStream, int coreInd
     auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&WriterLock_))
         .ValueOrThrow();
 
-    YT_LOG_INFO("Started processing GPU core dump");
+    YT_TLOG_INFO("Started processing GPU core dump");
 
     try {
         auto coreSize = DoReadCore(coreStream, coreName, coreIndex);
         coreInfo.set_size(coreSize);
 
-        YT_LOG_DEBUG("Finished processing GPU core dump");
+        YT_TLOG_DEBUG("Finished processing GPU core dump");
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Error processing GPU core dump");
+        YT_TLOG_ERROR("Error processing GPU core dump")
+            .With(ex);
         auto error = TError("Error processing GPU core dump")
-            << ex;
+            .With(ex);
         ToProto(coreInfo.mutable_error(), error);
     }
 
@@ -363,9 +376,9 @@ i64 TCoreWatcher::DoReadCore(const IAsyncInputStreamPtr& coreStream, const std::
 {
     YT_ASSERT_INVOKER_AFFINITY(IOInvoker_);
 
-    auto Logger = this->Logger().WithTag("CoreName: %v, CoreIndex: %v",
-        coreName,
-        coreIndex);
+    auto Logger = this->Logger()
+        .WithTag("CoreName", coreName)
+        .WithTag("CoreIndex", coreIndex);
 
     TBlobTableWriter blobTableWriter(
         GetCoreBlobTableSchema(),
@@ -381,10 +394,10 @@ i64 TCoreWatcher::DoReadCore(const IAsyncInputStreamPtr& coreStream, const std::
         JobHost_->GetOutBandwidthThrottler(),
         /*writeBlocksOptions*/ {});
 
-    YT_LOG_DEBUG("Started writing core dump (CoreName: %v, TransactionId: %v, ChunkListId: %v)",
-        coreName,
-        Transaction_,
-        ChunkList_);
+    YT_TLOG_DEBUG("Started writing core dump")
+        .With("CoreName", coreName)
+        .With("TransactionId", Transaction_)
+        .With("ChunkListId", ChunkList_);
 
     auto coreWriter = New<TStreamSparseCoreDumpWriter>(
         CreateAsyncAdapter(&blobTableWriter),
@@ -393,8 +406,8 @@ i64 TCoreWatcher::DoReadCore(const IAsyncInputStreamPtr& coreStream, const std::
 
     blobTableWriter.Finish();
 
-    YT_LOG_DEBUG("Finished writing core dump (CoreSize: %v)",
-        coreSize);
+    YT_TLOG_DEBUG("Finished writing core dump")
+        .With("CoreSize", coreSize);
 
     {
         auto outputResult = blobTableWriter.GetOutputResult(JobHost_->GetConfig()->EnableStderrAndCoreLivePreview);

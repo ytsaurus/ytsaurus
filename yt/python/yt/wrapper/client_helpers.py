@@ -96,6 +96,7 @@ def {name}({method_signature}):
     wrapped_func.__name__ = func.__name__
     wrapped_func.__doc__ = func.__doc__
     wrapped_func.__dict__ = func.__dict__.copy()
+    wrapped_func.__dict__.pop("__signature__", None)
     wrapped_func.__defaults__ = defaults
     wrapped_func.__annotations__ = getattr(func, "__annotations__", None)
     wrapped_func.__module__ = func.__module__

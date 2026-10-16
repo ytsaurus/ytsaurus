@@ -7,7 +7,7 @@ from yt_commands import (
     authors, print_debug, wait, sync_mount_table, sync_unmount_table,
     ls, remove, insert_rows, select_rows, lookup_rows, alter_table,
     wait_for_tablet_state, sync_create_cells, pull_queue,
-    clear_metadata_caches, execute_command)
+    clear_metadata_caches, execute_command, raises_yt_error)
 
 from yt_helpers import profiler_factory
 
@@ -16,14 +16,13 @@ from yt.environment.helpers import assert_items_equal
 
 from yt_driver_bindings import Driver
 
-import pytest
+import pytest  # noqa: F401
 
 from copy import deepcopy
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     USE_MASTER_CACHE = True
@@ -118,7 +117,6 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         assert actual == []
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCaching):
     ENABLE_MULTIDAEMON = True
     USE_MASTER_CACHE = False
@@ -136,7 +134,7 @@ class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCac
         assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
 
         self._sync_unmount_table("//tmp/t1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot read from tablet .*"):
             lookup_rows("//tmp/t1", keys)
         clear_metadata_caches()
         self._sync_mount_table("//tmp/t1")
@@ -144,7 +142,7 @@ class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCac
         assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
 
         self._sync_unmount_table("//tmp/t1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot read from tablet .*"):
             select_rows("* from [//tmp/t1]")
         clear_metadata_caches()
         self._sync_mount_table("//tmp/t1")
@@ -164,7 +162,7 @@ class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCac
 
         reshard_mounted_table("//tmp/t1", [[]])
         rows = [{"key": i, "value": str(i + 1)} for i in range(3)]
-        with pytest.raises(YtError):
+        with raises_yt_error("Error committing transaction"):
             insert_rows("//tmp/t1", rows)
         insert_rows("//tmp/t1", rows)
 
@@ -175,7 +173,6 @@ class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCac
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMetadataCachingMulticell(TestSortedDynamicTablesMetadataCaching):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -186,7 +183,6 @@ class TestSortedDynamicTablesMetadataCachingMulticell(TestSortedDynamicTablesMet
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMetadataCachingMulticell2(TestSortedDynamicTablesMetadataCaching2):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -200,14 +196,12 @@ class TestSortedDynamicTablesMetadataCachingMulticell2(TestSortedDynamicTablesMe
 ###################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMetadataCachingRpcProxy(TestSortedDynamicTablesMetadataCaching):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMetadataCachingRpcProxy2(TestSortedDynamicTablesMetadataCaching2):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -217,7 +211,6 @@ class TestSortedDynamicTablesMetadataCachingRpcProxy2(TestSortedDynamicTablesMet
 ###################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMetadataCachingOnRpcProxy(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -261,7 +254,6 @@ class TestSortedDynamicTablesMetadataCachingOnRpcProxy(TestSortedDynamicTablesBa
         wait(lambda: proxy_lookup_retry_count.get_delta() > 0)
 
 
-@pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesMetadataCachingOnRpcProxy(TestOrderedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

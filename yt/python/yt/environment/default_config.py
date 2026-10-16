@@ -2,13 +2,9 @@ import yt.yson as yson
 
 
 # TODO(babenko): drop settings mirrored in get_dynamic_master_config below
-# COMPAT(aleksandra-zh): enable_secondary_master_registration should be removed after compat tests
-# are bumped to 25.1.
 def get_master_config():
     return {
         "enable_provision_lock": False,
-
-        "enable_secondary_master_registration": True,
 
         "timestamp_provider": {
             "soft_backoff_time": 100,
@@ -31,10 +27,6 @@ def get_master_config():
             "enable_local_read_busy_wait": False,
         },
 
-        "cell_manager": {
-            "create_virtual_cell_maps_by_default": True,
-        },
-
         "table_manager": {
             "make_schema_attribute_opaque": True,
         },
@@ -46,7 +38,6 @@ def get_master_config():
         },
 
         "hive_manager": {
-            "use_new": True,
             "ping_period": 1000,
             "idle_post_period": 1000,
         },
@@ -60,6 +51,7 @@ def get_master_config():
             "snapshot_background_thread_count": 4,
             "leader_sync_delay": 0,
             "minimize_commit_latency": True,
+            "enable_state_hash_checker_during_recovery": True,
         },
 
         "world_initializer": {
@@ -100,7 +92,21 @@ def get_dynamic_master_config():
                 "validation_full_heartbeat_period": 1000,
                 "validation_full_heartbeat_splay": 200,
                 "validate_sequoia_replicas": True,
+                "ignore_replicas_with_changed_state_during_validation": False,
             },
+
+            "sequoia_chunk_replicas": {
+                "sequoia_chunk_refresh_period": 100,
+                "max_unsuccessful_sequoia_chunk_refresh_iterations": 1000,
+                "global_sequoia_chunk_refresh_period": 100,
+                "max_unsuccessful_global_sequoia_chunk_refresh_iterations": 1000,
+                "enable_location_refresh": True,
+                "location_refresh_period": 100,
+                "batch_incremental_heartbeat": True,
+                "batch_incremental_heartbeat_period": 300,
+                "max_requests_in_incremental_heartbeat_batch": 5,
+                "max_replicas_in_incremental_heartbeat_batch": 10,
+            }
         },
 
         "node_tracker": {
@@ -116,8 +122,6 @@ def get_dynamic_master_config():
             "enable_node_cpu_statistics": True,
             "forbid_maintenance_attribute_writes": False,
             "node_disposal_tick_period": 100,
-            "return_master_cells_connection_configs_on_node_registration": True,
-            "return_master_cells_connection_configs_on_node_heartbeat": True,
         },
 
         "object_manager": {
@@ -135,6 +139,7 @@ def get_dynamic_master_config():
             "account_master_memory_usage_update_period": 500,
             "enable_delayed_membership_closure_recomputation": False,
             "allow_alter_without_full_read": "deny",
+            "forward_authenticated_user": True,
         },
 
         "cypress_manager": {
@@ -145,10 +150,14 @@ def get_dynamic_master_config():
             "virtual_map_read_offload_batch_size": 2,
             "enable_preserve_acl_during_move": False,
             "use_better_check_when_rewriting_path": True,
+            "enable_more_efficient_conflict_check": True,
+            "enable_even_more_efficient_conflict_check": True,
         },
 
         "transaction_manager": {
             "forbid_transaction_actions_for_cypress_transactions": True,
+            "profiling_period": 100,
+            "alert_flush_period": 100,
         },
         "table_manager": {
             "enable_column_constraints_for_tables": True,
@@ -160,7 +169,6 @@ def get_dynamic_master_config():
 
         "tablet_manager": {
             "cell_scan_period": 100,
-            "accumulate_preload_pending_store_count_correctly": True,
             "increase_upload_replication_factor": True,
 
             "replicated_table_tracker": {
@@ -205,6 +213,9 @@ def get_dynamic_master_config():
             "enable_async_sequoia_transaction_start": True,
             "use_shared_write_locks_for_cypress_transactions": False,
             "coordinate_cypress_transaction_replication_on_cypress_transaction_coordinator": True,
+            "wrap_object_service_execute_into_sequoia_transaction": True,
+            "enable_sequoia_revisions": True,
+            "enable_prelock_tracker": True,
         },
 
         "cell_master": {
@@ -216,12 +227,6 @@ def get_dynamic_master_config():
 def get_scheduler_config():
     return {
         "cluster_connection": {},
-
-        "response_keeper": {
-            "enable_warmup": False,
-            "expiration_time": 25000,
-            "warmup_time": 30000,
-        },
 
         "rpc_server": {
             "tracing_mode": "force",
@@ -267,6 +272,7 @@ def get_scheduler_config():
                         "enable_step_function_for_gang_operations": True,
                         "enable_improved_fair_share_by_fit_factor_computation": True,
                         "consider_single_allocation_vanilla_operations_as_gang": False,
+                        "enable_fast_fifo_fair_share_by_fit_factor_computation": True,
                     },
                 },
             },
@@ -297,6 +303,7 @@ def get_clock_config():
 
 def get_timestamp_provider_config():
     return {
+        "cluster_connection": {},
         "timestamp_provider": {
             "soft_backoff_time": 100,
             "hard_backoff_time": 100,
@@ -383,27 +390,8 @@ def get_controller_agent_config():
                 }
             },
 
-            "sorted_merge_operation_options": {
-                "spec_template": {
-                    "use_new_sorted_pool": True,
-                }
-            },
-
-            "reduce_operation_options": {
-                "spec_template": {
-                    "use_new_sorted_pool": True,
-                }
-            },
-
-            "join_reduce_operation_options": {
-                "spec_template": {
-                    "use_new_sorted_pool": True,
-                }
-            },
-
             "sort_operation_options": {
                 "spec_template": {
-                    "use_new_sorted_pool": True,
                     "merge_job_io": {
                         "table_writer": {
                             "enable_large_columnar_statistics": True,
@@ -424,7 +412,6 @@ def get_controller_agent_config():
 
             "map_reduce_operation_options": {
                 "spec_template": {
-                    "use_new_sorted_pool": True,
                     "map_job_io": {
                         "table_writer": {
                             "enable_large_columnar_statistics": True,
@@ -573,7 +560,6 @@ def get_node_config():
                 },
             },
             "hive_manager": {
-                "use_new": True,
                 "ping_period": 1000,
                 "idle_post_period": 1000,
             },
@@ -692,7 +678,6 @@ def get_chaos_node_config():
                                 "lock_transaction_timeout": 5000,
                             },
                             "hive_manager": {
-                                "use_new": True,
                                 "ping_period": 1000,
                                 "idle_post_period": 1000,
                             },
@@ -710,6 +695,13 @@ def get_chaos_node_config():
 
 
 def get_master_cache_config():
+    return {
+        "cluster_connection": {
+        },
+    }
+
+
+def get_chaos_cache_config():
     return {
         "cluster_connection": {
         },
@@ -762,6 +754,11 @@ def get_dynamic_node_config():
                     "heartbeat_executor": {
                         "period": 100,
                         "splay": 100,
+                        # Must stay below job_tracker/node_disconnection_timeout (2s);
+                        # the 5s default lets one failed heartbeat abort the node's jobs.
+                        "min_backoff": 200,
+                        "max_backoff": 200,
+                        "backoff_multiplier": 1.0,
                     },
                     "enable_tracing": True,
                     "resend_full_job_info": False,
@@ -887,6 +884,16 @@ def get_queue_agent_config():
         "dynamic_config_manager": {
             "update_period": 100,
         },
+        "dynamic_state": {
+            # Retries should be enabled explicitly in tests.
+            "retry_backoff": {
+                "invocation_count": 0,
+                # Keep the backoffs negligible for tests that do enable retries.
+                "min_backoff": 1,
+                "max_backoff": 1,
+                "backoff_jitter": 0.0,
+            },
+        },
     }
 
 
@@ -919,6 +926,16 @@ def get_dynamic_queue_agent_config(yt_config):
             "policy": "watching",
             "chaos_replicated_table_queue_agent_stage": "production",
         },
+        "dynamic_state": {
+            # Retries should be enabled explicitly in tests.
+            "retry_backoff": {
+                "invocation_count": 0,
+                # Keep the backoffs negligible for tests that do enable retries.
+                "min_backoff": 1,
+                "max_backoff": 1,
+                "backoff_jitter": 0.0,
+            },
+        },
     }
 
 
@@ -948,6 +965,14 @@ def get_dynamic_rpc_proxy_config():
 
 
 def get_replicated_table_tracker_config():
+    return {
+        "dynamic_config_manager": {
+            "update_period": 100,
+        },
+    }
+
+
+def get_offshore_data_gateway_config():
     return {
         "dynamic_config_manager": {
             "update_period": 100,

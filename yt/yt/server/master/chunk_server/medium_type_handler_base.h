@@ -1,7 +1,5 @@
 #pragma once
 
-#include "public.h"
-
 #include <yt/yt/server/master/object_server/public.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
@@ -24,7 +22,7 @@ public:
 protected:
     void DoZombifyObject(TImpl* cell) noexcept override;
 
-    NObjectClient::TCellTagList DoGetReplicationCellTags(const TImpl* medium) override;
+    NObjectClient::TCellTagSet DoGetReplicationCellTags(const TImpl* medium) override;
 
     NSecurityServer::TAccessControlDescriptor* DoFindAcd(TImpl* medium) override;
 

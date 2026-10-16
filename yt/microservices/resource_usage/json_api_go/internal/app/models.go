@@ -46,6 +46,7 @@ type GetResourceUsageDiffRequest struct {
 type GetResourceUsageDiffResponse struct {
 	SnapshotTimestamps DiffSnapshotSelectorResponse `json:"snapshot_timestamps"`
 	Fields             []string                     `json:"fields"`
+	VersionedFields    map[string]string            `json:"versioned_fields,omitempty"`
 	RowCount           int                          `json:"row_count"`
 	Mediums            []string                     `json:"mediums"`
 	Items              *[]resourceusage.Item        `json:"items"`
@@ -72,6 +73,7 @@ type GetResourceUsageRequest struct {
 type GetResourceUsageResponse struct {
 	SnapshotTimestamp int64                 `json:"snapshot_timestamp"`
 	Fields            []string              `json:"fields"`
+	VersionedFields   map[string]string     `json:"versioned_fields,omitempty"`
 	RowCount          int                   `json:"row_count"`
 	Mediums           []string              `json:"mediums"`
 	Items             *[]resourceusage.Item `json:"items"`
@@ -101,7 +103,7 @@ type ListTimestampsRequest struct {
 }
 
 type WhoamiResponse struct {
-	User      string `json:"user"`
-	IsService bool   `json:"is_service"`
-	Error     string `json:"error,omitempty"`
+	User    string `json:"user,omitempty"`
+	Service string `json:"service,omitempty"`
+	Error   string `json:"error,omitempty"`
 }

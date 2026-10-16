@@ -218,9 +218,9 @@ TResolveCacheNodePtr TResolveCache::TryInsertNode(
         trunkNode->SetResolveCacheNode(node.Get());
         YT_VERIFY(idToNode.emplace(nodeId, node).second);
 
-        YT_LOG_DEBUG("Resolve cache node added (NodeId: %v, Path: %v)",
-            nodeId,
-            path);
+        YT_TLOG_DEBUG("Resolve cache node added")
+            .With("NodeId", nodeId)
+            .With("Path", path);
 
         return node;
     } else {
@@ -248,11 +248,11 @@ void TResolveCache::AddNodeChild(
     childNode->ParentKeyToChildIt = parentPayload.KeyToChild.emplace(key, childNode).first;
     childNode->Parent = parentNode.Get();
 
-    YT_LOG_DEBUG("Resolve cache child added (ParentId: %v, ChildId: %v, ParentPath: %v, Key: %v)",
-        parentNode->GetId(),
-        childNode->GetId(),
-        parentNode->Path,
-        key);
+    YT_TLOG_DEBUG("Resolve cache child added")
+        .With("ParentId", parentNode->GetId())
+        .With("ChildId", childNode->GetId())
+        .With("ParentPath", parentNode->Path)
+        .With("Key", key);
 }
 
 void TResolveCache::InvalidateNode(TCypressNode* node)
@@ -267,9 +267,9 @@ void TResolveCache::InvalidateNode(TCypressNode* node)
     std::vector<TCypressNode*> invalidatedNodes;
     std::function<void(TResolveCacheNode*)> traverse;
     traverse = [&] (TResolveCacheNode* currentCacheNode) {
-        YT_LOG_DEBUG("Resolve cache descendant node invalidated (NodeId: %v, Path: %v)",
-            currentCacheNode->GetId(),
-            currentCacheNode->Path);
+        YT_TLOG_DEBUG("Resolve cache descendant node invalidated")
+            .With("NodeId", currentCacheNode->GetId())
+            .With("Path", currentCacheNode->Path);
         invalidatedNodes.push_back(currentCacheNode->TrunkNode);
         if (const auto* mapPayload = std::get_if<TResolveCacheNode::TMapPayload>(&currentCacheNode->Payload)) {
             for (const auto& [key, child] : mapPayload->KeyToChild) {
@@ -289,9 +289,9 @@ void TResolveCache::InvalidateNode(TCypressNode* node)
         if (!parentPayload.KeyToChild.empty()) {
             break;
         }
-        YT_LOG_DEBUG("Resolve cache ancestor node trimmed (NodeId: %v, Path: %v)",
-            parentCacheNode->GetId(),
-            parentCacheNode->Path);
+        YT_TLOG_DEBUG("Resolve cache ancestor node trimmed")
+            .With("NodeId", parentCacheNode->GetId())
+            .With("Path", parentCacheNode->Path);
         invalidatedNodes.push_back(parentCacheNode->TrunkNode);
         currentCacheNode = parentCacheNode;
     }
@@ -342,7 +342,7 @@ void TResolveCache::Clear()
         shard.IdToNode.clear();
     }
 
-    YT_LOG_INFO("Resolve cache cleared");
+    YT_TLOG_INFO("Resolve cache cleared");
 }
 
 TResolveCacheNode::TPayload TResolveCache::MakePayload(

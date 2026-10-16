@@ -6,6 +6,7 @@
 
 #include <util/stream/buffered.h>
 #include <util/stream/file.h>
+#include <util/stream/mem.h>
 #include <util/stream/zerocopy.h>
 
 #include <string>
@@ -210,9 +211,9 @@ class TOwningStringInput
     : public IZeroCopyInput
 {
 public:
-    explicit TOwningStringInput(TString string)
+    explicit TOwningStringInput(std::string string)
         : String_(std::move(string))
-        , Stream_(String_)
+        , Stream_(String_.data(), String_.size())
     { }
 
 private:
@@ -221,13 +222,13 @@ private:
         return Stream_.Next(ptr, len);
     }
 
-    TString String_;
-    TStringInput Stream_;
+    std::string String_;
+    TMemoryInput Stream_;
 };
 
-std::unique_ptr<IZeroCopyInput> CreateOwningStringInput(TString string)
+std::unique_ptr<IZeroCopyInput> CreateOwningStringInput(std::string string)
 {
-    return std::unique_ptr<IZeroCopyInput>(new TOwningStringInput(string));
+    return std::unique_ptr<IZeroCopyInput>(new TOwningStringInput(std::move(string)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

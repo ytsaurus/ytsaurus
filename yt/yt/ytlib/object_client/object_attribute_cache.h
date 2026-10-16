@@ -105,6 +105,7 @@ public:
         NProfiling::TProfiler profiler = {});
 
     void InvalidateActiveAndSetRefreshRevision(const NYPath::TYPath& key, NHydra::TRevision revision);
+    std::vector<NHydra::TRevision> GetRefreshRevisions(const std::vector<NYPath::TYPath>& keys) const override;
 
 private:
     const std::vector<std::string> AttributeNames_;
@@ -123,7 +124,7 @@ private:
     private:
         const int MaxPathsSize_;
 
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
         THashMap<NYPath::TYPath, NHydra::TRevision> RevisionMap_;
         std::set<std::pair<NHydra::TRevision, NYPath::TYPath>> Paths_;
@@ -138,8 +139,6 @@ private:
     NYPath::TYPath GetPath(const NYPath::TYPath& key) const override;
     NYTree::IAttributeDictionaryPtr ParseValue(const NYTree::IAttributeDictionaryPtr& attributes) const override;
     const std::vector<std::string>& GetAttributeNames() const override;
-
-    std::vector<NHydra::TRevision> GetRefreshRevisions(const std::vector<NYPath::TYPath>& keys) const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectAttributeCache)

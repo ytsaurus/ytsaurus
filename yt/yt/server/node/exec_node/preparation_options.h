@@ -4,8 +4,12 @@
 #include "volume_helpers.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/public.h>
+#include <yt/yt/server/lib/nbd/image/public.h>
+
+#include <yt/yt/ytlib/exec_node/public.h>
+
+#include <yt/yt/library/nbd/config.h>
 
 #include <yt/yt/core/actions/callback.h>
 
@@ -13,47 +17,26 @@
 
 #include <util/system/types.h>
 
+#include <variant>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TVirtualSandboxData
+struct TVirtualSandboxOptions
 {
-    TString NbdDeviceId;
+    std::string NbdDeviceId;
     TArtifactKey ArtifactKey;
-    NNbd::IImageReaderPtr Reader;
+    NNbd::NImage::IImageReaderPtr Reader;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Data necessary to create NBD root volume.
-struct TSandboxNbdRootVolumeData
+struct TOverlayLayerPreparationOptions
 {
-    //! Identifier of NBD disk within NBD server.
-    TString DeviceId;
-
-    //! Volume params.
-    i64 Size = 0;
-    int MediumIndex = 0;
-    NNbd::EFilesystemType FsType = NNbd::EFilesystemType::Ext4;
-
-    //! Params to connect to chosen data nodes.
-    TDuration DataNodeRpcTimeout;
-    std::optional<std::string> DataNodeAddress;
-
-    //! Params for NBD requests to data nodes.
-    TDuration DataNodeNbdServiceRpcTimeout;
-    TDuration DataNodeNbdServiceMakeTimeout;
-
-    //! Params to get suitable data nodes from master.
-    TDuration MasterRpcTimeout;
-    int MinDataNodeCount;
-    int MaxDataNodeCount;
-
-    bool operator==(const TSandboxNbdRootVolumeData&) const = default;
+    TArtifactKey ArtifactKey;
+    NNbd::NImage::IImageReaderPtr ImageReader;
 };
-
-void FormatValue(TStringBuilderBase* builder, const TSandboxNbdRootVolumeData& data, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,15 +45,14 @@ void FormatValue(TStringBuilderBase* builder, const TSandboxNbdRootVolumeData& d
 // and some of the options is irrelevant for TVolumeManager..
 struct TUserSandboxOptions
 {
-    std::vector<TBaseVolumeParamsPtr> NonRootVolumes;
-    std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts;
+    std::vector<TVolumeMountPtr> JobVolumeMounts;
+    TBaseVolumeParamsPtr RootVolumeParams;
     std::optional<i64> InodeLimit;
     std::optional<i64> DiskSpaceLimit;
-    bool EnableRootVolumeDiskQuota = false;
+    bool DisableRbindRootVolume = false;
     bool EnableDiskQuota = true;
     int UserId = 0;
-    std::optional<TVirtualSandboxData> VirtualSandboxData;
-    std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
+    std::optional<TVirtualSandboxOptions> VirtualSandboxOptions;
     std::string SlotPath;
 
     TCallback<void(const TError&)> DiskOverdraftCallback;

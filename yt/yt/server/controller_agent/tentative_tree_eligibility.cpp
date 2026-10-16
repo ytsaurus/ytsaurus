@@ -55,12 +55,13 @@ bool TTentativeTreeEligibility::CanScheduleJob(
     }
 
     if (Disabled_) {
-        YT_LOG_DEBUG("Cannot schedule job in tentative tree since tentative trees are disabled in task");
+        YT_TLOG_DEBUG("Cannot schedule job in tentative tree since tentative trees are disabled in task");
         return false;
     }
 
     if (IsTreeBanned(treeId)) {
-        YT_LOG_DEBUG("Cannot schedule job in tentative tree since tree is banned for operation (TreeId: %v)", treeId);
+        YT_TLOG_DEBUG("Cannot schedule job in tentative tree since tree is banned for operation")
+            .With("TreeId", treeId);
         return false;
     }
 
@@ -75,8 +76,8 @@ bool TTentativeTreeEligibility::CanScheduleJob(
 
     if (remainingSampleJobCount > 0 && runningJobCount >= remainingSampleJobCount)
     {
-        YT_LOG_DEBUG("Cannot schedule job in tentative tree since we wait for a sample of jobs to finish before allowing the rest of the jobs to start (TreeId: %v)",
-            treeId);
+        YT_TLOG_DEBUG("Cannot schedule job in tentative tree since we wait for a sample of jobs to finish before allowing the rest of the jobs to start")
+            .With("TreeId", treeId);
         return false;
     }
 
@@ -130,15 +131,15 @@ void TTentativeTreeEligibility::LogTentativeTreeStatistics() const
         return;
     }
 
-    THashMap<TString, TDuration> treeAverageJobDurations;
+    THashMap<std::string, TDuration> treeAverageJobDurations;
     for (const auto& [treeId, jobs] : TreeIdToStartedJobs_) {
         treeAverageJobDurations.emplace(treeId, GetTentativeTreeAverageJobDuration(treeId));
     }
 
-    YT_LOG_DEBUG("Tentative tree statistics (NonTentativeJobCount: %v, NonTentativeAverageDuration: %v, TentativeTreeJobDurations: %v)",
-        NonTentativeTreeDuration_.GetCount(),
-        NonTentativeTreeDuration_.GetAvg(),
-        treeAverageJobDurations);
+    YT_TLOG_DEBUG("Tentative tree statistics")
+        .With("NonTentativeJobCount", NonTentativeTreeDuration_.GetCount())
+        .With("NonTentativeAverageDuration", NonTentativeTreeDuration_.GetAvg())
+        .With("TentativeTreeJobDurations", treeAverageJobDurations);
 }
 
 THashMap<std::string, int> TTentativeTreeEligibility::GetPendingJobCount() const
@@ -171,6 +172,9 @@ TDuration TTentativeTreeEligibility::GetTentativeTreeAverageJobDuration(const st
 
     if (tentativeCount < SampleJobCount_) {
         auto it = TreeIdToLastStartJobTime_.find(treeId);
+        if (it == TreeIdToLastStartJobTime_.end()) {
+            return tentativeCount > 0 ? tentativeDurationSum / tentativeCount : TDuration::Zero();
+        }
         tentativeCount += 1;
         tentativeDurationSum += TInstant::Now() - it->second;
         return tentativeDurationSum / tentativeCount;
@@ -214,12 +218,11 @@ void TTentativeTreeEligibility::BanTree(const std::string& treeId)
     auto nonTentativeDurationAvg = NonTentativeTreeDuration_.GetAvg();
     YT_VERIFY(nonTentativeDurationAvg);
 
-    YT_LOG_DEBUG("Tentative tree banned for the task as average tentative job duration is much longer than average job duration "
-        "(TreeId: %v, TentativeJobDuration: %v, NonTentativeJobDuration: %v, MaxTentativeJobDurationRatio: %v)",
-        treeId,
-        tentativeDurationAvg,
-        *nonTentativeDurationAvg,
-        MaxTentativeTreeJobDurationRatio_);
+    YT_TLOG_DEBUG("Tentative tree banned for the task as average tentative job duration is much longer than average job duration")
+        .With("TreeId", treeId)
+        .With("TentativeJobDuration", tentativeDurationAvg)
+        .With("NonTentativeJobDuration", *nonTentativeDurationAvg)
+        .With("MaxTentativeJobDurationRatio", MaxTentativeTreeJobDurationRatio_);
 }
 
 bool TTentativeTreeEligibility::IsTreeBanned(const std::string& treeId) const

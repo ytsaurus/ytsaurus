@@ -1,7 +1,7 @@
 #include "dummy_pipeline.h"
 
-#include "../executor.h"
-#include "../roren.h"
+#include <yt/cpp/roren/interface/executor.h>
+#include <yt/cpp/roren/interface/roren.h>
 
 namespace NRoren::NPrivate {
 

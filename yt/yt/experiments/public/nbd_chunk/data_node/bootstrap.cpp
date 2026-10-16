@@ -456,6 +456,16 @@ public:
         return MediumUpdater_;
     }
 
+    const NYT::NDataNode::IMediumAwareBlockCacheManagerPtr& GetMediumAwareBlockCacheManager() const override
+    {
+        return MediumAwareBlockCacheManager_;
+    }
+
+    NChunkClient::IBlockCachePtr GetBlockCacheForMedium(int /*mediumIndex*/) const override
+    {
+        return BlockCache_;
+    }
+
     const NConcurrency::IThroughputThrottlerPtr& GetThrottler(NYT::NDataNode::EDataNodeThrottlerKind) const override
     {
         return Throttler_;
@@ -469,6 +479,23 @@ public:
     const NConcurrency::IThroughputThrottlerPtr& GetOutThrottler(const TWorkloadDescriptor&) const override
     {
         return OutThrottler_;
+    }
+
+    NDataNode::TNetThrottlingResult CheckNetOutThrottling(
+        i64,
+        const std::string&,
+        const TWorkloadDescriptor&,
+        bool = true) const override
+    {
+        return {};
+    }
+
+    NDataNode::TNetThrottlingResult CheckNetInThrottling(
+        const std::string&,
+        const TWorkloadDescriptor&,
+        bool = true) const override
+    {
+        return {};
     }
 
     const NYT::NDataNode::IJournalDispatcherPtr& GetJournalDispatcher() const override
@@ -583,6 +610,7 @@ private:
     NYT::NDataNode::IMasterConnectorPtr MasterConnector_;
     NYT::NDataNode::TMediumDirectoryManagerPtr MediumDirectoryManager_;
     NYT::NDataNode::TMediumUpdaterPtr MediumUpdater_;
+    NYT::NDataNode::IMediumAwareBlockCacheManagerPtr MediumAwareBlockCacheManager_;
     NConcurrency::IThroughputThrottlerPtr Throttler_;
     NConcurrency::IThroughputThrottlerPtr InThrottler_;
     NConcurrency::IThroughputThrottlerPtr OutThrottler_;

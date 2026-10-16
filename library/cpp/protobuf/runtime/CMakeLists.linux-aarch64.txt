@@ -14,13 +14,19 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_library(cpp-protobuf-runtime INTERFACE)
+add_library(cpp-protobuf-runtime)
 
 
-target_link_libraries(cpp-protobuf-runtime INTERFACE
+target_link_libraries(cpp-protobuf-runtime PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-protobuf
+)
+
+target_sources(cpp-protobuf-runtime PRIVATE
+  ${PROJECT_SOURCE_DIR}/library/cpp/protobuf/runtime/escaping_arcadia.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/protobuf/runtime/escaping.h
+  ${PROJECT_SOURCE_DIR}/library/cpp/protobuf/runtime/nprotobuf.h
 )
 

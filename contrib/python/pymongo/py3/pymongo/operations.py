@@ -16,17 +16,16 @@
 
 .. seealso:: This module is compatible with both the synchronous and asynchronous PyMongo APIs.
 """
+
 from __future__ import annotations
 
 import enum
+from collections.abc import Mapping, Sequence
 from typing import (
     TYPE_CHECKING,
     Any,
     Generic,
-    Mapping,
     Optional,
-    Sequence,
-    Tuple,
     Union,
 )
 
@@ -45,7 +44,7 @@ if TYPE_CHECKING:
 
 # Hint supports index name, "myIndex", a list of either strings or index pairs: [('x', 1), ('y', -1), 'z''], or a dictionary
 _IndexList = Union[
-    Sequence[Union[str, Tuple[str, Union[int, str, Mapping[str, Any]]]]], Mapping[str, Any]
+    Sequence[Union[str, tuple[str, Union[int, str, Mapping[str, Any]]]]], Mapping[str, Any]
 ]
 _IndexKeyHint = Union[str, _IndexList]
 
@@ -80,6 +79,22 @@ class _Op(str, enum.Enum):
     GETMORE = "getMore"
     KILL_CURSORS = "killCursors"
     TEST = "testOperation"
+
+
+_WRITES_WITH_CLUSTER_TIME = frozenset(
+    {
+        _Op.INSERT.value,
+        _Op.UPDATE.value,
+        _Op.FIND_AND_MODIFY.value,
+        _Op.DELETE.value,
+        _Op.BULK_WRITE.value,
+        _Op.CREATE.value,
+        _Op.CREATE_INDEXES.value,
+        _Op.DROP.value,
+        _Op.DROP_DATABASE.value,
+        _Op.DROP_INDEXES.value,
+    }
+)
 
 
 class InsertOne(Generic[_DocumentType]):
@@ -127,9 +142,11 @@ class InsertOne(Generic[_DocumentType]):
         return f"{self.__class__.__name__}({self._doc!r})"
 
     def __eq__(self, other: Any) -> bool:
-        if type(other) == type(self):
+        if type(other) is type(self):
             return other._doc == self._doc and other._namespace == self._namespace
         return NotImplemented
+
+    __hash__ = None  # type: ignore[assignment]
 
     def __ne__(self, other: Any) -> bool:
         return not self == other
@@ -139,8 +156,8 @@ class _DeleteOp:
     """Private base class for delete operations."""
 
     __slots__ = (
-        "_filter",
         "_collation",
+        "_filter",
         "_hint",
         "_namespace",
     )
@@ -164,7 +181,7 @@ class _DeleteOp:
         self._namespace = namespace
 
     def __eq__(self, other: Any) -> bool:
-        if type(other) == type(self):
+        if type(other) is type(self):
             return (
                 other._filter,
                 other._collation,
@@ -178,18 +195,14 @@ class _DeleteOp:
             )
         return NotImplemented
 
+    __hash__ = None  # type: ignore[assignment]
+
     def __ne__(self, other: Any) -> bool:
         return not self == other
 
     def __repr__(self) -> str:
         if self._namespace:
-            return "{}({!r}, {!r}, {!r}, {!r})".format(
-                self.__class__.__name__,
-                self._filter,
-                self._collation,
-                self._hint,
-                self._namespace,
-            )
+            return f"{self.__class__.__name__}({self._filter!r}, {self._collation!r}, {self._hint!r}, {self._namespace!r})"
         return f"{self.__class__.__name__}({self._filter!r}, {self._collation!r}, {self._hint!r})"
 
 
@@ -319,13 +332,13 @@ class ReplaceOne(Generic[_DocumentType]):
     """Represents a replace_one operation."""
 
     __slots__ = (
-        "_filter",
-        "_doc",
-        "_upsert",
         "_collation",
+        "_doc",
+        "_filter",
         "_hint",
         "_namespace",
         "_sort",
+        "_upsert",
     )
 
     def __init__(
@@ -353,8 +366,7 @@ class ReplaceOne(Generic[_DocumentType]):
             predicate specified either by its string name, or in the same
             format as passed to
             :meth:`~pymongo.asynchronous.collection.AsyncCollection.create_index` or :meth:`~pymongo.collection.Collection.create_index` (e.g.
-            ``[('field', ASCENDING)]``). This option is only supported on
-            MongoDB 4.2 and above.
+            ``[('field', ASCENDING)]``).
         :param sort: Specify which document the operation updates if the query matches
             multiple documents. The first document matched by the sort order will be updated.
         :param namespace: (optional) The namespace in which to replace a document.
@@ -412,7 +424,7 @@ class ReplaceOne(Generic[_DocumentType]):
         )
 
     def __eq__(self, other: Any) -> bool:
-        if type(other) == type(self):
+        if type(other) is type(self):
             return (
                 other._filter,
                 other._doc,
@@ -432,44 +444,29 @@ class ReplaceOne(Generic[_DocumentType]):
             )
         return NotImplemented
 
+    __hash__ = None  # type: ignore[assignment]
+
     def __ne__(self, other: Any) -> bool:
         return not self == other
 
     def __repr__(self) -> str:
         if self._namespace:
-            return "{}({!r}, {!r}, {!r}, {!r}, {!r}, {!r}, {!r})".format(
-                self.__class__.__name__,
-                self._filter,
-                self._doc,
-                self._upsert,
-                self._collation,
-                self._hint,
-                self._namespace,
-                self._sort,
-            )
-        return "{}({!r}, {!r}, {!r}, {!r}, {!r}, {!r})".format(
-            self.__class__.__name__,
-            self._filter,
-            self._doc,
-            self._upsert,
-            self._collation,
-            self._hint,
-            self._sort,
-        )
+            return f"{self.__class__.__name__}({self._filter!r}, {self._doc!r}, {self._upsert!r}, {self._collation!r}, {self._hint!r}, {self._namespace!r}, {self._sort!r})"
+        return f"{self.__class__.__name__}({self._filter!r}, {self._doc!r}, {self._upsert!r}, {self._collation!r}, {self._hint!r}, {self._sort!r})"
 
 
 class _UpdateOp:
     """Private base class for update operations."""
 
     __slots__ = (
-        "_filter",
-        "_doc",
-        "_upsert",
-        "_collation",
         "_array_filters",
+        "_collation",
+        "_doc",
+        "_filter",
         "_hint",
         "_namespace",
         "_sort",
+        "_upsert",
     )
 
     def __init__(
@@ -524,32 +521,15 @@ class _UpdateOp:
             )
         return NotImplemented
 
+    __hash__ = None  # type: ignore[assignment]
+
     def __ne__(self, other: Any) -> bool:
         return not self == other
 
     def __repr__(self) -> str:
         if self._namespace:
-            return "{}({!r}, {!r}, {!r}, {!r}, {!r}, {!r}, {!r}, {!r})".format(
-                self.__class__.__name__,
-                self._filter,
-                self._doc,
-                self._upsert,
-                self._collation,
-                self._array_filters,
-                self._hint,
-                self._namespace,
-                self._sort,
-            )
-        return "{}({!r}, {!r}, {!r}, {!r}, {!r}, {!r}, {!r})".format(
-            self.__class__.__name__,
-            self._filter,
-            self._doc,
-            self._upsert,
-            self._collation,
-            self._array_filters,
-            self._hint,
-            self._sort,
-        )
+            return f"{self.__class__.__name__}({self._filter!r}, {self._doc!r}, {self._upsert!r}, {self._collation!r}, {self._array_filters!r}, {self._hint!r}, {self._namespace!r}, {self._sort!r})"
+        return f"{self.__class__.__name__}({self._filter!r}, {self._doc!r}, {self._upsert!r}, {self._collation!r}, {self._array_filters!r}, {self._hint!r}, {self._sort!r})"
 
 
 class UpdateOne(_UpdateOp):
@@ -585,8 +565,7 @@ class UpdateOne(_UpdateOp):
             predicate specified either by its string name, or in the same
             format as passed to
             :meth:`~pymongo.asynchronous.collection.AsyncCollection.create_index` or :meth:`~pymongo.collection.Collection.create_index` (e.g.
-            ``[('field', ASCENDING)]``). This option is only supported on
-            MongoDB 4.2 and above.
+            ``[('field', ASCENDING)]``).
         :param namespace: The namespace in which to update a document.
         :param sort: Specify which document the operation updates if the query matches
             multiple documents. The first document matched by the sort order will be updated.
@@ -670,8 +649,7 @@ class UpdateMany(_UpdateOp):
             predicate specified either by its string name, or in the same
             format as passed to
             :meth:`~pymongo.asynchronous.collection.AsyncCollection.create_index` or :meth:`~pymongo.collection.Collection.create_index` (e.g.
-            ``[('field', ASCENDING)]``). This option is only supported on
-            MongoDB 4.2 and above.
+            ``[('field', ASCENDING)]``).
         :param namespace: (optional) The namespace in which to update documents.
 
         .. versionchanged:: 4.9
@@ -761,7 +739,7 @@ class IndexModel:
             that specifies the collation to use.
           - `wildcardProjection`: Allows users to include or exclude specific
             field paths from a `wildcard index`_ using the { "$**" : 1} key
-            pattern. Requires MongoDB >= 4.2.
+            pattern.
           - `hidden`: if ``True``, this index will be hidden from the query
             planner and will not be evaluated as part of query plan
             selection. Requires MongoDB >= 4.4.

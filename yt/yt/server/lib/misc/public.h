@@ -41,13 +41,13 @@ DECLARE_REFCOUNTED_CLASS(TForkCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TString ExecProgramName;
-extern const TString JobProxyProgramName;
+extern const std::string ExecProgramName;
+extern const std::string JobProxyProgramName;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TString BanMessageAttributeName;
-extern const TString ConfigAttributeName;
+extern const std::string BanMessageAttributeName;
+extern const std::string ConfigAttributeName;
 
 ////////////////////////////////////////////////////////////////////////////////
 

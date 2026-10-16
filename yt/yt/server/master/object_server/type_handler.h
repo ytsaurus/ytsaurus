@@ -13,6 +13,8 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <library/cpp/yt/compact_containers/compact_vector.h>
+
 #include <optional>
 
 namespace NYT::NObjectServer {
@@ -47,7 +49,7 @@ struct IObjectTypeHandler
      *  Since it is only its native cell that is responsible for replicating an object,
      *  this method shall never be called on a non-native cell.
      */
-    virtual TCellTagList GetReplicationCellTags(const TObject* object) = 0;
+    virtual NObjectClient::TCellTagSet GetReplicationCellTags(const TObject* object) = 0;
 
     //! Returns the object type managed by the handler.
     virtual EObjectType GetType() const = 0;
@@ -146,4 +148,3 @@ DEFINE_REFCOUNTED_TYPE(IObjectTypeHandler)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer
-

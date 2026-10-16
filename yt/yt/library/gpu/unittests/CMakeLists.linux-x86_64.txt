@@ -14,10 +14,10 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_executable(library-gpu-unittest)
+add_executable(unittester-library-gpu)
 
 
-target_compile_options(library-gpu-unittest PRIVATE
+target_compile_options(unittester-library-gpu PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -27,7 +27,7 @@ target_compile_options(library-gpu-unittest PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(library-gpu-unittest PUBLIC
+target_link_libraries(unittester-library-gpu PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
@@ -39,12 +39,12 @@ target_link_libraries(library-gpu-unittest PUBLIC
   yt-core-test_framework
 )
 
-target_allocator(library-gpu-unittest
+target_allocator(unittester-library-gpu
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
 
-target_link_options(library-gpu-unittest PRIVATE
+target_link_options(unittester-library-gpu PRIVATE
   -ldl
   -lrt
   -Wl,--no-as-needed
@@ -55,21 +55,21 @@ target_link_options(library-gpu-unittest PRIVATE
   -lutil
 )
 
-target_sources(library-gpu-unittest PRIVATE
+target_sources(unittester-library-gpu PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/unittests/gpu_agent_gpu_info_provider_ut.cpp
 )
 
 
 add_test(
   NAME
-  library-gpu-unittest
+  unittester-library-gpu
   COMMAND
-  library-gpu-unittest
+  unittester-library-gpu
 )
 
 set_property(
   TEST
-  library-gpu-unittest
+  unittester-library-gpu
   PROPERTY
   LABELS
   SMALL
@@ -77,16 +77,16 @@ set_property(
 
 set_property(
   TEST
-  library-gpu-unittest
+  unittester-library-gpu
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(library-gpu-unittest)
+vcs_info(unittester-library-gpu)
 
 set_property(
   TEST
-  library-gpu-unittest
+  unittester-library-gpu
   PROPERTY
   PROCESSORS
   1

@@ -1,5 +1,6 @@
 #include "changelog_store_helpers.h"
 
+#include "changelog.h"
 #include "serialize.h"
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
@@ -56,6 +57,24 @@ TChangelogStoreScanResult ScanChangelogStore(
     }
 
     return result;
+}
+
+TFuture<std::pair<NHydra::NProto::TMutationHeader, TSharedRef>> ReadFirstMutationFromChangelog(
+    const IChangelogPtr& changelog)
+{
+    auto asyncRecordsData = changelog->Read(0, 1, std::numeric_limits<i64>::max());
+    return asyncRecordsData
+        .Apply(BIND([=] (const std::vector<TSharedRef>& recordsData) {
+            if (recordsData.empty()) {
+                THROW_ERROR_EXCEPTION("Read zero records in changelog %v", changelog->GetId());
+            }
+
+            NProto::TMutationHeader header;
+            TSharedRef requestData;
+            DeserializeMutationRecord(recordsData[0], &header, &requestData);
+
+            return std::pair{header, requestData};
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

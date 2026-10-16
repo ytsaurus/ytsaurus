@@ -2,16 +2,12 @@
 
 #include "config.h"
 #include "private.h"
-
 #include "registration_manager_base.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
-
-#include <yt/yt/client/federated/client.h>
-#include <yt/yt/client/federated/config.h>
 
 #include <yt/yt/client/object_client/public.h>
 
@@ -25,6 +21,8 @@
 #include <library/cpp/iterator/zip.h>
 
 #include <util/random/normal.h>
+
+#include <span>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,7 +53,6 @@ struct THash<NYT::NQueueClient::NDetail::TReplicaMappingCacheKey>
 namespace NYT::NQueueClient::NDetail {
 
 using namespace NApi;
-using namespace NClient;
 using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NLogging;
@@ -74,9 +71,29 @@ template <typename T, typename F>
 auto GroupBy(F f, std::vector<T> values)
 {
     THashMap<std::invoke_result_t<F, const T&>, std::vector<T>> groupedValues;
+    groupedValues.reserve(values.size());
     for (auto& value : values) {
         auto groupKey = f(value);
         groupedValues[groupKey].push_back(std::move(value));
+    }
+    return groupedValues;
+}
+
+template <typename T, typename F>
+auto GroupByMany(F f, std::vector<T> values)
+{
+    using TGroupKey = std::invoke_result_t<F, const T&>::value_type;
+    THashMap<TGroupKey, std::vector<T>> groupedValues;
+    groupedValues.reserve(values.size());
+    for (auto& value : values) {
+        auto groupKey = f(value);
+        if (groupKey.empty()) {
+            continue;
+        }
+        for (const auto& key : std::span(groupKey).first(groupKey.size() - 1)) {
+            groupedValues[key].push_back(value);
+        }
+        groupedValues[groupKey.back()].push_back(std::move(value));
     }
     return groupedValues;
 }
@@ -85,8 +102,8 @@ auto GroupBy(F f, std::vector<T> values)
 
 struct TRegistrationCacheKey
 {
-    TQueuePath Queue;
-    TConsumerPath Consumer;
+    TTablePath Queue;
+    TConsumerReference Consumer;
 
     std::strong_ordering operator<=>(const TRegistrationCacheKey&) const = default;
 };
@@ -105,10 +122,10 @@ void FormatValue(TStringBuilderBase* builder, const TRegistrationCacheKey& value
 //! Listing all registrations is forbidden.
 struct TListRegistrationsCacheKey
 {
-    std::optional<TQueuePath> Queue;
-    std::optional<TConsumerPath> Consumer;
+    std::optional<TTablePath> Queue;
+    std::optional<TConsumerReference> Consumer;
 
-    explicit TListRegistrationsCacheKey(std::optional<TQueuePath> queue, std::optional<TConsumerPath> consumer)
+    explicit TListRegistrationsCacheKey(std::optional<TTablePath> queue, std::optional<TConsumerReference> consumer)
         : Queue(std::move(queue))
         , Consumer(std::move(consumer))
     {
@@ -183,151 +200,68 @@ DEFINE_REFCOUNTED_TYPE(TLookupSessionProfilingCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(apachee): Create reusable helpers for federated client management across Queue API and Queue Agent.
-class TLookupSessionClientManager
+class TLookupSessionClientFactory
     : public TRefCounted
 {
 public:
-    TLookupSessionClientManager(
+    struct TReplicaClient
+    {
+        std::optional<std::string> Cluster;
+        IClientPtr Client;
+    };
+
+    TLookupSessionClientFactory(
         TWeakPtr<NNative::IConnection> connection,
         TLookupSessionConfigPtr config)
         : Connection_(std::move(connection))
-        , OnClusterUpdatedCallback_(BIND_NO_PROPAGATE(&TLookupSessionClientManager::OnClusterUpdated, MakeWeak(this)))
         , Config_(std::move(config))
     { }
 
-    void InitializeRefCounted()
+    std::vector<TReplicaClient> GetReplicaClientsOrThrow() const
     {
         auto localConnection = Connection_.Lock();
         if (!localConnection) {
-            THROW_ERROR_EXCEPTION("Federated client manager owning connection expired");
+            THROW_ERROR_EXCEPTION("Lookup session client factory owning connection expired");
         }
 
-        // Order of initialization explanation:
-        // 1. Update state first, since #OnClusterUpdatedCallback_ might be called after subscribe.
-        // 2. Subscribe before updating client to ensure that client always has "fresh" connections: client is updated either by #OnClusterUpdatedCallback_ or by #UpdateClient that follows.
-        // 3. Finally, update client to ensure it is initialized after manager is constructed.
+        auto config = Config_.Acquire();
 
-        {
-            auto guard = Guard(Lock_);
-            UpdateState(guard);
+        auto clientOptions = TClientOptions::FromUser(config->User);
+        auto clustersOrNull = config->Table.GetClusters();
+        if (!clustersOrNull || clustersOrNull->empty()) {
+            return std::vector{TReplicaClient{
+                .Cluster = localConnection->GetClusterName(),
+                .Client = localConnection->CreateClient(clientOptions),
+            }};
         }
 
-        localConnection->GetClusterDirectory()->SubscribeOnClusterUpdated(OnClusterUpdatedCallback_);
+        const auto& clusters = *clustersOrNull;
+        auto clientDirectory = New<TClientDirectory>(localConnection->GetClusterDirectory(), clientOptions);
 
-        auto guard = Guard(Lock_);
-        UpdateClient(guard);
-    }
+        std::vector<TReplicaClient> clients;
+        clients.reserve(clusters.size());
+        for (const auto& cluster : clusters) {
+            clients.push_back(TReplicaClient{
+                .Cluster = cluster,
+                .Client = clientDirectory->GetClientOrThrow(cluster),
+            });
+        }
 
-    IClientPtr GetClientOrThrow() const
-    {
-        return ClientState_
-            .Acquire()
-            ->ClientOrError
-            .ValueOrThrow();
+        return clients;
     }
 
     void Reconfigure(TLookupSessionConfigPtr newConfig)
     {
-        auto guard = Guard(Lock_);
-        if (*Config_ == *newConfig) {
-            return;
-        }
-
-        Config_ = std::move(newConfig);
-
-        UpdateState(guard);
-        UpdateClient(guard);
-    }
-
-    ~TLookupSessionClientManager()
-    {
-        auto localConnection = Connection_.Lock();
-        if (!localConnection) {
-            return;
-        }
-
-        localConnection->GetClusterDirectory()->UnsubscribeOnClusterUpdated(OnClusterUpdatedCallback_);
+        Config_.Store(newConfig);
     }
 
 private:
-    // NB(apachee): A hacky way to use atomics rather than spinlocks for loading/acquiring TErrorOr<IClientPtr>.
-    struct TClientState final
-    {
-        TErrorOr<IClientPtr> ClientOrError;
-    };
-
     const TWeakPtr<NNative::IConnection> Connection_;
-    const TCallback<void (const std::string&, NYTree::INodePtr)> OnClusterUpdatedCallback_;
-
-    TAtomicIntrusivePtr<TClientState> ClientState_;
-
-    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
-    TLookupSessionConfigPtr Config_;
-    NFederated::TFederationConfigPtr FederationConfig_;
-    TClientOptions ClientOptions_;
-    THashSet<std::string> Clusters_;
-
-    void UpdateState(const TGuard<TSpinLock>& /*guard*/)
-    {
-        FederationConfig_ = Config_->FederationConfig;
-        ClientOptions_ = TClientOptions::FromUser(Config_->User);
-
-        auto clusters = Config_->Table.GetClusters().value_or(std::vector<std::string>{});
-        Clusters_ = THashSet<std::string>(
-            std::make_move_iterator(clusters.begin()),
-            std::make_move_iterator(clusters.end()));
-    }
-
-    void UpdateClient(const TGuard<TSpinLock>& /*guard*/)
-    {
-        TErrorOr<IClientPtr> clientOrError;
-        try {
-            clientOrError = CreateClientOrThrow();
-        } catch (const std::exception& ex) {
-            clientOrError = ex;
-        }
-
-        ClientState_.Store(New<TClientState>(TClientState{
-            .ClientOrError = std::move(clientOrError),
-        }));
-    }
-
-    IClientPtr CreateClientOrThrow() const
-    {
-        auto localConnection = Connection_.Lock();
-        if (!localConnection) {
-            THROW_ERROR_EXCEPTION("Queue consumer registration cache owning connection expired");
-        }
-
-        auto clientDirectory = New<TClientDirectory>(localConnection->GetClusterDirectory(), ClientOptions_);
-
-        if (Clusters_.empty()) {
-            return localConnection->CreateClient(ClientOptions_);
-        }
-
-        std::vector<IClientPtr> clients;
-        clients.reserve(Clusters_.size());
-        for (const auto& cluster : Clusters_) {
-            clients.push_back(clientDirectory->GetClientOrThrow(cluster));
-        }
-
-        return NFederated::CreateClient(clients, FederationConfig_);
-    }
-
-    void OnClusterUpdated(const std::string& cluster, NYTree::INodePtr /*node*/)
-    {
-        auto guard = Guard(Lock_);
-        if (!Clusters_.contains(cluster)) {
-            return;
-        }
-
-        UpdateClient(guard);
-    }
+    TAtomicIntrusivePtr<TLookupSessionConfig> Config_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TLookupSessionClientManager)
-using TLookupSessionClientManagerPtr = TIntrusivePtr<TLookupSessionClientManager>;
+DEFINE_REFCOUNTED_TYPE(TLookupSessionClientFactory)
+using TLookupSessionClientFactoryPtr = TIntrusivePtr<TLookupSessionClientFactory>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -343,10 +277,12 @@ public:
     using TLookupResult = TLookupResultType;
     using TLookupResultWrapped = TErrorTraits<TLookupResult>::TWrapped;
     using TLookupResultUnwrapped = TErrorTraits<TLookupResult>::TUnwrapped;
+    using TLookupSessionResult = std::vector<TLookupResult>;
+    using TLookupSessionWrappedResult = std::vector<TLookupResultWrapped>;
 
 public:
     TLookupSessionBase(
-        TLookupSessionClientManagerPtr clientManager,
+        TLookupSessionClientFactoryPtr clientFactory,
         TLookupSessionConfigPtr config,
         std::vector<TCacheKey> keys,
         TLookupSessionProfilingCountersPtr profilingCounters,
@@ -355,7 +291,7 @@ public:
         , Keys_(std::move(keys))
         , ProfilingCounters_(std::move(profilingCounters))
         , Logger(std::move(logger))
-        , ClientManager_(std::move(clientManager))
+        , ClientFactory_(std::move(clientFactory))
     { }
 
     auto Run() const
@@ -373,16 +309,97 @@ public:
         try {
             return RunGuarded();
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Lookup session failed");
+            YT_TLOG_ERROR("Lookup session failed")
+                .With(ex);
             ProfilingCounters_->ErrorCounter.Increment();
             ProfilingCounters_->ErrorKeyCounter.Increment(Keys_.size());
             throw;
         }
     }
 
-    std::vector<TLookupResultWrapped> RunGuarded() const
+protected:
+    struct TReplicaLookupResult
     {
-        auto client = ClientManager_->GetClientOrThrow();
+        std::optional<std::string> Cluster;
+        TLookupSessionWrappedResult Result;
+    };
+
+    const TLookupSessionConfigPtr Config_;
+    const std::vector<TCacheKey> Keys_;
+    const TLookupSessionProfilingCountersPtr ProfilingCounters_;
+    const TLogger Logger;
+
+    virtual TLookupSessionResult DoLookup(TIntrusivePtr<TTable> table) const = 0;
+
+private:
+    const TLookupSessionClientFactoryPtr ClientFactory_;
+
+    TLookupSessionWrappedResult RunGuarded() const
+    {
+        auto clients = ClientFactory_->GetReplicaClientsOrThrow();
+        YT_VERIFY(!clients.empty());
+
+        int defaultSuccessfulLookupsRequired = std::ssize(clients) / 2 + 1;
+        int successfulLookupsRequired = Config_->SuccessfulLookupsRequired
+            .value_or(defaultSuccessfulLookupsRequired);
+
+        YT_TLOG_ALERT_AND_THROW_UNLESS(
+            successfulLookupsRequired > 0 && successfulLookupsRequired <= std::ssize(clients),
+            "Successful lookups required is out of bounds")
+            .With("SuccessfulLookupsRequired", successfulLookupsRequired)
+            .With("ClientCount", clients.size());
+
+        std::vector<TFuture<TReplicaLookupResult>> replicaLookupFutures;
+        replicaLookupFutures.reserve(clients.size());
+        for (const auto& [cluster, client] : clients) {
+            replicaLookupFutures.push_back(
+                BIND(&TLookupSessionBase::RunReplicaLookup, MakeStrong(this), client)
+                    .AsyncVia(GetCurrentInvoker())
+                    .Run()
+                    .AsUnique()
+                    .Apply(BIND([cluster] (TLookupSessionWrappedResult&& result) {
+                        return TReplicaLookupResult{
+                            .Cluster = cluster,
+                            .Result = std::move(result),
+                        };
+                    })));
+        }
+
+        // NB(apachee): We fallback to AnySucceeded and this means we can't cancel futures on shortcut.
+        // NB(apachee): Combiner future is short-lived so propagating cancelation to input is incorrect as well.
+        TFutureCombinerOptions options{
+            .PropagateCancelationToInput = false,
+            .CancelInputOnShortcut = false,
+        };
+
+        auto resultsOrError = WaitFor(AnyNSucceeded(
+            replicaLookupFutures,
+            successfulLookupsRequired,
+            options));
+
+        if (resultsOrError.IsOK()) {
+            auto results = std::move(resultsOrError.Value());
+            YT_VERIFY(!results.empty());
+
+            for (const auto& future : replicaLookupFutures) {
+                future.Cancel(TError(NYT::EErrorCode::Canceled, "Enough replica lookups succeeded"));
+            }
+
+            return MergeResults(std::move(results));
+        }
+
+        // NB(apachee): Cancelling here is fine, since this is the last combiner used for these futures.
+        auto fallbackResult = WaitFor(AnySucceeded(replicaLookupFutures))
+            .ValueOrThrow("Queue consumer registration manager state is fully unavailable");
+
+        std::vector<TReplicaLookupResult> results;
+        results.push_back(std::move(fallbackResult));
+
+        return MergeResults(std::move(results));
+    }
+
+    std::vector<TLookupResultWrapped> RunReplicaLookup(IClientPtr client) const
+    {
         auto table = New<TTable>(Config_->Table.GetPath(), client);
 
         // NB(apachee): Wrap result in TErrorOr in case it isn't already.
@@ -404,16 +421,70 @@ public:
         }
     }
 
-protected:
-    const TLookupSessionConfigPtr Config_;
-    const std::vector<TCacheKey> Keys_;
-    const TLookupSessionProfilingCountersPtr ProfilingCounters_;
-    const TLogger Logger;
+    //! Merges lookup results from all table replicas into a single result.
+    //! Logic is as follows:
+    //! - Result for each key is calculated independently.
+    //! - We split replica results for each key into successful and failed results.
+    //! - If all replica lookups failed for a key, we return a failed result.
+    //! - If at least one replica lookup succeeded for a key, we return a successful result.
+    //! - We chose random successful result to return, as current setup does not provide any means to deduce the freshest result.
+    //! XXX(apachee): Better merging might be possible, but is considered out of scope for the problem being solved, which is to eradicate full scans of the tables.
+    TLookupSessionWrappedResult MergeResults(std::vector<TReplicaLookupResult> replicaResults) const
+    {
+        {
+            std::vector<TError> replicaLookupErrors;
+            for (const auto& replicaResult : replicaResults) {
+                if (replicaResult.Result.size() != Keys_.size()) {
+                    replicaLookupErrors.push_back(TError(
+                        "Mismatch between requested key count and lookup result count for replica cluster %v",
+                        replicaResult.Cluster)
+                        .With("requested_key_count", Keys_.size())
+                        .With("lookup_result_count", replicaResult.Result.size()));
+                }
+            }
 
-    virtual std::vector<TLookupResult> DoLookup(TIntrusivePtr<TTable> table) const = 0;
+            if (!replicaLookupErrors.empty()) {
+                auto error = TError("Replica lookup invariants were violated")
+                    .With(replicaLookupErrors);
+                YT_TLOG_ALERT_AND_THROW("Registration lookup failed")
+                    .With(error);
+            }
+        }
 
-private:
-    const TLookupSessionClientManagerPtr ClientManager_;
+        TLookupSessionWrappedResult mergedResult;
+        mergedResult.reserve(Keys_.size());
+
+        std::vector<TLookupResult> successfulKeyResults;
+        std::vector<TError> failedKeyResults;
+
+        for (i64 keyIndex = 0; keyIndex < std::ssize(Keys_); ++keyIndex) {
+            successfulKeyResults.clear();
+            failedKeyResults.clear();
+
+            for (auto&& [_, replicaResult] : replicaResults) {
+                if (replicaResult[keyIndex].IsOK()) {
+                    successfulKeyResults.push_back(std::move(replicaResult[keyIndex].Value()));
+                } else {
+                    failedKeyResults.push_back(std::move(replicaResult[keyIndex]));
+                }
+            }
+
+            YT_VERIFY(!successfulKeyResults.empty() || !failedKeyResults.empty());
+            if (successfulKeyResults.empty()) {
+                // Lookup completely failed.
+                mergedResult.push_back(
+                    TError("All replica lookups failed")
+                        .With(std::move(failedKeyResults)));
+            } else {
+                // NB(apachee): We chose random successful result to return,
+                // as current setup does not provide any means to deduce the freshest result.
+                auto chosenResultIndex = RandomNumber<ui64>(successfulKeyResults.size());
+                mergedResult.push_back(std::move(successfulKeyResults[chosenResultIndex]));
+            }
+        }
+
+        return mergedResult;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -447,7 +518,7 @@ public:
         : Connection_(std::move(connection))
         , ProfilingCounters_(std::move(profiler))
         , SessionLogger_(std::move(sessionLogger))
-        , ClientManager_(New<TLookupSessionClientManager>(
+        , ClientFactory_(New<TLookupSessionClientFactory>(
             Connection_,
             config))
         , Config_(std::move(config))
@@ -456,7 +527,7 @@ public:
     void Reconfigure(TLookupSessionConfigPtr newConfig)
     {
         Config_.Store(newConfig);
-        ClientManager_->Reconfigure(std::move(newConfig));
+        ClientFactory_->Reconfigure(std::move(newConfig));
     }
 
     TIntrusivePtr<TLookupSession> CreateSession(
@@ -464,7 +535,7 @@ public:
         ELookupReason lookupReason) const
     {
         return New<TLookupSession>(
-            ClientManager_,
+            ClientFactory_,
             Config_.Acquire(),
             std::move(keys),
             ProfilingCounters_.LookupSessionByReason[lookupReason],
@@ -475,7 +546,7 @@ private:
     const TWeakPtr<NNative::IConnection> Connection_;
     const TLookupSessionFactoryProfilingCounters ProfilingCounters_;
     const NLogging::TLogger SessionLogger_;
-    const TLookupSessionClientManagerPtr ClientManager_;
+    const TLookupSessionClientFactoryPtr ClientFactory_;
 
     TAtomicIntrusivePtr<TLookupSessionConfig> Config_;
 };
@@ -522,6 +593,8 @@ private:
 
     static constexpr auto ConsumerClusterColumnName_ = "consumer_cluster";
     static constexpr auto ConsumerPathColumnName_ = "consumer_path";
+    static constexpr auto ConsumerNameColumnName_ = "consumer_name";
+    static constexpr auto NamedMultiConsumersPlaceholderValueName_ = "named_multi_consumers";
     static constexpr auto ConsumersPlaceholderValueName_ = "consumers";
 
     std::vector<std::vector<TConsumerRegistrationTableRow>> DoLookup(TConsumerRegistrationTablePtr table) const override
@@ -558,8 +631,7 @@ private:
         return result;
     }
 
-private:
-    TFuture<THashMap<TQueuePath, std::vector<TConsumerRegistrationTableRow>>> ListByQueue(const TConsumerRegistrationTablePtr& table) const
+    TFuture<THashMap<TTablePath, std::vector<TConsumerRegistrationTableRow>>> ListByQueue(const TConsumerRegistrationTablePtr& table) const
     {
         static const auto query = Format(
             "([%v], [%v]) IN {%v}",
@@ -567,10 +639,9 @@ private:
             QueuePathColumnName_,
             QueuesPlaceholderValueName_);
 
-        std::vector<std::pair<TString, TString>> queues;
+        std::vector<std::pair<std::string, std::string>> queues;
         for (const auto& key : Keys_) {
             if (auto queue = key.Queue; queue.has_value()) {
-                YT_VERIFY(queue->GetCluster().has_value());
                 queues.emplace_back(queue->GetCluster().value(), queue->GetPath());
             }
         }
@@ -588,32 +659,48 @@ private:
             }));
     }
 
-    TFuture<THashMap<TConsumerPath, std::vector<TConsumerRegistrationTableRow>>> ListByConsumer(const TConsumerRegistrationTablePtr& table) const
+    TFuture<THashMap<TConsumerReference, std::vector<TConsumerRegistrationTableRow>>> ListByConsumer(const TConsumerRegistrationTablePtr& table) const
     {
         static const auto query = Format(
-            "([%v], [%v]) IN {%v}",
+            "([%v], [%v], [%v]) IN {%v} OR ([%v], [%v]) IN {%v}",
+            ConsumerClusterColumnName_,
+            ConsumerPathColumnName_,
+            ConsumerNameColumnName_,
+            NamedMultiConsumersPlaceholderValueName_,
             ConsumerClusterColumnName_,
             ConsumerPathColumnName_,
             ConsumersPlaceholderValueName_);
 
-        std::vector<std::pair<TString, TString>> consumers;
+        std::vector<std::tuple<std::string, std::string>> consumers;
+        std::vector<std::tuple<std::string, std::string, std::string>> namedMultiConsumers;
         for (const auto& key : Keys_) {
             if (auto consumer = key.Consumer; consumer.has_value()) {
-                YT_VERIFY(consumer->GetCluster().has_value());
-                consumers.emplace_back(consumer->GetCluster().value(), consumer->GetPath());
+                if (consumer->GetQueueConsumerName()) {
+                    namedMultiConsumers.emplace_back(consumer->GetCluster().value(), consumer->GetPath(), *consumer->GetQueueConsumerName());
+                } else {
+                    consumers.emplace_back(consumer->GetCluster().value(), consumer->GetPath());
+                }
             }
         }
 
         TSelectRowsOptions options;
         options.PlaceholderValues = BuildYsonStringFluently()
             .BeginMap()
+                .Item(NamedMultiConsumersPlaceholderValueName_).Value(std::move(namedMultiConsumers))
                 .Item(ConsumersPlaceholderValueName_).Value(std::move(consumers))
             .EndMap();
 
         return table->Select(query, options)
             .AsUnique()
             .Apply(BIND([] (std::vector<TConsumerRegistrationTableRow>&& result) {
-                return GroupBy([] (const auto& v) { return v.Consumer; }, std::move(result));
+                auto getKeys = [] (const auto& v) {
+                    if (v.Consumer.GetQueueConsumerName()) {
+                        return std::vector<TConsumerReference>{v.Consumer, TConsumerReference(ToTablePath(v.Consumer))};
+                    } else {
+                        return std::vector<TConsumerReference>{v.Consumer};
+                    }
+                };
+                return GroupByMany(getKeys, std::move(result));
             }));
     }
 };
@@ -661,7 +748,7 @@ private:
             // Current implementation somewhat mirrors the old one, but not exactly, as both choose random corresponding CRT.
             // TODO(apachee): In case of chaos replicas only choose CRTs that own its replication card.
             auto replica = row.ReplicaPath;
-            replicaMapping.emplace(replica, std::move(row));
+            replicaMapping.insert_or_assign(replica, std::move(row));
         }
 
         std::vector<std::optional<TReplicaMappingTableRow>> result;
@@ -779,7 +866,7 @@ private:
     public:
         using TReq = TStateLookupBatchSubrequest<TKey, TValue>;
 
-        static constexpr auto StartupBatchDelayJitter = 0.1;
+        static constexpr double StartupBatchDelayJitter = 0.1;
 
         TLookupRequestBatcher(
             TWeakPtr<NNative::IConnection> connection,
@@ -810,10 +897,11 @@ private:
                     SetResponse(request, error);
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Failed to set error response for batched requests upon destruction");
+                YT_TLOG_ERROR("Failed to set error response for batched requests upon destruction")
+                    .With(ex);
             }
 
-            YT_LOG_DEBUG("Lookup request batcher destroyed");
+            YT_TLOG_DEBUG("Lookup request batcher destroyed");
         }
 
         //! Request a lookup that will be batched along with some other lookup requests.
@@ -918,7 +1006,7 @@ private:
             if (shouldRunBatch) {
                 if (initialBatch) {
                     YT_UNUSED_FUTURE(RunInitialBatch());
-                    YT_LOG_DEBUG("Lookup request batcher started");
+                    YT_TLOG_DEBUG("Lookup request batcher started");
                 } else /*!initialBatch*/ {
                     YT_UNUSED_FUTURE(RunBatchThrottled());
                 }
@@ -960,16 +1048,17 @@ private:
 
             if (requests.empty()) {
                 // NB(apachee): Not possible by design, a batch is run on a new lookup request with no active batch in progress.
-                YT_LOG_ALERT("Batch ran without any requests");
+                YT_TLOG_ALERT("Batch ran without any requests");
                 return;
             }
 
             if (!throttleError.IsOK()) {
                 // Something went really wrong, reply to all requests with an error.
 
-                YT_LOG_DEBUG(throttleError, "Unexpected batch request throttler failure");
+                YT_TLOG_DEBUG("Unexpected batch request throttler failure")
+                    .With(throttleError);
                 auto error = TError("Unexpected batch request throttler failure")
-                    << std::move(throttleError);
+                    .With(std::move(throttleError));
 
                 for (const auto& request : requests) {
                     SetResponse(request, error);
@@ -983,7 +1072,8 @@ private:
 
         void RunBatch(std::vector<TReq> requests)
         {
-            YT_LOG_DEBUG("State lookup batch request started (RequestCount: %v)", requests.size());
+            YT_TLOG_DEBUG("State lookup batch request started")
+                .With("RequestCount", requests.size());
 
             YT_VERIFY(!requests.empty());
 
@@ -1003,7 +1093,7 @@ private:
                 responses = session->Run();
             } catch (const std::exception& ex) {
                 auto error = TError("State lookup batch request failed")
-                    << ex;
+                    .With(ex);
 
                 for (const auto& request : requests) {
                     SetResponse(request, error);
@@ -1016,7 +1106,7 @@ private:
                 SetResponse(request, std::move(response));
             }
 
-            YT_LOG_DEBUG("State lookup batch request completed successfully");
+            YT_TLOG_DEBUG("State lookup batch request completed successfully");
         }
 
         TFuture<void> RunInitialBatch()
@@ -1048,18 +1138,17 @@ private:
                     startupBatchDelayWithJitter,
                     Logger = Logger
                 ] {
-                    YT_LOG_DEBUG(
-                        "Waiting for startup batch delay before running initial batch (Delay: %v)",
-                        startupBatchDelayWithJitter);
+                    YT_TLOG_DEBUG("Waiting for startup batch delay before running initial batch")
+                        .With("Delay", startupBatchDelayWithJitter);
                     TDelayedExecutor::WaitForDuration(startupBatchDelayWithJitter);
 
                     auto strongThis = weakThis.Lock();
                     if (!strongThis) {
-                        YT_LOG_DEBUG("Failed to run initial batch due to expired batcher object");
+                        YT_TLOG_DEBUG("Failed to run initial batch due to expired batcher object");
                         return;
                     }
 
-                    YT_LOG_DEBUG("Running initial batch");
+                    YT_TLOG_DEBUG("Running initial batch");
                     DoRunBatchThrottled(/*initialBatch*/ true);
                 })
                 .AsyncVia(Invoker_)
@@ -1076,9 +1165,12 @@ private:
                 // okay, as each subrequest corresponds to some RPC call. This significantly
                 // simplifies debugging as errors could be searched via RPC call trace id.
                 if (value.IsOK()) {
-                    YT_LOG_DEBUG("Batch state lookup request completed successfully (Key: %v)", req.Key);
+                    YT_TLOG_DEBUG("Batch state lookup request completed successfully")
+                        .With("Key", req.Key);
                 } else {
-                    YT_LOG_DEBUG(value, "Batch state lookup request failed (Key: %v)", req.Key);
+                    YT_TLOG_DEBUG("Batch state lookup request failed")
+                        .With("Key", req.Key)
+                        .With(value);
                 }
             }
 
@@ -1109,10 +1201,9 @@ private:
             LookupSessionFactory_->Reconfigure(/*newLookupSessionConfig*/ newConfig);
 
             if (oldConfig->Table != newConfig->Table) {
-                YT_LOG_DEBUG(
-                    "Invalidating all cache entries, since table path has changed (OldTablePath: %v, NewTablePath: %v)",
-                    oldConfig->Table,
-                    newConfig->Table);
+                YT_TLOG_DEBUG("Invalidating all cache entries, since table path has changed")
+                    .With("OldTablePath", oldConfig->Table)
+                    .With("NewTablePath", newConfig->Table);
                 TBase::Clear();
             }
         }
@@ -1125,8 +1216,8 @@ private:
     static TError EnrichError(TError error, bool isBatched = false)
     {
         return error
-            << TErrorAttribute("cache_kind", Format("%lv", CacheKind))
-            << TErrorAttribute("lookup_request_batched", isBatched);
+            .With("cache_kind", Format("%lv", CacheKind))
+            .With("lookup_request_batched", isBatched);
     }
 
     TFuture<TValue> DoGet(
@@ -1200,12 +1291,14 @@ private:
 
     void OnAdded(const TKey& key) noexcept override
     {
-        YT_LOG_DEBUG("State lookup added to cache (Key: %v)", key);
+        YT_TLOG_DEBUG("State lookup added to cache")
+            .With("Key", key);
     }
 
     void OnRemoved(const TKey& key) noexcept override
     {
-        YT_LOG_DEBUG("State lookup removed from cache (Key: %v)", key);
+        YT_TLOG_DEBUG("State lookup removed from cache")
+            .With("Key", key);
     }
 
     TCompoundStateLookupCacheConfigPtr GetConfig() const
@@ -1225,7 +1318,7 @@ auto CreateCache(
     IInvokerPtr invoker,
     const TQueueConsumerRegistrationManagerConfigPtr& config)
 {
-    static const TString CacheKindTag = Format("%lv", TCache::CacheKind);
+    static const std::string CacheKindTag = Format("%lv", TCache::CacheKind);
 
     // With prefix we get these names:
     // - QueueConsumerRegistrationLookup,
@@ -1233,7 +1326,7 @@ auto CreateCache(
     // - QueueConsumerReplicaMappingLookup.
     static constexpr TStringBuf CacheNamePrefix = "QueueConsumer";
     logger = std::move(logger)
-        .WithTag("Cache: %v%v", CacheNamePrefix, TCache::CacheKind);
+        .WithTagFormat("Cache", "%v%v", CacheNamePrefix, TCache::CacheKind);
 
     profiler = profiler
         .WithPrefix("/lookup_cache")
@@ -1312,12 +1405,12 @@ private:
     TReplicaMappingLookupCachePtr ReplicaMappingLookupCache_;
 
     std::optional<TConsumerRegistrationTableRow> DoFindRegistration(
-        NYPath::TRichYPath resolvedQueue,
-        NYPath::TRichYPath resolvedConsumer) override
+        TTablePath resolvedQueue,
+        TConsumerReference resolvedConsumer) override
     {
         auto resultOrError = WaitFor(RegistrationLookupCache_->Get(TRegistrationCacheKey(
-            TTablePath::FromRichYPathSafe(resolvedQueue), TGenericObjectPath::FromRichYPathSafe(resolvedConsumer)
-        )));
+            std::move(resolvedQueue),
+            std::move(resolvedConsumer))));
 
         if (!resultOrError.IsOK()) {
             // NB(apachee): Error for missing registration is handled in base class.
@@ -1326,38 +1419,39 @@ private:
             }
 
             THROW_ERROR_EXCEPTION("Queue consumer registration resolution failed")
-                << TError(std::move(resultOrError));
+                .With(TError(std::move(resultOrError)));
         }
 
         return resultOrError.Value();
     }
 
     std::vector<TConsumerRegistrationTableRow> DoListRegistrations(
-        std::optional<NYPath::TRichYPath> resolvedQueue,
-        std::optional<NYPath::TRichYPath> resolvedConsumer) override
+        std::optional<TTablePath> resolvedQueue,
+        std::optional<TConsumerReference> resolvedConsumer) override
     {
         YT_VERIFY(resolvedQueue || resolvedConsumer);
 
         std::vector<TConsumerRegistrationTableRow> result;
 
         try {
-            result = DoListRegistrationsGuarded(resolvedQueue, resolvedConsumer);
+            result = DoListRegistrationsGuarded(std::move(resolvedQueue), std::move(resolvedConsumer));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to list queue consumer registrations")
-                << ex;
+                .With(ex);
         }
 
         return result;
     }
 
     std::vector<TConsumerRegistrationTableRow> DoListRegistrationsGuarded(
-        std::optional<NYPath::TRichYPath> resolvedQueue,
-        std::optional<NYPath::TRichYPath> resolvedConsumer)
+        std::optional<TTablePath> resolvedQueue,
+        std::optional<TConsumerReference> resolvedConsumer)
     {
         // NB(apachee): #TListRegistrationsCache is only used for listing registrations by queue or consumer.
         if (resolvedQueue && resolvedConsumer) {
             auto registrationOrError = WaitFor(RegistrationLookupCache_->Get(TRegistrationCacheKey(
-                TQueuePath::FromRichYPathSafe(*resolvedQueue), TConsumerPath::FromRichYPathSafe(*resolvedConsumer))));
+                std::move(*resolvedQueue),
+                std::move(*resolvedConsumer))));
 
             if (!registrationOrError.IsOK() && !registrationOrError.FindMatching(EErrorCode::DynamicStateMissingRow)) {
                 THROW_ERROR_EXCEPTION(registrationOrError);
@@ -1368,7 +1462,8 @@ private:
                 : std::vector<TConsumerRegistrationTableRow>();
         }
 
-        return WaitFor(ListRegistrationsCache_->Get(TListRegistrationsCacheKey(resolvedQueue.transform(TQueuePath::FromRichYPathSafe), resolvedConsumer.transform(TConsumerPath::FromRichYPathSafe))))
+        TListRegistrationsCacheKey key(std::move(resolvedQueue), std::move(resolvedConsumer));
+        return WaitFor(ListRegistrationsCache_->Get(key))
             .ValueOrThrow();
     }
 
@@ -1392,7 +1487,7 @@ private:
         // TODO(apachee): Re-work this code for better clarity as mentioned above.
 
         auto resultOrError = WaitFor(ReplicaMappingLookupCache_->Get(TReplicaMappingCacheKey{
-            .Replica = TTablePath::FromRichYPathSafe(objectPath),
+            .Replica = TTablePath::FromRichYPath(objectPath),
         }));
 
         if (tableMountInfo->UpstreamReplicaId != NullObjectId) {
@@ -1404,11 +1499,10 @@ private:
 
         if (resultOrError.IsOK() && resultOrError.Value().has_value()) {
             auto result = resultOrError.Value()->ReplicatedTablePath;
-            YT_LOG_DEBUG(
-                "Using corresponding replicated table path in request instead of replica path (ReplicaPath: %v, ReplicatedTablePath: %v)",
-                objectPath,
-                result);
-            return NYPath::TRichYPath(std::move(result));
+            YT_TLOG_DEBUG("Using corresponding replicated table path in request instead of replica path")
+                .With("ReplicaPath", objectPath)
+                .With("ReplicatedTablePath", result);
+            return TRichYPath(std::move(result));
         }
 
         if (tableMountInfo->UpstreamReplicaId != NullObjectId && throwOnFailure) {
@@ -1421,7 +1515,7 @@ private:
                     "Cannot perform request for replica %Qv with unknown [chaos_]replicated_table; please contact YT support,"
                     " unless you specifically understand what this error means",
                     objectPath)
-                    << TError(std::move(resultOrError));
+                    .With(TError(std::move(resultOrError)));
             }
         }
 
@@ -1438,10 +1532,9 @@ private:
         ListRegistrationsCache_->Reconfigure(newConfig);
         ReplicaMappingLookupCache_->Reconfigure(newConfig);
 
-        YT_LOG_DEBUG(
-            "Queue consumer registration manager dynamic config changed (OldConfig: %v, NewConfig: %v)",
-            ConvertToYsonString(oldConfig, EYsonFormat::Text),
-            ConvertToYsonString(newConfig, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Queue consumer registration manager dynamic config changed")
+            .With("OldConfig", ConvertToYsonString(oldConfig, EYsonFormat::Text))
+            .With("NewConfig", ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
     void RefreshCache() override
@@ -1466,7 +1559,7 @@ private:
         ListRegistrationsCache_->Clear();
         ReplicaMappingLookupCache_->Clear();
 
-        YT_LOG_DEBUG("Cleared queue consumer registration manager cache");
+        YT_TLOG_DEBUG("Cleared queue consumer registration manager cache");
     }
 
     void BuildOrchid(NYTree::TFluentAny fluent) override
@@ -1524,7 +1617,7 @@ TQueueConsumerRegistrationManagerBasePtr CreateQueueConsumerRegistrationManagerN
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NYT::NQueueClient::NDetail
+} // namespace NYT::NQueueClient::NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 

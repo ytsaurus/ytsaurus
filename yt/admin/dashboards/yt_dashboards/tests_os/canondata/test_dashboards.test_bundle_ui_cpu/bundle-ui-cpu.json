@@ -1,0 +1,705 @@
+{
+    "panels": [
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 24,
+                "x": 0,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_total_cpu\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\"\"}) / (100)",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Node CPU usage (all threads)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 24,
+                "x": 0,
+                "y": 6
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_cpu_wait\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\"\"}) / (100)",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "CPU wait (all threads)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 12
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(1, {cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_thread_count\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\"TabletLookup\"}))",
+                    "legendFormat": "\"Limit\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_total_cpu\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\"TabletLookup\"}) / (100)",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "B"
+                }
+            ],
+            "title": "TabletLookup thread pool CPU usage",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 12
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(1, {cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_thread_count\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\"Query\"}))",
+                    "legendFormat": "\"Limit\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_total_cpu\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\"Query\"}) / (100)",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "B"
+                }
+            ],
+            "title": "Query thread pool CPU usage",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 18
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(1, {cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_thread_count\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\"TabletSlot.*\"}))",
+                    "legendFormat": "\"Limit\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_total_cpu\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\"TabletSlot.*\"}) / (100)",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "B"
+                }
+            ],
+            "title": "TabletSlot thread pool CPU usage",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 18
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(1, {cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_thread_count\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\"Compression\"}))",
+                    "legendFormat": "\"Limit\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_total_cpu\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\"Compression\"}) / (100)",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "B"
+                }
+            ],
+            "title": "Compression thread pool CPU usage",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 24
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(1, {cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_thread_count\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\"StoreCompact\"}))",
+                    "legendFormat": "\"Limit\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_total_cpu\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\"StoreCompact\"}) / (100)",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "B"
+                }
+            ],
+            "title": "StoreCompact thread pool CPU usage",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 24
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(1, {cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_thread_count\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\"ChunkReader\"}))",
+                    "legendFormat": "\"Limit\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_total_cpu\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\"ChunkReader\"}) / (100)",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "B"
+                }
+            ],
+            "title": "ChunkReader thread pool CPU usage",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 30
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(1, {cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_thread_count\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\"BusXfer|BusXferFS\"}))",
+                    "legendFormat": "\"Limit\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_total_cpu\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\"BusXfer|BusXferFS\"}) / (100)",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "B"
+                }
+            ],
+            "title": "BusXfer thread pool CPU usage",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 30
+            },
+            "options": {
+                "content": "",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 36
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(10, {cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_utilization\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\".+\"}))",
+                    "legendFormat": "\"{{thread}} {{container}}\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "(topk(10, (({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_total_cpu\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\".+\"}) / (100)) / ({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_thread_count\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\".+\"})))",
+                    "legendFormat": "\"{{thread}} {{container}}\"",
+                    "refId": "B"
+                }
+            ],
+            "title": "Threads utilization",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 36
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(10, (rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_action_queue_time_cumulative\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\".+\"}[$__rate_interval])) / ({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_thread_count\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\", thread=~\".+\"})))",
+                    "legendFormat": "\"{{thread}} {{container}}\"",
+                    "refId": "A"
+                }
+            ],
+            "title": "Action queue utilization",
+            "type": "timeseries"
+        }
+    ],
+    "tags": [],
+    "templating": {
+        "list": [
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "hide": 0,
+                "label": "Cluster",
+                "name": "cluster",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": "sys",
+                    "value": "sys"
+                },
+                "hide": 0,
+                "label": "Tablet cell bundle",
+                "name": "tablet_cell_bundle",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "sys",
+                        "value": "sys"
+                    }
+                ],
+                "query": "sys",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "default_for_ui": ".*",
+                "hide": 0,
+                "label": "Pod",
+                "name": "pod",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            }
+        ]
+    },
+    "title": "Bundle CPU [Autogenerated]"
+}

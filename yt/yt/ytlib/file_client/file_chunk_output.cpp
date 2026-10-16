@@ -51,7 +51,7 @@ TFileChunkOutput::TFileChunkOutput(
     IThroughputThrottlerPtr throttler,
     IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     i64 sizeLimit)
-    : Logger(FileClientLogger().WithTag("TransactionId: %v", transactionId))
+    : Logger(FileClientLogger().WithTag("TransactionId", transactionId))
     , Config_(std::move(config))
     , Options_(std::move(options))
     , Client_(std::move(client))
@@ -85,13 +85,13 @@ void TFileChunkOutput::DoFinish()
     EnsureOpen();
 
     if (GetSize() > 0) {
-        YT_LOG_INFO("Closing file writer");
+        YT_TLOG_INFO("Closing file writer");
 
         WaitFor(FileChunkWriter_->Close())
             .ThrowOnError();
     }
 
-    YT_LOG_INFO("File writer closed");
+    YT_TLOG_INFO("File writer closed");
 }
 
 TChunkId TFileChunkOutput::GetChunkId() const
@@ -105,7 +105,7 @@ void TFileChunkOutput::EnsureOpen()
         return;
     }
 
-    YT_LOG_INFO("Opening file chunk output");
+    YT_TLOG_INFO("Opening file chunk output");
 
     const auto& connection = Client_->GetNativeConnection();
 
@@ -131,11 +131,11 @@ void TFileChunkOutput::EnsureOpen()
         WriteBlocksOptions_,
         DataSink_);
 
-    YT_LOG_INFO("File chunk output opened (Account: %v, ReplicationFactor: %v, MediumName: %v, CellTag: %v)",
-        Options_->Account,
-        Options_->ReplicationFactor,
-        Options_->MediumName,
-        cellTag);
+    YT_TLOG_INFO("File chunk output opened")
+        .With("Account", Options_->Account)
+        .With("ReplicationFactor", Options_->ReplicationFactor)
+        .With("MediumName", Options_->MediumName)
+        .With("CellTag", cellTag);
 
     Open_ = true;
 }

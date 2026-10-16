@@ -13,10 +13,9 @@ namespace NYT::NYqlPlugin {
 
 using TQueryId = TGuid;
 
-class TVanillaJobFile
+struct TVanillaJobFile
     : public NYTree::TYsonStruct
 {
-public:
     TString Name;
     TString LocalPath;
 
@@ -29,11 +28,11 @@ DEFINE_REFCOUNTED_TYPE(TVanillaJobFile)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDQYTBackend
+struct TDQYTBackend
     : public NYTree::TYsonStruct
 {
-public:
     TString ClusterName;
+    TString ProxyAddress;
     ui32 JobsPerOperation;
     ui32 MaxJobs;
     TString VanillaJobLite;
@@ -41,6 +40,7 @@ public:
     std::vector<TVanillaJobFilePtr> VanillaJobFiles;
     TString Prefix;
     ui32 UploadReplicationFactor;
+    TString Token;
     TString TokenFile;
     TString User;
     TString Pool;
@@ -51,6 +51,8 @@ public:
     i64 MemoryLimit;
     i64 CacheSize;
     bool UseTmpFs;
+    std::optional<ui32> MinNodeId;
+    std::optional<ui32> MaxNodeId;
     TString NetworkProject;
     bool CanUseComputeActor;
     bool EnforceJobUtc;
@@ -66,12 +68,13 @@ DEFINE_REFCOUNTED_TYPE(TDQYTBackend)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDQYTCoordinator
+struct TDQYTCoordinator
     : public NYTree::TYsonStruct
 {
-public:
     TString ClusterName;
+    TString ProxyAddress;
     TString Prefix;
+    TString Token;
     TString TokenFile;
     TString User;
     TString DebugLogFile;
@@ -92,11 +95,15 @@ struct TDQManagerConfig
     ui16 GrpcPort;
     ui32 ActorThreads;
     bool UseIPv4;
+    bool EnableCliqueWarmup;
     std::vector<TDQYTBackendPtr> YTBackends;
     TDQYTCoordinatorPtr YTCoordinator;
 
     //! Address resolver used in DQ operation. Is taken from singletons config if not set.
     NNet::TAddressResolverConfigPtr AddressResolver;
+
+    //! DQ scheduler settings. Fields from NYql::NProto::TDqConfig::TScheduler with snake case keys.
+    NYTree::INodePtr Scheduler;
 
     //! DQ Interconnect Settings. Fields from NYql::NProto::TDqConfig::TICSettings with snake case keys.
     NYTree::INodePtr ICSettings;
@@ -176,14 +183,17 @@ struct TYqlPluginConfig
     //! Fields from NYql::TFileStorageConfig with snake case keys.
     NYTree::INodePtr FileStorageConfig;
 
+    //! Fields from NYql::TYtTvmConfig with snake case keys.
+    NYTree::INodePtr TvmConfig;
+
+    //! Fields from NYql::TYtAccessProviderConfig with snake case keys.
+    NYTree::INodePtr YtAccessProviderConfig;
+
     NYTree::INodePtr OperationAttributes;
 
     THashMap<TString, TString> Libraries;
 
     TString YTTokenPath;
-
-    //! Path to libyqlplugin.so. Ignored when built with -DYQL_NATIVE=yes.
-    std::optional<TString> YqlPluginSharedLibrary;
 
     std::vector<TAdditionalSystemLibPtr> AdditionalSystemLibs;
 
@@ -195,6 +205,23 @@ struct TYqlPluginConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TYqlPluginConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TYqlPluginDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    NYson::TYsonString GatewaysConfig;
+    TString MaxSupportedYqlVersion;
+
+    THashMap<TString, TString> ProtoGatewaysConfigs;
+
+    REGISTER_YSON_STRUCT(TYqlPluginDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TYqlPluginDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

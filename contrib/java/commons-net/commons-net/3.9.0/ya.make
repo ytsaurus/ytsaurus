@@ -1,0 +1,13 @@
+JAVA_CONTRIB()
+
+VERSION(3.9.0)
+
+LICENSE(Apache-2.0)
+
+JAR_RESOURCE(5227623999)
+
+SRC_RESOURCE(5227624022)
+
+ORIGINAL_SOURCE(https://gitbox.apache.org/repos/asf/commons-net)
+
+END()

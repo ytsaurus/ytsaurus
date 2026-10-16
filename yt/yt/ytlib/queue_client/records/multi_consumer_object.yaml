@@ -1,0 +1,31 @@
+namespace: NYT::NQueueClient::NRecords
+
+types:
+  - type_name: TMultiConsumerNameObject
+    descriptor_verbatim: static constexpr TStringBuf Name = "multi_consumer_names";
+    fields:
+      - cpp_name: Cluster
+        cpp_type: std::string
+        column_name: cluster
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: Path
+        cpp_type: NYPath::TYPath
+        column_name: path
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: Name
+        cpp_type: std::string
+        column_name: name
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: QueueAgentStage
+        cpp_type: std::optional<std::string>
+        column_name: queue_agent_stage
+        column_type: String

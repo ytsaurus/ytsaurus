@@ -72,8 +72,10 @@ class TestArrow(object):
     def test_empty_arrow_reader(self):
         table = TEST_DIR + "/empty_table"
         yt.create("table", table, attributes={"schema": [{"name": "key", "type": "string"}]})
-        res_arrow = yt.read_table(table, format=self._create_format(raw=True))
-        assert len(res_arrow.read()) == 0
+        stream = yt.read_table(table, format=self._create_format(raw=True))
+        parsed_table = self._parse_arrow_stream(stream.read())
+        assert parsed_table.column_names == ["key"]
+        assert parsed_table.num_rows == 0
 
     @authors("nadya02")
     def test_arrow_writer(self):

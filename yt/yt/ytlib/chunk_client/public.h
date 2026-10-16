@@ -168,6 +168,23 @@ DEFINE_ENUM(EChunkListContentType,
     ((Hunk)                   (1))
 );
 
+DEFINE_ENUM(EChunkListKind,
+    ((Static)                 (0))
+    ((SortedDynamicRoot)      (1))
+    ((SortedDynamicTablet)    (2))
+    ((OrderedDynamicRoot)     (3))
+    ((OrderedDynamicTablet)   (4))
+    ((SortedDynamicSubtablet) (5))
+    ((JournalRoot)            (6))
+    ((HunkRoot)               (7))
+    ((Hunk)                   (8))
+    ((HunkStorageRoot)        (9))
+    ((HunkTablet)            (10))
+    // A mere holder of chunks: any chunk (sealed or not, of any format) may be attached, and no
+    // statistics are maintained or propagated.
+    ((Scratch)               (11))
+);
+
 //! Chunk availability is determined by `TChunkScraperAvailabilityPolicy`.
 //! - If the policy is `TMetadataAvailable`: a chunk is unavailable when it has no replicas.
 //! - Otherwise: a chunk is unavailable when `IsUnavailable()` returns true for the given policy and erasure codec.
@@ -191,6 +208,7 @@ DECLARE_REFCOUNTED_STRUCT(TBlockCacheDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TClientChunkMetaCacheConfig)
 DECLARE_REFCOUNTED_STRUCT(TChunkScraperConfig)
 DECLARE_REFCOUNTED_STRUCT(TChunkTeleporterConfig)
+DECLARE_REFCOUNTED_STRUCT(TMediumDirectorySynchronizerTestingConfig)
 DECLARE_REFCOUNTED_STRUCT(TMediumDirectorySynchronizerConfig)
 DECLARE_REFCOUNTED_STRUCT(TChunkReplicaCacheConfig)
 DECLARE_REFCOUNTED_STRUCT(TChunkReplicaCacheDynamicConfig)
@@ -225,11 +243,13 @@ DECLARE_REFCOUNTED_STRUCT(IClientBlockCache)
 
 DECLARE_REFCOUNTED_CLASS(TMemoryWriter)
 
+DECLARE_REFCOUNTED_CLASS(TJobIoMeter)
+
 DECLARE_REFCOUNTED_CLASS(TInputChunk)
 DECLARE_REFCOUNTED_CLASS(TInputChunkSlice)
 DECLARE_REFCOUNTED_CLASS(TWeightedInputChunk)
 
-DECLARE_REFCOUNTED_STRUCT(TLegacyDataSlice)
+DECLARE_REFCOUNTED_CLASS(TDataSlice)
 
 DECLARE_REFCOUNTED_CLASS(TDataSource)
 DECLARE_REFCOUNTED_CLASS(TDataSourceDirectory)

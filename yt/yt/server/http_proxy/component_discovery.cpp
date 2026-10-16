@@ -35,6 +35,7 @@ bool IsComponentOptional(EClusterComponentType component)
         case EClusterComponentType::QueueAgent:
         case EClusterComponentType::QueryTracker:
         case EClusterComponentType::CypressProxy:
+        case EClusterComponentType::TimestampProxy:
             return true;
         default:
             return false;
@@ -142,8 +143,8 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::ListClusterNodes(EC
 
         if (instance.Online && (!version || !startTime)) {
             instance.Error = TError("Component is missing some of the required attributes in response")
-                << TErrorAttribute("version", version)
-                << TErrorAttribute("start_time", startTime);
+                .With("version", version)
+                .With("start_time", startTime);
         }
 
         instances.push_back(instance);
@@ -201,8 +202,8 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::ListProxies(ECluste
             instance.Banned = banned.value_or(false);
         } else {
             instance.Error = TError("Cannot find required attributes in response")
-                << TErrorAttribute("version", version)
-                << TErrorAttribute("start_time", startTime);
+                .With("version", version)
+                .With("start_time", startTime);
         }
 
         if (component == EClusterComponentType::RpcProxy) {
@@ -404,6 +405,8 @@ TYPath TComponentDiscoverer::GetCypressDirectory(EClusterComponentType component
             return "//sys/query_tracker/instances";
         case EClusterComponentType::CypressProxy:
             return "//sys/cypress_proxies";
+        case EClusterComponentType::TimestampProxy:
+            return "//sys/timestamp_proxies";
         case EClusterComponentType::RpcProxy:
             return RpcProxiesPath;
         case EClusterComponentType::HttpProxy:
@@ -429,6 +432,7 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::GetInstances(EClust
         case EClusterComponentType::QueueAgent:
         case EClusterComponentType::QueryTracker:
         case EClusterComponentType::CypressProxy:
+        case EClusterComponentType::TimestampProxy:
             return GetAttributes(
                 component,
                 GetCypressSubpaths(Client_, MasterReadOptions_, component),

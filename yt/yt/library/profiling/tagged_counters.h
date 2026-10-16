@@ -2,7 +2,7 @@
 
 #include "tag.h"
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <util/generic/hash.h>
 
@@ -21,7 +21,7 @@ public:
     T Get(const NProfiling::TTagSet& tagSet);
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<NProfiling::TTagList, T> Counters_;
 };
 

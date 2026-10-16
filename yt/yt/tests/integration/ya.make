@@ -26,8 +26,10 @@ RECURSE(
     size_l
     size_m
     size_s
+    s3
     fake_blackbox
     yt_cli
+    stress
 )
 
 IF (NOT OPENSOURCE)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from .init_queue_agent_state import create_tables_latest_version as create_queue_agent_state_tables
+from .init_queue_agent_state import create_tables as create_queue_agent_state_tables
 
 from yt.wrapper.constants import UI_ADDRESS_PATTERN
 
@@ -512,7 +512,10 @@ def _initialize_world_for_local_cluster(client, environment, yt_config):
         if client.exists("//sys/users/root/@allow_create_secondary_indices"):
             client.set("//sys/users/root/@allow_create_secondary_indices", True)
 
-        create_queue_agent_state_tables(client)
+        create_queue_agent_state_tables(
+            client,
+            target_version=yt_config.queue_agent_state_target_version,
+        )
 
     logger.info("World initialization for local cluster completed")
 

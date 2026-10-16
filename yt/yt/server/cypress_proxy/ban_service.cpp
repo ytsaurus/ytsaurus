@@ -3,9 +3,7 @@
 #include "private.h"
 
 #include "bootstrap.h"
-#include "config.h"
 #include "dynamic_config_manager.h"
-#include "helpers.h"
 
 #include <yt/yt/server/lib/cross_cluster_replicated_state/cross_cluster_replicated_state.h>
 #include <yt/yt/server/lib/cross_cluster_replicated_state/cross_cluster_replicated_value.h>
@@ -16,6 +14,8 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/client/security_client/public.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -39,7 +39,7 @@ public:
         : TServiceBase(
             bootstrap->GetInvoker("BanService"),
             GetDescriptor(),
-            CypressProxyLogger().WithTag("BanService"),
+            CypressProxyLogger().WithTag("Component", "BanService"),
             NRpc::TServiceOptions{
                 .Authenticator = bootstrap->GetNativeAuthenticator(),
             })
@@ -92,13 +92,15 @@ public:
             try {
                 Enable();
             } catch (const TErrorException& error) {
-                YT_LOG_ALERT(error, "Failed to enable ban service");
+                YT_TLOG_ALERT("Failed to enable ban service")
+                    .With(error);
             }
         } else {
             try {
                 Disable();
             } catch (const TErrorException& error) {
-                YT_LOG_ERROR(error, "Failed to disable ban service");
+                YT_TLOG_ERROR("Failed to disable ban service")
+                    .With(error);
             }
         }
     }
@@ -126,7 +128,9 @@ private:
     {
         auto targetUser = std::string(request->user_name());
         auto banned = request->is_banned();
-        context->SetRequestInfo("TargetUser: %v, IsBanned: %v", targetUser, banned);
+        context->AnnotateRequest()
+            .With("TargetUser", targetUser)
+            .With("IsBanned", banned);
 
         ThrowIfDisabled();
 
@@ -137,20 +141,22 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NBanClient::NProto, GetUserBanned)
     {
         auto targetUser = std::string(request->user_name());
-        context->SetRequestInfo("TargetUser: %v", targetUser);
+        context->AnnotateRequest()
+            .With("TargetUser", targetUser);
 
         ThrowIfDisabled();
 
         auto isBanned = GetBannedConsistently(targetUser);
         response->set_is_banned(isBanned);
 
-        context->SetResponseInfo("IsBanned: %v", isBanned);
+        context->AnnotateResponse()
+            .With("IsBanned", isBanned);
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NBanClient::NProto, ListBannedUsers)
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
         ThrowIfDisabled();
 
         for (const auto& bannedUser : ListBanned()) {
@@ -164,12 +170,13 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        YT_LOG_DEBUG("Starting ban cache refresh iteration");
+        YT_TLOG_DEBUG("Starting ban cache refresh iteration");
         auto crossClusterReplicatedState = CrossClusterReplicatedState_;
         YT_ASSERT(crossClusterReplicatedState);
         auto fetchedVersions = WaitFor(crossClusterReplicatedState->FetchVersions());
         if (!fetchedVersions.IsOK()) {
-            YT_LOG_ALERT(fetchedVersions, "Cannot fetch versions");
+            YT_TLOG_ALERT("Cannot fetch versions")
+                .With(fetchedVersions);
             return;
         }
 
@@ -195,7 +202,9 @@ private:
             try {
                 version = ExtractVersion(userNode);
             } catch (const TErrorException& error) {
-                YT_LOG_ALERT(error, "Failed to extract version of user %qv entry", user);
+                YT_TLOG_ALERT("Failed to extract version of user entry")
+                    .With("User", user)
+                    .With(error);
                 continue;
             }
             auto isBanned = userNode->GetChildValueOrDefault("is_banned", false);
@@ -217,6 +226,11 @@ private:
 
     void SetBanned(const std::string& user, bool isBanned)
     {
+        if (isBanned && user == NSecurityClient::RootUserName) {
+            THROW_ERROR_EXCEPTION("User %Qv cannot be banned",
+                user);
+        }
+
         auto userValue = CrossClusterReplicatedState_->Value(GetTag(), TYPath(user));
         auto nodeFactory = NYTree::CreateEphemeralNodeFactory();
         auto node = nodeFactory->CreateMap();
@@ -245,7 +259,7 @@ private:
         if (IsEnabled_.load()) {
             THROW_ERROR_EXCEPTION("Attempt to enable running ban service");
         }
-        YT_LOG_DEBUG("Enabling ban service");
+        YT_TLOG_DEBUG("Enabling ban service");
 
         WaitFor(Bootstrap_->GetNativeConnection()->GetClusterDirectorySynchronizer()->GetFirstSuccessfulSyncFuture())
             .ThrowOnError();
@@ -253,7 +267,7 @@ private:
         CrossClusterReplicaLockWaiter_ = CreateCrossClusterReplicaLockWaiter(
             Bootstrap_->GetControlInvoker(),
             replicatedStateConfig,
-            CypressProxyLogger().WithTag("BanService"));
+            CypressProxyLogger().WithTag("Component", "BanService"));
 
         CrossClusterReplicatedState_ = CreateCrossClusterReplicatedState(
             CreateCrossClusterClient(
@@ -261,7 +275,7 @@ private:
                 replicatedStateConfig,
                 NApi::NNative::TClientOptions::FromUser(replicatedStateConfig->User)),
             CrossClusterReplicaLockWaiter_,
-            replicatedStateConfig, CypressProxyLogger().WithTag("BanService"));
+            replicatedStateConfig, CypressProxyLogger().WithTag("Component", "BanService"));
 
         WaitFor(CrossClusterReplicatedState_->ValidateStateDirectories())
             .ThrowOnError();
@@ -284,7 +298,7 @@ private:
         if (!IsEnabled_.load()) {
             THROW_ERROR_EXCEPTION("Attempt to disable a non-running ban service");
         }
-        YT_LOG_DEBUG("Disabling ban service");
+        YT_TLOG_DEBUG("Disabling ban service");
 
         IsEnabled_.store(false);
         WaitFor(BanCacheRefreshExecutor_->Stop())
@@ -331,4 +345,4 @@ IBanServicePtr CreateBanService(IBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NCypressProxy
+} // namespace NYT::NCypressProxy

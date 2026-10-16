@@ -355,8 +355,6 @@ void TSortedChunkStore::Initialize()
         upperBoundIsExclusive = false;
     }
 
-    ClippingRange_ = MakeSingletonRowRange(MinKey_, UpperBoundKey_);
-
     CompactionHints_.Initialize(this);
 
     if (UpperBoundKey_ < MinKey_) {
@@ -373,11 +371,10 @@ void TSortedChunkStore::Initialize()
         int prefixLength = std::min(MinKey_.GetCount(), UpperBoundKey_.GetCount());
 
         auto onFailure = [&] {
-            YT_LOG_ALERT("Sorted chunk store has invalid key bounds "
-                "(ChunkId: %v, MinKey: %v, UpperBoundKey: %v)",
-                GetChunkId(),
-                MinKey_,
-                UpperBoundKey_);
+            YT_TLOG_ALERT("Sorted chunk store has invalid key bounds")
+                .With("ChunkId", GetChunkId())
+                .With("MinKey", MinKey_)
+                .With("UpperBoundKey", UpperBoundKey_);
         };
 
         if (!upperBoundIsExclusive) {
@@ -411,8 +408,6 @@ void TSortedChunkStore::Initialize()
 
         UpperBoundKey_ = WidenKey(UpperBoundKey_, KeyColumnCount_);
         YT_VERIFY(UpperBoundKey_ == MinKey_);
-
-        ClippingRange_ = MakeSingletonRowRange(MinKey_, UpperBoundKey_);
     }
 }
 
@@ -494,10 +489,9 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     }
 
     ranges = NColumnarChunkFormat::ClipRanges(
-        ranges,
-        ClippingRange_.Front().first,
-        ClippingRange_.Front().second,
-        ClippingRange_.GetHolder());
+        std::move(ranges),
+        MinKey_,
+        UpperBoundKey_);
 
     // Fast lane:
     // - ranges do not intersect with chunk view;
@@ -899,7 +893,7 @@ private:
                     backendReaders.ChunkReader,
                     chunkReadOptions,
                     *xorFilterMeta,
-                    std::move(keys));
+                    keys);
             }
         }
 
@@ -1010,13 +1004,14 @@ private:
                 /*testingOptions*/ std::nullopt,
                 TabletNodeLogger());
 
+            auto chunkReader = CreateIndexedVersionedChunkReader(
+                chunkReadOptions,
+                std::move(controller),
+                std::move(backendReaders.ChunkReader),
+                tabletSnapshot->ChunkFragmentReader);
             MaybeWrapUnderlyingReader(
                 chunkStore,
-                CreateIndexedVersionedChunkReader(
-                    std::move(chunkReadOptions),
-                    std::move(controller),
-                    std::move(backendReaders.ChunkReader),
-                    tabletSnapshot->ChunkFragmentReader),
+                chunkReader,
                 chunkReadOptions);
             return;
         }
@@ -1028,7 +1023,7 @@ private:
                 std::move(backendReaders.ReaderConfig),
                 std::move(backendReaders.ChunkReader),
                 chunkState->BlockCache,
-                std::move(chunkReadOptions),
+                chunkReadOptions,
                 chunkMeta);
 
             MaybeWrapUnderlyingReader(
@@ -1183,7 +1178,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     // NB: This is a fast path for in-memory readers to avoid extra wrapper.
     // We could do the same for ext-memory readers but there is no need.
     bool needKeyRangeFiltering = skippedBefore > 0 || skippedAfter > 0;
-    bool needTimestampResetting = OverrideTimestamp_;
+    bool needTimestampResetting = OverrideTimestamp_ != NullTimestamp;
     if (!needKeyRangeFiltering && !needTimestampResetting) {
         // Check for in-memory reads.
         if (auto chunkState = FindPreloadedChunkState()) {
@@ -1309,12 +1304,12 @@ bool TSortedChunkStore::CheckRowLocks(
         NTabletClient::EErrorCode::CannotCheckConflictsAgainstChunkStore,
         "Checking for transaction conflicts against chunk stores is not supported; "
         "consider reducing transaction duration or increasing store retention time")
-        << TErrorAttribute("transaction_id", transaction->GetId())
-        << TErrorAttribute("transaction_start_time", transaction->GetStartTime())
-        << TErrorAttribute("tablet_id", TabletId_)
-        << TErrorAttribute("table_path", TablePath_)
-        << TErrorAttribute("store_id", StoreId_)
-        << TErrorAttribute("key", RowToKey(row));
+        .With("transaction_id", transaction->GetId())
+        .With("transaction_start_time", transaction->GetStartTime())
+        .With("tablet_id", TabletId_)
+        .With("table_path", TablePath_)
+        .With("store_id", StoreId_)
+        .With("key", RowToKey(row));
     return false;
 }
 
@@ -1373,11 +1368,11 @@ void TSortedChunkStore::PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* 
     }
 
     if (OverrideTimestamp_) {
-        chunkViewDescriptor->set_override_timestamp(OverrideTimestamp_);
+        chunkViewDescriptor->set_override_timestamp(ToProto(OverrideTimestamp_));
     }
 
     if (MaxClipTimestamp_) {
-        chunkViewDescriptor->set_max_clip_timestamp(MaxClipTimestamp_);
+        chunkViewDescriptor->set_max_clip_timestamp(ToProto(MaxClipTimestamp_));
     }
 }
 
@@ -1454,10 +1449,10 @@ void TSortedChunkStore::ValidateBlockSize(
             const auto& miscExt = chunkMeta->Misc();
             if (miscExt.max_data_block_size() > *blockSizeLimit) {
                 THROW_ERROR_EXCEPTION("Maximum block size limit violated")
-                    << TErrorAttribute("tablet_id", TabletId_)
-                    << TErrorAttribute("chunk_id", GetId())
-                    << TErrorAttribute("block_size", miscExt.max_data_block_size())
-                    << TErrorAttribute("block_size_limit", *blockSizeLimit);
+                    .With("tablet_id", TabletId_)
+                    .With("chunk_id", GetId())
+                    .With("block_size", miscExt.max_data_block_size())
+                    .With("block_size_limit", *blockSizeLimit);
             }
         }
     }
@@ -1697,12 +1692,11 @@ TSharedRange<TRowRange> TSortedChunkStore::MaybePerformXorRangeFiltering(
             }
         }
 
-        YT_LOG_DEBUG("Performed range filtering "
-            "(InitialRangeCount: %v, FilteredRangeCount: %v, ChunkId: %v, ReadSessionId: %v)",
-            ranges.Size(),
-            filteredRanges.size(),
-            ChunkId_,
-            chunkReadOptions.ReadSessionId);
+        YT_TLOG_DEBUG("Performed range filtering")
+            .With("InitialRangeCount", ranges.Size())
+            .With("FilteredRangeCount", filteredRanges.size())
+            .With("ChunkId", ChunkId_)
+            .With("ReadSessionId", chunkReadOptions.ReadSessionId);
 
         if (const auto& keyFilterStatistics = chunkReadOptions.KeyFilterStatistics) {
             keyFilterStatistics->InputEntryCount.fetch_add(ssize(ranges), std::memory_order::relaxed);

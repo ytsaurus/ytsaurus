@@ -9,7 +9,7 @@ namespace NYT::NPython {
 ////////////////////////////////////////////////////////////////////////////////
 
 Py::Exception CreateSkiffError(
-    const TString& message,
+    const std::string& message,
     const TError& error,
     const TSkiffRowContext* rowContext = nullptr);
 

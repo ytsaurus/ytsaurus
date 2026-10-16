@@ -2,6 +2,7 @@
 
 #include "mkql_function_metadata.h"
 
+#include <yql/essentials/minikql/runtime_settings/runtime_settings.h>
 #include <yql/essentials/public/langver/yql_langver.h>
 #include <yql/essentials/public/udf/udf_counter.h>
 #include <yql/essentials/public/udf/udf_registrator.h>
@@ -58,6 +59,7 @@ public:
 
     virtual TStatus FindFunctionTypeInfo(
         NYql::TLangVersion langver,
+        const NYql::TRuntimeSettings& runtimeSettings,
         const TTypeEnvironment& env,
         NUdf::ITypeInfoHelper::TPtr typeInfoHelper,
         NUdf::ICountersProvider* countersProvider,
@@ -90,8 +92,6 @@ public:
     using TFunctionsMap = std::map<TString, TFunctionProperties>;
 
     virtual TFunctionsMap GetModuleFunctions(const TStringBuf& moduleName) const = 0;
-
-    virtual bool SupportsSizedAllocators() const = 0;
 };
 
 //////////////////////////////////////////////////////////////////////////////

@@ -10,6 +10,7 @@ void RegisterTableFunctions()
     RegisterTableFunctionsListDir();
     RegisterTableFunctionYtListLogTables();
     RegisterTableFunctionYtNodeAttributes();
+    RegisterTableFunctionYtQueueExports();
     RegisterTableFunctionYtSecondaryQuery();
     RegisterTableFunctionYtTables();
 }

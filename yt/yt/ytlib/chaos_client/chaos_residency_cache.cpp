@@ -97,10 +97,6 @@ public:
         IConnectionPtr connection,
         const NLogging::TLogger& logger);
 
-    void Reconfigure(TChaosResidencyCacheConfigPtr config) override;
-
-    TChaosResidencyCacheConfigPtr GetCacheConfig() const;
-
 protected:
     class TGetSession;
 
@@ -108,9 +104,6 @@ protected:
         const TObjectId& objectId,
         const TCellTag& oldValue,
         bool forceRefresh) override;
-
-private:
-    TAtomicIntrusivePtr<TChaosResidencyCacheConfig> Config_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -150,17 +143,16 @@ public:
         , Type_(ToString(TypeFromId(objectId)))
         , CellTag_(cellTag)
         , Logger(logger
-            .WithTag("ObjectId: %v, Type: %v, CacheSessionId: %v",
-                ObjectId_,
-                Type_,
-                TGuid::Create()))
+            .WithTag("ObjectId", ObjectId_)
+            .WithTag("Type", Type_)
+            .WithTag("CacheSessionId", TGuid::Create()))
     { }
 
     virtual TFuture<TCellTag> Run() = 0;
 
 protected:
     const TObjectId ObjectId_;
-    const TString Type_;
+    const std::string Type_;
     const TCellTag CellTag_;
 
     const NLogging::TLogger Logger;
@@ -243,7 +235,7 @@ TFuture<TCellTag> TChaosResidencyCacheBase::DoGet(
         return MakeFuture<TCellTag>(
             TError("Unable to locate %Qlv: connection terminated",
                 TypeFromId(objectId))
-                << TErrorAttribute("object_id", objectId));
+                .With("object_id", objectId));
     }
 
     auto invoker = connection->GetInvoker();
@@ -300,7 +292,7 @@ public:
 
     bool IsPresent() const
     {
-        return !IsAbsent() && !IsNonExistent();
+        return !IsAbsent() && !IsNonExistent() && !IsCellUnavailable();
     }
 
     TCellTag GetCellTag() const
@@ -340,10 +332,6 @@ public:
 
         auto defaultTimeout = connection->GetConfig()->DefaultChaosNodeServiceTimeout;
         auto channelFuture = EnsureChaosCellChannel(connection, CellTag_);
-        // COMPAT(osidorkin)
-        if (Owner_->GetCacheConfig()->UseHasChaosObject) {
-            return RunWithHasChaosObject(connection, std::move(channelFuture), defaultTimeout);
-        }
 
         auto checkLastSeenResidencyFuture = channelFuture.IsSet()
             ? CheckLastSeenResidency(
@@ -358,137 +346,7 @@ public:
                 CellTag_,
                 defaultTimeout));
 
-        auto fullLookupFuture = checkLastSeenResidencyFuture.AsUnique().Apply(BIND(
-            [
-                this,
-                this_ = MakeStrong(this),
-                connection = std::move(connection),
-                defaultTimeout
-            ] (TErrorOr<TCellTag>&& sameResidency) {
-                auto sameResidencyValue = sameResidency.ValueOrDefault(InvalidCellTag);
-                if (sameResidencyValue != InvalidCellTag) {
-                    return MakeFuture(sameResidencyValue);
-                }
-
-                return LookForObjectOnAllChaosCells(
-                    connection->GetCellDirectory(),
-                    defaultTimeout);
-            }
-        ));
-
-        return fullLookupFuture;
-    }
-
-private:
-    const TIntrusivePtr<TChaosResidencyMasterCache> Owner_;
-
-    static TFuture<TCellTag> CheckLastSeenResidency(
-        const TObjectId& objectId,
-        TCellTag cellTag,
-        TDuration timeout,
-        IChannelPtr&& channel)
-    {
-        if (!channel) {
-            return MakeFuture(InvalidCellTag);
-        }
-
-        auto proxy = TChaosNodeServiceProxy(channel);
-        proxy.SetDefaultTimeout(timeout);
-
-        auto req = proxy.FindChaosObject();
-        ToProto(req->mutable_chaos_object_id(), objectId);
-
-        return req->Invoke()
-            .AsUnique().Apply(BIND(
-                [
-                    cellTag = cellTag
-                ] (TErrorOr<TChaosNodeServiceProxy::TRspFindChaosObjectPtr>&& rspOrError) {
-                    return rspOrError.IsOK() ? cellTag : InvalidCellTag;
-                }
-            ));
-    }
-
-    TFuture<TCellTag> LookForObjectOnAllChaosCells(
-        const ICellDirectoryPtr& cellDirectory,
-        TDuration timeout)
-    {
-        std::vector<TFuture<void>> foundFutures;
-        std::vector<TCellTag> futureCellTags;
-        auto chaosCellTags = GetChaosCellTags(cellDirectory);
-
-        for (auto cellTag : chaosCellTags) {
-            auto channel = cellDirectory->FindChannelByCellTag(cellTag);
-            if (!channel) {
-                continue;
-            }
-
-            auto proxy = TChaosNodeServiceProxy(channel);
-            proxy.SetDefaultTimeout(timeout);
-
-            auto req = proxy.FindChaosObject();
-            ToProto(req->mutable_chaos_object_id(), ObjectId_);
-            foundFutures.push_back(req->Invoke().AsVoid());
-
-            futureCellTags.push_back(cellTag);
-        }
-
-        YT_LOG_DEBUG("Looking for %v on chaos cells (ChaosCellTags: %v)",
-            Type_,
-            futureCellTags);
-
-        return AnyNSucceeded(foundFutures, 1).Apply(BIND(
-            [
-                type = Type_,
-                objectId = ObjectId_,
-                foundFutures = std::move(foundFutures),
-                futureCellTags = std::move(futureCellTags)
-            ] (const TErrorOr<void>& errorOr) {
-                if (!errorOr.IsOK()) {
-                    if (auto resolveError = errorOr.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                        THROW_ERROR *resolveError;
-                    }
-
-                    THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %Qlv %v",
-                        type,
-                        objectId)
-                    << errorOr;
-                }
-
-                for (int index = 0; index < std::ssize(foundFutures); ++index) {
-                    const auto& future = foundFutures[index];
-                    if (!future.IsSet()) {
-                        continue;
-                    }
-
-                    if (const auto& result = future.GetOrCrash(); result.IsOK()) {
-                        return futureCellTags[index];
-                    }
-                }
-
-                YT_ABORT();
-            }
-        ));
-    }
-
-    TFuture<TCellTag> RunWithHasChaosObject(
-        const IConnectionPtr& connection,
-        TFuture<IChannelPtr>&& channelFuture,
-        TDuration defaultTimeout)
-    {
-        auto checkLastSeenResidencyFuture = channelFuture.IsSet()
-            ? CheckLastSeenResidencyViaIsChaosObjectExistent(
-                ObjectId_,
-                CellTag_,
-                defaultTimeout,
-                std::move(channelFuture.AsUnique().GetOrCrash()
-                    .ValueOrDefault(nullptr)))
-            : channelFuture.AsUnique().Apply(BIND(
-                TGetSession::CheckLastSeenResidencyViaIsChaosObjectExistent,
-                ObjectId_,
-                CellTag_,
-                defaultTimeout));
-
-        auto fullLookupFuture = checkLastSeenResidencyFuture.AsUnique().Apply(BIND(
+        return checkLastSeenResidencyFuture.AsUnique().Apply(BIND(
             [
                 this,
                 this_ = MakeStrong(this),
@@ -499,8 +357,8 @@ private:
                     const auto& sameResidencyValue = sameResidency.Value();
                     if (sameResidencyValue.IsNonExistent()) {
                         THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "No such chaos object")
-                            << TErrorAttribute("chaos_object_id", ObjectId_)
-                            << TErrorAttribute("chaos_object_type", TypeFromId(ObjectId_));
+                            .With("chaos_object_id", ObjectId_)
+                            .With("chaos_object_type", TypeFromId(ObjectId_));
                     }
 
                     if (sameResidencyValue.IsPresent()) {
@@ -509,14 +367,15 @@ private:
                 }
 
                 // Cell is unavailable or replication card is absent.
-                return LookForObjectOnAllChaosCellsViaIsChaosObjectExistent(
+                return LookForObjectOnAllChaosCells(
                     connection->GetCellDirectory(),
                     defaultTimeout);
             }
         ));
-
-        return fullLookupFuture;
     }
+
+private:
+    const TIntrusivePtr<TChaosResidencyMasterCache> Owner_;
 
     static TFuture<TChaosObjectLocationResult> CheckResidency(
         IChannelPtr&& channel,
@@ -548,7 +407,7 @@ private:
         ));
     }
 
-    static TFuture<TChaosObjectLocationResult> CheckLastSeenResidencyViaIsChaosObjectExistent(
+    static TFuture<TChaosObjectLocationResult> CheckLastSeenResidency(
         const TObjectId& objectId,
         TCellTag cellTag,
         TDuration timeout,
@@ -561,7 +420,7 @@ private:
         return CheckResidency(std::move(channel), objectId, timeout, cellTag);
     }
 
-    TFuture<TCellTag> LookForObjectOnAllChaosCellsViaIsChaosObjectExistent(
+    TFuture<TCellTag> LookForObjectOnAllChaosCells(
         const ICellDirectoryPtr& cellDirectory,
         TDuration timeout)
     {
@@ -569,6 +428,8 @@ private:
         std::vector<TCellTag> futureCellTags;
         auto chaosCellTags = GetChaosCellTags(cellDirectory);
 
+        foundFutures.reserve(chaosCellTags.size());
+        futureCellTags.reserve(chaosCellTags.size());
         for (auto cellTag : chaosCellTags) {
             auto channel = cellDirectory->FindChannelByCellTag(cellTag);
             if (!channel) {
@@ -579,7 +440,7 @@ private:
                 CheckResidency(std::move(channel), ObjectId_, timeout, cellTag)
                 .AsUnique().Apply(BIND([] (TErrorOr<TChaosObjectLocationResult>&& result) {
                     if (!result.IsOK() || !result.Value().IsAbsent()) {
-                        return result;
+                        return std::move(result);
                     }
 
                     return TErrorOr<TChaosObjectLocationResult>(
@@ -588,9 +449,14 @@ private:
             futureCellTags.push_back(cellTag);
         }
 
-        YT_LOG_DEBUG("Looking for %v on chaos cells (ChaosCellTags: %v)",
-            Type_,
-            futureCellTags);
+        YT_TLOG_DEBUG("Looking for object on chaos cells")
+            .With("ChaosCellTags", futureCellTags);
+
+        if (foundFutures.empty()) {
+            // All channels are unavailable.
+            return MakeFuture<TCellTag>(
+                TError(NRpc::EErrorCode::Unavailable, "Unable to locate object: all chaos cells are unavailable"));
+        }
 
         return AnySucceeded(std::move(foundFutures))
             .AsUnique().Apply(BIND(CombinedLookupHandler, ObjectId_, Type_));
@@ -598,19 +464,19 @@ private:
 
     static TErrorOr<TCellTag> CombinedLookupHandler(
         TChaosObjectId objectId,
-        const TString& type,
+        const std::string& type,
         TErrorOr<TChaosObjectLocationResult>&& errorOrCellTag)
     {
         if (!errorOrCellTag.IsOK()) {
             return TError(NRpc::EErrorCode::Unavailable, "Unable to locate %Qlv %v", type, objectId)
-                << errorOrCellTag;
+                .With(std::move(errorOrCellTag));
         }
 
         const auto& locationResult = errorOrCellTag.Value();
         if (locationResult.IsNonExistent()) {
             return TError(NYTree::EErrorCode::ResolveError, "No such chaos object")
-                << TErrorAttribute("chaos_object_id", objectId)
-                << TErrorAttribute("chaos_object_type", TypeFromId(objectId));
+                .With("chaos_object_id", objectId)
+                .With("chaos_object_type", TypeFromId(objectId));
         }
 
         return locationResult.GetCellTag();
@@ -661,22 +527,10 @@ TChaosResidencyMasterCache::TChaosResidencyMasterCache(
     IConnectionPtr connection,
     const NLogging::TLogger& logger)
     : TChaosResidencyCacheBase(
-        config,
+        std::move(config),
         std::move(connection),
         logger)
-    , Config_(std::move(config))
 { }
-
-void TChaosResidencyMasterCache::Reconfigure(TChaosResidencyCacheConfigPtr config)
-{
-    Config_.Store(config);
-    TChaosResidencyCacheBase::Reconfigure(std::move(config));
-}
-
-TChaosResidencyCacheConfigPtr TChaosResidencyMasterCache::GetCacheConfig() const
-{
-    return Config_.Acquire();
-}
 
 TIntrusivePtr<TChaosResidencyCacheBase::TGetSessionBase> TChaosResidencyMasterCache::CreateGetSession(
     const TObjectId& objectId,
@@ -724,21 +578,25 @@ public:
             ObjectId_,
             req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext));
 
-        YT_LOG_DEBUG("Requesting master cache");
+        YT_TLOG_DEBUG("Requesting master cache");
         return req->Invoke().AsUnique().Apply(BIND(
             [
                 type = Type_,
                 objectId = ObjectId_
             ] (TErrorOr<TChaosNodeServiceProxy::TRspGetChaosObjectResidencyPtr>&& resultOrError) {
-            if (!resultOrError.IsOK()) {
-                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %Qlv %v",
-                    type,
-                    objectId)
-                    << resultOrError;
-            }
+                if (!resultOrError.IsOK()) {
+                    if (auto resolveError = resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                        THROW_ERROR *resolveError;
+                    }
 
-            return FromProto<TCellTag>(resultOrError.Value()->chaos_object_cell_tag());
-        }));
+                    THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %Qlv %v",
+                        type,
+                        objectId)
+                        .With(std::move(resultOrError));
+                }
+
+                return FromProto<TCellTag>(resultOrError.Value()->chaos_object_cell_tag());
+            }));
     }
 
 private:
@@ -755,8 +613,8 @@ TChaosResidencyClientCache::TChaosResidencyClientCache(
     const NLogging::TLogger& logger)
     : TChaosResidencyCacheBase(
         std::move(config),
-        connection,
-        std::move(logger))
+        std::move(connection),
+        logger)
     , ChaosCacheChannel_(std::move(chaosCacheChannel))
 { }
 
@@ -811,9 +669,7 @@ IChaosResidencyCachePtr CreateChaosResidencyCache(
 
     if (chaosChannelConfigAddressesInvalid) {
         const auto& Logger = logger;
-        YT_LOG_WARNING(
-            "Chaos cache channel addresses are present but empty, "
-            "falling back to master cache variant of chaos residency cache");
+        YT_TLOG_WARNING("Chaos cache channel addresses are present but empty, falling back to master cache variant of chaos residency cache");
     }
 
     if (!isClientCache || !chaosCacheChannelConfig || chaosChannelConfigAddressesInvalid) {

@@ -43,7 +43,7 @@ public:
 private:
     struct TUninitialized
     {
-        bool operator==(const TUninitialized& uninitializedTag) const = default;
+        bool operator==(const TUninitialized& /*uninitializedTag*/) const = default;
         void Persist(const auto& /*context*/);
     };
 

@@ -2,6 +2,7 @@
 
 #include <yt/yt/client/table_client/key.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/private.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/column_rename_descriptor.h>
 
@@ -121,11 +122,11 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta, bool compres
 
         CompressedBlockLastKeys_ = NColumnarChunkFormat::CompressBlockLastKeys(blockLastKeys, std::move(blockChunkRowCounts), ChunkSchema_);
 
-        YT_LOG_DEBUG("Compressed block last keys (UncompressedSize: %v, CompressedSize: %v, CompressionRatio: %v, Count: %v)",
-            BlockLastKeysSize_,
-            CompressedBlockLastKeys_->GetByteSize(),
-            double(CompressedBlockLastKeys_->GetByteSize()) / BlockLastKeysSize_,
-            DataBlockMeta_->data_blocks_size());
+        YT_TLOG_DEBUG("Compressed block last keys")
+            .With("UncompressedSize", BlockLastKeysSize_)
+            .With("CompressedSize", CompressedBlockLastKeys_->GetByteSize())
+            .With("CompressionRatio", double(CompressedBlockLastKeys_->GetByteSize()) / BlockLastKeysSize_)
+            .With("Count", DataBlockMeta_->data_blocks_size());
 
         BlockLastKeysSize_ = CompressedBlockLastKeys_->GetByteSize();
         BlockLastKeys_.Reset();
@@ -163,13 +164,14 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
         (ColumnGroupInfos_ ? ColumnGroupInfos_->GetSize() * metaMemoryFactor : 0) +
         (ColumnMeta_ ? ColumnMeta_->GetSize() * metaMemoryFactor : 0) +
         ChunkSchema_->GetMemoryUsage() +
+        (ChunkNameTable_ ? ChunkNameTable_->GetByteSize() : 0) +
         (sizeof(HunkChunkRefs_[0]) * HunkChunkRefs_.size()) +
         (sizeof(HunkChunkMetas_[0]) * HunkChunkMetas_.size());
 }
 
 const TSharedRange<TUnversionedRow>& TColumnarChunkMeta::BlockLastKeys() const
 {
-    THROW_ERROR_EXCEPTION_IF(CompressedBlockLastKeys_, "Unsupported in compress_block_last_keys mode")
+    THROW_ERROR_EXCEPTION_IF(CompressedBlockLastKeys_, "Unsupported in compress_block_last_keys mode");
     return BlockLastKeys_;
 }
 

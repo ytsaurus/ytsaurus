@@ -18,7 +18,9 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
+
+#include <library/cpp/yt/string/string.h>
 
 namespace NYT::NDataNode {
 
@@ -54,7 +56,7 @@ TLocationManager::TLocationManager(
 }
 
 TFuture<void> TLocationManager::FailDiskByName(
-    const TString& diskName,
+    const std::string& diskName,
     const TError& error)
 {
     if (!DiskInfoProvider_) {
@@ -72,9 +74,9 @@ TFuture<void> TLocationManager::FailDiskByName(
                         error.GetMessage())
                         .Apply(BIND([=] (const TError& result) {
                             if (!result.IsOK()) {
-                                YT_LOG_INFO(result,
-                                    "Error marking the disk as failed (DiskName: %v)",
-                                    diskInfo.DeviceName);
+                                YT_TLOG_INFO("Error marking the disk as failed")
+                                    .With("DiskName", diskInfo.DeviceName)
+                                    .With(result);
                             }
                         }));
                 }
@@ -136,8 +138,8 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
     for (const auto& location : locations) {
         auto it = diskNameToDisk.find(location->GetStaticConfig()->DeviceName);
         if (it == diskNameToDisk.end()) {
-            YT_LOG_WARNING("Unknown location disk (DeviceName: %v)",
-                location->GetStaticConfig()->DeviceName);
+            YT_TLOG_WARNING("Unknown location disk")
+                .With("DeviceName", location->GetStaticConfig()->DeviceName);
             continue;
         }
 
@@ -191,9 +193,9 @@ std::vector<TGuid> TLocationManager::DoDisableLocations(const THashSet<TGuid>& l
         if (locationUuids.contains(location->GetUuid())) {
             // Manual location disable.
             auto result = location->ScheduleDisable(TError("Manual location disabling")
-                << TErrorAttribute("location_uuid", location->GetUuid())
-                << TErrorAttribute("location_path", location->GetPath())
-                << TErrorAttribute("location_disk", location->GetStaticConfig()->DeviceName));
+                .With("location_uuid", location->GetUuid())
+                .With("location_path", location->GetPath())
+                .With("location_disk", location->GetStaticConfig()->DeviceName));
 
             if (result) {
                 locationsForDisable.push_back(location->GetUuid());
@@ -224,7 +226,8 @@ std::vector<TGuid> TLocationManager::DoDestroyLocations(bool recoverUnlinkedDisk
         for (const auto& diskId : unlinkedDiskIds) {
             YT_UNUSED_FUTURE(RecoverDisk(diskId)
                 .Apply(BIND([] (const TError& result) {
-                    YT_LOG_INFO_IF(!result.IsOK(), result);
+                    YT_TLOG_INFO_IF(!result.IsOK(), "Failed to recover unlinked disk")
+                        .With(result);
                 })));
         }
     }
@@ -329,11 +332,8 @@ TLocationHealthChecker::TLocationHealthChecker(
 {
     for (auto diskState : TEnumTraits<EDiskState>::GetDomainValues()) {
         for (auto storageClass : TEnumTraits<EStorageClass>::GetDomainValues()) {
-            auto diskStateName = TString(FormatEnum(diskState));
-            auto diskFamilyName = TString(FormatEnum(storageClass));
-
-            diskStateName.to_upper();
-            diskFamilyName.to_upper();
+            auto diskStateName = AsciiStringToUpper(FormatEnum(diskState));
+            auto diskFamilyName = AsciiStringToUpper(FormatEnum(storageClass));
 
             Gauges_[diskState][storageClass] = Profiler_
                 .WithTags(TTagSet(TTagList{
@@ -388,30 +388,33 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
 
     // Fast path.
     if (!hotSwapEnabled.IsOK()) {
-        YT_LOG_DEBUG(hotSwapEnabled);
+        YT_TLOG_DEBUG("Failed to get hot swap state")
+            .With(hotSwapEnabled);
         return;
     }
 
     if (!hotSwapEnabled.Value()) {
-        YT_LOG_DEBUG(hotSwapEnabled, "Hot swap disabled");
+        YT_TLOG_DEBUG("Hot swap disabled")
+            .With(hotSwapEnabled);
         return;
     }
 
     auto result = WaitFor(LocationManager_->UpdateDiskCache());
 
     if (!result.IsOK()) {
-        YT_LOG_WARNING(result, "Failed to update disk cache");
+        YT_TLOG_WARNING("Failed to update disk cache")
+            .With(result);
     }
 
     auto diskInfosOrError = WaitFor(LocationManager_->GetDiskInfos());
 
     // Fast path.
     if (!diskInfosOrError.IsOK()) {
-        YT_LOG_EVENT(
+        YT_TLOG_EVENT(
             Logger,
             diskInfosOrError.FindMatching(NRpc::EErrorCode::NoSuchService) ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Info,
-            diskInfosOrError,
-            "Failed to list disk infos");
+            "Failed to list disk infos")
+            .With(diskInfosOrError);
         return;
     }
 
@@ -460,20 +463,20 @@ void TLocationHealthChecker::HandleHotSwap(std::vector<TDiskInfo> diskInfos)
             diskFailedAlertsMap[diskInfo.DiskId] = TError(
                 NChunkClient::EErrorCode::DiskFailed,
                 "Disk failed, need hot swap")
-                << TErrorAttribute("disk_id", diskInfo.DiskId)
-                << TErrorAttribute("disk_model", diskInfo.DiskModel)
-                << TErrorAttribute("disk_state", diskInfo.State)
-                << TErrorAttribute("disk_path", diskInfo.DevicePath)
-                << TErrorAttribute("disk_name", diskInfo.DeviceName);
+                .With("disk_id", diskInfo.DiskId)
+                .With("disk_model", diskInfo.DiskModel)
+                .With("disk_state", diskInfo.State)
+                .With("disk_path", diskInfo.DevicePath)
+                .With("disk_name", diskInfo.DeviceName);
         } else if (diskInfo.State == NDiskManager::EDiskState::RecoverWait) {
             diskWaitingReplacementAlertsMap[diskInfo.DiskId] = TError(
                 NChunkClient::EErrorCode::DiskWaitingReplacement,
                 "Disk is waiting replacement")
-                << TErrorAttribute("disk_id", diskInfo.DiskId)
-                << TErrorAttribute("disk_model", diskInfo.DiskModel)
-                << TErrorAttribute("disk_state", diskInfo.State)
-                << TErrorAttribute("disk_path", diskInfo.DevicePath)
-                << TErrorAttribute("disk_name", diskInfo.DeviceName);
+                .With("disk_id", diskInfo.DiskId)
+                .With("disk_model", diskInfo.DiskModel)
+                .With("disk_state", diskInfo.State)
+                .With("disk_path", diskInfo.DevicePath)
+                .With("disk_name", diskInfo.DeviceName);
         }
     }
 

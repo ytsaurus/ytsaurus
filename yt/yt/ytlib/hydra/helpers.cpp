@@ -25,7 +25,7 @@ void SwitchLeader(
     const std::optional<std::string>& user)
 {
     {
-        YT_LOG_INFO("Validating new leader");
+        YT_TLOG_INFO("Validating new leader");
 
         THydraServiceProxy proxy(newLeaderChannel);
         auto req = proxy.GetPeerState();
@@ -43,7 +43,7 @@ void SwitchLeader(
             auto error = TError(rspOrError);
             // COMPAT(gritukan)
             if (error.FindMatching(NRpc::EErrorCode::NoSuchMethod)) {
-                YT_LOG_INFO("Remote Hydra is too old, leader validation cannot be performed");
+                YT_TLOG_INFO("Remote Hydra is too old, leader validation cannot be performed");
             } else {
                 THROW_ERROR error;
             }
@@ -51,7 +51,7 @@ void SwitchLeader(
     }
 
     {
-        YT_LOG_INFO("Preparing switch at current leader");
+        YT_TLOG_INFO("Preparing switch at current leader");
 
         THydraServiceProxy proxy(currentLeaderChannel);
         auto req = proxy.PrepareLeaderSwitch();
@@ -62,7 +62,7 @@ void SwitchLeader(
     }
 
     {
-        YT_LOG_INFO("Synchronizing new leader with the current one");
+        YT_TLOG_INFO("Synchronizing new leader with the current one");
 
         THydraServiceProxy proxy(newLeaderChannel);
         auto req = proxy.ForceSyncWithLeader();
@@ -78,7 +78,7 @@ void SwitchLeader(
         user);
 
     {
-        YT_LOG_INFO("Restarting new leader with priority boost armed");
+        YT_TLOG_INFO("Restarting new leader with priority boost armed");
 
         THydraServiceProxy proxy(newLeaderChannel);
         auto req = proxy.ForceRestart();
@@ -91,7 +91,7 @@ void SwitchLeader(
     }
 
     {
-        YT_LOG_INFO("Restarting all other peers");
+        YT_TLOG_INFO("Restarting all other peers");
 
         YT_VERIFY(peerChannels.size() == addresses.size());
         for (int peerId = 0; peerId < std::ssize(peerChannels); ++peerId) {

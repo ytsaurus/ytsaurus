@@ -59,7 +59,7 @@ TError WrapCypressProxyRegistrationError(TError error)
     }
 
     return TError(NRpc::EErrorCode::Unavailable, "Cypress proxy is not registered")
-        << std::move(error);
+        .With(std::move(error));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,7 +81,8 @@ TError WrapRetriableResolveError(const TError& error, NCypressClient::TNodeId re
                 return *id == resolvedNodeId;
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to parse resolve error attribute");
+            YT_TLOG_ALERT("Failed to parse resolve error attribute")
+                .With(ex);
         }
 
         return false;
@@ -104,7 +105,7 @@ TError WrapRetriableResolveError(const TError& error, NCypressClient::TNodeId re
     return TError(
         NSequoiaClient::EErrorCode::SequoiaRetriableError,
         "Object was resolved in Sequoia but missing on master")
-        << error;
+        .With(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -190,8 +191,8 @@ void ValidateLinkNodeCreation(
 
     if (checkCyclicity(targetPath, linkPath)) {
         THROW_ERROR_EXCEPTION("Failed to create link: link is cyclic")
-            << TErrorAttribute("target_path", targetPath)
-            << TErrorAttribute("path", linkPath);
+            .With("target_path", targetPath)
+            .With("path", linkPath);
     }
 }
 
@@ -344,9 +345,9 @@ TError CheckPrerequisiteRevisionsPaths(
         return TError(
             NObjectClient::EErrorCode::PrerequisitePathDifferFromExecutionPaths,
             "Requests with prerequisite paths different from target paths are prohibited in Cypress ")
-            << TErrorAttribute("prerequisite_path", revision.Path)
-            << TErrorAttribute("target_path", originalTargetPath)
-            << TErrorAttribute("additional_path", originalSourcePath);
+            .With("prerequisite_path", revision.Path)
+            .With("target_path", originalTargetPath)
+            .With("additional_path", originalSourcePath);
     }
 
     return TError();
@@ -376,7 +377,7 @@ TError CheckPrerequisiteTransactions(
 
     auto transactionRowsOrError = WaitFor(sequoiaClient->LookupRows(transactionKeys));
     if (!transactionRowsOrError.IsOK()) {
-        return TError("Failed to check prerequisite transactions") << transactionRowsOrError;
+        return TError("Failed to check prerequisite transactions").With(transactionRowsOrError);
     }
 
     auto doomedTransactionRowsOrError = WaitFor(sequoiaClient->LookupRows(doomedTransactionKeys));
@@ -459,6 +460,7 @@ bool IsSupportedSequoiaType(EObjectType type)
         IsScalarType(type) ||
         IsChunkOwnerType(type) ||
         type == EObjectType::SequoiaLink ||
+        type == EObjectType::ChaosReplicatedTable ||
         type == EObjectType::Document ||
         type == EObjectType::Orchid;
 }
@@ -487,7 +489,7 @@ void ThrowAlreadyExists(const TAbsolutePath& path)
 
 void ThrowCannotHaveChildren(const TAbsolutePath& path)
 {
-    THROW_ERROR_EXCEPTION("%v cannot have children", path);
+    THROW_ERROR_EXCEPTION("Node %v cannot have children", path);
 }
 
 void ThrowCannotReplaceNode(const TAbsolutePath& path)
@@ -575,28 +577,6 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<IAttributeDictionaryPtr> FetchSingleObjectAttributes(
-   const NNative::IClientPtr& client,
-   NCypressClient::TVersionedObjectId objectId,
-   const TAttributeFilter& attributeFilter)
-{
-   auto requestTemplate = TYPathProxy::Get("&/@");
-   if (attributeFilter) {
-       ToProto(requestTemplate->mutable_attributes(), attributeFilter);
-   }
-
-   SetSuppressAccessTracking(requestTemplate, true);
-   SetSuppressExpirationTimeoutRenewal(requestTemplate, true);
-
-   auto batcher = TMasterYPathProxy::CreateGetBatcher(client, requestTemplate, {objectId.ObjectId}, objectId.TransactionId);
-   return batcher.Invoke().Apply(BIND([=] (const TMasterYPathProxy::TVectorizedGetBatcher::TVectorizedResponse& rsp) {
-        const auto& value = GetOrCrash(rsp, objectId.ObjectId).ValueOrThrow();
-        return ConvertToAttributes(NYson::TYsonString(value->value()));
-   }));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 std::string GetRequestQueueNameForKey(const std::pair<std::string, EUserWorkloadType>& userNameAndWorkloadType)
 {
     return Format(
@@ -637,7 +617,7 @@ std::string BuildMultipleTransactionSelectCondition(TRange<TTransactionId> trans
 
 bool IsAncestorPath(const TAbsolutePath& ancestor, const TAbsolutePath& descendant)
 {
-    return descendant.Underlying().StartsWith(ancestor.Underlying() + TAbsolutePath::Separator);
+    return descendant.Underlying().starts_with(ancestor.Underlying() + TAbsolutePath::Separator);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

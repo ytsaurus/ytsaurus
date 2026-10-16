@@ -201,10 +201,7 @@ void TClickHouseConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("max_temporary_data_on_disk_size", &TThis::MaxTemporaryDataOnDiskSize)
-        // NB: By default we want to disable disk usage for temporary data.
-        // There is no way to disable it completely,
-        // so just set a limit to 1 byte (0 means "unlimited").
-        .Default(1);
+        .Default(128_MB);
 
     registrar.Parameter("settings", &TThis::Settings)
         .DefaultCtor([] {

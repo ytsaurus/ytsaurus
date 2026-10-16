@@ -1,3 +1,4 @@
+#include "helpers.h"
 #include "job.h"
 #include "user_job_write_controller.h"
 
@@ -136,8 +137,12 @@ private:
                     // NB: In multiplexing writer, there are multiple value consumers pointing to the same writer.
                     // That's why we have to double-check writer's readiness to avoid writing to it concurrently
                     // with another value consumer waiting writer to become ready.
-                    while (!writer->GetReadyEvent().IsSet() || !writer->GetReadyEvent().GetOrCrash().IsOK()) {
-                        WaitFor(writer->GetReadyEvent())
+                    while (true) {
+                        auto readyEvent = writer->GetReadyEvent();
+                        if (auto readyResult = readyEvent.TryGet(); readyResult && readyResult->IsOK()) {
+                            break;
+                        }
+                        WaitFor(readyEvent)
                             .ThrowOnError();
                     }
 
@@ -204,9 +209,9 @@ TUserJobWriteController::TUserJobWriteController(IJobHostPtr host)
 
 TUserJobWriteController::~TUserJobWriteController() = default;
 
-void TUserJobWriteController::Init(TInstant ioStartTime)
+void TUserJobWriteController::Init(TCpuInstant ioStartTime)
 {
-    YT_LOG_INFO("Opening writers");
+    YT_TLOG_INFO("Opening writers");
 
     auto guard = Finally([&] {
         Initialized_ = true;
@@ -221,8 +226,23 @@ void TUserJobWriteController::Init(TInstant ioStartTime)
     const auto& jobSpecExt = Host_->GetJobSpecHelper()->GetJobSpecExt();
     auto outputTransactionId = FromProto<TTransactionId>(jobSpecExt.output_transaction_id());
 
+    if (const auto& partitionJobSpecExt = Host_->GetJobSpecHelper()->GetJobSpec().GetExtension(
+            TPartitionJobSpecExt::partition_job_spec_ext);
+        partitionJobSpecExt.has_push_based_shuffle_writer())
+    {
+        Writers_.push_back(CreateProfilingMultiChunkWriter(
+            CreateJobShuffleWriter(Host_, partitionJobSpecExt),
+            ioStartTime));
+
+        HasShuffleWriter_ = true;
+
+        YT_TLOG_DEBUG("Shuffle writer created");
+    }
+
     TDataSinkDirectoryPtr dataSinkDirectory = nullptr;
-    if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(jobSpecExt.extensions())) {
+    if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(jobSpecExt.extensions());
+        dataSinkDirectoryExt && !HasShuffleWriter_)
+    {
         dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
         YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == jobSpecExt.output_table_specs_size());
     }
@@ -250,6 +270,12 @@ void TUserJobWriteController::Init(TInstant ioStartTime)
         DeserializeFromWireProto(&schema, outputSpec.table_schema());
         auto schemaId = FromProto<TMasterTableSchemaId>(outputSpec.schema_id());
 
+        auto& writeBlocksOptions = OutputWriteBlocksOptions_.emplace_back(
+            TClientChunkWriteOptions{
+                .ChunkWriterStatistics = New<NChunkClient::TChunkWriterStatistics>(),
+                .JobIoMeter = Host_->GetJobIoMeter(),
+            });
+
         // ToDo(psushin): open writers in parallel.
         auto writer = userJobIOFactory->CreateWriter(
             Host_->GetClient(),
@@ -261,11 +287,12 @@ void TUserJobWriteController::Init(TInstant ioStartTime)
             schemaId,
             TChunkTimestamps{timestamp, timestamp},
             dataSink,
-            OutputWriteBlocksOptions_.emplace_back());
+            writeBlocksOptions);
 
         Writers_.push_back(CreateProfilingMultiChunkWriter(std::move(writer), ioStartTime));
 
-        YT_LOG_DEBUG("Table writer created (TableIndex: %v)", index);
+        YT_TLOG_DEBUG("Table writer created")
+            .With("TableIndex", index);
     }
 
     if (jobSpecExt.user_job_spec().has_stderr_table_spec()) {
@@ -296,7 +323,7 @@ void TUserJobWriteController::Init(TInstant ioStartTime)
                 Host_->GetOutBandwidthThrottler(),
                 /*writeBlocksOptions*/ {}));
 
-        YT_LOG_DEBUG("Stderr table writer created");
+        YT_TLOG_DEBUG("Stderr table writer created");
     }
 }
 
@@ -311,6 +338,11 @@ std::vector<IProfilingMultiChunkWriterPtr> TUserJobWriteController::GetWriters()
 
 int TUserJobWriteController::GetOutputStreamCount() const
 {
+    if (HasShuffleWriter_) {
+        YT_VERIFY(Host_->GetJobSpecHelper()->GetJobSpecExt().output_table_specs_size() == 0);
+        return 1;
+    }
+
     int count = 0;
     for (const auto& outputTableSpec : Host_->GetJobSpecHelper()->GetJobSpecExt().output_table_specs()) {
         if (outputTableSpec.stream_schemas_size() > 0) {
@@ -332,6 +364,17 @@ std::vector<IValueConsumer*> TUserJobWriteController::CreateValueConsumers(
     const auto& jobSpecExt = Host_->GetJobSpecHelper()->GetJobSpecExt();
 
     std::vector<IValueConsumer*> consumers;
+
+    if (HasShuffleWriter_) {
+        YT_VERIFY(std::ssize(Writers_) == 1);
+        YT_VERIFY(jobSpecExt.output_table_specs_size() == 0);
+
+        ValueConsumers_.push_back(
+            std::make_unique<TWritingValueConsumer>(Writers_[0], typeConversionConfig));
+        consumers.push_back(ValueConsumers_.back().get());
+        return consumers;
+    }
+
     consumers.reserve(jobSpecExt.output_table_specs_size());
     YT_VERIFY(std::ssize(Writers_) == jobSpecExt.output_table_specs_size());
     for (int outputIndex = 0; outputIndex < jobSpecExt.output_table_specs_size(); ++outputIndex) {
@@ -372,6 +415,10 @@ IOutputStream* TUserJobWriteController::GetStderrTableWriter() const
 
 void TUserJobWriteController::PopulateResult(TJobResultExt* jobResultExt)
 {
+    if (HasShuffleWriter_) {
+        return;
+    }
+
     std::vector<NChunkClient::NProto::TChunkSpec> writtenChunkSpecs;
     const auto& outputTableSpecs = Host_->GetJobSpecHelper()->GetJobSpecExt().output_table_specs();
     for (int index = 0; index < std::ssize(Writers_); ++index) {

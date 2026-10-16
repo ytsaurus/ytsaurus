@@ -18,8 +18,7 @@
 #include <yt/yt/library/auth_server/helpers.h>
 #include <yt/yt/library/auth_server/token_authenticator.h>
 
-#include <yt/yt/library/clickhouse_discovery/discovery_v1.h>
-#include <yt/yt/library/clickhouse_discovery/discovery_v2.h>
+#include <yt/yt/library/clickhouse_discovery/discovery.h>
 #include <yt/yt/library/clickhouse_discovery/helpers.h>
 
 #include <yt/yt/client/api/client.h>
@@ -70,9 +69,9 @@ using namespace NDiscoveryClient;
 
 namespace {
 
-YT_DEFINE_GLOBAL(const TLogger, ClickHouseUnstructuredLogger, "ClickHouseProxy");
-YT_DEFINE_GLOBAL(const TLogger, ClickHouseStructuredLogger, "ClickHouseProxyStructured");
-YT_DEFINE_GLOBAL(const TProfiler, ClickHouseProxyProfiler, "/clickhouse_proxy");
+YT_DEFINE_LEAKY_GLOBAL(const TLogger, ClickHouseUnstructuredLogger, "ClickHouseProxy");
+YT_DEFINE_LEAKY_GLOBAL(const TLogger, ClickHouseStructuredLogger, "ClickHouseProxyStructured");
+YT_DEFINE_LEAKY_GLOBAL(const TProfiler, ClickHouseProxyProfiler, "/clickhouse_proxy");
 
 DEFINE_ENUM(ERetryState,
     (Retrying)
@@ -95,7 +94,6 @@ public:
         const IResponseWriterPtr& rsp,
         const TDynamicClickHouseConfigPtr& config,
         TBootstrap* bootstrap,
-        const NApi::IClientPtr& client,
         const TOperationCachePtr& operationCache,
         const TPermissionCachePtr& permissionCache,
         const TDiscoveryCachePtr discoveryCache,
@@ -109,7 +107,6 @@ public:
         , Response_(rsp)
         , Config_(config)
         , Bootstrap_(bootstrap)
-        , Client_(client)
         , HttpClient_(CreateClient(Config_->HttpClient, Bootstrap_->GetPoller()))
         , OperationCache_(operationCache)
         , PermissionCache_(permissionCache)
@@ -120,31 +117,35 @@ public:
         , IsLegacyQueryHandler_(!bootstrap->IsChytApiServerAddress(req->GetRemoteAddress()) && req->GetUrl().Path.StartsWith("/query"))
         , AllowGetRequests_(!IsLegacyQueryHandler_) // In case of the non-legacy handler GET-requests are allowed by default.
         , Handler_(handler)
-        , ChannelFactory_(CreateTcpBusChannelFactory(Bootstrap_->GetConfig()->ClusterConnection->Dynamic->BusClient))
     {
         if (auto* traceParent = req->GetHeaders()->Find("traceparent")) {
-            YT_LOG_INFO("Request contains traceparent header (Traceparent: %v)", traceParent);
+            YT_TLOG_INFO("Request contains traceparent header")
+                .With("Traceparent", *traceParent);
         }
 
         if (auto* xRequestId = req->GetHeaders()->Find("X-Request-Id")) {
-            YT_LOG_INFO("Request contains X-Request-Id header (X-Request-Id: %v)", xRequestId);
+            YT_TLOG_INFO("Request contains X-Request-Id header")
+                .With("XRequestId", *xRequestId);
         }
     }
 
     void ProcessRequest()
     {
         if (!TryPrepare()) {
-            YT_LOG_INFO(ResponseError_, "Failed to prepare context");
+            YT_TLOG_INFO("Failed to prepare context")
+                .With(ResponseError_);
             return;
         }
 
         if (!TryForwardRequest()) {
-            YT_LOG_INFO(ResponseError_, "Failed to forward request");
+            YT_TLOG_INFO("Failed to forward request")
+                .With(ResponseError_);
             return;
         }
 
         if (!TryForwardProxiedResponse()) {
-            YT_LOG_INFO(ResponseError_, "Failed to forward proxied response");
+            YT_TLOG_INFO("Failed to forward proxied response")
+                .With(ResponseError_);
             return;
         }
     }
@@ -192,7 +193,7 @@ public:
             .OptionalItem("yql_operation_id", FindHeader(Request_, "X-YQL-Operation-ID"));
     }
 
-    const TString& GetUser() const
+    const std::string& GetUser() const
     {
         return User_;
     }
@@ -203,7 +204,6 @@ private:
     const IResponseWriterPtr& Response_;
     const TDynamicClickHouseConfigPtr& Config_;
     TBootstrap* const Bootstrap_;
-    const NApi::IClientPtr& Client_;
     NHttp::IClientPtr HttpClient_;
     const TOperationCachePtr OperationCache_;
     const TPermissionCachePtr PermissionCache_;
@@ -216,7 +216,7 @@ private:
     TCgiParameters CgiParameters_;
 
     TOperationId OperationId_;
-    TString CliqueAlias_;
+    std::optional<std::string> CliqueAlias_;
 
     TYsonString OperationAcl_;
 
@@ -230,14 +230,13 @@ private:
 
     // Token is provided via header "Authorization" or via cgi parameter "password".
     // If empty, the authentication will be performed via Cookie.
-    TString Token_;
-    TString User_;
-    TString InstanceId_;
+    std::string Token_;
+    std::string User_;
+    std::string InstanceId_;
     std::string InstanceHost_;
-    TString InstanceHttpPort_;
+    std::string InstanceHttpPort_;
     TCachedDiscoveryPtr Discovery_;
     TClickHouseHandlerPtr Handler_;
-    NRpc::IChannelFactoryPtr ChannelFactory_;
 
     static const inline std::vector<std::string> DiscoveryAttributes_ = std::vector<std::string>{
         "host",
@@ -248,7 +247,7 @@ private:
     };
 
     // These fields define the proxied request issued to a randomly chosen instance.
-    TString ProxiedRequestUrl_;
+    std::string ProxiedRequestUrl_;
     TSharedRef ProxiedRequestBody_;
     THeadersPtr ProxiedRequestHeaders_;
 
@@ -258,16 +257,18 @@ private:
     std::vector<TError> RequestErrors_;
     TError ResponseError_;
 
-    using TInstanceMap = THashMap<TString, NYTree::IAttributeDictionaryPtr>;
+    using TInstanceMap = THashMap<std::string, NYTree::IAttributeDictionaryPtr>;
     TInstanceMap Instances_;
 
     // Fields for structured log only.
     int RetryCount_ = -1;
-    TString TokenHash_;
+    std::string TokenHash_;
 
     void ReplyWithError(EStatusCode statusCode, const TError& error)
     {
-        YT_LOG_DEBUG(error, "Request failed (StatusCode: %v)", statusCode);
+        YT_TLOG_DEBUG("Request failed")
+            .With("StatusCode", statusCode)
+            .With(error);
         ResponseError_ = error;
 
         FillYTErrorHeaders(Response_, error);
@@ -280,7 +281,8 @@ private:
 
     void PushError(TError error)
     {
-        YT_LOG_INFO(error, "Error while handling query");
+        YT_TLOG_INFO("Error while handling query")
+            .With(error);
         RequestErrors_.emplace_back(error);
     }
 
@@ -294,7 +296,7 @@ private:
     {
         TErrorOr<TUserAndToken> result;
 
-        YT_LOG_DEBUG("Parsing token from Authorization header");
+        YT_TLOG_DEBUG("Parsing token from Authorization header");
         // Two supported Authorization kinds are "Basic <base64(clique-id:oauth-token)>" and "OAuth <oauth-token>".
         auto authorizationTypeAndCredentials = SplitString(TString(authorization), " ", 2);
         const auto& authorizationType = authorizationTypeAndCredentials[0];
@@ -309,16 +311,17 @@ private:
                 result = TUserAndToken{.User=std::move(userAndToken[0]), .Token=std::move(userAndToken[1])};
             } else {
                 return TError(
-                    "Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected (CredentialsDecoded: %v)",
-                    credentialsDecoded);
+                    "Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected")
+                    .With("credentials_decoded", credentialsDecoded);
             }
 
         } else {
-            return TError("Unsupported type of authorization header (AuthorizationType: %v, TokenCount: %v)",
-                authorizationType,
-                authorizationTypeAndCredentials.size());
+            return TError("Unsupported authorization header type %Qv",
+                authorizationType)
+                .With("token_count", authorizationTypeAndCredentials.size());
         }
-        YT_LOG_DEBUG("Token parsed (AuthorizationType: %v)", authorizationType);
+        YT_TLOG_DEBUG("Token parsed")
+            .With("AuthorizationType", authorizationType);
 
         return result;
     }
@@ -351,7 +354,8 @@ private:
             bool isDatalens = false;
             // TODO(max42): remove this when DataLens makes proper authorization. Duh.
             if (auto* header = Request_->GetHeaders()->Find("X-DataLens-Real-User")) {
-                YT_LOG_DEBUG("Header contains DataLens real username (RealUser: %v)", *header);
+                YT_TLOG_DEBUG("Header contains DataLens real username")
+                    .With("RealUser", *header);
                 isDatalens = true;
             }
 
@@ -384,7 +388,7 @@ private:
             YT_VERIFY(traceContext);
             traceContext->AddTag("user", User_);
             traceContext->AddTag("clique_id", OperationId_);
-            traceContext->AddTag("clique_alias", CliqueAlias_);
+            traceContext->AddTag("clique_alias", *CliqueAlias_);
 
             if (isDatalens) {
                 if (auto tracingOverride = Config_->DatalensTracingOverride) {
@@ -405,17 +409,17 @@ private:
             auto traceIdString = ToString(traceContext->GetTraceId());
             auto spanIdString = Format("%" PRIx64, traceContext->GetSpanId());
             auto sampledString = ToString(traceContext->IsSampled());
-            YT_LOG_INFO("Proxied request tracing parameters (TraceId: %v, SpanId: %v, Sampled: %v)",
-                traceIdString,
-                spanIdString,
-                sampledString);
+            YT_TLOG_INFO("Proxied request tracing parameters")
+                .With("TraceId", traceIdString)
+                .With("SpanId", spanIdString)
+                .With("Sampled", sampledString);
 
             ProxiedRequestHeaders_->Set("X-Yt-Trace-Id", traceIdString);
             ProxiedRequestHeaders_->Set("X-Yt-Span-Id", spanIdString);
             ProxiedRequestHeaders_->Set("X-Yt-Sampled", ToString(traceContext->IsSampled()));
         } catch (const std::exception& ex) {
             ReplyWithError(EStatusCode::InternalServerError, TError("Preparation failed")
-                << ex);
+                .With(ex));
             return false;
         }
         return true;
@@ -427,21 +431,26 @@ private:
             auto state = ERetryState::Retrying;
 
             auto setState = [&] (ERetryState newState) {
-                YT_LOG_DEBUG("Setting new state (State: %v -> %v)", state, newState);
+                YT_TLOG_DEBUG("Setting new state")
+                    .With("OldState", state)
+                    .With("NewState", newState);
                 state = newState;
             };
 
-            YT_LOG_INFO("Starting retry routine (DeadInstanceRetryCount: %v)", Config_->DeadInstanceRetryCount);
+            YT_TLOG_INFO("Starting retry routine")
+                .With("DeadInstanceRetryCount", Config_->DeadInstanceRetryCount);
 
             for (int retryIndex = 0; retryIndex <= Config_->DeadInstanceRetryCount; ++retryIndex) {
-                YT_LOG_DEBUG("Starting new retry (RetryIndex: %v, State: %v)", retryIndex, state);
+                YT_TLOG_DEBUG("Starting new retry")
+                    .With("RetryIndex", retryIndex)
+                    .With("State", state);
                 bool needForceUpdate = false;
 
                 if (state == ERetryState::Retrying && retryIndex > Config_->RetryWithoutUpdateLimit) {
-                    YT_LOG_DEBUG("Forcing update due to long retrying");
+                    YT_TLOG_DEBUG("Forcing update due to long retrying");
                     needForceUpdate = true;
                 } else if (state == ERetryState::FailedToPickInstance) {
-                    YT_LOG_DEBUG("Forcing update due to instance pick failure");
+                    YT_TLOG_DEBUG("Forcing update due to instance pick failure");
                     // If we did not find any instances on previous step, we need to do force update right now.
                     needForceUpdate = true;
                 }
@@ -450,41 +459,49 @@ private:
                     setState(ERetryState::ForceUpdated);
                 }
 
-                YT_LOG_DEBUG("Picking instance (RetryIndex: %v)", retryIndex);
+                YT_TLOG_DEBUG("Picking instance")
+                    .With("RetryIndex", retryIndex);
                 if (!TryPickInstance(needForceUpdate)) {
-                    YT_LOG_DEBUG("Failed to pick instance (State: %v)", state);
+                    YT_TLOG_DEBUG("Failed to pick instance")
+                        .With("State", state);
                     // There is no chance to invoke the request if we can not pick an instance even after deleting from cache.
                     if (state == ERetryState::CacheInvalidated) {
-                        YT_LOG_DEBUG("Stopping retrying due to failure after cache invalidation");
+                        YT_TLOG_DEBUG("Stopping retrying due to failure after cache invalidation");
                         break;
                     }
                     // Cache may be not relevant if we can not pick an instance after discovery force update.
                     if (state == ERetryState::ForceUpdated) {
                         // We may have banned all instances because of network problems or we have resolved CliqueId incorrectly
                         // (possibly due to clique restart under same alias), and cached discovery is not relevant any more.
-                        YT_LOG_DEBUG("Failed to pick instance after force update, invalidating cache entry");
+                        YT_TLOG_DEBUG("Failed to pick instance after force update, invalidating cache entry");
                         RemoveCliqueFromCache();
                         setState(ERetryState::CacheInvalidated);
                     } else {
-                        YT_LOG_DEBUG("Failed to pick instance (RetryIndex: %v)", retryIndex);
+                        YT_TLOG_DEBUG("Failed to pick instance")
+                            .With("RetryIndex", retryIndex);
                         setState(ERetryState::FailedToPickInstance);
                     }
 
                     continue;
                 }
 
-                YT_LOG_DEBUG("Pick successful, issuing proxied request (RetryIndex: %v)", retryIndex);
+                YT_TLOG_DEBUG("Pick successful, issuing proxied request")
+                    .With("RetryIndex", retryIndex);
 
                 if (TryIssueProxiedRequest(retryIndex)) {
-                    YT_LOG_DEBUG("Successfully proxied request (RetryIndex: %v)", retryIndex);
+                    YT_TLOG_DEBUG("Successfully proxied request")
+                        .With("RetryIndex", retryIndex);
                     setState(ERetryState::Success);
                     break;
                 } else {
-                    YT_LOG_DEBUG("Failed to proxy request (RetryIndex: %v, State: %v)", retryIndex, state);
+                    YT_TLOG_DEBUG("Failed to proxy request")
+                        .With("RetryIndex", retryIndex)
+                        .With("State", state);
                 }
             }
 
-            YT_LOG_DEBUG("Finished retrying (State: %v)", state);
+            YT_TLOG_DEBUG("Finished retrying")
+                .With("State", state);
 
             if (state != ERetryState::Success) {
                 ReplyWithAllOccurredErrors(TError("Request failed"));
@@ -492,7 +509,7 @@ private:
             }
         } catch (const std::exception& ex) {
             ReplyWithError(EStatusCode::InternalServerError, TError("Failed to forward request")
-                << ex);
+                .With(ex));
         }
 
         return true;
@@ -500,17 +517,19 @@ private:
 
     bool TryForwardProxiedResponse()
     {
-        YT_LOG_DEBUG("Getting proxied status code");
+        YT_TLOG_DEBUG("Getting proxied status code");
         auto statusCode = ProxiedResponse_->GetStatusCode();
         Response_->SetStatus(statusCode);
-        YT_LOG_DEBUG("Received status code, getting proxied headers (StatusCode: %v)", statusCode);
+        YT_TLOG_DEBUG("Received status code, getting proxied headers")
+            .With("StatusCode", statusCode);
         Response_->GetHeaders()->MergeFrom(ProxiedResponse_->GetHeaders());
-        YT_LOG_DEBUG("Received headers, forwarding proxied response");
+        YT_TLOG_DEBUG("Received headers, forwarding proxied response");
         PipeInputToOutput(ProxiedResponse_, Response_);
 
         YT_PROFILE_TIMING("/clickhouse_proxy/query_time/forward_proxied_response") {
             if (auto error = WaitFor(Response_->Close()); !error.IsOK()) {
-                YT_LOG_DEBUG(error, "Failed to forward proxied response");
+                YT_TLOG_DEBUG("Failed to forward proxied response")
+                    .With(error);
                 // The connection could be already closed, so we can not reply with error.
                 // But we save the error for a proper ClickHouseStructuredLog's entry anyway.
                 ResponseError_ = std::move(error);
@@ -518,7 +537,7 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Proxied response forwarded");
+        YT_TLOG_DEBUG("Proxied response forwarded");
         return true;
     }
 
@@ -541,17 +560,19 @@ private:
         } else if (hasHeader(xClickHouseKey) || hasHeader(xClickHouseUser)) {
             result = TUserAndToken{
                 xClickHouseUser ? *xClickHouseUser : "",
-                // TODO(babenko): switch to std::string
-                TString(xClickHouseKey ? *xClickHouseKey : ""),
+                xClickHouseKey ? *xClickHouseKey : "",
             };
         } else if (CgiParameters_.Has("user") || CgiParameters_.Has("password")) {
             result = TUserAndToken{CgiParameters_.Get("user"), CgiParameters_.Get("password")};
         }
 
         if (result.IsOK()) {
-            YT_LOG_DEBUG("Authorization data fetched (User: %v, Token: %v)", result.Value().User, result.Value().Token);
+            YT_TLOG_DEBUG("Authorization data fetched")
+                .With("User", result.Value().User)
+                .With("Token", result.Value().Token);
         } else {
-            YT_LOG_DEBUG(result, "Failed to fetch authorization data");
+            YT_TLOG_DEBUG("Failed to fetch authorization data")
+                .With(result);
         }
 
         return result;
@@ -559,15 +580,15 @@ private:
 
     struct TCliqueAliasAndJobCookie
     {
-        TString CliqueAlias;
+        std::string CliqueAlias;
         std::optional<size_t> JobCookie;
     };
 
-    TErrorOr<TCliqueAliasAndJobCookie> ParseCliqueAliasAndInstanceCookie(TString cliqueAliasAndInstanceCookie) const
+    TErrorOr<TCliqueAliasAndJobCookie> ParseCliqueAliasAndInstanceCookie(std::string cliqueAliasAndInstanceCookie) const
     {
         TCliqueAliasAndJobCookie result;
 
-        if (cliqueAliasAndInstanceCookie.Contains("@")) {
+        if (cliqueAliasAndInstanceCookie.contains("@")) {
             auto separatorIndex = cliqueAliasAndInstanceCookie.find_last_of("@");
 
             auto jobCookieString = cliqueAliasAndInstanceCookie.substr(
@@ -580,12 +601,13 @@ private:
             }
 
             result = TCliqueAliasAndJobCookie{cliqueAliasAndInstanceCookie.substr(0, separatorIndex), jobCookie};
-            YT_LOG_DEBUG("Found instance job cookie (JobCookie: %v)", jobCookie);
+            YT_TLOG_DEBUG("Found instance job cookie")
+                .With("JobCookie", jobCookie);
         } else {
             result = TCliqueAliasAndJobCookie{std::move(cliqueAliasAndInstanceCookie)};
         }
 
-        if (result.CliqueAlias.StartsWith("*")) {
+        if (result.CliqueAlias.starts_with("*")) {
             result.CliqueAlias.erase(0, 1);
         }
 
@@ -615,14 +637,14 @@ private:
             AllowGetRequests_ = !IsLegacyQueryHandler_ || !token.empty();
 
             // Get clique alias and job cookie.
-            TString cliqueAliasAndInstanceCookiePacked;
+            std::string cliqueAliasAndInstanceCookiePacked;
 
             if (CgiParameters_.Has("chyt.clique_alias")) { // first-priority header
                 cliqueAliasAndInstanceCookiePacked = CgiParameters_.Get("chyt.clique_alias");
             } else {
                 cliqueAliasAndInstanceCookiePacked = IsLegacyQueryHandler_
-                    ? TString(CgiParameters_.Get("database"))
-                    : TString(user);
+                    ? std::string(CgiParameters_.Get("database"))
+                    : user;
             }
 
             auto cliqueAliasAndInstanceCookie = ParseCliqueAliasAndInstanceCookie(std::move(cliqueAliasAndInstanceCookiePacked));
@@ -643,14 +665,15 @@ private:
             CliqueAlias_ = std::move(cliqueAlias);
             JobCookie_ = jobCookie;
 
-            YT_LOG_DEBUG("Clique is defined by alias (CliqueAlias: %v)", CliqueAlias_);
+            YT_TLOG_DEBUG("Clique is defined by alias")
+                .With("CliqueAlias", CliqueAlias_);
 
             return true;
         } catch (const std::exception& ex) {
             ReplyWithError(
                 EStatusCode::BadRequest,
                 TError("Error while fetching authorization and clique specification data")
-                    << ex);
+                    .With(ex));
             return false;
         }
     }
@@ -676,14 +699,15 @@ private:
         if (Config_->IgnoreMissingCredentials) {
             if (User_.empty()) {
                 if (!Token_.empty() && Bootstrap_->GetConfig()->ClickHouse->PopulateUserWithToken) {
-                    YT_LOG_DEBUG("Authentication is disabled and user is specified via token's value");
+                    YT_TLOG_DEBUG("Authentication is disabled and user is specified via token's value");
                     User_ = Token_;
                 } else {
-                    YT_LOG_DEBUG("Authentication is disabled and user was not specified; assuming root");
+                    YT_TLOG_DEBUG("Authentication is disabled and user was not specified; assuming root");
                     User_ = "root";
                 }
             } else {
-                YT_LOG_DEBUG("Authentication is disabled and user is specified via X-Yt-User header (User: %v)", User_);
+                YT_TLOG_DEBUG("Authentication is disabled and user is specified via X-Yt-User header")
+                    .With("User", User_);
             }
             return true;
         }
@@ -704,83 +728,55 @@ private:
                         .Login;
                 }
             }
-            YT_LOG_DEBUG("User authenticated (User: %v)", User_);
+            YT_TLOG_DEBUG("User authenticated")
+                .With("User", User_);
             return true;
         } catch (const std::exception& ex) {
             ReplyWithError(
                 EStatusCode::Unauthorized,
                 TError("Authentication failed")
-                    << ex);
+                    .With(ex));
             return false;
         }
     }
 
-    IDiscoveryPtr CreateDiscoveryV1()
+    std::string GetOperationAlias() const
     {
-        auto config = New<TDiscoveryV1Config>();
-        auto path = Format("%v/%v", Config_->DiscoveryPath, OperationId_);
-        config->Directory = path;
-        config->BanTimeout = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->UnavailableInstanceBanTimeout;
-        config->ReadFrom = NApi::EMasterChannelKind::Cache;
-        config->MasterCacheExpireTime = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->MasterCacheExpireTime;
-        return NClickHouseServer::CreateDiscoveryV1(
-            std::move(config),
-            Client_,
-            ControlInvoker_,
-            DiscoveryAttributes_,
-            Logger);
+        return "*" + *CliqueAlias_;
     }
 
-    TString GetOperationAlias() const
+    std::string GetDiscoveryGroupId() const
     {
-        return "*" + CliqueAlias_;
+        return "/chyt/" + *CliqueAlias_;
     }
 
-    TString GetDiscoveryGroupId() const
+    IDiscoveryPtr TryCreateDiscovery()
     {
-        return "/chyt/" + CliqueAlias_;
-    }
+        if (!Bootstrap_->GetNativeConnection()->GetConfig()->DiscoveryConnection) {
+            YT_TLOG_DEBUG("Skipping discovery v2 because of missing discovery connection config")
+                .With("ClusterConnection", ConvertToYsonString(Bootstrap_->GetNativeConnection()->GetConfig(), EYsonFormat::Text).ToString());
+            THROW_ERROR_EXCEPTION("Discovery connection config is missing");
+        }
 
-    IDiscoveryPtr CreateDiscoveryV2()
-    {
-        auto config = New<TDiscoveryV2Config>();
+        auto config = New<TDiscoveryConfig>();
         config->GroupId = GetDiscoveryGroupId();
         config->ReadQuorum = 1;
         config->WriteQuorum = 1;
         config->BanTimeout = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->UnavailableInstanceBanTimeout;
-        return NClickHouseServer::CreateDiscoveryV2(
+
+        auto discovery = NClickHouseServer::CreateDiscoveryFromNativeConnection(
             std::move(config),
             Bootstrap_->GetNativeConnection(),
-            ChannelFactory_,
+            Bootstrap_->GetNativeConnection()->GetChannelFactory(),
             ControlInvoker_,
             DiscoveryAttributes_,
             Logger);
-    }
+        auto discoveryFuture = discovery->UpdateList().Apply(BIND([discovery = std::move(discovery)] { return discovery; }));
 
-    IDiscoveryPtr TryChooseDiscovery()
-    {
-        auto discoveryV1 = CreateDiscoveryV1();
-        auto discoveryV1Future = discoveryV1->UpdateList().Apply(BIND([discovery = std::move(discoveryV1)] { return discovery; }));
-        auto futures = std::vector{discoveryV1Future};
-
-        if (Bootstrap_->GetNativeConnection()->GetConfig()->DiscoveryConnection) {
-            auto discoveryV2 = CreateDiscoveryV2();
-            auto discoveryV2Future = discoveryV2->UpdateList().Apply(BIND([discovery = std::move(discoveryV2)] { return discovery; }));
-            futures.emplace_back(std::move(discoveryV2Future));
-        } else {
-            YT_LOG_DEBUG("Skipping discovery v2 because of missing discovery connection config (ClusterConnection: %v)",
-                ConvertToYsonString(Bootstrap_->GetNativeConnection()->GetConfig(), EYsonFormat::Text).ToString());
-        }
-
-        auto valueOrError = WaitFor(AnySucceeded(futures));
+        auto valueOrError = WaitFor(discoveryFuture);
         if (!valueOrError.IsOK()) {
-            if (valueOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                THROW_ERROR_EXCEPTION("Clique directory does not exist; perhaps the clique is still starting, wait for up to 5 minutes")
-                    << valueOrError;
-            } else {
-                THROW_ERROR_EXCEPTION("Clique discovery is not found")
-                    << valueOrError;
-            }
+            THROW_ERROR_EXCEPTION("Clique discovery is not found")
+                .With(valueOrError);
         }
 
         return valueOrError.Value();
@@ -789,26 +785,26 @@ private:
     bool TryFindDiscovery()
     {
         if (Discovery_) {
-            YT_LOG_DEBUG("Discovery is already ready");
+            YT_TLOG_DEBUG("Discovery is already ready");
             return true;
         }
 
-        YT_LOG_DEBUG("Getting discovery");
+        YT_TLOG_DEBUG("Getting discovery");
 
         try {
             auto cookie = DiscoveryCache_->BeginInsert(OperationId_);
             if (cookie.IsActive()) {
-                YT_LOG_DEBUG("Clique cache missed (Clique: %v)", CliqueAlias_);
+                YT_TLOG_DEBUG("Clique cache missed")
+                    .With("Clique", CliqueAlias_);
 
-                auto discovery = TryChooseDiscovery();
-
-                YT_LOG_DEBUG("Fetched discovery version (Version: %v)", discovery->Version());
+                auto discovery = TryCreateDiscovery();
 
                 cookie.EndInsert(New<TCachedDiscovery>(
                     OperationId_,
                     std::move(discovery)));
 
-                YT_LOG_DEBUG("New discovery inserted to the cache (Clique: %v)", CliqueAlias_);
+                YT_TLOG_DEBUG("New discovery inserted to the cache")
+                    .With("Clique", CliqueAlias_);
             }
 
             YT_PROFILE_TIMING("/clickhouse_proxy/query_time/find_discovery") {
@@ -816,10 +812,10 @@ private:
                     .ValueOrThrow();
             }
 
-            YT_LOG_DEBUG("Discovery is ready");
+            YT_TLOG_DEBUG("Discovery is ready");
         } catch (const std::exception& ex) {
             PushError(TError("Failed to create discovery")
-                << ex);
+                .With(ex));
             return false;
         }
 
@@ -828,33 +824,35 @@ private:
 
     bool TryDiscoverInstances(bool forceUpdate)
     {
-        YT_LOG_DEBUG("Discovering instances (ForceUpdate: %v)", forceUpdate);
+        YT_TLOG_DEBUG("Discovering instances")
+            .With("ForceUpdate", forceUpdate);
 
         try {
             if (!TryFindDiscovery()) {
-                YT_LOG_DEBUG("Failed to discover instances due to missing discovery");
+                YT_TLOG_DEBUG("Failed to discover instances due to missing discovery");
                 return false;
             }
 
-            YT_LOG_DEBUG("Updating discovery (AgeThreshold: %v)", Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->SoftAgeThreshold);
+            YT_TLOG_DEBUG("Updating discovery")
+                .With("AgeThreshold", Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->SoftAgeThreshold);
             YT_UNUSED_FUTURE(Discovery_->Value()->UpdateList(Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->SoftAgeThreshold));
             auto updatedFuture = Discovery_->Value()->UpdateList(
                 forceUpdate ? Config_->ForceDiscoveryUpdateAgeThreshold : Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->HardAgeThreshold);
             if (!updatedFuture.IsSet()) {
-                YT_LOG_DEBUG("Waiting for discovery");
+                YT_TLOG_DEBUG("Waiting for discovery");
                 ForceUpdateCounter_.Increment();
                 YT_PROFILE_TIMING("/clickhouse_proxy/query_time/discovery_force_update") {
                     WaitFor(updatedFuture)
                         .ThrowOnError();
                 }
-                YT_LOG_DEBUG("Discovery updated");
+                YT_TLOG_DEBUG("Discovery updated");
             }
 
             auto instances = Discovery_->Value()->List();
-            if (Discovery_->Value()->Version() == 2) {
-                instances = FilterInstancesByIncarnation(instances);
-            }
-            YT_LOG_DEBUG("Instances discovered (Count: %v)", instances.size());
+            instances = FilterInstancesByIncarnation(instances);
+
+            YT_TLOG_DEBUG("Instances discovered")
+                .With("Count", instances.size());
             if (instances.empty()) {
                 PushError(TError("Clique %v has no running instances", CliqueAlias_));
                 return false;
@@ -864,7 +862,7 @@ private:
             return true;
         } catch (const std::exception& ex) {
             PushError(TError("Failed to discover instances")
-                << ex);
+                .With(ex));
             return false;
         }
     }
@@ -879,7 +877,8 @@ private:
         try {
             return getOperationYsonFromCache();
         } catch(const std::exception& ex) {
-            YT_LOG_DEBUG("Failed to get operation yson from old operation cache, therefore invalidate cache and retry (Error: %v)", ex.what());
+            YT_TLOG_DEBUG("Failed to get operation yson from old operation cache, therefore invalidate cache and retry")
+                .With(ex);
             OperationCache_->InvalidateActive(GetOperationAlias());
             return getOperationYsonFromCache();
         }
@@ -887,19 +886,20 @@ private:
 
     bool TryGetOperation()
     {
-        auto operationId = Handler_->GetOperationId(CliqueAlias_);
+        auto operationId = Handler_->GetOperationId(*CliqueAlias_);
         if (operationId) {
             OperationId_ = operationId;
-            YT_LOG_DEBUG("Operation resolved from strawberry nodes (OperationAlias: %v, OperationId: %v)",
-                GetOperationAlias(),
-                OperationId_);
+            YT_TLOG_DEBUG("Operation resolved from strawberry nodes")
+                .With("OperationAlias", GetOperationAlias())
+                .With("OperationId", OperationId_);
             return true;
         }
 
-        YT_LOG_DEBUG("Clique information in Cypress is malformed, operation id is missing (Clique: %v)",
-            CliqueAlias_);
+        YT_TLOG_DEBUG("Clique information in Cypress is malformed, operation id is missing")
+            .With("Clique", CliqueAlias_);
 
-        YT_LOG_DEBUG("Fetching operation from scheduler (Clique: %v)", CliqueAlias_);
+        YT_TLOG_DEBUG("Fetching operation from scheduler")
+            .With("Clique", CliqueAlias_);
 
         try {
             auto operationYson = GetOperationYson();
@@ -907,13 +907,15 @@ private:
             auto operationNode = ConvertTo<IMapNodePtr>(operationYson);
 
             OperationId_ = operationNode->GetChildValueOrThrow<TOperationId>("id");
-            YT_LOG_DEBUG("Operation id resolved (OperationAlias: %v, OperationId: %v)", GetOperationAlias(), OperationId_);
+            YT_TLOG_DEBUG("Operation id resolved")
+                .With("OperationAlias", GetOperationAlias())
+                .With("OperationId", OperationId_);
 
             if (auto state = operationNode->GetChildValueOrThrow<EOperationState>("state"); state != EOperationState::Running) {
                 ReplyWithError(
                     EStatusCode::BadRequest,
                     TError("Clique %v is not running; actual state = %lv", CliqueAlias_, state)
-                        << TErrorAttribute("operation_id", OperationId_));
+                        .With("operation_id", OperationId_));
                 return false;
             }
 
@@ -930,17 +932,17 @@ private:
                 ->GetChildOrThrow("acl"),
                 EYsonFormat::Text);
 
-            YT_LOG_DEBUG("Operation ACL resolved (OperationAlias: %v, OperationId: %v, OperationAcl: %v)",
-                GetOperationAlias(),
-                OperationId_,
-                OperationAcl_);
+            YT_TLOG_DEBUG("Operation ACL resolved")
+                .With("OperationAlias", GetOperationAlias())
+                .With("OperationId", OperationId_)
+                .With("OperationAcl", OperationAcl_);
 
             return true;
         } catch (const std::exception& ex) {
             ReplyWithError(
                 EStatusCode::BadRequest,
                 TError("Invalid clique specification")
-                    << ex);
+                    .With(ex));
             return false;
         }
     }
@@ -949,7 +951,7 @@ private:
     {
         auto error = WaitFor(
             PermissionCache_->Get(TPermissionKey{
-                .Path = Format("//sys/access_control_object_namespaces/chyt/%v/principal", ToYPathLiteral(CliqueAlias_)),
+                .Path = Format("//sys/access_control_object_namespaces/chyt/%v/principal", ToYPathLiteral(*CliqueAlias_)),
                 .User = User_,
                 .Permission = EPermission::Use,
             }));
@@ -959,9 +961,9 @@ private:
                 auto replyError = TError("User %Qv has no access to clique %Qv",
                     User_,
                     CliqueAlias_)
-                    << error;
+                    .With(error);
                 if (OperationAcl_) {
-                    replyError <<= TErrorAttribute("operation_acl", OperationAcl_);
+                    replyError.Add("operation_acl", OperationAcl_);
                 }
                 ReplyWithError(EStatusCode::Forbidden, replyError);
             } else {
@@ -970,7 +972,7 @@ private:
                     TError("Failed to authorize user %Qv to clique %Qv",
                         User_,
                         CliqueAlias_)
-                        << error);
+                        .With(error));
             }
             return false;
         }
@@ -979,7 +981,8 @@ private:
 
     TInstanceMap::const_iterator TryPickInstanceByJobCookie(size_t jobCookie) const
     {
-        YT_LOG_DEBUG("Pick instance by job cookie (JobCookie: %v)", jobCookie);
+        YT_TLOG_DEBUG("Pick instance by job cookie")
+            .With("JobCookie", jobCookie);
         auto result = std::find_if(
             Instances_.cbegin(), Instances_.cend(),
             [&](const auto& instance) {
@@ -987,7 +990,8 @@ private:
             });
 
         if (result == Instances_.cend()) {
-            YT_LOG_DEBUG("No instance with given job cookie (JobCookie: %v)", *JobCookie_);
+            YT_TLOG_DEBUG("No instance with given job cookie")
+                .With("JobCookie", *JobCookie_);
         }
 
         return result;
@@ -997,9 +1001,9 @@ private:
     {
         YT_VERIFY(stickyGroupSize > 0);
 
-        YT_LOG_DEBUG("Pick an instance using sticky strategy (StickyHash: %v, StickyGroupSize: %v)",
-            stickyHash,
-            stickyGroupSize);
+        YT_TLOG_DEBUG("Pick an instance using sticky strategy")
+            .With("StickyHash", stickyHash)
+            .With("StickyGroupSize", stickyGroupSize);
 
         // Each instance is given a numeric score to compare by.
         auto instanceScore = [&](const auto& instance) -> size_t {
@@ -1011,15 +1015,15 @@ private:
         };
 
         if (stickyGroupSize > ssize(Instances_)) {
-            YT_LOG_DEBUG("Specified sticky group size is greater than a number of instances therefore it is reduced to the maximum value (StickyGroupSize: %v, NumberOfInstances: %v)",
-                stickyGroupSize,
-                Instances_.size());
+            YT_TLOG_DEBUG("Specified sticky group size is greater than a number of instances therefore it is reduced to the maximum value")
+                .With("StickyGroupSize", stickyGroupSize)
+                .With("NumberOfInstances", Instances_.size());
             stickyGroupSize = ssize(Instances_);
         }
 
         // Optimizations.
         if (stickyGroupSize == ssize(Instances_)) {
-            YT_LOG_DEBUG("Using random strategy instead of sticky strategy, since query sticky group size has maximum value");
+            YT_TLOG_DEBUG("Using random strategy instead of sticky strategy, since query sticky group size has maximum value");
             return PickInstanceRandomly();
         }
         if (stickyGroupSize == 1) {
@@ -1049,23 +1053,24 @@ private:
         return instanceOrder[RandomNumber<size_t>(stickyGroupSize)];
     }
 
-    TInstanceMap::const_iterator PickInstanceBySessionId(const TString& sessionId) const
+    TInstanceMap::const_iterator PickInstanceBySessionId(const std::string& sessionId) const
     {
-        YT_LOG_DEBUG("Pick instance by session id using sticky strategy (SessionId: %v)", sessionId);
+        YT_TLOG_DEBUG("Pick instance by session id using sticky strategy")
+            .With("SessionId", sessionId);
         return PickInstanceSticky(ComputeHash(sessionId), 1);
     }
 
     TInstanceMap::const_iterator PickInstanceByQueryHash(size_t queryHash, int stickyGroupSize) const
     {
-        YT_LOG_DEBUG("Pick instance by query hash using sticky strategy (QueryHash: %v, QueryStickyGroupSize: %v)",
-            queryHash,
-            stickyGroupSize);
+        YT_TLOG_DEBUG("Pick instance by query hash using sticky strategy")
+            .With("QueryHash", queryHash)
+            .With("QueryStickyGroupSize", stickyGroupSize);
         return PickInstanceSticky(queryHash, stickyGroupSize);
     }
 
     TInstanceMap::const_iterator PickInstanceRandomly() const
     {
-        YT_LOG_DEBUG("Pick instance randomly");
+        YT_TLOG_DEBUG("Pick instance randomly");
         auto instanceIterator = Instances_.cbegin();
         std::advance(instanceIterator, RandomNumber(Instances_.size()));
         return instanceIterator;
@@ -1105,7 +1110,7 @@ private:
                 // Get parameter from any instance, they all have the same value.
                 result = Instances_.cbegin()->second->template Find<std::optional<int>>("query_sticky_group_size");
             } catch (const std::exception& ex) {
-                return TError("Failed to parse query sticky group size") << ex;
+                return TError("Failed to parse query sticky group size").With(ex);
             }
         }
 
@@ -1118,10 +1123,11 @@ private:
 
     bool TryPickInstance(bool forceUpdate)
     {
-        YT_LOG_DEBUG("Trying to pick an instance (ForceUpdate: %v)", forceUpdate);
+        YT_TLOG_DEBUG("Trying to pick an instance")
+            .With("ForceUpdate", forceUpdate);
 
         if (!TryDiscoverInstances(forceUpdate)) {
-            YT_LOG_DEBUG("Failed to discover instances");
+            YT_TLOG_DEBUG("Failed to discover instances");
             return false;
         }
 
@@ -1140,7 +1146,7 @@ private:
                 return false;
             }
 
-        } else if (const TString& sessionId = CgiParameters_.Get("session_id"); !sessionId.empty()) {
+        } else if (std::string sessionId = CgiParameters_.Get("session_id"); !sessionId.empty()) {
             pickedInstance = PickInstanceBySessionId(sessionId);
 
         } else if (queryStickyGroupSize.has_value()) {
@@ -1150,7 +1156,8 @@ private:
             pickedInstance = PickInstanceRandomly();
         }
 
-        YT_LOG_DEBUG("Picked instance (InstanceId: %v)", pickedInstance->first);
+        YT_TLOG_DEBUG("Picked instance")
+            .With("InstanceId", pickedInstance->first);
 
         InitializeInstance(pickedInstance->first, pickedInstance->second);
         return true;
@@ -1161,7 +1168,9 @@ private:
         // Save retry count for structured log.
         RetryCount_ = retryIndex;
 
-        YT_LOG_DEBUG("Querying instance (Url: %v, RetryIndex: %v)", ProxiedRequestUrl_, retryIndex);
+        YT_TLOG_DEBUG("Querying instance")
+            .With("Url", ProxiedRequestUrl_)
+            .With("RetryIndex", retryIndex);
 
         TErrorOr<IResponsePtr> responseOrError;
         YT_PROFILE_TIMING("/clickhouse_proxy/query_time/issue_proxied_request") {
@@ -1185,7 +1194,7 @@ private:
                 // Probably the instance had died and another service was started at the same host:port.
                 // We can safely retry such requests.
 
-                THashSet<TString> headers;
+                THashSet<std::string> headers;
                 for (const auto& [header, value] : response->GetHeaders()->Dump()) {
                     headers.emplace(header);
                 }
@@ -1194,23 +1203,25 @@ private:
                 auto statusCodeStr = ToString(static_cast<int>(statusCode)) + " (" + ToString(statusCode)+ ")";
 
                 responseOrError = TError("The requested server is not a clickhouse instance")
-                    << TErrorAttribute("status_code", statusCodeStr)
-                    << TErrorAttribute("headers", headers);
+                    .With("status_code", statusCodeStr)
+                    .With("headers", headers);
             }
         }
 
         if (responseOrError.IsOK()) {
             ProxiedResponse_ = responseOrError.Value();
-            YT_LOG_DEBUG("Got response from instance (StatusCode: %v, RetryIndex: %v)",
-                ProxiedResponse_->GetStatusCode(),
-                retryIndex);
+            YT_TLOG_DEBUG("Got response from instance")
+                .With("StatusCode", ProxiedResponse_->GetStatusCode())
+                .With("RetryIndex", retryIndex);
             return true;
         } else {
             RequestErrors_.push_back(responseOrError
-                << TErrorAttribute("instance_host", InstanceHost_)
-                << TErrorAttribute("instance_http_port", InstanceHttpPort_)
-                << TErrorAttribute("proxy_retry_index", retryIndex));
-            YT_LOG_DEBUG(responseOrError, "Proxied request failed (RetryIndex: %v)", retryIndex);
+                .With("instance_host", InstanceHost_)
+                .With("instance_http_port", InstanceHttpPort_)
+                .With("proxy_retry_index", retryIndex));
+            YT_TLOG_DEBUG("Proxied request failed")
+                .With("RetryIndex", retryIndex)
+                .With(responseOrError);
             BannedCounter_.Increment();
             Discovery_->Value()->Ban(InstanceId_);
             return false;
@@ -1220,13 +1231,13 @@ private:
     void ReplyWithAllOccurredErrors(TError error)
     {
         ReplyWithError(EStatusCode::InternalServerError, error
-            << RequestErrors_);
+            .With(RequestErrors_));
     }
 
-    void InitializeInstance(const TString& id, const NYTree::IAttributeDictionaryPtr& attributes)
+    void InitializeInstance(const std::string& id, const NYTree::IAttributeDictionaryPtr& attributes)
     {
         InstanceId_ = id;
-        InstanceHost_ = attributes->Get<TString>("host");
+        InstanceHost_ = attributes->Get<std::string>("host");
         auto port = attributes->Get<INodePtr>("http_port");
         InstanceHttpPort_ = (port->GetType() == ENodeType::String ? port->AsString()->GetValue() : ToString(port->GetValue<ui64>()));
 
@@ -1236,18 +1247,19 @@ private:
             "/", // ClickHouse implements different endpoints but we use only default one
             CgiParameters_.Print());
 
-        YT_LOG_DEBUG("Forwarding query to an instance (InstanceId: %v, Host: %v, HttpPort: %v, ProxiedRequestUrl: %v)",
-            InstanceId_,
-            InstanceHost_,
-            InstanceHttpPort_,
-            ProxiedRequestUrl_);
+        YT_TLOG_DEBUG("Forwarding query to an instance")
+            .With("InstanceId", InstanceId_)
+            .With("Host", InstanceHost_)
+            .With("HttpPort", InstanceHttpPort_)
+            .With("ProxiedRequestUrl", ProxiedRequestUrl_);
     }
 
     void RemoveCliqueFromCache()
     {
         Discovery_.Reset();
         DiscoveryCache_->TryRemove(OperationId_);
-        YT_LOG_DEBUG("Discovery was removed from cache (Clique: %v)", CliqueAlias_);
+        YT_TLOG_DEBUG("Discovery was removed from cache")
+            .With("Clique", CliqueAlias_);
     }
 };
 
@@ -1272,7 +1284,7 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
 {
     OperationCache_ = New<TOperationCache>(
         Config_->OperationCache,
-        THashSet<TString>{"id", "runtime_parameters", "state", "suspended"},
+        THashSet<std::string>{"id", "runtime_parameters", "state", "suspended"},
         Client_,
         ClickHouseProxyProfiler().WithPrefix("/operation_cache"));
     PermissionCache_ = New<TPermissionCache>(
@@ -1293,7 +1305,7 @@ void TClickHouseHandler::HandleRequest(
     const IResponseWriterPtr& response)
 {
     auto Logger = ClickHouseUnstructuredLogger()
-        .WithTag("RequestId: %v", request->GetRequestId());
+        .WithTag("RequestId", request->GetRequestId());
 
     if (!Coordinator_->CanHandleHeavyRequests()) {
         // We intentionally read the body of the request and drop it to make sure
@@ -1311,7 +1323,7 @@ void TClickHouseHandler::HandleRequest(
         auto config = Bootstrap_->GetDynamicConfig()->ClickHouse;
 
         if (!Bootstrap_->GetConfig()->Auth->RequireAuthentication) {
-            YT_LOG_INFO("Authorization is not set up in config, ignoring missing credentials");
+            YT_TLOG_INFO("Authorization is not set up in config, ignoring missing credentials");
             config->IgnoreMissingCredentials = true;
         }
 
@@ -1320,7 +1332,6 @@ void TClickHouseHandler::HandleRequest(
             response,
             config,
             Bootstrap_,
-            Client_,
             OperationCache_,
             PermissionCache_,
             DiscoveryCache_,
@@ -1333,14 +1344,16 @@ void TClickHouseHandler::HandleRequest(
         auto adjuctQueryCountCallback = BIND(&TClickHouseHandler::AdjustQueryCount, MakeWeak(this), context->GetUser());
         ControlInvoker_->Invoke(BIND(adjuctQueryCountCallback, +1));
         auto queryCountGuard = Finally(BIND(adjuctQueryCountCallback, -1).Via(ControlInvoker_));
+        auto structuredLogGuard = Finally([&] {
+            context->LogStructuredRequest();
+        });
 
         try {
             context->ProcessRequest();
         } catch (const std::exception& ex) {
-            YT_LOG_INFO(ex, "Request failed with unexpected error");
+            YT_TLOG_INFO("Request failed with unexpected error")
+                .With(ex);
         }
-
-        context->LogStructuredRequest();
     }
 }
 
@@ -1363,7 +1376,7 @@ void TClickHouseHandler::AdjustQueryCount(const std::string& user, int delta)
 void TClickHouseHandler::UpdateOperationIds()
 {
     auto Logger = ClickHouseUnstructuredLogger();
-    THashMap<TString, TOperationId> aliasToOperationId;
+    THashMap<std::string, TOperationId> aliasToOperationId;
     try {
         TListNodeOptions options;
         options.ReadFrom = Bootstrap_->GetConfig()->ClickHouse->ReadOperationIdsFrom;
@@ -1382,13 +1395,16 @@ void TClickHouseHandler::UpdateOperationIds()
                     aliasToOperationId[alias] = operationId;
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Cannot extract operation id from strawberry node (Clique: %v)", alias);
+                YT_TLOG_DEBUG("Cannot extract operation id from strawberry node")
+                    .With("Clique", alias)
+                    .With(ex);
                 continue;
             }
         }
     } catch (const std::exception& ex) {
         // Non-throwing method for periodic executor.
-        YT_LOG_DEBUG(ex, "Cannot update operation information map");
+        YT_TLOG_DEBUG("Cannot update operation information map")
+            .With(ex);
     }
 
     if (!aliasToOperationId.empty()) {
@@ -1399,7 +1415,7 @@ void TClickHouseHandler::UpdateOperationIds()
     AliasToOperationIdInitialized_ = true;
 }
 
-TOperationId TClickHouseHandler::GetOperationId(const TString& alias) const
+TOperationId TClickHouseHandler::GetOperationId(const std::string& alias) const
 {
     if (!AliasToOperationIdInitialized_) {
         auto future = OperationIdUpdateExecutor_->GetExecutedEvent();

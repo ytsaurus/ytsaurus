@@ -23,18 +23,30 @@ PEERDIR(
     contrib/ydb/library/yql/dq/actors/compute/ut/proto
     contrib/ydb/library/yql/dq/actors/input_transforms
     contrib/ydb/library/yql/dq/actors/task_runner
-    contrib/ydb/library/yql/dq/comp_nodes/no_llvm
     contrib/ydb/library/yql/dq/tasks
     contrib/ydb/library/yql/dq/transform
     contrib/ydb/library/yql/providers/dq/task_runner
     contrib/ydb/library/yql/public/ydb_issue
-    yql/essentials/minikql/comp_nodes
-    yql/essentials/minikql/comp_nodes/no_llvm
     yql/essentials/minikql/computation
-    yql/essentials/minikql/invoke_builtins
     yql/essentials/providers/common/comp_nodes
     yql/essentials/public/udf/service/stub
     yql/essentials/sql/pg_dummy
+    yql/essentials/utils/backtrace
+)
+
+CHECK_DEPENDENT_DIRS(ALLOW_ONLY PEERDIRS
+    build
+    certs
+    contrib/libs
+    contrib/proto
+    contrib/restricted
+    library
+    tools
+    util
+    contrib/ydb/core/quoter/public
+    contrib/ydb/library
+    contrib/ydb/public
+    yql/essentials
 )
 
 YQL_LAST_ABI_VERSION()

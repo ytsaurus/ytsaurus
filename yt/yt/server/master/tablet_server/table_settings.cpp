@@ -5,12 +5,14 @@
 #include "hunk_storage_node.h"
 #include "mount_config_storage.h"
 #include "public.h"
+#include "tablet_cell_bundle.h"
 #include "tablet_owner_base.h"
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/domestic_medium.h>
 
 #include <yt/yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_proxy.h>
 
 #include <yt/yt/server/master/table_server/table_node.h>
 #include <yt/yt/server/master/table_server/table_node_proxy.h>
@@ -22,6 +24,8 @@
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/client/table_client/helpers.h>
+
+#include <yt/yt/core/ytree/node.h>
 
 #include <library/cpp/yt/misc/variant.h>
 
@@ -38,6 +42,62 @@ using namespace NTabletNode;
 using namespace NYTree;
 using namespace NYson;
 using namespace NServer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateHunkStorageJournalAttributes(
+    NErasure::ECodec erasureCodec,
+    int replicationFactor,
+    int readQuorum,
+    int writeQuorum)
+{
+    auto isMatch = [&] (
+        NErasure::ECodec expectedErasureCodec,
+        int expectedReplicationFactor,
+        int expectedReadQuorum,
+        int expectedWriteQuorum)
+    {
+        return
+            erasureCodec == expectedErasureCodec &&
+            replicationFactor == expectedReplicationFactor &&
+            readQuorum == expectedReadQuorum &&
+            writeQuorum == expectedWriteQuorum;
+    };
+
+    if (isMatch(NErasure::ECodec::None, 3, 2, 2) ||
+        isMatch(NErasure::ECodec::ReedSolomon_3_3, 1, 4, 5))
+    {
+        return;
+    }
+
+    THROW_ERROR_EXCEPTION(
+        "Hunk storage journal attributes must match either the non-erasure or the erasure configuration "
+        "(erasure_codec: %Qlv/%Qlv, replication_factor: 3/1, read_quorum: 2/4, write_quorum: 2/5)",
+        NErasure::ECodec::None,
+        NErasure::ECodec::ReedSolomon_3_3)
+        .With("erasure_codec", erasureCodec)
+        .With("replication_factor", replicationFactor)
+        .With("read_quorum", readQuorum)
+        .With("write_quorum", writeQuorum);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+template <class TConfigPtr>
+IMapNodePtr GetRawConfigAttribute(const IAttributeDictionary& attributes, TStringBuf key)
+{
+    auto node = GetEphemeralNodeFactory()->CreateMap();
+    if (auto yson = attributes.FindYson(key)) {
+        node = ConvertTo<IMapNodePtr>(yson);
+    }
+    // Validate that the raw node is a well-formed config.
+    ConvertTo<TConfigPtr>(node);
+    return node;
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,28 +143,27 @@ TTableSettings GetTableSettings(
         result.Provided.MountConfigNode = combinedConfigNode;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
-            << ex;
+            .With(ex);
     }
 
     // Parse and prepare store reader config.
     try {
-        result.Provided.StoreReaderConfig = UpdateYsonStruct(
-            dynamicConfig->StoreChunkReader,
-            // TODO(babenko): rename to store_chunk_reader
-            tableAttributes.FindYson(EInternedAttributeKey::ChunkReader.Unintern()));
+        result.Provided.StoreReaderConfig = GetRawConfigAttribute<TTabletStoreReaderConfigPtr>(
+            tableAttributes,
+            EInternedAttributeKey::ChunkReader.Unintern());
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing store reader config")
-            << ex;
+            .With(ex);
     }
 
     // Parse and prepare hunk reader config.
     try {
-        result.Provided.HunkReaderConfig = UpdateYsonStruct(
-            dynamicConfig->HunkChunkReader,
-            tableAttributes.FindYson(EInternedAttributeKey::HunkChunkReader.Unintern()));
+        result.Provided.HunkReaderConfig = GetRawConfigAttribute<TTabletHunkReaderConfigPtr>(
+            tableAttributes,
+            EInternedAttributeKey::HunkChunkReader.Unintern());
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing hunk reader config")
-            << ex;
+            .With(ex);
     }
 
     const auto& chunkReplication = table->Replication();
@@ -142,7 +201,7 @@ TTableSettings GetTableSettings(
         result.Provided.StoreWriterOptions->Postprocess();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error preparing store writer options")
-            << ex;
+            .With(ex);
     }
 
     try {
@@ -157,46 +216,66 @@ TTableSettings GetTableSettings(
         result.Provided.HunkWriterOptions->Postprocess();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error preparing hunk writer options")
-            << ex;
+            .With(ex);
     }
 
     // Parse and prepare store writer config.
     try {
-        auto config = CloneYsonStruct(dynamicConfig->StoreChunkWriter);
+        auto config = GetEphemeralNodeFactory()->CreateMap();
         if (primaryMedium->IsDomestic()) {
             const auto& mediumConfig = primaryMedium->AsDomestic()->Config();
-            config->PreferLocalHost = mediumConfig->PreferLocalHostForDynamicTables;
+            config->AddChild(
+                "prefer_local_host",
+                ConvertToNode(mediumConfig->PreferLocalHostForDynamicTables));
         }
         if (dynamicConfig->IncreaseUploadReplicationFactor ||
-            table->TabletCellBundle()->GetDynamicOptions()->IncreaseUploadReplicationFactor)
+            table->GetTabletCellBundle()->GetDynamicOptions()->IncreaseUploadReplicationFactor)
         {
-            config->UploadReplicationFactor = replicationFactor;
+            config->AddChild(
+                "upload_replication_factor",
+                ConvertToNode(replicationFactor));
         }
 
-        result.Provided.StoreWriterConfig = UpdateYsonStruct(
+        result.Provided.StoreWriterConfig = PatchNode(
             config,
-            // TODO(babenko): rename to store_chunk_writer
-            tableAttributes.FindYson(EInternedAttributeKey::ChunkWriter.Unintern()));
+            GetRawConfigAttribute<TTabletStoreWriterConfigPtr>(
+                tableAttributes,
+                EInternedAttributeKey::ChunkWriter.Unintern()))->AsMap();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error preparing store writer config")
-            << ex;
+            .With(ex);
     }
 
     // Parse and prepare hunk writer config.
     try {
-        auto config = CloneYsonStruct(dynamicConfig->HunkChunkWriter);
+        auto config = GetEphemeralNodeFactory()->CreateMap();
         if (primaryMedium->IsDomestic()) {
             const auto& mediumConfig = primaryMedium->AsDomestic()->Config();
-            config->PreferLocalHost = mediumConfig->PreferLocalHostForDynamicTables;
+            config->AddChild(
+                "prefer_local_host",
+                ConvertToNode(mediumConfig->PreferLocalHostForDynamicTables));
         }
-        config->UploadReplicationFactor = replicationFactor;
+        config->AddChild(
+            "upload_replication_factor",
+            ConvertToNode(replicationFactor));
 
-        result.Provided.HunkWriterConfig = UpdateYsonStruct(
+        result.Provided.HunkWriterConfig = PatchNode(
             config,
-            tableAttributes.FindYson(EInternedAttributeKey::HunkChunkWriter.Unintern()));
+            GetRawConfigAttribute<TTabletHunkWriterConfigPtr>(
+                tableAttributes,
+                EInternedAttributeKey::HunkChunkWriter.Unintern()))->AsMap();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error preparing hunk writer config")
-            << ex;
+            .With(ex);
+    }
+
+    // Set table tablet balancer config.
+    try {
+        result.Provided.TabletBalancerConfig = ConvertTo<IMapNodePtr>(
+            table->TabletBalancerConfig());
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error preparing table tablet balancer config")
+            .With(ex);
     }
 
     // Set global patch and experiments.
@@ -222,6 +301,9 @@ TSerializedTableSettings SerializeTableSettings(const TTableSettings& tableSetti
         .HunkWriterOptions = ConvertToYsonString(tableSettings.Provided.HunkWriterOptions),
         .GlobalPatch = ConvertToYsonString(tableSettings.GlobalPatch),
         .Experiments = ConvertToYsonString(tableSettings.Experiments),
+        .TabletBalancerConfig = tableSettings.Provided.TabletBalancerConfig
+            ? ConvertToYsonString(tableSettings.Provided.TabletBalancerConfig)
+            : TYsonString{},
     };
 }
 
@@ -241,7 +323,7 @@ THunkStorageSettings ValidateAndGetHunkStorageSettings(
         result.MountConfig = ConvertTo<NTabletNode::THunkStorageMountConfigPtr>(tableAttributes);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing hunk storage mount configuration")
-            << ex;
+            .With(ex);
     }
 
     // Parse and prepare store writer config.
@@ -251,7 +333,7 @@ THunkStorageSettings ValidateAndGetHunkStorageSettings(
             tableAttributes.FindYson(EInternedAttributeKey::HunkStoreWriter.Unintern()));
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing hunk store writer config")
-            << ex;
+            .With(ex);
     }
 
     // Prepare store writer options.
@@ -260,21 +342,30 @@ THunkStorageSettings ValidateAndGetHunkStorageSettings(
         auto primaryMediumIndex = hunkStorage->GetPrimaryMediumIndex();
         auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
         auto replicationFactor = chunkReplication.Get(primaryMediumIndex).GetReplicationFactor();
+        auto erasureCodec = hunkStorage->GetErasureCodec();
+        auto readQuorum = hunkStorage->GetReadQuorum();
+        auto writeQuorum = hunkStorage->GetWriteQuorum();
+
+        ValidateHunkStorageJournalAttributes(
+            erasureCodec,
+            replicationFactor,
+            readQuorum,
+            writeQuorum);
 
         auto storeWriterOptions = New<NTabletNode::THunkStoreWriterOptions>();
         storeWriterOptions->MediumName = primaryMedium->GetName();
         storeWriterOptions->Account = hunkStorage->Account()->GetName();
-        storeWriterOptions->ErasureCodec = hunkStorage->GetErasureCodec();
+        storeWriterOptions->ErasureCodec = erasureCodec;
         storeWriterOptions->ReplicationFactor = replicationFactor;
-        storeWriterOptions->ReadQuorum = hunkStorage->GetReadQuorum();
-        storeWriterOptions->WriteQuorum = hunkStorage->GetWriteQuorum();
+        storeWriterOptions->ReadQuorum = readQuorum;
+        storeWriterOptions->WriteQuorum = writeQuorum;
         storeWriterOptions->EnableMultiplexing = false;
         storeWriterOptions->Postprocess();
 
         result.HunkStoreOptions = std::move(storeWriterOptions);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing hunk store writer options")
-            << ex;
+            .With(ex);
     }
 
     return result;

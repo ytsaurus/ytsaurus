@@ -1,20 +1,19 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_manager.h"
+
 #include "chunk_replica.h"
 #include "domestic_medium.h"
-#include "consistent_chunk_placement.h"
+#include "stored_chunk_replica.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 #include <yt/yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <util/generic/map.h>
-#include <util/random/fast.h>
+#include <yt/yt/core/misc/fenwick_tree.h>
 
 #include <optional>
 
@@ -53,6 +52,7 @@ public:
     void OnDataCenterChanged(NNodeTrackerServer::TDataCenter* dataCenter);
 
     bool IsDataCenterFeasible(const NNodeTrackerServer::TDataCenter* dataCenter) const;
+    bool IsDataCenterTemporarilyUnavailable(const NNodeTrackerServer::TDataCenter* dataCenter) const;
 
     THashSet<std::string> GetFaultyStorageDataCenterNames() const;
 
@@ -92,23 +92,11 @@ public:
         TChunkPtrWithReplicaAndMediumIndex replica,
         const TStoredChunkReplicaList& replicas);
 
-    template <typename TGenericChunk>
-    int GetMaxReplicasPerRack(
-        const TMedium* medium,
-        const TGenericChunk* chunk,
-        std::optional<int> replicationFactorOverride = std::nullopt) const;
-
+    //! Returns the maximum replica count permitted in a rack, including data-center constraints.
     template <typename TGenericChunk>
     int GetMaxReplicasPerRack(
         int mediumIndex,
         const TGenericChunk* chunk,
-        std::optional<int> replicationFactorOverride = std::nullopt) const;
-
-    template <typename TGenericChunk>
-    int GetMaxReplicasPerDataCenter(
-        const TDomesticMedium* medium,
-        const TGenericChunk* chunk,
-        const NNodeTrackerServer::TDataCenter* dataCenter,
         std::optional<int> replicationFactorOverride = std::nullopt) const;
 
     template <typename TGenericChunk>
@@ -130,14 +118,14 @@ private:
 
     class TAllocationSession;
 
-    class TNodeToLoadFactorMap
+    class TWeightedRandomNodeChooser
     {
     public:
         friend class TAllocationSession;
 
-        TNodeToLoadFactorMap();
+        void InsertNodeOrCrash(TNodeId nodeId, double weight, double loadFactor);
 
-        void InsertNodeOrCrash(TNodeId nodeId, double loadFactor);
+        // NB: This may change the order of the elements in NodeDescriptors_!
         void RemoveNode(TNodeId nodeId);
         bool Contains(TNodeId nodeId) const;
         [[nodiscard]] bool Empty() const;
@@ -147,22 +135,33 @@ private:
         TAllocationSession StartAllocationSession(int nodesToCheckBeforeGivingUpOnWriteTargetAllocation);
 
     private:
-        // NB: This may change the order of the elements in Values_!
-        TNodeId PickRandomNode(int nodesChecked);
-        void SwapNodes(int firstIndex, int secondIndex);
+        struct TNodeDescriptor
+        {
+            TNodeId NodeId;
+            double Weight = 0.0;
+            double LoadFactor = 0.0;
+        };
 
-        std::vector<std::pair<TNodeId, double>> Values_;
+        TNodeId GetNode(double weight) const;
+        double GetLeftBound(TNodeId nodeId) const;
+        double GetWeight(TNodeId nodeId) const;
+        double GetLoadFactor(TNodeId nodeId) const;
+
+        std::vector<TNodeDescriptor> NodeDescriptors_;
         THashMap<TNodeId, i64> NodeToIndex_;
-        TReallyFastRng32 Rng_;
+        TFenwickTree<double> WeightedNodes_;
+        double TotalSumOfWeights_ = 0.0;
     };
 
+    // Allocation session picks random node using the power of two choices
+    // with probabilities proportional to the io_weight of each node.
+    // Does not return the node more than once within the current session.
+    // NB: Worst case time complexity is O(|NodesToCheckBeforeFailing_|^2 log n).
     class TAllocationSession
     {
     public:
-        friend class TNodeToLoadFactorMap;
+        friend class TWeightedRandomNodeChooser;
 
-        //! Picks a random node using the power of two choices.
-        // Does not return the node more than once within the current session.
         [[nodiscard]] TNodeId PickRandomNode();
 
         //! Allocation session is considered unsuccessful iff the amount of attempts to pick a node
@@ -170,12 +169,28 @@ private:
         bool HasFailed() const;
 
     private:
+        NLogging::TLogger Logger = ChunkServerLogger();
+
+        struct TRemovedNodeDescriptor
+        {
+            TNodeId NodeId;
+            double LeftBound = 0.0;
+            double Weight = 0.0;
+
+            bool operator==(const TRemovedNodeDescriptor& other) const = default;
+        };
+
         TAllocationSession(
-            TNodeToLoadFactorMap* associatedMap,
+            TWeightedRandomNodeChooser* weightedRandomNodeChooser,
+            double totalSumOfWeights,
             int nodesToCheckBeforeGivingUpOnWriteTargetAllocation);
 
-        TNodeToLoadFactorMap* AssociatedMap_;
-        int NodesToCheckBeforeFailing_;
+        TNodeId PickOneNode();
+
+        TWeightedRandomNodeChooser* WeightedRandomNodeChooser_;
+        std::list<TRemovedNodeDescriptor> RemovedNodes_;
+        double RemainingSumOfWeights_ = 0.0;
+        int NodesToCheckBeforeFailing_ = 0;
         int NodesChecked_ = 0;
     };
 
@@ -184,9 +199,9 @@ private:
     const TChunkManagerConfigPtr Config_;
     const TConsistentChunkPlacementPtr ConsistentPlacement_;
 
-    using TNodeToLoadFactorMaps = THashMap<const TDomesticMedium*, TNodeToLoadFactorMap>;
+    using TMediumToWeightedRandomNodeChooser = THashMap<const TDomesticMedium*, TWeightedRandomNodeChooser>;
     //! Nodes listed here must pass #IsValidWriteTargetToInsert test.
-    TNodeToLoadFactorMaps MediumToNodeToLoadFactor_;
+    TMediumToWeightedRandomNodeChooser MediumToNodeChooser_;
 
     // COMPAT(h0pless): Remove this when power of two choices will prove to be working.
     using TLoadFactorToNodeMaps = THashMap<const TDomesticMedium*, TLoadFactorToNodeMap>;
@@ -203,6 +218,7 @@ private:
 
     THashSet<const NNodeTrackerServer::TDataCenter*> StorageDataCenters_;
     THashSet<const NNodeTrackerServer::TDataCenter*> BannedStorageDataCenters_;
+    THashSet<const NNodeTrackerServer::TDataCenter*> TemporarilyUnavailableStorageDataCenters_;
     THashSet<const NNodeTrackerServer::TDataCenter*> FaultyStorageDataCenters_;
     THashSet<const NNodeTrackerServer::TDataCenter*> AliveStorageDataCenters_;
     std::vector<TError> DataCenterSetErrors_;
@@ -279,6 +295,13 @@ private:
         const NNodeTrackerServer::TDataCenter* dataCenter,
         const NNodeTrackerClient::TAggregatedNodeStatistics& dataCenterStatistics,
         bool dataCenterIsEnabled) const;
+
+    template <typename TGenericChunk>
+    int DoGetMaxReplicasPerDataCenter(
+        int mediumIndex,
+        const TGenericChunk* chunk,
+        int dataCenterCount,
+        std::optional<int> replicationFactorOverride) const;
 
     // TODO(shakurov): consider moving this to TChunk. At the moment,
     // TChunk::GetMaxReplicasPerFailureDomain and TChunk::GetPhysicalReplicationFactor

@@ -1,5 +1,7 @@
 #include "private.h"
 
+#include "chunk.h"
+
 namespace NYT::NChunkServer {
 
 using namespace NChunkClient;
@@ -13,6 +15,9 @@ constinit const auto Logger = ChunkServerLogger;
 
 TStringBuf SerializeChunkFormatAsTableChunkFormat(EChunkFormat chunkFormat)
 {
+    // Update the switch below when adding new EChunkFormat values.
+    static_assert(TEnumTraits<EChunkFormat>::GetDomainSize() == 13);
+
     switch (chunkFormat) {
         case EChunkFormat::FileDefault:
             return TStringBuf("old");
@@ -32,6 +37,8 @@ TStringBuf SerializeChunkFormatAsTableChunkFormat(EChunkFormat chunkFormat)
             return TStringBuf("versioned_slim");
         case EChunkFormat::JournalDefault:
             return TStringBuf("journal_default");
+        case EChunkFormat::JournalDistributed:
+            return TStringBuf("journal_distributed");
         case EChunkFormat::HunkDefault:
             return TStringBuf("hunk_default");
         case EChunkFormat::HunkJournal:
@@ -39,10 +46,24 @@ TStringBuf SerializeChunkFormatAsTableChunkFormat(EChunkFormat chunkFormat)
         case EChunkFormat::Unknown:
             return TStringBuf("unknown");
         default:
-            YT_LOG_ALERT("Unexpected chunk format encountered while formatting as table chunk format (ChunkFormat: %v)",
-                chunkFormat);
+            YT_TLOG_ALERT("Unexpected chunk format encountered while formatting as table chunk format")
+                .With("ChunkFormat", chunkFormat);
             return TStringBuf("unexpected");
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TChunkPartLossTimeComparer::operator()(const TChunk* lhs, const TChunk* rhs) const
+{
+    return lhs->GetPartLossTime() < rhs->GetPartLossTime();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+int TChunkToShardIndex::operator()(const TChunk* chunk) const
+{
+    return chunk->GetShardIndex();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

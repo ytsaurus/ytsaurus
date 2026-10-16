@@ -31,9 +31,11 @@ struct IGroundUpdateQueueManager
         EGroundUpdateAction action) = 0;
 
     virtual i64 GetLastRecordSequenceNumber(NSequoiaClient::EGroundUpdateQueue queue) const = 0;
+    virtual i64 GetLastFlushedSequenceNumber(NSequoiaClient::EGroundUpdateQueue queue) const = 0;
 
     virtual TFuture<void> Sync(
-        NSequoiaClient::EGroundUpdateQueue queue) = 0;
+        NSequoiaClient::EGroundUpdateQueue queue,
+        std::optional<i64> recordSequenceNumber = std::nullopt) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IGroundUpdateQueueManager)

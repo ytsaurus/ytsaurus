@@ -3,7 +3,7 @@
 #include "clickhouse_config.h"
 #include "clickhouse_singletons.h"
 #include "config_repository.h"
-#include "cypress_config_repository.h"
+#include "cypress_object_repository.h"
 #include "config.h"
 #include "helpers.h"
 #include "host.h"
@@ -12,6 +12,8 @@
 #include "poco_config.h"
 #include "tcp_handler.h"
 #include "user_defined_sql_objects_storage.h"
+#include "yt_database.h"
+#include "yt_directory_database.h"
 
 #include <yt/yt/core/misc/fs.h>
 
@@ -31,19 +33,20 @@
 #include <Common/MemoryTracker.h>
 #include <Common/SensitiveDataMasker.h>
 #include <Databases/DatabaseMemory.h>
+#include <IO/SharedThreadPools.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/ExternalDictionariesLoader.h>
 #include <Interpreters/ProcessList.h>
 #include <Interpreters/QueryLog.h>
 #include <Interpreters/ServerAsynchronousMetrics.h>
-#include <IO/SharedThreadPools.h>
+#include <Loggers/OwnSplitChannel.h>
 #include <Storages/StorageMemory.h>
-#include <Storages/System/attachSystemTables.h>
-#include <Storages/System/attachSystemTablesImpl.h>
 #include <Storages/System/StorageSystemAsynchronousMetrics.h>
 #include <Storages/System/StorageSystemDictionaries.h>
 #include <Storages/System/StorageSystemMetrics.h>
 #include <Storages/System/StorageSystemProcesses.h>
+#include <Storages/System/attachSystemTables.h>
+#include <Storages/System/attachSystemTablesImpl.h>
 
 #include <DBPoco/DirectoryIterator.h>
 #include <DBPoco/ThreadPool.h>
@@ -192,16 +195,19 @@ private:
     void SetupLogger()
     {
         LogChannel_ = CreateLogChannel(ClickHouseNativeLogger());
+        // Pass logs to Client via TCP interface. Useful for debugging with `SET send_logs_level='trace'`.
+        DBPoco::AutoPtr<DB::OwnSplitChannel> splitChannel = new DB::OwnSplitChannel();
+        splitChannel->addChannel(LogChannel_, "chyt_logs");
 
         auto& rootLogger = DBPoco::Logger::root();
         rootLogger.close();
-        rootLogger.setChannel(LogChannel_);
+        rootLogger.setChannel(splitChannel);
         rootLogger.setLevel(Config_->LogLevel);
     }
 
     void SetupContext()
     {
-        YT_LOG_INFO("Setting up context");
+        YT_TLOG_INFO("Setting up context");
 
         GlobalThreadPool::initialize(
             Config_->MaxThreadPoolSize,
@@ -231,17 +237,18 @@ private:
         CurrentMetrics::set(CurrentMetrics::VersionInteger, ClickHouseRevision::getVersionInteger());
 
         // Initialize DateLUT early, to not interfere with running time of first query.
-        YT_LOG_DEBUG("Initializing DateLUT");
+        YT_TLOG_DEBUG("Initializing DateLUT");
         DateLUT::setDefaultTimezone(Config_->Timezone.value());
         DateLUT::instance();
-        YT_LOG_DEBUG("DateLUT initialized (TimeZone: %v)", DateLUT::instance().getTimeZone());
+        YT_TLOG_DEBUG("DateLUT initialized")
+            .With("TimeZone", DateLUT::instance().getTimeZone());
 
         // Limit on total number of concurrently executed queries.
         ServerContext_->getProcessList().setMaxSize(Config_->MaxConcurrentQueries);
 
         ServerContext_->setDefaultProfiles(*LayeredConfig_);
 
-        YT_LOG_DEBUG("Profiles, processes & uncompressed cache set up");
+        YT_TLOG_DEBUG("Profiles, processes & uncompressed cache set up");
 
         NFS::MakeDirRecursive(Config_->DataPath);
         ServerContext_->setPath(Config_->DataPath);
@@ -262,11 +269,11 @@ private:
             /*update_jemalloc_epoch_*/ false,
             /*update_rss_*/ false);
 
-        YT_LOG_DEBUG("Asynchronous metrics set up");
+        YT_TLOG_DEBUG("Asynchronous metrics set up");
 
         // Database for system tables.
 
-        YT_LOG_DEBUG("Setting up databases");
+        YT_TLOG_DEBUG("Setting up databases");
 
         SystemDatabase_ = std::make_shared<DB::DatabaseMemory>(DB::DatabaseCatalog::SYSTEM_DATABASE, ServerContext_);
 
@@ -277,10 +284,10 @@ private:
 
         Host_->PopulateSystemDatabase(SystemDatabase_.get());
 
-        DB::DatabaseCatalog::instance().attachDatabase("YT", Host_->CreateYTDatabase());
+        DB::DatabaseCatalog::instance().attachDatabase("YT", CreateYTDatabase(Host_));
 
-        for (const auto& databasePtr : Host_->CreateUserDefinedDatabases()) {
-            DB::DatabaseCatalog::instance().attachDatabase(databasePtr->getDatabaseName(), databasePtr);
+        for (const auto& [databaseName, root] : Host_->GetConfig()->DatabaseDirectories) {
+            DB::DatabaseCatalog::instance().attachDatabase(databaseName, CreateDirectoryDatabase(databaseName, Host_, root));
         }
 
         ServerContext_->setCurrentDatabase(Config_->DefaultDatabase);
@@ -288,12 +295,12 @@ private:
         auto DatabaseForTemporaryAndExternalTables = std::make_shared<DB::DatabaseMemory>(DB::DatabaseCatalog::TEMPORARY_DATABASE, ServerContext_);
         DB::DatabaseCatalog::instance().attachDatabase(DB::DatabaseCatalog::TEMPORARY_DATABASE, DatabaseForTemporaryAndExternalTables);
 
-        YT_LOG_DEBUG("Initializing system logs");
+        YT_TLOG_DEBUG("Initializing system logs");
 
         PrepareQueryLog();
         ServerContext_->initializeSystemLogs();
 
-        YT_LOG_DEBUG("System logs initialized");
+        YT_TLOG_DEBUG("System logs initialized");
 
         if (Config_->MaxServerMemoryUsage) {
             total_memory_tracker.setOrRaiseHardLimit(*Config_->MaxServerMemoryUsage);
@@ -301,7 +308,7 @@ private:
             total_memory_tracker.setMetric(CurrentMetrics::MemoryTracking);
         }
 
-        YT_LOG_DEBUG("Setting up access manager");
+        YT_TLOG_DEBUG("Setting up access manager");
 
         DB::AccessControl& accessControl = ServerContext_->getAccessControl();
 
@@ -314,28 +321,21 @@ private:
 
         RegisterNewUser(accessControl, InternalRemoteUserName, Host_->GetUserDefinedDatabaseNames());
 
-        YT_LOG_DEBUG("Adding external dictionaries from config");
+        YT_TLOG_DEBUG("Adding external dictionaries from config");
 
-        DictionaryGuard_ = ServerContext_->getExternalDictionariesLoader().addConfigRepository(CreateDictionaryConfigRepository(Config_->Dictionaries, Config_->DefaultDatabase));
+        auto& dictionariesLoader = ServerContext_->getExternalDictionariesLoader();
+        DictionaryGuard_ = dictionariesLoader.addConfigRepository(CreateDictionaryConfigRepository(Config_->Dictionaries, Config_->DefaultDatabase));
+        if (Host_->GetConfig()->CypressObjectRepository) {
+            YT_TLOG_DEBUG("Adding repository for loading dictionaries from Cypress");
 
-        if (Host_->GetConfig()->DictionaryRepository) {
-            YT_LOG_DEBUG("Adding repository for loading dictionaries from Cypress");
-
-            CypressDictionaryGuard_ = ServerContext_->getExternalDictionariesLoader().addConfigRepository(
-                CreateExternalLoaderFromCypressConfigRepository(Host_->GetCypressDictionaryConfigRepository()));
+            CypressDictionaryGuard_ = dictionariesLoader.addConfigRepository(
+                CreateExternalLoaderFromCypressObjectRepository(Host_->GetCypressObjectRepository()));
         }
-
-        if (Host_->GetConfig()->DictionaryAccessControl) {
-            // By default, CH lazily creates dictionaries in memory on the first access.
-            // For the DictionaryAccessControl to work correctly, the dictionaries with YtSource must have already been created before query start.
-            ServerContext_->getExternalDictionariesLoader().enableAlwaysLoadEverything(/*enable*/ true);
-        }
-
-        YT_LOG_DEBUG("Setting chyt custom setting prefix");
+        YT_TLOG_DEBUG("Setting chyt custom setting prefix");
 
         accessControl.setCustomSettingsPrefixes(std::vector<std::string>{"chyt_", "chyt."});
 
-        YT_LOG_DEBUG("Disabling the use of the Amazon EC2 instance metadata service");
+        YT_TLOG_DEBUG("Disabling the use of the Amazon EC2 instance metadata service");
 
         // NB: ClickHouse uses patched version of aws-sdk-core library with custom EC2 metadata client.
         // See https://github.com/ClickHouse/aws-sdk-cpp/blob/6e9460f1b0a9af2aa7fd712fdefcc22e2aca6f66/src/aws-cpp-sdk-core/source/internal/AWSHttpResourceClient.cpp#L400.
@@ -344,13 +344,13 @@ private:
         SetEnv("AWS_EC2_METADATA_DISABLED", "true");
 
         if (Config_->QueryMaskingRules) {
-            YT_LOG_DEBUG("Setting up query masking rules");
+            YT_TLOG_DEBUG("Setting up query masking rules");
             DB::SensitiveDataMasker::setInstance(std::make_unique<DB::SensitiveDataMasker>(*LayeredConfig_, "query_masking_rules"));
         }
 
         auto ytConfig = Host_->GetConfig();
         if (ytConfig->UserDefinedSqlObjectsStorage->Enabled) {
-            YT_LOG_DEBUG("Setting up user defined SQL objects storage");
+            YT_TLOG_DEBUG("Setting up user defined SQL objects storage");
             ServerContext_->setUserDefinedSQLObjectsStorage(CreateUserDefinedSqlObjectsYTStorage(
                 ServerContext_,
                 ytConfig->UserDefinedSqlObjectsStorage,
@@ -358,11 +358,11 @@ private:
             ServerContext_->getUserDefinedSQLObjectsStorage().loadObjects();
         }
 
-        YT_LOG_DEBUG("Setting temporary storage");
+        YT_TLOG_DEBUG("Setting temporary storage");
 
         ServerContext_->setTemporaryStoragePath("tmp", Config_->MaxTemporaryDataOnDiskSize);
 
-        YT_LOG_DEBUG("Setting up query cache");
+        YT_TLOG_DEBUG("Setting up query cache");
 
         ServerContext_->setQueryResultCache(
             Config_->QueryCache->MaxSizeInBytes,
@@ -370,17 +370,14 @@ private:
             Config_->QueryCache->MaxEntrySizeInBytes,
             Config_->QueryCache->MaxEntrySizeInRows);
 
-        YT_LOG_INFO("Finished setting up context");
+        YT_TLOG_INFO("Finished setting up context");
     }
 
     void WarmupDictionaries()
     {
-        YT_LOG_INFO("Warming up dictionaries");
+        YT_TLOG_INFO("Warming up dictionaries");
         ServerContext_->getEmbeddedDictionaries();
-        if (Host_->GetConfig()->DictionaryRepository) {
-            ServerContext_->getExternalDictionariesLoader().reloadConfig(TCypressDictionaryConfigRepository::CypressConfigRepositoryName);
-        }
-        YT_LOG_INFO("Finished warming up");
+        YT_TLOG_INFO("Finished warming up");
     }
 
      void PrepareQueryLog()
@@ -389,7 +386,8 @@ private:
         // It leads to an error if the first query is 'select * from system.query_log'.
         // To eliminate this, we explicitly create system.query_log during startup.
 
-        YT_LOG_DEBUG("Preparing query log table (Engine: %v)", Config_->QueryLog->Engine);
+        YT_TLOG_DEBUG("Preparing query log table")
+            .With("Engine", Config_->QueryLog->Engine);
 
         // NB: settings.query_settings contains bool/size_t fields with no default initialization.
         // {} here is to force a value (i.e. zero) initialization instead of a default initialization.
@@ -401,18 +399,15 @@ private:
 
         // NB: This is not a real QueryLog, it is needed only to create a table with proper query log structure.
         auto queryLog = std::make_shared<DB::QueryLog>(ServerContext_, settings);
+        queryLog->prepareTable();
 
-        // prepareTable is public in ISystemLog interface, but is overwritten as private in QueryLog.
-        auto* systemLog = static_cast<DB::ISystemLog*>(queryLog.get());
-        systemLog->prepareTable();
-
-        YT_LOG_DEBUG("Query log table prepared");
+        YT_TLOG_DEBUG("Query log table prepared");
     }
 
     void SetupServers()
     {
 #ifdef _linux_
-        YT_LOG_INFO("Setting up servers");
+        YT_TLOG_INFO("Setting up servers");
 
         const auto& settings = ServerContext_->getSettingsRef();
 
@@ -430,7 +425,7 @@ private:
 
 
         {
-            YT_LOG_INFO("Setting up HTTP server");
+            YT_TLOG_INFO("Setting up HTTP server");
             auto socket = setupSocket(Config_->HttpPort);
 
             DBPoco::Timespan keepAliveTimeout(Config_->KeepAliveTimeout, 0);
@@ -448,7 +443,7 @@ private:
         }
 
         {
-            YT_LOG_INFO("Setting up TCP server");
+            YT_TLOG_INFO("Setting up TCP server");
             auto socket = setupSocket(Config_->TcpPort);
 
             Servers_.emplace_back(std::make_unique<DB::TCPServer>(
@@ -457,7 +452,7 @@ private:
                 socket));
         }
 
-        YT_LOG_INFO("Servers set up");
+        YT_TLOG_INFO("Servers set up");
 #endif
     }
 

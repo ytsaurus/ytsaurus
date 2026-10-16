@@ -3,7 +3,7 @@
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/tag.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <util/generic/singleton.h>
 
@@ -16,15 +16,15 @@ class TNbdProfilerCounters
 public:
     TNbdProfilerCounters(const TNbdProfilerCounters& other) = delete;
 
-    NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const TString& name);
+    NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const std::string& name);
 
-    NProfiling::TGauge GetGauge(const NProfiling::TTagSet& tagSet, const TString& name);
+    NProfiling::TGauge GetGauge(const NProfiling::TTagSet& tagSet, const std::string& name);
 
-    NProfiling::TEventTimer GetTimeHistogram(const NProfiling::TTagSet& tagSet, const TString& name);
+    NProfiling::TEventTimer GetTimeHistogram(const NProfiling::TTagSet& tagSet, const std::string& name);
 
-    NProfiling::TEventTimer GetTimer(const NProfiling::TTagSet& tagSet, const TString& name);
+    NProfiling::TEventTimer GetTimer(const NProfiling::TTagSet& tagSet, const std::string& name);
 
-    static NProfiling::TTagSet MakeTagSet(const TString& filePath);
+    static NProfiling::TTagSet MakeTagSet(const std::string& filePath);
 
     static TNbdProfilerCounters* Get();
 
@@ -34,10 +34,10 @@ private:
 
     using TKey = NProfiling::TTagList;
 
-    static TKey CreateKey(const NProfiling::TTagSet& tagSet, const TString& name);
+    static TKey CreateKey(const NProfiling::TTagSet& tagSet, const std::string& name);
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TKey, NProfiling::TCounter> Counters_;
     THashMap<TKey, NProfiling::TGauge> Gauges_;
     THashMap<TKey, NProfiling::TEventTimer> EventTimers_;
@@ -46,4 +46,3 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNbd
-

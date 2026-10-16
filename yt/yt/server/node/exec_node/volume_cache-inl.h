@@ -51,7 +51,7 @@ bool TVolumeCacheBase<TKey>::IsEnabled() const
 template <typename TKey>
 TLayerLocationPtr TVolumeCacheBase<TKey>::PickVolumeLocation()
 {
-    return DoPickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
+    return PickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
         return candidate->GetVolumeCount() < current->GetVolumeCount();
     });
 }
@@ -60,24 +60,24 @@ template <typename TKey>
 void TVolumeCacheBase<TKey>::OnAdded(const TIntrusivePtr<TCachedVolume<TKey>>& volume)
 {
     const auto Logger = ExecNodeLogger;
-    YT_LOG_DEBUG("Volume added to cache (VolumeId: %v)",
-        volume->GetId());
+    YT_TLOG_DEBUG("Volume added to cache")
+        .With("VolumeId", volume->GetId());
 }
 
 template <typename TKey>
 void TVolumeCacheBase<TKey>::OnRemoved(const TIntrusivePtr<TCachedVolume<TKey>>& volume)
 {
     const auto Logger = ExecNodeLogger;
-    YT_LOG_DEBUG("Volume removed from cache (VolumeId: %v)",
-        volume->GetId());
+    YT_TLOG_DEBUG("Volume removed from cache")
+        .With("VolumeId", volume->GetId());
 }
 
 template <typename TKey>
 void TVolumeCacheBase<TKey>::OnWeightUpdated(i64 weightDelta)
 {
     const auto Logger = ExecNodeLogger;
-    YT_LOG_DEBUG("Volume cache total weight updated (WeightDelta: %v)",
-        weightDelta);
+    YT_TLOG_DEBUG("Volume cache total weight updated")
+        .With("WeightDelta", weightDelta);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

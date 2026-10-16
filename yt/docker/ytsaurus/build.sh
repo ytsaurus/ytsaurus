@@ -11,6 +11,8 @@ image_cr=""
 component="ytsaurus"
 apt_mirror="http://archive.ubuntu.com/"
 install_nvidia_packages="false"
+build_cache_repository=""
+server_image_base="base-server"
 
 print_usage() {
     cat << EOF
@@ -24,6 +26,8 @@ Usage: $script_name [-h|--help]
                     [--image-cr some-cr/ (default: '$image_cr')]
                     [--apt-mirror http://some.apt.mirror/ (default: '$apt_mirror')]
                     [--install-nvidia-packages true|false (default: '$install_nvidia_packages')]
+                    [--build-cache-repository registry/image]
+                    [--server-image-base base-server|base-server-crio (default: '$server_image_base')]
 EOF
     exit 1
 }
@@ -68,6 +72,14 @@ while [[ $# -gt 0 ]]; do
         install_nvidia_packages="$2"
         shift 2
         ;;
+        --build-cache-repository)
+        build_cache_repository="$2"
+        shift 2
+        ;;
+        --server-image-base)
+        server_image_base="$2"
+        shift 2
+        ;;
         -h|--help)
         print_usage
         shift
@@ -105,6 +117,37 @@ if [[ "${component}" == "ytsaurus" ]]; then
     cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
 
     cp -r ${credits}/*.CREDITS ${output_path}/credits
+
+elif [[ "${component}" == "flow" || "${component}" == "flow-java" || "${component}" == "flow-python" ]]; then
+
+    flow_server="${ytsaurus_build_path}/yt/yt/flow/bin/flow_server/flow_server"
+
+    flow_credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/flow"
+
+    cp ${flow_server} ${output_path}
+
+    cp -r ${flow_credits}/*.CREDITS ${output_path}/credits
+
+    if [[ "${component}" == "flow-python" ]]; then
+        # Sources of the Python SDK package: its own, the python packages it ships, the Flow
+        # protos it compiles and the core protos those import. They keep their repo-relative
+        # paths, since setup.py reads them by those paths.
+        python_sdk_paths=(
+            "yt/python/packages/ytsaurus-flow-companion"
+            "yt/yt/flow/library/python/companion"
+            "yt/yt/flow/library/python/runner"
+            "yt/yt/flow/library/cpp/companion/proto"
+            "yt/yt/flow/library/cpp/common/proto"
+            "yt/yt_proto/yt/core/misc/proto"
+            "yt/yt_proto/yt/core/ytree/proto"
+            "yt/yt_proto/yt/core/yson/proto"
+        )
+
+        for python_sdk_path in "${python_sdk_paths[@]}"; do
+            mkdir -p "${output_path}/python_sdk/$(dirname ${python_sdk_path})"
+            cp -r "${ytsaurus_source_path}/${python_sdk_path}" "${output_path}/python_sdk/${python_sdk_path}"
+        done
+    fi
 
 elif [[ "${component}" == "chyt" ]]; then
 
@@ -201,4 +244,45 @@ else
 fi
 
 cd ${output_path}
-docker build --target ${component} --build-arg APT_MIRROR=${apt_mirror} --build-arg INSTALL_NVIDIA_PACKAGES=${install_nvidia_packages} -t ${image_cr}ytsaurus/${component}:${image_tag} .
+
+common_docker_build_args=(
+    --build-arg "APT_MIRROR=${apt_mirror}"
+    --build-arg "INSTALL_NVIDIA_PACKAGES=${install_nvidia_packages}"
+    --build-arg "SERVER_IMAGE_BASE=${server_image_base}"
+)
+
+if [[ "${component}" == "flow-python" ]]; then
+    # The SDK is published at the release version, which is what the image tag carries: strip
+    # the test-release prefix and the build-type suffix off it.
+    package_version="${image_tag#dev-}"
+    package_version="${package_version%-relwithdebinfo}"
+
+    common_docker_build_args+=(
+        --build-arg "FLOW_PYTHON_PACKAGE_VERSION=${package_version}"
+    )
+fi
+
+if [[ -n "${build_cache_repository}" ]]; then
+    cache_from_args=(
+        --cache-from "type=registry,ref=${build_cache_repository}:ya-make-main"
+    )
+    for cache_family in stable query-tracker chyt; do
+        for cache_slot in 0 1 2; do
+            cache_from_args+=(
+                --cache-from "type=registry,ref=${build_cache_repository}:ya-make-${cache_family}-${cache_slot}"
+            )
+        done
+    done
+
+    docker buildx build \
+        --load \
+        --target "${component}" \
+        "${cache_from_args[@]}" \
+        "${common_docker_build_args[@]}" \
+        -t "${image_cr}ytsaurus/${component}:${image_tag}" .
+else
+    docker build \
+        --target "${component}" \
+        "${common_docker_build_args[@]}" \
+        -t "${image_cr}ytsaurus/${component}:${image_tag}" .
+fi

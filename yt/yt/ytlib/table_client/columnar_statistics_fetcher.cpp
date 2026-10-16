@@ -115,9 +115,10 @@ void TColumnarStatisticsFetcher::OnResponse(
     const TDataNodeServiceProxy::TErrorOrRspGetColumnarStatisticsPtr& rspOrError)
 {
     if (!rspOrError.IsOK()) {
-        YT_LOG_INFO(rspOrError, "Failed to get columnar statistics from node (Address: %v, NodeId: %v)",
-            NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
-            nodeId);
+        YT_TLOG_INFO("Failed to get columnar statistics from node")
+            .With("Address", NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress())
+            .With("NodeId", nodeId)
+            .With(rspOrError);
         OnNodeFailed(nodeId, chunkIndexes);
         return;
     }
@@ -215,8 +216,8 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
                 break;
             default:
                 THROW_ERROR_EXCEPTION("Cannot apply column selectivity factor for chunk of an unexpected format")
-                    << TErrorAttribute("chunk_id", chunk->GetChunkId())
-                    << TErrorAttribute("chunk_format", chunk->GetChunkFormat());
+                    .With("chunk_id", chunk->GetChunkId())
+                    .With("chunk_format", chunk->GetChunkFormat());
         }
 
         auto totalDataWeight = chunk->GetTotalDataWeight();
@@ -272,8 +273,8 @@ void TColumnarStatisticsFetcher::AddChunk(
 
     if (columnStableNames.empty()) {
         // Do not fetch anything. The less rpc requests, the better.
-        Chunks_.emplace_back(std::move(chunk));
         NeedFetchFromNode_[chunk] = false;
+        Chunks_.emplace_back(std::move(chunk));
         LightweightChunkStatistics_.resize(Chunks_.size());
         if (Chunks_.back()->GetChunkFormat() == EChunkFormat::TableUnversionedColumnar && Options_.EnableReadSizeEstimation) {
             // NB(apollo1321): Columnar format readers do not fetch data blocks if the column names are empty.

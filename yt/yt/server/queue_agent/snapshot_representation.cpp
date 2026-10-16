@@ -1,11 +1,13 @@
 #include "snapshot_representation.h"
-#include "snapshot.h"
 
 #include "queue_exporter.h"
+#include "snapshot.h"
+
+#include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/yt/core/net/local_address.h>
+#include <library/cpp/yt/misc/range_helpers.h>
 
 namespace NYT::NQueueAgent {
 
@@ -54,7 +56,7 @@ void BuildRegistrationYson(TFluentList fluent, TConsumerRegistrationTableRow reg
 void BuildQueueStatusYson(
     const TQueueSnapshotPtr& snapshot,
     const IAlertManagerPtr& alertManager,
-    const TErrorOr<THashMap<TString, TQueueExportProgressPtr>>& queueExportsProgressOrError,
+    const TErrorOr<THashMap<std::string, TQueueExportProgressPtr>>& queueExportsProgressOrError,
     TFluentAny fluent)
 {
     fluent
@@ -175,7 +177,6 @@ void BuildConsumerStatusYson(const TConsumerSnapshotPtr& snapshot, TFluentAny fl
                 fluent
                     .Item(ToString(queuePath)).Do(std::bind(BuildSubConsumerStatusYson, subSnapshot, _1));
             })
-
         .EndMap();
 }
 
@@ -241,6 +242,51 @@ void BuildConsumerPartitionListYson(const TConsumerSnapshotPtr& snapshot, TFluen
             fluent
                 .Item(ToString(queuePath)).Do(std::bind(BuildSubConsumerPartitionListYson, subSnapshot, _1));
         });
+}
+
+void BuildChildOrErrorYson(
+    TStringBuf key,
+    NYTree::TFluentMap fluent,
+    const std::pair<const std::string, TErrorOr<IMapNodePtr>>& pair)
+{
+    auto wrapError = [&] (const TError& error, TFluentAny fluent) {
+        fluent
+            .BeginMap()
+                .Item("error").Value(error)
+            .EndMap();
+    };
+
+    const auto& [name, mapOrError] = pair;
+    if (mapOrError.IsOK()) {
+        if (auto value = mapOrError.Value()->template FindChildValue<INodePtr>(key)) {
+            fluent.Item(name).Value(*value);
+        } else {
+            fluent.Item(name).Do(std::bind_front(wrapError, TError("%Qv not found in consumer orchid", key)));
+        }
+    } else {
+        fluent.Item(name).Do(std::bind_front(wrapError, mapOrError));
+    }
+}
+
+void BuildMultiConsumerStatusYson(
+    const TMultiConsumerSnapshotPtr& snapshot,
+    const THashMap<std::string, TErrorOr<NYTree::IMapNodePtr>>& consumerOrchids,
+    const IAlertManagerPtr& alertManager,
+    TFluentAny fluent)
+{
+    fluent
+        .BeginMap()
+            .Item("alerts").Value(alertManager->GetAlerts())
+            .Item("queue_agent_host").Value(GetLocalHostName())
+            .DoIf(snapshot->Error.IsOK(), [&] (TFluentMap fluentMap) {
+                fluentMap
+                    .Item("queue_consumer_names").List(snapshot->QueueConsumerNames)
+                    .Item("consumers").DoMapFor(consumerOrchids, std::bind_front(BuildChildOrErrorYson, "status"));
+            })
+            .DoIf(!snapshot->Error.IsOK(), [&] (TFluentMap fluentMap) {
+                fluentMap.Item("error").Value(snapshot->Error);
+            })
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

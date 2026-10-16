@@ -74,7 +74,7 @@ private:
     double MisraGriesDelta_ = 0;
     double TotalCounter_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     void DoRegister(const TKey& key, double increment);
     void CleanUpSummary();

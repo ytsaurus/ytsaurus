@@ -87,7 +87,7 @@ NTransactionServer::NProto::TReqCommitCypressTransaction BuildCommitCypressTrans
 {
     NTransactionServer::NProto::TReqCommitCypressTransaction request;
     ToProto(request.mutable_transaction_id(), transactionId);
-    request.set_commit_timestamp(commitTimestamp);
+    request.set_commit_timestamp(ToProto(commitTimestamp));
     ToProto(request.mutable_prerequisite_transaction_ids(), prerequisiteTransactionIds);
     WriteAuthenticationIdentityToProto(&request, authenticationIdentity);
     return request;

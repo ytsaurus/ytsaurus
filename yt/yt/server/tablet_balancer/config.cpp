@@ -2,6 +2,7 @@
 #include "private.h"
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
+#include <yt/yt/server/lib/tablet_balancer/metrics_calculator.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 
@@ -10,8 +11,7 @@
 namespace NYT::NTabletBalancer {
 
 const TTimeFormula DefaultTabletBalancerSchedule = MakeTimeFormula("minutes % 5 == 0");
-const TString DefaultParameterizedMetricFormula = "double([/performance_counters/dynamic_row_write_data_weight_10m_rate])";
-const TString StatisticsTableDefaultPath = "//sys/tablet_balancer/performance_counters";
+const NYPath::TYPath StatisticsTableDefaultPath = "//sys/tablet_balancer/performance_counters";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,11 +83,11 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("fetch_tablet_cells_from_secondary_masters", &TThis::FetchTabletCellsFromSecondaryMasters)
         .Default(false);
+    registrar.Parameter("enable_parameterized_size_reshard", &TThis::EnableParameterizedSizeReshard)
+        .Default(false);
     registrar.Parameter("enable_parameterized_reshard_by_default", &TThis::EnableParameterizedReshardByDefault)
         .Default(false);
     registrar.Parameter("pick_reshard_pivot_keys", &TThis::PickReshardPivotKeys)
-        .Default(true);
-    registrar.Parameter("cancel_action_if_pick_pivot_keys_fails", &TThis::CancelActionIfPickPivotKeysFails)
         .Default(true);
     registrar.Parameter("enable_reshard_verbose_logging", &TThis::EnableReshardVerboseLogging)
         .Default(false);
@@ -205,6 +205,8 @@ void TBundleStateProviderConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("fetch_tablet_cells_from_secondary_masters", &TThis::FetchTabletCellsFromSecondaryMasters)
         .Default(false);
+    registrar.Parameter("use_internal_api", &TThis::UseInternalApi)
+        .Default(false);
     registrar.Parameter("use_statistics_reporter", &TThis::UseStatisticsReporter)
         .Default(false);
     registrar.Parameter("statistics_table_path", &TThis::StatisticsTablePath)
@@ -229,7 +231,7 @@ void TBundleStateProviderConfig::Register(TRegistrar registrar)
     registrar.Parameter("performance_counters_fetch_period", &TThis::PerformanceCountersFetchPeriod)
         .Default();
 
-    registrar.Parameter("chunk_invariants", &TThis::CheckInvariants)
+    registrar.Parameter("check_invariants", &TThis::CheckInvariants)
         .Default(true);
 }
 
@@ -251,6 +253,8 @@ void TTabletBalancerBootstrapConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
         .Default();
+    registrar.Parameter("dry_run", &TThis::DryRun)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         if (auto& lockPath = config->ElectionManager->LockPath; lockPath.empty()) {
@@ -260,6 +264,25 @@ void TTabletBalancerBootstrapConfig::Register(TRegistrar registrar)
             dynamicConfigPath = config->RootPath + "/config";
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDryRunConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("is_dry_run", &TThis::IsDryRun)
+        .Default(false);
+    registrar.Parameter("create_tablet_actions", &TThis::CreateTabletActions)
+        .Default(false);
+
+    registrar.Parameter("bundle", &TThis::Bundle)
+        .Default();
+    registrar.Parameter("groups", &TThis::Groups)
+        .Default();
+    registrar.Parameter("mode", &TThis::Mode)
+        .Default(NTabletBalancerClient::EBalancingRequestMode::Reshard);
+    registrar.Parameter("max_action_count", &TThis::MaxActionCount)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

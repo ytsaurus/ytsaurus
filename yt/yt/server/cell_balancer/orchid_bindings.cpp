@@ -95,6 +95,10 @@ void TDataCenterRacksInfo::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("required_spare_node_count", &TThis::RequiredSpareNodeCount)
         .Default();
+    registrar.Parameter("bundle_node_count_without_rack", &TThis::BundleNodeCountWithoutRack)
+        .Default();
+    registrar.Parameter("spare_node_count_without_rack", &TThis::SpareNodeCountWithoutRack)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -216,8 +220,8 @@ TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state, const TSchedulerM
         bundleOrchidInfo->ResourceAlive->Clear();
         bundleOrchidInfo->ResourceTarget->Clear();
 
-        PopulateInstancesPerDC(bundleName, state.BundleNodes, state.TabletNodes, bundleOrchidInfo->AllocatedTabletNodes);
-        PopulateInstancesPerDC(bundleName, state.BundleProxies, state.RpcProxies, bundleOrchidInfo->AllocatedRpcProxies);
+        PopulateInstancesPerDC(bundleName, state.NodesAllocatedForBundle, state.TabletNodes, bundleOrchidInfo->AllocatedTabletNodes);
+        PopulateInstancesPerDC(bundleName, state.ProxiesAllocatedForBundle, state.RpcProxies, bundleOrchidInfo->AllocatedRpcProxies);
 
         if (auto it = state.ZoneToSpareNodes.find(bundleInfo->Zone); it != state.ZoneToSpareNodes.end()) {
             for (const auto& [_, spareInfo] : it->second) {
@@ -302,6 +306,8 @@ TZonesRacksInfo GetZonesRacksInfo(const TSchedulerInputState& state)
             orchidRack->RackToBundleNodes = dataCenterInfo.RackToBundleInstances;
             orchidRack->RackToSpareNodes = dataCenterInfo.RackToSpareInstances;
             orchidRack->RequiredSpareNodeCount = dataCenterInfo.RequiredSpareNodeCount;
+            orchidRack->BundleNodeCountWithoutRack = dataCenterInfo.BundleNodeCountWithoutRack;
+            orchidRack->SpareNodeCountWithoutRack = dataCenterInfo.SpareNodeCountWithoutRack;
         }
     }
 

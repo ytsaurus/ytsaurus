@@ -4,6 +4,7 @@ PEERDIR(
     yt/odin/lib/yt_odin/odinserver
     yt/odin/lib/yt_odin/logserver
     yt/odin/lib/yt_odin/storage
+    yt/odin/lib/yt_odin/webservice
 
     yt/python/yt/wrapper
 

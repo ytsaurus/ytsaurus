@@ -1,7 +1,7 @@
 #include "roren.h"
-
 #include "executor.h"
-#include "private/merge_par_dos.h"
+
+#include <yt/cpp/roren/interface/private/merge_par_dos.h>
 
 
 namespace NRoren {
@@ -36,7 +36,7 @@ TPipeline::TPipeline(IExecutorPtr executor)
 
 TPipeline::TPipeline(const TPipeline& pipeline) = default;
 
-TPipeline::TPipeline(TPipeline&& pipeline) = default;
+TPipeline::TPipeline(TPipeline&& pipeline) noexcept = default;
 
 TPipeline::~TPipeline() = default;
 

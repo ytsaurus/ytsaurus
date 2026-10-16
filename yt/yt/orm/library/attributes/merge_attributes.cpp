@@ -118,7 +118,7 @@ TYsonString NewMergeValueLists(std::vector<TAttributeValue> attributeValues, EYs
     return resultBuilder.Flush();
 }
 
-std::optional<std::tuple<TStringBuf, TStringBuf>> SplitByAsterisk(const NYPath::TYPath& path)
+std::optional<std::tuple<TStringBuf, TStringBuf>> SplitByAsterisk(NYPath::TYPathBuf path)
 {
     NYPath::TTokenizer tokenizer(path);
     while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
@@ -140,18 +140,33 @@ std::vector<TAttributeValue> ExpandWildcardValueLists(
     std::function<void(bool, std::vector<NYPath::TYPath>)> mismatchCallback)
 {
     std::vector<TAttributeValue> result;
+    std::vector<TAttributeValue> nonWildcardAttributes;
     THashMap<NYPath::TYPath, std::vector<TAttributeValue>> attributesToExpand;
     for (auto& attributeValue : attributeValues) {
         auto split = SplitByAsterisk(attributeValue.Path);
         if (!split.has_value()) {
-            result.push_back(std::move(attributeValue));
+            nonWildcardAttributes.push_back(std::move(attributeValue));
             continue;
         }
-        auto [before, after] = split.value();
+        auto [before, after] = *split;
         attributesToExpand[before].push_back(TAttributeValue{
             .Path = NYPath::TYPath{after},
             .Value = std::move(attributeValue.Value),
         });
+    }
+
+    // A repeated view may be requested without a wildcard (e.g. "/spec/view")
+    // together with a field inside it ("/spec/view/*/field").
+    for (auto& attributeValue : nonWildcardAttributes) {
+        auto it = attributesToExpand.find(attributeValue.Path);
+        if (it != attributesToExpand.end()) {
+            it->second.push_back(TAttributeValue{
+                .Path = NYPath::TYPath{},
+                .Value = std::move(attributeValue.Value),
+            });
+        } else {
+            result.push_back(std::move(attributeValue));
+        }
     }
 
     for (auto& [path, attributesOnPath] : attributesToExpand) {
@@ -190,7 +205,7 @@ std::vector<TAttributeValue> ExpandWildcardValueLists(
     return result;
 }
 
-void RemoveEntitiesOnPath(NYTree::INodePtr node, const NYPath::TYPath& path)
+void RemoveEntitiesOnPath(NYTree::INodePtr node, NYPath::TYPathBuf path)
 {
     NYTree::WalkNodeByYPath(node, path, {
         .MissingAttributeHandler = [] (const std::string& /*key*/) {
@@ -509,7 +524,7 @@ private:
             std::string prefix = CurrentPathSegments_.empty() ? "" : "/";
             prefix += JoinToString(CurrentPathSegments_, TDefaultFormatter(), "/");
             THROW_ERROR_EXCEPTION("Duplicate key %Qv", key)
-                << TErrorAttribute("key_prefix", prefix);
+                .With("key_prefix", prefix);
         }
         LastKey_ = key;
     }
@@ -639,80 +654,48 @@ bool HasPrefixes(const std::vector<TAttributeValue>& attributeValues)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsOnePrefixOfAnother(const NYPath::TYPath& lhs, const NYPath::TYPath& rhs)
-{
-    auto [lit, rit] = std::ranges::mismatch(lhs, rhs);
-    if (lit == lhs.end() && (rit == rhs.end() || *rit == '/')) {
-        return true;
-    }
-    if (rit == rhs.end() && (*lit == '/')) {
-        return true;
-    }
-    return false;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TMergeAttributesHelper::TMergeAttributesHelper(NYson::IYsonConsumer* consumer)
+TMergeAttributesPlan::TWriter::TWriter(
+    NYson::IYsonConsumer* consumer,
+    const TMergeAttributesPlan& plan)
     : Consumer_(consumer)
+    , Plan_(plan)
 {
     Consumer_->OnBeginMap();
 }
 
-void TMergeAttributesHelper::ToNextPath(NYPath::TYPathBuf path, bool isEtc)
+void TMergeAttributesPlan::TWriter::Advance()
 {
-    NYPath::TTokenizer tokenizer(path);
-    tokenizer.Expect(NYPath::ETokenType::StartOfStream);
-    tokenizer.Advance();
+    YT_VERIFY(NextTransitionIndex_ < std::ssize(Plan_.Transitions_));
+    const auto& transition = Plan_.Transitions_[NextTransitionIndex_++];
 
-    int matchedPrefixLen = 0;
-    while (matchedPrefixLen < std::ssize(PathToCurrentMap_) &&
-        tokenizer.GetType() != NYPath::ETokenType::EndOfStream)
-    {
-        tokenizer.Expect(NYPath::ETokenType::Slash);
-        tokenizer.Advance();
-        tokenizer.Expect(NYPath::ETokenType::Literal);
-        if (tokenizer.GetLiteralValue() == PathToCurrentMap_[matchedPrefixLen]) {
-            tokenizer.Advance();
-            ++matchedPrefixLen;
-        } else {
-            break;
-        }
-    }
-
-    while (std::ssize(PathToCurrentMap_) > matchedPrefixLen) {
+    for (int index = 0; index < transition.MapCountToClose; ++index) {
         Consumer_->OnEndMap();
-        PathToCurrentMap_.pop_back();
+        --CurrentMapDepth_;
     }
 
-    if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
-        // Current path turned out to be prefix of previous one.
-        // That is supported only if current path is etc.
-        YT_VERIFY(isEtc);
-        return;
-    }
-
-    while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
-        tokenizer.Skip(NYPath::ETokenType::Slash);
-        tokenizer.Expect(NYPath::ETokenType::Literal);
-        auto lastLiteral = tokenizer.GetLiteralValue();
-        Consumer_->OnKeyedItem(lastLiteral);
-
-        if (tokenizer.Advance() != NYPath::ETokenType::EndOfStream || isEtc) {
+    for (int index = 0; index < std::ssize(transition.Literals); ++index) {
+        Consumer_->OnKeyedItem(transition.Literals[index]);
+        if (index + 1 < std::ssize(transition.Literals) || transition.IsEtc) {
             Consumer_->OnBeginMap();
-            PathToCurrentMap_.push_back(lastLiteral);
+            ++CurrentMapDepth_;
         }
     }
 }
 
-void TMergeAttributesHelper::Finalize()
+void TMergeAttributesPlan::TWriter::Finalize()
 {
-    while (std::ssize(PathToCurrentMap_) > 0) {
+    YT_VERIFY(NextTransitionIndex_ == std::ssize(Plan_.Transitions_));
+    while (CurrentMapDepth_ > 0) {
         Consumer_->OnEndMap();
-        PathToCurrentMap_.pop_back();
+        --CurrentMapDepth_;
     }
 
     Consumer_->OnEndMap();
+}
+
+TMergeAttributesPlan::TWriter TMergeAttributesPlan::CreateWriter(NYson::IYsonConsumer* consumer) const
+{
+    return TWriter(consumer, *this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

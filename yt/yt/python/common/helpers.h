@@ -10,7 +10,7 @@
 #include <util/generic/strbuf.h>
 #include <util/generic/string.h>
 
-#include <CXX/Objects.hxx> // pycxx
+#include <CXX/Objects.hxx>
 
 #include <optional>
 
@@ -30,13 +30,13 @@ TStringBuf ConvertToStringBuf(const Bytes& pyString);
 Bytes ConvertToPythonString(TStringBuf string);
 #endif
 
-TString ConvertStringObjectToString(const Object& obj);
+std::string ConvertStringObjectToString(const Object& obj);
 Object GetAttr(const Object& obj, const std::string& fieldName);
 std::optional<Object> FindAttr(const Object& obj, const std::string& fieldName);
 i64 ConvertToLongLong(const Object& obj);
 bool ConvertToBoolean(const Object& obj);
 std::string Repr(const Object& obj);
-TString Str(const Object& obj);
+std::string Str(const Object& obj);
 
 Object CreateIterator(const Object& object);
 
@@ -54,6 +54,9 @@ Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwargs, const std::string&
 bool HasArgument(const Py::Tuple& args, const Py::Dict& kwargs, const std::string& name);
 void ValidateArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs);
 bool AreArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs);
+
+//! Returns the mapping value at #key if it is present and not None.
+std::optional<Py::Object> GetOptional(const Py::Mapping& mapping, const std::string& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,14 +101,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-PyObject* FindModuleAttribute(const TString& moduleName, const TString& attributeName);
-PyObject* GetModuleAttribute(const TString& moduleName, const TString& attributeName);
+PyObject* FindModuleAttribute(const std::string& moduleName, const std::string& attributeName);
+PyObject* GetModuleAttribute(const std::string& moduleName, const std::string& attributeName);
 PyObject* GetYsonTypeClass(const std::string& name);
 PyObject* FindYsonTypeClass(const std::string& name);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool WaitForSettingFuture(TFuture<void> future);
+//! Blocks the current thread until #future is set, periodically polling
+//! Python's signal queue so that signals raised in the interpreter
+//! (e.g. KeyboardInterrupt from Ctrl+C) are not silently swallowed while
+//! the GIL is released. Returns the future's value on success; if a
+//! Python signal handler requested termination, cancels #future and
+//! returns a Canceled error.
+template <CFuture TFuture>
+TErrorOr<typename TFuture::TValueType> SignalFriendlyWaitFor(TFuture future);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,3 +134,7 @@ using PyObjectPtr = std::unique_ptr<PyObject, TPyObjectDeleter>;
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NPython
+
+#define HELPERS_INL_H_
+#include "helpers-inl.h"
+#undef HELPERS_INL_H_

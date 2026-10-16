@@ -70,7 +70,7 @@ std::vector<TSharedRef> TClient::DoReadHunks(
         });
     }
 
-    auto response = WaitFor(reader->ReadFragments(/*options*/ {}, readerRequests))
+    auto response = WaitFor(reader->ReadFragments(readerRequests, /*options*/ {}).AsUnique())
         .ValueOrThrow();
     const auto& fragments = response.Fragments;
     YT_VERIFY(fragments.size() == requests.size());
@@ -315,7 +315,7 @@ std::vector<TErrorOr<i64>> TClient::DoGetOrderedTabletSafeTrimRowCount(
         ToProto(subrequest.mutable_tablet_id(), tabletInfo->TabletId);
         ToProto(subrequest.mutable_cell_id(), tabletInfo->CellId);
         subrequest.set_mount_revision(ToProto(tabletInfo->MountRevision));
-        subrequest.set_timestamp(request.Timestamp);
+        subrequest.set_timestamp(ToProto(request.Timestamp));
 
         auto cellDescriptor = cellDirectory->GetDescriptorByCellIdOrThrow(tabletInfo->CellId);
         const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(*cellDescriptor, NHydra::EPeerKind::Leader);

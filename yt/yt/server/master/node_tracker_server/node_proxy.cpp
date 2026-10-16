@@ -10,6 +10,7 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/cell_server/cell_base.h>
 #include <yt/yt/server/master/cell_server/cell_bundle.h>
@@ -118,7 +119,8 @@ private:
             .SetPresent(node->GetHost())
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->push_back(EInternedAttributeKey::DataCenter);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DataCenter)
+            .SetPresent(node->GetRack() && node->GetRack()->GetDataCenter()));
         descriptors->push_back(EInternedAttributeKey::State);
         descriptors->push_back(EInternedAttributeKey::MulticellStates);
         descriptors->push_back(EInternedAttributeKey::MasterCellsReliabilities);
@@ -181,7 +183,7 @@ private:
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
-        auto* node = GetThisImpl();
+        const auto* node = GetThisImpl();
         bool isGood = node->HasAliveLocalState();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
@@ -371,6 +373,10 @@ private:
                             fluent
                                 .Item(medium->GetName()).BeginMap()
                                     .Item("io_weight").Value(mediumStatistics.io_weight())
+                                    .DoIf(mediumStatistics.has_max_write_sessions_per_location(), [&] (TFluentMap fluent) {
+                                        fluent.Item("max_write_sessions_per_location")
+                                            .Value(mediumStatistics.max_write_sessions_per_location());
+                                    })
                                 .EndMap();
                         })
                         .Item("memory").BeginMap()
@@ -401,6 +407,7 @@ private:
                                 fluent.Item(statistics.network())
                                     .BeginMap()
                                         .Item("throttling_reads").Value(statistics.throttling_reads())
+                                        .Item("throttling_writes").Value(statistics.throttling_writes())
                                     .EndMap();
                             })
                         .EndMap()
@@ -810,7 +817,7 @@ private:
     static void BuildYsonCellar(const TNode::TCellar& cellar, TFluentAny fluent)
     {
         fluent
-            .DoListFor(cellar, [] (TFluentList fluent, const TNode::TCellSlot& slot) {
+            .DoListFor(cellar, [] (TFluentList fluent, const TCellSlot& slot) {
                 fluent
                     .Item().BeginMap()
                     .Item("state").Value(slot.PeerState)

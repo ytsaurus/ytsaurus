@@ -18,6 +18,24 @@ TAllocationId GenerateAllocationId(NObjectClient::TCellTag tag, NNodeTrackerClie
 NNodeTrackerClient::TNodeId NodeIdFromAllocationId(TAllocationId allocationId);
 ui64 EntropyFromAllocationId(TAllocationId allocationId);
 
+//! Checks that |allocationId| is well-formed, i.e. has the allocation object type
+//! and encodes |nodeId|.
+bool CheckAllocationId(TAllocationId allocationId, NNodeTrackerClient::TNodeId nodeId);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Generates allocation ids for a fixed cell tag.
+class TAllocationIdGenerator
+{
+public:
+    explicit TAllocationIdGenerator(NObjectClient::TCellTag cellTag);
+
+    TAllocationId Generate(NNodeTrackerClient::TNodeId nodeId) const;
+
+private:
+    const NObjectClient::TCellTag CellTag_;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NSecurityClient::TSerializableAccessControlList MakeOperationArtifactAcl(const NSecurityClient::TSerializableAccessControlList& acl);
@@ -25,6 +43,19 @@ NSecurityClient::TSerializableAccessControlList MakeOperationArtifactAcl(const N
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateGpuSchedulingModuleName(TStringBuf name);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns the priority of the largest table entry whose `ModuleShare <= share`.
+//! Returns `std::nullopt` if the table is empty or `share` is below the smallest entry.
+//! The table is expected to be sorted by ascending `ModuleShare` (enforced by config postprocessors).
+std::optional<TNetworkPriority> ComputeNetworkPriority(
+    double share,
+    const std::vector<TModuleShareAndNetworkPriority>& table);
+
+//! Throws if `table` is not strictly ascending by `ModuleShare`.
+void ValidateModuleShareToNetworkPriority(
+    const std::vector<TModuleShareAndNetworkPriority>& table);
 
 ////////////////////////////////////////////////////////////////////////////////
 

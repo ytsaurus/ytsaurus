@@ -72,14 +72,12 @@ void TMemoryWatchdog::CheckMemoryUsage()
         }
     }
 
-    YT_LOG_DEBUG(
-        "Checking memory usage "
-        "(Rss: %v, MemoryLimit: %v, CodicilWatermark: %v, MinimumWindowRss: %v, WindowCodicilWatermark: %v)",
-        rss,
-        Config_->MemoryLimit,
-        Config_->CodicilWatermark,
-        minimumWindowRss,
-        Config_->WindowCodicilWatermark);
+    YT_TLOG_DEBUG("Checking memory usage")
+        .With("Rss", rss)
+        .With("MemoryLimit", Config_->MemoryLimit)
+        .With("CodicilWatermark", Config_->CodicilWatermark)
+        .With("MinimumWindowRss", minimumWindowRss)
+        .With("WindowCodicilWatermark", Config_->WindowCodicilWatermark);
 
     CheckRss(rss);
     CheckMinimumWindowRss(minimumWindowRss);
@@ -97,11 +95,10 @@ void TMemoryWatchdog::CheckRss(size_t rss)
         return;
     }
 
-    YT_LOG_ERROR(
-        "Killing self because memory usage is too high (Rss: %v, MemoryLimit: %v, CodicilWatermark: %v)",
-        rss,
-        Config_->MemoryLimit,
-        Config_->CodicilWatermark);
+    YT_TLOG_ERROR("Killing self because memory usage is too high")
+        .With("Rss", rss)
+        .With("MemoryLimit", Config_->MemoryLimit)
+        .With("CodicilWatermark", Config_->CodicilWatermark);
 
     DumpRefCountedTracker();
 
@@ -119,11 +116,10 @@ void TMemoryWatchdog::CheckMinimumWindowRss(size_t minimumWindowRss)
         return;
     }
 
-    YT_LOG_ERROR(
-        "Interrupting self because window minimum memory usage is too high (MinimumWindowRss: %v, MemoryLimit: %v, WindowCodicilWatermark: %v)",
-        minimumWindowRss,
-        Config_->MemoryLimit,
-        Config_->WindowCodicilWatermark);
+    YT_TLOG_ERROR("Interrupting self because window minimum memory usage is too high")
+        .With("MinimumWindowRss", minimumWindowRss)
+        .With("MemoryLimit", Config_->MemoryLimit)
+        .With("WindowCodicilWatermark", Config_->WindowCodicilWatermark);
     WriteToStderr("*** Interrupting self because window memory usage is too high ***\n");
     DumpRefCountedTracker();
 

@@ -78,6 +78,9 @@ class YTServerComponentBase:
     def get_default_config(self, instance_index: int):
         raise NotImplementedError("Override me in the derived class")
 
+    def override_common_settings(self, config, instance_index: int):
+        return config
+
     def _build_configs(self, count, yt_config, cluster_connection, ports_generator, logs_dir):
         configs = []
         addresses = []
@@ -102,6 +105,7 @@ class YTServerComponentBase:
             if yt_config.address_resolver_config:
                 update_inplace(config, {"address_resolver": yt_config.address_resolver_config})
 
+            config = self.override_common_settings(config, index)
             configs.append(config)
             addresses.append("{}:{}".format(yt_config.fqdn, config["rpc_port"]))
 

@@ -45,37 +45,33 @@ private:
     {
         auto destinations = FromProto<std::vector<ui32>>(request->destinations());
 
-        context->SetRequestInfo("Source: %v, Destinations: %v",
-            request->source(),
-            MakeShrunkFormattableView(destinations, TDefaultFormatter(), 10));
+        context->AnnotateRequest()
+            .With("Source", request->source())
+            .With("Destinations", MakeShrunkFormattableView(destinations, TDefaultFormatter(), /*limit*/ 10));
 
-        if (request->source() != TvmService_->GetSelfTvmId()) {
+        if (FromProto<TTvmId>(request->source()) != TvmService_->GetSelfTvmIdOrThrow()) {
             THROW_ERROR_EXCEPTION("Cannot fetch tickets for provided source")
-                << TErrorAttribute("source", request->source());
+                .With("source", request->source());
         }
 
         for (const auto& destination : request->destinations()) {
             auto* result = response->add_results();
             result->set_destination(destination);
             try {
-                auto ticket = TvmService_->GetServiceTicket(destination);
+                auto ticket = TvmService_->GetServiceTicket(FromProto<TTvmId>(destination));
                 *result->mutable_ticket() = std::move(ticket);
             } catch (const TErrorException& ex) {
-                YT_LOG_INFO("Could not fetch service ticket (Source: %v, Destination: %v)",
-                    request->source(),
-                    destination);
+                YT_TLOG_INFO("Could not fetch service ticket")
+                    .With("Source", request->source())
+                    .With("Destination", destination);
                 ToProto(
                     result->mutable_error(),
                     TError("Could not fetch service ticket")
-                        << ex
-                        << TErrorAttribute("source", request->source())
-                        << TErrorAttribute("destination", destination));
+                        .With(ex)
+                        .With("source", request->source())
+                        .With("destination", destination));
             }
         }
-
-        context->SetResponseInfo("Source: %v, Destinations: %v",
-            request->source(),
-            MakeShrunkFormattableView(destinations, TDefaultFormatter(), 10));
 
         context->Reply();
     }

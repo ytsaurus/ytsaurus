@@ -55,24 +55,41 @@ private:
             : TQueryId::Create();
         ToProto(response->mutable_query_id(), queryId);
 
-        context->SetRequestInfo("QueryId: %v, Async: %v, BuildRowsets: %v, RowCountLimit: %v", queryId, request->async(), request->build_rowsets(), request->row_count_limit());
-        context->SetResponseInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId)
+            .With("Async", request->async())
+            .With("BuildRowsets", request->build_rowsets())
+            .With("RowCountLimit", request->row_count_limit());
 
         if (ComponentStateChecker_->IsComponentBanned()) {
-            YT_LOG_INFO("Yql agent is banned, failing query (QueryId: %v, User: %v)", queryId, user);
+            YT_TLOG_INFO("YQL agent is banned; failing query")
+                .With("QueryId", queryId)
+                .With("User", user);
             THROW_ERROR_EXCEPTION(NYqlClient::EErrorCode::YqlAgentBanned, "Yql agent is banned");
+        }
+
+        if (!YqlAgent_->IsReady()) {
+            YT_TLOG_INFO("YQL agent is not ready; failing query")
+                .With("QueryId", queryId)
+                .With("User", user);
+            THROW_ERROR_EXCEPTION(NYqlClient::EErrorCode::YqlAgentNotReady, "Yql agent is not ready");
         }
 
         auto responseFuture = YqlAgent_->StartQuery(queryId, user, *request);
 
         context->SubscribeCanceled(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
-            YT_LOG_INFO(error, "Request is canceled, aborting query (QueryId: %v)", queryId);
+            YT_TLOG_INFO("Request is canceled, aborting query")
+                .With("QueryId", queryId)
+                .With(error);
 
             YqlAgent_->AbortQuery(queryId).Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
                 if (error.IsOK()) {
-                    YT_LOG_INFO("Query abort finished (QueryId: %v)", queryId);
+                    YT_TLOG_INFO("Query abort finished")
+                        .With("QueryId", queryId);
                 } else {
-                    YT_LOG_ERROR(error, "Failed to abort query (QueryId: %v)", queryId);
+                    YT_TLOG_ERROR("Failed to abort query")
+                        .With("QueryId", queryId)
+                        .With(error);
                 }
             }));
         }));
@@ -96,8 +113,8 @@ private:
     {
         auto queryId = FromProto<TQueryId>(request->query_id());
 
-        context->SetRequestInfo("QueryId: %v", queryId);
-        context->SetResponseInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId);
 
         WaitFor(YqlAgent_->AbortQuery(queryId))
             .ThrowOnError();
@@ -110,8 +127,8 @@ private:
         // TODO(babenko): switch to std::string
         auto user = TString(context->GetAuthenticationIdentity().User);
 
-        context->SetRequestInfo();
-        context->SetResponseInfo();
+        context->AnnotateRequest();
+        context->AnnotateResponse();
 
         static const auto EmptyMap = TYsonString(TString("{}"));
         auto responseFuture = YqlAgent_->GetDeclaredParametersInfo(user, request->query(), request->has_settings() ? TYsonString(request->settings()) : EmptyMap);
@@ -130,10 +147,16 @@ private:
             ? FromProto<TQueryId>(request->query_id())
             : TQueryId::Create();
 
-        context->SetRequestInfo("QueryId: %v", queryId);
-        context->SetResponseInfo("QueryId: %v", queryId);
+        std::optional<ui32> revision = request->has_revision()
+            ? std::make_optional<ui32>(request->revision())
+            : std::nullopt;
 
-        response->MergeFrom(YqlAgent_->GetQueryProgress(queryId));
+        context->AnnotateRequest()
+            .With("QueryId", queryId)
+            .With("Revision", revision);
+
+        response->MergeFrom(YqlAgent_->GetQueryProgress(queryId, revision));
+
         context->Reply();
     }
 
@@ -141,8 +164,8 @@ private:
     {
         response->MergeFrom(YqlAgent_->GetYqlAgentInfo());
 
-        context->SetRequestInfo();
-        context->SetResponseInfo();
+        context->AnnotateRequest();
+        context->AnnotateResponse();
 
         context->Reply();
     }
@@ -151,7 +174,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return !ComponentStateChecker_->IsComponentBanned();
+        return !ComponentStateChecker_->IsComponentBanned() && YqlAgent_->IsReady();
     }
 };
 

@@ -1,0 +1,763 @@
+{
+    "panels": [
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Bytes",
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "C"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "D"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            },
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "normal"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 6,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_porto_memory_memory_limit\", tablet_cell_bundle=~\"$tablet_cell_bundle\", container_category=~\"pod\", pod=~\"$pod\"}",
+                    "legendFormat": "\"Container Memory Guarantee\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_porto_memory_anon_limit\", tablet_cell_bundle=~\"$tablet_cell_bundle\", container_category=~\"pod\", pod=~\"$pod\"}",
+                    "legendFormat": "\"Anon Memory Limit\"",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_porto_memory_anon_usage\", tablet_cell_bundle=~\"$tablet_cell_bundle\", container_category=~\"pod\", pod=~\"$pod\"}",
+                    "legendFormat": "\"Anon Memory Usage\"",
+                    "refId": "C"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_used\", tablet_cell_bundle=~\"$tablet_cell_bundle\", category=~\".+\", pod=~\"$pod\"}",
+                    "legendFormat": "\"{{category}}\"",
+                    "refId": "D"
+                }
+            ],
+            "title": "Memory usage per category (not shown per-host)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Bytes",
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 6
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_used\", tablet_cell_bundle=~\"$tablet_cell_bundle\", category=~\"tablet_dynamic\", pod=~\"$pod\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "max by() ({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_limit\", tablet_cell_bundle=~\"$tablet_cell_bundle\", category=~\"tablet_dynamic\", pod=~\"$pod\"})",
+                    "legendFormat": "\"Limit\"",
+                    "refId": "B"
+                }
+            ],
+            "title": "Tablet dynamic memory",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Bytes",
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 6
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_used\", tablet_cell_bundle=~\"$tablet_cell_bundle\", category=~\"tablet_static\", pod=~\"$pod\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "max by() ({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_limit\", tablet_cell_bundle=~\"$tablet_cell_bundle\", category=~\"tablet_static\", pod=~\"$pod\"})",
+                    "legendFormat": "\"Limit\"",
+                    "refId": "B"
+                }
+            ],
+            "title": "Tablet static memory",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Bytes",
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 12
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_used\", tablet_cell_bundle=~\"$tablet_cell_bundle\", category=~\"query\", pod=~\"$pod\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "max by() ({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_limit\", tablet_cell_bundle=~\"$tablet_cell_bundle\", category=~\"query\", pod=~\"$pod\"})",
+                    "legendFormat": "\"Limit\"",
+                    "refId": "B"
+                }
+            ],
+            "title": "Query memory usage",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Bytes",
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 12
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_total_used\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Tracked memory usage",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Bytes",
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 6,
+                "y": 18
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_memory_usage_rss\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Process memory usage (rss)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Bytes",
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 24
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_used\", tablet_cell_bundle=~\"$tablet_cell_bundle\", category=~\"lookup_rows_cache\", pod=~\"$pod\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "max by() ({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_limit\", tablet_cell_bundle=~\"$tablet_cell_bundle\", category=~\"lookup_rows_cache\", pod=~\"$pod\"})",
+                    "legendFormat": "\"Limit\"",
+                    "refId": "B"
+                }
+            ],
+            "title": "Row cache size",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Bytes",
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 24
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_used\", tablet_cell_bundle=~\"$tablet_cell_bundle\", category=~\"tablet_background\", pod=~\"$pod\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Tablet background memory",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Bytes",
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 30
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(1, ({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_total_limit\", tablet_cell_bundle=~\"$tablet_cell_bundle\", pod=~\"$pod\"}) - (sum by(container) ({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_limit\", tablet_cell_bundle=~\"$tablet_cell_bundle\", category=~\"block_cache|lookup_rows_cache|versioned_chunk_meta|tablet_dynamic|tablet_static|query\", pod=~\"$pod\"}))))",
+                    "legendFormat": "\"Limit\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "(topk(10, sum by(container) ({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_used\", tablet_cell_bundle=~\"$tablet_cell_bundle\", category!~\"block_cache|lookup_rows_cache|versioned_chunk_meta|tablet_dynamic|tablet_static|query|^$\", pod=~\"$pod\"})))",
+                    "legendFormat": "\"Usage {{container}}\"",
+                    "refId": "B"
+                }
+            ],
+            "title": "Reserved memory usage",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Bytes",
+                        "fillOpacity": 100,
+                        "hideFrom": {
+                            "legend": true
+                        },
+                        "stacking": {
+                            "group": "A",
+                            "mode": "normal"
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            },
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 30
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_used\", tablet_cell_bundle=~\"$tablet_cell_bundle\", category=~\"footprint\", pod=~\"$pod\"}",
+                    "legendFormat": "\"footprint {{container}}\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_used\", tablet_cell_bundle=~\"$tablet_cell_bundle\", category=~\"alloc_fragmentation\", pod=~\"$pod\"}",
+                    "legendFormat": "\"fragmentation {{container}}\"",
+                    "refId": "B"
+                }
+            ],
+            "title": "Footprint and Fragmentation",
+            "type": "timeseries"
+        }
+    ],
+    "tags": [],
+    "templating": {
+        "list": [
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "hide": 0,
+                "label": "Cluster",
+                "name": "cluster",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": "sys",
+                    "value": "sys"
+                },
+                "hide": 0,
+                "label": "Tablet cell bundle",
+                "name": "tablet_cell_bundle",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "sys",
+                        "value": "sys"
+                    }
+                ],
+                "query": "sys",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "default_for_ui": ".*",
+                "hide": 0,
+                "label": "Pod",
+                "name": "pod",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            }
+        ]
+    },
+    "title": "Bundle memory [Autogenerated]"
+}

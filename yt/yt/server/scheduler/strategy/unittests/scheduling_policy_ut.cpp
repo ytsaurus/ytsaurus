@@ -1,3 +1,5 @@
+#include "mocks.h"
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/server/scheduler/strategy/operation.h>
@@ -16,14 +18,11 @@
 #include <yt/yt/server/scheduler/common/exec_node.h>
 #include <yt/yt/server/scheduler/common/allocation.h>
 
-#include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>
-
 #include <yt/yt/client/scheduler/private.h>
 
-#include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/scheduler_api.h>
+#include <yt/yt/core/actions/invoker_util.h>
 
-#include <yt/yt/core/yson/null_consumer.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
 #include <library/cpp/iterator/enumerate.h>
 
@@ -34,242 +33,15 @@ namespace {
 
 using namespace NControllerAgent;
 using namespace NConcurrency;
+using namespace NTestMocks;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // NB(eshcherbin): Set to true, when in pain.
 static constexpr bool EnableDebugLogging = false;
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, EnableDebugLogging
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, EnableDebugLogging
     ? NLogging::TLogger("TestDebug")
     : NLogging::TLogger());
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSchedulerStrategyHostMock
-    : public TRefCounted
-    , public IStrategyHost
-    , public TEventLogHostBase
-{
-public:
-    TSchedulerStrategyHostMock(std::vector<IInvokerPtr> nodeShardInvokers, std::vector<TExecNodePtr> execNodes)
-        : NodeShardInvokers_(std::move(nodeShardInvokers))
-        , ExecNodes_(std::move(execNodes))
-        , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
-    {
-        NChunkClient::NProto::TMediumDirectory protoDirectory;
-        auto* protoMediumDescriptor = protoDirectory.add_medium_descriptors();
-        protoMediumDescriptor->set_name(NChunkClient::DefaultSlotsMediumName);
-        protoMediumDescriptor->set_index(NChunkClient::DefaultSlotsMediumIndex);
-        protoMediumDescriptor->set_priority(0);
-        MediumDirectory_->LoadFrom(protoDirectory);
-
-        for (const auto& node : ExecNodes_) {
-            NodeToState_.emplace(node, New<TNodeState>());
-        }
-    }
-
-    IInvokerPtr GetControlInvoker(EControlQueue /*queue*/) const override
-    {
-        return GetCurrentInvoker();
-    }
-
-    IInvokerPtr GetFairShareLoggingInvoker() const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    IInvokerPtr GetFairShareProfilingInvoker() const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    IInvokerPtr GetFairShareUpdateInvoker() const override
-    {
-        return GetCurrentInvoker();
-    }
-
-    IInvokerPtr GetBackgroundInvoker() const override
-    {
-        return GetCurrentInvoker();
-    }
-
-    IInvokerPtr GetOrchidWorkerInvoker() const override
-    {
-        return GetCurrentInvoker();
-    }
-
-    int GetNodeShardId(NNodeTrackerClient::TNodeId /*nodeId*/) const override
-    {
-        return 0;
-    }
-
-    const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override
-    {
-        return NodeShardInvokers_;
-    }
-
-    NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant /*now*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    NEventLog::TFluentLogEvent LogAccumulatedUsageEventFluently(TInstant /*now*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const override
-    {
-        TJobResources result;
-        for (const auto& execNode : ExecNodes_) {
-            if (execNode->CanSchedule(filter)) {
-                result += execNode->ResourceLimits();
-            }
-        }
-        return result;
-    }
-
-    TJobResources GetResourceUsage(const TSchedulingTagFilter& /*filter*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    void Disconnect(const TError& /*error*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    TInstant GetConnectionTime() const override
-    {
-        return TInstant();
-    }
-
-    void MarkOperationAsRunningInStrategy(TOperationId /*operationId*/) override
-    { }
-
-    void AbortOperation(TOperationId /*operationId*/, const TError& /*error*/) override
-    { }
-
-    void FlushOperationNode(TOperationId /*operationId*/) override
-    { }
-
-    TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
-    {
-        TMemoryDistribution result;
-        for (const auto& execNode : ExecNodes_)
-            if (execNode->CanSchedule(filter)) {
-                ++result[execNode->ResourceLimits().GetMemory()];
-            }
-        return result;
-    }
-
-    void AbortAllocationsAtNode(NNodeTrackerClient::TNodeId /*nodeId*/, EAbortReason /*reason*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    std::optional<int> FindMediumIndexByName(const std::string& /*mediumName*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    const std::string& GetMediumNameByIndex(int /*mediumIndex*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    void ValidatePoolPermission(
-        const std::string& /*treeId*/,
-        NObjectClient::TObjectId /*poolObjectId*/,
-        const TString& /*poolName*/,
-        const std::string& /*user*/,
-        NYTree::EPermission /*permission*/) const override
-    { }
-
-    void SetSchedulerAlert(ESchedulerAlertType /*alertType*/, const TError& /*alert*/) override
-    { }
-
-    TFuture<void> SetOperationAlert(
-        TOperationId /*operationId*/,
-        EOperationAlertType /*alertType*/,
-        const TError& /*alert*/,
-        std::optional<TDuration> /*timeout*/) override
-    {
-        return OKFuture;
-    }
-
-    NYson::IYsonConsumer* GetEventLogConsumer() override
-    {
-        return NYson::GetNullYsonConsumer();
-    }
-
-    const NLogging::TLogger* GetEventLogger() override
-    {
-        return nullptr;
-    }
-
-    TString FormatResources(const TJobResourcesWithQuota& resources) const override
-    {
-        YT_VERIFY(MediumDirectory_);
-        return NScheduler::FormatResources(resources);
-    }
-
-    void SerializeResources(const TJobResourcesWithQuota& /*resources*/, NYson::IYsonConsumer* /*consumer*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    void SerializeDiskQuota(const TDiskQuota& /*diskQuota*/, NYson::IYsonConsumer* /*consumer*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    void LogResourceMetering(
-        const TMeteringKey& /*key*/,
-        const TMeteringStatistics& /*statistics*/,
-        const THashMap<TString, TString>& /*otherTags*/,
-        TInstant /*connectionTime*/,
-        TInstant /*previousLogTime*/,
-        TInstant /*currentTime*/) override
-    { }
-
-    int GetDefaultAbcId() const override
-    {
-        return -1;
-    }
-
-    const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() const
-    {
-        return MediumDirectory_;
-    }
-
-    void InvokeStoringStrategyState(TPersistentStrategyStatePtr /*persistentStrategyState*/) override
-    { }
-
-    TFuture<void> UpdateLastMeteringLogTime(TInstant /*time*/) override
-    {
-        return OKFuture;
-    }
-
-    const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override
-    {
-        static const THashMap<std::string, TString> stub;
-        return stub;
-    }
-
-    const TNodeStatePtr& GetNodeState(const TExecNodePtr node)
-    {
-        return GetOrCrash(NodeToState_, node);
-    }
-
-private:
-    std::vector<IInvokerPtr> NodeShardInvokers_;
-    std::vector<TExecNodePtr> ExecNodes_;
-    THashMap<TExecNodePtr, TNodeStatePtr> NodeToState_;
-    NChunkClient::TMediumDirectoryPtr MediumDirectory_;
-};
-
-using TSchedulerStrategyHostMockPtr = TIntrusivePtr<TSchedulerStrategyHostMock>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -342,8 +114,10 @@ public:
         const TJobResources& allocationLimits,
         const TDiskResources& diskResourceLimits,
         const std::string& treeId,
-        const TString& poolPath,
-        std::optional<TDuration> waitingForResourcesOnNodeTimeout), (override));
+        const NYPath::TYPath& poolPath,
+        std::optional<TDuration> waitingForResourcesOnNodeTimeout,
+        std::optional<std::string> allocationGroupName,
+        TAllocationId allocationId), (override));
 
     MOCK_METHOD(void, OnNonscheduledAllocationAborted, (TAllocationId, EAbortReason, TControllerEpoch), (override));
 
@@ -527,35 +301,6 @@ using TOperationStrategyHostMockPtr = TIntrusivePtr<TOperationStrategyHostMock>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPoolTreeElementHostMock
-    : public IPoolTreeElementHost
-{
-public:
-    explicit TPoolTreeElementHostMock(const TStrategyTreeConfigPtr& treeConfig)
-        : ResourceTree_(New<TResourceTree>(treeConfig, std::vector<IInvokerPtr>({GetCurrentInvoker()})))
-    { }
-
-    TResourceTree* GetResourceTree() override
-    {
-        return ResourceTree_.Get();
-    }
-
-    void BuildElementLoggingStringAttributes(
-        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-        const TPoolTreeElement* /*element*/,
-        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-private:
-    TResourceTreePtr ResourceTree_;
-};
-
-using TPoolTreeElementHostMockPtr = TIntrusivePtr<TPoolTreeElementHostMock>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSchedulingPolicyTest
     : public testing::Test
 {
@@ -633,7 +378,7 @@ protected:
             SchedulerLogger());
     }
 
-    TPoolTreePoolElementPtr CreateTestPool(IStrategyHost* strategyHost, const TString& name, TPoolConfigPtr config = New<TPoolConfig>())
+    TPoolTreePoolElementPtr CreateTestPool(IStrategyHost* strategyHost, const std::string& name, TPoolConfigPtr config = New<TPoolConfig>())
     {
         return New<TPoolTreePoolElement>(
             strategyHost,
@@ -800,7 +545,7 @@ protected:
         return New<TAllocation>(
             allocationId,
             operationId,
-            /*incarnationId*/ TWrapperTraits<TIncarnationId>::RecursiveWrap(TGuid::Create()),
+            /*incarnationId*/ NMpl::TWrapperTraits<TIncarnationId>::RecursiveWrap(TGuid::Create()),
             /*controllerEpoch*/ TControllerEpoch(0),
             execNode,
             startTime,
@@ -892,6 +637,7 @@ protected:
             /*nodeShardId*/ 0,
             SchedulerConfig_,
             execNode,
+            GetSyncInvoker(),
             /*runningAllocations*/ {},
             strategyHost->GetMediumDirectory(),
             DefaultMinSpareResources_);
@@ -1116,14 +862,14 @@ TEST_F(TSchedulingPolicyTest, DontSuggestMoreResourcesThanOperationNeeds)
     std::atomic<int> heartbeatsInScheduling(0);
     EXPECT_CALL(
         operationControllerStrategyHost,
-        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(2)
-        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
+        .WillRepeatedly([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/, auto /*allocationId*/) {
             heartbeatsInScheduling.fetch_add(1);
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
             return MakeFuture<TControllerScheduleAllocationResultPtr>(
                 TErrorOr<TControllerScheduleAllocationResultPtr>(New<TControllerScheduleAllocationResult>()));
-        }));
+        });
 
     std::vector<TFuture<void>> futures;
     auto actionQueue = New<NConcurrency::TActionQueue>();
@@ -1261,10 +1007,10 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableOperationsOrder)
         for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
             const auto& element = operationElements[opIndex];
 
-            YT_LOG_INFO("Checking operation index (ExpectedIndex: %v, ActualIndex: %v, Weight: %v)",
-                expectedOperationIndices[opIndex],
-                GetPoolTreeSnapshotState(treeSnapshot)->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex,
-                element->GetWeight());
+            YT_TLOG_INFO("Checking operation index")
+                .With("ExpectedIndex", expectedOperationIndices[opIndex])
+                .With("ActualIndex", GetPoolTreeSnapshotState(treeSnapshot)->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex)
+                .With("Weight", element->GetWeight());
 
             EXPECT_EQ(
                 expectedOperationIndices[opIndex],
@@ -1298,11 +1044,11 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableOperationsOrder)
             for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
                 const auto& element = operationElements[opIndex];
 
-                YT_LOG_INFO("Checking operation index (ExpectedIndex: %v, ActualIndex: %v, Weight: %v, Satisfaction: %v)",
-                    expectedOperationIndices[opIndex],
-                    operationToIndex[element.Get()],
-                    element->GetWeight(),
-                    context->DynamicAttributesOf(element.Get()).LocalSatisfactionRatio);
+                YT_TLOG_INFO("Checking operation index")
+                    .With("ExpectedIndex", expectedOperationIndices[opIndex])
+                    .With("ActualIndex", operationToIndex[element.Get()])
+                    .With("Weight", element->GetWeight())
+                    .With("Satisfaction", context->DynamicAttributesOf(element.Get()).LocalSatisfactionRatio);
 
                 EXPECT_EQ(expectedOperationIndices[opIndex], operationToIndex[element.Get()]);
             }
@@ -1310,7 +1056,7 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableOperationsOrder)
 
         // Second, we check the order given by getting the best leaf descendant and deactivating it
         // until no active operation remains.
-        YT_LOG_INFO("Best leaf descendant");
+        YT_TLOG_INFO("Best leaf descendant");
 
         doCheckOrderDuringSchedulingStage([] (const TDynamicAttributes& attributes) {
             return attributes.BestLeafDescendant;
@@ -1318,7 +1064,7 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableOperationsOrder)
 
         // Third, we check the order inside schedulable children set.
         if (consideredOperations) {
-            YT_LOG_INFO("Schedulable children set");
+            YT_TLOG_INFO("Schedulable children set");
 
             doCheckOrderDuringSchedulingStage([] (const TDynamicAttributes& attributes) {
                 auto& childSet = attributes.SchedulableChildSet;
@@ -1338,12 +1084,10 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableOperationsOrder)
             TreeConfig_->MinChildHeapSize = minChildHeapSize;
 
             for (const auto& consideredOperations : {{}, std::optional(nonOwningOperationElements)}) {
-                YT_LOG_INFO(
-                    "Testing schedulable operations order "
-                    "(PoolMode: %v, MinChildHeapSize: %v, UseConsideredOperations: %v)",
-                    pool->GetConfig()->Mode,
-                    TreeConfig_->MinChildHeapSize,
-                    consideredOperations.has_value());
+                YT_TLOG_INFO("Testing schedulable operations order")
+                    .With("PoolMode", pool->GetConfig()->Mode)
+                    .With("MinChildHeapSize", TreeConfig_->MinChildHeapSize)
+                    .With("UseConsideredOperations", consideredOperations.has_value());
 
                 checkOrder(consideredOperations, ExpectedOperationIndices);
             }
@@ -1390,14 +1134,14 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithBatchScheduling)
         auto& operationControllerStrategyHost = operation->GetSchedulingOperationController();
         EXPECT_CALL(
             operationControllerStrategyHost,
-            ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+            ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
             .Times(2)
-            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
+            .WillRepeatedly([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/, auto /*allocationId*/) {
                 auto result = New<TControllerScheduleAllocationResult>();
                 result->StartDescriptor.emplace(TAllocationStartDescriptor{TAllocationId(TGuid::Create()), operationAllocationResources, TAllocationAttributes{}});
                 return MakeFuture<TControllerScheduleAllocationResultPtr>(
                     TErrorOr<TControllerScheduleAllocationResultPtr>(result));
-            }));
+            });
     }
 
     auto checkRootChildSet = [rootElement = rootElement.Get()] (
@@ -1596,14 +1340,14 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithoutBatchScheduling)
         auto& operationControllerStrategyHost = operation->GetSchedulingOperationController();
         EXPECT_CALL(
             operationControllerStrategyHost,
-            ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+            ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
             .Times(2)
-            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
+            .WillRepeatedly([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/, auto /*allocationId*/) {
                 auto result = New<TControllerScheduleAllocationResult>();
                 result->StartDescriptor.emplace(TAllocationStartDescriptor{TAllocationId(TGuid::Create()), operationAllocationResources, TAllocationAttributes{}});
                 return MakeFuture<TControllerScheduleAllocationResultPtr>(
                     TErrorOr<TControllerScheduleAllocationResultPtr>(result));
-            }));
+            });
     }
 
     // With heap.
@@ -1767,17 +1511,17 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
         context->PrescheduleAllocation(consideredOperationsList);
 
         for (auto* element : treeElements) {
-            YT_LOG_INFO("Testing element activeness (ElementId: %v, ExpectedActive: %v, ActualActive: %v)",
-                element->GetId(),
-                expectedActiveElements.contains(element),
-                context->DynamicAttributesOf(element).Active);
+            YT_TLOG_INFO("Testing element activeness")
+                .With("ElementId", element->GetId())
+                .With("ExpectedActive", expectedActiveElements.contains(element))
+                .With("ActualActive", context->DynamicAttributesOf(element).Active);
 
             EXPECT_EQ(expectedActiveElements.contains(element), context->DynamicAttributesOf(element).Active);
 
             if (auto* pool = dynamic_cast<TPoolTreeCompositeElement*>(element)) {
-                YT_LOG_INFO("Testing pool's child set presence: (ExpectedPresent: %v, ActualPresent: %v)",
-                    expectedActiveElements.contains(pool),
-                    context->DynamicAttributesOf(pool).SchedulableChildSet.has_value());
+                YT_TLOG_INFO("Testing pool's child set presence")
+                    .With("ExpectedPresent", expectedActiveElements.contains(pool))
+                    .With("ActualPresent", context->DynamicAttributesOf(pool).SchedulableChildSet.has_value());
 
                 ASSERT_EQ(
                     expectedActiveElements.contains(pool),
@@ -1798,7 +1542,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
         }
     };
 
-    YT_LOG_INFO("All operations");
+    YT_TLOG_INFO("All operations");
     doTestCase(
         /*consideredOperations*/ {
             operationElementRoot.Get(),
@@ -1815,7 +1559,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             poolBY.Get(),
         });
 
-    YT_LOG_INFO("== Root operation");
+    YT_TLOG_INFO("== Root operation");
     doTestCase(
         /*consideredOperations*/ {
             operationElementRoot.Get(),
@@ -1824,7 +1568,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             rootElement.Get(),
         });
 
-    YT_LOG_INFO("== Operation A");
+    YT_TLOG_INFO("== Operation A");
     doTestCase(
         /*consideredOperations*/ {
             operationElementA.Get(),
@@ -1834,7 +1578,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             poolA.Get(),
         });
 
-    YT_LOG_INFO("== OperationB");
+    YT_TLOG_INFO("== OperationB");
     doTestCase(
         /*consideredOperations*/ {
             operationElementB.Get(),
@@ -1844,7 +1588,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             poolB.Get(),
         });
 
-    YT_LOG_INFO("== OperationBX");
+    YT_TLOG_INFO("== OperationBX");
     doTestCase(
         /*consideredOperations*/ {
             operationElementBX.Get(),
@@ -1855,7 +1599,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             poolBX.Get(),
         });
 
-    YT_LOG_INFO("== Operations A, B");
+    YT_TLOG_INFO("== Operations A, B");
     doTestCase(
         /*consideredOperations*/ {
             operationElementA.Get(),
@@ -1867,7 +1611,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             poolB.Get(),
         });
 
-    YT_LOG_INFO("== Operations A, BX");
+    YT_TLOG_INFO("== Operations A, BX");
     doTestCase(
         /*consideredOperations*/ {
             operationElementA.Get(),
@@ -1880,7 +1624,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             poolBX.Get(),
         });
 
-    YT_LOG_INFO("== Operations BX, BY");
+    YT_TLOG_INFO("== Operations BX, BY");
     doTestCase(
         /*consideredOperations*/ {
             operationElementBX.Get(),
@@ -1893,7 +1637,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             poolBY.Get(),
         });
 
-    YT_LOG_INFO("== Operations B, BY");
+    YT_TLOG_INFO("== Operations B, BY");
     doTestCase(
         /*consideredOperations*/ {
             operationElementB.Get(),
@@ -1905,7 +1649,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             poolBY.Get(),
         });
 
-    YT_LOG_INFO("== Operations A, B, BY");
+    YT_TLOG_INFO("== Operations A, B, BY");
     doTestCase(
         /*consideredOperations*/ {
             operationElementA.Get(),
@@ -1921,7 +1665,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
 
     // Corner cases.
     {
-        YT_LOG_INFO("== No operations");
+        YT_TLOG_INFO("== No operations");
 
         auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), rootElement);
         auto scheduleAllocationsContextWithDependencies = PrepareScheduleAllocationsContext(strategyHost.Get(), treeSnapshot, execNode);

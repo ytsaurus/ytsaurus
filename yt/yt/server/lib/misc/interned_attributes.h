@@ -19,6 +19,7 @@
     XX(AcquisitionTime, acquisition_time) \
     XX(ActionId, action_id) \
     XX(ActionIds, action_ids) \
+    XX(ActiveTransactionCountAlertThresholdAndLimitOverride, active_transaction_count_alert_threshold_and_limit_override) \
     XX(ActualTabletState, actual_tablet_state) \
     XX(Addresses, addresses) \
     XX(AlertCount, alert_count) \
@@ -56,7 +57,9 @@
     XX(AvailableSpace, available_space) \
     XX(AvailableSpacePerMedium, available_space_per_medium) \
     XX(BackupCheckpointTimestamp, backup_checkpoint_timestamp) \
+    XX(BackupConfig, backup_config) \
     XX(BackupError, backup_error) \
+    XX(BackupSourceAccounts, backup_source_accounts) \
     XX(BackupState, backup_state) \
     XX(Banned, banned) \
     XX(BannedNodeCount, banned_node_count) \
@@ -72,6 +75,7 @@
     XX(CellId, cell_id) \
     XX(CellIds, cell_ids) \
     XX(CellTag, cell_tag) \
+    XX(CellTags, cell_tags) \
     XX(Cellars, cellars) \
     XX(ChangelogAccountViolatedResourceLimits, changelog_account_violated_resource_limits) \
     XX(ChaosCellBundle, chaos_cell_bundle) \
@@ -90,10 +94,11 @@
     XX(ChunkLocations, chunk_locations) \
     XX(ChunkMediaStatistics, chunk_media_statistics) \
     XX(ChunkMergerCriteria, chunk_merger_criteria) \
+    XX(ChunkMergerInfo, chunk_merger_info) \
     XX(ChunkMergerMode, chunk_merger_mode) \
     XX(ChunkMergerNodeTraversalConcurrency, chunk_merger_node_traversal_concurrency) \
     XX(ChunkMergerStatus, chunk_merger_status) \
-    XX(ChunkMergerTraversalInfo, chunk_merger_traversal_info) \
+    XX(ChunkMergerUsage, chunk_merger_usage) \
     XX(ChunkReader, chunk_reader) \
     XX(ChunkRefreshEnabled, chunk_refresh_enabled) \
     XX(ChunkReplicaCount, chunk_replica_count) \
@@ -136,6 +141,7 @@
     XX(CoWCookie, cow_cookie) \
     XX(CreateEphemeralSubpools, create_ephemeral_subpools) \
     XX(CreationTime, creation_time) \
+    XX(CumulativeDataWeight, cumulative_data_weight) \
     XX(CumulativeStatistics, cumulative_statistics) \
     XX(CurrentHydraVersion, current_hydra_version) \
     XX(CurrentMountTransactionId, current_mount_transaction_id) \
@@ -180,6 +186,7 @@
     XX(EnableDetailedProfiling, enable_detailed_profiling) \
     XX(EnableDynamicStoreRead, enable_dynamic_store_read) \
     XX(EnableFairShareTruncationInFifoPool, enable_fair_share_truncation_in_fifo_pool) \
+    XX(EnableFifoChildrenReorderingForGuaranteeUtilization, enable_fifo_children_reordering_for_guarantee_utilization) \
     XX(EnableLightweightOperations, enable_lightweight_operations) \
     XX(EnablePrioritySchedulingSegmentModuleAssignment, enable_priority_scheduling_segment_module_assignment) \
     XX(EnablePriorityStrongGuaranteeAdjustment, enable_priority_strong_guarantee_adjustment) \
@@ -190,6 +197,7 @@
     XX(EnableStepFunctionForGangOperations, enable_step_function_for_gang_operations) \
     XX(EnableStripedErasure, enable_striped_erasure) \
     XX(EnableTabletBalancer, enable_tablet_balancer) \
+    XX(EnableVerboseLogging, enable_verbose_logging) \
     XX(EndorsementRequired, endorsement_required) \
     XX(EntranceCellTag, entrance_cell_tag) \
     XX(EntranceNodeId, entrance_node_id) \
@@ -210,9 +218,11 @@
     XX(ExpectedState, expected_state) \
     XX(ExpectedTabletState, expected_tablet_state) \
     XX(ExpirationTime, expiration_time) \
+    XX(ExpirationTimeArmingTime, expiration_time_arming_time) \
     XX(ExpirationTimeLastResetTime, expiration_time_last_reset_time) \
     XX(ExpirationTimeUser, expiration_time_user) \
     XX(ExpirationTimeout, expiration_timeout) \
+    XX(ExpirationTimeoutArmingTime, expiration_timeout_arming_time) \
     XX(ExpirationTimeoutLastResetTime, expiration_timeout_last_reset_time) \
     XX(ExpirationTimeoutUser, expiration_timeout_user) \
     XX(ExportRefCounter, export_ref_counter) \
@@ -224,6 +234,7 @@
     XX(ExternalRequisitionIndexes, external_requisition_indexes) \
     XX(ExternalRequisitions, external_requisitions) \
     XX(ExternalizedToCellTags, externalized_to_cell_tags) \
+    XX(FailedExpirationAttempts, failed_expiration_attempts) \
     XX(FairShareAggressiveStarvationTimeout, fair_share_aggressive_starvation_timeout) \
     XX(FairSharePreemptionTimeout, fair_share_preemption_timeout) \
     XX(FairSharePreemptionTimeoutLimit, fair_share_preemption_timeout_limit) \
@@ -247,9 +258,11 @@
     XX(Freeze, freeze) \
     XX(Full, full) \
     XX(FullNodeCount, full_node_count) \
+    XX(HasHunkChunkList, has_hunk_chunk_list) \
     XX(HasRowLevelAce, has_row_level_ace) \
     XX(HashedPassword, hashed_password) \
     XX(Health, health) \
+    XX(HealthHistory, health_history) \
     XX(HistoricUsageAggregationPeriod, historic_usage_aggregation_period) \
     XX(HistoricallyNonVital, historically_non_vital) \
     XX(Host, host) \
@@ -263,6 +276,7 @@
     XX(HunkMedia, hunk_media) \
     XX(HunkPrimaryMedium, hunk_primary_medium) \
     XX(HunkPrimaryMediumId, hunk_primary_medium_id) \
+    XX(HunkReferenceStatistics, hunk_reference_statistics) \
     XX(HunkStatistics, hunk_statistics) \
     XX(HunkStorageId, hunk_storage_id) \
     XX(HunkStoreWriter, hunk_store_writer) \
@@ -281,6 +295,7 @@
     XX(IndexTablePath, index_table_path) \
     XX(IndexTo, index_to) \
     XX(InheritAcl, inherit_acl) \
+    XX(InitiatorId, initiator_id) \
     XX(InplaceReshard, inplace_reshard) \
     XX(IntegralGuarantees, integral_guarantees) \
     XX(IOStatistics, io_statistics) \
@@ -364,6 +379,7 @@
     XX(MountRevision, mount_revision) \
     XX(MountTime, mount_time) \
     XX(Movable, movable) \
+    XX(MulticellChunkMergerUsage, multicell_chunk_merger_usage) \
     XX(MulticellCount, multicell_count) \
     XX(MulticellResourceUsage, multicell_resource_usage) \
     XX(MulticellStates, multicell_states) \
@@ -544,6 +560,7 @@
     XX(StrongGuaranteeResources, strong_guarantee_resources) \
     XX(SuccessorTransactionLeaseCount, successor_transaction_lease_count) \
     XX(Suspended, suspended) \
+    XX(TableBackupEnabled, table_backup_enabled) \
     XX(TableChunkFormat, table_chunk_format) \
     XX(TableChunkFormatStatistics, table_chunk_format_statistics) \
     XX(TableId, table_id) \

@@ -12,8 +12,6 @@
 #include <yt/yt/server/lib/rpc_proxy/private.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
-#include <yt/yt/server/lib/signature/components.h>
-
 #include <yt/yt/server/lib/shuffle_server/shuffle_service.h>
 
 #include <yt/yt/server/lib/admin/admin_service.h>
@@ -33,6 +31,7 @@
 
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
@@ -60,12 +59,16 @@
 
 #include <yt/yt/library/fusion/service_locator.h>
 
+#include <yt/yt/library/signature/components/components.h>
+
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
 #include <yt/yt/core/rpc/grpc/config.h>
 #include <yt/yt/core/rpc/grpc/server.h>
 
 #include <yt/yt/core/http/server.h>
+
+#include <yt/yt/core/https/server.h>
 
 #include <yt/yt/core/bus/public.h>
 #include <yt/yt/core/bus/server.h>
@@ -96,6 +99,7 @@ using namespace NAdmin;
 using namespace NApi;
 using namespace NAuth;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NMonitoring;
@@ -162,8 +166,8 @@ void TBootstrap::DoInitialize()
 {
     LocalAddresses_ = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 
-    YT_LOG_INFO("Starting proxy (LocalAddresses: %v)",
-        GetValues(LocalAddresses_));
+    YT_TLOG_INFO("Starting proxy")
+        .With("LocalAddresses", GetValues(LocalAddresses_));
 
     MemoryUsageTracker_ = CreateNodeMemoryTracker(
         Config_->MemoryLimits->Total.value_or(std::numeric_limits<i64>::max()),
@@ -242,9 +246,9 @@ void TBootstrap::DoInitialize()
         Config_->BusServer,
         GetYTPacketTranscoderFactory(),
         MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc),
-        TCertProfiler{
-            RpcProxyProfiler().WithPrefix("/bus_server"),
-            GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
+        NCrypto::TCertProfiler{
+            .Profiler = RpcProxyProfiler().WithPrefix("/bus_server"),
+            .Invoker = GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
         });
 
     if (Config_->PublicRpcPort) {
@@ -252,9 +256,9 @@ void TBootstrap::DoInitialize()
             Config_->PublicBusServer,
             GetYTPacketTranscoderFactory(),
             MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc),
-            TCertProfiler{
-                RpcProxyProfiler().WithPrefix("/public_bus_server"),
-                GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
+            NCrypto::TCertProfiler{
+                .Profiler = RpcProxyProfiler().WithPrefix("/public_bus_server"),
+                .Invoker = GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
             });
     }
 
@@ -265,9 +269,9 @@ void TBootstrap::DoInitialize()
             busConfigCopy,
             GetYTPacketTranscoderFactory(),
             GetNullMemoryUsageTracker(),
-            TCertProfiler{
-                RpcProxyProfiler().WithPrefix("/tvm_only_bus_server"),
-                GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
+            NCrypto::TCertProfiler{
+                .Profiler = RpcProxyProfiler().WithPrefix("/tvm_only_bus_server"),
+                .Invoker = GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
             });
     }
 
@@ -287,6 +291,9 @@ void TBootstrap::DoInitialize()
     BundleDynamicConfigManager_->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
 
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+    if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+        HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+    }
 }
 
 void TBootstrap::DoStart()
@@ -294,6 +301,7 @@ void TBootstrap::DoStart()
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
+        HttpsServer_,
         ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
         &MonitoringManager_,
         &orchidRoot);
@@ -316,6 +324,10 @@ void TBootstrap::DoStart()
             orchidRoot,
             "/cluster_connection",
             CreateVirtualNode(Connection_->GetOrchidService()));
+        SetNodeByYPath(
+            orchidRoot,
+            "/cluster_directory",
+            CreateVirtualNode(Connection_->GetClusterDirectory()->GetOrchidService()));
     }
     if (auto hotswapManager = ServiceLocator_->FindService<NDiskManager::IHotswapManagerPtr>()) {
         SetNodeByYPath(
@@ -375,12 +387,13 @@ void TBootstrap::DoStart()
         TvmOnlyRpcServer_->RegisterService(TvmOnlyApiService_);
     }
 
-    if (Config_->EnableShuffleService) {
+    {
         auto localServerAddress = BuildServiceAddress(GetLocalHostName(), Config_->RpcPort);
         ShuffleService_ = CreateShuffleService(
             GetWorkerInvoker(ShuffleExecutionPoolName, DefaultExecutionTag),
             RootClient_,
-            localServerAddress);
+            localServerAddress,
+            NativeAuthenticator_);
         RpcServer_->RegisterService(ShuffleService_);
         Connection_->RegisterShuffleService(localServerAddress);
     }
@@ -394,17 +407,15 @@ void TBootstrap::DoStart()
     MemoryUsageTracker_->Start();
 
     // NB: We must apply the first dynamic config before ApiService_ starts.
-    YT_LOG_INFO("Loading dynamic config for the first time");
+    YT_TLOG_INFO("Loading dynamic config for the first time");
 
     {
         auto error = WaitFor(DynamicConfigManager_->GetConfigLoadedFuture());
-        YT_LOG_FATAL_UNLESS(
-            error.IsOK(),
-            error,
-            "Unexpected failure while waiting for the first dynamic config loaded");
+        YT_TLOG_FATAL_UNLESS(error.IsOK(), "Unexpected failure while waiting for the first dynamic config loaded")
+            .With(error);
     }
 
-    YT_LOG_INFO("Dynamic config loaded");
+    YT_TLOG_INFO("Dynamic config loaded");
 
     QueryCorpusReporter_->Reconfigure(DynamicConfigManager_->GetConfig()->Api->QueryCorpusReporter);
 
@@ -451,21 +462,30 @@ void TBootstrap::DoStart()
         RpcProxyLogger(),
         NativeAuthenticator_));
 
-    YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
+    YT_TLOG_INFO("Listening for HTTP requests")
+        .With("Port", Config_->MonitoringPort);
     HttpServer_->Start();
+    if (HttpsServer_) {
+        YT_TLOG_INFO("Listening for HTTPS requests")
+            .With("Port", HttpsServer_->GetAddress().GetPort());
+        HttpsServer_->Start();
+    }
 
-    YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+    YT_TLOG_INFO("Listening for RPC requests")
+        .With("Port", Config_->RpcPort);
     RpcServer_->Start();
 
     if (PublicRpcServer_) {
-        YT_LOG_INFO("Listening for public RPC requests on port %v", Config_->PublicRpcPort);
+        YT_TLOG_INFO("Listening for public RPC requests")
+            .With("Port", Config_->PublicRpcPort);
         auto rpcServerConfigCopy = CloneYsonStruct(Config_->RpcServer);
         PublicRpcServer_->Configure(rpcServerConfigCopy);
         PublicRpcServer_->Start();
     }
 
     if (TvmOnlyRpcServer_) {
-        YT_LOG_INFO("Listening for TVM-only RPC requests on port %v", Config_->TvmOnlyRpcPort);
+        YT_TLOG_INFO("Listening for TVM-only RPC requests")
+            .With("Port", Config_->TvmOnlyRpcPort);
         auto rpcServerConfigCopy = CloneYsonStruct(Config_->RpcServer);
         TvmOnlyRpcServer_->Configure(rpcServerConfigCopy);
         TvmOnlyRpcServer_->Start();
@@ -478,7 +498,8 @@ void TBootstrap::DoStart()
         int port;
         NNet::ParseServiceAddress(addresses[0]->Address, nullptr, &port);
 
-        YT_LOG_INFO("Listening for GRPC requests on port %v", port);
+        YT_TLOG_INFO("Listening for GRPC requests")
+            .With("Port", port);
         GrpcServer_->Start();
     }
 
@@ -549,7 +570,7 @@ void TBootstrap::ReconfigureConnection(
 }
 
 void TBootstrap::OnDynamicConfigChanged(
-    const TProxyDynamicConfigPtr& /*oldConfig*/,
+    const TProxyDynamicConfigPtr& oldConfig,
     const TProxyDynamicConfigPtr& newConfig)
 {
     TSingletonManager::Reconfigure(newConfig);
@@ -558,7 +579,7 @@ void TBootstrap::OnDynamicConfigChanged(
 
     ApiService_->OnDynamicConfigChanged(newConfig->Api);
 
-    BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
+    BusServer_->Reconfigure(newConfig->BusServer);
     RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 
     QueryCorpusReporter_->Reconfigure(newConfig->Api->QueryCorpusReporter);
@@ -568,16 +589,23 @@ void TBootstrap::OnDynamicConfigChanged(
 
     ReconfigureConnection(newConfig, BundleDynamicConfigManager_->GetConfig());
 
-    if (newConfig->SignatureComponents) {
-        YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(newConfig->SignatureComponents));
+    if (newConfig->SignatureComponents || oldConfig->SignatureComponents) {
+        YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(
+            newConfig->SignatureComponents
+                ? newConfig->SignatureComponents
+                : Config_->SignatureComponents));
     }
 
-    Connection_->GetMasterCellDirectorySynchronizer()->Reconfigure(
-        newConfig->MasterCellDirectorySynchronizer.value_or(Config_->ClusterConnection->Static->MasterCellDirectorySynchronizer));
+    Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(newConfig->MasterCellDirectorySynchronizer);
 
     WorkerWeightProvider_->SetOverrides(newConfig->WorkerPoolWeightOverrides);
 
     WorkerPool_->SetThreadCount(newConfig->WorkerThreadPoolSize.value_or(Config_->WorkerThreadPoolSize));
+
+    AuthenticationManager_->Reconfigure(newConfig->Auth);
+    if (TvmOnlyAuthenticationManager_) {
+        TvmOnlyAuthenticationManager_->Reconfigure(newConfig->Auth);
+    }
 }
 
 void TBootstrap::OnBundleDynamicConfigChanged(

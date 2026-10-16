@@ -38,7 +38,7 @@ public:
             THROW_ERROR_EXCEPTION("Schema of output table %v is not compatible with schema of input table %v",
                 OutputPath_,
                 path)
-                << error;
+                .With(error);
         }
     }
 

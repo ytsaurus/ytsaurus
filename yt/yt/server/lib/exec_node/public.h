@@ -4,9 +4,9 @@
 
 #include <yt/yt/ytlib/exec_node/public.h>
 
-#include <yt/yt/core/misc/error_code.h>
-
 #include <yt/yt/client/job_tracker_client/public.h>
+
+#include <library/cpp/yt/error/error_code.h>
 
 #include <library/cpp/yt/memory/ref_counted.h>
 
@@ -32,6 +32,8 @@ DEFINE_ENUM(ESandboxKind,
     (Cores)
     (Logs)
     (PortoPlace)
+    (Private)
+    (Empty)
 );
 
 DEFINE_ENUM(EJobProxyLoggingMode,
@@ -53,9 +55,14 @@ DEFINE_ENUM(EThrottlerTrafficType,
     (Rps)
 );
 
+DEFINE_ENUM(EGpuFlavor,
+    (Nvidia)
+    (Other)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TEnumIndexedArray<ESandboxKind, TString> SandboxDirectoryNames;
+extern const TEnumIndexedArray<ESandboxKind, std::string> SandboxDirectoryNames;
 extern const std::string EmptyCpuSet;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,6 +100,7 @@ DECLARE_REFCOUNTED_STRUCT(TJobProxyConfig)
 DECLARE_REFCOUNTED_STRUCT(TLogDumpConfig)
 DECLARE_REFCOUNTED_STRUCT(TJobProxyLogManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TJobProxyLogManagerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TJobProxyLogManagerLocationConfig)
 DECLARE_REFCOUNTED_STRUCT(TExecNodeConfig)
 DECLARE_REFCOUNTED_STRUCT(TExecNodeDynamicConfig)
 

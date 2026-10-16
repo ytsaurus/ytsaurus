@@ -20,8 +20,8 @@ DECLARE_REFCOUNTED_STRUCT(IPartBootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, MasterCacheLogger, "MasterCache");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, MasterCacheProfiler, "/master_cache");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, MasterCacheLogger, "MasterCache");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, MasterCacheProfiler, "/master_cache");
 
 ////////////////////////////////////////////////////////////////////////////////
 

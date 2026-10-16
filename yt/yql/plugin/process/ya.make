@@ -11,9 +11,10 @@ SRCS(
 
 PEERDIR(
     library/cpp/retry
+    yt/yt/library/profiling/solomon
     yt/yt/ytlib
     yt/cpp/mapreduce/common
-    yt/yql/plugin/bridge
+    yt/yql/plugin/native
     yt/yql/plugin
 )
 

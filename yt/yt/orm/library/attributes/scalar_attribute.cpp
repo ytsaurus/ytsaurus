@@ -43,6 +43,43 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateYsonStringFields(const Message& message)
+{
+    const auto* reflection = message.GetReflection();
+    std::vector<const FieldDescriptor*> fields;
+    reflection->ListFields(message, &fields);
+
+    for (const auto* fieldDescriptor : fields) {
+        if (IsYsonStringField(fieldDescriptor)) {
+            YT_VERIFY(fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_STRING);
+            if (fieldDescriptor->is_repeated()) {
+                for (int index = 0; index < reflection->FieldSize(message, fieldDescriptor); ++index) {
+                    ValidateYsonString(reflection->GetRepeatedString(message, fieldDescriptor, index));
+                }
+            } else {
+                ValidateYsonString(reflection->GetString(message, fieldDescriptor));
+            }
+        } else if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_MESSAGE) {
+            if (fieldDescriptor->is_repeated()) {
+                for (int index = 0; index < reflection->FieldSize(message, fieldDescriptor); ++index) {
+                    ValidateYsonStringFields(reflection->GetRepeatedMessage(message, fieldDescriptor, index));
+                }
+            } else {
+                ValidateYsonStringFields(reflection->GetMessage(message, fieldDescriptor));
+            }
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ConvertToYsonStringFieldValue(const INodePtr& value)
+{
+    return ConvertToYsonString(value).ToString();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TSelf, class TValueType>
 class TSetVisitorBase
     : public TProtoVisitor<Message*, TSelf>
@@ -104,6 +141,41 @@ public:
 protected:
     const TProtobufWriterOptions& Options_;
 
+    void VisitScalarSingularField(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason)
+    {
+        if (IsYsonStringField(fieldDescriptor)) {
+            const auto* reflection = message->GetReflection();
+            reflection->SetString(
+                message,
+                fieldDescriptor,
+                ConvertToYsonStringFieldValue(CurrentValue_));
+            return;
+        }
+
+        TSetVisitorBase::VisitScalarSingularField(message, fieldDescriptor, reason);
+    }
+
+    void VisitScalarRepeatedFieldEntry(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        int index,
+        EVisitReason reason)
+    {
+        if (IsYsonStringField(fieldDescriptor)) {
+            message->GetReflection()->SetRepeatedString(
+                message,
+                fieldDescriptor,
+                index,
+                ConvertToYsonStringFieldValue(CurrentValue_));
+            return;
+        }
+
+        TSetVisitorBase::VisitScalarRepeatedFieldEntry(message, fieldDescriptor, index, reason);
+    }
+
     void VisitRegularMessage(
         Message* message,
         const Descriptor* descriptor,
@@ -140,7 +212,7 @@ protected:
     void VisitUnrecognizedField(
         Message* message,
         const Descriptor* descriptor,
-        TString name,
+        TStringBuf name,
         EVisitReason reason)
     {
         switch (Options_.UnknownYsonFieldModeResolver(GetCurrentPath())) {
@@ -162,7 +234,7 @@ protected:
         TProtoVisitor::VisitUnrecognizedField(message, descriptor, std::move(name), reason);
     }
 
-    void KeepUnrecognizedField(Message* message, const Descriptor* descriptor, TString name)
+    void KeepUnrecognizedField(Message* message, const Descriptor* descriptor, TStringBuf name)
     {
         Y_UNUSED(descriptor);
 
@@ -174,7 +246,7 @@ protected:
         auto errorOrItem = LookupUnknownYsonFieldsItem(unknownFields, name, unknownFieldNumber);
 
         TYsonString value;
-        TString* item = nullptr;
+        TProtoStringType* item = nullptr;
         if (errorOrItem.IsOK()) {
             int index;
             std::tie(index, value) = std::move(errorOrItem).Value();
@@ -223,7 +295,7 @@ protected:
 
         SkipSlash();
 
-        TString key = GetLiteralValue();
+        std::string key(GetLiteralValue());
         AdvanceOver(key);
 
         auto [index, error] = FindAttributeDictionaryEntry(message, fieldDescriptor, key);
@@ -343,12 +415,12 @@ protected:
                     GetMissingFieldPolicy() == EMissingFieldPolicy::Force);
                 value = ConvertToYsonString(root);
             } catch (std::exception& ex) {
-                THROW_ERROR_EXCEPTION(TError("Failed to store yson string") << ex);
+                THROW_ERROR_EXCEPTION(TError("Failed to store yson string").With(ex));
             }
         }
     }
 
-    std::vector<std::pair<TString, INodePtr>> SortedMapChildren() const
+    std::vector<std::pair<std::string, INodePtr>> SortedMapChildren() const
     {
         auto children = CurrentValue_->AsMap()->GetChildren();
         std::ranges::sort(children, std::less{}, &std::pair<std::string, INodePtr>::first);
@@ -374,6 +446,31 @@ public:
     { }
 
 protected:
+    void VisitScalarSingularField(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason)
+    {
+        if (IsYsonStringField(fieldDescriptor)) {
+            ValidateYsonString(CurrentValue_.LastOrEmptyPart().AsStringView());
+        }
+
+        TSetVisitorBase::VisitScalarSingularField(message, fieldDescriptor, reason);
+    }
+
+    void VisitScalarRepeatedFieldEntry(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        int index,
+        EVisitReason reason)
+    {
+        if (IsYsonStringField(fieldDescriptor)) {
+            ValidateYsonString(CurrentValue_.LastOrEmptyPart().AsStringView());
+        }
+
+        TSetVisitorBase::VisitScalarRepeatedFieldEntry(message, fieldDescriptor, index, reason);
+    }
+
     void VisitRegularMessage(
         Message* message,
         const Descriptor* descriptor,
@@ -386,6 +483,7 @@ protected:
             if (DiscardUnknownFields_) {
                 message->DiscardUnknownFields();
             }
+            ValidateYsonStringFields(*message);
             return;
         }
 
@@ -432,6 +530,7 @@ protected:
                 if (DiscardUnknownFields_) {
                     nestedMessage->DiscardUnknownFields();
                 }
+                ValidateYsonStringFields(*nestedMessage);
             }
             return;
         }
@@ -446,6 +545,13 @@ protected:
     {
         if (PathComplete()) {
             const auto* reflection = message->GetReflection();
+
+            if (IsYsonStringField(fieldDescriptor)) {
+                for (auto wireStringPart : CurrentValue_) {
+                    ValidateYsonString(wireStringPart.AsStringView());
+                }
+            }
+
             reflection->ClearField(message, fieldDescriptor);
             for (auto wireStringPart : CurrentValue_) {
                 if (fieldDescriptor->message_type()) {
@@ -454,6 +560,7 @@ protected:
                     if (DiscardUnknownFields_) {
                         nestedMessage->DiscardUnknownFields();
                     }
+                    ValidateYsonStringFields(*nestedMessage);
                 } else {
                     AddScalarRepeatedFieldEntry(message, fieldDescriptor, wireStringPart)
                         .ThrowOnError();
@@ -471,27 +578,192 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool AreUnknownFieldSetsEqual(
+    const NProtoBuf::UnknownFieldSet& lhs,
+    const NProtoBuf::UnknownFieldSet& rhs)
+{
+    using NProtoBuf::UnknownField;
+
+    if (lhs.field_count() != rhs.field_count()) {
+        return false;
+    }
+
+    auto collectSorted = [] (const NProtoBuf::UnknownFieldSet& set) {
+        std::vector<const UnknownField*> fields;
+        fields.reserve(set.field_count());
+        for (int index = 0; index < set.field_count(); ++index) {
+            fields.push_back(&set.field(index));
+        }
+        // Stable sort keeps the relative order of entries with the same number, which is
+        // significant for repeated fields.
+        std::ranges::stable_sort(fields, std::ranges::less{}, [] (const UnknownField* field) {
+            return std::pair(field->number(), field->type());
+        });
+        return fields;
+    };
+
+    auto lhsFields = collectSorted(lhs);
+    auto rhsFields = collectSorted(rhs);
+
+    for (int index = 0; index < std::ssize(lhsFields); ++index) {
+        const auto* lhsField = lhsFields[index];
+        const auto* rhsField = rhsFields[index];
+        if (lhsField->number() != rhsField->number() || lhsField->type() != rhsField->type()) {
+            return false;
+        }
+        switch (lhsField->type()) {
+            case UnknownField::TYPE_VARINT:
+                if (lhsField->varint() != rhsField->varint()) {
+                    return false;
+                }
+                break;
+            case UnknownField::TYPE_FIXED32:
+                if (lhsField->fixed32() != rhsField->fixed32()) {
+                    return false;
+                }
+                break;
+            case UnknownField::TYPE_FIXED64:
+                if (lhsField->fixed64() != rhsField->fixed64()) {
+                    return false;
+                }
+                break;
+            case UnknownField::TYPE_LENGTH_DELIMITED:
+                if (lhsField->length_delimited() != rhsField->length_delimited()) {
+                    return false;
+                }
+                break;
+            case UnknownField::TYPE_GROUP:
+                if (!AreUnknownFieldSetsEqual(lhsField->group(), rhsField->group())) {
+                    return false;
+                }
+                break;
+        }
+    }
+    return true;
+}
+
+bool HasUnknownFields(const Message& message)
+{
+    const auto* reflection = message.GetReflection();
+    if (!reflection->GetUnknownFields(message).empty()) {
+        return true;
+    }
+
+    std::vector<const FieldDescriptor*> fields;
+    reflection->ListFields(message, &fields);
+    for (const auto* fieldDescriptor : fields) {
+        if (fieldDescriptor->cpp_type() != FieldDescriptor::CPPTYPE_MESSAGE) {
+            continue;
+        }
+        if (fieldDescriptor->is_repeated()) {
+            int size = reflection->FieldSize(message, fieldDescriptor);
+            for (int index = 0; index < size; ++index) {
+                if (HasUnknownFields(reflection->GetRepeatedMessage(message, fieldDescriptor, index))) {
+                    return true;
+                }
+            }
+        } else if (HasUnknownFields(reflection->GetMessage(message, fieldDescriptor))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool AreUnknownFieldsEqualRecursively(const Message& lhs, const Message& rhs)
+{
+    const auto* lhsReflection = lhs.GetReflection();
+    const auto* rhsReflection = rhs.GetReflection();
+    if (!AreUnknownFieldSetsEqual(
+        lhsReflection->GetUnknownFields(lhs),
+        rhsReflection->GetUnknownFields(rhs)))
+    {
+        return false;
+    }
+
+    const auto* descriptor = lhs.GetDescriptor();
+    for (int i = 0; i < descriptor->field_count(); ++i) {
+        const auto* fieldDescriptor = descriptor->field(i);
+        if (fieldDescriptor->cpp_type() != FieldDescriptor::CPPTYPE_MESSAGE) {
+            continue;
+        }
+        if (fieldDescriptor->is_repeated()) {
+            int size = lhsReflection->FieldSize(lhs, fieldDescriptor);
+            if (size != rhsReflection->FieldSize(rhs, fieldDescriptor)) {
+                return false;
+            }
+            for (int index = 0; index < size; ++index) {
+                if (!AreUnknownFieldsEqualRecursively(
+                    lhsReflection->GetRepeatedMessage(lhs, fieldDescriptor, index),
+                    rhsReflection->GetRepeatedMessage(rhs, fieldDescriptor, index)))
+                {
+                    return false;
+                }
+            }
+        } else {
+            bool lhsHasField = lhsReflection->HasField(lhs, fieldDescriptor);
+            bool rhsHasField = rhsReflection->HasField(rhs, fieldDescriptor);
+            if (!lhsHasField && !rhsHasField) {
+                continue;
+            }
+            // GetMessage returns the default instance for an absent field; its unknown field
+            // set is empty.
+            if (!AreUnknownFieldsEqualRecursively(
+                lhsReflection->GetMessage(lhs, fieldDescriptor),
+                rhsReflection->GetMessage(rhs, fieldDescriptor)))
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TComparisonVisitor final
     : public TProtoVisitor<const std::pair<const Message*, const Message*>&, TComparisonVisitor>
 {
     friend class TProtoVisitor<const std::pair<const Message*, const Message*>&, TComparisonVisitor>;
 
 public:
-    explicit TComparisonVisitor(bool compareAbsentAsDefault)
+    TComparisonVisitor(bool compareAbsentAsDefault, bool lhsAbsentEqualsRhsDefault)
         : CompareAbsentAsDefault_(compareAbsentAsDefault)
+        , LhsAbsentEqualsRhsDefault_(lhsAbsentEqualsRhsDefault)
     {
         SetAllowAsterisk(true);
         SetVisitEverythingAfterPath(true);
         SetRelativeIndexPolicy(ERelativeIndexPolicy::Throw);
     }
 
-    DEFINE_BYVAL_RW_PROPERTY(bool, Equal, true);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Equal, true);
 
 protected:
     void NotEqual()
     {
         Equal_ = false;
         StopIteration_ = true;
+    }
+
+    static const NProtoBuf::UnknownFieldSet& GetUnknownFields(const Message* message)
+    {
+        return message
+            ? message->GetReflection()->GetUnknownFields(*message)
+            : NProtoBuf::UnknownFieldSet::default_instance();
+    }
+
+    void VisitWholeMessage(
+        const std::pair<const Message*, const Message*>& message,
+        EVisitReason reason)
+    {
+        if (PathComplete() && !AreUnknownFieldSetsEqual(
+            GetUnknownFields(message.first),
+            GetUnknownFields(message.second)))
+        {
+            NotEqual();
+            return;
+        }
+
+        TProtoVisitor::VisitWholeMessage(message, reason);
     }
 
     void OnDescriptorError(
@@ -511,7 +783,7 @@ protected:
         const std::pair<const Message*, const Message*>& message,
         const FieldDescriptor* fieldDescriptor,
         std::unique_ptr<NProtoBuf::Message> keyMessage,
-        TString key,
+        TStringBuf key,
         EVisitReason reason,
         TError error)
     {
@@ -529,7 +801,7 @@ protected:
             message,
             fieldDescriptor,
             std::move(keyMessage),
-            std::move(key),
+            key,
             reason,
             std::move(error));
     }
@@ -703,23 +975,41 @@ protected:
                     : nullptr);
                     VisitMessage(next, EVisitReason::Manual);
             } else {
-                if (!CompareAbsentAsDefault_) {
+                if (!CompareAbsentAsDefault_ && !LhsAbsentEqualsRhsDefault_) {
                     // One present, one missing.
                     NotEqual();
                     return;
                 }
+
+                bool lhsHasField = TTraits::TSubTraits::IsSingularFieldPresent(
+                    message.first, fieldDescriptor).Value();
+
+                if (LhsAbsentEqualsRhsDefault_ && lhsHasField) {
+                    // Asymmetric mode: lhs present, rhs absent is a real change.
+                    NotEqual();
+                    return;
+                }
+
                 const auto* defaultMessage = TTraits::TSubTraits::GetDefaultMessage(
                     message.first,
                     fieldDescriptor->containing_type());
 
-                const auto* messageWithPresentField =
-                    TTraits::TSubTraits::IsSingularFieldPresent(message.first, fieldDescriptor).Value()
-                    ? message.first
-                    : message.second;
+                const auto* messageWithPresentField = lhsHasField ? message.first : message.second;
                 YT_VERIFY(defaultMessage);
                 YT_VERIFY(messageWithPresentField);
 
                 if (!AreFieldsEquivalent(defaultMessage, messageWithPresentField, fieldDescriptor)) {
+                    NotEqual();
+                    return;
+                }
+
+                // AreFieldsEquivalent ignores unknown fields; a present message carrying unknown
+                // fields is not equal to an absent one.
+                if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_MESSAGE &&
+                    HasUnknownFields(messageWithPresentField->GetReflection()->GetMessage(
+                        *messageWithPresentField,
+                        fieldDescriptor)))
+                {
                     NotEqual();
                 }
             }
@@ -731,6 +1021,7 @@ protected:
 
 private:
     bool CompareAbsentAsDefault_;
+    bool LhsAbsentEqualsRhsDefault_;
 
     bool AreFieldsEquivalent(const Message* lhs, const Message* rhs, const FieldDescriptor* field)
     {
@@ -757,8 +1048,12 @@ bool AreProtoMessagesEqual(
     if (options.MessageDifferencer) {
         return options.MessageDifferencer->Compare(lhs, rhs);
     }
+    if (options.LhsAbsentEqualsRhsDefault) {
+        return AreProtoMessagesEqualByPath(lhs, rhs, /*path*/ "", options);
+    }
     if (options.CompareAbsentAsDefault) {
-        return MessageDifferencer::Equivalent(lhs, rhs);
+        // MessageDifferencer ignores unknown fields in EQUIVALENT mode; compare them separately.
+        return MessageDifferencer::Equivalent(lhs, rhs) && AreUnknownFieldsEqualRecursively(lhs, rhs);
     } else {
         return MessageDifferencer::Equals(lhs, rhs);
     }
@@ -767,15 +1062,15 @@ bool AreProtoMessagesEqual(
 bool AreProtoMessagesEqualByPath(
     const Message& lhs,
     const Message& rhs,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TComparisonOptions& options)
 {
     THROW_ERROR_EXCEPTION_IF(options.MessageDifferencer,
         "Message differencer is not supported for comparing scalar attributes by path");
 
-    TComparisonVisitor visitor(options.CompareAbsentAsDefault);
+    TComparisonVisitor visitor(options.CompareAbsentAsDefault, options.LhsAbsentEqualsRhsDefault);
     visitor.Visit(std::pair(&lhs, &rhs), path);
-    return visitor.GetEqual();
+    return visitor.IsEqual();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -786,12 +1081,12 @@ bool AreProtoMessagesEqualByPath(
 
 bool HasProtobufField(
     const google::protobuf::Message& message,
-    const std::string& fieldName)
+    TStringBuf fieldName)
 {
     auto throwPresenceCheckError = [&] (const std::string& reason) {
         THROW_ERROR_EXCEPTION("Could not check presence for field %Qv of %Qv: %v",
-            message.GetTypeName(),
             fieldName,
+            message.GetTypeName(),
             reason);
     };
 
@@ -813,7 +1108,7 @@ bool HasProtobufField(
 
 void ClearProtobufFieldByPath(
     Message& message,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     bool skipMissing)
 {
     if (path.empty()) {
@@ -831,7 +1126,7 @@ void ClearProtobufFieldByPath(
 
 void SetProtobufFieldByPath(
     Message& message,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const INodePtr& value,
     const TProtobufWriterOptions& options,
     bool recursive)
@@ -842,7 +1137,7 @@ void SetProtobufFieldByPath(
 
 void SetProtobufFieldByPath(
     Message& message,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TWireString& value,
     bool discardUnknownFields,
     bool recursive)
@@ -857,14 +1152,15 @@ template <>
 bool AreScalarAttributesEqualByPath(
     const NYson::TYsonString& lhs,
     const NYson::TYsonString& rhs,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TComparisonOptions& /*options*/)
 {
     if (path.empty()) {
         return lhs == rhs;
-    } else {
-        return NYTree::TryGetAny(lhs.AsStringBuf(), path) == NYTree::TryGetAny(rhs.AsStringBuf(), path);
     }
+
+    THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MalformedPath,
+        "YSON string does not support nested access");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -5,6 +5,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,7 +33,7 @@ private:
     const int MaxBatchSize_;
 
     int BatchSize_ = 0;
-    TStringStream BatchStream_;
+    TStdStringStream BatchStream_;
     std::unique_ptr<NYson::IFlushableYsonConsumer> BatchWriter_;
 };
 

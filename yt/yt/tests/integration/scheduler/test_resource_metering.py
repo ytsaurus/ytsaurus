@@ -6,13 +6,10 @@ from yt_env_setup import (
 from yt_commands import (
     authors, print_debug, wait, wait_no_assert,
     create, ls, get, set, exists, create_pool, create_pool_tree,
-    write_table, run_test_vanilla)
+    write_table, run_test_vanilla, raises_yt_error)
 
 from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
 
-from yt.common import YtError
-
-import pytest
 
 import os
 import time
@@ -253,7 +250,7 @@ class TestResourceMetering(YTEnvSetup):
         wait(lambda: get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/config/metering_tags"))
 
         # Check that metering tag cannot be specified without abc attribute.
-        with pytest.raises(YtError):
+        with raises_yt_error("Metering tags can be specified only for pool with specified abc attribute"):
             create_pool(
                 "my_pool",
                 pool_tree="default",

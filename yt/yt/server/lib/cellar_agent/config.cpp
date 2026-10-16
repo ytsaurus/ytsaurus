@@ -43,6 +43,8 @@ void TCellarDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("hydra_manager", &TThis::HydraManager)
         .DefaultNew();
+    registrar.Parameter("lease_manager", &TThis::LeaseManager)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

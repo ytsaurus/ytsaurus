@@ -1,10 +1,3 @@
 RECURSE(
-    run
+    yql
 )
-
-IF (NOT OPENSOURCE)
-    RECURSE(
-        analyze
-        compare
-    )
-ENDIF()

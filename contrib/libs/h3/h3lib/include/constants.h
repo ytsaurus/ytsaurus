@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2017 Uber Technologies, Inc.
+ * Copyright 2016-2017, 2020 Uber Technologies, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,37 +31,46 @@
 #endif
 
 /** 2.0 * PI */
-#define M_2PI 6.28318530717958647692528676655900576839433L
+#define M_2PI 6.28318530717958647692528676655900576839433
 
 /** pi / 180 */
-#define M_PI_180 0.0174532925199432957692369076848861271111L
-/** pi * 180 */
-#define M_180_PI 57.29577951308232087679815481410517033240547L
+#define M_PI_180 0.0174532925199432957692369076848861271111
+/** 180 / pi */
+#define M_180_PI 57.29577951308232087679815481410517033240547
 
 /** threshold epsilon */
-#define EPSILON 0.0000000000000001L
+#define EPSILON 0.0000000000000001
 /** sqrt(3) / 2.0 */
-#define M_SQRT3_2 0.8660254037844386467637231707529361834714L
+#define M_SQRT3_2 0.8660254037844386467637231707529361834714
 /** sin(60') */
 #define M_SIN60 M_SQRT3_2
+/** 1/sin(60') **/
+#define M_RSIN60 1.1547005383792515290182975610039149112953
+
+/** one third **/
+#define M_ONETHIRD 0.333333333333333333333333333333333333333
+
+/** one seventh (1/7) **/
+#define M_ONESEVENTH 0.14285714285714285714285714285714285
 
 /** rotation angle between Class II and Class III resolution axes
  * (asin(sqrt(3.0 / 28.0))) */
-#define M_AP7_ROT_RADS 0.333473172251832115336090755351601070065900389L
+#define M_AP7_ROT_RADS 0.333473172251832115336090755351601070065900389
 
 /** sin(M_AP7_ROT_RADS) */
-#define M_SIN_AP7_ROT 0.3273268353539885718950318L
+#define M_SIN_AP7_ROT 0.3273268353539885718950318
 
 /** cos(M_AP7_ROT_RADS) */
-#define M_COS_AP7_ROT 0.9449111825230680680167902L
+#define M_COS_AP7_ROT 0.9449111825230680680167902
 
 /** earth radius in kilometers using WGS84 authalic radius */
-#define EARTH_RADIUS_KM 6371.007180918475L
+#define EARTH_RADIUS_KM 6371.007180918475
 
 /** scaling factor from hex2d resolution 0 unit length
  * (or distance between adjacent cell center points
  * on the plane) to gnomonic unit length. */
-#define RES0_U_GNOMONIC 0.38196601125010500003L
+#define RES0_U_GNOMONIC 0.38196601125010500003
+#define INV_RES0_U_GNOMONIC 2.61803398874989588842
 
 /** max H3 resolution; H3 version 1 has 16 resolutions, numbered 0 through 15 */
 #define MAX_H3_RES 15
@@ -78,7 +87,9 @@
 #define NUM_PENTAGONS 12
 
 /** H3 index modes */
-#define H3_HEXAGON_MODE 1
-#define H3_UNIEDGE_MODE 2
+#define H3_CELL_MODE 1
+#define H3_DIRECTEDEDGE_MODE 2
+#define H3_EDGE_MODE 3
+#define H3_VERTEX_MODE 4
 
 #endif

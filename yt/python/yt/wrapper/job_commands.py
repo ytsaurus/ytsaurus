@@ -86,7 +86,7 @@ class JobSpecType(TypedDict, total=False):
 
 
 def list_jobs(
-    operation_id: str,
+    operation_id: str = None,
     job_type=None,
     job_state=None,
     address=None,
@@ -108,11 +108,18 @@ def list_jobs(
     attributes=None,
     operation_incarnation=None,
     monitoring_descriptor=None,
+    operation_alias: str = None,
     format=None,
     client=None,
 ) -> ListJobsType:
-    """List jobs of operation."""
-    params = {"operation_id": operation_id}
+    """List jobs of operation.
+
+    :param str operation_id: operation id.
+    :param str operation_alias: operation alias (alternative to operation id).
+    """
+    params = {}
+    set_param(params, "operation_id", operation_id)
+    set_param(params, "operation_alias", operation_alias)
     set_param(params, "job_type", job_type)
     set_param(params, "job_state", job_state)
     set_param(params, "address", address)
@@ -145,13 +152,16 @@ def list_jobs(
         timeout=timeout)
 
 
-def get_job(operation_id: str, job_id: str, format=None, client=None) -> GetJobJobType:
+def get_job(operation_id: str = None, job_id: str = None, operation_alias: str = None, format=None, client=None) -> GetJobJobType:
     """Get job of operation.
 
     :param str operation_id: operation id.
+    :param str operation_alias: operation alias (alternative to operation id).
     :param str job_id: job id.
     """
-    params = {"operation_id": operation_id, "job_id": job_id}
+    params = {"job_id": job_id}
+    set_param(params, "operation_id", operation_id)
+    set_param(params, "operation_alias", operation_alias)
     timeout = get_config(client)["operation_info_commands_timeout"]
     return make_formatted_request(
         "get_job",
@@ -189,14 +199,17 @@ def run_job_shell_command(job_id: str, command: str, shell_name: Optional[str] =
         client=client)
 
 
-def get_job_stderr(operation_id: str, job_id: str, stderr_type: Optional[str] = None, client=None) -> bytes:
+def get_job_stderr(operation_id: str = None, job_id: str = None, stderr_type: Optional[str] = None, operation_alias: str = None, client=None) -> bytes:
     """Gets stderr of the specified job.
 
     :param str operation_id: operation id.
+    :param str operation_alias: operation alias (alternative to operation id).
     :param str job_id: job id.
     :param str type: stderr type.
     """
-    params = {"operation_id": operation_id, "job_id": job_id}
+    params = {"job_id": job_id}
+    set_param(params, "operation_id", operation_id)
+    set_param(params, "operation_alias", operation_alias)
     set_param(params, "type", stderr_type)
     return make_request(
         "get_job_stderr",
@@ -206,15 +219,22 @@ def get_job_stderr(operation_id: str, job_id: str, stderr_type: Optional[str] = 
 
 
 def list_job_traces(
-    operation_id: str,
-    job_id: str,
-    per_process : Optional[bool] = None,
-    limit : Optional[int] = None,
+    operation_id: str = None,
+    job_id: str = None,
+    per_process: Optional[bool] = None,
+    limit: Optional[int] = None,
+    operation_alias: str = None,
     format=None,
-    client=None
+    client=None,
 ) -> ListJobTracesType:
-    """List traces of the specified job."""
-    params = {"operation_id": operation_id, "job_id": job_id}
+    """List traces of the specified job.
+
+    :param str operation_id: operation id.
+    :param str operation_alias: operation alias (alternative to operation id).
+    """
+    params = {"job_id": job_id}
+    set_param(params, "operation_id", operation_id)
+    set_param(params, "operation_alias", operation_alias)
     set_param(params, "per_process", per_process)
     set_param(params, "limit", limit)
     timeout = get_config(client)["operation_info_commands_timeout"]
@@ -227,10 +247,16 @@ def list_job_traces(
         timeout=timeout)
 
 
-def get_job_trace(operation_id: str, job_id: str,
-                  trace_id: Optional[str] = None, from_time=None, to_time=None, client=None):
-    """Get traces of the specified job."""
-    params = {"operation_id": operation_id, "job_id": job_id}
+def get_job_trace(operation_id: str = None, job_id: str = None,
+                  trace_id: Optional[str] = None, from_time=None, to_time=None, operation_alias: str = None, client=None):
+    """Get traces of the specified job.
+
+    :param str operation_id: operation id.
+    :param str operation_alias: operation alias (alternative to operation id).
+    """
+    params = {"job_id": job_id}
+    set_param(params, "operation_id", operation_id)
+    set_param(params, "operation_alias", operation_alias)
     set_param(params, "trace_id", trace_id)
     set_param(params, "from_time", from_time)
     set_param(params, "to_time", to_time)
@@ -303,15 +329,19 @@ def dump_job_context(job_id: str, path: str, client=None):
     return make_request("dump_job_context", {"job_id": job_id, "path": path}, client=client)
 
 
-def get_job_fail_context(operation_id: str, job_id: str, client=None):
+def get_job_fail_context(operation_id: str = None, job_id: str = None, operation_alias: str = None, client=None):
     """Get fail context of the specified job.
 
     :param str operation_id: operation id.
+    :param str operation_alias: operation alias (alternative to operation id).
     :param str job_id: job id.
     """
+    params = {"job_id": job_id}
+    set_param(params, "operation_id", operation_id)
+    set_param(params, "operation_alias", operation_alias)
     return make_request(
         "get_job_fail_context",
-        params={"operation_id": operation_id, "job_id": job_id},
+        params=params,
         return_content=False,
         use_heavy_proxy=True,
         client=client)

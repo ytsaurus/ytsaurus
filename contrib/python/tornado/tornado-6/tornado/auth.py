@@ -67,15 +67,13 @@ Example usage for Google OAuth:
                         response_type='code',
                         extra_params={'approval_prompt': 'auto'})
 
-.. testoutput::
-   :hide:
-
 """
 
 import base64
 import binascii
 import hashlib
 import hmac
+import re
 import time
 import urllib.parse
 import uuid
@@ -94,13 +92,24 @@ class AuthError(Exception):
     pass
 
 
-class OpenIdMixin(object):
+class OpenIdMixin:
     """Abstract implementation of OpenID and Attribute Exchange.
 
     Class attributes:
 
     * ``_OPENID_ENDPOINT``: the identity provider's URI.
+
+    .. deprecated:: 6.6
+        OpenID 2.0 is no longer widely supported by identity providers.
+        This class will be removed in Tornado 6.7.
     """
+
+    def __init__(self) -> None:
+        warnings.warn(
+            "OpenIdMixin is deprecated and will be removed in Tornado 6.7",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     def authenticate_redirect(
         self,
@@ -150,9 +159,9 @@ class OpenIdMixin(object):
         """
         handler = cast(RequestHandler, self)
         # Verify the OpenID response via direct request to the OP
-        args = dict(
-            (k, v[-1]) for k, v in handler.request.arguments.items()
-        )  # type: Dict[str, Union[str, bytes]]
+        args = {
+            k: v[-1] for k, v in handler.request.arguments.items()
+        }  # type: Dict[str, Union[str, bytes]]
         args["openid.mode"] = "check_authentication"
         url = self._OPENID_ENDPOINT  # type: ignore
         if http_client is None:
@@ -188,7 +197,7 @@ class OpenIdMixin(object):
             ax_attrs = set(ax_attrs)
             required = []  # type: List[str]
             if "name" in ax_attrs:
-                ax_attrs -= set(["name", "firstname", "fullname", "lastname"])
+                ax_attrs -= {"name", "firstname", "fullname", "lastname"}
                 required += ["firstname", "fullname", "lastname"]
                 args.update(
                     {
@@ -220,7 +229,7 @@ class OpenIdMixin(object):
         self, response: httpclient.HTTPResponse
     ) -> Dict[str, Any]:
         handler = cast(RequestHandler, self)
-        if b"is_valid:true" not in response.body:
+        if re.search(rb"(?m)^is_valid:true$", response.body) is None:
             raise AuthError("Invalid OpenID response: %r" % response.body)
 
         # Make sure we got back at least an email from attribute exchange
@@ -287,7 +296,7 @@ class OpenIdMixin(object):
         return httpclient.AsyncHTTPClient()
 
 
-class OAuthMixin(object):
+class OAuthMixin:
     """Abstract implementation of OAuth 1.0 and 1.0a.
 
     See `TwitterMixin` below for an example implementation.
@@ -378,9 +387,9 @@ class OAuthMixin(object):
         if not request_cookie:
             raise AuthError("Missing OAuth request token cookie")
         handler.clear_cookie("_oauth_request_token")
-        cookie_key, cookie_secret = [
+        cookie_key, cookie_secret = (
             base64.b64decode(escape.utf8(i)) for i in request_cookie.split("|")
-        ]
+        )
         if cookie_key != request_key:
             raise AuthError("Request token does not match cookie")
         token = dict(
@@ -555,7 +564,7 @@ class OAuthMixin(object):
         return httpclient.AsyncHTTPClient()
 
 
-class OAuth2Mixin(object):
+class OAuth2Mixin:
     """Abstract implementation of OAuth 2.0.
 
     See `FacebookGraphMixin` or `GoogleOAuth2Mixin` below for example
@@ -635,7 +644,7 @@ class OAuth2Mixin(object):
         url: str,
         access_token: Optional[str] = None,
         post_args: Optional[Dict[str, Any]] = None,
-        **args: Any
+        **args: Any,
     ) -> Any:
         """Fetches the given URL auth an OAuth2 access token.
 
@@ -660,9 +669,6 @@ class OAuth2Mixin(object):
                         self.authorize_redirect()
                         return
                     self.finish("Posted a message!")
-
-        .. testoutput::
-           :hide:
 
         .. versionadded:: 4.3
 
@@ -721,9 +727,6 @@ class TwitterMixin(OAuthMixin):
                 else:
                     await self.authorize_redirect()
 
-    .. testoutput::
-       :hide:
-
     The user object returned by `~OAuthMixin.get_authenticated_user`
     includes the attributes ``username``, ``name``, ``access_token``,
     and all of the custom Twitter user attributes described at
@@ -770,7 +773,7 @@ class TwitterMixin(OAuthMixin):
         path: str,
         access_token: Dict[str, Any],
         post_args: Optional[Dict[str, Any]] = None,
-        **args: Any
+        **args: Any,
     ) -> Any:
         """Fetches the given API path, e.g., ``statuses/user_timeline/btaylor``
 
@@ -804,9 +807,6 @@ class TwitterMixin(OAuthMixin):
                         await self.authorize_redirect()
                         return
                     self.finish("Posted a message!")
-
-        .. testoutput::
-           :hide:
 
         .. versionchanged:: 6.0
 
@@ -959,9 +959,6 @@ class GoogleOAuth2Mixin(OAuth2Mixin):
                                 response_type='code',
                                 extra_params={'approval_prompt': 'auto'})
 
-        .. testoutput::
-           :hide:
-
         .. versionchanged:: 6.0
 
            The ``callback`` argument was removed. Use the returned awaitable object instead.
@@ -1034,9 +1031,6 @@ class FacebookGraphMixin(OAuth2Mixin):
                         client_id=self.settings["facebook_api_key"],
                         extra_params={"scope": "user_posts"})
 
-        .. testoutput::
-           :hide:
-
         This method returns a dictionary which may contain the following fields:
 
         * ``access_token``, a string which may be passed to `facebook_request`
@@ -1065,9 +1059,7 @@ class FacebookGraphMixin(OAuth2Mixin):
             "client_secret": client_secret,
         }
 
-        fields = set(
-            ["id", "name", "first_name", "last_name", "locale", "picture", "link"]
-        )
+        fields = {"id", "name", "first_name", "last_name", "locale", "picture", "link"}
         if extra_fields:
             fields.update(extra_fields)
 
@@ -1116,7 +1108,7 @@ class FacebookGraphMixin(OAuth2Mixin):
         path: str,
         access_token: Optional[str] = None,
         post_args: Optional[Dict[str, Any]] = None,
-        **args: Any
+        **args: Any,
     ) -> Any:
         """Fetches the given relative API path, e.g., "/btaylor/picture"
 
@@ -1150,9 +1142,6 @@ class FacebookGraphMixin(OAuth2Mixin):
                         self.authorize_redirect()
                         return
                     self.finish("Posted a message!")
-
-        .. testoutput::
-           :hide:
 
         The given path is relative to ``self._FACEBOOK_BASE_URL``,
         by default "https://graph.facebook.com".
@@ -1193,9 +1182,7 @@ def _oauth_signature(
     base_elems.append(method.upper())
     base_elems.append(normalized_url)
     base_elems.append(
-        "&".join(
-            "%s=%s" % (k, _oauth_escape(str(v))) for k, v in sorted(parameters.items())
-        )
+        "&".join(f"{k}={_oauth_escape(str(v))}" for k, v in sorted(parameters.items()))
     )
     base_string = "&".join(_oauth_escape(e) for e in base_elems)
 
@@ -1226,9 +1213,7 @@ def _oauth10a_signature(
     base_elems.append(method.upper())
     base_elems.append(normalized_url)
     base_elems.append(
-        "&".join(
-            "%s=%s" % (k, _oauth_escape(str(v))) for k, v in sorted(parameters.items())
-        )
+        "&".join(f"{k}={_oauth_escape(str(v))}" for k, v in sorted(parameters.items()))
     )
 
     base_string = "&".join(_oauth_escape(e) for e in base_elems)

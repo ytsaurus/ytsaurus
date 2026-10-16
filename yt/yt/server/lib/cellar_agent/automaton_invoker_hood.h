@@ -1,12 +1,13 @@
 #pragma once
 
-#include "public.h"
-
 #include <yt/yt/server/lib/hydra/public.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/actions/public.h>
+
+#include <yt/yt/library/profiling/tag.h>
+#include <yt/yt/library/profiling/public.h>
 
 #include <library/cpp/yt/misc/enum.h>
 
@@ -20,7 +21,10 @@ template <typename EQueue>
 class TAutomatonInvokerHood
 {
 public:
-    explicit TAutomatonInvokerHood(std::string threadName);
+    TAutomatonInvokerHood(
+        std::string threadName,
+        NProfiling::IRegistryPtr registry = {},
+        const NProfiling::TTagSet& extraTags = {});
 
     IInvokerPtr GetAutomatonInvoker(EQueue queue = EQueue::Default) const;
     IInvokerPtr GetEpochAutomatonInvoker(EQueue queue = EQueue::Default) const;

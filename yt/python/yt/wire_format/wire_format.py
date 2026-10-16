@@ -7,22 +7,9 @@ from yt.common import YtError
 
 import yt.yson as yson
 
-try:
-    from yt.packages.six import PY3, iteritems, integer_types, binary_type, text_type
-except ImportError:
-    from six import PY3, iteritems, integer_types, binary_type, text_type
-
 import struct
 
-try:
-    from cStringIO import StringIO as BytesIO
-except ImportError:  # Python 3
-    from io import BytesIO
-
-try:
-    xrange
-except NameError:  # Python 3
-    xrange = range
+from io import BytesIO
 
 SERIALIZATION_ALIGNMENT = 8
 
@@ -112,7 +99,7 @@ def build_name_table_from_schema(schema):
 
 def serialize_rows_to_unversioned_wire_format(stream, rows, schema, enable_value_type_validation=True, encoding="utf-8"):
     key_to_type = dict((entry["name"], entry["type"]) for entry in schema)
-    key_to_index = dict(zip([entry["name"] for entry in schema], xrange(len(schema))))
+    key_to_index = dict(zip([entry["name"] for entry in schema], range(len(schema))))
     aggregate_keys = set(entry["key"] for entry in schema if entry.get("aggregate", False))
 
     buffer_ = [struct.pack("<Q", len(rows))]
@@ -130,7 +117,7 @@ def serialize_rows_to_unversioned_wire_format(stream, rows, schema, enable_value
         value_count = 0
         values_buffer = []
 
-        for key, value in iteritems(row):
+        for key, value in row.items():
             expected_value_type = key_to_type.get(key)
 
             if expected_value_type is None:
@@ -144,18 +131,18 @@ def serialize_rows_to_unversioned_wire_format(stream, rows, schema, enable_value
             if expected_value_type == "any":
                 serialized_value = yson.dumps(value)
             elif expected_value_type == "int64" or expected_value_type == "uint64":
-                validate_value_type(integer_types, expected_value_type, value)
+                validate_value_type((int,), expected_value_type, value)
                 formatter = "<q" if expected_value_type == "int64" else "<Q"
                 serialized_value = struct.pack(formatter, value)
             elif expected_value_type == "boolean":
-                validate_value_type((bool,) + integer_types, expected_value_type, value)
+                validate_value_type((bool,) + (int,), expected_value_type, value)
                 serialized_value = struct.pack("<Q", int(value))
             elif expected_value_type == "double":
                 validate_value_type((float,), expected_value_type, value)
                 serialized_value = struct.pack("<d", value)
             elif expected_value_type == "string":
-                validate_value_type((text_type, binary_type), expected_value_type, value)
-                if isinstance(value, text_type):
+                validate_value_type((str, bytes), expected_value_type, value)
+                if isinstance(value, str):
                     if encoding is None:
                         raise YtError('Cannot encode unicode string, encoding is not specified')
                     serialized_value = value.encode(encoding)
@@ -199,7 +186,7 @@ def deserialize_rows_from_unversioned_wire_format(stream, column_names, skip_non
 
     count = struct.unpack("<Q", stream.read_exact(8))[0]
 
-    for _ in xrange(count):
+    for _ in range(count):
         column_count = struct.unpack("<Q", stream.read_exact(8))[0]
 
         if column_count == NULL_ROW_MARKER:
@@ -207,20 +194,17 @@ def deserialize_rows_from_unversioned_wire_format(stream, column_names, skip_non
 
         row = {}
 
-        for _ in xrange(column_count):
+        for _ in range(column_count):
             id_, type_, flags, length = struct.unpack("<HBBI", stream.read_exact(8))
             assert flags == 0, "Nontrivial value flags are not currently supported"
 
             if type_ == VT_ANY:
-                if not PY3:
-                    value = yson.loads(stream.read_exact(length))
-                else:
-                    value = yson.loads(stream.read_exact(length), encoding=encoding)
+                value = yson.loads(stream.read_exact(length), encoding=encoding)
 
                 stream.read_exact(align_up(length) - length)
             elif type_ == VT_STRING:
                 value = stream.read_exact(length)
-                if PY3 and encoding is not None:
+                if encoding is not None:
                     value = value.decode(encoding)
                 stream.read_exact(align_up(length) - length)
             elif type_ == VT_INT64:

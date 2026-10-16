@@ -2,6 +2,9 @@
 
 #include "helpers.h"
 
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+
 #include <yt/yt/server/master/chaos_server/chaos_cell_bundle.h>
 #include <yt/yt/server/master/chaos_server/chaos_manager.h>
 

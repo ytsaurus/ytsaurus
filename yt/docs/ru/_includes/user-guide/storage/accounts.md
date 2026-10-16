@@ -60,7 +60,7 @@ yt set //sys/account_tree/my_account/@allow_children_limit_overcommit %true
 
 Иерархия аккаунтов представлена на странице **Accounts** (а также в разделе **Dashboard**). Благодаря глобальной уникальности имен, редактируя путь к аккаунту, достаточно указать лишь его имя.
 
-![](../../../../images/account_tree_view.png){ .center }
+![](../../../../_images/account_tree_view.png){ .center }
 
 {% endcut %}
 
@@ -95,7 +95,7 @@ my_subaccount2
 
 {% endif %}
 
-Создать аккаунт верхнего уровня можно в веб-интерфейсе {{product-name}}, нажав **Create account** на странице **Accounts**. Вложенные аккаунты создаются из командой строки или в веб-интерфейсе {{product-name}}.
+{% if audience != "internal" %} Создать аккаунт верхнего уровня можно в веб-интерфейсе {{product-name}}, нажав **Create account** на странице **Accounts**. {% endif %}Вложенные аккаунты создаются из командой строки или в веб-интерфейсе {{product-name}}.
 
 {% cut "В веб-интерфейсе {{product-name}}" %}
 
@@ -104,7 +104,7 @@ my_subaccount2
 1. На странице **Accounts** нажать **Create account**.
 2. Указать {% if audience == "internal" %}ABC-сервис, {% endif %}название нового аккаунта, имя родительского аккаунта, в который будет вложен создаваемый аккаунт, а также ответственных за новый аккаунт пользователей. При необходимости можно также запросить автоматическое создание домашней директории, соответствующей аккаунту.
 
-![](../../../../images/account_tree_create.png){ .center }
+![](../../../../_images/account_tree_create.png){ .center }
 
 {% endcut %}
 
@@ -127,6 +127,16 @@ yt create account --attributes='{ name = "my_subaccount3"; parent_name = "my_acc
 Перед удалением аккаунта обязательно нужно убедиться, что в нем нет данных. В противном случае, аккаунт вместо удаления будет переведен в специальное состояние ожидания до тех пор, пока все ассоциированные с ним узлы Кипариса не будут удалены, после чего удаление произойдёт автоматически. Использовать аккаунт в таком состоянии невозможно, равно как и вернуть его в штатное состояние.
 
 {% endnote %}
+
+{% if audience == "internal" %}
+
+{% note info "Примечание" %}
+
+Корневые аккаунты во внутренних инсталляциях {{product-name}} необходимо удалять через [интерфейс ABC](../../../user-guide/storage/quota-request.md#sozdanie-akkaunta-i-diskovoj-kvoty-pod-novyj-proekt) — там же, где они создаются. Описанные ниже способы удаления через веб-интерфейс {{product-name}} и командную строку применимы только к вложенным аккаунтам.
+
+{% endnote %}
+
+{% endif %}
 
 {% cut "В веб-интерфейсе {{product-name}}" %}
 
@@ -199,7 +209,7 @@ yt move //sys/account_tree/my_account/my_subaccount3 //sys/account_tree/my_accou
 3. Указать аккаунт, чьи ресурсы будут перераспределены (по умолчанию предлагается аккаунт-родитель), и новый лимит.
 4. Нажать **Save**.
 
-![](../../../../images/account_tree_transfer_resources.png){ .center }
+![](../../../../_images/account_tree_transfer_resources.png){ .center }
 
 {% endcut %}
 

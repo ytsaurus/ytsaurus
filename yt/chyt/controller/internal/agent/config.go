@@ -3,8 +3,10 @@ package agent
 import (
 	"time"
 
+	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 // Config contains strawberry-specific configuration.
@@ -67,6 +69,72 @@ type Config struct {
 	UseFamilyPrefixInOpAlias bool `yson:"use_family_prefix_in_op_alias"`
 
 	JobCheckerConfig *JobCheckerConfig `yson:"job_checker_config"`
+	// MaxUnavailableJobsRatio is the maximum allowed ratio of simultaneously
+	// unavailable jobs to the number of configured jobs in an operation.
+	MaxUnavailableJobsRatio *float64 `yson:"max_unavailable_jobs_ratio"`
+
+	// MetricsConfig enables and configures agent sensors.
+	// If it is not set, the agent exports no metrics.
+	MetricsConfig *MetricsConfig `yson:"metrics_config"`
+
+	// BrokenStateSignalErrorCodes overrides which error codes are considered permanent errors:
+	// an operation restart failing with one of these codes counts towards making the oplet broken,
+	// instead of being retried indefinitely.
+	BrokenStateSignalErrorCodes *[]yterrors.ErrorCode `yson:"broken_state_signal_error_codes"`
+
+	// MaxConsecutiveBrokenStateSignalRetries overrides how many times in a row a restart may fail
+	// with a permanent error before the oplet becomes broken.
+	MaxConsecutiveBrokenStateSignalRetries *int `yson:"max_consecutive_broken_state_signal_retries"`
+}
+
+type MetricsConfig struct {
+	OpletPassDurationHistogram *TimeHistogramConfig `yson:"oplet_pass_duration_histogram"`
+}
+
+// TimeHistogramConfig describes exponential histogram buckets:
+// start, start*factor, start*factor^2, ... clipped to the [min, max] range.
+type TimeHistogramConfig struct {
+	Min    *yson.Duration `yson:"min"`
+	Max    *yson.Duration `yson:"max"`
+	Start  *yson.Duration `yson:"start"`
+	Factor *float64       `yson:"factor"`
+}
+
+func (c *TimeHistogramConfig) bucketBounds() []time.Duration {
+	min := time.Duration(DefaultTimeHistogramMin)
+	max := time.Duration(DefaultTimeHistogramMax)
+	start := time.Duration(DefaultTimeHistogramStart)
+	factor := DefaultTimeHistogramFactor
+	if c != nil {
+		if c.Min != nil {
+			min = time.Duration(*c.Min)
+		}
+		if c.Max != nil {
+			max = time.Duration(*c.Max)
+		}
+		if c.Start != nil && *c.Start > 0 {
+			start = time.Duration(*c.Start)
+		}
+		if c.Factor != nil && *c.Factor > 1 {
+			factor = *c.Factor
+		}
+	}
+
+	var bounds []time.Duration
+	for bound := start; bound <= max && len(bounds) < maxBucketCount; bound = time.Duration(float64(bound) * factor) {
+		if bound >= min {
+			bounds = append(bounds, bound)
+		}
+	}
+	return bounds
+}
+
+func (c *TimeHistogramConfig) buckets() metrics.DurationBuckets {
+	bounds := c.bucketBounds()
+	if len(bounds) == 0 {
+		bounds = (&TimeHistogramConfig{}).bucketBounds()
+	}
+	return metrics.NewDurationBuckets(bounds...)
 }
 
 const (
@@ -83,7 +151,26 @@ const (
 	DefaultAssignAdministerToCreator        = true
 	DefaultScaleWorkerNumber                = 1
 	DefaultScalePeriod                      = yson.Duration(60 * time.Second)
+	DefaultMaxUnavailableJobsRatio          = 0.75
+
+	DefaultTimeHistogramMin    = yson.Duration(0)
+	DefaultTimeHistogramMax    = yson.Duration(3 * time.Minute)
+	DefaultTimeHistogramStart  = yson.Duration(10 * time.Millisecond)
+	DefaultTimeHistogramFactor = 2.0
+
+	maxBucketCount = 65
+
+	DefaultMaxConsecutiveBrokenStateSignalRetries = 15
 )
+
+// TODO(iharbychyk): add new package for strawberry-specific error codes
+const CodePoolIsNotSet yterrors.ErrorCode = 800000
+
+var DefaultBrokenStateSignalErrorCodes = []yterrors.ErrorCode{
+	yterrors.CodeAuthorizationError,
+	yterrors.CodeTooManyOperations,
+	CodePoolIsNotSet,
+}
 
 func (c *Config) RootOrDefault() ypath.Path {
 	if c.Root != nil {
@@ -174,6 +261,34 @@ func (c *Config) JobCheckerConfigOrDefault() *JobCheckerConfig {
 		return c.JobCheckerConfig
 	}
 	return nil
+}
+
+func (c *Config) MaxUnavailableJobsRatioOrDefault() float64 {
+	if c.MaxUnavailableJobsRatio != nil {
+		return *c.MaxUnavailableJobsRatio
+	}
+	return DefaultMaxUnavailableJobsRatio
+}
+
+func (c *Config) MetricsConfigOrDefault() *MetricsConfig {
+	if c.MetricsConfig != nil {
+		return c.MetricsConfig
+	}
+	return nil
+}
+
+func (c *Config) BrokenStateSignalErrorCodesOrDefault() []yterrors.ErrorCode {
+	if c.BrokenStateSignalErrorCodes != nil {
+		return *c.BrokenStateSignalErrorCodes
+	}
+	return DefaultBrokenStateSignalErrorCodes
+}
+
+func (c *Config) MaxConsecutiveBrokenStateSignalRetriesOrDefault() int {
+	if c.MaxConsecutiveBrokenStateSignalRetries != nil {
+		return *c.MaxConsecutiveBrokenStateSignalRetries
+	}
+	return DefaultMaxConsecutiveBrokenStateSignalRetries
 }
 
 func applyOverride[T any](base **T, override *T) {

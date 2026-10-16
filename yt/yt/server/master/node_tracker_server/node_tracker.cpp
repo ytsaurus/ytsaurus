@@ -26,6 +26,7 @@
 
 #include <yt/yt/server/master/cell_server/cellar_node_tracker.h>
 
+#include <yt/yt/server/master/chunk_server/config.h>
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/data_node_tracker.h>
 #include <yt/yt/server/master/chunk_server/job.h>
@@ -227,8 +228,8 @@ public:
     void ProcessRegisterNode(const std::string& address, TCtxRegisterNodePtr context) override
     {
         if (!context->Request().chunk_locations_supported()) {
-            YT_LOG_ALERT("Node does not support real chunk locations (Address: %v)",
-                address);
+            YT_TLOG_ALERT("Node does not support real chunk locations")
+                .With("Address", address);
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Node does not support chunk locations"));
@@ -253,8 +254,8 @@ public:
             // This is usually caused by bugs or some other processes.
             // We should not throttle such requests as these nodes are already counted in RegisteredNodeCount.
 
-            YT_LOG_DEBUG("Received registration request from already registered node (Address: %v)",
-                address);
+            YT_TLOG_DEBUG("Received registration request from already registered node")
+                .With("Address", address);
         } else {
             for (auto* group : groups) {
                 if (group->PendingRegisterNodeMutationCount + group->RegisteredNodeCount >= group->Config->MaxConcurrentNodeRegistrations) {
@@ -280,9 +281,9 @@ public:
             ++group->PendingRegisterNodeMutationCount;
         }
 
-        YT_LOG_DEBUG("Node register mutation scheduled (Address: %v, NodeGroups: %v)",
-            address,
-            MakeFormattableView(groups, [] (auto* builder, const auto* group) {
+        YT_TLOG_DEBUG("Node register mutation scheduled")
+            .With("Address", address)
+            .With("NodeGroups", MakeFormattableView(groups, [] (auto* builder, const auto* group) {
                 builder->AppendFormat("%v", group->Id);
             }));
 
@@ -453,9 +454,9 @@ public:
         return host;
     }
 
-    TCompactVector<std::string, 4> GetGroupNamesForNode(TNode* node) override
+    std::vector<std::string> GetGroupNamesForNode(const TNode* node) override
     {
-        TCompactVector<std::string, 4> result;
+        std::vector<std::string> result;
         auto groups = GetGroupsForNode(node);
         for (const auto& group : groups) {
             result.push_back(group->Id);
@@ -479,11 +480,11 @@ public:
                 UpdateNodeCounters(node, +1);
             }
 
-            YT_LOG_INFO(
-                "Host rack changed (Host: %v, Rack: %v -> %v)",
-                host->GetName(),
-                oldRack ? std::optional(oldRack->GetName()) : std::nullopt,
-                rack ? std::optional(rack->GetName()) : std::nullopt);
+            YT_TLOG_INFO("Host rack changed")
+                .With("Host", host->GetName())
+                .WithFormat("Rack", "%v -> %v",
+                    oldRack ? std::optional(oldRack->GetName()) : std::nullopt,
+                    rack ? std::optional(rack->GetName()) : std::nullopt);
         }
     }
 
@@ -575,9 +576,10 @@ public:
             OnNodePendingRestartUpdated(node);
             break;
         default:
-            YT_LOG_ALERT("Invalid maintenance type (Type: %v)", type);
+            YT_TLOG_ALERT("Invalid maintenance type")
+                .With("Type", type);
             THROW_ERROR_EXCEPTION("Invalid maintenance type")
-                << TErrorAttribute("type", type);
+                .With("type", type);
         }
     }
 
@@ -587,11 +589,12 @@ public:
             auto oldHost = node->GetHost();
             UpdateNodeCounters(node, -1);
             node->SetHost(host);
-            YT_LOG_INFO("Node host changed (NodeId: %v, Address: %v, Host: %v -> %v)",
-                node->GetId(),
-                node->GetDefaultAddress(),
-                oldHost ? std::optional(oldHost->GetName()) : std::nullopt,
-                host ? std::optional(host->GetName()) : std::nullopt);
+            YT_TLOG_INFO("Node host changed")
+                .With("NodeId", node->GetId())
+                .With("Address", node->GetDefaultAddress())
+                .WithFormat("Host", "%v -> %v",
+                    oldHost ? std::optional(oldHost->GetName()) : std::nullopt,
+                    host ? std::optional(host->GetName()) : std::nullopt);
             NodeTagsChanged_.Fire(node);
             NodeHostChanged_.Fire(node, oldHost);
             UpdateNodeCounters(node, +1);
@@ -640,10 +643,9 @@ public:
 
         HostCreated_.Fire(host);
 
-        YT_LOG_DEBUG(
-            "Host created (HostId: %v, HostName: %v)",
-            host->GetId(),
-            host->GetName());
+        YT_TLOG_DEBUG("Host created")
+            .With("HostId", host->GetId())
+            .With("HostName", host->GetName());
 
         return host;
     }
@@ -773,9 +775,9 @@ public:
                 UpdateNodeCounters(node, +1);
             }
 
-            YT_LOG_INFO("Rack data center changed (Rack: %v, DataCenter: %v)",
-                std::optional(rack->GetName()),
-                dataCenter ? std::optional(dataCenter->GetName()) : std::nullopt);
+            YT_TLOG_INFO("Rack data center changed")
+                .With("Rack", std::optional(rack->GetName()))
+                .With("DataCenter", dataCenter ? std::optional(dataCenter->GetName()) : std::nullopt);
 
             RackDataCenterChanged_.Fire(rack, oldDataCenter);
 
@@ -949,22 +951,21 @@ public:
     void OnNodeHeartbeat(TNode* node, ENodeHeartbeatType heartbeatType) override
     {
         if (node->ReportedHeartbeats().emplace(heartbeatType).second) {
-            YT_LOG_INFO("Node reported heartbeat for the first time "
-                "(NodeId: %v, Address: %v, HeartbeatType: %v)",
-                node->GetId(),
-                node->GetDefaultAddress(),
-                heartbeatType);
+            YT_TLOG_INFO("Node reported heartbeat for the first time")
+                .With("NodeId", node->GetId())
+                .With("Address", node->GetDefaultAddress())
+                .With("HeartbeatType", heartbeatType);
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             auto cellTag = multicellManager->GetCellTag();
             auto shouldSetReliability = node->GetLocalCellAggregatedStateReliability() == ECellAggregatedStateReliability::DuringPropagation;
             auto receivedAllNecessaryHeartbeats = node->ReportedHeartbeats() == GetExpectedHeartbeats(node, multicellManager->IsPrimaryMaster());
             if (node->MustReportHeartbeatsToAllMasters() && shouldSetReliability && receivedAllNecessaryHeartbeats) {
-                YT_LOG_DEBUG("Node discovered \"new\" master cell (CellTag: %v, NodeId: %v, Address: %v, HeartbeatType: %v)",
-                    cellTag,
-                    node->GetId(),
-                    node->GetDefaultAddress(),
-                    heartbeatType);
+                YT_TLOG_DEBUG("Node discovered \"new\" master cell")
+                    .With("CellTag", cellTag)
+                    .With("NodeId", node->GetId())
+                    .With("Address", node->GetDefaultAddress())
+                    .With("HeartbeatType", heartbeatType);
                 SetNodeLocalCellAggregatedStateReliability(node, ECellAggregatedStateReliability::DynamicallyDiscovered);
             }
 
@@ -980,9 +981,9 @@ public:
         }
 
         const auto& descriptor = node->GetDescriptor();
-        YT_LOG_DEBUG("Requesting out of order heartbeat from node (NodeId: %v, DefaultNodeAddress: %v)",
-            nodeId,
-            descriptor.GetDefaultAddress());
+        YT_TLOG_DEBUG("Requesting out of order heartbeat from node")
+            .With("NodeId", nodeId)
+            .With("DefaultNodeAddress", descriptor.GetDefaultAddress());
 
         auto nodeChannel = Bootstrap_->GetNodeChannelFactory()->CreateChannel(descriptor);
 
@@ -994,12 +995,11 @@ public:
 
     void SetNodeLocalState(TNode* node, ENodeState state) override
     {
-        YT_LOG_DEBUG(
-            "Setting local state for node (NodeId: %v, NodeAddress: %v, OldState: %v, NewState: %v)",
-            node->GetId(),
-            node->GetDefaultAddress(),
-            node->GetLocalState(),
-            state);
+        YT_TLOG_DEBUG("Setting local state for node")
+            .With("NodeId", node->GetId())
+            .With("NodeAddress", node->GetDefaultAddress())
+            .With("OldState", node->GetLocalState())
+            .With("NewState", state);
         UpdateNodeCounters(node, -1);
         node->SetLocalState(state);
 
@@ -1043,12 +1043,12 @@ private:
 
     int AggregatedOnlineNodeCount_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, NodeStatisticsLock_);
-    TCpuInstant NodeStatisticsUpdateDeadline_ = 0;
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, NodeStatisticsLock_);
+    TInstant NodeStatisticsUpdateDeadline_;
     TAggregatedNodeStatistics AggregatedNodeStatistics_;
     using TFlavoredNodeStatistics = TEnumIndexedArray<ENodeFlavor, TAggregatedNodeStatistics>;
     TFlavoredNodeStatistics FlavoredNodeStatistics_;
-    TCpuInstant LocalStateToNodeCountUpdateDeadline_ = 0;
+    TInstant LocalStateToNodeCountUpdateDeadline_;
     using TLocalStateToNodeCount = TEnumIndexedArray<ENodeState, int>;
     TLocalStateToNodeCount LocalStateToNodeCount_;
     THashMap<const TDataCenter*, TAggregatedNodeStatistics> DataCenterNodeStatistics_;
@@ -1268,9 +1268,15 @@ private:
         }
 
         if (leaseTransaction) {
+            YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
             UnregisterLeaseTransaction(node);
             node->SetLeaseTransaction(leaseTransaction);
             RegisterLeaseTransaction(node);
+
+            const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+            node->SetLeaseTransactionTimeoutBeforeExtension(std::nullopt);
+            UpdateNodeLeaseTimeoutExtension(node, ComputeNodeLeaseTimeoutExtension(node, config));
         }
     }
 
@@ -1291,21 +1297,27 @@ private:
                 return true;
             };
 
+            // A temporarily unavailable DC has the same no-disposal contract as pending restart.
+            auto nodeTemporarilyUnavailable =
+                node->IsPendingRestart() ||
+                IsNodeInTemporarilyUnavailableDataCenter(
+                    node,
+                    Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager);
+
             if (GetDynamicConfig()->NoRestartingNodesDisposal &&
                 node->GetAggregatedState() == ENodeState::Online &&
                 options.Flavors.contains(ENodeFlavor::Data) &&
                 options.LocationIndexesInHeartbeatsSupported &&
-                Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->DataNodeTracker->EnablePerLocationFullHeartbeats &&
-                node->IsPendingRestart() &&
+                nodeTemporarilyUnavailable &&
                 allLocationsAreReported())
             {
                 SetNodeHasRestarted(node);
             } else {
                 if (node->HasAliveLocalState()) {
-                    YT_LOG_INFO("Kicking node out due to address conflict (NodeId: %v, Address: %v, State: %v)",
-                        node->GetId(),
-                        address,
-                        node->GetLocalState());
+                    YT_TLOG_INFO("Kicking node out due to address conflict")
+                        .With("NodeId", node->GetId())
+                        .With("Address", address)
+                        .With("State", node->GetLocalState());
                     UnregisterNode(node, true);
                 }
                 auto aggregatedState = node->GetAggregatedState();
@@ -1351,7 +1363,8 @@ private:
         try {
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to create host for a node");
+            YT_TLOG_ALERT("Failed to create host for a node")
+                .With(ex);
 
             if (IsObjectAlive(node)) {
                 const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1377,7 +1390,9 @@ private:
         try {
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to create data center for a node (DataCenterName: %v)", name);
+            YT_TLOG_ALERT("Failed to create data center for a node")
+                .With("DataCenterName", name)
+                .With(ex);
             throw;
         }
     }
@@ -1401,7 +1416,9 @@ private:
         try {
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to create rack for a node (RackName: %v)", name);
+            YT_TLOG_ALERT("Failed to create rack for a node")
+                .With("RackName", name)
+                .With(ex);
             throw;
         }
     }
@@ -1455,6 +1472,12 @@ private:
 
         auto* node = GetNodeByAddress(address);
 
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
+            request->set_registration_revision(ToProto(GetCurrentMutationContext()->GetVersion().ToRevision()));
+        }
+        node->SetRegistrationRevision(FromProto<TRevision>(request->registration_revision()));
+
         if (node->IsDataNode() || (node->IsExecNode() && !options.ExecNodeIsNotDataNode)) {
             const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
             dataNodeTracker->ProcessRegisterNode(node, request, response);
@@ -1467,21 +1490,17 @@ private:
             NodeRegistered_.Fire(node);
         }
 
-        YT_LOG_INFO(
-            "Node registered "
-            "(NodeId: %v, Address: %v, Tags: %v, Flavors: %v, "
-            "LeaseTransactionId: %v)",
-            node->GetId(),
-            options.DefaultAddress,
-            options.Tags,
-            options.Flavors,
-            options.LeaseTransactionId);
+        YT_TLOG_INFO("Node registered")
+            .With("NodeId", node->GetId())
+            .With("Address", options.DefaultAddress)
+            .With("Tags", options.Tags)
+            .With("Flavors", options.Flavors)
+            .With("LeaseTransactionId", options.LeaseTransactionId);
 
         // NB: Exec nodes should not report heartbeats to secondary masters,
         // so node can already be online for this cell.
         CheckNodeOnline(node);
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         // TODO(grphil): Add some analog for pending restart.
         if (multicellManager->IsPrimaryMaster()) {
             if (node->GetLocalState() == ENodeState::Registered) {
@@ -1494,14 +1513,14 @@ private:
 
         FillResponseNodeTags(response->mutable_tags(), node->Tags());
 
-        auto dynamicConfig = GetDynamicConfig();
-        if (dynamicConfig->ReturnMasterCellsConnectionConfigsOnNodeRegistration) {
-            FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
-        }
+        FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
+
+        response->set_registration_revision(request->registration_revision());
 
         if (context) {
-            context->SetResponseInfo("NodeId: %v",
-                node->GetId());
+            context->AnnotateResponse()
+                .With("NodeId", node->GetId())
+                .With("RegistrationRevision", node->GetRegistrationRevision());
         }
     }
 
@@ -1539,6 +1558,7 @@ private:
         EnsureNodeObjectCreated(options);
 
         auto* node = GetNodeByAddress(address);
+        node->SetRegistrationRevision(FromProto<TRevision>(request->registration_revision()));
 
         auto chunkLocationUuids = FromProto<std::vector<TChunkLocationUuid>>(request->chunk_location_uuids());
         bool isDataNode = node->IsDataNode() || (node->IsExecNode() && !options.ExecNodeIsNotDataNode);
@@ -1555,20 +1575,18 @@ private:
 
             NodeRegistered_.Fire(node);
         } else if (node->GetLocalState() != ENodeState::Offline) {
-            YT_LOG_ALERT("Node is materialized with invalid state (NodeId: %v, Address: %v, State: %v)",
-                node->GetId(),
-                node->GetDefaultAddress(),
-                node->GetLocalState());
+            YT_TLOG_ALERT("Node is materialized with invalid state")
+                .With("NodeId", node->GetId())
+                .With("Address", node->GetDefaultAddress())
+                .With("State", node->GetLocalState());
         }
         NodeReplicated_.Fire(node);
 
-        YT_LOG_INFO(
-            "Node replicated "
-            "(NodeId: %v, Address: %v, Tags: %v, Flavors: %v)",
-            node->GetId(),
-            options.DefaultAddress,
-            options.Tags,
-            options.Flavors);
+        YT_TLOG_INFO("Node replicated")
+            .With("NodeId", node->GetId())
+            .With("Address", options.DefaultAddress)
+            .With("Tags", options.Tags)
+            .With("Flavors", options.Flavors);
 
         CheckNodeOnline(node);
     }
@@ -1612,10 +1630,10 @@ private:
         node->ValidateRegistered();
 
         YT_PROFILE_TIMING("/node_tracker/cluster_node_heartbeat_time") {
-            YT_LOG_DEBUG("Processing cluster node heartbeat (NodeId: %v, Address: %v, State: %v)",
-                nodeId,
-                node->GetDefaultAddress(),
-                node->GetLocalState());
+            YT_TLOG_DEBUG("Processing cluster node heartbeat")
+                .With("NodeId", nodeId)
+                .With("Address", node->GetDefaultAddress())
+                .With("State", node->GetLocalState());
 
             UpdateLastSeenTime(node);
 
@@ -1629,8 +1647,8 @@ private:
         YT_VERIFY(multicellManager->IsPrimaryMaster());
 
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            YT_LOG_ERROR("Received node gossip message from unknown cell (CellTag: %v)",
-                cellTag);
+            YT_TLOG_ERROR("Received node gossip message from unknown cell")
+                .With("CellTag", cellTag);
             return false;
         }
 
@@ -1644,8 +1662,8 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Received node statistics (CellTag: %v)",
-            cellTag);
+        YT_TLOG_INFO("Received node statistics")
+            .With("CellTag", cellTag);
 
         for (const auto& entry : request->entries()) {
             auto nodeId = FromProto<TNodeId>(entry.node_id());
@@ -1672,10 +1690,10 @@ private:
         auto nodeId = FromProto<TNodeId>(request->node_id());
         auto reliability = FromProto<ECellAggregatedStateReliability>(request->cell_reliability());
 
-        YT_LOG_INFO("Received node cell aggregated state reliability (NodeId: %v, Reliability: %v, CellTag: %v)",
-            nodeId,
-            reliability,
-            cellTag);
+        YT_TLOG_INFO("Received node cell aggregated state reliability")
+            .With("NodeId", nodeId)
+            .With("Reliability", reliability)
+            .With("CellTag", cellTag);
 
         auto* node = FindNode(nodeId);
         if (!IsObjectAlive(node)) {
@@ -1688,17 +1706,17 @@ private:
             // Funnily enough, it is safer to make cell StaticallyKnown, so don't ignore that change.
             // Unknown is OK here.
             if (reliability == ECellAggregatedStateReliability::StaticallyKnown) {
-                YT_LOG_ALERT("Received a weird state reliability change for dynamically propagated cell (NodeId: %v, Reliability: %v, CellTag: %v)",
-                    nodeId,
-                    reliability,
-                    cellTag);
+                YT_TLOG_ALERT("Received a weird state reliability change for dynamically propagated cell")
+                    .With("NodeId", nodeId)
+                    .With("Reliability", reliability)
+                    .With("CellTag", cellTag);
             }
         } else {
             if (reliability != ECellAggregatedStateReliability::StaticallyKnown) {
-                YT_LOG_ALERT("Received probably outdated state reliability change for a statically known cell (NodeId: %v, Reliability: %v, CellTag: %v)",
-                    nodeId,
-                    reliability,
-                    cellTag);
+                YT_TLOG_ALERT("Received probably outdated state reliability change for a statically known cell")
+                    .With("NodeId", nodeId)
+                    .With("Reliability", reliability)
+                    .With("CellTag", cellTag);
                 return;
             }
         }
@@ -1716,10 +1734,10 @@ private:
         auto nodeId = FromProto<TNodeId>(request->node_id());
         auto state = ENodeState(request->state());
 
-        YT_LOG_DEBUG("Received node state (NodeId: %v, State: %v, CellTag: %v)",
-            nodeId,
-            state,
-            cellTag);
+        YT_TLOG_DEBUG("Received node state")
+            .With("NodeId", nodeId)
+            .With("State", state)
+            .With("CellTag", cellTag);
 
         auto* node = FindNode(nodeId);
         if (!IsObjectAlive(node)) {
@@ -1736,9 +1754,8 @@ private:
         auto nodeId = FromProto<TNodeId>(request->node_id());
         auto* node = FindNode(nodeId);
         if (!node) {
-            YT_LOG_ERROR(
-                "Error updating cluster node resource usage and limits: node not found (NodeId: %v)",
-                nodeId);
+            YT_TLOG_ERROR("Error updating cluster node resource usage and limits: node not found")
+                .With("NodeId", nodeId);
             return;
         }
 
@@ -1758,17 +1775,17 @@ private:
             if (IsObjectAlive(node)) {
                 nodeList.push_back(node);
             } else {
-                YT_LOG_DEBUG("New node for role is dead, ignoring (NodeRole: %v, NodeId: %v)",
-                    nodeRole,
-                    node->GetId());
+                YT_TLOG_DEBUG("New node for role is dead, ignoring")
+                    .With("NodeRole", nodeRole)
+                    .With("NodeId", node->GetId());
             }
         }
 
         NodeListPerRole_[nodeRole].UpdateAddresses();
 
-        YT_LOG_DEBUG("Updated nodes for role (NodeRole: %v, Nodes: %v)",
-            nodeRole,
-            MakeFormattableView(nodeList, TNodePtrAddressFormatter()));
+        YT_TLOG_DEBUG("Updated nodes for role")
+            .With("NodeRole", nodeRole)
+            .With("Nodes", MakeFormattableView(nodeList, TNodePtrAddressFormatter()));
     }
 
     void HydraAddMaintenance(
@@ -1780,11 +1797,10 @@ private:
         auto* node = GetNodeByAddressOrThrow(nodeAddress);
         if (!IsObjectAlive(node)) {
             THROW_ERROR_EXCEPTION("No such node")
-                << TErrorAttribute("address", request->node_address());
+                .With("address", request->node_address());
         }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
         if (multicellManager->IsPrimaryMaster()) {
             YT_VERIFY(!request->has_id());
 
@@ -1826,7 +1842,7 @@ private:
         auto* node = GetNodeByAddressOrThrow(nodeAddress);
         if (!IsObjectAlive(node)) {
             THROW_ERROR_EXCEPTION("Node does not exist")
-                << TErrorAttribute("node_address", request->node_address());
+                .With("node_address", request->node_address());
         }
 
         auto id = FromProto<TMaintenanceId>(request->id());
@@ -1863,7 +1879,9 @@ private:
                     /*type*/ EMaintenanceType::PendingRestart,
                     /*componentRegistry*/ std::nullopt);
             } catch (const std::exception& ex) {
-                YT_LOG_ALERT(ex, "Failed to remove node pending restart maintenance (NodeId: %v)", nodeId);
+                YT_TLOG_ALERT("Failed to remove node pending restart maintenance")
+                    .With("NodeId", nodeId)
+                    .With(ex);
             }
         }
     }
@@ -1902,10 +1920,7 @@ private:
         *response->mutable_resource_limits_overrides() = node->ResourceLimitsOverrides();
         response->set_decommissioned(node->IsDecommissioned());
 
-        auto dynamicConfig = GetDynamicConfig();
-        if (dynamicConfig->ReturnMasterCellsConnectionConfigsOnNodeHeartbeat) {
-            FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
-        }
+        FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
 
         node->SetDisableWriteSessionsSentToNode(node->AreWriteSessionsDisabled());
     }
@@ -1994,7 +2009,7 @@ private:
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
-        YT_LOG_INFO("Started initializing nodes");
+        YT_TLOG_INFO("Started initializing nodes");
 
         AddressToNodeMap_.clear();
         HostNameToNodeMap_.clear();
@@ -2015,10 +2030,9 @@ private:
             // damage to the cluster in such an unimaginalbe case. Updating a cluster from such a state will require custom builds,
             // but it is so unlikely that any cluster has had so many nodes that we consider it impossible.
             if (node->GetId() > MaxRealNodeId) {
-                YT_LOG_FATAL(
-                    "Existing node id is too large (NodeId: %v, MaxRealNodeId: %v)",
-                    node->GetId(),
-                    MaxRealNodeId);
+                YT_TLOG_FATAL("Existing node id is too large")
+                    .With("NodeId", node->GetId())
+                    .With("MaxRealNodeId", MaxRealNodeId);
             }
 
             node->RebuildTags();
@@ -2123,16 +2137,14 @@ private:
                 case ENodeState::BeingDisposed:
                     // Node disposal is scheduled, locations are being used.
 
-                    YT_LOG_FATAL(
-                        "Cannot load snapshot because data node still uses imaginary locations "
-                        "(NodeAddress: %v, LocalState: %v)",
-                        node->GetDefaultAddress(),
-                        localState);
+                    YT_TLOG_FATAL("Cannot load snapshot because data node still uses imaginary locations")
+                        .With("NodeAddress", node->GetDefaultAddress())
+                        .With("LocalState", localState);
             }
         }
         NodesWithImaginaryLocations_.clear();
 
-        YT_LOG_INFO("Finished initializing nodes");
+        YT_TLOG_INFO("Finished initializing nodes");
     }
 
     void OnRecoveryStarted() override
@@ -2250,9 +2262,9 @@ private:
 
             NodeOnline_.Fire(node);
 
-            YT_LOG_INFO("Node online (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
+            YT_TLOG_INFO("Node online")
+                .With("NodeId", node->GetId())
+                .With("Address", node->GetDefaultAddress());
         }
     }
 
@@ -2287,8 +2299,8 @@ private:
         const auto& dynamicallyPropagatedMastersCellTags = multicellManager->GetDynamicallyPropagatedMasterCellTags();
         // Not sure what to do, let's just wait until someone fixes it.
         if (!dynamicallyPropagatedMastersCellTags.empty()) {
-            YT_LOG_ALERT("Resetting state reliabilities with non-empty dynamically propagated list (DynamicallyPropagatedMastersCellTags: %v)",
-                dynamicallyPropagatedMastersCellTags);
+            YT_TLOG_ALERT("Resetting state reliabilities with non-empty dynamically propagated list")
+                .With("DynamicallyPropagatedMastersCellTags", dynamicallyPropagatedMastersCellTags);
             return;
         }
 
@@ -2307,9 +2319,9 @@ private:
                 // Both these mutations travel from primary to secondary and reliability is changed immediately
                 // on primary, so if a reliability is DuringPropagation, primary
                 // knows about it and should fail validation.
-                YT_LOG_ALERT("Node is still during propagation for cell (NodeId: %v, NodeAddress: %v)",
-                    nodeId,
-                    node->GetDefaultAddress());
+                YT_TLOG_ALERT("Node is still during propagation for cell")
+                    .With("NodeId", nodeId)
+                    .With("NodeAddress", node->GetDefaultAddress());
             }
 
             SetNodeLocalCellAggregatedStateReliability(node, ECellAggregatedStateReliability::StaticallyKnown);
@@ -2396,10 +2408,10 @@ private:
         }
 
         auto* node = it->second;
-        YT_LOG_INFO("Node lease transaction finished (NodeId: %v, Address: %v, TransactionId: %v)",
-            node->GetId(),
-            node->GetDefaultAddress(),
-            transaction->GetId());
+        YT_TLOG_INFO("Node lease transaction finished")
+            .With("NodeId", node->GetId())
+            .With("Address", node->GetDefaultAddress())
+            .With("TransactionId", transaction->GetId());
 
         UnregisterNode(node, true);
     }
@@ -2449,8 +2461,12 @@ private:
             NodeUnregistered_.Fire(node);
 
             if (propagate) {
-                if (IsLeader()) {
-                    NodeDisposalManager_->DisposeNodeWithSemaphore(node);
+                if (node->Flavors().contains(ENodeFlavor::Data)) {
+                    if (IsLeader()) {
+                        NodeDisposalManager_->DisposeNodeWithSemaphore(node);
+                    }
+                } else {
+                    NodeDisposalManager_->DisposeNodeCompletely(node);
                 }
 
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -2459,9 +2475,9 @@ private:
                 }
             }
 
-            YT_LOG_INFO("Node unregistered (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
+            YT_TLOG_INFO("Node unregistered")
+                .With("NodeId", node->GetId())
+                .With("Address", node->GetDefaultAddress());
         }
     }
 
@@ -2482,18 +2498,20 @@ private:
     void EnsureNodeDisposedOrRestarted(TNode* node)
     {
         if (node->GetLocalState() != ENodeState::Restarted && node->GetLocalState() != ENodeState::Offline) {
-            YT_LOG_ALERT("Node is not restarted or disposed when it should be (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
+            YT_TLOG_ALERT("Node is not restarted or disposed when it should be")
+                .With("NodeId", node->GetId())
+                .With("Address", node->GetDefaultAddress())
+                .With("LocalState", node->GetLocalState());
         }
     }
 
     void EnsureNodeDisposed(TNode* node)
     {
         if (node->GetLocalState() != ENodeState::Offline) {
-            YT_LOG_ALERT("Node is not offline when it should be (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
+            YT_TLOG_ALERT("Node is not offline when it should be")
+                .With("NodeId", node->GetId())
+                .With("Address", node->GetDefaultAddress())
+                .With("LocalState", node->GetLocalState());
         }
     }
 
@@ -2520,8 +2538,8 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Sending node statistics gossip message (NodeCount: %v)",
-            request.entries_size());
+        YT_TLOG_INFO("Sending node statistics gossip message")
+            .With("NodeCount", request.entries_size());
 
         multicellManager->PostToPrimaryMaster(request, /*reliable*/ false);
     }
@@ -2541,9 +2559,9 @@ private:
         request.set_cell_reliability(ToProto(reliability));
         node->SetLastCellAggregatedStateReliability(reliability);
 
-        YT_LOG_INFO("Sending node local aggregated state cell reliability (NodeId: %v, CellReliability: %v)",
-            node->GetId(),
-            reliability);
+        YT_TLOG_INFO("Sending node local aggregated state cell reliability")
+            .With("NodeId", node->GetId())
+            .With("CellReliability", reliability);
 
         multicellManager->PostToPrimaryMaster(request);
     }
@@ -2565,10 +2583,10 @@ private:
         request.set_state(ToProto(state));
         node->SetLastGossipState(state);
 
-        YT_LOG_INFO("Sending node state (NodeId: %v, Address: %v, State: %v)",
-            node->GetId(),
-            node->GetDefaultAddress(),
-            state);
+        YT_TLOG_INFO("Sending node state")
+            .With("NodeId", node->GetId())
+            .With("Address", node->GetDefaultAddress())
+            .With("State", state);
 
         multicellManager->PostToPrimaryMaster(request);
     }
@@ -2618,6 +2636,8 @@ private:
         request.set_chunk_locations_supported(originalRequest->chunk_locations_supported());
 
         request.set_location_indexes_in_heartbeats_supported(originalRequest->location_indexes_in_heartbeats_supported());
+
+        request.set_registration_revision(originalRequest->registration_revision());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(request);
@@ -2737,6 +2757,8 @@ private:
             : ENodeState::Offline;
         request.set_node_state(ToProto(materializedState));
 
+        request.set_registration_revision(ToProto(node->GetRegistrationRevision()));
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, cellTag);
     }
@@ -2822,6 +2844,9 @@ private:
         TSensorBuffer buffer;
         NodeDisposalManager_->OnProfiling(&buffer);
 
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        dataNodeTracker->OnProfiling(&buffer);
+
         const auto& localStateToNodeCount = GetLocalStateToNodeCount();
         for (auto state : TEnumTraits<ENodeState>::GetDomainValues()) {
             TWithTagGuard tagGuard(&buffer, "state", FormatEnum(state));
@@ -2906,6 +2931,7 @@ private:
         auto minLastDataHeartbeatTime = now - GetDynamicConfig()->NodeDataHeartbeatOutdateDuration;
         auto minLastJobHeartbeatTime = now - GetDynamicConfig()->NodeJobHeartbeatOutdateDuration;
         auto minLastIncompleteStateChangeTime = now - GetDynamicConfig()->MaxNodeIncompleteStateDuration;
+        auto minLastdisposeStateChangeTime = now - GetDynamicConfig()->MaxNodeDisposeStateDuration;
 
         std::vector<TError> alerts;
 
@@ -2913,18 +2939,23 @@ private:
         TOldNodeAlert jobHeartbeatAlert;
         THashMap<ENodeState, TOldNodeAlert> noStateChangeAlert;
 
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        bool readOnly = hydraManager->GetReadOnly();
+
         for (auto [nodeId, node] : NodeMap_) {
             if (!IsObjectAlive(node)) {
                 continue;
             }
 
-            if (node->GetAggregatedState() == ENodeState::Offline) {
+            auto state = node->GetAggregatedState();
+            if (state == ENodeState::Offline) {
                 continue;
             }
 
-            if (node->GetAggregatedState() == ENodeState::Online) {
+            if (state == ENodeState::Online) {
                 if (node->IsDataNode()) {
-                    if (node->GetLastDataHeartbeatTime() < minLastDataHeartbeatTime) {
+                    // Data heartbeats are mutations and cannot be processed while Hydra is read-only.
+                    if (!readOnly && node->GetLastDataHeartbeatTime() < minLastDataHeartbeatTime) {
                         dataHeartbeatAlert.Update(node->GetDefaultAddress(), node->GetLastDataHeartbeatTime());
                     }
 
@@ -2934,55 +2965,62 @@ private:
                 }
             } else {
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                if (multicellManager->IsPrimaryMaster() && node->GetLastStateChangeTime() < minLastIncompleteStateChangeTime) {
-                    noStateChangeAlert[node->GetAggregatedState()].Update(node->GetDefaultAddress(), node->GetLastStateChangeTime());
+                auto lastChangeTime = node->GetLastStateChangeTime();
+                auto beingDisposed = state == ENodeState::BeingDisposed;
+                if (state == ENodeState::Mixed) {
+                    for (auto& [_, descriptor] : node->MulticellDescriptors()) {
+                        if (descriptor.State == ENodeState::BeingDisposed) {
+                            beingDisposed = true;
+                        }
+                    }
+                }
+
+                if (multicellManager->IsPrimaryMaster() && ((lastChangeTime < minLastIncompleteStateChangeTime) ||
+                    (beingDisposed && lastChangeTime < minLastdisposeStateChangeTime)))
+                {
+                    noStateChangeAlert[node->GetAggregatedState()].Update(node->GetDefaultAddress(), lastChangeTime);
                 }
             }
         }
+
         if (dataHeartbeatAlert.AlertedNodeCount > 0) {
-            YT_LOG_ALERT(
-                "Nodes had no data heartbeat for too long "
-                "(NodeCount: %v, OldestNoHeartbeatNodeAddress: %v, TimeSinceOldestDataHeartbeat: %v)",
-                dataHeartbeatAlert.AlertedNodeCount,
-                dataHeartbeatAlert.OldestNodeAddress,
-                now - dataHeartbeatAlert.OldestNodeChangeTime);
+            YT_TLOG_ALERT("Nodes had no data heartbeat for too long")
+                .With("NodeCount", dataHeartbeatAlert.AlertedNodeCount)
+                .With("OldestNoHeartbeatNodeAddress", dataHeartbeatAlert.OldestNodeAddress)
+                .With("TimeSinceOldestDataHeartbeat", now - dataHeartbeatAlert.OldestNodeChangeTime);
             alerts.push_back(TError("Node(s) had no data heartbeat for too long")
-                << TErrorAttribute("node_count", dataHeartbeatAlert.AlertedNodeCount)
-                << TErrorAttribute("oldest_no_heartbeat_node_address", dataHeartbeatAlert.OldestNodeAddress)
-                << TErrorAttribute("time_since_oldest_data_heartbeat", now - dataHeartbeatAlert.OldestNodeChangeTime));
+                .With("node_count", dataHeartbeatAlert.AlertedNodeCount)
+                .With("oldest_no_heartbeat_node_address", dataHeartbeatAlert.OldestNodeAddress)
+                .With("time_since_oldest_data_heartbeat", now - dataHeartbeatAlert.OldestNodeChangeTime));
         }
         if (jobHeartbeatAlert.AlertedNodeCount > 0) {
-            YT_LOG_ALERT(
-                "Nodes had no job heartbeat for too long "
-                "(NodeCount: %v, OldestNoHeartbeatNodeAddress: %v, TimeSinceOldestJobHeartbeat: %v)",
-                jobHeartbeatAlert.AlertedNodeCount,
-                jobHeartbeatAlert.OldestNodeAddress,
-                now - jobHeartbeatAlert.OldestNodeChangeTime);
+            YT_TLOG_ALERT("Nodes had no job heartbeat for too long")
+                .With("NodeCount", jobHeartbeatAlert.AlertedNodeCount)
+                .With("OldestNoHeartbeatNodeAddress", jobHeartbeatAlert.OldestNodeAddress)
+                .With("TimeSinceOldestJobHeartbeat", now - jobHeartbeatAlert.OldestNodeChangeTime);
             alerts.push_back(TError("Node(s) had no job heartbeat for too long")
-                << TErrorAttribute("node_count", jobHeartbeatAlert.AlertedNodeCount)
-                << TErrorAttribute("oldest_no_heartbeat_node_address", jobHeartbeatAlert.OldestNodeAddress)
-                << TErrorAttribute("time_since_oldest_job_heartbeat", now - jobHeartbeatAlert.OldestNodeChangeTime));
+                .With("node_count", jobHeartbeatAlert.AlertedNodeCount)
+                .With("oldest_no_heartbeat_node_address", jobHeartbeatAlert.OldestNodeAddress)
+                .With("time_since_oldest_job_heartbeat", now - jobHeartbeatAlert.OldestNodeChangeTime));
         }
 
         for (const auto& [state, alert] : noStateChangeAlert) {
-            YT_LOG_ALERT(
-                "Nodes had no state change for too long "
-                "(CurrentState: %v, NodeCount: %v, OldestNoStateChangeNodeAddress: %v, TimeSinceOldestStateChange: %v)",
-                state,
-                alert.AlertedNodeCount,
-                alert.OldestNodeAddress,
-                now - alert.OldestNodeChangeTime);
+            YT_TLOG_ALERT("Nodes had no state change for too long")
+                .With("CurrentState", state)
+                .With("NodeCount", alert.AlertedNodeCount)
+                .With("OldestNoStateChangeNodeAddress", alert.OldestNodeAddress)
+                .With("TimeSinceOldestStateChange", now - alert.OldestNodeChangeTime);
             alerts.push_back(TError("Node(s) had no state change for too long")
-                << TErrorAttribute("current_state", state)
-                << TErrorAttribute("node_count", alert.AlertedNodeCount)
-                << TErrorAttribute("oldest_no_state_change_node_address", alert.OldestNodeAddress)
-                << TErrorAttribute("time_since_oldest_state_change", now - alert.OldestNodeChangeTime));
+                .With("current_state", state)
+                .With("node_count", alert.AlertedNodeCount)
+                .With("oldest_no_state_change_node_address", alert.OldestNodeAddress)
+                .With("time_since_oldest_state_change", now - alert.OldestNodeChangeTime));
         }
 
         Alerts_ = std::move(alerts);
     }
 
-    TNodeGroupList GetGroupsForNode(TNode* node)
+    TNodeGroupList GetGroupsForNode(const TNode* node)
     {
         TNodeGroupList result;
         for (auto& group : NodeGroups_) {
@@ -3075,7 +3113,7 @@ private:
     {
         auto guard = ReaderGuard(NodeStatisticsLock_);
 
-        auto now = GetCpuInstant();
+        auto now = TInstant::Now();
         if (now > NodeStatisticsUpdateDeadline_) {
             guard.Release();
             RebuildAggregatedNodeStatistics();
@@ -3134,7 +3172,7 @@ private:
                     increment(&statistics->IOPerMedium[mediumIndex], location.io_statistics());
                 }
                 statistics->ChunkReplicaCount += nodeStatistics.total_stored_chunk_count();
-                statistics->FullNodeCount += nodeStatistics.full() ? 1 : 0;
+                statistics->FullNodeCount += nodeStatistics.full();
             };
             updateStatistics(&AggregatedNodeStatistics_);
 
@@ -3145,9 +3183,7 @@ private:
             updateStatistics(&DataCenterNodeStatistics_[node->GetDataCenter()]);
         }
 
-        NodeStatisticsUpdateDeadline_ =
-            GetCpuInstant() +
-            DurationToCpuDuration(GetDynamicConfig()->TotalNodeStatisticsUpdatePeriod);
+        NodeStatisticsUpdateDeadline_ = TInstant::Now() + GetDynamicConfig()->TotalNodeStatisticsUpdatePeriod;
     }
 
     const TLocalStateToNodeCount& GetLocalStateToNodeCount()
@@ -3159,7 +3195,7 @@ private:
 
     void MaybeRebuildLocalStateToNodeCount()
     {
-        auto now = GetCpuInstant();
+        auto now = TInstant::Now();
         if (now > LocalStateToNodeCountUpdateDeadline_) {
             BuildLocalStateToNodeCount();
         }
@@ -3176,13 +3212,10 @@ private:
                 continue;
             }
 
-            auto state = node->GetLocalState();
-            ++LocalStateToNodeCount_[state];
+            ++LocalStateToNodeCount_[node->GetLocalState()];
         }
 
-        LocalStateToNodeCountUpdateDeadline_ =
-            GetCpuInstant() +
-            DurationToCpuDuration(GetDynamicConfig()->LocalStateToNodeCountUpdatePeriod);
+        LocalStateToNodeCountUpdateDeadline_ = TInstant::Now() + GetDynamicConfig()->LocalStateToNodeCountUpdatePeriod;
     }
 
     const TDynamicNodeTrackerConfigPtr& GetDynamicConfig()
@@ -3190,7 +3223,118 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->NodeTracker;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+    bool IsNodeInTemporarilyUnavailableDataCenter(
+        const TNode* node,
+        const NChunkServer::TDynamicChunkManagerConfigPtr& config) const
+    {
+        if (!node->IsDataNode() || !config->UseDataCenterAwareReplicator) {
+            return false;
+        }
+
+        const auto* dataCenter = node->GetDataCenter();
+        if (!dataCenter) {
+            return false;
+        }
+
+        const auto& dataCenterName = dataCenter->GetName();
+        return config->StorageDataCenters.contains(dataCenterName) &&
+            config->TemporarilyUnavailableStorageDataCenters.contains(dataCenterName);
+    }
+
+    TDuration ComputeTemporarilyUnavailableDataCenterLeaseTimeout(
+        const TDynamicNodeTrackerConfigPtr& config) const
+    {
+        auto splay = config->TemporarilyUnavailableDataCenterLeaseTimeoutSplay;
+        if (splay == TDuration::Zero()) {
+            return config->TemporarilyUnavailableDataCenterLeaseTimeout;
+        }
+
+        auto* mutationContext = GetCurrentMutationContext();
+        auto random = mutationContext->RandomGenerator()->Generate<ui64>();
+        auto splayOffset = TDuration::MicroSeconds(random % splay.MicroSeconds());
+        return config->TemporarilyUnavailableDataCenterLeaseTimeout + splayOffset;
+    }
+
+    std::optional<TDuration> ComputeNodeLeaseTimeoutExtension(
+        const TNode* node,
+        const TDynamicClusterConfigPtr& config) const
+    {
+        YT_VERIFY(HasMutationContext());
+
+        if (IsNodeInTemporarilyUnavailableDataCenter(node, config->ChunkManager)) {
+            return ComputeTemporarilyUnavailableDataCenterLeaseTimeout(config->NodeTracker);
+        }
+
+        if (node->IsPendingRestart()) {
+            return config->NodeTracker->PendingRestartLeaseTimeout;
+        }
+
+        return std::nullopt;
+    }
+
+    void UpdateNodeLeaseTimeoutExtension(
+        TNode* node,
+        std::optional<TDuration> timeout)
+    {
+        YT_VERIFY(HasMutationContext());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
+        auto transaction = node->GetLeaseTransaction();
+        if (!transaction || !transaction->GetTimeout()) {
+            return;
+        }
+
+        auto timeoutBeforeExtension = node->GetLeaseTransactionTimeoutBeforeExtension();
+
+        if (!timeout) {
+            if (!timeoutBeforeExtension) {
+                // Node has been unaffected by a lease extension.
+                return;
+            }
+
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            transactionManager->SetTransactionTimeout(transaction, *timeoutBeforeExtension);
+            node->SetLeaseTransactionTimeoutBeforeExtension(std::nullopt);
+        } else {
+            // Preserve the original timeout when multiple extensions take place.
+            if (!timeoutBeforeExtension) {
+                timeoutBeforeExtension = transaction->GetTimeout();
+                node->SetLeaseTransactionTimeoutBeforeExtension(timeoutBeforeExtension);
+            }
+
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            transactionManager->SetTransactionTimeout(
+                transaction,
+                std::max(*timeoutBeforeExtension, *timeout));
+        }
+    }
+
+    void UpdateTemporarilyUnavailableDataCenterLeaseTimeouts(
+        const TDynamicClusterConfigPtr& oldConfig,
+        const TDynamicClusterConfigPtr& newConfig)
+    {
+        if (!HasMutationContext() || !Bootstrap_->IsPrimaryMaster()) {
+            return;
+        }
+
+        const auto& oldDataCenters = oldConfig->ChunkManager->TemporarilyUnavailableStorageDataCenters;
+        const auto& newDataCenters = newConfig->ChunkManager->TemporarilyUnavailableStorageDataCenters;
+        if (oldDataCenters == newDataCenters) {
+            return;
+        }
+
+        for (auto node : GetValuesSortedByKey(NodesWithFlavor_[ENodeFlavor::Data])) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            UpdateNodeLeaseTimeoutExtension(
+                node,
+                ComputeNodeLeaseTimeoutExtension(node, newConfig));
+        }
+    }
+
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
     {
         RebuildNodeGroups();
         RecomputePendingRegisterNodeMutationCounters();
@@ -3198,6 +3342,10 @@ private:
         ReconfigureNodeSemaphores();
         ReconfigureThrottledNodeRegistrations();
         RebuildAggregatedNodeStatistics();
+
+        UpdateTemporarilyUnavailableDataCenterLeaseTimeouts(
+            oldConfig,
+            Bootstrap_->GetConfigManager()->GetConfig());
 
         ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
 
@@ -3214,9 +3362,9 @@ private:
     void OnNodeBanUpdated(TNode* node)
     {
         if (node->IsBanned()) {
-            YT_LOG_INFO("Node is banned (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
+            YT_TLOG_INFO("Node is banned")
+                .With("NodeId", node->GetId())
+                .With("Address", node->GetDefaultAddress());
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (multicellManager->IsPrimaryMaster()) {
                 if (node->HasAliveLocalState()) {
@@ -3224,9 +3372,9 @@ private:
                 }
             }
         } else {
-            YT_LOG_INFO("Node is no longer banned (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
+            YT_TLOG_INFO("Node is no longer banned")
+                .With("NodeId", node->GetId())
+                .With("Address", node->GetDefaultAddress());
         }
         NodeBanChanged_.Fire(node);
     }
@@ -3234,13 +3382,13 @@ private:
     void OnNodeDecommissionUpdated(TNode* node)
     {
         if (node->IsDecommissioned()) {
-            YT_LOG_INFO("Node is decommissioned (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
+            YT_TLOG_INFO("Node is decommissioned")
+                .With("NodeId", node->GetId())
+                .With("Address", node->GetDefaultAddress());
         } else {
-            YT_LOG_INFO("Node is no longer decommissioned (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
+            YT_TLOG_INFO("Node is no longer decommissioned")
+                .With("NodeId", node->GetId())
+                .With("Address", node->GetDefaultAddress());
         }
         NodeDecommissionChanged_.Fire(node);
     }
@@ -3248,13 +3396,13 @@ private:
     void OnDisableWriteSessionsUpdated(TNode* node)
     {
         if (node->AreWriteSessionsDisabled()) {
-            YT_LOG_INFO("Disabled write sessions on node (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
+            YT_TLOG_INFO("Disabled write sessions on node")
+                .With("NodeId", node->GetId())
+                .With("Address", node->GetDefaultAddress());
         } else {
-            YT_LOG_INFO("Enabled write sessions on node (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
+            YT_TLOG_INFO("Enabled write sessions on node")
+                .With("NodeId", node->GetId())
+                .With("Address", node->GetDefaultAddress());
         }
         NodeDisableWriteSessionsChanged_.Fire(node);
     }
@@ -3262,88 +3410,74 @@ private:
     void OnDisableTabletCellsUpdated(TNode* node)
     {
         if (node->AreTabletCellsDisabled()) {
-            YT_LOG_INFO("Disabled tablet cells on node (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
+            YT_TLOG_INFO("Disabled tablet cells on node")
+                .With("NodeId", node->GetId())
+                .With("Address", node->GetDefaultAddress());
         } else {
-            YT_LOG_INFO("Enabled tablet cells on node (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
+            YT_TLOG_INFO("Enabled tablet cells on node")
+                .With("NodeId", node->GetId())
+                .With("Address", node->GetDefaultAddress());
         }
         NodeDisableTabletCellsChanged_.Fire(node);
     }
 
+    void RenewNodeLeaseForPendingRestart(TNode* node)
+    {
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(node->IsPendingRestart());
+
+        if (!IsLeader()) {
+            return;
+        }
+
+        auto transaction = node->GetLeaseTransaction();
+        if (!transaction || !transaction->GetTimeout()) {
+            return;
+        }
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        transactionManager->PingTransaction(
+            transaction->GetId(),
+            /*pingAncestors*/ false,
+            /*pingerAddress*/ std::nullopt)
+            .Subscribe(BIND([nodeId = node->GetId(), address = node->GetDefaultAddress()] (const TError& error) {
+                if (!error.IsOK()) {
+                    YT_TLOG_WARNING("Failed to renew node lease for a pending restart")
+                        .With("NodeId", nodeId)
+                        .With("Address", address)
+                        .With(error);
+                }
+            }));
+    }
+
     void OnNodePendingRestartUpdated(TNode* node)
     {
-        auto setTransactionTimeoutOnPrimary = [&] (TTransaction* transaction, TDuration timeout) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            if (!multicellManager->IsPrimaryMaster()) {
-                return;
-            }
-
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            transactionManager->SetTransactionTimeout(transaction, timeout);
-
-            if (node->IsPendingRestart() && IsLeader()) {
-                transactionManager->PingTransaction(transaction->GetId(), /*pingAncestors*/ false, /*pingerAddress*/ std::nullopt)
-                    .Subscribe(BIND([nodeId = node->GetId(), address = node->GetDefaultAddress()] (const TError& error) {
-                        if (!error.IsOK()) {
-                            YT_LOG_WARNING(
-                                error,
-                                "Failed to ping node lease transaction after "
-                                "extending its timeout for a pending restart (NodeId: %v, Address: %v)",
-                                nodeId,
-                                address);
-                        }
-                    }));
-            }
-        };
-
-        if (auto transaction = node->GetLeaseTransaction()) {
-            if (auto timeout = transaction->GetTimeout()) {
-                if (!node->IsPendingRestart() &&
-                    !node->GetLastSeenLeaseTransactionTimeout())
-                {
-                    const auto& config = Bootstrap_->GetConfig()->NodeTracker;
-                    auto defaultTimeout = node->IsDataNode()
-                        ? config->DefaultDataNodeLeaseTransactionTimeout
-                        : config->DefaultNodeTransactionTimeout;
-                    node->SetLastSeenLeaseTransactionTimeout(defaultTimeout);
-
-                    YT_LOG_ALERT("Lease timeout missing for pending restart node (NodeId: %v, Address: %v)",
-                        node->GetId(),
-                        node->GetDefaultAddress());
-                }
-
-                auto newTimeout = node->IsPendingRestart()
-                    ? GetDynamicConfig()->PendingRestartLeaseTimeout
-                    : *node->GetLastSeenLeaseTransactionTimeout();
-
-                node->SetLastSeenLeaseTransactionTimeout(timeout);
-
-                setTransactionTimeoutOnPrimary(transaction, newTimeout);
-            }
-        }
-
         auto nodeId = node->GetId();
 
-        if (auto it = PendingRestartMaintenanceNodeIdToSetIt_.find(nodeId);
-            it != PendingRestartMaintenanceNodeIdToSetIt_.end())
-        {
-            PendingRestartMaintenanceNodeIds_.erase(it->second);
-            PendingRestartMaintenanceNodeIdToSetIt_.erase(it);
+        if (Bootstrap_->IsPrimaryMaster()) {
+            const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+            UpdateNodeLeaseTimeoutExtension(node, ComputeNodeLeaseTimeoutExtension(node, config));
+
+            if (auto it = PendingRestartMaintenanceNodeIdToSetIt_.find(nodeId);
+                it != PendingRestartMaintenanceNodeIdToSetIt_.end())
+            {
+                PendingRestartMaintenanceNodeIds_.erase(it->second);
+                PendingRestartMaintenanceNodeIdToSetIt_.erase(it);
+            }
+
+            if (node->IsPendingRestart()) {
+                auto* mutationContext = GetCurrentMutationContext();
+                auto it = PendingRestartMaintenanceNodeIds_.emplace(mutationContext->GetTimestamp(), nodeId).first;
+                PendingRestartMaintenanceNodeIdToSetIt_.emplace(nodeId, it);
+
+                RenewNodeLeaseForPendingRestart(node);
+            }
         }
 
-        if (Bootstrap_->IsPrimaryMaster() && node->IsPendingRestart()) {
-            auto* mutationContext = GetCurrentMutationContext();
-            auto it = PendingRestartMaintenanceNodeIds_.emplace(mutationContext->GetTimestamp(), nodeId).first;
-            PendingRestartMaintenanceNodeIdToSetIt_.emplace(nodeId, it);
-        }
-
-        YT_LOG_INFO("Node restart is %v (NodeId: %v, Address: %v)",
-            node->IsPendingRestart() ? "pending" : "no longer pending",
-            nodeId,
-            node->GetDefaultAddress());
+        YT_TLOG_INFO("Node restart pending state changed")
+            .With("PendingRestart", node->IsPendingRestart())
+            .With("NodeId", nodeId)
+            .With("Address", node->GetDefaultAddress());
 
         NodePendingRestartChanged_.Fire(node);
     }

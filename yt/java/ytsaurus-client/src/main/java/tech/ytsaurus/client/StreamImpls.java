@@ -26,6 +26,8 @@ import tech.ytsaurus.client.rpc.RpcClientResponse;
 import tech.ytsaurus.client.rpc.RpcClientStreamControl;
 import tech.ytsaurus.client.rpc.RpcStreamConsumer;
 import tech.ytsaurus.client.rpc.RpcUtil;
+import tech.ytsaurus.core.common.YTsaurusError;
+import tech.ytsaurus.core.common.YTsaurusErrorCode;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.rpc.TResponseHeader;
@@ -39,7 +41,7 @@ abstract class StreamBase<RspType extends Message> implements RpcStreamConsumer 
 
     protected final CompletableFuture<RpcClientResponse<RspType>> result = new CompletableFuture<>();
 
-    private final CompletableFuture<RpcClientStreamControl> controlFuture = new CompletableFuture<>();
+    protected final CompletableFuture<RpcClientStreamControl> controlFuture = new CompletableFuture<>();
 
     protected volatile RpcClientStreamControl control;
 
@@ -231,11 +233,11 @@ abstract class StreamWriterImpl<T extends Message> extends StreamBase<T> impleme
 
     @Override
     public void onStartStream(RpcClientStreamControl control) {
+        super.onStartStream(control);
         this.supplier = new WrappedSupplier(
                 new MessagesSupplier(),
                 Codec.codecFor(control.getExpectedPayloadCompression())
         );
-        super.onStartStream(control);
     }
 
     private void reinitReadyEvent() {
@@ -329,7 +331,9 @@ abstract class StreamWriterImpl<T extends Message> extends StreamBase<T> impleme
             }
         }
 
-        control.feedback(payloadOffset);
+        final long currentOffset = payloadOffset;
+        controlFuture.thenAccept(c -> c.feedback(currentOffset));
+
     }
 
     @Override
@@ -624,6 +628,7 @@ abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspT
     private static final int MAX_WINDOW_SIZE = 16384;
 
     private final Stash stash = new Stash();
+    private final AtomicBoolean closeRequested = new AtomicBoolean();
     private final SlidingWindow<Payload> window = new SlidingWindow<>(MAX_WINDOW_SIZE, payload -> {
         for (Attachment attachment : payload.getAttachments()) {
             try {
@@ -678,7 +683,11 @@ abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspT
     }
 
     boolean doCanRead() {
-        return !stash.isEof();
+        return !closeRequested.get() && !stash.isEof();
+    }
+
+    boolean doIsEof() {
+        return stash.isEof();
     }
 
     byte[] doRead() throws Exception {
@@ -696,8 +705,29 @@ abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspT
     }
 
     CompletableFuture<Void> doClose() {
+        closeRequested.set(true);
         control.cancel();
         return result.handle((unused, error) -> null);
+    }
+
+    @Override
+    public void onError(Throwable error) {
+        if (closeRequested.get()
+                && error instanceof YTsaurusError
+                && ((YTsaurusError) error).getError().getCode() == YTsaurusErrorCode.Canceled.code) {
+            result.complete(null);
+        } else {
+            super.onError(error);
+        }
+    }
+
+    @Override
+    public void onCancel(CancellationException cancel) {
+        if (closeRequested.get()) {
+            result.complete(null);
+        } else {
+            super.onCancel(cancel);
+        }
     }
 
     @Override

@@ -4,6 +4,8 @@ import "yt/ytlib/chunk_client/proto/data_source.proto";
 
 import "yt/ytlib/controller_agent/proto/job.proto";
 
+import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TTablePartitionCookie
@@ -12,6 +14,7 @@ message TTablePartitionCookie
     repeated NControllerAgent.NProto.TTableInputSpec table_input_specs = 2;
     optional string user = 3;
     optional int32 partition_mode = 4;
+    optional NNodeTrackerClient.NProto.TNodeDirectory node_directory = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

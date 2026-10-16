@@ -53,6 +53,7 @@ target_link_libraries(cpp-mapreduce-interface PUBLIC
 )
 
 target_sources(cpp-mapreduce-interface PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/abortable_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/batch_request.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/client.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/client_method_options.cpp

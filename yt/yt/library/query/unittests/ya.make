@@ -4,13 +4,16 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     GLOBAL ast_ut.cpp
+    GLOBAL join_profilers_ut.cpp
     GLOBAL ql_computed_columns_ut.cpp
     GLOBAL ql_distributed_ut.cpp
     GLOBAL ql_expressions_ut.cpp
     GLOBAL ql_misc_ut.cpp
     GLOBAL ql_query_ut.cpp
+    GLOBAL ql_light_range_inference_ut.cpp
     GLOBAL ql_range_inference_ut.cpp
     GLOBAL ql_range_coordination_ut.cpp
+    GLOBAL query_evaluator_ut.cpp
 )
 
 ADDINCL(

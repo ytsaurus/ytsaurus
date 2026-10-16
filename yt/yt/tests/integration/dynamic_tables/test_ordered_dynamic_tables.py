@@ -7,7 +7,7 @@ from yt_commands import (
     start_transaction, abort_transaction, remount_table,
     lock, insert_rows, select_rows, delete_rows, trim_rows, alter_table, read_table, write_table,
     mount_table, reshard_table, generate_timestamp, wait_for_cells,
-    get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table,
+    get_tablet_infos, get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_unfreeze_table, sync_reshard_table, sync_flush_table,
     get_singular_chunk_id, create_dynamic_table, build_snapshot, generate_uuid,
     raises_yt_error, remove)
@@ -74,6 +74,7 @@ class TestOrderedDynamicTablesBase(DynamicTablesBase):
         assert statistics["row_count"] == sum([c["row_count"] for c in tablet_statistics])
         assert statistics["chunk_count"] == sum([c["chunk_count"] for c in tablet_statistics])
         assert statistics["logical_row_count"] == sum([c["logical_row_count"] for c in tablet_statistics])
+        assert statistics["logical_data_weight"] == sum([c["logical_data_weight"] for c in tablet_statistics])
 
         self._verify_cumulative_statistics_match_statistics(chunk_list_id)
         for tablet_chunk_list in tablet_chunk_lists:
@@ -131,7 +132,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         insert_rows("//tmp/t", rows)
         sync_freeze_table("//tmp/t")
         assert select_rows("a from [//tmp/t]") == rows
-        with pytest.raises(YtError):
+        with raises_yt_error(".* .* has no mounted tablets"):
             insert_rows("//tmp/t", rows)
 
     @authors("gridem")
@@ -348,7 +349,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         write_table("//tmp/t", [{"a": 0}])
         concatenate(["//tmp/t", "//tmp/t"], "//tmp/t")
         alter_table("//tmp/t", dynamic=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot mount"):
             mount_table("//tmp/t")
 
     @authors("savrus")
@@ -376,11 +377,11 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid tablet index for table .*"):
             trim_rows("//tmp/t", -1, 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid tablet index for table"):
             trim_rows("//tmp/t", +1, 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot trim tablet"):
             trim_rows("//tmp/t", 0, 100)
 
     @authors("babenko")
@@ -391,6 +392,33 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
 
         trim_rows("//tmp/t", 0, -10)
         wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 0)
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("freeze_method", ["mount", "freeze"])
+    def test_total_row_count_after_fully_trimmed(self, freeze_method):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"a": 1}])
+        sync_flush_table("//tmp/t")
+        trim_rows("//tmp/t", 0, 1)
+        wait(lambda: get("//tmp/t/@chunk_ids") == [])
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        if freeze_method == "mount":
+            sync_unmount_table("//tmp/t")
+            sync_mount_table("//tmp/t", freeze=True)
+        else:
+            sync_freeze_table("//tmp/t")
+        assert get(f"#{tablet_id}/orchid/total_row_count") == 1
+
+        sync_unfreeze_table("//tmp/t")
+        assert get(f"#{tablet_id}/orchid/total_row_count") == 1
+
+        insert_rows("//tmp/t", [{"a": 2}])
+        assert select_rows("[$row_index], a from [//tmp/t]") == [{"$row_index": 1, "a": 2}]
+        assert get(f"#{tablet_id}/orchid/total_row_count") == 2
 
     @authors("babenko")
     def test_trim_drops_chunks(self):
@@ -480,6 +508,42 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] between 110 and 120") == [
             {"a": j} for j in range(110, 121)
         ]
+
+    @authors("apachee")
+    def test_get_tablet_infos_flushed_row_count(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", tablet_count=2, dynamic_store_auto_flush_period=yson.YsonEntity())
+        sync_mount_table("//tmp/t")
+
+        def get_tablets():
+            return get_tablet_infos("//tmp/t", [0, 1])["tablets"]
+
+        insert_rows("//tmp/t", [{"$tablet_index": 0, "a": i} for i in range(10)])
+        assert [tablet["flushed_row_count"] for tablet in get_tablets()] == [0, 0]
+
+        sync_flush_table("//tmp/t")
+        wait(lambda: get_tablets()[0]["flushed_row_count"] == 10)
+        assert get("//tmp/t/@tablets/0/flushed_row_count") == 10
+
+        insert_rows("//tmp/t", [{"$tablet_index": 0, "a": i} for i in range(10, 15)])
+        tablet = get_tablets()[0]
+        assert tablet["total_row_count"] == 15
+        assert tablet["flushed_row_count"] == 10
+
+        # Trimming drops the only chunk store, flushed row count must stay intact.
+        trim_rows("//tmp/t", 0, 12)
+        wait(lambda: get("//tmp/t/@chunk_ids") == [])
+        assert get_tablets()[0]["flushed_row_count"] == 10
+
+        sync_freeze_table("//tmp/t")
+        wait(lambda: get_tablets()[0]["flushed_row_count"] == 15)
+        assert get("//tmp/t/@tablets/0/flushed_row_count") == 15
+        assert get_tablets()[1]["flushed_row_count"] == 0
+
+        # Stores are restored from master on mount, check that starting row indexes are preserved.
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        assert [tablet["flushed_row_count"] for tablet in get_tablets()] == [15, 0]
 
     @authors("babenko")
     def test_trim_optimizes_chunk_list(self):
@@ -612,7 +676,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
             trim_rows("//tmp/t", i, 1)
         sync_unmount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Some chunks of tablet .* are not fully trimmed"):
             reshard_table("//tmp/t", 1)
         self._verify_chunk_tree_statistics("//tmp/t")
 
@@ -868,7 +932,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
         sync_freeze_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* .* has no mounted tablets"):
             insert_rows("//tmp/t", [{"a": 0}])
         sync_unfreeze_table("//tmp/t")
         sync_unmount_table("//tmp/t")
@@ -878,7 +942,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         set("//tmp/t/@commit_ordering", "weak")
         set("//tmp/t/@commit_ordering", "strong")
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             set("//tmp/t/@commit_ordering", "cool")
 
     @authors("babenko", "levysotsky")
@@ -886,7 +950,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot change table commit ordering mode since not all tablets are unmounted"):
             set("//tmp/t/@commit_ordering", "strong")
 
     @authors("babenko")
@@ -896,11 +960,11 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
 
     @authors("babenko")
     def test_set_tablet_count_upon_construction_fail(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Tablet count must be positive"):
             self._create_simple_table("//tmp/t", tablet_count=0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Tablet count must be positive"):
             self._create_simple_table("//tmp/t", tablet_count=-1)
-        with pytest.raises(YtError):
+        with raises_yt_error("Table is ordered; must provide tablet count"):
             self._create_simple_table("//tmp/t", pivot_keys=[[]])
 
     @authors("babenko")
@@ -1237,9 +1301,9 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t", schema=schema)
         sync_mount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows("//tmp/t", [dict()])
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows("//tmp/t", [dict(b=1)])
 
         insert_rows("//tmp/t", [dict(a=1)])
@@ -1259,7 +1323,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         ]
 
         sync_create_cells(1)
-        with pytest.raises(YtError):
+        with raises_yt_error("New table schema is not valid"):
             self._create_simple_table("//tmp/t", schema=schema)
 
     @authors("ifsmirnov")
@@ -1273,10 +1337,10 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t", schema=schema)
         sync_mount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows("//tmp/t", [dict(key=1)])
         insert_rows("//tmp/t", [dict(key=1, value=2)])
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows("//tmp/t", [dict(key=1)])
 
     @authors("akozhikhov")
@@ -1385,6 +1449,103 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         assert [t["flushed_row_count"] for t in tablets] == [2, 2, 2, 2, 8, 9, 2]
         assert [t["trimmed_row_count"] for t in tablets] == [1, 1, 1, 1, 8, 9, 1]
 
+        self._verify_chunk_tree_statistics("//tmp/t")
+
+    CUMULATIVE_DATA_WEIGHT_SCHEMA = [
+        {"name": "test", "type": "string"},
+        {"name": "$cumulative_data_weight", "type": "int64"},
+    ]
+
+    @staticmethod
+    def _get_tablet_cumulative_data_weights(table, tablet_count):
+        result = []
+        for tablet_index in range(tablet_count):
+            rows = select_rows(
+                "[$cumulative_data_weight] from [{}] where [$tablet_index] = {}".format(table, tablet_index))
+            result.append(rows[-1]["$cumulative_data_weight"] if rows else None)
+        return result
+
+    @authors("akozhikhov")
+    def test_create_with_cumulative_data_weight(self):
+        sync_create_cells(1)
+
+        with raises_yt_error("cannot be specified without"):
+            self._create_simple_table(
+                "//tmp/t", schema=self.CUMULATIVE_DATA_WEIGHT_SCHEMA, cumulative_data_weights=[1])
+        with raises_yt_error("has invalid size"):
+            self._create_simple_table(
+                "//tmp/t", schema=self.CUMULATIVE_DATA_WEIGHT_SCHEMA, cumulative_data_weights=[1, 2], tablet_count=4)
+        with raises_yt_error("must be nonnegative"):
+            self._create_simple_table(
+                "//tmp/t", schema=self.CUMULATIVE_DATA_WEIGHT_SCHEMA, cumulative_data_weights=[-1], tablet_count=1)
+        with raises_yt_error("can only be set for ordered tables"):
+            create_dynamic_table(
+                "//tmp/t",
+                schema=[
+                    {"name": "k", "type": "int64", "sort_order": "ascending"},
+                    {"name": "v", "type": "string"},
+                ],
+                cumulative_data_weights=[1],
+                tablet_count=1)
+
+        self._create_simple_table(
+            "//tmp/t",
+            schema=self.CUMULATIVE_DATA_WEIGHT_SCHEMA,
+            tablet_count=3,
+            cumulative_data_weights=[1000, 2000, 0])
+        self._verify_chunk_tree_statistics("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+
+        for tablet_index in range(3):
+            insert_rows("//tmp/t", [{"$tablet_index": tablet_index, "test": "aaa"}])
+
+        # A row of this schema with a three-character value weighs 12 bytes.
+        assert self._get_tablet_cumulative_data_weights("//tmp/t", 3) == [1012, 2012, 12]
+
+        # The offset must survive flush and remount.
+        sync_flush_table("//tmp/t")
+        self._verify_chunk_tree_statistics("//tmp/t")
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        for tablet_index in range(3):
+            insert_rows("//tmp/t", [{"$tablet_index": tablet_index, "test": "bb"}])
+
+        assert self._get_tablet_cumulative_data_weights("//tmp/t", 3) == [1023, 2023, 23]
+
+        sync_unmount_table("//tmp/t")
+        self._verify_chunk_tree_statistics("//tmp/t")
+
+    @authors("akozhikhov")
+    def test_reshard_with_cumulative_data_weight(self):
+        if self.DRIVER_BACKEND == "rpc":
+            pytest.skip("No cumulative_data_weights in rpc proxy")
+
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", schema=self.CUMULATIVE_DATA_WEIGHT_SCHEMA)
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"test": "aaa"}])
+        sync_unmount_table("//tmp/t")
+
+        with raises_yt_error("has invalid size"):
+            sync_reshard_table("//tmp/t", 1, cumulative_data_weights=[1])
+        with raises_yt_error("has invalid size"):
+            sync_reshard_table("//tmp/t", 3, cumulative_data_weights=[1])
+        with raises_yt_error("must be nonnegative"):
+            sync_reshard_table("//tmp/t", 3, cumulative_data_weights=[-1, 5])
+
+        sync_reshard_table("//tmp/t", 3, cumulative_data_weights=[1000, 2000])
+        self._verify_chunk_tree_statistics("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+        for tablet_index in range(3):
+            insert_rows("//tmp/t", [{"$tablet_index": tablet_index, "test": "aaa"}])
+
+        # The zeroth tablet is preserved by the reshard and already holds a row of weight 12.
+        assert self._get_tablet_cumulative_data_weights("//tmp/t", 3) == [24, 1012, 2012]
+
+        sync_unmount_table("//tmp/t")
         self._verify_chunk_tree_statistics("//tmp/t")
 
     @authors("ifsmirnov")
@@ -1532,7 +1693,6 @@ class TestOrderedDynamicTablesPortal(TestOrderedDynamicTablesMulticell):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesSequoia(TestOrderedDynamicTablesMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1555,7 +1715,6 @@ class TestOrderedDynamicTablesRpcProxy(TestOrderedDynamicTables):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesMultipleWriteBatches(TestOrderedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_DRIVER_CONFIG = {"max_rows_per_write_request": 10}

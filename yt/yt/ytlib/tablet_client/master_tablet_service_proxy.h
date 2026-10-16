@@ -18,6 +18,7 @@ public:
         .SetProtocolVersion(1));
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetTableBalancingAttributes);
+    DEFINE_RPC_PROXY_METHOD(NProto, ThrottleTabletStoresUpdate);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

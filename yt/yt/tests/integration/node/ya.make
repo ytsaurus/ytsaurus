@@ -2,6 +2,8 @@ PY3_LIBRARY()
 
 TEST_SRCS(
     test_allocations.py
+    test_artifact_cache.py
+    test_data_node_block_cache.py
     test_disk_quota.py
     test_dynamic_cpu_reclaim.py
     test_gpu_layers.py
@@ -25,6 +27,7 @@ TEST_SRCS(
 
 PEERDIR(
     contrib/python/httpx
+    yt/yt/library/ytprof/proto
 )
 
 END()

@@ -202,6 +202,16 @@ const TJobTrackerOperationHandlerPtr& TOperationControllerHost::GetJobTrackerOpe
     return JobTrackerOperationHandler_;
 }
 
+const TPushBasedShuffleRegistryPtr& TOperationControllerHost::GetPushBasedShuffleRegistry() const
+{
+    return Bootstrap_->GetControllerAgent()->GetPushBasedShuffleRegistry();
+}
+
+const NDistributedChunkSessionClient::IDistributedChunkSessionSealMonitorPtr& TOperationControllerHost::GetPushBasedShuffleSealMonitor() const
+{
+    return Bootstrap_->GetControllerAgent()->GetPushBasedShuffleSealMonitor();
+}
+
 void TOperationControllerHost::Disconnect(const TError& error)
 {
     Bootstrap_->GetControlInvoker()->Invoke(BIND(&TControllerAgent::Disconnect, Bootstrap_->GetControllerAgent(), error));
@@ -211,20 +221,19 @@ void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptionReason re
 {
     JobTrackerOperationHandler_->RequestJobInterruption(jobId, reason, timeout);
 
-    YT_LOG_DEBUG("Job interrupt request enqueued (OperationId: %v, JobId: %v)",
-        OperationId_,
-        jobId);
+    YT_TLOG_DEBUG("Job interrupt request enqueued")
+        .With("OperationId", OperationId_)
+        .With("JobId", jobId);
 }
 
 void TOperationControllerHost::RequestJobGracefulAbort(TJobId jobId, EAbortReason reason)
 {
     JobTrackerOperationHandler_->RequestJobGracefulAbort(jobId, reason);
 
-    YT_LOG_DEBUG(
-        "Job graceful abort request enqueued (OperationId: %v, JobId: %v, AbortReason: %v)",
-        OperationId_,
-        jobId,
-        reason);
+    YT_TLOG_DEBUG("Job graceful abort request enqueued")
+        .With("OperationId", OperationId_)
+        .With("JobId", jobId)
+        .With("AbortReason", reason);
 }
 
 void TOperationControllerHost::UpdateRunningAllocationsStatistics(
@@ -238,10 +247,9 @@ void TOperationControllerHost::UpdateRunningAllocationsStatistics(
 
     RunningAllocationStatisticsUpdatesOutbox_->Enqueue(std::move(runningAllocationStatisticsUpdates));
 
-    YT_LOG_DEBUG(
-        "Allocations statistics update request enqueued (OperationId: %v, AllocationCount: %v)",
-        OperationId_,
-        runningAllocationStatisticsUpdatesCount);
+    YT_TLOG_DEBUG("Allocations statistics update request enqueued")
+        .With("OperationId", OperationId_)
+        .With("AllocationCount", runningAllocationStatisticsUpdatesCount);
 }
 
 void TOperationControllerHost::RegisterAllocation(TStartedAllocationInfo allocationInfo)
@@ -275,11 +283,12 @@ void TOperationControllerHost::ReleaseJobs(std::vector<TJobToRelease> jobsToRele
         return;
     }
 
+    i64 jobsToReleaseCount = std::ssize(jobsToRelease);
     JobTrackerOperationHandler_->ReleaseJobs(std::move(jobsToRelease));
 
-    YT_LOG_DEBUG("Jobs release request enqueued (OperationId: %v, JobCount: %v)",
-        OperationId_,
-        jobsToRelease.size());
+    YT_TLOG_DEBUG("Jobs release request enqueued")
+        .With("OperationId", OperationId_)
+        .With("JobCount", jobsToReleaseCount);
 }
 
 void TOperationControllerHost::AbortJob(
@@ -479,27 +488,24 @@ const NChunkClient::TMediumDirectoryPtr& TOperationControllerHost::GetMediumDire
 void TOperationControllerHost::OnOperationCompleted()
 {
     OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateCompletedEvent(OperationId_, ControllerEpoch_));
-    YT_LOG_DEBUG(
-        "Operation completion notification enqueued (OperationId: %v)",
-        OperationId_);
+    YT_TLOG_DEBUG("Operation completion notification enqueued")
+        .With("OperationId", OperationId_);
 }
 
 void TOperationControllerHost::OnOperationAborted(const TError& error)
 {
     OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateAbortedEvent(OperationId_, ControllerEpoch_, error));
-    YT_LOG_DEBUG(
-        error,
-        "Operation abort notification enqueued (OperationId: %v)",
-        OperationId_);
+    YT_TLOG_DEBUG("Operation abort notification enqueued")
+        .With("OperationId", OperationId_)
+        .With(error);
 }
 
 void TOperationControllerHost::OnOperationFailed(const TError& error)
 {
     OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateFailedEvent(OperationId_, ControllerEpoch_, error));
-    YT_LOG_DEBUG(
-        error,
-        "Operation failure notification enqueued (OperationId: %v)",
-        OperationId_);
+    YT_TLOG_DEBUG("Operation failure notification enqueued")
+        .With("OperationId", OperationId_)
+        .With(error);
 }
 
 void TOperationControllerHost::OnOperationSuspended(const TError& error)
@@ -510,10 +516,9 @@ void TOperationControllerHost::OnOperationSuspended(const TError& error)
         OperationId_,
         ControllerEpoch_,
         error));
-    YT_LOG_DEBUG(
-        error,
-        "Operation suspension notification enqueued (OperationId: %v)",
-        OperationId_);
+    YT_TLOG_DEBUG("Operation suspension notification enqueued")
+        .With("OperationId", OperationId_)
+        .With(error);
 }
 
 void TOperationControllerHost::OnOperationBannedInTentativeTree(
@@ -525,10 +530,9 @@ void TOperationControllerHost::OnOperationBannedInTentativeTree(
         ControllerEpoch_,
         treeId,
         allocationIds));
-    YT_LOG_DEBUG(
-        "Operation tentative tree ban notification enqueued (OperationId: %v, TreeId: %v)",
-        OperationId_,
-        treeId);
+    YT_TLOG_DEBUG("Operation tentative tree ban notification enqueued")
+        .With("OperationId", OperationId_)
+        .With("TreeId", treeId);
 }
 
 void TOperationControllerHost::ValidateOperationAccess(

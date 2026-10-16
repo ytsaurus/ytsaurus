@@ -12,8 +12,9 @@ namespace NYT::NSequoiaServer {
 
 struct ISequoiaContext;
 
-DECLARE_REFCOUNTED_STRUCT(ISequoiaManager)
 DECLARE_REFCOUNTED_STRUCT(IGroundUpdateQueueManager)
+DECLARE_REFCOUNTED_STRUCT(IPrelockTracker)
+DECLARE_REFCOUNTED_STRUCT(ISequoiaManager)
 
 DECLARE_REFCOUNTED_STRUCT(TDynamicTableUpdateQueueConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicGroundUpdateQueueManagerConfig)

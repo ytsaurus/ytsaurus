@@ -1,0 +1,17 @@
+items:
+  - name: Быстрый старт
+    href: getting-started.md
+  - name: Computation
+    href: computation.md
+  - name: Флаг distribute
+    href: distribute.md
+  - name: Работа со стейтами
+    href: state.md
+  - name: State Accessor
+    href: state-accessor.md
+  - name: Internal State
+    href: internal-state.md
+  - name: External State
+    href: external-state.md
+  - name: Тестирование
+    href: testing.md

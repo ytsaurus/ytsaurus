@@ -2,13 +2,13 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.79.1)
+VERSION(v1.83.2)
 
 SRCS(
     hierarchy.go
 )
 
-GO_TEST_SRCS(hierarchy_test.go)
+GO_XTEST_SRCS(hierarchy_ext_test.go)
 
 END()
 

@@ -12,14 +12,14 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(absl_flat_hash)
+add_subdirectory(absl)
 add_subdirectory(stack_vector)
 add_subdirectory(cow_string)
 add_subdirectory(concurrent_hash)
 add_subdirectory(bitset)
 add_subdirectory(stack_array)
+add_subdirectory(insert_only_concurrent_cache)
+add_subdirectory(concurrent_hash_set)
+add_subdirectory(comptrie)
+add_subdirectory(compact_vector)
 add_subdirectory(paged_vector)
-add_subdirectory(intrusive_rb_tree)
-add_subdirectory(sorted_vector)
-add_subdirectory(2d_array)
-add_subdirectory(top_keeper)

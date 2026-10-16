@@ -1,4 +1,5 @@
 import sys
+
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -10,18 +11,24 @@ from yt.admin.ytsaurus_ci import ghcr  # noqa
 from yt.admin.ytsaurus_ci import scenario_processor  # noqa
 
 
-def test_components(ghcr_client):
+def test_components(ghcr_client, yandex_cr_client):
+    clients = {"ghcr": ghcr_client()}
+
     release_component = scenario_processor.ClusterComponent(
         name="ytsaurus",
         source=component_registry.Source(
             repo="ytsaurus",
             container="ytsaurus-nightly",
             image_tag=r"^dev-(?P<version>{{ version }})-\d{4}-\d{2}-\d{2}-(?P<commit_hash>\w+)-relwithdebinfo$",
+            org="ytsaurus",
         ),
         version="25.3",
-        ghcr_client=ghcr_client(),
+        clients=clients,
     )
-    assert release_component.image == "ghcr.io/ytsaurus/ytsaurus-nightly:dev-25.3-2025-12-04-e6756828dc868ad2f8e643e65326b33d997796d5-relwithdebinfo"
+    assert (
+        release_component.image
+        == "ghcr.io/ytsaurus/ytsaurus-nightly:dev-25.3-2025-12-04-e6756828dc868ad2f8e643e65326b33d997796d5-relwithdebinfo"
+    )
     assert release_component.to_dict() == {
         "branch": None,
         "revision": "e6756828dc868ad2f8e643e65326b33d997796d5",
@@ -36,9 +43,10 @@ def test_components(ghcr_client):
             repo="ytsaurus",
             container="ytsaurus-nightly",
             image_tag=r"^dev-\d{4}-\d{2}-\d{2}-(?P<commit_hash>\w+)-relwithdebinfo$",
+            org="ytsaurus",
         ),
         version="",
-        ghcr_client=ghcr_client(),
+        clients=clients,
     )
     assert nightly_component.image == "ghcr.io/ytsaurus/ytsaurus-nightly:dev-2025-10-29-lastcommit-relwithdebinfo"
     assert nightly_component.to_dict() == {
@@ -54,9 +62,10 @@ def test_components(ghcr_client):
             repo="ytsaurus",
             container="ytop-chart",
             image_tag="{{ version }}",
+            org="ytsaurus",
         ),
         version="0.27.0",
-        ghcr_client=ghcr_client(),
+        clients=clients,
     )
     assert component_operator.image == "ghcr.io/ytsaurus/ytop-chart"
     assert component_operator.to_dict() == {
@@ -67,7 +76,7 @@ def test_components(ghcr_client):
             "commitDate": None,
             "name": "OPERATOR",
             "version": "0.27.0",
-        }
+        },
     }
 
     nightly_component_operator = scenario_processor.OperatorComponent(
@@ -75,8 +84,9 @@ def test_components(ghcr_client):
             repo="ytsaurus",
             container="ytop-chart-nightly",
             image_tag=r"^[\d\.]+-dev-(?P<commit_hash>\w+)$",
+            org="ytsaurus",
         ),
-        ghcr_client=ghcr_client(),
+        clients=clients,
         version="",
     )
     assert nightly_component_operator.image == "ghcr.io/ytsaurus/ytop-chart-nightly"
@@ -88,17 +98,41 @@ def test_components(ghcr_client):
             "commitDate": "2025-12-01 12:00:00",
             "name": "OPERATOR",
             "version": "0.0.666-dev-81deb0a1e700bcc38d8fb1653b9577515a370d97",
-        }
+        },
+    }
+
+    yandex_cr_component = scenario_processor.ClusterComponent(
+        name="query_tracker",
+        source=component_registry.Source(
+            repo="ytsaurus",
+            container="query-tracker",
+            image_tag=r"^nightly-(?P<commit_hash>\w+)$",
+            org="idtestorg",
+            registry="yandex_cr",
+        ),
+        version="",
+        clients={"yandex_cr": yandex_cr_client()},
+    )
+    assert (
+        yandex_cr_component.image
+        == "cr.yandex/idtestorg/ytsaurus/query-tracker:nightly-fc6f03ceb8d241b7979332e34dec6a302c4dd16d"
+    )
+    assert yandex_cr_component.to_dict() == {
+        "branch": None,
+        "revision": "fc6f03ceb8d241b7979332e34dec6a302c4dd16d",
+        "commitDate": None,
+        "name": "QUERY_TRACKER",
+        "version": "nightly-fc6f03ceb8d241b7979332e34dec6a302c4dd16d",
     }
 
 
 def test_process_scenario_simple(configs, templates, ghcr_client):
-    with patch.object(scenario_processor, "TEMPLATES_PATH", templates), \
-            patch.object(resource, "resfs_read") as mock_resfs, \
-            patch.object(ghcr, "GitHubPackagesClient", ghcr_client):
+    with patch.object(scenario_processor, "TEMPLATES_PATH", templates), patch.object(
+        resource, "resfs_read"
+    ) as mock_resfs, patch.object(ghcr, "GitHubPackagesClient", ghcr_client):
 
         mock_resfs.side_effect = configs
-        scenarios = scenario_processor.ProcessScenario("nightly-dev", MagicMock())
+        scenarios = scenario_processor.ProcessScenario("nightly-dev", {"ghcr": MagicMock()})
         assert len(scenarios) == 1
         result = scenarios[0].to_dict()
         assert isinstance(result, dict)
@@ -122,7 +156,7 @@ def test_process_scenario_simple(configs, templates, ghcr_client):
                 "helmUrl": "oci://ghcr.io/ytsaurus/odin-chart",
                 "releaseName": "odin",
                 "version": "0.0.4",
-            }
+            },
         }
 
         spec = result["k8sSpec"]
@@ -131,24 +165,18 @@ def test_process_scenario_simple(configs, templates, ghcr_client):
 
 
 def test_scenario_compat_simple(configs, templates, ghcr_client):
-    with patch.object(scenario_processor, "TEMPLATES_PATH", templates), \
-            patch.object(resource, "resfs_read") as mock_resfs, \
-            patch.object(ghcr, "GitHubPackagesClient", ghcr_client):
+    with patch.object(scenario_processor, "TEMPLATES_PATH", templates), patch.object(
+        resource, "resfs_read"
+    ) as mock_resfs, patch.object(ghcr, "GitHubPackagesClient", ghcr_client):
 
         mock_resfs.side_effect = configs
-        tasks = scenario_processor.ProcessScenario("scenario-compat-first", MagicMock())
+        tasks = scenario_processor.ProcessScenario("scenario-compat-first", {"ghcr": MagicMock()})
         assert len(tasks) == 1
 
         task = tasks[0].to_dict()
         assert task["operator"] == {
             "helmUrl": "ghcr.io/ytsaurus/ytop-chart-release",
-            "operator": {
-                "commitDate": None,
-                "name": "OPERATOR",
-                "revision": None,
-                "version": "0.25.0",
-                "branch": None
-            }
+            "operator": {"commitDate": None, "name": "OPERATOR", "revision": None, "version": "0.25.0", "branch": None},
         }
 
         assert len(task["components"]) == 1
@@ -166,12 +194,12 @@ def test_scenario_compat_simple(configs, templates, ghcr_client):
 
 def test_scenario_compat_empty(configs, templates, ghcr_client):
     # simple test, nothing components are compatible
-    with patch.object(scenario_processor, "TEMPLATES_PATH", templates), \
-            patch.object(resource, "resfs_read") as mock_resfs, \
-            patch.object(ghcr, "GitHubPackagesClient", ghcr_client):
+    with patch.object(scenario_processor, "TEMPLATES_PATH", templates), patch.object(
+        resource, "resfs_read"
+    ) as mock_resfs, patch.object(ghcr, "GitHubPackagesClient", ghcr_client):
 
         mock_resfs.side_effect = configs
-        tasks = scenario_processor.ProcessScenario("scenario-compat-empty", MagicMock())
+        tasks = scenario_processor.ProcessScenario("scenario-compat-empty", {"ghcr": MagicMock()})
         assert len(tasks) == 0
 
 
@@ -179,35 +207,29 @@ def test_scenario_compat_multi(configs, templates, ghcr_client):
     # operator:0.25.0 and ytsaurus:25.2
     # operator:0.26.0 and ytsaurus:25.2
     # operator:0.26.0 and ytsaurus:25.3
-    with patch.object(scenario_processor, "TEMPLATES_PATH", templates), \
-            patch.object(resource, "resfs_read") as mock_resfs, \
-            patch.object(ghcr, "GitHubPackagesClient", ghcr_client):
+    with patch.object(scenario_processor, "TEMPLATES_PATH", templates), patch.object(
+        resource, "resfs_read"
+    ) as mock_resfs, patch.object(ghcr, "GitHubPackagesClient", ghcr_client):
 
         mock_resfs.side_effect = configs
-        tasks = scenario_processor.ProcessScenario("scenario-compat-multi", MagicMock())
+        tasks = scenario_processor.ProcessScenario("scenario-compat-multi", {"ghcr": MagicMock()})
         assert len(tasks) == 3
 
 
 def test_scenario_compat_ytsaurus(configs, templates, ghcr_client):
     # simple test, base filter
-    with patch.object(scenario_processor, "TEMPLATES_PATH", templates), \
-            patch.object(resource, "resfs_read") as mock_resfs, \
-            patch.object(ghcr, "GitHubPackagesClient", ghcr_client):
+    with patch.object(scenario_processor, "TEMPLATES_PATH", templates), patch.object(
+        resource, "resfs_read"
+    ) as mock_resfs, patch.object(ghcr, "GitHubPackagesClient", ghcr_client):
 
         mock_resfs.side_effect = configs
-        tasks = scenario_processor.ProcessScenario("scenario-compat-filter-ytsaurus", MagicMock())
+        tasks = scenario_processor.ProcessScenario("scenario-compat-filter-ytsaurus", {"ghcr": MagicMock()})
         assert len(tasks) == 1
 
         task = tasks[0].to_dict()
         assert task["operator"] == {
             "helmUrl": "ghcr.io/ytsaurus/ytop-chart-release",
-            "operator": {
-                "commitDate": None,
-                "name": "OPERATOR",
-                "revision": None,
-                "version": "0.26.0",
-                "branch": None
-            }
+            "operator": {"commitDate": None, "name": "OPERATOR", "revision": None, "version": "0.26.0", "branch": None},
         }
 
         assert len(task["components"]) == 1
@@ -222,9 +244,9 @@ def test_scenario_compat_ytsaurus(configs, templates, ghcr_client):
 
 def test_scenario_compat_with_main(configs, templates, ghcr_client):
     # simple test, ytsaurus and operator from main
-    with patch.object(scenario_processor, "TEMPLATES_PATH", templates), \
-            patch.object(resource, "resfs_read") as mock_resfs, \
-            patch.object(ghcr, "GitHubPackagesClient", ghcr_client):
+    with patch.object(scenario_processor, "TEMPLATES_PATH", templates), patch.object(
+        resource, "resfs_read"
+    ) as mock_resfs, patch.object(ghcr, "GitHubPackagesClient", ghcr_client):
         operator_expected = {
             "helmUrl": "ghcr.io/ytsaurus/ytop-chart-nightly",
             "operator": {
@@ -244,7 +266,7 @@ def test_scenario_compat_with_main(configs, templates, ghcr_client):
         }
 
         mock_resfs.side_effect = configs
-        tasks = scenario_processor.ProcessScenario("scenario-compat-main", MagicMock())
+        tasks = scenario_processor.ProcessScenario("scenario-compat-main", {"ghcr": MagicMock()})
         assert len(tasks) == 1
         task = tasks[0].to_dict()
         assert task["operator"] == operator_expected
@@ -256,12 +278,12 @@ def test_scenario_compat_with_main(configs, templates, ghcr_client):
 def test_scenario_compat_with_both_filters(configs, templates, ghcr_client):
     # ytsaurus:23.1 works with operator:0.0.1 and operator:main
     # but we reduce the set with operator:version_filter=main
-    with patch.object(scenario_processor, "TEMPLATES_PATH", templates), \
-            patch.object(resource, "resfs_read") as mock_resfs, \
-            patch.object(ghcr, "GitHubPackagesClient", ghcr_client):
+    with patch.object(scenario_processor, "TEMPLATES_PATH", templates), patch.object(
+        resource, "resfs_read"
+    ) as mock_resfs, patch.object(ghcr, "GitHubPackagesClient", ghcr_client):
 
         mock_resfs.side_effect = configs
-        tasks = scenario_processor.ProcessScenario("scenario-compat-both-filters", MagicMock())
+        tasks = scenario_processor.ProcessScenario("scenario-compat-both-filters", {"ghcr": MagicMock()})
         assert len(tasks) == 1
         task = tasks[0].to_dict()
         assert task["operator"] == {
@@ -272,7 +294,7 @@ def test_scenario_compat_with_both_filters(configs, templates, ghcr_client):
                 "name": "OPERATOR",
                 "revision": "81deb0a1e700bcc38d8fb1653b9577515a370d97",
                 "version": "0.0.666-dev-81deb0a1e700bcc38d8fb1653b9577515a370d97",
-            }
+            },
         }
 
         assert len(task["components"]) == 1
@@ -287,10 +309,10 @@ def test_scenario_compat_with_both_filters(configs, templates, ghcr_client):
 
 def test_scenario_compat_difficult_constraint(configs, templates, ghcr_client):
     # ytsaurus:23.1 works with operator:0.0.1 and operator:main
-    with patch.object(scenario_processor, "TEMPLATES_PATH", templates), \
-            patch.object(resource, "resfs_read") as mock_resfs, \
-            patch.object(ghcr, "GitHubPackagesClient", ghcr_client):
+    with patch.object(scenario_processor, "TEMPLATES_PATH", templates), patch.object(
+        resource, "resfs_read"
+    ) as mock_resfs, patch.object(ghcr, "GitHubPackagesClient", ghcr_client):
 
         mock_resfs.side_effect = configs
-        tasks = scenario_processor.ProcessScenario("scenario-compat-difficult-constraint", MagicMock())
+        tasks = scenario_processor.ProcessScenario("scenario-compat-difficult-constraint", {"ghcr": MagicMock()})
         assert len(tasks) == 2

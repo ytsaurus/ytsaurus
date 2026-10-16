@@ -52,17 +52,17 @@ DEFINE_REFCOUNTED_TYPE(IConnection)
 struct TConnectionState final
 {
     int SaslHandshakeVersion = 0;
-    std::optional<TString> SaslMechanism;
+    std::optional<std::string> SaslMechanism;
     std::optional<NKafka::ERequestType> ExpectedRequestType = {NKafka::ERequestType::SaslHandshake};
 
-    std::optional<TString> UserName;
+    std::optional<std::string> UserName;
 };
 using TConnectionStatePtr = TIntrusivePtr<TConnectionState>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IConnectionPtr CreateConnection(
-    TProxyBootstrapConfigPtr config,
+    TKafkaServerConfigPtr config,
     NNet::IConnectionPtr connection,
     IInvokerPtr invoker,
     TRequestCallback requesCallback,

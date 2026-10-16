@@ -55,16 +55,18 @@ constinit const auto Logger = ExecNodeLogger;
 
 TGpuSlot::TGpuSlot(
     TGpuManagerPtr manager,
-    int deviceIndex)
+    int deviceIndex,
+    std::string deviceName)
     : Manager_(std::move(manager))
     , DeviceIndex_(deviceIndex)
+    , DeviceName_(std::move(deviceName))
 {
     YT_VERIFY(Manager_);
 }
 
-TString TGpuSlot::GetDeviceName() const
+std::string TGpuSlot::GetDeviceName() const
 {
-    return NExecNode::GetGpuDeviceName(DeviceIndex_);
+    return DeviceName_;
 }
 
 int TGpuSlot::GetDeviceIndex() const
@@ -140,7 +142,7 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
     , GpuInfoProvider_(CreateGpuInfoProvider(StaticConfig_->GpuInfoProvider))
 { }
 
-void TGpuManager::Initialize()
+void TGpuManager::Start()
 {
     YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
@@ -148,29 +150,55 @@ void TGpuManager::Initialize()
         return;
     }
 
-    std::vector<TGpuDeviceDescriptor> descriptors;
+    if (StaticConfig_->GpuFlavor != EGpuFlavor::Nvidia) {
+        if (Bootstrap_->GetJobEnvironmentType() == NJobProxy::EJobEnvironmentType::Porto) {
+            YT_TLOG_FATAL("Non-Nvidia GPU flavor does not support Porto job environment")
+                .With("GpuFlavor", StaticConfig_->GpuFlavor);
+        }
+
+        if (!ShouldDiscoverNewGpuDevices()) {
+            YT_TLOG_FATAL("Non-Nvidia GPU flavor does not support disabled 'use_gpu_info_provider_for_device_discovery'")
+                .With("GpuFlavor", StaticConfig_->GpuFlavor)
+                .With("StaticConfigUseGpuInfoProviderForDeviceDiscovery", StaticConfig_->UseGpuInfoProviderForDeviceDiscovery)
+                .With("DynamicConfigUseGpuInfoProviderForDeviceDiscovery", DynamicConfig_.Acquire()->UseGpuInfoProviderForDeviceDiscovery);
+        }
+    }
+
+    std::vector<TGpuInfo> gpuInfos;
     bool shouldInitializeLayers;
 
     if (StaticConfig_->Testing->TestResource) {
         for (int index = 0; index < StaticConfig_->Testing->TestGpuCount; ++index) {
-            descriptors.push_back(TGpuDeviceDescriptor{Format("/dev/nvidia%v", index), index});
+            gpuInfos.push_back(TGpuInfo{.Index = index, .Name = Format("/dev/nvidia%v", index)});
         }
         shouldInitializeLayers = StaticConfig_->Testing->TestLayers;
-    } else {
+    } else if (ShouldDiscoverNewGpuDevices()) {
         try {
-            descriptors = ListGpuDevices();
+            gpuInfos = GpuInfoProvider_.Acquire()->GetGpuInfos(GetHealthCheckTimeout());
         } catch (const std::exception& ex) {
             Error_ = TError(ex);
-            descriptors = {};
+            gpuInfos = {};
         }
-        shouldInitializeLayers = !descriptors.empty();
+        shouldInitializeLayers = !gpuInfos.empty();
+    } else {
+        try {
+            auto descriptors = ListNvidiaGpuDevices();
+            for (const auto& descriptor : descriptors) {
+                gpuInfos.push_back(TGpuInfo{.Index = descriptor.DeviceIndex, .Name = descriptor.DeviceName});
+            }
+        } catch (const std::exception& ex) {
+            Error_ = TError(ex);
+            gpuInfos = {};
+        }
+        shouldInitializeLayers = !gpuInfos.empty();
     }
 
-    if (shouldInitializeLayers) {
+    if (StaticConfig_->GpuFlavor == EGpuFlavor::Nvidia && shouldInitializeLayers) {
         try {
-            DriverVersionString_ = StaticConfig_->DriverVersion ? *StaticConfig_->DriverVersion : GetGpuDriverVersionString();
+            DriverVersionString_ = StaticConfig_->DriverVersion ? *StaticConfig_->DriverVersion : GetNvidiaGpuDriverVersionString();
         } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Cannot determine GPU driver version");
+            YT_TLOG_FATAL("Cannot determine GPU driver version")
+                .With(ex);
         }
     } else {
         DriverVersionString_ = StaticConfig_->DriverVersion.value_or(GetDummyGpuDriverVersionString());
@@ -182,13 +210,12 @@ void TGpuManager::Initialize()
             .AddFuncGauge("/driver_version", MakeStrong(this), [] { return 1.0; });
     }
 
-    if (StaticConfig_->DriverLayerDirectoryPath) {
+    if (StaticConfig_->GpuFlavor == EGpuFlavor::Nvidia && StaticConfig_->DriverLayerDirectoryPath) {
         DriverLayerPath_ = *StaticConfig_->DriverLayerDirectoryPath + "/" + DriverVersionString_;
 
-        YT_LOG_INFO(
-            "GPU driver layer specified (Path: %v, Version: %v)",
-            DriverLayerPath_,
-            DriverVersionString_);
+        YT_TLOG_INFO("GPU driver layer specified")
+            .With("Path", DriverLayerPath_)
+            .With("Version", DriverVersionString_);
 
         if (shouldInitializeLayers) {
             FetchDriverLayerExecutor_->Start();
@@ -196,29 +223,29 @@ void TGpuManager::Initialize()
             Bootstrap_->GetJobInvoker()->Invoke(BIND(&TGpuManager::OnFetchDriverLayerInfo, MakeWeak(this)));
         }
     } else {
-        YT_LOG_INFO("No GPU driver layer directory specified");
+        YT_TLOG_INFO("No GPU driver layer directory specified");
     }
 
-    if (descriptors.empty()) {
+    // NB(severovv): Late discovery from an initially empty device set is unsupported; GPU support stays disabled until restart.
+    if (gpuInfos.empty()) {
         return;
     }
 
     HasGpuDevices_ = true;
 
-    auto now = TInstant::Now();
-    for (const auto& descriptor : descriptors) {
-        GpuDevices_.push_back(descriptor.DeviceName);
-        InsertOrCrash(GpuDeviceIndices_, descriptor.DeviceIndex);
+    {
+        auto guard = Guard(SpinLock_);
 
-        FreeSlots_.emplace_back(descriptor.DeviceIndex);
+        auto now = TInstant::Now();
+        for (auto& info : gpuInfos) {
+            GpuDevices_.emplace_back(info.Name, info.Index);
+            ++GpuDeviceCount_;
+            InsertOrCrash(GpuDeviceIndices_, info.Index);
+            FreeSlots_.emplace_back(info.Index);
 
-        EmplaceOrCrash(
-            HealthyGpuInfoMap_,
-            descriptor.DeviceIndex,
-            TGpuInfo{
-                .UpdateTime = now,
-                .Index = descriptor.DeviceIndex,
-            });
+            info.UpdateTime = now;
+            EmplaceOrCrash(HealthyGpuInfoMap_, info.Index, info);
+        }
     }
 
     if (!StaticConfig_->Testing->TestResource) {
@@ -287,6 +314,13 @@ bool TGpuManager::ShouldTestSetupCommands() const
     return StaticConfig_->Testing->TestSetupCommands;
 }
 
+EGpuFlavor TGpuManager::GetGpuFlavor() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return StaticConfig_->GpuFlavor;
+}
+
 TDuration TGpuManager::GetHealthCheckTimeout() const
 {
     return DynamicConfig_.Acquire()->HealthCheckTimeout;
@@ -297,7 +331,7 @@ TDuration TGpuManager::GetHealthCheckFailureBackoff() const
     return DynamicConfig_.Acquire()->HealthCheckFailureBackoff;
 }
 
-THashMap<TString, TString> TGpuManager::GetCudaToolkitMinDriverVersion() const
+THashMap<std::string, std::string> TGpuManager::GetCudaToolkitMinDriverVersion() const
 {
     return DynamicConfig_.Acquire()->CudaToolkitMinDriverVersion;
 }
@@ -322,9 +356,8 @@ void TGpuManager::OnHealthCheck()
         std::vector<int> freeDeviceIndices;
         std::vector<int> unknownDeviceIndices;
 
-        YT_LOG_DEBUG(
-            "Updating healthy GPU devices (DeviceIndices: %v)",
-            deviceIndices);
+        YT_TLOG_DEBUG("Updating healthy GPU devices")
+            .With("DeviceIndices", deviceIndices);
 
         {
             auto guard = Guard(SpinLock_);
@@ -359,12 +392,22 @@ void TGpuManager::OnHealthCheck()
             }
 
             for (auto& gpuInfo : gpuInfos) {
-                if (!GpuDeviceIndices_.contains(gpuInfo.Index)) {
-                    YT_LOG_WARNING(
-                        "Found unknown GPU device (DeviceIndex: %v)",
-                        gpuInfo.Index);
-                    unknownDeviceIndices.push_back(gpuInfo.Index);
-                    continue;
+                bool unknownDevice = !GpuDeviceIndices_.contains(gpuInfo.Index);
+                if (unknownDevice) {
+                    if (!ShouldDiscoverNewGpuDevices()) {
+                        YT_TLOG_WARNING("Found unknown GPU device")
+                            .With("DeviceIndex", gpuInfo.Index);
+                        unknownDeviceIndices.push_back(gpuInfo.Index);
+                        continue;
+                    }
+
+                    GpuDevices_.emplace_back(gpuInfo.Name, gpuInfo.Index);
+                    ++GpuDeviceCount_;
+                    GpuDeviceIndices_.insert(gpuInfo.Index);
+                    newFreeSlotIndices.emplace_back(gpuInfo.Index);
+                    YT_TLOG_INFO("Discovered new GPU device")
+                        .With("DeviceIndex", gpuInfo.Index)
+                        .With("DeviceName", gpuInfo.Name);
                 }
 
                 gpuInfo.UpdateTime = now;
@@ -373,7 +416,8 @@ void TGpuManager::OnHealthCheck()
 
             for (auto index : FreeSlots_) {
                 if (!HealthyGpuInfoMap_.contains(index)) {
-                    YT_LOG_WARNING("Found lost GPU device (DeviceIndex: %v)", index);
+                    YT_TLOG_WARNING("Found lost GPU device")
+                        .With("DeviceIndex", index);
                 } else {
                     freeDeviceIndices.push_back(index);
                     newFreeSlotIndices.emplace_back(std::move(index));
@@ -381,7 +425,7 @@ void TGpuManager::OnHealthCheck()
             }
 
             if (size(newFreeSlotIndices) > size(FreeSlots_)) {
-                Bootstrap_->GetJobResourceManager()->OnNewSlotsAvailable();
+                Bootstrap_->GetJobResourceManager()->OnResourceAvailabilityChanged();
             }
 
             FreeSlots_ = std::move(newFreeSlotIndices);
@@ -398,26 +442,31 @@ void TGpuManager::OnHealthCheck()
 
         std::sort(freeDeviceIndices.begin(), freeDeviceIndices.end());
 
-        YT_LOG_DEBUG(
-            "List of healthy GPU devices updated "
-            "(HealthyDeviceIndices: %v, FreeDeviceIndices: %v, UnknownDeviceIndices: %v, "
-            "AcquiredDeviceIndices: %v, LostDeviceIndices: %v)",
-            deviceIndices,
-            freeDeviceIndices,
-            unknownDeviceIndices,
-            AcquiredGpuDeviceIndices_,
-            LostGpuDeviceIndices_);
+        YT_TLOG_DEBUG("List of healthy GPU devices updated")
+            .With("HealthyDeviceIndices", deviceIndices)
+            .With("FreeDeviceIndices", freeDeviceIndices)
+            .With("UnknownDeviceIndices", unknownDeviceIndices)
+            .With("AcquiredDeviceIndices", AcquiredGpuDeviceIndices_)
+            .With("LostDeviceIndices", LostGpuDeviceIndices_);
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Failed to get healthy GPU devices");
+        YT_TLOG_WARNING("Failed to get healthy GPU devices")
+            .With(ex);
         BannedDeadline_ = TInstant::Now() + GetHealthCheckFailureBackoff();
 
         {
             auto guard = Guard(SpinLock_);
             Enabled_ = false;
             Error_ = TError("All GPU devices are disabled")
-                << ex;
+                .With(ex);
         }
     }
+}
+
+bool TGpuManager::ShouldDiscoverNewGpuDevices() const
+{
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    return dynamicConfig->UseGpuInfoProviderForDeviceDiscovery.value_or(
+        StaticConfig_->UseGpuInfoProviderForDeviceDiscovery);
 }
 
 void TGpuManager::OnFetchDriverLayerInfo()
@@ -438,7 +487,8 @@ void TGpuManager::OnFetchDriverLayerInfo()
             DriverLayerKey_ = std::move(*fetchedArtifactKey.ArtifactKey);
         }
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Failed to fetch GPU layer");
+        YT_TLOG_ERROR("Failed to fetch GPU layer")
+            .With(ex);
     }
 }
 
@@ -451,7 +501,8 @@ void TGpuManager::OnRdmaDeviceInfoUpdate()
         auto timeout = DynamicConfig_.Acquire()->RdmaDeviceInfoUpdateTimeout;
         rdmaDevices = GpuInfoProvider_.Acquire()->GetRdmaDeviceInfos(timeout);
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Failed to fetch RDMA device infos");
+        YT_TLOG_ERROR("Failed to fetch RDMA device infos")
+            .With(ex);
         return;
     }
 
@@ -483,7 +534,7 @@ int TGpuManager::GetTotalGpuCount() const
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
-    return !Enabled_ || IsDriverLayerMissing() ? 0 : HealthyGpuInfoMap_.size();
+    return !Enabled_ || IsDriverLayerMissing() ? 0 : std::ssize(HealthyGpuInfoMap_);
 }
 
 int TGpuManager::GetFreeGpuCount() const
@@ -491,7 +542,7 @@ int TGpuManager::GetFreeGpuCount() const
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
-    return !Enabled_ || IsDriverLayerMissing() ? 0 : FreeSlots_.size();
+    return !Enabled_ || IsDriverLayerMissing() ? 0 : std::ssize(FreeSlots_);
 }
 
 int TGpuManager::GetUsedGpuCount() const
@@ -499,7 +550,7 @@ int TGpuManager::GetUsedGpuCount() const
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
-    return !Enabled_ || IsDriverLayerMissing() ? 0 : (HealthyGpuInfoMap_.size() - FreeSlots_.size());
+    return !Enabled_ || IsDriverLayerMissing() ? 0 : (std::ssize(HealthyGpuInfoMap_) - std::ssize(FreeSlots_));
 }
 
 bool TGpuManager::HasGpuDevices() const
@@ -517,11 +568,19 @@ THashMap<int, TGpuInfo> TGpuManager::GetGpuInfoMap() const
     return HealthyGpuInfoMap_;
 }
 
-const std::vector<TString>& TGpuManager::GetGpuDevices() const
+std::vector<TGpuDeviceDescriptor> TGpuManager::GetGpuDevices() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    auto guard = Guard(SpinLock_);
     return GpuDevices_;
+}
+
+int TGpuManager::GetGpuDeviceCount() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return GpuDeviceCount_;
 }
 
 std::vector<TRdmaDeviceInfo> TGpuManager::GetRdmaDevices() const
@@ -534,18 +593,16 @@ std::vector<TRdmaDeviceInfo> TGpuManager::GetRdmaDevices() const
 
 void TGpuManager::ReleaseGpuSlot(int deviceIndex)
 {
-    YT_LOG_DEBUG(
-        "Released GPU slot (DeviceIndex: %v)",
-        deviceIndex);
+    YT_TLOG_DEBUG("Released GPU slot")
+        .With("DeviceIndex", deviceIndex);
 
     auto guard = Guard(SpinLock_);
 
     if (AcquiredGpuDeviceIndices_.erase(deviceIndex) > 0) {
         if (!HealthyGpuInfoMap_.contains(deviceIndex)) {
             LostGpuDeviceIndices_.insert(deviceIndex);
-            YT_LOG_WARNING(
-                "Found lost GPU device (DeviceIndex: %v)",
-                deviceIndex);
+            YT_TLOG_WARNING("Found lost GPU device")
+                .With("DeviceIndex", deviceIndex);
         } else {
             FreeSlots_.push_back(deviceIndex);
         }
@@ -587,10 +644,11 @@ TErrorOr<TGpuSlotPtr> TGpuManager::AcquireGpuSlot()
 
     InsertOrCrash(AcquiredGpuDeviceIndices_, deviceIndex);
 
-    YT_LOG_DEBUG(
-        "Acquired GPU slot (DeviceIndex: %v)",
-        deviceIndex);
-    return New<TGpuSlot>(MakeStrong(this), deviceIndex);
+    const auto& deviceName = GetOrCrash(HealthyGpuInfoMap_, deviceIndex).Name;
+
+    YT_TLOG_DEBUG("Acquired GPU slot")
+        .With("DeviceIndex", deviceIndex);
+    return New<TGpuSlot>(MakeStrong(this), deviceIndex, deviceName);
 }
 
 TErrorOr<std::vector<TGpuSlotPtr>> TGpuManager::AcquireGpuSlots(int slotCount)
@@ -601,8 +659,8 @@ TErrorOr<std::vector<TGpuSlotPtr>> TGpuManager::AcquireGpuSlots(int slotCount)
 
     if (std::ssize(FreeSlots_) < slotCount) {
         return TError("Cannot find enough empty GPU slots")
-            << TErrorAttribute("free_slot_count", std::ssize(FreeSlots_))
-            << TErrorAttribute("required_slot_count", slotCount);
+            .With("free_slot_count", std::ssize(FreeSlots_))
+            .With("required_slot_count", slotCount);
     }
 
     // TODO(ignat): use actual topology of GPU-s.
@@ -637,15 +695,15 @@ TErrorOr<std::vector<TGpuSlotPtr>> TGpuManager::AcquireGpuSlots(int slotCount)
     YT_VERIFY(found);
     YT_VERIFY(std::ssize(resultDeviceIndices) == slotCount);
 
-    YT_LOG_DEBUG(
-        "Acquired GPU slots (DeviceIndices: %v)",
-        resultDeviceIndices);
+    YT_TLOG_DEBUG("Acquired GPU slots")
+        .With("DeviceIndices", resultDeviceIndices);
 
     std::vector<TGpuSlotPtr> resultSlots;
     std::vector<int> remainingSlotIndices;
     for (auto index : FreeSlots_) {
         if (resultDeviceIndices.contains(index)) {
-            resultSlots.push_back(New<TGpuSlot>(MakeStrong(this), index));
+            const auto& deviceName = GetOrCrash(HealthyGpuInfoMap_, index).Name;
+            resultSlots.push_back(New<TGpuSlot>(MakeStrong(this), index, deviceName));
         } else {
             remainingSlotIndices.push_back(index);
         }
@@ -688,7 +746,7 @@ std::vector<TArtifactKey> TGpuManager::GetToppingLayers()
     }
 }
 
-void TGpuManager::VerifyCudaToolkitDriverVersion(const TString& toolkitVersion)
+void TGpuManager::VerifyCudaToolkitDriverVersion(const std::string& toolkitVersion)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -725,23 +783,21 @@ void TGpuManager::PopulateAlerts(std::vector<TError>* alerts) const
     }
 }
 
-
 void TGpuManager::ApplyNetworkPriority(std::optional<TNetworkPriority> networkPriority)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto config = DynamicConfig_.Acquire();
     if (!config->EnableNetworkServiceLevel) {
-        YT_LOG_DEBUG("Tuning of network service level is disabled");
+        YT_TLOG_DEBUG("Tuning of network service level is disabled");
         return;
     }
 
     TNetworkPriority newNetworkPriority = networkPriority.value_or(DefaultNetworkPriority);
 
-    YT_LOG_DEBUG(
-        "Applying network priority (Old: %v, New: %v)",
-        CurrentNetworkPriority_,
-        networkPriority);
+    YT_TLOG_DEBUG("Applying network priority")
+        .With("Old", CurrentNetworkPriority_)
+        .With("New", networkPriority);
 
     if (newNetworkPriority == CurrentNetworkPriority_) {
         return;
@@ -755,7 +811,7 @@ void TGpuManager::ApplyNetworkPriority(std::optional<TNetworkPriority> networkPr
         return;
     }
 
-    std::vector<TString> rdmaDeviceIds;
+    std::vector<std::string> rdmaDeviceIds;
     {
         auto guard = Guard(SpinLock_);
         rdmaDeviceIds.reserve(RdmaDevices_.size());
@@ -769,11 +825,19 @@ void TGpuManager::ApplyNetworkPriority(std::optional<TNetworkPriority> networkPr
             newNetworkPriority,
             config->ApplyNetworkServiceLevelTimeout);
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Failed to apply network priority");
+        YT_TLOG_ERROR("Failed to apply network priority")
+            .With(ex);
         return;
     }
 
     CurrentNetworkPriority_ = newNetworkPriority;
+}
+
+std::vector<std::string> TGpuManager::GetRequiredHostPaths() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return GpuInfoProvider_.Acquire()->GetRequiredHostPaths();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,10 +10,11 @@
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/core/ytree/request_complexity_limits.h>
-
-#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/concurrency/public.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NSecurityServer {
 
@@ -134,7 +135,7 @@ DEFINE_REFCOUNTED_TYPE(TUserRequestLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSerializableUserRequestLimitsOptions
+class TSerializableUserRequestLimitsOptions
     : public NYTree::TYsonStruct
 {
 public:
@@ -173,7 +174,7 @@ public:
     static void Register(TRegistrar registrar);
 
 private:
-    int Clusterwide_;
+    std::optional<int> Clusterwide_;
     int Default_;
     THashMap<std::string, int> PerCell_;
 };
@@ -239,6 +240,15 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TThroughputThrottlerConfigPtr, ChunkServiceUserRequestWeightThrottlerConfig);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TThroughputThrottlerConfigPtr, ChunkServiceUserRequestBytesThrottlerConfig);
     DEFINE_BYVAL_RW_PROPERTY(bool, PendingRemoval);
+
+    struct TActiveTransactionCountLimitsOverride
+    {
+        int AlertThreshold = 0;
+        int Limit = 0;
+
+        void Persist(const TStreamPersistenceContext& context);
+    };
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TActiveTransactionCountLimitsOverride>, ActiveTransactionCountAlertThresholdAndLimitOverride);
 
     //! Hashed password used for authentication. If equals to |std::nullopt|,
     //! authentication via password is disabled.

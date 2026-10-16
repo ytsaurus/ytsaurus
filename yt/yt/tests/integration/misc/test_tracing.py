@@ -4,15 +4,12 @@ from yt_commands import authors, sync_create_cells, map, create, write_table
 
 import yt.wrapper
 
-import pytest
-
 import time
 
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestTracing(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3

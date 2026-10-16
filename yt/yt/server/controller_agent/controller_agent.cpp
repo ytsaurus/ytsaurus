@@ -11,6 +11,7 @@
 #include "operation_controller.h"
 #include "operation_controller_host.h"
 #include "private.h"
+#include "push_based_shuffle_registry.h"
 #include "scheduling_context.h"
 #include "universal_monitoring_descriptor_manager.h"
 
@@ -37,6 +38,9 @@
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 #include <yt/yt/ytlib/chunk_client/throttler_manager.h>
 
+#include <yt/yt/ytlib/distributed_chunk_session_client/seal_monitor.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/seal_summary_fetcher.h>
+
 #include <yt/yt/ytlib/event_log/config.h>
 #include <yt/yt/ytlib/event_log/event_log.h>
 
@@ -60,6 +64,7 @@
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
@@ -68,7 +73,7 @@
 
 #include <yt/yt/build/build.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <util/generic/cast.h>
 
@@ -80,6 +85,7 @@ using namespace NScheduler;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NChunkClient;
+using namespace NDistributedChunkSessionClient;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NEventLog;
@@ -129,7 +135,8 @@ public:
             return;
         }
 
-        YT_LOG_INFO("Operation orchid saved in zombie orchids queue (OperationId: %v)", id);
+        YT_TLOG_INFO("Operation orchid saved in zombie orchids queue")
+            .With("OperationId", id);
 
         auto [iterator, inserted] = IdToOrchid_.emplace(id, std::move(orchid));
         YT_VERIFY(inserted);
@@ -186,7 +193,8 @@ private:
         IdToOrchid_.erase(iterator);
         Queue_.pop();
 
-        YT_LOG_INFO("Operation orchid removed from zombie orchids queue (OperationId: %v)", operationId);
+        YT_TLOG_INFO("Operation orchid removed from zombie orchids queue")
+            .With("OperationId", operationId);
     }
 };
 
@@ -208,6 +216,7 @@ public:
         , ChunkScraperHeavyThreadPool_(CreateThreadPool(Config_->ChunkScraperHeavyThreadCount, "ChunkScraperHeavy"))
         , JobSpecBuildPool_(CreateThreadPool(Config_->JobSpecBuildThreadCount, "JobSpec"))
         , StatisticsOffloadPool_(CreateThreadPool(Config_->StatisticsOffloadThreadCount, "StatsOffload"))
+        , PushBasedShuffleThreadPool_(CreateThreadPool(Config_->PushBasedShuffle->ThreadCount, "PushShuffle"))
         , ExecNodesUpdateQueue_(New<TActionQueue>("ExecNodes"))
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
@@ -236,6 +245,23 @@ public:
             std::move(configNode),
             Bootstrap_))
         , JobTracker_(New<TJobTracker>(Bootstrap_, JobReporter_))
+        , PushBasedShuffleRegistry_(New<TPushBasedShuffleRegistry>())
+        , PushBasedShuffleSealMonitor_(CreateDistributedChunkSessionSealMonitor(
+            Config_->PushBasedShuffle->SealMonitor,
+            BIND_NO_PROPAGATE([
+                client = Bootstrap_->GetClient(),
+                invoker = PushBasedShuffleThreadPool_->GetInvoker(),
+                throttlerManager = ChunkLocationThrottlerManager_
+            ] (std::vector<TChunkId> chunkIds) {
+                return FetchDistributedChunkSessionSealSummaries(
+                    client,
+                    invoker,
+                    throttlerManager,
+                    std::move(chunkIds),
+                    ControllerAgentLogger());
+            }),
+            PushBasedShuffleThreadPool_->GetInvoker(),
+            ControllerAgentLogger()))
         , JobEventsInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker(), "controller_agent"))
         , ExecNodeDescriptorsByTagsCache_(New<TExecNodeDescriptorsByTagsCache>(
             Config_->SchedulingTagFilterExpireTimeout,
@@ -392,6 +418,13 @@ public:
         return StatisticsOffloadPool_->GetInvoker();
     }
 
+    const IInvokerPtr& GetPushBasedShuffleInvoker()
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return PushBasedShuffleThreadPool_->GetInvoker();
+    }
+
     const IInvokerPtr& GetExecNodesUpdateInvoker()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -418,6 +451,20 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return JobTracker_.Get();
+    }
+
+    const TPushBasedShuffleRegistryPtr& GetPushBasedShuffleRegistry() const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return PushBasedShuffleRegistry_;
+    }
+
+    const IDistributedChunkSessionSealMonitorPtr& GetPushBasedShuffleSealMonitor() const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return PushBasedShuffleSealMonitor_;
     }
 
     const TMediumDirectoryPtr& GetMediumDirectory() const
@@ -453,8 +500,10 @@ public:
 
         ControllerThreadPool_->SetThreadCount(Config_->ControllerThreadCount);
         ChunkScraperHeavyThreadPool_->SetThreadCount(Config_->ChunkScraperHeavyThreadCount);
+        PushBasedShuffleThreadPool_->SetThreadCount(Config_->PushBasedShuffle->ThreadCount);
 
         JobTracker_->UpdateConfig(Config_);
+        PushBasedShuffleSealMonitor_->Reconfigure(Config_->PushBasedShuffle->SealMonitor);
 
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
 
@@ -625,7 +674,8 @@ public:
 
         MasterConnector_->RegisterOperation(operationId);
 
-        YT_LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
+        YT_TLOG_DEBUG("Operation registered")
+            .With("OperationId", operationId);
     }
 
     TOperationControllerUnregisterResult DoDisposeAndUnregisterOperation(TOperationId operationId)
@@ -647,10 +697,8 @@ public:
                     .AsyncVia(controller->GetInvoker())
                     .Run());
 
-                YT_LOG_FATAL_IF(
-                    !error.IsOK(),
-                    error,
-                    "Unexpected operation disposal fail");
+                YT_TLOG_FATAL_IF(!error.IsOK(), "Unexpected operation disposal fail")
+                    .With(error);
 
                 result.ResidualJobMetrics = controller->PullJobMetricsDelta(/*force*/ true);
             }
@@ -684,10 +732,8 @@ public:
             operation->SetController(nullptr);
             auto refCount = ResetAndGetResidualRefCount(controller);
             if (refCount > 0) {
-                YT_LOG_WARNING(
-                    "Operation is going to be unregistered, but its controller has non-zero residual refcount; memory leak is possible "
-                    "(RefCount: %v)",
-                    refCount);
+                YT_TLOG_WARNING("Operation is going to be unregistered, but its controller has non-zero residual refcount; memory leak is possible")
+                    .With("RefCount", refCount);
             }
         }
 
@@ -705,7 +751,8 @@ public:
 
         EraseOrCrash(IdToOperation_, operationId);
 
-        YT_LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
+        YT_TLOG_DEBUG("Operation unregistered")
+            .With("OperationId", operationId);
     }
 
     TFuture<void> UpdateOperationRuntimeParameters(TOperationId operationId, TOperationRuntimeParametersUpdatePtr update)
@@ -717,6 +764,8 @@ public:
         if (hasAcl && hasAcoName) {
             THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
         }
+
+        operation->UpdateJobShellOptions(update->OptionsPerJobShell);
 
         if (update->Acl || update->AcoName || update->SchedulingTagFilter) {
             if (update->Acl) {
@@ -731,8 +780,6 @@ public:
                     .Run();
             }
         }
-
-        operation->UpdateJobShellOptions(update->OptionsPerJobShell);
 
         return OKFuture;
     }
@@ -943,8 +990,8 @@ public:
 
         const auto& controller = operation->GetController();
         if (!controller) {
-            YT_LOG_DEBUG("No controller to abort (OperationId: %v)",
-                operation->GetId());
+            YT_TLOG_DEBUG("No controller to abort")
+                .With("OperationId", operation->GetId());
             return OKFuture;
         }
 
@@ -1033,11 +1080,9 @@ public:
         auto index = JobMonitoringIndexManager_.TryAddIndex(operationId);
 
         if (!index) {
-            YT_LOG_DEBUG(
-                "Failed to register job for monitoring: too many monitored jobs per controller agent "
-                "(OperationId: %v, MaxMonitoredUserJobsPerAgent: %v)",
-                operationId,
-                JobMonitoringIndexManager_.GetMaxSize());
+            YT_TLOG_DEBUG("Failed to register job for monitoring: too many monitored jobs per controller agent")
+                .With("OperationId", operationId)
+                .With("MaxMonitoredUserJobsPerAgent", JobMonitoringIndexManager_.GetMaxSize());
 
             EnqueueJobMonitoringAlertUpdate();
             return std::nullopt;
@@ -1060,12 +1105,10 @@ public:
         if (GangJobMonitoringDescriptorManager_.TryAcqireMonitoringDescriptor(operationId)) {
             return TJobMonitoringDescriptor{operationId.Underlying(), rank};
         }
-        YT_LOG_DEBUG(
-            "Failed to register job for monitoring: too many monitored gangs jobs per controller agent "
-            "(OperationId: %v, CurrentMonitoringGangJobsPerAgent: %v, MaxMonitoredGangsJobsPerAgent: %v)",
-            operationId,
-            GangJobMonitoringDescriptorManager_.GetSize(),
-            GangJobMonitoringDescriptorManager_.GetMaxSize());
+        YT_TLOG_DEBUG("Failed to register job for monitoring: too many monitored gangs jobs per controller agent")
+            .With("OperationId", operationId)
+            .With("CurrentMonitoringGangJobsPerAgent", GangJobMonitoringDescriptorManager_.GetSize())
+            .With("MaxMonitoredGangsJobsPerAgent", GangJobMonitoringDescriptorManager_.GetMaxSize());
         EnqueueGangJobMonitoringAlertUpdate();
         return std::nullopt;
     }
@@ -1081,13 +1124,13 @@ public:
 
     void EnqueueJobMonitoringAlertUpdate()
     {
-        BIND([&] {
+        BIND([this] {
             auto alert = TError();
             if (JobMonitoringIndexManager_.GetResidualCapacity() == 0) {
                 alert = TError(
                     "Limit of monitored user jobs per controller agent reached, "
                     "some jobs may be not monitored")
-                    << TErrorAttribute(
+                    .With(
                         "limit_per_controller_agent",
                         Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent);
             }
@@ -1101,13 +1144,13 @@ public:
 
     void EnqueueGangJobMonitoringAlertUpdate()
     {
-        BIND([&] {
+        BIND([this] {
             auto alert = TError();
             if (GangJobMonitoringDescriptorManager_.GetResidualCapacity() == 0) {
                 alert = TError(
                     "Limit of monitored user gangs jobs per controller agent reached, "
                     "some jobs may be not monitored")
-                    << TErrorAttribute(
+                    .With(
                         "limit_per_controller_agent",
                         Config_->UserJobMonitoring->MaxMonitoredGangsJobsPerAgent);
             }
@@ -1191,6 +1234,7 @@ private:
     const IThreadPoolPtr ChunkScraperHeavyThreadPool_;
     const IThreadPoolPtr JobSpecBuildPool_;
     const IThreadPoolPtr StatisticsOffloadPool_;
+    const IThreadPoolPtr PushBasedShuffleThreadPool_;
     const TActionQueuePtr ExecNodesUpdateQueue_;
     const TActionQueuePtr SnapshotIOQueue_;
     const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
@@ -1202,12 +1246,14 @@ private:
     const TOperationEventReporterPtr OperationEventsReporter_;
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     const TJobTrackerPtr JobTracker_;
+    const TPushBasedShuffleRegistryPtr PushBasedShuffleRegistry_;
+    const IDistributedChunkSessionSealMonitorPtr PushBasedShuffleSealMonitor_;
 
     bool Connected_ = false;
     bool ConnectScheduled_ = false;
     std::atomic<TInstant> ConnectionTime_ = TInstant::Zero();
     TIncarnationId IncarnationId_;
-    TString SchedulerVersion_;
+    std::string SchedulerVersion_;
 
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableControlInvoker_;
@@ -1215,7 +1261,7 @@ private:
 
     TOperationIdToOperationMap IdToOperation_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ExecNodeDescriptorsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ExecNodeDescriptorsLock_);
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
     struct TFilteredExecNodeDescriptors
@@ -1262,7 +1308,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ClusterToNetworkBandwidthAvailabilityLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ClusterToNetworkBandwidthAvailabilityLock_);
     std::shared_ptr<const THashMap<TClusterName, bool>> ClusterToNetworkBandwidthAvailability_;
     std::map<TClusterName, TCallbackList<void()>> ClusterToNetworkBandwidthAvailabilityCallbackLists_;
 
@@ -1286,6 +1332,23 @@ private:
             immediate ? TDuration::Zero() : Config_->SchedulerHandshakeFailureBackoff);
     }
 
+    template <class TCallback>
+    bool RunGuarded(const TCallback& callback)
+    {
+        try {
+            callback();
+            return true;
+        } catch (const std::exception& ex) {
+            YT_TLOG_WARNING("Error connecting to scheduler")
+                .With(ex);
+
+            SchedulerDisconnected_.Fire();
+            DoCleanup();
+            ScheduleConnect(false);
+            return false;
+        }
+    }
+
     void DoConnect()
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -1293,24 +1356,18 @@ private:
         YT_VERIFY(ConnectScheduled_);
         ConnectScheduled_ = false;
 
-        try {
-            OnConnecting();
-            SyncClusterDirectory();
-            SyncMediumDirectory();
-            SyncMasterCellDirectory();
-            UpdateConfig();
-            PerformHandshake();
-            OnConnected();
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error connecting to scheduler");
-
-            SchedulerDisconnected_.Fire();
-            DoCleanup();
-            ScheduleConnect(false);
+        auto connected = RunGuarded([&] {
+            StartConnecting();
+        });
+        if (connected) {
+            // Run the rest of the connection sequence on the cancelable control
+            // invoker so that a disconnect aborts it.
+            CancelableControlInvoker_->Invoke(
+                BIND(&TImpl::DoConnectCancelable, MakeStrong(this)));
         }
     }
 
-    void OnConnecting()
+    void StartConnecting()
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -1318,7 +1375,7 @@ private:
         // fiber cancelation.
         DoCleanup();
 
-        YT_LOG_INFO("Connecting to scheduler");
+        YT_TLOG_INFO("Connecting to scheduler");
 
         YT_VERIFY(!CancelableContext_);
         CancelableContext_ = New<TCancelableContext>();
@@ -1327,20 +1384,29 @@ private:
         {
             auto error = WaitFor(JobTracker_->Initialize());
 
-            YT_LOG_FATAL_IF(
-                !error.IsOK(),
-                error,
-                "Unexpected failure in job tracker initialization");
+            YT_TLOG_FATAL_IF(!error.IsOK(), "Unexpected failure in job tracker initialization")
+                .With(error);
         }
+    }
 
-        SwitchTo(CancelableControlInvoker_);
+    void DoConnectCancelable()
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        SchedulerConnecting_.Fire();
+        RunGuarded([&] {
+            SchedulerConnecting_.Fire();
+            SyncClusterDirectory();
+            SyncMediumDirectory();
+            SyncMasterCellDirectory();
+            UpdateConfig();
+            PerformHandshake();
+            OnConnected();
+        });
     }
 
     void SyncClusterDirectory()
     {
-        YT_LOG_INFO("Synchronizing cluster directory");
+        YT_TLOG_INFO("Synchronizing cluster directory");
 
         WaitFor(Bootstrap_
             ->GetClient()
@@ -1349,12 +1415,12 @@ private:
             ->Sync(/*force*/ true))
             .ThrowOnError();
 
-        YT_LOG_INFO("Cluster directory synchronized");
+        YT_TLOG_INFO("Cluster directory synchronized");
     }
 
     void SyncMediumDirectory()
     {
-        YT_LOG_INFO("Requesting medium directory");
+        YT_TLOG_INFO("Requesting medium directory");
 
         WaitFor(Bootstrap_
             ->GetClient()
@@ -1363,12 +1429,12 @@ private:
             ->NextSync(/*force*/ true))
             .ThrowOnError();
 
-        YT_LOG_INFO("Medium directory received");
+        YT_TLOG_INFO("Medium directory received");
     }
 
     void SyncMasterCellDirectory()
     {
-        YT_LOG_INFO("Syncing master cell directory");
+        YT_TLOG_INFO("Syncing master cell directory");
 
         WaitForFast(Bootstrap_
             ->GetClient()
@@ -1377,22 +1443,22 @@ private:
             ->NextSync(/*force*/ true))
             .ThrowOnError();
 
-        YT_LOG_INFO("Master cell directory synced");
+        YT_TLOG_INFO("Master cell directory synced");
     }
 
     void UpdateConfig()
     {
-        YT_LOG_INFO("Updating config");
+        YT_TLOG_INFO("Updating config");
 
         WaitFor(MasterConnector_->UpdateConfig())
             .ThrowOnError();
 
-        YT_LOG_INFO("Config updated");
+        YT_TLOG_INFO("Config updated");
     }
 
     void PerformHandshake()
     {
-        YT_LOG_INFO("Sending handshake");
+        YT_TLOG_INFO("Sending handshake");
 
         auto req = SchedulerProxy_.Handshake();
         req->SetTimeout(Config_->SchedulerHandshakeRpcTimeout);
@@ -1405,12 +1471,13 @@ private:
             .ValueOrThrow();
 
         if (auto maybeDelay = Config_->TestingOptions->DelayInHandshake) {
-            YT_LOG_DEBUG("Sleeping before performing handshake (Delay: %v)", *maybeDelay);
+            YT_TLOG_DEBUG("Sleeping before performing handshake")
+                .With("Delay", *maybeDelay);
 
             TDelayedExecutor::WaitForDuration(*maybeDelay);
         }
 
-        YT_LOG_DEBUG("Handshake succeeded");
+        YT_TLOG_DEBUG("Handshake succeeded");
 
         IncarnationId_ = FromProto<TIncarnationId>(rsp->incarnation_id());
         SchedulerVersion_ = rsp->scheduler_version();
@@ -1421,47 +1488,46 @@ private:
         Connected_ = true;
         ConnectionTime_.store(TInstant::Now());
 
-        YT_LOG_INFO(
-            "Controller agent connected (IncarnationId: %v)",
-            IncarnationId_);
+        YT_TLOG_INFO("Controller agent connected")
+            .With("IncarnationId", IncarnationId_);
 
         OperationEventsOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>(
-            ControllerAgentLogger().WithTag(
-                "Kind: AgentToSchedulerOperations, IncarnationId: %v",
-                IncarnationId_),
+            ControllerAgentLogger()
+                .WithTag("Kind", "AgentToSchedulerOperations")
+                .WithTag("IncarnationId", IncarnationId_),
             ControllerAgentProfiler().WithTag("queue", "operation_events"),
             CancelableControlInvoker_);
         ScheduleAllocationResponsesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerScheduleAllocationResponse>>(
-            ControllerAgentLogger().WithTag(
-                "Kind: AgentToSchedulerScheduleAllocationResponses, IncarnationId: %v",
-                IncarnationId_),
+            ControllerAgentLogger()
+                .WithTag("Kind", "AgentToSchedulerScheduleAllocationResponses")
+                .WithTag("IncarnationId", IncarnationId_),
             ControllerAgentProfiler().WithTag("queue", "schedule_job_responses"),
             Bootstrap_->GetControlInvoker(),
             /*supportTracing*/ true);
 
         RunningAllocationStatisticsUpdatesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerRunningAllocationStatistics>>(
-            ControllerAgentLogger().WithTag(
-                "Kind: AgentToSchedulerRunningAllocationStatistics, IncarnationId: %v",
-                IncarnationId_),
+            ControllerAgentLogger()
+                .WithTag("Kind", "AgentToSchedulerRunningAllocationStatistics")
+                .WithTag("IncarnationId", IncarnationId_),
             ControllerAgentProfiler().WithTag("queue", "running_allocation_statistics"),
             Bootstrap_->GetControlInvoker());
 
         AllocationEventsInbox_ = std::make_shared<TMessageQueueInbox>(
-            ControllerAgentLogger().WithTag(
-                "Kind: SchedulerToAgentAllocationEvents, IncarnationId: %v",
-                IncarnationId_),
+            ControllerAgentLogger()
+                .WithTag("Kind", "SchedulerToAgentAllocationEvents")
+                .WithTag("IncarnationId", IncarnationId_),
             ControllerAgentProfiler().WithTag("queue", "job_events"),
             JobEventsInvoker_);
         OperationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
-            ControllerAgentLogger().WithTag(
-                "Kind: SchedulerToAgentOperations, IncarnationId: %v",
-                IncarnationId_),
+            ControllerAgentLogger()
+                .WithTag("Kind", "SchedulerToAgentOperations")
+                .WithTag("IncarnationId", IncarnationId_),
             ControllerAgentProfiler().WithTag("queue", "operation_events"),
             CancelableControlInvoker_);
         ScheduleAllocationRequestsInbox_ = std::make_unique<TMessageQueueInbox>(
-            ControllerAgentLogger().WithTag(
-                "Kind: SchedulerToAgentScheduleAllocationRequests, IncarnationId: %v",
-                IncarnationId_),
+            ControllerAgentLogger()
+                .WithTag("Kind", "SchedulerToAgentScheduleAllocationRequests")
+                .WithTag("IncarnationId", IncarnationId_),
             ControllerAgentProfiler().WithTag("queue", "schedule_job_requests"),
             Bootstrap_->GetControlInvoker());
 
@@ -1486,6 +1552,7 @@ private:
 
         // TODO(pogorelov): Do not call it directly, subscribe on signal when job tracker becomes stable.
         JobTracker_->OnSchedulerConnected(IncarnationId_);
+        PushBasedShuffleRegistry_->OnSchedulerConnected(IncarnationId_);
 
         SchedulerConnected_.Fire(IncarnationId_);
     }
@@ -1501,11 +1568,12 @@ private:
         GangJobMonitoringDescriptorManager_.RemoveAllOperations();
 
         if (Connected_) {
-            YT_LOG_WARNING(error, "Disconnecting scheduler");
+            YT_TLOG_WARNING("Disconnecting scheduler")
+                .With(error);
 
             SchedulerDisconnected_.Fire();
 
-            YT_LOG_WARNING("Scheduler disconnected");
+            YT_TLOG_WARNING("Scheduler disconnected");
         }
 
         DoCleanup();
@@ -1528,18 +1596,24 @@ private:
         IdToOperation_.clear();
 
         if (CancelableContext_) {
-            CancelableContext_->Cancel(TError("Scheduler disconnected"));
+            CancelableContext_->Cancel(TError(NYT::EErrorCode::Canceled, "Scheduler disconnected"));
             CancelableContext_.Reset();
         }
         CancelableControlInvoker_.Reset();
 
         JobTracker_->Cleanup();
+        PushBasedShuffleRegistry_->Cleanup();
 
         ExecNodeDescriptorsByTagsCache_->Clear();
 
         if (HeartbeatExecutor_) {
             YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());
             HeartbeatExecutor_.Reset();
+        }
+
+        if (ScheduleAllocationHeartbeatExecutor_) {
+            YT_UNUSED_FUTURE(ScheduleAllocationHeartbeatExecutor_->Stop());
+            ScheduleAllocationHeartbeatExecutor_.Reset();
         }
 
         MemoryWatchdog_.Reset();
@@ -1675,17 +1749,25 @@ private:
             .AsyncVia(JobEventsInvoker_)
             .Run());
 
-        YT_LOG_FATAL_IF(!error.IsOK(), error, "Failed to report job event inbox status");
+        YT_TLOG_FATAL_IF(!error.IsOK(), "Failed to report job event inbox status")
+            .With(error);
 
         OperationEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_operation_events());
         ScheduleAllocationRequestsInbox_->ReportStatus(request->mutable_scheduler_to_agent_schedule_allocation_requests());
 
         auto now = TInstant::Now();
-        preparedRequest.ExecNodesRequested = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
-        preparedRequest.OperationsSent = LastOperationsSendTime_ + Config_->OperationsPushPeriod < now;
-        preparedRequest.OperationJobMetricsSent = LastOperationJobMetricsSendTime_ + Config_->OperationJobMetricsPushPeriod < now;
-        preparedRequest.OperationAlertsSent = LastOperationAlertsSendTime_ + Config_->OperationAlertsPushPeriod < now;
-        preparedRequest.SuspiciousJobsSent = LastSuspiciousJobsSendTime_ + Config_->SuspiciousJobsPushPeriod < now;
+        auto isDue = [&] (TInstant lastTime, TDuration period) {
+            return lastTime + period < now;
+        };
+
+        preparedRequest.ExecNodesRequested = isDue(LastExecNodesUpdateTime_, Config_->ExecNodesUpdatePeriod);
+        preparedRequest.OperationsSent = isDue(LastOperationsSendTime_, Config_->OperationsPushPeriod);
+        preparedRequest.OperationJobMetricsSent = preparedRequest.OperationsSent &&
+            isDue(LastOperationJobMetricsSendTime_, Config_->OperationJobMetricsPushPeriod);
+        preparedRequest.OperationAlertsSent = preparedRequest.OperationsSent &&
+            isDue(LastOperationAlertsSendTime_, Config_->OperationAlertsPushPeriod);
+        preparedRequest.SuspiciousJobsSent = preparedRequest.OperationsSent &&
+            isDue(LastSuspiciousJobsSendTime_, Config_->SuspiciousJobsPushPeriod);
 
         for (const auto& [operationId, operation] : GetOperations()) {
             bool flushJobMetrics = flushJobMetricsOperationIds.contains(operationId);
@@ -1698,7 +1780,7 @@ private:
             auto* protoOperation = request->add_operations();
             ToProto(protoOperation->mutable_operation_id(), operationId);
 
-            // We must to sent job metrics for finished operations.
+            // We must send job metrics for finished operations.
             if (preparedRequest.OperationJobMetricsSent || flushJobMetrics) {
                 auto jobMetricsDelta = controller->PullJobMetricsDelta(/*force*/ flushJobMetrics);
                 ToProto(protoOperation->mutable_job_metrics(), jobMetricsDelta);
@@ -1806,19 +1888,19 @@ private:
 
         auto preparedRequest = PrepareHeartbeatRequest();
 
-        YT_LOG_DEBUG(
-            "Sending heartbeat (ExecNodesRequested: %v, OperationsSent: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v, "
-            "OperationEventCount: %v)",
-            preparedRequest.ExecNodesRequested,
-            preparedRequest.OperationsSent,
-            preparedRequest.OperationAlertsSent,
-            preparedRequest.SuspiciousJobsSent,
-            preparedRequest.RpcRequest->agent_to_scheduler_operation_events().items_size());
+        YT_TLOG_DEBUG("Sending heartbeat")
+            .With("ExecNodesRequested", preparedRequest.ExecNodesRequested)
+            .With("OperationsSent", preparedRequest.OperationsSent)
+            .With("OperationJobMetricsSent", preparedRequest.OperationJobMetricsSent)
+            .With("OperationAlertsSent", preparedRequest.OperationAlertsSent)
+            .With("SuspiciousJobsSent", preparedRequest.SuspiciousJobsSent)
+            .With("OperationEventCount", preparedRequest.RpcRequest->agent_to_scheduler_operation_events().items_size());
 
         auto rspOrError = WaitFor(preparedRequest.RpcRequest->Invoke());
         if (!rspOrError.IsOK()) {
             if (NRpc::IsRetriableError(rspOrError)) {
-                YT_LOG_WARNING(rspOrError, "Error reporting heartbeat to scheduler");
+                YT_TLOG_WARNING("Error reporting heartbeat to scheduler")
+                    .With(rspOrError);
                 TDelayedExecutor::WaitForDuration(Config_->SchedulerHeartbeatFailureBackoff);
             } else {
                 Disconnect(rspOrError);
@@ -1826,7 +1908,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Heartbeat succeeded");
+        YT_TLOG_DEBUG("Heartbeat succeeded");
 
         const auto& rsp = rspOrError.Value();
 
@@ -1916,28 +1998,25 @@ private:
 
                 TCurrentTraceContextGuard traceContextGuard(traceContext);
 
-                YT_LOG_DEBUG(
-                    "Processing schedule allocation request (OperationId: %v, AllocationId: %v)",
-                    operationId,
-                    allocationId);
+                YT_TLOG_DEBUG("Processing schedule allocation request")
+                    .With("OperationId", operationId)
+                    .With("AllocationId", allocationId);
 
                 auto operation = this->FindOperation(operationId);
                 if (!operation) {
                     replyWithFailure(operationId, allocationId, EScheduleFailReason::UnknownOperation);
-                    YT_LOG_DEBUG(
-                        "Failed to schedule allocation due to unknown operation (OperationId: %v, AllocationId: %v)",
-                        operationId,
-                        allocationId);
+                    YT_TLOG_DEBUG("Failed to schedule allocation due to unknown operation")
+                        .With("OperationId", operationId)
+                        .With("AllocationId", allocationId);
                     return;
                 }
 
                 auto controller = operation->GetController();
 
                 if (controller->ShouldSkipScheduleAllocationRequest()) {
-                    YT_LOG_DEBUG(
-                        "Schedule allocation request skipped since controller is throttling (OperationId: %v, AllocationId: %v)",
-                        operationId,
-                        allocationId);
+                    YT_TLOG_DEBUG("Schedule allocation request skipped since controller is throttling")
+                        .With("OperationId", operationId)
+                        .With("AllocationId", allocationId);
                     ThrottledScheduleAllocationRequestCount_.Increment();
                     replyWithFailureAndRecordInController(
                         operationId,
@@ -1950,24 +2029,21 @@ private:
                 auto scheduleAllocationInvoker = controller->GetCancelableInvoker(Config_->ScheduleAllocationControllerQueue);
                 auto requestDequeueInstant = TInstant::Now();
 
-                GuardedInvoke(
-                    scheduleAllocationInvoker,
+                scheduleAllocationInvoker->Invoke(MakeGuardedCallback(
                     BIND([=, rsp = rsp, this, this_ = MakeStrong(this)] {
                         TTraceContextFinishGuard guard(TryGetCurrentTraceContext());
 
                         auto controllerInvocationInstant = TInstant::Now();
 
-                        YT_LOG_DEBUG(
-                            "Processing schedule allocation in controller invoker (OperationId: %v, AllocationId: %v, InvocationWaitDuration: %v)",
-                            operationId,
-                            allocationId,
-                            controllerInvocationInstant - requestDequeueInstant);
+                        YT_TLOG_DEBUG("Processing schedule allocation in controller invoker")
+                            .With("OperationId", operationId)
+                            .With("AllocationId", allocationId)
+                            .With("InvocationWaitDuration", controllerInvocationInstant - requestDequeueInstant);
 
                         if (controller->ShouldSkipScheduleAllocationRequest()) {
-                            YT_LOG_DEBUG(
-                                "Schedule allocation request skipped since controller is throttling (OperationId: %v, AllocationId: %v)",
-                                operationId,
-                                allocationId);
+                            YT_TLOG_DEBUG("Schedule allocation request skipped since controller is throttling")
+                                .With("OperationId", operationId)
+                                .With("AllocationId", allocationId);
                             ThrottledScheduleAllocationRequestCount_.Increment();
                             replyWithFailureAndRecordInController(
                                 operationId,
@@ -1980,11 +2056,10 @@ private:
                         auto nodeId = NodeIdFromAllocationId(allocationId);
                         auto descriptorIt = execNodeDescriptors->find(nodeId);
                         if (descriptorIt == execNodeDescriptors->end()) {
-                            YT_LOG_DEBUG(
-                                "Failed to schedule allocation due to unknown node (OperationId: %v, AllocationId: %v, NodeId: %v)",
-                                operationId,
-                                allocationId,
-                                nodeId);
+                            YT_TLOG_DEBUG("Failed to schedule allocation due to unknown node")
+                                .With("OperationId", operationId)
+                                .With("AllocationId", allocationId)
+                                .With("NodeId", nodeId);
                             replyWithFailureAndRecordInController(
                                 operationId,
                                 allocationId,
@@ -2002,7 +2077,8 @@ private:
                             FromProto<NScheduler::TDiskResources>(protoRequest->node_disk_resources()),
                             descriptorIt->second,
                             YT_OPTIONAL_FROM_PROTO(*protoRequest, pool_path),
-                            protoRequest->spec());
+                            protoRequest->spec(),
+                            YT_OPTIONAL_FROM_PROTO(*protoRequest, allocation_group_name));
 
                         response.OperationId = operationId;
                         response.AllocationId = allocationId;
@@ -2010,34 +2086,31 @@ private:
                             context,
                             treeId);
                         auto scheduleAllocationFinishInstant = TInstant::Now();
-                        YT_LOG_DEBUG(
-                            "Schedule allocation finished (OperationId: %v, AllocationId: %v, ScheduleAllocationDuration: %v)",
-                            operationId,
-                            allocationId,
-                            scheduleAllocationFinishInstant - controllerInvocationInstant);
+                        YT_TLOG_DEBUG("Schedule allocation finished")
+                            .With("OperationId", operationId)
+                            .With("AllocationId", allocationId)
+                            .With("ScheduleAllocationDuration", scheduleAllocationFinishInstant - controllerInvocationInstant);
 
                         if (!response.Result) {
                             response.Result = New<TControllerScheduleAllocationResult>();
                         }
 
                         outbox->Enqueue(std::move(response));
-                        YT_LOG_DEBUG(
-                            "Allocation schedule response enqueued (OperationId: %v, AllocationId: %v)",
-                            operationId,
-                            allocationId);
+                        YT_TLOG_DEBUG("Allocation schedule response enqueued")
+                            .With("OperationId", operationId)
+                            .With("AllocationId", allocationId);
                     }),
                     BIND([=, this_ = MakeStrong(this)] {
                         TTraceContextFinishGuard guard(TryGetCurrentTraceContext());
 
-                        YT_LOG_DEBUG(
-                            "Failed to schedule allocation due to operation cancelation (OperationId: %v, AllocationId: %v)",
-                            operationId,
-                            allocationId);
+                        YT_TLOG_DEBUG("Failed to schedule allocation due to operation cancelation")
+                            .With("OperationId", operationId)
+                            .With("AllocationId", allocationId);
                         replyWithFailure(
                             operationId,
                             allocationId,
                             EScheduleFailReason::UnknownOperation);
-                    }));
+                    })));
             });
     }
 
@@ -2056,14 +2129,14 @@ private:
 
         ScheduleAllocationRequestsInbox_->ReportStatus(req->mutable_scheduler_to_agent_schedule_allocation_requests());
 
-        YT_LOG_DEBUG(
-            "Sending schedule jobs heartbeat (ScheduleAllocationResponseCount: %v)",
-            req->agent_to_scheduler_schedule_allocation_responses().items_size());
+        YT_TLOG_DEBUG("Sending schedule jobs heartbeat")
+            .With("ScheduleAllocationResponseCount", req->agent_to_scheduler_schedule_allocation_responses().items_size());
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
             if (NRpc::IsRetriableError(rspOrError)) {
-                YT_LOG_WARNING(rspOrError, "Error reporting heartbeat to scheduler");
+                YT_TLOG_WARNING("Error reporting heartbeat to scheduler")
+                    .With(rspOrError);
                 TDelayedExecutor::WaitForDuration(Config_->SchedulerHeartbeatFailureBackoff);
             } else {
                 Disconnect(rspOrError);
@@ -2071,7 +2144,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Schedule jobs heartbeat succeeded");
+        YT_TLOG_DEBUG("Schedule jobs heartbeat succeeded");
 
         const auto& rsp = rspOrError.Value();
 
@@ -2092,20 +2165,17 @@ private:
                 };
                 THashMap<TOperationId, TOperationAllocationEvents> allocationEventsPerOperationId;
 
-                auto handleAllocationEvent = [&] (auto&& allocationEvent) {
-                    auto& operationAllocationEvents = allocationEventsPerOperationId[allocationEvent.OperationId];
-
-                    auto& storage = TOverloaded{
-                        [&] (const TFinishedAllocationSummary&) -> auto& {
-                            return operationAllocationEvents.FinishedAllocations;
-                        },
-                        [&] (const TAbortedAllocationSummary&) -> auto& {
-                            return operationAllocationEvents.AbortedAllocations;
-                        },
-                    }(allocationEvent);
-
-                    storage.push_back(std::move(allocationEvent));
+                auto getOperationAllocationEvents = [&] (const auto& event) -> auto& {
+                    return allocationEventsPerOperationId[event.OperationId];
                 };
+
+                auto handleAllocationEvent = TOverloaded(
+                    [&] (TFinishedAllocationSummary&& event) {
+                        getOperationAllocationEvents(event).FinishedAllocations.push_back(std::move(event));
+                    },
+                    [&] (TAbortedAllocationSummary&& event) {
+                        getOperationAllocationEvents(event).AbortedAllocations.push_back(std::move(event));
+                    });
 
                 AllocationEventsInbox_->HandleIncoming<TSchedulerToAgentAllocationEvent>(
                     rsp->mutable_scheduler_to_agent_allocation_events(),
@@ -2114,27 +2184,23 @@ private:
                             handleAllocationEvent,
                             std::move(allocationEvent.EventSummary));
                     });
-
                 return allocationEventsPerOperationId;
             })
             .AsyncVia(JobEventsInvoker_)
             .Run());
 
-        YT_LOG_FATAL_UNLESS(
-            allocationEventsPerOperationIdOrError.IsOK(),
-            allocationEventsPerOperationIdOrError,
-            "Failed to parse scheduler message");
+        YT_TLOG_FATAL_UNLESS(allocationEventsPerOperationIdOrError.IsOK(), "Failed to parse scheduler message")
+            .With(allocationEventsPerOperationIdOrError);
 
         auto allocationEventsPerOperationId = std::move(allocationEventsPerOperationIdOrError.Value());
 
         for (auto& [operationId, allocationEvents] : allocationEventsPerOperationId) {
             auto operation = this->FindOperation(operationId);
             if (!operation) {
-                YT_LOG_DEBUG(
-                    "Skip allocation events since operation is not running (OperationId: %v, FinishedAllocationCount: %v, AbortedAllocationCount: %v)",
-                    operationId,
-                    std::size(allocationEvents.FinishedAllocations),
-                    std::size(allocationEvents.AbortedAllocations));
+                YT_TLOG_DEBUG("Skip allocation events since operation is not running")
+                    .With("OperationId", operationId)
+                    .With("FinishedAllocationCount", std::size(allocationEvents.FinishedAllocations))
+                    .With("AbortedAllocationCount", std::size(allocationEvents.AbortedAllocations));
                 continue;
             }
 
@@ -2185,9 +2251,8 @@ private:
 
         auto operation = this->FindOperation(operationId);
         if (!operation) {
-            YT_LOG_DEBUG(
-                "Requested to update grouped needed resources of an unknown operation; ignored (OperationId: %v)",
-                operationId);
+            YT_TLOG_DEBUG("Requested to update grouped needed resources of an unknown operation; ignored")
+                .With("OperationId", operationId);
             return;
         }
 
@@ -2204,9 +2269,8 @@ private:
 
         auto operation = FindOperation(operationId);
         if (!operation) {
-            YT_LOG_DEBUG(
-                "Requested to unregister an unknown operation; ignored (OperationId: %v)",
-                operationId);
+            YT_TLOG_DEBUG("Requested to unregister an unknown operation; ignored")
+                .With("OperationId", operationId);
             return;
         }
         UnregisterOperation(operation->GetId());
@@ -2218,9 +2282,8 @@ private:
 
         auto operation = FindOperation(operationId);
         if (!operation) {
-            YT_LOG_FATAL(
-                "Requested to suspend an unknown operation; ignored (OperationId: %v)",
-                operationId);
+            YT_TLOG_FATAL("Requested to suspend an unknown operation; ignored")
+                .With("OperationId", operationId);
             return;
         }
 
@@ -2234,9 +2297,8 @@ private:
 
         auto operation = FindOperation(operationId);
         if (!operation) {
-            YT_LOG_FATAL(
-                "Requested to resume an unknown operation; ignored (OperationId: %v)",
-                operationId);
+            YT_TLOG_FATAL("Requested to resume an unknown operation; ignored")
+                .With("OperationId", operationId);
             return;
         }
 
@@ -2271,12 +2333,11 @@ private:
 
                 result.MaxAvailableResources = maxAvailableResources;
 
-                YT_LOG_DEBUG("Exec nodes filtered "
-                    "(Formula: %v, MatchingNodeCount: %v, MatchingAvailableNodeCount: %v, MaxAvailableResources: %v)",
-                    filter.GetBooleanFormula().GetFormula(),
-                    result.All->size(),
-                    result.Available->size(),
-                    result.MaxAvailableResources);
+                YT_TLOG_DEBUG("Exec nodes filtered")
+                    .With("Formula", filter.GetBooleanFormula().GetFormula())
+                    .With("MatchingNodeCount", result.All->size())
+                    .With("MatchingAvailableNodeCount", result.Available->size())
+                    .With("MaxAvailableResources", result.MaxAvailableResources);
 
                 return result;
             });
@@ -2286,7 +2347,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG("Building static orchid");
+        YT_TLOG_DEBUG("Building static orchid");
 
         BuildYsonFluently(consumer)
             .BeginMap()
@@ -2349,19 +2410,19 @@ private:
                     })
             .EndMap();
 
-        YT_LOG_DEBUG("Static orchid built");
+        YT_TLOG_DEBUG("Static orchid built");
     }
 
     IYPathServicePtr GetDynamicOrchidService()
     {
-        auto dynamicOrchidService = New<TCompositeMapService>();
+        auto dynamicOrchidService = CreateCompositeMapService();
         dynamicOrchidService->AddChild("operations", New<TOperationsService>(this));
         return dynamicOrchidService;
     }
 
     IYPathServicePtr GetJobTrackerOrchidService()
     {
-        auto service = New<TCompositeMapService>();
+        auto service = CreateCompositeMapService();
         service->AddChild("job_tracker", JobTracker_->GetOrchidService());
         return service;
     }
@@ -2464,6 +2525,11 @@ const IInvokerPtr& TControllerAgent::GetStatisticsOffloadInvoker()
     return Impl_->GetStatisticsOffloadInvoker();
 }
 
+const IInvokerPtr& TControllerAgent::GetPushBasedShuffleInvoker()
+{
+    return Impl_->GetPushBasedShuffleInvoker();
+}
+
 const IInvokerPtr& TControllerAgent::GetExecNodesUpdateInvoker()
 {
     return Impl_->GetExecNodesUpdateInvoker();
@@ -2482,6 +2548,16 @@ TMasterConnector* TControllerAgent::GetMasterConnector()
 TJobTracker* TControllerAgent::GetJobTracker() const
 {
     return Impl_->GetJobTracker();
+}
+
+const TPushBasedShuffleRegistryPtr& TControllerAgent::GetPushBasedShuffleRegistry() const
+{
+    return Impl_->GetPushBasedShuffleRegistry();
+}
+
+const IDistributedChunkSessionSealMonitorPtr& TControllerAgent::GetPushBasedShuffleSealMonitor() const
+{
+    return Impl_->GetPushBasedShuffleSealMonitor();
 }
 
 bool TControllerAgent::IsConnected() const

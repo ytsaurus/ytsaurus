@@ -87,8 +87,10 @@ void TApiTestBase::SetUpTestCase()
         config->GetChildOrThrow("writers")->AsMap()->AddChild("stderr", ConvertToNode(stderrConfig));
 
         auto ruleConfig = New<NLogging::TRuleConfig>();
-        ruleConfig->IncludeCategories = {"CppTests"};
         ruleConfig->Writers = {"stderr"};
+        // NB: the only reason to use min_level=debug is to suppress useless
+        // "Concurrency" and "Bus" categories in stderr.
+        ruleConfig->MinLevel = NLogging::ELogLevel::Debug;
         config
             ->GetChildOrThrow("rules")
             ->AsList()
@@ -99,20 +101,21 @@ void TApiTestBase::SetUpTestCase()
 
     {
         const auto* testSuite = ::testing::UnitTest::GetInstance()->current_test_suite();
-        YT_LOG_INFO("Set Up Test (SuiteName: %v)",
-            testSuite->name());
+        YT_TLOG_INFO("Testcase setup")
+            .With("SuiteName", testSuite->name());
     }
 
     Client_ = CreateClient(NRpc::RootUserName);
-    ClusterName_ = ConvertTo<std::string>(WaitFor(Client_->GetNode("//sys/@cluster_name")).ValueOrThrow());
+    ClusterName_ = ConvertTo<std::string>(WaitFor(Client_->GetNode("//sys/@cluster_name"))
+        .ValueOrThrow());
 }
 
 void TApiTestBase::TearDownTestCase()
 {
     {
         const auto* testSuite = ::testing::UnitTest::GetInstance()->current_test_suite();
-        YT_LOG_INFO("Tear Down Test (SuiteName: %v)",
-            testSuite->name());
+        YT_TLOG_INFO("Testcase teardown")
+            .With("SuiteName", testSuite->name());
     }
 
     AbortCypressTransactions();
@@ -179,7 +182,7 @@ void TApiTestBase::WaitUntilEqual(const TYPath& path, TStringBuf expected)
 
 void TApiTestBase::AbortCypressTransactions()
 {
-    YT_LOG_DEBUG("Aborting Cypress transactions");
+    YT_TLOG_DEBUG("Aborting Cypress transactions");
 
     auto transactions = ConvertToNode(WaitFor(Client_->ListNode("//sys/transactions", NApi::TListNodeOptions{
         .Attributes = {"cypress_transaction"},
@@ -209,18 +212,17 @@ void TApiTestBase::AbortCypressTransactions()
         auto transactionId = transactions->FindChild(transactionIndex)->GetValue<std::string>();
 
         if (value->IsOK()) {
-            YT_LOG_DEBUG(
-                "Cypress transaction aborted (TransactionId: %v)",
-                transactionId);
+            YT_TLOG_DEBUG("Cypress transaction aborted")
+                .With("TransactionId", transactionId);
         } else {
-            YT_LOG_DEBUG(
-                "Failed to abort Cypress transaction (TransactionId: %v, Error: %v)",
-                transactionId,
-                value->GetMessage());
+            YT_TLOG_DEBUG("Failed to abort Cypress transaction")
+                .With("TransactionId", transactionId)
+                .With("Error", value->GetMessage());
         }
     }
 
-    YT_LOG_DEBUG("All Cypress transactions aborted (TransactionCount: %v)", abortFutures.size());
+    YT_TLOG_DEBUG("All Cypress transactions aborted")
+        .With("TransactionCount", abortFutures.size());
 }
 
 NApi::IConnectionPtr TApiTestBase::Connection_;
@@ -265,14 +267,14 @@ void TDynamicTablesTestBase::SetUpTestCase()
 }
 
 void TDynamicTablesTestBase::CreateTable(
-    const TString& tablePath,
-    const TString& schema,
+    const NYPath::TYPath& tablePath,
+    const NYson::TYsonString& schema,
     bool mount)
 {
     Table_ = tablePath;
     ASSERT_TRUE(tablePath.StartsWith("//tmp"));
 
-    auto attributes = TYsonString("{dynamic=%true;schema=" + schema + "}");
+    auto attributes = TYsonString(std::string("{dynamic=%true;schema=") + std::string(schema.AsStringBuf()) + "}");
     TCreateNodeOptions options;
     options.Attributes = ConvertToAttributes(attributes);
 
@@ -302,8 +304,8 @@ void TDynamicTablesTestBase::SyncUnfreezeTable(const TYPath& path)
 {
     auto currentTabletStateYson = WaitFor(Client_->GetNode(path + "/@tablet_state"))
         .ValueOrThrow();
-    auto currentTabletState = ConvertTo<TString>(currentTabletStateYson);
-    YT_VERIFY(currentTabletState == "frozen");
+    auto currentTabletState = ConvertTo<ETabletState>(currentTabletStateYson);
+    YT_VERIFY(currentTabletState == ETabletState::Frozen);
 
     WaitFor(Client_->UnfreezeTable(path))
         .ThrowOnError();
@@ -432,9 +434,9 @@ void TDynamicTablesTestBase::RemoveSystemObjects(const TYPath& path)
     for (const auto& item : itemsList->GetChildren()) {
         const auto& name = item->AsString()->GetValue();
         if (item->Attributes().Get<bool>("builtin", false)) {
-            YT_LOG_DEBUG("Do not remove builtin object during teardown (Path: %v, Item: %v)",
-                path,
-                name);
+            YT_TLOG_DEBUG("Do not remove builtin object during teardown")
+                .With("Path", path)
+                .With("Item", name);
             continue;
         }
         asyncWait.push_back(Client_->RemoveNode(path + "/" + name));

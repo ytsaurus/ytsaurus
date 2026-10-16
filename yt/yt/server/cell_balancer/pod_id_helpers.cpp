@@ -49,7 +49,7 @@ std::optional<int> GetIndexFromPodId(
     // - bundle-123-tab-cluster-5678
     // We need to extract the |123| part as a hex number.
 
-    NRe2::RE2 re(Format(".*-([0-9a-f]{3,})-%v-%v(-[0-9a-f]{4})?", instanceType, cluster));
+    re2::RE2 re(Format(".*-([0-9a-f]{3,})-%v-%v(-[0-9a-f]{4})?", instanceType, cluster));
 
     std::string indexStr;
     if (!NRe2::TRe2::FullMatch(podId, re, &indexStr)) {

@@ -262,7 +262,7 @@ static TReaderVirtualValues InitializeVirtualColumns(
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to add virtual columns to name table for schemaless chunk reader")
-            << ex;
+            .With(ex);
     }
 
     return virtualValues;
@@ -337,12 +337,12 @@ public:
         , KeyWideningOptions_(keyWideningOptions)
         , Sampler_(CreateSampler(chunkId, Config_->SamplingRate, Config_->SamplingSeed))
         , VirtualValues_(virtualValues)
-        , Logger(TableClientLogger().WithTag("ChunkReaderId: %v, ChunkId: %v",
-            TGuid::Create(),
-            chunkId))
+        , Logger(TableClientLogger()
+            .WithTag("ChunkReaderId", TGuid::Create())
+            .WithTag("ChunkId", chunkId))
     {
         if (chunkReadOptions.ReadSessionId) {
-            Logger.AddTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId);
+            Logger.AddTag("ReadSessionId", chunkReadOptions.ReadSessionId);
         }
 
         MemoryGuard_ = TMemoryUsageTrackerGuard::Build(chunkReadOptions.MemoryUsageTracker);
@@ -740,8 +740,8 @@ protected:
 
 TFuture<void> THorizontalSchemalessChunkReaderBase::InitBlockFetcher()
 {
-    YT_LOG_DEBUG("Reading blocks (BlockCount: %v)",
-        BlockIndexes_.size());
+    YT_TLOG_DEBUG("Reading blocks")
+        .With("BlockCount", BlockIndexes_.size());
 
     std::vector<TBlockFetcher::TBlockInfo> blocks;
     blocks.reserve(BlockIndexes_.size());
@@ -822,7 +822,8 @@ public:
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-        YT_LOG_DEBUG("Initializing horizontal schemaless range chunk reader (Range: %v)", ReadRange_);
+        YT_TLOG_DEBUG("Initializing horizontal schemaless range chunk reader")
+            .With("Range", ReadRange_);
 
         // Initialize to lowest reasonable value.
         RowIndex_ = ReadRange_.LowerLimit().GetRowIndex().value_or(0);
@@ -867,8 +868,8 @@ public:
             .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
                 if (!error.IsOK()) {
                     THROW_ERROR_EXCEPTION("Failed to initialize chunk reader")
-                        << TErrorAttribute("chunk_id", UnderlyingReader_->GetChunkId())
-                        << error;
+                        .With("chunk_id", UnderlyingReader_->GetChunkId())
+                        .With(error);
                 }
 
                 if (InitFirstBlockNeeded_) {
@@ -1147,6 +1148,8 @@ public:
         std::optional<TPartitionTags> partitionTags = {},
         const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr);
 
+    void InitializeRefCounted();
+
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
 
 private:
@@ -1403,7 +1406,8 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
 {
     TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-    YT_LOG_DEBUG("Initializing horizontal schemaless lookup chunk reader (KeyCount: %v)", std::ssize(keys));
+    YT_TLOG_DEBUG("Initializing horizontal schemaless lookup chunk reader")
+        .With("KeyCount", std::ssize(keys));
 
     const auto& misc = ChunkMeta_->Misc();
     if (!misc.unique_keys()) {
@@ -1468,10 +1472,15 @@ THorizontalSchemalessKeyRangesChunkReader::THorizontalSchemalessKeyRangesChunkRe
 {
     TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-    YT_LOG_DEBUG("Initializing horizontal schemaless key ranges chunk reader (PrefixRangesKeyCount: %v)", std::ssize(keys));
+    YT_TLOG_DEBUG("Initializing horizontal schemaless key ranges chunk reader")
+        .With("PrefixRangesKeyCount", std::ssize(keys));
 
     ApplyLimits();
     ComputeBlockIndexes(PrefixRange_);
+}
+
+void THorizontalSchemalessKeyRangesChunkReader::InitializeRefCounted()
+{
     InitBlocks();
 }
 
@@ -1886,7 +1895,8 @@ public:
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-        YT_LOG_DEBUG("Initializing columnar schemaless range chunk reader (Range: %v)", readRange);
+        YT_TLOG_DEBUG("Initializing columnar schemaless range chunk reader")
+            .With("Range", readRange);
 
         LowerLimit_ = readRange.LowerLimit();
         UpperLimit_ = readRange.UpperLimit();
@@ -1914,10 +1924,10 @@ public:
         InitLowerRowIndex();
         InitUpperRowIndex();
 
-        YT_LOG_DEBUG("Initialized row index limits (LowerRowIndex: %v, SafeUpperRowIndex: %v, HardUpperRowIndex: %v)",
-            LowerRowIndex_,
-            SafeUpperRowIndex_,
-            HardUpperRowIndex_);
+        YT_TLOG_DEBUG("Initialized row index limits")
+            .With("LowerRowIndex", LowerRowIndex_)
+            .With("SafeUpperRowIndex", SafeUpperRowIndex_)
+            .With("HardUpperRowIndex", HardUpperRowIndex_);
 
         if (LowerRowIndex_ >= HardUpperRowIndex_) {
             Completed_ = true;
@@ -1931,6 +1941,10 @@ public:
 
     void InitializeRefCounted()
     {
+        if (IsSamplingCompleted()) {
+            Completed_ = true;
+        }
+
         if (Completed_) {
             return;
         }
@@ -1944,14 +1958,11 @@ public:
                     RowIndex_ = LowerRowIndex_;
                     LowerKeyLimitReached_ = !LowerLimit_.KeyBound();
 
-                    YT_LOG_DEBUG("Initialized start row index (LowerKeyLimitReached: %v, RowIndex: %v)",
-                        LowerKeyLimitReached_,
-                        RowIndex_);
+                    YT_TLOG_DEBUG("Initialized start row index")
+                        .With("LowerKeyLimitReached", LowerKeyLimitReached_)
+                        .With("RowIndex", RowIndex_);
 
                     if (RowIndex_ >= HardUpperRowIndex_) {
-                        Completed_ = true;
-                    }
-                    if (IsSamplingCompleted()) {
                         Completed_ = true;
                     }
                 })));
@@ -1959,7 +1970,8 @@ public:
 
     ~TColumnarSchemalessRangeChunkReader()
     {
-        YT_LOG_DEBUG("Columnar reader timing statistics (TimingStatistics: %v)", TTimingReaderBase::GetTimingStatistics());
+        YT_TLOG_DEBUG("Columnar reader timing statistics")
+            .With("TimingStatistics", TTimingReaderBase::GetTimingStatistics());
     }
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -2529,7 +2541,8 @@ public:
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-        YT_LOG_DEBUG("Initializing columnar schemaless lookup chunk reader (KeyCount: %v)", std::size(keys));
+        YT_TLOG_DEBUG("Initializing columnar schemaless lookup chunk reader")
+            .With("KeyCount", std::size(keys));
 
         Keys_ = keys;
 
@@ -2735,8 +2748,8 @@ struct TReaderParams
                 omittedInaccessibleColumns);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::NameTableUpdateFailed, "Failed to update name table for schemaless chunk reader")
-                << TErrorAttribute("chunk_id", chunkId)
-                << ex;
+                .With("chunk_id", chunkId)
+                .With(ex);
         }
 
         auto chunkSortColumnNames = GetColumnNames(

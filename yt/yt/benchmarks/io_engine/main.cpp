@@ -66,7 +66,7 @@ struct TTestConfig
     EIOPattern IOPattern;
     EIOBits IOBits;
 
-    TString WorkingDirectory;
+    std::string WorkingDirectory;
 
     i64 BlockSize;
     i64 FileSize;
@@ -228,7 +228,7 @@ class TStatisticsThread
 {
 public:
     TStatisticsThread(
-        TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
+        TIntrusivePtr<TEventCount> callbackEventCount,
         TMpscStack<TShot>& queue,
         ui64 printInterval,
         const IGaugePrinter* gaugePrinter,
@@ -394,7 +394,7 @@ private:
 
     std::vector<TFairShareSlotId> SlotIds_;
 
-    TIntrusivePtr<NThreading::TEventCount> ShootResultEventCount_ = New<NThreading::TEventCount>();
+    TIntrusivePtr<TEventCount> ShootResultEventCount_ = New<TEventCount>();
     TMpscStack<TShot> ShootResultQueue_;
 
     TIntrusivePtr<TStatisticsThread> ResultProcessingThread_;

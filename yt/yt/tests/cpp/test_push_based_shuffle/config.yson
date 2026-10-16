@@ -1,0 +1,15 @@
+{
+    NUM_MASTERS = 1;
+    NUM_NODES = 3;
+    NUM_SCHEDULERS = 0;
+    NUM_CONTROLLER_AGENTS = 0;
+    DRIVER_BACKEND = native;
+    NUM_RPC_PROXIES = 0;
+    DELTA_NODE_CONFIG = {
+        data_node = {
+            distributed_chunk_session_service = {
+                session_timeout = "1s";
+            };
+        };
+    };
+}

@@ -17,7 +17,7 @@ constinit const auto Logger = StrategyLogger;
 
 TResourceTreeElement::TResourceTreeElement(
     TResourceTree* resourceTree,
-    const TString& id,
+    const std::string& id,
     EResourceTreeElementKind elementKind)
     : ResourceTree_(resourceTree)
     , Id_(id)
@@ -90,6 +90,7 @@ void TResourceTreeElement::SetSpecifiedResourceLimits(
 
         if (!SpecifiedResourceLimits_ && Kind_ != EResourceTreeElementKind::Operation) {
             ResourceUsagePrecommit_ = TJobResources();
+            PreemptedResourceUsagePrecommit_ = TJobResources();
             ResourceUsage_ = TJobResources();
         }
 
@@ -128,11 +129,9 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommit(
     bool enableDetailedLogs)
 {
     if (Kind_ != EResourceTreeElementKind::Operation && !ResourceLimitsSpecified_) {
-        YT_LOG_DEBUG_IF(enableDetailedLogs,
-            "Skipping local resource usage precommmit because element has no specified resource limits "
-            "(Id: %v, Delta: %v)",
-            Id_,
-            delta);
+        YT_TLOG_DEBUG_IF(enableDetailedLogs, "Skipping local resource usage precommmit because element has no specified resource limits")
+            .With("Id", Id_)
+            .With("Delta", delta);
 
         return true;
     }
@@ -140,11 +139,9 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommit(
     auto guard = WriterGuard(ResourceUsageLock_);
 
     if (!Alive_) {
-        YT_LOG_DEBUG_IF(enableDetailedLogs,
-            "Unable to increase local resource usage precommit because element is not alive "
-            "(Id: %v, Delta: %v)",
-            Id_,
-            delta);
+        YT_TLOG_DEBUG_IF(enableDetailedLogs, "Unable to increase local resource usage precommit because element is not alive")
+            .With("Id", Id_)
+            .With("Delta", delta);
 
         return false;
     }
@@ -160,12 +157,10 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitUnsafe(
 
     ResourceUsagePrecommit_ += delta;
 
-    YT_LOG_DEBUG_IF(enableDetailedLogs,
-        "Successfully increased local resource usage precommit "
-        "(Id: %v, Delta: %v, ResourceUsagePrecommit: %v)",
-        Id_,
-        delta,
-        ResourceUsagePrecommit_);
+    YT_TLOG_DEBUG_IF(enableDetailedLogs, "Successfully increased local resource usage precommit")
+        .With("Id", Id_)
+        .With("Delta", delta)
+        .With("ResourceUsagePrecommit", ResourceUsagePrecommit_);
 
     if (Kind_ == EResourceTreeElementKind::Operation) {
         YT_VERIFY(Dominates(ResourceUsagePrecommit_, TJobResources()));
@@ -203,7 +198,7 @@ bool TResourceTreeElement::IncreaseLocalPreemptedResourceUsagePrecommitUnsafe(co
 
     PreemptedResourceUsagePrecommit_ += delta;
 
-    YT_VERIFY(Dominates(ResourceUsage_, PreemptedResourceUsagePrecommit_));
+    YT_VERIFY(Dominates(PreemptedResourceUsagePrecommit_, TJobResources()));
 
     return true;
 }
@@ -223,8 +218,6 @@ void TResourceTreeElement::ResetLocalPreemptedResourceUsagePrecommit()
     ResourceTree_->IncrementUsageLockWriteCount();
 
     PreemptedResourceUsagePrecommit_ = TJobResources();
-
-    return;
 }
 
 bool TResourceTreeElement::CommitLocalResourceUsage(
@@ -254,7 +247,9 @@ bool TResourceTreeElement::CommitLocalResourceUsage(
     return true;
 }
 
-bool TResourceTreeElement::CommitLocalPreemptedResourceUsageUnsafe(const TJobResources& delta)
+bool TResourceTreeElement::CommitLocalPreemptedResourceUsageUnsafe(
+    const TJobResources& resourceUsageDelta,
+    const TJobResources& precommittedResources)
 {
     if (!ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
         return true;
@@ -266,16 +261,15 @@ bool TResourceTreeElement::CommitLocalPreemptedResourceUsageUnsafe(const TJobRes
 
     ResourceTree_->IncrementUsageLockWriteCount();
 
-    ResourceUsage_ -= delta;
+    // NB(eshcherbin): Delta is negative and precommitted resources are positive.
+    ResourceUsage_ += resourceUsageDelta;
     if (Kind_ == EResourceTreeElementKind::Operation || ResourceLimitsSpecified_) {
-        PreemptedResourceUsagePrecommit_ -= delta;
+        PreemptedResourceUsagePrecommit_ -= precommittedResources;
     }
 
     // Sanity check.
     YT_VERIFY(Dominates(ResourceUsage_, TJobResources()));
     YT_VERIFY(Dominates(PreemptedResourceUsagePrecommit_, TJobResources()));
-
-    YT_VERIFY(Dominates(ResourceUsage_, PreemptedResourceUsagePrecommit_));
 
     return true;
 }
@@ -359,6 +353,7 @@ bool TResourceTreeElement::AreSpecifiedResourceLimitsViolatedUnsafe(bool conside
 EResourceTreeIncreaseResult TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
     const TJobResources& delta,
     bool allowLimitsOvercommit,
+    bool skipSpecifiedResourceLimitsCheck,
     TJobResources* availableResourceLimitsOutput)
 {
     YT_ASSERT(availableResourceLimitsOutput);
@@ -373,6 +368,7 @@ EResourceTreeIncreaseResult TResourceTreeElement::IncreaseLocalResourceUsagePrec
     return IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(
         delta,
         allowLimitsOvercommit,
+        skipSpecifiedResourceLimitsCheck,
         /*additionalLocalResourceLimits*/ std::nullopt,
         availableResourceLimitsOutput);
 }
@@ -380,6 +376,7 @@ EResourceTreeIncreaseResult TResourceTreeElement::IncreaseLocalResourceUsagePrec
 EResourceTreeIncreaseResult TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(
     const TJobResources& delta,
     bool allowLimitsOvercommit,
+    bool skipSpecifiedResourceLimitsCheck,
     const std::optional<TJobResources>& additionalLocalResourceLimits,
     TJobResources* availableResourceLimitsOutput)
 {
@@ -408,7 +405,7 @@ EResourceTreeIncreaseResult TResourceTreeElement::IncreaseLocalResourceUsagePrec
         return true;
     };
 
-    if (!checkLimits(SpecifiedResourceLimits_)) {
+    if (!skipSpecifiedResourceLimitsCheck && !checkLimits(SpecifiedResourceLimits_)) {
         return EResourceTreeIncreaseResult::ResourceLimitExceeded;
     }
     if (!checkLimits(additionalLocalResourceLimits)) {

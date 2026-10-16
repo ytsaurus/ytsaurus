@@ -1,27 +1,33 @@
 ## Python YSON bindings
 
 
-Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-yson/).
+Доступно в виде пакета в [PyPI](https://pypi.org/project/ytsaurus-yson/). История версий доступна на [PyPI](https://pypi.org/project/ytsaurus-yson/#history).
 
 
 
 
-**Releases:**
+**Релизы:**
 
 {% cut "**0.4.10**" %}
 
-**Release date:** 2025-03-05
+**Дата релиза:** 2025-03-05
 
 
-#### Features
-   *  Support `dump-parquet` in parallel mode
-   *  Support `read_table_structured` in parallel mode
-   *  Support retries while upload parquet/orc
-   *  Support `dump-orc` in parallel mode
-   *  Add `min_batch_row_count` option to dump parquet
+**Страница релиза:** [0.4.10](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-yson/0.4.10)
+
+
+**Пакет в PyPI:** [0.4.10](https://pypi.org/project/ytsaurus-yson/0.4.10/)
+
+
+#### Новые возможности
+   *  Поддержка `dump-parquet` в параллельном режиме
+   *  Поддержка `read_table_structured` в параллельном режиме
+   *  Поддержка повторов при загрузке parquet/orc
+   *  Поддержка `dump-orc` в параллельном режиме
+   *  Добавлена опция `min_batch_row_count` для dump parquet
   
-#### Fixes
- * Fix `Unexpected end of stream` error in upload parquet
+#### Исправления
+ * Исправлена ошибка `Unexpected end of stream` при загрузке parquet
 
 
 {% endcut %}
@@ -29,24 +35,36 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-yson/).
 
 {% cut "**0.4.9**" %}
 
-**Release date:** 2024-08-07
+**Дата релиза:** 2024-08-07
 
 
-Features:
-  - Support ORC format
-  - Access thread local variables via noinline functions
-  - Support Python 3.13 (avoid using deprecated PyImport_ImportModuleNoBlock)
+**Страница релиза:** [0.4.9](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-yson/0.4.9)
+
+
+**Пакет в PyPI:** [0.4.9](https://pypi.org/project/ytsaurus-yson/0.4.9/)
+
+
+Новые возможности:
+  - Поддержка формата ORC
+  - Доступ к thread local переменным через noinline функции
+  - Поддержка Python 3.13 (отказ от устаревшей `PyImport_ImportModuleNoBlock`)
 
 {% endcut %}
 
 
 {% cut "**0.4.8**" %}
 
-**Release date:** 2024-04-24
+**Дата релиза:** 2024-04-24
 
 
-  * Add table creation in upload parquet
-  * Reduce bindings .so size
+**Страница релиза:** [0.4.8](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-yson/0.4.8)
+
+
+**Пакет в PyPI:** [0.4.8](https://pypi.org/project/ytsaurus-yson/0.4.8/)
+
+
+  * Добавлено создание таблицы при загрузке parquet
+  * Уменьшен размер .so файла bindings
 
 
 {% endcut %}
@@ -54,11 +72,16 @@ Features:
 
 {% cut "**0.4.7**" %}
 
-**Release date:** 2024-03-09
+**Дата релиза:** 2024-03-09
 
 
-- Add implementation of `upload_parquet`
-- Fix invalid memory access in YsonStringProxy
+**Страница релиза:** [0.4.7](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-yson/0.4.7)
+
+
+**Пакет в PyPI:** [0.4.7](https://pypi.org/project/ytsaurus-yson/0.4.7/)
+
+
+- Добавлена реализация `upload_parquet`
+- Исправлен недопустимый доступ к памяти в `YsonStringProxy`
 
 {% endcut %}
-

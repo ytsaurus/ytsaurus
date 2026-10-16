@@ -160,7 +160,7 @@ TBundleAttributes ParseBundleAttributes(const IAttributeDictionary* attributes, 
             THROW_ERROR_EXCEPTION(
                 NTabletBalancer::EErrorCode::IncorrectConfig,
                 "Bundle has unparsable tablet balancer config")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -297,8 +297,9 @@ std::vector<TTableResolveResponse> ResolveTablePaths(
         const auto& rspOrError = batchResponse->GetResponse<TYPathProxy::TRspGet>(index);
         if (!rspOrError.IsOK()) {
             tableResolveResponses.emplace_back();
-            YT_LOG_WARNING(rspOrError,
-                "Failed to resolve table id for table %v", paths[index]);
+            YT_TLOG_WARNING("Failed to resolve table id")
+                .With("TablePath", paths[index])
+                .With(rspOrError);
             continue;
         }
 
@@ -342,10 +343,9 @@ THashMap<TClusterName, std::vector<TYPath>> GetReplicaBalancingMinorTables(
     for (auto tableId : majorTableIds) {
         const auto& majorTable = GetOrCrash(tables, tableId);
         const auto minorTables = majorTable->GetReplicaBalancingMinorTables(selfClusterName);
-        YT_LOG_DEBUG_IF(enableVerboseLogging,
-            "List of minor tables associated with major table (MajorTableId: %v, MinorTables: %v)",
-            tableId,
-            minorTables);
+        YT_TLOG_DEBUG_IF(enableVerboseLogging, "List of minor tables associated with major table")
+            .With("MajorTableId", tableId)
+            .With("MinorTables", minorTables);
 
         for (const auto& [cluster, tables] : minorTables) {
             clusterToMinorTables[cluster].insert(tables.begin(), tables.end());
@@ -398,6 +398,12 @@ void RemoveTablesFromBundle(const TBundleSnapshotPtr& bundleSnapshot, const THas
     }
 
     for (auto id : tableIdsToRemove) {
+        const auto& table = GetOrCrash(bundleSnapshot->Bundle->Tables, id);
+        auto it = bundleSnapshot->Bundle->TablesByPath.find(table->Path);
+        if (it != bundleSnapshot->Bundle->TablesByPath.end() && it->second->Id == id) {
+            bundleSnapshot->Bundle->TablesByPath.erase(it);
+        }
+
         EraseOrCrash(bundleSnapshot->Bundle->Tables, id);
     }
 
@@ -411,132 +417,113 @@ void CheckBundleSnapshotInvariants(const TBundleSnapshotPtr& bundleSnapshot)
     THashSet<TTabletId> tabletIdsFromTabletCells;
 
     auto Logger = TabletBalancerLogger()
-        .WithTag("BundleName: %v", bundleSnapshot->Bundle->Name)
-        .WithTag("StateFetchTime: %v", bundleSnapshot->StateFetchTime)
-        .WithTag("StatisticsFetchTime: %v", bundleSnapshot->StatisticsFetchTime)
-        .WithTag("PerformanceCountersFetchTime: %v", bundleSnapshot->PerformanceCountersFetchTime);
+        .WithTag("BundleName", bundleSnapshot->Bundle->Name)
+        .WithTag("StateFetchTime", bundleSnapshot->StateFetchTime)
+        .WithTag("StatisticsFetchTime", bundleSnapshot->StatisticsFetchTime)
+        .WithTag("PerformanceCountersFetchTime", bundleSnapshot->PerformanceCountersFetchTime);
 
-    YT_LOG_FATAL_UNLESS(
-        bundleSnapshot->Bundle->Config,
-        "Bundle snapshot invariant check failed: does not have config");
+    YT_TLOG_FATAL_UNLESS(bundleSnapshot->Bundle->Config, "Bundle snapshot invariant check failed: does not have config");
 
     for (const auto& [id, tablet] : bundleSnapshot->Bundle->Tablets) {
         YT_VERIFY(tablet->Table);
-        YT_LOG_FATAL_IF(
-            std::find_if(tablet->Table->Tablets.begin(), tablet->Table->Tablets.end(), [&id] (const auto& tablet) {
+        bool tabletListedInTable = std::ranges::any_of(
+            tablet->Table->Tablets,
+            [&id] (const auto& tablet) {
                 return tablet->Id == id;
-            }) == tablet->Table->Tablets.end(),
-            "Bundle snapshot invariant check failed: tablet's table does not have this tablet in list of tablets "
-            "(TabletId: %v, TableId: %v)",
-            id,
-            tablet->Table->Id);
+            });
+        YT_TLOG_FATAL_UNLESS(
+            tabletListedInTable,
+            "Bundle snapshot invariant check failed: tablet's table does not have this tablet in list of tablets")
+            .With("TabletId", id)
+            .With("TableId", tablet->Table->Id);
 
-        YT_LOG_FATAL_UNLESS(
+        YT_TLOG_FATAL_UNLESS(
             bundleSnapshot->Bundle->Tables.contains(tablet->Table->Id),
-            "Bundle snapshot invariant check failed: tablet linked to unknown table "
-            "(TabletId: %v, TableId: %v)",
-            id,
-            tablet->Table->Id);
+            "Bundle snapshot invariant check failed: tablet linked to unknown table")
+            .With("TabletId", id)
+            .With("TableId", tablet->Table->Id);
 
         auto cell = tablet->Cell.Lock();
         if (tablet->State == ETabletState::Unmounted) {
-            YT_LOG_FATAL_IF(
-                cell,
-                "Bundle snapshot invariant check failed: unmounted tablet linked to cell (TabletId: %v, CellId: %v)",
-                id,
-                cell ? ToString(cell->Id) : "<nonexistent>");
+            YT_TLOG_FATAL_IF(cell, "Bundle snapshot invariant check failed: unmounted tablet linked to cell")
+                .With("TabletId", id)
+                .With("CellId", cell ? ToString(cell->Id) : "<nonexistent>");
             continue;
         }
 
         if (!cell) {
-            YT_LOG_DEBUG("Bundle snapshot invariant check will fail, printing tablets found on each tablet cell");
+            YT_TLOG_DEBUG("Bundle snapshot invariant check will fail, printing tablets found on each tablet cell");
             for (const auto& [cellId, tabletCell] : bundleSnapshot->Bundle->TabletCells) {
-                YT_LOG_EVENT(
-                    TabletBalancerLogger(),
-                    NLogging::ELogLevel::Debug,
-                    "List of tablets on tablet cell (CellId: %v, TabletIds: %v)",
-                    cellId,
-                    GetKeys(tabletCell->Tablets));
+                YT_TLOG_EVENT(TabletBalancerLogger(), NLogging::ELogLevel::Debug, "List of tablets on tablet cell")
+                    .With("CellId", cellId)
+                    .With("TabletIds", GetKeys(tabletCell->Tablets));
             }
         }
 
-        YT_LOG_FATAL_UNLESS(
-            cell,
-            "Bundle snapshot invariant check failed: mounted tablet is not linked to any alive cell (TabletId: %v)",
-            id);
+        YT_TLOG_FATAL_UNLESS(cell, "Bundle snapshot invariant check failed: mounted tablet is not linked to any alive cell")
+            .With("TabletId", id);
 
-        YT_LOG_FATAL_UNLESS(
+        YT_TLOG_FATAL_UNLESS(
             cell->Tablets.contains(id),
-            "Bundle snapshot invariant check failed: tablet's cell does not have this tablet in list of tablets "
-            "(TabletId: %v, CellId: %v)",
-            id,
-            cell->Id);
+            "Bundle snapshot invariant check failed: tablet's cell does not have this tablet in list of tablets")
+            .With("TabletId", id)
+            .With("CellId", cell->Id);
     }
 
     for (const auto& [id, cell] : bundleSnapshot->Bundle->TabletCells) {
         if (cell->NodeAddress) {
-            YT_LOG_FATAL_UNLESS(
+            YT_TLOG_FATAL_UNLESS(
                 bundleSnapshot->Bundle->NodeStatistics.contains(*cell->NodeAddress),
-                "Bundle snapshot invariant check failed: cell node address is missing in list of nodes "
-                "(CellId: %v, NodeAddress: %v)",
-                id,
-                cell->NodeAddress);
+                "Bundle snapshot invariant check failed: cell node address is missing in list of nodes")
+                .With("CellId", id)
+                .With("NodeAddress", cell->NodeAddress);
         }
 
         for (const auto& [tabletId, tablet] : cell->Tablets) {
-            YT_LOG_FATAL_UNLESS(
-                cell->Tablets.contains(tabletId),
-                "Bundle snapshot invariant check failed: tablet to cell link mistmatch (TabletId: %v, CellId: %v)",
-                tabletId,
-                id);
-            YT_LOG_FATAL_IF(
+            YT_TLOG_FATAL_UNLESS(cell->Tablets.contains(tabletId), "Bundle snapshot invariant check failed: tablet to cell link mistmatch")
+                .With("TabletId", tabletId)
+                .With("CellId", id);
+            YT_TLOG_FATAL_IF(
                 tablet->State == ETabletState::Unmounted,
-                "Bundle snapshot invariant check failed: tablet from cell's list of tablets is unmounted "
-                "(TabletId: %v, CellId: %v)",
-                tabletId,
-                id);
-            YT_LOG_FATAL_UNLESS(
+                "Bundle snapshot invariant check failed: tablet from cell's list of tablets is unmounted")
+                .With("TabletId", tabletId)
+                .With("CellId", id);
+            YT_TLOG_FATAL_UNLESS(
                 bundleSnapshot->Bundle->Tablets.contains(tabletId),
-                "Bundle snapshot invariant check failed: tablet cell has unknown tablet (TabletId: %v, CellId: %v)",
-                tabletId,
-                id);
+                "Bundle snapshot invariant check failed: tablet cell has unknown tablet")
+                .With("TabletId", tabletId)
+                .With("CellId", id);
         }
     }
 
     for (const auto& [id, table] : bundleSnapshot->Bundle->Tables) {
-        YT_LOG_FATAL_IF(
+        YT_TLOG_FATAL_IF(
             !table->PivotKeys.empty() && std::ssize(table->Tablets) != std::ssize(table->PivotKeys),
-            "Bundle snapshot invariant check failed: tablet count and pivot keys mistmatch "
-            "(TableId: %v, TabletCount: %v, PivotKeyCount: %v)",
-            id,
-            std::ssize(table->Tablets),
-            std::ssize(table->PivotKeys));
+            "Bundle snapshot invariant check failed: tablet count and pivot keys mistmatch")
+            .With("TableId", id)
+            .With("TabletCount", std::ssize(table->Tablets))
+            .With("PivotKeyCount", std::ssize(table->PivotKeys));
 
         for (const auto& tablet : table->Tablets) {
-            YT_LOG_FATAL_UNLESS(
+            YT_TLOG_FATAL_UNLESS(
                 bundleSnapshot->Bundle->Tablets.contains(tablet->Id),
-                "Bundle snapshot invariant check failed: table has unknown tablet (TabletId: %v, TableId: %v)",
-                tablet->Id,
-                id);
+                "Bundle snapshot invariant check failed: table has unknown tablet")
+                .With("TabletId", tablet->Id)
+                .With("TableId", id);
 
-            YT_LOG_FATAL_IF(
-                tablet->Table != table.Get(),
-                "Bundle snapshot invariant check failed: tablet linked to a different table (TabletId: %v, TableId: %v)",
-                tablet->Id,
-                id);
+            YT_TLOG_FATAL_IF(tablet->Table != table.Get(), "Bundle snapshot invariant check failed: tablet linked to a different table")
+                .With("TabletId", tablet->Id)
+                .With("TableId", id);
         }
 
-        YT_LOG_FATAL_UNLESS(
-            table->TableConfig,
-            "Bundle snapshot invariant check failed: table do not have config (TableId: %v)",
-            id);
+        YT_TLOG_FATAL_UNLESS(table->TableConfig, "Bundle snapshot invariant check failed: table do not have config")
+            .With("TableId", id);
 
-        YT_LOG_FATAL_IF(
+        YT_TLOG_FATAL_IF(
             bundleSnapshot->Bundle.Get() != table->Bundle,
-            "Bundle snapshot invariant check failed: table linked to unknown tablet cell bundle "
-            "(Bundle: %v, TableId: %v)",
-            bundleSnapshot->Bundle->Name,
-            id);
+            "Bundle snapshot invariant check failed: table linked to unknown tablet cell bundle")
+            .With("Bundle", bundleSnapshot->Bundle->Name)
+            .With("TableId", id);
     }
 }
 
@@ -585,7 +572,7 @@ public:
 
 public:
     TBundleState(
-        TString name,
+        std::string name,
         IBootstrap* bootstrap,
         IInvokerPtr fetcherInvoker,
         IInvokerPtr controlInvoker,
@@ -620,7 +607,7 @@ private:
 
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler_;
-    const TString Name_;
+    const std::string Name_;
 
     const NApi::NNative::IClientPtr Client_;
     const NHiveClient::TClientDirectoryPtr ClientDirectory_;
@@ -644,7 +631,7 @@ private:
 
     TBundleProfilingCountersPtr Counters_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
 
     std::vector<TBundleSnapshotPtr> BundleSnapshots_;
     TFuture<TBundleTabletBalancerConfigPtr> BundleConfigFuture_;
@@ -718,13 +705,13 @@ private:
         bool fetchReshard,
         bool fetchMove);
 
-    static THashMap<TTableId, TTableSettings> FetchActualTableSettings(
+    THashMap<TTableId, TTableSettings> FetchActualTableSettings(
         const NApi::NNative::IClientPtr& client,
         const THashSet<TTableId>& tableIdsToFetch,
         const THashMap<TTableId, TCellTag>& tableIdToCellTag,
-        const IMulticellThrottlerPtr& throttler);
+        const IMulticellThrottlerPtr& throttler) const;
 
-    static THashMap<TTableId, TTableStatisticsResponse> FetchTableStatistics(
+    THashMap<TTableId, TTableStatisticsResponse> FetchTableStatistics(
         const NApi::NNative::IClientPtr& client,
         const THashSet<TTableId>& tableIds,
         const THashSet<TTableId>& tableIdsToFetchPivotKeys,
@@ -732,7 +719,7 @@ private:
         const IMulticellThrottlerPtr& throttler,
         bool fetchPerformanceCounters,
         bool parameterizedBalancingEnabledDefault = false,
-        THashSet<TTableId> tableIdsWithParameterizedBalancing = {});
+        THashSet<TTableId> tableIdsWithParameterizedBalancing = {}) const;
 
     void FetchReplicaModes(
         const TBundleSnapshotPtr& bundleSnapshot,
@@ -761,7 +748,7 @@ private:
 
     TTableProfilingCounters InitializeProfilingCounters(
         const TTable* table,
-        const TString& groupName) const;
+        const std::string& groupName) const;
 
     THashSet<TTableId> GetReplicaBalancingMajorTables(const TTabletCellBundlePtr& bundle) const;
 
@@ -776,7 +763,7 @@ private:
 };
 
 TBundleState::TBundleState(
-    TString name,
+    std::string name,
     IBootstrap* bootstrap,
     IInvokerPtr invoker,
     IInvokerPtr controlInvoker,
@@ -784,7 +771,7 @@ TBundleState::TBundleState(
     IClusterStateProviderPtr clusterStateProvider,
     IMulticellThrottlerPtr throttler,
     const IAttributeDictionary* initialAttributes)
-    : Logger(TabletBalancerLogger().WithTag("BundleName: %v", name))
+    : Logger(TabletBalancerLogger().WithTag("BundleName", name))
     , Profiler_(TabletBalancerProfiler().WithTag("tablet_cell_bundle", name))
     , Name_(std::move(name))
     , Client_(bootstrap->GetClient())
@@ -830,7 +817,8 @@ void TBundleState::InitializeAttributes(
             BundleConfig_ = bundleSnapshot->Bundle->Config;
         }
     } catch (const TErrorException& ex) {
-        YT_LOG_ERROR(ex, "Failed to parse bundle attributes");
+        YT_TLOG_ERROR("Failed to parse bundle attributes")
+            .With(ex);
         bundleSnapshot->Bundle->Config.Reset();
         if (throwOnError) {
             throw;
@@ -873,8 +861,8 @@ TFuture<TBundleSnapshotPtr> TBundleState::CreateUpdateFutureIfNeeded(EFetchKind 
             if (!UpdateStateFuture_) {
                 Counters_->DirectStateRequest.Increment(isDirectRequest);
 
-                YT_LOG_DEBUG("Planning to fetch bundle state%v",
-                    isDirectRequest ? " due to a direct request" : "");
+                YT_TLOG_DEBUG("Planning to fetch bundle state")
+                    .With("DirectRequest", isDirectRequest);
                 UpdateStateFuture_ = BIND(&TBundleState::UpdateState, MakeStrong(this))
                     .AsyncVia(FetcherInvoker_)
                     .Run();
@@ -890,8 +878,8 @@ TFuture<TBundleSnapshotPtr> TBundleState::CreateUpdateFutureIfNeeded(EFetchKind 
             if (!UpdateStatisticsFuture_) {
                 Counters_->DirectStatisticsRequest.Increment(isDirectRequest);
 
-                YT_LOG_DEBUG("Planning to fetch bundle statistics%v",
-                    isDirectRequest ? " due to a direct request" : "");
+                YT_TLOG_DEBUG("Planning to fetch bundle statistics")
+                    .With("DirectRequest", isDirectRequest);
                 UpdateStatisticsFuture_ = BIND(&TBundleState::UpdateStatistics, MakeStrong(this))
                     .AsyncVia(FetcherInvoker_)
                     .Run();
@@ -911,8 +899,8 @@ TFuture<TBundleSnapshotPtr> TBundleState::CreateUpdateFutureIfNeeded(EFetchKind 
             if (!UpdatePerformanceCountersFuture_) {
                 Counters_->DirectPerformanceCountersRequest.Increment(isDirectRequest);
 
-                YT_LOG_DEBUG("Planning to fetch performance counters%v",
-                    isDirectRequest ? " due to a direct request" : "");
+                YT_TLOG_DEBUG("Planning to fetch performance counters")
+                    .With("DirectRequest", isDirectRequest);
                 UpdatePerformanceCountersFuture_ = BIND(&TBundleState::UpdatePerformanceCounters, MakeStrong(this))
                     .AsyncVia(FetcherInvoker_)
                     .Run();
@@ -987,7 +975,7 @@ void TBundleState::Start()
 {
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
-    YT_LOG_DEBUG("Starting bundle state instance");
+    YT_TLOG_DEBUG("Starting bundle state instance");
 
     {
         auto guard = WriterGuard(Lock_);
@@ -1005,7 +993,7 @@ void TBundleState::Stop()
 {
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
-    YT_LOG_DEBUG("Stopping bundle state instance");
+    YT_TLOG_DEBUG("Stopping bundle state instance");
     YT_UNUSED_FUTURE(PollExecutor_->Stop());
 }
 
@@ -1056,9 +1044,9 @@ TBundleSnapshotPtr TBundleState::DoGetBundleSnapshotWithReplicaBalancingStatisti
             return config->EnableAutoTabletMove;
         });
 
-    YT_LOG_DEBUG("Calculated if replica statistics fetch required (IsReshardRequired: %v, IsMoveRequired: %v)",
-        isReshardReplicaBalancingRequired,
-        isMoveReplicaBalancingRequired);
+    YT_TLOG_DEBUG("Calculated if replica statistics fetch required")
+        .With("IsReshardRequired", isReshardReplicaBalancingRequired)
+        .With("IsMoveRequired", isMoveReplicaBalancingRequired);
 
     DropAlienTables(bundleSnapshot);
     bundleSnapshot->BannedReplicaClusters = replicaClustersToIgnore;
@@ -1066,7 +1054,7 @@ TBundleSnapshotPtr TBundleState::DoGetBundleSnapshotWithReplicaBalancingStatisti
     auto config = Config_.Acquire();
     if (isReshardReplicaBalancingRequired || isMoveReplicaBalancingRequired) {
         if (!config->UseStatisticsReporter) {
-            YT_LOG_ERROR("Cannot balance replicas when statistics reporter is not enabled");
+            YT_TLOG_ERROR("Cannot balance replicas when statistics reporter is not enabled");
             bundleSnapshot->ReplicaBalancingFetchFailed = true;
 
             bundleSnapshot->NonFatalError = TError(
@@ -1086,7 +1074,7 @@ TBundleSnapshotPtr TBundleState::DoGetBundleSnapshotWithReplicaBalancingStatisti
                 bundleSnapshot->NonFatalError = TError(
                     NTabletBalancer::EErrorCode::StatisticsFetchFailed,
                     "Replica statistics fetch failed")
-                    << ex;
+                    .With(ex);
             }
         }
     }
@@ -1156,11 +1144,9 @@ TFuture<TBundleTabletBalancerConfigPtr> TBundleState::GetConfig(bool allowStale)
 
     if (allowStale) {
         auto guard = ReaderGuard(Lock_);
-        YT_LOG_ALERT_UNLESS(
-            BundleConfig_,
-            "Bundle state config is not found (BundleConfigFetchTime: %v, HasBundleConfigFuture: %v)",
-            BundleConfigFetchTime_,
-            static_cast<bool>(BundleConfigFuture_));
+        YT_TLOG_ALERT_UNLESS(BundleConfig_, "Bundle state config is not found")
+            .With("BundleConfigFetchTime", BundleConfigFetchTime_)
+            .With("HasBundleConfigFuture", static_cast<bool>(BundleConfigFuture_));
         return MakeFuture(BundleConfig_);
     }
 
@@ -1172,7 +1158,7 @@ TFuture<TBundleTabletBalancerConfigPtr> TBundleState::GetConfig(bool allowStale)
     }
 
     if (!BundleConfigFuture_) {
-        YT_LOG_DEBUG("Planning to fetch bundle config due to a direct request");
+        YT_TLOG_DEBUG("Planning to fetch bundle config due to a direct request");
         BundleConfigFuture_ = BIND(&TBundleState::UpdateConfig, MakeStrong(this))
             .AsyncVia(FetcherInvoker_)
             .Run();
@@ -1201,12 +1187,11 @@ void TBundleState::FetchState()
     auto writerGuard = WriterGuard(Lock_);
     auto now = Now();
 
-    YT_LOG_DEBUG("Started to plan bundle state provider fetches (Config: %v, "
-        "HasStateFuture: %v, HasStatisticsFuture: %v, HasPerformanceCountersFuture: %v)",
-        ConvertToYsonString(config, NYson::EYsonFormat::Text),
-        static_cast<bool>(UpdateStateFuture_),
-        static_cast<bool>(UpdateStatisticsFuture_),
-        static_cast<bool>(UpdatePerformanceCountersFuture_));
+    YT_TLOG_DEBUG("Started to plan bundle state provider fetches")
+        .With("Config", ConvertToYsonString(config, NYson::EYsonFormat::Text))
+        .With("HasStateFuture", static_cast<bool>(UpdateStateFuture_))
+        .With("HasStatisticsFuture", static_cast<bool>(UpdateStatisticsFuture_))
+        .With("HasPerformanceCountersFuture", static_cast<bool>(UpdatePerformanceCountersFuture_));
 
     if ((config->StateFetchPeriod &&
          config->StatisticsFetchPeriod &&
@@ -1215,13 +1200,12 @@ void TBundleState::FetchState()
          config->PerformanceCountersFetchPeriod &&
          config->StatisticsFetchPeriod < config->PerformanceCountersFetchPeriod))
     {
-        YT_LOG_ALERT(
+        YT_TLOG_ALERT(
             "Incorrect bundle state config. The following condition must be met: "
-            "\"performance_counters_fetch_period\" <= \"statistics_fetch_period\" <= \"state_fetch_period\" "
-            "(StateFetchPeriod: %v, StatisticsFetchPeriod: %v, PerformanceCountersFetchPeriod: %v)",
-            config->StateFetchPeriod,
-            config->StatisticsFetchPeriod,
-            config->PerformanceCountersFetchPeriod);
+            "\"performance_counters_fetch_period\" <= \"statistics_fetch_period\" <= \"state_fetch_period\"")
+            .With("StateFetchPeriod", config->StateFetchPeriod)
+            .With("StatisticsFetchPeriod", config->StatisticsFetchPeriod)
+            .With("PerformanceCountersFetchPeriod", config->PerformanceCountersFetchPeriod);
 
         return;
     }
@@ -1229,12 +1213,11 @@ void TBundleState::FetchState()
     auto needToUpdateAnything = [&] () {
         for (const auto& snapshot : BundleSnapshots_) {
             bool isFirstIteration = !static_cast<bool>(BundleSnapshots_.back()->StateFetchTime);
-            YT_LOG_DEBUG("Examined existing bundle snapshot fetch times "
-                "(StateFetchTime: %v, StatisticsFetchTime: %v, PerformanceCountersFetchTime: %v, IsFirstIteration: %v)",
-                snapshot->StateFetchTime,
-                snapshot->StatisticsFetchTime,
-                snapshot->PerformanceCountersFetchTime,
-                isFirstIteration);
+            YT_TLOG_DEBUG("Examined existing bundle snapshot fetch times")
+                .With("StateFetchTime", snapshot->StateFetchTime)
+                .With("StatisticsFetchTime", snapshot->StatisticsFetchTime)
+                .With("PerformanceCountersFetchTime", snapshot->PerformanceCountersFetchTime)
+                .With("IsFirstIteration", isFirstIteration);
 
             if (isFirstIteration && !config->StateFetchPeriod) {
                 return false;
@@ -1298,7 +1281,8 @@ TBundleTabletBalancerConfigPtr TBundleState::UpdateConfig()
 
         return BundleConfig_;
     } catch (const TErrorException& ex) {
-        YT_LOG_ERROR(ex, "Failed to update bundle config");
+        YT_TLOG_ERROR("Failed to update bundle config")
+            .With(ex);
 
         auto guard = WriterGuard(Lock_);
         BundleConfigFuture_.Reset();
@@ -1311,7 +1295,7 @@ TBundleSnapshotPtr TBundleState::UpdateState()
 {
     auto config = Config_.Acquire();
     try {
-        YT_LOG_DEBUG("Started updating bundle state");
+        YT_TLOG_DEBUG("Started updating bundle state");
 
         auto bundleSnapshot = DoUpdateState(config);
         YT_VERIFY(bundleSnapshot);
@@ -1331,10 +1315,11 @@ TBundleSnapshotPtr TBundleState::UpdateState()
 
         UpdateStateFuture_.Reset();
 
-        YT_LOG_DEBUG("Finished updating bundle state");
+        YT_TLOG_DEBUG("Finished updating bundle state");
         return GetLatestBundleSnapshot(EFetchKind::State);
     } catch (const TErrorException& ex) {
-        YT_LOG_ERROR(ex, "Failed to update bundle state");
+        YT_TLOG_ERROR("Failed to update bundle state")
+            .With(ex);
         if (ex.Error().FindMatching(NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)) {
             Counters_->StateRequestThrottled.Increment(1);
         }
@@ -1351,7 +1336,8 @@ INodePtr TBundleState::GetBundleWithAttributes() const
     auto bundlesOrError = WaitFor(ClusterStateProvider_->GetBundles());
 
     if (!bundlesOrError.IsOK()) {
-        YT_LOG_ERROR(bundlesOrError, "Failed to fetch bundle list");
+        YT_TLOG_ERROR("Failed to fetch bundle list")
+            .With(bundlesOrError);
         bundlesOrError.ThrowOnError();
     }
 
@@ -1365,7 +1351,7 @@ INodePtr TBundleState::GetBundleWithAttributes() const
     } (bundlesOrError.Value()->GetChildren(), Name_);
 
     if (!bundle) {
-        YT_LOG_DEBUG("Bundle is not found in bundle list, it probably was already removed");
+        YT_TLOG_DEBUG("Bundle is not found in bundle list, it probably was already removed");
         THROW_ERROR_EXCEPTION("Bundle is not found in bundle list");
     }
 
@@ -1432,7 +1418,7 @@ TBundleSnapshotPtr TBundleState::UpdateStatistics()
 {
     auto config = Config_.Acquire();
     try {
-        YT_LOG_DEBUG("Started updating statistics and performance counters");
+        YT_TLOG_DEBUG("Started updating statistics and performance counters");
 
         auto bundleSnapshot = DoUpdateStatistics(config);
         YT_VERIFY(bundleSnapshot);
@@ -1451,10 +1437,11 @@ TBundleSnapshotPtr TBundleState::UpdateStatistics()
 
         UpdateStatisticsFuture_.Reset();
 
-        YT_LOG_DEBUG("Finished updating statistics and performance counters");
+        YT_TLOG_DEBUG("Finished updating statistics and performance counters");
         return GetLatestBundleSnapshot(EFetchKind::Statistics);
     } catch (const TErrorException& ex) {
-        YT_LOG_ERROR(ex, "Failed to update statistics and performance counters");
+        YT_TLOG_ERROR("Failed to update statistics and performance counters")
+            .With(ex);
         if (ex.Error().FindMatching(NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)) {
             Counters_->StatisticsRequestThrottled.Increment(1);
         }
@@ -1473,7 +1460,8 @@ TBundleSnapshotPtr TBundleState::DoUpdateStatistics(
     auto nodesOrError = WaitFor(ClusterStateProvider_->GetNodes());
 
     if (!nodesOrError.IsOK()) {
-        YT_LOG_ERROR(nodesOrError, "Failed to fetch node statistics");
+        YT_TLOG_ERROR("Failed to fetch node statistics")
+            .With(nodesOrError);
         nodesOrError.ThrowOnError();
     }
 
@@ -1506,7 +1494,7 @@ TBundleSnapshotPtr TBundleState::UpdatePerformanceCounters()
     }
 
     try {
-        YT_LOG_DEBUG("Started updating performance counters");
+        YT_TLOG_DEBUG("Started updating performance counters");
 
         auto bundleSnapshot = DoUpdatePerformanceCounters(config);
         YT_VERIFY(bundleSnapshot);
@@ -1524,10 +1512,11 @@ TBundleSnapshotPtr TBundleState::UpdatePerformanceCounters()
 
         UpdatePerformanceCountersFuture_.Reset();
 
-        YT_LOG_DEBUG("Finished updating performance counters");
+        YT_TLOG_DEBUG("Finished updating performance counters");
         return GetLatestBundleSnapshot(EFetchKind::PerformanceCounters);
     } catch (const TErrorException& ex) {
-        YT_LOG_ERROR(ex, "Failed to update performance counters");
+        YT_TLOG_ERROR("Failed to update performance counters")
+            .With(ex);
 
         auto guard = WriterGuard(Lock_);
         UpdatePerformanceCountersFuture_.Reset();
@@ -1545,7 +1534,8 @@ void TBundleState::BuildNewState(
     const auto& bundle = bundleSnapshot->Bundle;
     THashMap<TTabletCellId, TTabletCellInfo> tabletCells;
 
-    YT_LOG_DEBUG("Started fetching tablet cells (CellCount: %v)", cellIds.size());
+    YT_TLOG_DEBUG("Started fetching tablet cells")
+        .With("CellCount", cellIds.size());
     Counters_->TabletCellTabletsRequestCount.Increment(cellIds.size());
 
     auto secondaryCellTags = Client_->GetNativeConnection()->GetSecondaryMasterCellTags();
@@ -1554,7 +1544,7 @@ void TBundleState::BuildNewState(
     } else {
         tabletCells = FetchTabletCells(cellIds, {Client_->GetNativeConnection()->GetPrimaryMasterCellTag()});
     }
-    YT_LOG_DEBUG("Finished fetching tablet cells");
+    YT_TLOG_DEBUG("Finished fetching tablet cells");
 
     THashSet<TTableId> newTableIds;
     for (const auto& [id, info] : tabletCells) {
@@ -1569,18 +1559,19 @@ void TBundleState::BuildNewState(
     YT_VERIFY(bundle->Tablets.empty());
     YT_VERIFY(bundle->TabletCells.empty());
 
-    YT_LOG_DEBUG("Started fetching basic table attributes (NewTableCount: %v)", newTableIds.size());
+    YT_TLOG_DEBUG("Started fetching basic table attributes")
+        .With("NewTableCount", newTableIds.size());
     Counters_->BasicTableAttributesRequestCount.Increment(newTableIds.size());
     auto tableInfos = FetchBasicTableAttributes(newTableIds, bundle.Get());
-    YT_LOG_DEBUG("Finished fetching basic table attributes (NewTableCount: %v)", tableInfos.size());
+    YT_TLOG_DEBUG("Finished fetching basic table attributes")
+        .With("NewTableCount", tableInfos.size());
 
     for (auto& [tableId, tableInfo] : tableInfos) {
-        YT_LOG_DEBUG_UNLESS(!isFirstIteration,
-            "New table has been found (TableId: %v, TablePath: %v)",
-            tableId,
-            tableInfo->Path);
+        YT_TLOG_DEBUG_UNLESS(isFirstIteration, "New table has been found")
+            .With("TableId", tableId)
+            .With("TablePath", tableInfo->Path);
 
-        EmplaceOrCrash(bundle->TablesByPath, tableInfo->Path, tableInfo);
+        bundle->TablesByPath[tableInfo->Path] = tableInfo;
         EmplaceOrCrash(bundle->Tables, tableId, std::move(tableInfo));
     }
 
@@ -1636,7 +1627,8 @@ void TBundleState::FetchStatistics(
     const TBundleStateProviderConfigPtr& config) const
 {
     const auto& bundle = bundleSnapshot->Bundle;
-    YT_LOG_DEBUG("Started fetching actual table settings (TableCount: %v)", bundle->Tables.size());
+    YT_TLOG_DEBUG("Started fetching actual table settings")
+        .With("TableCount", bundle->Tables.size());
     Counters_->ActualTableSettingsRequestCount.Increment(bundle->Tables.size());
 
     THashSet<TTableId> tableIdsToFetchSettings;
@@ -1649,13 +1641,20 @@ void TBundleState::FetchStatistics(
         tableIdsToFetchSettings,
         BuildTableToCellTagMapping(bundle->Tables),
         MasterRequestThrottler_);
-    YT_LOG_DEBUG("Finished fetching actual table settings (TableCount: %v)", tableIdToSettings.size());
+    YT_TLOG_DEBUG("Finished fetching actual table settings")
+        .With("TableCount", tableIdToSettings.size());
 
     THashSet<TTableId> tableIds;
     for (const auto& [id, info] : tableIdToSettings) {
         EmplaceOrCrash(tableIds, id);
     }
     DropMissingKeys(bundle->Tables, tableIds);
+
+    THashSet<TYPath> alivePaths;
+    for (const auto& [id, table] : bundle->Tables) {
+        alivePaths.insert(table->Path);
+    }
+    DropMissingKeys(bundle->TablesByPath, alivePaths);
 
     THashSet<TTableId> tableIdsToFetch;
     THashSet<TTableId> tableIdsToFetchPivotKeys;
@@ -1689,7 +1688,8 @@ void TBundleState::FetchStatistics(
 
     bundleSnapshot->PerformanceCountersKeys = DefaultPerformanceCountersKeys;
 
-    YT_LOG_DEBUG("Started fetching table statistics (TableCount: %v)", tableIdsToFetch.size());
+    YT_TLOG_DEBUG("Started fetching table statistics")
+        .With("TableCount", tableIdsToFetch.size());
     Counters_->TableStatisticsRequestCount.Increment(tableIdsToFetch.size());
 
     auto tableIdToStatistics = FetchTableStatistics(
@@ -1702,7 +1702,8 @@ void TBundleState::FetchStatistics(
         /*parameterizedBalancingEnabledDefault*/ false,
         tableIdsWithParameterizedBalancing);
 
-    YT_LOG_DEBUG("Finished fetching table statistics (TableCount: %v)", tableIdToStatistics.size());
+    YT_TLOG_DEBUG("Finished fetching table statistics")
+        .With("TableCount", tableIdToStatistics.size());
 
     YT_VERIFY(bundle->Tablets.empty());
     for (const auto& [id, cell] : bundle->TabletCells) {
@@ -1730,9 +1731,9 @@ void TBundleState::FetchStatistics(
                 auto cellIt = bundle->TabletCells.find(tabletResponse.CellId);
                 if (cellIt == bundle->TabletCells.end()) {
                     if (auto [it, inserted] = tablesFromAnotherBundle.insert(tableId); inserted) {
-                        YT_LOG_DEBUG("Table from another bundle was found (TableId: %v, TablePath: %v)",
-                            tableId,
-                            table->Path);
+                        YT_TLOG_DEBUG("Table from another bundle was found")
+                            .With("TableId", tableId)
+                            .With("TablePath", table->Path);
                     }
                     break;
                 }
@@ -1789,7 +1790,7 @@ void TBundleState::FillTabletWithStatistics(
 
     Visit(std::move(tabletResponse.PerformanceCounters),
         [&] (auto&& performanceCounters) {
-            tablet->PerformanceCounters = std::move(performanceCounters);
+            tablet->PerformanceCounters = std::forward<decltype(performanceCounters)>(performanceCounters);
         });
 }
 
@@ -1800,9 +1801,9 @@ void TBundleState::FetchReplicaStatistics(
     bool fetchReshard,
     bool fetchMove)
 {
-    YT_LOG_DEBUG("Collecting replica balancing major and minor tables (FetchReshard: %v, FetchMove: %v)",
-        fetchReshard,
-        fetchMove);
+    YT_TLOG_DEBUG("Collecting replica balancing major and minor tables")
+        .With("FetchReshard", fetchReshard)
+        .With("FetchMove", fetchMove);
 
     auto majorTableIds = GetReplicaBalancingMajorTables(bundleSnapshot->Bundle);
     auto minorTablePaths = GetReplicaBalancingMinorTables(
@@ -1812,9 +1813,9 @@ void TBundleState::FetchReplicaStatistics(
         Logger,
         bundleSnapshot->Bundle->Config->EnableVerboseLogging);
 
-    YT_LOG_DEBUG("Collected replica balancing major and minor tables (MajorTableCount: %v, MinorTableCount: %v)",
-        std::ssize(majorTableIds),
-        std::ssize(minorTablePaths));
+    YT_TLOG_DEBUG("Collected replica balancing major and minor tables")
+        .With("MajorTableCount", std::ssize(majorTableIds))
+        .With("MinorTableCount", std::ssize(minorTablePaths));
 
     auto perClusterMinorToMajorTables = GetReplicaBalancingMinorToMajorTables(
         majorTableIds,
@@ -1825,20 +1826,22 @@ void TBundleState::FetchReplicaStatistics(
         if (!allowedReplicaClusters.contains(cluster)) {
             THROW_ERROR_EXCEPTION("Table replicas from cluster %Qv are not allowed",
                 cluster)
-                << TErrorAttribute("allowed_replica_clusters", allowedReplicaClusters);
+                .With("allowed_replica_clusters", allowedReplicaClusters);
         }
 
         if (replicaClustersToIgnore.contains(cluster)) {
-            YT_LOG_DEBUG("Skipping replica cluster that is banned on metacluster (Cluster: %v)", cluster);
+            YT_TLOG_DEBUG("Skipping replica cluster that is banned on metacluster")
+                .With("Cluster", cluster);
             continue;
         }
 
         auto client = ClientDirectory_->GetClientOrThrow(cluster);
-        YT_LOG_DEBUG("Started resolving alien table paths (ClusterName: %v, TableCount: %v)",
-            cluster,
-            std::ssize(tablePaths));
+        YT_TLOG_DEBUG("Started resolving alien table paths")
+            .With("ClusterName", cluster)
+            .With("TableCount", std::ssize(tablePaths));
         auto tableResponses = ResolveTablePaths(client, tablePaths);
-        YT_LOG_DEBUG("Finished resolving alien table paths (ClusterName: %v)", cluster);
+        YT_TLOG_DEBUG("Finished resolving alien table paths")
+            .With("ClusterName", cluster);
 
         THashMap<TTableId, TAlienTablePtr> alienTables;
         THashMap<TTableId, TCellTag> tableIdToCellTag;
@@ -1859,15 +1862,15 @@ void TBundleState::FetchReplicaStatistics(
             }
         }
 
-        YT_LOG_DEBUG("Resolved alien table paths (ClusterName: %v, TableCount: %v)",
-            cluster,
-            std::ssize(alienTables));
+        YT_TLOG_DEBUG("Resolved alien table paths")
+            .With("ClusterName", cluster)
+            .With("TableCount", std::ssize(alienTables));
 
         auto tableIdsToFetchStatistics = GetKeySet(alienTables);
 
-        YT_LOG_DEBUG("Started fetching alien table statistics (ClusterName: %v, TableCount: %v)",
-            cluster,
-            tableIdsToFetchStatistics.size());
+        YT_TLOG_DEBUG("Started fetching alien table statistics")
+            .With("ClusterName", cluster)
+            .With("TableCount", tableIdsToFetchStatistics.size());
         Counters_->TableStatisticsRequestCount.Increment(tableIdsToFetchStatistics.size());
 
         auto tableIdToStatistics = FetchTableStatistics(
@@ -1879,9 +1882,9 @@ void TBundleState::FetchReplicaStatistics(
             /*fetchPerformanceCounters*/ false,
             /*parameterizedBalancingEnabledDefault*/ true);
 
-        YT_LOG_DEBUG("Finished fetching alien table statistics (ClusterName: %v, TableCount: %v)",
-            cluster,
-            tableIdToStatistics.size());
+        YT_TLOG_DEBUG("Finished fetching alien table statistics")
+            .With("ClusterName", cluster)
+            .With("TableCount", tableIdToStatistics.size());
 
         if (fetchMove) {
             FetchPerformanceCountersFromAlienTable(bundleSnapshot, client, &tableIdToStatistics, cluster);
@@ -1917,9 +1920,10 @@ void TBundleState::FetchReplicaStatistics(
     }
 
     if (fetchReshard) {
-        YT_LOG_DEBUG("Started fetching replica table modes (MajorTableCount: %v)", std::ssize(majorTableIds));
+        YT_TLOG_DEBUG("Started fetching replica table modes")
+            .With("MajorTableCount", std::ssize(majorTableIds));
         FetchReplicaModes(bundleSnapshot, majorTableIds, allowedReplicaClusters, replicaClustersToIgnore);
-        YT_LOG_DEBUG("Finished fetching replica table modes");
+        YT_TLOG_DEBUG("Finished fetching replica table modes");
     }
 }
 
@@ -1937,10 +1941,9 @@ TBundleState::TTabletCellInfo TBundleState::TabletCellInfoFromAttributes(
     for (const auto& peer : peers) {
         if (peer.State == EPeerState::Leading) {
             if (address.has_value()) {
-                YT_LOG_WARNING("Cell has two leading peers (Cell: %v, Peers: [%v, %v])",
-                    cellId,
-                    address,
-                    peer.NodeAddress);
+                YT_TLOG_WARNING("Cell has two leading peers")
+                    .With("CellId", cellId)
+                    .With("Peers", std::vector{*address, peer.NodeAddress});
 
                 address.reset();
                 break;
@@ -2007,8 +2010,8 @@ THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> TBundleState::GetNode
 {
     YT_VERIFY(nodeStatisticsList);
 
-    static const TString TabletStaticPath = "/statistics/memory/tablet_static";
-    static const TString TabletSlotsPath = "/tablet_slots";
+    static const NYPath::TYPath TabletStaticPath = "/statistics/memory/tablet_static";
+    static const NYPath::TYPath TabletSlotsPath = "/tablet_slots";
 
     THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> nodeStatistics;
     for (const auto& node : nodeStatisticsList->GetChildren()) {
@@ -2025,8 +2028,9 @@ THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> TBundleState::GetNode
 
             EmplaceOrCrash(nodeStatistics, address, std::move(statistics));
         } catch (const TErrorException& ex) {
-            YT_LOG_ERROR(ex, "Failed to get \"statistics\" or \"tablet_slots\" attribute for node %Qv",
-                address);
+            YT_TLOG_ERROR("Failed to get node statistics or tablet slots attribute")
+                .With("NodeAddress", address)
+                .With(ex);
         }
     }
 
@@ -2034,8 +2038,8 @@ THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> TBundleState::GetNode
         THROW_ERROR_EXCEPTION(
             "Failed to fetch statistics for some nodes of bundle %Qv",
             Name_)
-            << TErrorAttribute("fetched_count", std::ssize(nodeStatistics))
-            << TErrorAttribute("expected_count", std::ssize(addresses));
+            .With("fetched_count", std::ssize(nodeStatistics))
+            .With("expected_count", std::ssize(addresses));
     }
 
     return nodeStatistics;
@@ -2074,7 +2078,7 @@ THashMap<TTableId, TTableSettings> TBundleState::FetchActualTableSettings(
     const NApi::NNative::IClientPtr& client,
     const THashSet<TTableId>& tableIdsToFetch,
     const THashMap<TTableId, TCellTag>& tableIdToCellTag,
-    const IMulticellThrottlerPtr& throttler)
+    const IMulticellThrottlerPtr& throttler) const
 {
     auto cellTagToBatch = FetchTableAttributes(
         client,
@@ -2082,6 +2086,7 @@ THashMap<TTableId, TTableSettings> TBundleState::FetchActualTableSettings(
         /*tableIdsToFetchPivotKeys*/ {},
         tableIdToCellTag,
         throttler,
+        Config_.Acquire()->UseInternalApi,
         [] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
             request->set_fetch_balancing_attributes(true);
         });
@@ -2125,7 +2130,7 @@ THashMap<TTableId, TTableStatisticsResponse> TBundleState::FetchTableStatistics(
     const IMulticellThrottlerPtr& throttler,
     bool fetchPerformanceCounters,
     bool parameterizedBalancingEnabledDefault,
-    THashSet<TTableId> tableIdsWithParameterizedBalancing)
+    THashSet<TTableId> tableIdsWithParameterizedBalancing) const
 {
     // There is no point in tableIdsWithParameterizedBalancing if parameterized balancing is enabled by default.
     YT_VERIFY(!parameterizedBalancingEnabledDefault || tableIdsWithParameterizedBalancing.empty());
@@ -2136,6 +2141,7 @@ THashMap<TTableId, TTableStatisticsResponse> TBundleState::FetchTableStatistics(
         tableIdsToFetchPivotKeys,
         tableIdToCellTag,
         throttler,
+        Config_.Acquire()->UseInternalApi,
         [fetchPerformanceCounters] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
             request->set_fetch_statistics(true);
             if (fetchPerformanceCounters) {
@@ -2221,13 +2227,11 @@ void TBundleState::FetchReplicaModes(
                 return {CellTagFromId(table->UpstreamReplicaId), type};
 
             default:
-                YT_LOG_WARNING(
-                    "Upstream replica mode cannot be fetched since it has unexpected type "
-                    "(TableId: %v, UpstreamReplicaId: %v, Type: %v, Cluster: %v)",
-                    table->Id,
-                    table->UpstreamReplicaId,
-                    type,
-                    cluster);
+                YT_TLOG_WARNING("Upstream replica mode cannot be fetched since it has unexpected type")
+                    .With("TableId", table->Id)
+                    .With("UpstreamReplicaId", table->UpstreamReplicaId)
+                    .With("Type", type)
+                    .With("Cluster", cluster);
                 return {InvalidCellTag, type};
         }
     };
@@ -2310,26 +2314,27 @@ void TBundleState::FetchReplicaModes(
         if (!allowedReplicaClusters.contains(*clusterName)) {
             THROW_ERROR_EXCEPTION("Table replicas from cluster %Qv are not allowed",
                 clusterName)
-                << TErrorAttribute("allowed_replica_clusters", allowedReplicaClusters);
+                .With("allowed_replica_clusters", allowedReplicaClusters);
         }
 
         if (replicaClustersToIgnore.contains(*clusterName)) {
-            YT_LOG_DEBUG("Skipping replica cluster that is banned on metacluster (Cluster: %v)", *clusterName);
+            YT_TLOG_DEBUG("Skipping replica cluster that is banned on metacluster")
+                .With("Cluster", *clusterName);
             continue;
         }
 
         auto client = ClientDirectory_->GetClientOrThrow(*clusterName);
 
-        YT_LOG_DEBUG("Started fetching replica table modes (Cluster: %v, TableCount: %v, CellTag: %v)",
-            clusterName,
-            replicaIds.size(),
-            cellTag);
+        YT_TLOG_DEBUG("Started fetching replica table modes")
+            .With("Cluster", clusterName)
+            .With("TableCount", replicaIds.size())
+            .With("CellTag", cellTag);
 
         auto replicaIdToMode = fetchReplicaModes(Client_, client, replicaIds, MasterRequestThrottler_, replicaType);
 
-        YT_LOG_DEBUG("Finished fetching replica table modes (Cluster: %v, TableCount: %v)",
-            clusterName,
-            replicaIdToMode.size());
+        YT_TLOG_DEBUG("Finished fetching replica table modes")
+            .With("Cluster", clusterName)
+            .With("TableCount", replicaIdToMode.size());
 
         for (const auto& [replicaId, mode] : replicaIdToMode) {
             auto table = GetOrCrash(replicaIdToTable, replicaId);
@@ -2365,8 +2370,8 @@ TBundleSnapshotPtr TBundleState::DoUpdatePerformanceCounters(
         return bundleSnapshot;
     }
 
-    YT_LOG_DEBUG("Started fetching table performance counters from archive (TableCount: %v)",
-        tableIdsToFetch.size());
+    YT_TLOG_DEBUG("Started fetching table performance counters from archive")
+        .With("TableCount", tableIdsToFetch.size());
 
     auto [tableToPerformanceCounters, schema] = FetchPerformanceCountersAndSchemaFromTable(
         Client_,
@@ -2380,11 +2385,11 @@ TBundleSnapshotPtr TBundleState::DoUpdatePerformanceCounters(
         AdditionalPerformanceCountersKeys.end());
 
     auto performanceCountersColumnCount = GetPerformanceCountersColumnCount(schema);
-    YT_LOG_DEBUG_IF(performanceCountersColumnCount != std::ssize(bundleSnapshot->PerformanceCountersKeys),
-        "Statistics reporter schema and current tablet balancer version has different performance counter keys "
-        "(StatisticsReporterPerformanceCountersColumnCount: %v, PerformanceCountersKeyCount: %v)",
-        performanceCountersColumnCount,
-        std::ssize(bundleSnapshot->PerformanceCountersKeys));
+    YT_TLOG_DEBUG_IF(
+        performanceCountersColumnCount != std::ssize(bundleSnapshot->PerformanceCountersKeys),
+        "Statistics reporter schema and current tablet balancer version has different performance counter keys")
+        .With("StatisticsReporterPerformanceCountersColumnCount", performanceCountersColumnCount)
+        .With("PerformanceCountersKeyCount", std::ssize(bundleSnapshot->PerformanceCountersKeys));
 
     bundleSnapshot->Bundle->PerformanceCountersTableSchema = std::move(schema);
 
@@ -2420,8 +2425,8 @@ TBundleSnapshotPtr TBundleState::DoUpdatePerformanceCounters(
 
     RemoveTablesFromBundle(bundleSnapshot, unfetchedTableIds);
 
-    YT_LOG_DEBUG("Finished fetching table performance counters from archive (TableCount: %v)",
-        tableToPerformanceCounters.size());
+    YT_TLOG_DEBUG("Finished fetching table performance counters from archive")
+        .With("TableCount", tableToPerformanceCounters.size());
 
     return bundleSnapshot;
 }
@@ -2432,18 +2437,20 @@ void TBundleState::FetchPerformanceCountersFromAlienTable(
     THashMap<TTableId, TTableStatisticsResponse>* tableIdToStatistics,
     const std::string& cluster)
 {
-    YT_LOG_DEBUG("Started fetching tablet balancer config (ClusterName: %v)", cluster);
+    YT_TLOG_DEBUG("Started fetching tablet balancer config")
+        .With("ClusterName", cluster);
     auto config = FetchTabletBalancerConfig(client);
-    YT_LOG_DEBUG("Finished fetching tablet balancer config (ClusterName: %v)", cluster);
+    YT_TLOG_DEBUG("Finished fetching tablet balancer config")
+        .With("ClusterName", cluster);
 
     THROW_ERROR_EXCEPTION_IF(!config->UseStatisticsReporter || config->StatisticsTablePath.empty(),
         "Cannot fetch table performance counters from another cluster without statistics table");
 
     auto tableIdsToFetchCounters = GetKeySet(*tableIdToStatistics);
 
-    YT_LOG_DEBUG("Started fetching alien table performance counters from archive (Cluster: %v, TableCount: %v)",
-        cluster,
-        tableIdsToFetchCounters.size());
+    YT_TLOG_DEBUG("Started fetching alien table performance counters from archive")
+        .With("Cluster", cluster)
+        .With("TableCount", tableIdsToFetchCounters.size());
 
     auto [tableToPerformanceCounters, tableSchema] = FetchPerformanceCountersAndSchemaFromTable(
         client,
@@ -2451,32 +2458,32 @@ void TBundleState::FetchPerformanceCountersFromAlienTable(
         config->StatisticsTablePath);
     YT_VERIFY(tableSchema);
 
-    YT_LOG_DEBUG("Finished fetching alien table performance counters from archive (Cluster: %v, TableCount: %v)",
-        cluster,
-        tableToPerformanceCounters.size());
+    YT_TLOG_DEBUG("Finished fetching alien table performance counters from archive")
+        .With("Cluster", cluster)
+        .With("TableCount", tableToPerformanceCounters.size());
 
     auto performanceCountersColumnCount = GetPerformanceCountersColumnCount(tableSchema);
-    YT_LOG_DEBUG_IF(performanceCountersColumnCount != std::ssize(bundleSnapshot->PerformanceCountersKeys),
-        "Statistics reporter schema and current tablet balancer version has different performance counter keys "
-        "(StatisticsReporterPerformanceCountersColumnCount: %v, PerformanceCountersKeyCount: %v, Cluster: %v)",
-        performanceCountersColumnCount,
-        std::ssize(bundleSnapshot->PerformanceCountersKeys),
-        cluster);
+    YT_TLOG_DEBUG_IF(
+        performanceCountersColumnCount != std::ssize(bundleSnapshot->PerformanceCountersKeys),
+        "Statistics reporter schema and current tablet balancer version has different performance counter keys")
+        .With("StatisticsReporterPerformanceCountersColumnCount", performanceCountersColumnCount)
+        .With("PerformanceCountersKeyCount", std::ssize(bundleSnapshot->PerformanceCountersKeys))
+        .With("Cluster", cluster);
 
     bundleSnapshot->Bundle->PerClusterPerformanceCountersTableSchemas[cluster] = std::move(tableSchema);
 
-    YT_LOG_DEBUG("Started filling alien table statistics and performance counters (Cluster: %v, TableCount: %v)",
-        cluster,
-        tableToPerformanceCounters.size());
+    YT_TLOG_DEBUG("Started filling alien table statistics and performance counters")
+        .With("Cluster", cluster)
+        .With("TableCount", tableToPerformanceCounters.size());
 
     FillPerformanceCounters(tableIdToStatistics, tableToPerformanceCounters);
 
     auto aliveTables = GetKeySet(tableToPerformanceCounters);
     DropMissingKeys(*tableIdToStatistics, aliveTables);
 
-    YT_LOG_DEBUG("Finished filling alien table statistics and performance counters (Cluster: %v, TableCount: %v)",
-        cluster,
-        tableToPerformanceCounters.size());
+    YT_TLOG_DEBUG("Finished filling alien table statistics and performance counters")
+        .With("Cluster", cluster)
+        .With("TableCount", tableToPerformanceCounters.size());
 }
 
 void TBundleState::FillPerformanceCounters(
@@ -2529,8 +2536,8 @@ THashSet<TTableId> TBundleState::GetReplicaBalancingMajorTables(const TTabletCel
                 THROW_ERROR_EXCEPTION(
                     "Wrong parameterized replica balancing configuration. "
                     "The list of replica clusters must contain current cluster name")
-                    << TErrorAttribute("replica_clusters", replicaClusters)
-                    << TErrorAttribute("current_cluster_name", SelfClusterName_);
+                    .With("replica_clusters", replicaClusters)
+                    .With("current_cluster_name", SelfClusterName_);
             }
             majorTableIds.insert(id);
         }
@@ -2542,7 +2549,7 @@ THashSet<TTableId> TBundleState::GetReplicaBalancingMajorTables(const TTabletCel
 ////////////////////////////////////////////////////////////////////////////////
 
 IBundleStatePtr CreateBundleState(
-    TString name,
+    std::string name,
     IBootstrap* bootstrap,
     IInvokerPtr fetcherInvoker,
     IInvokerPtr controlInvoker,

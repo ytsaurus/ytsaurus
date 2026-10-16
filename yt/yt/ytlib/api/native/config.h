@@ -16,7 +16,9 @@
 
 #include <yt/yt/ytlib/bundle_controller/public.h>
 
-#include <yt/yt/ytlib/discovery_client/public.h>
+#include <yt/yt/ytlib/offshore_data_gateway/public.h>
+
+#include <yt/yt/library/discovery_client/public.h>
 
 #include <yt/yt/ytlib/scheduler/public.h>
 
@@ -214,7 +216,9 @@ struct TConnectionStaticConfig
     NChaosClient::TChaosResidencyCacheConfigPtr ChaosResidencyCache;
 
     //! Visible in profiling as tag `connection_name`.
-    TString ConnectionName;
+    std::string ConnectionName;
+
+    std::optional<std::string> Datacenter;
 
     //! Region defines geographical location, largest tier in cloud hierarchy.
     std::optional<std::string> Region;
@@ -261,20 +265,34 @@ struct TConnectionDynamicConfig
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NBundleController::TBundleControllerChannelConfigPtr BundleController;
     NTabletBalancerClient::TTabletBalancerChannelConfigPtr TabletBalancer;
+    NOffshoreDataGateway::TOffshoreDataGatewayChannelConfigPtr OffshoreDataGateway;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
     NChunkClient::TClientChunkMetaCacheConfigPtr ChunkMetaCache;
     NChunkClient::TChunkReplicaCacheDynamicConfigPtr ChunkReplicaCache;
     NChaosClient::TReplicationCardCacheDynamicConfigPtr ReplicationCardCache;
+    NChaosClient::TChaosLeaseCacheDynamicConfigPtr ChaosLeaseCache;
     NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
     NChunkClient::TMediumDirectorySynchronizerConfigPtr MediumDirectorySynchronizer;
     NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;
     NChunkClient::TChunkSliceFetcherConfigPtr ChunkSliceFetcher;
 
+    //! If set, every CreateTableReader / CreateTablePartitionReader call
+    //! runs a one-off NodeDirectory sync via INodeDirectorySynchronizer::SyncOnce if periodic synchronizer is not active.
+    bool EnableNodeDirectorySynchronizationOnTableRead;
+    //! Minimum interval between successful one-off syncs triggered by EnableNodeDirectorySynchronizationOnTableRead.
+    TDuration NodeDirectorySynchronizationOnTableReadStalenessThreshold;
+
+    //! Limits the number of ranges accepted by a single PartitionFile call.
+    int MaxFilePartitionCount;
+    //! Limits the number of chunk specs packed into a single file partition cookie.
+    int MaxChunkSpecsPerFilePartition;
+
     NQueryClient::TExecutorConfigPtr QueryEvaluator;
     NQueryClient::TColumnEvaluatorCacheConfigPtr ColumnEvaluatorCache;
     NQueryClient::TExpressionEvaluatorCacheConfigPtr ExpressionEvaluatorCache;
     TDuration DefaultSelectRowsTimeout;
+    TDuration CumulativeSelectRowsFailedResponseWaitTime;
     NCompression::ECodec SelectRowsResponseCodec;
     i64 DefaultInputRowLimit;
     i64 DefaultOutputRowLimit;
@@ -300,6 +318,8 @@ struct TConnectionDynamicConfig
     std::optional<TDuration> LookupRowsInMemoryLoggingSuppressionTimeout;
     std::optional<TDuration> LookupRowsExtMemoryLoggingSuppressionTimeout;
 
+    std::optional<NCompression::ECodec> PullQueueResponseCodec;
+
     int DefaultGetTabletErrorsLimit;
 
     NYPath::TYPath UdfRegistryPath;
@@ -308,7 +328,7 @@ struct TConnectionDynamicConfig
 
     int ThreadPoolSize;
 
-    NBus::TBusConfigPtr BusClient;
+    NBus::NTcp::TBusConfigPtr BusClient;
     TDuration IdleChannelTtl;
 
     TDuration DefaultGetInSyncReplicasTimeout;
@@ -398,18 +418,25 @@ struct TConnectionDynamicConfig
 
     NTransactionClient::TDynamicClockManagerConfigPtr ClockManager;
 
+    int ReplicationCardRetryCount;
+    TDuration ReplicationCardRetrySlackPeriod;
     int ReplicaFallbackRetryCount;
+
+    int LocalTabletWriteRetryCount;
 
     bool DisableNewRangeInference;
 
     bool DisableAdaptiveOrderedSchemafulReader;
 
-    bool UseWebAssembly;
+    bool AllowWebAssembly;
 
     // COMPAT(sabdenovch)
     bool GroupByWithLimitIsUnordered;
 
     TDuration FlowPipelineControllerRpcTimeout;
+
+    //! If true, every RPC request to Flow Controller is signed with proxy signature.
+    bool FlowProxySignatureEnabled;
 
     EMasterChannelKind ReadOperationsArchiveStateFrom;
 
@@ -428,11 +455,19 @@ struct TConnectionDynamicConfig
 
     bool EnableReshardWithSlicingByDefault;
 
+    bool UseCypressProxyForTwoPhaseTableOperations;
+
     i64 GetJobTraceBatchSize;
 
     //! Enable base ACO check when validating operation access.
     bool CheckOperationBaseAco;
     std::string OperationBaseAcoName;
+
+    // COMPAT(atalmenev)
+    bool UseUniformPrepareSignatures;
+
+    // COMPAT(ifsmirnov)
+    bool UseTwoPhaseDynamicityAlter;
 
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 

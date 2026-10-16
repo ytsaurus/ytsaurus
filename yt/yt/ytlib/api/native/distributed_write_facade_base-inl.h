@@ -53,8 +53,8 @@ TTraits::TSessionWithCookies TDistributedWriteStartFacadeBase<TDerived, TTraits>
     NYTree::INodePtr nodeWithAttributes;
 
     {
-        YT_LOG_DEBUG("Requesting extended object attributes (ObjectType: %Qlv)",
-            TTraits::ObjectType);
+        YT_TLOG_DEBUG("Requesting extended object attributes")
+            .With("ObjectType", TTraits::ObjectType);
 
         nodeWithAttributes = ToDerived()->RequestExtendedObjectAttributes(
             richPath,
@@ -62,9 +62,9 @@ TTraits::TSessionWithCookies TDistributedWriteStartFacadeBase<TDerived, TTraits>
             objectIdPath,
             userObject);
 
-        YT_LOG_DEBUG("Extended attributes received (Attributes: %v, ObjectType: %Qlv)",
-            ConvertToYsonString(nodeWithAttributes->Attributes(), NYson::EYsonFormat::Text),
-            TTraits::ObjectType);
+        YT_TLOG_DEBUG("Extended attributes received")
+            .With("Attributes", ConvertToYsonString(nodeWithAttributes->Attributes(), NYson::EYsonFormat::Text))
+            .With("ObjectType", TTraits::ObjectType);
     }
 
     auto [chunkSchemaId, uploadTransactionId] = ToDerived()->BeginUpload(
@@ -217,58 +217,40 @@ void TDistributedWriteFinishFacadeBase<TDerived, TTraits>::FinishSession(
     NChunkClient::TChunkServiceProxy proxy(channel);
 
     // Split large outputs into separate requests.
-    NChunkClient::NProto::TReqAttachChunkTrees* req = nullptr;
-    NChunkClient::TChunkServiceProxy::TReqExecuteBatchPtr batchReq;
+    NChunkClient::TChunkServiceProxy::TReqAttachChunkTreesPtr req;
 
     auto flushRequest = [&] (bool requestStatistics) {
-        if (!batchReq) {
+        if (!req) {
             return;
         }
 
-        if (req) {
-            req->set_request_statistics(requestStatistics);
-            req = nullptr;
-        }
+        req->set_request_statistics(requestStatistics);
 
-        auto batchRspOrError = NConcurrency::WaitFor(batchReq->Invoke());
+        auto rspOrError = NConcurrency::WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            NChunkClient::GetCumulativeError(batchRspOrError),
-            "Error attaching output chunks (Path: %v)",
+            rspOrError,
+            "Error attaching output chunks to %v",
             path);
 
-        const auto& batchRsp = batchRspOrError.Value();
-        const auto& subresponses = batchRsp->attach_chunk_trees_subresponses();
-
         if (requestStatistics) {
-            for (const auto& rsp : subresponses) {
-                dataStatistics += rsp.statistics();
-            }
+            dataStatistics += rspOrError.Value()->statistics();
         }
 
-        batchReq.Reset();
+        req.Reset();
     };
 
-    int currentRequestSize = 0;
     THashSet<NChunkClient::TChunkTreeId> addedChunkTrees;
 
     const auto& config = Client_->GetNativeConnection()->GetConfig()->DistributedWriteDynamicConfig;
     auto addChunkTree = [&] (NChunkClient::TChunkTreeId chunkTreeId) {
-        if (batchReq && currentRequestSize >= config->MaxChildrenPerAttachRequest) {
+        if (req && req->child_ids_size() >= config->MaxChildrenPerAttachRequest) {
             flushRequest(/*requestStatistics*/ false);
-            currentRequestSize = 0;
         }
 
-        ++currentRequestSize;
-
         if (!req) {
-            if (!batchReq) {
-                batchReq = proxy.ExecuteBatch();
-                GenerateMutationId(batchReq);
-                NObjectClient::SetSuppressUpstreamSync(&batchReq->Header(), true);
-                // COMPAT(shakurov): prefer proto ext (above).
-                batchReq->set_suppress_upstream_sync(true);
-            }
-            req = batchReq->add_attach_chunk_trees_subrequests();
+            req = proxy.AttachChunkTrees();
+            GenerateMutationId(req);
+            NObjectClient::SetSuppressUpstreamSync(&req->Header(), true);
             ToProto(req->mutable_parent_id(), session.RootChunkListId);
         }
 
@@ -288,9 +270,9 @@ void TDistributedWriteFinishFacadeBase<TDerived, TTraits>::FinishSession(
     for (const auto& writeResult : writeResults) {
         if (!addedChunkTrees.insert(writeResult.ChunkListId).second) {
             THROW_ERROR_EXCEPTION("Duplicate chunk list ids")
-                << TErrorAttribute("session_id", writeResult.SessionId)
-                << TErrorAttribute("cookie_id", writeResult.CookieId)
-                << TErrorAttribute("chunk_list_id", writeResult.ChunkListId);
+                .With("session_id", writeResult.SessionId)
+                .With("cookie_id", writeResult.CookieId)
+                .With("chunk_list_id", writeResult.ChunkListId);
         }
         addChunkTree(writeResult.ChunkListId);
     }

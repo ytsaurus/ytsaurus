@@ -40,9 +40,7 @@ class TMutableFunctionRegistry: public IMutableFunctionRegistry {
     struct TUdfLibrary: public TThrRefBase {
         ui32 AbiVersion = 0;
         TDynamicLibrary Lib;
-        TUdfLibrary()
-        {
-        }
+        TUdfLibrary() = default;
     };
     using TUdfLibraryPtr = TIntrusivePtr<TUdfLibrary>;
 
@@ -121,12 +119,10 @@ public:
         , Builtins_(rhs.Builtins_)
         , LoadedLibraries_(rhs.LoadedLibraries_)
         , UdfModules_(rhs.UdfModules_)
-        , SupportsSizedAllocators_(rhs.SupportsSizedAllocators_)
     {
     }
 
-    ~TMutableFunctionRegistry() override {
-    }
+    ~TMutableFunctionRegistry() override = default;
 
     void AllowUdfPatch() override {
     }
@@ -172,9 +168,6 @@ public:
                                                                   << "YQL_ABI_VERSION(" << UDF_ABI_VERSION_MAJOR
                                                                   << " " << UDF_ABI_VERSION_MINOR << " 0) macro in ya.make");
             lib->AbiVersion = version;
-            if (version < NUdf::MakeAbiVersion(2, 8, 0)) {
-                SupportsSizedAllocators_ = false;
-            }
 
 #if defined(_win_) || defined(_darwin_)
             auto bindSymbolsFunc = reinterpret_cast<NUdf::TBindSymbolsFunctionPtr>(lib->Lib.Sym(BindSymbolsFuncName));
@@ -225,7 +218,7 @@ public:
 
         TUdfModuleRemappings remappings;
         TUdfModuleLoader loader(
-            UdfModules_, nullptr, libraryPathStr,
+            UdfModules_, /*newModules=*/nullptr, libraryPathStr,
             remappings, NUdf::CurrentAbiVersion());
         loader.AddModule(moduleName, std::move(module));
 
@@ -242,6 +235,7 @@ public:
 
     TStatus FindFunctionTypeInfo(
         NYql::TLangVersion langver,
+        const NYql::TRuntimeSettings& runtimeSettings,
         const TTypeEnvironment& env,
         NUdf::ITypeInfoHelper::TPtr typeInfoHelper,
         NUdf::ICountersProvider* countersProvider,
@@ -258,7 +252,7 @@ public:
         if (name.TrySplit(MODULE_NAME_DELIMITER, moduleName, funcName)) {
             auto it = UdfModules_.find(moduleName);
             if (it != UdfModules_.end()) {
-                TFunctionTypeInfoBuilder typeInfoBuilder(langver, env, typeInfoHelper, moduleName,
+                TFunctionTypeInfoBuilder typeInfoBuilder(langver, runtimeSettings, env, typeInfoHelper, moduleName,
                                                          (flags & NUdf::IUdfModule::TFlags::TypesOnly) ? nullptr : countersProvider, pos,
                                                          secureParamsProvider, logProvider);
                 const auto& module = *it->second.Impl;
@@ -367,10 +361,6 @@ public:
         return sink.Functions;
     }
 
-    bool SupportsSizedAllocators() const override {
-        return SupportsSizedAllocators_;
-    }
-
     void PrintInfoTo(IOutputStream& out) const override {
         Builtins_->PrintInfoTo(out);
     }
@@ -397,7 +387,6 @@ private:
     THolder<TMemoryUsageInfo> UdfMemoryInfo_;
     TUdfModulePathsMap SystemModulePaths_;
     NUdf::TBackTraceCallback BackTraceCallback_ = nullptr;
-    bool SupportsSizedAllocators_ = true;
 };
 
 //////////////////////////////////////////////////////////////////////////////
@@ -419,6 +408,7 @@ public:
 
     TStatus FindFunctionTypeInfo(
         NYql::TLangVersion langver,
+        const NYql::TRuntimeSettings& runtimeSettings,
         const TTypeEnvironment& env,
         NUdf::ITypeInfoHelper::TPtr typeInfoHelper,
         NUdf::ICountersProvider* countersProvider,
@@ -431,6 +421,7 @@ public:
         const NUdf::ILogProvider* logProvider,
         TFunctionTypeInfo* funcInfo) const override {
         Y_UNUSED(langver);
+        Y_UNUSED(runtimeSettings);
         Y_UNUSED(env);
         Y_UNUSED(typeInfoHelper);
         Y_UNUSED(countersProvider);
@@ -460,10 +451,6 @@ public:
 
     TFunctionsMap GetModuleFunctions(const TStringBuf&) const override {
         return TFunctionsMap();
-    }
-
-    bool SupportsSizedAllocators() const override {
-        return true;
     }
 
     void PrintInfoTo(IOutputStream& out) const override {

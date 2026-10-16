@@ -14,8 +14,10 @@
 #include "journal_dispatcher.h"
 #include "location_manager.h"
 #include "master_connector.h"
+#include "medium_aware_block_cache_manager.h"
 #include "medium_directory_manager.h"
 #include "medium_updater.h"
+#include "network_statistics.h"
 #include "orchid.h"
 #include "p2p.h"
 #include "private.h"
@@ -28,7 +30,9 @@
 
 #include <yt/yt/server/node/tablet_node/config.h>
 
-#include <yt/yt/server/lib/distributed_chunk_session_server/distributed_chunk_session_service.h>
+#include <yt/yt/server/lib/distributed_chunk_session_server/session_service.h>
+
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -39,6 +43,8 @@
 #include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
+
+#include <yt/yt/core/bus/public.h>
 
 #include <yt/yt/core/concurrency/poller.h>
 
@@ -59,6 +65,7 @@ using namespace NQueryClient;
 using namespace NDiskManager;
 using namespace NYTree;
 using namespace NServer;
+using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,7 +102,7 @@ public:
 
     void Initialize() override
     {
-        YT_LOG_INFO("Initializing data node");
+        YT_TLOG_INFO("Initializing data node");
 
         // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
@@ -278,7 +285,7 @@ public:
         IOThroughputMeter_ = CreateIOThroughputMeter(
             GetDynamicConfigManager(),
             ChunkStore_,
-            DataNodeLogger().WithTag("IOMeter"));
+            DataNodeLogger().WithTag("Meter", "IO"));
         JobController_->Initialize();
 
         auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager();
@@ -294,6 +301,19 @@ public:
             RestartManager_);
         LocationHealthChecker_->Initialize();
         MasterConnector_->Initialize();
+
+        MediumAwareBlockCacheManager_ = CreateMediumAwareBlockCacheManager(
+            GetConfig()->DataNode->MediumAwareBlockCacheManager,
+            ChunkStore_->GetLocationCountPerMedium(),
+            GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::BlockCache),
+            BIND([mediumDirectoryManager = MediumDirectoryManager_] (int mediumIndex) -> std::optional<std::string> {
+                auto medium = mediumDirectoryManager->GetMediumDirectory()->FindByIndex(mediumIndex);
+                return medium
+                    ? std::make_optional(medium->Name())
+                    : std::nullopt;
+            }),
+            DataNodeProfiler().WithPrefix("/block_cache/per_medium"));
+        ChunkStore_->SetMediumAwareBlockCacheManager(MediumAwareBlockCacheManager_);
 
         if (hotswapManager) {
             SubscribePopulateAlerts(BIND(&IHotswapManager::PopulateAlerts, hotswapManager));
@@ -361,7 +381,7 @@ public:
 
     void InitializeOverloadController()
     {
-        OverloadController_->TrackFSHThreadPool(BusXferThreadPoolName, NBus::TTcpDispatcher::Get()->GetXferPoller()->GetFairShareThreadPool());
+        OverloadController_->TrackFSHThreadPool(BusXferThreadPoolName, NBus::NTcp::TDispatcher::Get()->GetXferPoller()->GetFairShareThreadPool());
         OverloadController_->TrackInvoker(StorageHeavyPoolName, NRpc::TDispatcher::Get()->GetHeavyInvoker());
         OverloadController_->TrackInvoker(StorageLightPoolName, NRpc::TDispatcher::Get()->GetLightInvoker());
 
@@ -418,6 +438,19 @@ public:
     const TMediumUpdaterPtr& GetMediumUpdater() const override
     {
         return MediumUpdater_;
+    }
+
+    const IMediumAwareBlockCacheManagerPtr& GetMediumAwareBlockCacheManager() const override
+    {
+        return MediumAwareBlockCacheManager_;
+    }
+
+    NChunkClient::IBlockCachePtr GetBlockCacheForMedium(int mediumIndex) const override
+    {
+        if (auto blockCache = MediumAwareBlockCacheManager_->GetBlockCacheForMedium(mediumIndex)) {
+            return blockCache;
+        }
+        return GetBlockCache();
     }
 
     const IThroughputThrottlerPtr& GetThrottler(EDataNodeThrottlerKind kind) const override
@@ -522,6 +555,39 @@ public:
         MasterConnector_->SetLocationIndexesInHeartbeatsEnabled(value);
     }
 
+    TNetThrottlingResult CheckNetOutThrottling(
+        i64 pendingOutBytes,
+        const std::string& networkName,
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true) const override
+    {
+        const auto& netThrottler = GetOutThrottler(workloadDescriptor);
+        auto netQueueSize = netThrottler->GetQueueTotalAmount() + pendingOutBytes;
+        auto netQueueLimit = GetDynamicConfigManager()->GetConfig()->DataNode->NetOutThrottlingLimit.value_or(
+            GetConfig()->DataNode->NetOutThrottlingLimit);
+        bool throttle = netQueueSize > netQueueLimit;
+        if (throttle && incrementCounter) {
+            GetNetworkStatistics().IncrementReadThrottlingCounter(networkName);
+        }
+        return TNetThrottlingResult{.Enabled = throttle, .QueueSize = netQueueSize};
+    }
+
+    TNetThrottlingResult CheckNetInThrottling(
+        const std::string& networkName,
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true) const override
+    {
+        const auto& netThrottler = GetInThrottler(workloadDescriptor);
+        auto netQueueSize = netThrottler->GetQueueTotalAmount();
+        auto netQueueLimit = GetDynamicConfigManager()->GetConfig()->DataNode->NetInThrottlingLimit.value_or(
+            GetConfig()->DataNode->NetInThrottlingLimit);
+        bool throttle = netQueueSize > netQueueLimit;
+        if (throttle && incrementCounter) {
+            GetNetworkStatistics().IncrementWriteThrottlingCounter(networkName);
+        }
+        return TNetThrottlingResult{.Enabled = throttle, .QueueSize = netQueueSize};
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -549,6 +615,8 @@ private:
 
     IThreadPoolPtr StorageLookupThreadPool_;
     IThreadPoolPtr MasterJobThreadPool_;
+
+    IMediumAwareBlockCacheManagerPtr MediumAwareBlockCacheManager_;
 
     TActionQueuePtr P2PActionQueue_;
     TP2PBlockCachePtr P2PBlockCache_;
@@ -596,6 +664,8 @@ private:
         MasterJobThreadPool_->SetThreadCount(newConfig->DataNode->MasterJobThreadCount);
 
         TableSchemaCache_->Configure(newConfig->DataNode->TableSchemaCache);
+
+        MediumAwareBlockCacheManager_->Reconfigure(newConfig->DataNode->MediumAwareBlockCacheManager);
 
         P2PBlockCache_->UpdateConfig(newConfig->DataNode->P2P);
         P2PSnooper_->UpdateConfig(newConfig->DataNode->P2P);

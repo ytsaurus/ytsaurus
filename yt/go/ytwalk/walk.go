@@ -26,6 +26,7 @@ type Walk struct {
 	Node any
 
 	// OnNode is invoked for each node during traversal.
+	// Child names in path are escaped as YPath literals; Root is preserved as supplied.
 	OnNode func(path ypath.Path, node any) error
 
 	// RespectOpaque defines whether we stop at opaque nodes (true) or not (false).
@@ -93,7 +94,7 @@ func Do(ctx context.Context, yc yt.Client, w *Walk) error {
 		}
 
 		for name, child := range t.Value.Children {
-			if err := walk(path.Child(name), child); err != nil {
+			if err := walk(path.Child(ypath.EscapeLiteral(name)), child); err != nil {
 				return err
 			}
 		}

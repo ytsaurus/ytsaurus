@@ -1,5 +1,7 @@
 #include "operation_description.h"
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NSchedulerSimulator {
@@ -25,7 +27,7 @@ public:
 
     static void Load(TStreamLoadContext& context, IMapNodePtr& node)
     {
-        TString str;
+        std::string str;
         NYT::Load(context, str);
         node = ConvertToNode(TYsonString(str))->AsMap();
     }
@@ -33,15 +35,16 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobDescription::Persist(const TStreamPersistenceContext& context)
+void TJobDescription::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Duration);
-    Persist(context, ResourceLimits);
-    Persist(context, Id);
-    Persist(context, Type);
-    Persist(context, State);
+    PHOENIX_REGISTER_FIELD(1, Duration);
+    PHOENIX_REGISTER_FIELD(2, ResourceLimits);
+    PHOENIX_REGISTER_FIELD(3, Id);
+    PHOENIX_REGISTER_FIELD(4, Type);
+    PHOENIX_REGISTER_FIELD(5, State);
 }
+
+PHOENIX_DEFINE_TYPE(TJobDescription);
 
 void Deserialize(TJobDescription& value, NYTree::INodePtr node)
 {
@@ -55,29 +58,30 @@ void Deserialize(TJobDescription& value, NYTree::INodePtr node)
     value.ResourceLimits.SetNetwork(listNode->GetChildOrThrow(4)->AsInt64()->GetValue());
     value.ResourceLimits.SetGpu(0);
     value.Id = TJobId(ConvertTo<TGuid>(listNode->GetChildOrThrow(5)));
-    auto jobType = ConvertTo<TString>(listNode->GetChildOrThrow(6));
+    auto jobType = ConvertTo<std::string>(listNode->GetChildOrThrow(6));
     if (jobType == "partition_sort") {
         jobType = "intermediate_sort";
     }
     value.Type = ConvertTo<NJobTrackerClient::EJobType>(jobType);
-    value.State = ConvertTo<TString>(listNode->GetChildOrThrow(7));
+    value.State = ConvertTo<std::string>(listNode->GetChildOrThrow(7));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOperationDescription::Persist(const TStreamPersistenceContext& context)
+void TOperationDescription::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Id);
-    Persist(context, JobDescriptions);
-    Persist(context, StartTime);
-    Persist(context, Duration);
-    Persist(context, AuthenticatedUser);
-    Persist(context, Type);
-    Persist(context, State);
-    Persist(context, InTimeframe);
-    Persist(context, Spec);
+    PHOENIX_REGISTER_FIELD(1, Id);
+    PHOENIX_REGISTER_FIELD(2, JobDescriptions);
+    PHOENIX_REGISTER_FIELD(3, StartTime);
+    PHOENIX_REGISTER_FIELD(4, Duration);
+    PHOENIX_REGISTER_FIELD(5, AuthenticatedUser);
+    PHOENIX_REGISTER_FIELD(6, Type);
+    PHOENIX_REGISTER_FIELD(7, State);
+    PHOENIX_REGISTER_FIELD(8, InTimeframe);
+    PHOENIX_REGISTER_FIELD(9, Spec);
 }
+
+PHOENIX_DEFINE_TYPE(TOperationDescription);
 
 void Deserialize(TOperationDescription& value, NYTree::INodePtr node)
 {
@@ -88,7 +92,7 @@ void Deserialize(TOperationDescription& value, NYTree::INodePtr node)
     value.Duration = ConvertTo<TInstant>(mapNode->GetChildOrThrow("finish_time")) - value.StartTime;
     value.AuthenticatedUser = ConvertTo<std::string>(mapNode->GetChildOrThrow("authenticated_user"));
     value.Type = ConvertTo<NScheduler::EOperationType>(mapNode->GetChildOrThrow("operation_type"));
-    value.State = ConvertTo<TString>(mapNode->GetChildOrThrow("state"));
+    value.State = ConvertTo<std::string>(mapNode->GetChildOrThrow("state"));
     value.InTimeframe = ConvertTo<bool>(mapNode->GetChildOrThrow("in_timeframe"));
     value.Spec = ConvertToYsonString(mapNode->GetChildOrThrow("spec"));
 }

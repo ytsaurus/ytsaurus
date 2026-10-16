@@ -1,5 +1,6 @@
 #pragma once
 
+#include "chunk_replica.h"
 #include "job.h"
 #include "job_controller.h"
 
@@ -31,7 +32,7 @@ void Deserialize(TChunkReincarnationOptions& options, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReincarnationJob
+class TReincarnationJob
     : public TJob
 {
 public:

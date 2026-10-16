@@ -19,11 +19,11 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/yson/public.h>
 
 #include <library/cpp/yt/compact_containers/compact_flat_map.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NChaosServer {
 

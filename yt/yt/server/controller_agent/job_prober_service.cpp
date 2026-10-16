@@ -94,11 +94,10 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
 
-        context->SetRequestInfo(
-            "IncarnationId: %v, OperationId: %v, JobId: %v",
-            incarnationId,
-            operationId,
-            jobId);
+        context->AnnotateRequest()
+            .With("IncarnationId", incarnationId)
+            .With("OperationId", operationId)
+            .With("JobId", jobId);
 
         ValidateAgentIncarnation(incarnationId);
 
@@ -125,11 +124,10 @@ private:
 
         auto timeout = FromProto<TDuration>(request->timeout());
 
-        context->SetRequestInfo(
-            "IncarnationId: %v, OperationId: %v, JobId: %v",
-            incarnationId,
-            operationId,
-            jobId);
+        context->AnnotateRequest()
+            .With("IncarnationId", incarnationId)
+            .With("OperationId", operationId)
+            .With("JobId", jobId);
 
         ValidateAgentIncarnation(incarnationId);
 
@@ -156,12 +154,11 @@ private:
         auto shellName = request->has_shell_name()
             ? std::make_optional(request->shell_name())
             : std::nullopt;
-        context->SetRequestInfo(
-            "IncarnationId: %v, OperationId: %v, JobId: %v, ShellName: %v",
-            incarnationId,
-            operationId,
-            jobId,
-            shellName);
+        context->AnnotateRequest()
+            .With("IncarnationId", incarnationId)
+            .With("OperationId", operationId)
+            .With("JobId", jobId)
+            .With("ShellName", shellName);
 
 
         ValidateAgentIncarnation(incarnationId);
@@ -213,9 +210,8 @@ private:
             response->set_subcontainer(jobShellInfo->GetSubcontainerName());
         }
 
-        context->SetResponseInfo(
-            "Subcontainer: %v",
-            response->subcontainer());
+        context->AnnotateResponse()
+            .With("Subcontainer", response->subcontainer());
         context->Reply();
     }
 };

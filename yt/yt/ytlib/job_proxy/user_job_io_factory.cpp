@@ -168,50 +168,50 @@ TComparator BuildComparatorForFirstInputTable(
     auto sortOrders = GetSortOrders(sortColumns);
 
     if (!enableCodegen) {
-        YT_LOG_DEBUG("Using default comparator because codegen is disabled");
+        YT_TLOG_DEBUG("Using default comparator because codegen is disabled");
         return TComparator(std::move(sortOrders));
     }
 
     if (!dataSourceDirectory || dataSourceDirectory->DataSources().empty()) {
-        YT_LOG_DEBUG("Using default comparator because of missing or empty data source directory");
+        YT_TLOG_DEBUG("Using default comparator because of missing or empty data source directory");
         return TComparator(std::move(sortOrders));
     }
 
     auto schema = dataSourceDirectory->DataSources()[0]->Schema();
     if (!schema) {
-        YT_LOG_DEBUG("Using default comparator because of missing schema");
+        YT_TLOG_DEBUG("Using default comparator because of missing schema");
         return TComparator(std::move(sortOrders));
     }
 
     // Check that the schema's key columns match the sort columns.
     auto keyColumns = schema->GetKeyColumns();
     if (keyColumns.size() < sortColumns.size()) {
-        YT_LOG_DEBUG(
-            "Using default comparator because of column count mismatch (Actual: %v, Expected: at least %v, Schema: %v)",
-            keyColumns.size(),
-            sortColumns.size(),
-            schema);
+        YT_TLOG_DEBUG("Using default comparator because of column count mismatch")
+            .With("Actual", keyColumns.size())
+            .With("MinExpected", sortColumns.size())
+            .With("Schema", schema);
         return TComparator(std::move(sortOrders));
     }
 
     for (int i = 0; i < std::ssize(sortColumns); ++i) {
         if (keyColumns[i] != sortColumns[i].Name) {
-            YT_LOG_DEBUG(
-                "Using default comparator because of column name mismatch (Actual: %v, Expected: %v, Schema: %v)",
-                keyColumns[i],
-                sortColumns[i].Name,
-                schema);
+            YT_TLOG_DEBUG("Using default comparator because of column name mismatch")
+                .With("Actual", keyColumns[i])
+                .With("Expected", sortColumns[i].Name)
+                .With("Schema", schema);
             return TComparator(std::move(sortOrders));
         }
     }
 
 
     if (!schema->IsCGComparatorApplicable(sortColumns.size())) {
-        YT_LOG_DEBUG("Using default comparator because codegen is not applicable (Schema: %v)", schema);
+        YT_TLOG_DEBUG("Using default comparator because codegen is not applicable")
+            .With("Schema", schema);
         return TComparator(std::move(sortOrders));
     }
 
-    YT_LOG_DEBUG("Using codegen comparator (Schema: %v)", schema);
+    YT_TLOG_DEBUG("Using codegen comparator")
+        .With("Schema", schema);
 
     auto keyTypes = schema->GetKeyColumnTypes();
     keyTypes.resize(sortColumns.size());
@@ -250,7 +250,8 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
         multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 }
 
-std::optional<i64> GetChunkSpecRowCount(const NChunkClient::NProto::TChunkSpec& chunkSpec) {
+std::optional<i64> GetChunkSpecRowCount(const NChunkClient::NProto::TChunkSpec& chunkSpec)
+{
     if (chunkSpec.has_row_count_override()) {
         return chunkSpec.row_count_override();
     }
@@ -263,7 +264,8 @@ std::optional<i64> GetChunkSpecRowCount(const NChunkClient::NProto::TChunkSpec& 
     return std::nullopt;
 }
 
-std::optional<i64> GetChunkSpecDataWeight(const NChunkClient::NProto::TChunkSpec& chunkSpec) {
+std::optional<i64> GetChunkSpecDataWeight(const NChunkClient::NProto::TChunkSpec& chunkSpec)
+{
     if (chunkSpec.has_data_weight_override()) {
         return chunkSpec.data_weight_override();
     }
@@ -438,7 +440,10 @@ TCreateUserJobReaderResult CreateSortedReduceJobReader(
         }
     }
 
-    if (reduceJobSpecExt.disable_sorted_input() && jobSpecExt.foreign_input_table_specs_size() == 0) {
+    if (reduceJobSpecExt.disable_sorted_input() &&
+        jobSpecExt.foreign_input_table_specs_size() == 0 &&
+        !reduceJobSpecExt.has_push_based_shuffle_valid_task_job_indexes())
+    {
         // Input tables are currently sorted, although this property is not utilized by this reader.
         // Intermediate sorting is necessary to distribute chunks among sorted reduce jobs
         // in the current implementation.
@@ -512,9 +517,8 @@ TCreateUserJobReaderResult CreateSortedReduceJobReader(
         // TODO(orlovorlov): surface it in `yt get-job` output that a preliminary
         // pass was performed.
 
-        YT_LOG_INFO(
-            "Starting preliminary pass to read all keys from primary table (ForeignTableCount: %v)",
-            jobSpecExt.foreign_input_table_specsSize());
+        YT_TLOG_INFO("Starting preliminary pass to read all keys from primary table")
+            .With("ForeignTableCount", jobSpecExt.foreign_input_table_specsSize());
 
         NChunkClient::NProto::TDataStatistics statistics;
         for (int i = 0; i < jobSpecExt.input_table_specs_size(); i++) {
@@ -544,12 +548,11 @@ TCreateUserJobReaderResult CreateSortedReduceJobReader(
         }
         hintKeyPrefixes = THintKeyPrefixes(DedupRows(joinComparator, primaryKeyPrefixes, rowBuffer));
 
-        YT_LOG_INFO(
-            "Read all keys from primary table in a preliminary pass "
-            "(EstimatedRowCount: %v, ActualRowCount: %v, DedupedRowCount: %v, "
-            "NumForeignTables: %v)",
-            inputRowCount, primaryRowCount, std::ssize(hintKeyPrefixes->HintPrefixes),
-            jobSpecExt.foreign_input_table_specsSize());
+        YT_TLOG_INFO("Read all keys from primary table in a preliminary pass")
+            .With("EstimatedRowCount", inputRowCount)
+            .With("ActualRowCount", primaryRowCount)
+            .With("DedupedRowCount", std::ssize(hintKeyPrefixes->HintPrefixes))
+            .With("ForeignTableCount", jobSpecExt.foreign_input_table_specsSize());
 
         if (preparationDataStatistics) {
             *preparationDataStatistics += statistics;
@@ -580,6 +583,18 @@ TCreateUserJobReaderResult CreateSortedReduceJobReader(
             memoryManager);
 
         primaryReaders.emplace_back(reader);
+    }
+
+    if (reduceJobSpecExt.has_push_based_shuffle_valid_task_job_indexes()) {
+        YT_VERIFY(jobSpecExt.foreign_input_table_specs().empty());
+
+        return {
+            CreatePushBasedShuffleMergingReader(
+                primaryReaders,
+                reduceJobSpecExt.push_based_shuffle_valid_task_job_indexes(),
+                sortColumns),
+            preparationDataStatistics,
+        };
     }
 
     std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
@@ -730,11 +745,28 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
 
     YT_VERIFY(jobSpecExt.input_table_specs_size() == 1);
 
+    const auto& reduceJobSpecExt = jobSpecHelper->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+    if (reduceJobSpecExt.has_push_based_shuffle_sort_reader()) {
+        const auto& readerSpec = reduceJobSpecExt.push_based_shuffle_sort_reader();
+
+        YT_VERIFY(readerSpec.has_valid_task_job_indexes());
+
+        return {
+            CreatePushBasedShuffleSortReader(
+                jobSpecExt,
+                readerSpec,
+                FromProto<TNameTablePtr>(readerSpec.intermediate_stream_name_table()),
+                FromProto<TSortColumns>(reduceJobSpecExt.sort_columns()),
+                chunkReaderHost,
+                std::move(onNetworkReleased)),
+            std::nullopt,
+        };
+    }
+
     const auto& inputSpec = jobSpecExt.input_table_specs(0);
     auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
     auto dataSourceDirectory = jobSpecHelper->GetDataSourceDirectory();
 
-    const auto& reduceJobSpecExt = jobSpecHelper->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
     auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
     auto sortColumns = FromProto<TSortColumns>(reduceJobSpecExt.sort_columns());
 

@@ -72,7 +72,7 @@ class TestEventLog(YTEnvSetup):
         op = map(
             in_="//tmp/t1",
             out="//tmp/t2",
-            command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null && python3 -c "import time; x = [i for i in range(10**7)]; time.sleep(2)"',
+            command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null && python3 -c "import time; x = [i for i in range(2 * 10**6)]; time.sleep(2)"',
         )
 
         def check_statistics(statistics, statistic_extractor):

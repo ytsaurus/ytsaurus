@@ -171,7 +171,11 @@ def url_unescape(
 
 
 def parse_qs_bytes(
-    qs: Union[str, bytes], keep_blank_values: bool = False, strict_parsing: bool = False
+    qs: Union[str, bytes],
+    keep_blank_values: bool = False,
+    strict_parsing: bool = False,
+    *,
+    max_num_fields: Optional[int] = None,
 ) -> Dict[str, List[bytes]]:
     """Parses a query string like urlparse.parse_qs,
     but takes bytes and returns the values as byte strings.
@@ -179,13 +183,21 @@ def parse_qs_bytes(
     Keys still become type str (interpreted as latin1 in python3!)
     because it's too painful to keep them as byte strings in
     python3 and in practice they're nearly always ascii anyway.
+
+    .. versionadded:: 6.5.8
+       The ``max_num_fields`` argument. ValueError is raised if this limit is exceeded.
     """
     # This is gross, but python3 doesn't give us another way.
     # Latin1 is the universal donor of character encodings.
     if isinstance(qs, bytes):
         qs = qs.decode("latin1")
     result = urllib.parse.parse_qs(
-        qs, keep_blank_values, strict_parsing, encoding="latin1", errors="strict"
+        qs,
+        keep_blank_values,
+        strict_parsing,
+        encoding="latin1",
+        errors="strict",
+        max_num_fields=max_num_fields,
     )
     encoded = {}
     for k, v in result.items():
@@ -271,9 +283,7 @@ def recursive_unicode(obj: Any) -> Any:
     Supports lists, tuples, and dictionaries.
     """
     if isinstance(obj, dict):
-        return dict(
-            (recursive_unicode(k), recursive_unicode(v)) for (k, v) in obj.items()
-        )
+        return {recursive_unicode(k): recursive_unicode(v) for (k, v) in obj.items()}
     elif isinstance(obj, list):
         return list(recursive_unicode(i) for i in obj)
     elif isinstance(obj, tuple):
@@ -394,7 +404,7 @@ def linkify(
                     # have a status bar, such as Safari by default)
                     params += ' title="%s"' % href
 
-        return '<a href="%s"%s>%s</a>' % (href, params, url)
+        return f'<a href="{href}"{params}>{url}</a>'
 
     # First HTML-escape so that our strings are all safe.
     # The regex is modified to avoid character entites other than &amp; so

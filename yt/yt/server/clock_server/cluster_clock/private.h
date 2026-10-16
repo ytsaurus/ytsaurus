@@ -10,8 +10,8 @@ namespace NYT::NClusterClock {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ClusterClockLogger, "Clock");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ClusterClockProfiler, "/clock");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ClusterClockLogger, "Clock");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, ClusterClockProfiler, "/clock");
 
 ////////////////////////////////////////////////////////////////////////////////
 

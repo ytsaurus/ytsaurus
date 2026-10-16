@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/mpsc_stack.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -12,6 +11,8 @@
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 #include <type_traits>
 

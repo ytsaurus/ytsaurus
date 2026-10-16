@@ -48,6 +48,7 @@ struct IBootstrap
     virtual const IInvokerPtr& GetTabletLookupPoolInvoker() const = 0;
     virtual const IInvokerPtr& GetTabletFetchPoolInvoker() const = 0;
     virtual const IInvokerPtr& GetTableRowFetchPoolInvoker() const = 0;
+    virtual const IInvokerPtr& GetTabletStatisticsInvoker() const = 0;
 
     virtual IInvokerPtr GetQueryPoolInvoker(
         const std::string& poolName,
@@ -60,6 +61,7 @@ struct IBootstrap
     virtual const NConcurrency::IThroughputThrottlerPtr& GetThrottler(NTabletNode::ETabletNodeThrottlerKind kind) const = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetInThrottler(EWorkloadCategory category) const = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetOutThrottler(EWorkloadCategory category) const = 0;
+    virtual const TCompactionHintFetchThrottlersPtr& GetCompactionHintFetchThrottlers() const = 0;
     virtual const IDistributedThrottlerManagerPtr& GetDistributedThrottlerManager() const = 0;
     virtual IMediumThrottlerManagerFactoryPtr& GetMediumThrottlerManagerFactory() = 0;
 
@@ -87,9 +89,13 @@ struct IBootstrap
 
     virtual const NRpc::IOverloadControllerPtr& GetOverloadController() const = 0;
 
+    virtual const TRowCacheControllerPtr& GetRowCacheController() const = 0;
+
     virtual const ICompressionDictionaryManagerPtr& GetCompressionDictionaryManager() const = 0;
     virtual const IAlienClusterClientCachePtr& GetReplicatorClientCache() const = 0;
     virtual const NChaosClient::IReplicationCardUpdatesBatcherPtr& GetReplicationCardUpdatesBatcher() const = 0;
+
+    virtual const NApi::NNative::TClientCachePtr& GetClientCache() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBootstrap)

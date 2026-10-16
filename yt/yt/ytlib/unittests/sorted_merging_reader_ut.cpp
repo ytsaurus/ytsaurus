@@ -180,7 +180,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    NTableClient::TTimingStatistics GetTimingStatistics() const override
+    TTimingStatistics GetTimingStatistics() const override
     {
         return {};
     }

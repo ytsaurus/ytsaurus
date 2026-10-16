@@ -6,10 +6,11 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/misc/async_slru_cache.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NChunkClient {
 
@@ -60,7 +61,8 @@ public:
             for (int index = 1; index < std::ssize(*extensionTags); ++index) {
                 if (extensionTags.value()[index - 1] == extensionTags.value()[index]) {
                     return MakeFuture<TRefCountedChunkMetaPtr>(
-                        TError("Extension tags are not unique (Tags: %v)", *extensionTags));
+                        TError("Extension tags are not unique")
+                            .With("extension_tags", *extensionTags));
                 }
             }
         }
@@ -126,33 +128,43 @@ public:
             if (!missingExtensionTags.empty()) {
                 auto missingExtensionsFuture = metaFetchCallback(missingExtensionTags);
 
-                // Represent extensions as a map to avoid a linear scan for every tag.
-                auto missingExtensionMapFuture = missingExtensionsFuture.AsUnique().Apply(BIND([] (TRefCountedChunkMetaPtr&& fetchedChunkMeta) {
-                    THashMap<int, TString> extensionMap;
-                    for (auto& ext : *fetchedChunkMeta->mutable_extensions()->mutable_extensions()) {
-                        YT_VERIFY(extensionMap.emplace(ext.tag(), std::move(*ext.mutable_data())).second);
-                    }
-                    return extensionMap;
-                }));
-
+                // Create a promise per missing tag and register the futures eagerly so that
+                // concurrent fetches share them.
+                THashMap<int, TPromise<std::optional<TProtobufString>>> tagToPromise;
+                tagToPromise.reserve(missingExtensionTags.size());
                 for (int tag : missingExtensionTags) {
-                    auto extensionFuture = missingExtensionMapFuture.Apply(
-                        BIND([tag, key = GetKey()] (const THashMap<int, TString>& extensionMap) -> std::optional<TString>
-                        {
-                            auto it = extensionMap.find(tag);
-                            if (it == extensionMap.end()) {
-                                return std::nullopt;
-                            }
-                            // TODO(dakovalkov): We create an extension copy here.
-                            // It's almost free as long as TString is ref-counted.
-                            // If TString ever becomes std::string, we will need to find another way.
-                            return it->second;
-                        }));
-
-                    YT_VERIFY(Extensions_.emplace(tag, extensionFuture).second);
-                    newTagFutures.emplace_back(extensionFuture.AsVoid());
-                    tagFutures.emplace_back(extensionFuture.AsVoid());
+                    auto promise = NewPromise<std::optional<TProtobufString>>();
+                    auto future = promise.ToFuture();
+                    EmplaceOrCrash(Extensions_, tag, future);
+                    EmplaceOrCrash(tagToPromise, tag, std::move(promise));
+                    newTagFutures.push_back(future.AsVoid());
+                    tagFutures.push_back(std::move(future).AsVoid());
                 }
+
+                // Distribute the fetched extensions into the per-tag promises, moving each
+                // payload out of the fetched meta exactly once to avoid copying extension data.
+                missingExtensionsFuture.AsUnique().Subscribe(BIND(
+                    [tagToPromise = std::move(tagToPromise)] (TErrorOr<TRefCountedChunkMetaPtr>&& fetchedChunkMetaOrError) mutable {
+                        if (!fetchedChunkMetaOrError.IsOK()) {
+                            for (const auto& [_, promise] : tagToPromise) {
+                                promise.Set(TError(fetchedChunkMetaOrError));
+                            }
+                            return;
+                        }
+
+                        const auto& fetchedChunkMeta = fetchedChunkMetaOrError.Value();
+                        for (auto& ext : *fetchedChunkMeta->mutable_extensions()->mutable_extensions()) {
+                            if (auto it = tagToPromise.find(ext.tag()); it != tagToPromise.end()) {
+                                it->second.Set(std::optional(std::move(*ext.mutable_data())));
+                                tagToPromise.erase(it);
+                            }
+                        }
+
+                        // The remaining tags are missing from the fetched meta.
+                        for (const auto& [_, promise] : tagToPromise) {
+                            promise.Set(std::optional<TProtobufString>());
+                        }
+                    }));
             }
 
             // AssembleChunkMeta and OnExtensionsReceived can acquire a Lock_.
@@ -190,11 +202,11 @@ public:
     }
 
 private:
-    mutable YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    mutable YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
 
     TRefCountedChunkMetaPtr MainMeta_;
 
-    using TExtensionState = TFuture<std::optional<TString>>;
+    using TExtensionState = TFuture<std::optional<TProtobufString>>;
     THashMap<int, TExtensionState> Extensions_;
 
     TRefCountedChunkMetaPtr AssembleChunkMeta(const std::optional<std::vector<int>>& extensionTags) const
@@ -324,7 +336,7 @@ private:
                     NChunkClient::EErrorCode::ChunkMetaCacheFetchFailed,
                     "Error fetching meta for chunk %v",
                     chunkId)
-                    << metaOrError;
+                    .With(metaOrError);
                 cookie.Cancel(error);
                 THROW_ERROR(error);
             }

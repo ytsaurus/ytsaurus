@@ -22,11 +22,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Install diplodoc
         run: |
-          npm install -g @diplodoc/cli
+          npm install -g @diplodoc/cli@5.50.6
           npm install -g @diplodoc/algolia-extension
         shell: bash
 

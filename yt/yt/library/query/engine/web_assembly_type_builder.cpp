@@ -47,6 +47,12 @@ namespace NYT::NWebAssembly {
     XX(NQueryClient::TGroupByClosure*, EWebAssemblyValueType::UintPtr)
     XX(NQueryClient::TTopCollector*, EWebAssemblyValueType::UintPtr)
     XX(NQueryClient::TMultiJoinClosure*, EWebAssemblyValueType::UintPtr)
+    XX(NQueryClient::THierarchicalJoinClosure*, EWebAssemblyValueType::UintPtr)
+    XX(NQueryClient::THierarchicalJoinClosure**, EWebAssemblyValueType::UintPtr)
+    XX(NQueryClient::TSingleJoinParameters*, EWebAssemblyValueType::UintPtr)
+    XX(void(*)(void**, NQueryClient::THierarchicalJoinClosure*), EWebAssemblyValueType::UintPtr)
+    XX(void(NQueryClient::TExecutionContext*, NQueryClient::THierarchicalJoinClosure*, NQueryClient::TPositionIndependentValue*), EWebAssemblyValueType::UintPtr)
+    XX(bool(NQueryClient::TExecutionContext*, NQueryClient::THierarchicalJoinClosure*), EWebAssemblyValueType::UintPtr)
     XX(NQueryClient::TArrayJoinParameters*, EWebAssemblyValueType::UintPtr)
     XX(NQueryClient::TMultiJoinParameters*, EWebAssemblyValueType::UintPtr)
     XX(NQueryClient::TJoinComparers*, EWebAssemblyValueType::UintPtr)
@@ -62,8 +68,10 @@ namespace NYT::NWebAssembly {
 
     XX(NQueryClient::TNestedExecutionContext*, EWebAssemblyValueType::UintPtr)
     XX(NQueryClient::TNestedGroupByClosure*, EWebAssemblyValueType::UintPtr)
+    XX(NQueryClient::TNestedOrderByClosure*, EWebAssemblyValueType::UintPtr)
 
     XX(void(*)(void**, NQueryClient::TNestedGroupByClosure*, NQueryClient::TExpressionContext*), EWebAssemblyValueType::UintPtr)
+    XX(void(*)(void**, NQueryClient::TNestedOrderByClosure*), EWebAssemblyValueType::UintPtr)
 
     XX(bool(*)(void**, NQueryClient::TExpressionContext*, const NQueryClient::TPositionIndependentValue**, long), EWebAssemblyValueType::UintPtr)
     XX(bool(*)(void**, NQueryClient::TExpressionContext*, NTableClient::TUnversionedValue const**, long), EWebAssemblyValueType::UintPtr)

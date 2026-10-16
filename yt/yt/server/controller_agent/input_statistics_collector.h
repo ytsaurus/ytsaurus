@@ -28,10 +28,10 @@ struct TInputStatistics
     i64 ForeignCompressedDataSize = 0;
 
     // Ratio CompressedDataSize / DataWeight for input data.
-    double CompressionRatio = 0.0;
+    double CompressionRatio = 1.0;
 
     // Ratio TotalDataWeight / UncompressedDataSize for input data.
-    double DataWeightRatio = 0.0;
+    double DataWeightRatio = 1.0;
 
     bool operator==(const TInputStatistics& other) const noexcept = default;
 
@@ -42,9 +42,9 @@ class TInputStatisticsCollector
 {
 public:
     void AddChunk(const NChunkClient::TInputChunkPtr& inputChunk, bool isPrimary) noexcept;
-    void AddChunk(const NChunkClient::TLegacyDataSlicePtr& dataSlice, bool isPrimary) noexcept;
+    void AddChunk(const NChunkClient::TDataSlicePtr& dataSlice, bool isPrimary) noexcept;
 
-    [[nodiscard]] static TInputStatistics FromChunks(const std::vector<NChunkClient::TLegacyDataSlicePtr>& dataSlices, bool isPrimary) noexcept;
+    [[nodiscard]] static TInputStatistics FromChunks(const std::vector<NChunkClient::TDataSlicePtr>& dataSlices, bool isPrimary) noexcept;
 
     TInputStatistics Finish() && noexcept;
 

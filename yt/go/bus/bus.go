@@ -40,6 +40,7 @@ const (
 
 type Options struct {
 	Address string
+	Network string
 	Logger  log.Logger
 
 	EncryptionMode EncryptionMode
@@ -254,7 +255,7 @@ func (c *Bus) Close() {
 			c.logger.Error("Connection close error", log.Error(err))
 		}
 
-		c.logger.Debug("Bus closed")
+		c.logger.Trace("Bus closed")
 	})
 }
 
@@ -283,7 +284,7 @@ func (c *Bus) Send(packetID guid.GUID, packetData [][]byte, opts *busSendOptions
 		return err
 	}
 
-	c.logger.Debug("Packet sent",
+	c.logger.Trace("Packet sent",
 		log.String("id", packet.fixHeader.packetID.String()),
 		log.Any("bytes", l))
 
@@ -296,12 +297,12 @@ func (c *Bus) Receive() (busMsg, error) {
 		if !c.closed.Load() || !errors.Is(err, net.ErrClosed) {
 			c.logger.Error("Receive error", log.Error(err))
 		} else {
-			c.logger.Debug("Unable to receive from closed connection", log.Error(err))
+			c.logger.Trace("Unable to receive from closed connection", log.Error(err))
 		}
 		return busMsg{}, err
 	}
 
-	c.logger.Debug("Packet received",
+	c.logger.Trace("Packet received",
 		log.String("id", packet.fixHeader.packetID.String()),
 		log.Any("type", packet.fixHeader.typ),
 		log.Int16("flags", int16(packet.fixHeader.flags)))
@@ -428,7 +429,7 @@ func (c *Bus) sendHandshake() error {
 		return fmt.Errorf("bus: error sending handshake: %w", err)
 	}
 
-	c.logger.Debug("Handshake sent",
+	c.logger.Trace("Handshake sent",
 		log.Any("bytes", l))
 
 	return nil
@@ -468,7 +469,7 @@ func (c *Bus) receiveHandshake() (bool, error) {
 	}
 
 	em := EncryptionMode(handshake.GetEncryptionMode())
-	c.logger.Debug("Handshake received", log.Int("encryption_mode", int(em)))
+	c.logger.Trace("Handshake received", log.Int("encryption_mode", int(em)))
 
 	if em == EncryptionModeRequired || c.options.EncryptionMode == EncryptionModeRequired {
 		if em == EncryptionModeDisabled {
@@ -490,7 +491,7 @@ func (c *Bus) sendSSLAck() error {
 		return fmt.Errorf("bus: error sending SSL ACK: %w", err)
 	}
 
-	c.logger.Debug("SSL ACK sent",
+	c.logger.Trace("SSL ACK sent",
 		log.Any("bytes", l))
 
 	return nil
@@ -514,7 +515,7 @@ func (c *Bus) receiveSSLAck() error {
 		return fmt.Errorf("bus: SSL ACK packet id mismatch")
 	}
 
-	c.logger.Debug("SSL ACK received")
+	c.logger.Trace("SSL ACK received")
 
 	return nil
 }
@@ -553,8 +554,13 @@ func (c *Bus) establishEncryption(isServer bool) error {
 }
 
 func Dial(ctx context.Context, options Options) (*Bus, error) {
+	network := options.Network
+	if network == "" {
+		network = "tcp"
+	}
+
 	var dialer net.Dialer
-	conn, err := dialer.DialContext(ctx, "tcp", options.Address)
+	conn, err := dialer.DialContext(ctx, network, options.Address)
 	if err != nil {
 		return nil, err
 	}

@@ -14,6 +14,11 @@ class TObjectBase
 public:
     explicit TObjectBase(NObjectClient::TObjectId id);
 
+    // Polymorphic so the tablet-object hierarchy (tablets, hunk tablets, ...) has
+    // a vtable: a vptr lets coredump tooling identify these objects by type
+    // instead of seeing an anonymous vtable-less block.
+    virtual ~TObjectBase();
+
     NObjectClient::TObjectId GetId() const;
 
 protected:

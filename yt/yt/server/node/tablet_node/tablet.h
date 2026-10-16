@@ -38,8 +38,6 @@
 
 #include <yt/yt/core/actions/public.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/concurrency/async_barrier.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -55,7 +53,9 @@
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 #include <library/cpp/yt/memory/ref_tracked.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/misc/property.h>
+
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <atomic>
 
@@ -80,7 +80,7 @@ struct TRuntimeTableReplicaData
     std::atomic<i64> PreparedReplicationRowIndex = -1;
     std::atomic<bool> PreserveTimestamps = true;
     std::atomic<NTransactionClient::EAtomicity> Atomicity = NTransactionClient::EAtomicity::Full;
-    NThreading::TAtomicObject<TError> Error;
+    TAtomicObject<TError> Error;
     std::atomic<NTabletClient::ETableReplicaStatus> Status = NTabletClient::ETableReplicaStatus::Unknown;
 
     void Populate(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
@@ -107,9 +107,9 @@ struct TChaosTabletData
     : public TRefCounted
 {
     std::atomic<ui64> ReplicationRound = 0;
-    NThreading::TAtomicObject<THashMap<TTabletId, i64>> CurrentReplicationRowIndexes;
-    NThreading::TAtomicObject<TTransactionId> PreparedWritePulledRowsTransactionId;
-    NThreading::TAtomicObject<TTransactionId> PreparedAdvanceReplicationProgressTransactionId;
+    TAtomicObject<THashMap<TTabletId, i64>> CurrentReplicationRowIndexes;
+    TAtomicObject<TTransactionId> PreparedWritePulledRowsTransactionId;
+    TAtomicObject<TTransactionId> PreparedAdvanceReplicationProgressTransactionId;
     std::atomic<bool> IsTrimInProgress = false;
     TAtomicIntrusivePtr<IPullerReplicaCache> PullerReplicaCache{GetDisabledPullerReplicaCache()};
 };
@@ -148,8 +148,8 @@ struct TLookupHeavyHitters {
 
 struct TTabletErrors
 {
-    TEnumIndexedArray<NTabletClient::ETabletBackgroundActivity, NThreading::TAtomicObject<TError>> BackgroundErrors;
-    NThreading::TAtomicObject<TError> ConfigError;
+    TEnumIndexedArray<NTabletClient::ETabletBackgroundActivity, TAtomicObject<TError>> BackgroundErrors;
+    TAtomicObject<TError> ConfigError;
 
     template <class TCallback>
     void ForEachError(TCallback&& callback) const;
@@ -161,7 +161,7 @@ struct TRuntimeSmoothMovementData
 {
     std::atomic<ESmoothMovementRole> Role;
     std::atomic<bool> IsActiveServant = true;
-    NThreading::TAtomicObject<TCellId> SiblingServantCellId;
+    TAtomicObject<TCellId> SiblingServantCellId;
     std::atomic<NHydra::TRevision> SiblingServantMountRevision;
 
     // Will be set when the target servant becomes active.
@@ -233,9 +233,9 @@ struct TTabletSnapshot
     : public NTableClient::TTabletSnapshot
 {
     NHydra::TCellId CellId;
-    NHydra::ISimpleHydraManagerPtr HydraManager;
+    TWeakPtr<NHydra::ISimpleHydraManager> HydraManager;
     NTabletClient::TTabletId TabletId;
-    std::string LoggingTag;
+    NLogging::TLoggingTagList LoggingTags;
     NYPath::TYPath TablePath;
     TTableSettings Settings;
     TRawTableSettings RawSettings;
@@ -325,6 +325,8 @@ struct TTabletSnapshot
 
     TTabletSizeMetrics TabletSizeMetrics;
 
+    std::vector<NTabletServer::TOriginatorTablet> OriginatorTablets;
+
     std::atomic<bool> Unregistered = false;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
@@ -354,7 +356,8 @@ struct TTabletSnapshot
 
     void ValidateCellId(NElection::TCellId cellId);
     void ValidateMountRevision(NHydra::TRevision mountRevision);
-    void ValidateServantIsActive(const NHiveClient::ICellDirectoryPtr& cellDirectory);
+    [[nodiscard]]
+    TError ValidateServantIsActive(const NHiveClient::ICellDirectoryPtr& cellDirectory, bool waitForActivation = true);
     void MaybeReplyWithReshardRedirectionHint();
     void WaitOnLocks(TTimestamp timestamp) const;
 };
@@ -379,7 +382,7 @@ struct ITabletContext
     virtual int GetAutomatonTerm() const = 0;
     virtual IInvokerPtr GetControlInvoker() const = 0;
     virtual IInvokerPtr GetAutomatonInvoker() const = 0;
-    virtual IInvokerPtr GetStorageHeavyInvoker() const = 0;
+    virtual IPrioritizedInvokerPtr GetStorageHeavyInvoker() const = 0;
     virtual NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const = 0;
     virtual NQueryClient::IRowComparerProviderPtr GetRowComparerProvider() const = 0;
     virtual NApi::NNative::IClientPtr GetClient() const = 0;
@@ -398,6 +401,7 @@ struct ITabletContext
     virtual std::string GetLocalHostName() const = 0;
     virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const = 0;
     virtual INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() const = 0;
+    virtual TRowCacheControllerPtr GetRowCacheController() const = 0;
     virtual NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const = 0;
     virtual IHedgingManagerRegistryPtr GetHedgingManagerRegistry() const = 0;
     virtual ITabletWriteManagerHostPtr GetTabletWriteManagerHost() const = 0;
@@ -554,6 +558,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellId, SiblingCellId);
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, SiblingMountRevision);
     DEFINE_BYVAL_RW_PROPERTY(NHiveServer::TAvenueEndpointId, SiblingAvenueEndpointId);
+    // Reign of the current servant at the moment when movement started.
+    // Movement should be aborted whenever reign of any participant changes.
+    DEFINE_BYVAL_RW_PROPERTY(ETabletReign, Reign);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TStoreId>, CommonDynamicStoreIds);
 
     using TStoreRowCountMap = THashMap<TStoreId, i64>;
@@ -565,10 +572,15 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TPromise<void>, TargetActivationPromise);
 
+    DEFINE_BYREF_RW_PROPERTY(TPromise<void>, LockBarrierPromise);
+    DEFINE_BYREF_RW_PROPERTY(TFuture<void>, LockBarrierFuture);
+
 public:
-    void ValidateWriteToTablet() const;
+    bool IsWriteToTabletAllowed() const;
     bool IsTabletStoresUpdateAllowed(bool isCommonFlush) const;
     bool ShouldForwardMutation() const;
+    bool IsInWaitingForLocksStage() const;
+    void InitializeLockBarrierFuture();
 
     void Persist(const TPersistenceContext& context);
 
@@ -860,13 +872,19 @@ public:
     const TSortedDynamicRowKeyComparer& GetRowKeyComparer() const;
 
     void ValidateMountRevision(NHydra::TRevision mountRevision);
+    [[nodiscard]]
+    TError ValidateServantIsWritable(
+        const NHiveClient::ICellDirectoryPtr& cellDirectory,
+        bool retryable = false);
 
     NHydra::TRevision GetActiveServantMountRevision() const;
 
     void UpdateUnflushedTimestamp() const;
 
     void AdvancePersistentConflictHorizonTimestamp(TTimestamp timestamp);
-    void AdvanceTransientConflictHorizonTimestamp(TTimestamp timestamp);
+    void AdvanceTransientConflictHorizonTimestamp(
+        TTimestamp timestamp,
+        std::optional<NHydra::TRevision> expectedMountRevision);
     // Advances the transient timestamp up to the persistent one.
     void ResetTransientConflictHorizonTimestamp();
 
@@ -895,7 +913,7 @@ public:
 
     void UpdateReplicaCounters();
 
-    const std::string& GetLoggingTag() const;
+    const NLogging::TLoggingTagList& GetLoggingTags() const;
 
     std::optional<std::string> GetPoolTagByMemoryCategory(EMemoryCategory category) const;
 
@@ -972,7 +990,7 @@ public:
 
     NHydra::EPeerState GetAutomatonState() const;
 
-    IInvokerPtr GetStorageHeavyInvoker() const;
+    IPrioritizedInvokerPtr GetStorageHeavyInvoker() const;
 
     NApi::NNative::IClientPtr GetClient() const;
 
@@ -1012,7 +1030,7 @@ private:
 
     TTableSettings Settings_;
 
-    std::string LoggingTag_;
+    NLogging::TLoggingTagList LoggingTags_;
 
     IStoreManagerPtr StoreManager_;
 
@@ -1067,7 +1085,7 @@ private:
     void ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot);
     void ReconfigureChunkFragmentReader(const ITabletSlotPtr& slot);
     void ReconfigureStructuredLogger();
-    void ReconfigureProfiling();
+    void ReconfigureProfiling(EProfilingTagExportMode profilingTagExportMode);
     void ReconfigureRowCache(const ITabletSlotPtr& slot);
     void InvalidateChunkReaders();
     void ReconfigureHedgingManagerRegistry();
@@ -1090,6 +1108,12 @@ NConcurrency::IThroughputThrottlerPtr GetBlobMediumReadThrottler(
 
 bool IsInUnmountWorkflow(ETabletState state);
 bool IsInFreezeWorkflow(ETabletState state);
+
+//! Applies when the tablet is not writable due to an unsuitable smooth movement stage.
+void WaitUntilServantIsWritable(
+    TTablet* tablet,
+    const NHiveClient::ICellDirectoryPtr& cellDirectory,
+    TDuration waitForLockBarrierTimeout);
 
 ////////////////////////////////////////////////////////////////////////////////
 

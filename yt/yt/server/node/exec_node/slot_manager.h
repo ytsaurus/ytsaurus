@@ -207,6 +207,8 @@ public:
 
     bool IsJobEnvironmentResurrectionEnabled();
 
+    IVolumeManagerPtr GetVolumeManager() const;
+
     void OnContainerDevicesCheckFinished(const TError& error);
 
 private:
@@ -215,7 +217,7 @@ private:
     TAtomicIntrusivePtr<TSlotManagerDynamicConfig> DynamicConfig_;
 
     const int SlotCount_;
-    const TString NodeTag_;
+    const std::string NodeTag_;
     const NContainers::TPortoHealthCheckerPtr PortoHealthChecker_;
 
     TBackoffStrategy DisableJobsBackoffStrategy_;
@@ -224,14 +226,14 @@ private:
 
     std::atomic<bool> JobProxyReady_ = false;
 
-    NThreading::TAtomicObject<TError> TestContainerCreationError_;
+    TAtomicObject<TError> TestContainerCreationError_;
 
     TAtomicIntrusivePtr<IVolumeManager> VolumeManager_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, LocationsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, LocationsLock_);
     std::vector<TSlotLocationPtr> Locations_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, AliveLocationsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, AliveLocationsLock_);
     std::vector<TSlotLocationPtr> AliveLocations_;
 
     std::vector<TNumaNodeState> NumaNodeStates_;
@@ -251,7 +253,7 @@ private:
 
     NClusterNode::TCpu IdlePolicyRequestedCpu_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, AlertsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, AlertsLock_);
 
     /*
      * Affinity: AlertsLock_
@@ -322,6 +324,13 @@ private:
 
     int DefaultMediumIndex_ = NChunkClient::DefaultSlotsMediumIndex;
 
+    struct TSlotLocationInfo
+    {
+        std::string Path;
+        bool Enabled;
+        TError DisableError;
+    };
+
     struct TSlotManagerInfo
     {
         int SlotCount;
@@ -333,6 +342,8 @@ private:
         std::vector<TNumaNodeState> NumaNodeStates;
 
         TEnumIndexedArray<ESlotManagerAlertType, TError> Alerts;
+
+        std::vector<TSlotLocationInfo> Locations;
     };
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);

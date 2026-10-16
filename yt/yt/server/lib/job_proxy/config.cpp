@@ -4,7 +4,7 @@
 
 #include <yt/yt/library/stockpile/config.h>
 
-#include <util/system/env.h>
+#include <library/cpp/yt/system/env.h>
 
 namespace NYT::NJobProxy {
 
@@ -137,10 +137,10 @@ void TEnvironmentVariableConfig::Register(TRegistrar registrar)
     });
 }
 
-TString TEnvironmentVariableConfig::LoadValue() const
+std::string TEnvironmentVariableConfig::LoadValue() const
 {
     if (EnvironmentVariable) {
-        if (auto value = TryGetEnv(*EnvironmentVariable)) {
+        if (auto value = TryGetEnvValue(*EnvironmentVariable)) {
             return *std::move(value);
         }
     }
@@ -148,7 +148,8 @@ TString TEnvironmentVariableConfig::LoadValue() const
         return *Value;
     }
     if (FileName) {
-        return TFileInput(*FileName).ReadAll();
+        // TODO(babenko): migrate to std::string
+        return TFileInput(TString(*FileName)).ReadAll();
     }
     THROW_ERROR_EXCEPTION("Cannot load environment variable %Qv", EnvironmentVariable);
 }
@@ -197,7 +198,8 @@ void TJobThrashingDetectorConfig::Register(TRegistrar registrar)
 void TJobEnvironmentConfigBase::Register(TRegistrar registrar)
 {
     registrar.Parameter("start_uid", &TThis::StartUid)
-        .Default(10000);
+        .Default(10000)
+        .GreaterThan(0);
 
     registrar.Parameter("memory_watchdog_period", &TThis::MemoryWatchdogPeriod)
         .Default(TDuration::Seconds(1));
@@ -275,11 +277,25 @@ void TCriJobEnvironmentConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("pod_descriptor", &TThis::PodDescriptor)
-        .DefaultNew();
+        .Default();
     registrar.Parameter("pod_spec", &TThis::PodSpec)
-        .DefaultNew();
+        .Default();
     registrar.Parameter("gpu_config", &TThis::GpuConfig)
         .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TJobProxyPeakMemoryProfilerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(true);
+
+    registrar.Parameter("run_external_symbolizer", &TThis::RunExternalSymbolizer)
+        .Default(false);
+
+    registrar.Parameter("wait_last_profile", &TThis::WaitLastProfile)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -328,6 +344,12 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("input_pipe_blinker_period", &TThis::InputPipeBlinkerPeriod)
         .Default(TDuration::Seconds(1));
 
+    registrar.Parameter("enable_job_io_statistics", &TThis::EnableJobIoStatistics)
+        .Default(false);
+
+    registrar.Parameter("job_io_meter_max_history_duration", &TThis::JobIoMeterMaxHistoryDuration)
+        .Default(TDuration::Hours(1));
+
     registrar.Parameter("job_environment", &TThis::JobEnvironment);
 
     registrar.Parameter("addresses", &TThis::Addresses)
@@ -344,9 +366,6 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("ahead_memory_reserve", &TThis::AheadMemoryReserve)
         .Default(100_MB);
-
-    registrar.Parameter("test_root_fs", &TThis::TestRootFS)
-        .Default(false);
 
     registrar.Parameter("always_abort_on_memory_reserve_overdraft", &TThis::AlwaysAbortOnMemoryReserveOverdraft)
         .Default(false);
@@ -414,6 +433,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("tvm_bridge", &TThis::TvmBridge)
         .Default();
 
+    registrar.Parameter("rpc_server_dynamic", &TThis::RpcServerDynamic)
+        .DefaultNew();
+
     registrar.Parameter("job_proxy_api_service_static", &TThis::JobProxyApiServiceStatic)
         .DefaultNew();
 
@@ -421,7 +443,8 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("statistics_output_table_count_limit", &TThis::StatisticsOutputTableCountLimit)
-        .Default();
+        .Default()
+        .GreaterThanOrEqual(0);
 
     registrar.Parameter("dns_over_rpc_resolver", &TThis::DnsOverRpcResolver)
         .Default();
@@ -458,7 +481,8 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("pipe_reader_timeout_threshold", &TThis::PipeReaderTimeoutThreshold)
         .Default(TDuration::Seconds(30));
 
-    registrar.Parameter("enable_root_volume_disk_quota", &TThis::EnableRootVolumeDiskQuota)
+    registrar.Parameter("disable_rbind_root_volume", &TThis::DisableRbindRootVolume)
+        .Alias("enable_root_volume_disk_quota")
         .Default(false);
 
     registrar.Parameter("restrict_porto_place", &TThis::RestrictPortoPlace)
@@ -469,9 +493,12 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("oom_score_adj_on_exceeded_memory_reserve", &TThis::OomScoreAdjOnExceededMemoryReserve)
-        .Default()
+        .Default(800)
         .GreaterThanOrEqual(-1000)
         .LessThanOrEqual(1000);
+
+    registrar.Parameter("read_oom_score_adj_before_update", &TThis::ReadOomScoreAdjBeforeUpdate)
+        .Default(false);
 
     registrar.Parameter("use_new_delivery_fenced_connection", &TThis::UseNewDeliveryFencedConnection)
         .Default(true);
@@ -485,9 +512,12 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_grpc_server", &TThis::EnableGrpcServer)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("enable_http_server", &TThis::EnableHttpServer)
-        .Default(false);
+        .Default(true);
+
+    registrar.Parameter("private_bus_server", &TThis::PrivateBusServer)
+        .DefaultNew();
 
     registrar.Parameter("grpc_server", &TThis::GrpcServer)
         .DefaultNew();
@@ -500,6 +530,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         .Default(1);
 
     registrar.Parameter("job_api_service", &TThis::JobApiService)
+        .DefaultNew();
+
+    registrar.Parameter("job_proxy_peak_memory_profiler", &TThis::JobProxyPeakMemoryProfiler)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
@@ -517,6 +550,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("jaeger", &TThis::Jaeger)
         .DefaultNew();
+
+    registrar.Parameter("enable_job_io_statistics", &TThis::EnableJobIoStatistics)
+        .Default(false);
 
     registrar.Parameter("enable_job_shell_seccomp", &TThis::EnableJobShellSeccopm)
         .Default(true);
@@ -564,9 +600,12 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("oom_score_adj_on_exceeded_memory_reserve", &TThis::OomScoreAdjOnExceededMemoryReserve)
-        .Default()
+        .Default(800)
         .GreaterThanOrEqual(-1000)
         .LessThanOrEqual(1000);
+
+    registrar.Parameter("read_oom_score_adj_before_update", &TThis::ReadOomScoreAdjBeforeUpdate)
+        .Default(false);
 
     registrar.Parameter("use_new_delivery_fenced_connection", &TThis::UseNewDeliveryFencedConnection)
         .Default(true);
@@ -574,6 +613,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("memory_profile_dump_path", &TThis::MemoryProfileDumpPath)
         .Alias("heap_dump_directory")
         .Default();
+
+    registrar.Parameter("rpc_server", &TThis::RpcServer)
+        .DefaultNew();
 
     registrar.Parameter("job_proxy_api_service", &TThis::JobProxyApiService)
         .DefaultNew();
@@ -584,9 +626,12 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_grpc_server", &TThis::EnableGrpcServer)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("enable_http_server", &TThis::EnableHttpServer)
-        .Default(false);
+        .Default(true);
+
+    registrar.Parameter("job_proxy_peak_memory_profiler", &TThis::JobProxyPeakMemoryProfiler)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,24 @@
+{
+  "info": {
+    "created": "2026-10-14T14:59:21Z",
+    "pr": {
+      "id": 16468413,
+      "author": "baymer",
+      "summary": "TRIVIAL: add tier0-settings"
+    }
+  },
+  "by_platform": {
+    "darwin": {
+      "uri": "sbr:14059979400"
+    },
+    "darwin-arm64": {
+      "uri": "sbr:14059978014"
+    },
+    "linux": {
+      "uri": "sbr:14059982184"
+    },
+    "linux-aarch64": {
+      "uri": "sbr:14059980692"
+    }
+  }
+}

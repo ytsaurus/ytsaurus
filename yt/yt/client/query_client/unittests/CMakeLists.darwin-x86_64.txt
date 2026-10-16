@@ -49,6 +49,7 @@ target_link_options(unittester-client-query-client PRIVATE
 
 target_sources(unittester-client-query-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/query_client/unittests/query_builder_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/query_client/unittests/query_statistics_ut.cpp
 )
 
 

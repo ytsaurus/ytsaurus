@@ -1,0 +1,5 @@
+IF (YT_TEAMCITY)
+    YT_SPEC(yt/yt/tests/integration/spec_teamcity.yson)
+ELSE()
+    YT_SPEC(yt/yt/tests/integration/spec.yson)
+ENDIF()

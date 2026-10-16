@@ -1,8 +1,7 @@
 #pragma once
 
-#include "private.h"
-
 #include "config.h"
+#include "private.h"
 #include "queue_exporter.h"
 #include "queue_exporter_profile_manager.h"
 
@@ -15,9 +14,9 @@
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/yt/client/ypath/rich.h>
-
 #include <yt/yt/client/queue_client/config.h>
+
+#include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/library/auth/auth.h>
 
@@ -85,8 +84,8 @@ public:
     TQueueExporterOld() = default;
 
     TQueueExporterOld(
-        TString exportName,
-        NQueueClient::TQueuePath queue,
+        std::string exportName,
+        NQueueClient::TTablePath queue,
         const NQueueClient::TQueueStaticExportConfigPtr& exportConfig,
         const TQueueExporterDynamicConfig& dynamicConfig,
         NHiveClient::TClientDirectoryPtr clientDirectory,
@@ -107,10 +106,10 @@ public:
     EQueueExporterImplementation GetImplementationType() const override;
 
 private:
-    const TString ExportName_;
-    const NQueueClient::TQueuePath Queue_;
+    const std::string ExportName_;
+    const NQueueClient::TTablePath Queue_;
 
-    NThreading::TSpinLock Lock_;
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     NQueueClient::TQueueStaticExportConfigPtr ExportConfig_;
     TQueueExporterDynamicConfig DynamicConfig_;
     TQueueExportProgressOldPtr ExportProgress_;

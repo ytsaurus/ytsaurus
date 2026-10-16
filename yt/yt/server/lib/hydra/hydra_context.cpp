@@ -16,13 +16,13 @@ THydraContext::THydraContext(
     TPhysicalVersion compatOnlyPhysicalVersion,
     TInstant timestamp,
     ui64 randomSeed,
-    TSharedRef localHostNameOverride)
+    TStringBuf localHostNameOverride)
     : Version_(MaybeRotateVersion(logicalVersion, physicalVersion))
     , PhysicalVersion_(compatOnlyPhysicalVersion)
     , Timestamp_(timestamp)
     , RandomSeed_(randomSeed)
     , RandomGenerator_(New<TRandomGenerator>(randomSeed))
-    , LocalHostName_(std::move(localHostNameOverride))
+    , LocalHostName_(localHostNameOverride)
 { }
 
 THydraContext::THydraContext(
@@ -32,13 +32,13 @@ THydraContext::THydraContext(
     TInstant timestamp,
     ui64 randomSeed,
     TIntrusivePtr<TRandomGenerator> randomGenerator,
-    TSharedRef localHostNameOverride)
+    TStringBuf localHostNameOverride)
     : Version_(MaybeRotateVersion(logicalVersion, physicalVersion))
     , PhysicalVersion_(compatOnlyPhysicalVersion)
     , Timestamp_(timestamp)
     , RandomSeed_(randomSeed)
     , RandomGenerator_(std::move(randomGenerator))
-    , LocalHostName_(std::move(localHostNameOverride))
+    , LocalHostName_(localHostNameOverride)
 { }
 
 THydraContext::THydraContext(THydraContext* parent, TLogicalVersion childVersion)
@@ -75,7 +75,7 @@ const TIntrusivePtr<TRandomGenerator>& THydraContext::RandomGenerator()
     return RandomGenerator_;
 }
 
-const TSharedRef& THydraContext::GetLocalHostName() const
+TStringBuf THydraContext::GetLocalHostName() const
 {
     return LocalHostName_;
 }

@@ -18,30 +18,6 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCodegenCacheConfig
-    : public TSlruCacheConfig
-{
-    REGISTER_YSON_STRUCT(TCodegenCacheConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TCodegenCacheConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TCodegenCacheDynamicConfig
-    : public TSlruCacheDynamicConfig
-{
-    REGISTER_YSON_STRUCT(TCodegenCacheDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TCodegenCacheDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TCachedCGQueryImage
     : public TAsyncCacheValueBase<llvm::FoldingSetNodeID, TCachedCGQueryImage>
 {

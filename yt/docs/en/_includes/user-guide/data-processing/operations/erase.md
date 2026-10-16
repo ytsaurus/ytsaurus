@@ -12,7 +12,7 @@ The Erase operation supports the following options (if set, default values are s
 
 ## Example specification
 
-```yaml
+```yson
 {
   table_path = "//tmp/input_table[#10:#100]";
   combine_chunks = %true;

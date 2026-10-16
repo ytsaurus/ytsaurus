@@ -8,9 +8,9 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetRootFSUserDirectory();
+std::string GetRootFSUserDirectory();
 
-const TString& GetSandboxRelPath(ESandboxKind sandboxKind);
+const std::string& GetSandboxRelPath(ESandboxKind sandboxKind);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -181,6 +181,7 @@ struct TAgentHeartbeatContext
     TDuration RunningJobStatisticsSendingBackoff;
     TDuration JobStalenessDelay;
     bool ResendFullJobInfo = true;
+    bool OmitDataStatisticsFromYson = false;
 
     THashSet<TJobPtr> JobsToForcefullySend;
     std::vector<TJobId> UnconfirmedJobIds;

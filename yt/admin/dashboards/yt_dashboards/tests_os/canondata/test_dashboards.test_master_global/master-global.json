@@ -1,0 +1,1119 @@
+{
+    "panels": [
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 0,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_resource_tracker_total_cpu\", pod=~\"ms.*\", thread=~\"Automaton\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Automaton CPU (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 8,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_rpc_server_request_time_execution_max\", user=~\"\", yt_service=~\".+\", method=~\"IncrementalHeartbeat\", pod=~\"ms.*\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Incremental HB duration (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 16,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_resource_tracker_memory_usage_rss\", pod=~\"ms.*\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Memory (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 0,
+                "y": 6
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_resource_tracker_utilization\", pod=~\"ms.*\", thread=~\"RpcLight\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "RpcLight Utilization (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 8,
+                "y": 6
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_resource_tracker_utilization\", pod=~\"ms.*\", thread=~\"RpcHeavy\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "RpcHeavy Utilization (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 16,
+                "y": 6
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_blob_refresh_queue_size\", cell_tag=~\"\", pod=~\"ms.*\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Blob Refresh Queue Size (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 0,
+                "y": 12
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_blob_requisition_update_queue_size\", cell_tag=~\"\", pod=~\"ms.*\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Blob Requisition Update Queue Size (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 8,
+                "y": 12
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_underreplicated_chunk_count\", cell_tag=~\"\", pod=~\"ms.*\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "URC Count (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 16,
+                "y": 12
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_overreplicated_chunk_count\", cell_tag=~\"\", pod=~\"ms.*\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "ORC Count (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 0,
+                "y": 18
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_data_missing_chunk_count\", cell_tag=~\"\", pod=~\"ms.*\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "DMC Count (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 8,
+                "y": 18
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_parity_missing_chunk_count\", cell_tag=~\"\", pod=~\"ms.*\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "PMC Count (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 16,
+                "y": 18
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_unsafely_placed_chunk_count\", cell_tag=~\"\", pod=~\"ms.*\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Unsafely Placed Count (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 0,
+                "y": 24
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_lost_vital_chunk_count\", cell_tag=~\"\", pod=~\"ms.*\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "LVC Count (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 8,
+                "y": 24
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_hydra_leader_sync_time_max\", cell_id=~\"\", pod=~\"ms.*\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Leader Sync Time (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 16,
+                "y": 24
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_chunks_created\", cell_tag=~\"\", pod=~\"ms.*\"}[$__rate_interval])",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Chunks Created (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 0,
+                "y": 30
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_chunks_destroyed\", cell_tag=~\"\", pod=~\"ms.*\"}[$__rate_interval])",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Chunks Destroyed (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 8,
+                "y": 30
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_chunk_lists_created\", cell_tag=~\"\", pod=~\"ms.*\"}[$__rate_interval])",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Chunk Lists Created (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 16,
+                "y": 30
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_chunk_lists_destroyed\", cell_tag=~\"\", pod=~\"ms.*\"}[$__rate_interval])",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Chunks Lists Destroyed (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 0,
+                "y": 36
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_hydra_restart_count\", cell_id=~\"\", pod=~\"ms.*\", reason=~\".+\"}[$__rate_interval])",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Hydra Restarts (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 8,
+                "y": 36
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_hydra_fork_executor_fork_duration_max\", cell_id=~\"\", pod=~\"ms.*\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Fork Duration (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 16,
+                "y": 36
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_ref_counted_tracker_total_objects_alive\", pod=~\"ms.*\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "RCT Objects Alive (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 0,
+                "y": 42
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_ref_counted_tracker_total_bytes_alive\", pod=~\"ms.*\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "RCT Bytes Alive (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 8,
+                "y": 42
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_tablet_server_update_tablet_stores_store_count\", tablet_cell_bundle=~\"\", pod=~\"ms.*\", table_type=~\"\", update_reason=~\"\"}[$__rate_interval])",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Tablet Store Updates: Store Count (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 16,
+                "y": 42
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_tablet_server_update_tablet_stores_cumulative_time\", tablet_cell_bundle=~\"\", pod=~\"ms.*\", table_type=~\"\", update_reason=~\"\"}[$__rate_interval])",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Tablet Store Updates: Cumulative Time (Primary Cell)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 0,
+                "y": 48
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_node_tracker_decommissioned_node_count\", cell_tag=~\".+\", flavor=~\".+\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Decommissioned Node Count",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 8,
+                "y": 48
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_node_tracker_banned_node_count\", cell_tag=~\".+\", flavor=~\".+\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Banned Node Count",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 16,
+                "y": 48
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_node_tracker_offline_node_count\", cell_tag=~\".+\", flavor=~\".+\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Offline Node Count",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 0,
+                "y": 54
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_node_tracker_chunk_locations_being_disposed\", cell_tag=~\".+\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Chunk Locations Being Disposed",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 8,
+                "y": 54
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_node_tracker_chunk_locations_awaiting_disposal\", cell_tag=~\".+\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Chunk Locations Awaiting Disposal",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 16,
+                "y": 54
+            },
+            "options": {
+                "content": "",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 0,
+                "y": 60
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_node_tracker_data_nodes_being_disposed\", cell_tag=~\".+\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Data Nodes Being Disposed",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 8,
+                "y": 60
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_node_tracker_data_nodes_awaiting_for_being_disposed\", cell_tag=~\".+\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Data Nodes Awaiting For Being Disposed",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 16,
+                "y": 60
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_node_tracker_full_node_count\", cell_tag=~\".+\", flavor=~\".+\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Full Node Count",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 0,
+                "y": 66
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_node_tracker_with_alerts_node_count\", cell_tag=~\".+\", flavor=~\".+\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "With Alerts Node Count",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 8,
+                "y": 66
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_jobs_aborted\", cell_tag=~\"\", job_type=~\"\"}[$__rate_interval])",
+                    "legendFormat": "aborted {{host}} {{pod}}",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_jobs_completed\", cell_tag=~\"\", job_type=~\"\"}[$__rate_interval])",
+                    "legendFormat": "completed {{host}} {{pod}}",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_jobs_failed\", cell_tag=~\"\", job_type=~\"\"}[$__rate_interval])",
+                    "legendFormat": "failed {{host}} {{pod}}",
+                    "refId": "C"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_jobs_started\", cell_tag=~\"\", job_type=~\"\"}[$__rate_interval])",
+                    "legendFormat": "started {{host}} {{pod}}",
+                    "refId": "D"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_misscheduled_jobs\", cell_tag=~\"\", job_type=~\"\"}[$__rate_interval])",
+                    "legendFormat": "misscheduled {{host}} {{pod}}",
+                    "refId": "E"
+                }
+            ],
+            "title": "Job Rates",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 8,
+                "x": 16,
+                "y": 66
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_chunk_server_running_job_count\", cell_tag=~\"\", job_type=~\".+\"}",
+                    "legendFormat": "{{job_type}} {{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Running Jobs",
+            "type": "timeseries"
+        }
+    ],
+    "tags": [],
+    "templating": {
+        "list": [
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "hide": 0,
+                "label": "Cluster",
+                "name": "cluster",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            }
+        ]
+    },
+    "title": "Master Global [Autogenerated]"
+}

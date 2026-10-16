@@ -99,14 +99,13 @@ int THunkChunk::GetLockCount() const
 void THunkChunk::PopulateAddHunkChunkDescriptor(NProto::TAddHunkChunkDescriptor* descriptor) const
 {
     if (PreparedStoreRefCount_ > 0) {
-        YT_LOG_ALERT("Hunk chunk has nonzero ref count during replication "
-            "(HunkChunkId: %v, PreparedStoreRefCount: %v)",
-            Id_,
-            PreparedStoreRefCount_);
+        YT_TLOG_ALERT("Hunk chunk has nonzero ref count during replication")
+            .With("HunkChunkId", Id_)
+            .With("PreparedStoreRefCount", PreparedStoreRefCount_);
 
         THROW_ERROR_EXCEPTION("Cannot replicate hunk chunk %v with nonzero prepared store ref count",
             Id_)
-            << TErrorAttribute("prepared_store_ref_count", PreparedStoreRefCount_);
+            .With("prepared_store_ref_count", PreparedStoreRefCount_);
     }
 
     ToProto(descriptor->mutable_chunk_id(), Id_);

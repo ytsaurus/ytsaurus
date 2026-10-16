@@ -49,6 +49,31 @@ TEST(TUnversionedNullColumnTest, ReadValues)
     }
 }
 
+TEST(TUnversionedNullColumnTest, DoesNotMaintainColumnMetaWhenDisabled)
+{
+    TDataBlockWriter blockWriter(
+        /*enableSegmentMetaInBlocks*/ true,
+        /*enableColumnMetaInChunkMeta*/ false);
+    auto columnWriter = CreateColumnWriter(&blockWriter);
+
+    i64 rowCount = 0;
+    for (int blockIndex = 0; blockIndex < 2; ++blockIndex) {
+        auto owningRows = CreateNullRows(10);
+        std::vector<TUnversionedRow> rows;
+        rows.reserve(owningRows.size());
+        for (const auto& row : owningRows) {
+            rows.push_back(row);
+        }
+
+        columnWriter->WriteUnversionedValues(rows);
+        rowCount += rows.size();
+
+        auto block = blockWriter.DumpBlock(blockIndex, rowCount);
+        EXPECT_FALSE(block.Data.empty());
+        EXPECT_EQ(0, columnWriter->ColumnMeta().segments_size());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

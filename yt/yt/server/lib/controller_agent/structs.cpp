@@ -1,6 +1,7 @@
 #include "public.h"
 #include "structs.h"
 #include "statistics.h"
+#include "job_statistics_wire.h"
 
 #include <yt/yt/server/lib/exec_node/public.h>
 
@@ -15,6 +16,7 @@
 #include <yt/yt/client/job_tracker_client/helpers.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/serialize.h>
 
 #include <util/generic/cast.h>
 
@@ -41,7 +43,8 @@ EAbortReason GetAbortReason(const TError& resultError, const TLogger& Logger)
         return resultError.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
     } catch (const std::exception& ex) {
         // Process unknown abort reason from node.
-        YT_LOG_WARNING(ex, "Found unknown abort reason in job result");
+        YT_TLOG_WARNING("Found unknown abort reason in job result")
+            .With(ex);
         return EAbortReason::Unknown;
     }
 }
@@ -49,6 +52,22 @@ EAbortReason GetAbortReason(const TError& resultError, const TLogger& Logger)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
+
+void TJobPhaseSerializer::Save(TSaveContext& context, EJobPhase phase)
+{
+    NYT::Save(context, phase);
+}
+
+void TJobPhaseSerializer::Load(TLoadContext& context, EJobPhase& phase)
+{
+    if (context.GetVersion() < ESnapshotVersion::JobPhaseSpacing) {
+        phase = NExecNode::ConvertJobPhaseFromOld(NYT::Load<NExecNode::EJobPhaseOld>(context));
+    } else {
+        NYT::Load(context, phase);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TJobSummary::TJobSummary(TJobId id, EJobState state)
     : Result()
@@ -68,7 +87,7 @@ TJobSummary::TJobSummary(NProto::TJobStatus* status)
     TimeStatistics = FromProto<NJobAgent::TTimeStatistics>(status->time_statistics());
     if (status->has_statistics()) {
         auto mutableStatistics = std::make_shared<TStatistics>();
-        *mutableStatistics = ConvertTo<TStatistics>(TYsonStringBuf(status->statistics()));
+        *mutableStatistics = DecodeJobStatisticsFromHeartbeat(*status);
         Statistics = std::move(mutableStatistics);
     }
 
@@ -90,6 +109,8 @@ TJobSummary::TJobSummary(NProto::TJobStatus* status)
 
     if (status->has_phase()) {
         Phase = FromProto<EJobPhase>(status->phase());
+    } else if (status->has_phase_old()) {
+        Phase = NExecNode::ConvertJobPhaseFromOld(FromProto<NExecNode::EJobPhaseOld>(status->phase_old()));
     }
 
     StatusTimestamp = FromProto<TInstant>(status->status_timestamp());
@@ -108,7 +129,9 @@ void TJobSummary::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(4, State);
     PHOENIX_REGISTER_FIELD(5, FinishTime);
     PHOENIX_REGISTER_FIELD(6, ReleaseFlags);
-    PHOENIX_REGISTER_FIELD(7, Phase);
+    PHOENIX_REGISTER_FIELD(7, Phase,
+        // COMPAT(pogorelov)
+        .template Serializer<TJobPhaseSerializer>());
     PHOENIX_REGISTER_FIELD(8, TimeStatistics);
     PHOENIX_REGISTER_FIELD(9, TotalInputDataStatistics);
     PHOENIX_REGISTER_FIELD(10, OutputDataStatistics);
@@ -258,6 +281,8 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
 
     summary.FinishTime = TInstant::Now();
 
+    UpdateAbortedJobError(eventSummary.AbortReason, GetPtr(eventSummary.Error));
+
     ToProto(summary.Result.emplace().mutable_error(), eventSummary.Error);
     summary.Error = std::move(eventSummary.Error);
 
@@ -275,7 +300,7 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
     summary.FinishTime = TInstant::Now();
 
     auto error = TError("Allocation finished concurrently with settling job")
-        << TErrorAttribute("abort_reason", EAbortReason::AllocationFinished);
+        .With("abort_reason", EAbortReason::AllocationFinished);
 
     ToProto(
         summary.Result.emplace().mutable_error(),
@@ -283,6 +308,60 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
     summary.Error = std::move(error);
 
     summary.Scheduled = true;
+
+    return std::make_unique<TAbortedJobSummary>(std::move(summary));
+}
+
+std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
+    TJobId jobId,
+    EAbortReason abortReason)
+{
+    TAbortedJobSummary summary{jobId, abortReason};
+
+    summary.FinishTime = TInstant::Now();
+
+    TError error;
+    UpdateAbortedJobError(abortReason, GetPtr(error));
+
+    ToProto(summary.Result.emplace().mutable_error(), error);
+    summary.Error = std::move(error);
+
+    return std::make_unique<TAbortedJobSummary>(std::move(summary));
+}
+
+std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
+    const TJobSummary& other,
+    EAbortReason abortReason)
+{
+    TAbortedJobSummary summary{other, abortReason};
+
+    auto error = other.Error.value_or(TError());
+    UpdateAbortedJobError(abortReason, GetPtr(error));
+
+    ToProto(
+        summary.Result.emplace().mutable_error(),
+        error);
+    summary.Error = std::move(error);
+
+    return std::make_unique<TAbortedJobSummary>(std::move(summary));
+}
+
+std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
+    const TJobSummary& other,
+    EAbortReason abortReason,
+    TError outerError)
+{
+    TAbortedJobSummary summary{other, abortReason};
+
+    outerError.Add("abort_reason", abortReason);
+    if (other.Error && !other.Error->IsOK()) {
+        outerError.Add(*other.Error);
+    }
+
+    ToProto(
+        summary.Result.emplace().mutable_error(),
+        outerError);
+    summary.Error = std::move(outerError);
 
     return std::make_unique<TAbortedJobSummary>(std::move(summary));
 }
@@ -446,10 +525,9 @@ std::unique_ptr<TJobSummary> ParseJobSummary(NProto::TJobStatus* const status, c
         case EJobState::Waiting:
             return std::make_unique<TWaitingJobSummary>(status);
         default:
-            YT_LOG_ERROR(
-                "Unexpected job state in parsing status (JobState: %v, JobId: %v)",
-                state,
-                FromProto<TJobId>(status->job_id()));
+            YT_TLOG_ERROR("Unexpected job state in parsing status")
+                .With("JobState", state)
+                .With("JobId", FromProto<TJobId>(status->job_id()));
             YT_ABORT();
     }
 }

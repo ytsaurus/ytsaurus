@@ -40,6 +40,9 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <library/cpp/yt/string/stream.h>
+#include <library/cpp/yt/string/string.h>
+
 #include <util/random/random.h>
 
 #include <util/string/ascii.h>
@@ -79,7 +82,7 @@ TContext::TContext(
     : Api_(std::move(api))
     , Request_(std::move(request))
     , Response_(std::move(response))
-    , Logger(HttpProxyLogger().WithTag("RequestId: %v", Request_->GetRequestId()))
+    , Logger(HttpProxyLogger().WithTag("RequestId", Request_->GetRequestId()))
 {
     DriverRequest_.Id = Request_->GetRequestId();
 }
@@ -89,7 +92,7 @@ bool TContext::TryPrepare()
     ProcessDebugHeaders(Request_, Response_, Api_->GetCoordinator());
 
     if (auto correlationId = Request_->GetHeaders()->Find("X-YT-Correlation-ID")) {
-        Logger.AddTag("CorrelationId: %v", *correlationId);
+        Logger.AddTag("CorrelationId", *correlationId);
     }
 
     Response_->GetHeaders()->Set("Cache-Control", "no-store");
@@ -134,8 +137,7 @@ bool TContext::TryParseRequest()
 
 bool TContext::TryParseCommandName()
 {
-    auto versionedName = TString(Request_->GetUrl().Path);
-    versionedName.to_lower();
+    auto versionedName = AsciiStringToLower(Request_->GetUrl().Path);
 
     if (versionedName == "/api" || versionedName == "/api/") {
         Response_->SetStatus(EStatusCode::OK);
@@ -149,9 +151,9 @@ bool TContext::TryParseCommandName()
         return false;
     }
 
-    if (versionedName.StartsWith("/api/v3")) {
+    if (versionedName.starts_with("/api/v3")) {
         ApiVersion_ = 3;
-    } else if (versionedName.StartsWith("/api/v4")) {
+    } else if (versionedName.starts_with("/api/v4")) {
         ApiVersion_ = 4;
     } else {
         THROW_ERROR_EXCEPTION("Unsupported API version %Qv", versionedName);
@@ -201,7 +203,8 @@ bool TContext::TryParseUser()
 
     auto authResult = Api_->GetHttpAuthenticator()->Authenticate(Request_);
     if (!authResult.IsOK()) {
-        YT_LOG_DEBUG(authResult, "Authentication error");
+        YT_TLOG_DEBUG("Authentication error")
+            .With(authResult);
 
         if (DriverRequest_.CommandName == "discover_proxies") {
             DriverRequest_.AuthenticatedUser = NSecurityClient::RootUserName;
@@ -234,12 +237,13 @@ bool TContext::TryParseUser()
         Api_->ValidateUser(authenticatedUser);
     } catch (const std::exception& ex) {
         Response_->SetStatus(EStatusCode::Forbidden);
-        ReplyError(TError("User validation failed") << ex);
+        ReplyError(TError("User validation failed").With(ex));
         return false;
     }
 
     if (auto error = Api_->CheckAccess(authenticatedUser); !error.IsOK()) {
-        YT_LOG_DEBUG(error);
+        YT_TLOG_DEBUG("Proxy access check failed")
+            .With(error);
         Response_->SetStatus(EStatusCode::Forbidden);
         auto proxyRole = Api_->GetCoordinator()->GetSelfEntry()->Role;
         ReplyError(TError("User %Qv is not allowed to access proxy with role %Qv", authenticatedUser, proxyRole));
@@ -320,7 +324,7 @@ bool TContext::TryGetInputFormat()
         ytHeader = GatherHeader(Request_->GetHeaders(), YTHeaderName);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Unable to parse %Qv header", YTHeaderName)
-            << ex;
+            .With(ex);
     }
     auto contentTypeHeader = Request_->GetHeaders()->Find("Content-Type");
     InputFormat_ = InferFormat(
@@ -362,7 +366,7 @@ bool TContext::TryGetOutputFormat()
         ytHeader = GatherHeader(Request_->GetHeaders(), YTHeaderName);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Unable to parse %Qv header", YTHeaderName)
-            << ex;
+            .With(ex);
     }
     auto acceptHeader = Request_->GetHeaders()->Find("Accept");
     OutputFormat_ = InferFormat(
@@ -405,7 +409,7 @@ bool TContext::TryGetErrorFormat()
         ytHeader = GatherHeader(Request_->GetHeaders(), YTHeaderName);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Unable to parse %Qv header", YTHeaderName)
-            << ex;
+            .With(ex);
     }
     ErrorFormat_ = InferFormat(
         *FormatManager_,
@@ -445,13 +449,13 @@ void TContext::CaptureParameters()
         FixupNodesWithAttributes(queryParams);
         DriverRequest_.Parameters = PatchNode(DriverRequest_.Parameters, std::move(queryParams))->AsMap();
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Unable to parse parameters from query string") << ex;
+        THROW_ERROR_EXCEPTION("Unable to parse parameters from query string").With(ex);
     }
 
     try {
         auto header = GatherHeader(Request_->GetHeaders(), "x-yt-parameters");
         if (header) {
-            TMemoryInput stream(header->data(), header->size());
+            TMemoryInput stream(*header);
             auto fromHeaders = ConvertToNode(CreateProducerForFormat(
                 *HeadersFormat_,
                 EDataType::Structured,
@@ -460,7 +464,7 @@ void TContext::CaptureParameters()
             DriverRequest_.Parameters = PatchNode(DriverRequest_.Parameters, fromHeaders)->AsMap();
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Unable to parse parameters from headers") << ex;
+        THROW_ERROR_EXCEPTION("Unable to parse parameters from headers").With(ex);
     }
 
     if (Request_->GetMethod() == EMethod::Post) {
@@ -502,15 +506,15 @@ void TContext::SetETagRevision()
 
 void TContext::SetContentDispositionAndMimeType()
 {
-    TString disposition = "attachment";
+    std::string disposition = "attachment";
     if (Descriptor_->Heavy) {
-        TString filename;
+        std::string filename;
         if (Descriptor_->CommandName == "download" ||
             Descriptor_->CommandName == "read_table" ||
             Descriptor_->CommandName == "read_file")
         {
             if (auto pathNode = DriverRequest_.Parameters->FindChild("path")) {
-                filename = "yt_" + pathNode->GetValue<TString>();
+                filename = "yt_" + pathNode->GetValue<std::string>();
             }
         } else if (Descriptor_->CommandName == "get_job_stderr") {
             auto operationIdNode = DriverRequest_.Parameters->FindChild("operation_id");
@@ -540,7 +544,7 @@ void TContext::SetContentDispositionAndMimeType()
         }
 
         if (auto passedFilenameNode = DriverRequest_.Parameters->FindChild("filename")) {
-            filename = passedFilenameNode->GetValue<TString>();
+            filename = passedFilenameNode->GetValue<std::string>();
         }
 
         for (size_t i = 0; i < filename.size(); ++i) {
@@ -549,13 +553,15 @@ void TContext::SetContentDispositionAndMimeType()
             }
         }
 
-        if (filename.Contains("sys_operations") && filename.Contains("stderr")) {
+        if (filename.contains("sys_operations") && filename.contains("stderr")) {
             disposition = "inline";
         }
 
         if (auto passedDispositionNode = DriverRequest_.Parameters->FindChild("disposition")) {
-            auto sanitizedDisposition = passedDispositionNode->GetValue<TString>();
-            sanitizedDisposition.to_lower();
+            auto sanitizedDisposition = passedDispositionNode->GetValue<std::string>();
+            for (auto& c : sanitizedDisposition) {
+                c = AsciiToLower(c);
+            }
             if (sanitizedDisposition == "inline" || sanitizedDisposition == "attachment") {
                 disposition = sanitizedDisposition;
             }
@@ -569,7 +575,7 @@ void TContext::SetContentDispositionAndMimeType()
     }
 
     if (Descriptor_->OutputType == EDataType::Binary) {
-        if (disposition.StartsWith("inline")) {
+        if (disposition.starts_with("inline")) {
             ContentType_ = "text/plain; charset=\"utf-8\"";
         } else {
             ContentType_ = "application/octet-stream";
@@ -586,15 +592,15 @@ void TContext::LogRequest()
     Parameters_ = ConvertToYsonString(
         HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
         EYsonFormat::Text).ToString();
-    YT_LOG_INFO("Gathered request parameters (Command: %v, User: %v, Parameters: %v, InputFormat: %v, InputCompression: %v, OutputFormat: %v, OutputCompression: %v, ErrorFormat: %v)",
-        Descriptor_->CommandName,
-        DriverRequest_.AuthenticatedUser,
-        Parameters_,
-        ConvertToYsonString(InputFormat_, EYsonFormat::Text).AsStringBuf(),
-        InputContentEncoding_,
-        ConvertToYsonString(OutputFormat_, EYsonFormat::Text).AsStringBuf(),
-        OutputContentEncoding_,
-        ConvertToYsonString(ErrorFormat_, EYsonFormat::Text).AsStringBuf());
+    YT_TLOG_INFO("Gathered request parameters")
+        .With("Command", Descriptor_->CommandName)
+        .With("User", DriverRequest_.AuthenticatedUser)
+        .With("Parameters", Parameters_)
+        .With("InputFormat", ConvertToYsonString(InputFormat_, EYsonFormat::Text).AsStringBuf())
+        .With("InputCompression", InputContentEncoding_)
+        .With("OutputFormat", ConvertToYsonString(OutputFormat_, EYsonFormat::Text).AsStringBuf())
+        .With("OutputCompression", OutputContentEncoding_)
+        .With("ErrorFormat", ConvertToYsonString(ErrorFormat_, EYsonFormat::Text).AsStringBuf());
 }
 
 void TContext::LogStructuredRequest()
@@ -616,13 +622,16 @@ void TContext::LogStructuredRequest()
         }
     });
 
-    YT_LOG_DEBUG("Request finished (Command: %v, User: %v, WallTime: %v, CpuTime: %v, InBytes: %v, OutBytes: %v)",
-        Descriptor_->CommandName,
-        DriverRequest_.AuthenticatedUser,
-        WallTime_,
-        ResultCpuTime_,
-        Request_->GetReadByteCount(),
-        Response_->GetWriteByteCount());
+    auto userTicketHeader = Request_->GetHeaders()->Find(NHeaders::UserTicketHeaderName);
+    auto serviceTicketHeader = Request_->GetHeaders()->Find(NHeaders::ServiceTicketHeaderName);
+
+    YT_TLOG_DEBUG("Request finished")
+        .With("Command", Descriptor_->CommandName)
+        .With("User", DriverRequest_.AuthenticatedUser)
+        .With("WallTime", WallTime_)
+        .With("CpuTime", ResultCpuTime_)
+        .With("InBytes", Request_->GetReadByteCount())
+        .With("OutBytes", Response_->GetWriteByteCount());
 
     LogStructuredEventFluently(HttpStructuredProxyLogger, ELogLevel::Info)
         .Item("request_id").Value(Request_->GetRequestId())
@@ -654,7 +663,14 @@ void TContext::LogStructuredRequest()
         .Item("cpu_time").Value(ResultCpuTime_)
         .Item("start_time").Value(Timer_.GetStartTime())
         .Item("in_bytes").Value(Request_->GetReadByteCount())
-        .Item("out_bytes").Value(Response_->GetWriteByteCount());
+        .Item("out_bytes").Value(Response_->GetWriteByteCount())
+        .DoIf(userTicketHeader && !serviceTicketHeader, [&] (auto fluent) {
+            fluent
+                .Item("debug_info").Value(BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("user_ticket_and_no_service_ticket").Value(true)
+                    .EndMap());
+        });
 }
 
 void TContext::SetupInputStream()
@@ -713,18 +729,19 @@ void TContext::SetupOutputStream()
         // NB: This lambda should not capture |this| (by strong reference) to avoid cyclic references.
         auto sendKeepAliveFrame = [Logger = Logger] (const TFramingAsyncOutputStreamPtr& stream) {
             // All errors are ignored.
-            YT_LOG_DEBUG("Sending keep-alive frame");
+            YT_TLOG_DEBUG("Sending keep-alive frame");
             auto error = WaitFor(stream->WriteKeepAliveFrame());
             if (!error.IsOK()) {
-                YT_LOG_ERROR(error, "Error sending keep-alive frame");
+                YT_TLOG_ERROR("Error sending keep-alive frame")
+                    .With(error);
                 return;
             }
             Y_UNUSED(WaitFor(stream->Flush()));
         };
 
         if (auto keepAlivePeriod = GetFramingConfig()->KeepAlivePeriod; keepAlivePeriod) {
-            YT_LOG_DEBUG("Creating periodic executor to send keep-alive frames (KeepAlivePeriod: %v)",
-                *keepAlivePeriod);
+            YT_TLOG_DEBUG("Creating periodic executor to send keep-alive frames")
+                .With("KeepAlivePeriod", *keepAlivePeriod);
             SendKeepAliveExecutor_ = New<TPeriodicExecutor>(
                 invoker,
                 BIND(sendKeepAliveFrame, FramingStream_),
@@ -749,7 +766,7 @@ void TContext::SetupOutputParameters()
         OnOutputParameters();
 
         if (SendKeepAliveExecutor_) {
-            YT_LOG_DEBUG("Starting periodic executor to send keep-alive frames");
+            YT_TLOG_DEBUG("Starting periodic executor to send keep-alive frames");
             SendKeepAliveExecutor_->Start();
         }
 
@@ -840,16 +857,17 @@ void TContext::SetEnrichedError(const TError& error)
     if (DriverRequest_.Parameters) {
         if (auto path = DriverRequest_.Parameters->FindChild("path")) {
             Error_ = Error_
-                << TErrorAttribute("path", path->GetValue<TString>());
+                .With("path", path->GetValue<TYPath>());
         }
     }
 
     // We wrap it in Unavailable code here, as it is already retryable in all clients.
     if (ShouldWrapInRetryableError(Error_)) {
-        Error_ = TError(NRpc::EErrorCode::Unavailable, "Proxy is unavailable") << error;
+        Error_ = TError(NRpc::EErrorCode::Unavailable, "Proxy is unavailable").With(error);
     }
 
-    YT_LOG_ERROR(Error_, "Command failed");
+    YT_TLOG_ERROR("Command failed")
+        .With(Error_);
 }
 
 void TContext::ProcessFormatsInOperationSpec()
@@ -857,12 +875,12 @@ void TContext::ProcessFormatsInOperationSpec()
     auto specNode = DriverRequest_.Parameters->FindChild("spec");
     auto commandName = DriverRequest_.CommandName;
     auto operationTypeNode = DriverRequest_.Parameters->FindChild("operation_type");
-    TString operationTypeString;
+    std::string operationTypeString;
     if (commandName == "start_op" || commandName == "start_operation") {
         if (!operationTypeNode || operationTypeNode->GetType() != ENodeType::String) {
             return;
         }
-        operationTypeString = operationTypeNode->GetValue<TString>();
+        operationTypeString = operationTypeNode->GetValue<std::string>();
     } else {
         operationTypeString = commandName;
     }
@@ -904,7 +922,7 @@ void TContext::SetupCumulativeCpuProfiling()
 
     CumulativeCpuProfilingExecutor_->Start();
 
-    YT_LOG_DEBUG("Cumulative CPU profiling stopped");
+    YT_TLOG_DEBUG("Cumulative CPU profiling started");
 }
 
 void TContext::FinishPrepare()
@@ -924,7 +942,7 @@ void TContext::FinishPrepare()
     AddHeaders();
     PrepareFinished_ = true;
 
-    YT_LOG_DEBUG("Prepare finished");
+    YT_TLOG_DEBUG("Prepare finished");
 }
 
 void TContext::Run()
@@ -945,21 +963,21 @@ void TContext::Run()
 
         if (Api_->GetMemoryUsageTracker()->IsTotalExceeded()) {
             THROW_ERROR_EXCEPTION(error)
-                << TErrorAttribute("total_memory_limit", Api_->GetMemoryUsageTracker()->GetTotalLimit())
-                << TErrorAttribute("total_memory_usage", Api_->GetMemoryUsageTracker()->GetTotalUsed());
+                .With("total_memory_limit", Api_->GetMemoryUsageTracker()->GetTotalLimit())
+                .With("total_memory_usage", Api_->GetMemoryUsageTracker()->GetTotalUsed());
         }
 
         if (Api_->GetMemoryUsageTracker()->IsPoolExceeded(userPoolTag)) {
             THROW_ERROR_EXCEPTION(error)
-                << TErrorAttribute("pool_memory_limit", Api_->GetMemoryUsageTracker()->GetPoolLimit(userPoolTag))
-                << TErrorAttribute("pool_memory_usage", Api_->GetMemoryUsageTracker()->GetPoolUsed(userPoolTag));
+                .With("pool_memory_limit", Api_->GetMemoryUsageTracker()->GetPoolLimit(userPoolTag))
+                .With("pool_memory_usage", Api_->GetMemoryUsageTracker()->GetPoolUsed(userPoolTag));
         }
 
         if (Descriptor_->Heavy && Api_->GetMemoryUsageTracker()->IsExceeded(EMemoryCategory::HeavyRequest))
         {
             THROW_ERROR_EXCEPTION(error)
-                << TErrorAttribute("heavy_request_memory_limit", Api_->GetMemoryUsageTracker()->GetLimit(EMemoryCategory::HeavyRequest))
-                << TErrorAttribute("heavy_request_memory_usage", Api_->GetMemoryUsageTracker()->GetUsed(EMemoryCategory::HeavyRequest));
+                .With("heavy_request_memory_limit", Api_->GetMemoryUsageTracker()->GetLimit(EMemoryCategory::HeavyRequest))
+                .With("heavy_request_memory_usage", Api_->GetMemoryUsageTracker()->GetUsed(EMemoryCategory::HeavyRequest));
         }
 
         if (Descriptor_->Heavy && Api_->GetMemoryUsageTracker()->IsExceeded(
@@ -967,10 +985,10 @@ void TContext::Run()
             userPoolTag))
         {
             THROW_ERROR_EXCEPTION(error)
-                << TErrorAttribute("heavy_request_memory_limit", Api_->GetMemoryUsageTracker()->GetLimit(
+                .With("heavy_request_memory_limit", Api_->GetMemoryUsageTracker()->GetLimit(
                     EMemoryCategory::HeavyRequest,
                     userPoolTag))
-                << TErrorAttribute("heavy_request_memory_usage", Api_->GetMemoryUsageTracker()->GetUsed(
+                .With("heavy_request_memory_usage", Api_->GetMemoryUsageTracker()->GetUsed(
                     EMemoryCategory::HeavyRequest,
                     userPoolTag));
         }
@@ -1006,8 +1024,8 @@ TSharedRef DumpError(const TError& error)
     delimiter.append(80, '=');
     delimiter.push_back('\n');
 
-    TString errorMessage;
-    TStringOutput errorStream(errorMessage);
+    std::string errorMessage;
+    TStdStringOutput errorStream(errorMessage);
     errorStream << "\n";
     errorStream << delimiter;
 
@@ -1053,12 +1071,12 @@ void TContext::LogAndProfile()
 void TContext::Finalize()
 {
     if (SendKeepAliveExecutor_) {
-        YT_LOG_DEBUG("Stopping periodic executor that sends keep-alive frames");
+        YT_TLOG_DEBUG("Stopping periodic executor that sends keep-alive frames");
         Y_UNUSED(WaitFor(SendKeepAliveExecutor_->Stop()));
     }
 
     if (CumulativeCpuProfilingExecutor_) {
-        YT_LOG_DEBUG("Cumulative CPU profiling stopped");
+        YT_TLOG_DEBUG("Cumulative CPU profiling stopped");
         Y_UNUSED(WaitFor(CumulativeCpuProfilingExecutor_->Stop()));
     }
 
@@ -1137,7 +1155,7 @@ void TContext::DispatchJson(const TJsonProducer& producer)
     });
 }
 
-void TContext::DispatchUnauthorized(const TString& scope, const TString& message)
+void TContext::DispatchUnauthorized(const std::string& scope, const std::string& message)
 {
     Response_->SetStatus(EStatusCode::Unauthorized);
     Response_->GetHeaders()->Set("WWW-Authenticate", scope);
@@ -1147,12 +1165,12 @@ void TContext::DispatchUnauthorized(const TString& scope, const TString& message
 void TContext::DispatchUnavailable(const TError& error)
 {
     Response_->SetStatus(EStatusCode::ServiceUnavailable);
-    // This header is header is probably useless, but we keep it for compatibility.
+    // This header is probably useless, but we keep it for compatibility.
     Response_->GetHeaders()->Set("Retry-After", "60");
     ReplyError(error);
 }
 
-void TContext::DispatchNotFound(const TString& message)
+void TContext::DispatchNotFound(const std::string& message)
 {
     Response_->SetStatus(EStatusCode::NotFound);
     ReplyError(TError(TRuntimeFormat(message)));
@@ -1160,7 +1178,8 @@ void TContext::DispatchNotFound(const TString& message)
 
 void TContext::ReplyError(const TError& error)
 {
-    YT_LOG_DEBUG(error, "Request finished with error");
+    YT_TLOG_DEBUG("Request finished with error")
+        .With(error);
     NHttpProxy::ReplyError(Response_, error);
 }
 
@@ -1179,8 +1198,8 @@ void TContext::OnOutputParameters()
         }
     }
 
-    TString headerValue;
-    TStringOutput stream(headerValue);
+    std::string headerValue;
+    TStdStringOutput stream(headerValue);
     auto consumer = CreateConsumerForFormat(*HeadersFormat_, EDataType::Structured, &stream);
     Serialize(OutputParameters_, consumer.get());
     consumer->Flush();
@@ -1222,8 +1241,8 @@ void TContext::ProcessDelayBeforeCommandTestingOption()
     if (nodeString.AsStringBuf().find(commandDelayOptions.Substring) == std::string::npos) {
         return;
     }
-    YT_LOG_DEBUG("Waiting for %v seconds due to \"delay_before_command\" testing option",
-        commandDelayOptions.Delay.SecondsFloat());
+    YT_TLOG_DEBUG("Waiting due to \"delay_before_command\" testing option")
+        .With("Delay", commandDelayOptions.Delay);
     TDelayedExecutor::WaitForDuration(commandDelayOptions.Delay);
 }
 
@@ -1245,9 +1264,9 @@ void TContext::AllocateTestData(const TTraceContextPtr& traceContext)
 
         MakeTestHeapAllocation(size, delay);
 
-        YT_LOG_DEBUG("Test heap allocation is finished (AllocationSize: %v, AllocationReleaseDelay: %v)",
-            size,
-            delay);
+        YT_TLOG_DEBUG("Test heap allocation is finished")
+            .With("AllocationSize", size)
+            .With("AllocationReleaseDelay", delay);
     }
 }
 
@@ -1268,7 +1287,7 @@ IInvokerPtr TContext::GetCompressionInvoker() const
 void TContext::ProfileCumulativeCpu(
     const TTraceContextPtr& traceContext,
     const std::string& authenticatedUser,
-    const TString& commandName)
+    const std::string& commandName)
 {
     if (traceContext) {
         auto currentCpuTime = traceContext->GetElapsedTime();

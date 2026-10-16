@@ -1,0 +1,5 @@
+## См. также
+
+- [Быстрый старт (Python)](../../../../flow/python/getting-started.md)
+- [Computation (Python)](../../../../flow/python/computation.md)
+- [Stateful processing](../../../../flow/concepts/stateful.md)

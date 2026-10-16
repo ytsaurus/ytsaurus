@@ -165,6 +165,18 @@ struct ISecurityManager
         TAccountResourceUsageLease* accountResourceUsageLease,
         const TClusterResources& resources) = 0;
 
+    //! Updates backup config for account.
+    virtual void UpdateBackupConfigForAccount(TAccount* account, TAccountBackupConfig backupConfig) = 0;
+
+    //! Removes backup config for account.
+    virtual void RemoveBackupConfigForAccount(TAccount* account) = 0;
+
+    //! Validates that account can be removed, throws otherwise.
+    virtual void ValidateAccountRemoval(const TAccount* account) const = 0;
+
+    //! Returns accounts using current account as backup.
+    virtual std::vector<std::string> GetBackupSourceAccountNames(const TAccount* account) const = 0;
+
     //! Updates tablet-related resource usage. Only table count and static
     //! memory are used; everything else in #resourceUsageDelta must be zero.
     virtual void UpdateTabletResourceUsage(
@@ -431,6 +443,10 @@ struct ISecurityManager
 
     //! Increases account statistics and puts update in gossip queue.
     virtual void IncreaseLocalAndClusterAccountStatistics(TAccount* account, const TAccountStatistics& delta) = 0;
+
+    // COMPAT(kvk1920): in some cases we can't be sure that usage of actual user
+    // instead of "root" won't break anything.
+    virtual std::string GetAuthenticatedUserNameToForward() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISecurityManager)

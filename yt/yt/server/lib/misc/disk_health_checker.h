@@ -26,7 +26,7 @@ class TDiskHealthChecker
 public:
     TDiskHealthChecker(
         TDiskHealthCheckerConfigPtr config,
-        const TString& path,
+        const std::string& path,
         IInvokerPtr invoker,
         NLogging::TLogger logger,
         const NProfiling::TProfiler& profiler = {});
@@ -45,7 +45,7 @@ public:
 
 private:
     TAtomicIntrusivePtr<TDiskHealthCheckerConfig> Config_;
-    const TString Path_;
+    const std::string Path_;
     const IInvokerPtr CheckInvoker_;
 
     NLogging::TLogger Logger;

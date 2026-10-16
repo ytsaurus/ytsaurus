@@ -21,6 +21,9 @@ type tableReader struct {
 	err     error
 	end     bool
 	started bool
+
+	// partialErr is set when the lookup used EnablePartialResult and some keys were unavailable.
+	partialErr error
 }
 
 func newTableReader(rows []wire.Row, d *rpc_proxy.TRowsetDescriptor) (*tableReader, error) {
@@ -86,7 +89,10 @@ func (r *tableReader) Next() bool {
 }
 
 func (r *tableReader) Err() error {
-	return r.err
+	if r.err != nil {
+		return r.err
+	}
+	return r.partialErr
 }
 
 func (r *tableReader) Close() error {

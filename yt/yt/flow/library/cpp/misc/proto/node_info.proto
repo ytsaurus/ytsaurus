@@ -1,0 +1,17 @@
+package NYT.NFlow.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+message TNodeInfo
+{
+    required string name = 1;
+    required string rpc_address = 2;
+    required string monitoring_address = 3;
+    required string remote_shell_command = 4;
+    required NYT.NProto.TGuid incarnation_id = 5;
+    optional double vcpu_factor = 6;
+    required string build_version = 7;
+    optional double vcpu_limit = 8;
+    required string flow_core_version = 9;
+    optional string build_type = 10;
+}

@@ -3,11 +3,6 @@ from .rich import RichYPath
 from yt.yson import YsonString, YsonUnicode, convert
 from yt.common import update
 
-try:
-    from yt.packages.six import text_type, binary_type
-except ImportError:
-    from six import text_type, binary_type
-
 from copy import deepcopy
 
 
@@ -16,9 +11,9 @@ def parse_ypath(path, client=None):
 
     base_type = None
     if isinstance(path, YsonString):
-        base_type = binary_type
+        base_type = bytes
     if isinstance(path, YsonUnicode):
-        base_type = text_type
+        base_type = str
 
     if base_type is not None:
         path_attributes = deepcopy(path.attributes)

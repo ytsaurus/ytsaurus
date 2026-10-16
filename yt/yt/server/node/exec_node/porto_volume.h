@@ -44,8 +44,9 @@ public:
 
     TFuture<void> Link(
         TGuid tag,
-        const TString& target,
-        bool sholdCheckTargetDirExists) override final;
+        const std::string& target) override final;
+
+    TFuture<void> Unlink() override final;
 
     TFuture<void> Remove() override final;
 
@@ -60,7 +61,7 @@ protected:
     std::atomic<bool> RemovalRequested_ = false;
 
     static TFuture<void> DoRemoveVolumeCommon(
-        const TString& volumeType,
+        const std::string& volumeType,
         NProfiling::TTagSet tagSet,
         TLayerLocationPtr location,
         TVolumeMeta volumeMeta,
@@ -70,11 +71,11 @@ protected:
 
 private:
     NConcurrency::TAsyncReaderWriterLock Lock_;
-    std::vector<TString> Targets_;
+    std::vector<std::string> Targets_;
 
-    TCallback<TFuture<void>(const std::vector<TString>&)> RemoveCallback_;
+    TCallback<TFuture<void>(const std::vector<std::string>&)> RemoveCallback_;
 
-    static TFuture<void> UnlinkTargets(TLayerLocationPtr location, TString source, const std::vector<TString>& targets);
+    static TFuture<void> UnlinkTargets(TLayerLocationPtr location, std::string source, const std::vector<std::string>& targets);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,11 +101,6 @@ public:
     bool IsCached() const override final
     {
         return true;
-    }
-
-    bool IsRootVolume() const override final
-    {
-        return false;
     }
 };
 
@@ -145,22 +141,20 @@ public:
         NProfiling::TTagSet tagSet,
         TVolumeMeta volumeMeta,
         TLayerLocationPtr layerLocation,
-        TString nbdDeviceId,
+        std::string nbdDeviceId,
         NNbd::INbdServerPtr nbdServer);
 
     ~TRWNbdVolume() override;
 
-    bool IsRootVolume() const override final;
-
 private:
-    const TString NbdDeviceId_;
+    const std::string NbdDeviceId_;
     const NNbd::INbdServerPtr NbdServer_;
 
     static TFuture<void> DoRemove(
         NProfiling::TTagSet tagSet,
         TLayerLocationPtr location,
         TVolumeMeta volumeMeta,
-        TString nbdDeviceId,
+        std::string nbdDeviceId,
         NNbd::INbdServerPtr nbdServer);
 };
 
@@ -169,27 +163,27 @@ DECLARE_REFCOUNTED_CLASS(TRWNbdVolume)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRONbdVolume
-    : public TCachedVolume<TString>
+    : public TCachedVolume<std::string>
 {
 public:
     TRONbdVolume(
         NProfiling::TTagSet tagSet,
         TVolumeMeta volumeMeta,
         TLayerLocationPtr layerLocation,
-        TString nbdDeviceId,
+        std::string nbdDeviceId,
         NNbd::INbdServerPtr nbdServer);
 
     ~TRONbdVolume() override;
 
 private:
-    const TString NbdDeviceId_;
+    const std::string NbdDeviceId_;
     const NNbd::INbdServerPtr NbdServer_;
 
     static TFuture<void> DoRemove(
         NProfiling::TTagSet tagSet,
         TLayerLocationPtr location,
         TVolumeMeta volumeMeta,
-        TString nbdDeviceId,
+        std::string nbdDeviceId,
         NNbd::INbdServerPtr nbdServer);
 };
 
@@ -209,8 +203,6 @@ public:
         IVolumePtr volumeForUpperLayer);
 
     ~TOverlayVolume() override;
-
-    bool IsRootVolume() const override final;
 
 private:
     // Holds volumes and layers (so that they are not destroyed) while they are needed.
@@ -241,8 +233,6 @@ public:
 
     ~TTmpfsVolume() override;
 
-    bool IsRootVolume() const override final;
-
 private:
     static TFuture<void> DoRemove(
         NProfiling::TTagSet tagSet,
@@ -264,8 +254,6 @@ public:
         TLayerLocationPtr location);
 
     ~TLoopVolume() override;
-
-    bool IsRootVolume() const override final;
 
 private:
     static TFuture<void> DoRemove(

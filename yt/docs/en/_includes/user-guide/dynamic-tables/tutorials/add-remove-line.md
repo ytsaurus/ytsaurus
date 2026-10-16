@@ -27,7 +27,7 @@
 
 - Delete data by key:
    ```bash
-   echo '{id=1};{id=3}' | yt delete-rows //home/dev/test_dyn_table --format yson
+   echo '{id=1};{id=3}' | yt delete-rows //path/to/table --format yson
    ```
 - Read data:
    ```bash

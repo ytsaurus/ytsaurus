@@ -24,7 +24,7 @@ TClient::TClient(
     : Config_(config)
     , Invoker_(invoker)
     , LivenessChecker_(livenessChecker)
-    , Logger(HydraStressTestLogger().WithTag("ClientId: %v", clientId))
+    , Logger(HydraStressTestLogger().WithTag("ClientId", clientId))
     , ConsistencyChecker_(New<TConsistencyChecker>())
     , Proxy_(peerChannel)
 {
@@ -40,7 +40,7 @@ void TClient::Run()
 
 void TClient::RunRead()
 {
-    YT_LOG_DEBUG("Starting read");
+    YT_TLOG_DEBUG("Starting read");
 
     auto req = Proxy_.Read();
 
@@ -48,18 +48,20 @@ void TClient::RunRead()
     auto isOk = result.IsOK();
     LivenessChecker_->Report(isOk);
     if (!isOk) {
-        YT_LOG_DEBUG(result, "Read failed");
+        YT_TLOG_DEBUG("Read failed")
+            .With(result);
         return;
     }
 
     auto value = result.Value()->result();
-    YT_LOG_DEBUG("Read succeeded (Value: %v)", value);
+    YT_TLOG_DEBUG("Read succeeded")
+        .With("Value", value);
     ConsistencyChecker_->Check(value);
 }
 
 void TClient::RunCas()
 {
-    YT_LOG_DEBUG("Starting CAS");
+    YT_TLOG_DEBUG("Starting CAS");
 
     auto readReq = Proxy_.Read();
 
@@ -67,21 +69,23 @@ void TClient::RunCas()
     auto isOk = readResult.IsOK();
     LivenessChecker_->Report(isOk);
     if (!isOk) {
-        YT_LOG_DEBUG(readResult, "CAS read failed");
+        YT_TLOG_DEBUG("CAS read failed")
+            .With(readResult);
         return;
     }
 
     auto expected = readResult.Value()->result();
-    YT_LOG_DEBUG("CAS read succeeded (Value: %v)", expected);
+    YT_TLOG_DEBUG("CAS read succeeded")
+        .With("Value", expected);
     ConsistencyChecker_->Check(expected);
 
     TDelayedExecutor::WaitForDuration(Config_->ClientWriteCasDelay);
 
     auto desired = expected + rand() % Config_->ClientIncrement;
 
-    YT_LOG_DEBUG("Starting CAS write (Expected: %v, Desired: %v)",
-        expected,
-        desired);
+    YT_TLOG_DEBUG("Starting CAS write")
+        .With("Expected", expected)
+        .With("Desired", desired);
 
     auto writeReq = Proxy_.Cas();
     writeReq->set_expected(expected);
@@ -90,25 +94,27 @@ void TClient::RunCas()
 
     auto writeResult = WaitFor(writeReq->Invoke());
     if (!writeResult.IsOK()) {
-        YT_LOG_DEBUG(writeResult, "CAS write failed");
+        YT_TLOG_DEBUG("CAS write failed")
+            .With(writeResult);
         return;
     }
 
     auto writeResultValue = writeResult.Value();
     if (!writeResultValue->success()) {
-        YT_LOG_DEBUG("CAS write failed (Current: %v)", writeResultValue->current());
+        YT_TLOG_DEBUG("CAS write failed")
+            .With("Current", writeResultValue->current());
         return;
     }
-    YT_LOG_DEBUG("CAS write succeeded");
+    YT_TLOG_DEBUG("CAS write succeeded");
 }
 
 void TClient::RunSequence()
 {
     int count = rand() % 20 + 2;
     int id = rand();
-    YT_LOG_DEBUG("Starting sequence (Count: %v, SequenceId: %v)",
-        count,
-        id);
+    YT_TLOG_DEBUG("Starting sequence")
+        .With("Count", count)
+        .With("SequenceId", id);
 
     auto writeReq = Proxy_.Sequence();
     writeReq->set_count(count);
@@ -117,19 +123,20 @@ void TClient::RunSequence()
 
     auto writeResult = WaitFor(writeReq->Invoke());
     if (!writeResult.IsOK()) {
-        YT_LOG_DEBUG(writeResult, "Sequence failed (SequenceId: %v)",
-            id);
+        YT_TLOG_DEBUG("Sequence failed")
+            .With("SequenceId", id)
+            .With(writeResult);
     } else {
-        YT_LOG_DEBUG("Sequence succeeded (SequenceId: %v)",
-            id);
+        YT_TLOG_DEBUG("Sequence succeeded")
+            .With("SequenceId", id);
     }
 }
 
 void TClient::RunThrowException()
 {
     bool expected = rand() % 7 != 0;
-    YT_LOG_DEBUG("Starting exception throw (Expected: %v)",
-        expected);
+    YT_TLOG_DEBUG("Starting exception throw")
+        .With("Expected", expected);
 
     auto writeReq = Proxy_.ThrowException();
     writeReq->set_expected(expected);
@@ -137,9 +144,10 @@ void TClient::RunThrowException()
 
     auto writeResult = WaitFor(writeReq->Invoke());
     if (!writeResult.IsOK()) {
-        YT_LOG_DEBUG(writeResult, "ThrowException failed");
+        YT_TLOG_DEBUG("ThrowException failed")
+            .With(writeResult);
     } else {
-        YT_LOG_DEBUG("ThrowException succeeded");
+        YT_TLOG_DEBUG("ThrowException succeeded");
     }
 }
 

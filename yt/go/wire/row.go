@@ -21,6 +21,23 @@ const (
 	TypeComposite ValueType = 0x12 - typeOffset
 )
 
+// Code returns the on-wire type code.
+func (t ValueType) Code() uint8 {
+	return uint8(t) + typeOffset
+}
+
+// ValueTypeFromCode returns the ValueType for an on-wire code,
+// or an error if the code maps to no ValueType.
+func ValueTypeFromCode(code uint8) (ValueType, error) {
+	t := ValueType(code - typeOffset)
+	switch t {
+	case TypeNull, TypeInt64, TypeUint64, TypeFloat64, TypeBool, TypeBytes, TypeAny, TypeComposite:
+		return t, nil
+	default:
+		return 0, fmt.Errorf("invalid wire type 0x%02x", code)
+	}
+}
+
 func (t ValueType) String() string {
 	switch t {
 	case TypeNull:

@@ -2,9 +2,9 @@
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
 
@@ -47,12 +47,11 @@ protected:
         return inputChunk;
     }
 
-    static TLegacyDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
+    static TDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
     {
-        auto chunkSlice = New<TInputChunkSlice>(chunk);
+        auto chunkSlice = CreateKeylessInputChunkSlice(chunk);
         auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
         dataSlice->SetInputStreamIndex(chunk->GetTableIndex());
-        dataSlice->TransformToNewKeyless();
         return dataSlice;
     }
 

@@ -99,4 +99,6 @@ int rd_kafka_features_check(rd_kafka_broker_t *rkb,
 
 const char *rd_kafka_features2str(int features);
 
+int unittest_feature(void);
+
 #endif /* _RDKAFKA_FEATURE_H_ */

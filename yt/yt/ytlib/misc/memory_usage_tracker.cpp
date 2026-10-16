@@ -1,18 +1,18 @@
 #include "memory_usage_tracker.h"
 
-#include <yt/yt/core/concurrency/thread_affinity.h>
-
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/error.h>
-
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/library/profiling/solomon/helpers.h>
 
 #include <library/cpp/yt/containers/enum_indexed_array.h>
+
+#include <library/cpp/yt/logging/private.h>
 
 #include <tcmalloc/malloc_extension.h>
 
@@ -198,7 +198,7 @@ private:
     struct TReferenceAddressMapShard
     {
         THashMap<TReferenceKey, TState> Map;
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock);
     };
 
     std::vector<TReferenceAddressMapShard> ReferenceAddressToState_;
@@ -695,11 +695,10 @@ bool TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::option
     if (currentFree < 0) {
         overcommitted = true;
 
-        YT_LOG_WARNING(
-            "Total memory overcommit detected (Debt: %v, RequestCategory: %v, RequestSize: %v)",
-            -currentFree,
-            category,
-            size);
+        YT_TLOG_WARNING("Total memory overcommit detected")
+            .With("Debt", -currentFree)
+            .With("RequestCategory", category)
+            .With("RequestSize", size);
     }
 
     if (pool) {
@@ -708,12 +707,11 @@ bool TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::option
         if (poolUsed > poolLimit) {
             overcommitted = true;
 
-            YT_LOG_WARNING(
-                "Per-pool memory overcommit detected (Debt: %v, RequestCategory: %v, PoolTag: %v, RequestSize: %v)",
-                poolUsed - poolLimit,
-                category,
-                *poolTag,
-                size);
+            YT_TLOG_WARNING("Per-pool memory overcommit detected")
+                .With("Debt", poolUsed - poolLimit)
+                .With("RequestCategory", category)
+                .With("PoolTag", *poolTag)
+                .With("RequestSize", size);
         }
     }
 
@@ -723,11 +721,10 @@ bool TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::option
         if (categoryUsed > categoryLimit) {
             overcommitted = true;
 
-            YT_LOG_WARNING(
-                "Per-category memory overcommit detected (Debt: %v, RequestCategory: %v, RequestSize: %v)",
-                categoryUsed - categoryLimit,
-                category,
-                size);
+            YT_TLOG_WARNING("Per-category memory overcommit detected")
+                .With("Debt", categoryUsed - categoryLimit)
+                .With("RequestCategory", category)
+                .With("RequestSize", size);
         }
     }
 
@@ -770,8 +767,8 @@ TError TNodeMemoryTracker::DoTryAcquire(ECategory category, i64 size, TPool* poo
         return TError(
             "Not enough memory to serve %Qlv acquisition request",
             category)
-            << TErrorAttribute("bytes_free", freeMemory)
-            << TErrorAttribute("bytes_requested", size);
+            .With("bytes_free", freeMemory)
+            .With("bytes_requested", size);
     }
 
     if (pool) {
@@ -781,8 +778,8 @@ TError TNodeMemoryTracker::DoTryAcquire(ECategory category, i64 size, TPool* poo
                 "Not enough memory to serve %Qlv request in pool %Qv",
                 category,
                 pool->Tag)
-                << TErrorAttribute("bytes_free", poolFreeMemory)
-                << TErrorAttribute("bytes_requested", size);
+                .With("bytes_free", poolFreeMemory)
+                .With("bytes_requested", size);
         }
     }
 
@@ -997,19 +994,13 @@ void TNodeMemoryTracker::UpdateSystemCategories()
     i64 logging = TRefCountedTracker::Get()->GetBytesAlive(GetRefCountedTypeKey<NLogging::NDetail::TMessageBufferTag>());
     i64 oldLogging = UpdateUsage(EMemoryCategory::Logging, logging);
 
-    YT_LOG_INFO(
-        "System categories memory usage updated (BytesCommitted: %v, BytesUsed: %v, Footprint: %v -> %v, "
-        "Fragmentation: %v -> %v, Profiling: %v -> %v, Logging: %v -> %v)",
-        bytesCommitted,
-        bytesUsed,
-        oldFootprint,
-        newFootprint,
-        oldFragmentation,
-        newFragmentation,
-        oldProfiling,
-        profiling,
-        oldLogging,
-        logging);
+    YT_TLOG_INFO("System categories memory usage updated")
+        .With("BytesCommitted", bytesCommitted)
+        .With("BytesUsed", bytesUsed)
+        .WithFormat("Footprint", "%v -> %v", oldFootprint, newFootprint)
+        .WithFormat("Fragmentation", "%v -> %v", oldFragmentation, newFragmentation)
+        .WithFormat("Profiling", "%v -> %v", oldProfiling, profiling)
+        .WithFormat("Logging", "%v -> %v", oldLogging, logging);
 }
 
 TErrorOr<TSharedRef> TNodeMemoryTracker::DoTryTrackMemory(
@@ -1429,13 +1420,13 @@ public:
 
         auto guard = Guard(SpinLock_);
         i64 reservedAmount = UnderlyingAllocatedSize_ - AllocatedSize_;
-        if (auto toAquire = size - reservedAmount; toAquire > 0) {
-            auto acquireResult = Underlying_->TryAcquire(toAquire);
+        if (auto toAcquire = size - reservedAmount; toAcquire > 0) {
+            auto acquireResult = Underlying_->TryAcquire(toAcquire);
             if (!acquireResult.IsOK()) {
                 return acquireResult;
             }
-            UnderlyingAllocatedSize_ += toAquire;
-            MemoryUsageCounter_.Increment(toAquire);
+            UnderlyingAllocatedSize_ += toAcquire;
+            MemoryUsageCounter_.Increment(toAcquire);
         }
 
         AllocatedSize_ += size;
@@ -1455,10 +1446,10 @@ public:
         auto guard = Guard(SpinLock_);
         i64 reservedAmount = UnderlyingAllocatedSize_ - AllocatedSize_;
         bool result = true;
-        if (auto toAquire = size - reservedAmount; toAquire > 0) {
-            result = Underlying_->Acquire(toAquire);
-            UnderlyingAllocatedSize_ += toAquire;
-            MemoryUsageCounter_.Increment(toAquire);
+        if (auto toAcquire = size - reservedAmount; toAcquire > 0) {
+            result = Underlying_->Acquire(toAcquire);
+            UnderlyingAllocatedSize_ += toAcquire;
+            MemoryUsageCounter_.Increment(toAcquire);
         }
 
         AllocatedSize_ += size;
@@ -1540,7 +1531,7 @@ private:
     const IMemoryUsageTrackerPtr Underlying_;
     const TCounter MemoryUsageCounter_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     // Amount we allocated from Underlying_.
     i64 UnderlyingAllocatedSize_ = 0;

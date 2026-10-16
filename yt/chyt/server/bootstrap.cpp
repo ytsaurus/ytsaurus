@@ -11,6 +11,8 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
@@ -102,7 +104,7 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    YT_LOG_INFO("Starting ClickHouse server");
+    YT_TLOG_INFO("Starting ClickHouse server");
 
     // TODO(gepardo): Add authentication here.
 
@@ -152,7 +154,21 @@ void TBootstrap::DoRun()
     RpcServer_->Configure(Config_->RpcServer);
 
     {
-        auto host = New<THost>(GetControlInvoker(), Config_->GetPorts(), Config_->Yt, Config_->ClusterConnection);
+        auto host = New<THost>(
+            GetControlInvoker(),
+            Config_->GetPorts(),
+            Config_->Yt,
+            Config_->ClusterConnection,
+            Config_->ClusterConnectionDynamicConfigPolicy,
+            ConfigNode_->AsMap()->GetChildOrThrow("cluster_connection"));
+
+        if (Config_->ExposeConfigInOrchid) {
+            SetNodeByYPath(
+                orchidRoot,
+                "/cluster_connection",
+                CreateVirtualNode(host->GetConnection()->GetOrchidService()));
+        }
+
         ClickHouseServer_ = CreateClickHouseServer(host.Get(), Config_->ClickHouse);
         // We dont need this caches, but they must be initialized to read system.server_settings, delete this when it's fixed in upstream.
         {
@@ -177,10 +193,12 @@ void TBootstrap::DoRun()
         "/queries",
         CreateVirtualNode(Host_->GetQueryRegistry()->GetOrchidService()));
 
-    YT_LOG_INFO("Monitoring HTTP server set up (Port: %v)", Config_->MonitoringPort);
+    YT_TLOG_INFO("Monitoring HTTP server set up")
+        .With("Port", Config_->MonitoringPort);
     HttpServer_->Start();
 
-    YT_LOG_INFO("RPC server set up (Port: %v)", Config_->RpcPort);
+    YT_TLOG_INFO("RPC server set up")
+        .With("Port", Config_->RpcPort);
     RpcServer_->Start();
 
     ClickHouseServer_->Start();
@@ -215,7 +233,7 @@ void TBootstrap::HandleSigint()
         _exit(ToUnderlying(EServerExitCode::GracefulInterruption));
     }
     WriteToStderr("*** Gracefully stopping server due to SIGINT ***\n");
-    YT_LOG_INFO("Stopping server due to SIGINT");
+    YT_TLOG_INFO("Stopping server due to SIGINT");
 
     // Set up hard timeout to avoid hanging in interruption.
     TDelayedExecutor::Submit(
@@ -230,7 +248,7 @@ void TBootstrap::HandleSigint()
     if (Host_) {
         discoveryStopFuture = Host_->StopDiscovery();
     } else {
-        YT_LOG_INFO("Host is not set up");
+        YT_TLOG_INFO("Host is not set up");
         discoveryStopFuture = OKFuture;
     }
     YT_UNUSED_FUTURE(discoveryStopFuture.Apply(BIND([this] {

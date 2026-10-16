@@ -4,10 +4,10 @@ import java.lang.reflect.Field;
 
 import javax.annotation.Nullable;
 
-
 import tech.ytsaurus.core.tables.ColumnSortOrder;
+
 /**
- * @author sankear
+ * Metadata describing how a serializer maps a Java field to a YTree key or attribute.
  */
 @SuppressWarnings("VisibilityModifier")
 public class YTreeObjectField<T> {

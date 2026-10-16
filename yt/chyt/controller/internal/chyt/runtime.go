@@ -63,5 +63,9 @@ func (c *Controller) prepareCypressDirectories(ctx context.Context, alias string
 		return fmt.Errorf("error creating sql udf dir: %v", err)
 	}
 
+	if err := c.createDirIfNotExists(ctx, c.storageArtifactsDir(alias), true /*opaque*/); err != nil {
+		return fmt.Errorf("error creating storage artifacts dir: %v", err)
+	}
+
 	return nil
 }

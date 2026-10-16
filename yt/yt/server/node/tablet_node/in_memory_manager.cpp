@@ -7,7 +7,6 @@
 #include "private.h"
 #include "slot_manager.h"
 #include "smooth_movement_tracker.h"
-#include "sorted_chunk_store.h"
 #include "store_manager.h"
 #include "structured_logger.h"
 #include "tablet.h"
@@ -43,8 +42,6 @@
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
-#include <yt/yt/library/numeric/algorithm_helpers.h>
-
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
@@ -65,8 +62,8 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NTabletNode {
 
@@ -101,9 +98,9 @@ void CollocateInMemoryBlocks(std::vector<NChunkClient::TBlock>& blocks, const IN
         totalSize += block.Data.Size();
     }
 
-    YT_LOG_DEBUG("Collocating memory blocks (BlockCount: %v, TotalByteCount: %v)",
-        blocks.size(),
-        totalSize);
+    YT_TLOG_DEBUG("Collocating memory blocks")
+        .With("BlockCount", blocks.size())
+        .With("TotalByteCount", totalSize);
 
     auto buffer = TSharedMutableRef::Allocate<TPreloadedBlockTag>(totalSize, {.InitializeStorage = false});
     auto trackedBuffer = TrackMemory(memoryUsageTracker, EMemoryCategory::TabletStatic, MarkUndumpable(buffer));
@@ -242,9 +239,9 @@ public:
         auto chunkData = std::move(it->second);
         ChunkIdToData_.erase(it);
 
-        YT_LOG_INFO("Intercepted chunk data evicted (ChunkId: %v, Mode: %v)",
-            chunkId,
-            chunkData->InMemoryMode);
+        YT_TLOG_INFO("Intercepted chunk data evicted")
+            .With("ChunkId", chunkId)
+            .With("Mode", chunkData->InMemoryMode);
 
         return chunkData;
     }
@@ -260,9 +257,9 @@ public:
         guard.Release();
 
         if (chunkData) {
-            YT_LOG_DEBUG("Intercepted chunk data retrieved (ChunkId: %v, Mode: %v)",
-                chunkId,
-                chunkData->InMemoryMode);
+            YT_TLOG_DEBUG("Intercepted chunk data retrieved")
+                .With("ChunkId", chunkId)
+                .With("Mode", chunkData->InMemoryMode);
         }
 
         return chunkData;
@@ -296,7 +293,7 @@ private:
 
     const TAsyncSemaphorePtr PreloadSemaphore_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, InterceptedDataSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, InterceptedDataSpinLock_);
     THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
 
@@ -369,22 +366,21 @@ private:
         auto mode = store->GetInMemoryMode();
 
         auto Logger = TabletNodeLogger()
-            .WithTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
-                tablet->GetLoggingTag(),
-                store->GetId(),
-                mode,
-                readSessionId);
+            .WithTags(tablet->GetLoggingTags())
+            .WithTag("StoreId", store->GetId())
+            .WithTag("Mode", mode)
+            .WithTag("ReadSessionId", readSessionId);
 
         auto traceContext = TTraceContext::NewRoot("InMemoryManager");
         TTraceContextGuard traceContextGuard(traceContext);
 
-        YT_LOG_INFO("Preloading in-memory store");
+        YT_TLOG_INFO("Preloading in-memory store");
 
         YT_VERIFY(store->GetPreloadState() == EStorePreloadState::Running);
 
         if (mode == EInMemoryMode::None) {
             // Mode has been changed while current action was waiting in action queue
-            YT_LOG_INFO("In-memory mode has been changed");
+            YT_TLOG_INFO("In-memory mode has been changed");
 
             store->SetPreloadState(EStorePreloadState::None);
             tablet->GetStructuredLogger()->OnStorePreloadStateChanged(store);
@@ -395,7 +391,7 @@ private:
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
         if (!tabletSnapshot) {
-            YT_LOG_INFO("Tablet snapshot is missing");
+            YT_TLOG_INFO("Tablet snapshot is missing");
 
             store->UpdatePreloadAttempt(/*isBackoff*/ false);
             storeManager->BackoffStorePreload(store);
@@ -439,13 +435,14 @@ private:
             // Do not back off if fiber cancellation exception was thrown.
             // SetInMemoryMode with other mode was called during current action execution.
 
-            YT_LOG_ERROR(ex, "Error preloading tablet store, backing off");
+            YT_TLOG_ERROR("Error preloading tablet store, backing off")
+                .With(ex);
             store->UpdatePreloadAttempt(/*isBackoff*/ true);
             storeManager->BackoffStorePreload(store);
 
             auto error = TError(ex)
-                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Preload);
+                .With("tablet_id", tabletSnapshot->TabletId)
+                .With("background_activity", ETabletBackgroundActivity::Preload);
 
             Bootstrap_->GetErrorManager()->HandleError(error, "Preload", tabletSnapshot);
 
@@ -453,10 +450,10 @@ private:
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Preload].Store(std::move(error));
         } catch (const TFiberCanceledException&) {
-            YT_LOG_DEBUG("Preload cancelled");
+            YT_TLOG_DEBUG("Preload cancelled");
             throw;
         } catch (...) {
-            YT_LOG_DEBUG("Unknown exception in preload");
+            YT_TLOG_DEBUG("Unknown exception in preload");
             throw;
         }
 
@@ -471,33 +468,6 @@ DEFINE_REFCOUNTED_TYPE(TInMemoryManager)
 IInMemoryManagerPtr CreateInMemoryManager(IBootstrap* bootstrap)
 {
     return New<TInMemoryManager>(bootstrap);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<i64> GetEstimatedBlockRangeSize(
-    bool enablePreliminaryNetworkThrottling,
-    const TCachedVersionedChunkMetaPtr& meta,
-    int startBlockIndex,
-    int blocksCount)
-{
-    if (!enablePreliminaryNetworkThrottling) {
-        return {};
-    }
-
-    const auto& metaMisc = meta->Misc();
-    if (metaMisc.compressed_data_size() == 0 || metaMisc.uncompressed_data_size() == 0) {
-        return {};
-    }
-
-    i64 uncompressedSize = 0;
-    const auto& dataBlockMeta = meta->DataBlockMeta();
-    for (int index = startBlockIndex; index < startBlockIndex + blocksCount; ++index) {
-        uncompressedSize += dataBlockMeta->data_blocks(index).uncompressed_size();
-    }
-
-    auto compressionRatio = static_cast<double>(metaMisc.compressed_data_size()) / metaMisc.uncompressed_data_size();
-    return uncompressedSize * compressionRatio;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -517,13 +487,12 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     auto mode = mountConfig->InMemoryMode;
 
     auto Logger = TabletNodeLogger()
-        .WithTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
-            tabletSnapshot->LoggingTag,
-            store->GetId(),
-            mode,
-            readSessionId);
+        .WithTags(tabletSnapshot->LoggingTags)
+        .WithTag("StoreId", store->GetId())
+        .WithTag("Mode", mode)
+        .WithTag("ReadSessionId", readSessionId);
 
-    YT_LOG_INFO("Store preload started");
+    YT_TLOG_INFO("Store preload started");
 
     IChunkReader::TReadBlocksOptions readBlocksOptions{
         .ClientOptions = TClientChunkReadOptions{
@@ -551,10 +520,10 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         if (auto blockSizeLimit = mountConfig->MaxUnversionedBlockSize) {
             if (miscExt.max_data_block_size() > *blockSizeLimit) {
                 THROW_ERROR_EXCEPTION("Maximum block size limit violated")
-                    << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-                    << TErrorAttribute("chunk_id", store->GetId())
-                    << TErrorAttribute("block_size", miscExt.max_data_block_size())
-                    << TErrorAttribute("block_size_limit", *blockSizeLimit);
+                    .With("tablet_id", tabletSnapshot->TabletId)
+                    .With("chunk_id", store->GetId())
+                    .With("block_size", miscExt.max_data_block_size())
+                    .With("block_size_limit", *blockSizeLimit);
             }
         }
     }
@@ -570,52 +539,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     auto dataBlockCount = versionedChunkMeta->DataBlockMeta()->data_blocks_size();
 
-    int commonKeyPrefix = GetCommonKeyPrefix(
-        versionedChunkMeta->ChunkSchema()->GetKeyColumns(),
-        tabletSnapshot->PhysicalSchema->GetKeyColumns());
-
-    // Expected to be equal for dynamic tables.
-    YT_VERIFY(commonKeyPrefix == versionedChunkMeta->ChunkSchema()->GetKeyColumnCount());
-
-    auto sortOrders = GetSortOrders(tabletSnapshot->PhysicalSchema->GetSortColumns());
-
-    int startBlockIndex;
-    int endBlockIndex;
-
-    // TODO(ifsmirnov): support columnar chunks (YT-11707).
-    bool canDeduceBlockRange =
-        format == EChunkFormat::TableUnversionedSchemalessHorizontal ||
-        format == EChunkFormat::TableVersionedSimple;
-
-    if (store->IsSorted() && canDeduceBlockRange) {
-        auto sortedStore = store->AsSortedChunk();
-        auto lowerBound = std::max(tabletSnapshot->PivotKey, sortedStore->GetMinKey());
-        auto upperBound = std::min(tabletSnapshot->NextPivotKey, sortedStore->GetUpperBoundKey());
-
-        const auto& blockLastKeys = versionedChunkMeta->BlockLastKeys();
-
-        YT_VERIFY(dataBlockCount == std::ssize(blockLastKeys));
-
-        startBlockIndex = BinarySearch(0, dataBlockCount, [&] (int index) {
-            return !TestKeyWithWidening(
-                ToKeyRef(blockLastKeys[index], commonKeyPrefix),
-                ToKeyBoundRef(lowerBound, /*upper*/ false, sortOrders.size()),
-                sortOrders);
-        });
-
-        endBlockIndex = BinarySearch(0, dataBlockCount, [&] (int index) {
-            return TestKeyWithWidening(
-                ToKeyRef(blockLastKeys[index], commonKeyPrefix),
-                ToKeyBoundRef(upperBound, /*upper*/ true, sortOrders.size()),
-                sortOrders);
-        });
-        if (endBlockIndex < dataBlockCount) {
-            ++endBlockIndex;
-        }
-    } else {
-        startBlockIndex = 0;
-        endBlockIndex = dataBlockCount;
-    }
+    int startBlockIndex = 0;
+    int endBlockIndex = dataBlockCount;
 
     i64 preallocatedMemory = 0;
     i64 compressedDataSize = 0;
@@ -646,8 +571,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         auto freeMemory = memoryTracker->GetFree(EMemoryCategory::TabletStatic);
         if (freeMemory < preallocatedMemory) {
             THROW_ERROR_EXCEPTION("Preload is cancelled due to memory pressure")
-                << TErrorAttribute("free_memory", freeMemory)
-                << TErrorAttribute("requested_memory", preallocatedMemory);
+                .With("free_memory", freeMemory)
+                .With("requested_memory", preallocatedMemory);
         }
     }
 
@@ -659,24 +584,23 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     std::vector<NChunkClient::TBlock> blocks;
     blocks.reserve(endBlockIndex - startBlockIndex);
 
-    auto preThrottledBytes = GetEstimatedBlockRangeSize(
-        enablePreliminaryNetworkThrottling,
-        versionedChunkMeta,
-        startBlockIndex,
-        endBlockIndex - startBlockIndex);
+    std::optional<i64> preThrottledBytes;
+    if (enablePreliminaryNetworkThrottling && miscExt.compressed_data_size() > 0) {
+        preThrottledBytes = miscExt.compressed_data_size();
+    }
 
     if (preThrottledBytes) {
-        YT_LOG_DEBUG("Preliminary throttling of network bandwidth for preload (Blocks: %v, Bytes: %v)",
-            FormatBlocks(startBlockIndex, endBlockIndex),
-            preThrottledBytes);
+        YT_TLOG_DEBUG("Preliminary throttling of network bandwidth for preload")
+            .With("Blocks", FormatBlockIndexRange(startBlockIndex, endBlockIndex))
+            .With("Bytes", preThrottledBytes);
 
         WaitFor(networkThrottler->Throttle(*preThrottledBytes))
             .ThrowOnError();
     }
 
     for (int blockIndex = startBlockIndex; blockIndex < endBlockIndex;) {
-        YT_LOG_DEBUG("Started reading chunk blocks (FirstBlock: %v)",
-            blockIndex);
+        YT_TLOG_DEBUG("Started reading chunk blocks")
+            .With("FirstBlock", blockIndex);
 
         YT_VERIFY(blockIndex < dataBlockCount);
         auto compressedBlocks = WaitFor(reader->ReadBlocks(
@@ -686,8 +610,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             .ValueOrThrow();
 
         int readBlockCount = compressedBlocks.size();
-        YT_LOG_DEBUG("Finished reading chunk blocks (Blocks: %v)",
-            FormatBlocks(blockIndex, blockIndex + readBlockCount - 1));
+        YT_TLOG_DEBUG("Finished reading chunk blocks")
+            .With("Blocks", FormatBlockIndexRange(blockIndex, blockIndex + readBlockCount - 1));
 
         for (const auto& compressedBlock : compressedBlocks) {
             compressedDataSize += compressedBlock.Size();
@@ -705,9 +629,9 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             }
 
             case EInMemoryMode::Uncompressed: {
-                YT_LOG_DEBUG("Decompressing chunk blocks (Blocks: %v, Codec: %v)",
-                    FormatBlocks(blockIndex, blockIndex + readBlockCount - 1),
-                    compressionCodec->GetId());
+                YT_TLOG_DEBUG("Decompressing chunk blocks")
+                    .With("Blocks", FormatBlockIndexRange(blockIndex, blockIndex + readBlockCount - 1))
+                    .With("Codec", compressionCodec->GetId());
 
                 std::vector<TFuture<std::pair<TSharedRef, TDuration>>> asyncUncompressedBlocks;
                 asyncUncompressedBlocks.reserve(compressedBlocks.size());
@@ -742,9 +666,9 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     if (enablePreliminaryNetworkThrottling) {
         auto difference = compressedDataSize - preThrottledBytes.value_or(0);
-        YT_LOG_DEBUG("Throttling the difference between received and estimated data size (Estimated: %v, Received %v)",
-            preThrottledBytes,
-            compressedDataSize);
+        YT_TLOG_DEBUG("Throttling the difference between received and estimated data size")
+            .With("Estimated", preThrottledBytes)
+            .With("Received", compressedDataSize);
 
         WaitFor(networkThrottler->Throttle(std::max(0l, difference)))
             .ThrowOnError();
@@ -773,11 +697,10 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         memoryUsageTracker,
         memoryTracker->WithCategory(EMemoryCategory::TabletStatic));
 
-    YT_LOG_INFO(
-        "Store preload completed (MemoryUsage: %v, PreallocatedMemory: %v, LookupHashTable: %v)",
-        allocatedMemory,
-        preallocatedMemory,
-        static_cast<bool>(chunkData->LookupHashTable));
+    YT_TLOG_INFO("Store preload completed")
+        .With("MemoryUsage", allocatedMemory)
+        .With("PreallocatedMemory", preallocatedMemory)
+        .With("LookupHashTable", static_cast<bool>(chunkData->LookupHashTable));
 
     return chunkData;
 }
@@ -809,9 +732,9 @@ struct TNode
 
     void SendPing()
     {
-        YT_LOG_DEBUG("Sending ping (Address: %v, SessionId: %v)",
-            Descriptor.GetDefaultAddress(),
-            SessionId);
+        YT_TLOG_DEBUG("Sending ping")
+            .With("Address", Descriptor.GetDefaultAddress())
+            .With("SessionId", SessionId);
 
         auto req = Proxy.PingSession();
         req->SetTimeout(ControlRpcTimeout);
@@ -819,9 +742,10 @@ struct TNode
         req->Invoke().Subscribe(
             BIND([=, this, this_ = MakeStrong(this)] (const TInMemoryServiceProxy::TErrorOrRspPingSessionPtr& rspOrError) {
                 if (!rspOrError.IsOK()) {
-                    YT_LOG_WARNING(rspOrError, "Ping failed (Address: %v, SessionId: %v)",
-                        Descriptor.GetDefaultAddress(),
-                        SessionId);
+                    YT_TLOG_WARNING("Ping failed")
+                        .With("Address", Descriptor.GetDefaultAddress())
+                        .With("SessionId", SessionId)
+                        .With(rspOrError);
                 }
             }));
     }
@@ -938,7 +862,7 @@ private:
     std::atomic<bool> Sending_ = false;
     std::atomic<bool> Dropped_ = false;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     std::deque<std::pair<TBlockId, TSharedRef>> Blocks_;
     i64 CurrentSize_ = 0;
 
@@ -988,11 +912,11 @@ private:
             ToProto(req->mutable_session_id(), node->SessionId);
 
             for (const auto& block : blocks) {
-                YT_LOG_DEBUG("Sending in-memory block (ChunkId: %v, Block: %v, SessionId: %v, Address: %v)",
-                    block.first.ChunkId,
-                    block.first.BlockIndex,
-                    node->SessionId,
-                    node->Descriptor.GetDefaultAddress());
+                YT_TLOG_DEBUG("Sending in-memory block")
+                    .With("ChunkId", block.first.ChunkId)
+                    .With("Block", block.first.BlockIndex)
+                    .With("SessionId", node->SessionId)
+                    .With("Address", node->Descriptor.GetDefaultAddress());
 
                 ToProto(req->add_block_ids(), block.first);
                 req->Attachments().push_back(block.second);
@@ -1016,18 +940,18 @@ private:
         std::vector<TNodePtr> activeNodes;
         for (size_t index = 0; index < results.size(); ++index) {
             if (!results[index].IsOK()) {
-                YT_LOG_WARNING("Error sending batch (SessionId: %v, Address: %v)",
-                    Nodes_[index]->SessionId,
-                    Nodes_[index]->Descriptor.GetDefaultAddress());
+                YT_TLOG_WARNING("Error sending batch")
+                    .With("SessionId", Nodes_[index]->SessionId)
+                    .With("Address", Nodes_[index]->Descriptor.GetDefaultAddress());
                 continue;
             }
 
             auto result = results[index].Value();
 
             if (result->dropped()) {
-                YT_LOG_WARNING("Dropped in-memory session (SessionId: %v, Address: %v)",
-                    Nodes_[index]->SessionId,
-                    Nodes_[index]->Descriptor.GetDefaultAddress());
+                YT_TLOG_WARNING("Dropped in-memory session")
+                    .With("SessionId", Nodes_[index]->SessionId)
+                    .With("Address", Nodes_[index]->Descriptor.GetDefaultAddress());
                 continue;
             }
 
@@ -1039,10 +963,12 @@ private:
 
     TFuture<void> DoFinish(const std::vector<TChunkInfo>& chunkInfos)
     {
-        YT_LOG_DEBUG("Finishing in-memory sessions (SessionIds: %v)",
-            MakeFormattableView(Nodes_, [] (TStringBuilderBase* builder, const TNodePtr& node) {
-                FormatValue(builder, node->SessionId, TStringBuf());
-            }));
+        YT_TLOG_DEBUG("Finishing in-memory sessions")
+            .With(
+                "SessionIds",
+                MakeFormattableView(Nodes_, [] (TStringBuilderBase* builder, const TNodePtr& node) {
+                    FormatValue(builder, node->SessionId, TStringBuf());
+                }));
 
         std::vector<TFuture<void>> asyncResults;
         for (const auto& node : Nodes_) {
@@ -1145,8 +1071,8 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
             ? CreateLocalChannel(localRpcServer)
             : client->GetChannelFactory()->CreateChannel(target);
 
-        YT_LOG_DEBUG("Starting in-memory session (Address: %v)",
-            address);
+        YT_TLOG_DEBUG("Starting in-memory session")
+            .With("Address", address);
 
         TInMemoryServiceProxy proxy(channel);
 
@@ -1158,15 +1084,15 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
         if (!rspOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Error starting in-memory session at node %v",
                 address)
-                << rspOrError;
+                .With(rspOrError);
         }
 
         const auto& rsp = rspOrError.Value();
         auto sessionId = FromProto<TInMemorySessionId>(rsp->session_id());
 
-        YT_LOG_DEBUG("In-memory session started (Address: %v, SessionId: %v)",
-            address,
-            sessionId);
+        YT_TLOG_DEBUG("In-memory session started")
+            .With("Address", address)
+            .With("SessionId", sessionId);
 
         auto node = New<TNode>(
             target,

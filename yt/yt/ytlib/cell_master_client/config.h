@@ -75,4 +75,30 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCellDirectorySynchronizerOverrideDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    //! Interval between subsequent directory updates.
+    std::optional<TDuration> SyncPeriod;
+
+    //! Delay before the next directory update in case the last one was unsuccessful.
+    //! Usually should be (significantly) less than #SyncPeriod.
+    //! If null, #SyncPeriod is used instead.
+    std::optional<TDuration> RetryPeriod;
+
+    std::optional<TDuration> ExpireAfterSuccessfulUpdateTime;
+    std::optional<TDuration> ExpireAfterFailedUpdateTime;
+
+    // NB: Section for testing purposes.
+    std::optional<TTestConfigPtr> Testing;
+
+    REGISTER_YSON_STRUCT(TCellDirectorySynchronizerOverrideDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizerOverrideDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCellMasterClient

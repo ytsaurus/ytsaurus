@@ -4,7 +4,7 @@ import os
 import typing
 
 from mcp.server.fastmcp import FastMCP, Context
-from mcp.types import TextContent
+from mcp.types import TextContent, ToolAnnotations
 from mcp.server.fastmcp.utilities.func_metadata import ArgModelBase
 from pydantic import Field, create_model
 from pydantic.fields import _Unset
@@ -17,6 +17,7 @@ import yt.mcp as yt_mcp
 
 class YTToolRunnerMCP:
     _PUBLIC_CLUSTERS = ()
+    _DISALLOWED_CLUSTERS: set = set()
 
     def helper_get_public_clusters(self, delimeter: Optional[str] = None, template: Optional[str] = None) -> Union[List[str], str]:
         if delimeter:
@@ -29,7 +30,17 @@ class YTToolRunnerMCP:
         else:
             return self._PUBLIC_CLUSTERS
 
+    def helper_get_disallowed_clusters(self) -> List[str]:
+        return list(self._DISALLOWED_CLUSTERS)
+
+    def helper_check_cluster_allowed(self, cluster: str):
+        if cluster and cluster.strip().lower() in self._DISALLOWED_CLUSTERS:
+            raise ValueError(
+                "Access to cluster '{}' is forbidden by MCP server policy.".format(cluster)
+            )
+
     def helper_get_yt_client(self, cluster, request_context: Context) -> yt.YtClient:
+        self.helper_check_cluster_allowed(cluster)
         if self._yt_token:
             yt_client = yt.YtClient(cluster, token=self._yt_token)
         else:
@@ -41,6 +52,19 @@ class YTToolRunnerMCP:
         self._tools: List["yt_mcp.lib.tools.helpers.YTToolBase"] = []
         self._logger = logging.getLogger(__name__)
         self._yt_token = None
+        self._rw_mode = False
+
+    def configure_server(self, rw_mode=False):
+        self._rw_mode = rw_mode
+
+    def configure_disallowed_clusters_from_env(self, disabled_clusters: Optional[List[str]] = None):
+        result = set()
+        if disabled_clusters is not None:
+            result.update(c.strip().lower() for c in disabled_clusters if c.strip())
+        raw = os.environ.get("YT_MCP_DISALLOWED_CLUSTERS", "")
+        if raw.strip():
+            result.update(c.strip().lower() for c in raw.split(",") if c.strip())
+        self._DISALLOWED_CLUSTERS = result
 
     def attach_tools(self, tools: List["yt_mcp.lib.tools.helpers.YTToolBase"], variants: List[Dict[str, Any]] = None):
         for tool in tools:
@@ -126,8 +150,14 @@ class YTToolRunnerMCP:
             **args_fields
         )
 
-        mcp._tool_manager.get_tool(tool_description.name).fn_metadata.arg_model = args_model
-        mcp._tool_manager.get_tool(tool_description.name).parameters = args_model.model_json_schema()
+        mcp_tool = mcp._tool_manager.get_tool(tool_description.name)
+        mcp_tool.fn_metadata.arg_model = args_model
+        mcp_tool.parameters = args_model.model_json_schema()
+
+        if tool._is_mutable():
+            mcp_tool.annotations = ToolAnnotations(readOnlyHint=False, destructiveHint=True)
+        else:
+            mcp_tool.annotations = ToolAnnotations(readOnlyHint=True, destructiveHint=False)
 
     def start(self, transport="stdio"):
         mcp = FastMCP(self._name, log_level="ERROR")

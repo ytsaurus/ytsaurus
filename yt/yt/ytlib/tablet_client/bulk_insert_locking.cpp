@@ -12,6 +12,7 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 
@@ -35,7 +36,7 @@ void LockDynamicTables(
     const TExponentialBackoffOptions& config,
     const TLogger& Logger)
 {
-    YT_LOG_INFO("Locking output dynamic tables");
+    YT_TLOG_INFO("Locking output dynamic tables");
 
     const auto& timestampProvider = connection->GetTimestampProvider();
     auto currentTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
@@ -54,7 +55,7 @@ void LockDynamicTables(
 
         for (const auto& table : tables) {
             auto req = TTableYPathProxy::LockDynamicTable(FromObjectId(table.TableId));
-            req->set_timestamp(currentTimestamp);
+            req->set_timestamp(ToProto(currentTimestamp));
             AddCellTagToSyncWith(req, table.TableId);
             SetTransactionId(req, table.ExternalTransactionId);
             GenerateMutationId(req);
@@ -73,7 +74,7 @@ void LockDynamicTables(
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking output dynamic tables");
     }
 
-    YT_LOG_INFO("Waiting for dynamic tables lock to complete");
+    YT_TLOG_INFO("Waiting for dynamic tables lock to complete");
 
     TBackoffStrategy backoff(config);
 
@@ -117,7 +118,8 @@ void LockDynamicTables(
                     cumulativeError.ThrowOnError();
                 }
                 innerErrors.push_back(cumulativeError);
-                YT_LOG_DEBUG(cumulativeError, "Error while checking dynamic table lock");
+                YT_TLOG_DEBUG("Error while checking dynamic table lock")
+                    .With(cumulativeError);
                 continue;
             }
 
@@ -135,7 +137,8 @@ void LockDynamicTables(
                         rspOrError.ThrowOnError();
                     }
                     innerErrors.push_back(rspOrError);
-                    YT_LOG_DEBUG(rspOrError, "Error while checking dynamic table lock");
+                    YT_TLOG_DEBUG("Error while checking dynamic table lock")
+                        .With(rspOrError);
                 }
 
                 if (!rspOrError.IsOK() || !rspOrError.Value()->confirmed()) {
@@ -164,10 +167,10 @@ void LockDynamicTables(
         }
 
         THROW_ERROR_EXCEPTION("Could not lock output dynamic tables %v", failedTables)
-            << std::move(innerErrors);
+            .With(std::move(innerErrors));
     }
 
-    YT_LOG_INFO("Dynamic tables locking completed");
+    YT_TLOG_INFO("Dynamic tables locking completed");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,7 +183,7 @@ void ToProto(
     NTabletClient::NProto::TExternalCellTagToTableIds* protoExternalCellTagToTableIds,
     const std::pair<TCellTag, std::vector<TTableId>>& externalCellTagToTableIds)
 {
-    protoExternalCellTagToTableIds->set_external_cell_tag(externalCellTagToTableIds.first.Underlying());
+    protoExternalCellTagToTableIds->set_external_cell_tag(NYT::ToProto(externalCellTagToTableIds.first));
     ToProto(protoExternalCellTagToTableIds->mutable_table_ids(), externalCellTagToTableIds.second);
 }
 

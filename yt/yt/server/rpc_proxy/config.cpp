@@ -2,9 +2,9 @@
 
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 
-#include <yt/yt/server/lib/signature/config.h>
-
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
+#include <yt/yt/library/signature/components/config.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 
@@ -30,13 +30,13 @@ void TDiscoveryServiceConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TThis* config) {
         if (config->AvailabilityPeriod <= config->LivenessUpdatePeriod) {
             THROW_ERROR_EXCEPTION("Availability period must be greater than liveness update period")
-                << TErrorAttribute("availability_period", config->AvailabilityPeriod)
-                << TErrorAttribute("liveness_update_period", config->LivenessUpdatePeriod);
+                .With("availability_period", config->AvailabilityPeriod)
+                .With("liveness_update_period", config->LivenessUpdatePeriod);
         }
         if (config->BackoffPeriod <= config->AvailabilityPeriod) {
             THROW_ERROR_EXCEPTION("Backoff period must be greater than availability period")
-                << TErrorAttribute("availability_period", config->AvailabilityPeriod)
-                << TErrorAttribute("backoff_period", config->BackoffPeriod);
+                .With("availability_period", config->AvailabilityPeriod)
+                .With("backoff_period", config->BackoffPeriod);
         }
 
         if (!config->CypressRegistrar->AliveChildTtl) {
@@ -119,9 +119,6 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("memory_limits", &TThis::MemoryLimits)
         .DefaultNew();
-
-    registrar.Parameter("enable_shuffle_service", &TThis::EnableShuffleService)
-        .Default(false);
 
     registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
         .DefaultNew();
@@ -210,7 +207,7 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
-        .Default();
+        .DefaultNew();
 
     registrar.Parameter("worker_pool_weight_overrides", &TThis::WorkerPoolWeightOverrides)
         .Optional();
@@ -220,6 +217,9 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Parameter("memory_tracker", &TThis::MemoryTracker)
+        .DefaultNew();
+
+    registrar.Parameter("auth", &TThis::Auth)
         .DefaultNew();
 }
 

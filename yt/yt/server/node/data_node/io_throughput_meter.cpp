@@ -57,10 +57,10 @@ public:
             }
         }
 
-        YT_LOG_DEBUG("Loaded chunks (Location: %v, Count: %v, ElapsedTime: %v)",
-            locationUuid,
-            Chunks_.size(),
-            timer.GetElapsedTime());
+        YT_TLOG_DEBUG("Loaded chunks")
+            .With("LocationUuid", locationUuid)
+            .With("Count", Chunks_.size())
+            .With("ElapsedTime", timer.GetElapsedTime());
     }
 
     std::optional<TFileInfo> GetRandomExistingFile() override
@@ -107,24 +107,24 @@ public:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        YT_LOG_DEBUG("Starting load test (Location: %v)",
-            Location_->GetId());
+        YT_TLOG_DEBUG("Starting load test")
+            .With("LocationId", Location_->GetId());
 
         // Override max write rate for current location.
         mediumConfig = CloneYsonStruct(mediumConfig);
         if (auto dwpd = Location_->GetMaxWriteRateByDwpd()) {
             mediumConfig->MaxWriteRate = static_cast<i64>(dwpd * mediumConfig->DWPDFactor);
 
-            YT_LOG_DEBUG("Setting MaxWriteRate for io test (Location: %v, DWPD: %v, DWPDFactor: %v, MaxWriteRate: %v)",
-                Location_->GetId(),
-                dwpd,
-                mediumConfig->DWPDFactor,
-                mediumConfig->MaxWriteRate);
+            YT_TLOG_DEBUG("Setting MaxWriteRate for io test")
+                .With("LocationId", Location_->GetId())
+                .With("DWPD", dwpd)
+                .With("DWPDFactor", mediumConfig->DWPDFactor)
+                .With("MaxWriteRate", mediumConfig->MaxWriteRate);
         }
 
         if (mediumConfig->MaxWriteRate == 0) {
-            YT_LOG_WARNING("Skipping load test for location. DWPD of current disk is unknown (Location: %v)",
-                Location_->GetId());
+            YT_TLOG_WARNING("Skipping load test for location; DWPD of current disk is unknown")
+                .With("LocationId", Location_->GetId());
 
             Stop();
             return;
@@ -156,8 +156,8 @@ public:
         std::swap(session, Session_);
 
         if (ScheduledAt_ || session) {
-            YT_LOG_DEBUG("Stopping load test (Location: %v)",
-                Location_->GetId());
+            YT_TLOG_DEBUG("Stopping load test")
+                .With("LocationId", Location_->GetId());
         }
 
         if (session && session->Loader) {
@@ -178,9 +178,9 @@ public:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         YT_VERIFY(!ScheduledAt_);
 
-        YT_LOG_DEBUG("Scheduled load test (Location: %v, ScheduledTime: %v)",
-            Location_->GetId(),
-            scheduledTime);
+        YT_TLOG_DEBUG("Scheduled load test")
+            .With("LocationId", Location_->GetId())
+            .With("ScheduledTime", scheduledTime);
 
         ScheduledAt_ = scheduledTime;
     }
@@ -209,14 +209,14 @@ public:
         return LastMeasuredThroughput_;
     }
 
-    TString GetRootPath() const
+    std::string GetRootPath() const
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return Location_->GetPath();
     }
 
-    TString GetId() const
+    std::string GetId() const
     {
         return Location_->GetId();
     }
@@ -246,7 +246,7 @@ private:
 
     std::optional<TSession> Session_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     TStoreLocation::TIOStatistics LastMeasuredThroughput_;
     TInstant LastFinishedTime_ = TInstant::Now();
 
@@ -263,9 +263,9 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Starting test stage (Location: %v, Stage: %v)",
-            Location_->GetId(),
-            stage);
+        YT_TLOG_DEBUG("Starting test stage")
+            .With("LocationId", Location_->GetId())
+            .With("Stage", stage);
 
         auto config = NYTree::CloneYsonStruct(Session_->MediumConfig);
         if (stage == ETestingStage::Verify) {
@@ -275,13 +275,12 @@ private:
             config->InitialSlowStartThreshold = config->InitialWindowSize;
             config->WindowPeriod = config->VerificationWindowPeriod;
 
-            YT_LOG_DEBUG("Verification stage parameters (Location: %v, SegmentSize: %v, InitialWindowSize: %v, "
-                "InitialSlowStartThreshold: %v, WindowPeriod: %v)",
-                Location_->GetId(),
-                config->SegmentSize,
-                config->InitialWindowSize,
-                config->InitialSlowStartThreshold,
-                config->WindowPeriod);
+            YT_TLOG_DEBUG("Verification stage parameters")
+                .With("LocationId", Location_->GetId())
+                .With("SegmentSize", config->SegmentSize)
+                .With("InitialWindowSize", config->InitialWindowSize)
+                .With("InitialSlowStartThreshold", config->InitialSlowStartThreshold)
+                .With("WindowPeriod", config->WindowPeriod);
         }
 
         auto randomFileProvider = New<TRandomFileProvider>(
@@ -385,13 +384,12 @@ private:
         auto estimateDuration = now - Session_->Timestamp;
 
         if (Session_->RoundsCount > config->MaxEstimateCongestions || estimateDuration > config->EstimateTimeLimit) {
-            YT_LOG_DEBUG("Estimate stage finished (Location: %v, EstimateDuration: %v, "
-                "RoundsCount: %v, BestRoundDuration: %v, BestRoundWindow: %v)",
-                Location_->GetId(),
-                estimateDuration,
-                Session_->RoundsCount,
-                Session_->BestRoundDuration,
-                Session_->BestRoundCongestionWindow);
+            YT_TLOG_DEBUG("Estimate stage finished")
+                .With("LocationId", Location_->GetId())
+                .With("EstimateDuration", estimateDuration)
+                .With("RoundsCount", Session_->RoundsCount)
+                .With("BestRoundDuration", Session_->BestRoundDuration)
+                .With("BestRoundWindow", Session_->BestRoundCongestionWindow);
             StartTest(ETestingStage::Verify);
         }
     }
@@ -413,13 +411,12 @@ private:
         auto overallDuration = now - Session_->Timestamp;
         auto verifyStageDuration = now - Session_->LastCongested;
 
-        YT_LOG_WARNING("Setting test results (Location: %v, OverallDuration: %v, VerifyStageDuration: %v, "
-            "DiskReadRate: %v, DiskWriteRate: %v)",
-            Location_->GetId(),
-            overallDuration,
-            verifyStageDuration,
-            statistics.DiskReadRate,
-            statistics.DiskWriteRate);
+        YT_TLOG_WARNING("Setting test results")
+            .With("LocationId", Location_->GetId())
+            .With("OverallDuration", overallDuration)
+            .With("VerifyStageDuration", verifyStageDuration)
+            .With("DiskReadRate", statistics.DiskReadRate)
+            .With("DiskWriteRate", statistics.DiskWriteRate);
 
         SetResult(statistics);
         Stop();
@@ -465,7 +462,7 @@ public:
                 ChunkStore_,
                 location,
                 Invoker_,
-                Logger().WithTag("Location:%v", location->GetId()));
+                Logger().WithTag("LocationId", location->GetId()));
         }
 
         ProbesExecutor_->Start();
@@ -477,7 +474,8 @@ public:
 
         auto it = Locations_.find(uuid);
         if (it == Locations_.end()) {
-            YT_LOG_WARNING("IO capacity requested for unknown location (LocationUUID: %v)", uuid);
+            YT_TLOG_WARNING("IO capacity requested for unknown location")
+                .With("LocationUuid", uuid);
             return {};
         }
         auto capacity = it->second->GetMeasured();
@@ -516,10 +514,10 @@ private:
             }
 
             if (location->Running() && location->GetRunningTime() > config->TestingTimeHardLimit) {
-                YT_LOG_WARNING("Cancel stuck tests (Location: %v, RunningTime: %v, TestingTimeHardLimit: %v)",
-                    location->GetId(),
-                    location->GetRunningTime(),
-                    config->TestingTimeHardLimit);
+                YT_TLOG_WARNING("Cancel stuck tests")
+                    .With("LocationId", location->GetId())
+                    .With("RunningTime", location->GetRunningTime())
+                    .With("TestingTimeHardLimit", config->TestingTimeHardLimit);
                 location->Stop();
             }
         }

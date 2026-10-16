@@ -5,9 +5,7 @@ from yt_commands import (
     create_domestic_medium, create_s3_medium, write_file,
     read_table, write_table, write_journal, wait_until_sealed,
     get_singular_chunk_id, set_account_disk_space_limit, get_account_disk_space_limit,
-    get_media, set_node_banned, set_all_nodes_banned, create_rack)
-
-from yt.common import YtError
+    get_media, set_node_banned, set_all_nodes_banned, create_rack, raises_yt_error)
 
 import pytest
 from flaky import flaky
@@ -19,15 +17,19 @@ import builtins
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestMedia(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 10
-    STORE_LOCATION_COUNT = 3
 
     NON_DEFAULT_MEDIUM = "hdd1"
     NON_DEFAULT_TRANSIENT_MEDIUM = "hdd2"
+
+    MEDIUM_CONFIG = {
+        "default": {},
+        NON_DEFAULT_MEDIUM: {},
+        NON_DEFAULT_TRANSIENT_MEDIUM: {"master_attributes": {"transient": True}},
+    }
 
     S3_MEDIUM_CONFIG = {
         "url": "http://yt.s3.amazonaws.com",
@@ -47,21 +49,12 @@ class TestMedia(YTEnvSetup):
         set_account_disk_space_limit("tmp", disk_space_limit, TestMedia.NON_DEFAULT_TRANSIENT_MEDIUM)
 
     @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        assert len(config["data_node"]["store_locations"]) == 3
-
-        config["data_node"]["store_locations"][0]["medium_name"] = "default"
-        config["data_node"]["store_locations"][1]["medium_name"] = cls.NON_DEFAULT_MEDIUM
-        config["data_node"]["store_locations"][2]["medium_name"] = cls.NON_DEFAULT_TRANSIENT_MEDIUM
-
-    @classmethod
     def on_masters_started(cls):
-        create_domestic_medium(cls.NON_DEFAULT_MEDIUM)
-        create_domestic_medium(cls.NON_DEFAULT_TRANSIENT_MEDIUM, attributes={"transient": True})
         medium_count = len(get_media())
         while medium_count < 119:
             create_domestic_medium("hdd" + str(medium_count))
             medium_count += 1
+        set("//sys/@config/chunk_manager/allow_offshore_media", True)
         create_s3_medium("s3", cls.S3_MEDIUM_CONFIG)
 
     def setup_method(self, method):
@@ -160,7 +153,7 @@ class TestMedia(YTEnvSetup):
 
     @authors()
     def test_create_too_many_fails(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Medium count limit"):
             create_domestic_medium("excess_medium")
 
     @authors("aozeritsky", "shakurov")
@@ -176,22 +169,22 @@ class TestMedia(YTEnvSetup):
 
     @authors()
     def test_rename_duplicate_name_fails(self):
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             set("//sys/media/hdd4/@name", "hdd5")
 
     @authors()
     def test_rename_default_fails(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin medium cannot be renamed"):
             set("//sys/media/default/@name", "new_default")
 
     @authors()
     def test_create_empty_name_fails(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Medium name cannot be empty"):
             create_domestic_medium("")
 
     @authors()
     def test_create_duplicate_name_fails(self):
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_domestic_medium(TestMedia.NON_DEFAULT_MEDIUM)
 
     @authors("babenko")
@@ -300,11 +293,11 @@ class TestMedia(YTEnvSetup):
         write_table("//tmp/t5", {"a": "b"})
 
         empty_tbl_media = {"default": {"replication_factor": 0, "data_parts_only": False}}
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot remove primary medium"):
             set("//tmp/t5/@media", empty_tbl_media)
 
         parity_loss_tbl_media = {"default": {"replication_factor": 3, "data_parts_only": True}}
-        with pytest.raises(YtError):
+        with raises_yt_error("At least one medium should store replicas"):
             set("//tmp/t5/@media", parity_loss_tbl_media)
 
     @authors("babenko", "shakurov")
@@ -404,9 +397,9 @@ class TestMedia(YTEnvSetup):
     @authors("shakurov")
     def test_set_incorrect_medium_priority(self):
         assert get("//sys/media/hdd5/@priority") == 0
-        with pytest.raises(YtError):
+        with raises_yt_error("Medium priority must be in range"):
             set("//sys/media/hdd5/@priority", 11)
-        with pytest.raises(YtError):
+        with raises_yt_error("Medium priority must be in range"):
             set("//sys/media/hdd5/@priority", -1)
 
     @authors("babenko")
@@ -495,7 +488,7 @@ class TestMedia(YTEnvSetup):
 
     @authors("babenko")
     def test_create_with_invalid_attrs_yt_7093(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot parse"):
             create_domestic_medium("x", attributes={"priority": "hello"})
         assert not exists("//sys/media/x")
 
@@ -508,7 +501,7 @@ class TestMedia(YTEnvSetup):
                 "primary_medium": self.NON_DEFAULT_MEDIUM,
                 "media": {
                     self.NON_DEFAULT_MEDIUM: {
-                        "replication_factor": 2,
+                        "replication_factor": 3,
                         "data_parts_only": False,
                     }
                 },
@@ -521,7 +514,7 @@ class TestMedia(YTEnvSetup):
                 "primary_medium": self.NON_DEFAULT_TRANSIENT_MEDIUM,
                 "media": {
                     self.NON_DEFAULT_TRANSIENT_MEDIUM: {
-                        "replication_factor": 2,
+                        "replication_factor": 3,
                         "data_parts_only": False,
                     }
                 },
@@ -535,8 +528,8 @@ class TestMedia(YTEnvSetup):
 
         wait(
             lambda:
-                len(get("#{0}/@stored_replicas".format(chunk1))) == 2
-                and len(get("#{0}/@stored_replicas".format(chunk2))) == 2)
+                len(get("#{0}/@stored_replicas".format(chunk1))) == 3
+                and len(get("#{0}/@stored_replicas".format(chunk2))) == 3)
 
         set("//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True)
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))
@@ -705,7 +698,6 @@ class TestMedia(YTEnvSetup):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestMediaMulticell(TestMedia):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -723,7 +715,9 @@ class TestDynamicMedia(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 1
-    STORE_LOCATION_COUNT = 2
+    MEDIUM_CONFIG = {
+        "default": {"locations_per_node": 2},
+    }
 
     DELTA_MASTER_CONFIG = {
         "chunk_manager": {
@@ -764,13 +758,6 @@ class TestDynamicMedia(YTEnvSetup):
     def _set_medium_override_and_wait(self, location, medium):
         set(f"//sys/chunk_locations/{location}/@medium_override", medium)
         wait(lambda: get(f"//sys/chunk_locations/{location}/@statistics/medium_name") == medium)
-
-    @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        assert len(config["data_node"]["store_locations"]) == 2
-
-        config["data_node"]["store_locations"][0]["medium_name"] = "default"
-        config["data_node"]["store_locations"][1]["medium_name"] = "default"
 
     def _get_locations(self, node):
         return {

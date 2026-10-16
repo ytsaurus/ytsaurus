@@ -17,7 +17,7 @@ namespace NYT::NHttpProxy {
 struct TAuthenticationResultAndToken
 {
     NAuth::TAuthenticationResult Result;
-    TString TokenHash;
+    std::string TokenHash;
 };
 
 void SetStatusFromAuthError(const NHttp::IResponseWriterPtr& req, const TError& error);

@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/object_client/proto/object_service.pb.h>
 
+#include <yt/yt/ytlib/tablet_client/proto/master_tablet_service.pb.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -55,15 +57,33 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, Execute);
     DEFINE_RPC_PROXY_METHOD(NProto, GCCollect);
 
+    //! These methods involve 2PC between master cells and require non-standard handling at Cypress Proxies.
+    DEFINE_RPC_PROXY_METHOD(NTabletClient::NProto, Mount);
+    DEFINE_RPC_PROXY_METHOD(NTabletClient::NProto, Unmount);
+    DEFINE_RPC_PROXY_METHOD(NTabletClient::NProto, Remount);
+    DEFINE_RPC_PROXY_METHOD(NTabletClient::NProto, Freeze);
+    DEFINE_RPC_PROXY_METHOD(NTabletClient::NProto, Unfreeze);
+    DEFINE_RPC_PROXY_METHOD(NTabletClient::NProto, Reshard);
+    DEFINE_RPC_PROXY_METHOD(NTabletClient::NProto, TwoPhaseAlter);
+
     //! Executes a single typed request.
     template <class TTypedRequest>
     TFuture<TIntrusivePtr<typename TTypedRequest::TTypedResponse>>
     Execute(TIntrusivePtr<TTypedRequest> innerRequest);
 
+    template <class TTypedRequest>
+    TFuture<TIntrusivePtr<typename TTypedRequest::TTypedResponse>>
+    ExecuteAs(const std::string& user, TIntrusivePtr<TTypedRequest> innerRequest);
+
     template <std::derived_from<NYTree::TYPathRequest>... TTypedRequests>
         requires (sizeof...(TTypedRequests) > 0)
     TFuture<std::tuple<TIntrusivePtr<typename TTypedRequests::TTypedResponse>...>>
     ExecuteMany(TIntrusivePtr<TTypedRequests>... innerRequests);
+
+    template <std::derived_from<NYTree::TYPathRequest>... TTypedRequests>
+        requires (sizeof...(TTypedRequests) > 0)
+    TFuture<std::tuple<TIntrusivePtr<typename TTypedRequests::TTypedResponse>...>>
+    ExecuteManyAs(const std::string& user, TIntrusivePtr<TTypedRequests>... innerRequests);
 
     class TReqExecuteBatchBase;
     class TReqExecuteBatchNoSequoiaRetries;

@@ -15,6 +15,10 @@
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
 
+#include <yt/yt/server/lib/controller_agent/push_based_shuffle_service_proxy.h>
+
+#include <yt/yt/server/lib/job_agent/structs.h>
+
 #include <yt/yt/server/lib/job_proxy/config.h>
 #include <yt/yt/server/lib/job_proxy/public.h>
 
@@ -57,6 +61,23 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+i64 CalculateProfilesSize(const auto& profiles)
+{
+    return std::accumulate(
+        profiles.begin(),
+        profiles.end(),
+        0l,
+        [] (auto acc, const auto& profile) {
+            return acc + profile.blob().size();
+        });
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSupervisorService
     : public NRpc::TServiceBase
 {
@@ -96,6 +117,7 @@ public:
             .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ValidateSignature)
             .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetShuffleWriteSession));
     }
 
 private:
@@ -129,13 +151,14 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, GetJobSpec)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
-        context->SetRequestInfo("JobId: %v", jobId);
+        context->AnnotateRequest()
+            .With("JobId", jobId);
 
         auto validateJobPhase = [] (EJobPhase jobPhase) {
             if (jobPhase != EJobPhase::SpawningJobProxy) {
                 THROW_ERROR_EXCEPTION("Cannot fetch job spec; job is in wrong phase")
-                    << TErrorAttribute("expected_phase", EJobPhase::SpawningJobProxy)
-                    << TErrorAttribute("actual_phase", jobPhase);
+                    .With("expected_phase", EJobPhase::SpawningJobProxy)
+                    .With("actual_phase", jobPhase);
             }
         };
 
@@ -188,7 +211,8 @@ private:
     {
         auto jobId = FromProto<TJobId>(request->job_id());
 
-        context->SetRequestInfo("JobId: %v", jobId);
+        context->AnnotateRequest()
+            .With("JobId", jobId);
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
@@ -203,9 +227,9 @@ private:
         auto artifactName = request->artifact_name();
         auto pipePath = request->pipe_path();
 
-        context->SetRequestInfo("JobId: %v, ArtifactName: %v",
-            jobId,
-            artifactName);
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .With("ArtifactName", artifactName);
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
@@ -222,9 +246,9 @@ private:
         auto artifactPath = request->artifact_path();
         auto error = FromProto<TError>(request->error());
 
-        context->SetRequestInfo("JobId: %v, ArtifactName: %v",
-            jobId,
-            artifactName);
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .With("ArtifactName", artifactName);
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
@@ -238,7 +262,8 @@ private:
     {
         auto jobId = FromProto<TJobId>(request->job_id());
 
-        context->SetRequestInfo("JobId: %v", jobId);
+        context->AnnotateRequest()
+            .With("JobId", jobId);
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
@@ -252,33 +277,37 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         auto result = std::move(*request->mutable_result());
         auto error = FromProto<TError>(result.error());
-        context->SetRequestInfo("JobId: %v, Error: %v, ResultSize: %v, HasStatistics: %v, HasStderr: %v, HasFailedContext: %v",
-            jobId,
-            error,
-            result.ByteSizeLong(),
-            request->has_statistics(),
-            request->has_job_stderr(),
-            request->has_fail_context());
+        const auto& profiles = request->profiles();
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .With("Error", error)
+            .With("ResultSize", result.ByteSizeLong())
+            .With("HasStatistics", request->has_statistics())
+            .With("HasStderr", request->has_job_stderr())
+            .With("HasFailedContext", request->has_fail_context())
+            .With("ProfileCount", profiles.size())
+            .With("ProfilesTotalSize", CalculateProfilesSize(profiles));
 
         auto job = GetSchedulerJobOrThrow(jobId);
 
         auto jobReport = TNodeJobReport().Error(error);
         if (request->has_statistics()) {
             auto ysonStatistics = TYsonString(request->statistics());
-            job->SetStatistics(ysonStatistics);
+            job->SetStatistics(
+                ysonStatistics,
+                request->total_input_data_statistics(),
+                FromProto<std::vector<TDataStatistics>>(request->output_data_statistics()));
 
             // NB(bystrovserg): Always report statistics when job is finished.
-            jobReport.SetStatistics(job->GetStatistics());
+            jobReport.Statistics(job->GetStatistics());
         }
 
-        job->SetTotalInputDataStatistics(request->total_input_data_statistics());
-        job->SetOutputDataStatistics(FromProto<std::vector<TDataStatistics>>(request->output_data_statistics()));
         // COMPAT(ignat): migrate to new fields (node_start_time, node_finish_time)
         if (request->has_start_time()) {
-            jobReport.SetStartTime(FromProto<TInstant>(request->start_time()));
+            jobReport.StartTime(FromProto<TInstant>(request->start_time()));
         }
         if (request->has_finish_time()) {
-            jobReport.SetFinishTime(FromProto<TInstant>(request->finish_time()));
+            jobReport.FinishTime(FromProto<TInstant>(request->finish_time()));
         }
         job->SetCoreInfos(FromProto<NControllerAgent::TCoreInfos>(request->core_infos()));
         job->HandleJobReport(std::move(jobReport));
@@ -291,8 +320,8 @@ private:
             job->SetFailContext(request->fail_context());
         }
 
-        for (const auto& profile : request->profiles()) {
-            job->AddProfile({profile.type(), profile.blob(), profile.profiling_probability()});
+        for (const auto& profile : profiles) {
+            job->AddProfile(FromProto<TJobProfile>(profile));
         }
 
         job->OnResultReceived(std::move(result));
@@ -306,7 +335,8 @@ private:
     {
         auto jobId = FromProto<TJobId>(request->job_id());
 
-        context->SetRequestInfo("JobId: %v", jobId);
+        context->AnnotateRequest()
+            .With("JobId", jobId);
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
@@ -323,36 +353,44 @@ private:
         auto statistics = TYsonString(request->statistics());
         auto stderrSize = request->stderr_size();
         auto hasJobTrace = request->has_job_trace();
+        const auto& profiles = request->profiles();
 
-        context->SetRequestInfo("JobId: %v, Progress: %lf, Statistics: %v, StderrSize: %v, HasJobTrace: %v, HeartbeatEpoch: %v",
-            jobId,
-            progress,
-            NYson::ConvertToYsonString(statistics, EYsonFormat::Text).AsStringBuf(),
-            stderrSize,
-            hasJobTrace,
-            request->epoch());
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .WithFormat("Progress", "%lf", progress)
+            .With("Statistics", NYson::ConvertToYsonString(statistics, EYsonFormat::Text).AsStringBuf())
+            .With("StderrSize", stderrSize)
+            .With("HasJobTrace", hasJobTrace)
+            .With("HeartbeatEpoch", request->epoch())
+            .With("ProfileCount", profiles.size())
+            .With("ProfilesTotalSize", CalculateProfilesSize(profiles));
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
 
         if (job->GetPhase() >= EJobPhase::FinalizingJobProxy) {
-            YT_LOG_DEBUG("Job is already not running, skipping progress (JobPhase: %v)", job->GetPhase());
+            YT_TLOG_DEBUG("Job is already not running, skipping progress")
+                .With("JobPhase", job->GetPhase());
         } else if (!job->UpdateJobProxyHearbeatEpoch(request->epoch())) {
-            YT_LOG_DEBUG(
-                "Received message with outdated epoch, skipping progress (ReceivedEpoch: %v, StoredEpoch: %v)",
-                request->epoch(),
-                job->GetJobProxyHeartbeatEpoch());
+            YT_TLOG_DEBUG("Received message with outdated epoch, skipping progress")
+                .With("ReceivedEpoch", request->epoch())
+                .With("StoredEpoch", job->GetJobProxyHeartbeatEpoch());
         } else {
             job->SetProgress(progress);
-            job->SetStatistics(statistics);
-            job->SetTotalInputDataStatistics(request->total_input_data_statistics());
-            job->SetOutputDataStatistics(FromProto<std::vector<TDataStatistics>>(request->output_data_statistics()));
+            job->SetStatistics(
+                statistics,
+                request->total_input_data_statistics(),
+                FromProto<std::vector<TDataStatistics>>(request->output_data_statistics()));
             job->SetStderrSize(stderrSize);
             job->SetHasJobTrace(hasJobTrace);
             if (request->has_last_progress_save_time()) {
                 job->SetLastProgressSaveTime(FromProto<TInstant>(request->last_progress_save_time()));
             }
             job->TryReportStatistics();
+
+            for (const auto& profile : profiles) {
+                job->AddProfile(FromProto<TJobProfile>(profile));
+            }
         }
 
         context->Reply();
@@ -363,11 +401,14 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         const auto& reportedResourceUsage = request->resource_usage();
 
-        context->SetRequestInfo("JobId: %v, ReportedResourceUsage: {Cpu: %v, Memory %v, Network: %v}",
-            jobId,
-            reportedResourceUsage.cpu(),
-            reportedResourceUsage.memory(),
-            reportedResourceUsage.network());
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .WithFormat(
+                "ReportedResourceUsage",
+                "{Cpu: %v, Memory: %v, Network: %v}",
+                reportedResourceUsage.cpu(),
+                reportedResourceUsage.memory(),
+                reportedResourceUsage.network());
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
@@ -396,12 +437,12 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         auto clusterName = TClusterName(YT_OPTIONAL_FROM_PROTO(*request, remote_cluster_name));
 
-        context->SetRequestInfo("ThrottlerType: %v, Amount: %v, JobId: %v, WorkloadDescriptor: %v, ClusterName: %v",
-            throttlerType,
-            amount,
-            jobId,
-            workloadDescriptor,
-            clusterName);
+        context->AnnotateRequest()
+            .With("ThrottlerType", throttlerType)
+            .With("Amount", amount)
+            .With("JobId", jobId)
+            .With("WorkloadDescriptor", workloadDescriptor)
+            .With("ClusterName", clusterName);
 
         const auto& throttler = GetJobThrottler(throttlerType, std::move(clusterName));
         auto future = throttler->Throttle(amount);
@@ -411,7 +452,8 @@ private:
             auto throttlingRequestId = Bootstrap_->GetJobController()->RegisterThrottlingRequest(future);
 
             ToProto(response->mutable_throttling_request_id(), throttlingRequestId);
-            context->SetResponseInfo("ThrottlingRequestId: %v", throttlingRequestId);
+            context->AnnotateResponse()
+                .With("ThrottlingRequestId", throttlingRequestId);
         }
 
         context->Reply();
@@ -421,7 +463,8 @@ private:
     {
         auto throttlingRequestId = FromProto<TGuid>(request->throttling_request_id());
 
-        context->SetRequestInfo("ThrottlingRequestId: %v", throttlingRequestId);
+        context->AnnotateRequest()
+            .With("ThrottlingRequestId", throttlingRequestId);
 
         auto future = Bootstrap_->GetJobController()->GetThrottlingRequestOrThrow(throttlingRequestId);
         auto optionalResult = future.TryGet();
@@ -429,7 +472,8 @@ private:
             optionalResult->ThrowOnError();
         }
         response->set_completed(optionalResult.has_value());
-        context->SetResponseInfo("Completed: %v", response->completed());
+        context->AnnotateResponse()
+            .With("Completed", response->completed());
         context->Reply();
     }
 
@@ -437,7 +481,8 @@ private:
     {
         auto jobId = FromProto<TJobId>(request->job_id());
 
-        context->SetRequestInfo("JobId: %v", jobId);
+        context->AnnotateRequest()
+            .With("JobId", jobId);
 
         Bootstrap_->GetJobController()->OnJobMemoryThrashing(jobId);
 
@@ -449,13 +494,11 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         auto payload = FromProto<std::string>(request->payload());
 
-        context->SetRequestInfo("JobId: %v, PayloadSize: %v",
-            jobId,
-            payload.size());
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .With("PayloadSize", payload.size());
 
         auto signature = Bootstrap_->GetSignatureGenerator()->Sign(std::move(payload));
-
-        context->SetResponseInfo("JobId: %v", jobId);
 
         ToProto(response->mutable_signature(), signature);
         context->Reply();
@@ -466,17 +509,54 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         auto signature = FromProto<TSignaturePtr>(request->signature());
 
-        context->SetRequestInfo("JobId: %v, PayloadSize: %v",
-            jobId,
-            signature->Payload().size());
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .With("PayloadSize", signature->Payload().size());
 
         bool isValid = WaitFor(Bootstrap_->GetSignatureValidator()->Validate(signature))
             .ValueOrThrow();
 
         response->set_valid(isValid);
 
-        context->SetResponseInfo("JobId: %v, Valid: %v", jobId, isValid);
+        context->AnnotateResponse()
+            .With("Valid", isValid);
         context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetShuffleWriteSession)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        int partitionIndex = request->partition_index();
+
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .With("PartitionIndex", partitionIndex);
+
+        auto job = GetSchedulerJobOrThrow(jobId);
+        auto connector = job->GetControllerAgentConnector();
+        if (!connector) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::TransientFailure,
+                "Job %v is not affiliated with a controller agent",
+                jobId);
+        }
+
+        NControllerAgent::TPushBasedShuffleServiceProxy proxy(connector->GetChannel());
+        auto req = proxy.GetShuffleWriteSession();
+        req->SetTimeout(context->GetTimeout());
+        ToProto(req->mutable_controller_agent_incarnation_id(), connector->GetDescriptor().IncarnationId);
+        ToProto(req->mutable_operation_id(), job->GetOperationId());
+        ToProto(req->mutable_job_id(), jobId);
+        req->set_partition_index(partitionIndex);
+        if (request->has_excluded_session_id()) {
+            *req->mutable_excluded_session_id() = request->excluded_session_id();
+        }
+
+        context->ReplyFrom(req->Invoke()
+            .Apply(BIND([context] (const NControllerAgent::TPushBasedShuffleServiceProxy::TRspGetShuffleWriteSessionPtr& rsp) {
+                *context->Response().mutable_session_id() = rsp->session_id();
+                *context->Response().mutable_sequencer_node() = rsp->sequencer_node();
+            })));
     }
 };
 

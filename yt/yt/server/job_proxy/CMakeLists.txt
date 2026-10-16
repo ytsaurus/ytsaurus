@@ -42,6 +42,7 @@ target_link_libraries(yt-server-job_proxy PUBLIC
   server-lib-user_job
   yt-server-tools
   core-rpc-http
+  yt-library-cgroup
   yt-library-containers
   library-containers-cri
   yt-library-orchid

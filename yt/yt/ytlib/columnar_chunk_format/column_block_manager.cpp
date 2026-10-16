@@ -9,6 +9,7 @@
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 
 #include <yt/yt/client/table_client/config.h>
@@ -151,8 +152,8 @@ TCompactVector<ui16, 32> GetGroupsIds(
         *groupIdsData++ = preparedChunkMeta.ColumnInfos[index].GroupId;
     }
 
-    for (auto [chunkSchemaIndex, _] : valuesIdMapping) {
-        *groupIdsData++ = preparedChunkMeta.ColumnInfos[chunkSchemaIndex].GroupId;
+    for (const auto& entry : valuesIdMapping) {
+        *groupIdsData++ = preparedChunkMeta.ColumnInfos[entry.ChunkSchemaIndex].GroupId;
     }
 
     // Timestamp group id.
@@ -259,10 +260,9 @@ public:
 
     ~TAsyncBlockWindowManager()
     {
-        YT_LOG_DEBUG(
-            "Reader block statistics (Counts: %v, Sizes: %v)",
-            BlockCountStatistics_,
-            BlockSizeStatistics_);
+        YT_TLOG_DEBUG("Reader block statistics")
+            .With("Counts", BlockCountStatistics_)
+            .With("Sizes", BlockSizeStatistics_);
     }
 
     // Does not need to keep and clear used blocks because every block switch in TAsyncBlockWindowManager
@@ -463,12 +463,11 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
 
             TDuration createBlockFetcherTime = CpuDurationToDuration(GetCpuInstant() - createBlockFetcherStartInstant);
 
-            YT_LOG_DEBUG("Creating block manager "
-                "(BlockCount: %v, UncompressedBlocksSize: %v, BuildBlockInfos: %v, CreateBlockFetcherTime: %v)",
-                blockCount,
-                uncompressedBlocksSize,
-                buildBlockInfosTime,
-                createBlockFetcherTime);
+            YT_TLOG_DEBUG("Creating block manager")
+                .With("BlockCount", blockCount)
+                .With("UncompressedBlocksSize", uncompressedBlocksSize)
+                .With("BuildBlockInfos", buildBlockInfosTime)
+                .With("CreateBlockFetcherTime", createBlockFetcherTime);
         }
 
         return std::make_unique<TAsyncBlockWindowManager>(std::move(blockHolders), std::move(blockFetcher), std::move(traceContext));
@@ -507,10 +506,9 @@ public:
 
     ~TSimpleAsyncBlockWindowManager()
     {
-        YT_LOG_DEBUG(
-            "Reader block statistics (Counts: %v, Sizes: %v)",
-            BlockCountStatistics_,
-            BlockSizeStatistics_);
+        YT_TLOG_DEBUG("Reader block statistics")
+            .With("Counts", BlockCountStatistics_)
+            .With("Sizes", BlockSizeStatistics_);
     }
 
     void ClearUsedBlocks() override
@@ -839,8 +837,8 @@ private:
             return uncompressedBlock;
         }
 
-        YT_LOG_FATAL("Cached block is missing (BlockId: %v)",
-            blockId);
+        YT_TLOG_FATAL("Cached block is missing")
+            .With("BlockId", blockId);
     }
 };
 

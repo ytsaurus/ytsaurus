@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from enum import Enum
 import functools
+from enum import Enum
+from typing import Any, Dict, List, Tuple, Union
+
 from .. import cimpl as _cimpl
-from ._resource import ResourceType, ResourcePatternType
-from .._util import ValidationUtil, ConversionUtil
+from .._util import ConversionUtil, ValidationUtil
+from ._resource import ResourcePatternType, ResourceType
 
 try:
-    string_type = basestring
+    string_type = basestring  # type: ignore[name-defined]
 except NameError:
     string_type = str
 
@@ -28,6 +30,7 @@ class AclOperation(Enum):
     """
     Enumerates the different types of ACL operation.
     """
+
     UNKNOWN = _cimpl.ACL_OPERATION_UNKNOWN  #: Unknown
     ANY = _cimpl.ACL_OPERATION_ANY  #: In a filter, matches any AclOperation
     ALL = _cimpl.ACL_OPERATION_ALL  #: ALL the operations
@@ -42,8 +45,8 @@ class AclOperation(Enum):
     ALTER_CONFIGS = _cimpl.ACL_OPERATION_ALTER_CONFIGS  #: ALTER_CONFIGS operation
     IDEMPOTENT_WRITE = _cimpl.ACL_OPERATION_IDEMPOTENT_WRITE  #: IDEMPOTENT_WRITE operation
 
-    def __lt__(self, other):
-        if self.__class__ != other.__class__:
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, AclOperation):
             return NotImplemented
         return self.value < other.value
 
@@ -52,13 +55,14 @@ class AclPermissionType(Enum):
     """
     Enumerates the different types of ACL permission types.
     """
+
     UNKNOWN = _cimpl.ACL_PERMISSION_TYPE_UNKNOWN  #: Unknown
     ANY = _cimpl.ACL_PERMISSION_TYPE_ANY  #: In a filter, matches any AclPermissionType
     DENY = _cimpl.ACL_PERMISSION_TYPE_DENY  #: Disallows access
     ALLOW = _cimpl.ACL_PERMISSION_TYPE_ALLOW  #: Grants access
 
-    def __lt__(self, other):
-        if self.__class__ != other.__class__:
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, AclPermissionType):
             return NotImplemented
         return self.value < other.value
 
@@ -89,9 +93,16 @@ class AclBinding(object):
         The permission type for the specified operation.
     """
 
-    def __init__(self, restype, name,
-                 resource_pattern_type, principal, host,
-                 operation, permission_type):
+    def __init__(
+        self,
+        restype: Union[ResourceType, str, int],
+        name: str,
+        resource_pattern_type: Union[ResourcePatternType, str, int],
+        principal: str,
+        host: str,
+        operation: Union[AclOperation, str, int],
+        permission_type: Union[AclPermissionType, str, int],
+    ) -> None:
         self.restype = restype
         self.name = name
         self.resource_pattern_type = resource_pattern_type
@@ -101,43 +112,42 @@ class AclBinding(object):
         self.permission_type = permission_type
         self._convert_args()
         # for the C code
-        self.restype_int = int(self.restype.value)
-        self.resource_pattern_type_int = int(self.resource_pattern_type.value)
-        self.operation_int = int(self.operation.value)
-        self.permission_type_int = int(self.permission_type.value)
+        self.restype_int = int(self.restype.value)  # type: ignore[union-attr]
+        self.resource_pattern_type_int = int(self.resource_pattern_type.value)  # type: ignore[union-attr]
+        self.operation_int = int(self.operation.value)  # type: ignore[union-attr]
+        self.permission_type_int = int(self.permission_type.value)  # type: ignore[union-attr]
 
-    def _convert_enums(self):
-        self.restype = ConversionUtil.convert_to_enum(self.restype, ResourceType)
+    def _convert_enums(self) -> None:
+        self.restype = ConversionUtil.convert_to_enum(self.restype, ResourceType)  # type: ignore[assignment]
         self.resource_pattern_type = ConversionUtil.convert_to_enum(
-            self.resource_pattern_type, ResourcePatternType)
-        self.operation = ConversionUtil.convert_to_enum(
-            self.operation, AclOperation)
+            self.resource_pattern_type, ResourcePatternType
+        )  # type: ignore[assignment]
+        self.operation = ConversionUtil.convert_to_enum(self.operation, AclOperation)  # type: ignore[assignment]
         self.permission_type = ConversionUtil.convert_to_enum(
-            self.permission_type, AclPermissionType)
+            self.permission_type, AclPermissionType
+        )  # type: ignore[assignment]
 
-    def _check_forbidden_enums(self, forbidden_enums):
+    def _check_forbidden_enums(self, forbidden_enums: Dict[str, List[Enum]]) -> None:
         for k, v in forbidden_enums.items():
             enum_value = getattr(self, k)
             if enum_value in v:
                 raise ValueError("Cannot use enum %s, value %s in this class" % (k, enum_value.name))
 
-    def _not_none_args(self):
-        return ["restype", "name", "resource_pattern_type",
-                "principal", "host", "operation", "permission_type"]
+    def _not_none_args(self) -> List[str]:
+        return ["restype", "name", "resource_pattern_type", "principal", "host", "operation", "permission_type"]
 
-    def _string_args(self):
+    def _string_args(self) -> List[str]:
         return ["name", "principal", "host"]
 
-    def _forbidden_enums(self):
+    def _forbidden_enums(self) -> Dict[str, List[Enum]]:
         return {
             "restype": [ResourceType.ANY],
-            "resource_pattern_type": [ResourcePatternType.ANY,
-                                      ResourcePatternType.MATCH],
+            "resource_pattern_type": [ResourcePatternType.ANY, ResourcePatternType.MATCH],
             "operation": [AclOperation.ANY],
-            "permission_type": [AclPermissionType.ANY]
+            "permission_type": [AclPermissionType.ANY],
         }
 
-    def _convert_args(self):
+    def _convert_args(self) -> None:
         not_none_args = self._not_none_args()
         string_args = self._string_args()
         forbidden_enums = self._forbidden_enums()
@@ -146,25 +156,31 @@ class AclBinding(object):
         self._convert_enums()
         self._check_forbidden_enums(forbidden_enums)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         type_name = type(self).__name__
         return "%s(%s,%s,%s,%s,%s,%s,%s)" % ((type_name,) + self._to_tuple())
 
-    def _to_tuple(self):
-        return (self.restype, self.name, self.resource_pattern_type,
-                self.principal, self.host, self.operation,
-                self.permission_type)
+    def _to_tuple(self) -> Tuple[ResourceType, str, ResourcePatternType, str, str, AclOperation, AclPermissionType]:
+        return (
+            self.restype,
+            self.name,
+            self.resource_pattern_type,  # type: ignore[return-value]
+            self.principal,
+            self.host,
+            self.operation,
+            self.permission_type,
+        )
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self._to_tuple())
 
-    def __lt__(self, other):
-        if self.__class__ != other.__class__:
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, AclBinding):
             return NotImplemented
         return self._to_tuple() < other._to_tuple()
 
-    def __eq__(self, other):
-        if self.__class__ != other.__class__:
+    def __eq__(self, other: object) -> Any:
+        if not isinstance(other, AclBinding):
             return NotImplemented
         return self._to_tuple() == other._to_tuple()
 
@@ -194,14 +210,13 @@ class AclBindingFilter(AclBinding):
         The permission type to match or :attr:`AclPermissionType.ANY` to match any value.
     """
 
-    def _not_none_args(self):
-        return ["restype", "resource_pattern_type",
-                "operation", "permission_type"]
+    def _not_none_args(self) -> List[str]:
+        return ["restype", "resource_pattern_type", "operation", "permission_type"]
 
-    def _forbidden_enums(self):
+    def _forbidden_enums(self) -> Dict[str, List[Enum]]:
         return {
             "restype": [ResourceType.UNKNOWN],
             "resource_pattern_type": [ResourcePatternType.UNKNOWN],
             "operation": [AclOperation.UNKNOWN],
-            "permission_type": [AclPermissionType.UNKNOWN]
+            "permission_type": [AclPermissionType.UNKNOWN],
         }

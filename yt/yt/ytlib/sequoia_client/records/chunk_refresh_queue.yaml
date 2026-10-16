@@ -2,7 +2,7 @@ namespace: NYT::NSequoiaClient::NRecords
 
 types:
   - table_name: chunk_refresh_queue
-    table_group: refresh_chunk_tables
+    table_group: refresh_queue_table
     type_name: TChunkRefreshQueue
     sorted: false
     fields:

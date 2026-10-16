@@ -4,6 +4,7 @@
 #include "config.h"
 
 #include <yt/yt/library/containers/instance.h>
+#include <yt/yt/library/containers/porto_helpers.h>
 
 #include <yt/yt/server/lib/exec_node/public.h>
 #include <yt/yt/server/lib/exec_node/helpers.h>
@@ -139,9 +140,9 @@ public:
                 if (parameters.Command) {
                     options->Command = parameters.Command;
                 } else {
-                    auto bashrc = TString{Bashrc};
+                    std::string bashrc = Bashrc;
                     for (const auto& variable : Environment_) {
-                        if (variable.StartsWith("PS1=")) {
+                        if (variable.starts_with("PS1=")) {
                             bashrc = Format("export %v\n%v", variable, bashrc);
                         }
                     }
@@ -181,8 +182,8 @@ public:
                 if (pollResult.FindMatching(NYT::EErrorCode::Timeout)) {
                     if (shell->Terminated()) {
                         THROW_ERROR_EXCEPTION(NShell::EErrorCode::ShellExited, "Shell exited")
-                            << TErrorAttribute("shell_id", parameters.ShellId)
-                            << TErrorAttribute("shell_index", parameters.ShellIndex);
+                            .With("shell_id", parameters.ShellId)
+                            .With("shell_index", parameters.ShellIndex);
                     }
                     resultValue.Output = "";
                     break;
@@ -191,15 +192,15 @@ public:
                     THROW_ERROR_EXCEPTION(
                         EErrorCode::ShellManagerShutDown,
                         "Shell manager was shut down")
-                        << TErrorAttribute("shell_id", parameters.ShellId)
-                        << TErrorAttribute("shell_index", parameters.ShellIndex)
-                        << pollResult;
+                        .With("shell_id", parameters.ShellId)
+                        .With("shell_index", parameters.ShellIndex)
+                        .With(pollResult);
                 }
                 if (!pollResult.IsOK() || pollResult.Value().Empty()) {
                     THROW_ERROR_EXCEPTION(NShell::EErrorCode::ShellExited, "Shell exited")
-                        << TErrorAttribute("shell_id", parameters.ShellId)
-                        << TErrorAttribute("shell_index", parameters.ShellIndex)
-                        << pollResult;
+                        .With("shell_id", parameters.ShellId)
+                        .With("shell_index", parameters.ShellIndex)
+                        .With(pollResult);
                 }
                 resultValue.Output = ToString(pollResult.Value());
                 break;
@@ -229,7 +230,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Shell manager is terminating");
+        YT_TLOG_INFO("Shell manager is terminating");
 
         Terminated_ = true;
         for (const auto& [_, shell] : IdToShell_) {
@@ -243,7 +244,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Shell manager is shutting down");
+        YT_TLOG_INFO("Shell manager is shutting down");
 
         std::vector<TFuture<void>> futures;
         futures.reserve(IdToShell_.size());
@@ -254,14 +255,14 @@ public:
     }
 
 protected:
-    const TString PreparationDir_;
-    const TString WorkingDir_;
+    const std::string PreparationDir_;
+    const std::string WorkingDir_;
     const bool EnableJobShellSeccopm;
     std::optional<int> UserId_;
     std::optional<int> GroupId_;
-    std::optional<TString> MessageOfTheDay_;
+    std::optional<std::string> MessageOfTheDay_;
 
-    std::vector<TString> Environment_;
+    std::vector<std::string> Environment_;
     THashMap<TShellId, IShellPtr> IdToShell_;
     THashMap<int, IShellPtr> IndexToShell_;
     bool Terminated_ = false;
@@ -278,9 +279,9 @@ protected:
         EmplaceOrCrash(IdToShell_, shell->GetId(), shell);
         EmplaceOrCrash(IndexToShell_, shell->GetIndex(), shell);
 
-        YT_LOG_DEBUG("Shell registered (ShellId: %v, ShellIndex: %v)",
-            shell->GetId(),
-            shell->GetIndex());
+        YT_TLOG_DEBUG("Shell registered")
+            .With("ShellId", shell->GetId())
+            .With("ShellIndex", shell->GetIndex());
     }
 
     IShellPtr Find(TShellId shellId) const
@@ -332,6 +333,8 @@ public:
     {
         options->EnableJobShellSeccopm = EnableJobShellSeccopm;
 
+        ValidatePortoContainerSubpath(jobShellDescriptor.Subcontainer);
+
         auto subcontainerName = (RootInstance_ ? RootInstance_->GetName() : "") + jobShellDescriptor.Subcontainer;
         options->ContainerName = Format("%v/js-%v", subcontainerName, options->Index);
 #ifdef _linux_
@@ -363,31 +366,30 @@ private:
     const IPortoExecutorPtr PortoExecutor_;
 
 #ifdef _linux_
-    void EnsureToolBinaryPath(const TString& container) const
+    void EnsureToolBinaryPath(const std::string& container) const
     {
         auto containerRoot = WaitFor(PortoExecutor_->ConvertPath("/", container))
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Preparing shell tool path (Container: %v, ContainerRoot: %v)",
-            container,
-            containerRoot);
+        YT_TLOG_DEBUG("Preparing shell tool path")
+            .With("Container", container)
+            .With("ContainerRoot", containerRoot);
 
         auto toolDirectory = JoinPaths(containerRoot, ShellToolDirectory);
         if (!Exists(toolDirectory)) {
             RunTool<TCreateDirectoryAsRootTool>(toolDirectory);
-            auto toolPathOrError = ResolveBinaryPath(TString(NTools::ToolsProgramName));
         }
 
         if (IsDirEmpty(toolDirectory)) {
-            auto toolPathOrError = ResolveBinaryPath(TString(NTools::ToolsProgramName));
+            auto toolPathOrError = ResolveBinaryPath(std::string(NTools::ToolsProgramName));
             THROW_ERROR_EXCEPTION_IF_FAILED(toolPathOrError, "Failed to resolve tool binary path");
 
-            THashMap<TString, TString> volumeProperties;
+            THashMap<std::string, std::string> volumeProperties;
             volumeProperties["backend"] = "bind";
             volumeProperties["read_only"] = "true";
             volumeProperties["storage"] = GetDirectoryName(toolPathOrError.Value());
 
-            auto pathOrError = WaitFor(PortoExecutor_->CreateVolume(std::string(toolDirectory), volumeProperties));
+            auto pathOrError = WaitFor(PortoExecutor_->CreateVolume(toolDirectory, volumeProperties));
             THROW_ERROR_EXCEPTION_IF_FAILED(pathOrError, "Failed to bind tools inside job shell");
         }
     }
@@ -431,7 +433,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Shell manager is terminating");
+        YT_TLOG_INFO("Shell manager is terminating");
         Terminated_ = true;
         for (const auto& [_, shell] : IdToShell_) {
             shell->Terminate(error);

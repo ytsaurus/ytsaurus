@@ -2,13 +2,14 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.79.1)
+VERSION(v1.83.2)
 
 SRCS(
     backoff.go
     balancer_wrapper.go
     call.go
     clientconn.go
+    clientconn_disconnect_reason_noplan9.go
     codec.go
     dialoptions.go
     doc.go

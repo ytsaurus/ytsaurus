@@ -1,0 +1,70 @@
+{
+    "spec" = {
+        "computations" = {
+            "key_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["keys"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "tester" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "NYT::NFlow::NKeyVisitorTest::TExternalVisitTesterFunction";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["keys"];
+                "output_stream_ids" = ["visits"];
+                "external_state_managers" = {
+                    "/user-state-external" = {
+                        "external_state_manager_class_name" = "NYT::NFlow::TSimpleExternalStateManager";
+                        "parameters" = {
+                            "path" = "//path/to/user_state";
+                        };
+                    };
+                };
+                "key_visitor_streams" = {
+                    "visit_iter" = {
+                        "external_names" = ["/user-state-external"];
+                    };
+                };
+                "streams_dependency" = {
+                    "visits" = ["keys"; "visit_iter"];
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["visits"];
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "key_reader" = {
+            };
+            "tester" = {
+                "key_visitor_streams" = {
+                    "visit_iter" = {
+                        "period" = "1s";
+                    };
+                };
+            };
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+    };
+}

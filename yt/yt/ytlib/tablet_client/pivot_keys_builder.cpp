@@ -13,7 +13,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "PivotBuilder");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "PivotBuilder");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,13 +74,11 @@ void TReshardPivotKeysBuilder::AddChunk(const NYT::NChunkClient::NProto::TChunkS
         inputChunk,
         dataWeight);
 
-    YT_LOG_DEBUG_IF(EnableVerboseLogging_,
-        "Adding chunk boundary keys from chunk spec (ChunkMinKey: %v, ChunkMaxKey: %v, "
-        "DataWeight: %v, InputChunk: %v)",
-        chunkMinKey,
-        chunkMaxKey,
-        dataWeight,
-        inputChunk);
+    YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Adding chunk boundary keys from chunk spec")
+        .With("ChunkMinKey", chunkMinKey)
+        .With("ChunkMaxKey", chunkMaxKey)
+        .With("DataWeight", dataWeight)
+        .With("InputChunk", inputChunk);
 }
 
 void TReshardPivotKeysBuilder::AddChunk(const TWeightedInputChunkPtr& chunk)
@@ -116,13 +114,11 @@ void TReshardPivotKeysBuilder::AddChunk(const TWeightedInputChunkPtr& chunk)
         chunk->GetInputChunk(),
         chunk->GetDataWeight());
 
-    YT_LOG_DEBUG_IF(EnableVerboseLogging_,
-        "Adding chunk boundary keys from weighted input chunk (ChunkMinKey: %v, ChunkMaxKey: %v, "
-        "DataWeight: %v, InputChunk: %v)",
-        chunkMinKey,
-        chunkMaxKey,
-        chunk->GetDataWeight(),
-        chunk->GetInputChunk());
+    YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Adding chunk boundary keys from weighted input chunk")
+        .With("ChunkMinKey", chunkMinKey)
+        .With("ChunkMaxKey", chunkMaxKey)
+        .With("DataWeight", chunk->GetDataWeight())
+        .With("InputChunk", chunk->GetInputChunk());
 }
 
 void TReshardPivotKeysBuilder::AddSlice(const TInputChunkSlicePtr& slice)
@@ -139,13 +135,11 @@ void TReshardPivotKeysBuilder::AddSlice(const TInputChunkSlicePtr& slice)
 
     TotalSizeAfterSlicing_ += slice->GetDataWeight();
 
-    YT_LOG_DEBUG_IF(EnableVerboseLogging_,
-        "Adding slice boundary keys from input chunk slice (MinKeyBound: %v, MaxKeyBound: %v, "
-        "DataWeight: %v, InputChunk: %v)",
-        slice->LowerLimit().KeyBound,
-        slice->UpperLimit().KeyBound,
-        slice->GetDataWeight(),
-        slice->GetInputChunk());
+    YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Adding slice boundary keys from input chunk slice")
+        .With("MinKeyBound", slice->LowerLimit().KeyBound)
+        .With("MaxKeyBound", slice->UpperLimit().KeyBound)
+        .With("DataWeight", slice->GetDataWeight())
+        .With("InputChunk", slice->GetInputChunk());
 }
 
 void TReshardPivotKeysBuilder::ComputeChunksForSlicing()
@@ -164,13 +158,11 @@ void TReshardPivotKeysBuilder::ComputeChunksForSlicing()
                 UpdateCurrentChunksAndSizes(boundaryIt, boundaryEnd);
             } else {
                 YT_VERIFY(State_.CurrentStartedChunksSize > UpperPivotZone(tabletIndex));
-                YT_LOG_DEBUG_IF(EnableVerboseLogging_,
-                    "Adding chunk for slicing (Chunk: %v, TabletIndex: %v, "
-                    "UpperPivotZone: %v, CurrentStartedChunksSize: %v)",
-                    boundaryIt->GetChunk(),
-                    tabletIndex,
-                    UpperPivotZone(tabletIndex),
-                    State_.CurrentStartedChunksSize);
+                YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Adding chunk for slicing")
+                    .With("Chunk", boundaryIt->GetChunk())
+                    .With("TabletIndex", tabletIndex)
+                    .With("UpperPivotZone", UpperPivotZone(tabletIndex))
+                    .With("CurrentStartedChunksSize", State_.CurrentStartedChunksSize);
 
                 ++tabletIndex;
                 State_.ChunkForSlicingToSize[boundaryIt->GetChunk()] = boundaryIt->GetDataWeight();
@@ -203,28 +195,26 @@ void TReshardPivotKeysBuilder::ComputeSlicedChunksPivotKeys()
     auto boundaryEnd = SliceBoundaryKeys_.end();
     UpdateCurrentChunksAndSizes(boundaryIt, boundaryEnd);
 
-    YT_LOG_DEBUG_IF(EnableVerboseLogging_,
-        "Pivot keys that have already been found (PivotKeys: %v)",
-        MakeFormattableView(Pivots_, [] (auto* builder, const auto& pivot) {
+    YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Pivot keys that have already been found")
+        .With("PivotKeys", MakeFormattableView(Pivots_, [] (auto* builder, const auto& pivot) {
             builder->AppendFormat("%v", pivot.Key);
         }));
 
     while (boundaryIt < boundaryEnd && tabletIndex < TabletCount_) {
-        YT_LOG_DEBUG_IF(EnableVerboseLogging_,
-            "Iteration of choosing final pivots (TabletIndex: %v)",
-            tabletIndex);
+        YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Iteration of choosing final pivots")
+            .With("TabletIndex", tabletIndex);
 
         i64 tabletSize = State_.CurrentFinishedChunksSize - ExpectedTabletSize_ * (tabletIndex - 1);
         if (CanSplitHere(boundaryIt, tabletIndex)) {
             if (!Pivots_[tabletIndex].TabletSize ||
                 IsBetterSize(tabletSize, *Pivots_[tabletIndex].TabletSize))
             {
-                YT_LOG_DEBUG_IF(EnableVerboseLogging_,
-                    "Setting final pivot key because we can split right here and this is the "
-                    "best possible place to choose by now (TabletIndex: %v, Key: %v, TabletSize: %v)",
-                    tabletIndex,
-                    boundaryIt->GetKeyBound().Prefix,
-                    tabletSize);
+                YT_TLOG_DEBUG_IF(
+                    EnableVerboseLogging_,
+                    "Setting final pivot key because we can split right here and this is the best possible place to choose by now")
+                    .With("TabletIndex", tabletIndex)
+                    .With("Key", boundaryIt->GetKeyBound().Prefix)
+                    .With("TabletSize", tabletSize);
 
                 Pivots_[tabletIndex].Key = boundaryIt->GetKeyBound().Prefix;
                 Pivots_[tabletIndex].TabletSize = tabletSize;
@@ -272,12 +262,10 @@ void TReshardPivotKeysBuilder::ComputeSlicedChunksPivotKeys()
             (IsBetterSize(tabletSize, *Pivots_[tabletIndex].BruteTabletSize) &&
              tabletSize <= ExpectedTabletSize_))
         {
-            YT_LOG_DEBUG_IF(EnableVerboseLogging_,
-                "Setting brute pivot key because we need to set at least some key "
-                "(TabletIndex: %v, Key: %v, TabletSize: %v)",
-                tabletIndex,
-                boundaryIt->GetKeyBound().Prefix,
-                tabletSize);
+            YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Setting brute pivot key because we need to set at least some key")
+                .With("TabletIndex", tabletIndex)
+                .With("Key", boundaryIt->GetKeyBound().Prefix)
+                .With("TabletSize", tabletSize);
 
             Pivots_[tabletIndex].Key = boundaryIt->GetKeyBound().Prefix;
             Pivots_[tabletIndex].BruteTabletSize = tabletSize;
@@ -292,9 +280,8 @@ void TReshardPivotKeysBuilder::SetFirstPivotKey(const TLegacyOwningKey& key)
 {
     Pivots_[0].Key = key;
 
-    YT_LOG_DEBUG_IF(EnableVerboseLogging_,
-        "Setting first pivot key (Key: %v)",
-        key);
+    YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Setting first pivot key")
+        .With("Key", key);
 }
 
 bool TReshardPivotKeysBuilder::AreAllPivotsFound() const
@@ -315,9 +302,8 @@ std::vector<TLegacyOwningKey> TReshardPivotKeysBuilder::GetPivotKeys() const
         pivotKeys.push_back(pivot.Key);
     }
 
-    YT_LOG_DEBUG_IF(EnableVerboseLogging_,
-        "Get pivot keys result (PivotKeys: %v)",
-        pivotKeys);
+    YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Get pivot keys result")
+        .With("PivotKeys", pivotKeys);
     return pivotKeys;
 }
 
@@ -342,12 +328,10 @@ void TReshardPivotKeysBuilder::UpdateCurrentChunksAndSizes(
         State_.CurrentChunkToSize.erase(boundaryKey->GetChunk());
     }
 
-    YT_LOG_DEBUG_IF(EnableVerboseLogging_,
-        "Updated currentChunks and sizes (CurrentBoundaryKey: %v, CurrentStartedChunksSize: %v, "
-        "CurrentFinishedChunksSize: %v)",
-        boundaryKey->GetKeyBound(),
-        State_.CurrentStartedChunksSize,
-        State_.CurrentFinishedChunksSize);
+    YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Updated currentChunks and sizes")
+        .With("CurrentBoundaryKey", boundaryKey->GetKeyBound())
+        .With("CurrentStartedChunksSize", State_.CurrentStartedChunksSize)
+        .With("CurrentFinishedChunksSize", State_.CurrentFinishedChunksSize);
 }
 
 i64 TReshardPivotKeysBuilder::UpperPivotZone(i64 tabletIndex) const
@@ -428,9 +412,8 @@ TReshardPivotKeysBuilder::TBoundaryKeyIterator TReshardPivotKeysBuilder::AddChun
     TBoundaryKeyIterator boundaryIt,
     i64 tabletIndex)
 {
-    YT_LOG_DEBUG_IF(EnableVerboseLogging_,
-        "Started adding chunks to split (TabletIndex: %v)",
-        tabletIndex);
+    YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Started adding chunks to split")
+        .With("TabletIndex", tabletIndex);
 
     THashMap<TInputChunkPtr, i64> chunkForSlicingToSize(State_.CurrentChunkToSize);
     chunkForSlicingToSize[boundaryIt->GetChunk()] = boundaryIt->GetDataWeight();
@@ -446,12 +429,12 @@ TReshardPivotKeysBuilder::TBoundaryKeyIterator TReshardPivotKeysBuilder::AddChun
             if (!Pivots_[tabletIndex].TabletSize ||
                 IsBetterSize(tabletSize, *Pivots_[tabletIndex].TabletSize))
             {
-                YT_LOG_DEBUG_IF(EnableVerboseLogging_,
-                    "Setting pivot key because we can split right here and this is the "
-                    "best possible place to choose by now (TabletIndex: %v, Key: %v, TabletSize: %v)",
-                    tabletIndex,
-                    boundaryIt->GetKeyBound().Prefix,
-                    tabletSize);
+                YT_TLOG_DEBUG_IF(
+                    EnableVerboseLogging_,
+                    "Setting pivot key because we can split right here and this is the best possible place to choose by now")
+                    .With("TabletIndex", tabletIndex)
+                    .With("Key", boundaryIt->GetKeyBound().Prefix)
+                    .With("TabletSize", tabletSize);
 
                 Pivots_[tabletIndex].Key = boundaryIt->GetKeyBound().Prefix;
                 Pivots_[tabletIndex].TabletSize = tabletSize;
@@ -463,7 +446,8 @@ TReshardPivotKeysBuilder::TBoundaryKeyIterator TReshardPivotKeysBuilder::AddChun
         State_.ChunkForSlicingToSize.insert(chunkForSlicingToSize.begin(), chunkForSlicingToSize.end());
         if (EnableVerboseLogging_) {
             for (const auto& chunk : chunkForSlicingToSize) {
-                YT_LOG_DEBUG("Adding a chunk for slicing (Chunk: %v)", chunk.first);
+                YT_TLOG_DEBUG("Adding a chunk for slicing")
+                    .With("Chunk", chunk.first);
             }
         }
     }

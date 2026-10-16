@@ -25,6 +25,11 @@ void TDynamicCellManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cellar_node_tracker", &TThis::CellarNodeTracker)
         .DefaultNew();
+    registrar.Parameter("cell_health_history_max_size", &TThis::CellHealthHistoryMaxSize)
+        .Default(100)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("cell_health_history_expiration_time", &TThis::CellHealthHistoryExpirationTime)
+        .Default(TDuration::Days(7));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

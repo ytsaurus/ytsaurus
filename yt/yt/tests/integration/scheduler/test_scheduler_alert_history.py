@@ -13,8 +13,6 @@ from yt.common import datetime_to_string, uuid_to_parts
 
 from yt.yson import YsonEntity
 
-import pytest
-
 import time
 from datetime import datetime
 
@@ -73,7 +71,6 @@ def _run_op_with_input_chunks_alert(return_events=True, wait_until_set_event_sen
         return op
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerAlertHistoryBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -198,7 +195,6 @@ class TestSchedulerAlertHistory(TestSchedulerAlertHistoryBase):
         _wait_for_alert_events(op2, 2)
 
 
-@pytest.mark.enabled_multidaemon
 class TestUpdateAlertEventsSenderPeriodOnDisabledCleaner(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -222,7 +218,6 @@ class TestUpdateAlertEventsSenderPeriodOnDisabledCleaner(YTEnvSetup):
         update_scheduler_config("operations_cleaner/operation_alert_event_send_period", 1000)
 
 
-@pytest.mark.enabled_multidaemon
 class TestAlertsHistoryInApi(TestSchedulerAlertHistoryBase):
     ENABLE_MULTIDAEMON = True
 
@@ -285,7 +280,6 @@ class TestAlertsHistoryInApi(TestSchedulerAlertHistoryBase):
         assert alert_events[0]["error"]["code"] != 0
 
 
-@pytest.mark.enabled_multidaemon
 class TestAlertsHistoryInApiRpcProxy(TestAlertsHistoryInApi):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

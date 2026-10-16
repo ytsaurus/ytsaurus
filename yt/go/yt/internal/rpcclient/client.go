@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -21,6 +22,7 @@ import (
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/internal"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 var _ yt.Client = (*client)(nil)
@@ -57,8 +59,15 @@ func BuildHTTPClient(c *yt.Config) (*http.Client, error) {
 		RootCAs: certPool,
 	}
 
+	network := c.GetIPVersion().Network()
+	dialer := &net.Dialer{}
+
 	httpClient := &http.Client{
 		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+				return dialer.DialContext(ctx, network, addr)
+			},
+
 			MaxIdleConns:        0,
 			MaxIdleConnsPerHost: 100,
 			MaxConnsPerHost:     100,
@@ -74,9 +83,37 @@ func BuildHTTPClient(c *yt.Config) (*http.Client, error) {
 }
 
 func NewClient(conf *yt.Config) (*client, error) {
+	return newClient(conf, os.Hostname)
+}
+
+func newClient(conf *yt.Config, getLocalHostName func() (string, error)) (*client, error) {
 	clusterURL, err := conf.GetClusterURL()
 	if err != nil {
 		return nil, err
+	}
+
+	var priorityProvider internal.ProxyPriorityProvider
+	var localHostName, localCluster string
+	switch conf.RPCProxyPriorityStrategy {
+	case yt.RPCProxyPriorityStrategyNone:
+	case yt.RPCProxyPriorityStrategyPreferLocal:
+		localHostName, err = getLocalHostName()
+		if err != nil {
+			return nil, xerrors.Errorf("failed to get local host name: %w", err)
+		}
+		priorityProvider, localCluster = internal.NewYPClusterProxyPriorityProvider(localHostName)
+	default:
+		return nil, xerrors.Errorf("unsupported RPC proxy priority strategy: %d", conf.RPCProxyPriorityStrategy)
+	}
+	if conf.RPCProxyMinPeerCountForPriorityAwareness < 0 {
+		return nil, xerrors.Errorf("RPC proxy minimum peer count for priority awareness must be non-negative")
+	}
+	if conf.RPCProxyMinPeerCountForPriorityAwareness > internal.DefaultActiveSetSize {
+		return nil, xerrors.Errorf(
+			"RPC proxy minimum peer count for priority awareness cannot exceed active set size: %d > %d",
+			conf.RPCProxyMinPeerCountForPriorityAwareness,
+			internal.DefaultActiveSetSize,
+		)
 	}
 
 	c := &client{
@@ -103,12 +140,21 @@ func NewClient(conf *yt.Config) (*client, error) {
 		c.credentials = &yt.TokenCredentials{Token: token}
 	}
 
-	c.proxySet = &internal.ProxySet{UpdateFn: c.listRPCProxies}
+	c.proxySet = &internal.ProxySet{
+		UpdateFn:                         c.listRPCProxies,
+		PriorityProvider:                 priorityProvider,
+		MinPeerCountForPriorityAwareness: conf.RPCProxyMinPeerCountForPriorityAwareness,
+		EnablePowerOfTwoChoicesStrategy:  conf.EnableRPCProxyPowerOfTwoChoicesStrategy,
+	}
 
 	c.connPool = NewConnPool(func(ctx context.Context, addr string) BusConn {
 		clientOpts := []bus.ClientOption{
 			bus.WithLogger(c.log.Logger()),
 			bus.WithDefaultProtocolVersionMajor(ProtocolVersionMajor),
+			bus.WithFeatureIDFormatter(func(featureID int32) string {
+				return rpcProxyFeature(featureID).String()
+			}),
+			bus.WithNetwork(conf.GetIPVersion().Network()),
 		}
 		if conf.UseTLS && transport.TLSClientConfig != nil {
 			busTLSConfig := transport.TLSClientConfig.Clone()
@@ -127,6 +173,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 		return bus.NewClient(ctx, addr, clientOpts...)
 	}, c.log)
 
+	c.Encoder.ClockClusterTag = conf.ClockClusterTag
 	c.Encoder.StartCall = c.startCall
 	c.Encoder.Invoke = c.invoke
 	c.Encoder.InvokeInTx = c.invokeInTx
@@ -150,6 +197,12 @@ func NewClient(conf *yt.Config) (*client, error) {
 
 	c.Encoder.InvokeInTx = c.Encoder.InvokeInTx.
 		Wrap(readRetrier.InterceptInTx)
+
+	if conf.RPCProxyPriorityStrategy == yt.RPCProxyPriorityStrategyPreferLocal {
+		c.log.Info("RPC proxy priority configured",
+			log.String("hostname", localHostName),
+			log.String("yp_cluster", localCluster))
+	}
 
 	return c, nil
 }
@@ -215,6 +268,12 @@ func (c *client) doMultiLookup(
 			return nil, xerrors.Errorf("unable to create table reader for subresponse %d: %w", i, err)
 		}
 
+		if unavailable := subresponse.GetUnavailableKeyIndexes(); len(unavailable) > 0 {
+			reader.partialErr = &yterrors.PartialResultError{
+				UnavailableKeyIndexes: append([]int32(nil), unavailable...),
+			}
+		}
+
 		readers[i] = reader
 	}
 
@@ -267,7 +326,12 @@ func (c *client) invoke(
 	)
 
 	start := time.Now()
-	err = conn.Send(ctx, "ApiService", string(call.Method), call.Req, rsp, opts...)
+	func() {
+		c.proxySet.IncrementInflightRequestCount(addr)
+		defer c.proxySet.DecrementInflightRequestCount(addr)
+
+		err = conn.Send(ctx, "ApiService", string(call.Method), call.Req, rsp, opts...)
+	}()
 	duration := time.Since(start)
 
 	ctxlog.Debug(ctx, c.log.Logger(), "received RPC response",
@@ -406,6 +470,10 @@ func (c *client) LockRows(
 	keys []any,
 	opts *yt.LockRowsOptions,
 ) (err error) {
+	if err := validateLockRows(path, locks); err != nil {
+		return err
+	}
+
 	if opts == nil {
 		opts = &yt.LockRowsOptions{}
 	}
@@ -413,13 +481,15 @@ func (c *client) LockRows(
 		opts.TransactionOptions = &yt.TransactionOptions{}
 	}
 
-	if len(keys) == 0 {
-		return nil
-	}
-
 	var zero yt.TxID
 	if opts.TransactionID != zero {
-		return c.Encoder.LockRows(ctx, path, locks, lockType, keys, opts)
+		return yterrors.Err("external transactions are not supported by LockRows",
+			yterrors.Attr("path", path.String()),
+			yterrors.Attr("method", "lock_rows"))
+	}
+
+	if len(keys) == 0 {
+		return nil
 	}
 
 	tx, err := c.BeginTabletTx(ctx, nil)
@@ -547,6 +617,65 @@ func (c *client) PushQueueProducerBatch(
 	}
 
 	return result, tx.Commit()
+}
+
+func (c *client) PullQueueConsumer(
+	ctx context.Context,
+	consumerPath ypath.Path,
+	queuePath ypath.Path,
+	opts *yt.PullQueueConsumerOptions,
+) (r yt.TableReader, result *yt.PullQueueConsumerResult, err error) {
+	return c.Encoder.PullQueueConsumer(ctx, consumerPath, queuePath, opts)
+}
+
+func (c *client) AdvanceQueueConsumer(
+	ctx context.Context,
+	consumerPath ypath.Path,
+	queuePath ypath.Path,
+	opts *yt.AdvanceQueueConsumerOptions,
+) (err error) {
+	if opts == nil {
+		opts = &yt.AdvanceQueueConsumerOptions{}
+	}
+	if opts.TransactionOptions == nil {
+		opts.TransactionOptions = &yt.TransactionOptions{}
+	}
+
+	var zero yt.TxID
+	if opts.TransactionID != zero {
+		return c.Encoder.AdvanceQueueConsumer(ctx, consumerPath, queuePath, opts)
+	}
+
+	tx, err := c.BeginTabletTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Abort()
+
+	err = tx.AdvanceQueueConsumer(ctx, consumerPath, queuePath, opts)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (c *client) RegisterQueueConsumer(
+	ctx context.Context,
+	queuePath ypath.Path,
+	consumerPath ypath.Path,
+	opts *yt.RegisterQueueConsumerOptions,
+) error {
+	return c.Encoder.RegisterQueueConsumer(ctx, queuePath, consumerPath, opts)
+}
+
+func (c *client) UnregisterQueueConsumer(
+	ctx context.Context,
+	queuePath ypath.Path,
+	consumerPath ypath.Path,
+	opts *yt.UnregisterQueueConsumerOptions,
+) error {
+	return c.Encoder.UnregisterQueueConsumer(ctx, queuePath, consumerPath, opts)
 }
 
 // InsertRows wraps encoder's implementation with transaction.

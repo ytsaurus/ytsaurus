@@ -35,6 +35,22 @@ Python example:
 df.write.option("write_type_v3", "true")
 ```
 
+## security_tags
+
+For batch writes to static tables, SPYT automatically propagates the union of `security_tags` from the query's static input tables in {{product-name}}. This applies to DataFrame and Spark SQL writes, including cached DataFrames, temporary views, joins, and aggregations. The standard SPYT Spark extensions must be enabled.
+
+In `overwrite` mode, the output receives the inferred tags. In `append` mode, these tags are added to the existing output tags. Both ordinary and distributed writes support this behavior.
+
+To override the inferred tags, pass a string containing a YSON list:
+
+```python
+df.write.option("security_tags", '["sensitive";"userdata";]').yt("//tmp/output")
+```
+
+The `attr_security_tags` option is an alias. If both options are specified, `security_tags` takes precedence. An explicit empty list, `"[]"`, disables inheritance for that write. On append, an override does not remove existing output tags.
+
+Tags are retained with input metadata, including when a DataFrame is cached. SPYT cannot infer tags for data read inside a UDF, data reconstructed after `collect()`, or data whose table provenance was lost through RDD transformations. Supply tags explicitly for these cases. Automatic inheritance is not supported for dynamic tables or streaming queries.
+
 ## Dynamic tables
 
 For dynamic tables you should explicitly specify an additional option `inconsistent_dynamic_write` with `true` value so that you do agree that there is no support for transactional writes to dynamic tables.

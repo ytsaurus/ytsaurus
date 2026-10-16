@@ -68,7 +68,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTransactionGeneration, PersistentGeneration, InitialTransactionGeneration);
     DEFINE_BYVAL_RW_PROPERTY(TTransactionGeneration, TransientGeneration, InitialTransactionGeneration);
 
-    DEFINE_BYREF_RW_PROPERTY(TTransactionSignature, CommitSignature, InitialTransactionSignature);
+    DEFINE_BYREF_RW_PROPERTY(int, PendingCommitApprovalCount);
 
     DEFINE_BYREF_RW_PROPERTY(NTransactionSupervisor::TTransactionCommitOptions, CommitOptions);
 
@@ -142,7 +142,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString FormatTransactionId(
+std::string FormatTransactionId(
     TTransactionId transactionId,
     TTransactionExternalizationToken externalizationToken);
 

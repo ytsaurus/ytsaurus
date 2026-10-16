@@ -10,10 +10,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func TestBasicFilter(t *testing.T) {
@@ -23,23 +23,23 @@ func TestBasicFilter(t *testing.T) {
 	provider := trace.NewTracerProvider(trace.WithSpanProcessor(spanRecorder))
 
 	h := otelhttp.NewHandler(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			if _, err := io.WriteString(w, "hello world"); err != nil {
 				t.Fatal(err)
 			}
 		}), "test_handler",
 		otelhttp.WithTracerProvider(provider),
-		otelhttp.WithFilter(func(r *http.Request) bool {
+		otelhttp.WithFilter(func(*http.Request) bool {
 			return false
 		}),
 	)
 
-	r, err := http.NewRequest(http.MethodGet, "http://localhost/", nil)
+	r, err := http.NewRequest(http.MethodGet, "http://localhost/", http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}
 	h.ServeHTTP(rr, r)
-	if got, expected := rr.Result().StatusCode, http.StatusOK; got != expected { //nolint:bodyclose // False positive for httptest.ResponseRecorder: https://github.com/timakin/bodyclose/issues/59.
+	if got, expected := rr.Result().StatusCode, http.StatusOK; got != expected {
 		t.Fatalf("got %d, expected %d", got, expected)
 	}
 	if got := rr.Header().Get("Traceparent"); got != "" {
@@ -48,7 +48,7 @@ func TestBasicFilter(t *testing.T) {
 	if got, expected := len(spanRecorder.Ended()), 0; got != expected {
 		t.Fatalf("got %d recorded spans, expected %d", got, expected)
 	}
-	d, err := io.ReadAll(rr.Result().Body) //nolint:bodyclose // False positive for httptest.ResponseRecorder: https://github.com/timakin/bodyclose/issues/59.
+	d, err := io.ReadAll(rr.Result().Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestSpanNameFormatter(t *testing.T) {
 		},
 		{
 			name: "custom formatter",
-			formatter: func(s string, r *http.Request) string {
+			formatter: func(_ string, r *http.Request) string {
 				return r.URL.Path
 			},
 			operation: "",
@@ -95,7 +95,7 @@ func TestSpanNameFormatter(t *testing.T) {
 
 			spanRecorder := tracetest.NewSpanRecorder()
 			provider := trace.NewTracerProvider(trace.WithSpanProcessor(spanRecorder))
-			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				if _, err := io.WriteString(w, "hello world"); err != nil {
 					t.Fatal(err)
 				}
@@ -106,12 +106,12 @@ func TestSpanNameFormatter(t *testing.T) {
 				otelhttp.WithTracerProvider(provider),
 				otelhttp.WithSpanNameFormatter(tc.formatter),
 			)
-			r, err := http.NewRequest(http.MethodGet, "http://localhost/hello", nil)
+			r, err := http.NewRequest(http.MethodGet, "http://localhost/hello", http.NoBody)
 			if err != nil {
 				t.Fatal(err)
 			}
 			h.ServeHTTP(rr, r)
-			if got, expected := rr.Result().StatusCode, http.StatusOK; got != expected { //nolint:bodyclose // False positive for httptest.ResponseRecorder: https://github.com/timakin/bodyclose/issues/59.
+			if got, expected := rr.Result().StatusCode, http.StatusOK; got != expected {
 				t.Fatalf("got %d, expected %d", got, expected)
 			}
 
@@ -121,4 +121,49 @@ func TestSpanNameFormatter(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEvent(t *testing.T) {
+	t.Run("constant values", func(t *testing.T) {
+		assert.Equal(t, otelhttp.ReadEvents, otelhttp.Event(1), "ReadEvents should be 1")
+		assert.Equal(t, otelhttp.WriteEvents, otelhttp.Event(2), "WriteEvents should be 2")
+	})
+
+	t.Run("unspecifiedEvent", func(t *testing.T) {
+		var unspecified otelhttp.Event // zero-value
+		assert.Equal(t, otelhttp.Event(0), unspecified, "unspecifiedEvent should be zero-value Event")
+
+		// Validate that unspecifiedEvent is different from defined events
+		assert.NotEqual(t, otelhttp.ReadEvents, unspecified, "unspecifiedEvent should not equal ReadEvents")
+		assert.NotEqual(t, otelhttp.WriteEvents, unspecified, "unspecifiedEvent should not equal WriteEvents")
+
+		// Validate WithMessageEvents accepts unspecifiedEvent
+		opt := otelhttp.WithMessageEvents(unspecified)
+		assert.NotNil(t, opt, "WithMessageEvents(unspecifiedEvent) should not return nil")
+
+		// Additional validation: test behavior with unspecified events
+		optMultiple := otelhttp.WithMessageEvents(unspecified, otelhttp.ReadEvents)
+		assert.NotNil(t, optMultiple, "WithMessageEvents with unspecified and valid events should not return nil")
+	})
+
+	t.Run("WithMessageEvents", func(t *testing.T) {
+		tests := []struct {
+			name   string
+			events []otelhttp.Event
+		}{
+			{name: "ReadEvents", events: []otelhttp.Event{otelhttp.ReadEvents}},
+			{name: "WriteEvents", events: []otelhttp.Event{otelhttp.WriteEvents}},
+			{name: "multiple events", events: []otelhttp.Event{otelhttp.ReadEvents, otelhttp.WriteEvents}},
+			{name: "no events", events: []otelhttp.Event{}},
+			{name: "unspecified event only", events: []otelhttp.Event{otelhttp.Event(0)}},
+			{name: "mixed with unspecified", events: []otelhttp.Event{otelhttp.Event(0), otelhttp.ReadEvents}},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				got := otelhttp.WithMessageEvents(tt.events...)
+				assert.NotNil(t, got, "WithMessageEvents(%v) should not return nil", tt.events)
+			})
+		}
+	})
 }

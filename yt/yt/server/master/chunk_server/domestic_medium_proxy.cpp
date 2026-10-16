@@ -1,7 +1,6 @@
 #include "domestic_medium_proxy.h"
 
 #include "chunk_manager.h"
-#include "config.h"
 #include "domestic_medium.h"
 #include "medium_proxy_base.h"
 
@@ -48,9 +47,6 @@ private:
             .SetReplicated(true)
             .SetRemovable(true)
             .SetPresent(medium->DiskFamilyWhitelist().has_value()));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableSequoiaReplicas)
-            .SetWritable(true)
-            .SetReplicated(true));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -77,11 +73,6 @@ private:
                     .DoListFor(*medium->DiskFamilyWhitelist(), [] (TFluentList fluent, const std::string& diskFamily) {
                         fluent.Item().Value(diskFamily);
                     });
-                return true;
-
-            case EInternedAttributeKey::EnableSequoiaReplicas:
-                BuildYsonFluently(consumer)
-                    .Value(medium->GetEnableSequoiaReplicas());
                 return true;
 
             default:
@@ -111,12 +102,6 @@ private:
                     THROW_ERROR_EXCEPTION("Disk family whitelist must not contain duplicates");
                 }
                 medium->DiskFamilyWhitelist() = std::move(whitelist);
-                return true;
-            }
-
-            case EInternedAttributeKey::EnableSequoiaReplicas: {
-                auto enableSequoiaReplicas = ConvertTo<bool>(value);
-                medium->SetEnableSequoiaReplicas(enableSequoiaReplicas);
                 return true;
             }
 

@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "async_batcher.h"
 #endif
-#undef ASYNC_BATCHER_INL_H_
 
 #include "delayed_executor.h"
 #include "thread_affinity.h"
@@ -81,7 +80,7 @@ void TAsyncBatcher<T>::OnDeadlineReached()
 }
 
 template <class T>
-void TAsyncBatcher<T>::DoRun(TGuard<NThreading::TSpinLock>& guard)
+void TAsyncBatcher<T>::DoRun(TGuard<TSpinLock>& guard)
 {
     YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 

@@ -4,8 +4,6 @@
 
 #include <yt/yt/ytlib/object_client/public.h>
 
-#include <library/cpp/yt/compact_containers/compact_vector.h>
-
 namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,16 +21,6 @@ using NObjectClient::NullTransactionId;
 ////////////////////////////////////////////////////////////////////////////////
 
 using TEpoch = ui32;
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NProto {
-
-class TReqCreateForeignObject;
-class TReqRemoveForeignObject;
-class TReqDestroyObjects;
-
-} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,14 +47,9 @@ DEFINE_ENUM(EModificationType,
 DECLARE_REFCOUNTED_STRUCT(IObjectService)
 DECLARE_REFCOUNTED_STRUCT(IObjectManager)
 
-DECLARE_REFCOUNTED_CLASS(TGarbageCollector)
-
 DECLARE_REFCOUNTED_STRUCT(TEpochContext)
 
-DECLARE_REFCOUNTED_STRUCT(TRequestProfilingCounters)
 DECLARE_REFCOUNTED_STRUCT(IRequestProfilingManager)
-
-DECLARE_REFCOUNTED_CLASS(TMutationIdempotizer)
 
 DECLARE_REFCOUNTED_STRUCT(TObjectManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicObjectManagerConfig)
@@ -124,9 +107,6 @@ DECLARE_REFCOUNTED_STRUCT(IObjectProxy)
 DECLARE_REFCOUNTED_STRUCT(IObjectTypeHandler)
 
 DECLARE_REFCOUNTED_STRUCT(IYsonInternRegistry)
-
-static constexpr int MaxAnnotationLength = 1024;
-static constexpr int MaxClusterNameLength = 128;
 
 // NB: Changing this value requires promoting master reign.
 static constexpr size_t DefaultYsonStringInternLengthThreshold = 1_KB;

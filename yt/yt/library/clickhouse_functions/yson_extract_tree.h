@@ -19,9 +19,8 @@ TError TryGetNumericValueFromYsonElement(NumberType& value, const TYsonParserAda
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IYsonTreeNodeExtractor
+struct IYsonTreeNodeExtractor
 {
-public:
     virtual ~IYsonTreeNodeExtractor() = default;
 
     virtual TError ExtractNodeToColumn(

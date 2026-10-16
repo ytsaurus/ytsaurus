@@ -33,6 +33,7 @@ target_link_libraries(yt-server-tablet_balancer PUBLIC
   yutil
   cpp-yt-phdr_cache
   library-cpp-getopt
+  yt-library-cypress_election
   yt-library-dynamic_config
   yt-library-orchid
   yt-library-server_program
@@ -40,7 +41,6 @@ target_link_libraries(yt-server-tablet_balancer PUBLIC
   yt-yt-ytlib
   yt-yt-core
   server-lib-admin
-  server-lib-cypress_election
   server-lib-cypress_registrar
   server-lib-misc
   server-lib-tablet_balancer

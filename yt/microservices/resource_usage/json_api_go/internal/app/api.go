@@ -14,6 +14,7 @@ import (
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/library/go/httputil/swaggerui"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 	"go.ytsaurus.tech/yt/microservices/resource_usage/json_api_go/docs"
 	"go.ytsaurus.tech/yt/microservices/resource_usage/json_api_go/internal/access"
 	resourceusage "go.ytsaurus.tech/yt/microservices/resource_usage/json_api_go/internal/resource_usage"
@@ -151,14 +152,14 @@ func (a *API) Routes() chi.Router {
 // @Failure 401 {object} WhoamiResponse
 // @Router /whoami [post]
 func (a *API) whoamiHandler(w http.ResponseWriter, r *http.Request) {
-	user, ok := r.Context().Value(access.AuthInfoKey).(access.AuthInfo)
+	user, ok := r.Context().Value(access.AuthInfoKey).(ytmsvc.AuthInfo)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(WhoamiResponse{Error: "failed to get user"})
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(WhoamiResponse{User: user.Login, IsService: user.IsService})
+	_ = json.NewEncoder(w).Encode(WhoamiResponse{User: user.UserLogin, Service: user.ServiceLogin})
 }
 
 // @Produce json
@@ -263,9 +264,10 @@ func (a *API) versionedResourceUsageHandler(w http.ResponseWriter, r *http.Reque
 // @Failure 401 {object} GetResourceUsageResponse
 // @Failure 500 {object} GetResourceUsageResponse
 // @Router /get-resource-usage [post]
+// @Router /get-children-and-resource-usage [post]
 func (a *API) resourceUsageHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	user, ok := ctx.Value(access.AuthInfoKey).(access.AuthInfo)
+	user, ok := ctx.Value(access.AuthInfoKey).(ytmsvc.AuthInfo)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(GetResourceUsageResponse{Error: "failed to get user"})
@@ -315,7 +317,7 @@ func (a *API) resourceUsageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = a.accessChecker.CheckAccess(ctx, req.Cluster, user.Login, resourceUsage.Items)
+	err = a.accessChecker.CheckAccess(ctx, req.Cluster, user.ActingLogin(), resourceUsage.Items)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Header().Set("Content-Type", "application/json")
@@ -328,6 +330,7 @@ func (a *API) resourceUsageHandler(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(GetResourceUsageResponse{
 		SnapshotTimestamp: resourceUsage.SnapshotTimestamp,
 		Fields:            resourceUsage.Fields,
+		VersionedFields:   resourceUsage.VersionedFields,
 		RowCount:          resourceUsage.RowCount,
 		Items:             resourceUsage.Items,
 		Mediums:           resourceUsage.Mediums,
@@ -343,9 +346,10 @@ func (a *API) resourceUsageHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} GetResourceUsageDiffResponse
 // @Failure 403 {object} GetResourceUsageDiffResponse
 // @Router /get-resource-usage-diff [post]
+// @Router /get-children-and-resource-usage-diff [post]
 func (a *API) resourceUsageDiffHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	user, ok := ctx.Value(access.AuthInfoKey).(access.AuthInfo)
+	user, ok := ctx.Value(access.AuthInfoKey).(ytmsvc.AuthInfo)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(GetResourceUsageDiffResponse{Error: "failed to get user"})
@@ -402,7 +406,7 @@ func (a *API) resourceUsageDiffHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = a.accessChecker.CheckAccess(ctx, req.Cluster, user.Login, resourceUsageDiff.Items)
+	err = a.accessChecker.CheckAccess(ctx, req.Cluster, user.ActingLogin(), resourceUsageDiff.Items)
 	if err != nil {
 		w.WriteHeader(http.StatusForbidden)
 		w.Header().Set("Content-Type", "application/json")
@@ -418,6 +422,7 @@ func (a *API) resourceUsageDiffHandler(w http.ResponseWriter, r *http.Request) {
 			Newer: resourceUsageDiff.NewSelectedSnapshot,
 		},
 		Fields:            resourceUsageDiff.Fields,
+		VersionedFields:   resourceUsageDiff.VersionedFields,
 		RowCount:          resourceUsageDiff.RowCount,
 		Items:             resourceUsageDiff.Items,
 		Mediums:           resourceUsageDiff.Mediums,

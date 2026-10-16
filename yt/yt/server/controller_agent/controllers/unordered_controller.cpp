@@ -17,10 +17,10 @@
 #include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
@@ -330,16 +330,14 @@ protected:
     void InitJobSizeConstraints()
     {
         JobSizeConstraints_ = CreateJobSizeConstraints();
-        YT_LOG_INFO(
-            "Calculated operation parameters (JobCount: %v, DataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
-            "MaxCompressedDataSizePerJob: %v, InputSliceDataWeight: %v, InputSliceRowCount: %v, IsExplicitJobCount: %v)",
-            JobSizeConstraints_->GetJobCount(),
-            JobSizeConstraints_->GetDataWeightPerJob(),
-            JobSizeConstraints_->GetMaxDataWeightPerJob(),
-            JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
-            JobSizeConstraints_->GetInputSliceDataWeight(),
-            JobSizeConstraints_->GetInputSliceRowCount(),
-            JobSizeConstraints_->IsExplicitJobCount());
+        YT_TLOG_INFO("Calculated operation parameters")
+            .With("JobCount", JobSizeConstraints_->GetJobCount())
+            .With("DataWeightPerJob", JobSizeConstraints_->GetDataWeightPerJob())
+            .With("MaxDataWeightPerJob", JobSizeConstraints_->GetMaxDataWeightPerJob())
+            .With("MaxCompressedDataSizePerJob", JobSizeConstraints_->GetMaxCompressedDataSizePerJob())
+            .With("InputSliceDataWeight", JobSizeConstraints_->GetInputSliceDataWeight())
+            .With("InputSliceRowCount", JobSizeConstraints_->GetInputSliceRowCount())
+            .With("IsExplicitJobCount", JobSizeConstraints_->IsExplicitJobCount());
     }
 
     virtual TUnorderedChunkPoolOptions GetUnorderedChunkPoolOptions() const
@@ -350,19 +348,18 @@ protected:
         options.MinTeleportChunkDataWeight = options.MinTeleportChunkSize;
         options.JobSizeConstraints = JobSizeConstraints_;
         options.SliceErasureChunksByParts = Spec_->SliceErasureChunksByParts;
-        options.Logger = Logger().WithTag("Name: Root");
+        options.Logger = Logger().WithTag("Name", "Root");
 
         return options;
     }
 
-    std::vector<TLegacyDataSlicePtr> CollectInputChunkSlices()
+    std::vector<TDataSlicePtr> CollectInputChunkSlices()
     {
-        YT_LOG_INFO("Collecting inputs");
+        YT_TLOG_INFO("Collecting inputs");
 
         i64 inputSliceDataWeightEstimation = CreateJobSizeConstraints()->GetInputSliceDataWeight();
-        YT_LOG_DEBUG(
-            "Calculated input slice data weight estimation for versioned data slices (InputSliceDataWeightEstimation: %v)",
-            inputSliceDataWeightEstimation);
+        YT_TLOG_DEBUG("Calculated input slice data weight estimation for versioned data slices")
+            .With("InputSliceDataWeightEstimation", inputSliceDataWeightEstimation);
 
         auto slices = CollectPrimaryInputDataSlices(inputSliceDataWeightEstimation);
         UpdateEstimatedInputStatistics(TInputStatisticsCollector::FromChunks(slices, /*isPrimary*/ true));
@@ -370,7 +367,7 @@ protected:
         return slices;
     }
 
-    void ProcessInputs(std::vector<TLegacyDataSlicePtr> inputDataSlices)
+    void ProcessInputs(std::vector<TDataSlicePtr> inputDataSlices)
     {
         auto periodicYielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
@@ -634,7 +631,7 @@ private:
     TUnorderedChunkPoolOptions GetUnorderedChunkPoolOptions() const override
     {
         auto options = TUnorderedControllerBase::GetUnorderedChunkPoolOptions();
-        if (Config_->EnableMapJobSizeAdjustment) {
+        if (Options_->EnableMapJobSizeAdjustment) {
             options.JobSizeAdjusterConfig = Options_->JobSizeAdjuster;
         }
 
@@ -768,6 +765,8 @@ IOperationControllerPtr CreateUnorderedMapController(
 {
     auto options = CreateOperationOptions(config->MapOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TMapOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    auto providedSpec = ParseOperationSpec<TMapOperationSpec>(operation->GetProvidedSpec());
+    ValidateAndEnrichVolumeSpec(config, spec, host, spec->Mapper.Get(), providedSpec->Mapper.Get());
     AdjustSamplingFromConfig(spec, config);
     return New<TMapController>(spec, config, options, host, operation);
 }
@@ -870,7 +869,7 @@ private:
         auto validateOutputNotSorted = [&] {
             if (table->TableUploadOptions.TableSchema->IsSorted()) {
                 THROW_ERROR_EXCEPTION("Cannot perform unordered merge into a sorted table in a \"strong\" schema mode")
-                    << TErrorAttribute("schema", *table->TableUploadOptions.TableSchema);
+                    .With("schema", *table->TableUploadOptions.TableSchema);
             }
         };
 
@@ -939,11 +938,12 @@ private:
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables() || InputHasDynamicStores();
             if (!isNontrivialInput && IsRowCountPreserved()) {
-                YT_LOG_ERROR_IF(EstimatedInputStatistics_->RowCount != TeleportedOutputRowCount_ + UnorderedTask_->GetTotalOutputRowCount(),
-                    "Input/output row count mismatch in unordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v, TeleportedOutputRowCount: %v)",
-                    EstimatedInputStatistics_->RowCount,
-                    UnorderedTask_->GetTotalOutputRowCount(),
-                    TeleportedOutputRowCount_);
+                YT_TLOG_ERROR_IF(
+                    EstimatedInputStatistics_->RowCount != TeleportedOutputRowCount_ + UnorderedTask_->GetTotalOutputRowCount(),
+                    "Input/output row count mismatch in unordered merge operation")
+                    .With("TotalEstimatedInputRowCount", EstimatedInputStatistics_->RowCount)
+                    .With("TotalOutputRowCount", UnorderedTask_->GetTotalOutputRowCount())
+                    .With("TeleportedOutputRowCount", TeleportedOutputRowCount_);
                 YT_VERIFY(EstimatedInputStatistics_->RowCount == TeleportedOutputRowCount_ + UnorderedTask_->GetTotalOutputRowCount());
                 if (Spec_->ForceTransform) {
                     YT_VERIFY(TeleportedOutputRowCount_ == 0);

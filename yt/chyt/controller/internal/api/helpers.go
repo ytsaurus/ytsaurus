@@ -71,6 +71,15 @@ func validateBool(value any) error {
 	return nil
 }
 
+func validateString(value any) error {
+	_, ok := value.(string)
+	if !ok {
+		typeName := reflect.TypeOf(value).String()
+		return unexpectedTypeError(typeName)
+	}
+	return nil
+}
+
 func transformToStringSlice(value any) (any, error) {
 	if value == nil {
 		return []string(nil), nil

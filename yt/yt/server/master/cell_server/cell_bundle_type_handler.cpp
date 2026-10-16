@@ -58,7 +58,7 @@ NObjectServer::TObject* TCellBundleTypeHandlerBase<TImpl>::FindObject(NObjectCli
 }
 
 template <class TImpl>
-NObjectClient::TCellTagList TCellBundleTypeHandlerBase<TImpl>::DoGetReplicationCellTags(const TImpl* /*cellBundle*/)
+NObjectClient::TCellTagSet TCellBundleTypeHandlerBase<TImpl>::DoGetReplicationCellTags(const TImpl* /*cellBundle*/)
 {
     return TBase::AllSecondaryCellTags();
 }

@@ -126,6 +126,10 @@ bool IsStringBinaryOp(EBinaryOp opcode);
 //! Cast values.
 TOwningValue CastValueWithCheck(TValue value, EValueType targetType);
 
+//! Throws if non-null operands have different or non-integral types.
+//! Returns a value with default Id and Flags, independent of operand metadata.
+TValue EvaluateModulo(TValue lhs, TValue rhs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(lukyan): Use opaque data descriptor instead of ObjectId, CellId and MountRevision.
@@ -177,6 +181,8 @@ struct TQueryBaseOptions
     // COMPAT(sabdenovch)
     bool AllowUnorderedGroupByWithLimit = true;
     std::optional<int> TruncatedQueryLengthForTracing;
+    bool PrefetchJoinTables = false;
+    bool EnableParallelizeUnorderedGroupBy = false;
 };
 
 struct TQueryOptions
@@ -214,6 +220,11 @@ struct TQueryOptions
     bool AdaptiveOrderedSchemafulReader = true;
     // COMPAT(sabdenovch)
     bool UseOrderByInJoinSubqueries = false;
+    bool AllowUdfObjectCodeCache = false;
+
+    bool AllowReverseScanForOrderBy = false;
+
+    std::optional<i64> JoinCacheSize;
 
     NHydra::EPeerKind ReadFrom = NHydra::EPeerKind::Leader;
 };
@@ -222,6 +233,16 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original);
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized);
 
 TQueryOptions GetJoinSubqueryOptions(const TQueryOptions& queryOptions);
+
+struct TJoinSubqueryOptionsPatch
+{
+    std::optional<NTransactionClient::TTimestamp> Timestamp;
+    std::optional<int> MaxSubqueries;
+};
+
+TQueryOptions ApplyJoinSubqueryOptionsPatch(
+    const TQueryOptions& base,
+    const TJoinSubqueryOptionsPatch& patch);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -270,6 +291,9 @@ struct TPreparePlanFragmentOptions
     bool ShouldRewriteCardinalityIntoHyperLogLog = false; // COMPAT(dtorilov): Remove after 25.4.
     int HyperLogLogPrecision = 14;
     bool AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse = false; // COMPAT(dtorilov): Remove after 26.1.
+    bool AllowReverseScanForOrderBy = false;
+    std::optional<int> MaxProjectionCount;
+    bool EnableScalarSubqueryOrderByAndLimit = false; // COMPAT(dtorilov): Remove after 26.2.
 };
 
 struct TPreparePlanFragmentContext

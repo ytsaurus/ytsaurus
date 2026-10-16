@@ -8,4 +8,6 @@ JAR_RESOURCE(2395383725)
 
 SRC_RESOURCE(2395383766)
 
+ORIGINAL_SOURCE(https://github.com/apiguardian-team/apiguardian)
+
 END()

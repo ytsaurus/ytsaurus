@@ -1,7 +1,7 @@
 #include "dq_input_transform_lookup.h"
 
 #include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor_async_io_factory.h>
-#include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor_watermarks.h>
+#include <contrib/ydb/library/yql/dq/runtime/streaming/dq_compute_actor_watermarks.h>
 #include <yql/essentials/minikql/mkql_string_util.h>
 #include <yql/essentials/minikql/mkql_node_serialization.h>
 #include <yql/essentials/minikql/mkql_type_builder.h>
@@ -49,8 +49,7 @@ public:
         const NMiniKQL::TMultiType* outputRowType,
         TOutputRowColumnOrder&& outputRowColumnOrder,
         TDqComputeActorWatermarks* watermarksTracker,
-        const THashMap<TString, TString>& secureParams,
-        size_t fullscanRowLimit = 5000)
+        const THashMap<TString, TString>& secureParams)
         : TActor(&TInputTransformStreamLookupDerivedBase::StateFunc)
         , Alloc(alloc)
         , HolderFactory(holderFactory)
@@ -62,7 +61,7 @@ public:
         , Factory(factory)
         , Settings(std::move(settings))
         , SecureParams(secureParams)
-        , FullscanRowLimit(Min(fullscanRowLimit, (size_t)Settings.GetCacheLimit()))
+        , FullscanRowLimit(Settings.HasFullscanLimit() ? Settings.GetFullscanLimit() : Settings.GetCacheLimit())
         , LookupInputIndexes(std::move(lookupInputIndexes))
         , OtherInputIndexes(std::move(otherInputIndexes))
         , InputRowType(inputRowType)
@@ -73,7 +72,8 @@ public:
         , OutputRowColumnOrder(std::move(outputRowColumnOrder))
         , WatermarksTracker(watermarksTracker)
         , InputFlowFetchStatus(NUdf::EFetchStatus::Yield)
-        , LruCache(std::make_unique<NKikimr::NMiniKQL::TUnboxedKeyValueLruCacheWithTtl>(Settings.GetCacheLimit(), lookupKeyType))
+        , LruCache(std::make_unique<NKikimr::NMiniKQL::TUnboxedKeyValueLruCacheWithTtl>(std::max(Settings.GetCacheLimit(), ui64(1)), lookupKeyType))
+        , DisableLruCache(Settings.GetCacheLimit() < 1)
         , MaxDelayedRows(Settings.GetMaxDelayedRows())
         , CacheTtl(std::chrono::seconds(Settings.GetCacheTtlSeconds()))
         , IsMultiMatches(Settings.GetIsMultiMatches())
@@ -124,6 +124,7 @@ private: //IDqComputeActorAsyncInput
         InputFlowFetchStatus = NUdf::EFetchStatus::Finish;
         this->Send(LookupSourceId, new NActors::TEvents::TEvPoison{});
         static_cast<TDerived *>(this)->Free();
+        TActor::PassAway();
     }
 
     void Free() {
@@ -280,6 +281,7 @@ protected:
     TDqComputeActorWatermarks* WatermarksTracker;
     NUdf::EFetchStatus InputFlowFetchStatus;
     std::unique_ptr<NKikimr::NMiniKQL::TUnboxedKeyValueLruCacheWithTtl> LruCache;
+    const bool DisableLruCache;
     size_t MaxDelayedRows;
     std::chrono::seconds CacheTtl;
     static constexpr auto MinFullscanFailureTtl = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::hours(1)); // TODO make tuneable
@@ -399,9 +401,11 @@ private:
 #if 0 // TODO
             // Opportunistially populate LRU cache with partial fullscan results
             // (again, in case of MultiMatches, we cannot use partial results)
-            for (auto& [k, v]: *lookupResult) {
-                Y_DEBUG_ABORT_UNLESS(v);
-                LruCache->Update<true>(NUdf::TUnboxedValue(k), std::move(v), now + CacheTtl);
+            if (!DisableLruCache) {
+                for (auto& [k, v]: *lookupResult) {
+                    Y_DEBUG_ABORT_UNLESS(v);
+                    LruCache->Update<true>(NUdf::TUnboxedValue(k), std::move(v), now + CacheTtl);
+                }
             }
 #endif
         }
@@ -422,7 +426,7 @@ private:
         } else {
             Y_ABORT_UNLESS(lookupResult == KeysForLookup);
             lookupResult.reset();
-            if (!FullscanReady) { // don't populate LRU cache when we have (complete) fullscan results
+            if (!FullscanReady && !DisableLruCache) { // don't populate LRU cache when we have (complete) fullscan results
                 for (auto& [k, v]: *KeysForLookup) {
                     LruCache->Update(NUdf::TUnboxedValue(k), std::move(v), now + CacheTtl);
                 }
@@ -507,9 +511,9 @@ private:
                 ++row;
             }
             CheckPendingWatermark();
-            if (Batches && (!KeysForLookup->empty() || ReadyQueue.RowCount())) {
+            if (Batches && row) {
                 Batches->Inc();
-                LruHits->Add(ReadyQueue.RowCount());
+                LruHits->Add(row - AwaitingQueue.size());
                 LruMiss->Add(AwaitingQueue.size());
             }
             if (KeysForLookup->empty()) {
@@ -651,8 +655,10 @@ private: //events
         } else {
             PushReadyWatermark();
         }
-        for (auto&& [k, v]: *lookupResult) {
-            LruCache->Update(NUdf::TUnboxedValue(const_cast<NUdf::TUnboxedValue&&>(k)), std::move(v), now + CacheTtl);
+        if (!DisableLruCache) {
+            for (auto&& [k, v]: *lookupResult) {
+                LruCache->Update(NUdf::TUnboxedValue(const_cast<NUdf::TUnboxedValue&&>(k)), std::move(v), now + CacheTtl);
+            }
         }
         KeysForLookup->clear();
         auto deltaLruSize = (i64)LruCache->Size() - LastLruSize;
@@ -1129,7 +1135,8 @@ THashMap<TStringBuf, size_t> GetNameToIndex(TIndex size, TGetter&& getter) {
 }
 
 THashMap<TStringBuf, size_t> GetNameToIndex(const ::google::protobuf::RepeatedPtrField<TProtoStringType>& names) {
-    return GetNameToIndex(names.size(), [&names](auto idx) {
+    // the map keys are views: return the proto strings by reference, not as temporaries
+    return GetNameToIndex(names.size(), [&names](auto idx) -> const TProtoStringType& {
         return names[idx];
     });
 }
@@ -1154,7 +1161,7 @@ TVector<size_t> GetJoinColumnIndexes(TIndex size, TGetter&& getter, const THashM
 
 [[maybe_unused]]
 TVector<size_t> GetJoinColumnIndexes(const ::google::protobuf::RepeatedPtrField<TProtoStringType>& names, const THashMap<TStringBuf, size_t>& joinColumns) {
-    return GetJoinColumnIndexes(names.size(), [&names](auto idx) {
+    return GetJoinColumnIndexes(names.size(), [&names](auto idx) -> const TProtoStringType& {
         return names[idx];
     }, joinColumns);
 }

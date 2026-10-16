@@ -900,7 +900,21 @@ static void rd_kafka_offset_validate_tmr_cb(rd_kafka_timers_t *rkts,
         rd_kafka_toppar_t *rktp = arg;
 
         rd_kafka_toppar_lock(rktp);
-        rd_kafka_offset_validate(rktp, "retrying offset validation");
+        /* Retry validation only when it's still needed.
+         * Even if validation can be started in fetch states ACTIVE and
+         * VALIDATE_EPOCH_WAIT, its retry should be done only
+         * in fetch state VALIDATE_EPOCH_WAIT. */
+        if (rktp->rktp_fetch_state == RD_KAFKA_TOPPAR_FETCH_VALIDATE_EPOCH_WAIT)
+                rd_kafka_offset_validate(rktp, "retrying offset validation");
+        else {
+                rd_kafka_dbg(rktp->rktp_rkt->rkt_rk, FETCH, "VALIDATE",
+                             "%.*s [%" PRId32
+                             "]: skipping offset "
+                             "validation retry in fetch state %s",
+                             RD_KAFKAP_STR_PR(rktp->rktp_rkt->rkt_topic),
+                             rktp->rktp_partition,
+                             rd_kafka_fetch_states[rktp->rktp_fetch_state]);
+        }
         rd_kafka_toppar_unlock(rktp);
 }
 
@@ -923,6 +937,9 @@ static void rd_kafka_toppar_handle_OffsetForLeaderEpoch(rd_kafka_t *rk,
         rd_kafka_topic_partition_t *rktpar;
         int64_t end_offset;
         int32_t end_offset_leader_epoch;
+        rd_kafka_toppar_lock(rktp);
+        rktp->rktp_flags &= ~RD_KAFKA_TOPPAR_F_VALIDATING;
+        rd_kafka_toppar_unlock(rktp);
 
         if (err == RD_KAFKA_RESP_ERR__DESTROY) {
                 rd_kafka_toppar_destroy(rktp); /* Drop refcnt */
@@ -1142,12 +1159,10 @@ void rd_kafka_offset_validate(rd_kafka_toppar_t *rktp, const char *fmt, ...) {
                 rd_kafka_dbg(rktp->rktp_rkt->rkt_rk, FETCH, "VALIDATE",
                              "%.*s [%" PRId32
                              "]: unable to perform offset "
-                             "validation: partition leader not available",
+                             "validation: partition leader not available. "
+                             "Retrying when available",
                              RD_KAFKAP_STR_PR(rktp->rktp_rkt->rkt_topic),
                              rktp->rktp_partition);
-
-                rd_kafka_toppar_set_fetch_state(rktp,
-                                                RD_KAFKA_TOPPAR_FETCH_ACTIVE);
                 return;
         }
 
@@ -1169,8 +1184,21 @@ void rd_kafka_offset_validate(rd_kafka_toppar_t *rktp, const char *fmt, ...) {
                 return;
         }
 
+        if (rktp->rktp_flags & RD_KAFKA_TOPPAR_F_VALIDATING) {
+                rd_kafka_dbg(
+                    rktp->rktp_rkt->rkt_rk, FETCH, "VALIDATE",
+                    "%.*s [%" PRId32
+                    "]: skipping offset "
+                    "validation for %s: validation is already ongoing",
+                    RD_KAFKAP_STR_PR(rktp->rktp_rkt->rkt_topic),
+                    rktp->rktp_partition,
+                    rd_kafka_fetch_pos2str(rktp->rktp_offset_validation_pos));
+                return;
+        }
+
         rd_kafka_toppar_set_fetch_state(
             rktp, RD_KAFKA_TOPPAR_FETCH_VALIDATE_EPOCH_WAIT);
+        rktp->rktp_flags |= RD_KAFKA_TOPPAR_F_VALIDATING;
 
         /* Construct and send OffsetForLeaderEpochRequest */
         parts  = rd_kafka_topic_partition_list_new(1);

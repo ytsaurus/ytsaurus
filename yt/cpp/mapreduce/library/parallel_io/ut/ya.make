@@ -30,6 +30,9 @@ SIZE(MEDIUM)
 
 REQUIREMENTS(ram_disk:4 cpu:4 ram:9)
 
+# Dummy signature generation for file partition cookies
+SET(YT_CONFIG_PATCH {proxy_config={signature_components={generation={generator={};cypress_key_writer={owner_id="test"};key_rotator={}};validation={cypress_key_reader={}}}};})
+
 IF (NOT OPENSOURCE)
     INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
 ENDIF()

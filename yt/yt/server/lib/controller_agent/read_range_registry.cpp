@@ -7,10 +7,8 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReadRangeRegistry::RegisterDataSlice(const TLegacyDataSlicePtr& dataSlice)
+void TReadRangeRegistry::RegisterDataSlice(const TDataSlicePtr& dataSlice)
 {
-    YT_VERIFY(!dataSlice->IsLegacy);
-
     auto readRangeIndex = Ranges_.size();
     dataSlice->ReadRangeIndex = readRangeIndex;
     auto& readRange = Ranges_.emplace_back();
@@ -18,9 +16,8 @@ void TReadRangeRegistry::RegisterDataSlice(const TLegacyDataSlicePtr& dataSlice)
     readRange.UpperBound = dataSlice->UpperLimit().KeyBound;
 }
 
-void TReadRangeRegistry::ApplyReadRange(const TLegacyDataSlicePtr& dataSlice, const TComparator& comparator) const
+void TReadRangeRegistry::ApplyReadRange(const TDataSlicePtr& dataSlice, const TComparator& comparator) const
 {
-    YT_VERIFY(!dataSlice->IsLegacy);
     YT_VERIFY(dataSlice->ReadRangeIndex);
 
     const auto& readRange = Ranges_[*dataSlice->ReadRangeIndex];
@@ -28,7 +25,6 @@ void TReadRangeRegistry::ApplyReadRange(const TLegacyDataSlicePtr& dataSlice, co
     comparator.ReplaceIfStrongerKeyBound(dataSlice->UpperLimit().KeyBound, readRange.UpperBound);
 
     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-        YT_VERIFY(!chunkSlice->IsLegacy);
         // There is no difference between replacing with dataSlice->LowerLimit().KeyBound and readRange.LowerBound;
         // it should be true that chunk slice ranges already fit into the data slice range.
         comparator.ReplaceIfStrongerKeyBound(chunkSlice->LowerLimit().KeyBound, dataSlice->LowerLimit().KeyBound);

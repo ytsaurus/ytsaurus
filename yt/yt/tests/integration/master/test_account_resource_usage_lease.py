@@ -4,11 +4,9 @@ from yt_commands import (
     authors,
     exists, remove, get, set, ls,
     get_account_disk_space, create_account, create_user, create_account_resource_usage_lease,
-    start_transaction, abort_transaction, commit_transaction)
+    start_transaction, abort_transaction, commit_transaction, raises_yt_error)
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError
-
 import pytest
 
 
@@ -19,7 +17,6 @@ def update_account_resource_usage_lease(lease_id, resources, **kwargs):
     set("#{}/@resource_usage".format(lease_id), resources, **kwargs)
 
 
-@pytest.mark.enabled_multidaemon
 class TestAccountResourceUsageLease(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -35,12 +32,12 @@ class TestAccountResourceUsageLease(YTEnvSetup):
     def test_simple(self):
         create_account("a")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No such transaction .*"):
             create_account_resource_usage_lease(account="a", transaction_id="0-0-0-0")
 
         tx = start_transaction()
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No such account .*"):
             create_account_resource_usage_lease(account="non_existing", transaction_id=tx)
 
         lease_id = create_account_resource_usage_lease(account="a", transaction_id=tx)
@@ -166,7 +163,7 @@ class TestAccountResourceUsageLease(YTEnvSetup):
         lease_id = create_account_resource_usage_lease(account="a", transaction_id=tx)
 
         # Negative resources.
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid disk space size"):
             update_account_resource_usage_lease(
                 lease_id,
                 resources={"disk_space_per_medium": {"default": -1000}})
@@ -174,7 +171,7 @@ class TestAccountResourceUsageLease(YTEnvSetup):
         commit_transaction(tx)
 
         # Missing lease.
-        with pytest.raises(YtError):
+        with raises_yt_error("No such object .*"):
             update_account_resource_usage_lease(
                 lease_id,
                 resources={"disk_space_per_medium": {"default": 1000}})
@@ -194,7 +191,7 @@ class TestAccountResourceUsageLease(YTEnvSetup):
             resources={"disk_space_per_medium": {"default": 500}})
         assert get_account_disk_space("a") == 500
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over disk space limit in medium .*"):
             update_account_resource_usage_lease(
                 lease_id,
                 resources={"disk_space_per_medium": {"default": 1001}})
@@ -209,7 +206,7 @@ class TestAccountResourceUsageLease(YTEnvSetup):
         tx = start_transaction()
         lease_id = create_account_resource_usage_lease(account="a", transaction_id=tx)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             update_account_resource_usage_lease(
                 lease_id,
                 resources={"disk_space_per_medium": {"default": 500}},
@@ -225,16 +222,16 @@ class TestAccountResourceUsageLease(YTEnvSetup):
         assert exists("#" + lease_id)
         assert get_account_disk_space("a") == 0
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Account resource usage lease update supports only disk resources, but .* is specified"):
             update_account_resource_usage_lease(lease_id, resources={"node_count": 1})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Account resource usage lease update supports only disk resources, but .* is specified"):
             update_account_resource_usage_lease(lease_id, resources={"chunk_count": 1})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Account resource usage lease update supports only disk resources, but .* is specified"):
             update_account_resource_usage_lease(lease_id, resources={"tablet_count": 1})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Account resource usage lease update supports only disk resources, but .* is specified"):
             update_account_resource_usage_lease(lease_id, resources={"tablet_static_memory": 1024 * 1024})
 
         update_account_resource_usage_lease(

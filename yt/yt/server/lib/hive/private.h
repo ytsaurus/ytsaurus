@@ -10,8 +10,8 @@ namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, HiveServerLogger, "HiveServer");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, HiveServerProfiler, "/hive");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, HiveServerLogger, "HiveServer");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, HiveServerProfiler, "/hive");
 
 class TMailbox;
 DECLARE_ENTITY_TYPE(TCellMailbox, TCellId, ::THash<TCellId>)

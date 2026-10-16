@@ -17,6 +17,8 @@ from .operation_commands import (  # noqa
     update_operation_parameters, patch_operation_spec,
     get_operation, list_operations, list_operation_events)
 from .job_commands import get_job, list_jobs  # noqa
+from .queue_commands import (  # noqa
+    register_queue_consumer, unregister_queue_consumer, list_queue_consumer_registrations)
 from .transaction_commands import start_transaction, abort_transaction, commit_transaction, ping_transaction  # noqa
 from .job_commands import abort_job  # noqa
 from .etc_commands import generate_timestamp, transfer_account_resources, transfer_pool_resources  # noqa

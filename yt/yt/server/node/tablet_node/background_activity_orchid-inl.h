@@ -47,8 +47,8 @@ void TBackgroundActivityOrchid<TTaskInfo>::OnTaskAborted(TGuid taskId)
 {
     auto guard = Guard(SpinLock_);
     if (!PendingTasks_.erase(taskId)) {
-        YT_LOG_ALERT("Attempted to abort tablet background activity task which is not pending, ignored (TaskId: %v)",
-            taskId);
+        YT_TLOG_ALERT("Attempted to abort tablet background activity task which is not pending, ignored")
+            .With("TaskId", taskId);
     }
 }
 
@@ -69,8 +69,8 @@ void TBackgroundActivityOrchid<TTaskInfo>::OnTaskStarted(TGuid taskId)
         RunningTasks_.emplace(taskId, std::move(task));
         PendingTasks_.erase(it);
     } else {
-        YT_LOG_ALERT("Attempted to start tablet background activity task which is not pending, ignored (TaskId: %v)",
-            taskId);
+        YT_TLOG_ALERT("Attempted to start tablet background activity task which is not pending, ignored")
+            .With("TaskId", taskId);
     }
 }
 
@@ -168,8 +168,8 @@ void TBackgroundActivityOrchid<TTaskInfo>::OnTaskFinished(
         deque->push_back(std::move(task));
         RunningTasks_.erase(it);
     } else {
-        YT_LOG_ALERT("Attempted to finish tablet background activity task which is not running, ignored (TaskId: %v)",
-            taskId);
+        YT_TLOG_ALERT("Attempted to finish tablet background activity task which is not running, ignored")
+            .With("TaskId", taskId);
     }
 }
 

@@ -23,7 +23,11 @@ class TTabletServant
 public:
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellRawPtr, Cell);
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State, ETabletState::Unmounted);
+    // Revision of the physical mounting.
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, MountRevision);
+    // Revision of the most recent mounting with no significant configuration changes.
+    // This revision may be preserved during smooth movement.
+    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, LogicalMountRevision);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, MountTime);
     DEFINE_BYVAL_RW_PROPERTY(
         NTabletNode::ESmoothMovementRole,

@@ -8,9 +8,13 @@
 #include <yt/yt/core/utilex/random.h>
 
 #include <yt/yt/server/lib/io/io_engine.h>
+#include <yt/yt/server/lib/io/private.h>
 
 #include <util/system/fs.h>
 #include <util/system/tempfile.h>
+
+#include <limits>
+#include <optional>
 
 namespace NYT::NIO {
 namespace {
@@ -32,6 +36,120 @@ void WriteFile(const std::string& fileName, TRef data)
 {
     TFile file(fileName, WrOnly | CreateAlways);
     file.Pwrite(data.Begin(), data.Size(), 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TFairShareHierarchicalIOEngineTest, RequestsWithLowerWeightedConsumptionAreProcessedFirst)
+{
+    auto scheduler = CreateFairShareHierarchicalScheduler<std::string>(
+        New<TFairShareHierarchicalSchedulerDynamicConfig>());
+    auto queue = CreateFairShareHierarchicalSlotQueue(scheduler);
+
+    const std::vector<TFairShareHierarchyLevel<std::string>> levels = {
+        {"root", 1.0},
+    };
+    auto lowerWeightedConsumptionSlot = queue->EnqueueSlot(1, {}, levels).ValueOrThrow();
+    auto higherWeightedConsumptionSlot = queue->EnqueueSlot(1, {}, levels).ValueOrThrow();
+
+    const auto compareRequests = [&] (
+        const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& lhs,
+        const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& rhs)
+    {
+        auto getFairShareState = [&] (const auto& slot) {
+            return slot == lowerWeightedConsumptionSlot
+                ? TIOFairShareState{.IOConsumed = 20, .IOFairShareWeight = 2.0}
+                : TIOFairShareState{.IOConsumed = 15, .IOFairShareWeight = 1.0};
+        };
+
+        return CompareIOFairShareStates(getFairShareState(lhs), getFairShareState(rhs));
+    };
+
+    EXPECT_EQ(
+        queue->PeekSlot(
+            {lowerWeightedConsumptionSlot->GetSlotId(), higherWeightedConsumptionSlot->GetSlotId()},
+            compareRequests),
+        lowerWeightedConsumptionSlot);
+}
+
+TEST(TFairShareHierarchicalIOEngineTest, EqualRequestStatisticsPreserveFifoOrder)
+{
+    auto scheduler = CreateFairShareHierarchicalScheduler<std::string>(
+        New<TFairShareHierarchicalSchedulerDynamicConfig>());
+    auto queue = CreateFairShareHierarchicalSlotQueue(scheduler);
+
+    const std::vector<TFairShareHierarchyLevel<std::string>> levels = {
+        {"root", 1.0},
+    };
+    auto firstSlot = queue->EnqueueSlot(1, {}, levels).ValueOrThrow();
+    Sleep(TDuration::MilliSeconds(1));
+    auto secondSlot = queue->EnqueueSlot(1, {}, levels).ValueOrThrow();
+
+    const auto compareRequests = [&] (
+        const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& lhs,
+        const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& rhs)
+    {
+        auto comparisonResult = CompareIOFairShareStates(
+            TIOFairShareState{.IOConsumed = 10, .IOFairShareWeight = 1.0},
+            TIOFairShareState{.IOConsumed = 20, .IOFairShareWeight = 2.0});
+        return std::is_eq(comparisonResult) ? CompareByEnqueueTime(lhs, rhs) : comparisonResult;
+    };
+
+    EXPECT_EQ(
+        queue->PeekSlot({firstSlot->GetSlotId(), secondSlot->GetSlotId()}, compareRequests),
+        firstSlot);
+}
+
+TEST(TIOFairShareStateTest, MakesOnlyValidState)
+{
+    EXPECT_TRUE(MakeIOFairShareState(0, 1.0));
+    EXPECT_TRUE(MakeIOFairShareState(1, 0.5));
+
+    EXPECT_FALSE(MakeIOFairShareState({}, 1.0));
+    EXPECT_FALSE(MakeIOFairShareState(0, {}));
+    EXPECT_FALSE(MakeIOFairShareState(-1, 1.0));
+    EXPECT_TRUE(MakeIOFairShareState(0, 0.0));
+    EXPECT_FALSE(MakeIOFairShareState(0, -1.0));
+    EXPECT_FALSE(MakeIOFairShareState(0, std::numeric_limits<double>::quiet_NaN()));
+    EXPECT_FALSE(MakeIOFairShareState(0, std::numeric_limits<double>::infinity()));
+}
+
+TEST(TIOFairShareStateTest, RequestsWithoutStatisticsHaveGuaranteedPriority)
+{
+    const auto state = TIOFairShareState{
+        .IOConsumed = 0,
+        .IOFairShareWeight = 1.0,
+    };
+
+    EXPECT_TRUE(std::is_lt(CompareIOFairShareStates(std::nullopt, state)));
+    EXPECT_TRUE(std::is_gt(CompareIOFairShareStates(state, std::nullopt)));
+    EXPECT_TRUE(std::is_eq(CompareIOFairShareStates(std::nullopt, std::nullopt)));
+}
+
+TEST(TIOFairShareStateTest, RequestsWithZeroWeightHaveLowestPriority)
+{
+    const auto zeroWeightState = TIOFairShareState{
+        .IOConsumed = 0,
+        .IOFairShareWeight = 0.0,
+    };
+    const auto positiveWeightState = TIOFairShareState{
+        .IOConsumed = 10,
+        .IOFairShareWeight = 1.0,
+    };
+    const auto anotherZeroWeightState = TIOFairShareState{
+        .IOConsumed = 10,
+        .IOFairShareWeight = 0.0,
+    };
+
+    EXPECT_TRUE(std::is_gt(CompareIOFairShareStates(
+        zeroWeightState,
+        positiveWeightState)));
+    EXPECT_TRUE(std::is_lt(CompareIOFairShareStates(
+        positiveWeightState,
+        zeroWeightState)));
+    EXPECT_TRUE(std::is_eq(CompareIOFairShareStates(
+        zeroWeightState,
+        anotherZeroWeightState)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -352,7 +470,7 @@ TEST_P(TIOEngineTest, ChangeDynamicConfig)
         {
             uring_thread_count = %v;
             read_thread_count = %v;
-            enable_slicing = %v;
+            enable_slicing = %lv;
             simulated_max_bytes_per_write = 512;
         })";
 
@@ -540,6 +658,7 @@ const char DefaultConfig[] =
 const char CustomConfig[] =
     "{"
     "    max_bytes_per_read = 4099;"
+    "    max_bytes_per_write = 4099;"
     "    simulated_max_bytes_per_read = 4096;"
     "    simulated_max_bytes_per_write = 4096;"
     "    large_unaligned_direct_io_read_size = 16384;"
@@ -550,30 +669,31 @@ const char CustomConfig[] =
 bool AllocatorBehaviourCollocate(false);
 bool AllocatorBehaviourSeparate(true);
 
+const auto IOEngineTestParams = ::testing::Values(
+    std::tuple(EIOEngineType::ThreadPool, DefaultConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::ThreadPool, CustomConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::ThreadPool, DefaultConfig, AllocatorBehaviourSeparate),
+
+    std::tuple(EIOEngineType::FairShareThreadPool, DefaultConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::FairShareThreadPool, CustomConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::FairShareThreadPool, DefaultConfig, AllocatorBehaviourSeparate),
+
+    std::tuple(EIOEngineType::FairShareHierarchical, DefaultConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::FairShareHierarchical, CustomConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::FairShareHierarchical, DefaultConfig, AllocatorBehaviourSeparate),
+
+    std::tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::Uring, CustomConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourSeparate),
+
+    std::tuple(EIOEngineType::FairShareUring, DefaultConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::FairShareUring, CustomConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::FairShareUring, DefaultConfig, AllocatorBehaviourSeparate));
+
 INSTANTIATE_TEST_SUITE_P(
     TIOEngineTest,
     TIOEngineTest,
-    ::testing::Values(
-        std::tuple(EIOEngineType::ThreadPool, DefaultConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::ThreadPool, CustomConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::ThreadPool, DefaultConfig, AllocatorBehaviourSeparate),
-
-        std::tuple(EIOEngineType::FairShareThreadPool, DefaultConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::FairShareThreadPool, CustomConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::FairShareThreadPool, DefaultConfig, AllocatorBehaviourSeparate),
-
-        std::tuple(EIOEngineType::FairShareHierarchical, DefaultConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::FairShareHierarchical, CustomConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::FairShareHierarchical, DefaultConfig, AllocatorBehaviourSeparate),
-
-        std::tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::Uring, CustomConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourSeparate),
-
-        std::tuple(EIOEngineType::FairShareUring, DefaultConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::FairShareUring, CustomConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::FairShareUring, DefaultConfig, AllocatorBehaviourSeparate))
-);
+    IOEngineTestParams);
 
 TEST_P(TIOEngineTest, Lock)
 {
@@ -628,6 +748,124 @@ TEST_P(TIOEngineTest, Lock)
     }))
         .ThrowOnError();
 }
+
+class TIOEngineDirectIOWriteTest
+    : public TIOEngineTest
+{
+protected:
+    void WriteAndUpdateExpected(
+        const IIOEnginePtr& engine,
+        const TSharedMutableRef& expected,
+        const TIOEngineHandlePtr& handle,
+        i64 offset,
+        TSharedMutableRef buffer)
+    {
+        auto size = std::ssize(buffer);
+        auto paddedSize = AlignUp(size, engine->GetBlockSize());
+        auto paddedEnd = std::min<i64>(expected.Size(), offset + paddedSize);
+        std::copy(buffer.Begin(), buffer.End(), expected.Begin() + offset);
+        std::fill(expected.Begin() + offset + size, expected.Begin() + paddedEnd, 0);
+        WaitForFast(engine->Write({
+            .Handle = handle,
+            .Offset = offset,
+            .Buffers = {std::move(buffer)},
+            .Flush = true,
+        }))
+            .ThrowOnError();
+    }
+
+    auto CreateFilledBuffer(i64 bufferSize, char symbol, std::optional<i64> alignment = {})
+    {
+        auto res = alignment
+            ? TSharedMutableRef::AllocateAligned(bufferSize, *alignment, {.InitializeStorage = false}, {})
+            : TSharedMutableRef::Allocate(bufferSize);
+        std::fill(res.Begin(), res.End(), symbol);
+        return res;
+    }
+
+    auto ReadFile(const std::string& fileName, i64 fileSize)
+    {
+        auto data = TSharedMutableRef::Allocate(fileSize);
+        TFile rawFile(fileName, RdOnly);
+        rawFile.Pload(data.Begin(), data.Size(), 0);
+        return data;
+    }
+};
+
+TEST_P(TIOEngineDirectIOWriteTest, WriteWithUnalignedOffset)
+{
+    auto engine = CreateIOEngine();
+
+    const i64 blockSize = engine->GetBlockSize();
+    const i64 fileSize = 5 * blockSize;
+
+    auto fileName = GenerateRandomFileName("IOEngine");
+    TTempFile tempFile(fileName);
+
+    auto initialData = TSharedMutableRef::Allocate(fileSize);
+    std::fill(initialData.Begin(), initialData.End(), 'A');
+    WriteFile(fileName, initialData);
+
+    auto file = WaitForFast(engine->Open({
+        fileName,
+        RdWr | DirectAligned,
+    }))
+        .ValueOrThrow();
+
+    ASSERT_TRUE(file->IsOpenForDirectIO());
+    EXPECT_THROW({
+        WaitForFast(engine->Write({
+            .Handle = file,
+            .Offset = blockSize + 1,
+            .Buffers = {CreateFilledBuffer(blockSize, 'B', blockSize)},
+            .Flush = true,
+        }))
+            .ThrowOnError();
+    }, TErrorException);
+}
+
+TEST_P(TIOEngineDirectIOWriteTest, WriteWithUnalignedBufferAndSize)
+{
+    auto engine = CreateIOEngine();
+
+    const i64 blockSize = engine->GetBlockSize();
+    const i64 fileSize = 5 * blockSize;
+
+    auto fileName = GenerateRandomFileName("IOEngine");
+    TTempFile tempFile(fileName);
+
+    auto initialData = TSharedMutableRef::Allocate(fileSize);
+    std::fill(initialData.Begin(), initialData.End(), 'A');
+    WriteFile(fileName, initialData);
+
+    auto file = WaitForFast(engine->Open({
+        fileName,
+        RdWr | DirectAligned,
+    }))
+        .ValueOrThrow();
+
+    ASSERT_TRUE(file->IsOpenForDirectIO());
+    auto unalignedBuffer = CreateFilledBuffer(blockSize + 1, 'B', blockSize).Slice(1, blockSize + 1);
+    ASSERT_NE(reinterpret_cast<i64>(unalignedBuffer.Begin()) % blockSize, 0);
+    ASSERT_NO_THROW(WriteAndUpdateExpected(engine, initialData, file, blockSize, std::move(unalignedBuffer)));
+
+    ASSERT_NO_THROW(WriteAndUpdateExpected(engine, initialData, file, blockSize * 3, CreateFilledBuffer(blockSize + 1, 'C', blockSize)));
+
+    WaitForFast(engine->FlushFile({
+        file,
+        EFlushFileMode::Data,
+    }))
+        .ThrowOnError();
+
+    file.Reset();
+
+    EXPECT_TRUE(TRef::AreBitwiseEqual(ReadFile(fileName, fileSize), initialData));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TIOEngineDirectIOWriteTest,
+    TIOEngineDirectIOWriteTest,
+    IOEngineTestParams);
 
 ////////////////////////////////////////////////////////////////////////////////
 

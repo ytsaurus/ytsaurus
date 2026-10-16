@@ -2,9 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/io/public.h>
 #include <yt/yt/server/lib/io/io_tracker.h>
-
-#include <yt/yt/server/lib/nbd/chunk_block_device.h>
 
 #include <yt/yt/server/node/data_node/location.h>
 
@@ -20,6 +19,8 @@
 #include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/library/nbd/config.h>
 
 #include <yt/yt/core/actions/signal.h>
 
@@ -40,6 +41,7 @@ public:
     {
         i64 CumulativeBlockSize;
         TWorkloadDescriptor WorkloadDescriptor;
+        std::optional<NIO::TIOFairShareState> FairShareState;
 
         std::strong_ordering operator<=>(const TRequest& other) const
         {
@@ -53,22 +55,23 @@ public:
     TSessionId GetSessionId() const;
 
     void CancelRequests();
-    bool IsCanceled() const;
+    bool HasRequests() const;
 
     i64 GetCurrentApprovedMemory() const;
     i64 GetMaxRequestedMemory() const;
 
     std::optional<TRequest> TryGetMinRequest();
-    void ApproveRequest(TLocationMemoryGuard&& memoryGuard, TRequest request);
+    void ApproveRequest(TLocationMemoryGuard&& memoryGuard, TRequest request, NNode::TLocationFairShareSlotPtr slot = nullptr);
 
     void PushRequest(TRequest request);
 
     void ReleaseResourcesForPutBlocks(i64 memory);
+    NNode::TLocationFairShareSlotPtr FindFairShareQueueSlot(i64 cumulativeBlockSize);
 
 private:
     const TSessionId SessionId_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     std::set<TRequest> Requests_;
 
     bool Canceled_ = false;
@@ -77,6 +80,7 @@ private:
     i64 ApprovedMemory_ = 0;
 
     TLocationMemoryGuard MemoryGuard_;
+    std::vector<std::pair<i64, NNode::TLocationFairShareSlotPtr>> FairShareQueueSlots_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TProbePutBlocksRequestSupplier)
@@ -96,7 +100,6 @@ struct TSessionOptions
     std::optional<i64> MinLocationAvailableSpace;
     std::optional<i64> NbdChunkSize;
     std::optional<NNbd::EFilesystemType> NbdChunkFsType;
-    std::vector<std::pair<std::string, double>> FairShareTags;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -168,12 +171,15 @@ struct ISession
     //! Finishes the session.
     virtual TFuture<TFinishResult> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount) = 0;
+        std::optional<int> blockCount,
+        std::optional<NIO::TIOFairShareState> fairShareState) = 0;
 
     //! Checks is probe put blocks should be used.
     virtual bool ShouldUseProbePutBlocks() const = 0;
     //! Prerequest memory for PutBlocks.
-    virtual void ProbePutBlocks(i64 cumulativeBlockSize) = 0;
+    virtual void ProbePutBlocks(
+        i64 cumulativeBlockSize,
+        std::optional<NIO::TIOFairShareState> fairShareState) = 0;
     virtual i64 GetApprovedCumulativeBlockSize() const = 0;
     virtual i64 GetMaxRequestedCumulativeBlockSize() const = 0;
 
@@ -182,6 +188,7 @@ struct ISession
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,
         i64 cumulativeBlockSize,
+        std::optional<NIO::TIOFairShareState> fairShareState,
         bool enableCaching) = 0;
 
     //! Sends a range of blocks (from the current window) to another data node.
@@ -189,6 +196,7 @@ struct ISession
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
+        std::optional<NIO::TIOFairShareState> fairShareState,
         TDuration requestTimeout,
         bool instantReplyOnThrottling,
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;

@@ -9,8 +9,8 @@ ARG BASE_REPOSITORY="ghcr.io/ytsaurus/ytsaurus-nightly"
 ARG BASE_IMAGE="latest"
 
 # Args for base-server-crio
-ARG K8S_VERSION="v1.34"
-ARG CRIO_VERSION="v1.34"
+ARG K8S_VERSION="v1.36"
+ARG CRIO_VERSION="v1.36"
 
 # Args for odin.
 ARG PYTHON_RUNTIME_VERSION="3.11"
@@ -128,7 +128,8 @@ EOT
 # https://nvidia.github.io/libnvidia-container/stable/
 # https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html
 # NOTE: key is expired 2021-06-16 but still in use, they publish repo like from 2018.
-ADD --chmod=664 \
+ADD --checksum=sha256:c880576d6cf75a48e5027a871bac70fd0421ab07d2b55f30877b21f1c87959c9 \
+  --chmod=664 \
   https://nvidia.github.io/libnvidia-container/gpgkey \
   /etc/apt/keyrings/nvidia-container-toolkit-keyring.asc
 
@@ -151,11 +152,11 @@ nvidia_packages=(
 )
 
 export DEBIAN_FRONTEND=noninteractive
-apt update -q --error-on=any
+apt -o Acquire::Retries=5 -o Acquire::https::Timeout=30 update -q --error-on=any
 
 apt policy nvidia-container-toolkit
 
-apt install -y "${nvidia_packages[@]}"
+apt -o Acquire::Retries=5 -o Acquire::https::Timeout=30 install -y "${nvidia_packages[@]}"
 
 apt-get clean
 rm -rf /var/lib/apt/lists/*
@@ -178,11 +179,15 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
   openjdk-11-jdk \
   openjdk-17-jdk \
+  openjdk-21-jdk \
+  openjdk-25-jdk \
   java-common
 
 RUN HOST_ARCH=$(dpkg --print-architecture) \
   && ln -s /usr/lib/jvm/java-11-openjdk-${HOST_ARCH} /opt/jdk11 \
   && ln -s /usr/lib/jvm/java-17-openjdk-${HOST_ARCH} /opt/jdk17 \
+  && ln -s /usr/lib/jvm/java-21-openjdk-${HOST_ARCH} /opt/jdk21 \
+  && ln -s /usr/lib/jvm/java-25-openjdk-${HOST_ARCH} /opt/jdk25 \
   && update-java-alternatives --set java-1.11.0-openjdk-${HOST_ARCH}
 
 ##########################################################################################
@@ -251,11 +256,15 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   containerd \
   openjdk-11-jdk \
   openjdk-17-jdk \
+  openjdk-21-jdk \
+  openjdk-25-jdk \
   java-common
 
 RUN HOST_ARCH=$(dpkg --print-architecture) \
   && ln -s /usr/lib/jvm/java-11-openjdk-${HOST_ARCH} /opt/jdk11 \
   && ln -s /usr/lib/jvm/java-17-openjdk-${HOST_ARCH} /opt/jdk17 \
+  && ln -s /usr/lib/jvm/java-21-openjdk-${HOST_ARCH} /opt/jdk21 \
+  && ln -s /usr/lib/jvm/java-25-openjdk-${HOST_ARCH} /opt/jdk25 \
   && update-java-alternatives --set java-1.11.0-openjdk-${HOST_ARCH}
 
 # Default python to be used by python3 jobs, for compatibility with jupyter tutorial.
@@ -273,7 +282,7 @@ ARG CRIO_VERSION
 ADD --chmod=644 https://pkgs.k8s.io/core:/stable:/${K8S_VERSION}/deb/Release.key \
             /etc/apt/keyrings/kubernetes-apt-keyring.asc
 
-ADD --chmod=644 https://download.opensuse.org/repositories/isv:/cri-o:/stable:/${CRIO_VERSION}/deb/Release.key \
+ADD --chmod=644 https://downloadcontent.opensuse.org/repositories/isv:/cri-o:/stable:/${CRIO_VERSION}/deb/Release.key \
             /etc/apt/keyrings/cri-o-apt-keyring.asc
 
 # Install CRI-O, see https://cri-o.io/
@@ -286,12 +295,12 @@ deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io
 EOF
 
 cat <<EOF >/etc/apt/sources.list.d/cri-o.list
-deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.asc] https://download.opensuse.org/repositories/isv:/cri-o:/stable:/${CRIO_VERSION}/deb/ /
+deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.asc] https://downloadcontent.opensuse.org/repositories/isv:/cri-o:/stable:/${CRIO_VERSION}/deb/ /
 EOF
 
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -q --error-on=any
-apt-get install -y cri-tools cri-o
+apt-get -o Acquire::Retries=5 -o Acquire::https::Timeout=30 update -q --error-on=any
+apt-get -o Acquire::Retries=5 -o Acquire::https::Timeout=30 install -y --no-install-recommends cri-tools cri-o
 EOT
 
 ##########################################################################################
@@ -305,11 +314,13 @@ RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-clock && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-discovery && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-node && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-offshore-data-gateway && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-job-proxy && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-exec && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-proxy && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-http-proxy && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-kafka-proxy && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-cypress-proxy && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tools && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-scheduler && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-controller-agent && \
@@ -364,6 +375,59 @@ RUN chmod 755 /setup_cluster_for_chyt.sh
 
 ##########################################################################################
 
+FROM base AS flow
+
+# Flow binary. A single binary serves as controller, worker and runner; the role
+# is chosen at startup by YT_FLOW_MODE.
+COPY ./flow_server /usr/bin/flow_server
+# The Java, Python and Go SDK launchers hand the pipeline to the flow_server named here.
+ENV YT_FLOW_BIN=/usr/bin/flow_server
+
+# Flow credits files.
+COPY ./credits/flow_server.CREDITS /usr/bin/flow_server.CREDITS
+
+# Where a user mounts the pipeline dir to launch it: relative spec and program paths resolve here.
+WORKDIR /app/pipeline
+
+ENTRYPOINT ["/usr/bin/flow_server"]
+
+##########################################################################################
+
+FROM flow AS flow-java
+
+# Flow server with a Java runtime, for pipelines whose computations run in the Java SDK:
+# the worker starts the companion inside its own job, so the JRE has to sit next to
+# flow_server. The path matches the eclipse-temurin images, so jdk_bin_path stays
+# /opt/java/openjdk/bin/java.
+COPY --from=eclipse-temurin:17-jre /opt/java/openjdk /opt/java/openjdk
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH="/opt/java/openjdk/bin:${PATH}"
+
+ENTRYPOINT ["/opt/java/openjdk/bin/java"]
+
+##########################################################################################
+
+FROM flow AS flow-python
+
+# Flow server with the Python SDK, for pipelines whose computations run in Python:
+# the worker starts the companion inside its own job, so the interpreter and the SDK have to
+# sit next to flow_server. The SDK is built from the same sources as flow_server, so the two
+# speak the same companion_service.proto by construction.
+ARG FLOW_PYTHON_PACKAGE_VERSION
+
+# The sources the package build reads; build.sh lays them out under their repo-relative paths.
+COPY ./python_sdk /tmp/python_sdk
+
+RUN set -eux; \
+    YTSAURUS_PACKAGE_VERSION="${FLOW_PYTHON_PACKAGE_VERSION}" python3 -m pip install \
+        --break-system-packages --no-cache-dir /tmp/python_sdk/yt/python/packages/ytsaurus-flow-companion; \
+    rm -rf /tmp/python_sdk; \
+    python3 -c 'from yt.yt.flow.library.python.companion import Pipeline, server'
+
+ENTRYPOINT ["/usr/bin/python3"]
+
+##########################################################################################
+
 FROM base-ytsaurus-python-packages AS base-query-tracker
 
 # Libpython shared objects that are needed for YQL system python UDFs to work.
@@ -387,6 +451,10 @@ COPY ./mrjob /usr/bin/mrjob
 COPY ./dq_vanilla_job /usr/bin/dq_vanilla_job
 COPY ./dq_vanilla_job.lite /usr/bin/dq_vanilla_job.lite
 COPY ./yql /usr/lib/yql
+
+RUN ln -s /usr/lib/yql/liblibidn-dynamic.so /usr/bin/liblibidn-dynamic.so
+RUN ln -s /usr/lib/yql/libiconv.so /usr/bin/libiconv.so
+RUN ln -s /usr/lib/yql/liblibaio-dynamic.so /usr/bin/liblibaio-dynamic.so
 
 # Scripts for init jobs.
 COPY ./init_query_tracker_state /usr/bin/init_query_tracker_state

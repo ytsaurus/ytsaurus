@@ -6,6 +6,9 @@
 #include <contrib/ydb/library/actors/core/actorid.h>
 #include <contrib/ydb/library/actors/core/actorsystem.h>
 
+#include <contrib/ydb/library/yql/dq/actors/protos/dq_events.pb.h>
+#include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor_async_io.h>
+
 #include <contrib/ydb/library/yql/dq/proto/dq_transport.pb.h>
 
 #include <yql/essentials/minikql/computation/mkql_computation_node_pack.h>
@@ -39,29 +42,39 @@ public:
     TDataChunk() = default;
 
     TDataChunk(TChunkedBuffer&& buffer, ui64 rows, NDqProto::EDataTransportVersion transportVersion,
-        NKikimr::NMiniKQL::EValuePackerVersion packerVersion, bool leading, bool finished)
+        NKikimr::NMiniKQL::EValuePackerVersion packerVersion, bool finished)
         : Buffer(buffer)
         , Rows(rows)
         , TransportVersion(transportVersion)
         , PackerVersion(packerVersion)
-        , Leading(leading)
         , Finished(finished) {
         Bytes = Buffer.Size() + 1;
         Timestamp = TInstant::Now();
     }
 
-    TDataChunk(TChunkedBuffer&& buffer, ui64 rows, bool leading, bool finished)
+    TDataChunk(TChunkedBuffer&& buffer, ui64 rows, bool finished)
         : Buffer(buffer)
         , Rows(rows)
-        , Leading(leading)
         , Finished(finished) {
         Bytes = Buffer.Size() + 1;
         Timestamp = TInstant::Now();
     }
 
-    TDataChunk(bool leading, bool finished) : Bytes(1), Leading(leading), Finished(finished) {
+    TDataChunk(bool finished) : Bytes(1), Finished(finished) {
         Timestamp = TInstant::Now();
     }
+
+    TDataChunk(NDqProto::TCheckpoint&& checkpoint)
+        : Bytes(1)
+        , Timestamp(TInstant::Now())
+        , Checkpoint(std::move(checkpoint))
+    {}
+
+    TDataChunk(NDqProto::TWatermark&& watermark)
+        : Bytes (1)
+        , Timestamp(TInstant::Now())
+        , Watermark(std::move(watermark))
+    {}
 
     TChunkedBuffer Buffer;
 
@@ -69,9 +82,11 @@ public:
     ui64 Bytes = 0;
     NDqProto::EDataTransportVersion TransportVersion = NDqProto::EDataTransportVersion::DATA_TRANSPORT_OOB_FAST_PICKLE_1_0;
     NKikimr::NMiniKQL::EValuePackerVersion PackerVersion = NKikimr::NMiniKQL::EValuePackerVersion::V1;
-    bool Leading = false;
     bool Finished = false;
+    bool ConfirmFinish = false;
     TInstant Timestamp;
+    TMaybe<NDqProto::TCheckpoint> Checkpoint;
+    TMaybe<NDqProto::TWatermark> Watermark;
 };
 
 class IChannelBuffer {
@@ -95,12 +110,10 @@ public:
     virtual void ExportPopStats(TDqAsyncStats& stats) = 0;
 
     void SendFinish();
-    bool GetLeading();
-    bool Leading = true;
 };
 
 // Channel usually created with unknown peer id which may be local or remote etc.
-// But references to channel are used to create other objects and not be changed later
+// But references to channel are used to create other objects and cannot be changed later
 // We use recreatable buffers, they make late binding possible
 // Most channel API calls are translated directly to buffer method calls
 
@@ -109,8 +122,9 @@ public:
     virtual ~IDqChannelService() {}
     virtual IDqOutputChannel::TPtr GetOutputChannel(const TDqChannelSettings& settings) = 0;
     virtual IDqInputChannel::TPtr GetInputChannel(const TDqChannelSettings& settings) = 0;
-    virtual std::shared_ptr<IChannelBuffer> GetOutputBuffer(const TChannelFullInfo& info, IDqChannelStorage::TPtr storage) = 0;
-    virtual std::shared_ptr<IChannelBuffer> GetInputBuffer(const TChannelFullInfo& info) = 0;
+    virtual std::shared_ptr<IChannelBuffer> GetOutputBuffer(const TChannelFullInfo& info, IMemoryQuotaManager::TPtr quotaManager, IDqChannelStorage::TPtr storage) = 0;
+    virtual std::shared_ptr<IChannelBuffer> GetInputBuffer(const TChannelFullInfo& info, IMemoryQuotaManager::TPtr quotaManager) = 0;
+    virtual void SetServiceActorId(NActors::TActorId serviceActorId) = 0;
 };
 
 inline NActors::TActorId MakeChannelServiceActorID(ui32 nodeId) {
@@ -119,9 +133,19 @@ inline NActors::TActorId MakeChannelServiceActorID(ui32 nodeId) {
 }
 
 struct TDqChannelLimits {
+    // Node level memory back pressure: report a negative IMemoryQuotaManager::GetMemoryAvailability of the
+    // receiver side to the sender and keep the channel at the cold inflight window while it is set.
+    // Off by default, the cold window is then used only until the 1st peer pop, as before.
+    bool EnableSpillingChannelBackpressure = false;
     ui64 LocalChannelInflightBytes  =  8_MB;    // max bytes per local channel
+    ui64 LocalChannelColdInflightBytes = 512_KB; // "cold inflight" while the node is under memory pressure
     ui64 RemoteChannelInflightBytes = 16_MB;    // max bytes per remote channel == output.push - input.pop
-    ui64 NodeSessionIcInflightBytes = 64_MB;    // max bytes in network/IC per node-to-node session
+    ui64 RemoteChannelColdInflightBytes = 512_KB; // "cold inflight" until 1st input.pop or under peer memory pressure
+    ui64 RemoteSessionInflightBytes = 64_MB;    // max bytes in network/IC per node-to-node session
+    ui64 ReconciliationCount = 3;    // number of retries before node session is completely destroyed
+    TDuration CleanupPeriod = TDuration::MilliSeconds(30000);
+    TDuration IdlePingPeriod = TDuration::MilliSeconds(30000);
+    TDuration IdleDestroyPeriod = TDuration::MilliSeconds(30000);
 };
 
 NActors::IActor* CreateLocalChannelServiceActor(NActors::TActorSystem* actorSystem, ui32 nodeId,

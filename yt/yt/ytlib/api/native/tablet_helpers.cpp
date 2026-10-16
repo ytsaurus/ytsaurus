@@ -49,7 +49,9 @@ const TCellPeerDescriptor& GetPrimaryTabletPeerDescriptor(
     auto peers = GetValidPeers(cellDescriptor);
 
     if (peers.empty()) {
-        THROW_ERROR_EXCEPTION("No alive peers for tablet cell %v",
+        THROW_ERROR_EXCEPTION(
+            NTabletClient::EErrorCode::CellHasNoAssignedPeers,
+            "No alive peers for tablet cell %v",
             cellDescriptor.CellId);
     }
 
@@ -64,7 +66,9 @@ const TCellPeerDescriptor& GetPrimaryTabletPeerDescriptor(
     switch (peerKind) {
         case EPeerKind::Leader: {
             if (leadingPeerIndex < 0) {
-                THROW_ERROR_EXCEPTION("No leading peer is known for tablet cell %v",
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::CellHasNoLeader,
+                    "No leading peer is known for tablet cell %v",
                     cellDescriptor.CellId);
             }
             return *peers[leadingPeerIndex];
@@ -156,8 +160,8 @@ void ValidateTabletMountedOrFrozen(const TTableMountInfoPtr& tableInfo, const TT
             tabletInfo->TabletId,
             tableInfo->Path,
             state)
-            << TErrorAttribute("tablet_id", tabletInfo->TabletId)
-            << TErrorAttribute("is_tablet_unmounted", state == ETabletState::Unmounted);
+            .With("tablet_id", tabletInfo->TabletId)
+            .With("is_tablet_unmounted", state == ETabletState::Unmounted);
     }
 }
 
@@ -167,13 +171,13 @@ void ValidateTabletMounted(const TTableMountInfoPtr& tableInfo, const TTabletInf
     if (state != ETabletState::Mounted) {
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::TabletNotMounted,
-            "Tablet %v of table %v is in %Qlv state, expected: %Qlv",
+            "Tablet %v of table %v is in %Qlv state while %Qlv expected",
             tabletInfo->TabletId,
             tableInfo->Path,
             state,
             ETabletState::Mounted)
-            << TErrorAttribute("tablet_id", tabletInfo->TabletId)
-            << TErrorAttribute("is_tablet_unmounted", state == ETabletState::Unmounted);
+            .With("tablet_id", tabletInfo->TabletId)
+            .With("is_tablet_unmounted", state == ETabletState::Unmounted);
     }
 }
 
@@ -187,8 +191,8 @@ void ValidateTabletNotUnmounted(const TTableMountInfoPtr& tableInfo, const TTabl
             tabletInfo->TabletId,
             tableInfo->Path,
             state)
-            << TErrorAttribute("tablet_id", tabletInfo->TabletId)
-            << TErrorAttribute("is_tablet_unmounted", state == ETabletState::Unmounted);
+            .With("tablet_id", tabletInfo->TabletId)
+            .With("is_tablet_unmounted", state == ETabletState::Unmounted);
     }
 }
 
@@ -303,20 +307,23 @@ TTabletInfoPtr GetOrderedTabletForRow(
     YT_ASSERT(!tableInfo->IsSorted());
 
     i64 tabletIndex = -1;
-    for (const auto& value : row) {
-        if (tabletIndexColumnId && value.Id == *tabletIndexColumnId && value.Type != EValueType::Null) {
-            try {
-                FromUnversionedValue(&tabletIndex, value);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error parsing tablet index from row")
-                    << ex;
+    TTabletInfoPtr tabletInfo;
+    if (tabletIndexColumnId) {
+        for (const auto& value : row) {
+            if (value.Id == *tabletIndexColumnId && value.Type != EValueType::Null) {
+                try {
+                    FromUnversionedValue(&tabletIndex, value);
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Error parsing tablet index from row")
+                        .With(ex);
+                }
+
+                tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
             }
-            // Just checking.
-            tableInfo->GetTabletByIndexOrThrow(tabletIndex);
         }
     }
 
-    if (tabletIndex < 0) {
+    if (!tabletInfo) {
         if (tableInfo->ReplicationCardId) {
             THROW_ERROR_EXCEPTION("Invalid input row for chaos ordered table %v: %Qlv column is not provided",
                 tableInfo->Path,
@@ -326,7 +333,6 @@ TTabletInfoPtr GetOrderedTabletForRow(
         return randomTabletInfo;
     }
 
-    auto tabletInfo = tableInfo->Tablets[tabletIndex];
     if (validateWrite) {
         ValidateTabletMounted(tableInfo, tabletInfo);
     } else {
@@ -405,10 +411,10 @@ TTableReplicaInfoPtrList OnTabletInfosReceived(
     for (const auto& replicaInfo : tableInfo->Replicas) {
         auto it = replicaIdToCount.find(replicaInfo->ReplicaId);
         if (it != replicaIdToCount.end() && it->second == totalTabletCount) {
-            YT_LOG_DEBUG("In-sync replica found (Path: %v, ReplicaId: %v, ClusterName: %v)",
-                tableInfo->Path,
-                replicaInfo->ReplicaId,
-                replicaInfo->ClusterName);
+            YT_TLOG_DEBUG("In-sync replica found")
+                .With("Path", tableInfo->Path)
+                .With("ReplicaId", replicaInfo->ReplicaId)
+                .With("ClusterName", replicaInfo->ClusterName);
             inSyncReplicaInfos.push_back(replicaInfo);
         }
     }
@@ -452,12 +458,11 @@ TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
         }
     }
 
-    YT_LOG_DEBUG("Looking for in-sync replicas "
-        "(Path: %v, CellCount: %v, TotalTabletCount: %v, CachedTabletCount: %v)",
-        tableInfo->Path,
-        cellIdToTabletIds.size(),
-        totalTabletCount,
-        cachedTabletCount);
+    YT_TLOG_DEBUG("Looking for in-sync replicas")
+        .With("Path", tableInfo->Path)
+        .With("CellCount", cellIdToTabletIds.size())
+        .With("TotalTabletCount", totalTabletCount)
+        .With("CachedTabletCount", cachedTabletCount);
 
     const auto& channelFactory = connection->GetChannelFactory();
 

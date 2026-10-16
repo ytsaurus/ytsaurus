@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/hydra/public.h>
 
+#include <yt/yt/server/lib/sequoia/public.h>
+
 #include <yt/yt/server/lib/sequoia/proto/transaction_manager.pb.h>
 
 #include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
@@ -19,12 +21,6 @@
 #include <library/cpp/yt/compact_containers/compact_flat_map.h>
 
 namespace NYT::NTransactionServer {
-
-namespace NProto {
-
-class TReqReturnBoomerang;
-
-} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,6 +86,8 @@ protected:
 
     NObjectClient::TCellTagList UnsyncedLocalTransactionCells_;
 
+    NCypressClient::TNodeId SequoiaNodeIdToLock_;
+
     // COMPAT(kvk1920): remove when use of Cypress tx proxy becomes mandatory.
     // We cannot rely on ID only to distinguish mirrored Cypress transaction
     // from non-mirrored one: both mirrored Cypress and Sequoia transactions
@@ -98,12 +96,16 @@ protected:
     // necessary just for this case.
     const bool MirroringToSequoiaEnabled_;
 
+    // COMPAT(shakurov)
+    const bool UseSeparateSequoiaTransactionPerCoordinator_;
+
     TTransactionReplicationSessionBase(
         NCellMaster::TBootstrap* bootstrap,
         NCellMaster::TMultiPhaseCellSyncSessionPtr cellSyncSession,
         std::vector<TTransactionId> transactionIds,
         std::optional<TTransactionReplicationInitiatorRequestInfo> requestInfo,
-        bool enableMirroringToSequoia);
+        bool enableMirroringToSequoia,
+        bool useSeparateSequoiaTransactionPerCoordinator);
 
     [[noreturn]] void LogAndThrowUnknownTransactionPresenceError(TTransactionId transactionId) const;
 
@@ -227,7 +229,11 @@ public:
      */
     using TTransactionReplicationSessionBase::TTransactionReplicationSessionBase;
 
-    void SetMutation(std::unique_ptr<NHydra::TMutation> mutation);
+    //! If #sequoiaNodeIdToLock is specified the request is executed in Sequoia
+    //! transaction. Shared lock will be acquired to conflict with node removal.
+    void SetMutation(
+        std::unique_ptr<NHydra::TMutation> mutation,
+        NCypressClient::TNodeId sequoiaNodeIdToLock);
 
     //! Returns a future that will be set when all necessary syncs with
     //! transaction coordinator cells are done, all transactions are
@@ -287,7 +293,8 @@ TFuture<void> RunTransactionReplicationSession(
     bool syncWithUpstream,
     NCellMaster::TBootstrap* bootstrap,
     std::vector<TTransactionId> transactionIds,
-    bool enableMirroringToSequoia);
+    bool enableMirroringToSequoia,
+    bool useSeparateSequoiaTransactionPerCoordinator);
 
 //! Returns a future that will set when the provided mutation has been applied
 //!  (after all necessary preliminary steps for applying it has been taken).
@@ -303,7 +310,8 @@ void RunTransactionReplicationSessionAndReply(
     const NRpc::IServiceContextPtr& context,
     std::unique_ptr<NHydra::TMutation> mutation,
     bool enableMutationBoomerangs,
-    bool enableMirroringToSequoia);
+    bool enableMirroringToSequoia,
+    bool useSeparateSequoiaTransactionPerCoordinator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

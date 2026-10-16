@@ -49,6 +49,18 @@ bool IsSingleConstant(const TExpressionList& exprs)
     return IsConstant(exprs[0]);
 }
 
+std::optional<TLiteralValue> TryExtractSingleLiteralValue(const TExpressionList& exprs)
+{
+    if (exprs.size() != 1) {
+        return std::nullopt;
+    }
+    if (auto* literal = exprs[0]->As<TLiteralExpression>()) {
+        return literal->Value;
+    } else {
+        return std::nullopt;
+    }
+}
+
 std::vector<TReference> ExtractAllReferences(const TExpressionList& exprs)
 {
     std::vector<TReference> refs;

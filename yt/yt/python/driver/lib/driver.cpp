@@ -31,6 +31,8 @@
 
 #include <yt/yt/library/signals/signal_registry.h>
 
+#include <library/cpp/yt/system/at_fork.h>
+
 namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,6 +52,43 @@ constinit const auto Logger = DriverLogger;
 
 static THashMap<TGuid, TWeakPtr<IDriver>> ActiveDrivers;
 
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+std::atomic<bool> ForkOccurredFlag;
+
+void RegisterForkDetection()
+{
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, [] {
+        RegisterAtForkHandlers(
+            /*prepare*/ nullptr,
+            /*parent*/ nullptr,
+            /*child*/ [] { ForkOccurredFlag.store(true); });
+    });
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool ForkOccurredAfterDriverCreation()
+{
+    return ForkOccurredFlag.load();
+}
+
+void ValidateNoForkOccurred()
+{
+    if (ForkOccurredAfterDriverCreation()) {
+        throw Py::RuntimeError(
+            "YT driver cannot be used in this process since it was forked from a process that had already created a driver."
+            "If you need multiprocessing, use the \"spawn\" start method (or plain fork+exec) and create a new driver in the child process.");
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 INodePtr ConvertToNodeWithUtf8Decoding(const Py::Object& obj)
 {
     auto factory = GetEphemeralNodeFactory();
@@ -63,7 +102,7 @@ INodePtr ConvertToNodeWithUtf8Decoding(const Py::Object& obj)
 
 TDriverBase::TDriverBase()
     : Id_(TGuid::Create())
-    , Logger(NYT::NPython::Logger().WithTag("DriverId: %v", Id_))
+    , Logger(NYT::NPython::Logger().WithTag("DriverId", Id_))
 { }
 
 void TDriverBase::Initialize(const IDriverPtr& driver, const INodePtr& configNode)
@@ -71,20 +110,28 @@ void TDriverBase::Initialize(const IDriverPtr& driver, const INodePtr& configNod
     UnderlyingDriver_ = driver;
     ConfigNode_ = configNode;
 
+    if (ConfigNode_->AsMap()->GetChildValueOrDefault("enable_fork_detection", false)) {
+        RegisterForkDetection();
+    }
+
     YT_VERIFY(ActiveDrivers.emplace(Id_, UnderlyingDriver_).second);
 
     Initialized_ = true;
 
     auto config = ConvertTo<NApi::TConnectionConfigPtr>(ConfigNode_);
 
-    YT_LOG_DEBUG("Driver created (ConnectionType: %v)", config->ConnectionType);
+    YT_TLOG_DEBUG("Driver created")
+        .With("ConnectionType", config->ConnectionType);
 }
 
 void TDriverBase::DoTerminate()
 {
     if (Initialized_ && !Terminated_) {
         Terminated_ = true;
-        UnderlyingDriver_->Terminate();
+        // In a forked child driver threads are gone and calling into the driver may hang.
+        if (!ForkOccurredAfterDriverCreation()) {
+            UnderlyingDriver_->Terminate();
+        }
         ActiveDrivers.erase(Id_);
     }
 }
@@ -96,6 +143,8 @@ TDriverBase::~TDriverBase()
 
 Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
 {
+    ValidateNoForkOccurred();
+
     auto pyRequest = ExtractArgument(args, kwargs, "request");
 
     TTraceContextPtr traceContext;
@@ -112,7 +161,7 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
 
     TCurrentTraceContextGuard guard(traceContext);
 
-    YT_LOG_DEBUG("Preparing driver request");
+    YT_TLOG_DEBUG("Preparing driver request");
 
     ValidateArgumentsEmpty(args, kwargs);
 
@@ -191,16 +240,18 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
         }
     } CATCH_AND_CREATE_YT_ERROR("Driver command execution failed");
 
-    YT_LOG_DEBUG("Request execution started (RequestId: %v, CommandName: %v, User: %v)",
-        request.Id,
-        request.CommandName,
-        request.AuthenticatedUser);
+    YT_TLOG_DEBUG("Request execution started")
+        .With("RequestId", request.Id)
+        .With("CommandName", request.CommandName)
+        .With("User", request.AuthenticatedUser);
 
     return pythonResponse;
 }
 
 Py::Object TDriverBase::RegisterAlienTransaction(Py::Tuple& args, Py::Dict& kwargs)
 {
+    ValidateNoForkOccurred();
+
     try {
         auto pyTransactionId = ExtractArgument(args, kwargs, "transaction_id");
         auto transactionId = NTransactionClient::TTransactionId::FromString(ConvertStringObjectToString(pyTransactionId));
@@ -233,6 +284,8 @@ Py::Object TDriverBase::RegisterAlienTransaction(Py::Tuple& args, Py::Dict& kwar
 
 Py::Object TDriverBase::GetCommandDescriptor(Py::Tuple& args, Py::Dict& kwargs)
 {
+    ValidateNoForkOccurred();
+
     auto commandName = ConvertStringObjectToString(ExtractArgument(args, kwargs, "command_name"));
     ValidateArgumentsEmpty(args, kwargs);
 
@@ -247,6 +300,8 @@ Py::Object TDriverBase::GetCommandDescriptor(Py::Tuple& args, Py::Dict& kwargs)
 
 Py::Object TDriverBase::GetCommandDescriptors(Py::Tuple& args, Py::Dict& kwargs)
 {
+    ValidateNoForkOccurred();
+
     ValidateArgumentsEmpty(args, kwargs);
 
     try {
@@ -291,7 +346,7 @@ Py::Object TDriverBase::DeepCopy(const Py::Tuple& /*args*/)
 ////////////////////////////////////////////////////////////////////////////////
 
 void TDriverModuleBase::Initialize(
-    const TString& moduleName,
+    const std::string& moduleName,
     std::function<void()> initType,
     std::function<void()> initModule,
     std::function<Py::Dict()> getModuleDictionary,
@@ -334,17 +389,21 @@ void TDriverModuleBase::Initialize(
         /*index*/ 0);
     RegisterAfterFinalizeShutdownCallback(
         BIND([] {
-            YT_LOG_DEBUG("Module shutdown started");
-            for (const auto& [driverId, weakDriver] : ActiveDrivers) {
-                auto driver = weakDriver.Lock();
-                if (!driver) {
-                    continue;
+            YT_TLOG_DEBUG("Module shutdown started");
+            // In a forked child driver threads are gone and terminating inherited drivers may hang.
+            if (!ForkOccurredAfterDriverCreation()) {
+                for (const auto& [driverId, weakDriver] : ActiveDrivers) {
+                    auto driver = weakDriver.Lock();
+                    if (!driver) {
+                        continue;
+                    }
+                    YT_TLOG_INFO("Terminating leaked driver")
+                        .With("DriverId", driverId);
+                    driver->Terminate();
                 }
-                YT_LOG_INFO("Terminating leaked driver (DriverId: %v)", driverId);
-                driver->Terminate();
             }
             ActiveDrivers.clear();
-            YT_LOG_DEBUG("Module shutdown finished");
+            YT_TLOG_DEBUG("Module shutdown finished");
         }),
         /*index*/ 1);
 }

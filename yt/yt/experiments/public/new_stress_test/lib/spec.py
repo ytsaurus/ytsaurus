@@ -255,15 +255,220 @@ spec_template = {
         "unmount_hunk_storage_tablet_probability": 0.1,
         "mount_hunk_storage_tablet_probability": 0.2,
         "change_hunk_storage_probability": 0.8,
+        "unlink_hunk_storage_probability": 0.2,
+        # Chance to create a replicated queue (replicated_table plus replica tables).
+        # The source and each replica independently choose whether to use their own hunk
+        # storage. Each replica also independently chooses sync/async mode.
+        # Replicated queues support trims, replica addition, operations and storage relinking;
+        # queue-level copy/move/alter and mount/flush chaos skip them.
+        "create_replicated_probability": 0.3,
+        "replicated_min_replicas": 1,
+        # Also caps the replica count after additions during the run.
+        "replicated_max_replicas": 3,
+        "replicated_table_hunks_probability": 0.5,
+        "replica_sync_probability": 0.5,
+        "replica_hunks_probability": 0.5,
+        "add_replica_probability": 0.1,
         "create_probability": 0.2,
+        # Bound live queues and static tables together; shadows and replicas belong
+        # to their queue. Moves and conversions do not consume additional slots.
+        "max_table_count": 100,
         "copy_probability": 0.3,
         "move_probability": 0.3,
         "remove_probability": 0.2,
         "flush_probability": 0.5,
+        "trim_probability": 0.1,
         "run_map_probability": 0.2,
         "run_sort_probability": 0.2,
         "run_map_reduce_probability": 0.2,
         "run_merge_probability": 0.2,
+        "merge_two_tables_probability": 0.3,
+        "alter_to_queue_probability": 0.1,
+        "alter_to_static_probability": 0.1,
+        "copy_static_table_probability": 0.1,
+        "move_static_table_probability": 0.1,
+        "remove_static_table_probability": 0.1,
+        "write_probability": 0.3,
+        # Chance to combine two queues selected for writing into one transaction.
+        "multi_queue_write_probability": 0.2,
+        "read_probability": 0.3,
+        "write_min_batch_size": 1,
+        "write_max_batch_size": 100,
+        "write_min_row_size": 0,
+        "write_max_row_size": 2048,
+        # Retry only brief transient write failures. When mount-chaos deliberately leaves a
+        # queue or its hunk storage unmounted, the test makes exactly one attempt and handles
+        # the resulting error as expected instead of entering this retry loop.
+        "write_retry_count": 30,
+        # Cap peak memory for fat writes/reads. On write, the batch still goes in a
+        # single tablet transaction, but it is generated and pushed as several
+        # insert_rows calls each bounded by this many bytes (insert_rows buffers its
+        # whole input), so only one chunk is materialized at a time. On read, the queue
+        # is pulled back in pages bounded by this data weight instead of loading whole
+        # tablets into Python.
+        "write_insert_chunk_bytes": 16 * 1024 * 1024,
+        "read_page_max_data_weight": 16 * 1024 * 1024,
+    },
+
+    "queue_static_export": {
+        # Fixed Cypress path for the persistent objects (queues, producers, shadow
+        # tables, export dirs). If None, derived as "<config path>/queue_static_export_state"
+        # so restarts attach to the existing objects instead of recreating them.
+        "state_path": None,
+        # Producer session id. Stable across restarts so the producer resumes the same
+        # session (epoch is bumped, sequence_number continues).
+        "session_id": "stress",
+        # Named queue combinations to cover at once: {queue_name: queue_cfg}. The name (key)
+        # is used verbatim as the object name (stable across config edits — no index
+        # remapping when you add/remove/reorder), and at startup the existing queue's
+        # structural attributes are verified against the config. Each queue_cfg has a tablet
+        # count, a dict of named exports, and an "enable" flag (set it to False — here or in
+        # the yson config — to skip that combination without deleting it). Optional per-queue
+        # knobs: "erasure" bool, "hunks" bool (default off — the queue's value column becomes
+        # a hunk column with a linked hunk storage, and its exports set
+        # enable_export_from_queue_with_hunks), "commit_ordering" ("weak"|"strong"),
+        # "flush_period_ms" int (overrides the global default), "auto_trim" bool. Each export
+        # ({export_name: ...})
+        # is either {"period": <seconds>} or {"cron": "<cron expr>"} (+ optional
+        # "name_pattern", "use_upper_bound" bool). The set below is curated so every value of
+        # every dimension (tablet count, erasure, commit_ordering, schedule kind,
+        # use_upper_bound, custom name_pattern, flush period) shows up across several
+        # combinations.
+        #
+        # This is a MapWithUnrecognizedChildren, so the yson config CAN add brand-new
+        # combinations (or override/add fields of existing ones) under queue_static_export/
+        # queues without tripping the "unrecognized option" check; it merges with the
+        # defaults below (it does not replace the whole set — disable the ones you don't want
+        # via "enable": %false).
+        "queues": MapWithUnrecognizedChildren({
+            # 1 tablet, 5m, fast flush, auto-trim ON (actively trims every period).
+            "t1_5m_fast_trim": {
+                "enable": True, "tablet_count": 1, "auto_trim": True,
+                "exports": {"main": {"period": 300}}},
+            # 1 tablet, single long 4h export, weak ordering.
+            "t1_4h": {
+                "enable": True, "tablet_count": 1, "auto_trim": True,
+                "exports": {"main": {"period": 14400}}},
+            # 2 tablets, 30m, strong commit ordering.
+            "t2_30m_strong": {
+                "enable": True, "tablet_count": 2, "commit_ordering": "strong", "auto_trim": True,
+                "exports": {"main": {"period": 1800}}},
+            # 2 tablets, slow flush (fatter chunks), several exports at once (5m/30m/4h),
+            # auto-trim ON: trim must wait for ALL exports (virtual vital consumers), so it
+            # barely trims while the 4h export lags.
+            "t2_multi_slow_trim": {
+                "enable": True, "tablet_count": 2, "auto_trim": True,
+                "exports": {"fast": {"period": 300}, "mid": {"period": 1800},
+                            "slow": {"period": 14400}}},
+            # 3 tablets, hourly, strong ordering, auto-trim ON.
+            "t3_1h_strong_trim": {
+                "enable": True, "tablet_count": 3, "commit_ordering": "strong", "auto_trim": True,
+                "exports": {"main": {"period": 3600}}},
+            # 3 tablets, cron-scheduled export (every 5 minutes).
+            "t3_cron5m": {
+                "enable": True, "tablet_count": 3, "auto_trim": True,
+                "exports": {"main": {"cron": "0 0/5 * * * *"}}},
+            # Erasure, 4 tablets, 5m named by the upper bound, auto-trim ON.
+            "t4_erasure_upper_trim": {
+                "enable": True, "tablet_count": 4, "erasure": True, "auto_trim": True,
+                "exports": {"main": {"period": 300, "use_upper_bound": True}}},
+            # Erasure, 4 tablets, several exports (5m + 1h), strong ordering.
+            "t4_erasure_multi_strong": {
+                "enable": True, "tablet_count": 4, "erasure": True, "commit_ordering": "strong",
+                "auto_trim": True,
+                "exports": {"fast": {"period": 300}, "hourly": {"period": 3600}}},
+            # 5 tablets, 5m, fast flush, strong ordering, auto-trim ON.
+            "t5_5m_fast_strong_trim": {
+                "enable": True, "tablet_count": 5, "commit_ordering": "strong",
+                "auto_trim": True, "exports": {"main": {"period": 300}}},
+            # 5 tablets, erasure, cron every 10 minutes.
+            "t5_erasure_cron10m": {
+                "enable": True, "tablet_count": 5, "erasure": True, "auto_trim": True,
+                "exports": {"main": {"cron": "0 0/10 * * * *"}}},
+            # 1 tablet, 5m with a custom strftime name_pattern (unique per second).
+            "t1_5m_named_pattern": {
+                "enable": True, "tablet_count": 1, "auto_trim": True,
+                "exports": {"main": {"period": 300, "name_pattern": "%Y%m%d-%H%M%S"}}},
+            # 2 tablets, 5m with use_upper_bound explicitly off, strong ordering, auto-trim ON.
+            "t2_5m_lowerbound_strong_trim": {
+                "enable": True, "tablet_count": 2, "commit_ordering": "strong", "auto_trim": True,
+                "exports": {"main": {"period": 300, "use_upper_bound": False}}},
+            # --- Hunk-enabled combinations. DISABLED by default (flip "enable" to %true to
+            # run them). The value column becomes a hunk column backed by a linked hunk
+            # storage, and exports run with enable_export_from_queue_with_hunks.
+            # 1 tablet, 5m, hunks, auto-trim ON.
+            "t1_5m_hunks": {
+                "enable": False, "tablet_count": 1, "hunks": True, "auto_trim": True,
+                "exports": {"main": {"period": 300}}},
+            # 2 tablets, slow flush, hunks, several exports (5m/30m/4h).
+            "t2_multi_hunks": {
+                "enable": False, "tablet_count": 2, "hunks": True,
+                "auto_trim": True,
+                "exports": {"fast": {"period": 300}, "mid": {"period": 1800},
+                            "slow": {"period": 14400}}},
+            # Erasure + hunks, 4 tablets, strong ordering, 5m named by the upper bound.
+            "t4_erasure_hunks": {
+                "enable": False, "tablet_count": 4, "hunks": True, "erasure": True,
+                "commit_ordering": "strong", "auto_trim": True,
+                "exports": {"main": {"period": 300, "use_upper_bound": True}}},
+        }),
+        # A single large TTL (seconds) applied to EVERY export table so they do not pile up
+        # forever (~2 weeks by default). Global, not per-export, and must stay >> the verify
+        # cadence: a table expiring before the verifier reads it would look like a row_index
+        # gap (false data-loss failure). Set to None to disable TTL entirely.
+        "export_ttl_seconds": 14 * 24 * 3600,
+        # For auto-trim queues, never trim rows younger than this — the queue always keeps a
+        # rolling window of the most recent data (2 days by default) regardless of what has
+        # already been exported/consumed. Bounds queue growth while keeping recent data.
+        # Set to None to trim purely by export/consumer progress with no time floor.
+        "auto_trim_retained_lifetime_seconds": 2 * 24 * 3600,
+        # If verification falls behind far enough for its watermark to disappear together
+        # with expired export tables, resume from this much of the newest still-available
+        # history. This rebase is used only after a TTL gap; ordinary row-index gaps remain
+        # hard verification failures. Must be shorter than export_ttl_seconds.
+        "verification_history_seconds": 24 * 3600,
+        # Auto-flush period (ms) for the queue's dynamic stores. Five minutes keeps the
+        # number of tiny chunks under control while remaining below the shortest export
+        # period used by the test.
+        "flush_period_ms": 300000,
+        # Probability of additionally forcing an explicit flush (freeze/unfreeze) of a
+        # queue after a write round.
+        "flush_probability": 0.3,
+        "write_min_batch_size": 1,
+        "write_max_batch_size": 100,
+        "write_min_row_size": 512,
+        "write_max_row_size": 2048,
+        # How many times a single write transaction is retried on transient tablet errors
+        # before the failure propagates and fails the run. Deliberately modest: brief
+        # blips (cell re-election, etc.) are ridden out, but a persistently unwritable
+        # queue is a real problem we must surface — not retry on forever.
+        "write_retry_count": 30,
+        # Alert (fail the run) when the Queue Agent stops creating exports: a period-P
+        # export must produce a new table at least every P * factor + slack. Set factor to 0
+        # to disable. Cron exports are monitored only when their interval can be parsed.
+        "export_staleness_factor": 3,
+        "export_staleness_slack_seconds": 120,
+        # Fallback expected interval (seconds) for a cron export whose period we cannot parse,
+        # so staleness is still monitored (with a warning) instead of silently skipped.
+        # Deliberately large (1 day) — we'd rather under-alert on exotic crons than falsely
+        # fail a genuinely long one. Set "expected_interval_seconds" on the export to pin it
+        # exactly (tight monitoring), or this to None to skip monitoring unparseable crons.
+        "cron_default_interval_seconds": 86400,
+        # Fail the run if verification gets stuck: there are export tables we have not yet
+        # verified and the watermark has not advanced for this many seconds while exports keep
+        # being created (e.g. an export table is persistently unreadable, which would otherwise
+        # be retried silently forever). Set to 0 to disable.
+        # Verifying a single fat 30m/4h export table (read + shadow comparison) can take
+        # well over ten minutes on a loaded cluster. The watermark advances only after the
+        # whole table succeeds, so a shorter watchdog produces false positives.
+        "verify_stall_seconds": 2 * 3600,
+        # How often (seconds) to sweep the export directories and verify new tables.
+        "verify_period_seconds": 30,
+        # Sleep between write rounds.
+        "iteration_sleep_seconds": 5,
+        # If set, the test loops until this many seconds elapse instead of using
+        # size.iterations. Use this to drive long soak runs (e.g. > 4h for the 4h export).
+        "max_run_duration_seconds": None,
     },
 
     "replicated": {
@@ -532,6 +737,9 @@ class Spec():
         if self.size.bundle_node_count is not None:
             return self.size.bundle_node_count * self.read_user_slots_per_node
         return None
+
+    def get(self, key, default_value=None):
+        return self.dct.get(key, default_value)
 
 ##################################################################
 

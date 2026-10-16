@@ -83,7 +83,11 @@ public:
         , ClientDirectory_(std::move(clientDirectory))
         , AlertCollector_(std::move(alertCollector))
         , Logger(logger)
-    { }
+    {
+        for (const auto& path : DynamicConfigSnapshot_->IgnoredObjectList) {
+            IgnoredObjects_.insert(TTablePath::FromRichYPath(path));
+        }
+    }
 
     void Build()
     {
@@ -106,6 +110,9 @@ private:
     const TClientDirectoryPtr ClientDirectory_;
     const IAlertCollectorPtr AlertCollector_;
     const NLogging::TLogger Logger;
+
+    //! Objects from #TCypressSynchronizerDynamicConfig::IgnoredObjectList.
+    THashSet<TTablePath> IgnoredObjects_;
 
     using TClusterToObjectListMapping = THashMap<std::string, std::vector<TObject>>;
 
@@ -166,14 +173,14 @@ private:
             switch (object.Kind) {
                 case ECypressSyncObjectKind::Queue:
                     QueueRows.push_back(TQueueTableRow::FromAttributeDictionary(
-                        TQueuePath(object.Path, *MakeAttributesWithCluster(cluster)),
+                        TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         NextRowRevision(object.RowRevision),
                         attributes));
                     fillChaosReplicatedTableQueueAgentStage(QueueRows.back());
                     break;
                 case ECypressSyncObjectKind::Consumer:
                     ConsumerRows.push_back(TConsumerTableRow::FromAttributeDictionary(
-                        TConsumerPath(object.Path, *MakeAttributesWithCluster(cluster)),
+                        TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         NextRowRevision(object.RowRevision),
                         attributes));
                     fillChaosReplicatedTableQueueAgentStage(ConsumerRows.back());
@@ -204,7 +211,7 @@ private:
             switch (object.Kind) {
                 case ECypressSyncObjectKind::Queue:
                     QueueRows.push_back({
-                        .Path = TQueuePath(object.Path, *MakeAttributesWithCluster(cluster)),
+                        .Path = TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .Revision = revision,
                         .SynchronizationError = error,
@@ -212,7 +219,7 @@ private:
                     break;
                 case ECypressSyncObjectKind::Consumer: {
                     ConsumerRows.push_back({
-                        .Path = TConsumerPath(object.Path, *MakeAttributesWithCluster(cluster)),
+                        .Path = TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .Revision = revision,
                         .SynchronizationError = error,
@@ -239,8 +246,9 @@ private:
                 try {
                     attributeField = attributes->Find<TTo>(attribute);
                 } catch (const std::exception& ex) {
-                    YT_LOG_DEBUG(ex, "Error parsing attribute %Qv",
-                        attribute);
+                    YT_TLOG_DEBUG("Error parsing attribute")
+                        .With("Attribute", attribute)
+                        .With(ex);
                     attributeField = std::nullopt;
                 }
             };
@@ -260,7 +268,7 @@ private:
             switch (object.Kind) {
                 case ECypressSyncObjectKind::Queue:
                     QueueRows.push_back({
-                        .Path = TQueuePath(object.Path, *MakeAttributesWithCluster(cluster)),
+                        .Path = TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .SynchronizationError = error,
                     });
@@ -268,7 +276,7 @@ private:
                     break;
                 case ECypressSyncObjectKind::Consumer:
                     ConsumerRows.push_back({
-                        .Path = TConsumerPath(object.Path, *MakeAttributesWithCluster(cluster)),
+                        .Path = TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .SynchronizationError = error,
                     });
@@ -293,7 +301,9 @@ private:
             try {
                 objectType = attributes->Get<EObjectType>("type");
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Error parsing attribute \"type\"");
+                YT_TLOG_DEBUG("Error parsing attribute")
+                    .With("Attribute", "type")
+                    .With(ex);
             }
 
             if (!IsReplicatedTableObjectType(objectType)) {
@@ -311,10 +321,10 @@ private:
         {
             switch (object.Kind) {
                 case ECypressSyncObjectKind::Queue:
-                    QueueRows.emplace_back(TQueuePath(object.Path, *MakeAttributesWithCluster(cluster)));
+                    QueueRows.emplace_back(TTablePath(object.Path, *MakeAttributesWithCluster(cluster)));
                     break;
                 case ECypressSyncObjectKind::Consumer:
-                    ConsumerRows.emplace_back(TConsumerPath(object.Path, *MakeAttributesWithCluster(cluster)));
+                    ConsumerRows.emplace_back(TTablePath(object.Path, *MakeAttributesWithCluster(cluster)));
                     break;
                 case ECypressSyncObjectKind::Unknown:
                     // NB(apachee): Cypress sync object kind must be known at this point.
@@ -406,11 +416,10 @@ private:
                 const auto& responseOrError = responses[objectIndex];
                 const auto& object = GetOrCrash(ClusterToDynamicStateObjects_, cluster)[objectIndex];
                 if (!responseOrError.IsOK()) {
-                    YT_LOG_DEBUG(
-                        responseOrError,
-                        "Error fetching revision (Cluster: %v, Path: %v)",
-                        cluster,
-                        object.Path);
+                    YT_TLOG_DEBUG("Error fetching revision")
+                        .With("Cluster", cluster)
+                        .With("Path", object.Path)
+                        .With(responseOrError);
                     RowsWithErrors_.AppendObjectWithError(cluster, object, responseOrError);
                     continue;
                 }
@@ -419,21 +428,19 @@ private:
                 try {
                     revision = ConvertTo<NHydra::TRevision>(TYsonString(responseOrError.Value()->value()));
                 } catch (const std::exception& ex) {
-                    YT_LOG_DEBUG(
-                        ex,
-                        "Error parsing revision (Cluster: %v, Path: %v)",
-                        cluster,
-                        object.Path);
+                    YT_TLOG_DEBUG("Error parsing revision")
+                        .With("Cluster", cluster)
+                        .With("Path", object.Path)
+                        .With(ex);
                     RowsWithErrors_.AppendObjectWithError(cluster, object, ex);
                     continue;
                 }
                 if (!object.Revision || *object.Revision < *revision) {
-                    YT_LOG_DEBUG(
-                        "Object Cypress revision changed (Cluster: %v, Path: %v, Revision: %x -> %x)",
-                        cluster,
-                        object.Path,
-                        object.Revision,
-                        revision);
+                    YT_TLOG_DEBUG("Object Cypress revision changed")
+                        .With("Cluster", cluster)
+                        .With("Path", object.Path)
+                        .WithFormat("OldRevision", "%x", object.Revision)
+                        .WithFormat("NewRevision", "%x", revision);
                     clusterModifiedObjectList.AppendObject(object);
                 }
             }
@@ -491,14 +498,14 @@ private:
                 for (const auto& [path, _] : watchlist->Queues) {
                     THROW_ERROR_EXCEPTION_IF(
                         watchlist->Consumers.contains(path),
-                        "Set of queues and consumers must not intersect, but they do (ObjectPath: %v)",
+                        "Sets of queues and consumers must not intersect, but both contain %v",
                         path);
                 }
 
                 for (const auto& [path, _] : watchlist->Consumers) {
                     THROW_ERROR_EXCEPTION_IF(
                         watchlist->Queues.contains(path),
-                        "Set of queues and consumers must not intersect, but they do (ObjectPath: %v)",
+                        "Sets of queues and consumers must not intersect, but both contain %v",
                         path);
                 }
             });
@@ -588,19 +595,18 @@ private:
                 auto objectInfo = cypressWatchlist.FindObjectInfo(object.Path);
                 if (!objectInfo) {
                     if (removedObjects.insert(object.Path).second) {
-                        YT_LOG_DEBUG(
-                            "Object was not found in corresponding watchlist, scheduled to be removed (Cluster: %v, Path: %v)",
-                            cluster,
-                            object.Path);
+                        YT_TLOG_DEBUG("Object was not found in corresponding watchlist, scheduled to be removed")
+                            .With("Cluster", cluster)
+                            .With("Path", object.Path);
                         RowsToDelete_.AppendObjectKey(cluster, object);
                     }
                     continue;
                 }
 
                 if (auto inserted = watchedObjects.InsertObject(&object).second; !inserted) [[unlikely]] {
-                    YT_LOG_WARNING("Duplicate object paths present in current dynamic state (Cluster: %v, Path: %v)",
-                        cluster,
-                        object.Path);
+                    YT_TLOG_WARNING("Duplicate object paths present in current dynamic state")
+                        .With("Cluster", cluster)
+                        .With("Path", object.Path);
 
                     AlertCollector_->StageAlert(CreateAlert(
                         NAlerts::EErrorCode::CypressSynchronizerConflictingDynamicStateObjects,
@@ -619,12 +625,11 @@ private:
                 // TODO(apachee): In future it might be beneficial to limit fetched attributes for replicated objects to only those
                 // needed for replicated table mapping, as other attributes change results in revision change.
                 if (!object.Revision || revision != *object.Revision) {
-                    YT_LOG_DEBUG(
-                        "Object Cypress revision changed (Cluster: %v, Path: %v, Revision: %x -> %x)",
-                        cluster,
-                        object.Path,
-                        object.Revision,
-                        revision);
+                    YT_TLOG_DEBUG("Object Cypress revision changed")
+                        .With("Cluster", cluster)
+                        .With("Path", object.Path)
+                        .WithFormat("OldRevision", "%x", object.Revision)
+                        .WithFormat("NewRevision", "%x", revision);
 
                     addModifiedObject(object, kind);
                 }
@@ -644,10 +649,10 @@ private:
                 if (!objectInfo) {
                     InsertOrCrash(removedReplicatedObjects, object.Path);
 
-                    YT_LOG_DEBUG(
-                        "Replicated object was not found in corresponding watchlist, scheduled to be removed from replicated table mapping table (Cluster: %v, Path: %v)",
-                        cluster,
-                        object.Path);
+                    YT_TLOG_DEBUG("Replicated object was not found in corresponding watchlist, "
+                        "scheduled to be removed from replicated table mapping table")
+                        .With("Cluster", cluster)
+                        .With("Path", object.Path);
                     RowsToDelete_.AppendReplicatedObjectKey(cluster, object);
 
                     continue;
@@ -659,12 +664,11 @@ private:
 
                 // NB(apachee): Currently attribute revision does not change on replica set change, thus we always assume attributes of replicated table object changed.
 
-                YT_LOG_DEBUG(
-                    "Replicated object Cypress revision assumed as changed (Cluster: %v, Path: %v, OldRevision: %x, NewRevision: %x)",
-                    cluster,
-                    object.Path,
-                    object.Revision,
-                    revision);
+                YT_TLOG_DEBUG("Replicated object Cypress revision assumed as changed")
+                    .With("Cluster", cluster)
+                    .With("Path", object.Path)
+                    .WithFormat("OldRevision", "%x", object.Revision)
+                    .WithFormat("NewRevision", "%x", revision);
 
                 auto index = addModifiedObject(object, kind);
 
@@ -678,6 +682,10 @@ private:
 
         for (const auto& kind : TCypressWatchlist::ObjectKinds) {
             for (const auto& [objectPath, revision] : cypressWatchlist.ObjectsByKind(kind)) {
+                if (IgnoredObjects_.contains(TTablePath(objectPath, *MakeAttributesWithCluster(cluster)))) {
+                    continue;
+                }
+
                 auto watchedObjectsIt = watchedObjects.find(objectPath);
 
                 bool isNewDynamicStateObject = (watchedObjectsIt == watchedObjects.end());
@@ -686,15 +694,15 @@ private:
                     && !watchedReplicatedTableMappingObjects.contains(objectPath);
 
                 if (isNewDynamicStateObject) {
-                    YT_LOG_DEBUG("Discovered object (Cluster: %v, Path: %v, Revision: %v)",
-                        cluster,
-                        objectPath,
-                        revision);
+                    YT_TLOG_DEBUG("Discovered object")
+                        .With("Cluster", cluster)
+                        .With("Path", objectPath)
+                        .With("Revision", revision);
                 } else if (isNewReplicatedTableMappingObject) {
-                    YT_LOG_DEBUG("Discovered missing replicated table mapping object (Cluster: %v, Path: %v, Revision: %v)",
-                        cluster,
-                        objectPath,
-                        revision);
+                    YT_TLOG_DEBUG("Discovered missing replicated table mapping object")
+                        .With("Cluster", cluster)
+                        .With("Path", objectPath)
+                        .With("Revision", revision);
                     ++missingReplicatedTableMappingObjectCount;
                 }
 
@@ -712,8 +720,9 @@ private:
         if (missingReplicatedTableMappingObjectCount > 0) [[unlikely]] {
             // NB(apachee): As a side effect if WriteReplicatedTableMapping was only just enabled, this would stage an alert.
             // TODO(apachee): Persist alerts in alert collector to be able to check this alert in tests.
-            YT_LOG_WARNING("Found objects present in current dynamic state with replicated table object type, but missing in replicated table mapping table (ObjectCount: %v)",
-                missingReplicatedTableMappingObjectCount);
+            YT_TLOG_WARNING("Found objects present in current dynamic state with replicated table "
+                "object type, but missing in replicated table mapping table")
+                .With("ObjectCount", missingReplicatedTableMappingObjectCount);
             AlertCollector_->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::CypressSynchronizerMissingReplicatedTableMappingObjects,
                 "Found objects present in current dynamic state with replicated table object type, but missing in replicated table mapping table",
@@ -738,8 +747,10 @@ private:
         WaitFor(AllSucceeded(std::vector{asyncQueues.AsVoid(), asyncConsumers.AsVoid(), asyncReplicatedTableMapping.AsVoid()}))
             .ThrowOnError();
 
-
         for (const auto& queue : asyncQueues.GetOrCrash().Value()) {
+            if (IgnoredObjects_.contains(queue.Path)) {
+                continue;
+            }
             ClusterToDynamicStateObjects_[queue.Path.GetCluster().value()].push_back({
                 queue.Path.GetPath(),
                 /*kind*/ ECypressSyncObjectKind::Queue,
@@ -749,6 +760,9 @@ private:
         }
 
         for (const auto& consumer : asyncConsumers.GetOrCrash().Value()) {
+            if (IgnoredObjects_.contains(consumer.Path)) {
+                continue;
+            }
             ClusterToDynamicStateObjects_[consumer.Path.GetCluster().value()].push_back({
                 consumer.Path.GetPath(),
                 /*kind*/ ECypressSyncObjectKind::Consumer,
@@ -762,6 +776,9 @@ private:
         }
 
         for (const auto& replicatedObject : asyncReplicatedTableMapping.GetOrCrash().Value()) {
+            if (IgnoredObjects_.contains(replicatedObject.Path)) {
+                continue;
+            }
             ClusterToReplicatedTableMappingObjects_[replicatedObject.Path.GetCluster().value()].push_back({
                 replicatedObject.Path.GetPath(),
                 /*kind*/ ECypressSyncObjectKind::Unknown,
@@ -771,7 +788,7 @@ private:
         }
     }
 
-    static std::vector<TString> GetCypressAttributeNames(const TObject& object)
+    static std::vector<std::string> GetCypressAttributeNames(const TObject& object)
     {
         switch (object.Kind) {
             case ECypressSyncObjectKind::Consumer:
@@ -826,20 +843,18 @@ private:
                 const auto& object = modifiedObjects[objectIndex];
                 const auto& responseOrError = responses[objectIndex];
                 if (!responseOrError.IsOK()) {
-                    YT_LOG_WARNING(
-                        responseOrError,
-                        "Error fetching attributes for object (Cluster: %v, Path: %v)",
-                        cluster,
-                        object.Path);
+                    YT_TLOG_WARNING("Error fetching attributes for object")
+                        .With("Cluster", cluster)
+                        .With("Path", object.Path)
+                        .With(responseOrError);
                     RowsWithErrors_.AppendObjectWithError(cluster, object, responseOrError);
                     continue;
                 }
                 auto attributes = ConvertToAttributes(TYsonString(responseOrError.Value()->value()));
-                YT_LOG_DEBUG(
-                    "Fetched updated attributes (Cluster: %v, Path: %v, Attributes: %v)",
-                    cluster,
-                    object.Path,
-                    ConvertToYsonString(attributes, EYsonFormat::Text));
+                YT_TLOG_DEBUG("Fetched updated attributes")
+                    .With("Cluster", cluster)
+                    .With("Path", object.Path)
+                    .With("Attributes", ConvertToYsonString(attributes, EYsonFormat::Text));
 
                 // First, we try to interpret the attributes as one of two kinds: a queue, or a consumer.
                 // If successful, we prepare an updated row for the corresponding state table.
@@ -850,11 +865,10 @@ private:
                         attributes,
                         DynamicConfigSnapshot_->ChaosReplicatedTableQueueAgentStage);
                 } catch (const std::exception& ex) {
-                    YT_LOG_DEBUG(
-                        ex,
-                        "Error parsing object attributes (Cluster: %v, Path: %v)",
-                        cluster,
-                        object.Path);
+                    YT_TLOG_DEBUG("Error parsing object attributes")
+                        .With("Cluster", cluster)
+                        .With("Path", object.Path)
+                        .With(ex);
                     RowsWithErrors_.AppendObjectWithErrorAndBasicAttributes(
                         cluster,
                         object,
@@ -883,11 +897,10 @@ private:
                 try {
                     RowsToWrite_.AppendPotentiallyReplicatedObject(cluster, object, attributes);
                 } catch (const std::exception& ex) {
-                    YT_LOG_DEBUG(
-                        ex,
-                        "Error parsing replicated object attributes (Cluster: %v, Path: %v)",
-                        cluster,
-                        object.Path);
+                    YT_TLOG_DEBUG("Error parsing replicated object attributes")
+                        .With("Cluster", cluster)
+                        .With("Path", object.Path)
+                        .With(ex);
                     RowsWithErrors_.AppendReplicatedObjectWithError(cluster, object, attributes, ex, Logger);
                 }
             }
@@ -898,31 +911,28 @@ private:
     void WriteRows()
     {
         if (!RowsWithErrors_.Empty()) {
-            YT_LOG_DEBUG(
-                "Some rows contain synchronization errors (QueueCount: %v, ConsumerCount: %v, ReplicatedTableMappingRowCount: %v)",
-                RowsWithErrors_.QueueRows.size(),
-                RowsWithErrors_.ConsumerRows.size(),
-                RowsWithErrors_.ReplicatedTableMappingRows.size());
+            YT_TLOG_DEBUG("Some rows contain synchronization errors")
+                .With("QueueCount", RowsWithErrors_.QueueRows.size())
+                .With("ConsumerCount", RowsWithErrors_.ConsumerRows.size())
+                .With("ReplicatedTableMappingRowCount", RowsWithErrors_.ReplicatedTableMappingRows.size());
             RowsToWrite_.MergeWith(RowsWithErrors_);
         }
 
-        YT_LOG_DEBUG(
-            "Writing updated rows (QueueCount: %v, ConsumerCount: %v)",
-            RowsToWrite_.QueueRows.size(),
-            RowsToWrite_.ConsumerRows.size());
+        YT_TLOG_DEBUG("Writing updated rows")
+            .With("QueueCount", RowsToWrite_.QueueRows.size())
+            .With("ConsumerCount", RowsToWrite_.ConsumerRows.size());
         WaitFor(AllSucceeded(std::vector{
             DynamicState_->Consumers->Insert(RowsToWrite_.ConsumerRows),
             DynamicState_->Queues->Insert(RowsToWrite_.QueueRows)}))
             .ThrowOnError();
 
         if (!DynamicConfigSnapshot_->WriteReplicatedTableMapping) {
-            YT_LOG_DEBUG("Writing replicated table mapping is disabled, skipping table modification");
+            YT_TLOG_DEBUG("Writing replicated table mapping is disabled, skipping table modification");
             return;
         }
 
-        YT_LOG_DEBUG(
-            "Writing updated replicated table mapping table rows (Count: %v)",
-            RowsToWrite_.ReplicatedTableMappingRows.size());
+        YT_TLOG_DEBUG("Writing updated replicated table mapping table rows")
+            .With("Count", RowsToWrite_.ReplicatedTableMappingRows.size());
         WaitFor(DynamicState_->ReplicatedTableMapping->Insert(RowsToWrite_.ReplicatedTableMappingRows).AsVoid())
             .ThrowOnError();
     }
@@ -930,10 +940,9 @@ private:
     //! Delete key rows from dynamic state.
     void DeleteRows()
     {
-        YT_LOG_DEBUG(
-            "Deleting rows (QueueCount: %v, ConsumerCount: %v)",
-            RowsToDelete_.QueueRows.size(),
-            RowsToDelete_.ConsumerRows.size());
+        YT_TLOG_DEBUG("Deleting rows")
+            .With("QueueCount", RowsToDelete_.QueueRows.size())
+            .With("ConsumerCount", RowsToDelete_.ConsumerRows.size());
         if (!RowsToDelete_.QueueRows.empty() || !RowsToDelete_.ConsumerRows.empty()) {
             WaitFor(AllSucceeded(std::vector{
                 DynamicState_->Queues->Delete(RowsToDelete_.QueueRows),
@@ -942,13 +951,12 @@ private:
         }
 
         if (!DynamicConfigSnapshot_->WriteReplicatedTableMapping) {
-            YT_LOG_DEBUG("Writing replicated table mapping is disabled, skipping table outdated row deletion");
+            YT_TLOG_DEBUG("Writing replicated table mapping is disabled, skipping table outdated row deletion");
             return;
         }
 
-        YT_LOG_DEBUG(
-            "Deleting replicated table mapping rows (Count: %v)",
-            RowsToDelete_.ReplicatedTableMappingRows.size());
+        YT_TLOG_DEBUG("Deleting replicated table mapping rows")
+            .With("Count", RowsToDelete_.ReplicatedTableMappingRows.size());
         if (!RowsToDelete_.ReplicatedTableMappingRows.empty()) {
             WaitFor(DynamicState_->ReplicatedTableMapping->Delete(RowsToDelete_.ReplicatedTableMappingRows).AsVoid())
                 .ThrowOnError();
@@ -960,7 +968,7 @@ private:
         try {
             return AssertNativeClient(ClientDirectory_->GetClientOrThrow(cluster));
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error creating client for cluster %Qv", cluster) << ex;
+            THROW_ERROR_EXCEPTION("Error creating client for cluster %Qv", cluster).With(ex);
         }
     }
 };
@@ -1038,7 +1046,7 @@ public:
         });
 
         if (!DynamicConfig_->Enable) {
-            YT_LOG_DEBUG("Pass skipped");
+            YT_TLOG_DEBUG("Pass skipped");
             return;
         }
 
@@ -1049,7 +1057,8 @@ public:
         }
         auto dynamicConfigSnapshot = CloneYsonStruct(DynamicConfig_);
 
-        YT_LOG_DEBUG("Pass started (PassIndex: %v)", PassIndex_);
+        YT_TLOG_DEBUG("Pass started")
+            .With("PassIndex", PassIndex_);
         try {
             TCypressSynchronizerPassSession(
                 // NB: We need to make a copy so that the config does not change during context-switches within the pass session.
@@ -1057,7 +1066,7 @@ public:
                 DynamicState_,
                 ClientDirectory_,
                 alertCollector,
-                Logger().WithTag("PassIndex: %v", PassIndex_))
+                Logger().WithTag("PassIndex", PassIndex_))
                 .Build();
             PassError_ = TError();
         } catch (const std::exception& ex) {
@@ -1072,7 +1081,8 @@ public:
                 ex));
         }
 
-        YT_LOG_DEBUG("Pass finished (PassIndex: %v)", PassIndex_);
+        YT_TLOG_DEBUG("Pass finished")
+            .With("PassIndex", PassIndex_);
     }
 
     void OnDynamicConfigChanged(
@@ -1085,10 +1095,9 @@ public:
 
         PassExecutor_->SetPeriod(newConfig->PassPeriod);
 
-        YT_LOG_DEBUG(
-            "Updated Cypress synchronizer dynamic config (OldConfig: %v, NewConfig: %v)",
-            ConvertToYsonString(oldConfig, EYsonFormat::Text),
-            ConvertToYsonString(newConfig, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Updated Cypress synchronizer dynamic config")
+            .With("OldConfig", ConvertToYsonString(oldConfig, EYsonFormat::Text))
+            .With("NewConfig", ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
 private:
@@ -1101,7 +1110,7 @@ private:
     const TPeriodicExecutorPtr PassExecutor_;
     const IYPathServicePtr OrchidService_;
 
-    TAtomicIntrusivePtr<TPassProfiler> PassProfiler_{};
+    TAtomicIntrusivePtr<TPassProfiler> PassProfiler_;
     TAtomicIntrusivePtr<IAlertCollector> AlertCollector_;
 
     //! Whether this instance is actively performing passes.

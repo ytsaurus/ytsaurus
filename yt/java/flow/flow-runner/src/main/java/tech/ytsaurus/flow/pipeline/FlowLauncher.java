@@ -1,0 +1,312 @@
+package tech.ytsaurus.flow.pipeline;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.UnaryOperator;
+
+import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import tech.ytsaurus.flow.config.EnvironmentReader;
+import tech.ytsaurus.flow.config.PipelineRunnerConfig;
+import tech.ytsaurus.flow.state.StateDescriptor;
+import tech.ytsaurus.flow.stream.FlowStream;
+import tech.ytsaurus.yson.ClosableYsonConsumer;
+import tech.ytsaurus.yson.YsonTextWriter;
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeMapNode;
+import tech.ytsaurus.ysontree.YTreeNode;
+import tech.ytsaurus.ysontree.YTreeNodeUtils;
+
+/**
+ * Java-side runner for the {@code --config --flow-bin} vanilla launch path.
+ *
+ * <p>Enriches the pipeline spec so the worker gets the Java companion jars (shipped by the launcher
+ * unless the companion resources declare a classpath of the job environment) and a JDK delivered
+ * by the job environment resolved from the vanilla config (porto layers or the task's docker
+ * image; see the SDK README), then spawns flow_server, which performs the launch and sets the
+ * spec, and waits for it.
+ */
+public class FlowLauncher {
+    static final String ENV_VAR_YT_FLOW_BIN = "YT_FLOW_BIN";
+
+    private static final Logger log = LoggerFactory.getLogger(FlowLauncher.class);
+
+    private final EnvironmentReader envReader;
+    private final JobEnvironmentResolver environmentResolver;
+    private final CompanionJars companionJars;
+
+    public FlowLauncher() {
+        this(new EnvironmentReader());
+    }
+
+    FlowLauncher(EnvironmentReader envReader) {
+        this(envReader, new CompanionJars());
+    }
+
+    FlowLauncher(EnvironmentReader envReader, CompanionJars companionJars) {
+        this(envReader, companionJars, System.getProperty("java.home"));
+    }
+
+    FlowLauncher(EnvironmentReader envReader, CompanionJars companionJars, String launcherJavaHome) {
+        this.envReader = envReader;
+        this.environmentResolver = new JobEnvironmentResolver(envReader, launcherJavaHome);
+        this.companionJars = companionJars;
+    }
+
+    /**
+     * Enriches the pipeline config, runs flow_server on it, and returns its exit code.
+     */
+    public int launch(@Nullable String configPath, @Nullable String flowBin) throws IOException, InterruptedException {
+        return launch(configPath, flowBin, Map.of(), List.of());
+    }
+
+    /**
+     * Launches with an application-specific config transformation after standard enrichment and before final
+     * validation. A rejected config never starts flow_server.
+     *
+     * <p>This overload declares no registered streams or states. The config or the transformation must supply
+     * their schemas and state descriptors; a profile state must carry its own descriptor source.
+     *
+     * @param configPath path to the pipeline config in YSON format.
+     * @param flowBin path to flow_server, or null/empty to use {@code $YT_FLOW_BIN}.
+     * @param configTransform returns a non-null full config containing a {@code spec} map.
+     */
+    public int launch(
+            @Nullable String configPath,
+            @Nullable String flowBin,
+            UnaryOperator<YTreeNode> configTransform
+    ) throws IOException, InterruptedException {
+        return launch(configPath, flowBin, Map.of(), List.of(), List.of(), configTransform);
+    }
+
+    /**
+     * Enriches the pipeline config with the registered streams, runs flow_server on it, and
+     * returns its exit code. Declares no states: a profile state must then carry its own
+     * descriptor source in the spec.
+     *
+     * @param configPath      path to the pipeline config in YSON format.
+     * @param flowBin         path to the {@code flow_server} binary that performs the launch.
+     * @param streams         streams registered by the pipeline; their schemas are written into
+     *                        {@code spec.streams}.
+     * @param flowServerFlags extra flags forwarded to {@code flow_server} verbatim, such as
+     *                        {@code --validate-only}.
+     */
+    public int launch(
+            @Nullable String configPath,
+            @Nullable String flowBin,
+            Map<String, FlowStream<?>> streams,
+            List<String> flowServerFlags
+    ) throws IOException, InterruptedException {
+        return launch(configPath, flowBin, streams, List.of(), flowServerFlags);
+    }
+
+    /**
+     * Enriches the pipeline config with everything the registered pipeline implies, runs
+     * flow_server on it, and returns its exit code.
+     *
+     * @param configPath      path to the pipeline config in YSON format.
+     * @param flowBin         path to the {@code flow_server} binary that performs the launch, or
+     *                        {@code null} to take {@code $YT_FLOW_BIN}.
+     * @param streams         streams registered by the pipeline; their schemas are written into
+     *                        {@code spec.streams}.
+     * @param states          states declared by the pipeline; the descriptor sources of profile
+     *                        states are filled from them.
+     * @param flowServerFlags extra flags forwarded to {@code flow_server} verbatim, such as
+     *                        {@code --validate-only}.
+     * @throws IllegalArgumentException if the launch is misconfigured, or if a profile state of the
+     *                                  spec cannot be described from the declared states.
+     */
+    public int launch(
+            @Nullable String configPath,
+            @Nullable String flowBin,
+            Map<String, FlowStream<?>> streams,
+            Collection<StateDescriptor<?>> states,
+            List<String> flowServerFlags
+    ) throws IOException, InterruptedException {
+        return launch(configPath, flowBin, streams, states, flowServerFlags, UnaryOperator.identity());
+    }
+
+    private int launch(
+            @Nullable String configPath,
+            @Nullable String flowBin,
+            Map<String, FlowStream<?>> streams,
+            Collection<StateDescriptor<?>> states,
+            List<String> flowServerFlags,
+            UnaryOperator<YTreeNode> configTransform
+    ) throws IOException, InterruptedException {
+        if (configPath == null || configPath.isEmpty()) {
+            throw new IllegalArgumentException("--config <pipeline.yson> is required to launch the pipeline");
+        }
+        String flowBinPath = flowBin == null || flowBin.isEmpty() ? envReader.getVar(ENV_VAR_YT_FLOW_BIN) : flowBin;
+        if (flowBinPath == null || flowBinPath.isEmpty()) {
+            throw new IllegalArgumentException("flow_server is not given: pass --flow-bin <path to flow_server> "
+                    + "or set " + ENV_VAR_YT_FLOW_BIN);
+        }
+        String flowBinAbs = Paths.get(flowBinPath).toAbsolutePath().toString();
+
+        YTreeNode pipelineConfig = buildExtendedConfig(configPath, streams, states, configTransform);
+        Path extendedConfig = writeExtendedConfig(pipelineConfig);
+        try {
+            List<String> command = new ArrayList<>(List.of(flowBinAbs, "--config", extendedConfig.toString()));
+            command.addAll(flowServerFlags);
+            log.info("Launching {}", command);
+
+            Process flowServer = new ProcessBuilder(command)
+                    .inheritIO()
+                    .start();
+            // flow_server mutates the cluster, so it must not outlive the runner watching its exit code.
+            // The JVM halts once the hook returns, so the config is deleted here too; flow_server
+            // reads it once at startup, so deleting it is safe even after an async destroy.
+            Thread terminator = new Thread(() -> {
+                flowServer.destroy();
+                deleteExtendedConfig(extendedConfig);
+            }, "flow-server-terminator");
+            Runtime.getRuntime().addShutdownHook(terminator);
+            try {
+                return flowServer.waitFor();
+            } catch (InterruptedException e) {
+                flowServer.destroy();
+                throw e;
+            } finally {
+                try {
+                    Runtime.getRuntime().removeShutdownHook(terminator);
+                } catch (IllegalStateException alreadyShuttingDown) {
+                    // Shutdown already started; the hook does the job.
+                }
+            }
+        } finally {
+            deleteExtendedConfig(extendedConfig);
+        }
+    }
+
+    /**
+     * Loads the pipeline config and applies every enrichment the launch needs. Visible for tests.
+     */
+    YTreeNode buildExtendedConfig(
+            String configPath,
+            Map<String, FlowStream<?>> streams,
+            Collection<StateDescriptor<?>> states
+    ) {
+        return buildExtendedConfig(configPath, streams, states, UnaryOperator.identity());
+    }
+
+    private YTreeNode buildExtendedConfig(
+            String configPath,
+            Map<String, FlowStream<?>> streams,
+            Collection<StateDescriptor<?>> states,
+            UnaryOperator<YTreeNode> configTransform
+    ) {
+        PipelineRunnerConfig runnerConfig = new PipelineRunnerConfig(configPath, envReader);
+        YTreeNode pipelineConfig = runnerConfig.getFullSpec();
+        YTreeMapNode root = pipelineConfig.mapNode();
+        YTreeMapNode spec = requirePipelineSpec(pipelineConfig);
+
+        // The registered pipeline is the source of truth for stream schemas, whether or not the
+        // runner also submits a vanilla operation.
+        PipelineSpecEnricher.patchStreamSchemas(spec, streams);
+        // The declared states describe the profile states whose spec names no descriptor source:
+        // the worker never compiles the user's proto, so the descriptors travel in the spec.
+        ProfileStateSpecEnricher.patch(spec, states);
+
+        YTreeMapNode vanilla = root
+                .get("vanilla")
+                .filter(YTreeNode::isMapNode)
+                .map(YTreeNode::mapNode)
+                .orElse(null);
+
+        if (vanilla != null && vanilla.get("enable").map(YTreeNode::boolValue).orElse(false)) {
+            enrichForVanillaLaunch(vanilla, spec);
+        }
+
+        pipelineConfig = Objects.requireNonNull(
+                configTransform.apply(pipelineConfig),
+                "configTransform must return a non-null full pipeline config"
+        );
+        // Last: the final gate validates the spec exactly as it is submitted.
+        PipelineSpecEnricher.validateCompanionMainClass(requirePipelineSpec(pipelineConfig));
+
+        return pipelineConfig;
+    }
+
+    private static YTreeMapNode requirePipelineSpec(YTreeNode config) {
+        if (!config.isMapNode()) {
+            throw new IllegalArgumentException("Pipeline config must be a map");
+        }
+        return config.mapNode().get("spec")
+                .filter(YTreeNode::isMapNode)
+                .map(YTreeNode::mapNode)
+                .orElseThrow(() -> new IllegalArgumentException("Pipeline config has no \"spec\" map"));
+    }
+
+    /**
+     * Applies every vanilla-launch enrichment: ships the companion jars unless every companion
+     * resource declares its classpath, applies the resolved job environment to the tasks, and
+     * completes the companion resources. Visible for tests.
+     */
+    void enrichForVanillaLaunch(YTreeMapNode vanilla, YTreeMapNode spec) {
+        JobEnvironment environment = environmentResolver.resolve(vanilla);
+
+        YTreeMapNode worker = getOrCreateMap(vanilla, "worker");
+        // One shipment serves every resource without a classpath; a resource that declares one
+        // keeps it, so a mixed spec still ships.
+        if (PipelineSpecEnricher.needsShippedJars(spec)) {
+            companionJars.ship(worker);
+        } else {
+            log.info("Every Java companion resource declares its classpath: shipping no companion jars,"
+                    + " the job environment provides them");
+        }
+
+        environment.patchVanillaConfig(vanilla);
+        PipelineSpecEnricher.patchCompanionResources(spec, environment);
+    }
+
+    private YTreeMapNode getOrCreateMap(YTreeMapNode parent, String key) {
+        YTreeNode existing = parent.get(key).orElse(null);
+        if (existing != null && existing.isMapNode()) {
+            return existing.mapNode();
+        }
+        YTreeMapNode created = YTree.mapBuilder().buildMap();
+        parent.put(key, created);
+        return created;
+    }
+
+    /**
+     * Writes the enriched config into a fresh temp dir. Visible for tests.
+     */
+    Path writeExtendedConfig(YTreeNode pipelineConfig) throws IOException {
+        Path dir = Files.createTempDirectory("flow_runner_");
+        Path path = dir.resolve("extended-pipeline.yson");
+        // YTreeTextSerializer decodes every string node through a Java String,
+        // which corrupts non-UTF-8 payloads (e.g. a serialized proto descriptor
+        // set in the spec); walking with stringAsBytes escapes the raw bytes
+        // instead, producing pure-ASCII text.
+        StringBuilder sb = new StringBuilder();
+        try (ClosableYsonConsumer consumer = new YsonTextWriter(sb)) {
+            YTreeNodeUtils.walk(pipelineConfig, consumer, /*stringAsBytes*/ true);
+        }
+        Files.writeString(path, sb.toString(), StandardCharsets.UTF_8);
+        return path;
+    }
+
+    /**
+     * Removes the config written by {@link #writeExtendedConfig} together with its temp dir. Visible for tests.
+     */
+    static void deleteExtendedConfig(Path extendedConfig) {
+        try {
+            Files.deleteIfExists(extendedConfig);
+            Files.deleteIfExists(extendedConfig.getParent());
+        } catch (IOException e) {
+            // Best effort: a leftover temp dir is litter, not a launch failure.
+            log.warn("Failed to delete temp config dir {}", extendedConfig.getParent(), e);
+        }
+    }
+}

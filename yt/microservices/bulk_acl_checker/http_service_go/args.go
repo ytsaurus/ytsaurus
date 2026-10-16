@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/spf13/cobra"
 
 	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
@@ -11,6 +14,18 @@ func ParseArgsAndRunServer() {
 		Use:   "http_server",
 		Short: "Check user access to some path on YT cluster.",
 		Run:   RunServer,
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
+			if ytmsvc.Must(cmd.Flags().GetDuration("cache-update-period")) <= 0 {
+				return fmt.Errorf("cache-update-period must be positive")
+			}
+			// The LRU cache never expires entries when the TTL is not positive.
+			for _, flag := range []string{"acl-cache-ttl", "banned-cache-ttl"} {
+				if ytmsvc.Must(cmd.Flags().GetDuration(flag)) <= 0 {
+					return fmt.Errorf("%s must be positive", flag)
+				}
+			}
+			return nil
+		},
 	}
 
 	extendRootCmd(rootCmd)
@@ -22,6 +37,10 @@ func ParseArgsAndRunServer() {
 	rootCmd.Flags().String("snapshot-root", "//sys/admin/yt-microservices/bulk_acl_checker", "Path to ACL dumps")
 	rootCmd.Flags().String("user-root", "//sys/admin/snapshots/user_exports", "Path to user exports")
 	rootCmd.Flags().String("token-env-variable", "YT_BULK_ACL_CHECKER_TOKEN", "Environment variable that specifies the token used when accessing YT")
+	rootCmd.Flags().String("debug-login", "", "Use a static login and listen on loopback only; intended for local integration tests")
+	rootCmd.Flags().Duration("cache-update-period", 30*time.Second, "Period between ACL cache updates")
+	rootCmd.Flags().Duration("acl-cache-ttl", defaultACLCacheTTL, "Time to live of the cached results of ACL checks performed by the master")
+	rootCmd.Flags().Duration("banned-cache-ttl", defaultBannedCacheTTL, "Time to live of the cached banned attribute of a user")
 
 	ytmsvc.Must0(rootCmd.Execute())
 }

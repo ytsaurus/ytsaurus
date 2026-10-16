@@ -1,0 +1,86 @@
+RECURSE(
+    add_message_distribute_flag
+    arrival_order_table_sink
+    at_most_once_sink
+    companion
+    computation_cycles_and_buffers
+    conflict_horizon
+    diagnostic_tools
+    direct_controller_commands
+    dyntable_conflicts
+    dyntable_leases
+    epoch_seqno_sync
+    external_joiner
+    flow_execute
+    ipv4_support
+    keep_order_mode
+    keep_order_mode/pipeline
+    key_visitor/cpp
+    key_visitor/cpp/completion
+    key_visitor/cpp/pipeline
+    key_visitor/cpp/repartition
+    key_visitor/cpp/sweep
+    key_visitor/joiner
+    key_visitor/joiner/pipeline
+    key_visitor/python
+    key_visitor/python/pipeline
+    message_filter
+    multi_cluster
+    pipeline_alter
+    process_function_overhead
+    process_function_overhead/pipeline
+    reanimate_vanilla
+    reanimate_vanilla/cpp
+    reanimate_vanilla/cpp/pipeline
+    reanimate_vanilla/python
+    reanimate_vanilla/python/pipeline
+    secret_env
+    secret_env/pipeline
+    servicelog
+    shuffle
+    start_stop_pipeline_stress
+    state_joiner
+    static_table
+    static_table_v2
+    swift_map_batching
+    swift_map_batching/pipeline
+    table_injector
+    test_distributed_throttler
+    test_distributed_throttler/pipeline
+    test_resource_control_channel
+    test_resource_control_channel/pipeline
+    transform_ordered_source
+    transform_ordered_source/pipeline
+    word_count_sync
+    working_pipeline_telemetry
+    working_pipeline_telemetry/pipeline
+)
+
+IF (NOT SANITIZER_TYPE)
+    RECURSE(
+        test_compact_output_store
+        test_input_store
+        test_timer_store
+    )
+ENDIF()
+
+IF (NOT OPENSOURCE)
+    # Use replicated/chaos tables — out of yt_sync_mini's scope.
+    RECURSE(
+        chaos_leases
+        read_chaos_tables
+        sorted_dynamic_table
+        write_chaos_sorted_table
+    )
+
+    RECURSE(
+        key_visitor/go
+        key_visitor/go/pipeline
+        key_visitor/java
+        key_visitor/java/companion
+        key_visitor/java_external
+        key_visitor/java_external/companion
+        reanimate_vanilla/java
+        reanimate_vanilla/java/pipeline
+    )
+ENDIF()

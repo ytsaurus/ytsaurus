@@ -11,47 +11,49 @@
 
 using namespace NYT::NQueryClient::NUdf;
 
-extern "C" uint64_t UniqGetFingerprint(TUnversionedValue* valueBegin, int valueCount);
+extern "C" ui64 UniqGetFingerprint(TUnversionedValue* valueBegin, int valueCount);
 
 namespace {
 
-struct TUniqState
+class TUniqState
 {
-    static constexpr uint32_t SentinelHash = 0;
+public:
+    static constexpr ui32 SentinelHash = 0;
     static constexpr i8 DefaultBufferSizePower = 4;
     static constexpr i8 MaxBufferSizePower = 17;
-    static constexpr uint32_t MaxSize = 1 << (MaxBufferSizePower - 1);
+    static constexpr ui32 MaxSize = 1 << (MaxBufferSizePower - 1);
 
-    uint32_t Size = 0;
+    ui32 Size = 0;
     i8 SamplingDegree = 0;
     i8 BufferSizePower = DefaultBufferSizePower;
     bool HasSentinel = false;
-    uint32_t Buffer[];
+    ui32 Buffer[];
 
-    uint32_t BufferSize() const
+    ui32 GetBufferSize() const
     {
         return 1u << BufferSizePower;
     }
 
-    uint32_t Mask() const
+    ui32 GetMask() const
     {
-        return (static_cast<uint32_t>(1) << BufferSizePower) - 1;
+        return (static_cast<ui32>(1) << BufferSizePower) - 1;
     }
 
-    uint32_t Place(uint32_t hash) const
+    ui32 Place(ui32 hash) const
     {
-        return (hash >> (32 - TUniqState::MaxBufferSizePower)) & Mask();
+        return (hash >> (32 - TUniqState::MaxBufferSizePower)) & GetMask();
     }
 
-    bool Good(uint32_t hash) const {
+    bool IsGood(ui32 hash) const
+    {
         return hash == ((hash >> SamplingDegree) << SamplingDegree);
     }
 
     void Rehash()
     {
-        for (uint32_t index = 0; index < BufferSize(); ++index) {
+        for (ui32 index = 0; index < GetBufferSize(); ++index) {
             if (Buffer[index] != SentinelHash) {
-                if (!Good(Buffer[index])) {
+                if (!IsGood(Buffer[index])) {
                     Buffer[index] = SentinelHash;
                     --Size;
                 } else if (index != Place(Buffer[index])) {
@@ -62,7 +64,7 @@ struct TUniqState
             }
         }
 
-        for (uint32_t index = 0; index < BufferSize() && Buffer[index] != SentinelHash; ++index) {
+        for (ui32 index = 0; index < GetBufferSize() && Buffer[index] != SentinelHash; ++index) {
             if (index != Place(Buffer[index])) {
                 auto x = Buffer[index];
                 Buffer[index] = SentinelHash;
@@ -78,7 +80,7 @@ struct TUniqState
         newUniqState->HasSentinel = HasSentinel;
         newUniqState->Size = Size;
         newUniqState->SamplingDegree = SamplingDegree;
-        memcpy(newUniqState->Buffer, Buffer, sizeof(uint32_t) * BufferSize());
+        memcpy(newUniqState->Buffer, Buffer, sizeof(ui32) * GetBufferSize());
 
         newUniqState->ResizeImpl();
 
@@ -88,7 +90,7 @@ struct TUniqState
     void ResizeImpl()
     {
         auto oldBufferSize = (1u << (BufferSizePower - 1));
-        for (uint32_t index = 0; index < oldBufferSize || Buffer[index] != SentinelHash; ++index) {
+        for (ui32 index = 0; index < oldBufferSize || Buffer[index] != SentinelHash; ++index) {
             auto hash = Buffer[index];
             if (hash == SentinelHash) {
                 continue;
@@ -101,7 +103,7 @@ struct TUniqState
 
             while (Buffer[pos] != SentinelHash && Buffer[pos] != hash) {
                 ++pos;
-                pos &= Mask();
+                pos &= GetMask();
             }
 
             if (Buffer[pos] == hash) {
@@ -113,19 +115,19 @@ struct TUniqState
         }
     }
 
-    void ReinsertImpl(uint32_t hash)
+    void ReinsertImpl(ui32 hash)
     {
         auto pos = Place(hash);
 
         while (Buffer[pos] != SentinelHash) {
             ++pos;
-            pos &= Mask();
+            pos &= GetMask();
         }
 
         Buffer[pos] = hash;
     }
 
-    void InsertImpl(uint32_t hash)
+    void InsertImpl(ui32 hash)
     {
         if (hash == SentinelHash) {
             if (!HasSentinel) {
@@ -138,7 +140,7 @@ struct TUniqState
         auto pos = Place(hash);
         while (Buffer[pos] != SentinelHash && Buffer[pos] != hash) {
             ++pos;
-            pos &= Mask();
+            pos &= GetMask();
         }
 
         if (Buffer[pos] == hash) {
@@ -155,24 +157,24 @@ struct TUniqState
         i8 sizePower)
     {
         result->Type = EValueType::String;
-        result->Length = sizeof(TUniqState) + sizeof(uint32_t) * (1 << sizePower);
+        result->Length = sizeof(TUniqState) + sizeof(ui32) * (1 << sizePower);
         result->Data.String = AllocateBytes(context, result->Length);
         auto* uniqState = new (result->Data.String) TUniqState();
         uniqState->BufferSizePower = sizePower;
-        std::fill(uniqState->Buffer, uniqState->Buffer + uniqState->BufferSize(), TUniqState::SentinelHash);
+        std::fill(uniqState->Buffer, uniqState->Buffer + uniqState->GetBufferSize(), TUniqState::SentinelHash);
         return uniqState;
     }
 };
 
 static_assert(std::is_trivially_destructible_v<TUniqState>);
 
-inline TUniqState* Adapt(
+TUniqState* Adapt(
     TExpressionContext* context,
     TUnversionedValue* state)
 {
     auto* uniqState = reinterpret_cast<TUniqState*>(state->Data.String);
 
-    if (uniqState->Size > uniqState->BufferSize() / 2) {
+    if (uniqState->Size > uniqState->GetBufferSize() / 2) {
         if (uniqState->Size > TUniqState::MaxSize) {
             while (uniqState->Size > TUniqState::MaxSize) {
                 uniqState->SamplingDegree++;
@@ -207,9 +209,9 @@ extern "C" void uniq_update(
 {
     auto* uniqState = reinterpret_cast<TUniqState*>(state->Data.String);
 
-    auto hash = static_cast<uint32_t>(UniqGetFingerprint(newValues, valueCount));
+    auto hash = static_cast<ui32>(UniqGetFingerprint(newValues, valueCount));
 
-    if (!uniqState->Good(hash)) {
+    if (!uniqState->IsGood(hash)) {
         *result = *state;
         return;
     }
@@ -242,10 +244,10 @@ extern "C" void uniq_merge(
         leftUniqState = Adapt(context, leftState);
     }
 
-    auto rightBufferSize = rightUniqState->BufferSize();
-    for (uint32_t index = 0; index < rightBufferSize; ++index) {
+    auto rightBufferSize = rightUniqState->GetBufferSize();
+    for (ui32 index = 0; index < rightBufferSize; ++index) {
         auto hash = rightUniqState->Buffer[index];
-        if (hash != TUniqState::SentinelHash && leftUniqState->Good(hash)) {
+        if (hash != TUniqState::SentinelHash && leftUniqState->IsGood(hash)) {
             leftUniqState->InsertImpl(hash);
             leftUniqState = Adapt(context, leftState);
         }
@@ -267,13 +269,13 @@ extern "C" void uniq_finalize(
         return;
     }
 
-    uint64_t extrapolated = static_cast<uint64_t>(uniqState->Size) << uniqState->SamplingDegree;
+    ui64 extrapolated = static_cast<ui64>(uniqState->Size) << uniqState->SamplingDegree;
 
-    uint64_t fuzzed = extrapolated + (NYT::FarmFingerprint(uniqState->Size) & ((1ULL << uniqState->SamplingDegree) - 1));
+    ui64 fuzzed = extrapolated + (NYT::FarmFingerprint(uniqState->Size) & ((1ULL << uniqState->SamplingDegree) - 1));
 
     // 32-bit hashes help save space, but introduce collisions which would not be present otherwise.
-    auto p32 = static_cast<uint64_t>(1) << 32;
-    auto adjusted = static_cast<uint64_t>(round(p32 * (std::log(p32) - std::log(p32 - fuzzed))));
+    auto p32 = static_cast<ui64>(1) << 32;
+    auto adjusted = static_cast<ui64>(round(p32 * (std::log(p32) - std::log(p32 - fuzzed))));
 
     result->Data.Uint64 = adjusted;
 }

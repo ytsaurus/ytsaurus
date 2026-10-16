@@ -1,0 +1,72 @@
+Language: Cpp
+Standard: Latest
+
+# YT-specific
+ContextIndependentContinuationIndent: true
+AllowMultilineLambdaCaptureList: true
+SpaceBeforeParens: Custom
+SpaceBeforeParensOptions:
+    AfterLambdaCaptureList: true
+
+IndentWidth: 4
+ColumnLimit: 0
+MaxEmptyLinesToKeep: 2
+AccessModifierOffset: -4
+ConstructorInitializerIndentWidth: 4
+ContinuationIndentWidth: 4
+# https://stackoverflow.com/questions/39779985/how-to-control-clang-format-indentation-of-chained-method-calls
+PenaltyIndentedWhitespace: 1
+BinPackArguments: false
+
+BreakBeforeBraces: Custom
+BreakInheritanceList: BeforeComma
+BreakConstructorInitializers: BeforeComma
+BreakBeforeTernaryOperators: true
+BreakBeforeConceptDeclarations: true
+
+AlwaysBreakBeforeMultilineStrings: true
+AlwaysBreakTemplateDeclarations: true
+
+BraceWrapping:
+    AfterClass: true
+    AfterStruct: true
+    AfterEnum: true
+    AfterUnion: true
+    AfterFunction: true
+    AfterControlStatement: MultiLine
+    SplitEmptyFunction: false
+    SplitEmptyRecord: false
+
+AlignAfterOpenBracket: DontAlign
+AlignOperands: DontAlign
+AlignEscapedNewlines: true
+
+IndentCaseLabels: true
+IndentPPDirectives: BeforeHash
+
+AllowAllArgumentsOnNextLine: false
+
+AllowShortLambdasOnASingleLine: None
+AllowShortFunctionsOnASingleLine: false
+
+PackConstructorInitializers: Never
+
+SeparateDefinitionBlocks: Always
+
+PointerAlignment: Left
+
+WhitespaceSensitiveMacros:
+    - 'PP_STRINGIZE'
+    - 'DEFINE_ENUM'
+    - 'DEFINE_BIT_ENUM'
+    - 'DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE'
+    - 'DEFINE_ENUM_WITH_UNDERLYING_TYPE'
+    - 'YT_DEFINE_ERROR_ENUM'
+
+SpaceInEmptyBlock: true
+
+WrapNamespaceBodyWithEmptyLines: Always
+FixNamespaceComments: true
+ShortNamespaceLines: 0
+ForbidBreakAfter: [YT_LOG_DEBUG, YT_LOG_ERROR, YT_LOG_FATAL, YT_LOG_INFO, YT_LOG_TRACE, YT_LOG_WARNING, Format]
+LambdaBodyIndentation: Signature

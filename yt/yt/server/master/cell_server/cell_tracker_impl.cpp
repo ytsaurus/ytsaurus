@@ -1,6 +1,7 @@
 #include "area.h"
 #include "bundle_node_tracker.h"
 #include "config.h"
+#include "leader_smoothing.h"
 #include "private.h"
 #include "cell_base.h"
 #include "cell_bundle.h"
@@ -118,8 +119,7 @@ public:
 
     bool IsVerboseLoggingEnabled() override
     {
-        return Bootstrap_->GetConfigManager()->GetConfig()
-            ->TabletManager->TabletCellBalancer->EnableVerboseLogging;
+        return GetConfig()->EnableVerboseLogging;
     }
 
     bool IsBalancingRequired() override
@@ -136,6 +136,11 @@ public:
         }
 
         return false;
+    }
+
+    bool IsTabletCellSmoothingEnabled() override
+    {
+        return GetConfig()->EnableTabletCellSmoothing;
     }
 
 private:
@@ -188,7 +193,7 @@ void TCellTrackerImpl::ScanCells()
     const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
 
     if (!config->TabletManager->EnableCellTracker) {
-        YT_LOG_DEBUG("Cell tracker is disabled; skipping iteration");
+        YT_TLOG_DEBUG("Cell tracker is disabled; skipping iteration");
         return;
     }
 
@@ -248,6 +253,10 @@ void TCellTrackerImpl::ScanCellarCells(ECellarType cellarType)
         }
 
         ScheduleLeaderReassignment(cell, peerId);
+    }
+
+    if (GetDynamicConfig()->TabletCellBalancer->EnableLeaderSmoothing) {
+        ScheduleLeaderSmoothing(cellarType);
     }
 
     auto moveDescriptors = balancer->GetCellMoveDescriptors();
@@ -385,11 +394,12 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, int newLeadin
         error = IsFailed(leadingPeer, cell, GetDynamicConfig()->LeaderReassignmentTimeout);
     }
 
-    YT_LOG_DEBUG(error, "Scheduling leader reassignment (CellId: %v, LeaderPeerId: %v, NewLeadingPeerId: %v, Address: %v)",
-        cell->GetId(),
-        cell->GetLeadingPeerId(),
-        newLeadingPeerId,
-        leadingPeer.Descriptor.GetDefaultAddress());
+    YT_TLOG_DEBUG("Scheduling leader reassignment")
+        .With("CellId", cell->GetId())
+        .With("LeaderPeerId", cell->GetLeadingPeerId())
+        .With("NewLeadingPeerId", newLeadingPeerId)
+        .With("Address", leadingPeer.Descriptor.GetDefaultAddress())
+        .With(error);
 
     TReqSetLeadingPeer request;
     ToProto(request.mutable_cell_id(), cell->GetId());
@@ -403,6 +413,150 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, int newLeadin
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
         ->CommitAndLog(Logger()));
+}
+
+void TCellTrackerImpl::ScheduleLeaderSmoothing(ECellarType cellarType)
+{
+    YT_TLOG_DEBUG("Leader smoothing started")
+        .With("CellarType", cellarType);
+
+    const auto& cellManager = Bootstrap_->GetTamedCellManager();
+
+    // Group cells by area for per-area leader distribution analysis.
+    THashMap<const TArea*, std::vector<TCellBase*>> areaToCells;
+    for (auto* cell : cellManager->Cells(cellarType)) {
+        if (!IsObjectAlive(cell)) {
+            continue;
+        }
+
+        // Leader smoothing only applies to dependent (non-independent) multipeer cells.
+        if (cell->CellBundle()->GetOptions()->IndependentPeers) {
+            continue;
+        }
+
+        if (cell->CellBundle()->GetOptions()->PeerCount <= 1) {
+            continue;
+        }
+
+        areaToCells[cell->GetArea()].push_back(cell);
+    }
+
+    YT_TLOG_DEBUG("Leader smoothing: grouped cells by area")
+        .With("AreaCount", areaToCells.size());
+
+    for (auto& [area, cells] : areaToCells) {
+        YT_TLOG_DEBUG("Leader smoothing: processing area")
+            .With("AreaName", area->GetName())
+            .With("CellCount", cells.size());
+
+        bool allCellsHealthy = true;
+        std::vector<TCellPeerInfo> cellPeerInfos;
+        cellPeerInfos.reserve(cells.size());
+
+        for (int cellIndex = 0; cellIndex < std::ssize(cells); ++cellIndex) {
+            const auto* cell = cells[cellIndex];
+
+            if (cell->GetHealth() != ECellHealth::Good) {
+                allCellsHealthy = false;
+                break;
+            }
+
+            int leadingPeerId = cell->GetLeadingPeerId();
+            if (leadingPeerId == InvalidPeerId) {
+                allCellsHealthy = false;
+                break;
+            }
+
+            const auto& leadingPeer = cell->Peers()[leadingPeerId];
+            const auto* leaderNode = leadingPeer.Node.Get();
+            if (!leaderNode || !CheckIfNodeCanHostCells(leaderNode)) {
+                allCellsHealthy = false;
+                break;
+            }
+
+            TCellPeerInfo info{
+                .CellIndex = cellIndex,
+                .LeaderNodeId = static_cast<int>(leaderNode->GetId().Underlying()),
+                .LeadingPeerId = leadingPeerId,
+            };
+
+            for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+                if (cell->IsAlienPeer(peerId)) {
+                    continue;
+                }
+                if (peerId == leadingPeerId) {
+                    continue;
+                }
+                const auto& peer = cell->Peers()[peerId];
+                if (!CheckIfNodeCanHostCells(peer.Node)) {
+                    continue;
+                }
+                if (cell->GetPeerState(peerId) != EPeerState::Following) {
+                    continue;
+                }
+                info.FollowerPeers.emplace_back(peerId, peer.Node->GetId().Underlying());
+            }
+
+            cellPeerInfos.push_back(std::move(info));
+        }
+
+        if (!allCellsHealthy) {
+            continue;
+        }
+
+        if (cellPeerInfos.empty()) {
+            continue;
+        }
+
+        // Collect eligible nodes for this area.
+        const auto& bundleNodeTracker = Bootstrap_->GetTamedCellManager()->GetBundleNodeTracker();
+        const auto& areaNodes = bundleNodeTracker->GetAreaNodes(area);
+
+        std::vector<int> eligibleNodeIds;
+        THashMap<int, const TNode*> nodeIdToNode;
+
+        for (const auto* node : areaNodes) {
+            if (CheckIfNodeCanHostCells(node)) {
+                int nodeId = node->GetId().Underlying();
+                eligibleNodeIds.push_back(nodeId);
+                nodeIdToNode[nodeId] = node;
+            }
+        }
+
+        if (eligibleNodeIds.empty()) {
+            continue;
+        }
+
+        // Run the multi-hop smoothing algorithm.
+        auto reassignments = ComputeLeaderSmoothing(cellPeerInfos, eligibleNodeIds);
+
+        if (reassignments.empty()) {
+            continue;
+        }
+
+        YT_TLOG_DEBUG("Leader smoothing: applying reassignments")
+            .With("AreaName", area->GetName())
+            .With("ReassignmentCount", reassignments.size());
+
+        // Apply each reassignment.
+        for (const auto& reassignment : reassignments) {
+            auto* cell = cells[reassignment.CellIndex];
+            int newLeadingPeerId = reassignment.NewLeadingPeerId;
+
+            YT_TLOG_DEBUG("Scheduling leader reassignment for smoothing")
+                .With("CellId", cell->GetId())
+                .With("OldLeadingPeerId", cell->GetLeadingPeerId())
+                .With("NewLeadingPeerId", newLeadingPeerId);
+
+            ScheduleLeaderReassignment(cell, newLeadingPeerId);
+
+            cell->CellBundle()
+                ->ProfilingCounters()
+                .LeaderSmoothings.Increment();
+        }
+    }
+
+    YT_TLOG_DEBUG("Leader smoothing finished");
 }
 
 void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* balancer)
@@ -477,10 +631,10 @@ void TCellTrackerImpl::SchedulePeerRevocation(
         }
 
         if (auto address = peer.Descriptor.GetDefaultAddress(); !Bootstrap_->GetNodeTracker()->FindNodeByAddress(address)) {
-            YT_LOG_ALERT("Scheduling peer revocation from non-existing node (CellId: %v, PeerId: %v, Address: %v)",
-                cell->GetId(),
-                peerId,
-                address);
+            YT_TLOG_ALERT("Scheduling peer revocation from non-existing node")
+                .With("CellId", cell->GetId())
+                .With("PeerId", peerId)
+                .With("Address", address);
 
             balancer->RevokePeer(
                 cell,
@@ -506,10 +660,11 @@ void TCellTrackerImpl::SchedulePeerRevocation(
                 // Followers are decommssioned by simple revocation.
             }
 
-            YT_LOG_DEBUG(error, "Scheduling peer revocation (CellId: %v, PeerId: %v, Address: %v)",
-                cell->GetId(),
-                peerId,
-                peer.Descriptor.GetDefaultAddress());
+            YT_TLOG_DEBUG("Scheduling peer revocation")
+                .With("CellId", cell->GetId())
+                .With("PeerId", peerId)
+                .With("Address", peer.Descriptor.GetDefaultAddress())
+                .With(error);
 
             balancer->RevokePeer(cell, peerId, error);
 

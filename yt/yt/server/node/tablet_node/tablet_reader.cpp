@@ -3,6 +3,7 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "failing_on_rotation_reader.h"
+#include "hedging_manager_registry.h"
 #include "partition.h"
 #include "private.h"
 #include "sorted_chunk_store.h"
@@ -97,18 +98,19 @@ public:
     TUnversifyingReader(
         IVersionedReaderPtr versionedReader,
         TRowBufferPtr rowBuffer,
-        TTableSchema* schema,
+        TTableSchemaPtr schema,
         const TColumnFilter& columnFilter,
         TNestedColumnsSchema nestedColumnsSchema = {})
         : VersionedReader_(std::move(versionedReader))
         , RowBuffer_(std::move(rowBuffer))
-        , ColumnIds_(GetColumnIdsFromFilter(columnFilter, schema->GetColumnCount()))
+        , Schema_(std::move(schema))
+        , ColumnIds_(GetColumnIdsFromFilter(columnFilter, Schema_->GetColumnCount()))
         , NestedColumnsSchema_(FilterNestedColumnsSchema(nestedColumnsSchema, ColumnIds_))
     {
         YT_UNUSED_FUTURE(VersionedReader_->Open());
 
-        ColumnIdToIndex_.assign(static_cast<size_t>(schema->GetColumnCount()), -1);
-        NestedIdToIndex_.assign(static_cast<size_t>(schema->GetColumnCount()), -1);
+        ColumnIdToIndex_.assign(static_cast<size_t>(Schema_->GetColumnCount()), -1);
+        NestedIdToIndex_.assign(static_cast<size_t>(Schema_->GetColumnCount()), -1);
 
         AggregateFunctions_.assign(ColumnIds_.size(), nullptr);
 
@@ -127,7 +129,7 @@ public:
             auto columnId = ColumnIds_[columnIndex];
             ColumnIdToIndex_[columnId] = columnIndex;
 
-            if (columnId < schema->GetKeyColumnCount()) {
+            if (columnId < Schema_->GetKeyColumnCount()) {
                 continue;
             }
 
@@ -142,13 +144,13 @@ public:
                 continue;
             }
 
-            const auto& maybeAggregate = schema->Columns()[columnId].Aggregate();
+            const auto& maybeAggregate = Schema_->Columns()[columnId].Aggregate();
 
             if (!maybeAggregate) {
                 THROW_ERROR_EXCEPTION("Reading without merge is supported for aggregating schemas only");
             }
 
-            auto wireType = GetWireType(schema->Columns()[columnId].LogicalType());
+            auto wireType = GetWireType(Schema_->Columns()[columnId].LogicalType());
 
             AggregateFunctions_[columnIndex] = GetSimpleAggregateFunction(*maybeAggregate, wireType);
         }
@@ -180,6 +182,7 @@ public:
 
         auto valueIt = const_cast<TVersionedValue*>(versionedRow.BeginValues());
         auto valueItEnd = const_cast<TVersionedValue*>(versionedRow.EndValues());
+        bool allNestedAreSingular = true;
 
         while (valueIt != valueItEnd) {
             auto columnId = valueIt->Id;
@@ -205,6 +208,7 @@ public:
 
             if (nestedColumnIndex != -1) {
                 NestedColumns_[nestedColumnIndex] = {valueIt, valueItNext};
+                allNestedAreSingular = allNestedAreSingular && (valueItNext - valueIt) <= 1;
                 valueIt = valueItNext;
             } else if (columnIndex != -1) [[likely]] {
                 auto* aggregateFunction = AggregateFunctions_[columnIndex];
@@ -218,55 +222,72 @@ public:
             }
         }
 
-        auto nestedKeySchema = TRange(NestedColumnsSchema_.KeyColumns);
-        auto nestedValueSchema = TRange(NestedColumnsSchema_.ValueColumns);
+        if (allNestedAreSingular) {
+            for (auto range : NestedColumns_) {
+                if (!range.empty()) {
+                    int columnIndex = ColumnIdToIndex_[range[0].Id];
+                    if (columnIndex == -1) [[unlikely]] {
+                        continue;
+                    }
 
-        NestedMerger_.UnpackKeyColumns(
-            TRange(NestedColumns_).Slice(0, nestedKeySchema.size()),
-            nestedKeySchema);
+                    resultRow[columnIndex] = range[0];
+                }
+            }
+        } else {
+            auto nestedKeySchema = TRange(NestedColumnsSchema_.KeyColumns);
+            auto nestedValueSchema = TRange(NestedColumnsSchema_.ValueColumns);
 
-        // NB(sabdenovch): only here to signal that no discard is needed.
-        // Normally this is called after all UnpackValueColumn.
-        NestedMerger_.DiscardZeroes(/*nestedRowDiscardPolicy*/ nullptr);
+            NestedMerger_.UnpackKeyColumns(
+                TRange(NestedColumns_).Slice(0, nestedKeySchema.size()),
+                nestedKeySchema);
 
-        for (int index = 0; index < std::ssize(nestedKeySchema); ++index) {
-            if (NestedColumns_[index].Empty()) {
-                continue;
+            // NB(sabdenovch): only here to signal that no discard is needed.
+            // Normally this is called after all UnpackValueColumn.
+            NestedMerger_.DiscardZeroes(/*nestedRowDiscardPolicy*/ nullptr);
+
+            for (int index = 0; index < std::ssize(nestedKeySchema); ++index) {
+                if (NestedColumns_[index].Empty()) {
+                    continue;
+                }
+
+                auto [columnId, type] = nestedKeySchema[index];
+
+                auto state = NestedMerger_.GetPackedKeyColumn(index, type, pool);
+                state.Id = columnId;
+
+                auto columnIndex = ColumnIdToIndex_[columnId];
+                // Nested key columns are added to enriched column filter.
+                if (columnIndex != -1) {
+                    resultRow[columnIndex] = state;
+                }
             }
 
-            auto [columnId, type] = nestedKeySchema[index];
+            for (int index = 0; index < std::ssize(nestedValueSchema); ++index) {
+                auto valueRange = NestedColumns_[index + std::ssize(nestedKeySchema)];
 
-            auto state = NestedMerger_.GetPackedKeyColumn(index, type, pool);
-            state.Id = columnId;
+                auto [columnId, type, aggregateFunction] = nestedValueSchema[index];
 
-            auto columnIndex = ColumnIdToIndex_[columnId];
-            // Nested key columns are added to enriched column filter.
-            if (columnIndex != -1) {
+                NestedMerger_.UnpackValueColumn(
+                    valueRange,
+                    type,
+                    aggregateFunction);
+
+                if (valueRange.Empty()) {
+                    continue;
+                }
+
+                // For nested value columns requested and enriched column filters are matched.
+                auto state = NestedMerger_.GetPackedValueColumn(index, type, pool);
+                state.Id = columnId;
+
+                auto columnIndex = ColumnIdToIndex_[columnId];
+                YT_VERIFY(columnIndex != -1);
                 resultRow[columnIndex] = state;
             }
         }
 
-        for (int index = 0; index < std::ssize(nestedValueSchema); ++index) {
-            auto valueRange = NestedColumns_[index + std::ssize(nestedKeySchema)];
-
-            auto [columnId, type, aggregateFunction] = nestedValueSchema[index];
-
-            NestedMerger_.UnpackValueColumn(
-                valueRange,
-                type,
-                aggregateFunction);
-
-            if (valueRange.Empty()) {
-                continue;
-            }
-
-            // For nested value columns requested and enriched column filters are matched.
-            auto state = NestedMerger_.GetPackedValueColumn(index, type, pool);
-            state.Id = columnId;
-
-            auto columnIndex = ColumnIdToIndex_[columnId];
-            YT_VERIFY(columnIndex != -1);
-            resultRow[columnIndex] = state;
+        for (auto& range : NestedColumns_) {
+            range = {};
         }
 
         return resultRow;
@@ -286,7 +307,7 @@ public:
         for (auto versionedRow : rowsRange) {
             Rows_.push_back(BuildMergedRow(versionedRow));
 
-            DataWeight_ += GetDataWeight(Rows_.back());
+            DataWeight_ += GetDataWeightAfterHunkDecoding(Rows_.back(), Schema_);
         }
 
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(Rows_), MakeStrong(this)));
@@ -326,6 +347,7 @@ public:
 private:
     const IVersionedReaderPtr VersionedReader_;
     const TRowBufferPtr RowBuffer_;
+    const TTableSchemaPtr Schema_;
     const std::vector<int> ColumnIds_;
     const TNestedColumnsSchema NestedColumnsSchema_;
 
@@ -356,9 +378,9 @@ void ThrowUponDistributedThrottlerOverdraft(
         THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
             "Read request is throttled due to %Qlv throttler overdraft",
             tabletThrottlerKind)
-            << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-            << TErrorAttribute("read_session_id", chunkReadOptions.ReadSessionId)
-            << TErrorAttribute("queue_total_count", distributedThrottler->GetQueueTotalAmount());
+            .With("tablet_id", tabletSnapshot->TabletId)
+            .With("read_session_id", chunkReadOptions.ReadSessionId)
+            .With("queue_total_count", distributedThrottler->GetQueueTotalAmount());
     }
 }
 
@@ -377,9 +399,9 @@ void ThrowUponNodeThrottlerOverdraft(
     if (nodeThrottler->GetEstimatedOverdraftDuration() > maxOverdraftDuration) {
         THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
             "Read request is throttled due to node throttler overdraft")
-            << TErrorAttribute("read_session_id", chunkReadOptions.ReadSessionId)
-            << TErrorAttribute("queue_total_count", nodeThrottler->GetQueueTotalAmount())
-            << TErrorAttribute("max_overdraft_duration", maxOverdraftDuration);
+            .With("read_session_id", chunkReadOptions.ReadSessionId)
+            .With("queue_total_count", nodeThrottler->GetQueueTotalAmount())
+            .With("max_overdraft_duration", maxOverdraftDuration);
     }
 }
 
@@ -501,6 +523,16 @@ ISchemafulUnversionedReaderPtr WrapSchemafulTabletReader(
         tabletSnapshot,
         std::move(reader));
 
+    auto modifiedChunkReadOptions = chunkReadOptions;
+    if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
+        modifiedChunkReadOptions.AdaptiveHedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
+            THedgingUnit{
+                .UserTag = NServer::GetCurrentProfilingUser(),
+                .HunkChunk = true,
+                .QueryKind = modifiedChunkReadOptions.InitialQueryKind,
+            });
+    }
+
     reader = CreateHunkDecodingSchemafulReader(
         tabletSnapshot->QuerySchema,
         columnFilter,
@@ -508,7 +540,7 @@ ISchemafulUnversionedReaderPtr WrapSchemafulTabletReader(
         std::move(reader),
         tabletSnapshot->ChunkFragmentReader,
         tabletSnapshot->DictionaryCompressionFactory,
-        chunkReadOptions,
+        std::move(modifiedChunkReadOptions),
         tabletSnapshot->PerformanceCounters);
 
     return reader;
@@ -556,9 +588,9 @@ TStoresAndBounds GetStoresAndBounds(
 
     if (std::ssize(stores) > tabletSnapshot->Settings.MountConfig->MaxReadFanIn) {
         THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
-            << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-            << TErrorAttribute("fan_in", std::ssize(stores))
-            << TErrorAttribute("fan_in_limit", tabletSnapshot->Settings.MountConfig->MaxReadFanIn);
+            .With("tablet_id", tabletSnapshot->TabletId)
+            .With("fan_in", std::ssize(stores))
+            .With("fan_in_limit", tabletSnapshot->Settings.MountConfig->MaxReadFanIn);
     }
 
     return {std::move(stores), std::move(boundsPerStore)};
@@ -665,7 +697,7 @@ ISchemafulUnversionedReaderPtr DoCreateScanReader(
             return New<TUnversifyingReader>(
                 std::move(underlyingReader),
                 New<TRowBuffer>(TTabletReaderPoolTag()),
-                tabletSnapshot->QuerySchema.get(),
+                tabletSnapshot->QuerySchema,
                 columnFilter,
                 GetNestedColumnsSchema(*tabletSnapshot->QuerySchema));
         };
@@ -731,9 +763,9 @@ ISchemafulUnversionedReaderPtr CreatePartitionScanReader(
 
     if (std::ssize(stores) > tabletSnapshot->Settings.MountConfig->MaxReadFanIn) {
         THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
-            << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-            << TErrorAttribute("fan_in", std::ssize(stores))
-            << TErrorAttribute("fan_in_limit", tabletSnapshot->Settings.MountConfig->MaxReadFanIn);
+            .With("tablet_id", tabletSnapshot->TabletId)
+            .With("fan_in", std::ssize(stores))
+            .With("fan_in_limit", tabletSnapshot->Settings.MountConfig->MaxReadFanIn);
     }
 
     TUnversionedRow lowerBound;
@@ -744,20 +776,18 @@ ISchemafulUnversionedReaderPtr CreatePartitionScanReader(
         upperBound = partitionBounds.Back().Bounds.back().second;
     }
 
-    YT_LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, "
-        "WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v, StoreRanges: %v, "
-        "Timestamp: %v, BoundCount: %v, LowerBound: %kv, UpperBound: %kv, MergeVersionedRows: %v)",
-        tabletSnapshot->TabletId,
-        tabletSnapshot->CellId,
-        chunkReadOptions.WorkloadDescriptor,
-        chunkReadOptions.ReadSessionId,
-        MakeFormattableView(stores, TStoreIdFormatter()),
-        MakeFormattableView(stores, TStoreRangeFormatter()),
-        timestamp,
-        std::ssize(partitionBounds),
-        lowerBound,
-        upperBound,
-        mergeVersionedRows);
+    YT_TLOG_DEBUG("Creating schemaful sorted tablet reader")
+        .With("TabletId", tabletSnapshot->TabletId)
+        .With("CellId", tabletSnapshot->CellId)
+        .With("WorkloadDescriptor", chunkReadOptions.WorkloadDescriptor)
+        .With("ReadSessionId", chunkReadOptions.ReadSessionId)
+        .With("StoreIds", MakeFormattableView(stores, TStoreIdFormatter()))
+        .With("StoreRanges", MakeFormattableView(stores, TStoreRangeFormatter()))
+        .With("Timestamp", timestamp)
+        .With("BoundCount", std::ssize(partitionBounds))
+        .WithFormat("LowerBound", "%kv", lowerBound)
+        .WithFormat("UpperBound", "%kv", upperBound)
+        .With("MergeVersionedRows", mergeVersionedRows);
 
     return DoCreateScanReader(
         tabletSnapshot,
@@ -838,25 +868,23 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
 
     if (std::ssize(stores) > tabletSnapshot->Settings.MountConfig->MaxReadFanIn) {
         THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
-            << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-            << TErrorAttribute("fan_in", stores.size())
-            << TErrorAttribute("fan_in_limit", tabletSnapshot->Settings.MountConfig->MaxReadFanIn);
+            .With("tablet_id", tabletSnapshot->TabletId)
+            .With("fan_in", stores.size())
+            .With("fan_in_limit", tabletSnapshot->Settings.MountConfig->MaxReadFanIn);
     }
 
-    YT_LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, "
-        "LowerBound: %v, UpperBound: %v, WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v, "
-        "StoreRanges: %v, BoundCount: %v, MergeVersionedRows: %v)",
-        tabletSnapshot->TabletId,
-        tabletSnapshot->CellId,
-        timestamp,
-        lowerBound,
-        upperBound,
-        chunkReadOptions.WorkloadDescriptor,
-        chunkReadOptions.ReadSessionId,
-        MakeFormattableView(stores, TStoreIdFormatter()),
-        MakeFormattableView(stores, TStoreRangeFormatter()),
-        bounds.Size(),
-        mergeVersionedRows);
+    YT_TLOG_DEBUG("Creating schemaful sorted tablet reader")
+        .With("TabletId", tabletSnapshot->TabletId)
+        .With("CellId", tabletSnapshot->CellId)
+        .With("Timestamp", timestamp)
+        .With("LowerBound", lowerBound)
+        .With("UpperBound", upperBound)
+        .With("WorkloadDescriptor", chunkReadOptions.WorkloadDescriptor)
+        .With("ReadSessionId", chunkReadOptions.ReadSessionId)
+        .With("StoreIds", MakeFormattableView(stores, TStoreIdFormatter()))
+        .With("StoreRanges", MakeFormattableView(stores, TStoreRangeFormatter()))
+        .With("BoundCount", bounds.Size())
+        .With("MergeVersionedRows", mergeVersionedRows);
 
     std::vector<TLegacyOwningKey> boundaries;
     boundaries.reserve(stores.size());
@@ -950,7 +978,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
             return New<TUnversifyingReader>(
                 std::move(underlyingReader),
                 New<TRowBuffer>(TTabletReaderPoolTag()),
-                tabletSnapshot->QuerySchema.get(),
+                tabletSnapshot->QuerySchema,
                 columnFilter,
                 GetNestedColumnsSchema(*tabletSnapshot->QuerySchema));
         };
@@ -1055,17 +1083,18 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
         }
     }
 
-    YT_LOG_DEBUG("Creating schemaful ordered tablet reader (TabletId: %v, CellId: %v, "
-        "LowerRowIndex: %v, UpperRowIndex: %v, WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v)",
-        tabletSnapshot->TabletId,
-        tabletSnapshot->CellId,
-        lowerRowIndex,
-        upperRowIndex,
-        chunkReadOptions.WorkloadDescriptor,
-        chunkReadOptions.ReadSessionId,
-        MakeFormattableView(storeIndices, [&] (auto* builder, int storeIndex) {
-            FormatValue(builder, allStores[storeIndex]->GetId(), TStringBuf());
-        }));
+    YT_TLOG_DEBUG("Creating schemaful ordered tablet reader")
+        .With("TabletId", tabletSnapshot->TabletId)
+        .With("CellId", tabletSnapshot->CellId)
+        .With("LowerRowIndex", lowerRowIndex)
+        .With("UpperRowIndex", upperRowIndex)
+        .With("WorkloadDescriptor", chunkReadOptions.WorkloadDescriptor)
+        .With("ReadSessionId", chunkReadOptions.ReadSessionId)
+        .With(
+            "StoreIds",
+            MakeFormattableView(storeIndices, [&] (auto* builder, int storeIndex) {
+                FormatValue(builder, allStores[storeIndex]->GetId(), TStringBuf());
+            }));
 
     std::vector<std::function<ISchemafulUnversionedReaderPtr()>> readers;
     for (int storeIndex : storeIndices) {
@@ -1168,25 +1197,23 @@ IVersionedReaderPtr CreateCompactionTabletReader(
     if (asyncResult.IsSet()) {
         asyncResult.GetOrCrash().ThrowOnError();
     } else {
-        YT_LOG_DEBUG("Started waiting for compaction inbound throughput throttler");
+        YT_TLOG_DEBUG("Started waiting for compaction inbound throughput throttler");
         WaitFor(asyncResult)
             .ThrowOnError();
-        YT_LOG_DEBUG("Finished waiting for compaction inbound throughput throttler");
+        YT_TLOG_DEBUG("Finished waiting for compaction inbound throughput throttler");
     }
 
-    YT_LOG_DEBUG(
-        "Creating versioned tablet reader (TabletId: %v, CellId: %v, LowerBound: %v, UpperBound: %v, "
-        "CurrentTimestamp: %v, MajorTimestamp: %v, WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v, StoreRanges: %v)",
-        tabletSnapshot->TabletId,
-        tabletSnapshot->CellId,
-        lowerBound,
-        upperBound,
-        currentTimestamp,
-        majorTimestamp,
-        chunkReadOptions.WorkloadDescriptor,
-        chunkReadOptions.ReadSessionId,
-        MakeFormattableView(stores, TStoreIdFormatter()),
-        MakeFormattableView(stores, TStoreRangeFormatter()));
+    YT_TLOG_DEBUG("Creating versioned tablet reader")
+        .With("TabletId", tabletSnapshot->TabletId)
+        .With("CellId", tabletSnapshot->CellId)
+        .With("LowerBound", lowerBound)
+        .With("UpperBound", upperBound)
+        .With("CurrentTimestamp", currentTimestamp)
+        .With("MajorTimestamp", majorTimestamp)
+        .With("WorkloadDescriptor", chunkReadOptions.WorkloadDescriptor)
+        .With("ReadSessionId", chunkReadOptions.ReadSessionId)
+        .With("StoreIds", MakeFormattableView(stores, TStoreIdFormatter()))
+        .With("StoreRanges", MakeFormattableView(stores, TStoreRangeFormatter()));
 
     const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
 

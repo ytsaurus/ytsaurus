@@ -1,9 +1,9 @@
 #pragma once
 
-#include "chunk.h"
-#include "chunk_tree_statistics.h"
-#include "chunk_tree_traverser.h"
 #include "public.h"
+
+#include "chunk.h"
+#include "chunk_tree_traverser.h"
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -40,7 +40,6 @@ class TChunkReplicasVisitor
     : public TChunkVisitorBase<THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>>>
 {
 public:
-
     using TChunkVisitorBase<THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>>>::TChunkVisitorBase;
 
     bool OnChunk(
@@ -128,4 +127,3 @@ TFuture<NYson::TYsonString> ComputeHunkStatistics(
 #define CHUNK_VISITOR_INL_H_
 #include "chunk_visitor-inl.h"
 #undef CHUNK_VISITOR_INL_H_
-

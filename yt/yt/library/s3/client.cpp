@@ -5,6 +5,7 @@
 
 #include <yt/yt/core/net/address.h>
 
+#include <library/cpp/html/pcdata/pcdata.h>
 #include <library/cpp/string_utils/base64/base64.h>
 
 #include <contrib/libs/poco/XML/include/Poco/XML/XML.h>
@@ -113,6 +114,17 @@ void TOwner::Deserialize(const Poco::XML::Node& node)
     DisplayName = GetChildByNameOrThrow(node, "DisplayName")->innerText();
     Id = GetChildByNameOrThrow(node, "ID")->innerText();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void THeadBucketRequest::Serialize(THttpRequest* request) const
+{
+    request->Method = NHttp::EMethod::Head;
+    request->Path = Format("/%v", Bucket);
+}
+
+void THeadBucketResponse::Deserialize(const NHttp::IResponsePtr& /*response*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -275,7 +287,7 @@ void TDeleteObjectsRequest::Serialize(THttpRequest* request) const
     bodyStream << R"(<Delete xmlns="http://s3.amazonaws.com/doc/2006-03-01/">)";
     for (const auto& key : Objects) {
         bodyStream << "<Object>";
-        bodyStream << "<Key>" << key << "</Key>";
+        bodyStream << "<Key>" << EncodeHtmlPcdata(key) << "</Key>";
         bodyStream << "</Object>";
     }
     bodyStream << "</Delete>";
@@ -293,9 +305,9 @@ void TDeleteObjectsResponse::Deserialize(const NHttp::IResponsePtr& response)
         errorNode = errorNode->nextSibling())
     {
         Errors.emplace_back(TDeleteError{
-            .Key = TString(GetChildByNameOrThrow(*errorNode, "Key")->innerText()),
-            .Code = TString(GetChildByNameOrThrow(*errorNode, "Code")->innerText()),
-            .Message = TString(GetChildByNameOrThrow(*errorNode, "Message")->innerText()),
+            .Key = GetChildByNameOrThrow(*errorNode, "Key")->innerText(),
+            .Code = GetChildByNameOrThrow(*errorNode, "Code")->innerText(),
+            .Message = GetChildByNameOrThrow(*errorNode, "Message")->innerText(),
         });
     }
 }
@@ -394,8 +406,8 @@ public:
     {
         auto urlRef = NHttp::ParseUrl(Config_->Url);
         BaseHttpRequest_ = THttpRequest{
-            .Protocol = TString{urlRef.Protocol},
-            .Host = TString{urlRef.Host},
+            .Protocol = std::string{urlRef.Protocol},
+            .Host = std::string{urlRef.Host},
             .Port = urlRef.Port,
             .Region = Config_->Region,
             .Service = "s3",
@@ -406,7 +418,7 @@ public:
             urlRef = NHttp::ParseUrl(*Config_->ProxyUrl);
         }
 
-        auto asyncAddress = TAddressResolver::Get()->Resolve(TString{urlRef.Host});
+        auto asyncAddress = TAddressResolver::Get()->Resolve(std::string(urlRef.Host));
         return asyncAddress.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TNetworkAddress& address) {
             bool useTls = (urlRef.Protocol == "https");
             TNetworkAddress s3Address(
@@ -444,6 +456,7 @@ public:
     DEFINE_STRUCTURED_COMMAND(AbortMultipartUpload)
     DEFINE_STRUCTURED_COMMAND(CompleteMultipartUpload)
     DEFINE_STRUCTURED_COMMAND(HeadObject)
+    DEFINE_STRUCTURED_COMMAND(HeadBucket)
 #undef DEFINE_STRUCTURED_COMMAND
 
 private:
@@ -452,7 +465,7 @@ private:
         auto headers = response->GetHeaders();
         for (TStringBuf header : {"x-amz-request-id", "x-amz-id-2"}) {
             if (auto* value = headers->Find(header)) {
-                error <<= TErrorAttribute(TString(header), *value);
+                error.Add(std::string(header), *value);
             }
         }
     }
@@ -464,7 +477,7 @@ private:
             "Got status code %v %v",
             ToUnderlying(statusCode),
             ToHttpString(statusCode));
-        error <<= TErrorAttribute("http_code", statusCode);
+        error.Add("http_code", statusCode);
         if (method == NHttp::EMethod::Head) {
             FillErrorWithHeaders(error, response);
             return error;
@@ -474,10 +487,10 @@ private:
         try {
             auto parsedDocument = ParseXmlDocument(responseBody);
             for (auto* child = parsedDocument->firstChild(); child; child = child->nextSibling()) {
-                error <<= TErrorAttribute(child->nodeName(), child->innerText());
+                error.Add(child->nodeName(), child->innerText());
             }
         } catch (const std::exception&) {
-            error <<= TErrorAttribute("response_body", responseBody.ToStringBuf());
+            error.Add("response_body", responseBody.ToStringBuf());
             FillErrorWithHeaders(error, response);
         }
         return error;
@@ -494,10 +507,11 @@ private:
                 &req,
                 CredentialProvider_);
 
+            auto requestMethod = req.Method;
             return Client_->MakeRequest(std::move(req))
-                .AsUnique().Apply(BIND([method = req.Method] (TErrorOr<NHttp::IResponsePtr>&& responseOrError) -> TErrorOr<TCommandResponse> {
+                .AsUnique().Apply(BIND([method = requestMethod] (TErrorOr<NHttp::IResponsePtr>&& responseOrError) -> TErrorOr<TCommandResponse> {
                     if (!responseOrError.IsOK()) {
-                        return TError("HTTP request failed") << std::move(responseOrError);
+                        return TError("HTTP request failed").With(std::move(responseOrError));
                     }
                     auto& response = responseOrError.Value();
                     // 3xx are not really errors but we don't handle redirects anyways

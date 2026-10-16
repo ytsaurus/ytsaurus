@@ -273,10 +273,9 @@ private:
 
         auto selfAddress = GetSelfAddress();
 
-        YT_LOG_DEBUG("Received heartbeat from leader "
-            "(PeerLeaseDeadline: %v, SelfAddress: %v)",
-            peerLeaseDeadline,
-            selfAddress);
+        YT_TLOG_DEBUG("Received heartbeat from leader")
+            .With("PeerLeaseDeadline", peerLeaseDeadline)
+            .With("SelfAddress", selfAddress);
 
         if (Config_->BannedPeers.contains(selfAddress)) {
             THROW_ERROR_EXCEPTION("Peer is banned");
@@ -313,11 +312,10 @@ private:
                     continue;
                 }
 
-                YT_LOG_DEBUG("Updating incumbent address (Type: %v, ShardIndex: %v, Address: %v -> %v)",
-                    incumbentType,
-                    shardIndex,
-                    currentAddress,
-                    newAddress);
+                YT_TLOG_DEBUG("Updating incumbent address")
+                    .With("Type", incumbentType)
+                    .With("ShardIndex", shardIndex)
+                    .WithFormat("Address", "%v -> %v", currentAddress, newAddress);
 
                 if (currentAddress == selfAddress) {
                     OnIncumbencyFinished(TIncumbencyDescriptor{
@@ -371,9 +369,8 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Started incumbents assign iteration "
-            "(CanScheduleIncumbents: %v)",
-            CanScheduleIncumbents_);
+        YT_TLOG_DEBUG("Started incumbents assign iteration")
+            .With("CanScheduleIncumbents", CanScheduleIncumbents_);
 
         UpdateTargetState();
 
@@ -439,7 +436,7 @@ private:
         WaitFor(AllSet(std::move(peerResponseFutures)))
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Incumbents assign iteration completed");
+        YT_TLOG_DEBUG("Incumbents assign iteration completed");
     }
 
     void UpdateTargetState()
@@ -504,13 +501,14 @@ private:
                 }
             }
 
-            YT_LOG_DEBUG("Successfully reported heartbeat to peer (PeerIndex: %v, PeerAddress: %v)",
-                peerIndex,
-                peer.Address);
+            YT_TLOG_DEBUG("Successfully reported heartbeat to peer")
+                .With("PeerIndex", peerIndex)
+                .With("PeerAddress", peer.Address);
         } else {
-            YT_LOG_WARNING(response, "Failed to report heartbeat to peer (PeerIndex: %v, PeerAddress: %v)",
-                peerIndex,
-                peer.Address);
+            YT_TLOG_WARNING("Failed to report heartbeat to peer")
+                .With("PeerIndex", peerIndex)
+                .With("PeerAddress", peer.Address)
+                .With(response);
 
             // Failure does not imply that heartbeat was not reported to peer, so we
             // pessimistically assume that assignments were successful and reovacations failed.
@@ -541,9 +539,9 @@ private:
 
         peer.Online = true;
 
-        YT_LOG_INFO("Peer is online (PeerIndex: %v, PeerAddress: %v)",
-            peerIndex,
-            peer.Address);
+        YT_TLOG_INFO("Peer is online")
+            .With("PeerIndex", peerIndex)
+            .With("PeerAddress", peer.Address);
     }
 
     void OnPeerLeaseExpired(int peerIndex)
@@ -571,9 +569,9 @@ private:
             }
         }
 
-        YT_LOG_INFO("Peer is offline (PeerIndex: %v, PeerAddress: %v)",
-            peerIndex,
-            peer.Address);
+        YT_TLOG_INFO("Peer is offline")
+            .With("PeerIndex", peerIndex)
+            .With("PeerAddress", peer.Address);
     }
 
     void OnIncumbencyStarted(TIncumbencyDescriptor incumbency)
@@ -584,9 +582,9 @@ private:
             incumbent->OnIncumbencyStarted(incumbency.ShardIndex);
         }
 
-        YT_LOG_INFO("Incumbency started (Type: %v, ShardIndex: %v)",
-            incumbency.Type,
-            incumbency.ShardIndex);
+        YT_TLOG_INFO("Incumbency started")
+            .With("Type", incumbency.Type)
+            .With("ShardIndex", incumbency.ShardIndex);
     }
 
     void OnIncumbencyFinished(TIncumbencyDescriptor incumbency)
@@ -594,11 +592,11 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto& incumbencyAddress = LocalIncumbentMap_[incumbency.Type].Addresses[incumbency.ShardIndex];
-        YT_LOG_ALERT_UNLESS(incumbencyAddress == GetSelfAddress(),
-            "Local incumbency finished but it is assigned to another peer according to local state "
-            "(SelfAddress: %v, IncumbencyAddress: %v)",
-            GetSelfAddress(),
-            incumbencyAddress);
+        YT_TLOG_ALERT_UNLESS(
+            incumbencyAddress == GetSelfAddress(),
+            "Local incumbency finished but it is assigned to another peer according to local state")
+            .With("SelfAddress", GetSelfAddress())
+            .With("IncumbencyAddress", incumbencyAddress);
 
         incumbencyAddress = {};
 
@@ -606,16 +604,16 @@ private:
             incumbent->OnIncumbencyFinished(incumbency.ShardIndex);
         }
 
-        YT_LOG_INFO("Incumbency finished (Type: %v, ShardIndex: %v)",
-            incumbency.Type,
-            incumbency.ShardIndex);
+        YT_TLOG_INFO("Incumbency finished")
+            .With("Type", incumbency.Type)
+            .With("ShardIndex", incumbency.ShardIndex);
     }
 
     void OnLocalLeaseExpired()
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        YT_LOG_WARNING("Local lease expired, abandoning all local incumbencies");
+        YT_TLOG_WARNING("Local lease expired, abandoning all local incumbencies");
 
         AbandonLocalIncumbencies();
     }

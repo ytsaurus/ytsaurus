@@ -39,11 +39,11 @@ TClickHouseJobSizeSpec CreateClickHouseJobSizeSpec(
         double rate = samplingRate.value();
         auto adjustedRate = std::max(rate, static_cast<double>(jobCount) / subqueryConfig->MaxJobCountForPool);
         auto adjustedJobCount = std::floor(jobCount / adjustedRate);
-        YT_LOG_INFO("Adjusting job count and sampling rate (OldSamplingRate: %v, AdjustedSamplingRate: %v, OldJobCount: %v, AdjustedJobCount: %v)",
-            rate,
-            adjustedRate,
-            jobCount,
-            adjustedJobCount);
+        YT_TLOG_INFO("Adjusting job count and sampling rate")
+            .With("OldSamplingRate", rate)
+            .With("AdjustedSamplingRate", adjustedRate)
+            .With("OldJobCount", jobCount)
+            .With("AdjustedJobCount", adjustedJobCount);
         rate = adjustedRate;
         jobCount = adjustedJobCount;
     } else {
@@ -52,9 +52,9 @@ TClickHouseJobSizeSpec CreateClickHouseJobSizeSpec(
         if (maxJobCount < jobCount) {
             jobCount = maxJobCount;
             dataWeightPerJob = std::max<i64>(1, totalDataWeight / maxJobCount);
-            YT_LOG_INFO("Query is small and without sampling; forcing new constraints (JobCount: %v, DataWeightPerJob: %v)",
-                jobCount,
-                dataWeightPerJob);
+            YT_TLOG_INFO("Query is small and without sampling; forcing new constraints")
+                .With("JobCount", jobCount)
+                .With("DataWeightPerJob", dataWeightPerJob);
         }
     }
 
@@ -112,23 +112,21 @@ TClickHouseJobSizeSpec CreateClickHouseJobSizeSpec(
     // The total data weight is bounded by the maximum subquery size, so the maximum number of slices with the current defaults
     // is 50G / 64M = 800, which is fine. Reconfigure with care.
     inputSliceDataWeight = std::max(inputSliceDataWeight, subqueryConfig->MinSliceDataWeight);
-    YT_LOG_WARNING_IF(
+    YT_TLOG_WARNING_IF(
         totalDataWeight / inputSliceDataWeight > MaxTotalSliceCount,
-        "Job size constraints allow too many slices in pool (TotalDataWeight: %v, InputSliceDataWeight: %v, PotentialSliceCount: %v)",
-        totalDataWeight,
-        inputSliceDataWeight,
-        totalDataWeight / inputSliceDataWeight);
+        "Job size constraints allow too many slices in pool")
+        .With("TotalDataWeight", totalDataWeight)
+        .With("InputSliceDataWeight", inputSliceDataWeight)
+        .With("PotentialSliceCount", totalDataWeight / inputSliceDataWeight);
 
-    YT_LOG_INFO(
-        "Computed job size constraints for pool (JobCount: %v, DataWeightPerJob: %v, InputSliceDataWeight: %v, "
-        "LimitProgressionLength: %v, LimitProgressionOffset: %v, LimitProgressionRatio: %v, SamplingRate: %v)",
-        jobCount,
-        dataWeightPerJob,
-        inputSliceDataWeight,
-        jobSizeTrackerOptions.LimitProgressionLength,
-        jobSizeTrackerOptions.LimitProgressionOffset,
-        jobSizeTrackerOptions.LimitProgressionRatio,
-        samplingRate);
+    YT_TLOG_INFO("Computed job size constraints for pool")
+        .With("JobCount", jobCount)
+        .With("DataWeightPerJob", dataWeightPerJob)
+        .With("InputSliceDataWeight", inputSliceDataWeight)
+        .With("LimitProgressionLength", jobSizeTrackerOptions.LimitProgressionLength)
+        .With("LimitProgressionOffset", jobSizeTrackerOptions.LimitProgressionOffset)
+        .With("LimitProgressionRatio", jobSizeTrackerOptions.LimitProgressionRatio)
+        .With("SamplingRate", samplingRate);
 
     auto jobSizeConstraints = CreateExplicitJobSizeConstraints(
         /*canAdjustDataWeightPerJob*/ false,

@@ -13,6 +13,9 @@ option go_package = "go.ytsaurus.tech/yt/yt_proto/yt/orm/client/proto;client";
 
 message TWatchLogOption
 {
+    reserved 6, 7, 8, 9, 10;
+    reserved "tablet_count", "min_data_ttl", "max_data_ttl", "min_data_versions", "max_data_versions";
+
     optional string snake_case_name = 1;
     optional string filter = 2;
     repeated string selectors = 3;
@@ -22,13 +25,11 @@ message TWatchLogOption
     repeated string required_tags = 4;
     // List of excluded tags.
     repeated string excluded_tags = 5;
-    // Table attributes.
-    optional int32 tablet_count = 6 [default = 6];
-    // Default 600000 is 10 minutes.
-    optional int32 min_data_ttl = 7 [default = 600000];
-    optional int32 max_data_ttl = 8 [default = 600000];
-    optional int32 min_data_versions = 9 [default = 0];
-    optional int32 max_data_versions = 10 [default = 1];
+
+    // Detect actual changes of aggregated attributes in update events, reading old values if needed,
+    // and allow aggregated attributes in selectors.
+    // Otherwise, any store to an aggregated attribute is reported as a possible change.
+    optional bool enable_aggregated_attribute_changes = 11;
 }
 
 message THistoryAttribute
@@ -45,6 +46,8 @@ message THistoryTimeIndex
     {
         IM_DISABLED = 0;
         IM_ENABLED = 1;
+        // Writes are enabled, but queries do not select the index.
+        IM_BUILDING = 2;
     }
     optional string snake_case_name = 1;
     optional string camel_case_name = 2;
@@ -56,11 +59,27 @@ message THistoryTimeIndex
     repeated string included_attributes = 7;
 }
 
+enum EMigrationState
+{
+    MS_INITIAL = 0;
+    MS_WRITE_BOTH = 1;
+    MS_READ_NEW = 2;
+    MS_TARGET = 3;
+}
+
+message TPerObjectTypeHistoryTable
+{
+    // Optional custom name. Default value is going to be used if not specified or empty.
+    optional string name = 1;
+    optional EMigrationState table_mode = 2;
+}
+
 message THistoryOptions
 {
     repeated THistoryAttribute attributes = 1;
     optional string filter = 2;
     repeated THistoryTimeIndex time_indexes = 3;
+    optional TPerObjectTypeHistoryTable per_object_type_history_table = 4;
 }
 
 message TCustomOption
@@ -86,6 +105,8 @@ message TRevisionTracker
     repeated string excluded_paths = 7;
 
     repeated string tracked_tags = 8;
+
+    optional bool track_aggregate_attributes = 9;
 }
 
 message TAccessControlPermissionInfo
@@ -139,8 +160,12 @@ enum ECascadingRemovalPolicy
     // When all descendants become removed, foreign object itself may be removed.
     // The system may try to remove it with last removed descendant.
     CRP_AWAIT_FOREIGN = 3;
-    // Clear links to descendants upon removal. Inapplicable to parent-child references.
+    // Clears links to descendants during finalization, or during removal if finalizers are disabled.
+    // Does not block object removal. Not applicable to parent-child references.
     CRP_CLEAR = 4;
+    // Like `CRP_CLEAR`, but keeps the link through finalization and clears it only during removal.
+    // Useful when the link is needed after finalization, e.g. to add a foreign key to a watchlog event.
+    CRP_CLEAR_ON_REMOVAL = 5;
 }
 
 message TAttributeSensor
@@ -191,7 +216,41 @@ message TLocalAttributeMigration
     optional string old_lock_group = 4;
 }
 
-// Next field number 60.
+// Declares a satellite table keyed by the object, an attribute id and a map key.
+// The order of |attributes| is significant: an attribute's zero-based position is its persisted
+// attribute id. Reordering or removing attributes is a breaking on-disk change; deprecate them instead.
+// All attributes must share the map key type and, unless |merge_types| is set, the value type.
+message TSatelliteTable
+{
+    message TSatelliteAttribute
+    {
+        oneof state {
+            string path = 1;
+            bool deprecated = 2;
+        }
+    }
+
+    // Table name suffix.
+    optional string name = 1;
+    // Ordered list of attribute paths stored in this table. Position induces the attribute id.
+    repeated TSatelliteAttribute attributes = 2;
+    // Data group of the |value| column. Key columns always use the default group.
+    optional string values_data_group = 3;
+    // Stores values in an "any" column, so attributes of different value types may share the table.
+    // Set it upfront if such an attribute may be appended later.
+    optional bool merge_types = 4;
+
+    // Defaults to CRP_REMOVE. Only CRP_REMOVE, CRP_AWAIT_FOREIGN and CRP_FORBID are allowed.
+    // CRP_AWAIT_FOREIGN leaves a non-empty table in place under the `_orm_satellites` finalizer,
+    // which completes once the maps are drained with ordinary removals.
+    optional ECascadingRemovalPolicy removal_policy = 5;
+
+    // Aggregate function of the |value| column; incompatible with |merge_types|.
+    // Description: https://yt.yandex-team.ru/docs/user-guide/dynamic-tables/sorted-dynamic-tables#aggr_columns
+    optional string values_aggregate = 6;
+}
+
+// Next field number 62.
 message TObjectTypeOption
 {
     reserved 6, 7, 15, 17, 20, 21, 28, 29, 34, 35, 37, 38, 46;
@@ -230,6 +289,9 @@ message TObjectTypeOption
     optional bool enable_finalizers = 51;
 
     optional EHashPolicy hash_policy = 24;
+
+    // Specifies expression for hash column (e.g. "farm_hash([meta.id])"). Mutually exclusive with hash_policy.
+    optional string hash_expression = 60;
     optional THistoryOptions history = 43;
     repeated TWatchLogOption watch_logs = 8;
 
@@ -295,6 +357,9 @@ message TObjectTypeOption
     // Migrations changing underlying storage of attribute. E.g. moving "/spec/age" from [spec.etc] to [spec.age].
     repeated TLocalAttributeMigration local_attribute_migrations = 53;
 
+    // Satellite tables storing out-of-row map attributes for this object type.
+    repeated TSatelliteTable satellite_tables = 61;
+
     // meta.account_id column was mistakenly added to some ORM's.
     optional bool remove_legacy_meta_account_id = 47;
 
@@ -337,6 +402,7 @@ message TIndexOption
         IM_DISABLED = 0;
         IM_REMOVE_ONLY = 3;
         IM_BUILDING = 1;
+        IM_SHRINKING = 5;
         IM_ENABLED = 2;
     }
 
@@ -355,6 +421,9 @@ message TIndexOption
     optional string predicate = 8;
     optional string custom_table_name = 9;
     optional bool native = 12; // Native-index support is under development. Do not use it in your ORM.
+    // Drop the index entry when the owner enters finalizing state
+    // (meta.finalization_time set) rather than at full removal.
+    optional bool exclude_finalizing_objects = 13;
 }
 
 enum EHistoryCommitTime
@@ -419,6 +488,10 @@ message THistoryTableOptions
 
     // Specifies `max_inline_hunk_size` attribute for `value` column in history table.
     optional uint64 value_column_max_inline_hunk_size = 11;
+
+    // True by default. Exactly one history table needs to be actual.
+    // Per object type history events table will have settings taken from the actual table.
+    optional bool actual = 12;
 }
 
 message TLockGroup
@@ -444,12 +517,43 @@ message TEtcOptions
     optional uint64 max_inline_hunk_size = 3;
 }
 
-// Next field 30058.
+// Options for options! Set an |edition_flag| field option on a boolean file option to have the flag
+// automatically flip on a future codegen run.
+// Marking a flag |deprecated| will ask clients to stop using it in codegen output.
+message TEditionFlagOptions
+{
+    // Edition at/after which the flag defaults to |edition_value|. Must be in [1, TRUNK_EDITION].
+    optional int32 at_edition = 1;
+    // Value applied at/after |at_edition| (the forward default). Usually true.
+    optional bool edition_value = 2 [default = true];
+    // Value applied below |at_edition| (the legacy baseline). Usually false.
+    optional bool initial_value = 3 [default = false];
+    // Human-readable summary for self-describing code and automated reports/nudges.
+    optional string description = 4;
+    // Export the resolved flag value through the generated C++ codegen feature interface.
+    optional bool expose_to_cpp = 5 [default = false];
+}
+
+// Options for options! Set a |project_flag| field option on a boolean file option to require each ORM
+// instance (project) to make an explicit decision about it. It is NOT tied to any codegen edition and
+// never auto-flips: while the flag is left unset codegen keeps using |default_value| and keeps asking,
+// in its report, for the project to choose. The moment the project sets the flag explicitly (to either
+// value), the decision is recorded and the report goes quiet.
+message TProjectFlagOptions
+{
+    // Value used until the client records an explicit decision by setting the flag.
+    optional bool default_value = 1 [default = false];
+    // Human-readable summary shown in the report until the client sets the option explicitly.
+    optional string description = 2;
+}
+
+// Next field 30068.
 extend google.protobuf.FileOptions
 {
     repeated TObjectTypeOption object_type = 30000;
     repeated TObjectTypeOption extend_object_type = 30036;
     repeated TIndexOption index = 30001;
+    repeated TReferencesOption references = 30059;
 
     // Specifies whether tombstones mechanics is enabled or not.
     // Disabled by default.
@@ -523,6 +627,7 @@ extend google.protobuf.FileOptions
     optional bool keep_removal_time = 30049;
 
     optional bool enable_finalizers = 30030;
+    optional bool exclude_finalizing_objects_from_indexes = 30058;
 
     // Correctness of new type is checked in codegen (must be one of "int64" or "string").
     optional string default_enum_storage_type = 30028;
@@ -534,6 +639,8 @@ extend google.protobuf.FileOptions
     optional string module_output_filename = 30035;
 
     optional ESetUpdateObjectMode set_update_object_mode = 30037;
+
+    // Enable generation of `/meta/history` with revision trackers for history attributes.
     optional bool enable_history_revisions = 30038;
 
     // Can be overridden per object.
@@ -558,6 +665,28 @@ extend google.protobuf.FileOptions
 
     // If true, treats default value and field absence as equal.
     optional bool compare_absent_value_as_default = 30056;
+
+    // Adds the |tags| field to TAccessControlEntry. Edition flag: defaults on at edition 7+; an
+    // installation below edition 7 (or pinning it |= false|) keeps the field dropped.
+    optional bool enable_acl_entry_tags = 30066 [(edition_flag) = {
+        at_edition: 7
+        description: "Add the tags field to access control entries."
+    }];
+
+    // Enables the |multi_consumer| system table and native multi-consumer support.
+    // When enabled, ORM generates the |multi_consumer| table and allows
+    // registering/advancing/reading queue progress via a single shared consumer table.
+    optional bool support_multi_consumer = 30061;
+
+    // Defaults applied by codegen to counter fields of counting references. Each is overridable per
+    // field (|field_lock_group| / |field_data_group| / |is_multiple_referenceable|). If unset, codegen
+    // uses the auto-registered "reference_counter" lock/data group and false, respectively.
+    optional string counter_field_lock_group = 30063;
+    optional string counter_field_data_group = 30064;
+    optional bool counter_is_multiple_referenceable = 30065;
+
+    // Generates the |leader_election_lock| system table used by the chaos election backend.
+    optional bool enable_chaos_election = 30067;
 }
 
 enum EGenerationPolicy
@@ -643,8 +772,14 @@ message TReferenceOption
 
     message TCountingKeyStorageOption
     {
+        // Path to the counter field within this object. If the field does not exist it is generated
+        // with the proper options (sum-aggregated opaque int64 column); if it does, |field_number|
+        // (when set) must match its number.
         optional string counter_path = 1;
+        optional int32 field_number = 2;
     }
+
+    message TPluginKeyStorageOption { }
 
     message TReferenceViewOption
     {
@@ -720,7 +855,10 @@ message TReferenceOption
 
     optional string foreign_type = 1;
 
-    // Path to the matching reference in the foreign object. If the matching reference is not,
+    // No backward reference in the foreign object.
+    optional bool one_sided = 18;
+
+    // Path to the matching reference in the foreign object. If the matching reference is not
     // declared, a tabular multiref will be autogenerated. If omitted, defaults to
     // /status/|foreign_type|_refs.
     optional string foreign_backref_path = 2;
@@ -740,6 +878,7 @@ message TReferenceOption
         TProtoKeyStorageOption proto_key_storage = 4;
         TTabularKeyStorageOption tabular_key_storage = 5;
         TCountingKeyStorageOption counting_key_storage = 9;
+        TPluginKeyStorageOption plugin_key_storage = 19;
     }
 
     optional TReferenceViewOption view = 7;
@@ -754,6 +893,58 @@ message TReferenceOption
     optional EReferenceMode mode = 16;
 }
 
+// Declares a whole reference relationship in one place, as a file option. This is an alternative
+// to spelling out the two mirror-image |reference| field options by hand and keeping them in sync;
+// both ways are supported and may be mixed within a model. Each endpoint describes one side;
+// codegen materializes the matching TReference field on each side and links them. The opposite
+// endpoint plays the role of the backref, so no backref paths or numbers are specified here.
+message TReferencesOption
+{
+    enum ECardinality
+    {
+        RC_MULTI = 0;
+        RC_SINGLE = 1;
+    }
+
+    message TEndpoint
+    {
+        // The object type that owns this side of the reference (snake_case).
+        optional string object_type = 1;
+
+        // Path and number of this side's reference field. If omitted, the path defaults to
+        // /status/|foreign_type|_refs and the number is allocated from the hidden field range.
+        optional string path = 2;
+        optional int32 number = 3;
+
+        optional ECardinality cardinality = 4;
+
+        // A list of paths of the components of the other endpoint's key.
+        // Proto or columnar inline storage is automatically deduced.
+        // Effectively, part of the |key_storage| oneof.
+        repeated string key_paths = 11;
+
+        oneof key_storage
+        {
+            TReferenceOption.TTabularKeyStorageOption tabular_key_storage = 12;
+            TReferenceOption.TCountingKeyStorageOption counting_key_storage = 13;
+            TReferenceOption.TPluginKeyStorageOption plugin_key_storage = 15;
+            // One-sided reference: this side is not materialized.
+            bool dummy = 14;
+        }
+
+        optional TReferenceOption.TReferenceViewOption view = 21;
+        optional bool store_foreign_parent_key = 22;
+        optional ECascadingRemovalPolicy cascading_removal_policy = 23;
+        optional bool local_modification_only = 24;
+        optional TReferenceOption.EPresencePolicy presence_policy = 25;
+        optional TReferenceOption.EDuplicatePolicy duplicate_policy = 26;
+    }
+
+    optional TEndpoint left = 1;
+    optional TEndpoint right = 2;
+    optional TReferenceOption.EReferenceMode mode = 3;
+}
+
 message TReference
 {
     // Placeholder for reference attributes.
@@ -766,6 +957,14 @@ message TGeohashOption
     optional uint32 length = 1;
     // Path to field of NYT.NOrm.NDataModel.TGeoPoint type.
     optional string source_geo_point_path = 2;
+}
+
+message TAddTagsToDescendantOption
+{
+    // Relative path to a descendant field, starting with '/'. The message root path '/' is not allowed.
+    optional string path = 1;
+    // Tags to add to the descendant field.
+    repeated string tags = 2;
 }
 
 message TJoinCondition
@@ -787,18 +986,10 @@ message TJoinOption
     optional bool async = 4;
 }
 
-enum EFilterPlace
-{
-    FILTER_WHERE = 0;
-    FILTER_HAVING = 1;
-    FILTER_JOIN_PREDICATE = 2;
-}
-
 message TJoinedColumnOption
 {
-    reserved 1;
-    reserved "select_allowed";
-    optional EFilterPlace filter_place = 2;
+    reserved 1, 2;
+    reserved "select_allowed", "filter_place";
     // Field evaluation expression. Mutually exclusive with name and aggregation.
     optional string expression = 3;
     // Column name.
@@ -807,7 +998,7 @@ message TJoinedColumnOption
     optional string aggregation = 5;
 }
 
-// Next field 31061.
+// Next field 31067.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -816,6 +1007,11 @@ extend google.protobuf.FieldOptions
     optional string foreign_key = 31002;
     // Generate new-style reference in codegen output.
     optional bool convert_to_new_reference = 31057;
+    // List of suppressed error types for |convert_to_new_reference| option.
+    // Supported values: "nullable" — suppresses the error when the field has |nullable = false|,
+    // which is not natively supported by the new-style reference. The user is responsible for
+    // emulating the nullable behavior manually.
+    repeated string convert_to_new_reference_suppress_errors = 31061;
     optional string children_view = 31046;
     optional bool no_foreign_view = 31024;
     // A special type of reference for ancestor fields.
@@ -917,6 +1113,16 @@ extend google.protobuf.FieldOptions
     repeated string add_tags = 31027;
     // Parent message tags to remove from the field.
     repeated string remove_tags = 31028;
+    // Tags to eliminate from all descendant fields recursively.
+    // Unlike |remove_tags|, which is applied before |add_tags| (and thus can be re-added
+    // by it) and only affects the field itself, these tags are eliminated from every nested
+    // field in the subtree after |add_tags|, overriding any tags they add back via
+    // |message_tags| or |add_tags|. The field itself keeps the tags.
+    repeated string eliminate_tags_from_descendants = 31062;
+    // Tags to add to descendant fields at paths relative to this field and starting with '/'.
+    // The message root path '/' is not allowed.
+    // Added tags behave like |add_tags| declared directly on the descendant field.
+    repeated TAddTagsToDescendantOption add_tags_to_descendants = 31065;
 
     optional EUpdatePolicy update_policy = 31032;
     optional bool not_updatable = 31004;
@@ -959,7 +1165,12 @@ extend google.protobuf.FieldOptions
     optional TJoinedColumnOption joined_column = 31050;
 
     // Field (in the same message) that actually stores the content of this field in raw protobuf format as bytes.
+    // Legacy two-field form; prefer |protobuf_storage| for new models.
     optional string raw_protobuf = 31051;
+
+    // Store this message-typed field as raw protobuf bytes in a codegen-synthesized column.
+    // Single-field form of |raw_protobuf|: the storage column is not visible in the client proto.
+    optional bool protobuf_storage = 31066;
 
     // Each predicate is an ORM QL expression over field's attribute.
     // Alias `value` can be used instead of spelling out full attribute path in the expression.
@@ -970,11 +1181,23 @@ extend google.protobuf.FieldOptions
     optional bool referenced = 31056;
 
     // Allow to use the same counter in difference counting references.
-    optional bool is_multiple_referencable = 31058;
+    optional bool is_multiple_referenceable = 31058;
 
     // Saves the attribute value only within the transaction.
     // Triggers history and watch logs, if they are enabled for field's path.
     optional bool ephemeral = 31060;
+
+    // Marks the annotated FileOptions boolean flag as an edition flag: it gets flipped from
+    // |initial_value| to |edition_value| when codegen edition advances to the specified number.
+    // Set only on flag declarations in the FileOptions extension block above.
+    // Explicitly setting the flag in an ORM instance disables edition control over that flag.
+    optional TEditionFlagOptions edition_flag = 31063;
+
+    // Marks the annotated FileOptions boolean flag as a project flag: codegen asks each project, in its
+    // report, to make an explicit decision, and keeps asking until the flag is set explicitly (to either
+    // value). Not tied to any edition. Set only on flag declarations in the FileOptions extension block above.
+    optional TProjectFlagOptions project_flag = 31064;
+
 }
 
 // Next field 32017.
@@ -1029,6 +1252,10 @@ extend google.protobuf.EnumOptions
 {
     // The file into which this enum should be exported.
     optional string enum_output_filename = 33006;
+
+    // Overrides the C++ type name of the DEFINE_ENUM generated for a columnar enum (the enum name by default).
+    // TODO(dgolear): Get rid of DEFINE_ENUM.
+    optional string enum_cpp_type_name = 33008;
 }
 
 extend google.protobuf.EnumValueOptions

@@ -29,9 +29,6 @@ For example, here's a coroutine-based handler:
             do_something_with_response(response)
             self.render("template.html")
 
-.. testoutput::
-   :hide:
-
 Asynchronous functions in Tornado return an ``Awaitable`` or `.Future`;
 yielding this object returns its result.
 
@@ -50,9 +47,6 @@ of results will be returned when they are all finished:
                                    response4=http_client.fetch(url4))
         response3 = response_dict['response3']
         response4 = response_dict['response4']
-
-.. testoutput::
-   :hide:
 
 If ``tornado.platform.twisted`` is imported, it is also possible to
 yield Twisted's ``Deferred`` objects. See the `convert_yielded`
@@ -97,10 +91,22 @@ except ImportError:
     contextvars = None  # type: ignore
 
 import typing
-from typing import Union, Any, Callable, List, Type, Tuple, Awaitable, Dict, overload
+from typing import (
+    Mapping,
+    Union,
+    Any,
+    Callable,
+    List,
+    Type,
+    Tuple,
+    Awaitable,
+    Dict,
+    Sequence,
+    overload,
+)
 
 if typing.TYPE_CHECKING:
-    from typing import Sequence, Deque, Optional, Set, Iterable  # noqa: F401
+    from typing import Deque, Optional, Set, Iterable  # noqa: F401
 
 _T = typing.TypeVar("_T")
 
@@ -281,6 +287,10 @@ def is_coroutine_function(func: Any) -> bool:
 class Return(Exception):
     """Special exception to return a value from a `coroutine`.
 
+    This exception exists for compatibility with older versions of
+    Python (before 3.3). In newer code use the ``return`` statement
+    instead.
+
     If this exception is raised, its value argument is used as the
     result of the coroutine::
 
@@ -289,14 +299,7 @@ class Return(Exception):
             response = yield AsyncHTTPClient().fetch(url)
             raise gen.Return(json_decode(response.body))
 
-    In Python 3.3, this exception is no longer necessary: the ``return``
-    statement can be used directly to return a value (previously
-    ``yield`` and ``return`` with a value could not be combined in the
-    same function).
-
-    By analogy with the return statement, the value argument is optional,
-    but it is never necessary to ``raise gen.Return()``.  The ``return``
-    statement can be used with no arguments instead.
+    By analogy with the return statement, the value argument is optional.
     """
 
     def __init__(self, value: Any = None) -> None:
@@ -306,7 +309,7 @@ class Return(Exception):
         self.args = (value,)
 
 
-class WaitIterator(object):
+class WaitIterator:
     """Provides an iterator to yield the results of awaitables as they finish.
 
     Yielding a set of awaitables like this:
@@ -343,7 +346,7 @@ class WaitIterator(object):
     arguments were used in the construction of the `WaitIterator`,
     ``current_index`` will use the corresponding keyword).
 
-    On Python 3.5, `WaitIterator` implements the async iterator
+    `WaitIterator` implements the async iterator
     protocol, so it can be used with the ``async for`` statement (note
     that in this version the entire iteration is aborted if any value
     raises an exception, while the previous example can continue past
@@ -368,10 +371,10 @@ class WaitIterator(object):
             raise ValueError("You must provide args or kwargs, not both")
 
         if kwargs:
-            self._unfinished = dict((f, k) for (k, f) in kwargs.items())
+            self._unfinished = {f: k for (k, f) in kwargs.items()}
             futures = list(kwargs.values())  # type: Sequence[Future]
         else:
-            self._unfinished = dict((f, i) for (i, f) in enumerate(args))
+            self._unfinished = {f: i for (i, f) in enumerate(args)}
             futures = args
 
         self._finished = collections.deque()  # type: Deque[Future]
@@ -434,8 +437,22 @@ class WaitIterator(object):
         return self.next()
 
 
+@overload
 def multi(
-    children: Union[List[_Yieldable], Dict[Any, _Yieldable]],
+    children: Sequence[_Yieldable],
+    quiet_exceptions: Union[Type[Exception], Tuple[Type[Exception], ...]] = (),
+) -> Future[List]: ...
+
+
+@overload
+def multi(
+    children: Mapping[Any, _Yieldable],
+    quiet_exceptions: Union[Type[Exception], Tuple[Type[Exception], ...]] = (),
+) -> Future[Dict]: ...
+
+
+def multi(
+    children: Union[Sequence[_Yieldable], Mapping[Any, _Yieldable]],
     quiet_exceptions: "Union[Type[Exception], Tuple[Type[Exception], ...]]" = (),
 ) -> "Union[Future[List], Future[Dict]]":
     """Runs multiple asynchronous operations in parallel.
@@ -489,7 +506,7 @@ Multi = multi
 
 
 def multi_future(
-    children: Union[List[_Yieldable], Dict[Any, _Yieldable]],
+    children: Union[Sequence[_Yieldable], Mapping[Any, _Yieldable]],
     quiet_exceptions: "Union[Type[Exception], Tuple[Type[Exception], ...]]" = (),
 ) -> "Union[Future[List], Future[Dict]]":
     """Wait for multiple asynchronous futures in parallel.
@@ -674,7 +691,7 @@ def sleep(duration: float) -> "Future[None]":
     return f
 
 
-class _NullFuture(object):
+class _NullFuture:
     """_NullFuture resembles a Future that finished with a result of None.
 
     It's not actually a `Future` to avoid depending on a particular event loop.
@@ -719,7 +736,7 @@ In native coroutines, the equivalent of ``yield gen.moment`` is
 """
 
 
-class Runner(object):
+class Runner:
     """Internal implementation of `tornado.gen.coroutine`.
 
     Maintains information about pending callbacks and their results.
@@ -880,7 +897,7 @@ def convert_yielded(yielded: _Yieldable) -> Future:
     elif isawaitable(yielded):
         return _wrap_awaitable(yielded)  # type: ignore
     else:
-        raise BadYieldError("yielded unknown object %r" % (yielded,))
+        raise BadYieldError(f"yielded unknown object {yielded!r}")
 
 
 convert_yielded = singledispatch(convert_yielded)

@@ -1,8 +1,8 @@
-#include "chunk_list.h"
-#include "chunk_manager.h"
 #include "chunk_replacer.h"
-#include "chunk_tree.h"
+
 #include "chunk.h"
+#include "chunk_list.h"
+#include "chunk_tree.h"
 
 namespace NYT::NChunkServer {
 
@@ -52,7 +52,7 @@ bool TChunkReplacer::FindChunkList(
             PrevParentChunkList_ = chunkList;
             NewParentChunkList_ = ChunkReplacerCallbacks_->CreateChunkList(EChunkListKind::Static);
             ChunkReplacerCallbacks_->AttachToChunkList(NewRootChunkList_, {NewParentChunkList_});
-        } else if (chunkList->Statistics().Rank > 1) {
+        } else if (chunkList->GetRank() > 1) {
             if (entry.Index < std::ssize(chunkList->Children())) {
                 Stack_.push({chunkList->Children()[entry.Index], 0});
                 ++entry.Index;

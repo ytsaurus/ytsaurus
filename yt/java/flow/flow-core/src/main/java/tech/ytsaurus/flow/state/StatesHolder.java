@@ -1,0 +1,288 @@
+package tech.ytsaurus.flow.state;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import com.google.protobuf.ByteString;
+import org.jspecify.annotations.Nullable;
+import tech.ytsaurus.client.rows.UnversionedRow;
+import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.flow.row.Payload;
+import tech.ytsaurus.flow.row.PayloadBuilder;
+import tech.ytsaurus.flow.row.codec.ByteStringCodec;
+import tech.ytsaurus.flow.row.codec.CodecRegistry;
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeConvertible;
+import tech.ytsaurus.ysontree.YTreeNode;
+
+/**
+ * Holder of raw binary state representation for particular state.
+ * This class doesn't put any restriction to the way of state serialization.
+ *
+ * <p>This class is <b>not thread-safe</b>. An instance is created per incoming request and is
+ * confined to that single request-processing thread for its entire lifetime; it must not be
+ * shared across threads.
+ */
+public class StatesHolder implements YTreeConvertible {
+    private final String name;
+    private final @Nullable TableSchema keySchema;
+    private final @Nullable TableSchema stateSchema;
+    private final StateFormat format;
+    private final @Nullable String protoType;
+    private final Map<UnversionedRow, State> states;
+    /**
+     * States whose value was changed during the current epoch: via {@link #set} by state
+     * accessors, or in place through a mutable value, swept up by {@link #collectModifiedStates}.
+     */
+    private final Map<UnversionedRow, State> modifiedStates;
+    /**
+     * Memoized empty payload returned by {@link #emptyStatePayload}.
+     */
+    private @Nullable Payload emptyStatePayload;
+    /**
+     * Memoized codec bound to {@link #stateSchema}, returned by {@link #valueCodec}.
+     */
+    private @Nullable ByteStringCodec<Payload> valueCodec;
+
+    public StatesHolder(
+            String name,
+            @Nullable TableSchema keySchema
+    ) {
+        this(name, keySchema, null);
+    }
+
+    public StatesHolder(
+            String name,
+            @Nullable TableSchema keySchema,
+            @Nullable TableSchema stateSchema
+    ) {
+        this(name, keySchema, stateSchema, StateFormat.SIMPLE_ROW, null);
+    }
+
+    public StatesHolder(
+            String name,
+            @Nullable TableSchema keySchema,
+            @Nullable TableSchema stateSchema,
+            StateFormat format,
+            @Nullable String protoType
+    ) {
+        this.name = name;
+        this.keySchema = keySchema;
+        this.stateSchema = stateSchema;
+        this.format = format;
+        this.protoType = protoType;
+        this.states = new HashMap<>();
+        this.modifiedStates = new HashMap<>();
+    }
+
+    /**
+     * Set binary value for key. Marks the key as modified so it is included in the response sent
+     * back to the companion computation. Used for writes coming from state accessors.
+     *
+     * @param key   UnversionedRow key.
+     * @param value State value.
+     */
+    public void set(UnversionedRow key, State value) {
+        this.states.put(key, value);
+        this.modifiedStates.put(key, value);
+    }
+
+    /**
+     * Clear the value stored for {@code key}: the entry becomes a reset marker. Marks the key as
+     * modified so the reset is included in the response sent back to the companion computation;
+     * a reset that arrived in the request is loaded by {@link #loadReset} instead.
+     *
+     * @param key UnversionedRow key.
+     */
+    public void clear(UnversionedRow key) {
+        set(key, State.reset());
+    }
+
+    /**
+     * Load a value for key WITHOUT marking it as modified. Used to populate the holder from the
+     * incoming request: such states must not be echoed back unless an accessor changes them.
+     *
+     * @param key   UnversionedRow key.
+     * @param value State value.
+     */
+    public void load(UnversionedRow key, State value) {
+        this.states.put(key, value);
+    }
+
+    /**
+     * Load a reset marker for {@code key} WITHOUT marking it as modified: a reset that arrived in
+     * the request must not be echoed back, unlike one made by {@link #clear}. The worker does not
+     * send resets in a request — it omits a key that has no value — so this parses a field the
+     * protocol allows and the test harness produces when a state is seeded cleared.
+     *
+     * @param key UnversionedRow key.
+     */
+    public void loadReset(UnversionedRow key) {
+        load(key, State.reset());
+    }
+
+    /**
+     * Get value for key.
+     *
+     * @param key UnversionedRow key.
+     * @return State value, or {@code null} if absent.
+     */
+    public @Nullable State get(UnversionedRow key) {
+        return states.get(key);
+    }
+
+    /**
+     * Get name of state.
+     *
+     * @return Name of state.
+     */
+    public String getName() {
+        return name;
+    }
+
+    /**
+     * Get all states.
+     *
+     * @return Map of states.
+     */
+    public Map<UnversionedRow, State> getStates() {
+        return states;
+    }
+
+    /**
+     * Collects the states modified during the current epoch, keyed by their
+     * {@link UnversionedRow} key. Re-encodes the values handed out as mutable, so the changes
+     * made to them in place count as modifications too.
+     *
+     * <p>Returned for allocation-free iteration on the response-encoding hot path.
+     * Callers must not mutate it.
+     *
+     * @return Map of modified states.
+     */
+    public Map<UnversionedRow, State> collectModifiedStates() {
+        for (var entry : states.entrySet()) {
+            if (entry.getValue().syncBytes()) {
+                modifiedStates.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return modifiedStates;
+    }
+
+    /**
+     * Get schema of state. Schema might be null for internal states.
+     *
+     * @return Schema of state.
+     */
+    public @Nullable TableSchema getStateSchema() {
+        return stateSchema;
+    }
+
+    /**
+     * Get the wire format of this state's payloads.
+     *
+     * @return State format.
+     */
+    public StateFormat getFormat() {
+        return format;
+    }
+
+    /**
+     * Get the fully qualified proto message name of the payloads, when the format is
+     * {@link StateFormat#PROTO} and the type was declared on the wire.
+     *
+     * @return Proto type name, or {@code null}.
+     */
+    public @Nullable String getProtoType() {
+        return protoType;
+    }
+
+    /**
+     * Ensures this holder carries row-format payloads: a row accessor over a proto-format holder
+     * would decode serialized messages as rows.
+     *
+     * @throws IllegalStateException if this holder is in the proto wire format
+     */
+    void requireRowFormat() {
+        if (format == StateFormat.PROTO) {
+            throw new IllegalStateException(
+                    "External state %s is in the proto wire format; use a proto state descriptor"
+                            .formatted(name)
+            );
+        }
+    }
+
+    /**
+     * Encodes a payload into the wire bytes stored for it.
+     *
+     * @param value payload to encode.
+     * @return Wire bytes of the state value.
+     * @throws UnsupportedOperationException if this holder has no schema.
+     */
+    ByteString encodeValue(Payload value) {
+        return valueCodec().encode(value);
+    }
+
+    /**
+     * Memoized payload codec bound to this holder's state schema, used to (de)code the wire
+     * bytes of row-format external states.
+     *
+     * @return Codec bound to the state schema.
+     * @throws UnsupportedOperationException if this holder has no schema.
+     */
+    ByteStringCodec<Payload> valueCodec() {
+        if (stateSchema == null) {
+            throw new UnsupportedOperationException(
+                    "State '" + name + "' has no schema for its values");
+        }
+        if (valueCodec == null) {
+            valueCodec = CodecRegistry.getInstance().getPayloadCodec().codecFor(stateSchema);
+        }
+        return valueCodec;
+    }
+
+    /**
+     * Returns the memoized empty payload built from this holder's state schema, shared as the
+     * default value for payload states. The instance is immutable and shared to avoid per-call
+     * allocation.
+     *
+     * @return shared empty payload.
+     * @throws UnsupportedOperationException if this holder has no schema.
+     */
+    Payload emptyStatePayload() {
+        if (stateSchema == null) {
+            throw new UnsupportedOperationException(
+                    "Default value construction is not supported for state '" + name + "' (no schema)");
+        }
+        if (emptyStatePayload == null) {
+            emptyStatePayload = new PayloadBuilder(stateSchema).finish();
+        }
+        return emptyStatePayload;
+    }
+
+    @Override
+    public String toString() {
+        return toYTree().toString();
+    }
+
+    @Override
+    public YTreeNode toYTree() {
+        YTreeBuilder builder = YTree.builder().beginMap()
+                .key("state_name").value(name);
+        if (stateSchema != null) {
+            builder.key("state_schema").value(stateSchema.toYTree());
+        }
+        builder.key("state_items")
+                .beginList();
+        for (var stateItem : states.entrySet()) {
+            builder.beginMap()
+                    .key("key").value(stateItem.getKey().toYTreeMap(keySchema));
+            if (stateItem.getValue() != null) {
+                builder.key("state_payload").value(stateItem.getValue().toYTree());
+            }
+            builder.endMap();
+        }
+        builder.endList();
+        return builder.endMap().build();
+    }
+}

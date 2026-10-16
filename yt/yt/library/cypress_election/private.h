@@ -1,0 +1,15 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/core/logging/log.h>
+
+namespace NYT::NCypressElection {
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, CypressElectionLogger, "CypressElection");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCypressElection

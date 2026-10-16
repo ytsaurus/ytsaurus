@@ -4,10 +4,7 @@ from yt_commands import authors, create, write_table, raises_yt_error
 
 from yt_type_helpers import optional_type
 
-import pytest
 
-
-@pytest.mark.enabled_multidaemon
 class TestJsonFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -61,7 +58,7 @@ class TestJsonFormat(YTEnvSetup):
             cur.append(tmp)
             cur = tmp
         cur.append("qwe")
-        with raises_yt_error("Depth limit exceeded while parsing YSON"):
+        with raises_yt_error("Depth limit exceeded"):
             write_table(
                 "//tmp/t_in",
                 [

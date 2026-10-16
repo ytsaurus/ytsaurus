@@ -32,8 +32,8 @@ static const std::string HighAsciiValue = "secret-value-Æ";
 static const std::string SecretEncoding = "EBCDIC";
 static const std::string UserTicket = "the-user-ticket";
 
-static const TTvmId OurTvmId = 100500;
-static const TTvmId AlsoOurTvmId = 100501;
+static const TTvmId OurTvmId{100500};
+static const TTvmId AlsoOurTvmId{100501};
 
 class TDefaultSecretVaultTest
     : public ::testing::Test
@@ -113,7 +113,12 @@ private:
             THROW_ERROR_EXCEPTION("Not implemented");
         }
 
-        TTvmId GetSelfTvmId() override
+        std::optional<TTvmId> TryGetSelfTvmId() override
+        {
+            return TvmId_;
+        }
+
+        TTvmId GetSelfTvmIdOrThrow() override
         {
             return TvmId_;
         }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+
 #include "chunk_tree.h"
 #include "chunk_tree_statistics.h"
 #include "cumulative_statistics.h"
@@ -9,11 +10,12 @@
 
 #include <yt/yt/client/table_client/key_bound.h>
 
-#include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/indexed_vector.h>
 
 #include <library/cpp/yt/memory/range.h>
 #include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NChunkServer {
 
@@ -48,11 +50,6 @@ public:
     //! description in cumulative_statistics.h.
     DEFINE_BYREF_RW_PROPERTY(TCumulativeStatistics, CumulativeStatistics);
 
-    DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
-
-    //! Min key for sorted dynamic tablet chunk lists.
-    DEFINE_BYVAL_RW_PROPERTY(NTableClient::TLegacyOwningKey, PivotKey);
-
     //! Increases each time the list changes.
     //! Enables optimistic locking during chunk tree traversing.
     DEFINE_BYVAL_RO_PROPERTY(int, Version);
@@ -61,7 +58,7 @@ public:
     struct TAppendTabletChunkLists
     {
         TChunkList* OriginatingChunkList;
-        TChunkList* DeltaChunkList;
+        TChunkList* AppendDeltaChunkList;
     };
 
 public:
@@ -78,9 +75,9 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    TRange<TChunkListRawPtr> Parents() const;
-    void AddParent(TChunkList* parent);
-    void RemoveParent(TChunkList* parent);
+    TRange<TChunkTreeRawPtr> Parents() const;
+    void AddParent(TChunkTree* parent);
+    void RemoveParent(TChunkTree* parent);
 
     TRange<TChunkOwnerBaseRawPtr> TrunkOwningNodes() const;
     TRange<TChunkOwnerBaseRawPtr> BranchedOwningNodes() const;
@@ -102,17 +99,46 @@ public:
 
     bool IsSealed() const;
 
+    //! Whether the chunk list maintains and propagates tree statistics. False only for a scratch chunk
+    //! list, which is a mere holder of chunks.
+    bool HasStatistics() const;
+
+    bool IsHunkRoot() const;
+
+    bool IsHunkRelated() const;
+
     bool HasCumulativeStatistics() const;
     bool HasAppendableCumulativeStatistics() const;
     bool HasModifiableCumulativeStatistics() const;
     bool HasTrimmableCumulativeStatistics() const;
-    bool HasChildToIndexMapping() const;
 
+    //! Main tree specifics.
+
+    TChunkTreeStatistics& Statistics();
+    const TChunkTreeStatistics& Statistics() const;
+
+    NTableClient::TKeyBound GetPivotKeyBound() const;
+    //! Min key for sorted dynamic tablet chunk lists.
+    NTableClient::TLegacyOwningKey GetPivotKey() const;
+    void SetPivotKey(NTableClient::TLegacyOwningKey pivotKey);
+
+    //! Hunk tree specifics.
+
+    const THunkChunkTreeStatistics& HunkStatistics() const;
+    void AccumulateHunkStatistics(TChunk* chunk, bool force = false);
+    void DeaccumulateHunkStatistics(TChunk* chunk);
+    void ResetHunkStatistics();
+    void CopyHunkStatistics(TChunkList* other);
+    void AccumulateNewlyReferencedHunkDataSize(TChunk* chunk, i64 dataSizeDelta);
+
+    //! Common statistics accessors.
+
+    int GetRank() const;
+
+    bool HasChildToIndexMapping() const;
     //! Checks if the chunk list already contains #child.
     //! Only supported for chunk lists with child to index mapping (\see #HasChildToIndexMapping).
     bool HasChild(TChunkTree* child) const;
-
-    NTableClient::TKeyBound GetPivotKeyBound() const;
 
     // COMPAT(dave11ar): Remove when all branched append chunk lists will be in new format.
     bool IsNewAppendTabletChunkList() const;
@@ -120,9 +146,28 @@ public:
     TAppendTabletChunkLists GetAppendTabletChunkLists() const;
 
 private:
-    TIndexedVector<TChunkListRawPtr> Parents_;
+    struct TMainTreeChunkListTraits
+    {
+        TChunkTreeStatistics Statistics;
+        NTableClient::TLegacyOwningKey PivotKey;
+
+        void Persist(const NCellMaster::TPersistenceContext& context);
+    };
+
+    struct THunkTreeChunkListTraits
+    {
+        THunkChunkTreeStatistics Statistics;
+
+        void Persist(const NCellMaster::TPersistenceContext& context);
+    };
+
+    TIndexedVector<TChunkTreeRawPtr> Parents_;
     TIndexedVector<TChunkOwnerBaseRawPtr> TrunkOwningNodes_;
     TIndexedVector<TChunkOwnerBaseRawPtr> BranchedOwningNodes_;
+
+    std::variant<
+        TMainTreeChunkListTraits,
+        THunkTreeChunkListTraits> ChunkListTraits_;
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TChunkList)

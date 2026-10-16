@@ -248,6 +248,9 @@ protected:
                 .RuntimeLogLevel(State_->Types->RuntimeLogLevel)
                 .LangVer(State_->Types->LangVer)
                 .LayersPaths(std::move(finalCypressPaths))
+                .RuntimeSettings(State_->Types->RuntimeSettings)
+                .BridgeMode(State_->Types->BridgeMode)
+                .BridgeBinaryPath(State_->Types->UdfBridgeBinaryPath)
             );
 
         return WrapFuture(future, [](const IYtGateway::TResOrPullResult& res, const TExprNode::TPtr& input, TExprContext& ctx) {
@@ -268,7 +271,7 @@ protected:
                 value = TString{configure.Arg(4).Cast<TCoAtom>().Value()};
             }
             if (State_->Configuration->IsRuntime(name)) {
-                if (!State_->Configuration->Dispatch(clusterName, name, value, NCommon::TSettingDispatcher::EStage::RUNTIME, NCommon::TSettingDispatcher::GetErrorCallback(input->Pos(), ctx))) {
+                if (!State_->Configuration->Dispatch(clusterName, name, value, NCommon::ISettingDispatcher::EStage::RUNTIME, NCommon::GetErrorCallback(input->Pos(), ctx))) {
                     return SyncError();
                 }
                 State_->Configuration->PromoteVersion(*input);

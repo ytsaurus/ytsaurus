@@ -41,6 +41,18 @@ void FormatValue(
     const TChunkMergerTraversalStatistics& traversalStatistics,
     TStringBuf spec);
 
+struct TChunkMergerInfo
+{
+    TChunkMergerTraversalInfo TraversalInfo;
+    // If chunk owner is changed, while it is being merged, it should be marked updated
+    // to initiate another merge after the current one is finished.
+    bool UpdatedSinceLastMerge = false;
+    i64 Revision = 0;
+
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

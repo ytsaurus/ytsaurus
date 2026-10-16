@@ -1,0 +1,457 @@
+package tech.ytsaurus.flow.testutils;
+
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import com.google.protobuf.ByteString;
+import org.jspecify.annotations.Nullable;
+import tech.ytsaurus.TGuid;
+import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.flow.internal.request.mapper.InternalStateProtoMapper;
+import tech.ytsaurus.flow.internal.request.mapper.MessageProtoMapper;
+import tech.ytsaurus.flow.row.ExtendedMessage;
+import tech.ytsaurus.flow.row.Payload;
+import tech.ytsaurus.flow.row.Timer;
+import tech.ytsaurus.flow.row.codec.CodecRegistry;
+import tech.ytsaurus.flow.row.codec.KeyCodec;
+import tech.ytsaurus.flow.rpc.TCompanionResourceInstanceReference;
+import tech.ytsaurus.flow.rpc.TJobInfo;
+import tech.ytsaurus.flow.rpc.TReqProcessBatch;
+import tech.ytsaurus.flow.rpc.TState;
+import tech.ytsaurus.flow.rpc.TStateItem;
+import tech.ytsaurus.flow.rpc.TStream;
+import tech.ytsaurus.flow.rpc.TWatermark;
+import tech.ytsaurus.flow.state.State;
+import tech.ytsaurus.flow.state.StateFormat;
+import tech.ytsaurus.flow.state.StatesHolder;
+import tech.ytsaurus.flow.stream.FlowStream;
+import tech.ytsaurus.flow.stream.FlowStreams;
+import tech.ytsaurus.flow.stream.FlowStreamsContext;
+import tech.ytsaurus.flow.stream.StreamIdsMapping;
+import tech.ytsaurus.flow.stream.StreamSpecs;
+import tech.ytsaurus.flow.utils.ProtoUtils;
+import tech.ytsaurus.flow.utils.YsonUtils;
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeNode;
+
+
+/**
+ * Converts domain objects (messages, states, timers) into protobuf request format for tests,
+ * driven from real test data rather than the synthetic data produced by
+ * {@link ProtobufRequestBuilder}.
+ */
+public class ProtobufRequestConverter {
+
+    private @Nullable TGuid jobId;
+    private CodecRegistry codecRegistry = CodecRegistry.getInstance();
+    private List<TCompanionResourceInstanceReference> companionResources = List.of();
+
+    /**
+     * Overrides the job id used for subsequent {@code create*} calls.
+     * <p>
+     * By default every computation gets its own stable job id: a job belongs to one computation,
+     * and the companion rejects a job id that is already registered for another one.
+     *
+     * @param jobId the new job identifier
+     * @return this converter
+     */
+    public ProtobufRequestConverter setJobId(GUID jobId) {
+        this.jobId = ProtoUtils.toProto(jobId);
+        return this;
+    }
+
+    /**
+     * Overrides the {@link CodecRegistry} used to (de)serialize message keys, timer keys,
+     * internal-state keys, and external-state keys.
+     * <p>
+     * Test-only override; defaults to {@link CodecRegistry#getInstance()}, which is the
+     * JVM-wide registry resolved via {@code ServiceLoader<CodecRegistryProvider>}. Production
+     * code should rely on the singleton.
+     *
+     * @param codecRegistry the registry to use
+     * @return this converter
+     */
+    public ProtobufRequestConverter setCodecRegistry(CodecRegistry codecRegistry) {
+        this.codecRegistry = Objects.requireNonNull(codecRegistry, "codecRegistry must not be null");
+        return this;
+    }
+
+    /**
+     * Sets the companion resource instance references attached to the job info of subsequent
+     * {@code create*} calls; the companion resolves them against its resource store when the batch
+     * is processed.
+     *
+     * @param companionResources the instance references required by the job
+     * @return this converter
+     */
+    public ProtobufRequestConverter setCompanionResources(
+            List<TCompanionResourceInstanceReference> companionResources
+    ) {
+        this.companionResources = List.copyOf(
+                Objects.requireNonNull(companionResources, "companionResources must not be null"));
+        return this;
+    }
+
+    /**
+     * Builds a protobuf {@link TReqProcessBatch} request from the given test inputs.
+     *
+     * @param computationId        target computation id
+     * @param messages             domain messages to process
+     * @param timers               domain timers to process
+     * @param pipelineSpec         YSON pipeline specification
+     * @param streamsContext       registered streams of the pipeline
+     * @param internalStates       internal-state contents keyed by state name and entry key
+     * @param externalStates       external-state contents keyed by state name and entry key
+     * @param joinedExternalStates read-only joined external-state contents keyed by state name and key
+     * @param externalStateSchemas optional per-state schemas used when no values are supplied
+     * @param protoStateTypes      proto message type per proto-format external state name
+     * @param watermarks           per-stream watermarks
+     * @return the protobuf process-batch request
+     */
+    public TReqProcessBatch createProcessBatch(
+            String computationId,
+            List<ExtendedMessage> messages,
+            List<Timer> timers,
+            YTreeNode pipelineSpec,
+            FlowStreamsContext streamsContext,
+            Map<String, Map<Payload, State>> internalStates,
+            Map<String, Map<Payload, State>> externalStates,
+            Map<String, Map<Payload, State>> joinedExternalStates,
+            Map<String, TableSchema> externalStateSchemas,
+            Map<String, String> protoStateTypes,
+            Map<String, Long> watermarks
+    ) {
+        var builder = TReqProcessBatch.newBuilder()
+                .setRequestId(ProtoUtils.toProto(GUID.create()))
+                .setJobId(jobId != null ? jobId : defaultJobId(computationId))
+                .setComputationId(computationId);
+
+        var pipelineContext = extractPipelineContext(computationId, pipelineSpec, streamsContext);
+        builder.setJobInfo(pipelineContext.jobInfo().toBuilder()
+                .addAllCompanionResources(companionResources)
+                .build());
+
+        var protoMessages = convertExtendedMessagesToProto(
+                messages,
+                pipelineContext.streamSpecs(),
+                codecRegistry.getKeyCodec()
+        );
+        builder.addAllMessages(protoMessages);
+        builder.addAllInternalStates(convertInternalStatesToProto(
+                internalStates,
+                codecRegistry.getKeyCodec()
+        ));
+        builder.addAllExternalStates(convertExternalStatesToProto(
+                externalStates,
+                externalStateSchemas,
+                protoStateTypes,
+                codecRegistry.getKeyCodec()
+        ));
+        // Joined states are seeded as rows only, so none of them is in the proto format.
+        builder.addAllJoinedExternalStates(convertExternalStatesToProto(
+                joinedExternalStates,
+                externalStateSchemas,
+                Map.of(),
+                codecRegistry.getKeyCodec()
+        ));
+        builder.addAllTimers(convertTimersToProto(timers, codecRegistry.getKeyCodec()));
+
+        for (var entry : watermarks.entrySet()) {
+            builder.addWatermarks(
+                    TWatermark.newBuilder()
+                            .setStreamId(entry.getKey())
+                            .setWatermark(entry.getValue())
+                            .build()
+            );
+        }
+
+        return builder.build();
+    }
+
+    // --- Pipeline context extraction ---
+
+    private ComputationPipelineContext extractPipelineContext(
+            String computationId,
+            YTreeNode pipelineSpec,
+            FlowStreamsContext streamsContext
+    ) {
+        YTreeNode computationStaticSpec = pipelineSpec.asMap()
+                .get("spec").asMap()
+                .get("computations").asMap()
+                .get(computationId);
+        YTreeNode computationDynamicSpec = resolveComputationDynamicSpec(pipelineSpec, computationId);
+
+        var streamInfos = resolveStreamInfos(pipelineSpec, streamsContext);
+
+        var jobInfo = buildJobInfo(computationStaticSpec, computationDynamicSpec, streamInfos);
+        var localStreamSpecs = buildStreamSpecs(streamInfos, streamsContext, codecRegistry);
+
+        return new ComputationPipelineContext(jobInfo, localStreamSpecs);
+    }
+
+    private record ComputationPipelineContext(
+            TJobInfo jobInfo,
+            StreamSpecs streamSpecs
+    ) {
+    }
+
+    /**
+     * The streams of the pipeline: the ones the spec declares, plus the registered ones it leaves
+     * out. A pipeline that derives its stream schemas from the registered message types declares
+     * none, and the worker is handed exactly what the runner wrote into the spec at launch — the
+     * registered streams.
+     */
+    private static List<StreamInfo> resolveStreamInfos(YTreeNode pipelineSpec, FlowStreamsContext streamsContext) {
+        var streamInfos = new ArrayList<>(PipelineSpecTestUtils.extractStreamInfos(pipelineSpec));
+        var declared = streamInfos.stream().map(StreamInfo::getStreamId).collect(Collectors.toSet());
+
+        long nextStreamSpecId = streamInfos.size();
+        for (var entry : streamsContext.getStreams().entrySet()) {
+            if (declared.add(entry.getKey())) {
+                streamInfos.add(new StreamInfo(entry.getKey(), entry.getValue().getSchema(), nextStreamSpecId++));
+            }
+        }
+        return streamInfos;
+    }
+
+    /**
+     * Resolves the dynamic spec for the given computation, tolerating an absent
+     * {@code dynamic_spec}, {@code dynamic_spec/computations}, or per-computation entry.
+     * When any of these is missing, an empty computation block with an empty
+     * {@code parameters} map is synthesized on the fly so the request can still be built.
+     */
+    private static YTreeNode resolveComputationDynamicSpec(YTreeNode pipelineSpec, String computationId) {
+        YTreeNode dynamicSpecNode = pipelineSpec.asMap().get("dynamic_spec");
+        if (dynamicSpecNode != null) {
+            YTreeNode computationsNode = dynamicSpecNode.asMap().get("computations");
+            if (computationsNode != null) {
+                YTreeNode computationDynamicSpec = computationsNode.asMap().get(computationId);
+                if (computationDynamicSpec != null) {
+                    return computationDynamicSpec;
+                }
+            }
+        }
+        return emptyComputationDynamicSpec();
+    }
+
+    private static YTreeNode emptyComputationDynamicSpec() {
+        return YTree.mapBuilder()
+                .key("parameters")
+                .beginMap()
+                .endMap()
+                .endMap()
+                .build();
+    }
+
+    // --- JobInfo / Stream building ---
+
+    static TJobInfo buildJobInfo(
+            YTreeNode computationStaticSpec,
+            YTreeNode computationDynamicSpec,
+            List<StreamInfo> streamInfos
+    ) {
+        var jobInfoBuilder = TJobInfo.newBuilder()
+                .setSpec(YsonUtils.protoFromYTree(computationStaticSpec))
+                .setDynamicSpec(YsonUtils.protoFromYTree(computationDynamicSpec));
+        jobInfoBuilder.addAllStreams(buildTStreams(streamInfos));
+        return jobInfoBuilder.build();
+    }
+
+    static List<TStream> buildTStreams(List<StreamInfo> streamInfos) {
+        var streams = new ArrayList<TStream>(streamInfos.size());
+        for (var streamInfo : streamInfos) {
+            streams.add(TStream.newBuilder()
+                    .setStreamId(streamInfo.getStreamId())
+                    .setStreamSpecId(streamInfo.getStreamSpecId())
+                    .setSchema(YsonUtils.protoFromYTree(streamInfo.getSchema().toYTree()))
+                    .build());
+        }
+        return streams;
+    }
+
+    private static StreamSpecs buildStreamSpecs(
+            List<StreamInfo> streamInfos,
+            FlowStreamsContext streamsContext,
+            CodecRegistry codecRegistry
+    ) {
+        var mappingBuilder = StreamIdsMapping.builder();
+        var flowStreams = new ArrayList<FlowStream<?>>(streamInfos.size());
+        for (var streamInfo : streamInfos) {
+            mappingBuilder.addMapping(streamInfo.getStreamId(), streamInfo.getStreamSpecId());
+            var stream = streamsContext.getStream(streamInfo.getStreamId());
+            if (stream == null) {
+                // Fallback stream uses the JVM-wide CodecRegistry via FlowStreams.raw().
+                stream = FlowStreams.raw(streamInfo.getStreamId(), streamInfo.getSchema());
+            }
+            flowStreams.add(stream);
+        }
+        return new StreamSpecs(mappingBuilder.build(), flowStreams);
+    }
+
+    // --- Message conversion ---
+
+    private static List<TReqProcessBatch.TExtendedMessage> convertExtendedMessagesToProto(
+            List<ExtendedMessage> messages,
+            StreamSpecs streamSpecs,
+            KeyCodec keyCodec
+    ) {
+        var messageMapper = new MessageProtoMapper(streamSpecs);
+        var protoMessages = new ArrayList<TReqProcessBatch.TExtendedMessage>(messages.size());
+        for (var message : messages) {
+            var protoMessage = messageMapper.toProto(message);
+            protoMessages.add(TReqProcessBatch.TExtendedMessage.newBuilder()
+                    .setKey(keyCodec.encode(message.getKey().getRow()))
+                    .setMessage(protoMessage)
+                    .build());
+        }
+        return protoMessages;
+    }
+
+    // --- Timer conversion ---
+
+    private static List<NYT.NFlow.NProto.Timer.TTimer> convertTimersToProto(
+            List<Timer> timers,
+            KeyCodec keyCodec
+    ) {
+        var protoTimers = new ArrayList<NYT.NFlow.NProto.Timer.TTimer>(timers.size());
+        for (int i = 0; i < timers.size(); ++i) {
+            var timer = timers.get(i);
+            protoTimers.add(NYT.NFlow.NProto.Timer.TTimer.newBuilder()
+                    .setKey(keyCodec.encode(timer.getKey().getRow()))
+                    .setMessageId("<id>" + i)
+                    .setStreamId(ByteString.copyFromUtf8(timer.getStreamId()))
+                    .setSystemTimestamp(timer.getSystemTimestamp())
+                    .setEventTimestamp(timer.getEventTimestamp())
+                    .setTriggerTimestamp(timer.getTriggerTimestamp())
+                    .build());
+        }
+        return protoTimers;
+    }
+
+    // --- State conversion ---
+
+    /**
+     * Converts internal states to proto format through the production
+     * {@link InternalStateProtoMapper}, so that a seed reaches the wire exactly as the worker
+     * would send it. A value that encodes to no bytes travels as a reset. Keys are serialized
+     * with the supplied {@link KeyCodec} so that custom registrations are honoured on the wire.
+     */
+    private static List<TState> convertInternalStatesToProto(
+            Map<String, Map<Payload, State>> internalStates,
+            KeyCodec keyCodec
+    ) {
+        // toProto never reads the key schema: it serves createHolder and the holder's YSON
+        // rendering, neither of which runs on this path.
+        var mapper = new InternalStateProtoMapper(null, keyCodec);
+        var result = new ArrayList<TState>(internalStates.size());
+        for (var entry : internalStates.entrySet()) {
+            var holder = new StatesHolder(entry.getKey(), null);
+            for (var stateEntry : entry.getValue().entrySet()) {
+                holder.set(stateEntry.getKey().getRow(), stateEntry.getValue());
+            }
+            result.add(mapper.toProto(holder, holder.collectModifiedStates()));
+        }
+        return result;
+    }
+
+    /**
+     * Converts external states to proto format. State values are already wire bytes; every
+     * row-format state that carries one must have a schema declared on the harness, and every
+     * proto-format state is listed in {@code protoStateTypes}. Uses the supplied
+     * {@link KeyCodec} so that custom registrations are honoured on the wire.
+     */
+    private static List<TState> convertExternalStatesToProto(
+            Map<String, Map<Payload, State>> externalStates,
+            Map<String, TableSchema> externalStateSchemas,
+            Map<String, String> protoStateTypes,
+            KeyCodec keyCodec
+    ) {
+        var result = new ArrayList<TState>();
+
+        for (var entry : externalStates.entrySet()) {
+            var stateName = entry.getKey();
+            var stateValuesMap = entry.getValue();
+            String protoType = protoStateTypes.get(stateName);
+            if (protoType != null) {
+                result.add(convertProtoFormatStateToProto(stateName, protoType, stateValuesMap, keyCodec));
+                continue;
+            }
+            TState.Builder stateBuilder = TState.newBuilder().setName(stateName);
+
+            TableSchema valueSchema = externalStateSchemas.get(stateName);
+            if (valueSchema != null) {
+                stateBuilder.setSchema(YsonUtils.protoFromYTree(valueSchema.toYTree()));
+            }
+
+            var stateItems = new ArrayList<TStateItem>(stateValuesMap.size());
+            for (var stateEntry : stateValuesMap.entrySet()) {
+                TStateItem.Builder itemBuilder = TStateItem.newBuilder()
+                        .setKey(keyCodec.encode(stateEntry.getKey().getRow()))
+                        .setReset(stateEntry.getValue().isReset());
+                if (!stateEntry.getValue().isReset() && stateEntry.getValue().getBytes() != null) {
+                    Objects.requireNonNull(
+                            valueSchema,
+                            () -> "External state '" + stateName + "' has values but no schema"
+                    );
+                    itemBuilder.setState(stateEntry.getValue().getBytes());
+                }
+                stateItems.add(itemBuilder.build());
+            }
+
+            stateBuilder.addAllStateItems(stateItems);
+            result.add(stateBuilder.build());
+        }
+
+        // Add schema-only states (states with schema but no data).
+        for (var entry : externalStateSchemas.entrySet()) {
+            if (!externalStates.containsKey(entry.getKey())) {
+                result.add(TState.newBuilder()
+                        .setName(entry.getKey())
+                        .setSchema(YsonUtils.protoFromYTree(entry.getValue().toYTree()))
+                        .build());
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Converts a proto-format external state: payloads are serialized-message bytes, the state
+     * carries {@code format = proto} and the proto type.
+     */
+    private static TState convertProtoFormatStateToProto(
+            String stateName,
+            String protoType,
+            Map<Payload, State> stateValuesMap,
+            KeyCodec keyCodec
+    ) {
+        TState.Builder stateBuilder = TState.newBuilder()
+                .setName(stateName)
+                .setFormat(StateFormat.PROTO.getWireValue())
+                .setProtoType(protoType);
+        var stateItems = new ArrayList<TStateItem>(stateValuesMap.size());
+        for (var stateEntry : stateValuesMap.entrySet()) {
+            var state = stateEntry.getValue();
+            var itemBuilder = TStateItem.newBuilder()
+                    .setKey(keyCodec.encode(stateEntry.getKey().getRow()))
+                    .setReset(state.isReset());
+            if (!state.isReset()) {
+                itemBuilder.setState(Objects.requireNonNull(state.getBytes(), "Non-reset state must have bytes"));
+            }
+            stateItems.add(itemBuilder.build());
+        }
+        stateBuilder.addAllStateItems(stateItems);
+        return stateBuilder.build();
+    }
+
+    private static TGuid defaultJobId(String computationId) {
+        var uuid = UUID.nameUUIDFromBytes(computationId.getBytes(StandardCharsets.UTF_8));
+        return ProtoUtils.toProto(new GUID(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits()));
+    }
+}

@@ -45,7 +45,7 @@ private:
         NProto::TReqTouchNodes TouchNodesRequest;
         std::vector<NObjectClient::TObjectId> TouchedNodes;
 
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, Lock);
     };
 
     static constexpr int ShardCount = 256;

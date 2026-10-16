@@ -30,7 +30,7 @@ Otherwise, if at least one suitable ACE is found, the following logic applies. F
 
 Sometimes, even though they only need a small part of the columns, users order reading of the entire table (that is, no column filter is specified). If you set a columnar ACL on a table in a scenario like this, users who do not have access to the protected columns will receive an authorization error.
 
-For such cases, there is a special `omit_inaccessible_columns` flag (the default value is `%false`) which can be specified for read operations. A setting with the same name is also available in the operation specification.
+For such cases, there is a special `omit_inaccessible_columns` flag (the default value is `%false`) which can be specified for read operations. In the CLI, use `--omit-inaccessible-columns` with the `read` or `read-table` command. A setting with the same name is also available in the operation specification.
 
 When this option is enabled, if you cannot get read access to any table column (if there is read access to the table as a whole), the system hides it completely from the user and the requested action is completed successfully. In the response to the read request (in so called `output parameters`), a list of columns that were skipped during reading due to lack of permissions is then passed. In case of an operation, such information is displayed in a warning from the scheduler.
 

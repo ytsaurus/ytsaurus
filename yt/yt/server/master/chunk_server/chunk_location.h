@@ -79,6 +79,8 @@ public:
     // COMPAT(aleksandra-zh);
     void SetId(NObjectServer::TObjectId id);
 
+    bool IsRegisteredOrOnline() const;
+
     void ReserveReplicas(int sizeHint);
 
     //! Returns |true| if the replica was actually added.

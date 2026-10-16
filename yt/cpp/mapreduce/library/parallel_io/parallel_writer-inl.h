@@ -4,7 +4,6 @@
 #error "Direct inclusion of this file is not allowed, use parallel_writer.h"
 #include "parallel_writer.h"
 #endif
-#undef PARALLEL_WRITER_INL_H_
 
 #include "resource_limiter.h"
 

@@ -35,6 +35,7 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/cypress_integration.h>
 #include <yt/yt/server/master/cell_server/cypress_integration.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
@@ -54,9 +55,12 @@
 
 #include <yt/yt/server/master/object_server/cypress_integration.h>
 #include <yt/yt/server/master/object_server/garbage_collector.h>
+#include <yt/yt/server/master/object_server/helpers.h>
 #include <yt/yt/server/master/object_server/object_detail.h>
 #include <yt/yt/server/master/object_server/sys_node_type_handler.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
+
+#include <yt/yt/server/master/object_server/proto/object_manager.pb.h>
 
 #include <yt/yt/server/master/orchid_server/cypress_integration.h>
 
@@ -70,9 +74,11 @@
 #include <yt/yt/server/master/security_server/user.h>
 
 #include <yt/yt/server/master/sequoia_server/context.h>
+#include <yt/yt/server/master/sequoia_server/prelock_tracker.h>
 
 #include <yt/yt/server/master/table_server/cypress_integration.h>
 #include <yt/yt/server/master/table_server/master_table_schema.h>
+#include <yt/yt/server/master/table_server/replicated_table_node.h>
 #include <yt/yt/server/master/table_server/replicated_table_node_type_handler.h>
 #include <yt/yt/server/master/table_server/secondary_index.h>
 #include <yt/yt/server/master/table_server/table_manager.h>
@@ -80,6 +86,7 @@
 #include <yt/yt/server/master/table_server/table_node_type_handler.h>
 
 #include <yt/yt/server/master/tablet_server/cypress_integration.h>
+#include <yt/yt/server/master/tablet_server/hunk_storage_node.h>
 #include <yt/yt/server/master/tablet_server/hunk_storage_node_type_handler.h>
 // COMPAT(shakurov)
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
@@ -167,6 +174,12 @@ static const INodeTypeHandlerPtr NullTypeHandler;
 
 class TCypressManager;
 
+DEFINE_ENUM(ELockCheckResult,
+    (Inconclusive)
+    (Conflict)
+    (OK)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeFactory
@@ -202,12 +215,6 @@ public:
     void Commit() noexcept override
     {
         TTransactionalNodeFactoryBase::Commit();
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        if (Transaction_) {
-            for (auto* node : CreatedNodes_) {
-                transactionManager->StageNode(Transaction_, node);
-            }
-        }
 
         const auto& portalManager = Bootstrap_->GetPortalManager();
         for (const auto& entrance : CreatedPortalEntrances_) {
@@ -224,6 +231,8 @@ public:
                 *rootstock.InheritedAttributes,
                 *rootstock.ExplicitAttributes);
         }
+
+        CloneIndices();
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         for (const auto& clone : ClonedExternalNodes_) {
@@ -260,7 +269,21 @@ public:
             multicellManager->PostToMaster(protoRequest, externalNode.ExternalCellTag);
         }
 
+        for (const auto& externalObject : CreatedExternalObjects_) {
+            NObjectServer::NProto::TReqCreateForeignObject replicationRequest;
+            ToProto(replicationRequest.mutable_object_id(), externalObject.ObjectId);
+            replicationRequest.set_type(ToProto(externalObject.ObjectType));
+            ToProto(replicationRequest.mutable_object_attributes(), *externalObject.Attributes);
+            multicellManager->PostToMasters(replicationRequest, externalObject.ExternalCellTags);
+        }
+
+        // It's OK to unref nodes here, because nodes also have ref from the parent node or
+        // from the branched node in case of transactions and MaterializeNode.
         ReleaseStagedObjects();
+
+        for (auto* node : CreatedNodes_) {
+            YT_VERIFY(IsObjectAlive(node));
+        }
     }
 
     void Rollback() noexcept override
@@ -699,6 +722,60 @@ public:
         return clonedNode;
     }
 
+    void RegisterMovedIndex(TSecondaryIndex* source, TTableNode* clonedTrunkNode, bool isIndexTable) override
+    {
+        auto [it, inserted] = ClonedSecondaryIndices_.emplace(source, TClonedSecondaryIndexState{});
+
+        if (isIndexTable) {
+            it->second.ClonedIndexTable = clonedTrunkNode;
+        } else {
+            it->second.ClonedIndexedTable = clonedTrunkNode;
+        }
+
+        if (inserted) {
+            it->second.SourceIndexedTable = Bootstrap_->GetTableManager()->GetTableNodeOrThrow(source->GetTableId());
+            it->second.SourceIndexTable = Bootstrap_->GetTableManager()->GetTableNodeOrThrow(source->GetIndexTableId());
+        }
+    }
+
+    void ValidateCloneIndices() override
+    {
+        if (ClonedSecondaryIndices_.empty()) {
+            return;
+        }
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& tableManager = Bootstrap_->GetTableManager();
+
+        auto* user = securityManager->GetAuthenticatedUser();
+        if (auto* schema = objectManager->FindSchema(EObjectType::SecondaryIndex)) {
+            securityManager->ValidatePermission(schema, user, EPermission::Create);
+        }
+
+        for (auto it : GetIteratorsSortedByKey(ClonedSecondaryIndices_)) {
+            const auto& [sourceSecondaryIndex, state] = *it;
+            YT_TLOG_ALERT_AND_THROW_UNLESS(
+                state.SourceIndexedTable,
+                "Source indexed table missing during index move validation")
+                .With("SecondaryIndexId", sourceSecondaryIndex->GetId());
+
+            YT_TLOG_ALERT_AND_THROW_UNLESS(
+                state.SourceIndexTable,
+                "Source index table missing during index move validation")
+                .With("SecondaryIndexId", sourceSecondaryIndex->GetId());
+
+            tableManager->ValidateSecondaryIndexCreationAndGetTables(
+                sourceSecondaryIndex->GetKind(),
+                state.ClonedIndexedTable ? state.ClonedIndexedTable->GetId() : state.SourceIndexedTable->GetId(),
+                state.ClonedIndexTable ? state.ClonedIndexTable->GetId() : state.SourceIndexTable->GetId(),
+                sourceSecondaryIndex->Predicate(),
+                sourceSecondaryIndex->UnfoldedColumns(),
+                sourceSecondaryIndex->EvaluatedColumnsSchema(),
+                /*skipIsAlreadyIndexCheck*/ true);
+        }
+    }
+
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
     TCypressShard* const Shard_;
@@ -752,6 +829,23 @@ private:
     };
     std::vector<TCreatedExternalNode> CreatedExternalNodes_;
 
+    struct TClonedSecondaryIndexState
+    {
+        TTableNode* ClonedIndexedTable = nullptr;
+        TTableNode* ClonedIndexTable = nullptr;
+        TTableNode* SourceIndexedTable = nullptr;
+        TTableNode* SourceIndexTable = nullptr;
+    };
+    THashMap<TSecondaryIndex*, TClonedSecondaryIndexState> ClonedSecondaryIndices_;
+
+    struct TCreatedExternalObject
+    {
+        TObjectId ObjectId;
+        EObjectType ObjectType;
+        IAttributeDictionaryPtr Attributes;
+        TCellTagSet ExternalCellTags;
+    };
+    std::vector<TCreatedExternalObject> CreatedExternalObjects_;
 
     void RegisterCreatedNode(TCypressNode* trunkNode)
     {
@@ -811,6 +905,100 @@ private:
         const auto& configManager = Bootstrap_->GetConfigManager();
         return configManager->GetConfig()->CypressManager;
     }
+
+    void CloneIndices() noexcept
+    {
+        if (ClonedSecondaryIndices_.empty()) {
+            return;
+        }
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+        const auto& handler = objectManager->GetHandler(EObjectType::SecondaryIndex);
+        auto* user = securityManager->GetAuthenticatedUser();
+
+        for (auto it : GetIteratorsSortedByKey(ClonedSecondaryIndices_)) {
+            const auto& [sourceSecondaryIndex, state] = *it;
+            YT_VERIFY(state.SourceIndexedTable);
+            YT_VERIFY(state.SourceIndexTable);
+
+            auto* newTable = state.ClonedIndexedTable
+                ? state.ClonedIndexedTable
+                : state.SourceIndexedTable;
+            auto* newIndexTable = state.ClonedIndexTable
+                ? state.ClonedIndexTable
+                : state.SourceIndexTable;
+
+            // Cleanup old links to tables that did not move.
+            if (!state.ClonedIndexTable) {
+                state.SourceIndexTable->SetIndexTo(nullptr);
+                sourceSecondaryIndex->SetIndexTableId(NullObjectId);
+            }
+            if (!state.ClonedIndexedTable) {
+                state.SourceIndexedTable->MutableSecondaryIndices().erase(
+                    sourceSecondaryIndex);
+                sourceSecondaryIndex->SetTableId(NullObjectId);
+            }
+
+            auto* newSecondaryIndex = tableManager->CreateSecondaryIndex(
+                /*hintId*/ NullObjectId,
+                sourceSecondaryIndex->GetKind(),
+                newTable,
+                newIndexTable,
+                newIndexTable->GetId(),
+                sourceSecondaryIndex->Predicate(),
+                sourceSecondaryIndex->UnfoldedColumns(),
+                sourceSecondaryIndex->EvaluatedColumnsSchema());
+            newSecondaryIndex->SetTableToIndexCorrespondence(
+                sourceSecondaryIndex->GetTableToIndexCorrespondence());
+
+            if (auto acd = handler->FindAcd(newSecondaryIndex)) {
+                acd.AsMutable()->SetOwner(user);
+            }
+
+            auto replicatedAttributes = CreateEphemeralAttributes();
+            replicatedAttributes->Set(
+                EInternedAttributeKey::Kind.Unintern(),
+                sourceSecondaryIndex->GetKind());
+            replicatedAttributes->Set(
+                EInternedAttributeKey::TableId.Unintern(),
+                newTable->GetId());
+            replicatedAttributes->Set(
+                EInternedAttributeKey::IndexTableId.Unintern(),
+                newIndexTable->GetId());
+            replicatedAttributes->Set(
+                EInternedAttributeKey::TableToIndexCorrespondence.Unintern(),
+                sourceSecondaryIndex->GetTableToIndexCorrespondence());
+            if (const auto& unfoldedColumns = sourceSecondaryIndex->UnfoldedColumns()) {
+                replicatedAttributes->Set("unfolded_table_column", unfoldedColumns->TableColumn);
+                replicatedAttributes->Set("unfolded_index_column", unfoldedColumns->IndexColumn);
+            }
+            if (const auto& evaluatedSchema = sourceSecondaryIndex->EvaluatedColumnsSchema()) {
+                replicatedAttributes->Set(
+                    EInternedAttributeKey::EvaluatedColumnsSchema.Unintern(),
+                    evaluatedSchema);
+            }
+
+            if (const auto* userAttributes = sourceSecondaryIndex->GetAttributes()) {
+                auto* mutableAttributes = newSecondaryIndex->GetMutableAttributes();
+                for (const auto& [key, value] : userAttributes->Attributes()) {
+                    mutableAttributes->Set(key, value);
+                    replicatedAttributes->Set(key, value);
+                }
+            }
+
+            objectManager->UnrefObject(sourceSecondaryIndex);
+
+            CreatedExternalObjects_.push_back(TCreatedExternalObject{
+                .ObjectId = newSecondaryIndex->GetId(),
+                .ObjectType = EObjectType::SecondaryIndex,
+                .Attributes = std::move(replicatedAttributes),
+                .ExternalCellTags = handler->GetReplicationCellTags(newSecondaryIndex),
+            });
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -855,10 +1043,10 @@ private:
     TCypressManager* const Owner_;
     const INodeTypeHandlerPtr UnderlyingHandler_;
 
-    TCellTagList DoGetReplicationCellTags(const TCypressNode* node) override
+    TCellTagSet DoGetReplicationCellTags(const TCypressNode* node) override
     {
         auto externalCellTag = node->GetExternalCellTag();
-        return externalCellTag == NotReplicatedCellTagSentinel ? TCellTagList() : TCellTagList{externalCellTag};
+        return externalCellTag == NotReplicatedCellTagSentinel ? EmptyCellTags() : TCellTagSet{externalCellTag};
     }
 
     std::string DoGetName(const TCypressNode* node) override;
@@ -1004,7 +1192,7 @@ private:
     void OnError(const TError& error) override
     {
         auto wrappedError = TError("Error computing recursive resource usage")
-            << error;
+            .With(error);
         Promise_.Set(wrappedError);
     }
 
@@ -1152,6 +1340,7 @@ public:
         RegisterHandler(CreateTabletMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateTabletActionMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateAreaMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateMasterCellGroupMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateHunkStorageTypeHandler(Bootstrap_));
         RegisterHandler(CreateCellOrchidTypeHandler(Bootstrap_));
         RegisterHandler(CreateEstimatedCreationTimeMapTypeHandler(Bootstrap_));
@@ -1188,6 +1377,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraCloneForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraLockForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraUnlockForeignNode, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraDestroyForeignNodeBeingCreated, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraSetTableSchemas, Unretained(this)));
     }
@@ -1711,20 +1901,35 @@ public:
 
     bool CanLock(TCypressNode* trunkNode, const TLockRequest& request, bool recursive) override
     {
-        return CheckLock(
+        auto checkResult = CheckLock(
             trunkNode,
             /*transaction*/ nullptr,
             request,
-            recursive)
-            .IsOK();
+            recursive);
+        return std::holds_alternative<TCheckLockSuccess>(checkResult);
     }
 
-    TError CheckLock(
+    TError AcquirePrelock(
+        TTransaction* owningTransaction,
+        TTransaction* lockingTransaction,
         TCypressNode* trunkNode,
-        TTransaction* transaction,
-        const TLockRequest& lockRequest) override
+        const TLockRequest& request) override
     {
-        return CheckLock(trunkNode, transaction, lockRequest, /*recursive*/ false);
+        auto checkResult = CheckLock(
+            trunkNode,
+            lockingTransaction,
+            request,
+            /*recursive*/ false);
+
+        return Visit(std::move(checkResult),
+            [&] (TCheckLockSuccess) {
+                const auto& prelockTracker = Bootstrap_->GetPrelockTracker();
+                prelockTracker->AcquirePrelockUnchecked(owningTransaction, lockingTransaction, trunkNode->GetId(), request);
+                return TError();
+            },
+            [&] (auto error) {
+                return std::move(error).Error;
+            });
     }
 
     TCypressNode* LockNode(
@@ -1740,8 +1945,13 @@ public:
         YT_VERIFY(!recursive || request.Key.Kind == ELockKeyKind::None);
         YT_VERIFY(!transaction || IsObjectAlive(transaction));
 
-        CheckLock(trunkNode, transaction, request, recursive)
-            .ThrowOnError();
+        auto checkResult = CheckLock(trunkNode, transaction, request, recursive);
+
+        Visit(std::move(checkResult),
+            [&] (TCheckLockSuccess) { },
+            [&] (auto error) {
+                THROW_ERROR std::move(error).Error;
+            });
 
         if (IsLockRedundant(trunkNode, transaction, request)) {
             return GetVersionedNode(trunkNode, transaction);
@@ -1845,13 +2055,13 @@ public:
 
         RemoveTransactionNodeLocks(trunkNode, transaction, explicitOnly);
 
-        if (trunkNode->IsExternal() && trunkNode->IsNative()) {
+        if (trunkNode->IsExternal()) {
             PostUnlockForeignNodeRequest(trunkNode, transaction, explicitOnly);
         }
 
-        YT_LOG_DEBUG("Node explicitly unlocked (NodeId: %v, TransactionId: %v)",
-            trunkNode->GetId(),
-            transaction->GetId());
+        YT_TLOG_DEBUG("Node explicitly unlocked")
+            .With("NodeId", trunkNode->GetId())
+            .With("TransactionId", transaction->GetId());
 
         CheckPendingLocks(trunkNode);
     }
@@ -2085,7 +2295,7 @@ public:
     }
 
     //! Traverses a transaction tree. The root transaction does not have to be topmost.
-    template <CInvocable<void(TTransaction*)> F>
+    template <NMpl::CInvocable<void(TTransaction*)> F>
     void VisitTransactionTree(TTransaction* rootTransaction, F&& processTransaction)
     {
         // BFS queue.
@@ -2133,7 +2343,8 @@ public:
         handler->Destroy(branchedNode);
         NodeMap_.Remove(branchedNodeId);
 
-        YT_LOG_DEBUG("Branched node removed (NodeId: %v)", branchedNodeId);
+        YT_TLOG_DEBUG("Branched node removed")
+            .With("NodeId", branchedNodeId);
     }
 
     TCreateLockResult CreateLock(
@@ -2148,36 +2359,76 @@ public:
         YT_VERIFY(transaction);
         YT_VERIFY(request.Mode != ELockMode::None);
 
-        if (waitable && !transaction) {
-            THROW_ERROR_EXCEPTION("Waitable lock requires a transaction");
-        }
+        // COMPAT(shakurov)
+        if (GetDynamicConfig()->EnableSequoiaNodeStateValidationInCreateLock) {
+            TCypressNode* originatingNode = nullptr;
+            for (auto* t = transaction; !originatingNode; t = t->GetParent()) {
+                originatingNode = FindNode(trunkNode, t);
+                if (!t) {
+                    break;
+                }
+            }
+            if (originatingNode && IsNativeSequoiaNode(originatingNode) && originatingNode->MutableSequoiaProperties()) {
+                // TODO(shakurov): consider turning this into an alert after protecting from this via a ground table lock.
+                // (Snapshot-locking a node should probably take a shared-read lock on the (nodeId, progenitorTransactionId) row in TNodeIdToPath.)
+                if (originatingNode->MutableSequoiaProperties()->Tombstone) {
+                    YT_TLOG_DEBUG("Attempted to lock a tombstoned Sequoia node")
+                        .With("NodeId", GetObjectId(trunkNode).ObjectId)
+                        .With("TransactionId", GetObjectId(transaction));
+                    THROW_ERROR_EXCEPTION(
+                        NSequoiaClient::EErrorCode::SequoiaRetriableError,
+                        "Attempted to lock a tombstoned Sequoia node")
+                        .With("node_id", GetObjectId(trunkNode).ObjectId)
+                        .With("transaction_id", GetObjectId(transaction));
+                }
 
-        if (request.Mode == ELockMode::Snapshot && !transaction) {
-            THROW_ERROR_EXCEPTION("%Qlv lock requires a transaction",
-                request.Mode);
+                if (originatingNode->MutableSequoiaProperties()->BeingCreated) {
+                    YT_TLOG_DEBUG("Attempted to lock a Sequoia node that is being created")
+                        .With("NodeId", GetObjectId(trunkNode).ObjectId)
+                        .With("TransactionId", GetObjectId(transaction));
+                    THROW_ERROR_EXCEPTION(
+                        NSequoiaClient::EErrorCode::SequoiaRetriableError,
+                        "Attempted to lock a Sequoia node that is being created")
+                        .With("node_id", GetObjectId(trunkNode).ObjectId)
+                        .With("transaction_id", GetObjectId(transaction));
+                }
+            }
         }
 
         // Try to lock without waiting in the queue.
-        auto error = CheckLock(
+        auto checkResult = CheckLock(
             trunkNode,
             transaction,
             request,
-            false);
+            /*recursive*/ false);
 
-        // Is it OK?
-        if (error.IsOK()) {
-            auto* lock = DoCreateLock(trunkNode, transaction, request, false, lockIdHint);
-            auto* branchedNode = DoAcquireLock(lock);
-            return {lock, branchedNode};
-        }
-
-        // Should we wait?
-        if (!waitable) {
-            THROW_ERROR error;
-        }
-
-        // Will wait.
-        return {DoCreateLock(trunkNode, transaction, request, false, lockIdHint), nullptr};
+        return Visit(std::move(checkResult),
+            // Is it OK?
+            [&] (TCheckLockSuccess) -> TCreateLockResult {
+                auto* lock = DoCreateLock(trunkNode, transaction, request, false, lockIdHint);
+                auto* branchedNode = DoAcquireLock(lock);
+                return {lock, branchedNode};
+            },
+            [&] (TCheckLockErrorConflict error) -> TCreateLockResult {
+                // Should we wait?
+                if (!waitable ||
+                    error.Error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) // TODO(ivpiskarev): remove after YT-28954.
+                {
+                    THROW_ERROR std::move(error).Error;
+                }
+                // Will wait.
+                return {DoCreateLock(trunkNode, transaction, request, false, lockIdHint), nullptr};
+            },
+            [&] (TCheckLockErrorTooManyLocks error) -> TCreateLockResult {
+                THROW_ERROR std::move(error).Error;
+            },
+            [&] (TCheckLockErrorInvalidLockRequest error) -> TCreateLockResult {
+                // TODO(ivpiskarev): disable waiting by default
+                if (!waitable) {
+                    THROW_ERROR std::move(error).Error;
+                }
+                return {DoCreateLock(trunkNode, transaction, request, false, lockIdHint), nullptr};
+            });
     }
 
     void SetModified(TCypressNode* node, EModificationType modificationType) override
@@ -2235,8 +2486,11 @@ public:
         Visit(time,
             [&] (TInstant time) {
                 auto* user = Bootstrap_->GetSecurityManager()->GetAuthenticatedUser();
+                auto* context = GetCurrentMutationContext();
+                auto armingTime = context->GetTimestamp();
+
                 auto expirationTimeProperties = TCypressNode::TExpirationTimePropertiesPtr(
-                    std::in_place, TUserPtr(user), time);
+                    std::in_place, TUserPtr(user), time, armingTime);
                 node->SetExpirationTimeProperties(std::move(expirationTimeProperties));
             },
             [&] (TSetExpirationResetTime) {
@@ -2253,7 +2507,7 @@ public:
 
         if (node->IsTrunk()) {
             Bootstrap_->GetExpirationTracker()
-                ->OnNodeExpirationTimeUpdated(node, oldExpirationTimeProperties);
+                ->OnNodeExpirationTimeUpdated(node, std::move(oldExpirationTimeProperties));
         } // Otherwise the tracker will be notified when and if the node is merged in.
     }
 
@@ -2266,7 +2520,7 @@ public:
 
 
         if (originatingNode->IsTrunk()) {
-            Bootstrap_->GetExpirationTracker()->OnNodeExpirationTimeUpdated(originatingNode, oldExpirationTime);
+            Bootstrap_->GetExpirationTracker()->OnNodeExpirationTimeUpdated(originatingNode, std::move(oldExpirationTime));
         }
     }
 
@@ -2280,8 +2534,11 @@ public:
         Visit(timeout,
             [&] (TDuration timeout) {
                 auto* user = Bootstrap_->GetSecurityManager()->GetAuthenticatedUser();
+                auto* context = GetCurrentMutationContext();
+                auto armingTime = context->GetTimestamp();
+
                 auto expirationTimeoutProperties = TCypressNode::TExpirationTimeoutPropertiesPtr(
-                    std::in_place, TUserPtr(user), timeout);
+                    std::in_place, TUserPtr(user), timeout, armingTime);
 
                 node->SetExpirationTimeoutProperties(std::move(expirationTimeoutProperties));
 
@@ -2316,7 +2573,7 @@ public:
 
         if (node->IsTrunk()) {
             Bootstrap_->GetExpirationTracker()->OnNodeExpirationTimeoutUpdated(
-                node, oldExpirationTimeoutProperties);
+                node, std::move(oldExpirationTimeoutProperties));
         } // Otherwise the tracker will be notified when and if the node is merged in.
     }
 
@@ -2343,7 +2600,7 @@ public:
 
         if (originatingNode->IsTrunk()) {
             Bootstrap_->GetExpirationTracker()
-                ->OnNodeExpirationTimeoutUpdated(originatingNode, oldExpirationTimeoutProperties);
+                ->OnNodeExpirationTimeoutUpdated(originatingNode, std::move(oldExpirationTimeoutProperties));
         }
     }
 
@@ -2500,9 +2757,9 @@ public:
         // Make the fake reference.
         YT_VERIFY(object->RefObject() == 1);
 
-        YT_LOG_DEBUG("Access control object namespace registered (Id: %v, Name: %v)",
-            object->GetId(),
-            object->GetName());
+        YT_TLOG_DEBUG("Access control object namespace registered")
+            .With("Id", object->GetId())
+            .With("Name", object->GetName());
 
         return object;
     }
@@ -2525,9 +2782,9 @@ public:
 
         UnregisterAccessControlObjectNamespace(object);
 
-        YT_LOG_DEBUG("Access control object namespace unregistered (Id: %v, Name: %v)",
-            object->GetId(),
-            object->GetName());
+        YT_TLOG_DEBUG("Access control object namespace unregistered")
+            .With("Id", object->GetId())
+            .With("Name", object->GetName());
     }
 
     int GetAccessControlObjectNamespaceCount() const override
@@ -2586,10 +2843,10 @@ public:
         // Make the fake reference.
         YT_VERIFY(object->RefObject() == 1);
 
-        YT_LOG_DEBUG("Access control object registered (Id: %v, Namespace: %v, Name: %v)",
-            object->GetId(),
-            namespaceObject->GetName(),
-            object->GetName());
+        YT_TLOG_DEBUG("Access control object registered")
+            .With("Id", object->GetId())
+            .With("Namespace", namespaceObject->GetName())
+            .With("Name", object->GetName());
 
         return object;
     }
@@ -2603,10 +2860,10 @@ public:
         auto& namespaceObject = object->Namespace();
         namespaceObject->UnregisterMember(object);
 
-        YT_LOG_DEBUG("Access control object unregistered (Id: %v, Namespace: %v, Name: %v)",
-            object->GetId(),
-            namespaceObject->GetName(),
-            object->GetName());
+        YT_TLOG_DEBUG("Access control object unregistered")
+            .With("Id", object->GetId())
+            .With("Namespace", namespaceObject->GetName())
+            .With("Name", object->GetName());
 
         namespaceObject.Reset();
     }
@@ -2685,8 +2942,8 @@ public:
         }
 
         THROW_ERROR_EXCEPTION("Cross-cell links are not supported")
-            << TErrorAttribute("link_node_id", linkNode->GetId())
-            << TErrorAttribute("link_target_path", targetPath);
+            .With("link_node_id", linkNode->GetId())
+            .With("link_target_path", targetPath);
     }
 
     TYPath ComputeEffectiveLinkNodeTargetPathCompat(const TLinkNode* linkNode) const
@@ -2717,16 +2974,14 @@ public:
         return FromObjectId(portalExit->GetId()) + *optionalSuffix;
     }
 
-    void ValidateNoExternalizedNodesOnRemovedMasters(const THashSet<TCellTag>& removedMasterCellTags) const override
+    void ValidateNoExternalizedNodesOnRemovedMasters(const TCellTagSet& removedMasterCellTags) const override
     {
         YT_VERIFY(Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
 
         for (const auto& [_, node] : NodeMap_) {
-            YT_LOG_FATAL_IF(
-                removedMasterCellTags.contains(node->GetExternalCellTag()),
-                "Master cell with externalized table was removed (CellTag: %v, TableId: %v)",
-                node->GetExternalCellTag(),
-                node->GetId());
+            YT_TLOG_FATAL_IF(removedMasterCellTags.contains(node->GetExternalCellTag()), "Master cell with externalized table was removed")
+                .With("CellTag", node->GetExternalCellTag())
+                .With("TableId", node->GetId());
         }
     }
 
@@ -2760,30 +3015,32 @@ public:
         if (inserted) {
             auto [it, nodeInserted] = GroundUpdateQueueManagerSequenceNumberToNodeIds_[sequenceNumber].insert(nodeId);
             if (!nodeInserted) {
-                YT_LOG_ALERT("Node was already present GroundUpdateQueueManagerSequenceNumberToNodeIds_, but not in NodeIdToGroundUpdateQueueManagerSequenceNumbers_ "
-                    "(NodeId: %v, SequenceNumber: %v)",
-                    nodeId,
-                    sequenceNumber);
+                YT_TLOG_ALERT("Node was already present GroundUpdateQueueManagerSequenceNumberToNodeIds_, but not in NodeIdToGroundUpdateQueueManagerSequenceNumbers_")
+                    .With("NodeId", nodeId)
+                    .With("SequenceNumber", sequenceNumber);
             }
+            YT_TLOG_DEBUG("Ground update queue manager sequence number inserted")
+                .With("NodeId", nodeId)
+                .With("SequenceNumber", sequenceNumber);
         } else {
             auto oldSequenceNumber = nodeIt->second;
             if (oldSequenceNumber < sequenceNumber) {
                 if (oldSequenceNumber < 0) {
-                    YT_LOG_ALERT("Negative sequence number was found in NodeIdToGroundUpdateQueueManagerSequenceNumbers_ (NodeId: %v, SequenceNumber: %v)",
-                        nodeId,
-                        sequenceNumber);
+                    YT_TLOG_ALERT("Negative sequence number was found in NodeIdToGroundUpdateQueueManagerSequenceNumbers_")
+                        .With("NodeId", nodeId)
+                        .With("SequenceNumber", sequenceNumber);
                 }
                 auto sequenceNumberIt = GroundUpdateQueueManagerSequenceNumberToNodeIds_.find(oldSequenceNumber);
                 if (sequenceNumberIt == GroundUpdateQueueManagerSequenceNumberToNodeIds_.end()) {
-                    YT_LOG_ALERT("Old sequence number was not present in GroundUpdateQueueManagerSequenceNumberToNodeIds_ (NodeId: %v, SequenceNumber: %v)",
-                        nodeId,
-                        oldSequenceNumber);
+                    YT_TLOG_ALERT("Old sequence number was not present in GroundUpdateQueueManagerSequenceNumberToNodeIds_")
+                        .With("NodeId", nodeId)
+                        .With("SequenceNumber", oldSequenceNumber);
                 } else {
                     auto& nodeIds = sequenceNumberIt->second;
                     if (!nodeIds.erase(nodeId)) {
-                        YT_LOG_ALERT("Old sequence number node is was not present in GroundUpdateQueueManagerSequenceNumberToNodeIds_ (NodeId: %v, SequenceNumber: %v)",
-                            nodeId,
-                            oldSequenceNumber);
+                        YT_TLOG_ALERT("Old sequence number node is was not present in GroundUpdateQueueManagerSequenceNumberToNodeIds_")
+                            .With("NodeId", nodeId)
+                            .With("SequenceNumber", oldSequenceNumber);
                     }
                     if (nodeIds.empty()) {
                         GroundUpdateQueueManagerSequenceNumberToNodeIds_.erase(sequenceNumberIt);
@@ -2792,19 +3049,20 @@ public:
 
                 auto [it, nodeInserted] = GroundUpdateQueueManagerSequenceNumberToNodeIds_[sequenceNumber].insert(nodeId);
                 if (!nodeInserted) {
-                    YT_LOG_ALERT("Node was already present GroundUpdateQueueManagerSequenceNumberToNodeIds_, but not in NodeIdToGroundUpdateQueueManagerSequenceNumbers_ "
-                        "(NodeId: %v, SequenceNumber: %v)",
-                        nodeId,
-                        sequenceNumber);
+                    YT_TLOG_ALERT("Node was already present GroundUpdateQueueManagerSequenceNumberToNodeIds_, but not in NodeIdToGroundUpdateQueueManagerSequenceNumbers_")
+                        .With("NodeId", nodeId)
+                        .With("SequenceNumber", sequenceNumber);
                 }
 
                 nodeIt->second = sequenceNumber;
+                YT_TLOG_DEBUG("Ground update queue manager sequence number updated")
+                    .With("NodeId", nodeId)
+                    .With("SequenceNumber", sequenceNumber);
             } else {
-                YT_LOG_DEBUG("Node has a greater sequence number than a new one, keeping the old one "
-                    "(NodeId: %v, OldSequenceNumber: %v, NewSequenceNumber: %v)",
-                    nodeId,
-                    oldSequenceNumber,
-                    sequenceNumber);
+                YT_TLOG_DEBUG("Node has a greater sequence number than a new one, keeping the old one")
+                    .With("NodeId", nodeId)
+                    .With("OldSequenceNumber", oldSequenceNumber)
+                    .With("NewSequenceNumber", sequenceNumber);
             }
         }
     }
@@ -2826,19 +3084,17 @@ public:
             for (const auto& nodeId : sequenceNumberIt->second) {
                 auto nodeIt = NodeIdToGroundUpdateQueueManagerSequenceNumbers_.find(nodeId);
                 if (nodeIt == NodeIdToGroundUpdateQueueManagerSequenceNumbers_.end()) {
-                    YT_LOG_ALERT("Node was not present in GroundUpdateQueueManagerSequenceNumberToNodeIds_ on drain "
-                        "(NodeId: %v, SequenceNumber: %v)",
-                        nodeId,
-                        sequenceNumberIt->first);
+                    YT_TLOG_ALERT("Node was not present in GroundUpdateQueueManagerSequenceNumberToNodeIds_ on drain")
+                        .With("NodeId", nodeId)
+                        .With("SequenceNumber", sequenceNumberIt->first);
                     continue;
                 }
                 // Maybe this actually should already be a verify.
                 if (nodeIt->second != sequenceNumberIt->first) {
-                    YT_LOG_ALERT("Node has different sequence numbers in different maps "
-                        "(NodeId: %v, NodeIdSequenceNumber: %v, SequenceNumberSequenceNumber: %v)",
-                        nodeId,
-                        nodeIt->second,
-                        sequenceNumberIt->first);
+                    YT_TLOG_ALERT("Node has different sequence numbers in different maps")
+                        .With("NodeId", nodeId)
+                        .With("NodeIdSequenceNumber", nodeIt->second)
+                        .With("SequenceNumberSequenceNumber", sequenceNumberIt->first);
                     continue;
                 }
                 NodeIdToGroundUpdateQueueManagerSequenceNumbers_.erase(nodeIt);
@@ -2847,7 +3103,7 @@ public:
         }
     }
 
-    i64 GetGroundUpdateQueueManagerSequenceNumber(TCypressNode* node) const override
+    i64 GetGroundUpdateQueueManagerSequenceNumber(const TCypressNode* node) const override
     {
         auto it = NodeIdToGroundUpdateQueueManagerSequenceNumbers_.find(node->GetVersionedId());
         if (it == NodeIdToGroundUpdateQueueManagerSequenceNumbers_.end()) {
@@ -2856,6 +3112,11 @@ public:
         }
 
         return it->second;
+    }
+
+    void DestroyNodeBeingCreated(TVersionedNodeId versionedNodeId) override
+    {
+        DoDestroyNodeBeingCreated(versionedNodeId);
     }
 
 private:
@@ -3004,11 +3265,7 @@ private:
             Load(context, GroundUpdateQueueManagerSequenceNumberToNodeIds_);
         }
 
-        auto normalClustersNeedSchemaRecalculation = context.GetVersion() >= EMasterReign::AddSchemaRevision &&
-            context.GetVersion() < EMasterReign::FixSchemaDivergence;
-        auto otherClustersNeedSchemaRecalculation = context.GetVersion() >= EMasterReign::Start_25_4 &&
-            context.GetVersion() < EMasterReign::FixSchemaDivergence_25_4;
-        if (normalClustersNeedSchemaRecalculation || otherClustersNeedSchemaRecalculation) {
+        if (context.GetVersion() < EMasterReign::FixSchemaDivergence_25_4) {
             RecalculateSchemas_ = true;
         }
 
@@ -3026,15 +3283,15 @@ private:
         for (auto [nodeId, sequenceNumber] : NodeIdToGroundUpdateQueueManagerSequenceNumbers_) {
             auto it = GroundUpdateQueueManagerSequenceNumberToNodeIds_.find(sequenceNumber);
             if (it == GroundUpdateQueueManagerSequenceNumberToNodeIds_.end()) {
-                YT_LOG_ALERT("Sequence number is not present in sequence number to node id map (NodeId: %v, SequenceNumber: %v)",
-                    nodeId,
-                    sequenceNumber);
+                YT_TLOG_ALERT("Sequence number is not present in sequence number to node id map")
+                    .With("NodeId", nodeId)
+                    .With("SequenceNumber", sequenceNumber);
                 EmplaceOrCrash(GroundUpdateQueueManagerSequenceNumberToNodeIds_[sequenceNumber], nodeId);
             } else {
                 if (it->second.insert(nodeId).second) {
-                    YT_LOG_ALERT("Node is not present in sequence number to node id map (NodeId: %v, SequenceNumber: %v)",
-                        nodeId,
-                        sequenceNumber);
+                    YT_TLOG_ALERT("Node is not present in sequence number to node id map")
+                        .With("NodeId", nodeId)
+                        .With("SequenceNumber", sequenceNumber);
                 }
             }
         }
@@ -3045,17 +3302,17 @@ private:
             for (auto nodeId : nodeIds) {
                 auto it = NodeIdToGroundUpdateQueueManagerSequenceNumbers_.find(nodeId);
                 if (it == NodeIdToGroundUpdateQueueManagerSequenceNumbers_.end()) {
-                    YT_LOG_ALERT("Node is not present in node id to sequence number map (NodeId: %v, SequenceNumber: %v)",
-                        nodeId,
-                        sequenceNumber);
+                    YT_TLOG_ALERT("Node is not present in node id to sequence number map")
+                        .With("NodeId", nodeId)
+                        .With("SequenceNumber", sequenceNumber);
                     nodeIdsToErase.push_back(nodeId);
                 } else {
                     auto correctSequenceNumber = it->second;
                     if (correctSequenceNumber != sequenceNumber) {
-                        YT_LOG_ALERT("Node has different sequence numbers in different maps (NodeId: %v, NodeIdToSequenceNumberSequenceNumber: %v, SequenceNumberToNodeIdSequenceNumber: %v)",
-                            nodeId,
-                            correctSequenceNumber,
-                            sequenceNumber);
+                        YT_TLOG_ALERT("Node has different sequence numbers in different maps")
+                            .With("NodeId", nodeId)
+                            .With("NodeIdToSequenceNumberSequenceNumber", correctSequenceNumber)
+                            .With("SequenceNumberToNodeIdSequenceNumber", sequenceNumber);
 
                         // It was just emplaced in the code above;
                         auto sequenceNumberIt = GroundUpdateQueueManagerSequenceNumberToNodeIds_.find(correctSequenceNumber);
@@ -3123,7 +3380,7 @@ private:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
-        YT_LOG_INFO("Started initializing locks");
+        YT_TLOG_INFO("Started initializing locks");
         for (auto [lockId, lock] : LockMap_) {
             if (!IsObjectAlive(lock)) {
                 continue;
@@ -3134,9 +3391,9 @@ private:
                 RegisterLock(lock);
             }
         }
-        YT_LOG_INFO("Finished initializing locks");
+        YT_TLOG_INFO("Finished initializing locks");
 
-        YT_LOG_INFO("Started initializing nodes");
+        YT_TLOG_INFO("Started initializing nodes");
         for (auto [nodeId, node] : NodeMap_) {
             // Reconstruct immediate ancestor sets.
             if (auto* parent = node->GetParent()) {
@@ -3175,23 +3432,11 @@ private:
                 Bootstrap_->GetExpirationTracker()->OnNodeExpirationTimeUpdated(node);
             }
 
-            // COMPAT(shakurov)
-            if (node->TryGetExpirationTimeoutProperties()) {
-                if (node->IsTrunk() && !node->GetTouchTime()) {
-                    const auto* hydraContext = GetCurrentHydraContext();
-                    node->SetTouchTime(hydraContext->GetTimestamp());
-                } else if (!node->IsTrunk() && node->GetTouchTime(/*branchIsOk*/ true)) {
-                    node->SetTouchTime(TInstant::Zero(), /*branchIsOk*/ true);
-                }
-            } else {
-                node->SetTouchTime(TInstant::Zero(), /*branchIsOk*/ true);
-            }
-
             if (node->IsTrunk() && node->TryGetExpirationTimeoutProperties()) {
                 Bootstrap_->GetExpirationTracker()->OnNodeExpirationTimeoutUpdated(node);
             }
         }
-        YT_LOG_INFO("Finished initializing nodes");
+        YT_TLOG_INFO("Finished initializing nodes");
 
         InitBuiltins();
 
@@ -3220,8 +3465,9 @@ private:
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             auto sendRequestAndLog = [&] (TCellTag cellTag, NProto::TReqSetTableSchemas& req) {
-                YT_LOG_DEBUG("Sending SetTableSchemas request (DestinationCellTag: %v, RequestSize: %v)",
-                    cellTag, req.subrequests_size());
+                YT_TLOG_DEBUG("Sending SetTableSchemas request")
+                    .With("DestinationCellTag", cellTag)
+                    .With("RequestSize", req.subrequests_size());
                 multicellManager->PostToMaster(req, cellTag);
             };
 
@@ -3233,9 +3479,9 @@ private:
             for (auto it : GetSortedIterators(cellTagToNodeIds)) {
                 auto cellTag = it->first;
                 const auto& sortedNodeIds = it->second;
-                YT_LOG_DEBUG("Sending correct schemas (DestinationCellTag: %v, NodeCount: %v)",
-                    cellTag,
-                    std::ssize(sortedNodeIds));
+                YT_TLOG_DEBUG("Sending correct schemas")
+                    .With("DestinationCellTag", cellTag)
+                    .With("NodeCount", std::ssize(sortedNodeIds));
 
                 auto batchSize = 0;
                 NProto::TReqSetTableSchemas req;
@@ -3260,7 +3506,6 @@ private:
                 }
             }
         }
-
     }
 
     void CheckInvariants() override
@@ -3268,6 +3513,8 @@ private:
         TMasterAutomatonPart::CheckInvariants();
 
         const auto& garbageCollector = Bootstrap_->GetObjectManager()->GetGarbageCollector();
+
+        auto nodeRefCounters = ComputeNodeRefCounters();
 
         THashMap<TTransactionId, TBranchedNodeSet> transactionToBranchedNodes;
         for (auto [transactionId, transaction] : Bootstrap_->GetTransactionManager()->Transactions()) {
@@ -3280,44 +3527,46 @@ private:
                 auto securityTagsUpdateMode = chunkOnwerNode->GetSecurityTagsUpdateMode();
 
                 if (securityTagsUpdateMode == ESecurityTagsUpdateMode::None) {
-                    YT_LOG_ALERT_UNLESS(chunkOnwerNode->DeltaSecurityTags()->IsEmpty(),
-                        "Node with a trivial security tags update mode has delta security tags "
-                        "(NodeId: %v, DeltaSecurityTags: %v, SnapshotSecurityTags: %v)",
-                        chunkOnwerNode->GetVersionedId(),
-                        chunkOnwerNode->DeltaSecurityTags()->Items,
-                        chunkOnwerNode->SnapshotSecurityTags()->Items);
+                    YT_TLOG_ALERT_UNLESS(
+                        chunkOnwerNode->DeltaSecurityTags()->IsEmpty(),
+                        "Node with a trivial security tags update mode has delta security tags")
+                        .With("NodeId", chunkOnwerNode->GetVersionedId())
+                        .With("DeltaSecurityTags", chunkOnwerNode->DeltaSecurityTags()->Items)
+                        .With("SnapshotSecurityTags", chunkOnwerNode->SnapshotSecurityTags()->Items);
                 } else if (securityTagsUpdateMode == ESecurityTagsUpdateMode::Append) {
-                    YT_LOG_ALERT_IF(chunkOnwerNode->DeltaSecurityTags()->IsEmpty(),
-                        "Node with append security tags update mode has empty delta security tags "
-                        "(NodeId: %v, DeltaSecurityTags: %v, SnapshotSecurityTags: %v)",
-                        chunkOnwerNode->GetVersionedId(),
-                        chunkOnwerNode->DeltaSecurityTags()->Items,
-                        chunkOnwerNode->SnapshotSecurityTags()->Items);
+                    YT_TLOG_ALERT_IF(
+                        chunkOnwerNode->DeltaSecurityTags()->IsEmpty(),
+                        "Node with append security tags update mode has empty delta security tags")
+                        .With("NodeId", chunkOnwerNode->GetVersionedId())
+                        .With("DeltaSecurityTags", chunkOnwerNode->DeltaSecurityTags()->Items)
+                        .With("SnapshotSecurityTags", chunkOnwerNode->SnapshotSecurityTags()->Items);
                 }
 
                 if (chunkOnwerNode->IsTrunk()) {
                     auto updateMode = chunkOnwerNode->GetUpdateMode();
-                    YT_LOG_ALERT_UNLESS(updateMode == NChunkClient::EUpdateMode::None,
-                        "Trunk node with non-trivial update mode was found (NodeId: %v, UpdateMode: %v)",
-                        nodeId,
-                        updateMode);
+                    YT_TLOG_ALERT_UNLESS(updateMode == NChunkClient::EUpdateMode::None, "Trunk node with non-trivial update mode was found")
+                        .With("NodeId", nodeId)
+                        .With("UpdateMode", updateMode);
 
-                    YT_LOG_ALERT_UNLESS(securityTagsUpdateMode == ESecurityTagsUpdateMode::None,
-                        "Trunk node with non-trivial security tags update mode was found (NodeId: %v, SecurityTagsUpdateMode: %v)",
-                        nodeId,
-                        updateMode);
+                    YT_TLOG_ALERT_UNLESS(
+                        securityTagsUpdateMode == ESecurityTagsUpdateMode::None,
+                        "Trunk node with non-trivial security tags update mode was found")
+                        .With("NodeId", nodeId)
+                        .With("SecurityTagsUpdateMode", securityTagsUpdateMode);
                 }
             }
 
             if (!node->IsTrunk()) {
                 auto transactionId = node->GetTransaction()->GetId();
                 if (!transactionToBranchedNodes.contains(transactionId)) {
-                    YT_LOG_ALERT("Found a branch without active transaction (NodeId: %v)", node->GetVersionedId());
+                    YT_TLOG_ALERT("Found a branch without active transaction")
+                        .With("NodeId", node->GetVersionedId());
                     continue;
                 }
 
                 if (!transactionToBranchedNodes[transactionId].Contains(node)) {
-                    YT_LOG_ALERT("Found a branch missing in the transaction's BranchedNodeSet (NodeId: %v)", node->GetVersionedId());
+                    YT_TLOG_ALERT("Found a branch missing in the transaction's BranchedNodeSet")
+                        .With("NodeId", node->GetVersionedId());
                 } else {
                     transactionToBranchedNodes[transactionId].EraseOrCrash(node);
                 }
@@ -3325,20 +3574,140 @@ private:
                 continue;
             }
 
+            auto expectedRefCounter = GetOrCrash(nodeRefCounters, node);
+            auto actualRefCounter = node->GetObjectRefCounter();
+            if (expectedRefCounter != actualRefCounter) {
+                // Refs for Sequoia nodes are determined based on reachability.
+                // However, during PrepareCreateNode, nodes in the BeingCreated state have an additional strong ref,
+                // whereas during MaterializeNode they do not.
+                // See sequoia_actions_executor for more details.
+                if (node->IsSequoia() && node->MutableSequoiaProperties() && node->MutableSequoiaProperties()->BeingCreated) {
+                    YT_TLOG_ALERT_UNLESS(expectedRefCounter == actualRefCounter + 1, "Node in BeingCreated state has unexpected ref counter")
+                        .With("NodeId", node->GetId())
+                        .With("ExpectedRefCounter", expectedRefCounter)
+                        .With("ActualRefCounter", actualRefCounter);
+                } else {
+                    YT_TLOG_ALERT("Node has unexpected ref counter")
+                        .With("NodeId", node->GetId())
+                        .With("ExpectedRefCounter", expectedRefCounter)
+                        .With("ActualRefCounter", actualRefCounter);
+                }
+            }
+
             if (node->GetObjectRefCounter() == 0 &&
                 node->GetObjectWeakRefCounter() == 0 &&
                 node->GetObjectEphemeralRefCounter() == 0 &&
                 !garbageCollector->IsRegisteredZombie(node) &&
-                !garbageCollector->IsEphemeralGhost(node))
+                !garbageCollector->IsEphemeralGhost(node) &&
+                !garbageCollector->IsWeakGhost(node))
             {
-                YT_LOG_ALERT("Node leak detected (NodeId: %v)", node->GetId());
+                YT_TLOG_ALERT("Node leak detected")
+                    .With("NodeId", node->GetId());
             }
         }
 
         for (auto& [transactionId, branchNodeSet] : transactionToBranchedNodes) {
             for (auto node : branchNodeSet) {
-                YT_LOG_ALERT("Found a branch missing in the entity map, but held by a transaction (NodeId: %v)",
-                    node->GetVersionedId());
+                YT_TLOG_ALERT("Found a branch missing in the entity map, but held by a transaction")
+                    .With("NodeId", node->GetVersionedId());
+            }
+        }
+    }
+
+    THashMap<TCypressNode*, int> ComputeNodeRefCounters() const
+    {
+        const auto& garbageCollector = Bootstrap_->GetObjectManager()->GetGarbageCollector();
+
+        THashMap<TCypressNode*, int> nodeToRefCounter;
+
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!node->IsTrunk()) {
+                continue;
+            }
+
+            auto trunkRefCounter = 0;
+
+            if (garbageCollector->IsRegisteredZombie(node) || garbageCollector->IsEphemeralGhost(node) || garbageCollector->IsWeakGhost(node)) {
+                trunkRefCounter = 0;
+            } else if (node->IsBuiltin() || node->IsForeign()) {
+                trunkRefCounter = 1;
+            } else if (node->IsSequoia()) {
+                // Scion is also counted here.
+                trunkRefCounter = static_cast<int>(node->GetReachable() || (node->MutableSequoiaProperties() && node->MutableSequoiaProperties()->BeingCreated));
+            } else if (node->GetType() == EObjectType::PortalExit) {
+                trunkRefCounter = static_cast<int>(node->GetReachable());
+            }
+
+            EmplaceOrCrash(nodeToRefCounter, node, trunkRefCounter);
+        }
+
+        ComputeNodeRefCountersFromBranches(nodeToRefCounter);
+        ComputeNodeRefCountersFromTableNodes(nodeToRefCounter);
+        ComputeNodeRefCountersFromMapNodes(nodeToRefCounter);
+
+        return nodeToRefCounter;
+    }
+
+    void ComputeNodeRefCountersFromBranches(THashMap<TCypressNode*, int>& nodeToRefCounter) const
+    {
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!node->IsTrunk()) {
+                YT_TLOG_ALERT_IF(node->GetObjectRefCounter() > 0, "Found a branch with non-zero RefCounter")
+                    .With("NodeId", node->GetVersionedId())
+                    .With("RefCounter", node->GetObjectRefCounter());
+
+                auto* trunkNode = node->GetTrunkNode();
+
+                YT_TLOG_ALERT_UNLESS(nodeToRefCounter.contains(trunkNode), "Found a branch without trunk node")
+                    .With("Node", node->GetVersionedId());
+
+                ++nodeToRefCounter[trunkNode];
+            }
+        }
+    }
+
+    void ComputeNodeRefCountersFromTableNodes(THashMap<TCypressNode*, int>& nodeToRefCounter) const
+    {
+        auto tryAddRefForHunkStorageNode = [&] (THunkStorageNode* hunkStorageNode) {
+            if (hunkStorageNode) {
+                ++nodeToRefCounter[hunkStorageNode->GetTrunkNode()];
+            }
+        };
+
+        for (auto [nodeId, node] : NodeMap_) {
+            if (node->GetType() == EObjectType::Table) {
+                auto* tableNode = node->As<TTableNode>();
+
+                tryAddRefForHunkStorageNode(tableNode->GetHunkStorage());
+            }
+
+            if (node->GetType() == EObjectType::ReplicatedTable) {
+                auto* replicatedTableNode = node->As<TReplicatedTableNode>();
+
+                tryAddRefForHunkStorageNode(replicatedTableNode->GetHunkStorage());
+            }
+        }
+    }
+
+    void ComputeNodeRefCountersFromMapNodes(THashMap<TCypressNode*, int>& nodeToRefCounter) const
+    {
+        THashSet<const TCypressMapNode::TChildren*> childrenMaps;
+        for (auto [nodeId, node] : NodeMap_) {
+            if (node->GetNodeType() != ENodeType::Map) {
+                continue;
+            }
+
+            if (node->IsSequoia()) {
+                continue;
+            }
+
+            auto* mapNode = node->As<TCypressMapNode>();
+            childrenMaps.emplace(mapNode->GetChildren());
+        }
+
+        for (const auto* childrenMap : childrenMaps) {
+            for (const auto& [child, _] : childrenMap->ChildToKey()) {
+                ++nodeToRefCounter[child.Get()];
             }
         }
     }
@@ -3431,15 +3800,15 @@ private:
         node->SetModified(EModificationType::Attributes);
 
         if (node->IsExternal()) {
-            YT_LOG_DEBUG("External node registered (NodeId: %v, Type: %v, ExternalCellTag: %v)",
-                node->GetId(),
-                node->GetType(),
-                node->GetExternalCellTag());
+            YT_TLOG_DEBUG("External node registered")
+                .With("NodeId", node->GetId())
+                .With("Type", node->GetType())
+                .With("ExternalCellTag", node->GetExternalCellTag());
         } else {
-            YT_LOG_DEBUG("%v node registered (NodeId: %v, Type: %v)",
-                node->IsForeign() ? "Foreign" : "Local",
-                node->GetId(),
-                node->GetType());
+            YT_TLOG_DEBUG("Node registered")
+                .With("Foreign", node->IsForeign())
+                .With("NodeId", node->GetId())
+                .With("Type", node->GetType());
         }
 
         return node;
@@ -3466,9 +3835,9 @@ private:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto lock : lockingState.PendingLocks) {
-            YT_LOG_DEBUG("Lock orphaned due to node removal (LockId: %v, NodeId: %v)",
-                lock->GetId(),
-                trunkNode->GetId());
+            YT_TLOG_DEBUG("Lock orphaned due to node removal")
+                .With("LockId", lock->GetId())
+                .With("NodeId", trunkNode->GetId());
             lock->SetTrunkNode(nullptr);
 
             auto transaction = lock->GetTransaction();
@@ -3514,12 +3883,22 @@ private:
         ReleaseLocks(transaction, false);
     }
 
-    template <typename F>
-    TError CheckSubtreeTrunkNodes(
+
+
+
+    template <NMpl::CInvocable<void(TCypressNode*)> TDoCheck, NMpl::CInvocable<bool()> TIsCheckFinished>
+    struct TCheckSubtreeTrunkNodesTraverser
+    {
+        TDoCheck DoCheck;
+        TIsCheckFinished IsCheckFinished;
+    };
+
+    template <typename TTraverser>
+    void CheckSubtreeTrunkNodes(
         TCypressNode* trunkNode,
         TTransaction* transaction,
         bool recursive,
-        F doCheck)
+        TTraverser& traverser)
     {
         TSubtreeNodes nodes;
         if (recursive) {
@@ -3532,14 +3911,11 @@ private:
 
         for (auto* node : nodes) {
             auto* trunkNode = node->GetTrunkNode();
-
-            auto error = doCheck(trunkNode);
-            if (!error.IsOK()) {
-                return error;
+            traverser.DoCheck(trunkNode);
+            if (traverser.IsCheckFinished()) {
+                break;
             }
         }
-
-        return TError();
     }
 
     template <typename F>
@@ -3564,25 +3940,87 @@ private:
         }
     }
 
-    TError CheckLock(
+    struct TCheckLockSuccess
+    { };
+
+    struct TCheckLockErrorConflict
+    {
+        TError Error;
+    };
+
+    struct TCheckLockErrorTooManyLocks
+    {
+        TError Error;
+    };
+
+    struct TCheckLockErrorInvalidLockRequest
+    {
+        TError Error;
+    };
+
+    using TCheckLockResult = std::variant<
+        TCheckLockSuccess,
+        TCheckLockErrorConflict,
+        TCheckLockErrorTooManyLocks,
+        TCheckLockErrorInvalidLockRequest>;
+
+    TCheckLockResult CheckLock(
         TCypressNode* trunkNode,
         TTransaction* transaction,
         const TLockRequest& request,
-        bool recursive)
+        bool recursive,
+        bool checkLockCount = true)
     {
+        TCheckLockResult error;
         auto doCheck = [&] (TCypressNode* trunkNode) {
-            return DoCheckLock(trunkNode, transaction, request);
+            error = DoCheckLock(trunkNode, transaction, request, checkLockCount);
+        };
+        auto isCheckFinished = [&] {
+            return !std::holds_alternative<TCheckLockSuccess>(error);
+        };
+
+        TCheckSubtreeTrunkNodesTraverser traverser{
+            .DoCheck = doCheck,
+            .IsCheckFinished = isCheckFinished,
         };
 
         // Validate all potential locks to see if we need to take at least one of them.
         // This throws an exception in case the validation fails.
-        return CheckSubtreeTrunkNodes(trunkNode, transaction, recursive, doCheck);
+        CheckSubtreeTrunkNodes(trunkNode, transaction, recursive, traverser);
+
+        Visit(error,
+            [&] (const TCheckLockSuccess&) { },
+            [&] (const auto& error) {
+                YT_TLOG_ALERT_IF(error.Error.IsOK(), "Lock check failed but the error inside is empty")
+                    .With("ErrorType", TypeName(error));
+            });
+
+        return error;
     }
 
-    TError DoCheckLock(
+    TCheckLockResult DoCheckLock(TCypressNode* trunkNode, TTransaction* transaction, const TLockRequest& request, bool checkLockCount)
+    {
+        {
+            auto checkResult = DoCheckLockWithoutPrelocks(trunkNode, transaction, request, checkLockCount);
+            if (!std::holds_alternative<TCheckLockSuccess>(checkResult)) {
+                return checkResult;
+            }
+        }
+        {
+            const auto& prelockTracker = Bootstrap_->GetPrelockTracker();
+            auto error = prelockTracker->CheckLock(transaction, trunkNode->GetId(), request);
+            if (!error.IsOK()) {
+                return TCheckLockErrorConflict(std::move(error));
+            }
+        }
+        return TCheckLockSuccess();
+    }
+
+    TCheckLockResult DoCheckLockWithoutPrelocks(
         TCypressNode* trunkNode,
         TTransaction* transaction,
-        const TLockRequest& request)
+        const TLockRequest& request,
+        bool checkLockCount)
     {
         YT_ASSERT(trunkNode->IsTrunk());
         YT_VERIFY(transaction || request.Mode != ELockMode::Snapshot);
@@ -3603,16 +4041,16 @@ private:
         if (transaction && lockingState.HasSnapshotLock(transaction)) {
             if (request.Mode == ELockMode::Snapshot) {
                 // Already taken by this transaction.
-                return TError();
+                return TCheckLockSuccess{};
             } else {
                 // Cannot take non-snapshot lock when a snapshot lock is already taken.
-                return TError(
+                return TCheckLockErrorInvalidLockRequest(TError(
                     NCypressClient::EErrorCode::SameTransactionLockConflict,
                     "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by same transaction %v",
                     request.Mode,
                     GetNodePath(trunkNode, transaction),
                     ELockMode::Snapshot,
-                    transaction->GetId());
+                    transaction->GetId()));
             }
         }
 
@@ -3621,37 +4059,37 @@ private:
             if (transaction) {
                 // Check if a non-snapshot lock is already taken by this transaction.
                 if (lockingState.HasExclusiveLock(transaction)) {
-                    return TError(
+                    return TCheckLockErrorInvalidLockRequest(TError(
                         NCypressClient::EErrorCode::SameTransactionLockConflict,
                         "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by same transaction %v",
                         request.Mode,
                         GetNodePath(trunkNode, transaction),
                         ELockMode::Exclusive,
-                        transaction->GetId());
+                        transaction->GetId()));
                 }
                 if (lockingState.HasSharedLock(transaction)) {
-                    return TError(
+                    return TCheckLockErrorInvalidLockRequest(TError(
                         NCypressClient::EErrorCode::SameTransactionLockConflict,
                         "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by same transaction %v",
                         request.Mode,
                         GetNodePath(trunkNode, transaction),
                         ELockMode::Shared,
-                        transaction->GetId());
+                        transaction->GetId()));
                 }
 
                 // Check if any nested transaction has taken a non-snapshot lock.
                 auto lockModeBelow = GetStrongestLockModeOfNestedTransactions(trunkNode, transaction);
                 if (lockModeBelow > ELockMode::Snapshot) {
-                    return TError(
+                    return TCheckLockErrorInvalidLockRequest(TError(
                         NCypressClient::EErrorCode::DescendantTransactionLockConflict,
                         "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by a descendant transaction",
                         request.Mode,
                         GetNodePath(trunkNode, transaction),
-                        lockModeBelow);
+                        lockModeBelow));
                 }
             }
 
-            return TError();
+            return TCheckLockSuccess();
         }
 
         if (transaction) {
@@ -3659,18 +4097,18 @@ private:
             auto currentTransaction = transaction->GetParent();
             while (currentTransaction) {
                 if (lockingState.HasSnapshotLock(currentTransaction)) {
-                    return TError(
+                    return TCheckLockErrorInvalidLockRequest(TError(
                         NCypressClient::EErrorCode::SameTransactionLockConflict,
                         "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by parent transaction %v",
                         request.Mode,
                         GetNodePath(trunkNode, transaction),
                         ELockMode::Snapshot,
-                        currentTransaction->GetId());
+                        currentTransaction->GetId()));
                 }
                 currentTransaction = currentTransaction->GetParent();
             }
 
-            if (trunkNode->IsNative()) {
+            if (checkLockCount && trunkNode->IsNative()) {
                 // Validate lock count.
                 const auto& config = GetDynamicConfig();
                 auto lockCountLimit = config->MaxLocksPerTransactionSubtree;
@@ -3678,92 +4116,130 @@ private:
                 while (currentTransaction) {
                     auto recursiveLockCount = currentTransaction->GetRecursiveLockCount();
                     if (recursiveLockCount >= lockCountLimit) {
-                        return TError(
+                        return TCheckLockErrorTooManyLocks(TError(
                             NCypressClient::EErrorCode::TooManyLocksOnTransaction,
                             "Cannot create %Qlv lock for node %v since transaction %v and its descendants already have %v locks associated with them",
                             request.Mode,
                             GetNodePath(trunkNode, transaction),
                             currentTransaction->GetId(),
-                            recursiveLockCount);
+                            recursiveLockCount));
                     }
                     currentTransaction = currentTransaction->GetParent();
                 }
             }
         }
 
+        auto enableMoreEfficientConflictCheck = GetDynamicConfig()->EnableMoreEfficientConflictCheck;
         auto checkExistingLock = [&] (const TLock* existingLock) {
             auto existingTransaction = existingLock->GetTransaction();
-            if (!IsConcurrentTransaction(transaction, existingTransaction)) {
-                return TError();
+            if (enableMoreEfficientConflictCheck &&
+                transaction == existingTransaction &&
+                request.Mode <= existingLock->Request().Mode)
+            {
+                // A stronger (or equal) lock is taken under the same transaction. No need to check the rest.
+                return ELockCheckResult::OK;
             }
+
+            if (!IsConcurrentTransaction(transaction, existingTransaction)) {
+                return ELockCheckResult::Inconclusive;
+            }
+
+            return ELockCheckResult::Conflict;
+        };
+
+        auto buildConflictErrorMessage = [&] (const TLock* existingLock) {
+            auto existingTransaction = existingLock->GetTransaction();
             switch (request.Key.Kind) {
                 case ELockKeyKind::None:
-                    return TError(
+                    return TCheckLockErrorConflict(TError(
                         NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
                         "Cannot take %Qlv lock for node %v since %Qlv lock is taken by concurrent transaction %v",
                         request.Mode,
                         GetNodePath(trunkNode, transaction),
                         existingLock->Request().Mode,
                         existingTransaction->GetId())
-                        << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription());
+                        .With("winner_transaction", existingTransaction->GetErrorDescription()));
 
                 case ELockKeyKind::Child:
-                    return TError(
+                    return TCheckLockErrorConflict(TError(
                         NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
                         "Cannot take lock for child %Qv of node %v since this child is locked by concurrent transaction %v",
                         request.Key.Name,
                         GetNodePath(trunkNode, transaction),
                         existingTransaction->GetId())
-                        << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription());
+                        .With("winner_transaction", existingTransaction->GetErrorDescription()));
 
                 case ELockKeyKind::Attribute:
-                    return TError(
+                    return TCheckLockErrorConflict(TError(
                         NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
                         "Cannot take lock for attribute %Qv of node %v since this attribute is locked by concurrent transaction %v",
                         request.Key.Name,
                         GetNodePath(trunkNode, transaction),
                         existingTransaction->GetId())
-                        << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription());
+                        .With("winner_transaction", existingTransaction->GetErrorDescription()));
 
                 default:
                     YT_ABORT();
             }
         };
 
-        for (auto [transaction, existingLock] : transactionToExclusiveLocks) {
-            auto error = checkExistingLock(existingLock);
-            if (!error.IsOK()) {
-                return error;
+        auto enableEvenMoreEfficientConflictCheck = GetDynamicConfig()->EnableEvenMoreEfficientConflictCheck;
+        auto it = transactionToExclusiveLocks.begin();
+        while (it != transactionToExclusiveLocks.end()) {
+            auto checkResult = checkExistingLock(it->second);
+            if (checkResult == ELockCheckResult::OK) {
+                break;
+            } else if (checkResult == ELockCheckResult::Conflict) {
+                return buildConflictErrorMessage(it->second);
+            }
+
+            if (enableEvenMoreEfficientConflictCheck) {
+                it = transactionToExclusiveLocks.upper_bound(it->first);
+            } else {
+                ++it;
             }
         }
 
         switch (request.Mode) {
-            case ELockMode::Exclusive:
-                for (const auto& [transaction, lockKey, lock] : transactionAndKeyToSharedLocks) {
-                    auto error = checkExistingLock(lock);
-                    if (!error.IsOK()) {
-                        return error;
+            case ELockMode::Exclusive: {
+                auto it = transactionAndKeyToSharedLocks.begin();
+                while (it != transactionAndKeyToSharedLocks.end()) {
+                    auto checkResult = checkExistingLock(std::get<TLockRawPtr>(*it));
+                    if (checkResult == ELockCheckResult::OK) {
+                        break;
+                    } else if (checkResult == ELockCheckResult::Conflict) {
+                        return buildConflictErrorMessage(std::get<TLockRawPtr>(*it));
+                    }
+
+                    if (enableEvenMoreEfficientConflictCheck) {
+                        it = transactionAndKeyToSharedLocks.upper_bound(std::get<TTransactionRawPtr>(*it));
+                    } else {
+                        ++it;
                     }
                 }
                 break;
+            }
 
-            case ELockMode::Shared:
+            case ELockMode::Shared: {
                 if (request.Key.Kind != ELockKeyKind::None) {
                     auto range = keyToSharedLocks.equal_range(request.Key);
                     for (auto it = range.first; it != range.second; ++it) {
-                        auto error = checkExistingLock(it->second);
-                        if (!error.IsOK()) {
-                            return error;
+                        auto checkResult = checkExistingLock(it->second);
+                        if (checkResult == ELockCheckResult::OK) {
+                            break;
+                        } else if (checkResult == ELockCheckResult::Conflict) {
+                            return buildConflictErrorMessage(it->second);
                         }
                     }
                 }
                 break;
+            }
 
             default:
                 YT_ABORT();
         }
 
-        return TError();
+        return TCheckLockSuccess();
     }
 
     TError CheckUnlock(
@@ -3772,12 +4248,23 @@ private:
         bool recursive,
         bool explicitOnly)
     {
+        TError error;
         auto doCheck = [&] (TCypressNode* trunkNode) {
-            return DoCheckUnlock(trunkNode, transaction, explicitOnly);
+            error = DoCheckUnlock(trunkNode, transaction, explicitOnly);
+        };
+        auto isCheckFinished = [&] () {
+            return !error.IsOK();
+        };
+
+        TCheckSubtreeTrunkNodesTraverser traverser{
+            .DoCheck = doCheck,
+            .IsCheckFinished = isCheckFinished,
         };
 
         // Check that unlocking nodes won't drop any data.
-        return CheckSubtreeTrunkNodes(trunkNode, transaction, recursive, doCheck);
+        CheckSubtreeTrunkNodes(trunkNode, transaction, recursive, traverser);
+
+        return error;
     }
 
     TError DoCheckUnlock(
@@ -3927,8 +4414,8 @@ private:
         auto transaction = lock->GetTransaction();
         const auto& request = lock->Request();
 
-        YT_LOG_DEBUG("Lock acquired (LockId: %v)",
-            lock->GetId());
+        YT_TLOG_DEBUG("Lock acquired")
+            .With("LockId", lock->GetId());
 
         YT_VERIFY(lock->GetState() == ELockState::Pending);
         lock->SetState(ELockState::Acquired);
@@ -3944,13 +4431,13 @@ private:
         RegisterLock(lock);
 
         if (transaction->LockedNodes().insert(trunkNode).second) {
-            YT_LOG_DEBUG("Node locked (NodeId: %v, TransactionId: %v, DontLockForeign: %v)",
-                trunkNode->GetId(),
-                transaction->GetId(),
-                dontLockForeign);
+            YT_TLOG_DEBUG("Node locked")
+                .With("NodeId", trunkNode->GetId())
+                .With("TransactionId", transaction->GetId())
+                .With("DontLockForeign", dontLockForeign);
         }
 
-        if (trunkNode->IsExternal() && trunkNode->IsNative() && !dontLockForeign) {
+        if (trunkNode->IsExternal() && !dontLockForeign) {
             PostLockForeignNodeRequest(lock);
         }
 
@@ -4023,8 +4510,8 @@ private:
                         if (inserted) {
                             lock->SetKeyToSharedLocksIterator(it);
                         } else {
-                            YT_LOG_ALERT("Duplicate shared lock entry detected (LockId: %v)",
-                                lock->GetId());
+                            YT_TLOG_ALERT("Duplicate shared lock entry detected")
+                                .With("LockId", lock->GetId());
                         }
                     }
                 } else {
@@ -4049,13 +4536,12 @@ private:
 
     static void AlertDuplicateLock(TLock* lock)
     {
-        YT_LOG_ALERT("Duplicate lock detected "
-            "(NodeId: %v, TransactionId: %v, LockId: %v, LockMode: %v, LockKey: %v)",
-            lock->GetTrunkNode()->GetId(),
-            lock->GetTransaction()->GetId(),
-            lock->GetId(),
-            lock->Request().Mode,
-            lock->Request().Key);
+        YT_TLOG_ALERT("Duplicate lock detected")
+            .With("NodeId", lock->GetTrunkNode()->GetId())
+            .With("TransactionId", lock->GetTransaction()->GetId())
+            .With("LockId", lock->GetId())
+            .With("LockMode", lock->Request().Mode)
+            .With("LockKey", lock->Request().Key);
     }
 
     TLock* DoCreateLock(
@@ -4086,14 +4572,13 @@ private:
 
         transaction->AttachLock(lock, objectManager);
 
-        YT_LOG_DEBUG(
-            "Lock created (LockId: %v, Mode: %v, Key: %v, NodeId: %v, Implicit: %v, TransactionRecursiveLockCount: %v)",
-            id,
-            request.Mode,
-            request.Key,
-            TVersionedNodeId(trunkNode->GetId(), transaction->GetId()),
-            implicit,
-            transaction->GetRecursiveLockCount() + 1);
+        YT_TLOG_DEBUG("Lock created")
+            .With("LockId", id)
+            .With("Mode", request.Mode)
+            .With("Key", request.Key)
+            .With("NodeId", TVersionedNodeId(trunkNode->GetId(), transaction->GetId()))
+            .With("Implicit", implicit)
+            .With("TransactionRecursiveLockCount", transaction->GetRecursiveLockCount() + 1);
 
         return lock;
     }
@@ -4125,9 +4610,9 @@ private:
         }
 
         for (auto* trunkNode : lockedNodes) {
-            YT_LOG_DEBUG("Node unlocked (NodeId: %v, TransactionId: %v)",
-                trunkNode->GetId(),
-                transaction->GetId());
+            YT_TLOG_DEBUG("Node unlocked")
+                .With("NodeId", trunkNode->GetId())
+                .With("TransactionId", transaction->GetId());
         }
 
         for (auto* trunkNode : lockedNodes) {
@@ -4139,9 +4624,8 @@ private:
                 !trunkNode->GetTouchTime() &&
                 trunkNode->IsNative()) // COMPAT(shakurov): remove this part.
             {
-                YT_LOG_ALERT(
-                    "Touching a node with an expiration timeout but without a touch time (NodeId: %v)",
-                    trunkNode->GetId());
+                YT_TLOG_ALERT("Touching a node with an expiration timeout but without a touch time")
+                    .With("NodeId", trunkNode->GetId());
                 auto* context = GetCurrentHydraContext();
                 trunkNode->SetTouchTime(context->GetTimestamp());
             }
@@ -4167,9 +4651,28 @@ private:
 
         TCompactVector<TCypressNode*, 1> lockedNodes{trunkNode};
         TCompactVector<TLock*, 16> locks;
-        locks.reserve(transaction->Locks().size());
-        for (auto lock : transaction->Locks()) {
-            if (lock->GetTrunkNode() == trunkNode) {
+
+        const auto& lockingState = trunkNode->LockingState();
+
+        auto exclusiveLockRange = lockingState.TransactionToExclusiveLocks.equal_range(transaction);
+        for (auto it = exclusiveLockRange.first; it != exclusiveLockRange.second; ++it) {
+            locks.push_back(it->second);
+        }
+
+        auto sharedLockRange = lockingState.TransactionAndKeyToSharedLocks.equal_range(transaction);
+        for (auto it = sharedLockRange.first; it != sharedLockRange.second; ++it) {
+            auto existingLock = get<TLockRawPtr>(*it);
+            locks.push_back(existingLock);
+        }
+
+        auto snapshotLockRange = lockingState.TransactionToSnapshotLocks.equal_range(transaction);
+        for (auto it = snapshotLockRange.first; it != snapshotLockRange.second; ++it) {
+            locks.push_back(it->second);
+        }
+
+        // There's no transaction-to-pending lock map so let's hope linear search is ok because there aren't too many pending locks.
+        for (auto lock : lockingState.PendingLocks) {
+            if (lock->GetTransaction() == transaction) {
                 locks.push_back(lock);
             }
         }
@@ -4221,10 +4724,9 @@ private:
             // NB: Node could be locked more than once.
             parentTransaction->LockedNodes().insert(trunkNode);
         }
-        YT_LOG_DEBUG("Lock promoted (LockId: %v, TransactionId: %v -> %v)",
-            lock->GetId(),
-            transaction->GetId(),
-            parentTransaction->GetId());
+        YT_TLOG_DEBUG("Lock promoted")
+            .With("LockId", lock->GetId())
+            .WithFormat("TransactionId", "%v -> %v", transaction->GetId(), parentTransaction->GetId());
     }
 
     void DoRemoveLock(TLock* lock, bool resetEmptyLockingState)
@@ -4275,9 +4777,9 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         transaction->DetachLock(lock, objectManager);
 
-        YT_LOG_DEBUG("Lock released (LockId: %v, TransactionId: %v)",
-            lock->GetId(),
-            transaction->GetId());
+        YT_TLOG_DEBUG("Lock released")
+            .With("LockId", lock->GetId())
+            .With("TransactionId", transaction->GetId());
     }
 
     void CheckPendingLocks(TCypressNode* trunkNode)
@@ -4305,12 +4807,13 @@ private:
         while (trunkNode->HasLockingState() && it != lockingState.PendingLocks.end()) {
             // Be prepared to possible iterator invalidation.
             auto lock = *it++;
-            auto error = CheckLock(
+            auto checkResult = CheckLock(
                 trunkNode,
                 lock->GetTransaction(),
                 lock->Request(),
-                false);
-            if (error.IsOK()) {
+                /*recursive*/ false,
+                /*checkLockCount*/ false);
+            if (std::holds_alternative<TCheckLockSuccess>(checkResult)) {
                 DoAcquireLock(lock);
             }
         }
@@ -4340,7 +4843,7 @@ private:
             default:
                 break;
         }
-        request.set_timestamp(lock->Request().Timestamp);
+        request.set_timestamp(ToProto(lock->Request().Timestamp));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, externalCellTag);
@@ -4362,7 +4865,22 @@ private:
         multicellManager->PostToMaster(request, externalCellTag);
     }
 
-    template <CInvocable<bool(TCypressNode*)> TFilter>
+    void PostDestroyForeignNodeBeingCreatedRequest(TCypressNode* trunkNode, TTransaction* transaction)
+    {
+        auto externalCellTag = trunkNode->GetExternalCellTag();
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto externalizedTransactionId = transactionManager->ExternalizeTransaction(transaction, {externalCellTag});
+
+        NProto::TReqDestroyForeignNodeBeingCreated request;
+        ToProto(request.mutable_transaction_id(), externalizedTransactionId);
+        ToProto(request.mutable_node_id(), trunkNode->GetId());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMaster(request, externalCellTag);
+    }
+
+    template <NMpl::CInvocable<bool(TCypressNode*)> TFilter>
     void ListSubtreeNodes(
         TCypressNode* trunkNode,
         TTransaction* transaction,
@@ -4470,7 +4988,8 @@ private:
             handler->Zombify(branchedNode);
             handler->Destroy(branchedNode);
 
-            YT_LOG_DEBUG("Node snapshot destroyed (NodeId: %v)", branchedNodeId);
+            YT_TLOG_DEBUG("Node snapshot destroyed")
+                .With("NodeId", branchedNodeId);
         }
 
         if (originatingNode &&
@@ -4500,7 +5019,8 @@ private:
         // Remove the branched copy.
         NodeMap_.Remove(branchedNodeId);
 
-        YT_LOG_DEBUG("Branched node removed (NodeId: %v)", branchedNodeId);
+        YT_TLOG_DEBUG("Branched node removed")
+            .With("NodeId", branchedNodeId);
 
         return originatingNode;
     }
@@ -4525,10 +5045,10 @@ private:
     void RemoveBranchedNodes(TTransaction* transaction)
     {
         if (transaction->BranchedNodes().Size() != std::ssize(transaction->LockedNodes())) {
-            YT_LOG_ALERT("Transaction branched node count differs from its locked node count (TransactionId: %v, BranchedNodeCount: %v, LockedNodeCount: %v)",
-                transaction->GetId(),
-                transaction->BranchedNodes().Size(),
-                transaction->LockedNodes().size());
+            YT_TLOG_ALERT("Transaction branched node count differs from its locked node count")
+                .With("TransactionId", transaction->GetId())
+                .With("BranchedNodeCount", transaction->BranchedNodes().Size())
+                .With("LockedNodeCount", transaction->LockedNodes().size());
         }
 
         auto& branchedNodes = transaction->BranchedNodes();
@@ -4677,6 +5197,78 @@ private:
         Bootstrap_->GetExpirationTracker()->OnNodeTouched(trunkNode);
     }
 
+    void DoDestroyNodeBeingCreated(TVersionedNodeId versionedNodeId)
+    {
+        auto nodeId = versionedNodeId.ObjectId;
+        auto transactionId = versionedNodeId.TransactionId;
+
+        YT_VERIFY(transactionId);
+
+        auto* currentNode = FindNode(versionedNodeId);
+
+        if (!currentNode) {
+            YT_TLOG_ALERT("Trying to destroy branched node, but node does not exist")
+                .With("NodeId", nodeId)
+                .With("TransactionId", transactionId);
+            return;
+        }
+
+        auto* trunkNode = currentNode->GetTrunkNode();
+
+        YT_VERIFY(trunkNode->IsForeign() || currentNode->MutableSequoiaProperties()->BeingCreated);
+
+        auto* transaction = currentNode->GetTransaction();
+
+        if (!IsObjectAlive(transaction)) {
+            YT_TLOG_ALERT("Trying to destroy branched node, but transaction is not alive")
+                .With("NodeId", nodeId)
+                .With("TransactionId", transactionId);
+            return;
+        }
+
+        for (auto nestedTransaction : transaction->NestedTransactions()) {
+            if (FindNode({nodeId, nestedTransaction->GetId()})) {
+                YT_TLOG_ALERT("Cannot destroy branched node because it has deeper branches")
+                    .With("NodeId", nodeId)
+                    .With("TargetTransactionId", transactionId)
+                    .With("NestedTransactionId", nestedTransaction->GetId());
+                return;
+            }
+        }
+
+        // Trunk should destroy all branches before the native cell sends TReqRemoveObject.
+        if (trunkNode->IsExternal()) {
+            PostDestroyForeignNodeBeingCreatedRequest(trunkNode, transaction);
+        }
+
+        // It's ok to release all locks, because node has just been created.
+        while (currentNode && currentNode != trunkNode) {
+            auto* currentTransaction = currentNode->GetTransaction();
+            auto* originatingNode = currentNode->GetOriginator();
+
+            currentTransaction->BranchedNodes().EraseOrCrash(currentNode);
+            DestroyBranchedNode(currentTransaction, currentNode);
+
+            ForceRemoveAllLocksForNode(currentTransaction, trunkNode);
+
+            currentNode = originatingNode;
+        }
+
+        if (trunkNode->IsNative()) {
+            YT_TLOG_ALERT_IF(
+                trunkNode->GetObjectRefCounter(/*flushUnrefs*/ true) > 0,
+                "Trunk node has a non-zero reference counter on native cell after branches have been destroyed")
+                .With("NodeId", nodeId)
+                .With("RefCounter", trunkNode->GetObjectRefCounter());
+        } else {
+            YT_TLOG_ALERT_IF(
+                trunkNode->GetObjectRefCounter(/*flushUnrefs*/ true) != 1,
+                "Trunk node's reference counter is not equal to 1 on foreign cell after branches have been destroyed")
+                .With("NodeId", nodeId)
+                .With("RefCounter", trunkNode->GetObjectRefCounter());
+        }
+    }
+
     void HydraCreateForeignNode(NProto::TReqCreateForeignNode* request) noexcept
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -4750,12 +5342,12 @@ private:
             ? transactionManager->FindTransaction(sourceTransactionId)
             : nullptr;
         if (sourceTransactionId && !IsObjectAlive(sourceTransaction)) {
-            YT_LOG_ERROR("Source transaction is not alive (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
-                sourceNodeId,
-                clonedNodeId,
-                sourceTransactionId,
-                clonedTransactionId,
-                mode);
+            YT_TLOG_ERROR("Source transaction is not alive")
+                .With("SourceNodeId", sourceNodeId)
+                .With("ClonedNodeId", clonedNodeId)
+                .With("SourceTransactionId", sourceTransactionId)
+                .With("ClonedTransactionId", clonedTransactionId)
+                .With("Mode", mode);
             return;
         }
 
@@ -4763,23 +5355,23 @@ private:
             ? transactionManager->FindTransaction(clonedTransactionId)
             : nullptr;
         if (clonedTransactionId && !IsObjectAlive(clonedTransaction)) {
-            YT_LOG_ALERT("Cloned transaction is not alive (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
-                sourceNodeId,
-                clonedNodeId,
-                sourceTransactionId,
-                clonedTransactionId,
-                mode);
+            YT_TLOG_ALERT("Cloned transaction is not alive")
+                .With("SourceNodeId", sourceNodeId)
+                .With("ClonedNodeId", clonedNodeId)
+                .With("SourceTransactionId", sourceTransactionId)
+                .With("ClonedTransactionId", clonedTransactionId)
+                .With("Mode", mode);
             return;
         }
 
         auto* sourceTrunkNode = FindNode(TVersionedObjectId(sourceNodeId));
         if (!IsObjectAlive(sourceTrunkNode)) {
-            YT_LOG_DEBUG("Attempted to clone a non-alive foreign node (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
-                sourceNodeId,
-                clonedNodeId,
-                sourceTransactionId,
-                clonedTransactionId,
-                mode);
+            YT_TLOG_DEBUG("Attempted to clone a non-alive foreign node")
+                .With("SourceNodeId", sourceNodeId)
+                .With("ClonedNodeId", clonedNodeId)
+                .With("SourceTransactionId", sourceTransactionId)
+                .With("ClonedTransactionId", clonedTransactionId)
+                .With("Mode", mode);
             return;
         }
 
@@ -4813,15 +5405,6 @@ private:
             tableManager->SetTableSchemaOrCrash(table, schemaId);
         }
 
-        // TODO(danilalexeev): Refactor this.
-        if (IsTableType(sourceNode->GetType())) {
-            YT_VERIFY(IsTableType(clonedTrunkNode->GetType()));
-            const auto& tableManager = Bootstrap_->GetTableManager();
-            auto* sourceTable = sourceNode->As<TTableNode>();
-            auto* clonedTable = clonedTrunkNode->As<TTableNode>();
-            tableManager->OnTableCopied(sourceTable, clonedTable);
-        }
-
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(clonedTrunkNode);
 
@@ -4834,10 +5417,10 @@ private:
 
         factory->Commit();
 
-        YT_LOG_DEBUG("Foreign node cloned (SourceNodeId: %v, ClonedNodeId: %v, Account: %v)",
-            TVersionedNodeId(sourceNodeId, sourceTransactionId),
-            TVersionedNodeId(clonedNodeId, clonedTransactionId),
-            account->GetName());
+        YT_TLOG_DEBUG("Foreign node cloned")
+            .With("SourceNodeId", TVersionedNodeId(sourceNodeId, sourceTransactionId))
+            .With("ClonedNodeId", TVersionedNodeId(clonedNodeId, clonedTransactionId))
+            .With("Account", account->GetName());
     }
 
     void HydraLockForeignNode(NProto::TReqLockForeignNode* request) noexcept
@@ -4853,17 +5436,17 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_ALERT("Lock transaction is missing (NodeId: %v, TransactionId: %v)",
-                nodeId,
-                transactionId);
+            YT_TLOG_ALERT("Lock transaction is missing")
+                .With("NodeId", nodeId)
+                .With("TransactionId", transactionId);
             return;
         }
 
         auto* trunkNode = FindNode(TVersionedObjectId(nodeId));
         if (!IsObjectAlive(trunkNode)) {
-            YT_LOG_ALERT("Lock node is missing (NodeId: %v, TransactionId: %v)",
-                nodeId,
-                transactionId);
+            YT_TLOG_ALERT("Lock node is missing")
+                .With("NodeId", nodeId)
+                .With("TransactionId", transactionId);
             return;
         }
 
@@ -4877,22 +5460,24 @@ private:
         }
         lockRequest.Timestamp = static_cast<TTimestamp>(request->timestamp());
 
-        auto error = CheckLock(
+        auto checkResult = CheckLock(
             trunkNode,
             transaction,
             lockRequest,
-            false);
-        if (!error.IsOK()) {
-            YT_LOG_ALERT(error, "Cannot lock foreign node (NodeId: %v, TransactionId: %v, Mode: %v, Key: %v)",
-                nodeId,
-                transactionId,
-                lockRequest.Mode,
-                lockRequest.Key);
-            return;
-        }
-
-        auto* lock = DoCreateLock(trunkNode, transaction, lockRequest, false);
-        DoAcquireLock(lock);
+            /*recursive*/ false);
+        Visit(checkResult,
+            [&] (const TCheckLockSuccess&) {
+                auto* lock = DoCreateLock(trunkNode, transaction, lockRequest, false);
+                DoAcquireLock(lock);
+            },
+            [&] (const auto& error) {
+                YT_TLOG_ALERT("Cannot lock foreign node")
+                    .With("NodeId", nodeId)
+                    .With("TransactionId", transactionId)
+                    .With("Mode", lockRequest.Mode)
+                    .With("Key", lockRequest.Key)
+                    .With(error.Error);
+            });
     }
 
     void HydraUnlockForeignNode(NProto::TReqUnlockForeignNode* request) noexcept
@@ -4909,25 +5494,26 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_ALERT("Unlock transaction is missing (NodeId: %v, TransactionId: %v)",
-                nodeId,
-                transactionId);
+            YT_TLOG_ALERT("Unlock transaction is missing")
+                .With("NodeId", nodeId)
+                .With("TransactionId", transactionId);
             return;
         }
 
         auto* trunkNode = FindNode(TVersionedObjectId(nodeId));
         if (!IsObjectAlive(trunkNode)) {
-            YT_LOG_ALERT("Unlock node is missing (NodeId: %v, TransactionId: %v)",
-                nodeId,
-                transactionId);
+            YT_TLOG_ALERT("Unlock node is missing")
+                .With("NodeId", nodeId)
+                .With("TransactionId", transactionId);
             return;
         }
 
         auto error = CheckUnlock(trunkNode, transaction, false, explicitOnly);
         if (!error.IsOK()) {
-            YT_LOG_ALERT(error, "Cannot unlock foreign node (NodeId: %v, TransactionId: %v)",
-                nodeId,
-                transactionId);
+            YT_TLOG_ALERT("Cannot unlock foreign node")
+                .With("NodeId", nodeId)
+                .With("TransactionId", transactionId)
+                .With(error);
             return;
         }
 
@@ -4949,30 +5535,38 @@ private:
 
         auto* currentNode = FindNode(versionedId);
         if (!currentNode) {
-            YT_LOG_DEBUG("Manual node unbranching failed; no such node (NodeId: %v)", versionedId);
+            YT_TLOG_DEBUG("Manual node unbranching failed; no such node")
+                .With("NodeId", versionedId);
+            return;
+        }
+
+        if (currentNode->IsExternal()) {
+            YT_TLOG_ALERT("Manual node unbranching failed: node is external")
+                .With("NodeId", versionedId);
             return;
         }
 
         auto* transaction = currentNode->GetTransaction();
         if (!transaction) {
-            YT_LOG_DEBUG("Manual node unbranching failed: no such transaction (NodeId: %v)", versionedId);
+            YT_TLOG_DEBUG("Manual node unbranching failed: no such transaction")
+                .With("NodeId", versionedId);
             return;
         }
 
         for (auto nestedTransaction : transaction->NestedTransactions()) {
             if (auto* branch = FindNode({nodeId, nestedTransaction->GetId()})) {
                 if (branch->GetLockMode() != ELockMode::Snapshot) {
-                    YT_LOG_ALERT("Manual node unbranching failed: node has deeper branches "
-                        "(NodeId: %v, TargetTransactionId: %v, NestedTransactionId: %v)",
-                        nodeId,
-                        transactionId,
-                        nestedTransaction->GetId());
+                    YT_TLOG_ALERT("Manual node unbranching failed: node has deeper branches")
+                        .With("NodeId", nodeId)
+                        .With("TargetTransactionId", transactionId)
+                        .With("NestedTransactionId", nestedTransaction->GetId());
                 }
                 return;
             }
         }
 
-        YT_LOG_DEBUG("Manually unlocking and merging Cypress node (NodeId: %v)", versionedId);
+        YT_TLOG_DEBUG("Manually unlocking and merging Cypress node")
+            .With("NodeId", versionedId);
         auto* trunkNode = currentNode->GetTrunkNode();
 
         while (currentNode && currentNode != trunkNode) {
@@ -4987,8 +5581,8 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        YT_LOG_DEBUG("Correcting schemas (RequestSize: %v)",
-            request->subrequests_size());
+        YT_TLOG_DEBUG("Correcting schemas")
+            .With("RequestSize", request->subrequests_size());
 
         const auto& tableManager = Bootstrap_->GetTableManager();
         for (const auto& subrequest : request->subrequests()) {
@@ -5006,9 +5600,9 @@ private:
 
             if (!node) {
                 // This can happen when a node is still a zombie on the native cell, but was already destroyed on the external.
-                YT_LOG_ALERT("Received SetTableSchemas request for a non-existing node (NodeId: %v, SchemaId: %v)",
-                    TVersionedNodeId{nodeId, effectiveTransactionId},
-                    schemaId);
+                YT_TLOG_ALERT("Received SetTableSchemas request for a non-existing node")
+                    .With("NodeId", TVersionedNodeId{nodeId, effectiveTransactionId})
+                    .With("SchemaId", schemaId);
                 continue;
             }
 
@@ -5019,15 +5613,44 @@ private:
             auto* expectedSchema = tableManager->FindMasterTableSchema(schemaId);
 
             if (currentSchema->GetId() != expectedSchema->GetId()) {
-                YT_LOG_ALERT("Resetting potentially broken schema (TableId: %v, CurrentSchemaId: %v, ExpectedSchemaId: %v)",
-                    table->GetVersionedId(),
-                    currentSchema->GetId(),
-                    expectedSchema->GetId());
+                YT_TLOG_ALERT("Resetting potentially broken schema")
+                    .With("TableId", table->GetVersionedId())
+                    .With("CurrentSchemaId", currentSchema->GetId())
+                    .With("ExpectedSchemaId", expectedSchema->GetId());
 
                 YT_VERIFY(IsObjectAlive(expectedSchema));
                 tableManager->SetTableSchema(table, expectedSchema);
             }
         }
+    }
+
+    void HydraDestroyForeignNodeBeingCreated(NProto::TReqDestroyForeignNodeBeingCreated* request)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->FindTransaction(transactionId);
+        if (!IsObjectAlive(transaction)) {
+            YT_TLOG_ALERT("Failed to find transaction to remove branched node")
+                .With("NodeId", nodeId)
+                .With("TransactionId", transactionId);
+            return;
+        }
+
+        auto* trunkNode = FindNode(TVersionedObjectId(nodeId));
+        YT_VERIFY(trunkNode->IsForeign());
+
+        if (!IsObjectAlive(trunkNode)) {
+            YT_TLOG_ALERT("Failed to find trunk node to remove branched node")
+                .With("NodeId", nodeId)
+                .With("TransactionId", transactionId);
+            return;
+        }
+
+        DoDestroyNodeBeingCreated(TVersionedNodeId(nodeId, transactionId));
     }
 
     const TDynamicCypressManagerConfigPtr& GetDynamicConfig() const

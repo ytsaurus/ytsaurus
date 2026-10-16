@@ -78,7 +78,7 @@ void FormatValue(TStringBuilderBase* builder, const TDiskResources& diskResource
         diskResources.DefaultMediumIndex);
 }
 
-TString ToString(
+std::string ToString(
     const TDiskResources& diskResources,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
 {

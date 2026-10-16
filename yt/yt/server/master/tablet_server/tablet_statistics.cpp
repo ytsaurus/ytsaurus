@@ -296,7 +296,7 @@ void FromProto(TTabletCellStatistics* statistics, const NProto::TTabletCellStati
     FromProto(&statistics->TabletCountPerMemoryMode, protoStatistics.tablet_count_per_memory_mode());
 }
 
-TString ToString(const TTabletStatistics& tabletStatistics, const IChunkManagerPtr& chunkManager)
+std::string ToString(const TTabletStatistics& tabletStatistics, const IChunkManagerPtr& chunkManager)
 {
     TStringStream output;
     TYsonWriter writer(&output, EYsonFormat::Text);

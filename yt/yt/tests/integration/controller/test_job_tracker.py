@@ -7,7 +7,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, run_sleeping_vanilla, get, ls, wait,
+    authors, run_sleeping_vanilla, get, ls, wait, set,
     set_node_banned, exists,
     run_test_vanilla, with_breakpoint,
     wait_breakpoint, release_breakpoint,
@@ -219,11 +219,14 @@ class TestJobTracker(YTEnvSetup):
 
         assert job_id not in self._list_jobs(op)
 
-        events = self._get_job_events_from_event_log(op.id, controller_agent_address)
-        aborted_job_events = {event["job_id"]: event for event in events if event["event_type"] == "job_aborted"}
+        def get_aborted_job_events():
+            events = self._get_job_events_from_event_log(op.id, controller_agent_address)
+            return {event["job_id"]: event for event in events if event["event_type"] == "job_aborted"}
 
-        assert len(aborted_job_events) == 1
-        assert aborted_job_events[job_id]["reason"] == "node_offline"
+        # The event log is flushed to disk periodically, so the event may not be there yet.
+        wait(lambda: len(get_aborted_job_events()) == 1)
+
+        assert get_aborted_job_events()[job_id]["reason"] == "node_offline"
 
         set_node_banned(node_address, False)
 
@@ -343,6 +346,83 @@ class TestJobTracker(YTEnvSetup):
         release_breakpoint()
 
         op.track()
+
+    @authors("apollo1321")
+    def test_revived_unstarted_job_time_limit(self):
+        update_controller_agent_config("snapshot_period", 200)
+        update_controller_agent_config("job_tracker/job_confirmation_timeout", 30000)
+        update_controller_agent_config("job_tracker/node_disconnection_timeout", 30000)
+        update_controller_agent_config("job_tracker/revival_node_disconnection_timeout", 30000)
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            spec={
+                "testing": {
+                    "settle_job_delay": {
+                        # Keep this below the node's 5-second SettleJob RPC timeout.
+                        "duration": 3000,
+                        "type": "async",
+                    },
+                },
+            },
+        )
+        op.ensure_running()
+
+        controller_agent_address = self._get_controller_agent(op)
+        inflight_settle_job_requests_path = (
+            self._get_job_tracker_orchid_path(controller_agent_address)
+            + "/inflight_settle_job_requests"
+        )
+
+        wait(lambda: len(ls(inflight_settle_job_requests_path)) == 1)
+        allocation_id, = ls(inflight_settle_job_requests_path)
+        wait(
+            lambda: get(inflight_settle_job_requests_path + "/" + allocation_id)["requests"][0]["stage"]
+            == "waiting_for_controller"
+        )
+
+        # Persist an allocation with a joblet before SafeSettleJob calls OnJobStarted.
+        op.wait_for_fresh_snapshot()
+        update_controller_agent_config("enable_snapshot_building", False)
+
+        wait_breakpoint()
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "controller_agent_connector": {
+                    "test_heartbeat_delay": 10000,
+                },
+            },
+        })
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            # Shorten the default only after the old controller is stopped. The
+            # revived controller therefore observes an already expired limit.
+            update_controller_agent_config(
+                "operation_time_limit",
+                1000,
+                wait_for_orchid=False,
+            )
+
+        controller_state_path = op.get_path() + "/controller_orchid/progress/state"
+        wait(lambda: get(controller_state_path) == "failing", ignore_exceptions=True)
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "controller_agent_connector": {
+                    "test_heartbeat_delay": 0,
+                },
+            },
+        })
+
+        wait(lambda: op.get_state() == "failed")
+
+        operation_path = (
+            self._get_job_tracker_orchid_path(controller_agent_address)
+            + "/operations/"
+            + op.id
+        )
+        wait(lambda: not exists(operation_path), ignore_exceptions=True)
 
     @authors("krasovav")
     def test_revival_node_disconnection_timeout(self):
@@ -675,7 +755,6 @@ class TestJobTracker(YTEnvSetup):
             wait(lambda: len(ls(orchid_path)) == 0)
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobTrackerRaces(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -698,6 +777,9 @@ class TestJobTrackerRaces(YTEnvSetup):
         aborted_job_profiler = JobCountProfiler(
             "aborted",
             tags={"tree": "default", "job_type": "vanilla", "abort_reason": "allocation_finished"})
+        controller_agent = ls("//sys/controller_agents/instances")[0]
+        job_release_request_counter = profiler_factory().at_controller_agent(controller_agent).counter(
+            "controller_agent/job_tracker/job_release_request_count")
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
         create_pool("test_pool", attributes={"strong_guarantee_resources": {"cpu": total_cpu_limit}})
@@ -722,9 +804,9 @@ class TestJobTrackerRaces(YTEnvSetup):
 
         (allocation1, ) = ls(f"//sys/cluster_nodes/{node_address}/orchid/exec_node/job_controller/allocations")
 
-        # We start new opertion for scheduler to preempt allocation of op1.
+        # We start new operation for scheduler to preempt allocation of op1.
         op2 = run_test_vanilla(
-            "sleep 0.1",
+            with_breakpoint("BREAKPOINT"),
             job_count=1,
             spec={
 
@@ -732,10 +814,14 @@ class TestJobTrackerRaces(YTEnvSetup):
             },
         )
 
+        wait_breakpoint()
         wait(lambda: aborted_job_profiler.get_job_count_delta() == 1)
 
         wait(lambda: not exists(f"//sys/cluster_nodes/{node_address}/orchid/exec_node/job_controller/allocations/{allocation1}"))
+        time.sleep(1)
+        assert job_release_request_counter.get_delta() == 0
 
+        release_breakpoint()
         op2.track()
         op1.track()
 
@@ -776,6 +862,113 @@ class TestJobTrackerRaces(YTEnvSetup):
         wait(lambda: not exists(f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker/allocations/{allocation1}"))
 
         op.abort()
+
+
+##################################################################
+
+class TestJobTrackerControllerCancellation(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Restart the scheduler without restarting the controller agent.
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {"cpu": 2, "user_slots": 2},
+        },
+        "master_connector": {
+            "lease_transaction_timeout": 120000,
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {"allocation": {"enable_multiple_jobs": True}},
+                "controller_agent_connector": {"settle_jobs_timeout": 120000},
+            },
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "controller_thread_count": 1,
+            "enable_snapshot_building": False,
+            "job_tracker": {
+                "node_disconnection_timeout": 120000,
+                "revival_node_disconnection_timeout": 120000,
+            },
+        },
+    }
+
+    @classmethod
+    def modify_controller_agent_config(cls, config, cluster_index):
+        config["logging"]["rules"].append({
+            "family": "plain_text",
+            "min_level": "debug",
+            "include_categories": ["Controller"],
+            "writers": ["json-controller-agent-0"],
+        })
+
+    @authors("pogorelov")
+    def test_controller_cancellation_while_waiting_on_barrier(self):
+        controller_agent = ls("//sys/controller_agents/instances")[0]
+        job_tracker_orchid = f"//sys/controller_agents/instances/{controller_agent}/orchid/controller_agent/job_tracker"
+        cancelled_barrier_counter = profiler_factory().at_controller_agent(controller_agent).counter(
+            "controller_agent/job_tracker/settle_job/cancelled_settle_job_request_waiting_on_barrier_count")
+
+        log_path = self.path_to_run + "/logs/controller-agent-0.json.log"
+        from_barrier = write_log_barrier(controller_agent)
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT", breakpoint_name="barrier_job"),
+            spec={"enable_multiple_jobs_in_allocation": True},
+        )
+        job_id, = wait_breakpoint(breakpoint_name="barrier_job")
+        allocation_id = get_allocation_id_from_job_id(job_id)
+
+        create_pool("blocker_pool", attributes={"resource_limits": {"cpu": 1}})
+        blocker = run_test_vanilla(
+            "sleep 1000",
+            pool="blocker_pool",
+            # Keep the sole controller thread busy until the scheduler restart cancels the producer.
+            spec={"testing": {"settle_job_delay": {"duration": 5000, "type": "sync"}}},
+        )
+
+        def blocker_is_settling():
+            return bool(read_structured_log(
+                log_path,
+                from_barrier=from_barrier,
+                to_barrier=write_log_barrier(controller_agent),
+                row_filter=lambda event: (
+                    "Making test delay" in event.get("message", "")
+                    and blocker.id in event.get("message", "")
+                ),
+            ))
+
+        wait(blocker_is_settling)
+        # Do not let the revived blocker enter the delay again.
+        set("//sys/pool_trees/default/blocker_pool/@resource_limits/cpu", 0)
+
+        # The completion heartbeat queues an event on the busy controller through JobTracker.
+        # JobTracker tells the node to store the completed job; the node then requests to settle a new job.
+        release_breakpoint(breakpoint_name="barrier_job")
+        requests_path = job_tracker_orchid + f"/inflight_settle_job_requests/{allocation_id}/requests"
+        wait(lambda: any(
+            request["stage"] == "waiting_on_barrier"
+            for request in get(requests_path, default=[])
+        ))
+
+        # Stop node heartbeats without aborting its lease: allocation-finish events would
+        # explicitly cancel the in barrier and mask controller cancellation.
+        with Restarter(self.Env, NODES_SERVICE, sync=False, abort_transactions=False):
+            with Restarter(self.Env, SCHEDULERS_SERVICE, sync=False):
+                pass
+            wait(lambda: cancelled_barrier_counter.get_delta() > 0)
+
+        blocker.abort()
+        op.track()
 
 
 ##################################################################
@@ -849,7 +1042,10 @@ class TestStoredJobRemoval(YTEnvSetup):
         job_release_request_counter = profiler.counter("controller_agent/job_tracker/job_release_request_count")
 
         wait(lambda: not exists(orchid_path))
-        wait(lambda: job_release_request_counter.get_delta() >= 1)
+        # The agent is freshly restarted, so its counter starts from zero; read the
+        # absolute value rather than a delta whose baseline may be captured after the
+        # release requests have already been sent during recovery.
+        wait(lambda: job_release_request_counter.get(default=0) >= 1)
 
         release_breakpoint()
         op.track()

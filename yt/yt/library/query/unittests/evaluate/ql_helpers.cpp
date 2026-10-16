@@ -1,5 +1,7 @@
 #include "ql_helpers.h"
 
+#include <yt/yt/library/query/base/join_profiler.h>
+
 #include <yt/yt/library/query/engine/folding_profiler.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
@@ -109,9 +111,10 @@ void ProfileForBothExecutionBackends(
     TCGVariables* variables,
     TJoinProfilerRegistry joinProfilerRegistry)
 {
-    Profile(query, id, variables, joinProfilerRegistry, /*useCanonicalNullRelations*/ false, EExecutionBackend::Native)();
+    Profile(query, id, variables, joinProfilerRegistry, {.ExecutionBackend = EExecutionBackend::Native})();
+
     if (EnableWebAssemblyInUnitTests()) {
-        Profile(query, id, variables, joinProfilerRegistry, /*useCanonicalNullRelations*/ false, EExecutionBackend::WebAssembly)();
+        Profile(query, id, variables, joinProfilerRegistry, {.ExecutionBackend = EExecutionBackend::WebAssembly})();
     }
 }
 

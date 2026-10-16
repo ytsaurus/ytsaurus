@@ -4,6 +4,7 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
 #include <yt/yt/ytlib/api/native/tablet_helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
@@ -13,20 +14,25 @@
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
+#include <yt/yt/library/query/base/coordination_helpers.h>
 #include <yt/yt/library/query/base/helpers.h>
+#include <yt/yt/library/query/base/join_profiler.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
-#include <yt/yt/library/query/base/coordination_helpers.h>
+#include <yt/yt/library/query/base/query_visitors.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
+#include <yt/yt/library/query/engine_api/new_range_inferrer.h>
+#include <yt/yt/library/query/engine_api/query_engine_config.h>
 
 #include <yt/yt/client/query_client/query_statistics.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
+#include <yt/yt/client/tablet_client/table_mount_cache_detail.h>
 
 #include <yt/yt/client/table_client/pipe.h>
 #include <yt/yt/client/table_client/row_batch.h>
@@ -43,12 +49,15 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 #include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/helpers.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
+#include <library/cpp/yt/misc/range_formatters.h>
 
 namespace NYT::NQueryClient {
 
@@ -76,6 +85,17 @@ using NHiveClient::TConstCellDescriptorPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+void MarkMountCacheInvalidationExhausted(TError* error)
+{
+    if (error->Attributes().Contains("tablet_id") && TableMountCacheRetryableCodes.contains(error->GetCode())) {
+        error->Add("mount_cache_invalidation_exhausted", true);
+    }
+
+    for (auto& innerError : *error->MutableInnerErrors()) {
+        MarkMountCacheInvalidationExhausted(&innerError);
+    }
+}
 
 bool ValidateSchema(const TTableSchema& original, const TTableSchema& query)
 {
@@ -225,9 +245,9 @@ void ValidateTableInfo(const TTableMountInfoPtr& tableInfo, TTableSchemaPtr expe
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::InvalidMountRevision,
             "Invalid revision for table info; schema has changed")
-            << TErrorAttribute("path", tableInfo->Path)
-            << TErrorAttribute("original_schema", *expectedQuerySchema)
-            << TErrorAttribute("query_schema", *tableInfo->Schemas[ETableSchemaKind::Query]);
+            .With("path", tableInfo->Path)
+            .With("original_schema", *expectedQuerySchema)
+            .With("query_schema", *tableInfo->Schemas[ETableSchemaKind::Query]);
     }
 
     tableInfo->ValidateDynamic();
@@ -243,17 +263,17 @@ void LogInitialDataSources(
     auto ranges = dataSource.Ranges;
     auto keys = dataSource.Keys;
 
-    YT_LOG_DEBUG("Splitting %v (RangeCount: %v, TabletsCount: %v, LowerCapBound: %v, UpperCapBound: %v)",
-        ranges ? "ranges" : "keys",
-        ranges ? ranges.size() : keys.size(),
-        tableInfo->Tablets.size(),
-        tableInfo->LowerCapBound,
-        tableInfo->UpperCapBound);
+    YT_TLOG_DEBUG("Splitting query input")
+        .With("Kind", ranges ? "ranges" : "keys")
+        .With("RangeCount", ranges ? ranges.size() : keys.size())
+        .With("TabletCount", tableInfo->Tablets.size())
+        .With("LowerCapBound", tableInfo->LowerCapBound)
+        .With("UpperCapBound", tableInfo->UpperCapBound);
 
     if (verboseLogging) {
-        YT_LOG_DEBUG("Splitting %v tablet pivot keys (Pivots: %v)",
-            ranges ? "ranges" : "keys",
-            MakeFormattableView(tableInfo->Tablets, [] (auto* builder, const auto& tablet) {
+        YT_TLOG_DEBUG("Splitting tablet pivot keys")
+            .With("Kind", ranges ? "ranges" : "keys")
+            .With("Pivots", MakeFormattableView(tableInfo->Tablets, [] (auto* builder, const auto& tablet) {
                 builder->AppendFormat("%v", tablet->PivotKey.Get());
             }));
     }
@@ -293,8 +313,8 @@ public:
             if (response->has_feature_flags()) {
                 FromProto(&flags, response->feature_flags());
                 const auto& Logger = this_->Logger;
-                YT_LOG_DEBUG("Got response feature flags (Flags: %v)",
-                    ToString(flags));
+                YT_TLOG_DEBUG("Got response feature flags")
+                    .With("Flags", ToString(flags));
             }
             return flags;
         }));
@@ -382,15 +402,16 @@ private:
                 bottomRowsRead += inner.RowsRead.GetTotal();
             }
 
-            YT_LOG_DEBUG("Subquery finished (SubqueryId: %v, Statistics: %v, BottomRowsRead: %v)",
-                Id_,
-                statistics,
-                bottomRowsRead);
+            YT_TLOG_DEBUG("Subquery finished")
+                .With("SubqueryId", Id_)
+                .With("Statistics", statistics)
+                .With("BottomRowsRead", bottomRowsRead);
 
             return statistics;
         } else {
-            YT_LOG_DEBUG(responseOrError, "Subquery failed (SubqueryId: %v)",
-                Id_);
+            YT_TLOG_DEBUG("Subquery failed")
+                .With("SubqueryId", Id_)
+                .With(responseOrError);
 
             return TError(responseOrError);
         }
@@ -414,7 +435,8 @@ public:
         IColumnEvaluatorCachePtr columnEvaluatorCache,
         IEvaluatorPtr evaluator,
         INodeChannelFactoryPtr nodeChannelFactory,
-        TFunctionImplCachePtr functionImplCache)
+        TFunctionImplCachePtr functionImplCache,
+        bool retryOnMetadataCacheInconsistency)
         : MemoryChunkProvider_(std::move(memoryChunkProvider))
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
         , Connection_(std::move(connection))
@@ -422,6 +444,7 @@ public:
         , Evaluator_(std::move(evaluator))
         , NodeChannelFactory_(std::move(nodeChannelFactory))
         , FunctionImplCache_(std::move(functionImplCache))
+        , RetryOnMetadataCacheInconsistency_(retryOnMetadataCacheInconsistency)
     { }
 
     TQueryStatistics Execute(
@@ -477,8 +500,36 @@ private:
     const IEvaluatorPtr Evaluator_;
     const INodeChannelFactoryPtr NodeChannelFactory_;
     const TFunctionImplCachePtr FunctionImplCache_;
+    const bool RetryOnMetadataCacheInconsistency_;
 
     TQueryStatistics Execute(
+        const TConstQueryPtr& query,
+        const TConstExternalCGInfoPtr& externalCGInfo,
+        const TDataSource& dataSource,
+        const IUnversionedRowsetWriterPtr& writer,
+        const TQueryOptions& options,
+        const TFeatureFlags& requestFeatureFlags)
+    {
+        if (RetryOnMetadataCacheInconsistency_) {
+            try {
+                return NApi::NNative::CallAndRetryIfMetadataCacheIsInconsistent(
+                    Connection_,
+                    /*profilingInfo*/ nullptr,
+                    MakeQueryLogger(query),
+                    [&] {
+                        return DoExecute(query, externalCGInfo, dataSource, writer, options, requestFeatureFlags);
+                    });
+            } catch (const TErrorException& ex) {
+                auto error = ex.Error();
+                // Avoid cascading retries on upper levels of execution.
+                MarkMountCacheInvalidationExhausted(&error);
+                THROW_ERROR error;
+            }
+        }
+        return DoExecute(query, externalCGInfo, dataSource, writer, options, requestFeatureFlags);
+    }
+
+    TQueryStatistics DoExecute(
         const TConstQueryPtr& query,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TDataSource& dataSource,
@@ -525,11 +576,19 @@ private:
             VerifyIdsInKeys(dataSource.first.Keys);
         }
 
+        if (coordinatedQuery->GetScanOrder(options.AllowUnorderedGroupByWithLimit) == EScanOrder::Reversed) {
+            std::reverse(allSplits.begin(), allSplits.end());
+            YT_TLOG_DEBUG("Reversed tablet order for DESC scan")
+                .With("SplitCount", allSplits.size());
+        }
+
         std::vector<std::pair<std::vector<TDataSource>, std::string>> groupedDataSplits;
 
-        if (coordinatedQuery->GetScanOrder(options.AllowUnorderedGroupByWithLimit) == EScanOrder::Ordered) {
-            // Splits are ordered by tablet bounds.
-            YT_LOG_DEBUG("Got ordered splits (SplitCount: %v)", allSplits.size());
+        auto scanOrder = coordinatedQuery->GetScanOrder(options.AllowUnorderedGroupByWithLimit);
+        if (scanOrder == EScanOrder::Ordered || scanOrder == EScanOrder::Reversed) {
+            // Splits are ordered by tablet bounds (or reversed for DESC scans).
+            YT_TLOG_DEBUG("Got ordered splits")
+                .With("SplitCount", allSplits.size());
 
             for (const auto& [dataSource, address] : allSplits) {
                 groupedDataSplits.emplace_back(std::vector<TDataSource>{dataSource}, address);
@@ -556,12 +615,12 @@ private:
                     THROW_ERROR_EXCEPTION("Primary table key is not used in the where clause (full scan); "
                         "the query is inefficient, consider rewriting it");
                 } else {
-                    YT_LOG_DEBUG("Executing query with full scan");
+                    YT_TLOG_DEBUG("Executing query with full scan");
                 }
             }
 
-            YT_LOG_DEBUG("Regrouping %v splits into groups",
-                allSplits.size());
+            YT_TLOG_DEBUG("Regrouping splits into groups")
+                .With("SplitCount", allSplits.size());
 
             THashMap<std::string, std::vector<TDataSource>> groupsByAddress;
             for (const auto& split : allSplits) {
@@ -573,18 +632,33 @@ private:
                 groupedDataSplits.emplace_back(group.second, group.first);
             }
 
-            YT_LOG_DEBUG("Regrouped %v splits into %v groups",
-                allSplits.size(),
-                groupsByAddress.size());
+            YT_TLOG_DEBUG("Regrouped splits into groups")
+                .With("SplitCount", allSplits.size())
+                .With("GroupCount", groupsByAddress.size());
         }
 
-        return DoCoordinateAndExecute(
-            coordinatedQuery,
+        auto [queryWithPrefetch, prefetchedJoinRowsets, prefetchQueryStatistics] = MaybePrefetchJoinRowsets(
+            std::move(coordinatedQuery),
+            query->WhereClause,
+            externalCGInfo,
+            options,
+            requestFeatureFlags,
+            Logger);
+
+        auto statistics = DoCoordinateAndExecute(
+            queryWithPrefetch,
             externalCGInfo,
             options,
             requestFeatureFlags,
             writer,
-            std::move(groupedDataSplits));
+            std::move(groupedDataSplits),
+            std::move(prefetchedJoinRowsets));
+
+        for (auto& subqueryStatistics : prefetchQueryStatistics) {
+            statistics.AddInnerStatistics(std::move(subqueryStatistics));
+        }
+
+        return statistics;
     }
 
     TQueryStatistics Execute(
@@ -621,7 +695,7 @@ private:
             FunctionImplCache_,
             chunkReadOptions,
             &sdk,
-            options.ExecutionBackend);
+            options);
 
         auto executePlanCallback = GetExecutePlanCallback(
             externalCGInfo,
@@ -630,7 +704,21 @@ private:
 
         auto subqueryResults = New<TMpscStack<TQueryStatistics>>();
 
-        TJoinProfilerRegistry joinProfilerRegistry;
+        auto singletonsConfig = TSingletonManager::GetDynamicConfig();
+        auto queryEngineConfig = singletonsConfig
+            ? singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>()
+            : nullptr;
+        auto allowHeavyRangeInferenceInJoins = queryEngineConfig
+            ? queryEngineConfig->AllowHeavyRangeInferenceInJoins.value_or(false)
+            : false;
+
+        auto joinProfilerRegistry = TJoinProfilerRegistry(
+            executePlanCallback,
+            [subqueryResults] (TQueryStatistics statistics) mutable {
+                subqueryResults->Enqueue(std::move(statistics));
+            },
+            MemoryChunkProvider_,
+            Logger);
         for (int joinIndex = 0; joinIndex < std::ssize(query->JoinClauses); ++joinIndex) {
             const auto& joinClause = query->JoinClauses[joinIndex];
             joinProfilerRegistry.InsertJoinProfilerOrThrow(joinIndex, CreateJoinSubqueryProfiler(
@@ -642,6 +730,8 @@ private:
                 [] { return std::nullopt; },
                 MemoryChunkProvider_,
                 options.UseOrderByInJoinSubqueries,
+                allowHeavyRangeInferenceInJoins,
+                options.JoinCacheSize,
                 Logger));
         }
 
@@ -672,7 +762,8 @@ private:
         const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags,
         const IUnversionedRowsetWriterPtr& writer,
-        std::vector<std::pair<std::vector<TDataSource>, std::string>> groupedDataSplits)
+        std::vector<std::pair<std::vector<TDataSource>, std::string>> groupedDataSplits,
+        std::vector<TSharedRef> prefetchedJoinRowsets)
     {
         auto Logger = MakeQueryLogger(query);
 
@@ -694,58 +785,91 @@ private:
             FunctionImplCache_,
             chunkReadOptions,
             &sdk,
-            options.ExecutionBackend);
+            options);
+
+        auto executePlanCallback = GetExecutePlanCallback(
+            externalCGInfo,
+            options,
+            requestFeatureFlags);
+
+        auto topQuerySubqueryResults = New<TMpscStack<TQueryStatistics>>();
 
         auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(query);
 
+        auto bottomResultSchema = bottomQueryPattern->GetTableSchema();
+        auto bottomQueryFingerprint = InferName(bottomQueryPattern, {.OmitValues = true});
+
         int splitCount = std::ssize(groupedDataSplits);
 
-        auto statistics = CoordinateAndExecute(
-            query->GetScanOrder(options.AllowUnorderedGroupByWithLimit),
-            query->IsPrefetching(),
-            splitCount,
-            query->Offset,
-            query->Limit,
-            options.AdaptiveOrderedSchemafulReader,
-            [
-                &,
-                bottomQueryPattern = bottomQueryPattern,
-                groupedDataSplits = std::move(groupedDataSplits),
-                subqueryIndex = 0
-            ] () mutable -> TEvaluateResult {
-                if (subqueryIndex >= std::ssize(groupedDataSplits)) {
-                    return {};
-                }
+        // Track all subquery statistics futures so we can collect all
+        // TabletServantIsNotActive errors and group them into one.
+        std::vector<TFuture<void>> subqueryStatisticsFutures;
 
-                auto& [dataSources, address] = groupedDataSplits[subqueryIndex++];
+        // Keep holders so that the query is not terminated prematurely
+        // and we can collect errors from all subqueries.
+        auto subplanHolders = New<TSubplanFutureHolders>();
 
-                // Copy query to generate new id.
-                auto bottomQuery = New<TQuery>(*bottomQueryPattern);
+        auto evaluateBottom = [
+            &,
+            bottomQueryPattern = std::move(bottomQueryPattern),
+            bottomResultSchema = std::move(bottomResultSchema),
+            bottomQueryFingerprint = std::move(bottomQueryFingerprint),
+            groupedDataSplits = std::move(groupedDataSplits),
+            prefetchedJoinRowsets = std::move(prefetchedJoinRowsets),
+            subqueryIndex = 0] () mutable -> TEvaluateResult
+        {
+            if (subqueryIndex >= std::ssize(groupedDataSplits)) {
+                return {};
+            }
 
-                YT_LOG_DEBUG("Delegating subquery (SubQueryId: %v, Address: %v, MaxSubqueries: %v, MinRowCountPerSubquery: %v)",
-                    bottomQuery->Id,
-                    address,
-                    options.MaxSubqueries,
-                    options.MinRowCountPerSubquery);
+            auto& [dataSources, address] = groupedDataSplits[subqueryIndex++];
 
-                return Delegate(
-                    bottomQuery,
-                    externalCGInfo,
-                    options,
-                    requestFeatureFlags,
-                    std::move(dataSources),
-                    address);
-            },
-            [&, frontQuery = frontQuery] (
+            // Copy query to generate new id.
+            auto bottomQuery = New<TQuery>(*bottomQueryPattern);
+
+            YT_TLOG_DEBUG("Delegating subquery")
+                .With("SubQueryId", bottomQuery->Id)
+                .With("Address", address)
+                .With("MaxSubqueries", options.MaxSubqueries)
+                .With("MinRowCountPerSubquery", options.MinRowCountPerSubquery);
+
+            auto result = Delegate(
+                bottomQuery,
+                bottomResultSchema,
+                bottomQueryFingerprint,
+                externalCGInfo,
+                options,
+                requestFeatureFlags,
+                std::move(dataSources),
+                prefetchedJoinRowsets,
+                address);
+
+            subqueryStatisticsFutures.push_back(result.Statistics.As<void>());
+
+            return result;
+        };
+
+        auto getEvaluateTop = [&] (TConstFrontQueryPtr frontQuery) {
+            return [=, this, this_ = MakeStrong(this), frontQuery = std::move(frontQuery)] (
                 const ISchemafulUnversionedReaderPtr& reader,
-                TFuture<TFeatureFlags> responseFeatureFlags
-            ) -> TQueryStatistics {
-                YT_LOG_DEBUG("Evaluating top query (TopQueryId: %v)", frontQuery->Id);
+                TFuture<TFeatureFlags> responseFeatureFlags) -> TQueryStatistics
+            {
+                YT_TLOG_DEBUG("Evaluating top query")
+                    .With("TopQueryId", frontQuery->Id);
+
+                auto joinProfilerRegistry = TJoinProfilerRegistry(
+                    executePlanCallback,
+                    [topQuerySubqueryResults] (TQueryStatistics statistics) mutable {
+                        topQuerySubqueryResults->Enqueue(std::move(statistics));
+                    },
+                    MemoryChunkProvider_,
+                    Logger);
+
                 return Evaluator_->Run(
-                    std::move(frontQuery),
-                    std::move(reader),
+                    frontQuery,
+                    reader,
                     writer,
-                    /*joinProfilerRegistry*/ {},
+                    joinProfilerRegistry,
                     functionGenerators,
                     aggregateGenerators,
                     sdk,
@@ -753,23 +877,139 @@ private:
                     options,
                     requestFeatureFlags,
                     responseFeatureFlags);
-            });
+            };
+        };
 
-        if (TQueryStatistics::IsDepthAggregate(options.StatisticsAggregation)) {
-            auto aggregated = TQueryStatistics();
-            aggregated.Merge(statistics);
-            return aggregated;
+        try {
+            TQueryStatistics statistics;
+
+            auto scanOrder = query->GetScanOrder(options.AllowUnorderedGroupByWithLimit);
+            if (options.EnableParallelizeUnorderedGroupBy &&
+                scanOrder == EScanOrder::Unordered &&
+                query->GroupClause &&
+                query->GroupClause->CommonPrefixWithPrimaryKey == 0 &&
+                !query->UseDisjointGroupBy)
+            {
+                if (splitCount == 0) {
+                    WaitForFast(writer->Close())
+                        .ThrowOnError();
+                    return {};
+                }
+                auto [middleQuery, newFrontQuery] = GetGroupingQueriesForParallelization(frontQuery);
+                auto evaluateMiddle = [&, middleQuery] (
+                    const ISchemafulUnversionedReaderPtr& reader,
+                    TFuture<TFeatureFlags> responseFeatureFlags)
+                {
+                    YT_TLOG_DEBUG("Evaluating middle query")
+                        .With("MiddleQueryId", middleQuery->Id);
+
+                    TEvaluateResult middleResult;
+                    auto pipe = CreateSchemafulPipe(MemoryChunkProvider_);
+                    middleResult.Reader = pipe->GetReader();
+
+                    middleResult.Statistics = BIND(&IEvaluator::Run, Evaluator_)
+                        .AsyncVia(GetCurrentInvoker())
+                        .Run(
+                            middleQuery,
+                            reader,
+                            pipe->GetWriter(),
+                            TJoinProfilerRegistry({}, {}, MemoryChunkProvider_, Logger),
+                            functionGenerators,
+                            aggregateGenerators,
+                            sdk,
+                            MemoryChunkProvider_,
+                            options,
+                            requestFeatureFlags,
+                            std::move(responseFeatureFlags))
+                        .AsUnique()
+                        .Apply(BIND([pipe] (TErrorOr<TQueryStatistics>&& errorOrStatistics) {
+                            if (!errorOrStatistics.IsOK()) {
+                                pipe->Fail(errorOrStatistics);
+                            }
+                            return errorOrStatistics;
+                        }));
+
+                    return middleResult;
+                };
+                statistics = CoordinateAndExecuteWithShuffle(
+                    splitCount,
+                    query->GroupClause->GroupItems.size(),
+                    std::move(evaluateBottom),
+                    evaluateMiddle,
+                    getEvaluateTop(newFrontQuery),
+                    MemoryChunkProvider_);
+            } else {
+                statistics = CoordinateAndExecute(
+                    scanOrder,
+                    query->IsPrefetching(),
+                    splitCount,
+                    query->Offset,
+                    query->Limit,
+                    options.AdaptiveOrderedSchemafulReader,
+                    std::move(evaluateBottom),
+                    getEvaluateTop(frontQuery),
+                    subplanHolders);
+            }
+
+            TQueryStatistics dequeuedTopSubqueryStatistics;
+            while (topQuerySubqueryResults->TryDequeue(&dequeuedTopSubqueryStatistics)) {
+                statistics.AddInnerStatistics(std::move(dequeuedTopSubqueryStatistics));
+            }
+
+            if (TQueryStatistics::IsDepthAggregate(options.StatisticsAggregation)) {
+                auto aggregated = TQueryStatistics();
+                aggregated.Merge(statistics);
+                return aggregated;
+            }
+
+            return statistics;
+        } catch (const TErrorException& ex) {
+            if (!ex.Error().FindMatching(NTabletClient::EErrorCode::TabletServantIsNotActive)) {
+                throw;
+            }
+
+            // Wait for all subquery futures to settle and collect all
+            // TabletServantIsNotActive errors to throw as a single combined error.
+            // However, try not to introduce excessive delays.
+            Y_UNUSED(WaitFor(AllSet(subqueryStatisticsFutures)
+                .WithTimeout(Connection_->GetConfig()->CumulativeSelectRowsFailedResponseWaitTime)));
+
+            std::vector<TError> servantNotActiveErrors;
+            for (auto& future : subqueryStatisticsFutures) {
+                if (!future.IsSet()) {
+                    continue;
+                }
+
+                const auto& result = future.GetOrCrash();
+                if (!result.IsOK() &&
+                    result.FindMatching(NTabletClient::EErrorCode::TabletServantIsNotActive))
+                {
+                    servantNotActiveErrors.push_back(result);
+                }
+            }
+
+            if (!servantNotActiveErrors.empty()) {
+                if (servantNotActiveErrors.size() == 1) {
+                    servantNotActiveErrors[0].ThrowOnError();
+                } else {
+                    THROW_ERROR_EXCEPTION("Some select subrequests failed because tablet servants are not active")
+                        .With(servantNotActiveErrors);
+                }
+            }
+
+            throw;
         }
-
-        return statistics;
     }
 
     TEvaluateResult Delegate(
         TConstQueryPtr query,
+        const TTableSchemaPtr& resultSchema,
+        const std::string& queryFingerprint,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags,
         std::vector<TDataSource> dataSources,
+        const std::vector<TSharedRef>& prefetchedJoinRowsets,
         const std::string& address)
     {
         auto Logger = MakeQueryLogger(query);
@@ -816,18 +1056,20 @@ private:
 
         ToProto(req->mutable_feature_flags(), requestFeatureFlags);
 
-        auto queryFingerprint = InferName(query, {.OmitValues = true});
-        YT_LOG_DEBUG("Sending subquery (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, SerializationTime: %v, "
-            "RequestSize: %v)",
-            queryFingerprint,
-            *query->GetReadSchema(),
-            *query->GetTableSchema(),
-            serializationTime,
-            req->ByteSize());
+        req->Attachments() = prefetchedJoinRowsets;
+
+        YT_TLOG_DEBUG("Sending subquery")
+            .With("Fingerprint", queryFingerprint)
+            .With("SerializationTime", serializationTime)
+            .With("RequestSize", req->ByteSize());
+
+        YT_TLOG_DEBUG_IF(options.VerboseLogging, "Sending subquery schemas")
+            .With("ReadSchema", *query->GetReadSchema())
+            .With("ResultSchema", *resultSchema);
 
         auto resultReader = New<TQueryResponseReader>(
             query->Id,
-            query->GetTableSchema(),
+            resultSchema,
             config->SelectRowsResponseCodec,
             MemoryChunkProvider_,
             MemoryUsageTracker_,
@@ -859,6 +1101,262 @@ private:
                 .Run();
         };
     }
+
+    std::tuple<TConstQueryPtr, std::vector<TSharedRef>, std::vector<TQueryStatistics>> MaybePrefetchJoinRowsets(
+        TConstQueryPtr query,
+        const TConstExpressionPtr& initialPredicate,
+        const TConstExternalCGInfoPtr& externalCGInfo,
+        const TQueryOptions& options,
+        const TFeatureFlags& requestFeatureFlags,
+        const NLogging::TLogger& Logger)
+    {
+        // TODO(sabdenovch): Add this to explain-query.
+        std::vector<TSharedRef> prefetchedRowsets;
+        std::vector<TQueryStatistics> subqueryStatistics;
+
+        if (!options.PrefetchJoinTables) {
+            return {std::move(query), std::move(prefetchedRowsets), std::move(subqueryStatistics)};
+        }
+
+        auto prefetchOptions = options;
+        prefetchOptions.MergeVersionedRows = true;
+        prefetchOptions.InputRowLimit = 300'000;
+        prefetchOptions.OutputRowLimit = 100'000;
+
+        std::vector<IWireProtocolRowsetWriterPtr> blockWriters;
+        std::vector<TFuture<TQueryStatistics>> futures;
+        std::vector<bool> prefetched(query->JoinClauses.size(), false);
+
+        for (int joinIndex = 0; joinIndex < std::ssize(query->JoinClauses); ++joinIndex) {
+            const auto& joinClause = query->JoinClauses[joinIndex];
+            if (!joinClause->ArrayExpressions.empty()) {
+                continue;
+            }
+
+            auto mainPredicate = initialPredicate;
+            auto joinPredicate = joinClause->Predicate;
+
+            for (int index = 0; index < static_cast<int>(joinClause->ForeignKeyPrefix); ++index) {
+                const auto& selfJoinKey = joinClause->SelfEquations[index];
+                const auto* foreignReference = joinClause->ForeignEquations[index]
+                    ->As<TReferenceExpression>();
+                if (const auto* reference = selfJoinKey->As<TReferenceExpression>(); reference && mainPredicate) {
+                    mainPredicate = TReferenceReplacer(reference->ColumnName, foreignReference)
+                        .Visit(mainPredicate);
+                } else if (const auto* literal = selfJoinKey->As<TLiteralExpression>()) {
+                    joinPredicate = MakeAndExpression(
+                        std::move(joinPredicate),
+                        New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::Equal,
+                            literal,
+                            foreignReference));
+                }
+            }
+
+            auto totalPredicate = MakeAndExpression(
+                std::move(mainPredicate),
+                std::move(joinPredicate));
+
+            YT_TLOG_DEBUG("Inferring ranges to consider prefetching joined tables")
+                .With("JoinIndex", joinIndex)
+                .With("Predicate", InferName(totalPredicate))
+                .With("TableId", joinClause->ForeignObjectId);
+
+            auto ranges = CreateNewRangeInferrer(
+                std::move(totalPredicate),
+                joinClause->Schema.Original,
+                joinClause->GetKeyColumns(),
+                Connection_->GetColumnEvaluatorCache(),
+                GetBuiltinConstraintExtractors(),
+                options,
+                MemoryChunkProvider_,
+                false);
+
+            if (options.VerboseLogging) {
+                YT_TLOG_DEBUG("Ranges are inferred")
+                    .With("Ranges", ranges);
+            } else {
+                YT_TLOG_DEBUG("Ranges are inferred")
+                    .With("RangeCount", ranges.size());
+            }
+
+            ui32 keyColumnCount = joinClause->Schema.Original->GetKeyColumnCount();
+
+            bool allRangesAreKeys = std::all_of(
+                ranges.begin(),
+                ranges.end(),
+                [&] (const TRowRange& rowRange) {
+                    return rowRange.first.GetCount() == keyColumnCount &&
+                        rowRange.second.GetCount() == keyColumnCount + 1 &&
+                        rowRange.second[keyColumnCount].Type == EValueType::Max &&
+                        CompareValueRanges(
+                            rowRange.first.Elements(),
+                            rowRange.second.FirstNElements(keyColumnCount)) == 0;
+                });
+
+            // TODO(sabdenovch): Implement proper read_data_weight prediction
+            // algorithm based on inferred ranges.
+            auto checkSmallTableAndStrictEnoughRanges = [&] {
+                int firstNonEvaluated = 0;
+                for (; firstNonEvaluated < static_cast<int>(keyColumnCount); ++firstNonEvaluated) {
+                    if (!joinClause->Schema.Original->Columns()[firstNonEvaluated].Expression()) {
+                        break;
+                    }
+                }
+
+                bool rangesAreStrict = std::all_of(
+                    ranges.begin(),
+                    ranges.end(),
+                    [&] (const TRowRange& rowRange) {
+                        return static_cast<int>(rowRange.first.GetCount()) > firstNonEvaluated &&
+                            static_cast<int>(rowRange.second.GetCount()) > firstNonEvaluated &&
+                            CompareValueRanges(
+                                rowRange.first.FirstNElements(firstNonEvaluated + 1),
+                                rowRange.second.FirstNElements(firstNonEvaluated + 1)) == 0;
+                    });
+
+                if (!rangesAreStrict) {
+                    YT_TLOG_DEBUG("Will not prefetch from table due to loose constraints");
+                    return false;
+                }
+
+                auto mountInfo = WaitFor(Connection_
+                    ->GetTableMountCache()
+                    ->GetTableInfo(FromObjectId(joinClause->ForeignObjectId)))
+                    .ValueOrThrow();
+
+                if (mountInfo->Tablets.size() > 1) {
+                    YT_TLOG_DEBUG("Will not prefetch from large table")
+                        .With("TabletCount", mountInfo->Tablets.size());
+                    return false;
+                }
+
+                return true;
+            };
+
+            if (allRangesAreKeys || checkSmallTableAndStrictEnoughRanges()) {
+                YT_TLOG_DEBUG("Prefetching from joined table")
+                    .With("TableId", joinClause->ForeignObjectId);
+                prefetched[joinIndex] = true;
+            } else {
+                continue;
+            }
+
+            auto foreignQuery = joinClause->GetJoinSubquery();
+            foreignQuery->InferRanges = false;
+            if (joinClause->ForeignKeyPrefix > 0) {
+                foreignQuery->Limit = OrderedReadWithPrefetchHint;
+            }
+
+            // TODO(sabdenovch): Use SplitPredicateByColumnSubset to filter rows from joined table even further.
+            // Could be useful if some restrictions are applied from which ranges can't be inferred.
+
+            auto writer = CreateWireProtocolRowsetWriter(
+                NCompression::ECodec::Lz4,
+                16_MB,
+                foreignQuery->GetTableSchema(),
+                false,
+                Logger);
+
+            auto dataSource = TDataSource{
+                .ObjectId = joinClause->ForeignObjectId,
+                .CellId = joinClause->ForeignCellId,
+                .Ranges = std::move(ranges),
+            };
+
+            futures.push_back(BIND(
+                &IExecutor::Execute,
+                MakeStrong(this),
+                TPlanFragment{
+                    .Query = std::move(foreignQuery),
+                    .DataSource = std::move(dataSource),
+                },
+                externalCGInfo,
+                writer,
+                prefetchOptions,
+                requestFeatureFlags)
+                .AsyncVia(GetCurrentInvoker())
+                .Run());
+
+            blockWriters.push_back(std::move(writer));
+        }
+
+        if (blockWriters.empty()) {
+            return {std::move(query), std::move(prefetchedRowsets), std::move(subqueryStatistics)};
+        }
+
+        WaitFor(AllSet(futures))
+            .ThrowOnError();
+
+        auto mutableQuery = New<TQuery>(*query);
+
+        int writerIndex = 0;
+        for (int joinIndex = 0; joinIndex < std::ssize(query->JoinClauses); ++joinIndex) {
+            if (!prefetched[joinIndex]) {
+                continue;
+            }
+
+            const auto& joinClause = query->JoinClauses[joinIndex];
+            const auto& blockWriter = blockWriters[writerIndex];
+            auto statistics = WaitForFast(futures[writerIndex++])
+                .ValueOrThrow();
+
+            if (statistics.IncompleteInput || statistics.IncompleteOutput) {
+                YT_TLOG_DEBUG("Join table prefetch failed, fallback")
+                    .With("JoinIndex", joinIndex)
+                    .With("TableId", joinClause->ForeignObjectId);
+                continue;
+            }
+            int firstBlock = prefetchedRowsets.size();
+            auto blocks = blockWriter->GetCompressedBlocks();
+            for (auto& block : blocks) {
+                prefetchedRowsets.push_back(std::move(block));
+            }
+            int lastBlock = prefetchedRowsets.size() - 1;
+
+            auto newJoinClause = New<TJoinClause>(*joinClause);
+            newJoinClause->PrefetchedBlockRange = {firstBlock, lastBlock};
+
+            mutableQuery->JoinClauses[joinIndex] = newJoinClause;
+
+            subqueryStatistics.push_back(statistics);
+        }
+
+        return {std::move(mutableQuery), std::move(prefetchedRowsets), std::move(subqueryStatistics)};
+    }
+
+    std::pair<TConstFrontQueryPtr, TConstFrontQueryPtr> GetGroupingQueriesForParallelization(
+        const TConstFrontQueryPtr& frontQuery)
+    {
+        auto middleQuery = New<TFrontQuery>();
+        middleQuery->GroupClause = frontQuery->GroupClause;
+        middleQuery->HavingClause = frontQuery->HavingClause;
+        middleQuery->Schema = frontQuery->Schema;
+        middleQuery->OrderClause = frontQuery->OrderClause;
+        middleQuery->Offset = 0;
+        if (frontQuery->Limit == UnorderedReadHint ||
+            frontQuery->Limit == OrderedReadWithPrefetchHint)
+        {
+            middleQuery->Limit = frontQuery->Limit;
+        } else {
+            THROW_ERROR_EXCEPTION_IF(
+                frontQuery->Offset > std::numeric_limits<i64>::max() - frontQuery->Limit,
+                "Sum of offset %v and limit %v overflows i64",
+                frontQuery->Offset,
+                frontQuery->Limit);
+            middleQuery->Limit = frontQuery->Offset + frontQuery->Limit;
+        }
+        middleQuery->IsFinal = false;
+        middleQuery->HasExclusiveGroupKeyView = true;
+        // Why does this field even exist for front query. This code makes no gosh darn sense.
+        middleQuery->InferRanges = false;
+
+        auto newFrontQuery = New<TFrontQuery>(*frontQuery);
+        newFrontQuery->EnableCombineGroupOpWithOrderOp = false;
+
+        return {std::move(middleQuery), std::move(newFrontQuery)};
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryExecutor)
@@ -870,7 +1368,8 @@ IExecutorPtr CreateQueryExecutor(
     IColumnEvaluatorCachePtr columnEvaluatorCache,
     IEvaluatorPtr evaluator,
     INodeChannelFactoryPtr nodeChannelFactory,
-    TFunctionImplCachePtr functionImplCache)
+    TFunctionImplCachePtr functionImplCache,
+    bool retryOnMetadataCacheInconsistency)
 {
     return New<TQueryExecutor>(
         std::move(memoryChunkProvider),
@@ -879,7 +1378,8 @@ IExecutorPtr CreateQueryExecutor(
         std::move(columnEvaluatorCache),
         std::move(evaluator),
         std::move(nodeChannelFactory),
-        std::move(functionImplCache));
+        std::move(functionImplCache),
+        retryOnMetadataCacheInconsistency);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

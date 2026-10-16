@@ -8,11 +8,12 @@ from yt_odin.logserver import (
 
 from yt_odin.logging import TaskLoggerAdapter
 from yt_odin.storage.storage import StorageForCluster
-from yt_odin.test_helpers import generate_unique_id, wait
+from yt_odin.test_helpers import wait
 
 import logging
 import os
 import pickle
+import shutil
 import struct
 import time
 import tempfile
@@ -48,7 +49,9 @@ class TestContext(object):
         self.die_on_error = die_on_error
 
     def __enter__(self):
-        self.socket_path = os.path.join(tempfile.gettempdir(), "{}.sock".format(generate_unique_id("test_logserver")))
+        # Short dir: sandbox tempdir overflows the ~108-byte AF_UNIX limit.
+        self.socket_dir = tempfile.mkdtemp(prefix="odin_", dir="/tmp")
+        self.socket_path = os.path.join(self.socket_dir, "logserver.sock")
         max_write_batch_size = 256
         self.logserver_process = Process(target=run_logserver,
                                          args=(self.socket_path, self.storage, max_write_batch_size,
@@ -58,6 +61,7 @@ class TestContext(object):
 
     def __exit__(self, type, value, traceback):
         self.logserver_process.terminate()
+        shutil.rmtree(self.socket_dir, ignore_errors=True)
 
 
 class DummyService(object):

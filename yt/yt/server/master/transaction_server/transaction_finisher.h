@@ -12,15 +12,6 @@ namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto {
-
-class TTransactionFinishRequest;
-
-} // namespace NProto
-
-////////////////////////////////////////////////////////////////////////////////
-
-
 struct TTransactionFinishRequestBase
 {
     NRpc::TAuthenticationIdentity AuthenticationIdentity;
@@ -60,7 +51,7 @@ using TTransactionFinishRequest = std::variant<
 //! Ensures that transaction with revoked leases will be finished sometime.
 /*!
  *  In common case transaction finish request handler:
- *    1. shcedules leases revocation;
+ *    1. schedules leases revocation;
  *    2. waits until leases revocation finished;
  *    3. schedules mutation to finish transaction.
  *  If leader switch happens between these two mutations the master has to take

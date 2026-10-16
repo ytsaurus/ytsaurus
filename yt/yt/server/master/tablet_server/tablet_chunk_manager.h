@@ -11,6 +11,8 @@
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
+#include <library/cpp/yt/logging/logger.h>
+
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,6 +20,8 @@ namespace NYT::NTabletServer {
 struct ITabletChunkManager
     : public virtual TRefCounted
 {
+    virtual void Initialize() = 0;
+
     virtual void CopyChunkListsIfShared(
         NTableServer::TTableNode* table,
         int firstTabletIndex,
@@ -38,6 +42,9 @@ struct ITabletChunkManager
         const std::vector<TTabletId>& oldTabletIds,
         const std::vector<NTableClient::TOwningKeyBound>& oldPivotKeyBounds,
         const std::vector<NTableClient::TLegacyOwningKey>& newPivotKeys,
+        //! Initial cumulative data weights of the tablets created by this reshard.
+        //! Ordered tables only; either empty or of size |newTabletCount - oldTabletCount|.
+        const std::vector<i64>& newTabletCumulativeDataWeights,
         const THashSet<TStoreId>& oldEdenStoreIds) = 0;
 
     virtual void ReshardHunkStorage(
@@ -46,23 +53,30 @@ struct ITabletChunkManager
         int lastTabletIndex,
         int newTabletCount) = 0;
 
+    //! Returns the length of the accepted prefix of #storeCounts: requests within
+    //! [0, result) may proceed, the rest are throttled.
+    virtual int ThrottleTabletStoresUpdate(
+        const std::string& bundleName,
+        NTabletClient::ETabletStoresUpdateReason updateReason,
+        const std::vector<int>& storeCounts) = 0;
+
     virtual void PrepareUpdateTabletStores(
         TTablet* tablet,
         NProto::TReqUpdateTabletStores* request) = 0;
 
-    //! Returns logging string containing update statistics.
-    virtual std::string CommitUpdateTabletStores(
+    //! Returns logging tags containing update statistics.
+    virtual NLogging::TLoggingTagList CommitUpdateTabletStores(
         TTablet* tablet,
         NTransactionServer::TTransaction* transaction,
         NProto::TReqUpdateTabletStores* request,
         NTabletClient::ETabletStoresUpdateReason updateReason) = 0;
 
-    //! Returns logging string containing update statistics.
-    virtual std::string CommitUpdateHunkTabletStores(
+    //! Returns logging tags containing update statistics.
+    virtual NLogging::TLoggingTagList CommitUpdateHunkTabletStores(
         THunkTablet* tablet,
         NProto::TReqUpdateHunkTabletStores* request) = 0;
 
-    virtual void MakeTableDynamic(NTableServer::TTableNode* table) = 0;
+    virtual void MakeTableDynamic(NTableServer::TTableNode* table, i64 cumulativeDataWeight) = 0;
     virtual void MakeTableStatic(NTableServer::TTableNode* table) = 0;
 
     virtual void SetTabletEdenStoreIds(
@@ -92,7 +106,9 @@ DEFINE_REFCOUNTED_TYPE(ITabletChunkManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITabletChunkManagerPtr CreateTabletChunkManager(NCellMaster::TBootstrap* bootstrap);
+ITabletChunkManagerPtr CreateTabletChunkManager(
+    NCellMaster::TBootstrap* bootstrap,
+    IInvokerPtr storesUpdateThrottlerInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

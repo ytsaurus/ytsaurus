@@ -13,23 +13,21 @@
 # limitations under the License.
 
 """Tools for specifying BSON codec options."""
+
 from __future__ import annotations
 
 import abc
 import datetime
 import enum
+from collections.abc import Iterable, Mapping
 from collections.abc import MutableMapping as _MutableMapping
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
     Generic,
-    Iterable,
-    Mapping,
     NamedTuple,
     Optional,
-    Tuple,
-    Type,
     Union,
     cast,
 )
@@ -42,6 +40,10 @@ from bson.binary import (
 from bson.typings import _DocumentType
 
 _RAW_BSON_DOCUMENT_MARKER = 101
+
+# Raw BSON documents at least this many bytes are exposed as read-only
+# memoryview slices of the decode buffer instead of bytes copies.
+_RAW_BSON_VIEW_THRESHOLD = 4096
 
 
 def _raw_document_class(document_class: Any) -> bool:
@@ -144,7 +146,7 @@ class TypeRegistry:
 
         if self._fallback_encoder is not None:
             if not callable(fallback_encoder):
-                raise TypeError("fallback_encoder %r is not a callable" % (fallback_encoder))
+                raise TypeError(f"fallback_encoder {fallback_encoder!r} is not a callable")
 
         for codec in self.__type_codecs:
             is_valid_codec = False
@@ -182,11 +184,7 @@ class TypeRegistry:
                 raise TypeError(err_msg)
 
     def __repr__(self) -> str:
-        return "{}(type_codecs={!r}, fallback_encoder={!r})".format(
-            self.__class__.__name__,
-            self.__type_codecs,
-            self._fallback_encoder,
-        )
+        return f"{self.__class__.__name__}(type_codecs={self.__type_codecs!r}, fallback_encoder={self._fallback_encoder!r})"
 
     def __eq__(self, other: Any) -> Any:
         if not isinstance(other, type(self)):
@@ -196,6 +194,8 @@ class TypeRegistry:
             and (self._encoder_map == other._encoder_map)
             and (self._fallback_encoder == other._fallback_encoder)
         )
+
+    __hash__ = None  # type: ignore[assignment]
 
 
 class DatetimeConversion(int, enum.Enum):
@@ -234,7 +234,7 @@ class DatetimeConversion(int, enum.Enum):
 
 
 class _BaseCodecOptions(NamedTuple):
-    document_class: Type[Mapping[str, Any]]
+    document_class: type[Mapping[str, Any]]
     tz_aware: bool
     uuid_representation: int
     unicode_decode_error_handler: str
@@ -245,8 +245,8 @@ class _BaseCodecOptions(NamedTuple):
 
 if TYPE_CHECKING:
 
-    class CodecOptions(Tuple[_DocumentType], Generic[_DocumentType]):
-        document_class: Type[_DocumentType]
+    class CodecOptions(tuple[_DocumentType], Generic[_DocumentType]):
+        document_class: type[_DocumentType]
         tz_aware: bool
         uuid_representation: int
         unicode_decode_error_handler: Optional[str]
@@ -255,37 +255,31 @@ if TYPE_CHECKING:
         datetime_conversion: Optional[int]
 
         def __new__(
-            cls: Type[CodecOptions[_DocumentType]],
-            document_class: Optional[Type[_DocumentType]] = ...,
+            cls: type[CodecOptions[_DocumentType]],
+            document_class: Optional[type[_DocumentType]] = ...,
             tz_aware: bool = ...,
             uuid_representation: Optional[int] = ...,
             unicode_decode_error_handler: Optional[str] = ...,
             tzinfo: Optional[datetime.tzinfo] = ...,
             type_registry: Optional[TypeRegistry] = ...,
             datetime_conversion: Optional[int] = ...,
-        ) -> CodecOptions[_DocumentType]:
-            ...
+        ) -> CodecOptions[_DocumentType]: ...
 
         # CodecOptions API
-        def with_options(self, **kwargs: Any) -> CodecOptions[Any]:
-            ...
+        def with_options(self, **kwargs: Any) -> CodecOptions[Any]: ...
 
-        def _arguments_repr(self) -> str:
-            ...
+        def _arguments_repr(self) -> str: ...
 
         # NamedTuple API
         @classmethod
-        def _make(cls, obj: Iterable[Any]) -> CodecOptions[_DocumentType]:
-            ...
+        def _make(cls, obj: Iterable[Any]) -> CodecOptions[_DocumentType]: ...
 
-        def _asdict(self) -> dict[str, Any]:
-            ...
+        def _asdict(self) -> dict[str, Any]: ...
 
-        def _replace(self, **kwargs: Any) -> CodecOptions[_DocumentType]:
-            ...
+        def _replace(self, **kwargs: Any) -> CodecOptions[_DocumentType]: ...
 
         _source: str
-        _fields: Tuple[str]
+        _fields: tuple[str]
 
 else:
 
@@ -377,8 +371,8 @@ else:
             super().__init__()
 
         def __new__(
-            cls: Type[CodecOptions],
-            document_class: Optional[Type[Mapping[str, Any]]] = None,
+            cls: type[CodecOptions],
+            document_class: Optional[type[Mapping[str, Any]]] = None,
             tz_aware: bool = False,
             uuid_representation: Optional[int] = UuidRepresentation.UNSPECIFIED,
             unicode_decode_error_handler: str = "strict",
@@ -387,14 +381,16 @@ else:
             datetime_conversion: Optional[DatetimeConversion] = DatetimeConversion.DATETIME,
         ) -> CodecOptions:
             doc_class = document_class or dict
-            # issubclass can raise TypeError for generic aliases like SON[str, Any].
-            # In that case we can use the base class for the comparison.
-            is_mapping = False
+            # Generic aliases like SON[str, Any] or dict[str, Any] aren't classes, so
+            # resolve to their origin before the subclass check. Whether issubclass()
+            # raises TypeError or just returns False for such aliases is inconsistent
+            # across Python implementations (e.g. PyPy vs CPython), so check the
+            # origin proactively instead of relying on catching the error.
+            check_class = getattr(doc_class, "__origin__", doc_class)
             try:
-                is_mapping = issubclass(doc_class, _MutableMapping)
+                is_mapping = issubclass(check_class, _MutableMapping)
             except TypeError:
-                if hasattr(doc_class, "__origin__"):
-                    is_mapping = issubclass(doc_class.__origin__, _MutableMapping)
+                is_mapping = False
             if not (is_mapping or _raw_document_class(doc_class)):
                 raise TypeError(
                     "document_class must be dict, bson.son.SON, "
@@ -450,17 +446,9 @@ else:
             )
 
             return (
-                "document_class={}, tz_aware={!r}, uuid_representation={}, "
-                "unicode_decode_error_handler={!r}, tzinfo={!r}, "
-                "type_registry={!r}, datetime_conversion={!s}".format(
-                    document_class_repr,
-                    self.tz_aware,
-                    uuid_rep_repr,
-                    self.unicode_decode_error_handler,
-                    self.tzinfo,
-                    self.type_registry,
-                    self.datetime_conversion,
-                )
+                f"document_class={document_class_repr}, tz_aware={self.tz_aware!r}, uuid_representation={uuid_rep_repr}, "
+                f"unicode_decode_error_handler={self.unicode_decode_error_handler!r}, tzinfo={self.tzinfo!r}, "
+                f"type_registry={self.type_registry!r}, datetime_conversion={self.datetime_conversion!s}"
             )
 
         def __repr__(self) -> str:

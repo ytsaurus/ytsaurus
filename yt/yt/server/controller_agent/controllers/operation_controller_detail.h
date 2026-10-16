@@ -164,7 +164,7 @@ private: \
         public,
         NScheduler::TControllerScheduleAllocationResultPtr,
         ScheduleAllocation,
-        (const TAllocationSchedulingContext& context, const TString& treeId),
+        (const TAllocationSchedulingContext& context, const std::string& treeId),
         (context, treeId),
         true)
 
@@ -357,7 +357,9 @@ public:
     TAutoMergeDirector* GetAutoMergeDirector() override;
 
     const TChunkListPoolPtr& GetOutputChunkListPool() const override;
+    const TChunkListPoolPtr& GetOutputHunkChunkListPool() const override;
     NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) override;
+    NChunkClient::TChunkListId ExtractOutputHunkChunkList(NObjectClient::TCellTag cellTag) override;
     NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) override;
     void ReleaseChunkTrees(
         const std::vector<NChunkClient::TChunkListId>& chunkTreeIds,
@@ -429,7 +431,7 @@ public:
     // Job shell options should never be changed in operation spec.
     const std::vector<NScheduler::TJobShellPtr>& GetJobShells() const override;
 
-    TString WriteCoreDump() const override;
+    std::string WriteCoreDump() const override;
 
     //! Needed for row_count_limit.
     void RegisterOutputRows(i64 count, int tableIndex) override;
@@ -485,9 +487,9 @@ public:
     TJobletPtr CreateJoblet(
         TTask* task,
         TJobId jobId,
-        TString treeId,
+        std::string treeId,
         int taskJobIndex,
-        std::optional<TString> poolPath,
+        std::optional<std::string> poolPath,
         bool treeIsTentative) override;
 
     std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const override;
@@ -515,9 +517,9 @@ protected:
     const NTransactionClient::TTransactionId UserTransactionId_;
 
     const NLogging::TLogger Logger;
-    const std::vector<TString> CoreNotes_;
+    const std::vector<std::string> CoreNotes_;
 
-    NThreading::TAtomicObject<NScheduler::TAccessControlRule> AccessControlRule_;
+    TAtomicObject<NScheduler::TAccessControlRule> AccessControlRule_;
 
     // Intentionally transient.
     const NScheduler::TControllerEpoch ControllerEpoch_;
@@ -565,7 +567,7 @@ protected:
     // NB: SwitchedToSlowIntermediateMedium_ and SwitchIntermediateMediumScheduled_ (sort
     // controller) are also protected by this lock since they are read from the ControlThread
     // and written from the controller invoker.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OutputTransactionLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, OutputTransactionLock_);
     NApi::ITransactionPtr OutputTransaction_;
     NApi::ITransactionPtr DebugTransaction_;
     NApi::NNative::ITransactionPtr OutputCompletionTransaction_;
@@ -676,7 +678,7 @@ protected:
     void DoScheduleAllocation(
         TAllocation& allocation,
         const TAllocationSchedulingContext& context,
-        const TString& treeId,
+        const std::string& treeId,
         NScheduler::TControllerScheduleAllocationResult* scheduleAllocationResult);
 
     void TryScheduleFirstJob(
@@ -725,6 +727,7 @@ protected:
     void InitAccountResourceUsageLeases();
     void ValidateCollectiveOptions() const;
     void ValidateSecureVault() const;
+    virtual void ValidateInputTablePaths() const;
     void ValidateOutputTablePaths() const;
 
     // Preparation.
@@ -820,7 +823,7 @@ protected:
 
     bool IsLocalityEnabled() const;
 
-    virtual TString GetLoggingProgress() const;
+    virtual std::string GetLoggingProgress() const;
 
     //! Called to extract output table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetOutputTablePaths() const = 0;
@@ -971,7 +974,7 @@ protected:
 
     NApi::ITransactionPtr GetTransactionForOutputTable(const TOutputTablePtr& table) const;
 
-    void RegisterLivePreviewTable(TString name, const TOutputTablePtr& table);
+    void RegisterLivePreviewTable(std::string name, const TOutputTablePtr& table);
 
     void AttachToIntermediateLivePreview(NChunkClient::TInputChunkPtr chunk) override;
 
@@ -994,13 +997,13 @@ protected:
 
     bool HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable);
 
-    std::vector<NChunkClient::TLegacyDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize);
+    std::vector<NChunkClient::TDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize);
 
     //! Returns the list of all input data slices collected from all primary input tables.
-    std::vector<NChunkClient::TLegacyDataSlicePtr> CollectPrimaryInputDataSlices(i64 versionedSliceSize);
+    std::vector<NChunkClient::TDataSlicePtr> CollectPrimaryInputDataSlices(i64 versionedSliceSize);
 
     //! Returns the list of lists of all input chunks collected from all foreign input tables.
-    std::vector<std::deque<NChunkClient::TLegacyDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
+    std::vector<std::deque<NChunkClient::TDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
 
     virtual void InitUserJobSpec(
         NControllerAgent::NProto::TUserJobSpec* jobSpec,
@@ -1024,7 +1027,7 @@ protected:
         bool useEstimatedBufferSize,
         const NTableClient::TChunkStripeStatisticsVector& stripeStatistics) const;
 
-    void ValidateUserFileCount(const NScheduler::TUserJobSpecPtr& spec, const TString& operation);
+    void ValidateUserFileCount(const NScheduler::TUserJobSpecPtr& spec, const std::string& operation);
 
     const TExecNodeDescriptorMap& GetOnlineSuitableExecNodeDescriptors() const;
     const TExecNodeDescriptorMap& GetSuitableExecNodeDescriptors() const;
@@ -1039,6 +1042,7 @@ protected:
     // Validate that ESchemaInferenceMode::Auto is used when output table is dynamic.
     void ValidateSchemaInferenceMode(NScheduler::ESchemaInferenceMode schemaInferenceMode) const;
     void ValidateOutputSchemaComputedColumnsCompatibility() const;
+    void ValidateNoHunkKeyColumns() const;
 
     void BuildPrepareAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildBriefSpec(NYTree::TFluentMap fluent) const;
@@ -1074,6 +1078,7 @@ protected:
     const NChunkPools::IPersistentChunkPoolInputPtr& GetSink();
 
     void ValidateAccountPermission(const std::string& account, NYTree::EPermission permission) const;
+    void ValidateMediumPermission(const std::string& medium, NYTree::EPermission permission) const;
 
     int GetYsonNestingLevelLimit() const;
 
@@ -1081,6 +1086,7 @@ protected:
     NYson::TYsonString ConvertToYsonStringNestingLimited(const T& value) const;
 
     i64 GetFastIntermediateMediumLimit() const;
+    bool IsFastIntermediateMediumEnabled() const;
 
     void DoFailOperation(const TError& error, bool flush = true, bool abortAllJoblets = true);
 
@@ -1119,20 +1125,22 @@ private:
 
     NObjectClient::TCellTagList IntermediateOutputCellTagList_;
     TChunkListPoolPtr OutputChunkListPool_;
+    TChunkListPoolPtr OutputHunkChunkListPool_;
     TChunkListPoolPtr DebugChunkListPool_;
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputChunkListCount_;
+    THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputHunkChunkListCount_;
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredDebugChunkListCount_;
 
-    NThreading::TAtomicObject<TCompositePendingJobCount> CachedPendingJobCount_;
+    TAtomicObject<TCompositePendingJobCount> CachedPendingJobCount_;
     int CachedTotalJobCount_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OverrunWriteBufferMemoryPerJobLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, OverrunWriteBufferMemoryPerJobLock_);
     std::set<TOverrunTableWriteBufferMemoryInfo> OverrunWriteBufferMemoryPerJob_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedNeededResourcesLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, CachedNeededResourcesLock_);
     NScheduler::TCompositeNeededResources CachedNeededResources_;
 
-    NThreading::TAtomicObject<NScheduler::TAllocationGroupResourcesMap> CachedGroupedNeededResources_;
+    TAtomicObject<NScheduler::TAllocationGroupResourcesMap> CachedGroupedNeededResources_;
 
     NScheduler::TAllocationGroupResourcesMap InitialGroupedNeededResources_;
 
@@ -1161,7 +1169,7 @@ private:
     NYson::TYsonString DoBuildJobsYson();
 
     NYson::TYsonString CachedSuspiciousJobsYson_ = NYson::TYsonString(TStringBuf(), NYson::EYsonType::MapFragment);
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedSuspiciousJobsYsonLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, CachedSuspiciousJobsYsonLock_);
     NConcurrency::TPeriodicExecutorPtr SuspiciousJobsYsonUpdater_;
 
     //! Maps an intermediate chunk id to its originating completed job.
@@ -1183,21 +1191,21 @@ private:
     TAggregatedJobStatistics AggregatedFinishedJobStatistics_;
 
     //! Per task: first job that exceeded the thread count limit (for operation alerts).
-    THashMap<TString, THighThreadCountJobInfo> HighThreadCountJobPerTask_;
+    THashMap<std::string, THighThreadCountJobInfo> HighThreadCountJobPerTask_;
 
     //! Records peak memory usage.
     i64 PeakMemoryUsage_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, JobMetricsDeltaPerTreeLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, JobMetricsDeltaPerTreeLock_);
     //! Delta of job metrics that was not reported to scheduler.
-    THashMap<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
+    THashMap<std::string, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
     std::atomic<TDuration> CachedJobMetricsReportPeriodCpuDuration_;
     // NB(eshcherbin): this is very ad-hoc and hopefully temporary. We need to get the total time
     // per tree in the end of the operation, however, (1) job metrics are sent as deltas and
     // are not accumulated, and (2) job statistics don't provide per tree granularity.
     //! Aggregated total time of jobs per tree.
-    THashMap<TString, i64> TotalTimePerTree_;
-    THashMap<TString, i64> MainResourceConsumptionPerTree_;
+    THashMap<std::string, i64> TotalTimePerTree_;
+    THashMap<std::string, i64> MainResourceConsumptionPerTree_;
     NProfiling::TCpuInstant LastJobMetricsDeltaReportTime_ = 0;
 
     //! Aggregated schedule job statistics.
@@ -1247,7 +1255,7 @@ private:
 
     std::vector<TOutputStreamDescriptorPtr> StandardStreamDescriptors_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProgressLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ProgressLock_);
     const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
 
     const NConcurrency::TPeriodicExecutorPtr CheckTentativeTreeEligibilityExecutor_;
@@ -1311,7 +1319,7 @@ private:
 
     THashSet<NNodeTrackerClient::TNodeId> BannedNodeIds_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AlertsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, AlertsLock_);
     TOperationAlertMap Alerts_;
 
     bool IsLegacyLivePreviewSuppressed_ = false;
@@ -1438,7 +1446,8 @@ private:
 
     NEventLog::TFluentLogEvent LogFinishedJobFluently(
         NScheduler::ELogEventType eventType,
-        const TJobletPtr& joblet);
+        const TJobletPtr& joblet,
+        const TJobSummary& jobSummary);
 
     NYson::IYsonConsumer* GetEventLogConsumer() override;
     const NLogging::TLogger* GetEventLogger() override;
@@ -1488,14 +1497,14 @@ private:
 
     void ReleaseJobs(const std::vector<TJobId>& jobIds);
 
-    bool IsIdleCpuPolicyAllowedInTree(const TString& treeId) const override;
-    bool IsTreeTentative(const TString& treeId) const;
-    bool IsTreeProbing(const TString& treeId) const override;
+    bool IsIdleCpuPolicyAllowedInTree(const std::string& treeId) const override;
+    bool IsTreeTentative(const std::string& treeId) const;
+    bool IsTreeProbing(const std::string& treeId) const override;
     void MaybeBanInTentativeTree(const std::string& treeId);
 
     void RegisterTestingSpeculativeJobIfNeeded(TTask& task, TAllocationId allocationId);
 
-    std::vector<NYPath::TRichYPath> GetLayerPaths(const NScheduler::TUserJobSpecPtr& userJobSpec) const;
+    THashSet<NYPath::TRichYPath> GetAllUniqueLayerPaths(const NScheduler::TUserJobSpecPtr& userJobSpec) const;
 
     void MaybeCancel(NScheduler::ECancelationStage cancelationStage) override;
     const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const override;
@@ -1523,6 +1532,7 @@ private:
     void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state) const;
     void ReportStartTimeToArchive(const TJobletPtr& joblet) const;
     void ReportFinishTimeToArchive(const TJobletPtr& joblet) const;
+    void ReportErrorToArchive(const TJobletPtr& joblet, const std::optional<TError>& error) const;
 
     std::unique_ptr<TAbortedJobSummary> RegisterOutputChunkReplicas(
         const TJobSummary& jobSummary,

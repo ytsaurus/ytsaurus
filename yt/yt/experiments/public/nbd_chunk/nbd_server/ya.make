@@ -10,6 +10,7 @@ PEERDIR(
     yt/yt/core
     yt/yt/library/program
     yt/yt/server/lib/nbd
+    yt/yt/server/lib/nbd/chunk
 )
 
 END()

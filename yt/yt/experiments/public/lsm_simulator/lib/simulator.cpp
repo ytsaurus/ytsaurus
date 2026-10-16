@@ -496,7 +496,7 @@ private:
 
     void RunLsmCallback()
     {
-        YT_LOG_INFO("Running LSM");
+        YT_TLOG_INFO("Running LSM");
         auto backend = NLsm::CreateLsmBackend();
 
         static auto LsmTabletNodeConfig = New<NLsm::TLsmTabletNodeConfig>();
@@ -528,10 +528,10 @@ private:
     TTimestamp GenerateTimestamp()
     {
         auto unixTime = ActionQueue_->GetNow().Seconds();
-        if (LastGeneratedTimestamp_ >> 30 == unixTime) {
-            return ++LastGeneratedTimestamp_;
+        if (LastGeneratedTimestamp_.Underlying() >> 30 == unixTime) {
+            return LastGeneratedTimestamp_ = NYT::NTransactionClient::TTimestamp(LastGeneratedTimestamp_.Underlying() + 1);
         } else {
-            LastGeneratedTimestamp_ = unixTime << 30;
+            LastGeneratedTimestamp_ = NYT::NTransactionClient::TTimestamp(unixTime << 30);
             return LastGeneratedTimestamp_;
         }
     }

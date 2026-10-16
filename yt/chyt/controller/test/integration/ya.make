@@ -1,5 +1,7 @@
 GO_TEST()
 
+EXPLICIT_DATA()
+
 SIZE(MEDIUM)
 
 IF (NOT OPENSOURCE)
@@ -11,5 +13,11 @@ GO_TEST_SRCS(
     monitoring_test.go
     strawberry_test.go
 )
+
+IF (NOT OPENSOURCE)
+    GO_TEST_SRCS(
+        metrics_test.go
+    )
+ENDIF()
 
 END()

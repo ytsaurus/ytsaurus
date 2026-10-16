@@ -25,6 +25,12 @@ struct TDynamicReplicatedTableTrackerConfig
     TDuration CheckPeriod;
     TDuration UpdatePeriod;
 
+    //! Minimum interval between replica mode switches caused by preferred sync replica clusters.
+    //! Switches caused by replica health or availability are not delayed.
+    //! The cooldown is reset when the effective preferred sync replica cluster list changes.
+    //! A switch in any table of a replication collocation starts the cooldown for all its tables.
+    TDuration PreferredSyncReplicaSwitchCooldown;
+
     // COMPAT(akozhikhov): Drop this with old RTT.
     TDuration GeneralCheckTimeout;
 

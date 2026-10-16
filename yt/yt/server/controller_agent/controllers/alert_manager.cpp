@@ -2,6 +2,7 @@
 #include "job_helpers.h"
 
 #include <yt/yt/server/controller_agent/config.h>
+#include <yt/yt/server/controller_agent/helpers.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
@@ -37,7 +38,7 @@ public:
 
     void Analyze() override
     {
-        YT_LOG_DEBUG("Analyze operation alerts");
+        YT_TLOG_DEBUG("Analyze operation alerts");
 
         AnalyzeMemoryAndTmpfsUsage();
         AnalyzeInputStatistics();
@@ -77,7 +78,7 @@ private:
         PHOENIX_DECLARE_TYPE(TGpuPowerUsageRecord, 0x67ef02c2);
     };
 
-    THashMap<TString, std::deque<TGpuPowerUsageRecord>> AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_;
+    THashMap<std::string, std::deque<TGpuPowerUsageRecord>> AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_;
 
     //! Last fingerprint from host; refresh alert only when violating task set or formula changes.
     int LastHighJobThreadCountAlertFingerprint_ = 0;
@@ -87,9 +88,9 @@ private:
         const std::vector<EJobState>& jobStates,
         const std::function<double(const TUserJobSpecPtr&)>& getLimit,
         const std::function<bool(TDuration, double, i64, double)>& needSetAlert,
-        const TString& name,
+        const std::string& name,
         EOperationAlertType alertType,
-        const TString& message)
+        const std::string& message)
     {
         std::vector<TError> errors;
         for (const auto& task : Host_->GetTasks()) {
@@ -139,16 +140,16 @@ private:
             if (needSetAlert(totalExecutionDuration, limit, jobCount, ratio))
             {
                 auto error = TError("Jobs of task %Qlv use %.2f%% of requested %s limit", taskName, 100 * ratio, name)
-                    << TErrorAttribute(Format("%s_time", name), usage)
-                    << TErrorAttribute("exec_time", totalExecutionDuration)
-                    << TErrorAttribute(Format("%s_limit", name), limit);
+                    .With(Format("%s_time", name), usage)
+                    .With("exec_time", totalExecutionDuration)
+                    .With(Format("%s_limit", name), limit);
                 errors.push_back(error);
             }
         }
 
         TError error;
         if (!errors.empty()) {
-            error = TError(TRuntimeFormat(message)) << errors;
+            error = TError(TRuntimeFormat(message)).With(errors);
         }
 
         Host_->SetOperationAlert(alertType, error);
@@ -248,8 +249,8 @@ private:
                         "Jobs of type %Qlv use less than %.1f%% of requested memory",
                         task->GetVertexDescriptor(),
                         100.0 * (1.0 - Config_->MemoryUsageAlertMaxUnusedRatio))
-                        << TErrorAttribute("memory_reserve", memoryInfo.MemoryReserve)
-                        << TErrorAttribute("memory_usage", memoryUsage));
+                        .With("memory_reserve", memoryInfo.MemoryReserve)
+                        .With("memory_usage", memoryUsage));
                 }
 
                 if (memoryInfo.JobSpec->MemoryReserveFactor &&
@@ -259,8 +260,8 @@ private:
                         "Jobs of type %Qlv use less than %.1f%% of requested memory with memory reserve factor set to 1",
                         task->GetVertexDescriptor(),
                         100.0 * (1.0 - Config_->MemoryReserveFactorAlertMaxUnusedRatio))
-                        << TErrorAttribute("memory_reserve", memoryInfo.MemoryReserve)
-                        << TErrorAttribute("memory_usage", memoryUsage));
+                        .With("memory_reserve", memoryInfo.MemoryReserve)
+                        .With("memory_usage", memoryUsage));
                 }
 
                 if (memoryUsageRatio > Config_->TmpfsAlertMemoryUsageMuteRatio) {
@@ -293,8 +294,8 @@ private:
                         task->GetVertexDescriptor(),
                         minUnusedSpaceRatio * 100.0,
                         name)
-                        << TErrorAttribute("max_used_tmpfs_size", *maxTmpfsUsage)
-                        << TErrorAttribute("tmpfs_size", requestedTmpfsSize);
+                        .With("max_used_tmpfs_size", *maxTmpfsUsage)
+                        .With("tmpfs_size", requestedTmpfsSize);
                     tmpfsErrors.push_back(error);
                 }
             }
@@ -306,7 +307,7 @@ private:
                 error = TError(
                     "Operation has jobs that use tmpfs inefficiently; "
                     "consider specifying tmpfs size closer to actual usage")
-                    << tmpfsErrors;
+                    .With(tmpfsErrors);
             }
 
             Host_->SetOperationAlert(EOperationAlertType::UnusedTmpfsSpace, error);
@@ -318,7 +319,7 @@ private:
                 error = TError(
                     "Operation has jobs that use memory inefficiently; "
                     "consider specifying memory limit closer to actual usage")
-                    << memoryErrors;
+                    .With(memoryErrors);
             }
 
             Host_->SetOperationAlert(EOperationAlertType::UnusedMemory, error);
@@ -411,7 +412,7 @@ private:
             error = TError(
                 "Aborted jobs time ratio is too high, scheduling is likely to be inefficient; "
                 "consider increasing job count to make individual jobs smaller")
-                    << TErrorAttribute("aborted_jobs_time_ratio", abortedJobsTimeRatio);
+                    .With("aborted_jobs_time_ratio", abortedJobsTimeRatio);
         }
 
         Host_->SetOperationAlert(EOperationAlertType::LongAbortedJobs, error);
@@ -435,7 +436,7 @@ private:
         TError error;
         if (!innerErrors.empty()) {
             error = TError("Detected excessive disk IO in jobs; consider optimizing disk usage")
-                << innerErrors;
+                .With(innerErrors);
         }
 
         Host_->SetOperationAlert(EOperationAlertType::ExcessiveDiskUsage, error);
@@ -455,7 +456,7 @@ private:
                        ratio < Config_->LowCpuUsageAlertCpuUsageThreshold;
             };
 
-            const TString alertMessage =
+            const std::string alertMessage =
                 "Average CPU usage of some of your job types is significantly lower than requested 'cpu_limit'. "
                 "Consider decreasing cpu_limit in spec of your operation";
 
@@ -476,7 +477,7 @@ private:
                        ratio > Config_->HighCpuWaitAlertThreshold;
             };
 
-            const TString alertMessage = Format(
+            const std::string alertMessage = Format(
                 "Average CPU wait time of some of your job types is significantly high (average CPU wait time ratio greater than %v%%). "
                 "Investigate your process.",
                 Config_->HighCpuWaitAlertThreshold);
@@ -508,7 +509,7 @@ private:
                     ratio < Config_->LowGpuUsageAlertGpuUsageThreshold;
             };
 
-            static const TString alertMessage =
+            static const std::string alertMessage =
                 "Average gpu usage of some of your job types is significantly lower than requested 'gpu_limit'. "
                 "Consider optimizing your GPU utilization";
 
@@ -528,7 +529,7 @@ private:
                     ratio < Config_->LowGpuUsageAlertGpuUtilizationPowerThreshold;
             };
 
-            static const TString alertMessage = Format(
+            static const std::string alertMessage = Format(
                 "Average GPU power usage is significantly lower than %v percents. "
                 "Consider optimizing your GPU process",
                 Config_->LowGpuUsageAlertGpuUtilizationPowerThreshold * 100.0);
@@ -549,7 +550,7 @@ private:
                     ratio < Config_->LowGpuUsageAlertGpuUtilizationSMThreshold;
             };
 
-            static const TString alertMessage = Format(
+            static const std::string alertMessage = Format(
                 "Average GPU SM usage is significantly lower than %v percents. "
                 "Consider optimizing your GPU process",
                 Config_->LowGpuUsageAlertGpuUtilizationSMThreshold * 100.0);
@@ -619,19 +620,19 @@ private:
                 auto frontRecord = records.front();
                 if (now - frontRecord.Time > config->WindowSize) {
                     auto averageUsage = (usage - frontRecord.Value) / (now - frontRecord.Time).MilliSeconds();
-                    YT_LOG_DEBUG("Checking average GPU power on window (TaskName: %v, AverageUsage: %v, EffectiveWindowSize: %v)",
-                        taskName,
-                        usage - frontRecord.Value,
-                        now - frontRecord.Time);
+                    YT_TLOG_DEBUG("Checking average GPU power on window")
+                        .With("TaskName", taskName)
+                        .With("AverageUsage", usage - frontRecord.Value)
+                        .With("EffectiveWindowSize", now - frontRecord.Time);
                     if (averageUsage < config->Threshold) {
                         auto error = TError(
                                 "Jobs of task %Qlv have average GPU power less than %v Watts during last %v minutes",
                                 taskName,
                                 config->Threshold,
                                 config->WindowSize.Minutes())
-                            << TErrorAttribute("average_usage", averageUsage)
-                            << TErrorAttribute("threshold", config->Threshold)
-                            << TErrorAttribute("task_name", taskName);
+                            .With("average_usage", averageUsage)
+                            .With("threshold", config->Threshold)
+                            .With("task_name", taskName);
                         errors.push_back(error);
                     }
                 }
@@ -648,7 +649,7 @@ private:
 
         TError error;
         if (!errors.empty()) {
-            error = TError("Average GPU power is too low on window") << errors;
+            error = TError("Average GPU power is too low on window").With(errors);
         }
 
         Host_->SetOperationAlert(EOperationAlertType::LowGpuPowerOnWindow, error);
@@ -689,7 +690,7 @@ private:
                     jobType,
                     Config_->ShortJobsAlertMinJobDuration.Seconds(),
                     Host_->GetDataWeightParameterNameForJob(jobType))
-                        << TErrorAttribute("average_job_duration", avgJobDuration);
+                        .With("average_job_duration", avgJobDuration);
 
                 innerErrors.push_back(error);
             }
@@ -701,7 +702,7 @@ private:
                 "Operation has jobs with duration is less than %v seconds, "
                 "that leads to large overhead costs for scheduling",
                 Config_->ShortJobsAlertMinJobDuration.Seconds())
-                << innerErrors;
+                .With(innerErrors);
         }
 
         Host_->SetOperationAlert(EOperationAlertType::ShortJobsDuration, error);
@@ -729,7 +730,7 @@ private:
                 error = TError(
                     "Estimated duration of this operation is about %v days; "
                     "consider breaking operation into smaller ones",
-                    estimatedDuration.Days()) << TErrorAttribute("estimated_duration", estimatedDuration);
+                    estimatedDuration.Days()).With("estimated_duration", estimatedDuration);
                 break;
             }
         }
@@ -747,7 +748,7 @@ private:
             error = TError(
                 "Excessive job spec throttling is detected. Usage ratio of operation can be "
                 "significantly less than fair share ratio")
-                << TErrorAttribute("job_spec_throttler_activation_count", jobSpecThrottlerActivationCount);
+                .With("job_spec_throttler_activation_count", jobSpecThrottlerActivationCount);
         }
 
         Host_->SetOperationAlert(EOperationAlertType::ExcessiveJobSpecThrottling, error);
@@ -764,14 +765,12 @@ private:
             auto deltaEnqueuedActionCount = statistics.EnqueuedActionCount - lastStatistics.EnqueuedActionCount;
             auto deltaExecutedActionCount = statistics.ExecutedActionCount - lastStatistics.ExecutedActionCount;
 
-            YT_LOG_DEBUG(
-                "Operation controller queue statistics (ControllerQueue: %v, DeltaEnqueuedActionCount: %v, "
-                "DeltaExecutedActionCount: %v, WaitingActionCount: %v, TotalTimeEstimate: %v)",
-                queue,
-                deltaEnqueuedActionCount,
-                deltaExecutedActionCount,
-                statistics.WaitingActionCount,
-                statistics.TotalTimeEstimate);
+            YT_TLOG_DEBUG("Operation controller queue statistics")
+                .With("ControllerQueue", queue)
+                .With("DeltaEnqueuedActionCount", deltaEnqueuedActionCount)
+                .With("DeltaExecutedActionCount", deltaExecutedActionCount)
+                .With("WaitingActionCount", statistics.WaitingActionCount)
+                .With("TotalTimeEstimate", statistics.TotalTimeEstimate);
 
             if (statistics.TotalTimeEstimate > Config_->QueueTotalTimeEstimateThreshold) {
                 queueToTotalTimeEstimate.emplace(queue, statistics.TotalTimeEstimate);
@@ -788,7 +787,7 @@ private:
                     const auto& [queue, averageWaitTime] = pair;
                     builder->AppendFormat("%Qlv", queue);
                 }))
-                << TErrorAttribute("queues_with_high_total_time_estimate", queueToTotalTimeEstimate);
+                .With("queues_with_high_total_time_estimate", queueToTotalTimeEstimate);
         }
         Host_->SetOperationAlert(EOperationAlertType::HighQueueTotalTimeEstimate, highQueueTotalTimeEstimateError);
     }
@@ -806,14 +805,14 @@ private:
 
         if (invalidatedJobCount > 0) {
             auto invalidatedJobCountError = TError("Operation has invalidated jobs")
-                << TErrorAttribute("invalidated_job_count", invalidatedJobCount);
+                .With("invalidated_job_count", invalidatedJobCount);
             Host_->SetOperationAlert(EOperationAlertType::InvalidatedJobsFound, invalidatedJobCountError);
         }
     }
 
     void AnalyzeTasksUnavailableNetworkBandwidthToClustersDuration()
     {
-        std::optional<TString> taskWithLongUnavailableNetworkBandwidthTime;
+        std::optional<std::string> taskWithLongUnavailableNetworkBandwidthTime;
         for (const auto& task : Host_->GetTasks()) {
             auto totalDuration = task->GetTotalDuration();
             auto unavailableNetworkBandwidthDuration = task->GetUnavailableNetworkBandwidthDuration();
@@ -833,7 +832,7 @@ private:
 
         if (taskWithLongUnavailableNetworkBandwidthTime) {
             auto error = TError("Operation has task with long unavailable network bandwidth to remote clusters")
-                << TErrorAttribute("task_with_long_unavailable_network_bandwidth_time", *taskWithLongUnavailableNetworkBandwidthTime);
+                .With("task_with_long_unavailable_network_bandwidth_time", *taskWithLongUnavailableNetworkBandwidthTime);
 
             Host_->SetOperationAlert(
                 EOperationAlertType::UnavailableNetworkBandwidthToClusters,

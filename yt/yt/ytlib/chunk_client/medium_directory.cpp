@@ -74,6 +74,7 @@ void TMediumDirectory::LoadFrom(const NProto::TMediumDirectory& protoDirectory)
         if (oldIt != oldIndexToDescriptor.end() && *oldIt->second == *descriptor) {
             descriptor = std::move(oldIt->second);
         }
+
         EmplaceOrCrash(IndexToDescriptor_, descriptor->GetIndex(), descriptor);
         EmplaceOrCrash(NameToDescriptor_, descriptor->Name(), descriptor);
     }

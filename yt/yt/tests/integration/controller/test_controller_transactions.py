@@ -18,10 +18,7 @@ from yt_helpers import wait_and_get_controller_incarnation
 
 from time import sleep
 
-import pytest
 
-
-@pytest.mark.enabled_multidaemon
 class TestControllerTransactions(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -65,7 +62,7 @@ class TestControllerTransactions(YTEnvSetup):
         sleep(1)
         try_write(val=10)
 
-        with raises_yt_error("has changed between taking input and output locks"):
+        with raises_yt_error("Table .* has changed between taking input and output locks"):
             op.track()
 
     @authors("coteeq")

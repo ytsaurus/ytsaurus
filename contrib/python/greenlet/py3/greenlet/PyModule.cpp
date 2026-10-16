@@ -17,6 +17,7 @@ using greenlet::ThreadState;
 #    pragma clang diagnostic ignored "-Wunused-variable"
 #endif
 
+
 PyDoc_STRVAR(mod_getcurrent_doc,
              "getcurrent() -> greenlet\n"
              "\n"
@@ -26,6 +27,10 @@ PyDoc_STRVAR(mod_getcurrent_doc,
 static PyObject*
 mod_getcurrent(PyObject* UNUSED(module))
 {
+    if (greenlet::IsShuttingDown()) {
+        PyErr_SetString(PyExc_RuntimeError, "greenlet is being finalized");
+        return nullptr;
+    }
     return GET_THREAD_STATE().state().get_current().relinquish_ownership_o();
 }
 

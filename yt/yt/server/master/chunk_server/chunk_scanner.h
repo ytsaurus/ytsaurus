@@ -1,6 +1,8 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
+
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
 #include <yt/yt/server/master/object_server/object.h>
 
@@ -50,6 +52,9 @@ public:
 
     void OnChunkDestroyed(TChunk* chunk);
 
+    //! Returns whether the chunk belongs to a started shard, even after its global scan has finished.
+    bool IsRelevant(TChunk* chunk) const;
+
     //! Tries to dequeue the next chunk.
     /*!
      *  Returns the next chunk in the global list.
@@ -66,6 +71,8 @@ public:
     //! Returns the effective queue size, including both chunks scheduled for the global scan
     //! and added manually to global chunk scanner.
     int GetQueueSize() const;
+
+    NProfiling::TCpuInstant GetGlobalScanStartTime() const;
 
 protected:
     std::bitset<ChunkShardCount> ActiveShardIndices_;
@@ -104,16 +111,15 @@ public:
 
 protected:
     static int GetShardIndex(TChunk* chunk);
-
-    bool IsRelevant(TChunk* chunk) const;
 };
 
 class TChunkScanQueueBase
 {
 public:
-    explicit TChunkScanQueueBase(EChunkScanKind kind);
+    TChunkScanQueueBase(NCellMaster::TBootstrap* bootstrap, EChunkScanKind kind);
 
 protected:
+    const NCellMaster::TBootstrap* Bootstrap_;
     const EChunkScanKind Kind_;
 
     static bool IsObjectAlive(TChunk* chunk);
@@ -164,8 +170,14 @@ public:
      *  If #delay is specified, the chunk appears in the queue after this delay.
      *  The resulting timepoints of delay expiration are expected to be chronologically ordered.
      *  In case of timepoint collision, the FIFO order is preserved.
+     *
+     *  If #originalInstant is specified, the chunk is considered to be queued for refresh during
+     *  #originalInstant time, otherwise the current time is used.
      */
-    bool EnqueueChunk(TQueuedChunk chunk, std::optional<TCpuDuration> delay = {});
+    bool EnqueueChunk(
+        TQueuedChunk chunk,
+        std::optional<TCpuDuration> delay = {},
+        std::optional<NProfiling::TCpuInstant> originalInstant = {});
 
     //! Checks the queue and dequeues the next chunk. Ephemeral-unrefs it and clears the scan flag.
     TQueuedChunk DequeueChunk();
@@ -175,6 +187,10 @@ public:
         std::numeric_limits<NProfiling::TCpuInstant>::max()) const;
 
     int GetQueueSize() const;
+
+    //! Returns the enqueue instant of the last chunk successfully dequeued from the non-global queue,
+    //! or zero if the last dequeue came from the global scan.
+    std::optional<NProfiling::TCpuInstant> GetLastDequeuedChunkEnqueueInstant() const;
 
 private:
     struct TQueueEntryWithPayload
@@ -197,14 +213,19 @@ private:
     {
         TQueueEntry QueueEntry;
         NProfiling::TCpuInstant Deadline;
+
+        std::weak_ordering operator<=>(const TDelayedQueueEntry& other) const;
     };
-    std::queue<TDelayedQueueEntry> DelayedQueue_;
+
+    TPriorityQueue<TDelayedQueueEntry, std::vector<TDelayedQueueEntry>, std::greater<TDelayedQueueEntry>> DelayedQueue_;
 
     TCpuDuration MaxEnqueueChunkDelay_ = DurationToCpuDuration(TDuration::Minutes(60));
 
     void RequeueDelayedChunks(NProfiling::TCpuInstant deadline);
 
 protected:
+    std::optional<NProfiling::TCpuInstant> LastDequeuedChunkEnqueueInstant_ = std::nullopt;
+
     static constexpr TQueuedChunk None() noexcept;
     static constexpr TQueuedChunk WithoutPayload(TChunk* chunk) noexcept;
 
@@ -231,6 +252,7 @@ public:
     using TQueuedChunk = TChunkQueue::TQueuedChunk;
 
     TChunkScannerWithPayload(
+        NCellMaster::TBootstrap* bootstrap,
         EChunkScanKind kind,
         bool journal);
 
@@ -244,7 +266,10 @@ public:
      *
      *  Otherwise calls #TChunkScanQueueWithPayload::EnqueueChunk.
      */
-    bool EnqueueChunk(TQueuedChunk chunk, std::optional<TCpuDuration> delay = {});
+    bool EnqueueChunk(
+        TQueuedChunk chunk,
+        std::optional<TCpuDuration> delay = {},
+        std::optional<NProfiling::TCpuInstant> originalInstant = {});
 
     //! Tries to dequeue the next chunk.
     /*!

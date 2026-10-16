@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "read_span_refiner.h"
 #endif
-#undef READ_SPAN_REFINER_INL_H_
 
 namespace NYT::NColumnarChunkFormat {
 

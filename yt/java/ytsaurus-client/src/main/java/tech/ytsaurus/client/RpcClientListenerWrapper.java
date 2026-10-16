@@ -108,11 +108,13 @@ class RpcClientListenerWrapper extends RpcClientWrapper {
         );
     }
 
-    private static RpcRequestDescriptor createContext(RpcRequest<?> request, boolean isStream) {
+    private RpcRequestDescriptor createContext(RpcRequest<?> request, boolean isStream) {
         RpcRequestDescriptor.Builder builder = RpcRequestDescriptor.builder()
                 .setService(request.header.getService())
                 .setMethod(request.header.getMethod())
-                .setRequestId(RpcRequest.getRequestId(request.header));
+                .setRequestId(RpcRequest.getRequestId(request.header))
+                .setOriginalRequestId(request.getOriginalRequestId())
+                .setRpcProxyAddress(getAddressString());
         if (isStream) {
             builder.setIsStream(true);
         }
@@ -251,5 +253,3 @@ class MeteredStreamControl implements RpcClientStreamControl {
         return inner.getRpcProxyAddress();
     }
 }
-
-

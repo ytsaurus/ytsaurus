@@ -9,13 +9,6 @@ try:
 except ImportError:
     yatest_common = None
 
-try:
-    from yt.packages.six import iteritems, text_type
-    from yt.packages.six.moves import map as imap
-except ImportError:
-    from six import iteritems, text_type
-    from six.moves import map as imap
-
 import pytest
 from contextlib import contextmanager
 
@@ -34,18 +27,18 @@ def authors(*the_authors):
 def check_rows_equality(rowsA, rowsB, ordered=True):
     def prepare(rows):
         def fix_unicode(obj):
-            if isinstance(obj, text_type):
+            if isinstance(obj, str):
                 return str(obj)
             return obj
 
         def process_row(row):
             if isinstance(row, dict):
-                return dict([(fix_unicode(key), fix_unicode(value)) for key, value in iteritems(row)])
+                return dict([(fix_unicode(key), fix_unicode(value)) for key, value in row.items()])
             return row
 
-        rows = list(imap(process_row, rows))
+        rows = list(map(process_row, rows))
         if not ordered:
-            rows = tuple(sorted(imap(lambda obj: tuple(sorted(iteritems(obj))), rows)))
+            rows = tuple(sorted(map(lambda obj: tuple(sorted(obj.items())), rows)))
 
         return rows
 
@@ -71,11 +64,11 @@ def set_config_options(options_dict):
     for key in options_dict:
         old_values[key] = yt.config._get(key)
     try:
-        for key, value in iteritems(options_dict):
+        for key, value in options_dict.items():
             yt.config._set(key, value)
         yield
     finally:
-        for key, value in iteritems(old_values):
+        for key, value in old_values.items():
             yt.config._set(key, value)
 
 

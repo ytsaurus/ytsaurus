@@ -10,8 +10,8 @@ namespace NYT::NSequoiaServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, SequoiaServerLogger, "SequoiaServer");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, SequoiaServerProfiler, "/sequoia_server");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, SequoiaServerLogger, "SequoiaServer");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, SequoiaServerProfiler, "/sequoia_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -19,6 +19,7 @@ package xdsresource
 
 import (
 	"fmt"
+	"math"
 	"net"
 	"strconv"
 	"testing"
@@ -29,6 +30,7 @@ import (
 	v3typepb "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"google.golang.org/grpc/experimental/balancer/hostname"
 	"google.golang.org/grpc/internal/envconfig"
 	"google.golang.org/grpc/internal/pretty"
 	"google.golang.org/grpc/internal/testutils"
@@ -42,13 +44,36 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func buildResolverEndpoint(addr []string, hostname string) resolver.Endpoint {
+// enableA86 enables A86 support for the duration of the test by:
+//  1. Setting the GRPC_EXPERIMENTAL_XDS_HTTP_CONNECT env var to true.
+//  2. Registering the proxy address converter (and restore original
+//     on cleanup).
+func enableA86(t *testing.T) {
+	testutils.SetEnvConfig(t, &envconfig.XDSHTTPConnectEnabled, true)
+	cleanup, err := RegisterMetadataConverterForTesting(version.V3AddressURL)
+	if err != nil {
+		t.Fatalf("RegisterMetadataConverterForTesting(%q) failed: %v", version.V3AddressURL, err)
+	}
+	t.Cleanup(cleanup)
+}
+
+// disableA86 disables A86 support for the duration of the test by:
+//  1. Setting the GRPC_EXPERIMENTAL_XDS_HTTP_CONNECT env var to false.
+//  2. Unregistering the proxy address converter for the duration of the test
+//     (and restoring the original on cleanup).
+func disableA86(t *testing.T) {
+	testutils.SetEnvConfig(t, &envconfig.XDSHTTPConnectEnabled, false)
+	cleanup := UnregisterMetadataConverterForTesting(version.V3AddressURL)
+	t.Cleanup(cleanup)
+}
+
+func buildResolverEndpoint(addr []string, host string) resolver.Endpoint {
 	address := []resolver.Address{}
 	for _, a := range addr {
 		address = append(address, resolver.Address{Addr: a})
 	}
 	resolverEndpoint := resolver.Endpoint{Addresses: address}
-	resolverEndpoint = SetHostname(resolverEndpoint, hostname)
+	resolverEndpoint = hostname.Set(resolverEndpoint, host)
 	return resolverEndpoint
 }
 
@@ -114,6 +139,23 @@ func (s) TestEDSParseRespProto(t *testing.T) {
 				return clab0.Build()
 			}(),
 			want: EndpointsUpdate{},
+		},
+		{
+			name: "max sum of endpoint weights within a locality exceeded",
+			m: func() *v3endpointpb.ClusterLoadAssignment {
+				clab0 := newClaBuilder("test", nil)
+				endpoints := []endpointOpts{
+					{addrWithPort: "addr1:314"},
+					{addrWithPort: "addr2:159"},
+				}
+				locOption := &addLocalityOptions{
+					Weight: []uint32{math.MaxUint32, 1},
+				}
+				clab0.addLocality("locality-1", 1, 0, endpoints, locOption)
+				return clab0.Build()
+			}(),
+			want:    EndpointsUpdate{},
+			wantErr: true,
 		},
 		{
 			name: "max sum of weights at the same priority exceeded",
@@ -359,6 +401,7 @@ func (s) TestEDSParseRespProtoAdditionalAddrs(t *testing.T) {
 
 func (s) TestUnmarshalEndpointHashKey(t *testing.T) {
 	baseCLA := &v3endpointpb.ClusterLoadAssignment{
+		ClusterName: "test-cluster",
 		Endpoints: []*v3endpointpb.LocalityLbEndpoints{
 			{
 				Locality: &v3corepb.Locality{Region: "r"},
@@ -487,7 +530,7 @@ func (s) TestUnmarshalEndpointHashKey(t *testing.T) {
 }
 
 func (s) TestUnmarshalEndpoints(t *testing.T) {
-	testutils.SetEnvConfig(t, &envconfig.XDSHTTPConnectEnabled, true)
+	enableA86(t)
 	var v3EndpointsAny = testutils.MarshalAny(t, func() *v3endpointpb.ClusterLoadAssignment {
 		clab0 := newClaBuilder("test", nil)
 		endpoints1 := []endpointOpts{{addrWithPort: "addr1:314", hostname: "addr1"}}
@@ -513,12 +556,12 @@ func (s) TestUnmarshalEndpoints(t *testing.T) {
 		wantErr    bool
 	}{
 		{
-			name:     "non-clusterLoadAssignment resource type",
+			name:     "non-clusterLoadAssignment_resourcetype",
 			resource: &anypb.Any{TypeUrl: version.V3HTTPConnManagerURL},
 			wantErr:  true,
 		},
 		{
-			name: "badly marshaled clusterLoadAssignment resource",
+			name: "badly_marshaled_clusterLoadAssignment_resource",
 			resource: &anypb.Any{
 				TypeUrl: version.V3EndpointsURL,
 				Value:   []byte{1, 2, 3, 4},
@@ -526,7 +569,7 @@ func (s) TestUnmarshalEndpoints(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "bad endpoints resource",
+			name: "bad_endpoints_resource",
 			resource: testutils.MarshalAny(t, func() *v3endpointpb.ClusterLoadAssignment {
 				clab0 := newClaBuilder("test", nil)
 				clab0.addLocality("locality-1", 1, 0, []endpointOpts{{addrWithPort: "addr1:314"}}, nil)
@@ -537,7 +580,18 @@ func (s) TestUnmarshalEndpoints(t *testing.T) {
 			wantErr:  true,
 		},
 		{
-			name:     "v3 endpoints",
+			name: "endpoint_resource_with_empty_cluster_name",
+			resource: testutils.MarshalAny(t, func() *v3endpointpb.ClusterLoadAssignment {
+				clab0 := newClaBuilder("", nil)
+				clab0.addLocality("locality-1", 1, 0, []endpointOpts{{addrWithPort: "addr1:314"}}, nil)
+				clab0.addLocality("locality-2", 1, 2, []endpointOpts{{addrWithPort: "addr2:159"}}, nil)
+				return clab0.Build()
+			}()),
+			wantName: "",
+			wantErr:  true,
+		},
+		{
+			name:     "v3_endpoints",
 			resource: v3EndpointsAny,
 			wantName: "test",
 			wantUpdate: EndpointsUpdate{
@@ -568,7 +622,7 @@ func (s) TestUnmarshalEndpoints(t *testing.T) {
 			},
 		},
 		{
-			name:     "v3 endpoints wrapped",
+			name:     "v3_endpoints_wrapped",
 			resource: testutils.MarshalAny(t, &v3discoverypb.Resource{Resource: v3EndpointsAny}),
 			wantName: "test",
 			wantUpdate: EndpointsUpdate{
@@ -618,7 +672,7 @@ func (s) TestUnmarshalEndpoints(t *testing.T) {
 // Tests custom metadata parsing for success cases when the
 // GRPC_EXPERIMENTAL_XDS_HTTP_CONNECT environment variable is set.
 func (s) TestEDSParseRespProto_HTTP_Connect_CustomMetadata_EnvVarOn(t *testing.T) {
-	testutils.SetEnvConfig(t, &envconfig.XDSHTTPConnectEnabled, true)
+	enableA86(t)
 	tests := []struct {
 		name          string
 		endpointProto *v3endpointpb.ClusterLoadAssignment
@@ -1025,9 +1079,11 @@ func (s) TestEDSParseRespProto_HTTP_Connect_CustomMetadata_EnvVarOn(t *testing.T
 }
 
 // Tests custom metadata parsing for success cases when the
-// GRPC_EXPERIMENTAL_XDS_HTTP_CONNECT environment variable is not set.
+// GRPC_EXPERIMENTAL_XDS_HTTP_CONNECT environment variable is not set and
+// GRPC_XDS_ENDPOINT_HASH_KEY_BACKWARD_COMPAT is set to true (disabling A76).
 func (s) TestEDSParseRespProto_HTTP_Connect_CustomMetadata_EnvVarOff(t *testing.T) {
-	testutils.SetEnvConfig(t, &envconfig.XDSHTTPConnectEnabled, false)
+	disableA86(t)
+	testutils.SetEnvConfig(t, &envconfig.XDSEndpointHashKeyBackwardCompat, true)
 	tests := []struct {
 		name          string
 		endpointProto *v3endpointpb.ClusterLoadAssignment
@@ -1345,7 +1401,7 @@ func (s) TestEDSParseRespProto_HTTP_Connect_CustomMetadata_EnvVarOff(t *testing.
 // Tests custom metadata parsing for converter failure cases when the
 // GRPC_EXPERIMENTAL_XDS_HTTP_CONNECT environment variable is set.
 func (s) TestEDSParseRespProto_HTTP_Connect_CustomMetadata_ConverterFailure(t *testing.T) {
-	testutils.SetEnvConfig(t, &envconfig.XDSHTTPConnectEnabled, true)
+	enableA86(t)
 	tests := []struct {
 		name          string
 		endpointProto *v3endpointpb.ClusterLoadAssignment
@@ -1401,6 +1457,128 @@ func (s) TestEDSParseRespProto_HTTP_Connect_CustomMetadata_ConverterFailure(t *t
 				t.Fatalf("parseEDSRespProto() did not return error when expected")
 			}
 		})
+	}
+}
+
+// Tests metadata parsing when HTTP Connect is enabled but A76 hash key is
+// disabled (backward compat mode). This verifies that:
+// - Metadata parsing happens (TypedFilterMetadata + FilterMetadata)
+// - Hash key is NOT extracted from envoy.lb
+func (s) TestEDSParseRespProto_HTTP_Connect_On_HashKeyBackwardCompat_On(t *testing.T) {
+	enableA86(t)
+	testutils.SetEnvConfig(t, &envconfig.XDSEndpointHashKeyBackwardCompat, true)
+
+	clab0 := newClaBuilder("test", nil)
+	endpoints := []endpointOpts{{
+		addrWithPort: "addr1:314",
+		metadata: &v3corepb.Metadata{
+			TypedFilterMetadata: map[string]*anypb.Any{
+				"envoy.http11_proxy_transport_socket.proxy_address": testutils.MarshalAny(t, &v3corepb.Address{
+					Address: &v3corepb.Address_SocketAddress{
+						SocketAddress: &v3corepb.SocketAddress{
+							Address: "1.2.3.4",
+							PortSpecifier: &v3corepb.SocketAddress_PortValue{
+								PortValue: 1111,
+							},
+						},
+					},
+				}),
+			},
+			FilterMetadata: map[string]*structpb.Struct{
+				"envoy.lb": {
+					Fields: map[string]*structpb.Value{
+						"hash_key": {
+							Kind: &structpb.Value_StringValue{StringValue: "test-hash-key"},
+						},
+					},
+				},
+			},
+		},
+		hostname: "addr1",
+	}}
+	clab0.addLocality("locality-1", 1, 0, endpoints, nil)
+
+	got, err := parseEDSRespProto(clab0.Build())
+	if err != nil {
+		t.Fatalf("parseEDSRespProto() failed: %v", err)
+	}
+
+	wantEndpoint := EndpointsUpdate{
+		Localities: []Locality{
+			{
+				Endpoints: []Endpoint{{
+					ResolverEndpoint: buildResolverEndpoint([]string{"addr1:314"}, "addr1"),
+					HealthStatus:     EndpointHealthStatusUnknown,
+					Weight:           1,
+					Metadata: map[string]any{
+						"envoy.http11_proxy_transport_socket.proxy_address": ProxyAddressMetadataValue{
+							Address: "1.2.3.4:1111",
+						},
+						"envoy.lb": StructMetadataValue{Data: map[string]any{
+							"hash_key": "test-hash-key",
+						}},
+					},
+				}},
+				ID:       clients.Locality{SubZone: "locality-1"},
+				Priority: 0,
+				Weight:   1,
+			},
+		},
+	}
+
+	if diff := cmp.Diff(wantEndpoint, got, cmpopts.EquateEmpty()); diff != "" {
+		t.Errorf("parseEDSRespProto() returned unexpected diff (-want +got):\n%s", diff)
+	}
+
+	// Verify hash key is NOT extracted when backward compat is on.
+	hashKey := ringhash.HashKey(got.Localities[0].Endpoints[0].ResolverEndpoint)
+	if hashKey != "" {
+		t.Errorf("Expected empty hash key with backward compat on, got %q", hashKey)
+	}
+}
+
+// Tests that when A76 is enabled but A86 is disabled, invalid typed metadata
+// does not cause a parsing failure, and hash key is still extracted.
+func (s) TestEDSParseRespProto_HTTP_Connect_Off_HashKeyBackwardCompat_Off_InvalidTypedMetadata(t *testing.T) {
+	disableA86(t)
+	testutils.SetEnvConfig(t, &envconfig.XDSEndpointHashKeyBackwardCompat, false) // A76 on
+
+	clab0 := newClaBuilder("test", nil)
+	endpoints := []endpointOpts{{
+		addrWithPort: "addr1:314",
+		metadata: &v3corepb.Metadata{
+			TypedFilterMetadata: map[string]*anypb.Any{
+				"envoy.http11_proxy_transport_socket.proxy_address": testutils.MarshalAny(t, &v3corepb.Address{
+					Address: &v3corepb.Address_SocketAddress{
+						SocketAddress: &v3corepb.SocketAddress{
+							Address: "invalid", // This would fail conversion if processed.
+						},
+					},
+				}),
+			},
+			FilterMetadata: map[string]*structpb.Struct{
+				"envoy.lb": {
+					Fields: map[string]*structpb.Value{
+						"hash_key": {
+							Kind: &structpb.Value_StringValue{StringValue: "test-hash-key"},
+						},
+					},
+				},
+			},
+		},
+		hostname: "addr1",
+	}}
+	clab0.addLocality("locality-1", 1, 0, endpoints, nil)
+
+	got, err := parseEDSRespProto(clab0.Build())
+	if err != nil {
+		t.Fatalf("parseEDSRespProto() failed unexpectedly with A76 on and A86 off: %v", err)
+	}
+
+	// Verify hash key is extracted when A76 is on.
+	hashKey := ringhash.HashKey(got.Localities[0].Endpoints[0].ResolverEndpoint)
+	if want := "test-hash-key"; hashKey != want {
+		t.Errorf("Expected hash key %q with A76 on, got %q", want, hashKey)
 	}
 }
 

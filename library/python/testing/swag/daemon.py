@@ -62,9 +62,11 @@ class Daemon(object):
             cwd = tempfile.mkdtemp()
         self.cwd = cwd
 
-        self.stdoutf = stdout or tempfile.NamedTemporaryFile(dir=self.cwd, prefix="stdout_", delete=False)
-        self.stderrf = stderr or tempfile.NamedTemporaryFile(dir=self.cwd, prefix="stderr_", delete=False)
-        self.stdinf = stdin or tempfile.NamedTemporaryFile(dir=self.cwd, prefix="stdin_", delete=False)
+        self._owned_streams = []
+
+        self.stdoutf = stdout or self._create_stream("stdout_")
+        self.stderrf = stderr or self._create_stream("stderr_")
+        self.stdinf = stdin or self._create_stream("stdin_")
 
         self.cmd = command
         if isinstance(command, six.string_types):
@@ -90,6 +92,19 @@ class Daemon(object):
 
     def after_stop(self):
         pass
+
+    def _create_stream(self, prefix):
+        f = tempfile.NamedTemporaryFile(dir=self.cwd, prefix=prefix, delete=False)
+        self._owned_streams.append(f)
+        return f
+
+    def _close_streams(self):
+        for f in self._owned_streams:
+            if not f.closed:
+                try:
+                    f.close()
+                except Exception:
+                    logger.exception("Exception while closing stream")
 
     def is_alive(self):
         return self.daemon and self.daemon.running
@@ -197,6 +212,7 @@ class Daemon(object):
 
     def stop(self, kill=False):
         if not self.is_alive() and self.daemon.exit_code == 0:
+            self._close_streams()
             return
 
         if not self.is_alive():
@@ -207,6 +223,7 @@ class Daemon(object):
             except Exception:
                 logger.exception("Exception in user hook after_stop.")
 
+            self._close_streams()
             raise DaemonError(
                 Daemon.__log_failed(
                     "process {} unexpectedly finished with exit code {}.".format(self.cmd, self.daemon.exit_code),
@@ -253,6 +270,7 @@ class Daemon(object):
                 err=stderr
             )
             logger.error(msg)
+            self._close_streams()
             raise DaemonError(msg, stdout=stdout, stderr=stderr, exit_code=self.daemon.exit_code)
 
         stdout, stderr = self.__communicate()
@@ -267,9 +285,12 @@ class Daemon(object):
             self.check_coredump()
             if self._check_exit_code and self.daemon.exit_code != 0:
                 stdout, stderr = self.__communicate()
+                self._close_streams()
                 raise DaemonError("Bad exit_code.", stdout=stdout, stderr=stderr, exit_code=self.daemon.exit_code)
         else:
             logger.warning("Exit code is not checked, cos binary was stopped by sigkill")
+
+        self._close_streams()
 
     def _read_io(self, file_obj):
         file_obj.flush()

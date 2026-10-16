@@ -13,6 +13,67 @@ env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
 jobs:
+  discover-docker-cache-branches:
+    name: Discover Docker cache branches
+    if: github.repository == 'ytsaurus/ytsaurus'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.result }}
+    steps:
+      - name: Select latest release branches
+        id: matrix
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branches = await github.paginate(github.rest.repos.listBranches, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+            const families = [
+              {name: 'stable', installNvidiaPackages: true},
+              {name: 'query-tracker', installNvidiaPackages: false},
+              {name: 'chyt', installNvidiaPackages: false},
+            ];
+            const include = [{
+              ref: 'main',
+              cacheSlot: 'main',
+              installNvidiaPackages: true,
+            }];
+
+            for (const family of families) {
+              const prefix = `${family.name}/`;
+              const selected = branches
+                .map(({name}) => {
+                  if (!name.startsWith(prefix)) {
+                    return null;
+                  }
+                  const match = name.slice(prefix.length).match(/^(\d+)\.(\d+)$/);
+                  if (!match) {
+                    return null;
+                  }
+                  return {
+                    name,
+                    major: Number(match[1]),
+                    minor: Number(match[2]),
+                  };
+                })
+                .filter(Boolean)
+                .sort((lhs, rhs) => rhs.major - lhs.major || rhs.minor - lhs.minor)
+                .slice(0, 3);
+
+              if (selected.length < 3) {
+                core.warning(`Found only ${selected.length} ${family.name} release branches`);
+              }
+              selected.forEach(({name}, slot) => include.push({
+                ref: name,
+                cacheSlot: `${family.name}-${slot}`,
+                installNvidiaPackages: family.installNvidiaPackages,
+              }));
+            }
+
+            return {include};
+
   start-vm:
     name: Start VM
     if: github.repository == 'ytsaurus/ytsaurus'
@@ -23,9 +84,10 @@ jobs:
     steps:
       - name: Start YC runner
         id: start-yc-runner
-        uses: yc-actions/yc-github-runner@v1
+        uses: yc-actions/yc-github-runner@v2.1.0
         with:
           mode: start
+          retry-timeout: PT5M
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           folder-id: ${{ vars.YC_FOLDER_ID }}
@@ -49,9 +111,96 @@ jobs:
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
       - name: Checkout ytsaurus
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: ytsaurus
+
+  heat-docker-cache:
+    name: Heat Docker base cache (${{ matrix.ref }})
+    needs:
+      - discover-docker-cache-branches
+      - start-vm
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.discover-docker-cache-branches.outputs.matrix) }}
+    steps:
+      - name: Checkout ytsaurus
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.ref }}
+          path: docker-cache-source
+
+      - name: Setup retry function
+        run: |
+          cat << 'EOF' > docker-cache-retry.sh
+          function retry {
+              local retries=30
+              local count=0
+              until "$@"; do
+                  exit_code=$?
+                  count=$(($count + 1))
+                  if [ $count -lt $retries ]; then
+                      echo "Attempt $count failed with exit code $exit_code. Retrying..."
+                  else
+                      echo "Attempt $count failed with exit code $exit_code. No more retries."
+                      return $exit_code
+                  fi
+              done
+              return 0
+          }
+          EOF
+
+      - name: Docker login
+        run: |
+          echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
+
+      - name: Docker setup daemon
+        run: |
+          mkdir -p /etc/docker
+          touch /etc/docker/daemon.json
+          if grep -q 'mirror.gcr.io' /etc/docker/daemon.json && grep -Eq '"containerd-snapshotter"[[:space:]]*:[[:space:]]*true' /etc/docker/daemon.json; then
+            echo "Docker daemon already set up, skipping."
+          else
+            echo '{"features":{"containerd-snapshotter":true},"registry-mirrors":["https://mirror.gcr.io"]}' > /etc/docker/daemon.json
+            systemctl restart docker
+          fi
+
+      - name: Docker setup buildx
+        run: |
+          source docker-cache-retry.sh
+          docker buildx use default
+          retry docker buildx inspect default --bootstrap
+
+      - name: Heat Docker base cache
+        env:
+          CACHE_REPOSITORY: ghcr.io/ytsaurus/ytsaurus-build-cache
+          CACHE_TAG: ya-make-${{ matrix.cacheSlot }}
+          INSTALL_NVIDIA_PACKAGES: ${{ matrix.installNvidiaPackages }}
+        run: |
+          source docker-cache-retry.sh
+
+          cache_from_args=(
+            --cache-from "type=registry,ref=${CACHE_REPOSITORY}:ya-make-main"
+          )
+          for cache_family in stable query-tracker chyt; do
+            for cache_slot in 0 1 2; do
+              cache_from_args+=(
+                --cache-from "type=registry,ref=${CACHE_REPOSITORY}:ya-make-${cache_family}-${cache_slot}"
+              )
+            done
+          done
+
+          retry docker buildx build \
+            --progress plain \
+            --target base \
+            "${cache_from_args[@]}" \
+            --cache-to "type=registry,ref=${CACHE_REPOSITORY}:${CACHE_TAG},mode=min" \
+            --build-arg "APT_MIRROR=${{ vars.APT_MIRROR }}" \
+            --build-arg "INSTALL_NVIDIA_PACKAGES=${INSTALL_NVIDIA_PACKAGES}" \
+            docker-cache-source/yt/docker/ytsaurus
 
   build:
     name: Build
@@ -132,18 +281,80 @@ jobs:
           done
           ./ya make ${BUILD_FLAGS} ${FOLDERS_WITH_UNITTESTS[@]}
 
+  build-tests:
+    name: Warm profile test cache
+    needs:
+      - start-vm
+      - checkout
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 480
+    steps:
+      - name: Warm profile test cache
+        run: |
+          set -ex
+
+          cd ytsaurus
+
+          BUILD_FLAGS="--stat -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --bazel-remote-store"
+          BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }}"
+          BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-username=${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}"
+          BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-password=${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}"
+          BUILD_FLAGS="${BUILD_FLAGS} --build=profile"
+          BUILD_FLAGS="${BUILD_FLAGS} -DSTRIP=no"
+
+          FOLDERS_WITH_UNITTESTS=""
+          for makefile in $(find . -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
+            folder=$(dirname ${makefile})
+            echo ${folder}
+            FOLDERS_WITH_UNITTESTS="${FOLDERS_WITH_UNITTESTS} ${folder}"
+          done
+
+          ./ya make ${BUILD_FLAGS} -A --test-prepare --bazel-remote-put ${FOLDERS_WITH_UNITTESTS}
+
+          INTEGRATION_TEST_TARGETS="\
+            yt/yt/tests/integration/size_s \
+            yt/yt/tests/integration/size_m \
+            yt/yt/tests/integration/size_l \
+            yt/yt/tests/integration/size_xl"
+
+          ./ya make ${BUILD_FLAGS} ${INTEGRATION_TEST_TARGETS} -A --test-prepare --bazel-remote-put
+
+          # Programs and C++ unit tests required by the exported Flow examples.
+          FLOW_PROGRAM_TARGETS="yt/yt/flow/bin/flow_server"
+          for test_dir in yt/yt/flow/examples/cpp/*/test; do
+            if [ -d "${test_dir}" ]; then
+              FLOW_PROGRAM_TARGETS="${FLOW_PROGRAM_TARGETS} $(dirname "${test_dir}")"
+            fi
+          done
+
+          FLOW_CPP_UNITTEST_TARGETS=""
+          for unittest_dir in \
+            yt/yt/flow/examples/cpp/*/unittest \
+            yt/yt/flow/examples/cpp/*/pipeline/unittest
+          do
+            if [ -d "${unittest_dir}" ]; then
+              FLOW_CPP_UNITTEST_TARGETS="${FLOW_CPP_UNITTEST_TARGETS} ${unittest_dir}"
+            fi
+          done
+
+          ./ya make ${BUILD_FLAGS} --bazel-remote-put ${FLOW_PROGRAM_TARGETS}
+          ./ya make ${BUILD_FLAGS} -A --test-prepare --bazel-remote-put ${FLOW_CPP_UNITTEST_TARGETS}
+
   stop-vm:
     name: Stop VM
     needs:
       - start-vm
       - build
+      - build-tests
+      - heat-docker-cache
     runs-on: trampoline
     if: ${{ always() && github.repository == 'ytsaurus/ytsaurus' }}
     steps:
       - name: Stop YC runner
-        uses: yc-actions/yc-github-runner@v1
+        uses: yc-actions/yc-github-runner@v2.1.0
         with:
           mode: stop
+          retry-timeout: PT5M
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start-vm.outputs.label }}
@@ -153,15 +364,11 @@ jobs:
     name: Send notifications
     needs:
       - stop-vm
-    runs-on: ubuntu-latest
     if: ${{ failure() && github.repository == 'ytsaurus/ytsaurus' }}
-    steps:
-      - name: Send telegram message
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_TOKEN }}
-          disable_web_page_preview: true
-          format: markdown
-          message: |
-            Cache heater failed
+    uses: ./.github/workflows/send_telegram_notification.yaml
+    with:
+      notification_type: cache_heater_failure
+      runner: ubuntu-latest
+    secrets:
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}

@@ -3,7 +3,7 @@
 #include "cluster_nodes.h"
 #include "private.h"
 #include "config.h"
-#include "cypress_config_repository.h"
+#include "cypress_object_repository.h"
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -13,15 +13,22 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
+#include <yt/yt/client/api/client_common.h>
+
 #include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/ytree/permission.h>
+#include <yt/yt/core/ytree/public.h>
 
 #include <string>
 
 namespace NYT::NClickHouseServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TDiscoveryNodes = THashMap<std::string, NYTree::IAttributeDictionaryPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +42,9 @@ public:
         IInvokerPtr controlInvoker,
         TPorts ports,
         TYtConfigPtr config,
-        NApi::NNative::TConnectionCompoundConfigPtr connectionConfig);
+        NApi::NNative::TConnectionCompoundConfigPtr connectionConfig,
+        NApi::NNative::EClusterConnectionDynamicConfigPolicy connectionDynamicConfigPolicy,
+        NYTree::INodePtr clusterConnectionNode);
 
     virtual ~THost() override;
 
@@ -45,22 +54,25 @@ public:
 
     TFuture<void> StopDiscovery();
 
-    void ValidateCliquePermission(const TString& user, NYTree::EPermission permission) const;
+    void ValidateCliquePermission(const std::string& user, NYTree::EPermission permission) const;
 
     std::vector<TRowLevelAcl> ValidateTableReadPermissionsAndGetRowLevelAcl(
         const std::vector<NYPath::TRichYPath>& paths,
-        const TString& user);
+        const std::string& user);
 
     TFuture<std::vector<TErrorOr<EPreliminaryCheckPermissionResult>>> PreliminaryCheckPermissions(
         const std::vector<NYPath::TYPath>& paths,
-        const TString& user);
-    //! Get the names of the attributes that the local cache is configured for.
-    //! NB: This is the state of THost, not some global variable,
-    //! because the set of attributes may depend on the config.
-    const std::vector<std::string>& GetObjectAttributeNamesToFetch() const;
+        const std::string& user);
 
+    //! Get object attributes directly from specified master channel.
+    TFuture<std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>>> GetObjectAttributesDirect(
+        const std::vector<NYPath::TYPath>& paths,
+        const std::vector<NHydra::TRevision>& revisions,
+        const NApi::NNative::IClientPtr& client,
+        const NApi::TMasterReadOptions& masterReadOptions,
+        const NApi::TTransactionalOptions& transactionalOptions = {});
     //! Get object attributes via local cache.
-    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributes(
+    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributesCached(
         const std::vector<NYPath::TYPath>& paths,
         const NApi::NNative::IClientPtr& client);
     //! Invalidate object attribute entries in local cache.
@@ -96,18 +108,31 @@ public:
     //! Cf. clickhouse_invoker.h
     const IInvokerPtr& GetClickHouseFetcherInvoker() const;
 
+    //! Separate thread pool for secondary query read task pulling.
+    const IInvokerPtr& GetClickHouseTaskPullerInvoker() const;
+
     NApi::NNative::IClientPtr GetRootClient() const;
     NApi::NNative::IClientPtr GetDictionariesClient() const;
+    NApi::NNative::IClientPtr GetSqlObjectsClient() const;
     NApi::NNative::IClientPtr CreateClient(const std::string& user) const;
+    NApi::NNative::IConnectionPtr GetConnection() const;
 
     //! Return nodes available through discovery service.
     //! In some cases local node can be out of discovery protocol
     //! (e.g. the instance is in 'interrupting' state or not started yet).
     //! |alwaysIncludeLocal| controls the behavior in such cases.
     TClusterNodes GetNodes(bool alwaysIncludeLocal = false) const;
+    TDiscoveryNodes GetDiscoveryNodes() const;
     IClusterNodePtr GetLocalNode() const;
 
     int GetInstanceCookie() const;
+
+    //! Returns |true| if this instance currently holds the per-clique leader lock,
+    //! or if the election is not configured (in which case it always returns |true|).
+    bool IsLeader() const;
+
+    //! Returns nullopt outside leadership, or a null transaction id if election is disabled.
+    std::optional<NTransactionClient::TTransactionId> GetLeadershipTransactionId() const;
 
     const NChunkClient::IMultiReaderMemoryManagerPtr& GetMultiReaderMemoryManager() const;
 
@@ -124,10 +149,6 @@ public:
     TFuture<void> GetIdleFuture() const;
 
     void PopulateSystemDatabase(DB::IDatabase* systemDatabase) const;
-    DB::DatabasePtr CreateYTDatabase() const;
-
-    //! Create rooted databases using names and rootes specified in the yt-config by user.
-    std::vector<DB::DatabasePtr> CreateUserDefinedDatabases() const;
 
     std::vector<TString> GetUserDefinedDatabaseNames() const;
 
@@ -139,6 +160,11 @@ public:
 
     NTableClient::TTableColumnarStatisticsCachePtr GetTableColumnarStatisticsCache() const;
 
+    //! Returns nullptr if chunk spec caching is disabled (TSubqueryConfig::ChunkSpecCache is unset).
+    TChunkSpecCachePtr GetChunkSpecCache() const;
+
+    NProfiling::TEventTimer& GetChunkSpecsFetchTimeCounter() const;
+
     bool HasUserDefinedSqlObjectStorage() const;
     IUserDefinedSqlObjectsYTStorage* GetUserDefinedSqlObjectStorage();
 
@@ -147,9 +173,15 @@ public:
 
     void ReloadDictionaryGlobally(const std::string& configPath) const;
 
-    TCypressDictionaryConfigRepositoryPtr GetCypressDictionaryConfigRepository();
+    TCypressObjectRepositoryPtr GetCypressObjectRepository() const;
+
+    TMaterializedViewCoordinatorPtr GetMaterializedViewCoordinator() const;
+
+    void RefreshCypressObjectRepositoryGlobally() const;
 
     void PrepareClickHouseUser(const std::string& userName);
+
+    void ValidateDictionaryGrants(const std::string& userName, const DB::StorageID& storageId);
 
 private:
     class TImpl;

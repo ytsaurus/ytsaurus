@@ -29,7 +29,7 @@ NAME                                                      READY   STATUS     RES
 ytsaurus-ytop-chart-controller-manager-7478f9b6cb-qr8wd   2/2     Running   0           1m
 ```
 
-Про обновление оператора можно прочитать в разделе [Обновление оператора](../../admin-guide/update-ytsaurus.md#operator).
+Про обновление оператора можно прочитать в разделе [обновление оператора](../../admin-guide/update/update-ytsaurus.md#update-operator).
 
 ## Запуск кластера {{product-name}}
 
@@ -126,6 +126,8 @@ $ kubectl get ytsaurus -n <namespace>
 NAME         CLUSTERSTATE   UPDATESTATE   UPDATINGCOMPONENTS
 minisaurus   Running        None
 ```
+
+Чтобы обновить кластер, ознакомьтесь с [этой статьей](../../admin-guide/update/update-ytsaurus.md). В ней подробно рассказывается, как подготовить кластер к обновлению, обновить оператор и проверить результат.
 
 ### Диагностика проблем при инициализации
 
@@ -288,6 +290,7 @@ Events:
 
 Другая возможная причина – невозможность заселения подов из-за недостаточного количества k8s-нод. Если в вашем k8s-кластере количество нод меньше, чем количество мастер-серверов {{product-name}}, то они не смогут запуститься из-за antiaffinity contraints. Для выключения данного ограничения укажите опцию `ephemeralCluster: true`.
 
+{% endcut %}
 
 ## Установка веб-интерфейса {{product-name}} { #ui }
 
@@ -296,8 +299,7 @@ Events:
 Выполните все необходимые действия для [запуска кластера {{product-name}}](#starting-cluster). Затем установите чарт:
 
 ```
-git clone https://github.com/ytsaurus/ytsaurus-ui.git
-helm upgrade --install ytsaurus-ui ytsaurus-ui/packages/ui-helm-chart/
+helm upgrade --install ytsaurus-ui oci://ghcr.io/ytsaurus/ytsaurus-ui-chart
 ```
 
 ### Работа с пользовательским кластером
@@ -350,10 +352,9 @@ _EOF
 После этого можно приступить к установке или обновлению чарта:
 
 ```
-git clone https://github.com/ytsaurus/ytsaurus-ui.git
-helm upgrade --install yt-ui ytsaurus-ui/packages/ui-helm-chart/ -f values.yaml
+helm upgrade --install yt-ui oci://ghcr.io/ytsaurus/ytsaurus-ui-chart -f values.yaml
 # or run specific version of UI (all versions: https://github.com/ytsaurus/ytsaurus-ui/pkgs/container/ui)
-helm upgrade --install yt-ui ytsaurus-ui/packages/ui-helm-chart/ -f values.yaml --set ui.image.tag=1.60.1
+helm upgrade --install yt-ui oci://ghcr.io/ytsaurus/ytsaurus-ui-chart -f values.yaml --set ui.image.tag=1.60.1
 ```
 
 Чтобы веб-интерфейс {{product-name}} стал доступным в браузере, может потребоваться переадресация портов:
@@ -361,3 +362,4 @@ helm upgrade --install yt-ui ytsaurus-ui/packages/ui-helm-chart/ -f values.yaml 
 ```
 kubectl port-forward deployment/yt-ui-ytsaurus-ui-chart 8080:80
 ```
+

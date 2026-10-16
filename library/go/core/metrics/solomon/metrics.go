@@ -6,6 +6,7 @@ import (
 	"encoding"
 	"encoding/json"
 	"fmt"
+	"io"
 	"slices"
 	"time"
 
@@ -17,7 +18,7 @@ func (r Registry) Gather() (*Metrics, error) {
 	metrics := make([]Metric, 0)
 
 	var err error
-	r.metrics.Range(func(_, v interface{}) bool {
+	r.metrics.Range(func(_, v any) bool {
 		if s, ok := v.(Metric); ok {
 			metrics = append(metrics, s.Snapshot())
 			return true
@@ -30,7 +31,10 @@ func (r Registry) Gather() (*Metrics, error) {
 		return nil, err
 	}
 
-	return &Metrics{metrics: metrics}, nil
+	return &Metrics{
+		metrics:         metrics,
+		commonStartTime: r.startTime,
+	}, nil
 }
 
 func NewMetrics(metrics []Metric, opts ...MetricOpt) Metrics {
@@ -40,9 +44,10 @@ func NewMetrics(metrics []Metric, opts ...MetricOpt) Metrics {
 	}
 
 	return Metrics{
-		metrics:      metrics,
-		timestamp:    mopts.timestamp,
-		commonLabels: mopts.commonLabels,
+		metrics:         metrics,
+		timestamp:       mopts.timestamp,
+		commonLabels:    mopts.commonLabels,
+		commonStartTime: mopts.commonStartTime,
 	}
 }
 
@@ -107,8 +112,11 @@ type Metric interface {
 	getType() metricType
 	getNameTag() string
 	getTimestamp() *time.Time
+	getStartTime() uint32
 	isMemOnly() bool
 	getID() string
+
+	writeSpackValue(w io.Writer) error
 }
 
 // Rated marks given Solomon metric or vector as rated.
@@ -121,7 +129,7 @@ type Metric interface {
 //	Rated(cntvec)
 //
 // For additional info: https://m.yandex-team.ru/docs/concepts/data-model#rate
-func Rated(s interface{}) interface{} {
+func Rated(s any) any {
 	switch st := s.(type) {
 	case *Counter:
 		st.metricType = typeRated
@@ -142,7 +150,7 @@ func Rated(s interface{}) interface{} {
 }
 
 // MemOnly marks given Solomon metric as mem-only.
-func MemOnly(m interface{}) interface{} {
+func MemOnly(m any) any {
 	if iface, ok := m.(interface{ setMemOnly() }); ok {
 		iface.setMemOnly()
 	}
@@ -155,17 +163,19 @@ var (
 )
 
 type Metrics struct {
-	metrics      []Metric
-	timestamp    *time.Time
-	commonLabels map[string]string
+	metrics         []Metric
+	timestamp       *time.Time
+	commonLabels    map[string]string
+	commonStartTime uint32
 }
 
 // MarshalJSON implements json.Marshaler.
 func (s Metrics) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Metrics   []Metric `json:"metrics"`
-		Timestamp *int64   `json:"ts,omitempty"`
-	}{s.metrics, tsAsRef(s.timestamp)})
+		Metrics      []Metric          `json:"metrics"`
+		Timestamp    *int64            `json:"ts,omitempty"`
+		CommonLabels map[string]string `json:"commonLabels,omitempty"`
+	}{s.metrics, tsAsRef(s.timestamp), s.commonLabels})
 }
 
 // MarshalBinary implements encoding.BinaryMarshaler.
@@ -189,13 +199,22 @@ func (s Metrics) SplitToChunks(maxChunkSize int) []Metrics {
 
 	chunks := make([]Metrics, 0, len(s.metrics)/maxChunkSize+1)
 	for chunk := range slices.Chunk(s.metrics, maxChunkSize) {
-		chunks = append(chunks, Metrics{metrics: chunk, timestamp: s.timestamp, commonLabels: s.commonLabels})
+		chunks = append(chunks, Metrics{
+			metrics:         chunk,
+			timestamp:       s.timestamp,
+			commonLabels:    s.commonLabels,
+			commonStartTime: s.commonStartTime,
+		})
 	}
 	return chunks
 }
 
 func (s *Metrics) SetTimestamp(timestamp time.Time) {
 	s.timestamp = &timestamp
+}
+
+func (s *Metrics) SetCommonStartTime(startTime time.Time) {
+	s.commonStartTime = uint32(startTime.Unix())
 }
 
 func (s *Metrics) SetCommonLabels(labels map[string]string) {

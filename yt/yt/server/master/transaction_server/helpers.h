@@ -13,7 +13,7 @@ NObjectClient::EObjectType TransactionTypeToObjectType(
     bool nested,
     TTransactionId transactionId);
 
-bool ValidateTransactionTypeCoherency(ETransactionType transactionType, TTransactionId transactionId);
+bool CheckTransactionTypeCoherency(ETransactionType transactionType, TTransactionId transactionId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

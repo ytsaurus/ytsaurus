@@ -1,60 +1,21 @@
 #pragma once
 
-#include <yt/yt/server/master/node_tracker_server/public.h>
-
 #include <yt/yt/server/master/object_server/public.h>
 
-#include <yt/yt/server/lib/chunk_server/public.h>
-#include <yt/yt/server/lib/hydra/public.h>
-
-#include <yt/yt/ytlib/chunk_client/block_id.h>
-
-#include <yt/yt/client/job_tracker_client/public.h>
+#include <yt/yt/server/master/node_tracker_server/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
-
-#include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/object_client/public.h>
 
 #include <yt/yt/client/tablet_client/public.h>
 
-#include <yt/yt/library/erasure/impl/public.h>
-
-#include <library/cpp/yt/containers/sharded_set.h>
-
 #include <library/cpp/yt/compact_containers/compact_vector.h>
 
 #include <library/cpp/yt/containers/enum_indexed_array.h>
 
+#include <bitset>
 #include <map>
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NYT::NChunkClient::NProto {
-
-class TChunkSealInfo;
-class TMiscExt;
-class TChunkInfo;
-class TChunkMeta;
-class TChunkImportData;
-
-class TReqCreateChunk;
-class TRspCreateChunk;
-class TReqConfirmChunk;
-class TRspConfirmChunk;
-class TReqSealChunk;
-class TRspSealChunk;
-class TReqCreateChunkLists;
-class TRspCreateChunkLists;
-class TReqUnstageChunkTree;
-class TRspUnstageChunkTree;
-class TReqAttachChunkTrees;
-class TRspAttachChunkTrees;
-
-} // namespace NYT::NChunkClient::NProto
-
-////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT::NChunkServer {
 
@@ -68,9 +29,7 @@ using NChunkClient::TMediumId;
 using NChunkClient::NullChunkId;
 using NChunkClient::NullChunkListId;
 using NChunkClient::NullChunkTreeId;
-using NChunkClient::TBlockOffset;
 using NChunkClient::EChunkType;
-using NChunkClient::TBlockId;
 using NChunkClient::TypicalReplicaCount;
 using NChunkClient::MaxMediumCount;
 using NChunkClient::MediumIndexBound;
@@ -87,19 +46,14 @@ using NChunkClient::TChunkReplicaWithLocationList;
 using NChunkClient::ChunkShardCount;
 using NChunkClient::TypicalChunkLocationCount;
 using NChunkClient::EChunkListContentType;
-
-using NJobTrackerClient::EJobType;
-using NJobTrackerClient::EJobState;
-
-using NNodeTrackerClient::TNodeId;
-using NNodeTrackerClient::InvalidNodeId;
-using NNodeTrackerClient::MaxNodeId;
+using NChunkClient::EChunkListKind;
+using NChunkClient::EChunkReplicaState;
 
 using NObjectClient::TTransactionId;
 using NObjectClient::NullTransactionId;
 
 using NNodeTrackerServer::TNode;
-using NNodeTrackerServer::TNodeList;
+using TNodeList = TCompactVector<TNode*, TypicalReplicaCount>;
 
 using NTabletClient::TDynamicStoreId;
 
@@ -116,6 +70,8 @@ DECLARE_ENTITY_TYPE(TMedium, TMediumId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_MASTER_OBJECT_TYPE(TChunkLocation)
 DECLARE_MASTER_OBJECT_TYPE(TChunk)
+DECLARE_MASTER_OBJECT_TYPE(TMainTreeChunkList)
+DECLARE_MASTER_OBJECT_TYPE(THunkTreeChunkList)
 DECLARE_MASTER_OBJECT_TYPE(TChunkList)
 DECLARE_MASTER_OBJECT_TYPE(TChunkTree)
 DECLARE_MASTER_OBJECT_TYPE(TChunkOwnerBase)
@@ -124,42 +80,23 @@ DECLARE_MASTER_OBJECT_TYPE(TDomesticMedium)
 DECLARE_MASTER_OBJECT_TYPE(TS3Medium)
 DECLARE_MASTER_OBJECT_TYPE(TDynamicStore)
 
-using TChunkLocationList = TCompactVector<TChunkLocation*, TypicalReplicaCount>;
-
-struct TChunkViewMergeResult;
 class TChunkViewModifier;
 
 class TChunkReplication;
 class TChunkRequisition;
-class TChunkRequisitionRegistry;
 
 struct TChunkTreeStatistics;
-struct TAggregatedNodeStatistics;
+struct THunkChunkTreeStatistics;
 
 struct TChunkOwnerDataStatistics;
 
-DECLARE_REFCOUNTED_CLASS(TJobTracker)
-
-DECLARE_REFCOUNTED_CLASS(TJob)
-
-DECLARE_REFCOUNTED_STRUCT(IChunkAutotomizer)
 DECLARE_REFCOUNTED_STRUCT(IChunkManager)
-DECLARE_REFCOUNTED_STRUCT(IChunkSealer)
-DECLARE_REFCOUNTED_STRUCT(ICompositeJobController)
 DECLARE_REFCOUNTED_STRUCT(IDataNodeTracker)
-DECLARE_REFCOUNTED_STRUCT(IJobController)
 DECLARE_REFCOUNTED_STRUCT(IJobRegistry)
-
-DECLARE_REFCOUNTED_CLASS(TChunkMerger)
-DECLARE_REFCOUNTED_STRUCT(IChunkReincarnator)
-DECLARE_REFCOUNTED_CLASS(TChunkReplicator)
-DECLARE_REFCOUNTED_CLASS(TChunkPlacement)
-DECLARE_REFCOUNTED_CLASS(TConsistentChunkPlacement)
-DECLARE_REFCOUNTED_STRUCT(IMasterCellChunkStatisticsCollector)
-DECLARE_REFCOUNTED_STRUCT(IMasterCellChunkStatisticsPieceCollector)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TDanglingLocationCleanerConfig)
+DECLARE_REFCOUNTED_STRUCT(TDynamicDataNodeTrackerTestingConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicDataNodeTrackerConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicChunkTreeBalancerConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicChunkAutotomizerConfig)
@@ -178,9 +115,6 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicSequoiaChunkReplicasStoreConfig)
 DECLARE_REFCOUNTED_STRUCT(TDomesticMediumConfig)
 DECLARE_REFCOUNTED_STRUCT(TS3MediumConfig)
 
-//! Used as an expected upper bound in TCompactVector.
-constexpr int TypicalChunkParentCount = 2;
-
 //! The number of supported replication priorities.
 //! The smaller the more urgent.
 /*! current RF == 1 -> priority = 0
@@ -189,71 +123,24 @@ constexpr int TypicalChunkParentCount = 2;
  */
 constexpr int ReplicationPriorityCount = 3;
 
-constexpr int DefaultConsistentReplicaPlacementReplicasPerChunk = 100;
+//! Number of supported repair priorities. The smaller the more urgent.
+/*! Parts we can still lose == 0 -> priority = 0
+ *  Parts we can still lose == 1 -> priority = 1
+ *  Parts we can still lose >= 2 -> priority = 2
+ *  Decommissioned chunks -> priority = 3
+ */
+constexpr int RepairPriorityCount = 4;
 
-DEFINE_BIT_ENUM(EChunkStatus,
-    ((None)                            (0x0000))
-    ((Underreplicated)                 (0x0001))
-    ((Overreplicated)                  (0x0002))
-    ((Lost)                            (0x0004))
-    ((DataMissing)                     (0x0008))
-    ((ParityMissing)                   (0x0010))
-    ((UnexpectedOverreplicated)        (0x0020))
-    ((Safe)                            (0x0040))
-    ((TemporarilyUnavailable)          (0x0080))
-    ((UnsafelyPlaced)                  (0x0100))
-    ((DataDecommissioned)              (0x0200))
-    ((ParityDecommissioned)            (0x0400))
-    ((SealedMissing)                   (0x0800)) // Sealed chunk without sealed replicas (on certain medium).
-    ((InconsistentlyPlaced)            (0x1000)) // For chunks with non-null consistent placement hash.
-);
-
-DEFINE_BIT_ENUM(ECrossMediumChunkStatus,
-    ((None)              (0x0000))
-    ((Sealed)            (0x0001))
-    ((Lost)              (0x0004))
-    ((DataMissing)       (0x0008))
-    ((ParityMissing)     (0x0010))
-    ((QuorumMissing)     (0x0020))
-    ((Precarious)        (0x0200)) // All replicas are on transient media.
-    ((MediumWiseLost)    (0x0400)) // Lost on some media, but not others.
-    ((Deficient)         (0x0800)) // Underreplicated or {data,parity}-{missing,decommissioned} on some media.
-);
-
-DEFINE_BIT_ENUM(EChunkScanKind,
-    ((None)                         (0x0000))
-    ((Refresh)                      (0x0001))
-    ((RequisitionUpdate)            (0x0002))
-    ((Seal)                         (0x0004))
-    ((Reincarnation)                (0x0008))
-    ((GlobalStatisticsCollector)    (0x0010))
-);
-
-DEFINE_ENUM(EChunkListKind,
-    ((Static)                 (0))
-    ((SortedDynamicRoot)      (1))
-    ((SortedDynamicTablet)    (2))
-    ((OrderedDynamicRoot)     (3))
-    ((OrderedDynamicTablet)   (4))
-    ((SortedDynamicSubtablet) (5))
-    ((JournalRoot)            (6))
-    ((HunkRoot)               (7))
-    ((Hunk)                   (8))
-    ((HunkStorageRoot)        (9))
-    ((HunkTablet)            (10))
-);
-
-DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkReplicaState, i8,
-    ((Generic)               (0))
-    ((Active)                (1))
-    ((Unsealed)              (2))
-    ((Sealed)                (3))
+DEFINE_ENUM(ESealPriority,
+    ((JournalDefault)       (0))
+    ((HunkJournal)          (1))
+    ((JournalDistributed)   (2))
 );
 
 DEFINE_ENUM(EChunkLocationState,
     // Belongs to a node that is not online.
     ((Offline)   (0))
-    // Belongs to a node that is online and reports presence of this location.
+    // Belongs to a node that has alive local state and reports presence of this location.
     ((Online)    (1))
     // Belongs to a node that is online but does not report presence of this location.
     ((Dangling)  (2))
@@ -283,64 +170,27 @@ DEFINE_ENUM(EChunkDetachPolicy,
     ((HunkTablet)          (3))
     // For hunk chunks of ordered tablets.
     ((OrderedTabletHunk)   (4))
+    // For arbitrary chunks of scratch chunk lists.
+    ((Scratch)             (5))
 );
 
-inline static const EChunkScanKind DelegatedScanKinds = EChunkScanKind::Refresh | EChunkScanKind::RequisitionUpdate;
-
-using TFillFactorToNodeMap = std::multimap<double, NNodeTrackerServer::TNode*>;
-using TFillFactorToNodeIterator = TFillFactorToNodeMap::iterator;
+DEFINE_ENUM(EChunkMergerStatus,
+    ((NotInMergePipeline)           (0))
+    ((AwaitingMerge)                (1))
+    ((InMergePipeline)              (2))
+);
 
 using TLoadFactorToNodeMap = std::multimap<double, NNodeTrackerServer::TNode*>;
 using TLoadFactorToNodeIterator = TLoadFactorToNodeMap::iterator;
 
-struct TChunkPartLossTimeComparer
-{
-    bool operator()(const TChunk* lhs, const TChunk* rhs) const;
-};
-
-using TOldestPartMissingChunkSet = std::set<TChunk*, TChunkPartLossTimeComparer>;
-
 using TMediumSet = std::bitset<MaxMediumCount>;
-
-constexpr int MediumDefaultPriority = 0;
 
 using TChunkLists = TEnumIndexedArray<EChunkListContentType, TChunkList*>;
 
 using TChunkRequisitionIndex = ui32;
 
-using TJobEpoch = int;
-constexpr TJobEpoch InvalidJobEpoch = -1;
-
 using THeartbeatSequenceNumber = i64;
 constexpr THeartbeatSequenceNumber InvalidHeartbeatSequenceNumber = -1;
-
-using TIncumbencyEpoch = int;
-constexpr TIncumbencyEpoch InvalidIncumbencyEpoch = -1;
-constexpr TIncumbencyEpoch NullIncumbencyEpoch = 0;
-
-//! Refers to a requisition specifying that a chunk is not required by any account
-//! on any medium.
-constexpr TChunkRequisitionIndex EmptyChunkRequisitionIndex = 0;
-
-//! Refers to a requisition specifying default RF on default medium under the
-//! special migration account.
-// NB: After we've migrated to chunk-wise accounting, that account and this
-// index will be removed.
-constexpr TChunkRequisitionIndex MigrationChunkRequisitionIndex = EmptyChunkRequisitionIndex + 1;
-
-//! Refers to a requisition specifying RF of 2 on default medium under the
-//! special migration account.
-// NB: After we've migrated to chunk-wise accounting, that account and this
-// index will be removed.
-constexpr TChunkRequisitionIndex MigrationRF2ChunkRequisitionIndex = MigrationChunkRequisitionIndex + 1;
-
-//! Refers to a requisition specifying RF of 1 on default medium under the special
-//! migration account. Such requisition is suitable for erasure-coded chunks.
-// NB: After we've migrated to chunk-wise accounting, that account and this
-// index will be removed.
-constexpr TChunkRequisitionIndex MigrationErasureChunkRequisitionIndex = MigrationRF2ChunkRequisitionIndex + 1;
-
-constexpr i64 MaxReplicaLagLimit = Max<i64>() / 4;
 
 struct TGlobalChunkScanDescriptor
 {
@@ -349,20 +199,13 @@ struct TGlobalChunkScanDescriptor
     int ShardIndex;
 };
 
-struct TChunkToShardIndex
-{
-    int operator()(const TChunk* chunk) const;
-};
-
-using TShardedChunkSet = TShardedSet<TChunk*, ChunkShardCount, TChunkToShardIndex>;
-
 //! Number of shards in sharded location map.
 constexpr int ChunkLocationShardCount = 256;
 
-//! A reasonable upper estimate on the number of cells 99% of chunks are exported to.
-constexpr int TypicalChunkExportFactor = 4;
-
-constexpr int MaxChunkCreationTimeHistogramBuckets = 50;
+// Only used for producing text representation of table chunk formats in
+// deprecated TableChunkFormat and TableChunkFormatStatistics attributes.
+// Keep in sync with NChunkClient::EChunkFormat.
+TStringBuf SerializeChunkFormatAsTableChunkFormat(NChunkClient::EChunkFormat chunkFormat);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -39,7 +39,7 @@ TDynamicConfigManagerBase<TConfig>::TDynamicConfigManagerBase(
         Invoker_,
         BIND(&TDynamicConfigManagerBase<TConfig>::DoUpdateConfig, MakeWeak(this)),
         Config_->UpdatePeriod))
-    , Logger(DynamicConfigLogger().WithTag("DynamicConfigManagerName: %v", Options_.Name))
+    , Logger(DynamicConfigLogger().WithTag("DynamicConfigManagerName", Options_.Name))
     , AppliedConfigNode_(BaseConfigNode_->AsMap())
 {
     AppliedConfig_ = New<TConfig>();
@@ -67,9 +67,9 @@ void TDynamicConfigManagerBase<TConfig>::Start()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    YT_LOG_DEBUG("Starting dynamic config manager (ConfigPath: %v, UpdatePeriod: %v)",
-        Options_.ConfigPath,
-        Config_->UpdatePeriod);
+    YT_TLOG_DEBUG("Starting dynamic config manager")
+        .With("ConfigPath", Options_.ConfigPath)
+        .With("UpdatePeriod", Config_->UpdatePeriod);
 
     UpdateExecutor_->Start();
 }
@@ -93,7 +93,7 @@ std::vector<TError> TDynamicConfigManagerBase<TConfig>::GetErrors() const
 }
 
 template <typename TConfig>
-std::vector<TError> TDynamicConfigManagerBase<TConfig>::LockedGetErrors(const TGuard<NThreading::TSpinLock>& /*guard*/) const
+std::vector<TError> TDynamicConfigManagerBase<TConfig>::LockedGetErrors(const TGuard<TSpinLock>& /*guard*/) const
 {
     std::vector<TError> errors;
     if (!UpdateError_.IsOK()) {
@@ -168,18 +168,19 @@ void TDynamicConfigManagerBase<TConfig>::DoUpdateConfig()
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-    YT_LOG_DEBUG("Updating dynamic config");
+    YT_TLOG_DEBUG("Updating dynamic config");
 
     TError error;
     try {
         if (TryUpdateConfig()) {
-            YT_LOG_INFO("Successfully updated dynamic config");
+            YT_TLOG_INFO("Successfully updated dynamic config");
         } else {
-            YT_LOG_DEBUG("Dynamic config was not updated");
+            YT_TLOG_DEBUG("Dynamic config was not updated");
         }
         ConfigLoadedPromise_.TrySet();
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Failed to update dynamic config");
+        YT_TLOG_WARNING("Failed to update dynamic config")
+            .With(ex);
         error = ex;
     }
 
@@ -195,7 +196,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-    YT_LOG_DEBUG("Trying to update dynamic config");
+    YT_TLOG_DEBUG("Trying to update dynamic config");
 
     NApi::TGetNodeOptions getOptions;
     getOptions.ReadFrom = Options_.ReadFrom;
@@ -210,9 +211,9 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         if (Options_.ConfigIsTagged) {
             auto instanceTags = GetInstanceTags();
             if (instanceTags != InstanceTags_) {
-                YT_LOG_INFO("Instance tags list has changed (OldTagList: %v, NewTagList: %v)",
-                    InstanceTags_,
-                    instanceTags);
+                YT_TLOG_INFO("Instance tags list has changed")
+                    .With("OldTagList", InstanceTags_)
+                    .With("NewTagList", instanceTags);
                 InstanceTags_ = instanceTags;
             }
 
@@ -227,7 +228,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
                         configFilter,
                         NYTree::ENodeType::Map,
                         configNode->GetType())
-                        << TErrorAttribute("dynamic_config_name", Options_.Name);
+                        .With("dynamic_config_name", Options_.Name);
                 }
 
                 auto configMapNode = configNode->AsMap();
@@ -236,13 +237,13 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
                     if (matchedConfigNode) {
                         THROW_ERROR_EXCEPTION(NDynamicConfig::EErrorCode::DuplicateMatchingDynamicConfigs,
                             "Found duplicate matching dynamic config")
-                            << TErrorAttribute("dynamic_config_name", Options_.Name)
-                            << TErrorAttribute("first_config_filter", matchingConfigFilter)
-                            << TErrorAttribute("second_config_filter", configFilter);
+                            .With("dynamic_config_name", Options_.Name)
+                            .With("first_config_filter", matchingConfigFilter)
+                            .With("second_config_filter", configFilter);
                     }
 
-                    YT_LOG_DEBUG("Found matching dynamic config (ConfigFilter: %v)",
-                        configFilter);
+                    YT_TLOG_DEBUG("Found matching dynamic config")
+                        .With("ConfigFilter", configFilter);
 
                     matchedConfigNode = configMapNode;
                     matchingConfigFilter = configFilter;
@@ -253,25 +254,25 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         }
     } else {
         if (configOrError.FindMatching(NYTree::EErrorCode::ResolveError) && Config_->IgnoreConfigAbsence) {
-            YT_LOG_INFO("Dynamic config node does not exist (ConfigPath: %v)",
-                Options_.ConfigPath);
+            YT_TLOG_INFO("Dynamic config node does not exist")
+                .With("ConfigPath", Options_.ConfigPath);
         } else {
             THROW_ERROR_EXCEPTION(
                 NDynamicConfig::EErrorCode::FailedToFetchDynamicConfig,
                 "Failed to fetch dynamic config from Cypress")
-                << TErrorAttribute("config_name", Options_.Name)
-                << configOrError;
+                .With("config_name", Options_.Name)
+                .With(configOrError);
         }
     }
 
     if (!matchedConfigNode) {
         if (Config_->IgnoreConfigAbsence) {
-            YT_LOG_DEBUG("No suitable dynamic config was found, using empty one");
+            YT_TLOG_DEBUG("No suitable dynamic config was found, using empty one");
             matchedConfigNode = NYTree::GetEphemeralNodeFactory()->CreateMap();
         } else {
             THROW_ERROR_EXCEPTION(NDynamicConfig::EErrorCode::NoSuitableDynamicConfig,
                 "No suitable dynamic config was found")
-                << TErrorAttribute("dynamic_config_name", Options_.Name);
+                .With("dynamic_config_name", Options_.Name);
         }
     }
 
@@ -290,8 +291,8 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         THROW_ERROR_EXCEPTION(
             NDynamicConfig::EErrorCode::InvalidDynamicConfig,
             "Invalid dynamic config")
-            << TErrorAttribute("dynamic_config_name", Options_.Name)
-            << ex;
+            .With("dynamic_config_name", Options_.Name)
+            .With(ex);
     }
 
     auto unrecognizedOptions = newConfig->GetRecursiveUnrecognized();
@@ -299,10 +300,11 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
     TError unrecognizedOptionsError;
     if (unrecognizedOptions && unrecognizedOptions->GetChildCount() > 0 && Config_->EnableUnrecognizedOptionsAlert) {
         unrecognizedOptionsError = TError(NDynamicConfig::EErrorCode::UnrecognizedDynamicConfigOption,
-            "Found unrecognized options in dynamic config (DynamicConfigName: %v)",
+            "Found unrecognized options in dynamic config %Qv",
             Options_.Name)
-            << TErrorAttribute("unrecognized_options", ConvertToYsonString(unrecognizedOptions, NYson::EYsonFormat::Text));
-        YT_LOG_WARNING(unrecognizedOptionsError);
+            .With("unrecognized_options", ConvertToYsonString(unrecognizedOptions, NYson::EYsonFormat::Text));
+        YT_TLOG_WARNING("Found unrecognized options in dynamic config")
+            .With(unrecognizedOptionsError);
     }
 
     {
@@ -326,7 +328,8 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
     try {
         AfterConfigChanged_.Fire(newConfig);
     } catch (const std::exception& ex) {
-        YT_LOG_ALERT_AND_THROW(TError(ex), "An exception was thrown during dynamic config application");
+        YT_TLOG_ALERT_AND_THROW("An exception was thrown during dynamic config application")
+            .With(ex);
     }
 
     return true;
@@ -380,7 +383,7 @@ TFuture<void> TDynamicConfigManagerBase<TConfig>::ScheduleOutOfBandUpdate() cons
     auto event = UpdateExecutor_->GetExecutedEvent();
     UpdateExecutor_->ScheduleOutOfBand();
 
-    YT_LOG_INFO("Scheduled dynamic config update out of band");
+    YT_TLOG_INFO("Scheduled dynamic config update out of band");
 
     return event;
 }

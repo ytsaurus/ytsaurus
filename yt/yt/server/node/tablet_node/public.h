@@ -36,6 +36,13 @@ DEFINE_ENUM(ETabletWriteMode,
     ((Pull)           (1))
 );
 
+// COMPAT(ifsmirnov): YT-29282, migrate to TablePath and remove.
+DEFINE_ENUM(EProfilingTagExportMode,
+    (TableTag)
+    (Both)
+    (TablePath)
+);
+
 DEFINE_ENUM(EBackupStage,
     ((None)                           (0))
     ((TimestampReceived)              (1))
@@ -182,9 +189,7 @@ DECLARE_REFCOUNTED_CLASS(TTableReplicator)
 DECLARE_REFCOUNTED_STRUCT(ITablePuller)
 DECLARE_REFCOUNTED_STRUCT(IChaosAgent)
 DECLARE_REFCOUNTED_STRUCT(IAlienClusterClientCache)
-
-DECLARE_REFCOUNTED_CLASS(TStatisticsReporter)
-
+DECLARE_REFCOUNTED_STRUCT(IStatisticsReporter)
 DECLARE_REFCOUNTED_STRUCT(IStoreCompactor)
 DECLARE_REFCOUNTED_STRUCT(IStoreFlusher)
 DECLARE_REFCOUNTED_STRUCT(TFlushTaskInfo)
@@ -197,10 +202,14 @@ DECLARE_REFCOUNTED_STRUCT(ILsmInterop)
 DECLARE_REFCOUNTED_STRUCT(IChunkReplicaCachePinger)
 DECLARE_REFCOUNTED_STRUCT(ICompressionDictionaryBuilder)
 
+DECLARE_REFCOUNTED_CLASS(TGlobalStoresUpdateThrottler)
+
 DECLARE_REFCOUNTED_STRUCT(IStructuredLogger)
 DECLARE_REFCOUNTED_STRUCT(IPerTabletStructuredLogger)
 
 DECLARE_REFCOUNTED_CLASS(TRowCache)
+
+DECLARE_REFCOUNTED_CLASS(TRowCacheController)
 
 DECLARE_REFCOUNTED_STRUCT(IDistributedThrottlerManager)
 
@@ -212,6 +221,7 @@ DECLARE_REFCOUNTED_CLASS(TMeanWaitTimeTracker)
 DECLARE_REFCOUNTED_CLASS(TContainerCpuThrottlingTracker)
 DECLARE_REFCOUNTED_CLASS(TLogDropTracker)
 
+DECLARE_REFCOUNTED_CLASS(TCompactionHintFetchThrottlers)
 DECLARE_REFCOUNTED_CLASS(TCompactionHintFetchPipeline);
 DECLARE_REFCOUNTED_CLASS(TCompactionHintFetcher)
 
@@ -231,6 +241,7 @@ DECLARE_REFCOUNTED_STRUCT(TStoreFlusherConfig)
 DECLARE_REFCOUNTED_STRUCT(TStoreFlusherDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TStoreCompactorConfig)
 DECLARE_REFCOUNTED_STRUCT(TStoreCompactorDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TGlobalStoresUpdateThrottlerConfig)
 DECLARE_REFCOUNTED_STRUCT(TStoreTrimmerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(THunkChunkSweeperDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TInMemoryManagerConfig)
@@ -244,6 +255,7 @@ DECLARE_REFCOUNTED_STRUCT(TBackupManagerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TStatisticsReporterConfig)
 DECLARE_REFCOUNTED_STRUCT(TOverloadReporterConfig)
 DECLARE_REFCOUNTED_STRUCT(TErrorManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TRowCacheControllerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TMediumThrottlersConfig)
 DECLARE_REFCOUNTED_STRUCT(TCompressionDictionaryBuilderConfig)
 DECLARE_REFCOUNTED_STRUCT(TCompressionDictionaryBuilderDynamicConfig)

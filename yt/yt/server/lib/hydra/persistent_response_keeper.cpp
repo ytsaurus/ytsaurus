@@ -10,8 +10,9 @@
 #include <yt/yt/core/rpc/response_keeper.h>
 #include <yt/yt/core/rpc/service.h>
 
-#include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/serialize.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
 
@@ -97,6 +98,15 @@ public:
         return DoFindRequest(id, isRetry);
     }
 
+    std::optional<i64> GetGroundUpdateQueueSequenceNumber(TMutationId mutationId) override
+    {
+        auto it = GroundUpdateQueueSequenceNumbers_.find(mutationId);
+        if (it != GroundUpdateQueueSequenceNumbers_.end()) {
+            return it->second;
+        }
+        return std::nullopt;
+    }
+
     std::function<void()> EndRequest(
         TMutationId id,
         TSharedRefArray response,
@@ -107,9 +117,9 @@ public:
         YT_ASSERT(id);
 
         if (!response) {
-            YT_LOG_ALERT("Null response passed to response keeper (MutationId: %v, Remember: %v)",
-                id,
-                remember);
+            YT_TLOG_ALERT("Null response passed to response keeper")
+                .With("MutationId", id)
+                .With("Remember", remember);
         }
 
         auto space = static_cast<i64>(GetByteSize(response));
@@ -142,10 +152,13 @@ public:
                 FinishedResponseCount_.fetch_add(1, std::memory_order::acq_rel);
                 FinishedResponseSpace_.fetch_add(space, std::memory_order::acq_rel);
 
-                YT_LOG_DEBUG("Response added to persistent response keeper "
-                    "(MutationId: %v, ResponseHash: %v)",
-                    id,
-                    responseHash);
+                auto groundUpdateQueueSequenceNumber = mutationContext->GetGroundUpdateQueueSequenceNumber();
+                if (groundUpdateQueueSequenceNumber) {
+                    GroundUpdateQueueSequenceNumbers_.emplace(id, *groundUpdateQueueSequenceNumber);
+                }
+                YT_TLOG_DEBUG("Response added to persistent response keeper")
+                    .With("MutationId", id)
+                    .With("ResponseHash", responseHash);
             }
         }
 
@@ -203,12 +216,14 @@ public:
             promise.TrySet(error);
         }
 
-        YT_LOG_INFO(error, "All pending requests canceled");
+        YT_TLOG_INFO("All pending requests canceled")
+            .With(error);
     }
 
     void Clear() override
     {
         FinishedResponses_.clear();
+        GroundUpdateQueueSequenceNumbers_.clear();
         FinishedResponseCount_.store(0, std::memory_order::release);
         FinishedResponseSpace_.store(0, std::memory_order::release);
         ResponseEvictionQueue_.clear();
@@ -219,16 +234,20 @@ public:
         using NYT::Save;
 
         Save(context, FinishedResponses_);
+        Save(context, GroundUpdateQueueSequenceNumbers_);
         Save(context, FinishedResponseCount_.load(std::memory_order::acquire));
         Save(context, FinishedResponseSpace_.load(std::memory_order::acquire));
         Save(context, ResponseEvictionQueue_);
     }
 
-    void Load(TLoadContext& context) override
+    void Load(TLoadContext& context, bool loadGroundUpdateSequenceNumbers) override
     {
         using NYT::Load;
 
         Load(context, FinishedResponses_);
+        if (loadGroundUpdateSequenceNumbers) {
+            Load(context, GroundUpdateQueueSequenceNumbers_);
+        }
         FinishedResponseCount_.store(
             Load<decltype(FinishedResponseCount_)::value_type>(context),
             std::memory_order::release);
@@ -245,9 +264,9 @@ public:
 
         auto guard = WriterGuard(Lock_);
 
-        YT_LOG_DEBUG("Response keeper eviction pass started (ExpirationTimeout: %v, MaxResponseCountPerEvictionPass: %v)",
-            expirationTimeout,
-            maxResponseCountPerEvictionPass);
+        YT_TLOG_DEBUG("Response keeper eviction pass started")
+            .With("ExpirationTimeout", expirationTimeout)
+            .With("MaxResponseCountPerEvictionPass", maxResponseCountPerEvictionPass);
 
         int counter = 0;
         auto deadline = GetCurrentMutationContext()->GetTimestamp() - expirationTimeout;
@@ -258,11 +277,11 @@ public:
                 break;
             }
 
-            if (counter > maxResponseCountPerEvictionPass) {
-                YT_LOG_WARNING("Response keeper eviction pass interrupted (ResponseCount: %v, ResponsesLeft: %v, OccupiedSpace: %v)",
-                    counter,
-                    FinishedResponseCount_.load(std::memory_order::acquire),
-                    FinishedResponseSpace_.load(std::memory_order::acquire));
+            if (counter >= maxResponseCountPerEvictionPass) {
+                YT_TLOG_WARNING("Response keeper eviction pass interrupted")
+                    .With("ResponseCount", counter)
+                    .With("ResponsesLeft", FinishedResponseCount_.load(std::memory_order::acquire))
+                    .With("OccupiedSpace", FinishedResponseSpace_.load(std::memory_order::acquire));
                 break;
             }
 
@@ -275,11 +294,13 @@ public:
                 static_cast<i64>(GetByteSize(it->second)), std::memory_order::acq_rel);
 
             FinishedResponses_.erase(it);
+            GroundUpdateQueueSequenceNumbers_.erase(item.Id);
+
             ResponseEvictionQueue_.pop_front();
         }
 
-        YT_LOG_DEBUG("Response keeper eviction pass completed (ResponseCount: %v)",
-            counter);
+        YT_TLOG_DEBUG("Response keeper eviction pass completed")
+            .With("ResponseCount", counter);
     }
 
 private:
@@ -294,6 +315,9 @@ private:
     // Persistent.
     using TFinishedResponseMap = THashMap<TMutationId, TSharedRefArray>;
     TFinishedResponseMap FinishedResponses_;
+    // We do not store it with FinishedResponses_ to decrease memory consumption.
+    THashMap<TMutationId, i64> GroundUpdateQueueSequenceNumbers_;
+
     // For profiling only. Saved to snapshot to avoid recomputing after loading.
     std::atomic<int> FinishedResponseCount_ = 0;
     // For limiting memory footprint and profiling. Saved to snapshot to avoid recomputing after loading.
@@ -343,7 +367,8 @@ private:
         if (pendingIt != PendingResponses_.end()) {
             ValidateRetry(id, isRetry);
 
-            YT_LOG_DEBUG("Replying with pending response (MutationId: %v)", id);
+            YT_TLOG_DEBUG("Replying with pending response")
+                .With("MutationId", id);
             return pendingIt->second;
         }
 
@@ -351,7 +376,8 @@ private:
         if (finishedIt != FinishedResponses_.end()) {
             ValidateRetry(id, isRetry);
 
-            YT_LOG_DEBUG("Replying with finished response (MutationId: %v)", id);
+            YT_TLOG_DEBUG("Replying with finished response")
+                .With("MutationId", id);
             return MakeFuture(finishedIt->second);
         }
         return {};
@@ -360,6 +386,11 @@ private:
     bool IsWarmingUp() const override
     {
         return false;
+    }
+
+    bool IsPersistent() const override
+    {
+        return true;
     }
 
     bool TryReplyFrom(const IServiceContextPtr& context, bool subscribeToResponse) override

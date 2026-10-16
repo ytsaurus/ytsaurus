@@ -2,11 +2,14 @@
 
 #include "format.h"
 #include "line_reader.h"
+#include "posting_codec.h"
 #include "private.h"
 #include "reader.h"
 #include "helpers.h"
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <util/generic/algorithm.h>
 
@@ -20,60 +23,113 @@ constinit const auto Logger = TrigrepLogger;
 
 constexpr int PostingsPerBucketExtent = 15;
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TPostingMap
 {
 public:
     explicit TPostingMap(i64 extentBufferCapacity)
-        : BucketIndexes_(TotalTrigramCount, InvalidBucketIndex)
     {
+        // The trigram -> bucket-index map spans 64 MB and is probed randomly
+        // once per input character; on 4 KB pages this thrashes the dTLB (the
+        // dominant cost on older CPUs). Backing it with 2 MB transparent huge
+        // pages cuts the page count from ~16K to ~32, so it fits in the TLB.
+        BucketIndexesHolder_ = TSharedMutableRef::AllocateViaMmap(
+            TotalTrigramCount * sizeof(int),
+            {.InitializeStorage = false, .UseThp = true});
+        BucketIndexes_ = reinterpret_cast<int*>(BucketIndexesHolder_.Begin());
+        // InvalidBucketIndex (-1) is all-ones, so a byte-wise fill works.
+        static_assert(InvalidBucketIndex == -1);
+        ::memset(BucketIndexes_, 0xff, TotalTrigramCount * sizeof(int));
+
         Extents_.reserve(extentBufferCapacity);
     }
 
-    void AddPosting(TTrigram trigram, ui32 blockIndex, TLineFingerprint lineFingerprint)
+    // Adds all trigrams of a single line. Both the BucketIndexes_ lookup and the
+    // dependent Buckets_ access are random probes into multi-megabyte arrays, so
+    // a straight loop stalls on load-to-use latency for (almost) every trigram.
+    // We instead run a three-stage software pipeline that prefetches each probe
+    // well ahead of its use:
+    //   A: read trigram from text, prefetch BucketIndexes_[trigram]
+    //   B: resolve/allocate bucket index, prefetch Buckets_[bucketIndex]
+    //   C: apply the posting to the (now cache-hot) bucket
+    void AddLinePostings(const char* data, int trigramCount, ui32 blockIndex, TLineFingerprint lineFingerprint)
     {
-        int bucketIndex = BucketIndexes_[trigram.Underlying()];
-        if (bucketIndex == InvalidBucketIndex) [[unlikely]] {
-            bucketIndex = AllocateBucket(blockIndex);
-            BucketIndexes_[trigram.Underlying()] = bucketIndex;
-        }
+        // BucketIndexes_ lookup (stage A->B) is the longest-latency probe, so it
+        // gets the larger lookahead; the dependent Buckets_ probe (stage B->C)
+        // gets the smaller one.
+        constexpr int IndexPrefetchAhead = 32;
+        constexpr int BucketPrefetchAhead = 8;
+        constexpr int BucketRingMask = BucketPrefetchAhead - 1;
+        static_assert((BucketPrefetchAhead & BucketRingMask) == 0);
 
-        auto* bucket = &Buckets_[bucketIndex];
-        ++bucket->Count;
-
-        auto setBit = [&] {
-            bucket->FingerprintBitmap[lineFingerprint >> 6] |= (1ULL << (lineFingerprint & 63));
-        };
-
-        ui32 currentBlockIndex = bucket->CurrentBlockIndex;
-        if (currentBlockIndex == blockIndex) [[likely]] {
-            setBit();
+        if (trigramCount <= 0) {
             return;
         }
 
-        int extentIndex = bucket->FirstExtentIndex;
-        if (extentIndex == InvalidExtentIndex) [[unlikely]] {
-            extentIndex = AllocateBucketExtent();
-            bucket->FirstExtentIndex = extentIndex;
+        if (trigramCount <= IndexPrefetchAhead + BucketPrefetchAhead) [[unlikely]] {
+            for (int index = 0; index < trigramCount; ++index) {
+                AddPosting(ReadTrigram(data + index), blockIndex, lineFingerprint);
+            }
+            return;
         }
 
-        auto* extent = &Extents_[extentIndex];
-        auto addPosting = [&] (TLineFingerprint currentLineFingerprint) {
-            if (bucket->FirstExtentRemaining == 0) [[unlikely]] {
-                auto newExtentIndex = AllocateBucketExtent();
-                bucket->FirstExtentIndex = newExtentIndex;
-                bucket->FirstExtentRemaining = PostingsPerBucketExtent;
-                extent = &Extents_[newExtentIndex];
-                extent->NextExtentIndex = extentIndex;
-                extentIndex = newExtentIndex;
-            }
-            extent->Postings[--bucket->FirstExtentRemaining] = MakePosting(currentBlockIndex, currentLineFingerprint);
+        int bucketRing[BucketPrefetchAhead];
+        const auto* indexes = BucketIndexes_;
+
+        // Stage A: read a trigram and prefetch its (sparse) BucketIndexes_ slot.
+        auto stageA = [&] (int i) {
+            ui32 trigram = ReadTrigram(data + i).Underlying();
+            Y_PREFETCH_READ(indexes + trigram, 0);
+        };
+        // Stage B: resolve/allocate the bucket (its index slot is hot now) and
+        // prefetch the bucket itself.
+        auto stageB = [&] (int j) {
+            int bucketIndex = LocateBucketIndex(ReadTrigram(data + j), blockIndex);
+            bucketRing[j & BucketRingMask] = bucketIndex;
+            Y_PREFETCH_WRITE(Buckets_.data() + bucketIndex, 3);
         };
 
-        IterateBitmap(*bucket, addPosting);
+        // Prime the pipeline.
+        for (int a = 0; a < IndexPrefetchAhead + BucketPrefetchAhead; ++a) {
+            stageA(a);
+        }
+        for (int b = 0; b < BucketPrefetchAhead; ++b) {
+            stageB(b);
+        }
 
-        bucket->CurrentBlockIndex = blockIndex;
-        bucket->FingerprintBitmap = {};
-        setBit();
+        // Steady state: no bounds checks, all three stages fire every iteration.
+        int hotCount = trigramCount - IndexPrefetchAhead - BucketPrefetchAhead;
+        for (int c = 0; c < hotCount; ++c) {
+            DoAddPosting(bucketRing[c & BucketRingMask], blockIndex, lineFingerprint);
+            stageB(c + BucketPrefetchAhead);
+            stageA(c + IndexPrefetchAhead + BucketPrefetchAhead);
+        }
+
+        // Drain.
+        for (int c = hotCount; c < trigramCount; ++c) {
+            DoAddPosting(bucketRing[c & BucketRingMask], blockIndex, lineFingerprint);
+            int b = c + BucketPrefetchAhead;
+            if (b < trigramCount) {
+                stageB(b);
+            }
+        }
+    }
+
+    // Prefetches the bucket (and its first extent) for a trigram. Used to hide
+    // the random Buckets_/Extents_ probes during the compression walk, which
+    // visits trigrams in sorted (i.e. random bucket-index) order.
+    void PrefetchBucket(TTrigram trigram) const
+    {
+        int bucketIndex = BucketIndexes_[trigram.Underlying()];
+        if (bucketIndex == InvalidBucketIndex) {
+            return;
+        }
+        const auto& bucket = Buckets_[bucketIndex];
+        Y_PREFETCH_READ(&bucket, 1);
+        if (bucket.FirstExtentIndex != InvalidExtentIndex) {
+            Y_PREFETCH_READ(&Extents_[bucket.FirstExtentIndex], 1);
+        }
     }
 
     int GetPostingCount(TTrigram trigram) const
@@ -157,9 +213,70 @@ private:
 
     static_assert(sizeof(TBucketExtent) == 64);
 
-    std::vector<int> BucketIndexes_;
+    TSharedMutableRef BucketIndexesHolder_;
+    int* BucketIndexes_ = nullptr;
     std::vector<TBucket> Buckets_;
     std::vector<TBucketExtent> Extents_;
+
+    // Resolves the bucket for a trigram, allocating one on first occurrence.
+    // Split out from DoAddPosting so that the (long-latency) lookup into the
+    // sparse 64 MB BucketIndexes_ array can be software-prefetched ahead of the
+    // dependent access into Buckets_.
+    Y_FORCE_INLINE int LocateBucketIndex(TTrigram trigram, ui32 blockIndex)
+    {
+        int bucketIndex = BucketIndexes_[trigram.Underlying()];
+        if (bucketIndex == InvalidBucketIndex) [[unlikely]] {
+            bucketIndex = AllocateBucket(blockIndex);
+            BucketIndexes_[trigram.Underlying()] = bucketIndex;
+        }
+        return bucketIndex;
+    }
+
+    Y_FORCE_INLINE void DoAddPosting(int bucketIndex, ui32 blockIndex, TLineFingerprint lineFingerprint)
+    {
+        auto* bucket = &Buckets_[bucketIndex];
+        ++bucket->Count;
+
+        auto setBit = [&] {
+            bucket->FingerprintBitmap[lineFingerprint >> 6] |= (1ULL << (lineFingerprint & 63));
+        };
+
+        ui32 currentBlockIndex = bucket->CurrentBlockIndex;
+        if (currentBlockIndex == blockIndex) [[likely]] {
+            setBit();
+            return;
+        }
+
+        int extentIndex = bucket->FirstExtentIndex;
+        if (extentIndex == InvalidExtentIndex) [[unlikely]] {
+            extentIndex = AllocateBucketExtent();
+            bucket->FirstExtentIndex = extentIndex;
+        }
+
+        auto* extent = &Extents_[extentIndex];
+        auto addPosting = [&] (TLineFingerprint currentLineFingerprint) {
+            if (bucket->FirstExtentRemaining == 0) [[unlikely]] {
+                auto newExtentIndex = AllocateBucketExtent();
+                bucket->FirstExtentIndex = newExtentIndex;
+                bucket->FirstExtentRemaining = PostingsPerBucketExtent;
+                extent = &Extents_[newExtentIndex];
+                extent->NextExtentIndex = extentIndex;
+                extentIndex = newExtentIndex;
+            }
+            extent->Postings[--bucket->FirstExtentRemaining] = MakePosting(currentBlockIndex, currentLineFingerprint);
+        };
+
+        IterateBitmap(*bucket, addPosting);
+
+        bucket->CurrentBlockIndex = blockIndex;
+        bucket->FingerprintBitmap = {};
+        setBit();
+    }
+
+    void AddPosting(TTrigram trigram, ui32 blockIndex, TLineFingerprint lineFingerprint)
+    {
+        DoAddPosting(LocateBucketIndex(trigram, blockIndex), blockIndex, lineFingerprint);
+    }
 
     int AllocateBucket(ui32 blockIndex)
     {
@@ -199,12 +316,26 @@ private:
 class TIndexSegmentBuilder
 {
 public:
-    explicit TIndexSegmentBuilder(i64 segmentSize)
-        // Rough upper estimate:
-        // <= segmentSize groups each taking 3 bytes (2 for header + 1 for terminator)
-        // <= segmentSize fingerprints each taking 1 byte
-        : Buffer_(segmentSize * 4)
+    TIndexSegmentBuilder(i64 segmentSize, IPostingCodec* codec)
+        : SegmentSize_(segmentSize)
+        , Codec_(codec)
     {
+        // A conservative default; PrepareForCompression grows this to fit the
+        // largest single posting list once it is known.
+        Buffer_.resize(segmentSize * 4);
+        Reset();
+    }
+
+    // Ensures the buffer can hold a full segment plus one maximal posting list,
+    // so a list is always emitted in one piece before the flush check.
+    void PrepareForCompression(int maxPostingListSize, ui32 postingUpperBound)
+    {
+        PostingUpperBound_ = postingUpperBound;
+        i64 maxListBytes = Codec_->GetMaxByteSize(maxPostingListSize, postingUpperBound);
+        i64 required = SegmentSize_ + maxListBytes;
+        if (std::ssize(Buffer_) < required) {
+            Buffer_.resize(required);
+        }
         Reset();
     }
 
@@ -217,82 +348,9 @@ public:
 
     void Add(TRange<TPosting> list)
     {
-        int listSize = std::ssize(list);
-
         TrigramCount_ += 1;
-        PostingCount_ += listSize;
-
-        int startIndex = 0;
-        while (startIndex < listSize) {
-            ui32 blockIndex = BlockIndexFromPosting(list[startIndex]);
-
-            YT_ASSERT(blockIndex < MaxBlocksPerChunk);
-            int maxFingerprintDiff = 0;
-            int endIndex = startIndex + 1;
-            while (endIndex < listSize && BlockIndexFromPosting(list[endIndex]) == blockIndex) {
-                maxFingerprintDiff = std::max(
-                    maxFingerprintDiff,
-                    static_cast<int>(LineFingerprintFromPosting(list[endIndex] - list[endIndex - 1])));
-                ++endIndex;
-            }
-
-            auto groupSize = static_cast<ui32>(endIndex - startIndex);
-            ui16 groupHeader = blockIndex << 6;
-
-            [&] {
-                if (groupSize == 1) {
-                    // Tag: 61 (== GroupSize1Tag)
-                    Write<ui16>(groupHeader | GroupSize1Tag);
-                    Write<ui8>(LineFingerprintFromPosting(list[startIndex]));
-                    return;
-                }
-
-                if (groupSize == 2) {
-                    // Tag: 62 (== GroupSize2Tag)
-                    Write<ui16>(groupHeader | GroupSize2Tag);
-                    Write<ui8>(LineFingerprintFromPosting(list[startIndex]));
-                    Write<ui8>(LineFingerprintFromPosting(list[startIndex + 1]));
-                    return;
-                }
-
-                if (/* groupSize >= 3 && */ groupSize <= 8) {
-                    ui32 bitsPerDiff = GetBitsPerDiff(maxFingerprintDiff - 1);
-                    auto bitpackedSize = GetBitpackedSize(groupSize - 1, bitsPerDiff);
-                    if (bitpackedSize + 1 < LineFingerprintBitmapByteSize) {
-                        // Tag: 0..47 (== MaxShortBitpackedTag)
-                        Write<ui16>(groupHeader | (bitsPerDiff - 1) | ((groupSize - 3) << 3));
-                        Write<ui8>(LineFingerprintFromPosting(list[startIndex]));
-                        ui64 packedValue = BitpackShort(&list[startIndex], groupSize, bitsPerDiff);
-                        Write(reinterpret_cast<const char*>(&packedValue), bitpackedSize);
-                        return;
-                    }
-                }
-
-                if (groupSize >= 8) {
-                    ui32 bitsPerDiff = GetBitsPerDiff(maxFingerprintDiff);
-                    int bitpackedSize = GetBitpackedSize(groupSize, bitsPerDiff);
-                    if (bitpackedSize + 1 < LineFingerprintBitmapByteSize) {
-                        // Tag: 48..55 (== MaxLongBitpackedTag)
-                        Write<ui16>(groupHeader | (47 + bitsPerDiff));
-                        Write<ui8>(LineFingerprintFromPosting(list[startIndex]));
-                        auto packedValue = BitpackLong(&list[startIndex], groupSize, bitsPerDiff);
-                        Write(reinterpret_cast<const char*>(packedValue.data()), bitpackedSize);
-                        return;
-                    }
-                }
-
-                {
-                    Write<ui16>(groupHeader | BitmapGroupTag);
-                    auto bitmap = BuildBitmap(&list[startIndex], groupSize);
-                    Write(bitmap);
-                }
-            }();
-
-            startIndex = endIndex;
-        }
-
-        // Tag: 63 (== GroupSize1Tag)
-        Write(TerminatorGroupTag);
+        PostingCount_ += std::ssize(list);
+        CurrentPtr_ = Codec_->Encode(CurrentPtr_, list, PostingUpperBound_);
     }
 
     TRange<char> GetBuffer() const
@@ -311,126 +369,13 @@ public:
     }
 
 private:
+    const i64 SegmentSize_;
+    IPostingCodec* const Codec_;
+    ui32 PostingUpperBound_ = 0;
     std::vector<char> Buffer_;
     char* __restrict__ CurrentPtr_;
     int TrigramCount_ = 0;
     int PostingCount_ = 0;
-
-    template <class T>
-    void Write(const T& value)
-    {
-        Write(reinterpret_cast<const char*>(&value), sizeof(value));
-    }
-
-    void Write(const char* __restrict__ data, size_t size)
-    {
-        memcpy(CurrentPtr_, data, size);
-        CurrentPtr_ += size;
-    }
-
-    static ui32 GetBitpackedSize(ui32 count, ui32 bitWidth)
-    {
-        return (count * bitWidth + 7) / 8;
-    }
-
-    static ui32 GetBitsPerDiff(int maxDiff)
-    {
-        if (maxDiff <= 1) {
-            return 1;
-        } else if (maxDiff <= 3) {
-            return 2;
-        } else if (maxDiff <= 7) {
-            return 3;
-        } else if (maxDiff <= 15) {
-            return 4;
-        } else if (maxDiff <= 31) {
-            return 5;
-        } else if (maxDiff <= 63) {
-            return 6;
-        } else if (maxDiff <= 127) {
-            return 7;
-        } else {
-            return 8;
-        }
-    }
-
-    static ui64 BitpackShort(
-        const TPosting* __restrict__ src,
-        ui32 groupSize,
-        ui32 bitWidth)
-    {
-        YT_ASSERT(groupSize >= 3 && groupSize <= 8);
-        YT_ASSERT((groupSize - 1) * bitWidth <= 64);
-        ui64 result = 0;
-        ui32 bitOffset = 0;
-
-#define PACK() \
-                result |= static_cast<ui64>(LineFingerprintFromPosting(src[1] - src[0]) - 1) << bitOffset; \
-                bitOffset += bitWidth; \
-                src += 1;
-#define PACK_CASE(n) \
-                case n: \
-                PACK() \
-                [[fallthrough]];
-
-        switch (groupSize) {
-            PACK_CASE(8)
-            PACK_CASE(7)
-            PACK_CASE(6)
-            PACK_CASE(5)
-            PACK_CASE(4)
-            default: break;
-        }
-        PACK()
-        PACK()
-
-#undef PACK
-#undef PACK_CASE
-
-        return result;
-    }
-
-    // BitmapByteSize plus some spare space at the end.
-    using TBitpackLongResult = std::array<ui32, 10>;
-
-    static TBitpackLongResult BitpackLong(
-        const TPosting* __restrict__ src,
-        ui32 groupSize,
-        ui32 bitWidth)
-    {
-        // NB: No need to zero-initialize, see the end.
-        TBitpackLongResult result;
-        auto* dst = result.data();
-        ui64 current = 0;
-        ui32 bitOffset = 0;
-        for (ui32 index = 0; index < groupSize - 1; ++index) {
-            current |= static_cast<ui64>(LineFingerprintFromPosting(src[1] - src[0])) << bitOffset;
-            src += 1;
-            bitOffset += bitWidth;
-            if (bitOffset >= 32) {
-                *dst++ = current & 0xffffffff;
-                current >>= 32;
-                bitOffset -= 32;
-            }
-        }
-        // Flush the tail and also ensure that group zero terminator is written.
-        *dst++ = current;
-        *dst = 0;
-        return result;
-    }
-
-    static TLineFingerprintBitmap BuildBitmap(
-        const TPosting* __restrict__ src,
-        ui32 groupSize)
-    {
-        // NB: Zero-initialize.
-        TLineFingerprintBitmap bitmap{};
-        for (ui32 index = 0; index < groupSize; ++index) {
-            auto fingerprint = src[index] & LineFingerprintMask;
-            bitmap[fingerprint >> 3] |= 1U << (fingerprint & 7);
-        }
-        return bitmap;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -450,7 +395,7 @@ public:
         , Options_(options)
         , Callbacks_(callbacks)
         , ChunkIndex_(chunkIndex)
-        , IndexSegmentBuilder_(Options_.IndexSegmentSize)
+        , IndexSegmentBuilder_(Options_.IndexSegmentSize, GetPostingCodec(Options_.Format))
         , PostingMap_(static_cast<i64>(Options_.ChunkSize / PostingsPerBucketExtent * /*overhead*/ 1.25))
     {
         if (Options_.ChunkSize <= 0) {
@@ -476,9 +421,9 @@ public:
 
         NProfiling::TWallTimer timer;
 
-        YT_LOG_INFO("Started building chunk index (ChunkIndex: %v, StartOffset: %v)",
-            ChunkIndex_,
-            Reader_->GetCurrentFrameStartOffset());
+        YT_TLOG_INFO("Started building chunk index")
+            .With("ChunkIndex", ChunkIndex_)
+            .With("StartOffset", Reader_->GetCurrentFrameStartOffset());
 
         ReportProgress();
 
@@ -493,10 +438,10 @@ public:
                 blockHeader = {};
                 blockHeader.LineCount = blockLineCount;
 
-                YT_LOG_DEBUG("Block finished (BlockIndex: %v, BlockLineCount: %v, BlockSize: %v)",
-                    blockIndex,
-                    blockLineCount,
-                    blockSize);
+                YT_TLOG_DEBUG("Block finished")
+                    .With("BlockIndex", blockIndex)
+                    .With("BlockLineCount", blockLineCount)
+                    .With("BlockSize", blockSize);
 
                 ++blockIndex;
                 ++frameBlockCount;
@@ -507,17 +452,17 @@ public:
         };
 
         auto startBlock = [&] {
-            YT_LOG_DEBUG("Block started (BlockIndex: %v)",
-                blockIndex);
+            YT_TLOG_DEBUG("Block started")
+                .With("BlockIndex", blockIndex);
         };
 
         int frameIndex = 0;
         for (;;) {
             auto frameStartOffset = Reader_->GetCurrentFrameStartOffset();
 
-            YT_LOG_DEBUG("Started reading chunk frame (FrameIndex: %v, FrameStartOffset: %v)",
-                frameIndex,
-                frameStartOffset);
+            YT_TLOG_DEBUG("Started reading chunk frame")
+                .With("FrameIndex", frameIndex)
+                .With("FrameStartOffset", frameStartOffset);
 
             TLineReader lineReader(input.get());
             ui32 perFrameLineIndex = 0;
@@ -548,14 +493,12 @@ public:
             frameHeader.LineCount = perFrameLineIndex;
             frameHeader.BlockCount = frameBlockCount;
 
-            YT_LOG_DEBUG(
-                "Finished reading chunk frame (FrameIndex: %v, FrameInputSize: %v, "
-                "FrameLineCount: %v, FrameBlockCount: %v, FrameChecksum: %x)",
-                frameIndex,
-                frameHeader.InputSize,
-                frameHeader.LineCount,
-                frameHeader.BlockCount,
-                frameHeader.Checksum);
+            YT_TLOG_DEBUG("Finished reading chunk frame")
+                .With("FrameIndex", frameIndex)
+                .With("FrameInputSize", frameHeader.InputSize)
+                .With("FrameLineCount", frameHeader.LineCount)
+                .With("FrameBlockCount", frameHeader.BlockCount)
+                .WithFormat("FrameChecksum", "%x", frameHeader.Checksum);
 
             if (UncompressedInputSize_ >= Options_.ChunkSize || frameIndex + 1 == MaxBlocksPerChunk) {
                 break;
@@ -576,13 +519,12 @@ public:
         ChunkHeader_.FrameCount = std::ssize(FrameHeaders_);
         ChunkHeader_.BlockCount = std::ssize(BlockHeaders_);
 
-        YT_LOG_INFO("Finished indexing chunk frames (LineCount: %v, FrameCount: %v, BlockCount: %v, "
-            "InputSize: %v, UncompressedInputSize: %v)",
-            ChunkHeader_.LineCount,
-            std::ssize(FrameHeaders_),
-            std::ssize(BlockHeaders_),
-            ChunkHeader_.InputSize,
-            UncompressedInputSize_);
+        YT_TLOG_INFO("Finished indexing chunk frames")
+            .With("LineCount", ChunkHeader_.LineCount)
+            .With("FrameCount", std::ssize(FrameHeaders_))
+            .With("BlockCount", std::ssize(BlockHeaders_))
+            .With("InputSize", ChunkHeader_.InputSize)
+            .With("UncompressedInputSize", UncompressedInputSize_);
 
         SortTrigrams();
 
@@ -593,15 +535,16 @@ public:
         ReportProgress();
         WriteIndex();
 
-        YT_LOG_INFO(
-            "Finished building chunk index "
-            "(ChunkIndex: %v, ElapsedTime: %v, Trigrams: %v, IndexedTrigrams: %v (%v%%), SegmentCount: %v)",
-            ChunkIndex_,
-            timer.GetElapsedTime(),
-            ChunkHeader_.TrigramCount,
-            ChunkHeader_.IndexedTrigramCount,
-            ChunkHeader_.IndexedTrigramCount * 100 / ChunkHeader_.TrigramCount,
-            std::ssize(SegmentHeaders_));
+        YT_TLOG_INFO("Finished building chunk index")
+            .With("ChunkIndex", ChunkIndex_)
+            .With("ElapsedTime", timer.GetElapsedTime())
+            .With("TrigramCount", ChunkHeader_.TrigramCount)
+            .WithFormat(
+                "IndexedTrigrams",
+                "%v (%v%%)",
+                ChunkHeader_.IndexedTrigramCount,
+                ChunkHeader_.IndexedTrigramCount * 100 / ChunkHeader_.TrigramCount)
+            .With("SegmentCount", std::ssize(SegmentHeaders_));
 
         return true;
     }
@@ -635,17 +578,13 @@ private:
 
     void IndexLine(ui32 blockIndex, TLineFingerprint lineFingerprint, TStringBuf line)
     {
-        const char* __restrict__ currentPtr = line.data();
-        const char* __restrict__ endPtr = line.end() - 2;
-        while (currentPtr < endPtr) {
-            auto trigram = ReadTrigram(currentPtr++);
-            PostingMap_.AddPosting(trigram, blockIndex, lineFingerprint);
-        }
+        int trigramCount = static_cast<int>(line.size()) - 2;
+        PostingMap_.AddLinePostings(line.data(), trigramCount, blockIndex, lineFingerprint);
     }
 
     void SortTrigrams()
     {
-        YT_LOG_INFO("Sorting trigrams");
+        YT_TLOG_INFO("Sorting trigrams");
 
         SortedTrigrams_.reserve(TotalTrigramCount);
         for (TTrigram trigram = TTrigram(0); trigram.Underlying() < TotalTrigramCount; trigram = TTrigram(trigram.Underlying() + 1)) {
@@ -675,10 +614,10 @@ private:
         segmentHeader.PostingCount = IndexSegmentBuilder_.GetPostingCount();
         segmentHeader.ByteSize = byteSize;
 
-        YT_LOG_DEBUG("Index segment finished (TrigramCount: %v, PostingCount: %v, ByteSize: %v)",
-            segmentHeader.TrigramCount,
-            segmentHeader.PostingCount,
-            segmentHeader.ByteSize);
+        YT_TLOG_DEBUG("Index segment finished")
+            .With("TrigramCount", segmentHeader.TrigramCount)
+            .With("PostingCount", segmentHeader.PostingCount)
+            .With("ByteSize", segmentHeader.ByteSize);
 
         JoinedCompressedIndexSegments_.insert(
             JoinedCompressedIndexSegments_.end(),
@@ -689,15 +628,31 @@ private:
 
     void BuildCompressedPostingLists()
     {
-        YT_LOG_INFO("Started building compressed posting lists");
+        YT_TLOG_INFO("Started building compressed posting lists");
 
         int maxPostingListSize = SortedTrigrams_.empty() ? 0 : PostingMap_.GetPostingCount(SortedTrigrams_.back());
         auto postingListBuffer = std::make_unique<TPosting[]>(maxPostingListSize);
 
+        // Postings are values in [0, BlockCount * 256); this bound is known to the
+        // matcher from the chunk header and drives the interpolative coder.
+        auto postingUpperBound = static_cast<ui32>(ChunkHeader_.BlockCount) * (LineFingerprintMask + 1) - 1;
+        IndexSegmentBuilder_.PrepareForCompression(maxPostingListSize, postingUpperBound);
+
         auto joinedIndexSegmentsLengthThreshold = static_cast<i64>(UncompressedInputSize_ * Options_.IndexSizeFactor);
 
-        for (auto trigram : SortedTrigrams_) {
+        constexpr int BucketPrefetchAhead = 8;
+        int trigramCount = std::ssize(SortedTrigrams_);
+        for (int index = 0; index < std::min(BucketPrefetchAhead, trigramCount); ++index) {
+            PostingMap_.PrefetchBucket(SortedTrigrams_[index]);
+        }
+
+        for (int index = 0; index < trigramCount; ++index) {
+            auto trigram = SortedTrigrams_[index];
             ++ChunkHeader_.IndexedTrigramCount;
+
+            if (int ahead = index + BucketPrefetchAhead; ahead < trigramCount) {
+                PostingMap_.PrefetchBucket(SortedTrigrams_[ahead]);
+            }
 
             auto postingList = PostingMap_.GetPostings(postingListBuffer.get(), trigram);
             IndexSegmentBuilder_.Add(postingList);
@@ -713,7 +668,7 @@ private:
 
         ChunkHeader_.SegmentsSize = std::ssize(JoinedCompressedIndexSegments_);
 
-        YT_LOG_INFO("Finished building compressed posting lists");
+        YT_TLOG_INFO("Finished building compressed posting lists");
     }
 
     std::vector<char> BuildTrigramBuffer()
@@ -777,7 +732,7 @@ public:
 
     void Run()
     {
-        YT_LOG_INFO("Started building file index");
+        YT_TLOG_INFO("Started building file index");
 
         WriteHeader();
 
@@ -796,7 +751,7 @@ public:
             currentLineIndex += builder.GetChunkLineCount();
         }
 
-        YT_LOG_INFO("Finished building file index");
+        YT_TLOG_INFO("Finished building file index");
     }
 
 private:
@@ -808,7 +763,7 @@ private:
     void WriteHeader()
     {
         TIndexFileHeader header{
-            .Signature = TIndexFileHeader::V2Signature,
+            .Signature = GetIndexFormatSignature(Options_.Format),
         };
         Output_->Write(&header, sizeof(header));
     }

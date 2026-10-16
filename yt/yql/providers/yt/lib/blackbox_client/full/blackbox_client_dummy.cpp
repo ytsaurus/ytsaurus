@@ -4,7 +4,7 @@
 
 namespace NYql {
 
-Y_WEAK IBlackboxClient::TPtr CreateBlackboxClient(const ITvmClient::TPtr& /*tvmClient*/, const TYtGatewayConfig& /*ytGatewayConfig*/) {
+Y_WEAK IBlackboxClient::TPtr CreateBlackboxClient(const ITvmClient::TPtr& /*tvmClient*/, const TYtBBConfig& /*config*/) {
     return CreateDummyBlackboxClient();
 }
 

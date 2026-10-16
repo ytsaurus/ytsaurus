@@ -9,8 +9,8 @@ namespace NYT::NQueryClient {
 
 using namespace NTableClient;
 
-using NYT::ToProto;
 using NYT::FromProto;
+using NYT::ToProto;
 
 using namespace NHydra;
 
@@ -166,10 +166,16 @@ TOwningValue CastValueWithCheck(TValue value, EValueType targetType)
     if (value.Type == EValueType::Int64) {
         if (targetType == EValueType::Double) {
             auto int64Value = value.Data.Int64;
-            if (static_cast<i64>(static_cast<double>(int64Value)) != int64Value) {
+            auto doubleValue = static_cast<double>(int64Value);
+            // NB: Casting the rounded double value back to i64 is UB when it does not fit into i64
+            // (i.e. for double(i64 max)): garbage on x86_64, which throws by luck, and saturation
+            // on aarch64, which silently accepts the inaccurate conversion.
+            if (doubleValue >= static_cast<double>(std::numeric_limits<i64>::max()) ||
+                static_cast<i64>(doubleValue) != int64Value)
+            {
                 THROW_ERROR_EXCEPTION("Failed to cast %v to double: inaccurate conversion", int64Value);
             }
-            value.Data.Double = int64Value;
+            value.Data.Double = doubleValue;
         } else {
             YT_VERIFY(targetType == EValueType::Uint64);
         }
@@ -181,22 +187,34 @@ TOwningValue CastValueWithCheck(TValue value, EValueType targetType)
             }
         } else if (targetType == EValueType::Double) {
             auto uint64Value = value.Data.Uint64;
-            if (static_cast<ui64>(static_cast<double>(uint64Value)) != uint64Value) {
+            auto doubleValue = static_cast<double>(uint64Value);
+            // NB: Same as above: double(ui64 max) does not fit into ui64.
+            if (doubleValue >= static_cast<double>(std::numeric_limits<ui64>::max()) ||
+                static_cast<ui64>(doubleValue) != uint64Value)
+            {
                 THROW_ERROR_EXCEPTION("Failed to cast %vu to double: inaccurate conversion", uint64Value);
             }
-            value.Data.Double = uint64Value;
+            value.Data.Double = doubleValue;
         } else {
             YT_ABORT();
         }
     } else if (value.Type == EValueType::Double) {
         auto doubleValue = value.Data.Double;
         if (targetType == EValueType::Uint64) {
-            if (static_cast<double>(static_cast<ui64>(doubleValue)) != doubleValue) {
+            // NB: Guard before casting since casting an out-of-range (or NaN) double to ui64 is UB
+            // (see above). The guard formulation also rejects NaN.
+            if (!(doubleValue >= 0. && doubleValue < static_cast<double>(std::numeric_limits<ui64>::max())) ||
+                static_cast<double>(static_cast<ui64>(doubleValue)) != doubleValue)
+            {
                 THROW_ERROR_EXCEPTION("Failed to cast %v to uint64: inaccurate conversion", doubleValue);
             }
             value.Data.Uint64 = doubleValue;
         } else if (targetType == EValueType::Int64) {
-            if (static_cast<double>(static_cast<i64>(doubleValue)) != doubleValue) {
+            // NB: Same as above.
+            if (!(doubleValue >= static_cast<double>(std::numeric_limits<i64>::min()) &&
+                doubleValue < static_cast<double>(std::numeric_limits<i64>::max())) ||
+                static_cast<double>(static_cast<i64>(doubleValue)) != doubleValue)
+            {
                 THROW_ERROR_EXCEPTION("Failed to cast %v to int64: inaccurate conversion", doubleValue);
             }
             value.Data.Int64 = doubleValue;
@@ -209,6 +227,48 @@ TOwningValue CastValueWithCheck(TValue value, EValueType targetType)
 
     value.Type = targetType;
     return value;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TValue EvaluateModulo(TValue lhs, TValue rhs)
+{
+    if (lhs.Type == EValueType::Null || rhs.Type == EValueType::Null) {
+        return MakeUnversionedNullValue();
+    }
+
+    if (lhs.Type != rhs.Type) {
+        THROW_ERROR_EXCEPTION(
+            "Modulo operands have different types %Qlv and %Qlv",
+            lhs.Type,
+            rhs.Type);
+    }
+
+    switch (lhs.Type) {
+        case EValueType::Int64:
+            if (rhs.Data.Int64 == 0) {
+                THROW_ERROR_EXCEPTION("Division by zero");
+            }
+
+            if (lhs.Data.Int64 == std::numeric_limits<i64>::min() && rhs.Data.Int64 == -1) {
+                THROW_ERROR_EXCEPTION("Division of INT_MIN by -1");
+            }
+
+            return MakeUnversionedInt64Value(lhs.Data.Int64 % rhs.Data.Int64);
+
+        case EValueType::Uint64:
+            if (rhs.Data.Uint64 == 0) {
+                THROW_ERROR_EXCEPTION("Division by zero");
+            }
+
+            return MakeUnversionedUint64Value(lhs.Data.Uint64 % rhs.Data.Uint64);
+
+        default:
+            THROW_ERROR_EXCEPTION(
+                "Cannot compute modulo for values of types %Qlv and %Qlv",
+                lhs.Type,
+                rhs.Type);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -324,8 +384,8 @@ void FromProto(TFeatureFlags* original, const NProto::TFeatureFlags& serialized)
 
 void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
 {
-    serialized->set_timestamp(original.TimestampRange.Timestamp);
-    serialized->set_retention_timestamp(original.TimestampRange.RetentionTimestamp);
+    serialized->set_timestamp(ToProto(original.TimestampRange.Timestamp));
+    serialized->set_retention_timestamp(ToProto(original.TimestampRange.RetentionTimestamp));
     serialized->set_verbose_logging(original.VerboseLogging);
     serialized->set_new_range_inference(original.NewRangeInference);
     serialized->set_adaptive_ordered_schemaful_reader(original.AdaptiveOrderedSchemafulReader);
@@ -354,14 +414,19 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_write_rowset_size(original.WriteRowsetSize);
     serialized->set_max_join_batch_size(original.MaxJoinBatchSize);
     serialized->set_use_order_by_in_join_subqueries(original.UseOrderByInJoinSubqueries);
+    serialized->set_allow_udf_object_code_cache(original.AllowUdfObjectCodeCache);
     serialized->set_statistics_aggregation(ToProto(original.StatisticsAggregation));
     serialized->set_read_from(ToProto(original.ReadFrom));
+    if (original.JoinCacheSize) {
+        serialized->set_join_cache_size(*original.JoinCacheSize);
+    }
+    serialized->set_enable_parallelize_unordered_group_by(original.EnableParallelizeUnorderedGroupBy);
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 {
-    original->TimestampRange.Timestamp = serialized.timestamp();
-    original->TimestampRange.RetentionTimestamp = serialized.retention_timestamp();
+    original->TimestampRange.Timestamp = FromProto<TTimestamp>(serialized.timestamp());
+    original->TimestampRange.RetentionTimestamp = FromProto<TTimestamp>(serialized.retention_timestamp());
     original->VerboseLogging = serialized.verbose_logging();
     original->MaxSubqueries = serialized.max_subqueries();
     original->EnableCodeCache = serialized.enable_code_cache();
@@ -428,6 +493,9 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     if (serialized.has_max_join_batch_size()) {
         original->MaxJoinBatchSize = serialized.max_join_batch_size();
     }
+    if (serialized.has_allow_udf_object_code_cache()) {
+        original->AllowUdfObjectCodeCache = serialized.allow_udf_object_code_cache();
+    }
     if (serialized.has_use_order_by_in_join_subqueries()) {
         original->UseOrderByInJoinSubqueries = serialized.use_order_by_in_join_subqueries();
     }
@@ -437,13 +505,35 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     if (serialized.has_read_from()) {
         original->ReadFrom = FromProto<EPeerKind>(serialized.read_from());
     }
+    if (serialized.has_join_cache_size()) {
+        original->JoinCacheSize = serialized.join_cache_size();
+    }
+    if (serialized.has_enable_parallelize_unordered_group_by()) {
+        original->EnableParallelizeUnorderedGroupBy = serialized.enable_parallelize_unordered_group_by();
+    }
 }
 
 TQueryOptions GetJoinSubqueryOptions(const TQueryOptions& queryOptions)
 {
     auto result = queryOptions;
-    result.MaxSubqueries = 1;
     result.MergeVersionedRows = true;
+
+    return result;
+}
+
+TQueryOptions ApplyJoinSubqueryOptionsPatch(
+    const TQueryOptions& base,
+    const TJoinSubqueryOptionsPatch& patch)
+{
+    auto result = base;
+
+    if (patch.Timestamp) {
+        result.TimestampRange.Timestamp = *patch.Timestamp;
+    }
+
+    if (patch.MaxSubqueries) {
+        result.MaxSubqueries = *patch.MaxSubqueries;
+    }
 
     return result;
 }

@@ -1,5 +1,7 @@
 GTEST(unittester-web-assembly)
 
+EXPLICIT_DATA()
+
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 ALLOCATOR(TCMALLOC)
@@ -41,5 +43,12 @@ PEERDIR(
 )
 
 SIZE(MEDIUM)
+
+IF (NOT OPENSOURCE)
+    FROM_SANDBOX(
+        FILE 12661386116 OUT_NOAUTO libdtorilov-YT-28418.so
+    )
+    RESOURCE(libdtorilov-YT-28418.so libdtorilov-YT-28418.so)
+ENDIF()
 
 END()

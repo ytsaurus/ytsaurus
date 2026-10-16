@@ -28,7 +28,7 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <atomic>
 #include <map>
@@ -49,6 +49,31 @@ DEFINE_ENUM(EIOCategory,
     (Realtime)
 );
 
+DEFINE_ENUM(ELocationReadThrottlingReason,
+    (WorkloadCategoryPendingIOSizeLimitExceeded)
+    (TotalInFlightRequestLimitExceeded)
+    (ReadInFlightRequestLimitExceeded)
+    (ReadMemoryLimitExceeded)
+    (TotalMemoryLimitExceeded)
+    (ReadMemoryTrackerLimitExceeded)
+    (AlwaysThrottleLocation)
+);
+
+DEFINE_ENUM(ELocationWriteThrottlingReason,
+    (TotalInFlightRequestLimitExceeded)
+    (TotalMemoryLimitExceeded)
+    (WriteMemoryTrackerLimitExceeded)
+    (WorkloadCategoryWriteMemoryLimitExceeded)
+    (WriteMemoryLimitExceeded)
+    (NewSessionWriteMemoryTrackerLimitExceeded)
+    (NewSessionWriteMemoryLimitExceeded)
+    (WriteInFlightRequestLimitExceeded)
+    (AlwaysThrottleLocation)
+    (LocationNotWritable)
+    (NotEnoughSpace)
+    (SessionCountLimitReached)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TLocationPerformanceCounters
@@ -59,23 +84,22 @@ struct TLocationPerformanceCounters
     TEnumIndexedArray<EIODirection, TEnumIndexedArray<EIOCategory, NProfiling::TCounter>> CompletedIOSize;
 
     TEnumIndexedArray<EIODirection, TEnumIndexedArray<EIOCategory, std::atomic<i64>>> UsedMemory;
-    TEnumIndexedArray<EIODirection, TEnumIndexedArray<EIOCategory, std::atomic<i64>>> LegacyUsedMemory;
 
     NProfiling::TCounter ThrottledReplicationReads;
     NProfiling::TCounter ThrottledProbingReads;
-    NProfiling::TCounter ThrottledReads;
+    TEnumIndexedArray<ELocationReadThrottlingReason, NProfiling::TCounter> ThrottledReads;
     std::atomic<NProfiling::TCpuInstant> LastReadThrottleTime{};
 
     void ReportThrottledReplicationRead();
     void ReportThrottledProbingRead();
-    void ReportThrottledRead();
+    void ReportThrottledRead(ELocationReadThrottlingReason reason);
 
     NProfiling::TCounter ThrottledProbingWrites;
-    NProfiling::TCounter ThrottledWrites;
+    TEnumIndexedArray<ELocationWriteThrottlingReason, NProfiling::TCounter> ThrottledWrites;
     std::atomic<NProfiling::TCpuInstant> LastWriteThrottleTime{};
 
     void ReportThrottledProbingWrite();
-    void ReportThrottledWrite();
+    void ReportThrottledWrite(ELocationWriteThrottlingReason reason);
 
     NProfiling::TEventTimer PutBlocksWallTime;
     NProfiling::TEventTimer BlobChunkMetaReadTime;
@@ -130,7 +154,6 @@ public:
     void Release() noexcept;
 
     i64 GetSize() const;
-    bool GetUseLegacyUsedMemory() const;
     TChunkLocationPtr GetOwner() const;
 
     void IncreaseSize(i64 delta);
@@ -143,10 +166,8 @@ public:
 private:
     friend class TChunkLocation;
 
-    // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
     TLocationMemoryGuard(
         TMemoryUsageTrackerGuard memoryGuard,
-        bool useLegacyUsedMemory,
         EIODirection direction,
         EIOCategory category,
         i64 size,
@@ -155,8 +176,6 @@ private:
     void MoveFrom(TLocationMemoryGuard&& other) noexcept;
 
     TMemoryUsageTrackerGuard MemoryGuard_;
-    // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
-    bool UseLegacyUsedMemory_ = false;
     EIODirection Direction_;
     EIOCategory Category_;
     i64 Size_ = 0;
@@ -171,7 +190,7 @@ class TChunkLocation
 public:
     TChunkLocation(
         NNode::ELocationType type,
-        TString id,
+        std::string id,
         TChunkLocationConfigPtr config,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         TChunkStorePtr chunkStore,
@@ -194,6 +213,9 @@ public:
     //! Returns the medium name.
     std::string GetMediumName() const;
 
+    //! Returns the medium index.
+    int GetMediumIndex() const;
+
     //! Returns the medium descriptor.
     NChunkClient::TMediumDescriptorPtr GetMediumDescriptor() const;
 
@@ -214,37 +236,25 @@ public:
     const IMemoryUsageTrackerPtr& GetWriteMemoryTracker() const;
 
     //! Returns the max number of used memory across workloads.
-    // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
-    i64 GetMaxUsedMemory(
-        bool useLegacyUsedMemory,
-        EIODirection direction) const;
+    i64 GetMaxUsedMemory(EIODirection direction) const;
 
     //! Returns the number of used memory.
-    // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
     i64 GetUsedMemory(
-        bool useLegacyUsedMemory,
         EIODirection direction,
         const TWorkloadDescriptor& workloadDescriptor) const;
 
     //! Returns total amount of used memory in given #direction.
-    // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
-    i64 GetUsedMemory(
-        bool useLegacyUsedMemory,
-        EIODirection direction) const;
+    i64 GetUsedMemory(EIODirection direction) const;
 
     //! Acquires a lock memory for the given number of bytes to be read or written.
-    // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
     TLocationMemoryGuard AcquireLocationMemory(
-        bool useLegacyUsedMemory,
         TMemoryUsageTrackerGuard memoryGuard,
         EIODirection direction,
         const TWorkloadDescriptor& workloadDescriptor,
         i64 delta);
 
     //! Acquires a lock memory for the given number of bytes to be read or written if possible.
-    // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
     TErrorOr<TLocationMemoryGuard> TryAcquireLocationMemory(
-        bool useLegacyUsedMemory,
         EIODirection direction,
         const TWorkloadDescriptor& workloadDescriptor,
         i64 delta);
@@ -267,17 +277,26 @@ public:
     //! Returns |true| if writes were throttled (within some recent time interval).
     bool IsWriteThrottling() const;
 
+    template <class TReason>
     struct TDiskThrottlingResult
     {
-        bool Enabled;
-        bool MemoryOvercommit;
-        i64 QueueSize;
+        bool MemoryOvercommit = false;
+        i64 QueueSize = 0;
         TError Error;
+        std::optional<TReason> Reason;
+
+        bool IsEnabled() const
+        {
+            return Reason.has_value();
+        }
     };
+
+    using TReadThrottlingResult = TDiskThrottlingResult<ELocationReadThrottlingReason>;
+    using TWriteThrottlingResult = TDiskThrottlingResult<ELocationWriteThrottlingReason>;
 
     //! Returns whether reads must be throttled
     //! and the total number of bytes to read from disk including those accounted by out throttler.
-    TDiskThrottlingResult CheckReadThrottling(
+    TReadThrottlingResult CheckReadThrottling(
         const TWorkloadDescriptor& workloadDescriptor,
         bool isProbing = false,
         bool isReplication = false) const;
@@ -285,22 +304,22 @@ public:
     //! Reports throttled read.
     void ReportThrottledReplicationRead() const;
     void ReportThrottledProbingRead() const;
-    void ReportThrottledRead() const;
+    void ReportThrottledRead(ELocationReadThrottlingReason reason) const;
 
     //! Returns whether writes must be throttled.
     void ReportThrottledProbingWrite() const;
-    TDiskThrottlingResult CheckWriteThrottling(
+    TWriteThrottlingResult CheckWriteThrottling(
         const TWorkloadDescriptor& workloadDescriptor,
         bool blocksWindowShifted,
         bool withProbing) const;
-    TDiskThrottlingResult CheckWriteThrottling(
+    TWriteThrottlingResult CheckWriteThrottling(
         TChunkId sessionId,
         const TWorkloadDescriptor& workloadDescriptor,
         bool blocksWindowShifted,
         bool withProbing) const;
 
     //! Reports throttled write.
-    void ReportThrottledWrite() const;
+    void ReportThrottledWrite(ELocationWriteThrottlingReason reason) const;
 
     //! If the tracked memory is close to the limit, new sessions will not be started.
     //! This method returns memory limit fraction.
@@ -310,15 +329,23 @@ public:
 
     const TChunkStorePtr& GetChunkStore() const;
 
+    std::optional<TDuration> GetDelayBeforeBlobChunkRead() const;
+
     std::optional<TDuration> GetDelayBeforeBlobSessionBlockFree() const;
 
     double GetFairShareWorkloadCategoryWeight(EWorkloadCategory category) const;
+
+    std::vector<std::pair<std::string, double>> BuildFairShareTags(
+        EWorkloadCategory category,
+        const std::optional<NIO::TIOFairShareState>& fairShareState) const;
 
     //! Push supplier to the queue.
     void PushProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier);
 
     //! Try to acquire memory for top requests.
     void CheckProbePutBlocksRequests();
+
+    void RemoveProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier);
 
     //! Calc sum of all requested memory passeed to AcquireProbePutBlocks.
     i64 GetRequestedMemory() const;
@@ -338,21 +365,19 @@ protected:
 private:
     friend class TLocationMemoryGuard;
     friend class TPendingIOGuard;
-    friend class TLockedChunkGuard;
+    friend class NNode::TLockedChunkGuard;
 
     TAtomicPtr<TChunkLocationConfig, /*EnableAcquireHazard*/ true> RuntimeConfig_;
 
     TLocationPerformanceCountersPtr PerformanceCounters_;
 
-    // TODO(vvshlyaga): Change to fair share queue.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProbePutBlocksRequestsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ProbePutBlocksRequestsLock_);
     std::deque<TProbePutBlocksRequestSupplierPtr> ProbePutBlocksRequests_;
     THashSet<TSessionId> ProbePutBlocksSessionIds_;
 
     const IMemoryUsageTrackerPtr ReadMemoryTracker_;
     const IMemoryUsageTrackerPtr WriteMemoryTracker_;
 
-    TChunkLocationUuid Uuid_;
     TChunkLocationIndex Index_ = NNodeTrackerClient::InvalidChunkLocationIndex;
 
     TAtomicIntrusivePtr<NChunkClient::TMediumDescriptor> MediumDescriptor_;
@@ -366,7 +391,7 @@ private:
     NConcurrency::IReconfigurableThroughputThrottlerPtr ReconfigurableUncategorizedThrottler_;
     NConcurrency::IThroughputThrottlerPtr UncategorizedThrottler_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LockedChunksLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, LockedChunksLock_);
     THashSet<TChunkId> LockedChunkIds_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
@@ -376,14 +401,13 @@ private:
     THazardPtr<TChunkLocationConfig> GetRuntimeConfig() const;
 
     void DoCheckProbePutBlocksRequests();
+    void DoCheckFifoProbePutBlocksRequests();
+    void DoCheckFairShareProbePutBlocksRequests();
     bool ContainsProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier) const;
 
-    // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
-    void IncreaseUsedMemory(bool useLegacyUsedMemory, EIODirection direction, EIOCategory category, i64 delta);
-    // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
-    void DecreaseUsedMemory(bool useLegacyUsedMemory, EIODirection direction, EIOCategory category, i64 delta);
-    // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
-    void UpdateUsedMemory(bool useLegacyUsedMemory, EIODirection direction, EIOCategory category, i64 delta);
+    void IncreaseUsedMemory(EIODirection direction, EIOCategory category, i64 delta);
+    void DecreaseUsedMemory(EIODirection direction, EIOCategory category, i64 delta);
+    void UpdateUsedMemory(EIODirection direction, EIOCategory category, i64 delta);
 
     void UpdateMediumTag();
 
@@ -410,7 +434,7 @@ public:
     };
 
     TStoreLocation(
-        TString id,
+        std::string id,
         TStoreLocationConfigPtr config,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         TChunkStorePtr chunkStore,
@@ -484,7 +508,7 @@ private:
         i64 DiskSpace;
     };
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TrashMapSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, TrashMapSpinLock_);
     std::multimap<TInstant, TTrashChunkEntry> TrashMap_;
     const NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;
 
@@ -494,7 +518,8 @@ private:
     class TIOStatisticsProvider;
     const TIntrusivePtr<TIOStatisticsProvider> IOStatisticsProvider_;
 
-    TAtomicPtr<TStoreLocationConfig> RuntimeConfig_;
+    // NB: Shadows TChunkLocation::RuntimeConfig_ which has a narrower type.
+    TAtomicPtr<TStoreLocationConfig, /*AcquireHazard*/ true> RuntimeConfig_;
 
     static TJournalManagerConfigPtr BuildJournalManagerConfig(
         const TDataNodeConfigPtr& dataNodeConfig,
@@ -502,8 +527,8 @@ private:
 
     void UpdateTrashChunkCount(int delta);
     void UpdateTrashSpace(i64 size);
-    TString GetTrashPath() const;
-    TString GetTrashChunkPath(TChunkId chunkId) const;
+    std::string GetTrashPath() const;
+    std::string GetTrashChunkPath(TChunkId chunkId) const;
     void RegisterTrashChunk(TChunkId chunkId);
     void OnCheckTrash();
     void CheckTrashTtl();
@@ -523,7 +548,7 @@ private:
     std::optional<NNode::TChunkDescriptor> RepairJournalChunk(TChunkId chunkId);
     std::optional<NNode::TChunkDescriptor> RepairChunk(TChunkId chunkId) override;
 
-    std::vector<TString> GetChunkPartNames(TChunkId chunkId) const override;
+    std::vector<std::string> GetChunkPartNames(TChunkId chunkId) const override;
     bool ShouldSkipFileName(const std::string& fileName) const override;
 
     void DoStart() override;

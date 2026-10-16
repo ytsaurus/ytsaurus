@@ -11,7 +11,7 @@ Based on the tasks to be solved, clusters can be divided into:
 
 ## Cypress { #cypress }
 
-Cypress is a fault-tolerant tree-based storage whose capabilities can be briefly described as follows:
+[Cypress](../../../user-guide/storage/cypress.md) is a fault-tolerant tree-based storage whose capabilities can be briefly described as follows:
 - A tree-like namespace with directories, tables, and files as nodes.
 - Transparent sharding of large tabular data into chunks, enabling the table to be treated as a single entity without worrying too much about the details of its physical storage.
 - Support for columnar and row-based storage mechanisms for tabular data.
@@ -33,7 +33,7 @@ From a user's standpoint, Cypress looks like a Linux file system tree. The easie
 
 ## MapReduce { #mapreduce }
 
-The {{product-name}} computational architecture is based on the MapReduce distributed computational model. The Map operation processes input data broken down into parts between the cluster's nodes without data being exchanged between such nodes. The Reduce operation groups data from different cluster nodes.
+The {{product-name}} computational architecture is based on the [MapReduce](../../../user-guide/data-processing/operations/overview.md) distributed computational model. The Map operation processes input data broken down into parts between the cluster's nodes without data being exchanged between such nodes. The Reduce operation groups data from different cluster nodes.
 The model helps process large amounts of data in a highly reliable manner and automatically restart a part of the computations if individual cluster nodes are unavailable.
 
 MapReduce in {{product-name}} has the following features:
@@ -50,7 +50,7 @@ You can execute not only MapReduce jobs but also arbitrary code. In {{product-na
 
 ## Dynamic tables { #dyn-tables }
 
-Dynamic tables are tables in {{product-name}} that implement an interface for point reads and key-based data writes and have transaction support and a native SQL dialect.
+[Dynamic tables](../../../user-guide/dynamic-tables/overview.md) are tables in {{product-name}} that implement an interface for point reads and key-based data writes and have transaction support and a native SQL dialect.
 
 Key features of dynamic tables:
 - Storing data in the [MVCC](https://en.wikipedia.org/wiki/Multiversion_concurrency_control) model. Users can look up values by key or by timestamp.
@@ -66,7 +66,7 @@ In addition to dynamic tables with the k-v storage interface, the system support
 
 ## YQL { #yql }
 
-YQL is an SQL-based language of universal declarative queries against data storage and processing systems, as well as an infrastructure to run such queries.
+[YQL](../../../yql/index.md) is an SQL-based language of universal declarative queries against data storage and processing systems, as well as an infrastructure to run such queries.
 
 YQL benefits include:
 - A powerful graph execution engine that can build MapReduce pipelines with hundreds of nodes and adapt during computation.
@@ -77,9 +77,14 @@ YQL benefits include:
 - Support for custom functions in C++, Python, and JavaScript.
 - Automatic execution of small parts of queries on prepared compute instances, bypassing MapReduce operations to reduce latency.
 
+## Flow { #flow }
+
+[Flow](../../../flow/about.md) is a framework for real-time streaming event processing in the {{product-name}} ecosystem.
+It supports stateful processing with persistent state in {{product-name}} dynamic tables.
+
 ## CHYT { #chyt }
 
-ClickHouse over {{product-name}} (CHYT) is a technology that enables you to create a cluster of ClickHouse servers directly on {{product-name}} computational nodes.
+ClickHouse over {{product-name}} ([CHYT](../../../user-guide/data-processing/chyt/about-chyt.md)) is a technology that enables you to create a cluster of ClickHouse servers directly on {{product-name}} computational nodes.
 ClickHouse is created within a Vanilla operation and works with the data in {{product-name}}. The {{product-name}} cluster acts as a compute cloud with respect to the running CHYT clusters within it.
 This technology enables different users to run multiple CHYT clusters on a single {{product-name}} cluster, completely isolated from each other, solving the problem of resource separation in a cloud-like manner.
 
@@ -97,8 +102,6 @@ The integration is done at a fairly low level. This enables us to use the full p
 
 ## SPYT { #spyt }
 
-SPYT is a technology that integrates Apache Spark as a compute engine for data stored in {{product-name}}. Similar to CHYT, vanilla {{product-name}} operations provide computational resources for the SPYT cluster.
+[SPYT](../../../user-guide/data-processing/spyt/overview.md) is a technology that integrates Apache Spark as a compute engine for data stored in {{product-name}}. Similar to CHYT, vanilla {{product-name}} operations provide computational resources for the SPYT cluster.
 Using SPYT helps minimize IO overheads and increase the performance of complex analytical pipelines manifold.
 SPYT can read both static and dynamic {{product-name}} tables, perform computations with them, and capture the output in a static {{product-name}} table.
-
-

@@ -65,10 +65,10 @@ TDqConfiguration::TDqConfiguration() {
 
     REGISTER_SETTING(*this, UseWideChannels);
     REGISTER_SETTING(*this, UseWideBlockChannels)
-        .ValueSetter([this](const TString&, bool value) {
-            UseWideBlockChannels = value;
+        .ValueSetter([](TDqSettings& settings, const TString&, bool value) {
+            settings.UseWideBlockChannels = value;
             if (value) {
-                UseWideChannels = true;
+                settings.UseWideChannels = true;
             }
         });
     REGISTER_SETTING(*this, UseFastPickleTransport);
@@ -86,11 +86,11 @@ TDqConfiguration::TDqConfiguration() {
         });
 
     REGISTER_SETTING(*this, EnableSpillingInChannels)
-        .ValueSetter([this](const TString&, bool value) {
-            EnableSpillingInChannels = value;
+        .ValueSetter([](TDqSettings& settings, const TString&, bool value) {
+            settings.EnableSpillingInChannels = value;
             if (value) {
-                SplitStageOnDqReplicate = false;
-                EnableDqReplicate = true;
+                settings.SplitStageOnDqReplicate = false;
+                settings.EnableDqReplicate = true;
             }
         });
     REGISTER_SETTING(*this, ValuePackerVersion).Parser([](const TString& v) {
@@ -99,10 +99,10 @@ TDqConfiguration::TDqConfiguration() {
 
     REGISTER_SETTING(*this, DisableLLVMForBlockStages);
     REGISTER_SETTING(*this, SplitStageOnDqReplicate)
-        .ValueSetter([this](const TString&, bool value) {
-            SplitStageOnDqReplicate = value;
+        .ValueSetter([](TDqSettings& settings, const TString&, bool value) {
+            settings.SplitStageOnDqReplicate = value;
             if (!value) {
-                EnableDqReplicate = true;
+                settings.EnableDqReplicate = true;
             }
         });
 
@@ -124,6 +124,12 @@ TDqConfiguration::TDqConfiguration() {
         });
     REGISTER_SETTING(*this, UseGraceJoinCoreForMap);
     REGISTER_SETTING(*this, Scheduler);
+    REGISTER_SETTING(*this, Clique)
+        .Validator([this](const TDqSettings&, const TString&, const TString& value) {
+            if (CliqueValidator) {
+                CliqueValidator(value);
+            }
+        });
 }
 
 } // namespace NYql

@@ -24,7 +24,11 @@ class TVersionedIntegerColumnTest
 {
 protected:
     const TStored Base;
-    const TTimestamp TimestampBase = 1000000;
+
+    static constexpr TTimestamp Timestamp(ui64 delta = 0)
+    {
+        return TTimestamp(1000000 + delta);
+    }
 
     struct TValue
     {
@@ -60,9 +64,9 @@ protected:
     void AppendExtremeRow(std::vector<TVersionedRow>* rows)
     {
         rows->push_back(CreateRow({
-            {std::numeric_limits<TStored>::max(), TimestampBase, false},
-            {std::numeric_limits<TStored>::min(), TimestampBase + 1, true},
-            {std::nullopt, TimestampBase + 2, false}}));
+            {std::numeric_limits<TStored>::max(), Timestamp(), false},
+            {std::numeric_limits<TStored>::min(), Timestamp(1), true},
+            {std::nullopt, Timestamp(2), false}}));
     }
 
     std::vector<TVersionedRow> CreateDirectDense()
@@ -71,8 +75,8 @@ protected:
 
         for (int i = 0; i < 100 * 100; ++i) {
             rows.push_back(CreateRow({
-                {Base + i , TimestampBase + i * 10, false},
-                {Base + i * 10, TimestampBase + (i + 2) * 10, true}}));
+                {Base + i , Timestamp(i * 10), false},
+                {Base + i * 10, Timestamp((i + 2) * 10), true}}));
         }
         rows.push_back(CreateRowWithValues({}));
         AppendExtremeRow(&rows);
@@ -85,9 +89,9 @@ protected:
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j) {
                 rows.push_back(CreateRow({
-                    {Base + j, TimestampBase + i * 10, true},
-                    {std::nullopt, TimestampBase + (i + 1) * 10, false},
-                    {Base + j * 10, TimestampBase + (i + 2) * 10, true}}));
+                    {Base + j, Timestamp(i * 10), true},
+                    {std::nullopt, Timestamp((i + 1) * 10), false},
+                    {Base + j * 10, Timestamp((i + 2) * 10), true}}));
             }
             rows.push_back(CreateRowWithValues({}));
         }
@@ -101,8 +105,8 @@ protected:
         AppendExtremeRow(&rows);
         for (int i = 0; i < 1000; ++i) {
             rows.push_back(CreateRow({
-                {Base + i, TimestampBase + i * 10, true},
-                {Base + i * 10, TimestampBase + (i + 2) * 10, true}}));
+                {Base + i, Timestamp(i * 10), true},
+                {Base + i * 10, Timestamp((i + 2) * 10), true}}));
             for (int j = 0; j < 10; ++j) {
                 rows.push_back(CreateRowWithValues({}));
             }
@@ -125,8 +129,8 @@ protected:
         std::vector<TVersionedRow> rows;
         for (int i = 0; i < 1000; ++i) {
             rows.push_back(CreateRow({
-                {Base + i, TimestampBase + i * 10, false},
-                {std::nullopt, TimestampBase + (i + 2) * 10, false}}));
+                {Base + i, Timestamp(i * 10), false},
+                {std::nullopt, Timestamp((i + 2) * 10), false}}));
             for (int j = 0; j < 10; ++j) {
                 rows.push_back(CreateRowWithValues({}));
             }
@@ -179,22 +183,22 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DEFINE_VERSIONED_TESTS(TTest)          \
-    TEST_F(TTest, CheckSegmentType)            \
-    {                                          \
-        DoCheckSegmentType();                  \
-    }                                          \
-    TEST_F(TTest, ReadValues)                  \
-    {                                          \
-        DoReadValues(TimestampBase + 80000);   \
-    }                                          \
-    TEST_F(TTest, ReadValuesMinTimestamp)      \
-    {                                          \
-        DoReadValues(MinTimestamp);            \
-    }                                          \
-    TEST_F(TTest, ReadValuesMaxTimestamp)      \
-    {                                          \
-        DoReadValues(MaxTimestamp);            \
+#define DEFINE_VERSIONED_TESTS(TTest)     \
+    TEST_F(TTest, CheckSegmentType)       \
+    {                                     \
+        DoCheckSegmentType();             \
+    }                                     \
+    TEST_F(TTest, ReadValues)             \
+    {                                     \
+        DoReadValues(Timestamp(80000));   \
+    }                                     \
+    TEST_F(TTest, ReadValuesMinTimestamp) \
+    {                                     \
+        DoReadValues(MinTimestamp);       \
+    }                                     \
+    TEST_F(TTest, ReadValuesMaxTimestamp) \
+    {                                     \
+        DoReadValues(MaxTimestamp);       \
     }
 
 ////////////////////////////////////////////////////////////////////////////////

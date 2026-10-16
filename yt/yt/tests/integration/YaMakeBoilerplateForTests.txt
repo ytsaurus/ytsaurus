@@ -1,3 +1,5 @@
+EXPLICIT_DATA()
+
 TAG(
     ya:fat
     ya:full_logs
@@ -16,7 +18,7 @@ ENV(YT_DEBUG_TAKEN_PORT=1)
 SET(NO_STRIP yes)
 
 IF (NOT OPENSOURCE)
-    YT_SPEC(yt/yt/tests/integration/spec.yson)
+    INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
 ELSE()
     YT_SPEC(yt/yt/tests/integration/spec_os.yson)
 ENDIF()
@@ -69,8 +71,8 @@ DEPENDS(
 IF (NOT OPENSOURCE)
     # Containers images for porto tests.
     DATA(
-        sbr://7033278227 # Layers.
-        sbr://7834385089 # Rootfs.
+        sbr://14047308898 # Layers.
+        sbr://14047309096 # Rootfs.
     )
 ENDIF()
 

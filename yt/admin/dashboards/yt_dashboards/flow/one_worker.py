@@ -7,11 +7,23 @@
 
 from .common import create_dashboard
 
+from yt_dashboard_generator.backends.grafana import GrafanaTextboxDashboardParameter, PrometheusDiscoverValues
 from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardParameter
 
 
-def build_flow_one_worker():
+def build_flow_one_worker(backend="monitoring"):
     def fill(d):
-        d.add_parameter("host", "Worker host", MonitoringLabelDashboardParameter("", "host", "-"))
+        d.add_parameter(
+            "host",
+            "Worker host",
+            MonitoringLabelDashboardParameter("", "host", "-"),
+            backends=["monitoring"])
+        d.add_parameter(
+            "host",
+            "Worker host",
+            GrafanaTextboxDashboardParameter(
+                ".*",
+                discover_values=PrometheusDiscoverValues("host", "{cluster=~\"$cluster\", service=~\"worker\"}")),
+            backends=["grafana"])
 
-    return create_dashboard("one-worker", fill, worker_host_aggr=False)
+    return create_dashboard("one-worker", fill, worker_host_aggr=False, backend=backend)

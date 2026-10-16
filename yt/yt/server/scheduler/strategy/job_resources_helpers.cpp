@@ -38,7 +38,7 @@ void ProfileResourceVector(
     NProfiling::ISensorWriter* writer,
     const THashSet<EJobResourceType>& resourceTypes,
     const TResourceVector& resourceVector,
-    const TString& prefix)
+    const std::string& prefix)
 {
     for (auto resourceType : resourceTypes) {
         writer->AddGauge(
@@ -50,7 +50,7 @@ void ProfileResourceVector(
 void ProfileResourceVolume(
     NProfiling::ISensorWriter* writer,
     const TResourceVolume& volume,
-    const TString& prefix,
+    const std::string& prefix,
     NProfiling::EMetricType metricType)
 {
     switch (metricType) {
@@ -73,7 +73,7 @@ void ProfileResourceVolume(
 void ProfileResourcesConfig(
     NProfiling::ISensorWriter* writer,
     const NVectorHdrf::TJobResourcesConfig* resourcesConfig,
-    const TString& prefix)
+    const std::string& prefix)
 {
     if (!resourcesConfig) {
         return;

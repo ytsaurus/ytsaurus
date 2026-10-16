@@ -9,6 +9,7 @@
 #include "session.h"
 #include "session_manager.h"
 #include "master_connector.h"
+#include "medium_aware_block_cache_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
@@ -46,7 +47,7 @@ class TChunkStoreHost
     : public IChunkStoreHost
 {
 public:
-    explicit TChunkStoreHost(NClusterNode::IBootstrapBase* bootstrap)
+    explicit TChunkStoreHost(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     { }
 
@@ -101,6 +102,9 @@ public:
         if (auto blockCache = Bootstrap_->GetBlockCache()) {
             blockCache->RemoveChunkBlocks(chunkId);
         }
+        if (auto manager = Bootstrap_->GetMediumAwareBlockCacheManager()) {
+            manager->RemoveChunkBlocks(chunkId);
+        }
     }
 
     const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler() override
@@ -119,12 +123,12 @@ public:
     }
 
 private:
-    NClusterNode::IBootstrapBase* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkStoreHost)
 
-IChunkStoreHostPtr CreateChunkStoreHost(NClusterNode::IBootstrapBase* bootstrap)
+IChunkStoreHostPtr CreateChunkStoreHost(IBootstrap* bootstrap)
 {
     return New<TChunkStoreHost>(bootstrap);
 }
@@ -152,7 +156,7 @@ void TChunkStore::Initialize()
 {
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
-    YT_LOG_INFO("Initializing chunk store");
+    YT_TLOG_INFO("Initializing chunk store");
 
     std::vector<TFuture<void>> futures;
     for (int index = 0; index < std::ssize(Config_->StoreLocations); ++index) {
@@ -174,8 +178,8 @@ void TChunkStore::Initialize()
     WaitFor(AllSucceeded(std::move(futures)))
         .ThrowOnError();
 
-    YT_LOG_INFO("Chunk store initialized (ChunkCount: %v)",
-        GetChunkCount());
+    YT_TLOG_INFO("Chunk store initialized")
+        .With("ChunkCount", GetChunkCount());
 
     ProfilingExecutor_->Start();
 }
@@ -185,6 +189,26 @@ void TChunkStore::Shutdown()
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
     Locations_.clear();
+}
+
+void TChunkStore::SetMediumAwareBlockCacheManager(IMediumAwareBlockCacheManagerPtr manager)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+    YT_VERIFY(manager);
+    YT_VERIFY(!MediumAwareBlockCacheManager_);
+
+    MediumAwareBlockCacheManager_ = std::move(manager);
+}
+
+TLocationCountPerMedium TChunkStore::GetLocationCountPerMedium() const
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    TLocationCountPerMedium result;
+    for (const auto& location : Locations_) {
+        ++result[location->GetMediumName()];
+    }
+    return result;
 }
 
 void TChunkStore::ReconfigureLocation(const TChunkLocationPtr& location)
@@ -265,14 +289,14 @@ void TChunkStore::RegisterNewChunk(
         auto masterEpoch = ChunkStoreHost_->GetMasterEpoch();
         if (session && masterEpoch != session->GetMasterEpoch()) {
             THROW_ERROR_EXCEPTION("Node has reconnected to master during chunk upload")
-                << TErrorAttribute("session_master_epoch", session->GetMasterEpoch())
-                << TErrorAttribute("current_master_epoch", masterEpoch);
+                .With("session_master_epoch", session->GetMasterEpoch())
+                .With("current_master_epoch", masterEpoch);
         }
 
         if (auto oldChunk = DoFindExistingChunk(chunk).Chunk) {
             THROW_ERROR_EXCEPTION("Attempted to register duplicate chunk")
-                << TErrorAttribute("new_chunk_path", chunk->GetLocation()->GetChunkPath(chunk->GetId()))
-                << TErrorAttribute("old_chunk_path", oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId()));
+                .With("new_chunk_path", chunk->GetLocation()->GetChunkPath(chunk->GetId()))
+                .With("old_chunk_path", oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId()));
         }
 
         // NB: This is multimap.
@@ -281,7 +305,7 @@ void TChunkStore::RegisterNewChunk(
         OnChunkRegistered(chunk);
     }
 
-    lockedChunkGuard.Release();
+    std::move(lockedChunkGuard).Release();
 }
 
 TChunkStore::TChunkEntry TChunkStore::DoFindExistingChunk(const IChunkPtr& chunk) const
@@ -333,7 +357,7 @@ IChunkPtr TChunkStore::FindChunk(TChunkId chunkId, int mediumIndex) const
     }
 
     for (auto it = itRange.first; it != itRange.second; ++it) {
-        if (it->second.Chunk->GetLocation()->GetMediumDescriptor()->GetIndex() == mediumIndex) {
+        if (it->second.Chunk->GetLocation()->GetMediumIndex() == mediumIndex) {
             return it->second.Chunk;
         }
     }
@@ -365,7 +389,7 @@ TChunkStore::TChunkEntry TChunkStore::DoUpdateChunk(const IChunkPtr& oldChunk, c
 {
     YT_ASSERT_SPINLOCK_AFFINITY(ChunkMapLock_);
     YT_ASSERT(oldChunk->GetId() == newChunk->GetId());
-    YT_ASSERT(oldChunk->GetLocation()->GetMediumDescriptor()->GetIndex() == newChunk->GetLocation()->GetMediumDescriptor()->GetIndex());
+    YT_ASSERT(oldChunk->GetLocation()->GetMediumIndex() == newChunk->GetLocation()->GetMediumIndex());
 
     auto itRange = ChunkMap_.equal_range(oldChunk->GetId());
     YT_VERIFY(itRange.first != itRange.second);
@@ -416,13 +440,11 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
     {
         auto lockedChunkGuard = chunk->GetLocation()->TryLockChunk(chunk->GetId());
 
-        YT_LOG_FATAL_IF(
-            !lockedChunkGuard,
-            "Location lock chunk failed (LocationId: %v, ChunkId: %v)",
-            chunk->GetLocation()->GetId(),
-            chunk->GetId());
+        YT_TLOG_FATAL_IF(!lockedChunkGuard, "Location lock chunk failed")
+            .With("LocationId", chunk->GetLocation()->GetId())
+            .With("ChunkId", chunk->GetId());
 
-        lockedChunkGuard.Release();
+        std::move(lockedChunkGuard).Release();
     }
 
     IChunkPtr oldChunk;
@@ -436,11 +458,11 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
         auto currentPath = chunk->GetLocation()->GetChunkPath(chunk->GetId());
 
         // Check that replicas point to the different inodes.
-        YT_LOG_FATAL_IF(
+        YT_TLOG_FATAL_IF(
             NFS::AreInodesIdentical(oldPath, currentPath),
-            "Duplicate chunks point to the same inode: %v vs %v",
-            currentPath,
-            oldPath);
+            "Duplicate chunks point to the same inode")
+            .With("CurrentPath", currentPath)
+            .With("OldPath", oldPath);
 
         switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
             case EObjectType::Chunk:
@@ -449,32 +471,43 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
                 // since different replicas may have different chunk meta formats.
 
                 // Remove duplicate replica.
-                YT_LOG_WARNING("Removing duplicate blob chunk: %v vs %v",
-                    currentPath,
-                    oldPath);
+                YT_TLOG_WARNING("Removing duplicate blob chunk")
+                    .With("CurrentPath", currentPath)
+                    .With("OldPath", oldPath);
                 chunk->SyncRemove(true);
                 break;
             }
 
             case EObjectType::JournalChunk:
             case EObjectType::ErasureJournalChunk: {
-                auto longerRowCount = chunk->AsJournalChunk()->GetFlushedRowCount();
-                auto shorterRowCount = oldChunk->AsJournalChunk()->GetFlushedRowCount();
+                std::optional<i64> longerRowCount;
+                std::optional<i64> shorterRowCount;
+                if (!chunk->AsJournalChunk()->IsSealed()) {
+                    longerRowCount = chunk->AsJournalChunk()->GetFlushedRowCount();
+                }
+                if (!oldChunk->AsJournalChunk()->IsSealed()) {
+                    shorterRowCount = oldChunk->AsJournalChunk()->GetFlushedRowCount();
+                }
 
                 auto longerChunk = chunk;
                 auto shorterChunk = oldChunk;
 
-                if (longerRowCount < shorterRowCount) {
+                if (longerRowCount && !shorterRowCount ||
+                    longerRowCount && shorterRowCount && longerRowCount < shorterRowCount)
+                {
                     std::swap(longerRowCount, shorterRowCount);
                     std::swap(longerChunk, shorterChunk);
                 }
 
                 // Remove shorter replica.
-                YT_LOG_WARNING("Removing shorter journal chunk: %v (%v rows) vs %v (%v rows)",
-                    shorterChunk->GetFileName(),
-                    shorterRowCount,
-                    longerChunk->GetFileName(),
-                    longerRowCount);
+                YT_TLOG_WARNING("Removing shorter journal chunk")
+                    .With("ShorterFileName", shorterChunk->GetFileName())
+                    .With("ShorterRowCount", shorterRowCount)
+                    .With("ShorterSealed", shorterChunk->AsJournalChunk()->IsSealed())
+                    .With("LongerFileName", longerChunk->GetFileName())
+                    .With("LongerRowCount", longerRowCount)
+                    .With("LongerSealed", longerChunk->AsJournalChunk()->IsSealed());
+
                 shorterChunk->SyncRemove(true);
                 if (shorterChunk == oldChunk) {
                     // But register new chunk.
@@ -509,12 +542,18 @@ void TChunkStore::ChangeLocationMedium(const TChunkLocationPtr& location, int ol
 
     ReconfigureLocation(location);
 
-    auto guard = ReaderGuard(ChunkMapLock_);
-    for (const auto& [chunkId, chunkEntry] : ChunkMap_) {
-        const auto& chunk = chunkEntry.Chunk;
-        if (chunk->GetLocation() == location) {
-            ChunkMediumChanged_.Fire(chunk, oldMediumIndex);
+    {
+        auto guard = ReaderGuard(ChunkMapLock_);
+        for (const auto& [chunkId, chunkEntry] : ChunkMap_) {
+            const auto& chunk = chunkEntry.Chunk;
+            if (chunk->GetLocation() == location) {
+                ChunkMediumChanged_.Fire(chunk, oldMediumIndex);
+            }
         }
+    }
+
+    if (MediumAwareBlockCacheManager_) {
+        MediumAwareBlockCacheManager_->UpdateLocationCountPerMedium(GetLocationCountPerMedium());
     }
 }
 
@@ -532,24 +571,24 @@ void TChunkStore::OnChunkRegistered(const IChunkPtr& chunk)
     switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
-            YT_LOG_DEBUG("Blob chunk registered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v, DiskSpace: %v)",
-                chunk->GetId(),
-                location->GetId(),
-                location->GetUuid(),
-                location->GetIndex(),
-                diskSpace);
+            YT_TLOG_DEBUG("Blob chunk registered")
+                .With("ChunkId", chunk->GetId())
+                .With("LocationId", location->GetId())
+                .With("LocationUuid", location->GetUuid())
+                .With("LocationIndex", location->GetIndex())
+                .With("DiskSpace", diskSpace);
             break;
 
         case EObjectType::JournalChunk:
         case EObjectType::ErasureJournalChunk:
-            YT_LOG_DEBUG("Journal chunk registered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v, Version: %v, Sealed: %v, Active: %v)",
-                chunk->GetId(),
-                location->GetId(),
-                location->GetUuid(),
-                location->GetIndex(),
-                chunk->GetVersion(),
-                chunk->GetInfo().sealed(),
-                chunk->IsActive());
+            YT_TLOG_DEBUG("Journal chunk registered")
+                .With("ChunkId", chunk->GetId())
+                .With("LocationId", location->GetId())
+                .With("LocationUuid", location->GetUuid())
+                .With("LocationIndex", location->GetIndex())
+                .With("Version", chunk->GetVersion())
+                .With("Sealed", chunk->GetInfo().sealed())
+                .With("Active", chunk->IsActive());
             break;
 
         default:
@@ -559,9 +598,12 @@ void TChunkStore::OnChunkRegistered(const IChunkPtr& chunk)
     ChunkAdded_.Fire(chunk);
 }
 
-void TChunkStore::UpdateExistingChunk(const IChunkPtr& chunk)
+void TChunkStore::UpdateExistingChunk(
+    const IChunkPtr& chunk,
+    const TWriterGuard<TReaderWriterSpinLock>& /*guard*/)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(ChunkMapLock_);
 
     const auto& location = chunk->GetLocation();
     if (!location->IsEnabled()) {
@@ -574,26 +616,22 @@ void TChunkStore::UpdateExistingChunk(const IChunkPtr& chunk)
 
     TChunkEntry oldChunkEntry;
     TChunkEntry newChunkEntry;
-    {
-        auto guard = WriterGuard(ChunkMapLock_);
 
-        oldChunkEntry = DoFindExistingChunk(chunk);
-        if (!oldChunkEntry.Chunk) {
-            YT_LOG_DEBUG(
-                "Journal chunk no longer exists and will not be updated (ChunkId: %v, Version: %v, JournalChunkSealed: %v, JournalChunkActive: %v)",
-                journalChunk->GetId(),
-                version,
-                journalChunk->IsSealed(),
-                journalChunk->IsActive());
-            return;
-        }
-
-        newChunkEntry = DoUpdateChunk(oldChunkEntry.Chunk, chunk);
-
-        location->UpdateUsedSpace(newChunkEntry.DiskSpace - oldChunkEntry.DiskSpace);
-
-        ChunkAdded_.Fire(chunk);
+    oldChunkEntry = DoFindExistingChunk(chunk);
+    if (!oldChunkEntry.Chunk) {
+        YT_TLOG_DEBUG("Journal chunk no longer exists and will not be updated")
+            .With("ChunkId", journalChunk->GetId())
+            .With("Version", version)
+            .With("JournalChunkSealed", journalChunk->IsSealed())
+            .With("JournalChunkActive", journalChunk->IsActive());
+        return;
     }
+
+    newChunkEntry = DoUpdateChunk(oldChunkEntry.Chunk, chunk);
+
+    location->UpdateUsedSpace(newChunkEntry.DiskSpace - oldChunkEntry.DiskSpace);
+
+    ChunkAdded_.Fire(chunk);
 }
 
 void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
@@ -625,11 +663,11 @@ void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
         ChunkRemoved_.Fire(chunk);
     }
 
-    YT_LOG_DEBUG("Chunk unregistered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
-        chunk->GetId(),
-        location->GetId(),
-        location->GetUuid(),
-        location->GetIndex());
+    YT_TLOG_DEBUG("Chunk unregistered")
+        .With("ChunkId", chunk->GetId())
+        .With("LocationId", location->GetId())
+        .With("LocationUuid", location->GetUuid())
+        .With("LocationIndex", location->GetIndex());
 
     ChunkStoreHost_->RemoveChunkFromCache(chunk->GetId());
 }
@@ -655,15 +693,20 @@ void TChunkStore::SetChunkLocationIndexes(const NChunkClient::NProto::TLocationI
 
         if (location) {
             location->SetIndex(index);
-            YT_LOG_INFO("Setting index for location (LocationUuid: %v, LocationIndex: %v)", uuid, index);
+            YT_TLOG_INFO("Setting index for location")
+                .With("LocationUuid", uuid)
+                .With("LocationIndex", index);
         } else {
-            YT_LOG_ALERT("Trying to set index for unknown location (LocationUuid: %v, LocationIndex: %v)", uuid, index);
+            YT_TLOG_ALERT("Trying to set index for unknown location")
+                .With("LocationUuid", uuid)
+                .With("LocationIndex", index);
         }
     }
 
     for (const auto& location : Locations_) {
         if (location->GetIndex() == NNodeTrackerClient::InvalidChunkLocationIndex) {
-            YT_LOG_ALERT("Location has no index set (LocationUuid: %v)", location->GetUuid());
+            YT_TLOG_ALERT("Location has no index set")
+                .With("LocationUuid", location->GetUuid());
         }
     }
 }
@@ -672,20 +715,20 @@ void TChunkStore::RemoveNonexistentChunk(TChunkId chunkId, TChunkLocationUuid lo
 {
     auto location = GetChunkLocationByUuid(locationUuid);
     if (!location) {
-        YT_LOG_ERROR("Chunk location is missing during nonexistent chunk removal (ChunkId: %v, LocationUuid: %v)",
-            chunkId,
-            locationUuid);
+        YT_TLOG_ERROR("Chunk location is missing during nonexistent chunk removal")
+            .With("ChunkId", chunkId)
+            .With("LocationUuid", locationUuid);
         return;
     }
 
     TChunkDescriptor descriptor(chunkId);
     auto chunk = CreateFromDescriptor(location, descriptor);
 
-    YT_LOG_DEBUG("Nonexistent chunk unregistered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
-        chunkId,
-        location->GetId(),
-        location->GetUuid(),
-        location->GetIndex());
+    YT_TLOG_DEBUG("Nonexistent chunk unregistered")
+        .With("ChunkId", chunkId)
+        .With("LocationId", location->GetId())
+        .With("LocationUuid", location->GetUuid())
+        .With("LocationIndex", location->GetIndex());
 
     {
         auto guard = ReaderGuard(ChunkMapLock_);
@@ -778,11 +821,11 @@ std::vector<IChunkPtr> TChunkStore::GetLocationChunks(const TChunkLocationPtr& l
 TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunks()
 {
     auto guard = ReaderGuard(ChunkMapLock_);
-    return GetPerLocationChunksUnsafe(std::move(guard));
+    return GetPerLocationChunksUnsafe(guard);
 }
 
 TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunksUnsafe(
-    NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> /*guard*/)
+    const TReaderGuard<TReaderWriterSpinLock>& /*guard*/)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
     YT_ASSERT_SPINLOCK_AFFINITY(ChunkMapLock_);
@@ -824,14 +867,14 @@ void TChunkStore::CheckAllChunksHaveValidCellTags(const THashSet<NObjectClient::
     int totalInvalidChunkCount = 0;
     for (auto [cellTag, count] : invalidCellTagToChunkCount) {
         totalInvalidChunkCount += count;
-        YT_LOG_ALERT("Invalid master cell tag found for chunks (CellTag: %v, InvalidChunkCount: %v)",
-            cellTag,
-            count);
+        YT_TLOG_ALERT("Invalid master cell tag found for chunks")
+            .With("CellTag", cellTag)
+            .With("InvalidChunkCount", count);
     }
 
-    YT_LOG_INFO("Chunks cell tags are checked (InvalidCells: %v, InvalidChunkCount: %v)",
-        invalidCellTagToChunkCount.size(),
-        totalInvalidChunkCount);
+    YT_TLOG_INFO("Chunks cell tags are checked")
+        .With("InvalidCells", invalidCellTagToChunkCount.size())
+        .With("InvalidChunkCount", totalInvalidChunkCount);
 }
 
 TFuture<void> TChunkStore::RemoveChunk(const IChunkPtr& chunk, std::optional<TDuration> startRemoveDelay)
@@ -862,45 +905,60 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
     std::vector<int> candidateIndices;
     candidateIndices.reserve(Locations_.size());
 
-    std::vector<TStoreLocationPtr> throttledLocations;
-    std::vector<TError> throttledLocationErrors;
+    struct TThrottledLocationInfo
+    {
+        TStoreLocationPtr Location;
+        TError Error;
+        ELocationWriteThrottlingReason Reason = ELocationWriteThrottlingReason::LocationNotWritable;
+    };
+
+    std::vector<TThrottledLocationInfo> throttledLocations;
 
     int minCount = std::numeric_limits<int>::max();
     for (int index = 0; index < std::ssize(Locations_); ++index) {
         const auto& location = Locations_[index];
-        if (location->GetMediumDescriptor()->GetIndex() != sessionId.MediumIndex) {
+        if (location->GetMediumIndex() != sessionId.MediumIndex) {
             continue;
         }
 
         if (auto error = location->CheckWritable(); !error.IsOK()) {
-            throttledLocations.push_back(location);
-            throttledLocationErrors.push_back(error);
+            throttledLocations.push_back({
+                .Location = location,
+                .Error = std::move(error),
+                .Reason = ELocationWriteThrottlingReason::LocationNotWritable,
+            });
             continue;
         }
 
         if (options.MinLocationAvailableSpace) {
             if (!location->HasEnoughSpace(*options.MinLocationAvailableSpace)) {
-                throttledLocations.push_back(location);
-                throttledLocationErrors.push_back(TError("Session cannot be started due to lack of free space")
-                    << TErrorAttribute("location_id", location->GetId())
-                    << TErrorAttribute("needed_space", *options.MinLocationAvailableSpace)
-                    << TErrorAttribute("available_space", location->GetAvailableSpace()));
+                throttledLocations.push_back({
+                    .Location = location,
+                    .Error = TError("Session cannot be started due to lack of free space")
+                        .With("location_id", location->GetId())
+                        .With("needed_space", *options.MinLocationAvailableSpace)
+                        .With("available_space", location->GetAvailableSpace()),
+                    .Reason = ELocationWriteThrottlingReason::NotEnoughSpace,
+                });
                 continue;
             }
         }
 
         if (!options.UseProbePutBlocks) {
             auto memoryLimitFractionForStartingNewSessions = location->GetMemoryLimitFractionForStartingNewSessions();
-            auto usedMemory = location->GetUsedMemory(/*useLegacyUsedMemory*/ true, EIODirection::Write);
-            auto memoryLimit = location->GetLegacyWriteMemoryLimit() * memoryLimitFractionForStartingNewSessions;
+            auto usedMemory = location->GetUsedMemory(EIODirection::Write);
+            auto memoryLimit = location->GetWriteMemoryLimit() * memoryLimitFractionForStartingNewSessions;
             if (memoryLimitFractionForStartingNewSessions &&
                 usedMemory > memoryLimit)
             {
-                throttledLocations.push_back(location);
-                throttledLocationErrors.push_back(TError("Session cannot be started due to lack of memory")
-                    << TErrorAttribute("location_id", location->GetId())
-                    << TErrorAttribute("used_memory", usedMemory)
-                    << TErrorAttribute("memory_limit", memoryLimit));
+                throttledLocations.push_back({
+                    .Location = location,
+                    .Error = TError("Session cannot be started due to lack of memory")
+                        .With("location_id", location->GetId())
+                        .With("used_memory", usedMemory)
+                        .With("memory_limit", memoryLimit),
+                    .Reason = ELocationWriteThrottlingReason::NewSessionWriteMemoryLimitExceeded,
+                });
                 continue;
             }
 
@@ -910,11 +968,14 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             if (memoryLimitFractionForStartingNewSessions &&
                 trackedMemory > totalMemoryLimit)
             {
-                throttledLocations.push_back(location);
-                throttledLocationErrors.push_back(TError("Session cannot be started due to lack of memory")
-                    << TErrorAttribute("location_id", location->GetId())
-                    << TErrorAttribute("category_memory_used", trackedMemory)
-                    << TErrorAttribute("category_memory_limit", totalMemoryLimit));
+                throttledLocations.push_back({
+                    .Location = location,
+                    .Error = TError("Session cannot be started due to lack of memory")
+                        .With("location_id", location->GetId())
+                        .With("category_memory_used", trackedMemory)
+                        .With("category_memory_limit", totalMemoryLimit),
+                    .Reason = ELocationWriteThrottlingReason::NewSessionWriteMemoryTrackerLimitExceeded,
+                });
                 continue;
             }
         }
@@ -922,20 +983,27 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
         auto sessionCount = location->GetSessionCount();
         auto sessionCountLimit = location->GetSessionCountLimit();
         if (sessionCount >= sessionCountLimit) {
-            throttledLocations.push_back(location);
-            throttledLocationErrors.push_back(TError("Session cannot be started because of too many concurrent sessions")
-                << TErrorAttribute("location_id", location->GetId())
-                << TErrorAttribute("session_count", sessionCount)
-                << TErrorAttribute("session_count_limit", sessionCountLimit));
+            throttledLocations.push_back({
+                .Location = location,
+                .Error = TError("Session cannot be started because of too many concurrent sessions")
+                    .With("location_id", location->GetId())
+                    .With("session_count", sessionCount)
+                    .With("session_count_limit", sessionCountLimit),
+                .Reason = ELocationWriteThrottlingReason::SessionCountLimitReached,
+            });
             continue;
         }
 
         if (ShouldSkipWriteThrottlingLocations()) {
             auto diskThrottlingResult = location->CheckWriteThrottling(options.WorkloadDescriptor, true, options.UseProbePutBlocks);
-            if (diskThrottlingResult.Enabled || diskThrottlingResult.MemoryOvercommit) {
-                throttledLocations.push_back(location);
-                throttledLocationErrors.push_back(TError("Session cannot be started because of disk throttling")
-                    << diskThrottlingResult.Error);
+            if (diskThrottlingResult.IsEnabled() || diskThrottlingResult.MemoryOvercommit) {
+                YT_VERIFY(diskThrottlingResult.Reason);
+                throttledLocations.push_back({
+                    .Location = location,
+                    .Error = TError("Session cannot be started because of disk throttling")
+                        .With(diskThrottlingResult.Error),
+                    .Reason = *diskThrottlingResult.Reason,
+                });
                 continue;
             }
         }
@@ -969,13 +1037,14 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
         auto error = TError(
             NChunkClient::EErrorCode::NoLocationAvailable,
             "No write location is available")
-            << TErrorAttribute("session_id", ToString(sessionId));
+            .With("session_id", ToString(sessionId));
 
         if (!throttledLocations.empty()) {
-            auto size = throttledLocations.size();
-            auto index = RandomNumber(size);
-            throttledLocations[index]->ReportThrottledWrite();
-            error <<= throttledLocationErrors[index];
+            const auto& throttledLocation = throttledLocations[RandomNumber(throttledLocations.size())];
+            throttledLocation.Location->ReportThrottledWrite(throttledLocation.Reason);
+            if (!throttledLocation.Error.IsOK()) {
+                error.Add(throttledLocation.Error);
+            }
         }
 
         THROW_ERROR_EXCEPTION(error);
@@ -994,19 +1063,21 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             }
         } while (std::find(candidateIndices.begin(), candidateIndices.end(), currentIndex) == candidateIndices.end());
         location = Locations_[currentIndex];
-        YT_LOG_DEBUG("Next round-robin location is chosen for chunk (PlacementId: %v, ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
-            options.PlacementId,
-            sessionId,
-            location->GetId(),
-            location->GetUuid(),
-            location->GetIndex());
+        YT_TLOG_DEBUG("Next round-robin location is chosen for chunk")
+            .With("PlacementId", options.PlacementId)
+            .With("ChunkId", sessionId)
+            .With("LocationId", location->GetId())
+            .With("LocationUuid", location->GetUuid())
+            .With("LocationIndex", location->GetIndex());
     } else {
         location = Locations_[candidateIndices[RandomNumber(candidateIndices.size())]];
-        YT_LOG_DEBUG("Random location is chosen for chunk (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
-            sessionId,
-            location->GetId(),
-            location->GetUuid(),
-            location->GetIndex());
+        YT_TLOG_DEBUG("Random location is chosen for chunk")
+            .With("ChunkId", sessionId)
+            .With("LocationId", location->GetId())
+            .With("LocationUuid", location->GetUuid())
+            .With("LocationIndex", location->GetIndex())
+            .With("MediumIndex", location->GetMediumIndex())
+            .With("MediumName", location->GetMediumName());
     }
 
     auto lockedChunkGuard = location->TryLockChunk(sessionId.ChunkId);
@@ -1058,8 +1129,8 @@ TChunkStore::TPlacementInfo* TChunkStore::GetOrCreatePlacementInfo(TPlacementId 
         auto pair = PlacementIdToInfo_.emplace(placementId, placementInfo);
         YT_VERIFY(pair.second);
         it = pair.first;
-        YT_LOG_DEBUG("Placement info registered (PlacementId: %v)",
-            placementId);
+        YT_TLOG_DEBUG("Placement info registered")
+            .With("PlacementId", placementId);
     } else {
         DeadlineToPlacementId_.erase(it->second.DeadlineIterator);
     }
@@ -1079,8 +1150,8 @@ void TChunkStore::ExpirePlacementInfos()
             break;
         }
         const auto& placementId = it->second;
-        YT_LOG_DEBUG("Placement info unregistered (PlacementId: %v)",
-            placementId);
+        YT_TLOG_DEBUG("Placement info unregistered")
+            .With("PlacementId", placementId);
         YT_VERIFY(PlacementIdToInfo_.erase(placementId) == 1);
         DeadlineToPlacementId_.erase(it);
     }
@@ -1130,11 +1201,18 @@ bool TChunkStore::ShouldSkipWriteThrottlingLocations()
         : Config_->SkipWriteThrottlingLocations;
 }
 
-NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> TChunkStore::AcquireChunkMapReaderLock()
+TReaderGuard<TReaderWriterSpinLock> TChunkStore::AcquireChunkMapReaderLock()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ReaderGuard(ChunkMapLock_);
+}
+
+TWriterGuard<TReaderWriterSpinLock> TChunkStore::AcquireChunkMapWriterLock()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return WriterGuard(ChunkMapLock_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

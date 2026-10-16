@@ -6,12 +6,13 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
 #include <library/cpp/yt/threading/public.h>
+
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NQueryTracker {
 
-const TString NoneQueryTracker = "None";
+const std::string NoneQueryTracker = "None";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,7 +20,7 @@ struct TProfilingTags
 {
     EQueryState State;
     EQueryEngine Engine;
-    TString AssignedTracker;
+    std::string AssignedTracker;
 
     bool operator==(const TProfilingTags& other) const = default;
     bool operator<(const TProfilingTags& other) const = default;

@@ -1,0 +1,273 @@
+
+#include "yt_wrapper.h"
+
+#include <yql/essentials/utils/yql_panic.h>
+#include <yql/essentials/utils/log/log.h>
+
+#include <yt/yql/providers/dq/global_worker_manager/coordination_helper.h>
+#include <contrib/ydb/library/yql/providers/dq/actors/actor_helpers.h>
+#include <yt/yql/providers/dq/actors/yt/resource_manager.h>
+#include <contrib/ydb/library/yql/providers/dq/actors/events/events.h>
+#include <contrib/ydb/library/yql/providers/dq/common/attrs.h>
+
+#include <contrib/ydb/library/actors/core/events.h>
+#include <contrib/ydb/library/actors/core/hfunc.h>
+#include <library/cpp/yson/node/node_io.h>
+
+#include <yt/cpp/mapreduce/interface/fluent.h>
+
+namespace NYql {
+
+using namespace NActors;
+using namespace NMonitoring;
+
+class TYtResourceUploader: public TRichActor<TYtResourceUploader> {
+public:
+    static constexpr char ActorName[] = "UPLOADER";
+
+    TYtResourceUploader(
+        const TResourceManagerOptions& options,
+        const ICoordinationHelper::TPtr& coordinator)
+        : TRichActor<TYtResourceUploader>(&TYtResourceUploader::Follower)
+        , Options(options)
+        , Coordinator(coordinator)
+        , ClusterName(Options.YtBackend.GetClusterName())
+    {
+        YQL_LOG_CTX_ROOT_SCOPE(ClusterName);
+        YQL_CLOG(INFO, ProviderDq) << "ResourceUploader created:"
+            << " files=" << Options.Files.size()
+            << " prefix=" << Options.UploadPrefix
+            << " lock=" << (Options.LockName.empty() ? "(per-file)" : Options.LockName);
+        if (Options.Counters) {
+            FileSize = Options.Counters->GetHistogram("FileSize", ExponentialHistogram(10, 4, 10));
+            FileUploadTime = Options.Counters->GetHistogram("UploadTime", ExponentialHistogram(10, 3, 1));
+            Errors = Options.Counters->GetCounter("Errors");
+            ContentMd5Checks = Options.Counters->GetCounter("ContentMd5Checks", /*derivative=*/ true);
+            ContentMd5Mismatches = Options.Counters->GetCounter("ContentMd5Mismatches", /*derivative=*/ true);
+        }
+    }
+
+private:
+    // States: Follower -> Upload
+
+    void StartFollower(TEvBecomeFollower::TPtr& ev, const TActorContext& ctx) {
+        YQL_LOG_CTX_ROOT_SCOPE(ClusterName, CurrentLockName);
+        Y_UNUSED(ctx);
+        auto leaderAttributes = NYT::NodeFromYsonString(ev->Get()->Attributes).AsMap();
+
+        if (leaderAttributes.contains(NCommonAttrs::ACTOR_NODEID_ATTR)) {
+            YQL_CLOG(INFO, ProviderDq) << "Following leader: "
+                << leaderAttributes.at(NCommonAttrs::ACTOR_NODEID_ATTR).AsUint64();
+        }
+        if (leaderAttributes.contains(NCommonAttrs::HOSTNAME_ATTR)) {
+            YQL_CLOG(INFO, ProviderDq) << "Leader hostname: "
+                << leaderAttributes.at(NCommonAttrs::HOSTNAME_ATTR).AsString();
+        }
+        Become(&TYtResourceUploader::Follower);
+    }
+
+    void StartLeader(TEvBecomeLeader::TPtr& ev, const TActorContext& ctx) {
+        YQL_LOG_CTX_ROOT_SCOPE(ClusterName, CurrentLockName);
+        Y_UNUSED(ctx);
+        YQL_CLOG(INFO, ProviderDq) << "Become leader, epoch=" << ev->Get()->LeaderEpoch
+            << " file=" << CurrentFileId + 1 << "/" << Options.Files.size()
+            << " name=" << Options.Files[CurrentFileId].GetRemoteFileName();
+        Become(&TYtResourceUploader::UploadState);
+        UploadFile();
+    }
+
+    void Follower(STFUNC_SIG) {
+        switch (ev->GetTypeRewrite()) {
+            HFunc(TEvBecomeFollower, StartFollower)
+            HFunc(TEvBecomeLeader, StartLeader)
+
+            case TEvents::TEvBootstrap::EventType: {
+                Bootstrap(TActivationContext::ActorContextFor(this->SelfId()));
+                break;
+            }
+
+            default:
+                break;
+        }
+    }
+
+    void DoPassAway() override {
+        Send(ParentId, new TEvUploadComplete());
+
+        if (Options.Uploaded) {
+            YQL_CLOG(DEBUG, ProviderDq) << "Promise SetValue";
+            auto promise = *Options.Uploaded;
+            promise.TrySetValue();
+        }
+    }
+
+    void UploadState(STFUNC_SIG) {
+        switch (ev->GetTypeRewrite()) {
+            HFunc(TEvBecomeFollower, StartFollower)
+            HFunc(TEvWriteFileResponse, OnFileUploaded)
+
+            case TEvTick::EventType: {
+                // retry
+                UploadFile();
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    TAutoPtr<IEventHandle> AfterRegister(const TActorId& self, const TActorId& parentId) override {
+        ParentId = parentId;
+        return new IEventHandle(self, parentId, new TEvents::TEvBootstrap, 0);
+    }
+
+    TString GetLockName() {
+        Y_ABORT_UNLESS(!Options.Files[CurrentFileId].ObjectId.empty());
+        return Options.Files[CurrentFileId].ObjectId;
+    }
+
+    void Lock() {
+        if (LockId) {
+            UnregisterChild(LockId);
+        }
+        CurrentLockName = Options.LockName.empty()
+            ? GetLockName()
+            : Options.LockName;
+        LockId = RegisterChild(Coordinator->CreateLockOnCluster(YtWrapper, Options.YtBackend.GetPrefix(), CurrentLockName));
+        Become(&TYtResourceUploader::Follower);
+    }
+
+    void Bootstrap(const NActors::TActorContext& ctx) {
+        YtWrapper = Coordinator->GetWrapper(
+            ctx.ActorSystem(),
+            Options.YtBackend.GetProxyAddress(),
+            Options.YtBackend.GetUser(),
+            Options.YtBackend.GetToken());
+        YQL_LOG_CTX_ROOT_SCOPE(ClusterName);
+        YQL_CLOG(INFO, ProviderDq) << "ResourceUploader start:"
+            << " files=" << Options.Files.size()
+            << " prefix=" << Options.UploadPrefix
+            << " lock=" << (Options.LockName.empty() ? "(per-file)" : Options.LockName);
+        Lock();
+    }
+
+    void UploadFile() {
+        TString remotePath = Options.UploadPrefix + "/";
+        NYT::NApi::TFileWriterOptions options;
+        auto& file = Options.Files[CurrentFileId];
+        THashMap<TString, NYT::TNode> attributes;
+        for (const auto& [k, v] : file.Attributes) {
+            attributes[k] = NYT::TNode(v);
+        }
+        if (Options.YtBackend.HasUploadReplicationFactor()) {
+            attributes["replication_factor"] = NYT::TNode(Options.YtBackend.GetUploadReplicationFactor());
+        }
+        options.ComputeMD5 = true;
+
+        if (FileSize && file.File.IsOpen()) {
+            FileSize->Collect(file.File.GetLength() / 1024 / 1024); // megabytes
+        }
+
+        UploadStart = TInstant::Now();
+
+        remotePath += file.GetRemoteFileName();
+        auto message = MakeHolder<TEvWriteFile>(
+            file.File,
+            NYT::NYPath::TYPath(remotePath),
+            attributes,
+            options,
+            file.ContentMd5);
+        Send(YtWrapper, message.Release());
+    }
+
+    void Tick(const NActors::TActorContext& ctx) {
+        ctx.Schedule(TDuration::Seconds(5), new TEvTick());
+    }
+
+    void OnFileUploaded(TEvWriteFileResponse::TPtr& ev, const NActors::TActorContext& ctx) {
+        YQL_LOG_CTX_ROOT_SCOPE(ClusterName, CurrentLockName);
+        auto result = std::get<0>(*ev->Get());
+        const auto& contentMd5Matches = std::get<1>(*ev->Get());
+        if (contentMd5Matches.Defined()) {
+            if (ContentMd5Checks) {
+                *ContentMd5Checks += 1;
+            }
+            if (!*contentMd5Matches && ContentMd5Mismatches) {
+                *ContentMd5Mismatches += 1;
+            }
+        }
+        if (result.IsOK()) {
+            if (FileUploadTime) {
+                FileUploadTime->Collect((TInstant::Now() - UploadStart).Seconds());
+            }
+            YQL_CLOG(INFO, ProviderDq) << "File processed"
+                << " " << CurrentFileId + 1 << "/" << Options.Files.size()
+                << " name=" << Options.Files[CurrentFileId].GetRemoteFileName()
+                << " elapsed=" << (TInstant::Now() - UploadStart).Seconds() << "s";
+            CurrentFileId++;
+            if (CurrentFileId == Options.Files.size()) {
+                YQL_CLOG(INFO, ProviderDq) << "All " << Options.Files.size() << " files uploaded";
+                PassAway();
+            } else {
+                if (Options.LockName.empty()) {
+                    Lock();
+                    YQL_CLOG(DEBUG, ProviderDq) << "Lock next " << CurrentFileId + 1 << "/" << Options.Files.size()
+                        << " name=" << Options.Files[CurrentFileId].GetRemoteFileName();
+                } else {
+                    UploadFile();
+                    YQL_CLOG(DEBUG, ProviderDq) << "Upload next " << CurrentFileId + 1 << "/" << Options.Files.size()
+                        << " name=" << Options.Files[CurrentFileId].GetRemoteFileName();
+                }
+            }
+        } else {
+            YQL_CLOG(WARN, ProviderDq) << "Upload error for "
+                << Options.Files[CurrentFileId].GetRemoteFileName() << ": " << ToString(result) << ", retrying...";
+
+            if (Errors) {
+                *Errors += 1;
+            }
+
+            // Validate each hint only once.
+            Options.Files[CurrentFileId].ContentMd5.clear();
+            std::random_shuffle(Options.Files.begin() + CurrentFileId, Options.Files.end());
+            Tick(ctx);
+        }
+    }
+
+    const NYT::NApi::IClientPtr Client;
+    TResourceManagerOptions Options;
+
+    const ICoordinationHelper::TPtr Coordinator;
+
+    const TString ClusterName;
+
+    TActorId YtWrapper;
+
+    ui32 CurrentFileId = 0;
+    TActorId ParentId;
+    TActorId LockId;
+
+    THistogramPtr FileSize;
+    THistogramPtr FileUploadTime;
+    TDynamicCounters::TCounterPtr Errors;
+    TDynamicCounters::TCounterPtr ContentMd5Checks;
+    TDynamicCounters::TCounterPtr ContentMd5Mismatches;
+    TInstant UploadStart;
+    TString CurrentLockName;
+};
+
+IActor* CreateYtResourceUploader(
+    const TResourceManagerOptions& options,
+    const ICoordinationHelper::TPtr& coordinator)
+{
+    Y_ABORT_UNLESS(coordinator);
+    Y_ABORT_UNLESS(!options.YtBackend.GetProxyAddress().empty());
+    Y_ABORT_UNLESS(!options.YtBackend.GetUser().empty());
+    Y_ABORT_UNLESS(options.YtBackend.HasPrefix());
+    Y_ABORT_UNLESS(!options.Files.empty());
+    Y_ABORT_UNLESS(!options.UploadPrefix.empty());
+
+    return new TYtResourceUploader(options, coordinator);
+}
+
+}

@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 SRCS(
     balancing_helpers_ut.cpp
     bounded_priority_queue_ut.cpp
+    metric_ut.cpp
     replica_balancing_helpers_ut.cpp
 )
 
@@ -16,6 +17,10 @@ PEERDIR(
     yt/yt/core/test_framework
 )
 
-SIZE(SMALL)
+FORK_SUBTESTS()
+
+SPLIT_FACTOR(2)
+
+SIZE(MEDIUM)
 
 END()

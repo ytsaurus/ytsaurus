@@ -1,0 +1,119 @@
+#include "signature_validator.h"
+
+#include <yt/yt/library/signature/common/key_info.h>
+#include <yt/yt/library/signature/common/key_store.h>
+#include <yt/yt/library/signature/common/private.h>
+#include <yt/yt/library/signature/common/signature_header.h>
+#include <yt/yt/library/signature/common/signature_preprocess.h>
+
+#include <yt/yt/client/signature/signature.h>
+
+#include <yt/yt/core/ytree/convert.h>
+
+namespace NYT::NSignature {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using namespace NConcurrency;
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSignatureValidator::TSignatureValidator(IKeyStoreReaderPtr keyReader)
+    : KeyReader_(std::move(keyReader))
+{
+    YT_TLOG_INFO("Signature validator initialized");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+struct TMetadataCheckVisitor
+{
+    bool operator()(
+        const TSignatureHeaderImpl<TSignatureVersion{0, 1}>& header) const
+    {
+        auto now = Now();
+
+        return header.ValidAfter <= now && now < header.ExpiresAt;
+    }
+};
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature) const
+{
+    TSignatureHeader header;
+    if (!signature->Header_) {
+        YT_TLOG_WARNING("Signature is missing header");
+        return MakeFuture(false);
+    }
+
+    try {
+        header = ConvertTo<TSignatureHeader>(signature->Header_);
+    } catch (const std::exception& ex) {
+        YT_TLOG_WARNING("Received invalid signature header")
+            .With("Header", signature->Header_.ToString())
+            .With(ex);
+        return MakeFuture(false);
+    }
+
+    auto signatureId = std::visit([] (auto&& header_) { return header_.SignatureId; }, header);
+    auto [keyIssuer, keyId] = std::visit(
+        [] (auto&& header_) { return std::pair{TOwnerId(header_.Issuer), TKeyId(header_.KeypairId)}; },
+        header);
+
+    YT_TLOG_DEBUG("Validating signature")
+        .With("SignatureId", signatureId);
+
+    return KeyReader_->FindKey(keyIssuer, keyId).Apply(
+        BIND([
+                keyIssuer = std::move(keyIssuer),
+                keyId = std::move(keyId),
+                signatureId = std::move(signatureId),
+                header = std::move(header),
+                signature = std::move(signature)
+            ] (const TKeyInfoPtr& keyInfo) {
+                if (!keyInfo) {
+                    YT_TLOG_WARNING("Key not found")
+                        .With("SignatureId", signatureId)
+                        .With("Issuer", keyIssuer)
+                        .With("KeyPair", keyId);
+                    return false;
+                }
+
+                auto toSign = PreprocessSignature(signature->Header_, signature->Payload());
+
+                if (signature->Signature_.size() != SignatureSize) {
+                    YT_TLOG_WARNING("Signature size mismatch")
+                        .With("SignatureId", signatureId)
+                        .With("ReceivedSize", signature->Signature_.size())
+                        .With("ExpectedSize", SignatureSize);
+                    return false;
+                }
+
+                if (!keyInfo->Verify(toSign, std::span<const char, SignatureSize>(signature->Signature_))) {
+                    YT_TLOG_WARNING("Cryptographic verification failed")
+                        .With("SignatureId", signatureId);
+                    return false;
+                }
+
+                if (!std::visit(TMetadataCheckVisitor{}, header)) {
+                    YT_TLOG_WARNING("Metadata check failed")
+                        .With("SignatureId", signatureId);
+                    return false;
+                }
+
+                YT_TLOG_DEBUG("Successfully validated")
+                    .With("SignatureId", signatureId);
+                return true;
+            })
+            .AsyncVia(GetCurrentInvoker()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NSignature

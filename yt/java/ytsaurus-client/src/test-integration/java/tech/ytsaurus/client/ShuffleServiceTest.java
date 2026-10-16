@@ -19,8 +19,14 @@ import tech.ytsaurus.client.request.StartShuffle;
 import tech.ytsaurus.client.request.StartTransaction;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedValue;
+import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.core.tables.ColumnValueType;
+import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.typeinfo.TiType;
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeMapNode;
 
 public class ShuffleServiceTest extends YTsaurusClientTestBase {
 
@@ -28,6 +34,11 @@ public class ShuffleServiceTest extends YTsaurusClientTestBase {
     private static final int NUM_MAPPERS = 4;
     private static final int TOTAL_SHUFFLE_ROWS = 372_936;
     private static final int EXPECTED_PARTITION_SIZE = TOTAL_SHUFFLE_ROWS / NUM_PARTITIONS;
+    private static final TableSchema SHUFFLE_SCHEMA = TableSchema.builder()
+            .setStrict(true)
+            .add(new ColumnSchema("partition", TiType.int64()))
+            .add(new ColumnSchema("data", TiType.string()))
+            .build();
 
     private YTsaurusClient ytClient;
 
@@ -98,12 +109,106 @@ public class ShuffleServiceTest extends YTsaurusClientTestBase {
         }
     }
 
+    @Test
+    public void testPullBasedShuffleWithSchema() throws Exception {
+        try (var transaction = ytClient.startTransaction(StartTransaction.master()).join()) {
+            var txId = transaction.getId();
+
+            ShuffleHandle shuffleHandle = startShuffle(txId, SHUFFLE_SCHEMA, false);
+
+            writeAllMappers(shuffleHandle);
+
+            for (int partition = 0; partition < NUM_PARTITIONS; partition++) {
+                readAndCheckPartition(shuffleHandle, partition, 0, NUM_MAPPERS, EXPECTED_PARTITION_SIZE);
+            }
+        }
+    }
+
+    @Test
+    public void testPushBasedShuffleWithSchema() throws Exception {
+        try (var transaction = ytClient.startTransaction(StartTransaction.master()).join()) {
+            var txId = transaction.getId();
+
+            ShuffleHandle shuffleHandle = startShuffle(txId, SHUFFLE_SCHEMA, true);
+
+            writeAllMappers(shuffleHandle);
+
+            for (int partition = 0; partition < NUM_PARTITIONS; partition++) {
+                readAndCheckPartition(shuffleHandle, partition, 0, NUM_MAPPERS, EXPECTED_PARTITION_SIZE);
+            }
+        }
+    }
+
+    @Test
+    public void testPushBasedShuffleWithConfig() throws Exception {
+        try (var transaction = ytClient.startTransaction(StartTransaction.master()).join()) {
+            var txId = transaction.getId();
+
+            YTreeMapNode pushConfig = YTree.mapBuilder()
+                    .key("writer").value(YTree.mapBuilder()
+                            .key("memory_budget").value(8L * 1024 * 1024)
+                            .buildMap())
+                    .buildMap();
+
+            ShuffleHandle shuffleHandle = startShuffle(txId, SHUFFLE_SCHEMA, true,
+                    YTree.mapBuilder().key("push").value(pushConfig).buildMap(),
+                    Compression.Lz4);
+
+            writeAllMappers(shuffleHandle);
+
+            for (int partition = 0; partition < NUM_PARTITIONS; partition++) {
+                readAndCheckPartition(shuffleHandle, partition, 0, NUM_MAPPERS, EXPECTED_PARTITION_SIZE);
+            }
+        }
+    }
+
+    private void writeAllMappers(ShuffleHandle shuffleHandle) {
+        for (int mapperId = 0; mapperId < NUM_MAPPERS; mapperId++) {
+            CreateShuffleWriter shuffleWriterReq = CreateShuffleWriter.builder()
+                    .setHandle(shuffleHandle)
+                    .setPartitionColumn("partition")
+                    .setWriterIndex(mapperId)
+                    .build();
+            AsyncWriter<UnversionedRow> shuffleDataWriter = ytClient.createShuffleWriter(shuffleWriterReq).join();
+            shuffleDataWriter
+                    .write(generateTestData(mapperId).collect(Collectors.toList()))
+                    .thenCompose(unused -> shuffleDataWriter.finish()).join();
+        }
+    }
+
     private ShuffleHandle startShuffle(GUID txId) {
+        return startShuffle(txId, null, false);
+    }
+
+    private ShuffleHandle startShuffle(GUID txId, TableSchema schema, boolean usePushBasedShuffle) {
+        return startShuffle(txId, schema, usePushBasedShuffle, null);
+    }
+
+    private ShuffleHandle startShuffle(
+            GUID txId,
+            TableSchema schema,
+            boolean usePushBasedShuffle,
+            YTreeMapNode config
+    ) {
+        return startShuffle(txId, schema, usePushBasedShuffle, config, null);
+    }
+
+    private ShuffleHandle startShuffle(
+            GUID txId,
+            TableSchema schema,
+            boolean usePushBasedShuffle,
+            YTreeMapNode config,
+            Compression codec
+    ) {
         StartShuffle startShuffleReq = StartShuffle.builder()
                 .setAccount("intermediate")
                 .setPartitionCount(NUM_PARTITIONS)
                 .setParentTransactionId(txId)
                 .setReplicationFactor(1)
+                .setSchema(schema)
+                .setUsePushBasedShuffle(usePushBasedShuffle)
+                .setConfig(config)
+                .setCodec(codec)
                 .build();
         return ytClient.startShuffle(startShuffleReq).join();
     }

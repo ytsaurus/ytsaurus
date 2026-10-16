@@ -14,6 +14,7 @@
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
+#include <yt/yt/library/containers/porto_helpers.h>
 #include <yt/yt/library/containers/public.h>
 
 #include <util/system/fs.h>
@@ -22,8 +23,9 @@
 #include <util/string/split.h>
 
 #ifdef _linux_
-#include <yt/yt/library/containers/cgroup.h>
-#include <yt/yt/library/containers/cgroups_new.h>
+#include <yt/yt/library/cgroup/process.h>
+#include <yt/yt/library/cgroup/statistics.h>
+
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/porto_executor.h>
 #endif
@@ -65,10 +67,34 @@ using namespace NYTree;
 
 namespace {
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JobProxyEnvironment");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "JobProxyEnvironment");
 
 #ifdef _linux_
 static constexpr auto ResourceUsageUpdatePeriod = TDuration::MilliSeconds(1000);
+
+std::vector<TBind> MakePrivateDirectoryMaskBinds(const std::string& slotPath)
+{
+    auto emptyPath = NFS::CombinePaths(
+        NFs::CurrentWorkingDirectory(),
+        GetSandboxRelPath(ESandboxKind::Empty));
+
+    return {
+        TBind{
+            .SourcePath = emptyPath,
+            .TargetPath = NFS::CombinePaths(
+                slotPath,
+                GetSandboxRelPath(ESandboxKind::Empty)),
+            .ReadOnly = true,
+        },
+        TBind{
+            .SourcePath = emptyPath,
+            .TargetPath = NFS::CombinePaths(
+                slotPath,
+                GetSandboxRelPath(ESandboxKind::Private)),
+            .ReadOnly = true,
+        },
+    };
+}
 #endif
 
 template <class T>
@@ -82,9 +108,8 @@ std::optional<T> ValueOrNullopt(const TErrorOr<T>& result) noexcept
     // used on fields obtained via GetFieldOrError
     // method from resource tracker, which print
     // field name in the error message.
-    YT_LOG_WARNING(
-        result,
-        "Failed to extract value");
+    YT_TLOG_WARNING("Failed to extract value")
+        .With(result);
 
     return std::nullopt;
 }
@@ -123,7 +148,7 @@ TErrorOr<TJobEnvironmentCpuStatistics> ExtractJobEnvironmentCpuStatistics(const 
         };
     } catch (const std::exception& ex) {
         return TError("Extract job cpu statistics failed")
-            << ex;
+            .With(ex);
     }
 }
 
@@ -150,7 +175,7 @@ TErrorOr<TJobEnvironmentMemoryStatistics> ExtractJobEnvironmentMemoryStatistics(
         };
     } catch (const std::exception& ex) {
         return TError("Extract job memory statistics failed")
-            << ex;
+            .With(ex);
     }
 }
 
@@ -229,9 +254,8 @@ void TSidecarEnvironmentBase::OnSidecarFinished(const TError& sidecarResult)
         case ESidecarRestartPolicy::OnFailure:
             // Restart only if sidecar failed.
             if (sidecarResult.IsOK()) {
-                YT_LOG_DEBUG(
-                    "Not restarting the sidecar (SidecarName: %v)",
-                    Name_);
+                YT_TLOG_DEBUG("Not restarting the sidecar")
+                    .With("SidecarName", Name_);
             } else {
                 RestartSidecar();
             }
@@ -239,25 +263,22 @@ void TSidecarEnvironmentBase::OnSidecarFinished(const TError& sidecarResult)
         case ESidecarRestartPolicy::FailOnError:
             // Do not restart in case of success, fail the whole job otherwise.
             if (sidecarResult.IsOK()) {
-                YT_LOG_DEBUG(
-                    "Not restarting the sidecar (SidecarName: %v)",
-                    Name_);
+                YT_TLOG_DEBUG("Not restarting the sidecar")
+                    .With("SidecarName", Name_);
                 break;
             }
 
-            YT_LOG_DEBUG(
-                "Sidecar has failed, exiting the main job (SidecarName: %v, RestartPolicy: %v, ExitValue: %v)",
-                Name_,
-                Spec_->RestartPolicy,
-                sidecarResult
-            );
+            YT_TLOG_DEBUG("Sidecar has failed, exiting the main job")
+                .With("SidecarName", Name_)
+                .With("RestartPolicy", Spec_->RestartPolicy)
+                .With("ExitValue", sidecarResult);
             if (auto jobProxy = JobProxy_.Lock()) {
                 jobProxy->ShutdownSidecars();
             }
 
             FailedSidecarCallback_(TError("Failing the job because sidecar with FailOnError policy has failed")
-                << TErrorAttribute("sidecar_name", Name_)
-                << TErrorAttribute("sidecar_exit_value", sidecarResult));
+                .With("sidecar_name", Name_)
+                .With("sidecar_exit_value", sidecarResult));
             break;
     }
 }
@@ -274,7 +295,7 @@ public:
         TJobId jobId,
         TPortoJobEnvironmentConfigPtr config,
         const TUserJobEnvironmentOptions& options,
-        const TString& slotContainerName,
+        const std::string& slotContainerName,
         IPortoExecutorPtr portoExecutor)
         : JobId_(jobId)
         , Config_(std::move(config))
@@ -288,7 +309,8 @@ public:
             Environment_.push_back(Format("CUDA_COREDUMP_FILE=%v", slotGpuCorePipeFile));
         }
         for (const auto& networkAddress : Options_.NetworkAddresses) {
-            Environment_.push_back(Format("YT_IP_ADDRESS_%v=%v", to_upper(networkAddress->Name), networkAddress->Address));
+            // TODO(babenko): migrate to std::string
+            Environment_.push_back(Format("YT_IP_ADDRESS_%v=%v", to_upper(TString(networkAddress->Name)), networkAddress->Address));
         }
     }
 
@@ -342,7 +364,8 @@ public:
                 instance->Stop();
             }
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to stop user container");
+            YT_TLOG_WARNING("Failed to stop user container")
+                .With(ex);
         }
     }
 
@@ -353,22 +376,22 @@ public:
         }
     }
 
-    TString HandleVolumeCreationError(TErrorOr<TString> volumeCreationResult)
+    std::string HandleVolumeCreationError(TErrorOr<std::string> volumeCreationResult)
     {
         if (!volumeCreationResult.IsOK()) {
             THROW_ERROR_EXCEPTION(
                 NJobProxy::EErrorCode::UserJobPortoApiError,
                 "Creation of user job volume failed")
-                << std::move(volumeCreationResult);
+                .With(std::move(volumeCreationResult));
         } else {
             return volumeCreationResult.Value();
         }
     }
 
     TFuture<void> SpawnUserProcess(
-        const TString& path,
-        const std::vector<TString>& arguments,
-        const TString& workingDirectory) override
+        const std::string& path,
+        const std::vector<std::string>& arguments,
+        const std::string& workingDirectory) override
     {
         auto jobIdAsGuid = JobId_.Underlying();
         auto containerName = Config_->UseShortContainerNames
@@ -377,20 +400,28 @@ public:
 
         auto launcher = CreatePortoInstanceLauncher(containerName, PortoExecutor_);
 
-        auto portoUser = *WaitFor(PortoExecutor_->GetContainerProperty(SlotContainerName_, "user"))
-            .ValueOrThrow();
-        launcher->SetUser(portoUser);
+        if (Options_.TargetUserId) {
+            YT_VERIFY(*Options_.TargetUserId > 0);
+            launcher->SetUser("root");
+        } else {
+            auto portoUser = GetOrCrash(WaitFor(PortoExecutor_->GetContainerProperty(SlotContainerName_, "user"))
+                .ValueOrThrow());
+            launcher->SetUser(portoUser);
+        }
 
         if (Options_.RootFS) {
             launcher->SetRoot(*Options_.RootFS);
         }
 
+        launcher->SetBinds(MakePrivateDirectoryMaskBinds(NFS::GetDirectoryName(workingDirectory)));
+
+        // TODO(severovv): List not only nvidia devices by calling to GpuManager
         std::vector<TDevice> devices;
-        for (const auto& descriptor : ListGpuDevices()) {
+        for (const auto& descriptor : ListNvidiaGpuDevices()) {
             int deviceIndex = descriptor.DeviceIndex;
             if (std::find(Options_.GpuIndexes.begin(), Options_.GpuIndexes.end(), deviceIndex) == Options_.GpuIndexes.end()) {
                 devices.push_back(TDevice{
-                    .DeviceName = GetGpuDeviceName(deviceIndex),
+                    .DeviceName = GetNvidiaGpuDeviceName(deviceIndex),
                     .Access = "-",
                 });
             }
@@ -434,22 +465,20 @@ public:
                 "mkfifo " + slotCorePipeFile + " && " +
                 "cat >" + slotCorePipeFile;
             auto coreHandler = "bash -c \'" + bashCoreHandler + "\'";
-            YT_LOG_DEBUG(
-                "Enabling core forwarding for Porto container (CoreHandler: %v)",
-                coreHandler);
+            YT_TLOG_DEBUG("Enabling core forwarding for Porto container")
+                .With("CoreHandler", coreHandler);
             launcher->SetCoreDumpHandler(coreHandler);
 
             if (Options_.EnableCudaGpuCoreDump) {
                 auto slotGpuCorePipeFile = NFS::CombinePaths(slotCoreDirectory, CudaGpuCoreDumpPipeName);
                 auto gpuCorePipeFile = NFS::CombinePaths(coreDirectory, CudaGpuCoreDumpPipeName);
-                YT_LOG_DEBUG(
-                    "Creating pipe for GPU core dumps (SlotGpuCorePipeFile: %v, GpuCorePipeFile: %v)",
-                    slotGpuCorePipeFile,
-                    gpuCorePipeFile);
+                YT_TLOG_DEBUG("Creating pipe for GPU core dumps")
+                    .With("SlotGpuCorePipeFile", slotGpuCorePipeFile)
+                    .With("GpuCorePipeFile", gpuCorePipeFile);
                 if (mkfifo(gpuCorePipeFile.c_str(), 0666) == -1) {
                     THROW_ERROR_EXCEPTION("Failed to create CUDA GPU core dump pipe")
-                        << TErrorAttribute("path", gpuCorePipeFile)
-                        << TError::FromSystem();
+                        .With("path", gpuCorePipeFile)
+                        .With(TError::FromSystem());
                 }
             }
         } else {
@@ -474,7 +503,7 @@ public:
             launcher->SetIPAddresses(addresses, Options_.EnableNat64);
         }
 
-        launcher->SetNetworkInterface(TString(JobNetworkInterface));
+        launcher->SetNetworkInterface(std::string(JobNetworkInterface));
 
         launcher->SetEnablePorto(Options_.EnablePorto);
         launcher->SetIsolate(Options_.EnablePorto != NContainers::EEnablePorto::Full);
@@ -515,7 +544,7 @@ public:
         return Instance_.Acquire();
     }
 
-    const std::vector<TString>& GetEnvironmentVariables() const override
+    const std::vector<std::string>& GetEnvironmentVariables() const override
     {
         return Environment_;
     }
@@ -562,10 +591,10 @@ private:
     const TJobId JobId_;
     const TPortoJobEnvironmentConfigPtr Config_;
     const TUserJobEnvironmentOptions Options_;
-    const TString SlotContainerName_;
+    const std::string SlotContainerName_;
     const IPortoExecutorPtr PortoExecutor_;
 
-    std::vector<TString> Environment_;
+    std::vector<std::string> Environment_;
 
     TAtomicIntrusivePtr<IInstance> Instance_;
     TAtomicIntrusivePtr<TPortoResourceTracker> ResourceTracker_;
@@ -592,6 +621,7 @@ public:
         , Launcher_(CreatePortoInstanceLauncher(Name_, std::move(portoExecutor)))
     {
         Launcher_->SetCwd(CurrentWorkDirectory_);
+        Launcher_->SetBinds(MakePrivateDirectoryMaskBinds(jobProxyContainerPath));
     }
 
     TFuture<void> StartSidecar() final
@@ -622,8 +652,13 @@ public:
     {
         YT_VERIFY(Instance_);
 
-        Instance_->Respawn();
-        OnSidecarStarted();
+        try {
+            Instance_->Respawn();
+            OnSidecarStarted();
+        } catch (const std::exception& ex) {
+            FailedSidecarCallback_(TError("Failed to restart Porto sidecar %Qv", Name_)
+                .With(ex));
+        }
     }
 
     bool IsAlive() final
@@ -633,7 +668,7 @@ public:
 
 private:
     IInstancePtr Instance_;
-    const TString CurrentWorkDirectory_;
+    std::string CurrentWorkDirectory_;
     IInstanceLauncherPtr Launcher_;
     TFuture<void> SidecarFinished_;
     TFutureCallbackCookie FutureSidecarFinishedCallbackCookie_;
@@ -645,11 +680,10 @@ private:
 
             YT_VERIFY(signal);
 
-            YT_LOG_INFO(
-                "Sending signal to sidecar (Sidecar: %v, Signal: %v, Timeout: %v)",
-                Name_,
-                signal,
-                Spec_->GracefulShutdown->Timeout);
+            YT_TLOG_INFO("Sending signal to sidecar")
+                .With("Sidecar", Name_)
+                .With("Signal", signal)
+                .With("Timeout", Spec_->GracefulShutdown->Timeout);
 
             Instance_->Kill(*signal);
 
@@ -662,10 +696,9 @@ private:
                 WaitFor(future)
                     .ThrowOnError();
             } catch (...) {
-                YT_LOG_INFO(
-                    "Sidecar's shutdown timeout has expired (Sidecar: %v, Timeout: %v)",
-                    Name_,
-                    Spec_->GracefulShutdown->Timeout);
+                YT_TLOG_INFO("Sidecar's shutdown timeout has expired")
+                    .With("Sidecar", Name_)
+                    .With("Timeout", Spec_->GracefulShutdown->Timeout);
             }
         }
 
@@ -741,17 +774,17 @@ public:
 
     void SetCpuGuarantee(double value) override
     {
-        WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_guarantee", ToString(value) + "c"))
+        WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_guarantee", Format("%v%v", value, 'c')))
             .ThrowOnError();
     }
 
     void SetCpuLimit(double value) override
     {
-        WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_limit", ToString(value) + "c"))
+        WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_limit", Format("%v%v", value, 'c')))
             .ThrowOnError();
     }
 
-    void SetCpuPolicy(const TString& policy) override
+    void SetCpuPolicy(const std::string& policy) override
     {
         WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_policy", policy))
             .ThrowOnError();
@@ -784,6 +817,8 @@ public:
         futures.reserve(jobSpecExt.user_job_spec().sidecars().size());
         RunningSidecars_.reserve(jobSpecExt.user_job_spec().sidecars().size());
         for (const auto& [name, sidecar]: jobSpecExt.user_job_spec().sidecars()) {
+            ValidatePortoContainerNameComponent(name);
+
             auto sidecarSpec = New<TSidecarJobSpec>();
             FromProto(sidecarSpec.Get(), sidecar);
 
@@ -827,7 +862,7 @@ private:
     const IPortoExecutorPtr PortoExecutor_;
     const IInstancePtr Self_;
     const TPortoResourceTrackerPtr ResourceTracker_;
-    const TString SlotContainerName_;
+    const std::string SlotContainerName_;
     const IInvokerPtr Invoker_;
     const std::string JobProxyContainerPath_;
 
@@ -839,7 +874,8 @@ private:
     {
         // We can't abort the user job (the reason is we need Porto to do this),
         // so we will abort the job proxy.
-        YT_LOG_ERROR(error, "Fatal error during Porto polling");
+        YT_TLOG_ERROR("Fatal error during Porto polling")
+            .With(error);
 
         NLogging::TLogManager::Get()->Shutdown();
         AbortProcessSilently(EJobProxyExitCode::PortoManagementFailed);
@@ -891,9 +927,11 @@ public:
             for (auto pid : pids) {
                 if (pid != process->GetProcessId()) {
                     if (TryKillProcessByPid(pid, 9)) {
-                        YT_LOG_DEBUG("Child job process killed (Pid: %v)", pid);
+                        YT_TLOG_DEBUG("Child job process killed")
+                            .With("Pid", pid);
                     } else {
-                        YT_LOG_DEBUG("Failed to kill child job process (Pid: %v)", pid);
+                        YT_TLOG_DEBUG("Failed to kill child job process")
+                            .With("Pid", pid);
                     }
                 }
             }
@@ -906,9 +944,9 @@ public:
     }
 
     TFuture<void> SpawnUserProcess(
-        const TString& path,
-        const std::vector<TString>& arguments,
-        const TString& workingDirectory) override
+        const std::string& path,
+        const std::vector<std::string>& arguments,
+        const std::string& workingDirectory) override
     {
         auto process = New<TSimpleProcess>(path, false);
         process->AddArguments(arguments);
@@ -947,9 +985,9 @@ public:
     }
 
     //! Returns the list of environment-specific environment variables in key=value format.
-    const std::vector<TString>& GetEnvironmentVariables() const override
+    const std::vector<std::string>& GetEnvironmentVariables() const override
     {
-        static std::vector<TString> emptyEnvironment;
+        static std::vector<std::string> emptyEnvironment;
         return emptyEnvironment;
     }
 
@@ -983,17 +1021,17 @@ class TSimpleJobProxyEnvironment
 public:
     void SetCpuGuarantee(double /*value*/) override
     {
-        YT_LOG_WARNING("CPU guarantees are not supported in simple job environment");
+        YT_TLOG_WARNING("CPU guarantees are not supported in simple job environment");
     }
 
     void SetCpuLimit(double /*value*/) override
     {
-        YT_LOG_WARNING("CPU limits are not supported in simple job environment");
+        YT_TLOG_WARNING("CPU limits are not supported in simple job environment");
     }
 
-    void SetCpuPolicy(const TString& /*value*/) override
+    void SetCpuPolicy(const std::string& /*value*/) override
     {
-        YT_LOG_WARNING("CPU policy is not supported in simple job environment");
+        YT_TLOG_WARNING("CPU policy is not supported in simple job environment");
     }
 
     TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetCpuStatistics() const override
@@ -1041,7 +1079,7 @@ public:
 
         if (!options.GpuIndexes.empty()) {
             // This could only happen in tests, e.g. TestSchedulerGpu.
-            YT_LOG_WARNING("GPU devices are not supported in simple job environment");
+            YT_TLOG_WARNING("GPU devices are not supported in simple job environment");
         }
 
         if (options.EnablePortoMemoryTracking) {
@@ -1115,7 +1153,7 @@ public:
 
         if (!options.GpuIndexes.empty()) {
             // This could only happen in tests, e.g. TestSchedulerGpu.
-            YT_LOG_WARNING("GPU devices are not supported in testing job environment");
+            YT_TLOG_WARNING("GPU devices are not supported in testing job environment");
         }
 
         if (options.EnablePortoMemoryTracking) {
@@ -1179,9 +1217,11 @@ public:
             for (auto pid : pids) {
                 if (pid != process->GetProcessId()) {
                     if (TryKillProcessByPid(pid, SIGKILL)) {
-                        YT_LOG_DEBUG("Child job process killed (Pid: %v)", pid);
+                        YT_TLOG_DEBUG("Child job process killed")
+                            .With("Pid", pid);
                     } else {
-                        YT_LOG_DEBUG("Failed to kill child job process (Pid: %v)", pid);
+                        YT_TLOG_DEBUG("Failed to kill child job process")
+                            .With("Pid", pid);
                     }
                 }
             }
@@ -1194,9 +1234,9 @@ public:
     }
 
     TFuture<void> SpawnUserProcess(
-        const TString& path,
-        const std::vector<TString>& arguments,
-        const TString& workingDirectory) override
+        const std::string& path,
+        const std::vector<std::string>& arguments,
+        const std::string& workingDirectory) override
     {
         auto process = New<TSimpleProcess>(path, /*copyEnv*/ false);
         process->AddArguments(arguments);
@@ -1235,7 +1275,7 @@ public:
     }
 
     //! Returns the list of environment-specific environment variables in key=value format.
-    const std::vector<TString>& GetEnvironmentVariables() const override
+    const std::vector<std::string>& GetEnvironmentVariables() const override
     {
         return Environment_;
     }
@@ -1258,7 +1298,7 @@ public:
 private:
     const IJobProxyEnvironmentPtr JobProxyEnvironment_;
     TAtomicIntrusivePtr<TProcessBase> Process_;
-    std::vector<TString> Environment_;
+    std::vector<std::string> Environment_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TCriUserJobEnvironment)
@@ -1275,8 +1315,8 @@ struct TCriJobProxyConfig
         , Binds(config->Binds)
     { }
 
-    std::optional<TString> DockerImage;
-    TString SlotPath;
+    std::optional<std::string> DockerImage;
+    std::string SlotPath;
     std::vector<TBindConfigPtr> Binds;
 };
 
@@ -1284,7 +1324,7 @@ struct TSidecarCriConfig
 {
     TSidecarJobSpecPtr JobSpec;
     NCri::TCriContainerSpecPtr ContainerSpec;
-    TString Command;
+    std::string Command;
 };
 
 class TCriJobProxyEnvironment
@@ -1300,7 +1340,7 @@ public:
         : CriJobProxyConfig_(std::move(criJobProxyConfig))
         , CriJobEnvironmentConfig_(std::move(criJobEnvironmentConfig))
         , Invoker_(std::move(invoker))
-        , ProcessWorkingDirectory_(NFS::CombinePaths(TString(jobProxySlotPath), GetSandboxRelPath(ESandboxKind::User)))
+        , ProcessWorkingDirectory_(NFS::CombinePaths(jobProxySlotPath, GetSandboxRelPath(ESandboxKind::User)))
         , FailedSidecarCallback_(std::move(failedSidecarCallback))
         , Executor_(CreateCriExecutor(CriJobEnvironmentConfig_->CriExecutor))
         , ImageCache_(NContainers::NCri::CreateCriImageCache(CriJobEnvironmentConfig_->CriImageCache, Executor_))
@@ -1308,17 +1348,17 @@ public:
 
     void SetCpuGuarantee(double /*value*/) override
     {
-        YT_LOG_WARNING("CPU guarantees are not supported in CRI job environment");
+        YT_TLOG_WARNING("CPU guarantees are not supported in CRI job environment");
     }
 
     void SetCpuLimit(double /*value*/) override
     {
-        YT_LOG_WARNING("CPU limits are not supported in CRI job environment");
+        YT_TLOG_WARNING("CPU limits are not supported in CRI job environment");
     }
 
-    void SetCpuPolicy(const TString& /*value*/) override
+    void SetCpuPolicy(const std::string& /*value*/) override
     {
-        YT_LOG_WARNING("CPU policy is not supported in CRI job environment");
+        YT_TLOG_WARNING("CPU policy is not supported in CRI job environment");
     }
 
     TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetCpuStatistics() const override
@@ -1333,9 +1373,9 @@ public:
 
     std::optional<TJobEnvironmentMemoryStatistics> GetJobMemoryStatistics() const noexcept override
     {
-        auto statistics = StatisticsFetcher_.GetMemoryStatistics();
+        auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetMemoryStatistics();
         return TJobEnvironmentMemoryStatistics{
-            .ResidentAnon = statistics.ResidentAnon,
+            .ResidentAnon = statistics.AnonWithSwapCached,
             .TmpfsUsage = statistics.TmpfsUsage,
             .MappedFile = statistics.MappedFile,
             .MajorPageFaults = statistics.MajorPageFaults,
@@ -1344,7 +1384,7 @@ public:
 
     std::optional<TJobEnvironmentBlockIOStatistics> GetJobBlockIOStatistics() const noexcept override
     {
-        auto statistics = StatisticsFetcher_.GetBlockIOStatistics();
+        auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetIOStatistics();
         return TJobEnvironmentBlockIOStatistics{
             .IOReadByte = statistics.IOReadByte,
             .IOWriteByte = statistics.IOWriteByte,
@@ -1355,7 +1395,7 @@ public:
 
     std::optional<TJobEnvironmentCpuStatistics> GetJobCpuStatistics() const noexcept override
     {
-        auto statistics = StatisticsFetcher_.GetCpuStatistics();
+        auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetCpuStatistics();
         return TJobEnvironmentCpuStatistics{
             .UserUsageTime = statistics.UserTime,
             .SystemUsageTime = statistics.SystemTime,
@@ -1365,9 +1405,10 @@ public:
     std::optional<i64> GetJobOomKillCount() const noexcept override
     {
         try {
-            return StatisticsFetcher_.GetOomKillCount();
+            return NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetOomKillCount();
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to get OOM kill count");
+            YT_TLOG_WARNING("Failed to get OOM kill count")
+                .With(ex);
             return std::nullopt;
         }
     }
@@ -1387,7 +1428,7 @@ public:
 
         if (!options.GpuIndexes.empty()) {
             // This could only happen in tests, e.g. TestSchedulerGpu.
-            YT_LOG_WARNING("GPU devices are not supported in CRI job environment");
+            YT_TLOG_WARNING("GPU devices are not supported in CRI job environment");
         }
 
         if (options.EnablePortoMemoryTracking) {
@@ -1468,16 +1509,15 @@ public:
 
             for (const auto& devicePath : gpuContainerConfig->InfinibandDevices) {
                 containerSpec->BindDevices.push_back(NCri::TCriBindDevice{
-                    .ContainerPath = TString(devicePath),
-                    .HostPath = TString(devicePath),
+                    .ContainerPath = devicePath,
+                    .HostPath = devicePath,
                     .Permissions = NCri::ECriBindDevicePermissions::Read | NCri::ECriBindDevicePermissions::Write,
                 });
             }
 
             if (!gpuContainerConfig->InfinibandDevices.empty()) {
-                YT_LOG_DEBUG(
-                    "Binding InfiniBand devices to sidecar container (Devices: %v)",
-                    gpuContainerConfig->InfinibandDevices);
+                YT_TLOG_DEBUG("Binding InfiniBand devices to sidecar container")
+                    .With("Devices", gpuContainerConfig->InfinibandDevices);
 
                 // Code using InfiniBand devices usually requires CAP_IPC_LOCK.
                 // See https://catalog.ngc.nvidia.com/orgs/hpc/containers/preflightcheck.
@@ -1520,7 +1560,7 @@ public:
             CriJobEnvironmentConfig_->PodDescriptor,
             CriJobEnvironmentConfig_->PodSpec
         );
-        process->AddArguments(std::vector<TString>{"-c", sidecar.Config.Command});
+        process->AddArguments(std::vector<std::string>{"-c", sidecar.Config.Command});
         process->SetWorkingDirectory(ProcessWorkingDirectory_);
         sidecar.Process = process;
 
@@ -1540,20 +1580,17 @@ public:
 
     void OnSidecarFinished(const std::string& sidecarName, const TErrorOr<void> &exitValue)
     {
-        YT_LOG_INFO(
-            "Sidecar has finished the execution (SidecarName: %v, ExitValue: %v)",
-            sidecarName,
-            exitValue);
+        YT_TLOG_INFO("Sidecar has finished the execution")
+            .With("SidecarName", sidecarName)
+            .With("ExitValue", exitValue);
 
         // When a sidecar exits, we need to take an appropriate action depending on the RestartPolicy.
         const auto restartPolicy = GetOrCrash(RunningSidecars_, sidecarName).Config.JobSpec->RestartPolicy;
         auto restartSidecar = [this, &sidecarName, restartPolicy, &exitValue] {
-            YT_LOG_DEBUG(
-                "Restarting the sidecar as part of the exit event processing (SidecarName: %v, RestartPolicy: %v, ExitValue: %v)",
-                sidecarName,
-                restartPolicy,
-                exitValue
-            );
+            YT_TLOG_DEBUG("Restarting the sidecar as part of the exit event processing")
+                .With("SidecarName", sidecarName)
+                .With("RestartPolicy", restartPolicy)
+                .With("ExitValue", exitValue);
             StartSidecar(sidecarName);
         };
 
@@ -1565,9 +1602,8 @@ public:
             case ESidecarRestartPolicy::OnFailure:
                 // Restart only if sidecar failed.
                 if (exitValue.IsOK()) {
-                    YT_LOG_DEBUG(
-                        "Not restarting the sidecar (SidecarName: %v)",
-                        sidecarName);
+                    YT_TLOG_DEBUG("Not restarting the sidecar")
+                        .With("SidecarName", sidecarName);
                 } else {
                     restartSidecar();
                 }
@@ -1575,22 +1611,19 @@ public:
             case ESidecarRestartPolicy::FailOnError:
                 // Do not restart in case of success, fail the whole job otherwise.
                 if (exitValue.IsOK()) {
-                    YT_LOG_DEBUG(
-                        "Not restarting the sidecar (SidecarName: %v)",
-                        sidecarName);
+                    YT_TLOG_DEBUG("Not restarting the sidecar")
+                        .With("SidecarName", sidecarName);
                     break;
                 }
 
-                YT_LOG_DEBUG(
-                    "Sidecar has failed, exiting the main job (SidecarName: %v, RestartPolicy: %v, ExitValue: %v)",
-                    sidecarName,
-                    restartPolicy,
-                    exitValue
-                );
+                YT_TLOG_DEBUG("Sidecar has failed, exiting the main job")
+                    .With("SidecarName", sidecarName)
+                    .With("RestartPolicy", restartPolicy)
+                    .With("ExitValue", exitValue);
                 ShutdownSidecars();
                 FailedSidecarCallback_(TError("Failing the job because sidecar with FailOnError policy has failed")
-                    << TErrorAttribute("sidecar_name", sidecarName)
-                    << TErrorAttribute("sidecar_exit_value", exitValue));
+                    .With("sidecar_name", sidecarName)
+                    .With("sidecar_exit_value", exitValue));
                 break;
         }
     }
@@ -1599,7 +1632,8 @@ public:
     {
         for (auto& [name, sidecar]: RunningSidecars_) {
             if (!sidecar.Process->IsFinished()) {
-                YT_LOG_DEBUG("Killing a CRI sidecar (Name: %v)", name);
+                YT_TLOG_DEBUG("Killing a CRI sidecar")
+                    .With("Name", name);
                 sidecar.Future.Unsubscribe(sidecar.FutureCallbackCookie);
                 sidecar.Process->Kill(SIGKILL);
             }
@@ -1610,7 +1644,7 @@ private:
     const TCriJobProxyConfig CriJobProxyConfig_;
     const TCriJobEnvironmentConfigPtr CriJobEnvironmentConfig_;
     const IInvokerPtr Invoker_;
-    const TString ProcessWorkingDirectory_;
+    const std::string ProcessWorkingDirectory_;
     const std::function<void(TError)> FailedSidecarCallback_;
     const NContainers::NCri::ICriExecutorPtr Executor_;
     const NContainers::NCri::ICriImageCachePtr ImageCache_;
@@ -1623,9 +1657,7 @@ private:
         TFutureCallbackCookie FutureCallbackCookie;
     };
 
-    THashMap<TString, TRunningSidecar> RunningSidecars_;
-
-    NCGroups::TSelfCGroupsStatisticsFetcher StatisticsFetcher_;
+    THashMap<std::string, TRunningSidecar> RunningSidecars_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TCriJobProxyEnvironment)
@@ -1636,16 +1668,17 @@ DEFINE_REFCOUNTED_TYPE(TCriJobProxyEnvironment)
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
     const TJobProxyInternalConfigPtr& config,
     IInvokerPtr invoker,
+    const std::string& jobProxyPreparationPath,
     const std::string& jobProxySlotPath,
     std::function<void(TError)> failedSidecarCallback)
 {
-    switch (config->JobEnvironment.GetCurrentType()) {
+    switch (config->JobEnvironment.GetType()) {
 #ifdef _linux_
         case EJobEnvironmentType::Porto:
             return New<TPortoJobProxyEnvironment>(
-                config->JobEnvironment.TryGetConcrete<TPortoJobEnvironmentConfig>(),
+                config->JobEnvironment.GetConcrete<TPortoJobEnvironmentConfig>(),
                 invoker,
-                jobProxySlotPath,
+                jobProxyPreparationPath,
                 failedSidecarCallback);
 #endif
 
@@ -1653,19 +1686,19 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
             return New<TSimpleJobProxyEnvironment>();
 
         case EJobEnvironmentType::Testing:
-            return New<TTestingJobProxyEnvironment>(config->JobEnvironment.TryGetConcrete<TTestingJobEnvironmentConfig>());
+            return New<TTestingJobProxyEnvironment>(config->JobEnvironment.GetConcrete<TTestingJobEnvironmentConfig>());
 
         case EJobEnvironmentType::Cri:
             return New<TCriJobProxyEnvironment>(
                 TCriJobProxyConfig(config),
-                config->JobEnvironment.TryGetConcrete<TCriJobEnvironmentConfig>(),
+                config->JobEnvironment.GetConcrete<TCriJobEnvironmentConfig>(),
                 std::move(invoker),
                 jobProxySlotPath,
                 std::move(failedSidecarCallback));
 
         default:
             THROW_ERROR_EXCEPTION("Unable to create resource controller for %Qlv environment",
-                config->JobEnvironment.GetCurrentType());
+                config->JobEnvironment.GetType());
     }
 }
 

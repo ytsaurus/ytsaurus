@@ -34,7 +34,7 @@
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 #include <library/cpp/yt/memory/non_null_ptr.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
@@ -58,7 +58,7 @@ using NNodeTrackerClient::NProto::TDiskResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JobResourceManager");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "JobResourceManager");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -151,6 +151,11 @@ public:
             BIND_NO_PROPAGATE(&TImpl::OnProfiling, MakeWeak(this)),
             dynamicConfig->ProfilingPeriod);
 
+        ResourceAvailabilityCheckExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetJobInvoker(),
+            BIND_NO_PROPAGATE(&TImpl::OnResourceAvailabilityCheck, MakeWeak(this)),
+            dynamicConfig->ResourceAvailabilityCheckPeriod);
+
         ReservedMappedMemoryChecker_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TImpl::CheckReservedMappedMemory, MakeWeak(this)),
@@ -168,6 +173,7 @@ public:
         ReservedMappedMemoryChecker_->Start();
 
         if (Bootstrap_->IsExecNode()) {
+            ResourceAvailabilityCheckExecutor_->Start();
             MemoryPressureDetector_->Start();
         }
     }
@@ -180,6 +186,8 @@ public:
 
         ProfilingExecutor_->SetPeriod(
             newConfig->JobResourceManager->ProfilingPeriod);
+        ResourceAvailabilityCheckExecutor_->SetPeriod(
+            newConfig->JobResourceManager->ResourceAvailabilityCheckPeriod);
 
         MemoryPressureDetector_->SetPeriod(newConfig->JobResourceManager->MemoryPressureDetector->CheckPeriod);
 
@@ -192,10 +200,9 @@ public:
         if (*oldConfig->ResourceLimits->Overrides !=
             *newConfig->ResourceLimits->Overrides)
         {
-            YT_LOG_DEBUG(
-                "Resource limits overrides config has been changed (Old: %v, New: %v)",
-                ConvertToYsonString(oldConfig->ResourceLimits->Overrides, EYsonFormat::Text),
-                ConvertToYsonString(newConfig->ResourceLimits->Overrides, EYsonFormat::Text));
+            YT_TLOG_DEBUG("Resource limits overrides config has been changed")
+                .With("Old", ConvertToYsonString(oldConfig->ResourceLimits->Overrides, EYsonFormat::Text))
+                .With("New", ConvertToYsonString(newConfig->ResourceLimits->Overrides, EYsonFormat::Text));
 
             Bootstrap_->GetJobInvoker()->Invoke(BIND(&TJobResourceManager::TImpl::NotifyResourcesReleased, MakeStrong(this)));
         }
@@ -226,18 +233,47 @@ public:
             ProfileResources(writer, resourceLimits);
         });
 
-        FreeUserJobMemoryWatermarkGauge_.Update(resourceLimits.UserMemory * (1.0 - GetDynamicConfig()->FreeUserJobMemoryWatermarkMultiplier));
+        auto dynamicConfig = GetDynamicConfig();
+        FreeUserJobMemoryWatermarkGauge_.Update(resourceLimits.UserMemory * (1.0 - dynamicConfig->FreeUserJobMemoryWatermarkMultiplier));
 
         if (Bootstrap_->IsExecNode()) {
             MajorPageFaultsGauge_.Update(LastMajorPageFaultCount_);
 
-            auto dynamicConfig = GetDynamicConfig();
             if (FreeMemoryWatermarkMultiplier_ != 1.0 && dynamicConfig->MemoryPressureDetector->Enabled) {
                 FreeMemoryWatermarkMultiplierGauge_.Update(FreeMemoryWatermarkMultiplier_);
                 FreeMemoryWatermarkAddedMemoryGauge_.Update(GetFreeMemoryWatermark() - dynamicConfig->FreeMemoryWatermark);
                 FreeMemoryWatermarkIsIncreasedGauge_.Update(1);
             }
         }
+    }
+
+    void OnResourceAvailabilityCheck()
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        if (!ResourceLimitsWhenLastAcquisitionFailed_) {
+            return;
+        }
+
+        auto resourceLimits = GetResourceLimitsForAcquisition();
+        if (Dominates(*ResourceLimitsWhenLastAcquisitionFailed_, resourceLimits)) {
+            return;
+        }
+
+        YT_TLOG_DEBUG("Resource limits increased since last failed acquisition, notifying resource consumers")
+            .With("OldResourceLimits", *ResourceLimitsWhenLastAcquisitionFailed_)
+            .With("NewResourceLimits", resourceLimits);
+
+        ResourceLimitsWhenLastAcquisitionFailed_ = resourceLimits;
+        NotifyResourcesReleased();
+    }
+
+    TJobResources GetResourceLimitsForAcquisition() const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto dynamicConfig = GetDynamicConfig();
+        return GetResourceLimits(dynamicConfig->ConsiderUserJobFreeMemoryWatermarkInResourceAcquisition);
     }
 
     TJobResourceManagerDynamicConfigPtr GetDynamicConfig() const
@@ -355,9 +391,8 @@ public:
 
         if (!acquiredIncluded) {
             THashSet<EResourcesState> printableStates{statesToInclude};
-            YT_LOG_DEBUG(
-                "Requested resource usage excluding acquired resources (StatesToInclude: %v)",
-                printableStates);
+            YT_TLOG_DEBUG("Requested resource usage excluding acquired resources")
+                .With("StatesToInclude", printableStates);
         }
 
         SetActualVcpu(resourceUsage);
@@ -438,18 +473,20 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        auto currentResourceLimitsOverride = ResourceLimitsOverrides_.Load();
         ResourceLimitsOverrides_.Store(resourceLimits);
 
-        auto currentRescourceLimitsOverride = ResourceLimitsOverrides_.Load();
-        if (!google::protobuf::util::MessageDifferencer::Equivalent(currentRescourceLimitsOverride, resourceLimits)) {
-            YT_LOG_DEBUG("Resource limits overrides has been changed");
+        if (!google::protobuf::util::MessageDifferencer::Equivalent(currentResourceLimitsOverride, resourceLimits)) {
+            YT_TLOG_DEBUG("Resource limits overrides has been changed");
             Bootstrap_->GetJobInvoker()->Invoke(BIND(&TJobResourceManager::TImpl::NotifyResourcesReleased, MakeStrong(this)));
         }
     }
 
-    void OnNewSlotsAvailable() final
+    void OnResourceAvailabilityChanged() final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        YT_TLOG_DEBUG("Job resource availability changed, notifying resource consumers");
 
         NotifyResourcesReleased();
     }
@@ -469,11 +506,10 @@ public:
         ITERATE_NODE_RESOURCE_LIMITS_DYNAMIC_CONFIG_OVERRIDES(XX)
         #undef XX
 
-        YT_LOG_DEBUG(
-            "Computing resource limits overrides (Result: %v, MasterOverrides: %v, ConfigOverrides: %v)",
-            resourceLimits,
-            resourceLimitsOverrides,
-            ConvertToYsonString(dynamicConfigOverrides, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Computing resource limits overrides")
+            .With("Result", resourceLimits)
+            .With("MasterOverrides", resourceLimitsOverrides)
+            .With("ConfigOverrides", ConvertToYsonString(dynamicConfigOverrides, EYsonFormat::Text));
 
         return resourceLimits;
     }
@@ -525,11 +561,10 @@ public:
             diskRequest.set_medium_index(allocationDiskRequest.MediumIndex.value());
         }
 
-        YT_LOG_INFO(
-            "Acquiring slot (DiskRequest: %v, RequestedCpu: %v, AllowIdleCpuPolicy: %v)",
-            diskRequest,
-            neededResources.Cpu,
-            allocationAttributes.AllowIdleCpuPolicy);
+        YT_TLOG_INFO("Acquiring slot")
+            .With("DiskRequest", diskRequest)
+            .With("RequestedCpu", neededResources.Cpu)
+            .With("AllowIdleCpuPolicy", allocationAttributes.AllowIdleCpuPolicy);
 
         auto slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
         auto userSlot = slotManager->AcquireSlot(diskRequest, neededResources.Cpu, allocationAttributes.AllowIdleCpuPolicy);
@@ -544,7 +579,8 @@ public:
         YT_VERIFY(Bootstrap_->IsExecNode());
 
         int gpuCount = neededResources.Gpu;
-        YT_LOG_DEBUG("Acquiring GPU slots (Count: %v)", gpuCount);
+        YT_TLOG_DEBUG("Acquiring GPU slots")
+            .With("Count", gpuCount);
         auto acquireResult = Bootstrap_
             ->GetExecNodeBootstrap()
             ->GetGpuManager()
@@ -553,8 +589,8 @@ public:
         THROW_ERROR_EXCEPTION_IF(
             !acquireResult.IsOK(),
             TError("GPU slot acquisition failed")
-                << TErrorAttribute("gpu_count", gpuCount)
-                << acquireResult);
+                .With("gpu_count", gpuCount)
+                .With(acquireResult));
 
         auto result = acquireResult.Value();
 
@@ -569,7 +605,8 @@ public:
             slots.push_back(std::move(slot));
         }
 
-        YT_LOG_DEBUG("GPU slots acquired (DeviceIndices: %v)", deviceIndices);
+        YT_TLOG_DEBUG("GPU slots acquired")
+            .With("DeviceIndices", deviceIndices);
 
         return slots;
     }
@@ -588,6 +625,15 @@ public:
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_VERIFY(std::exchange(HasActiveResourceAcquiring_, false));
+
+        if (auto pendingResourceHolderCount = GetPendingResourceHolderCount(); pendingResourceHolderCount > 0) {
+            ResourceLimitsWhenLastAcquisitionFailed_ = GetResourceLimitsForAcquisition();
+            YT_TLOG_DEBUG("Some resource holders are still waiting after resource acquisition; recording resource limits to retry them on availability increase")
+                .With("PendingResourceHolderCount", pendingResourceHolderCount)
+                .With("ResourceLimits", *ResourceLimitsWhenLastAcquisitionFailed_);
+        } else {
+            ResourceLimitsWhenLastAcquisitionFailed_.reset();
+        }
 
         if (ShouldNotifyResourcesUpdated_) {
             ResourcesAcquired_.Fire();
@@ -617,12 +663,11 @@ public:
             ++PendingResourceHolderCount_;
         }
 
-        YT_LOG_DEBUG(
-            "Resource holder registered (ResourceDemand: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources %v)",
-            resourceDemand,
-            pendingResources,
-            acquiredResources,
-            releasingResources);
+        YT_TLOG_DEBUG("Resource holder registered")
+            .With("ResourceDemand", resourceDemand)
+            .With("PendingResources", pendingResources)
+            .With("AcquiredResources", acquiredResources)
+            .With("ReleasingResources", releasingResources);
     }
 
     bool TryReserveResources(TNonNullPtr<TResourceHolder> resourceHolder, const TJobResources& resources, bool considerUserJobFreeMemoryWatermark)
@@ -645,18 +690,14 @@ public:
             if (auto error = VerifyHasEnoughResources(resources, acquiredUsage + releasingResources, resourceLimits);
                 !error.IsOK())
             {
-                YT_LOG_DEBUG(
-                    error,
-                    "Not enough resources (NeededResources: %v, AdjustedResourceLimits: %v, "
-                    "AcquiredResources: %v, ReleasingResources: %v, "
-                    "ConsiderUserJobFreeMemoryWatermark: %v, "
-                    "FreeUserJobMemoryWatermarkMultiplier: %v)",
-                    resources,
-                    resourceLimits,
-                    acquiredUsage,
-                    releasingResources,
-                    considerUserJobFreeMemoryWatermark,
-                    GetDynamicConfig()->FreeUserJobMemoryWatermarkMultiplier);
+                YT_TLOG_DEBUG("Not enough resources")
+                    .With("NeededResources", resources)
+                    .With("AdjustedResourceLimits", resourceLimits)
+                    .With("AcquiredResources", acquiredUsage)
+                    .With("ReleasingResources", releasingResources)
+                    .With("ConsiderUserJobFreeMemoryWatermark", considerUserJobFreeMemoryWatermark)
+                    .With("FreeUserJobMemoryWatermarkMultiplier", GetDynamicConfig()->FreeUserJobMemoryWatermarkMultiplier)
+                    .With(error);
 
                 return false;
             }
@@ -674,15 +715,13 @@ public:
             --PendingResourceHolderCount_;
         }
 
-        YT_LOG_DEBUG(
-            "Resources reserved (Resources: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources: %v, "
-            "ConsiderUserJobFreeMemoryWatermark: %v, FreeUserJobMemoryWatermarkMultiplier: %v)",
-            resources,
-            pendingResources,
-            acquiredResources,
-            releasingResources,
-            considerUserJobFreeMemoryWatermark,
-            GetDynamicConfig()->FreeUserJobMemoryWatermarkMultiplier);
+        YT_TLOG_DEBUG("Resources reserved")
+            .With("Resources", resources)
+            .With("PendingResources", pendingResources)
+            .With("AcquiredResources", acquiredResources)
+            .With("ReleasingResources", releasingResources)
+            .With("ConsiderUserJobFreeMemoryWatermark", considerUserJobFreeMemoryWatermark)
+            .With("FreeUserJobMemoryWatermarkMultiplier", GetDynamicConfig()->FreeUserJobMemoryWatermarkMultiplier);
 
         return true;
     }
@@ -713,12 +752,11 @@ public:
             acquiredResources = acquiredUsage;
         }
 
-        YT_LOG_DEBUG(
-            "Resources acquisition failed (ResourceDemand: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources: %v)",
-            resources,
-            pendingResources,
-            acquiredResources,
-            releasingResources);
+        YT_TLOG_DEBUG("Resources acquisition failed")
+            .With("ResourceDemand", resources)
+            .With("PendingResources", pendingResources)
+            .With("AcquiredResources", acquiredResources)
+            .With("ReleasingResources", releasingResources);
 
         NotifyResourcesReleased();
     }
@@ -751,13 +789,12 @@ public:
             }
         }
 
-        YT_LOG_DEBUG(
-            "Preparing resources release (State: %v, ReleasedResources: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources: %v)",
-            observed,
-            resources,
-            pendingResources,
-            acquiredResources,
-            releasingResources);
+        YT_TLOG_DEBUG("Preparing resources release")
+            .With("State", observed)
+            .With("ReleasedResources", resources)
+            .With("PendingResources", pendingResources)
+            .With("AcquiredResources", acquiredResources)
+            .With("ReleasingResources", releasingResources);
     }
 
     auto TryAcquirePhysicalResources(TNonNullPtr<TResourceHolder> resourceHolder, const TJobResources& neededResources)
@@ -793,7 +830,7 @@ public:
         if (userMemory > 0 || systemMemory > 0) {
             bool reachedWatermark = NodeMemoryUsageTracker_->GetTotalFree() <= GetFreeMemoryWatermark();
             if (reachedWatermark) {
-                YT_LOG_DEBUG("Not enough memory; reached free memory watermark");
+                YT_TLOG_DEBUG("Not enough memory; reached free memory watermark");
                 return std::tuple(false, std::move(acquiredResources), std::optional(std::move(finallyGuard)));
             }
         }
@@ -802,7 +839,8 @@ public:
         if (userMemory > 0) {
             auto errorOrGuard = TMemoryUsageTrackerGuard::TryAcquire(UserMemoryUsageTracker_, userMemory);
             if (!errorOrGuard.IsOK()) {
-                YT_LOG_DEBUG(errorOrGuard, "Not enough user memory");
+                YT_TLOG_DEBUG("Not enough user memory")
+                    .With(errorOrGuard);
                 return std::tuple(false, std::move(acquiredResources), std::optional(std::move(finallyGuard)));
             }
 
@@ -815,7 +853,8 @@ public:
         if (systemMemory > 0) {
             auto errorOrGuard = TMemoryUsageTrackerGuard::TryAcquire(SystemMemoryUsageTracker_, systemMemory);
             if (!errorOrGuard.IsOK()) {
-                YT_LOG_DEBUG(errorOrGuard, "Not enough system memory");
+                YT_TLOG_DEBUG("Not enough system memory")
+                    .With(errorOrGuard);
                 return std::tuple(false, std::move(acquiredResources), std::optional(std::move(finallyGuard)));
             }
 
@@ -839,10 +878,9 @@ public:
 
         const auto& Logger = resourceHolder->GetLogger();
 
-        YT_LOG_DEBUG(
-            "Trying to acquire resources (NeededResources: %v, PortCount: %v)",
-            neededResources,
-            allocationAttributes.PortCount);
+        YT_TLOG_DEBUG("Trying to acquire resources")
+            .With("NeededResources", neededResources)
+            .With("PortCount", allocationAttributes.PortCount);
 
         if (allocationAttributes.CudaToolkitVersion) {
             YT_VERIFY(Bootstrap_->IsExecNode());
@@ -862,10 +900,9 @@ public:
 
         int requiredPortCount = allocationAttributes.PortCount + (allocationAttributes.AllocateJobProxyRpcServerPort ? 1 : 0);
         if (requiredPortCount > 0) {
-            YT_LOG_INFO(
-                "Allocating ports (PortCount: %v, AllocateJobProxyRpcServerPort: %v)",
-                allocationAttributes.PortCount,
-                allocationAttributes.AllocateJobProxyRpcServerPort);
+            YT_TLOG_INFO("Allocating ports")
+                .With("PortCount", allocationAttributes.PortCount)
+                .With("AllocateJobProxyRpcServerPort", allocationAttributes.AllocateJobProxyRpcServerPort);
 
             std::vector<int> allocatedPorts;
             try {
@@ -876,22 +913,20 @@ public:
                 }
                 allocatedPorts = AllocateFreePorts(requiredPortCount, freePorts, Logger);
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(
-                    ex,
-                    "Error while allocating free ports (PortCount: %v, AllocateJobProxyRpcServerPort: %v)",
-                    allocationAttributes.PortCount,
-                    allocationAttributes.AllocateJobProxyRpcServerPort);
+                YT_TLOG_ERROR("Error while allocating free ports")
+                    .With("PortCount", allocationAttributes.PortCount)
+                    .With("AllocateJobProxyRpcServerPort", allocationAttributes.AllocateJobProxyRpcServerPort)
+                    .With(ex);
                 return false;
             }
 
             if (std::ssize(allocatedPorts) < requiredPortCount) {
                 YT_VERIFY(acquiredResources.Ports.empty());
 
-                YT_LOG_DEBUG(
-                    "Not enough bindable free ports (PortCount: %v, AllocateJobProxyRpcServerPort: %v, FreePortCount: %v)",
-                    allocationAttributes.PortCount,
-                    allocationAttributes.AllocateJobProxyRpcServerPort,
-                    acquiredResources.Ports.size());
+                YT_TLOG_DEBUG("Not enough bindable free ports")
+                    .With("PortCount", allocationAttributes.PortCount)
+                    .With("AllocateJobProxyRpcServerPort", allocationAttributes.AllocateJobProxyRpcServerPort)
+                    .With("FreePortCount", acquiredResources.Ports.size());
                 return false;
             }
 
@@ -909,11 +944,10 @@ public:
             }
             acquiredResources.Ports = std::move(allocatedPorts);
 
-            YT_LOG_DEBUG(
-                "Ports allocated (PortCount: %v, JobProxyRpcServerPort: %v, Ports: %v)",
-                acquiredResources.Ports.size(),
-                acquiredResources.JobProxyRpcServerPort,
-                acquiredResources.Ports);
+            YT_TLOG_DEBUG("Ports allocated")
+                .With("PortCount", acquiredResources.Ports.size())
+                .With("JobProxyRpcServerPort", acquiredResources.JobProxyRpcServerPort)
+                .With("Ports", acquiredResources.Ports);
         }
 
         if (Bootstrap_->IsExecNode()) {
@@ -922,20 +956,18 @@ public:
             auto slotManagerLimit = slotManager->GetSlotCount();
             auto jobResourceManagerCount = OccupiedUserSlots() - neededResources.UserSlots;
 
-            YT_LOG_FATAL_IF(
+            YT_TLOG_FATAL_IF(
                 slotManagerCount > jobResourceManagerCount,
-                "Used slot count in slot manager must be less or equal JobResourceManager count (SlotManagerCount: %v/%v, JobResourceManagerCount: %v)",
-                slotManagerCount,
-                slotManagerLimit,
-                jobResourceManagerCount);
+                "Used slot count in slot manager must be less or equal JobResourceManager count")
+                .WithFormat("SlotManagerCount", "%v/%v", slotManagerCount, slotManagerLimit)
+                .With("JobResourceManagerCount", jobResourceManagerCount);
 
             if (slotManagerLimit == slotManager->GetInitializedSlotCount()) {
-                YT_LOG_FATAL_IF(
+                YT_TLOG_FATAL_IF(
                     slotManagerCount != jobResourceManagerCount,
-                    "Used slot count in slot manager must be equal JobResourceManager count (SlotManagerCount: %v/%v, JobResourceManagerCount: %v)",
-                    slotManagerCount,
-                    slotManagerLimit,
-                    jobResourceManagerCount);
+                    "Used slot count in slot manager must be equal JobResourceManager count")
+                    .WithFormat("SlotManagerCount", "%v/%v", slotManagerCount, slotManagerLimit)
+                    .With("JobResourceManagerCount", jobResourceManagerCount);
             }
         }
 
@@ -956,7 +988,7 @@ public:
 
         resourceHolder->SetAcquiredResources(std::move(acquiredResources));
 
-        YT_LOG_DEBUG("Resources successfully allocated");
+        YT_TLOG_DEBUG("Resources successfully allocated");
 
         return true;
     }
@@ -1022,15 +1054,13 @@ public:
             UserMemoryUsageTracker_->Release(userMemory);
         }
 
-        YT_LOG_DEBUG(
-            "Resources released "
-            "(ResourceConsumerType: %v, ResourceHolderStarted: %v, ReleasedResources: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources: %v)",
-            resourcesConsumerType,
-            resourceHolderStarted,
-            baseResources,
-            pendingResources,
-            acquiredResources,
-            releasingResources);
+        YT_TLOG_DEBUG("Resources released")
+            .With("ResourceConsumerType", resourcesConsumerType)
+            .With("ResourceHolderStarted", resourceHolderStarted)
+            .With("ReleasedResources", baseResources)
+            .With("PendingResources", pendingResources)
+            .With("AcquiredResources", acquiredResources)
+            .With("ReleasingResources", releasingResources);
 
         NotifyResourcesReleased();
     }
@@ -1071,7 +1101,8 @@ public:
                 acquiredResources + releasingResources,
                 resourceLimits);
             if (!error.IsOK()) {
-                YT_LOG_INFO(error, "Resource overdraft detected");
+                YT_TLOG_INFO("Resource overdraft detected")
+                    .With(error);
                 resourceUsageOverdraftOccurred = true;
             }
         }
@@ -1087,12 +1118,11 @@ public:
         if (userMemory > 0) {
             resourceUsageOverdraftOccurred |= !UserMemoryUsageTracker_->Acquire(userMemory);
 
-            YT_LOG_DEBUG(
-                "User memory acquired (UserMemory: %v, Usage: %v, Limit: %v, Overdraft: %v)",
-                userMemory,
-                UserMemoryUsageTracker_->GetUsed(),
-                UserMemoryUsageTracker_->GetLimit(),
-                resourceUsageOverdraftOccurred);
+            YT_TLOG_DEBUG("User memory acquired")
+                .With("UserMemory", userMemory)
+                .With("Usage", UserMemoryUsageTracker_->GetUsed())
+                .With("Limit", UserMemoryUsageTracker_->GetLimit())
+                .With("Overdraft", resourceUsageOverdraftOccurred);
         } else if (userMemory < 0) {
             UserMemoryUsageTracker_->Release(-userMemory);
         }
@@ -1102,33 +1132,29 @@ public:
         }
 
         if (resourceUsageOverdraftOccurred) {
-            YT_LOG_INFO(
-                "Resource usage overdraft detected during updating resource usage "
-                "(ResourcesConsumerType: %v, CurrentState: %v, Delta: %v, AcquiredResources: %v, ReleasingResources: %v, ResourceLimits: %v, PendingResourceUsage: %v)",
-                resourcesConsumerType,
-                state,
-                resourceDelta,
-                acquiredResources,
-                releasingResources,
-                resourceLimits,
-                pendingResources);
+            YT_TLOG_INFO("Resource usage overdraft detected during updating resource usage")
+                .With("ResourcesConsumerType", resourcesConsumerType)
+                .With("CurrentState", state)
+                .With("Delta", resourceDelta)
+                .With("AcquiredResources", acquiredResources)
+                .With("ReleasingResources", releasingResources)
+                .With("ResourceLimits", resourceLimits)
+                .With("PendingResourceUsage", pendingResources);
 
             if (!isReleasing) {
                 ResourceUsageOverdraftOccurred_.Fire(MakeStrong(resourceHolder));
             } else {
-                YT_LOG_INFO("Resource holder is releasing, skipping resource usage overdraft handling");
+                YT_TLOG_INFO("Resource holder is releasing, skipping resource usage overdraft handling");
             }
         } else {
-            YT_LOG_DEBUG(
-                "Resource usage updated "
-                "(ResourcesConsumerType: %v, CurrentState: %v, Delta: %v, AcquiredResources: %v, ReleasingResources: %v, ResourceLimits: %v, PendingResourceUsage: %v)",
-                resourcesConsumerType,
-                state,
-                resourceDelta,
-                acquiredResources,
-                releasingResources,
-                resourceLimits,
-                pendingResources);
+            YT_TLOG_DEBUG("Resource usage updated")
+                .With("ResourcesConsumerType", resourcesConsumerType)
+                .With("CurrentState", state)
+                .With("Delta", resourceDelta)
+                .With("AcquiredResources", acquiredResources)
+                .With("ReleasingResources", releasingResources)
+                .With("ResourceLimits", resourceLimits)
+                .With("PendingResourceUsage", pendingResources);
         }
 
         return !isReleasing && resourceUsageOverdraftOccurred;
@@ -1190,7 +1216,7 @@ private:
     const TJobResourceManagerConfigPtr StaticConfig_;
     TAtomicIntrusivePtr<TJobResourceManagerDynamicConfig> DynamicConfig_;
 
-    NThreading::TAtomicObject<TNodeResourceLimitsOverrides> ResourceLimitsOverrides_;
+    TAtomicObject<TNodeResourceLimitsOverrides> ResourceLimitsOverrides_;
 
     const INodeMemoryTrackerPtr NodeMemoryUsageTracker_;
     const IMemoryUsageTrackerPtr SystemMemoryUsageTracker_;
@@ -1201,6 +1227,7 @@ private:
 
     TProfiler Profiler_;
     TPeriodicExecutorPtr ProfilingExecutor_;
+    TPeriodicExecutorPtr ResourceAvailabilityCheckExecutor_;
     TBufferedProducerPtr ResourceLimitsBuffer_ = New<TBufferedProducer>();
     TBufferedProducerPtr ResourceUsageBuffer_ = New<TBufferedProducer>();
 
@@ -1211,7 +1238,7 @@ private:
 
     TGauge FreeUserJobMemoryWatermarkGauge_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ResourcesLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ResourcesLock_);
 
     TEnumIndexedArray<EResourcesState, TJobResources> ResourceUsages_;
 
@@ -1222,6 +1249,8 @@ private:
 
     i64 LastMajorPageFaultCount_ = 0;
     double FreeMemoryWatermarkMultiplier_ = 1.0;
+
+    std::optional<TJobResources> ResourceLimitsWhenLastAcquisitionFailed_;
 
     bool ShouldNotifyResourcesUpdated_ = false;
 
@@ -1333,10 +1362,8 @@ private:
             .AsyncVia(Bootstrap_->GetJobInvoker())
             .Run());
 
-        YT_LOG_FATAL_UNLESS(
-            infoOrError.IsOK(),
-            infoOrError,
-            "Unexpected failure while making job resource manager info snapshot");
+        YT_TLOG_FATAL_UNLESS(infoOrError.IsOK(), "Unexpected failure while making job resource manager info snapshot")
+            .With(infoOrError);
 
         return std::move(infoOrError.Value());
     }
@@ -1379,11 +1406,9 @@ private:
     {
         YT_ASSERT_WRITER_SPINLOCK_AFFINITY(ResourcesLock_);
 
-        YT_LOG_INFO_IF(
-            !ports.empty() || jobProxyRpcServerPort.has_value(),
-            "Releasing ports (Ports: %v, JobProxyRpcServerPort: %v)",
-            ports,
-            jobProxyRpcServerPort);
+        YT_TLOG_INFO_IF(!ports.empty() || jobProxyRpcServerPort.has_value(), "Releasing ports")
+            .With("Ports", ports)
+            .With("JobProxyRpcServerPort", jobProxyRpcServerPort);
         for (int port : ports) {
             InsertOrCrash(FreePorts_, port);
         }
@@ -1413,29 +1438,29 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_INFO("Check mapped memory usage");
+        YT_TLOG_INFO("Check mapped memory usage");
 
         THashMap<std::string, i64> vmstat;
         try {
             vmstat = GetVmstat();
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to read /proc/vmstat; skipping mapped memory check");
+            YT_TLOG_WARNING("Failed to read /proc/vmstat; skipping mapped memory check")
+                .With(ex);
             return;
         }
 
         auto mappedIt = vmstat.find("nr_mapped");
         if (mappedIt == vmstat.end()) {
-            YT_LOG_WARNING("Field \"nr_mapped\" is not found in /proc/vmstat; skipping mapped memory check");
+            YT_TLOG_WARNING("Field \"nr_mapped\" is not found in /proc/vmstat; skipping mapped memory check");
             return;
         }
 
         i64 mappedMemory = mappedIt->second;
         auto dynamicConfig = GetDynamicConfig();
 
-        YT_LOG_INFO(
-            "Mapped memory usage (Usage: %v, Reserved: %v)",
-            mappedMemory,
-            dynamicConfig->MappedMemoryController->ReservedMemory);
+        YT_TLOG_INFO("Mapped memory usage")
+            .With("Usage", mappedMemory)
+            .With("Reserved", dynamicConfig->MappedMemoryController->ReservedMemory);
 
         if (mappedMemory <= dynamicConfig->MappedMemoryController->ReservedMemory) {
             return;
@@ -1454,22 +1479,20 @@ private:
                 HandleMajorPageFaultsRateIncrease(currentFaultCount);
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(
-                ex,
-                "Error getting information about major page faults");
+            YT_TLOG_ERROR("Error getting information about major page faults")
+                .With(ex);
         }
     }
 
     void HandleMajorPageFaultsRateIncrease(i64 currentFaultCount)
     {
         auto config = DynamicConfig_.Acquire()->MemoryPressureDetector;
-        YT_LOG_DEBUG(
-            "Increased rate of major page faults in node container detected (MajorPageFaultCount: %v -> %v, Delta: %v, Threshold: %v, Period: %v)",
-            LastMajorPageFaultCount_,
-            currentFaultCount,
-            currentFaultCount - LastMajorPageFaultCount_,
-            config->MajorPageFaultCountThreshold,
-            config->CheckPeriod);
+        YT_TLOG_DEBUG("Increased rate of major page faults in node container detected")
+            .With("OldMajorPageFaultCount", LastMajorPageFaultCount_)
+            .With("NewMajorPageFaultCount", currentFaultCount)
+            .With("Delta", currentFaultCount - LastMajorPageFaultCount_)
+            .With("Threshold", config->MajorPageFaultCountThreshold)
+            .With("Period", config->CheckPeriod);
 
         if (config->Enabled &&
             currentFaultCount - LastMajorPageFaultCount_ > config->MajorPageFaultCountThreshold)
@@ -1479,19 +1502,13 @@ private:
                 FreeMemoryWatermarkMultiplier_ + config->MemoryWatermarkMultiplierIncreaseStep,
                 config->MaxMemoryWatermarkMultiplier);
 
-            YT_LOG_DEBUG(
-                "Increasing memory watermark multiplier "
-                "(MemoryWatermarkMultiplier: %v -> %v, "
-                "UpdatedFreeMemoryWatermark: %v, "
-                "UserMemoryUsageTrackerLimit: %v, "
-                "UserMemoryUsageTrackerUsed: %v, "
-                "NodeMemoryUsageTrackerTotalFree: %v)",
-                previousMemoryWatermarkMultiplier,
-                FreeMemoryWatermarkMultiplier_,
-                GetFreeMemoryWatermark(),
-                UserMemoryUsageTracker_->GetLimit(),
-                UserMemoryUsageTracker_->GetUsed(),
-                NodeMemoryUsageTracker_->GetTotalFree());
+            YT_TLOG_DEBUG("Increasing memory watermark multiplier")
+                .With("OldMemoryWatermarkMultiplier", previousMemoryWatermarkMultiplier)
+                .With("NewMemoryWatermarkMultiplier", FreeMemoryWatermarkMultiplier_)
+                .With("UpdatedFreeMemoryWatermark", GetFreeMemoryWatermark())
+                .With("UserMemoryUsageTrackerLimit", UserMemoryUsageTracker_->GetLimit())
+                .With("UserMemoryUsageTrackerUsed", UserMemoryUsageTracker_->GetUsed())
+                .With("NodeMemoryUsageTrackerTotalFree", NodeMemoryUsageTracker_->GetTotalFree());
         }
 
         LastMajorPageFaultCount_ = currentFaultCount;
@@ -1724,7 +1741,7 @@ TResourceHolder::TResourceHolder(
     const TJobResources& resources)
     : ResourcesConsumerType(resourceConsumerType)
     , Id_(id)
-    , Logger(NJobAgent::Logger().WithTag("ResourceHolderId: %v", id))
+    , Logger(NJobAgent::Logger().WithTag("ResourceHolderId", id))
     , ResourceManagerImpl_(static_cast<TJobResourceManager::TImpl*>(jobResourceManager))
     , BaseResourceUsage_(resources)
     , AdditionalResourceUsage_(ZeroJobResources())
@@ -1736,10 +1753,9 @@ TResourceHolder::TResourceHolder(
 TResourceHolder::~TResourceHolder()
 {
     if (State_ != EResourcesState::Released) {
-        YT_LOG_DEBUG(
-            "Destroying unreleased resource holder (State: %v, Resources: %v)",
-            State_,
-            GetResourceUsage());
+        YT_TLOG_DEBUG("Destroying unreleased resource holder")
+            .With("State", State_)
+            .With("Resources", GetResourceUsage());
 
         ReleaseBaseResources();
     }
@@ -1833,17 +1849,13 @@ void TResourceHolder::ReleaseBaseResources()
         resources = BaseResourceUsage_;
     }
 
-    YT_LOG_FATAL_IF(
-        UserSlot_ && resources.UserSlots != 1,
-        "User slot not matched with UserSlots (UserSlotExist: %v, UserSlots: %v)",
-        UserSlot_ != nullptr,
-        resources.UserSlots);
+    YT_TLOG_FATAL_IF(UserSlot_ && resources.UserSlots != 1, "User slot not matched with UserSlots")
+        .With("UserSlotExist", UserSlot_ != nullptr)
+        .With("UserSlots", resources.UserSlots);
 
-    YT_LOG_FATAL_IF(
-        std::ssize(GpuSlots_) > resources.Gpu,
-        "GPU slots not matched with Gpu");
+    YT_TLOG_FATAL_IF(std::ssize(GpuSlots_) > resources.Gpu, "GPU slots not matched with Gpu");
 
-    YT_LOG_INFO("Resetting resource holder slots");
+    YT_TLOG_INFO("Resetting resource holder slots");
 
     auto guard = WriterGuard(ResourcesLock_);
 
@@ -1900,10 +1912,9 @@ bool TResourceHolder::SetBaseResourceUsage(TJobResources newResourceUsage)
     auto guard = WriterGuard(ResourcesLock_);
 
     if (!HasStarted_) {
-        YT_LOG_DEBUG(
-            "Resource holder is not started yet, skipping update (ResourceUsage: %v, ResourcesState: %v)",
-            newResourceUsage,
-            State_);
+        YT_TLOG_DEBUG("Resource holder is not started yet, skipping update")
+            .With("ResourceUsage", newResourceUsage)
+            .With("ResourcesState", State_);
 
         // TODO(pogorelov): Uncomment this code when UpdateResourceDemand method will be removed.
         // {
@@ -1916,28 +1927,23 @@ bool TResourceHolder::SetBaseResourceUsage(TJobResources newResourceUsage)
 
         {
             auto error = VerifyEquals(InitialResourceDemand_, newResourceUsage, "Resources are unequal");
-            YT_LOG_FATAL_UNLESS(
-                error.IsOK(),
-                error,
-                "Trying to set unexpected resources value");
+            YT_TLOG_FATAL_UNLESS(error.IsOK(), "Trying to set unexpected resources value")
+                .With(error);
         }
 
         return false;
     }
 
-    YT_LOG_FATAL_IF(
-        State_ == EResourcesState::Released,
-        "Can not set resource usage when resources are released");
+    YT_TLOG_FATAL_IF(State_ == EResourcesState::Released, "Can not set resource usage when resources are released");
 
     YT_VERIFY(newResourceUsage.UserSlots == BaseResourceUsage_.UserSlots);
     YT_VERIFY(newResourceUsage.Gpu == BaseResourceUsage_.Gpu);
 
     // COMPAT(pogorelov): Remove when UpdateResourceDemand is removed.
     if (AreNonDiskResourcesEqual(newResourceUsage, BaseResourceUsage_)) {
-        YT_LOG_DEBUG(
-            "New resource usage is equal to previous, skipping update (ResourceUsage: %v, ResourcesState: %v)",
-            BaseResourceUsage_,
-            State_);
+        YT_TLOG_DEBUG("New resource usage is equal to previous, skipping update")
+            .With("ResourceUsage", BaseResourceUsage_)
+            .With("ResourcesState", State_);
 
         // If there is an overdraft, some other call to DoSetResourceUsage will return true.
         return false;
@@ -1961,28 +1967,23 @@ bool TResourceHolder::TrySetBaseResourceUsage(TJobResources newResourceUsage)
     if (!HasStarted_) {
         {
             auto error = VerifyEquals(InitialResourceDemand_, newResourceUsage, "Resources are unequal");
-            YT_LOG_ERROR_UNLESS(
-                error.IsOK(),
-                error,
-                "Setting unexpected resources value");
+            YT_TLOG_ERROR_UNLESS(error.IsOK(), "Setting unexpected resources value")
+                .With(error);
         }
 
         return true;
     }
 
-    YT_LOG_FATAL_IF(
-        State_ == EResourcesState::Released,
-        "Can not trying to set resource usage when resources are released");
+    YT_TLOG_FATAL_IF(State_ == EResourcesState::Released, "Can not trying to set resource usage when resources are released");
 
     YT_VERIFY(newResourceUsage.UserSlots == BaseResourceUsage_.UserSlots);
     YT_VERIFY(newResourceUsage.Gpu == BaseResourceUsage_.Gpu);
 
     // COMPAT(pogorelov): Remove when UpdateResourceDemand is removed.
     if (AreNonDiskResourcesEqual(newResourceUsage, BaseResourceUsage_)) {
-        YT_LOG_DEBUG(
-            "New resource usage is equal to previous, skipping update try (ResourceUsage: %v, ResourcesState: %v)",
-            BaseResourceUsage_,
-            State_);
+        YT_TLOG_DEBUG("New resource usage is equal to previous, skipping update try")
+            .With("ResourceUsage", BaseResourceUsage_)
+            .With("ResourcesState", State_);
 
         // If there is an overdraft, some other call to DoSetResourceUsage will return true.
         return true;
@@ -1997,17 +1998,15 @@ bool TResourceHolder::TrySetBaseResourceUsage(TJobResources newResourceUsage)
     if (success) {
         BaseResourceUsage_ = newResourceUsage;
 
-        YT_LOG_DEBUG(
-            "New resource usage successfully set (ResourceUsage: %v, ResourcesState: %v, Delta: %v)",
-            newResourceUsage,
-            State_,
-            resourceDelta);
+        YT_TLOG_DEBUG("New resource usage successfully set")
+            .With("ResourceUsage", newResourceUsage)
+            .With("ResourcesState", State_)
+            .With("Delta", resourceDelta);
     } else {
-        YT_LOG_DEBUG(
-            "Failed to set new resource usage (ResourceUsage: %v, ResourcesState: %v, Delta: %v)",
-            newResourceUsage,
-            State_,
-            resourceDelta);
+        YT_TLOG_DEBUG("Failed to set new resource usage")
+            .With("ResourceUsage", newResourceUsage)
+            .With("ResourcesState", State_)
+            .With("Delta", resourceDelta);
     }
 
     return success;
@@ -2061,10 +2060,9 @@ void TResourceHolder::UpdateResourceDemand(
     YT_VERIFY(State_ == EResourcesState::Pending);
     YT_VERIFY(AdditionalResourceUsage_ == ZeroJobResources());
 
-    YT_LOG_DEBUG(
-        "Resource demand updated (NewRecourceDemand: %v, NewPortCount: %v)",
-        resources,
-        allocationAttributes.PortCount);
+    YT_TLOG_DEBUG("Resource demand updated")
+        .With("NewResourceDemand", resources)
+        .With("NewPortCount", allocationAttributes.PortCount);
 
     BaseResourceUsage_ = resources;
     AllocationAttributes_ = allocationAttributes;
@@ -2162,20 +2160,18 @@ TResourceHolder::TResourceHolderInfo TResourceHolder::BuildResourceHolderInfo() 
     };
 }
 
-template <CInvocable<TJobResources(const TJobResources&)> TResourceUsageUpdater>
+template <NMpl::CInvocable<TJobResources(const TJobResources&)> TResourceUsageUpdater>
 bool TResourceHolder::DoSetResourceUsage(
     const TJobResources& newResourceUsage,
-    TStringBuf argumentName,
+    NLogging::TLoggingTagKey argumentName,
     TResourceUsageUpdater resourceUsageUpdater,
     bool isReleasing)
 {
     YT_ASSERT_WRITER_SPINLOCK_AFFINITY(ResourcesLock_);
 
-    YT_LOG_DEBUG(
-        "Setting resources to holder (CurrentState: %v, %v: %v)",
-        State_,
-        argumentName,
-        newResourceUsage);
+    YT_TLOG_DEBUG("Setting resources to holder")
+        .With("CurrentState", State_)
+        .With(argumentName, newResourceUsage);
 
     auto stateFacade = State_;
     if (stateFacade == EResourcesState::Released) {
@@ -2202,15 +2198,13 @@ bool TResourceHolder::DoSetResourceUsage(
 
 bool TResourceHolder::DoTrySetResourceUsage(
     const NClusterNode::TJobResources& resourceUsageDelta,
-    TStringBuf argumentName)
+    NLogging::TLoggingTagKey argumentName)
 {
     YT_ASSERT_WRITER_SPINLOCK_AFFINITY(ResourcesLock_);
 
-    YT_LOG_DEBUG(
-        "Trying to set resources to holder (CurrentState: %v, %v: %v)",
-        State_,
-        argumentName,
-        resourceUsageDelta);
+    YT_TLOG_DEBUG("Trying to set resources to holder")
+        .With("CurrentState", State_)
+        .With(argumentName, resourceUsageDelta);
 
     auto stateFacade = State_;
     if (stateFacade == EResourcesState::Released) {
@@ -2226,11 +2220,10 @@ bool TResourceHolder::DoTrySetResourceUsage(
         GetPtr(*this),
         resourceUsageDelta);
 
-    YT_LOG_DEBUG(
-        "TryAcquirePhysicalResources result (Success: %v, AcquiredMemory: %v, FinallyGuard: %v)",
-        success,
-        acquiredResources.UserMemoryGuard.GetSize(),
-        static_cast<bool>(finallyGuard));
+    YT_TLOG_DEBUG("TryAcquirePhysicalResources result")
+        .With("Success", success)
+        .With("AcquiredMemory", acquiredResources.UserMemoryGuard.GetSize())
+        .With("FinallyGuard", static_cast<bool>(finallyGuard));
 
     if (!success) {
         return false;

@@ -67,7 +67,7 @@ private:
     const TPeriodicExecutorPtr TickExecutor_;
     const IThroughputThrottlerPtr RequestThrottler_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     struct TQueueItem
     {
@@ -79,7 +79,7 @@ private:
 
     NProfiling::TEventTimer BatchingLatencyTimer_;
 
-    TFuture<TSecretSubresponse> DoGetSecret(const TSecretSubrequest& subrequest, TGuard<NThreading::TSpinLock>& /*guard*/)
+    TFuture<TSecretSubresponse> DoGetSecret(const TSecretSubrequest& subrequest, TGuard<TSpinLock>& /*guard*/)
     {
         auto promise = NewPromise<TSecretSubresponse>();
         SubrequestQueue_.push(TQueueItem{

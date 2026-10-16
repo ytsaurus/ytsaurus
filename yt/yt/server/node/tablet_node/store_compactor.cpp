@@ -4,6 +4,7 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "error_manager.h"
+#include "global_stores_update_throttler.h"
 #include "in_memory_manager.h"
 #include "partition.h"
 #include "public.h"
@@ -73,10 +74,10 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/virtual.h>
 
-#include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/heap.h>
 
 #include <yt/yt/core/yson/consumer.h>
@@ -85,6 +86,8 @@
 
 #include <library/cpp/iterator/enumerate.h>
 #include <library/cpp/iterator/zip.h>
+
+#include <library/cpp/yt/system/thread_name.h>
 
 namespace NYT::NTabletNode {
 
@@ -141,8 +144,8 @@ void SyncThrottleMediumWrite(
         hunkDataStatistics.regular_disk_space(),
         hunkDataStatistics.erasure_disk_space());
 
-    YT_LOG_DEBUG("Throttling blobs media write (DiskSpace: %v)",
-        totalDiskSpace);
+    YT_TLOG_DEBUG("Throttling blobs media write")
+        .With("DiskSpace", totalDiskSpace);
 
     WaitFor(mediumThrottler->Throttle(totalDiskSpace))
         .ThrowOnError();
@@ -187,7 +190,7 @@ struct TCompactionTaskInfo
         TGuid taskId,
         TTabletId tabletId,
         NHydra::TRevision mountRevision,
-        TString tablePath,
+        NYPath::TYPath tablePath,
         std::string tabletCellBundle,
         TPartitionId partitionId,
         EStoreCompactionReason reason,
@@ -299,8 +302,8 @@ struct TCompactionSessionFinalizeResult
 void MaybeYieldFiber(const TPeriodicYielderGuard& yielder, const NLogging::TLogger& Logger)
 {
     if (yielder.NeedYield()) {
-        YT_LOG_DEBUG("Yielding fiber (SyncTime: %v)",
-            yielder.GetElapsedTime());
+        YT_TLOG_DEBUG("Yielding fiber")
+            .With("SyncTime", yielder.GetElapsedTime());
 
         Yield();
     }
@@ -321,7 +324,7 @@ struct TCompactionTask
     const IInvokerPtr Invoker;
     const TCancelableContextPtr CancelableContext;
 
-    const std::string TabletLoggingTag;
+    const NLogging::TLoggingTagList TabletLoggingTags;
 
     // These fields are filled upon task invocation.
     TWeakPtr<TStoreCompactor> Owner;
@@ -411,9 +414,11 @@ protected:
 
     IVersionedMultiChunkWriterPtr CreateWriter()
     {
-        auto chunkWriterFactory = [this, weakThis = MakeWeak(this)] (IChunkWriterPtr underlyingWriter) {
+        auto compressionInvoker = ComputeCompressionInvoker();
+
+        auto chunkWriterFactory = [this, weakThis = MakeWeak(this), compressionInvoker = std::move(compressionInvoker)] (IChunkWriterPtr underlyingWriter) {
             if (auto this_ = weakThis.Lock()) {
-                return CreateUnderlyingWriterAdapter(std::move(underlyingWriter));
+                return CreateUnderlyingWriterAdapter(std::move(underlyingWriter), compressionInvoker);
             } else {
                 THROW_ERROR_EXCEPTION(NYT::EErrorCode::Canceled, "Store compactor session destroyed");
             }
@@ -528,6 +533,18 @@ private:
             .ValueOrThrow();
     }
 
+    IInvokerPtr ComputeCompressionInvoker() const
+    {
+        if (!Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->ReuseCompactionInvokerForWriterCompression) {
+            return nullptr;
+        }
+
+        auto threadName = std::string(GetCurrentThreadName().ToStringBuf());
+        YT_VERIFY(threadName.starts_with("StoreCompact:") || threadName.starts_with("Query:"));
+
+        return GetCurrentInvoker();
+    }
+
     TCompactionSessionFinalizeResult Finalize()
     {
         WaitFor(AllSucceeded(std::move(CloseFutures_)))
@@ -582,7 +599,9 @@ private:
         return result;
     }
 
-    IVersionedChunkWriterPtr CreateUnderlyingWriterAdapter(IChunkWriterPtr underlyingWriter) const
+    IVersionedChunkWriterPtr CreateUnderlyingWriterAdapter(
+        IChunkWriterPtr underlyingWriter,
+        IInvokerPtr compressionInvoker) const
     {
         auto writer = CreateHunkEncodingVersionedWriter(
             CreateVersionedChunkWriter(
@@ -592,7 +611,8 @@ private:
                 std::move(underlyingWriter),
                 WriteBlocksOptions_,
                 /*dataSink*/ std::nullopt,
-                BlockCache_),
+                BlockCache_,
+                std::move(compressionInvoker)),
             TabletSnapshot_->PhysicalSchema,
             HunkChunkPayloadWriter_,
             HunkChunkWriterStatistics_,
@@ -626,11 +646,10 @@ private:
                 New<TRefCountedChunkMeta>(*finalizedMeta));
         }
 
-        YT_LOG_DEBUG("Propagating versioned chunk meta cache upon chunk finalization "
-            "(Success: %v, ChunkId: %v, Activity: %v)",
-            result,
-            writer->GetChunkId(),
-            GetActivityKind());
+        YT_TLOG_DEBUG("Propagating versioned chunk meta cache upon chunk finalization")
+            .With("Success", result)
+            .With("ChunkId", writer->GetChunkId())
+            .With("Activity", GetActivityKind());
     }
 };
 
@@ -713,10 +732,9 @@ public:
                     return;
                 }
 
-                YT_LOG_INFO("Started writing partition (PartitionIndex: %v, Keys: %v .. %v)",
-                    currentPartitionIndex,
-                    currentPivotKey,
-                    nextPivotKey);
+                YT_TLOG_INFO("Started writing partition")
+                    .With("PartitionIndex", currentPartitionIndex)
+                    .WithFormat("Keys", "%v .. %v", currentPivotKey, nextPivotKey);
 
                 currentWriter = CreateWriter();
                 currentWriterStatistics = {};
@@ -763,13 +781,13 @@ public:
                 flushOutputRows();
 
                 if (currentWriter) {
-                    YT_LOG_INFO("Finished writing partition (PartitionIndex: %v, RowCount: %v)",
-                        currentPartitionIndex,
-                        currentPartitionRowCount);
+                    YT_TLOG_INFO("Finished writing partition")
+                        .With("PartitionIndex", currentPartitionIndex)
+                        .With("RowCount", currentPartitionRowCount);
 
                     CloseWriter(currentWriter);
                     partitionWriters.push_back({std::move(currentWriter), partitionIndex});
-                    currentWriter.Reset();
+                    currentWriter = {};
                 }
 
                 currentPartitionRowCount = 0;
@@ -797,7 +815,8 @@ public:
                         currentRowIndex = 0;
 
                         auto guard = Guard(task->Info->RuntimeData.SpinLock);
-                        task->Info->RuntimeData.ProcessedReaderStatistics = TBackgroundActivityTaskInfoBase::TReaderStatistics(reader->GetDataStatistics());
+                        task->Info->RuntimeData.ProcessedReaderStatistics =
+                            TBackgroundActivityTaskInfoBase::TReaderStatistics(reader->GetDataStatistics());
                     } else {
                         return TVersionedRow();
                     }
@@ -969,6 +988,10 @@ public:
             Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->Orchid,
             Profiler_.WithTag("activity", "partitioning")))
         , OrchidService_(CreateOrchidService())
+        , GlobalStoresUpdateThrottler_(New<TGlobalStoresUpdateThrottler>(
+            /*config*/ nullptr,
+            Bootstrap_->GetConnection(),
+            Profiler_))
     {
         Bootstrap_->SubscribeTabletNodeConfigChanged(BIND_NO_PROPAGATE(&TStoreCompactor::OnDynamicConfigChanged, MakeWeak(this)));
     }
@@ -990,16 +1013,34 @@ public:
 
     void ProcessLsmActionBatch(const NLsm::TLsmActionBatch& batch) override
     {
-        TEventTimerGuard timerGuard(ScanTimer_);
-
-        auto dynamicConfig = Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor;
-        if (!dynamicConfig->Enable) {
+        if (!Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->Enable) {
             return;
         }
 
-        const auto& Logger = TabletNodeLogger;
+        if (IsProcessingActionBatch_) {
+            const auto& Logger = TabletNodeLogger;
+            YT_TLOG_DEBUG("Store compactor is already processing an action batch, skipping the new one");
+            return;
+        }
 
-        YT_LOG_DEBUG("Store compactor started processing action batch");
+        IsProcessingActionBatch_ = true;
+
+        // NB: Process the action batch asynchronously to avoid performing long operations during slot scan.
+        GetCurrentInvoker()->Invoke(BIND(&TStoreCompactor::DoProcessLsmActionBatch, MakeStrong(this), batch));
+    }
+
+    void DoProcessLsmActionBatch(const NLsm::TLsmActionBatch& batch)
+    {
+        TEventTimerGuard timerGuard(ScanTimer_);
+
+        const auto& Logger = TabletNodeLogger;
+        auto dynamicConfig = Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor;
+
+        auto finallyGuard = Finally([&] {
+            IsProcessingActionBatch_ = false;
+        });
+
+        YT_TLOG_DEBUG("Store compactor started processing action batch");
 
         ApplyCompactionHintUpdates(batch.CompactionHintUpdates);
 
@@ -1015,9 +1056,9 @@ public:
                 return std::vector<std::unique_ptr<TCompactionTask>>();
             }
 
-            auto Logger = TabletNodeLogger().WithTag("CellId: %v, TaskKind: %v",
-                slot->GetCellId(),
-                taskKind);
+            auto Logger = TabletNodeLogger()
+                .WithTag("CellId", slot->GetCellId())
+                .WithTag("TaskKind", taskKind);
 
             std::vector<std::unique_ptr<TCompactionTask>> tasks;
             tasks.reserve(requests.size());
@@ -1066,9 +1107,9 @@ public:
             for (auto& [cellId, cellInfo] : cellRequests) {
                 auto slot = slotManager->FindSlot(cellId);
                 if (!slot) {
-                    YT_LOG_DEBUG("Tablet cell is missing, will not schedule background tasks (CellId: %v, TaskKind: %v)",
-                        cellId,
-                        taskKind);
+                    YT_TLOG_DEBUG("Tablet cell is missing, will not schedule background tasks")
+                        .With("CellId", cellId)
+                        .With("TaskKind", taskKind);
                     continue;
                 }
 
@@ -1140,18 +1181,32 @@ public:
                 PartitioningOrchid_);
         }
 
-        YT_LOG_DEBUG("Store compactor finished processing action batch");
+        YT_TLOG_DEBUG("Store compactor finished processing action batch");
 
-        // NB: Strictly speaking, redundant.
-        auto guard = Guard(ScanSpinLock_);
+        bool scanForPartitioning;
+        bool scanForCompactions;
 
-        if (ScanForPartitioning_) {
-            PickMorePartitionings(guard);
+        {
+            // NB: Strictly speaking, redundant.
+            auto guard = Guard(ScanSpinLock_);
+
+            scanForPartitioning = ScanForPartitioning_;
+            scanForCompactions = ScanForCompactions_;
+
+            if (scanForPartitioning) {
+                PickMorePartitionings(guard);
+            }
+
+            if (scanForCompactions) {
+                PickMoreCompactions(guard);
+            }
+        }
+
+        if (scanForPartitioning) {
             ScheduleMorePartitionings();
         }
 
-        if (ScanForCompactions_) {
-            PickMoreCompactions(guard);
+        if (scanForCompactions) {
             ScheduleMoreCompactions();
         }
     }
@@ -1196,21 +1251,21 @@ private:
     const TAsyncSemaphorePtr PartitioningSemaphore_;
     const TAsyncSemaphorePtr CompactionSemaphore_;
 
+    bool IsProcessingActionBatch_ = false;
+
     // Variables below contain per-iteration state for slot scan.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ScanSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ScanSpinLock_);
     bool ScanForPartitioning_;
     bool ScanForCompactions_;
     std::vector<std::unique_ptr<TCompactionTask>> PartitioningCandidates_;
     std::vector<std::unique_ptr<TCompactionTask>> CompactionCandidates_;
 
     // Variables below are actually used during the scheduling.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TaskSpinLock_);
-    std::vector<std::unique_ptr<TCompactionTask>> PartitioningTasks_; // Queue.
-    size_t PartitioningTaskIndex_ = 0; // Queue begin boundary.
-    std::vector<std::unique_ptr<TCompactionTask>> CompactionTasks_; // Queue.
-    size_t CompactionTaskIndex_ = 0; // Queue begin boundary.
+    YT_DECLARE_SPIN_LOCK(TSpinLock, TaskSpinLock_);
+    std::vector<std::unique_ptr<TCompactionTask>> PartitioningTasks_;
+    std::vector<std::unique_ptr<TCompactionTask>> CompactionTasks_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StartedTasksSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, StartedTasksSpinLock_);
     std::vector<NLsm::TStartedCompactionTask> StartedCompactionTasks_;
     std::vector<NLsm::TStartedCompactionTask> StartedPartitioningTasks_;
 
@@ -1218,13 +1273,15 @@ private:
     const TCompactionOrchidPtr PartitioningOrchid_;
     const IYPathServicePtr OrchidService_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PoolNamesLock_);
+    const TGlobalStoresUpdateThrottlerPtr GlobalStoresUpdateThrottler_;
+
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, PoolNamesLock_);
     std::optional<std::string> CompactionFairSharePool_;
     std::optional<std::string> PartitioningFairSharePool_;
 
     IYPathServicePtr CreateOrchidService()
     {
-        return New<TCompositeMapService>()
+        return CreateCompositeMapService()
             ->AddAttribute(EInternedAttributeKey::Opaque, BIND([] (IYsonConsumer* consumer) {
                 BuildYsonFluently(consumer)
                     .Value(true);
@@ -1246,6 +1303,7 @@ private:
         CompactionSemaphore_->SetTotal(config->MaxConcurrentCompactions.value_or(Config_->MaxConcurrentCompactions));
         PartitioningOrchid_->Reconfigure(config->Orchid);
         CompactionOrchid_->Reconfigure(config->Orchid);
+        GlobalStoresUpdateThrottler_->Reconfigure(newNodeConfig->GlobalStoresUpdateThrottler);
 
         {
             auto guard = WriterGuard(PoolNamesLock_);
@@ -1266,30 +1324,28 @@ private:
 
         const auto* tablet = tabletManager->FindTablet(request.Tablet->GetId());
         if (!tablet) {
-            YT_LOG_DEBUG("Compaction task declined: tablet is missing (TabletId: %v)",
-                request.Tablet->GetId());
+            YT_TLOG_DEBUG("Compaction task declined: tablet is missing")
+                .With("TabletId", request.Tablet->GetId());
             return nullptr;
         }
 
         if (tablet->GetMountRevision() != request.Tablet->GetMountRevision()) {
-            YT_LOG_DEBUG("Compaction task declined: mount revision mismatch (%v, "
-                "ActualMountRevision: %v, RequestMountRevision: %v)",
-                tablet->GetLoggingTag(),
-                tablet->GetMountRevision(),
-                request.Tablet->GetMountRevision());
+            YT_TLOG_DEBUG("Compaction task declined: mount revision mismatch")
+                .With(tablet->GetLoggingTags())
+                .With("ActualMountRevision", tablet->GetMountRevision())
+                .With("RequestMountRevision", request.Tablet->GetMountRevision());
             return nullptr;
         }
 
         if (!tablet->SmoothMovementData().IsTabletStoresUpdateAllowed(/*isCommonFlush*/ false)) {
-            YT_LOG_DEBUG("Compaction task declined: tablet participates in smooth movement (%v)",
-                tablet->GetLoggingTag());
+            YT_TLOG_DEBUG("Compaction task declined: tablet participates in smooth movement")
+                .With(tablet->GetLoggingTags());
             return nullptr;
         }
 
         if (request.DiscardStores && tablet->GetTableSchema()->HasTtlColumn()) {
-            YT_LOG_DEBUG("Compaction task declined: tablet has TTL column and has been compacted "
-                "by discard stores (%v)",
-                tablet->GetLoggingTag());
+            YT_TLOG_DEBUG("Compaction task declined: tablet has TTL column and has been compacted by discard stores")
+                .With(tablet->GetLoggingTags());
             return nullptr;
         }
 
@@ -1357,7 +1413,6 @@ private:
     void PickMoreTasks(
         std::vector<std::unique_ptr<TCompactionTask>>* candidates,
         std::vector<std::unique_ptr<TCompactionTask>>* tasks,
-        size_t* index,
         const NProfiling::TGauge& counter)
     {
         counter.Update(candidates->size());
@@ -1365,44 +1420,72 @@ private:
         {
             auto guard = Guard(TaskSpinLock_);
             tasks->swap(*candidates);
-            *index = 0;
         }
 
         candidates->clear();
     }
 
-    void PickMorePartitionings(TGuard<NThreading::TSpinLock>& /*guard*/)
+    void PickMorePartitionings(TGuard<TSpinLock>& /*guard*/)
     {
         PickMoreTasks(
             &PartitioningCandidates_,
             &PartitioningTasks_,
-            &PartitioningTaskIndex_,
             FeasiblePartitioningsCounter_);
     }
 
-    void PickMoreCompactions(TGuard<NThreading::TSpinLock>& /*guard*/)
+    void PickMoreCompactions(TGuard<TSpinLock>& /*guard*/)
     {
         PickMoreTasks(
             &CompactionCandidates_,
             &CompactionTasks_,
-            &CompactionTaskIndex_,
             FeasibleCompactionsCounter_);
+    }
+
+    std::vector<bool> ThrottleStoresUpdateAtMaster(
+        std::vector<std::unique_ptr<TCompactionTask>>* tasks,
+        const TAsyncSemaphorePtr& semaphore,
+        ETabletStoresUpdateReason updateReason)
+    {
+        std::vector<TGlobalStoresUpdateThrottler::TRequest> requests;
+        {
+            auto taskGuard = Guard(TaskSpinLock_);
+
+            int scheduleLimit = std::min<int>(tasks->size(), std::max<int>(semaphore->GetFree(), 0));
+            if (!scheduleLimit) {
+                return {};
+            }
+
+            requests.reserve(scheduleLimit);
+            for (int index = 0; index < scheduleLimit; ++index) {
+                auto& task = tasks->at(index);
+                requests.push_back({
+                    .BundleName = task->Slot->GetTabletCellBundleName(),
+                    .CellTag = CellTagFromId(task->Info->TabletId),
+                    .StoreCount = static_cast<int>(ssize(task->Info->StoreIds)),
+                });
+            }
+        }
+
+        return GlobalStoresUpdateThrottler_->Throttle(requests, updateReason);
     }
 
     void ScheduleMoreTasks(
         std::vector<std::unique_ptr<TCompactionTask>>* tasks,
-        size_t* index,
         const TAsyncSemaphorePtr& semaphore,
         const TCounter& counter,
-        void (TStoreCompactor::*action)(TCompactionTask*))
+        void (TStoreCompactor::*action)(TCompactionTask*),
+        ETabletStoresUpdateReason updateReason)
     {
+        auto throttlerAcquired = ThrottleStoresUpdateAtMaster(tasks, semaphore, updateReason);
+
         auto taskGuard = Guard(TaskSpinLock_);
 
         size_t scheduled = 0;
 
-        while (true) {
-            if (*index == tasks->size()) {
-                break;
+        YT_VERIFY(tasks->size() >= throttlerAcquired.size());
+        for (auto&& [task, isThrottlerAcquired] : Zip(*tasks, throttlerAcquired)) {
+            if (!isThrottlerAcquired) {
+                continue;
             }
 
             auto semaphoreGuard = TAsyncSemaphoreGuard::TryAcquire(semaphore);
@@ -1410,9 +1493,6 @@ private:
                 break;
             }
 
-            // Extract the next task.
-            auto&& task = tasks->at(*index);
-            ++*index;
             task->Prepare(this, std::move(semaphoreGuard));
             ++scheduled;
 
@@ -1436,23 +1516,23 @@ private:
     {
         ScheduleMoreTasks(
             &PartitioningTasks_,
-            &PartitioningTaskIndex_,
             PartitioningSemaphore_,
             ScheduledPartitioningsCounter_,
-            &TStoreCompactor::PartitionEden);
+            &TStoreCompactor::PartitionEden,
+            ETabletStoresUpdateReason::Partitioning);
     }
 
     void ScheduleMoreCompactions()
     {
         ScheduleMoreTasks(
             &CompactionTasks_,
-            &CompactionTaskIndex_,
             CompactionSemaphore_,
             ScheduledCompactionsCounter_,
-            &TStoreCompactor::CompactPartition);
+            &TStoreCompactor::CompactPartition,
+            ETabletStoresUpdateReason::Compaction);
     }
 
-    NNative::ITransactionPtr StartMasterTransaction(const TTabletSnapshotPtr& tabletSnapshot, const TString& title)
+    NNative::ITransactionPtr StartMasterTransaction(const TTabletSnapshotPtr& tabletSnapshot, const std::string& title)
     {
         auto transactionAttributes = CreateEphemeralAttributes();
         transactionAttributes->Set("title", title);
@@ -1475,15 +1555,15 @@ private:
     {
         const auto& Logger = *logger;
 
-        YT_LOG_INFO("Creating partition compaction transaction");
+        YT_TLOG_INFO("Creating partition compaction transaction");
 
         auto transaction = StartMasterTransaction(tabletSnapshot, Format("Partition compaction: table %v, tablet %v",
             tabletSnapshot->TablePath,
             tabletSnapshot->TabletId));
 
-        logger->AddTag("TransactionId: %v", transaction->GetId());
+        logger->AddTag("TransactionId", transaction->GetId());
 
-        YT_LOG_INFO("Partition compaction transaction created");
+        YT_TLOG_INFO("Partition compaction transaction created");
 
         return transaction;
     }
@@ -1494,15 +1574,15 @@ private:
     {
         const auto& Logger = *logger;
 
-        YT_LOG_INFO("Creating Eden partitioning transaction");
+        YT_TLOG_INFO("Creating Eden partitioning transaction");
 
         auto transaction = StartMasterTransaction(tabletSnapshot, Format("Eden partitioning: table %v, tablet %v",
             tabletSnapshot->TablePath,
             tabletSnapshot->TabletId));
 
-        logger->AddTag("TransactionId: %v", transaction->GetId());
+        logger->AddTag("TransactionId", transaction->GetId());
 
-        YT_LOG_INFO("Eden partitioning transaction created");
+        YT_TLOG_INFO("Eden partitioning transaction created");
 
         return transaction;
     }
@@ -1540,15 +1620,8 @@ private:
         };
 
         auto Logger = TabletNodeLogger()
-            .WithTag("%v, ReadSessionId: %v",
-                task->TabletLoggingTag,
-                chunkReadOptions.ReadSessionId);
-
-        auto doneGuard = Finally([&] {
-            if (Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
-                ScheduleMorePartitionings();
-            }
-        });
+            .WithTags(task->TabletLoggingTags)
+            .WithTag("ReadSessionId", chunkReadOptions.ReadSessionId);
 
         auto traceId = task->Info->TaskId;
         auto traceContext = TTraceContext::NewRoot("StoreCompactor", traceId);
@@ -1558,7 +1631,7 @@ private:
         const auto& tabletManager = slot->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(task->Info->TabletId);
         if (!tablet) {
-            YT_LOG_DEBUG("Tablet is missing, aborting partitioning");
+            YT_TLOG_DEBUG("Tablet is missing, aborting partitioning");
             return;
         }
 
@@ -1567,7 +1640,7 @@ private:
             task->Info->TabletId,
             task->Info->MountRevision);
         if (!tabletSnapshot) {
-            YT_LOG_DEBUG("Tablet snapshot is missing, aborting partitioning");
+            YT_TLOG_DEBUG("Tablet snapshot is missing, aborting partitioning");
             return;
         }
 
@@ -1586,7 +1659,7 @@ private:
 
         auto* eden = tablet->GetEden();
         if (eden->GetId() != task->Info->PartitionId) {
-            YT_LOG_DEBUG("Eden is missing, aborting partitioning");
+            YT_TLOG_DEBUG("Eden is missing, aborting partitioning");
             logFailure("eden_missing");
             return;
         }
@@ -1595,7 +1668,8 @@ private:
         if (eden->GetState() != EPartitionState::Normal &&
             !(eden->GetState() == EPartitionState::Compacting && mountConfig->EnableConcurrentEdenPartitioningAndCompaction))
         {
-            YT_LOG_DEBUG("Eden is in improper state, aborting partitioning (EdenState: %v)", eden->GetState());
+            YT_TLOG_DEBUG("Eden is in improper state, aborting partitioning")
+                .With("EdenState", eden->GetState());
             logFailure("improper_state")
                 .Item("state").Value(eden->GetState());
             return;
@@ -1608,7 +1682,8 @@ private:
         for (const auto& storeId : storeIds) {
             auto store = tablet->FindStore(storeId);
             if (!store || !eden->Stores().contains(store->AsSorted())) {
-                YT_LOG_DEBUG("Eden store is missing, aborting partitioning (StoreId: %v)", storeId);
+                YT_TLOG_DEBUG("Eden store is missing, aborting partitioning")
+                    .With("StoreId", storeId);
                 logFailure("store_missing")
                     .Item("store_id").Value(storeId);
                 return;
@@ -1616,10 +1691,9 @@ private:
             auto typedStore = store->AsSortedChunk();
             YT_VERIFY(typedStore);
             if (typedStore->GetCompactionState() != EStoreCompactionState::None) {
-                YT_LOG_DEBUG("Eden store is in improper state, aborting partitioning "
-                    "(StoreId: %v, CompactionState: %v)",
-                    storeId,
-                    typedStore->GetCompactionState());
+                YT_TLOG_DEBUG("Eden store is in improper state, aborting partitioning")
+                    .With("StoreId", storeId)
+                    .With("CompactionState", typedStore->GetCompactionState());
                 logFailure("improper_store_state")
                     .Item("store_id").Value(storeId)
                     .Item("store_compaction_state").Value(typedStore->GetCompactionState());
@@ -1638,8 +1712,8 @@ private:
             if (!mountConfig->EnablePartitionSplitWhileEdenPartitioning &&
                 partition->GetState() == EPartitionState::Splitting)
             {
-                YT_LOG_DEBUG("Other partition is splitting, aborting eden partitioning (PartitionId: %v)",
-                    partition->GetId());
+                YT_TLOG_DEBUG("Other partition is splitting, aborting eden partitioning")
+                    .With("PartitionId", partition->GetId());
                 logFailure("other_partition_splitting")
                     .Item("other_partition_id").Value(partition->GetId());
                 return;
@@ -1697,16 +1771,14 @@ private:
                 .Item("current_timestamp").Value(currentTimestamp)
                 .Item("trace_id").Value(traceId);
 
-            YT_LOG_INFO("Eden partitioning started (Slack: %v, Effect: %v, "
-                "PartitionCount: %v, CompressedDataSize: %v, "
-                "ChunkCount: %v, CurrentTimestamp: %v, RetentionConfig: %v)",
-                task->Info->Slack,
-                task->Info->Effect,
-                pivotKeys.size(),
-                dataSize,
-                stores.size(),
-                currentTimestamp,
-                ConvertTo<TRetentionConfigPtr>(mountConfig));
+            YT_TLOG_INFO("Eden partitioning started")
+                .With("Slack", task->Info->Slack)
+                .With("Effect", task->Info->Effect)
+                .With("PartitionCount", pivotKeys.size())
+                .With("CompressedDataSize", dataSize)
+                .With("ChunkCount", stores.size())
+                .With("CurrentTimestamp", currentTimestamp)
+                .With("RetentionConfig", ConvertTo<TRetentionConfigPtr>(mountConfig));
 
             reader = CreateReader(
                 tablet,
@@ -1717,7 +1789,8 @@ private:
                 currentTimestamp,
                 // NB: No major compaction during Eden partitioning.
                 /*majorTimestamp*/ MinTimestamp,
-                tabletSnapshot->PartitioningThrottler);
+                tabletSnapshot->PartitioningThrottler,
+                task->Info->MemoryUsageTracker);
 
             auto transaction = StartPartitioningTransaction(tabletSnapshot, &Logger);
 
@@ -1759,7 +1832,6 @@ private:
 
             // We can release semaphore, because we are no longer actively using resources.
             task->SemaphoreGuard.Release();
-            doneGuard.Release();
 
             if (RandomNumber<double>() < mountConfig->Testing.PartitioningFailureProbability) {
                 THROW_ERROR_EXCEPTION("Partitioning failed for testing purposes");
@@ -1768,6 +1840,7 @@ private:
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             actionRequest.set_create_hunk_chunks_during_prepare(true);
             actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::Partitioning));
+            actionRequest.set_throttle_at_master(GlobalStoresUpdateThrottler_->IsEnabled());
             for (const auto& [writer, partitionIndex] : partitionWriters) {
                 AddStoresToAdd(&actionRequest, writer);
             }
@@ -1785,18 +1858,16 @@ private:
             }
             tabletSnapshot->PerformanceCounters->Increment(chunkReadOptions, /*isSystemWorkload*/ true);
 
-            YT_LOG_INFO("Eden partitioning completed "
-                "(RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v%v, WallTime: %v)",
-                partitioningResult.RowCount,
-                storeIdsToAdd,
-                MakeFormattableView(stores, TStoreIdFormatter()),
-                MakeFormatterWrapper([&] (auto* builder) {
-                    if (partitioningResult.HunkWriter->HasHunks()) {
-                        builder->AppendFormat(", HunkChunkIdToAdd: %v",
-                            partitioningResult.HunkWriter->GetChunkId());
-                    }
-                }),
-                timer.GetElapsedTime());
+            auto hunkChunkIdToAdd = partitioningResult.HunkWriter->HasHunks()
+                ? partitioningResult.HunkWriter->GetChunkId()
+                : NullChunkId;
+
+            YT_TLOG_INFO("Eden partitioning completed")
+                .With("RowCount", partitioningResult.RowCount)
+                .With("StoreIdsToAdd", storeIdsToAdd)
+                .With("StoreIdsToRemove", MakeFormattableView(stores, TStoreIdFormatter()))
+                .WithIf(hunkChunkIdToAdd != NullChunkId, "HunkChunkIdToAdd", hunkChunkIdToAdd)
+                .With("WallTime", timer.GetElapsedTime());
 
             structuredLogger->LogEvent("end_partitioning")
                 .Item("partition_id").Value(eden->GetId())
@@ -1828,13 +1899,17 @@ private:
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Partitioning].Store(TError());
         } catch (const std::exception& ex) {
-            auto error = TError(ex)
-                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Partitioning);
+            static constexpr auto Message = "Error partitioning Eden, backing off"_sb;
+            auto error = TError(Message)
+                .With("tablet_id", tabletSnapshot->TabletId)
+                .With("background_activity", ETabletBackgroundActivity::Partitioning)
+                .With(ex);
 
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Partitioning].Store(error);
-            YT_LOG_ERROR(error, "Error partitioning Eden, backing off");
+            YT_TLOG_ERROR(Message)
+                .With("BackgroundActivity", ETabletBackgroundActivity::Partitioning)
+                .With(ex);
 
             structuredLogger->LogEvent("backoff_partitioning")
                 .Item("partition_id").Value(eden->GetId())
@@ -1870,7 +1945,8 @@ private:
                 reader->GetDataStatistics(),
                 writerDataStatistics,
                 chunkReadOptions.HunkChunkReaderStatistics,
-                partitioningResult.HunkWriter->GetDataStatistics());
+                partitioningResult.HunkWriter->GetDataStatistics(),
+                partitioningResult.HunkWriter->GetDataWeight());
         }
 
         eden->ExitCompactionState(EPartitionState::Partitioning);
@@ -1883,8 +1959,8 @@ private:
         const std::vector<TSortedChunkStorePtr>& stores,
         NLogging::TLogger Logger)
     {
-        YT_LOG_DEBUG("Discarding expired partition stores (PartitionId: %v)",
-            partition->GetId());
+        YT_TLOG_DEBUG("Discarding expired partition stores")
+            .With("PartitionId", partition->GetId());
 
         auto* tablet = partition->GetTablet();
         const auto& storeManager = tablet->GetStoreManager();
@@ -1903,19 +1979,19 @@ private:
             for (const auto& store : stores) {
                 retainedTimestamp = std::max(retainedTimestamp, store->GetMaxTimestamp());
             }
-            ++retainedTimestamp;
+            retainedTimestamp = TTimestamp(retainedTimestamp.Underlying() + 1);
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             actionRequest.set_create_hunk_chunks_during_prepare(true);
-            actionRequest.set_retained_timestamp(retainedTimestamp);
+            actionRequest.set_retained_timestamp(ToProto(retainedTimestamp));
             actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::Compaction));
+            actionRequest.set_throttle_at_master(GlobalStoresUpdateThrottler_->IsEnabled());
             AddStoresToRemove(&actionRequest, stores);
 
-            YT_LOG_INFO("Partition stores discarded by TTL "
-                "(UnmergedRowCount: %v, CompressedDataSize: %v, StoreIdsToRemove: %v)",
-                partition->GetUnmergedRowCount(),
-                partition->GetCompressedDataSize(),
-                MakeFormattableView(stores, TStoreIdFormatter()));
+            YT_TLOG_INFO("Partition stores discarded by TTL")
+                .With("UnmergedRowCount", partition->GetUnmergedRowCount())
+                .With("CompressedDataSize", partition->GetCompressedDataSize())
+                .With("StoreIdsToRemove", MakeFormattableView(stores, TStoreIdFormatter()));
 
             structuredLogger->LogEvent("discard_stores")
                 .Item("partition_id").Value(partition->GetId());
@@ -1929,13 +2005,17 @@ private:
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(TError());
         } catch (const std::exception& ex) {
-            auto error = TError(ex)
-                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Compaction);
+            static constexpr auto Message = "Error discarding expired partition stores, backing off"_sb;
+            auto error = TError(Message)
+                .With("tablet_id", tabletSnapshot->TabletId)
+                .With("background_activity", ETabletBackgroundActivity::Compaction)
+                .With(ex);
 
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(error);
-            YT_LOG_ERROR(error, "Error discarding expired partition stores, backing off");
+            YT_TLOG_ERROR(Message)
+                .With("BackgroundActivity", ETabletBackgroundActivity::Compaction)
+                .With(ex);
 
             structuredLogger->LogEvent("backoff_discard_stores")
                 .Item("partition_id").Value(partition->GetId());
@@ -1958,15 +2038,8 @@ private:
         };
 
         auto Logger = TabletNodeLogger()
-            .WithTag("%v, ReadSessionId: %v",
-                task->TabletLoggingTag,
-                chunkReadOptions.ReadSessionId);
-
-        auto doneGuard = Finally([&] {
-            if (Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
-                ScheduleMoreCompactions();
-            }
-        });
+            .WithTags(task->TabletLoggingTags)
+            .WithTag("ReadSessionId", chunkReadOptions.ReadSessionId);
 
         auto traceId = task->Info->TaskId;
         auto traceContext = TTraceContext::NewRoot("StoreCompactor", traceId);
@@ -1976,14 +2049,14 @@ private:
         const auto& tabletManager = slot->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(task->Info->TabletId);
         if (!tablet) {
-            YT_LOG_DEBUG("Tablet is missing, aborting compaction");
+            YT_TLOG_DEBUG("Tablet is missing, aborting compaction");
             return;
         }
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->FindTabletSnapshot(task->Info->TabletId, task->Info->MountRevision);
         if (!tabletSnapshot) {
-            YT_LOG_DEBUG("Tablet snapshot is missing, aborting compaction");
+            YT_TLOG_DEBUG("Tablet snapshot is missing, aborting compaction");
             return;
         }
 
@@ -2004,7 +2077,7 @@ private:
             ? tablet->GetEden()
             : tablet->FindPartition(task->Info->PartitionId);
         if (!partition) {
-            YT_LOG_DEBUG("Partition is missing, aborting compaction");
+            YT_TLOG_DEBUG("Partition is missing, aborting compaction");
             logFailure("partition_missing");
             return;
         }
@@ -2014,7 +2087,8 @@ private:
         if (partition->GetState() != EPartitionState::Normal &&
             !(partition->GetState() == EPartitionState::Partitioning && enableConcurrentPartitioningAndCompaction))
         {
-            YT_LOG_DEBUG("Partition is in improper state, aborting compaction (PartitionState: %v)", partition->GetState());
+            YT_TLOG_DEBUG("Partition is in improper state, aborting compaction")
+                .With("PartitionState", partition->GetState());
             logFailure("improper_state")
                 .Item("state").Value(partition->GetState());
             return;
@@ -2027,7 +2101,8 @@ private:
         for (const auto& storeId : storeIds) {
             auto store = tablet->FindStore(storeId);
             if (!store || !partition->Stores().contains(store->AsSorted())) {
-                YT_LOG_DEBUG("Partition store is missing, aborting compaction (StoreId: %v)", storeId);
+                YT_TLOG_DEBUG("Partition store is missing, aborting compaction")
+                    .With("StoreId", storeId);
                 logFailure("store_missing")
                     .Item("store_id").Value(storeId);
 
@@ -2036,9 +2111,9 @@ private:
             auto typedStore = store->AsSortedChunk();
             YT_VERIFY(typedStore);
             if (typedStore->GetCompactionState() != EStoreCompactionState::None) {
-                YT_LOG_DEBUG("Partition store is in improper state, aborting compaction (StoreId: %v, CompactionState: %v)",
-                    storeId,
-                    typedStore->GetCompactionState());
+                YT_TLOG_DEBUG("Partition store is in improper state, aborting compaction")
+                    .With("StoreId", storeId)
+                    .With("CompactionState", typedStore->GetCompactionState());
                 logFailure("improper_store_state")
                     .Item("store_id").Value(storeId)
                     .Item("store_compaction_state").Value(typedStore->GetCompactionState());
@@ -2046,6 +2121,7 @@ private:
             }
             stores.push_back(std::move(typedStore));
         }
+
         {
             auto guard = Guard(task->Info->RuntimeData.SpinLock);
             task->Info->RuntimeData.TotalReaderStatistics = TBackgroundActivityTaskInfoBase::TReaderStatistics(stores);
@@ -2056,11 +2132,13 @@ private:
             return;
         }
 
-        Logger.AddTag("Eden: %v, PartitionRange: %v .. %v, PartitionId: %v",
-            partition->IsEden(),
+        Logger.AddTag("Eden", partition->IsEden());
+        Logger.AddTagFormat(
+            "PartitionRange",
+            "%v .. %v",
             partition->GetPivotKey(),
-            partition->GetNextPivotKey(),
-            partition->GetId());
+            partition->GetNextPivotKey());
+        Logger.AddTag("PartitionId", partition->GetId());
 
         partition->EnterCompactionState(EPartitionState::Compacting);
 
@@ -2111,9 +2189,8 @@ private:
             TTimestamp majorTimestamp;
             if (tablet->GetBackupCheckpointTimestamp()) {
                 majorTimestamp = MinTimestamp;
-                YT_LOG_DEBUG("Compaction will not delete old versions due to backup in progress "
-                    "(BackupCheckpointTimestamp: %v)",
-                    tablet->GetBackupCheckpointTimestamp());
+                YT_TLOG_DEBUG("Compaction will not delete old versions due to backup in progress")
+                    .With("BackupCheckpointTimestamp", tablet->GetBackupCheckpointTimestamp());
             } else {
                 majorTimestamp = std::min(ComputeMajorTimestamp(partition, stores), retainedTimestamp);
             }
@@ -2128,20 +2205,17 @@ private:
                 .Item("major_timestamp").Value(majorTimestamp)
                 .Item("retained_timestamp").Value(retainedTimestamp);
 
-            YT_LOG_INFO("Partition compaction started (Slack: %v, Effect: %v, "
-                "RowCount: %v, CompressedDataSize: %v, ChunkCount: %v, "
-                "CurrentTimestamp: %v, MajorTimestamp: %v, RetainedTimestamp: %v, RetentionConfig: %v, "
-                "Reason: %v)",
-                task->Info->Slack,
-                task->Info->Effect,
-                inputRowCount,
-                inputDataSize,
-                stores.size(),
-                currentTimestamp,
-                majorTimestamp,
-                retainedTimestamp,
-                ConvertTo<TRetentionConfigPtr>(mountConfig),
-                task->Info->Reason);
+            YT_TLOG_INFO("Partition compaction started")
+                .With("Slack", task->Info->Slack)
+                .With("Effect", task->Info->Effect)
+                .With("RowCount", inputRowCount)
+                .With("CompressedDataSize", inputDataSize)
+                .With("ChunkCount", stores.size())
+                .With("CurrentTimestamp", currentTimestamp)
+                .With("MajorTimestamp", majorTimestamp)
+                .With("RetainedTimestamp", retainedTimestamp)
+                .With("RetentionConfig", ConvertTo<TRetentionConfigPtr>(mountConfig))
+                .With("Reason", task->Info->Reason);
 
             reader = CreateReader(
                 tablet,
@@ -2151,7 +2225,8 @@ private:
                 chunkReadOptions,
                 currentTimestamp,
                 majorTimestamp,
-                tabletSnapshot->CompactionThrottler);
+                tabletSnapshot->CompactionThrottler,
+                task->Info->MemoryUsageTracker);
 
             auto transaction = StartCompactionTransaction(tabletSnapshot, &Logger);
 
@@ -2186,7 +2261,6 @@ private:
 
             // We can release semaphore, because we are no longer actively using resources.
             task->SemaphoreGuard.Release();
-            doneGuard.Release();
 
             if (RandomNumber<double>() < mountConfig->Testing.CompactionFailureProbability) {
                 THROW_ERROR_EXCEPTION("Compaction failed for testing purposes");
@@ -2194,8 +2268,9 @@ private:
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             actionRequest.set_create_hunk_chunks_during_prepare(true);
-            actionRequest.set_retained_timestamp(retainedTimestamp);
+            actionRequest.set_retained_timestamp(ToProto(retainedTimestamp));
             actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::Compaction));
+            actionRequest.set_throttle_at_master(GlobalStoresUpdateThrottler_->IsEnabled());
             AddStoresToAdd(&actionRequest, compactionResult.StoreWriter);
             AddStoresToAdd(&actionRequest, compactionResult.HunkWriter);
             AddStoresToRemove(&actionRequest, stores);
@@ -2214,18 +2289,16 @@ private:
                 outputTotalDataWeight += statistics.data_weight();
             }
 
-            YT_LOG_INFO("Partition compaction completed "
-                "(RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v%v, WallTime: %v)",
-                compactionResult.RowCount,
-                storeIdsToAdd,
-                MakeFormattableView(stores, TStoreIdFormatter()),
-                MakeFormatterWrapper([&] (auto* builder) {
-                    if (compactionResult.HunkWriter->HasHunks()) {
-                        builder->AppendFormat(", HunkChunkIdToAdd: %v",
-                            compactionResult.HunkWriter->GetChunkId());
-                    }
-                }),
-                timer.GetElapsedTime());
+            auto hunkChunkIdToAdd = compactionResult.HunkWriter->HasHunks()
+                ? compactionResult.HunkWriter->GetChunkId()
+                : NullChunkId;
+
+            YT_TLOG_INFO("Partition compaction completed")
+                .With("RowCount", compactionResult.RowCount)
+                .With("StoreIdsToAdd", storeIdsToAdd)
+                .With("StoreIdsToRemove", MakeFormattableView(stores, TStoreIdFormatter()))
+                .WithIf(hunkChunkIdToAdd != NullChunkId, "HunkChunkIdToAdd", hunkChunkIdToAdd)
+                .With("WallTime", timer.GetElapsedTime());
 
             structuredLogger->LogEvent("end_compaction")
                 .Item("partition_id").Value(partition->GetId())
@@ -2247,13 +2320,17 @@ private:
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(TError());
         } catch (const std::exception& ex) {
-            auto error = TError(ex)
-                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Compaction);
+            static constexpr auto Message = "Error compacting partition, backing off"_sb;
+            auto error = TError(Message)
+                .With("tablet_id", tabletSnapshot->TabletId)
+                .With("background_activity", ETabletBackgroundActivity::Compaction)
+                .With(ex);
 
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(error);
-            YT_LOG_ERROR(error, "Error compacting partition, backing off");
+            YT_TLOG_ERROR(Message)
+                .With("BackgroundActivity", ETabletBackgroundActivity::Compaction)
+                .With(ex);
 
             structuredLogger->LogEvent("backoff_compaction")
                 .Item("partition_id").Value(partition->GetId())
@@ -2291,7 +2368,8 @@ private:
                 reader->GetDataStatistics(),
                 compactionResult.StoreWriter->GetDataStatistics(),
                 chunkReadOptions.HunkChunkReaderStatistics,
-                compactionResult.HunkWriter->GetDataStatistics());
+                compactionResult.HunkWriter->GetDataStatistics(),
+                compactionResult.HunkWriter->GetDataWeight());
         }
 
         partition->ExitCompactionState(EPartitionState::Compacting);
@@ -2305,7 +2383,8 @@ private:
         const TClientChunkReadOptions& chunkReadOptions,
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp,
-        IThroughputThrottlerPtr inboundThrottler)
+        IThroughputThrottlerPtr inboundThrottler,
+        IMemoryUsageTrackerPtr rowMergerMemoryUsageTracker)
     {
         return CreateHunkInliningVersionedReader(
             tablet->GetSettings().HunkReaderConfig,
@@ -2321,7 +2400,7 @@ private:
                 ETabletDistributedThrottlerKind::CompactionRead,
                 std::move(inboundThrottler),
                 chunkReadOptions.WorkloadDescriptor.Category,
-                Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground)),
+                std::move(rowMergerMemoryUsageTracker)),
             tablet->GetChunkFragmentReader(),
             tabletSnapshot->DictionaryCompressionFactory,
             tablet->GetPhysicalSchema(),
@@ -2367,8 +2446,8 @@ private:
         for (auto&& [cellId, tabletUpdates] : cellIdToTabletUpdates) {
             auto slot = Bootstrap_->GetSlotManager()->FindSlot(cellId);
             if (!slot) {
-                YT_LOG_DEBUG("Tablet cell is missing, will not apply compaction hint updates (CellId: %v)",
-                    cellId);
+                YT_TLOG_DEBUG("Tablet cell is missing, will not apply compaction hint updates")
+                    .With("CellId", cellId);
                 continue;
             }
 
@@ -2392,9 +2471,9 @@ private:
         for (auto&& tabletRequest : tabletRequests) {
             const auto* tablet = slot->GetTabletManager()->FindTablet(tabletRequest.TabletId);
             if (!tablet) {
-                YT_LOG_DEBUG("Tablet is missing, will not update compaction hints (TabletId: %v, CellId: %v)",
-                    tabletRequest.TabletId,
-                    tabletRequest.CellId);
+                YT_TLOG_DEBUG("Tablet is missing, will not update compaction hints")
+                    .With("TabletId", tabletRequest.TabletId)
+                    .With("CellId", tabletRequest.CellId);
                 continue;
             }
 
@@ -2504,7 +2583,7 @@ TCompactionTask::TCompactionTask(
     , Slot(slot)
     , Invoker(tablet->GetEpochAutomatonInvoker())
     , CancelableContext(tablet->GetCancelableContext())
-    , TabletLoggingTag(tablet->GetLoggingTag())
+    , TabletLoggingTags(tablet->GetLoggingTags())
 { }
 
 void TCompactionTask::Prepare(

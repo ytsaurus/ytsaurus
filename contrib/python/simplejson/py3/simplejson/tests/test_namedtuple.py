@@ -8,24 +8,9 @@ try:
 except ImportError:
     mock = None
 
-try:
-    from collections import namedtuple
-except ImportError:
-    class Value(tuple):
-        def __new__(cls, *args):
-            return tuple.__new__(cls, args)
-
-        def _asdict(self):
-            return {'value': self[0]}
-    class Point(tuple):
-        def __new__(cls, *args):
-            return tuple.__new__(cls, args)
-
-        def _asdict(self):
-            return {'x': self[0], 'y': self[1]}
-else:
-    Value = namedtuple('Value', ['value'])
-    Point = namedtuple('Point', ['x', 'y'])
+from collections import namedtuple
+Value = namedtuple('Value', ['value'])
+Point = namedtuple('Point', ['x', 'y'])
 
 class DuckValue(object):
     def __init__(self, *args):
@@ -153,11 +138,7 @@ class TestNamedTuple(unittest.TestCase):
 
     def test_asdict_does_not_return_dict(self):
         if not mock:
-            if hasattr(unittest, "SkipTest"):
-                raise unittest.SkipTest("unittest.mock required")
-            else:
-                print("unittest.mock not available")
-                return
+            raise unittest.SkipTest("unittest.mock required")
         fake = mock.Mock()
         self.assertTrue(hasattr(fake, '_asdict'))
         self.assertTrue(callable(fake._asdict))
@@ -172,3 +153,54 @@ class TestNamedTuple(unittest.TestCase):
         # assert(!PyErr_Occurred()) that could fire later on.
         with self.assertRaises(TypeError):
             json.dumps({23: fake}, namedtuple_as_object=True, for_json=False)
+
+    def test_asdict_dispatch_order(self):
+        # Regression: the Python encoder used to check isinstance(o, list)
+        # BEFORE _asdict(), so a list subclass that defines _asdict()
+        # encoded as a plain list under Py and as an object under C.
+        # Consolidated on C's order: _asdict() takes precedence over
+        # list/tuple/dict container checks. for_json still wins over
+        # _asdict in both backends.
+        #
+        # The _cibw_runner harness runs the whole test suite once with
+        # the C speedups active and once with them disabled, so a single
+        # assertion here covers both backends.
+        class ListAsdict(list):
+            def _asdict(self):
+                return {'from_asdict': list(self)}
+
+        class TupleAsdict(tuple):
+            def _asdict(self):
+                return {'from_asdict': list(self)}
+
+        class DictAsdict(dict):
+            def _asdict(self):
+                return {'from_asdict': dict(self)}
+
+        class ListBoth(list):
+            def _asdict(self):
+                return {'from_asdict': True}
+            def for_json(self):
+                return {'from_for_json': True}
+
+        self.assertEqual(
+            {'from_asdict': [10, 20]},
+            json.loads(json.dumps(ListAsdict([10, 20]))))
+        self.assertEqual(
+            {'from_asdict': [1, 2]},
+            json.loads(json.dumps(TupleAsdict((1, 2)))))
+        self.assertEqual(
+            {'from_asdict': {'x': 1}},
+            json.loads(json.dumps(DictAsdict(x=1))))
+        # Nested inside a plain list.
+        self.assertEqual(
+            [{'from_asdict': [10]}],
+            json.loads(json.dumps([ListAsdict([10])])))
+        # Nested inside a plain dict.
+        self.assertEqual(
+            {'k': {'from_asdict': [10]}},
+            json.loads(json.dumps({'k': ListAsdict([10])})))
+        # for_json must still outrank _asdict.
+        self.assertEqual(
+            {'from_for_json': True},
+            json.loads(json.dumps(ListBoth([1]), for_json=True)))

@@ -4,7 +4,7 @@
 
 #include <yt/yt/client/api/client.h>
 
-#include <yt/yt/library/tracing/jaeger/tracer.h>
+#include <yt/yt/library/tracing/jaeger/config.h>
 
 #include <yt/yt/library/re2/re2.h>
 
@@ -12,12 +12,11 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompositeSettingsPtr TCompositeSettings::Create(bool convertUnsupportedTypesToString, bool enableComplexNullConverison, ELowCardinalityMode lowCardinalityMode)
+TCompositeSettingsPtr TCompositeSettings::Create(bool convertUnsupportedTypesToString, bool enableComplexNullConverison)
 {
     auto settings = New<TCompositeSettings>();
     settings->ConvertUnsupportedTypesToString = convertUnsupportedTypesToString;
     settings->EnableComplexNullConverison = enableComplexNullConverison;
-    settings->LowCardinalityMode = lowCardinalityMode;
     return settings;
 }
 
@@ -29,17 +28,48 @@ void TCompositeSettings::Register(TRegistrar registrar)
     registrar.Parameter("convert_unsupported_types_to_string", &TThis::ConvertUnsupportedTypesToString)
         .Default(false);
 
+    registrar.Parameter("annotate_result_schema_with_native_types", &TThis::AnnotateResultSchemaWithNativeTypes)
+        .Default(false);
+
     registrar.Parameter("enable_complex_null_conversion", &TThis::EnableComplexNullConverison)
         .Default(true);
+}
 
-    registrar.Parameter("low_cardinality_mode", &TThis::LowCardinalityMode)
+////////////////////////////////////////////////////////////////////////////////
+
+void TLowCardinalitySettings::Register(TRegistrar registrar)
+{
+    registrar.Parameter("mode", &TThis::Mode)
         .Default(ELowCardinalityMode::None);
 
-    registrar.Parameter("low_cardinality_threshold", &TThis::LowCardinalityThreshold)
+    registrar.Parameter("threshold", &TThis::Threshold)
         .Default(100);
 
-    registrar.Parameter("low_cardinality_regexp", &TThis::LowCardinalityRegExp)
+    registrar.Parameter("regexp", &TThis::RegExp)
         .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TConversionSettingsPtr TConversionSettings::Create(TCompositeSettingsPtr compositeSettings, TLowCardinalitySettingsPtr lowCardinalitySettings, bool adjustTimezoneForDateTypes)
+{
+    auto settings = New<TConversionSettings>();
+    settings->Composite = std::move(compositeSettings);
+    settings->LowCardinality = std::move(lowCardinalitySettings);
+    settings->AdjustTimezoneForDateTypes = adjustTimezoneForDateTypes;
+    return settings;
+}
+
+void TConversionSettings::Register(TRegistrar registrar)
+{
+    registrar.Parameter("composite", &TThis::Composite)
+        .DefaultNew();
+
+    registrar.Parameter("low_cardinality", &TThis::LowCardinality)
+        .DefaultNew();
+
+    registrar.Parameter("adjust_timezone_for_date_types", &TThis::AdjustTimezoneForDateTypes)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,6 +103,14 @@ void TTestingSettings::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("throw_exception_in_subquery", &TThis::ThrowExceptionInSubquery)
         .Default(false);
+    registrar.Parameter("throw_exception_in_writer_finish", &TThis::ThrowExceptionInWriterFinish)
+        .Default(false);
+    registrar.Parameter("throw_exception_after_refresh_query", &TThis::ThrowExceptionAfterRefreshQuery)
+        .Default(false);
+    registrar.Parameter("throw_exception_after_refresh_commit", &TThis::ThrowExceptionAfterRefreshCommit)
+        .Default(false);
+    registrar.Parameter("fail_materialized_view_refresh_query_response_for_partition", &TThis::FailMaterializedViewRefreshQueryResponseForPartition)
+        .Default();
     registrar.Parameter("subquery_allocation_size", &TThis::SubqueryAllocationSize)
         .Default(0);
 
@@ -93,6 +131,8 @@ void TTestingSettings::Register(TRegistrar registrar)
     registrar.Parameter("source_generate_call_breakpoint", &TThis::SourceGenerateCallBreakpoint)
         .Default();
     registrar.Parameter("drop_table_breakpoint", &TThis::DropTableBreakpoint)
+        .Default();
+    registrar.Parameter("materialized_view_consumer_commit_breakpoint", &TThis::MaterializedViewConsumerCommitBreakpoint)
         .Default();
 }
 
@@ -167,16 +207,16 @@ void TExecutionSettings::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_read_range_inferring", &TThis::EnableReadRangeInferring)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("enable_distinct_read_optimization", &TThis::EnableOptimizeDistinctRead)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("enable_min_max_optimization", &TThis::EnableMinMaxOptimization)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("allow_string_min_max_optimization", &TThis::AllowStringMinMaxOptimization)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("disable_read_time_estimation", &TThis::DisableReadTimeEstimation)
         .Default(true);
@@ -256,8 +296,11 @@ void TQuerySettings::Register(TRegistrar registrar)
     registrar.Parameter("infer_dynamic_table_ranges_from_pivot_keys", &TThis::InferDynamicTableRangesFromPivotKeys)
         .Default(true);
 
-    registrar.Parameter("composite", &TThis::Composite)
+    registrar.Parameter("conversion", &TThis::Conversion)
         .DefaultNew();
+
+    registrar.Parameter("composite", &TThis::Composite)
+        .Default();
 
     registrar.Parameter("dynamic_table", &TThis::DynamicTable)
         .DefaultNew();
@@ -296,6 +339,12 @@ void TQuerySettings::Register(TRegistrar registrar)
     registrar.Parameter("storage_conflict_resolve_mode", &TThis::StorageConflictResolveMode)
         .Default(EStorageConflictResolveMode::Throw);
 
+    registrar.Parameter("omit_inaccessible_rows", &TThis::OmitInaccessibleRows)
+        .Default(false);
+
+    registrar.Parameter("materialized_view_populate", &TThis::MaterializedViewPopulate)
+        .Default(false);
+
     registrar.Preprocessor([] (TThis* config) {
         config->TableReader->GroupSize = 20_MB;
         config->TableReader->WindowSize = 70_MB;
@@ -303,6 +352,12 @@ void TQuerySettings::Register(TRegistrar registrar)
         config->TableReader->BlockRpcHedgingDelay = TDuration::MilliSeconds(50);
         config->TableReader->MetaRpcHedgingDelay = TDuration::MilliSeconds(10);
         config->TableReader->CancelPrimaryBlockRpcRequestOnHedging = true;
+    });
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->Composite) {
+            config->Conversion->Composite = config->Composite;
+        }
     });
 }
 
@@ -361,6 +416,15 @@ void TSubqueryConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("min_slice_data_weight", &TThis::MinSliceDataWeight)
         .Default(1_MB);
+
+    registrar.Parameter("chunk_spec_cache", &TThis::ChunkSpecCache)
+        .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->ChunkSpecCache && !config->ChunkSpecCache->Capacity) {
+            config->ChunkSpecCache->Capacity = 1_GB;
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -483,10 +547,32 @@ void TUserDefinedSqlObjectsStorageConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDictionaryRepositoryConfig::Register(TRegistrar registrar)
+void TCypressObjectRepositoryConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("root_path", &TThis::RootPath)
         .NonEmpty();
+    registrar.Parameter("update_period", &TThis::UpdatePeriod)
+        .Default(TDuration::Seconds(30));
+}
+
+void TMaterializedViewsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("root_path", &TThis::RootPath)
+        .NonEmpty();
+    registrar.Parameter("scan_period", &TThis::ScanPeriod)
+        .Default(TDuration::Minutes(5));
+    registrar.Parameter("max_rows_per_refresh", &TThis::MaxRowsPerRefresh)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+    registrar.Parameter("max_partitions_per_refresh", &TThis::MaxPartitionsPerRefresh)
+        .GreaterThanOrEqual(0)
+        .Default(10);
+    registrar.Parameter("query_timeout", &TThis::QueryTimeout)
+        .Default(TDuration::Minutes(20));
+    registrar.Parameter("table_mount_timeout", &TThis::TableMountTimeout)
+        .Default(TDuration::Seconds(30));
+    registrar.Parameter("transaction_timeout", &TThis::TransactionTimeout)
+        .Default(TDuration::Minutes(30));
 }
 
 void TDictionaryAccessControlConfig::Register(TRegistrar registrar)
@@ -551,6 +637,21 @@ void TSystemLogTableExportersConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TExecutionProfilingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("attribute_fetch_time_histogram", &TThis::AttributeFetchTimeHistogram)
+        .DefaultNew();
+
+    registrar.Preprocessor([] (TThis* config) {
+        auto exponentialBoundsConfig = New<NRpc::THistogramExponentialBounds>();
+        exponentialBoundsConfig->Min = TDuration::MilliSeconds(100);
+        exponentialBoundsConfig->Max = TDuration::Seconds(20);
+        config->AttributeFetchTimeHistogram->ExponentialBounds = std::move(exponentialBoundsConfig);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TYtConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("clique_id", &TThis::CliqueId)
@@ -561,6 +662,8 @@ void TYtConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("clique_incarnation", &TThis::CliqueIncarnation)
         .Default(-1);
+    registrar.Parameter("orchid_root", &TThis::OrchidRoot)
+        .Default();
     registrar.Parameter("address", &TThis::Address)
         .Default();
     registrar.Parameter("clique_instance_count", &TThis::CliqueInstanceCount)
@@ -614,6 +717,9 @@ void TYtConfig::Register(TRegistrar registrar)
     registrar.Parameter("fetcher_thread_count", &TThis::FetcherThreadCount)
         .Default(8);
 
+    registrar.Parameter("task_puller_thread_count", &TThis::TaskPullerThreadCount)
+        .Default(4);
+
     registrar.Parameter("cpu_limit", &TThis::CpuLimit)
         .Default();
 
@@ -633,6 +739,9 @@ void TYtConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("health_checker", &TThis::HealthChecker)
         .DefaultNew();
+
+    registrar.Parameter("election_manager", &TThis::ElectionManager)
+        .Default();
 
     registrar.Parameter("database_directories", &TThis::DatabaseDirectories)
         .Default();
@@ -662,7 +771,12 @@ void TYtConfig::Register(TRegistrar registrar)
     registrar.Parameter("user_defined_sql_objects_storage", &TThis::UserDefinedSqlObjectsStorage)
         .DefaultNew();
 
-    registrar.Parameter("dictionary_repository", &TThis::DictionaryRepository)
+    registrar.Parameter("object_repository", &TThis::CypressObjectRepository)
+        // COMPAT(buyval01)
+        .Alias("dictionary_repository")
+        .Default();
+
+    registrar.Parameter("materialized_views", &TThis::MaterializedViews)
         .Default();
 
     registrar.Parameter("dictionary_access_control", &TThis::DictionaryAccessControl)
@@ -673,6 +787,9 @@ void TYtConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_schema_id_fetching", &TThis::EnableSchemaIdFetching)
         .Default(false);
+
+    registrar.Parameter("execution_profiling", &TThis::ExecutionProfiling)
+        .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
         config->TableAttributeCache->ExpireAfterAccessTime = TDuration::Minutes(2);
@@ -690,8 +807,6 @@ void TYtConfig::Register(TRegistrar registrar)
         config->TableColumnarStatisticsCache->RefreshTime = std::nullopt;
         config->TableColumnarStatisticsCache->ExpireAfterSuccessfulUpdateTime = TDuration::Hours(6);
         config->TableColumnarStatisticsCache->ExpireAfterAccessTime = TDuration::Hours(6);
-
-        config->Discovery->Directory = "//sys/clickhouse/cliques";
     });
 }
 
@@ -710,7 +825,7 @@ void TMemoryConfig::Register(TRegistrar registrar)
     registrar.Parameter("reader", &TThis::Reader)
         .Default();
     registrar.Parameter("table_schema_cache", &TThis::TableSchemaCache)
-        .Default();
+        .Default(64_MB);
     registrar.Parameter("uncompressed_block_cache", &TThis::UncompressedBlockCache)
         .Default();
     registrar.Parameter("compressed_block_cache", &TThis::CompressedBlockCache)
@@ -772,6 +887,8 @@ void TClickHouseServerBootstrapConfig::Register(TRegistrar registrar)
     });
 
     registrar.Postprocessor([] (TThis* config) {
+        config->SolomonExporter->SplitRateHistogramIntoGauges = true;
+
         if (config->CpuLimit) {
             config->Yt->CpuLimit = config->CpuLimit;
         }

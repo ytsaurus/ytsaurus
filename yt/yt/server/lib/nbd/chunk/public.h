@@ -1,0 +1,15 @@
+#pragma once
+
+#include <yt/yt/library/nbd/chunk/public.h>
+
+#include <library/cpp/yt/memory/ref_counted.h>
+
+namespace NYT::NNbd::NChunk {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(IChunkHandler)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NNbd::NChunk

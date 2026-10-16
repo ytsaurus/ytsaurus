@@ -730,7 +730,7 @@ protected:
 
             auto* value = row.EndValues();
             row.SetValueCount(row.GetValueCount() + 1);
-            value->Timestamp = timestampIndex;
+            value->Timestamp = NTableClient::TTimestamp(timestampIndex);
 
             DoExtractValue(value, valueIndex);
 
@@ -749,7 +749,7 @@ protected:
         for (; valueIndex < upperValueIndex; ++valueIndex) {
             auto* value = row.EndValues();
             row.SetValueCount(row.GetValueCount() + 1);
-            value->Timestamp = ValueExtractor_.GetTimestampIndex(valueIndex);
+            value->Timestamp = NTableClient::TTimestamp(ValueExtractor_.GetTimestampIndex(valueIndex));
 
             DoExtractValue(value, valueIndex);
         }

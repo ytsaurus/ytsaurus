@@ -51,31 +51,34 @@ target_link_libraries(yt-server-master PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  cpp-containers-absl_flat_hash
+  cpp-containers-absl
   library-cpp-getopt
   cpp-yt-phdr_cache
+  yt-core-https
   yt-library-orchid
   yt-library-server_program
   yt-library-monitoring
+  library-tracing-jaeger
   yt-ytlib-distributed_throttler
   ytserver
   server-lib-cell_server
   server-lib-cellar_agent
   server-lib-chunk_server
+  server-lib-cypress_proxy
   server-lib-discovery_server
   server-lib-hive
-  lib-hydra-dry_run
   server-lib-hydra
+  lib-hydra-dry_run
   server-lib-incumbent_client
   server-lib-node_tracker_server
   server-lib-object_server
   server-lib-security_server
+  server-lib-sequoia
   server-lib-table_server
   server-lib-tablet_balancer
   server-lib-tablet_server
   server-lib-timestamp_server
   server-lib-transaction_supervisor
-  server-lib-sequoia
   server-lib-scheduler
   server-lib-controller_agent
   contrib-libs-protobuf
@@ -89,10 +92,15 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/cell_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/cypress_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/disk_space_sensor_producer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/epoch_history_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/hydra_facade.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/hive_profiling_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/master_cell_group.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/master_cell_group_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/master_cell_group_proxy.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/master_cell_group_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/master_hydra_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multi_phase_cell_sync_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_manager.cpp
@@ -120,6 +128,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_proxy_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_tracker_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_tracker_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/leader_smoothing.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_type_handler_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cellar_node_tracker_service.cpp
@@ -138,6 +147,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_cell_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_cell_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_cell.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_manager_cell_directory_synchronizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_replicated_table_node_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_replicated_table_node_type_handler.cpp
@@ -167,6 +177,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_replica_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_replica.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_replicator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_replication_queue.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_requisition.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_scanner.cpp
@@ -195,7 +206,6 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/global_sequoia_chunk_refresher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/job_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/job_registry.cpp
@@ -206,11 +216,11 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_proxy_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_type_handler_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/private.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/incumbency_epoch.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/sequoia_chunk_refresher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/sequoia_replicas_modifier.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/stored_chunk_replica.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/access_control_object_namespace_type_handler.cpp
@@ -256,7 +266,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/scion_node.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/scion_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/scion_type_handler.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/sequoia_actions_executor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/sequoia_actions_executor_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/shard_map_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/shard_proxy.cpp
@@ -355,7 +365,6 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/cluster_resources.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/cypress_integration.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/detailed_master_memory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/group_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/group.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/helpers.cpp
@@ -382,6 +391,8 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/cypress_proxy_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/ground_update_queue_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/revision.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/prelock_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_transaction_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/config.cpp
@@ -426,6 +437,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/replicated_table_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/replicated_table_tracker_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/stores_update_throttler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/table_replica_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/table_replica_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/table_replica.cpp
@@ -474,6 +486,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/sequoia_actions_executor_dummy.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/alert_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/epoch_history_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/multicell_manager.pb.h
@@ -542,8 +555,6 @@ target_proto_addincls(yt-server-master
   ${PROJECT_SOURCE_DIR}/yt
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc-format/src/main/proto/orc/proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/contrib/cri-api
-  ${PROJECT_SOURCE_DIR}/yt/yt/contrib/gogoproto
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )

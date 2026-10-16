@@ -9,9 +9,9 @@
 
 #include <yt/yt/client/tablet_client/dynamic_value.h>
 
-#include <yt/yt/core/misc/ring_queue.h>
-
 #include <library/cpp/yt/compact_containers/compact_set.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
 
@@ -693,6 +693,7 @@ public:
     bool operator()(const TLegacyOwningKey& lhsOwningKey, const TLegacyOwningKey& rhsOwningKey) const;
     bool operator()(const TLegacyOwningKey& lhsOwningKey, const TSchemafulSortedDynamicRow& rhsSchemafulRow) const;
     bool operator()(const TSchemafulSortedDynamicRow& lhsSchemafulRow, const TSchemafulSortedDynamicRow& rhsSchemafulRow) const;
+    bool operator()(const TUnversionedValueRange& lhs, const TUnversionedValueRange& rhs) const;
 
 private:
     const TSortedDynamicRowKeyComparer* RowKeyComparer_;

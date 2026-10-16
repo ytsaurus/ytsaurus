@@ -18,9 +18,9 @@ struct IBlackboxService
     : public virtual TRefCounted
 {
     virtual TFuture<NYTree::INodePtr> Call(
-        const TString& method,
-        const THashMap<TString, TString>& params) = 0;
-    virtual TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const = 0;
+        const std::string& method,
+        const THashMap<std::string, std::string>& params) = 0;
+    virtual TErrorOr<std::string> GetLogin(const NYTree::INodePtr& reply) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBlackboxService)

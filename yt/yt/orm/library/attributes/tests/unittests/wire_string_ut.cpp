@@ -1,9 +1,12 @@
+#include <yt/yt/orm/library/attributes/helpers.h>
 #include <yt/yt/orm/library/attributes/wire_string.h>
 
+#include <yt/yt/orm/library/attributes/tests/proto/scalar_attribute.pb.h>
 #include <yt/yt/orm/library/attributes/tests/proto/wire_string.pb.h>
 
 #include <yt/yt/core/yson/protobuf_interop.h>
 
+#include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -36,6 +39,22 @@ bool IsMessageEqualTo(const TProtoMessage& message, TWireString wireString)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST(TWireStringTest, MutableWireStringPreservesParts)
+{
+    TMutableWireString value;
+    EXPECT_TRUE(value.AsWireString().empty());
+    value.Data().emplace_back("first\0part", 10);
+    value.Data().emplace_back();
+    value.Data().emplace_back("last");
+
+    auto wire = value.AsWireString();
+    ASSERT_EQ(wire.size(), 3u);
+    for (int index = 0; index < std::ssize(value.Data()); ++index) {
+        EXPECT_EQ(wire[index].AsStringView(), value.Data()[index]);
+        EXPECT_EQ(wire[index].AsStringView().data(), value.Data()[index].data());
+    }
+}
 
 TEST(TWireStringTest, Equality)
 {
@@ -244,6 +263,161 @@ TEST(TWriteWireStringTest, AddTag)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TWriteWireStringTest, SerializeYsonString)
+{
+    auto rootElement = NYson::ResolveProtobufElementByYPath(
+        NYson::ReflectProtobufMessageType<NProto::TMessage>(),
+        /*path*/ "").Element;
+    NYson::TProtobufElement element = std::make_unique<NYson::TProtobufAnyElement>();
+    const auto* fieldDescriptor = NProto::TMessage::descriptor()->FindFieldByName("yson_string_field");
+    EXPECT_EQ(
+        fieldDescriptor,
+        FindYsonStringFieldDescriptor(rootElement, "/yson_string_field"));
+
+    auto mapValue = NYTree::BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("key").Value("value")
+        .EndMap();
+    EXPECT_THROW(ConvertToWireString(mapValue, element), std::exception);
+
+    auto serializedMapValue = ConvertToWireString(mapValue, element, fieldDescriptor);
+    ASSERT_EQ(1, std::ssize(serializedMapValue));
+    EXPECT_EQ(
+        "value",
+        NYTree::ConvertToNode(NYson::TYsonString(serializedMapValue.front()))
+            ->AsMap()
+            ->GetChildValueOrThrow<std::string>("key"));
+
+    for (const auto& value : {"123", "#", "", "{key=value;}"}) {
+        auto node = NYTree::ConvertToNode(value);
+        auto wireString = ConvertToWireString(node, element, fieldDescriptor);
+        ASSERT_EQ(1, std::ssize(wireString));
+        EXPECT_EQ(NYson::ConvertToYsonString(node).AsStringBuf(), wireString.front());
+        EXPECT_EQ(
+            value,
+            NYTree::ConvertToNode(NYson::TYsonString(wireString.front()))->AsString()->GetValue());
+    }
+}
+
+TEST(TWriteWireStringTest, FindYsonStringFieldDescriptor)
+{
+    auto rootElement = NYson::ResolveProtobufElementByYPath(
+        NYson::ReflectProtobufMessageType<NProto::TMessage>(),
+        /*path*/ "").Element;
+    const auto* nestedFieldDescriptor =
+        NProto::TNestedMessage::descriptor()->FindFieldByName("yson_string_field");
+    EXPECT_EQ(
+        nestedFieldDescriptor,
+        FindYsonStringFieldDescriptor(
+            rootElement,
+            "/nested_message/yson_string_field"));
+    EXPECT_EQ(
+        nestedFieldDescriptor,
+        FindYsonStringFieldDescriptor(
+            rootElement,
+            "/nested_message_map/key/yson_string_field"));
+    EXPECT_EQ(
+        nestedFieldDescriptor,
+        FindYsonStringFieldDescriptor(
+            rootElement,
+            "/repeated_nested_message/0/yson_string_field"));
+
+    const auto* repeatedFieldDescriptor =
+        NProto::TMessage::descriptor()->FindFieldByName("repeated_yson_string_field");
+    EXPECT_EQ(
+        repeatedFieldDescriptor,
+        FindYsonStringFieldDescriptor(
+            rootElement,
+            "/repeated_yson_string_field/end"));
+    EXPECT_EQ(
+        repeatedFieldDescriptor,
+        FindYsonStringFieldDescriptor(
+            rootElement,
+            "/repeated_yson_string_field/before:0"));
+
+    EXPECT_EQ(nullptr, FindYsonStringFieldDescriptor(rootElement, "/*"));
+    EXPECT_EQ(
+        nullptr,
+        FindYsonStringFieldDescriptor(rootElement, "/nested_message/*"));
+    EXPECT_EQ(
+        nullptr,
+        FindYsonStringFieldDescriptor(rootElement, "/nested_message_map/*"));
+    EXPECT_EQ(
+        nullptr,
+        FindYsonStringFieldDescriptor(rootElement, "/repeated_nested_message/*"));
+    EXPECT_EQ(
+        nullptr,
+        FindYsonStringFieldDescriptor(
+            rootElement,
+            "/repeated_yson_string_field/before:not-an-index"));
+}
+
+TEST(TWriteWireStringTest, SerializeRepeatedYsonString)
+{
+    auto rootType = NYson::ReflectProtobufMessageType<NProto::TMessage>();
+    auto rootElement = NYson::ResolveProtobufElementByYPath(rootType, /*path*/ "").Element;
+    auto element = NYson::ResolveProtobufElementByYPath(rootType, "/repeated_yson_string_field");
+    const auto* fieldDescriptor = NProto::TMessage::descriptor()->FindFieldByName(
+        "repeated_yson_string_field");
+    EXPECT_EQ(
+        fieldDescriptor,
+        FindYsonStringFieldDescriptor(
+            rootElement,
+            "/repeated_yson_string_field/0"));
+    EXPECT_EQ(
+        nullptr,
+        FindYsonStringFieldDescriptor(
+            rootElement,
+            "/repeated_yson_string_field/0/key"));
+    auto listValue = NYTree::BuildYsonNodeFluently()
+        .BeginList()
+            .Item().Value("123")
+            .Item().BeginMap()
+                .Item("key").Value("value")
+            .EndMap()
+        .EndList();
+
+    auto serializedValues = ConvertToWireString(listValue, element.Element, fieldDescriptor);
+
+    ASSERT_EQ(2, std::ssize(serializedValues));
+    EXPECT_EQ(
+        NYson::ConvertToYsonString(listValue->AsList()->GetChildOrThrow(0)).AsStringBuf(),
+        serializedValues[0]);
+    EXPECT_EQ(
+        NYson::ConvertToYsonString(listValue->AsList()->GetChildOrThrow(1)).AsStringBuf(),
+        serializedValues[1]);
+}
+
+TEST(TWriteWireStringTest, DeserializeYsonString)
+{
+    NYson::TProtobufElement element = std::make_unique<NYson::TProtobufAnyElement>();
+    auto wireString = TWireString::FromSerialized("{key=value;}"sv);
+    const auto* fieldDescriptor = NProto::TMessage::descriptor()->FindFieldByName("yson_string_field");
+
+    EXPECT_THROW(ConvertProtobufElementToNode(element, wireString), std::exception);
+
+    auto value = ConvertProtobufElementToNode(element, wireString, fieldDescriptor);
+
+    EXPECT_EQ("value", value->AsMap()->GetChildValueOrThrow<std::string>("key"));
+}
+
+TEST(TWriteWireStringTest, DeserializeRepeatedYsonString)
+{
+    auto rootType = NYson::ReflectProtobufMessageType<NProto::TMessage>();
+    auto element = NYson::ResolveProtobufElementByYPath(rootType, "/repeated_yson_string_field");
+    const auto* fieldDescriptor = NProto::TMessage::descriptor()->FindFieldByName(
+        "repeated_yson_string_field");
+    auto wireString = TWireString::FromSerialized({"{key=value;}"sv, ""sv});
+
+    auto value = ConvertProtobufElementToNode(element.Element, wireString, fieldDescriptor)->AsList();
+
+    ASSERT_EQ(2, value->GetChildCount());
+    EXPECT_EQ("value", value->GetChildOrThrow(0)->AsMap()->GetChildValueOrThrow<std::string>("key"));
+    EXPECT_EQ(NYTree::ENodeType::Entity, value->GetChildOrThrow(1)->GetType());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TWriteWireStringTest, SerializeMap)
 {
     NProto::TCar car;
@@ -279,6 +453,112 @@ TEST(TWriteWireStringTest, SerializeMap)
                 NYson::TProtobufElementType{WireFormatLite::FieldType::TYPE_INT32},
                 TWireString::FromSerialized(car.series_to_engine().at(1998).SerializeAsString()),
                 NYson::TProtobufElementType{WireFormatLite::FieldType::TYPE_MESSAGE})));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TValidateWireFormatTest, WellFormed)
+{
+    NProto::TCar car;
+    car.set_manufacturer("mercedes");
+    car.set_model("W124");
+    car.mutable_engine()->set_name("OM606");
+    car.mutable_engine()->set_horsepower(136);
+    car.add_wheels()->set_radius(15.5);
+    car.add_wheels()->set_radius(16.0);
+    car.add_weights(1490u);
+    car.add_quality_controls(true);
+    car.add_quality_controls(false);
+    (*car.mutable_owner_to_experience())["kmokrov"] = 9u;
+    (*car.mutable_series_to_engine())[1998].set_name("M111");
+
+    auto serialized = car.SerializeAsString();
+    EXPECT_NO_THROW(ValidateWireFormat(
+        car.descriptor(),
+        TWireString::FromSerialized(serialized)));
+
+    // Empty message is trivially well-formed.
+    EXPECT_NO_THROW(ValidateWireFormat(car.descriptor(), TWireString::Empty));
+
+    // Multipart wire string: each part must be well-formed on its own.
+    NProto::TCar patch;
+    patch.set_manufacturer("vw");
+    auto serializedPatch = patch.SerializeAsString();
+    EXPECT_NO_THROW(ValidateWireFormat(
+        car.descriptor(),
+        TWireString::FromSerialized({std::string_view(serialized), std::string_view(serializedPatch)})));
+}
+
+TEST(TValidateWireFormatTest, UnknownFieldsAllowed)
+{
+    NProto::TEngine engine;
+    engine.set_horsepower(136);
+    auto serialized = engine.SerializeAsString();
+
+    NProto::TSheep sheep;
+    sheep.set_name("dolly");
+    // Field 1 is a string in both TSheep and TEngine: structurally fine.
+    EXPECT_NO_THROW(ValidateWireFormat(
+        NProto::TEngine().GetDescriptor(),
+        TWireString::FromSerialized(sheep.SerializeAsString())));
+    // Field 2 of TEngine (int64 varint) is unknown to TWheel: allowed structurally.
+    EXPECT_NO_THROW(ValidateWireFormat(
+        NProto::TWheel().GetDescriptor(),
+        TWireString::FromSerialized(serialized)));
+}
+
+TEST(TValidateWireFormatTest, Malformed)
+{
+    const auto* descriptor = NProto::TCar().GetDescriptor();
+
+    // Truncated length-delimited field: tag of field 1 (string) with length 100, no data.
+    EXPECT_THROW(
+        ValidateWireFormat(descriptor, TWireString::FromSerialized("\x0a\x64"sv)),
+        TErrorException);
+
+    // Wire type mismatch: field 1 (string) encoded as varint.
+    EXPECT_THROW(
+        ValidateWireFormat(descriptor, TWireString::FromSerialized("\x08\x01"sv)),
+        TErrorException);
+
+    // Deprecated group wire type.
+    EXPECT_THROW(
+        ValidateWireFormat(descriptor, TWireString::FromSerialized("\x0b"sv)),
+        TErrorException);
+
+    // Truncated varint.
+    EXPECT_THROW(
+        ValidateWireFormat(
+            NProto::TEngine().GetDescriptor(),
+            TWireString::FromSerialized("\x10\xff"sv)),
+        TErrorException);
+
+    // Malformed nested message: TCar.engine containing garbage.
+    EXPECT_THROW(
+        ValidateWireFormat(descriptor, TWireString::FromSerialized("\x1a\x02\xff\xff"sv)),
+        TErrorException);
+
+    // Random garbage.
+    EXPECT_THROW(
+        ValidateWireFormat(descriptor, TWireString::FromSerialized("\xff\xff\xff\xff"sv)),
+        TErrorException);
+}
+
+TEST(TValidateWireFormatTest, PackedFields)
+{
+    NProto::TCar car;
+    car.add_quality_controls(true);
+    car.add_quality_controls(false);
+    car.add_weights(3u);
+    auto serialized = car.SerializeAsString();
+    EXPECT_NO_THROW(ValidateWireFormat(
+        car.descriptor(),
+        TWireString::FromSerialized(serialized)));
+
+    // Packed varint field (6, quality_controls) with truncated content.
+    EXPECT_THROW(
+        ValidateWireFormat(car.descriptor(), TWireString::FromSerialized("\x32\x01\xff"sv)),
+        TErrorException);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

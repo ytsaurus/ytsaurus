@@ -27,12 +27,16 @@ type TextPipelineOptions struct {
 
 	// OnTruncatedRow is called when a row is truncated.
 	OnTruncatedRow func(data io.WriterTo, info SkippedRowInfo)
+
+	// SplitByCarriageReturn also treats '\r' and '\r\n' as line terminators (in addition to '\n').
+	SplitByCarriageReturn bool
 }
 
 type textFollower struct {
 	logger         *slog.Logger
 	lineLimit      int
 	onTruncatedRow func(data io.WriterTo, info SkippedRowInfo)
+	splitByCR      bool
 
 	file LogFile
 
@@ -65,6 +69,7 @@ func NewTextPipeline(
 		logger:         logger,
 		lineLimit:      options.LineLimit,
 		onTruncatedRow: options.OnTruncatedRow,
+		splitByCR:      options.SplitByCarriageReturn,
 		file:           file,
 		buffer:         make([]byte, options.BufferLimit),
 	}
@@ -119,7 +124,12 @@ func (t *textFollower) writeBrokenLineTo(ctx context.Context, writer io.Writer) 
 }
 
 func (t *textFollower) searchLineEnd() (found bool) {
-	position := bytes.IndexByte(t.buffer[t.scanEnd:t.end], '\n')
+	var position int
+	if t.splitByCR {
+		position = bytes.IndexAny(t.buffer[t.scanEnd:t.end], "\r\n")
+	} else {
+		position = bytes.IndexByte(t.buffer[t.scanEnd:t.end], '\n')
+	}
 	if position == -1 {
 		t.scanEnd = t.end
 		return false

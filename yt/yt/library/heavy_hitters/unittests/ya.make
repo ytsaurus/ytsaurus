@@ -1,4 +1,4 @@
-GTEST()
+GTEST(unittester-library-heavy-hitters)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 

@@ -16,6 +16,7 @@ from yt.common import (
 from yt.ypath import parse_ypath
 
 from yt.test_helpers import wait, WaitFailed
+from yt.test_helpers.errors import raises_yt_error, retry_yt_error, assert_yt_error  # noqa
 from yt.test_helpers.job_events import JobEvents, TimeoutError
 
 import builtins
@@ -63,79 +64,6 @@ def authors(*the_authors):
     # pytest perform test collection before processing all pytest_configure calls.
     warnings.filterwarnings("ignore", category=pytest.PytestUnknownMarkWarning)
     return pytest.mark.authors(the_authors)
-
-
-@contextlib.contextmanager
-def raises_yt_error(code=None, required=True):
-    """
-    Context manager that helps to check that code raises YTError.
-    When description is int we check that raised error contains this error code.
-    When description is string we check that raised error contains description as substring.
-    Value of context manager is a single-element list containing caught error.
-
-    Examples:
-        with raises_yt_error(yt_error_codes.SortOrderViolation):
-            ...
-
-        with raises_yt_error("Name of struct field #0 is empty"):
-            ...
-
-        with raises_yt_error() as err:
-            ...
-        assert err[0].contains_code(42) and len(err[0].inner_errors) > 0
-    """
-
-    result_list = []
-    if not isinstance(code, (str, int, type(None))):
-        raise TypeError("code must be str, int or None, actual type: {}".format(code.__class__))
-    try:
-        yield result_list
-        if required:
-            raise AssertionError("Expected exception to be raised")
-    except YtError as e:
-        if isinstance(code, int):
-            if not e.contains_code(code):
-                raise AssertionError(
-                    "Raised error doesn't contain error code {}:\n{}".format(
-                        code,
-                        e,
-                    )
-                )
-        elif isinstance(code, str):
-            if code not in str(e):
-                raise AssertionError(
-                    "Raised error doesn't contain \"{}\":\n{}".format(
-                        code,
-                        e,
-                    )
-                )
-        else:
-            assert code is None
-        result_list.append(e)
-
-
-@contextlib.contextmanager
-def retry_yt_error(codes=[]):
-    """
-    Context manager that helps to retry yt errors with the given codes.
-    If error raised doesn't contain one of the given codes it will be raised again.
-
-    Examples:
-        with retry_yt_error(codes=[yt_error_codes.SyncReplicaNotInSync]):
-            ...
-    """
-    while True:
-        try:
-            yield
-            return
-        except YtError as e:
-            if not any(e.contains_code(code) for code in codes):
-                raise e
-
-
-def assert_yt_error(error, *args, **kwargs):
-    with raises_yt_error(*args, **kwargs):
-        raise error
 
 
 def print_debug(*args):
@@ -194,6 +122,13 @@ def init_drivers(clusters):
             ]
 
             _clusters_drivers[instance._cluster_name] = [default_driver] + secondary_drivers
+
+
+def create_cypress_proxy_bypass_driver(driver_config):
+    config_without_cypress_proxy = pycopy.deepcopy(driver_config)
+    config_without_cypress_proxy["api_version"] = 4
+    del config_without_cypress_proxy["cypress_proxy"]
+    return Driver(config=config_without_cypress_proxy)
 
 
 def sorted_dicts(list_of_dicts):
@@ -497,8 +432,9 @@ def execute_command(
 
     if response_parameters is not None:
         response_params = response.response_parameters()
-        print_debug(response_parameters)
-        response_parameters.update(response_params)
+        if response_params is not None:
+            print_debug(response_parameters)
+            response_parameters.update(response_params)
 
     if not response.is_ok():
         # TODO(ignat): it build empty error with response.error() as inner error. Fix it!
@@ -578,18 +514,22 @@ def multicell_sleep():
         time.sleep(0.5)
 
 
+def master_memory_sleep():
+    multicell_sleep()
+    time.sleep(0.2)
+    multicell_sleep()
+
+
+def upstream_sync_sleep():
+    time.sleep(0.5)
+
+
 def wait_for_sys_config_sync():
     config = get("//sys/@config")
     drivers = get_cluster_drivers()
     wait(
         lambda: all(get("//sys/@config", driver=driver) == config for driver in drivers)
     )
-
-
-def master_memory_sleep():
-    multicell_sleep()
-    time.sleep(0.2)
-    multicell_sleep()
 
 
 def dump_job_context(job_id, path, **kwargs):
@@ -998,10 +938,11 @@ def pull_queue(queue_path, offset, partition_index, **kwargs):
     return execute_command_with_output_format("pull_queue", kwargs)
 
 
-def pull_consumer(consumer_path, queue_path, offset, partition_index, **kwargs):
+def pull_consumer(consumer_path, queue_path, offset: int | None = None, partition_index: int = 0, **kwargs):
     kwargs["consumer_path"] = consumer_path
     kwargs["queue_path"] = queue_path
-    kwargs["offset"] = offset
+    if offset is not None:
+        kwargs["offset"] = offset
     kwargs["partition_index"] = partition_index
     return execute_command_with_output_format("pull_consumer", kwargs)
 
@@ -1330,6 +1271,10 @@ def get_supported_features(**kwargs):
     return execute_command("get_supported_features", kwargs, parse_yson=True)
 
 
+def check_cluster_liveness(**kwargs):
+    execute_command("check_cluster_liveness", kwargs)
+
+
 def start_shuffle(account, partition_count, parent_transaction_id, **kwargs):
     kwargs["account"] = account
     kwargs["partition_count"] = partition_count
@@ -1520,6 +1465,19 @@ class Operation(object):
     def get_job_count(self, state, from_orchid=True, verbose=False):
         if from_orchid:
             base_path = self.get_path() + "/controller_orchid/progress/jobs/"
+        elif exists("//sys/operations_archive"):
+            id_hi, id_lo = uuid_to_parts(self.id)
+            rows = lookup_rows(
+                "//sys/operations_archive/ordered_by_id",
+                [{"id_hi": id_hi, "id_lo": id_lo}],
+            )
+            if not rows:
+                return 0
+            jobs = (rows[0].get("progress") or {}).get("jobs", {})
+            value = jobs.get(state, 0)
+            if state == "aborted" or state == "completed":
+                value = value.get("total", 0) if isinstance(value, dict) else 0
+            return value
         else:
             base_path = self.get_path() + "/@progress/jobs/"
 
@@ -2211,6 +2169,25 @@ def create_account_resource_usage_lease(account, transaction_id, **kwargs):
     return execute_command("create", kwargs, parse_yson=True)
 
 
+def _is_pool_tree_orchid_ready(name):
+    if not exists(yt_scheduler_helpers.scheduler_orchid_pool_tree_path(name)):
+        return False
+
+    new_orchid_path = yt_scheduler_helpers.scheduler_new_orchid_pool_tree_path(name)
+    if not exists(new_orchid_path):
+        return False
+
+    # The tree orchid nodes exist as soon as the tree is registered, but every snapshot-backed
+    # child throws "Pool tree orchid is not ready yet" until the first fair share update
+    # publishes a tree snapshot.
+    try:
+        get(new_orchid_path + "/node_count")
+    except YtResponseError:
+        return False
+
+    return True
+
+
 def create_pool_tree(name, config=None, wait_for_orchid=True, allow_patching=True, **kwargs):
     kwargs["type"] = "scheduler_pool_tree"
     if "attributes" not in kwargs:
@@ -2235,11 +2212,7 @@ def create_pool_tree(name, config=None, wait_for_orchid=True, allow_patching=Tru
 
     execute_command("create", kwargs, parse_yson=True)
     if wait_for_orchid:
-        wait(
-            lambda:
-                exists(yt_scheduler_helpers.scheduler_orchid_pool_tree_path(name))
-                and exists(yt_scheduler_helpers.scheduler_new_orchid_pool_tree_path(name))
-        )
+        wait(lambda: _is_pool_tree_orchid_ready(name))
 
 
 def remove_pool_tree(name, wait_for_orchid=True, **kwargs):
@@ -2269,7 +2242,11 @@ def create_user(name, **kwargs):
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
-    return execute_command("create", kwargs)
+    result = execute_command("create", kwargs)
+    # Ensure that the user is created everywhere (at each cell and at each master peer).
+    # User state caches will be requesting user info with various sync suppressions.
+    upstream_sync_sleep()
+    return result
 
 
 def remove_user(name, **kwargs):
@@ -2283,7 +2260,7 @@ def remove_user(name, **kwargs):
 
 
 def make_random_string(length=10):
-    return "".join(random.choice(ascii_letters) for _ in range(length))
+    return "".join(random.choices(ascii_letters, k=length))
 
 
 def create_test_tables(row_count=1, **kwargs):
@@ -2351,6 +2328,15 @@ def create_network_project(name, **kwargs):
 
 def remove_network_project(name, **kwargs):
     remove("//sys/network_projects/" + name, **kwargs)
+
+
+def create_master_cell_group(name, cell_tags, **kwargs):
+    kwargs["type"] = "master_cell_group"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    kwargs["attributes"]["cell_tags"] = cell_tags
+    return execute_command("create", kwargs, parse_yson=True)
 
 
 def create_proxy_role(name, proxy_kind, **kwargs):
@@ -2726,6 +2712,15 @@ def make_ace(
     if subject_tag_filter is not None:
         ace["subject_tag_filter"] = subject_tag_filter
 
+    return ace
+
+
+def make_rl_ace(users, row_access_predicate=None, mode=None, permission="read"):
+    ace = make_ace("allow", users, permission)
+    if row_access_predicate is not None:
+        ace["row_access_predicate"] = row_access_predicate
+    if mode is not None:
+        ace["inapplicable_row_access_predicate_mode"] = mode
     return ace
 
 ##################################################################
@@ -3644,6 +3639,13 @@ def update_controller_agent_config(path, value, wait_for_orchid=True):
             wait(lambda: get("{}/{}".format(orchid_config_path, path), default=None) == value)
 
 
+def remove_default_layer_path():
+    remove("//sys/controller_agents/config/default_layer_path", force=True)
+    for agent in ls("//sys/controller_agents/instances"):
+        orchid_config_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(agent)
+        wait(lambda: get(orchid_config_path + "/default_layer_path", default=None) is None)
+
+
 @contextlib.contextmanager
 def remember_controller_agent_config():
     old_config = get("//sys/controller_agents/config")
@@ -3777,139 +3779,6 @@ def get_supported_erasure_codecs(filter=None):
     return [codec for codec in filter if codec in yt_tests_settings.supported_erasure_codes]
 
 
-def get_pipeline_spec(pipeline_path, spec_path=None, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    if spec_path is not None:
-        kwargs["spec_path"] = spec_path
-
-    return execute_command("get_pipeline_spec", kwargs, parse_yson=True, unwrap_v4_result=False)
-
-
-def set_pipeline_spec(pipeline_path, spec, is_raw=False, spec_path=None, expected_version=None, force=None, **kwargs):
-    if not is_raw:
-        spec = yson.dumps(spec)
-
-    kwargs["pipeline_path"] = pipeline_path
-    if spec_path is not None:
-        kwargs["spec_path"] = spec_path
-    if expected_version is not None:
-        kwargs["expected_version"] = expected_version
-    if force is not None:
-        kwargs["force"] = force
-
-    return execute_command("set_pipeline_spec", kwargs, input_stream=BytesIO(spec), parse_yson=not is_raw, unwrap_v4_result=False)
-
-
-def remove_pipeline_spec(pipeline_path, spec_path=None, expected_version=None, force=None, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    if spec_path is not None:
-        kwargs["spec_path"] = spec_path
-    if expected_version is not None:
-        kwargs["expected_version"] = expected_version
-    if force is not None:
-        kwargs["force"] = force
-
-    return execute_command("remove_pipeline_spec", kwargs, parse_yson=True, unwrap_v4_result=False)
-
-
-def get_pipeline_dynamic_spec(pipeline_path, spec_path=None, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    if spec_path is not None:
-        kwargs["spec_path"] = spec_path
-
-    return execute_command("get_pipeline_dynamic_spec", kwargs, parse_yson=True, unwrap_v4_result=False)
-
-
-def set_pipeline_dynamic_spec(pipeline_path, spec, is_raw=False, spec_path=None, expected_version=None, **kwargs):
-    if not is_raw:
-        spec = yson.dumps(spec)
-
-    kwargs["pipeline_path"] = pipeline_path
-    if spec_path is not None:
-        kwargs["spec_path"] = spec_path
-    if expected_version is not None:
-        kwargs["expected_version"] = expected_version
-
-    return execute_command("set_pipeline_dynamic_spec", kwargs, input_stream=BytesIO(spec), parse_yson=not is_raw, unwrap_v4_result=False)
-
-
-def remove_pipeline_dynamic_spec(pipeline_path, spec_path=None, expected_version=None, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    if spec_path is not None:
-        kwargs["spec_path"] = spec_path
-    if expected_version is not None:
-        kwargs["expected_version"] = expected_version
-
-    return execute_command("remove_pipeline_dynamic_spec", kwargs, parse_yson=True, unwrap_v4_result=False)
-
-
-def start_pipeline(pipeline_path, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    return execute_command("start_pipeline", kwargs, unwrap_v4_result=False)
-
-
-def stop_pipeline(pipeline_path, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    return execute_command("stop_pipeline", kwargs, unwrap_v4_result=False)
-
-
-def pause_pipeline(pipeline_path, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    return execute_command("pause_pipeline", kwargs, unwrap_v4_result=False)
-
-
-def get_pipeline_state(pipeline_path, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    try:
-        return execute_command("get_pipeline_state", kwargs, parse_yson=True, unwrap_v4_result=False).lower()
-    except YtResponseError:
-        return "unknown"
-
-
-def get_flow_view(pipeline_path, view_path=None, cache=None, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    if view_path is not None:
-        kwargs["view_path"] = view_path
-    if cache is not None:
-        kwargs["cache"] = cache
-
-    return execute_command("get_flow_view", kwargs, parse_yson=True, unwrap_v4_result=False)
-
-
-def flow_execute(
-    pipeline_path: str,
-    flow_command: str,
-    flow_argument=None,
-    is_raw=False,
-    plaintext=False,
-    **kwargs
-):
-    is_input_raw = is_raw or "input_format" in kwargs
-    if not is_input_raw:
-        flow_argument = yson.dumps(flow_argument)
-    elif isinstance(flow_argument, str):
-        flow_argument = flow_argument.encode("utf-8")
-    elif not isinstance(flow_argument, (bytes, bytearray)):
-        raise TypeError(
-            "Serialized flow_argument must be str, bytes or bytearray, "
-            "actual type: {}".format(flow_argument.__class__)
-        )
-
-    kwargs["pipeline_path"] = pipeline_path
-    kwargs["flow_command"] = flow_command
-
-    if plaintext:
-        kwargs["flow_argument"] = flow_argument
-
-    is_output_raw = plaintext or is_raw or "output_format" in kwargs
-    return execute_command(
-        "flow_execute" if not plaintext else "flow_execute_plaintext",
-        kwargs,
-        input_stream=BytesIO(flow_argument) if not plaintext else None,
-        parse_yson=not is_output_raw,
-        unwrap_v4_result=False)
-
-
 def make_externalized_tx_id(tx_id, externalizing_cell_tag):
     parts = list(builtins.map(lambda p: int(p, 16), tx_id.split("-")))
 
@@ -3922,11 +3791,12 @@ def make_externalized_tx_id(tx_id, externalizing_cell_tag):
     # externalized_nested_tx: 6
     externalized_type = 5 if original_type == 1 else 6
 
+    # Must match MakeExternalizedTransactionId.
     return "-".join([
         f"{parts[0]:x}",
         f"{parts[1]:x}",
-        f"{shifted_native_cell_tag | externalized_type:x}",
-        f"{parts[3] | (int(externalizing_cell_tag) << 16):x}"])
+        f"{(int(externalizing_cell_tag) << 16) | externalized_type:x}",
+        f"{(parts[3] & 0xffff) | shifted_native_cell_tag:x}"])
 
 
 def start_distributed_write_session(path: str, cookie_count: int, **kwargs):
@@ -3959,18 +3829,3 @@ def ping_chaos_lease(chaos_lease_id, **kwargs):
 def get_connection_orchid_value(path="", **kwargs):
     kwargs["path"] = path
     return execute_command("get_connection_orchid_value", kwargs, parse_yson=True)
-
-
-def get_user_banned(user_name, **kwargs):
-    kwargs["user_name"] = user_name
-    return execute_command("get_user_banned", kwargs, parse_yson=True)
-
-
-def set_user_banned(user_name, is_banned, **kwargs):
-    kwargs["user_name"] = user_name
-    kwargs["is_banned"] = is_banned
-    execute_command("set_user_banned", kwargs)
-
-
-def list_banned_users(**kwargs):
-    return execute_command("list_banned_users", kwargs, parse_yson=True)

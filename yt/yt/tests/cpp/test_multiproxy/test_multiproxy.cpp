@@ -172,7 +172,7 @@ protected:
 
         auto tokenSha = NCrypto::TSha1Hasher().Append(rootToken).GetHexDigestLowerCase();
         const auto url = Format("http://%v/api/v4/set?path=//sys/tokens/%v", proxy, tokenSha);
-        auto response = WaitFor(httpClient->Put(TString(url), TSharedRef::FromString("\"root\"")))
+        auto response = WaitFor(httpClient->Put(TString(url), TSharedRef::FromString(std::string("\"root\""))))
             .ValueOrThrow();
         if (response->GetStatusCode() != NHttp::EStatusCode::OK) {
             auto message = response->ReadAll();
@@ -357,7 +357,7 @@ TEST_F(TMultiproxyTest, TestTypoTargetHostname)
     };
     EXPECT_THROW_THAT(
         action(),
-        testing::HasSubstr("Cannot find cluster with name \"target-with-typo\""));
+        testing::HasSubstr("Unknown cluster \"target-with-typo\""));
 }
 
 TEST_F(TMultiproxyTest, TestTypoTargetHostName_YT_26910)
@@ -369,14 +369,14 @@ TEST_F(TMultiproxyTest, TestTypoTargetHostName_YT_26910)
     };
     EXPECT_THROW_THAT(
         action(targetClient),
-        testing::HasSubstr("Cannot find cluster with name \"target-with-typo\""));
+        testing::HasSubstr("Unknown cluster \"target-with-typo\""));
 
     auto token = CreateUser(WriteAccessClient_, "user-yt-26910");
 
     auto targetClient2 = CreateRedirectingClient("YT_PROXY_WRITE_ACCESS", "target-with-typo", token);
     EXPECT_THROW_THAT(
         action(targetClient2),
-        testing::HasSubstr("Cannot find cluster with name \"target-with-typo\""));
+        testing::HasSubstr("Unknown cluster \"target-with-typo\""));
 }
 
 TEST_F(TMultiproxyTest, TestUserMissingOnTargetCluster)

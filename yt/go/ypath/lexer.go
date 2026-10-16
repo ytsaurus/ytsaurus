@@ -15,6 +15,15 @@ func isHex(b byte) bool {
 	return ('a' <= b && b <= 'f') || ('A' <= b && b <= 'F') || ('0' <= b && b <= '9')
 }
 
+func isSpecialCharacter(c byte) bool {
+	switch c {
+	case '\\', '/', '@', '&', '[', '{', '*':
+		return true
+	}
+
+	return false
+}
+
 func isSpace(c byte) bool {
 	switch c {
 	case ' ', '\t', '\n', '\v', '\f', '\r':
@@ -96,8 +105,8 @@ loop:
 				return nil
 			}
 
-			switch l.input[i+1] {
-			case 'x':
+			switch {
+			case l.input[i+1] == 'x':
 				if i+3 >= len(l.input) {
 					l.error("unterminated escape sequence")
 					return nil
@@ -111,7 +120,7 @@ loop:
 				i += 3
 				continue
 
-			case '/', '@', '&', '*', '\\', '[', '{':
+			case isSpecialCharacter(l.input[i+1]):
 				i++
 				continue
 

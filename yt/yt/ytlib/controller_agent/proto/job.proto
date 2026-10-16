@@ -7,6 +7,7 @@ import "yt/ytlib/scheduler/proto/input_query.proto";
 import "yt/ytlib/scheduler/proto/resources.proto";
 
 import "yt/ytlib/chunk_client/proto/data_source.proto";
+import "yt/ytlib/chunk_client/proto/session_id.proto";
 
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
@@ -74,6 +75,7 @@ message TTimeStatistics
     optional int64 prepare_non_root_volumes_duration = 8;
     optional int64 validate_root_fs_duration = 9;
     optional int64 link_volumes_duration = 10;
+    optional int64 prepare_layers_duration = 11;
 }
 
 // Describes the current job status.
@@ -83,7 +85,8 @@ message TJobStatus
     required NYT.NProto.TGuid operation_id = 2;
     optional int32 job_type = 3;
     optional int32 state = 4;
-    optional int32 phase = 5;
+    // COMPAT(pogorelov): Remove in 26.3.
+    optional int32 phase_old = 5;
     optional double progress = 6;
     optional TJobResult result = 7;
     optional NNodeTrackerClient.NProto.TNodeResources resource_usage = 8;
@@ -105,6 +108,14 @@ message TJobStatus
     optional uint64 start_time = 22;
 
     optional uint64 last_progress_save_time = 23;
+
+    optional int32 phase = 24;
+
+    // Format 0 is the legacy full job statistics YSON.
+    // Format 1 may omit data statistics leaves that can be restored from the protobuf fields below.
+    optional uint32 statistics_wire_format = 25 [default = 0];
+    optional bool input_data_statistics_omitted_from_yson = 26 [default = false];
+    optional int32 output_data_statistics_omitted_from_yson_count = 27 [default = 0];
 }
 
 message TCoreInfo
@@ -194,6 +205,8 @@ message TSidecarJobSpec
     required int32 restart_policy = 5; // ESidecarRestartPolicy
 
     optional TGracefulShutdownSpec graceful_shutdown = 6;
+
+    repeated TVolumeMount sidecar_volume_mounts = 7;
 }
 
 message TVolume
@@ -204,6 +217,8 @@ message TVolume
         NYT.NScheduler.NProto.TTmpfsStorageRequest tmpfs_storage_request = 3;
         NYT.NScheduler.NProto.TNbdDiskRequest nbd_disk_request = 4;
     }
+    // If true, the volume can be reused between sequential jobs within the same allocation.
+    optional bool allow_reusing = 5 [default = false];
 }
 
 message TVolumeMount
@@ -265,10 +280,6 @@ message TUserJobSpec
 
     repeated TTmpfsVolume tmpfs_volumes = 41 [deprecated = true];
 
-    // COMPAT(gritukan): Drop it when nodes and controller agents
-    // will be fresh enough.
-    optional bool copy_files = 24 [default = false];
-
     optional string debug_artifacts_account = 25;
 
     // Time after which job will be failed.
@@ -281,12 +292,6 @@ message TUserJobSpec
 
     optional TTableBlobSpec core_table_spec = 30;
     optional bool force_core_dump = 40 [default = false];
-
-    // COMPAT(ignat)
-    optional int64 disk_space_limit = 31;
-    optional int64 inode_limit = 32;
-
-    optional NYT.NScheduler.NProto.TDeprecatedDiskRequest disk_request = 51;
 
     // Number of requested ports.
     required int32 port_count = 35;
@@ -361,7 +366,7 @@ message TUserJobSpec
 
     optional bool start_queue_consumer_registration_manager = 77 [default = true];
 
-    reserved 38, 48, 54, 61, 62;
+    reserved 24, 31, 32, 38, 48, 51, 54, 61, 62;
 
     optional TNetworkProject network_project = 80;
 
@@ -396,6 +401,7 @@ message TTableInputSpec
     // -1 stands for std::nullopt.
     repeated int64 virtual_row_index_per_data_slice = 4;
     repeated NYT.NChunkClient.NProto.TChunkSpec proxied_chunk_specs = 5;
+    repeated NYT.NChunkClient.NProto.TChunkSpec hunk_chunk_specs = 6;
 }
 
 // Defines how to store output from a job into a table.
@@ -479,6 +485,7 @@ message TJobSpecExt
     optional bool is_approximate = 9 [default = false];
 
     optional int64 job_proxy_memory_overcommit_limit = 16;
+    optional int64 estimated_job_proxy_memory = 48;
 
     // Deprecated = 11
 
@@ -504,7 +511,7 @@ message TJobSpecExt
 
     // Indices of partitions job belongs to. This field is set only in
     // Sort and MapReduce jobs.
-    // COMPAT(namorniradnug)
+    // COMPAT(apollo1321): Remove after the 26.2 branch is created.
     optional int32 partition_tag = 26;
 
     repeated int32 partition_tags = 47;
@@ -535,7 +542,7 @@ message TJobSpecExt
     optional bool enable_virtual_sandbox = 41 [default = false];
     optional bool ignore_yt_variables_in_shell_environment = 42 [default = false];
 
-    optional bool enable_root_volume_disk_quota = 43 [default = false];
+    optional bool disable_rbind_root_volume = 43 [default = false];
 
     optional bool use_cluster_throttlers = 46;
 
@@ -605,6 +612,62 @@ message TJobResultExt
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TPushBasedShuffleWriterSpec
+{
+    message TSeededSession
+    {
+        required int32 partition_index = 1;
+        required NYT.NChunkClient.NProto.TSessionId session_id = 2;
+        // TODO(apollo1321): With many sessions, full descriptors inflate the job spec sent
+        // over the network. Pass node ids instead: the exec node already has every node
+        // descriptor and can fill them in, in a phase like PreparingNodeDirectory.
+        required NNodeTrackerClient.NProto.TNodeDescriptor sequencer_node = 3;
+    }
+
+    required int32 task_job_index = 1;
+
+    // NYT::NPushBasedShuffleClient::TShuffleWriterConfig.
+    required bytes writer_config = 2;
+
+    repeated TSeededSession seeded_sessions = 3;
+
+    // Full schema: rows are validated and typed against it.
+    required NTableClient.NProto.TTableSchemaExt intermediate_stream_schema = 4;
+
+    // NCompression::ECodec.
+    required int32 codec = 5;
+}
+
+// Wrapped since repeated fields have no presence.
+message TValidTaskJobIndexes
+{
+    repeated int32 task_job_indexes = 1;
+}
+
+message TPushBasedShuffleSortReaderSpec
+{
+    // NYT::NPushBasedShuffleClient::TPartitionReaderConfig.
+    required bytes partition_reader_config = 1;
+
+    // NYT::NPushBasedShuffleClient::TSortReaderConfig.
+    required bytes sort_reader_config = 2;
+
+    required int32 read_quorum = 3;
+
+    // Names only: the writer has already validated the values.
+    required NTableClient.NProto.TNameTableExt intermediate_stream_name_table = 4;
+
+    // NCompression::ECodec.
+    required int32 codec = 5;
+
+    required int32 sort_thread_count = 6;
+
+    // Final sort only: drops records of other attempts.
+    optional TValidTaskJobIndexes valid_task_job_indexes = 7;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Map jobs.
 /*
  * Conceptually map is the simplest operation.
@@ -645,6 +708,8 @@ message TMergeJobSpecExt
 
     // For EJobType::SortedMerge, used for row comparison.
     optional NTableClient.NProto.TSortColumnsExt sort_columns = 3;
+
+    optional TValidTaskJobIndexes push_based_shuffle_valid_task_job_indexes = 4;
 }
 
 message TShallowMergeJobSpecExt
@@ -664,7 +729,7 @@ message TShallowMergeJobSpecExt
 /*
  * A partition jobs read the input and scatters the rows into buckets depending
  * on their keys. When a bucket becomes full, it is written as a block.
- * Output blocks are marked with |partition_tag| to enable subsequently
+ * Output blocks are marked with partition tags to enable subsequently
  * started sort jobs to fetch appropriate portions of data.
  *
  * The input spec should contain TPartitionJobSpecExt.
@@ -707,6 +772,8 @@ message TPartitionJobSpecExt
     optional NTableClient.NProto.TSortColumnsExt sort_columns = 12;
 
     optional bool use_sequential_reader = 13 [default = true];
+
+    optional TPushBasedShuffleWriterSpec push_based_shuffle_writer = 14;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -731,6 +798,8 @@ message TSortJobSpecExt
     repeated string key_columns = 5;
 
     reserved 6;
+
+    optional TPushBasedShuffleSortReaderSpec push_based_shuffle_sort_reader = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -768,6 +837,11 @@ message TReduceJobSpecExt
     optional int64 foreign_table_lookup_data_weight_threshold = 8 [default = 268435456];
 
     optional bool disable_sorted_input = 7 [default = false];
+
+    oneof push_based_shuffle_reader {
+        TPushBasedShuffleSortReaderSpec push_based_shuffle_sort_reader = 9;
+        TValidTaskJobIndexes push_based_shuffle_valid_task_job_indexes = 10;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

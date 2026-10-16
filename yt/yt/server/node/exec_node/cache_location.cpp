@@ -3,6 +3,8 @@
 #include "artifact_cache.h"
 #include "private.h"
 
+#include <yt/yt/server/lib/exec_node/config.h>
+
 #include <yt/yt/server/node/data_node/blob_chunk.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
 #include <yt/yt/server/node/data_node/config.h>
@@ -25,6 +27,7 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NClusterNode;
 using namespace NCypressClient;
+using namespace NFS;
 using namespace NNode;
 using namespace NObjectClient;
 
@@ -90,9 +93,9 @@ const NChunkClient::TRefCountedChunkMetaPtr& TArtifact::GetMeta() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TCacheLocation::TCacheLocation(
-    TString id,
+    std::string id,
     NDataNode::TCacheLocationConfigPtr config,
-    const NClusterNode::IBootstrap* bootstrap,
+    NClusterNode::IBootstrapBase* bootstrap,
     TArtifactCachePtr artifactCache)
     : TChunkLocationBase(
         ELocationType::Cache,
@@ -113,8 +116,12 @@ TCacheLocation::TCacheLocation(
     , ArtifactCache_(std::move(artifactCache))
     , MediumName_(config->MediumName)
     , Bootstrap_(bootstrap)
+    , EnospcRate_(Profiler_.Counter("/enospc_events"))
 {
     TChunkLocationBase::UpdateMediumTag(GetMediumName());
+
+    Bootstrap_->SubscribePopulateAlerts(
+        BIND_NO_PROPAGATE(&TCacheLocation::PopulateAlerts, MakeWeak(this)));
 }
 
 const NDataNode::TCacheLocationConfigPtr& TCacheLocation::GetStaticConfig() const
@@ -141,7 +148,7 @@ IThroughputThrottlerPtr TCacheLocation::GetInThrottler() const
 
 std::optional<TChunkDescriptor> TCacheLocation::Repair(
     TChunkId chunkId,
-    const TString& metaSuffix)
+    const std::string& metaSuffix)
 {
     auto fileName = GetChunkPath(chunkId);
 
@@ -160,18 +167,16 @@ std::optional<TChunkDescriptor> TCacheLocation::Repair(
             descriptor.DiskSpace = dataSize + metaSize;
             return descriptor;
         }
-        YT_LOG_WARNING("Artifact meta file %v is empty, removing artifact files",
-            metaFileName);
+        YT_TLOG_WARNING("Artifact meta file is empty, removing artifact files")
+            .With("MetaFileName", metaFileName);
     } else if (hasData && !hasMeta) {
-        YT_LOG_WARNING(
-            "Artifact meta file %v is missing, removing data file %v",
-            metaFileName,
-            dataFileName);
+        YT_TLOG_WARNING("Artifact meta file is missing, removing data file")
+            .With("MetaFileName", metaFileName)
+            .With("DataFileName", dataFileName);
     } else if (!hasData && hasMeta) {
-        YT_LOG_WARNING(
-            "Artifact data file %v is missing, removing meta file %v",
-            dataFileName,
-            metaFileName);
+        YT_TLOG_WARNING("Artifact data file is missing, removing meta file")
+            .With("DataFileName", dataFileName)
+            .With("MetaFileName", metaFileName);
     }
 
     if (hasData) {
@@ -198,17 +203,17 @@ std::optional<TChunkDescriptor> TCacheLocation::RepairChunk(TChunkId chunkId)
             break;
 
         default:
-            YT_LOG_WARNING("Invalid chunk type (Type: %v, ChunkId: %v)",
-                chunkType,
-                chunkId);
+            YT_TLOG_WARNING("Invalid chunk type")
+                .With("Type", chunkType)
+                .With("ChunkId", chunkId);
             break;
     }
     return optionalDescriptor;
 }
 
-std::vector<TString> TCacheLocation::GetChunkPartNames(TChunkId chunkId) const
+std::vector<std::string> TCacheLocation::GetChunkPartNames(TChunkId chunkId) const
 {
-    auto primaryName = ToString(chunkId);
+    std::string primaryName = ToString(chunkId);
     switch (TypeFromId(DecodeChunkId(chunkId).Id)) {
         case EObjectType::Chunk:
             return {
@@ -230,34 +235,44 @@ std::vector<TString> TCacheLocation::GetChunkPartNames(TChunkId chunkId) const
 TFuture<void> TCacheLocation::RemoveChunks()
 {
     YT_ASSERT_INVOKER_AFFINITY(GetAuxPoolInvoker());
-    YT_LOG_INFO(
-        "Location is disabled; unregistering all the artifacts in it (LocationId: %v)",
-        GetId());
+    YT_TLOG_INFO("Location is disabled; unregistering all the artifacts in it")
+        .With("LocationId", GetId());
 
-    return ArtifactCache_->RemoveArtifactsByLocation(MakeStrong(this));
+    return ArtifactCache_->RemoveArtifactsByLocation(MakeStrong(this), /*forbidSlruResurrection*/ true);
 }
 
 bool TCacheLocation::ScheduleDisable(const TError& reason)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    if (IsOutOfDiskSpaceError(reason) &&
+        !Bootstrap_->GetDynamicConfigManager()->GetConfig()->ExecNode->ChunkCache->TestDisableOnOutOfDiskSpace)
+    {
+        EnospcRate_.Increment();
+        YT_UNUSED_FUTURE(ArtifactCache_->RemoveArtifactsByLocation(MakeStrong(this), /*forbidSlruResurrection*/ false));
+        return true;
+    }
+
     if (!ChangeState(ELocationState::Disabling, ELocationState::Enabled)) {
         return false;
     }
 
-    YT_LOG_WARNING(reason, "Disabling location (LocationUuid: %v)", GetUuid());
+    YT_TLOG_WARNING("Disabling location")
+        .With("LocationUuid", GetUuid())
+        .With(reason);
 
     // No new actions can appear here. Please see TDiskLocation::RegisterAction.
     auto error = TError("Artifact location at %v is disabled", GetPath())
-        << TErrorAttribute("location_uuid", GetUuid());
-    error = error << reason;
+        .With("location_uuid", GetUuid());
+    error.Add(reason);
     LocationDisabledAlert_.Store(error);
 
     YT_UNUSED_FUTURE(BIND([=, this, this_ = MakeStrong(this)] {
         try {
             CreateDisableLockFile(reason);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Creating disable lock file failed");
+            YT_TLOG_ERROR("Creating disable lock file failed")
+                .With(ex);
         }
 
         try {
@@ -269,16 +284,17 @@ bool TCacheLocation::ScheduleDisable(const TError& reason)
                 .Run())
                 .ThrowOnError();
             ResetLocationStatistic();
-            YT_LOG_INFO("Location disabling finished");
+            YT_TLOG_INFO("Location disabling finished");
         } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Location disabling error");
+            YT_TLOG_FATAL("Location disabling error")
+                .With(ex);
         }
 
-        auto finish = ChangeState(ELocationState::Disabled, ELocationState::Disabling);
+        auto finish = ChangeState(ELocationState::Disabled, ELocationState::Disabling, reason);
 
         if (!finish) {
-            YT_LOG_ALERT("Detect location state racing (CurrentState: %v)",
-                GetState());
+            YT_TLOG_ALERT("Detect location state racing")
+                .With("CurrentState", GetState());
         }
     })
         .AsyncVia(GetAuxPoolInvoker())

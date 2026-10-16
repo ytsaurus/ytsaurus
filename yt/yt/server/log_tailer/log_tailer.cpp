@@ -13,7 +13,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "LogTailer");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "LogTailer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,7 +32,7 @@ void TLogTailer::Run()
 {
     LogReaders_.reserve(Config_->LogFiles.size());
 
-    std::vector<std::pair<TString, TString>> extraLogTableColumns = {
+    std::vector<std::pair<std::string, std::string>> extraLogTableColumns = {
         {"job_id", GetEnv("YT_JOB_ID")},
         {"operation_id", GetEnv("YT_OPERATION_ID")}};
 
@@ -46,7 +46,7 @@ void TLogTailer::Run()
 
     LogTailerExecutor_->Start();
 
-    YT_LOG_INFO("Log tailer started");
+    YT_TLOG_INFO("Log tailer started");
 }
 
 const std::vector<TLogFileReaderPtr>& TLogTailer::GetLogReaders() const
@@ -56,7 +56,7 @@ const std::vector<TLogFileReaderPtr>& TLogTailer::GetLogReaders() const
 
 void TLogTailer::OnTick()
 {
-    YT_LOG_DEBUG("Tick started");
+    YT_TLOG_DEBUG("Tick started");
 
     LogRotator_->RotateLogs();
 
@@ -66,7 +66,7 @@ void TLogTailer::OnTick()
 
     LogWriterLivenessChecker_->CheckLiveness();
 
-    YT_LOG_DEBUG("Tick finished");
+    YT_TLOG_DEBUG("Tick finished");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

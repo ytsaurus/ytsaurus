@@ -96,7 +96,7 @@ func Test_streamJson(t *testing.T) {
 			assert.Equal(t, len(tc.expect), w.Body.Len())
 
 			if tc.expect != "" {
-				var expectedObj, givenObj map[string]interface{}
+				var expectedObj, givenObj map[string]any
 				err = json.Unmarshal([]byte(tc.expect), &expectedObj)
 				assert.NoError(t, err)
 				err = json.Unmarshal(w.Body.Bytes(), &givenObj)
@@ -532,7 +532,6 @@ func Test_streamSpack(t *testing.T) {
 			[]byte{0x0},                // common labels count and indexes
 			[][]byte{
 				{
-
 					/*types*/ 0x5,
 					/*flags*/ 0x0,
 					/*labels*/ 0x1, // ?
@@ -621,7 +620,7 @@ func fixValueNameIndex(idx int, metric []byte) {
 	metric[4] = uint8(idx) // fix value name index
 }
 
-func sameMap(t *testing.T, expected, actual map[string]interface{}) bool {
+func sameMap(t *testing.T, expected, actual map[string]any) bool {
 	if !assert.Len(t, actual, len(expected)) {
 		return false
 	}

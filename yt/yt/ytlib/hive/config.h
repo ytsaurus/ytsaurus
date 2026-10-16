@@ -31,6 +31,11 @@ struct TClusterDirectorySynchronizerConfig
     TDuration ExpireAfterSuccessfulUpdateTime;
     TDuration ExpireAfterFailedUpdateTime;
 
+    //! If the last successful directory update is older than
+    //! sync_period * tvm_id_rejection_staleness_multiplier,
+    //! unknown source TVM ids are rejected with a retryable error.
+    double TvmIdRejectionStalenessMultiplier;
+
     REGISTER_YSON_STRUCT(TClusterDirectorySynchronizerConfig);
 
     static void Register(TRegistrar registrar);

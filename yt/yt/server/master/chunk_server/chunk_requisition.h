@@ -1,23 +1,25 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
-#include <yt/yt/server/master/security_server/public.h>
 #include <yt/yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/client/object_client/helpers.h>
-
 #include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/yt/core/misc/property.h>
+#include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/core/test_framework/testing_tag.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <library/cpp/yt/yson/public.h>
 
@@ -26,7 +28,7 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Settings specifying how a chunk or a chunk owner should be replicated over a medium.
-struct TReplicationPolicy
+class TReplicationPolicy
 {
 public:
     constexpr TReplicationPolicy()
@@ -423,7 +425,7 @@ public:
     };
 
     template <class B, std::sentinel_for<B> E>
-    struct TEntryRange
+    class TEntryRange
         : public std::ranges::view_interface<TEntryRange<B, E>>
     {
     public:
@@ -606,6 +608,10 @@ public:
     // called subsequently.
     void Clear();
 
+    // TODO(danilalexeev): YT-28820. Update once `Migration*RequisitionIndex` dropped.
+    void EnsureBuiltinRequisitionsInitialized(
+        TTestingTag,
+        NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount);
     void EnsureBuiltinRequisitionsInitialized(
         NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount,
         const NObjectServer::IObjectManagerPtr& objectManager);
@@ -660,6 +666,10 @@ private:
 
     TChunkRequisitionIndex Insert(
         const TChunkRequisition& requisition,
+        const NObjectServer::IObjectManagerPtr& objectManager);
+
+    void DoEnsureBuiltinRequisitionsInitialized(
+        NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount,
         const NObjectServer::IObjectManagerPtr& objectManager);
 
     void Erase(

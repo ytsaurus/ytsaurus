@@ -19,7 +19,7 @@ public:
         NYTree::INodePtr defaultIOConfig,
         TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue,
         IHugePageManagerPtr hugePageManager,
-        TString locationId,
+        std::string locationId,
         NProfiling::TProfiler profiler,
         NLogging::TLogger logger)
         : LocationId_(std::move(locationId))
@@ -29,8 +29,8 @@ public:
         , Logger(std::move(logger))
     {
         SetType(defaultEngineType, defaultIOConfig);
-        YT_LOG_INFO("Dynamic IO engine initialized (Type: %v)",
-            defaultEngineType);
+        YT_TLOG_INFO("Dynamic IO engine initialized")
+            .With("Type", defaultEngineType);
 
         for (auto engineType : GetSupportedIOEngineTypes()) {
             Profiler_
@@ -134,7 +134,7 @@ public:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error reconfiguring %Qlv IO engine",
                     type)
-                    << ex;
+                    .With(ex);
             }
         } else {
             try {
@@ -150,14 +150,14 @@ public:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error creating %Qlv IO engine",
                     type)
-                    << ex;
+                    .With(ex);
             }
         }
 
         CurrentType_.store(type);
 
-        YT_LOG_INFO("Dynamic IO engine reconfigured (Type: %v)",
-            type);
+        YT_TLOG_INFO("Dynamic IO engine reconfigured")
+            .With("Type", type);
     }
 
     void Reconfigure(const NYTree::INodePtr& dynamicIOConfig) override
@@ -191,6 +191,11 @@ public:
     EDirectIOPolicy UseDirectIOForReads() const override
     {
         return GetCurrentEngine()->UseDirectIOForReads();
+    }
+
+    EDirectIOPolicy UseDirectIOForWrites() const override
+    {
+        return GetCurrentEngine()->UseDirectIOForWrites();
     }
 
     bool IsInFlightRequestLimitExceeded() const override
@@ -244,13 +249,13 @@ public:
     }
 
 private:
-    const TString LocationId_;
+    const std::string LocationId_;
     const TFairShareHierarchicalSlotQueuePtr<std::string> FairShareQueue_;
     const IHugePageManagerPtr HugePageManager_;
     const NProfiling::TProfiler Profiler_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(mutable NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(mutable TSpinLock, Lock_);
 
     struct TEngineEntry
     {
@@ -287,7 +292,7 @@ IDynamicIOEnginePtr CreateDynamicIOEngine(
     NYTree::INodePtr ioConfig,
     TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue,
     IHugePageManagerPtr hugePageManager,
-    TString locationId,
+    std::string locationId,
     NProfiling::TProfiler profiler,
     NLogging::TLogger logger)
 {

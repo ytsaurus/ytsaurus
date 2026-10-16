@@ -6,10 +6,7 @@ from yt_type_helpers import optional_type, list_type
 
 import yt.yson as yson
 
-import pytest
 
-
-@pytest.mark.enabled_multidaemon
 class TestDsvFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -44,7 +41,7 @@ class TestDsvFormat(YTEnvSetup):
             ],
         )
 
-        with raises_yt_error("are not supported by the chosen format"):
+        with raises_yt_error("Values of type .* are not supported by the chosen format"):
             read_table("//tmp/t_in", output_format="dsv")
 
         format = yson.YsonString(b"dsv")
@@ -53,7 +50,6 @@ class TestDsvFormat(YTEnvSetup):
         assert b"int=53\topt_string=foobar\t\nint=82\t\n" == dsv_dump
 
 
-@pytest.mark.enabled_multidaemon
 class TestYamredDsvFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -90,7 +86,7 @@ class TestYamredDsvFormat(YTEnvSetup):
 
         format = yson.YsonString(b"yamred_dsv")
         format.attributes["key_column_names"] = ["int"]
-        with raises_yt_error("are not supported by the chosen format"):
+        with raises_yt_error("Values of type .* are not supported by the chosen format"):
             read_table("//tmp/t_in", output_format=format)
 
         format.attributes["skip_unsupported_types_in_value"] = True

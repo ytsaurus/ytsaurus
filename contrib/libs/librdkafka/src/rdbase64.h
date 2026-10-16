@@ -36,6 +36,8 @@ void rd_base64_encode(const rd_chariov_t *in, rd_chariov_t *out);
 
 char *rd_base64_encode_str(const rd_chariov_t *in);
 
+char *rd_base64_encode_str_urlsafe(const rd_chariov_t *in);
+
 int rd_base64_decode(const rd_chariov_t *in, rd_chariov_t *out);
 
 #endif /* _RDBASE64_H_ */

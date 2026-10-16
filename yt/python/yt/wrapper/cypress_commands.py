@@ -18,7 +18,7 @@ from yt.yson import is_unicode, get_bytes
 import builtins
 import string
 from copy import deepcopy, copy as shallowcopy
-from typing import Union, Optional, Literal, Callable, Any, List, Dict, Tuple
+from typing import Union, Optional, Literal, Callable, Any, List, Dict, Tuple, Mapping
 
 
 # XXX(asaitgalin): Used in get_attribute function for `default` argument
@@ -106,9 +106,9 @@ def set(
     value,
     format=None,
     recursive: bool = False,
-    force: bool = None,
-    suppress_transaction_coordinator_sync: bool = None,
-    suppress_upstream_sync: bool = None,
+    force: Optional[bool] = None,
+    suppress_transaction_coordinator_sync: Optional[bool] = None,
+    suppress_upstream_sync: Optional[bool] = None,
     client=None,
 ):
     """Sets new value to Cypress node.
@@ -191,19 +191,19 @@ class _CrosscellCopyMoveRetrier(Retrier):
 def copy(
     source_path: Union[str, YPath],
     destination_path: Union[str, YPath],
-    recursive: bool = None,
-    force: bool = None,
-    ignore_existing: bool = None,
-    lock_existing: bool = None,
-    preserve_account: bool = None,
-    preserve_owner: bool = None,
-    preserve_acl: bool = None,
-    preserve_expiration_time: bool = None,
-    preserve_expiration_timeout: bool = None,
-    preserve_creation_time: bool = None,
-    preserve_modification_time: bool = None,
-    pessimistic_quota_check: bool = None,
-    enable_cross_cell_copying: bool = None,
+    recursive: Optional[bool] = None,
+    force: Optional[bool] = None,
+    ignore_existing: Optional[bool] = None,
+    lock_existing: Optional[bool] = None,
+    preserve_account: Optional[bool] = None,
+    preserve_owner: Optional[bool] = None,
+    preserve_acl: Optional[bool] = None,
+    preserve_expiration_time: Optional[bool] = None,
+    preserve_expiration_timeout: Optional[bool] = None,
+    preserve_creation_time: Optional[bool] = None,
+    preserve_modification_time: Optional[bool] = None,
+    pessimistic_quota_check: Optional[bool] = None,
+    enable_cross_cell_copying: Optional[bool] = None,
     client=None
 ):
     """Copies Cypress node.
@@ -255,17 +255,17 @@ def copy(
 def move(
     source_path: Union[str, YPath],
     destination_path: Union[str, YPath],
-    recursive: bool = None,
-    force: bool = None,
-    preserve_account: bool = None,
-    preserve_owner: bool = None,
-    preserve_acl: bool = None,
-    preserve_expiration_time: bool = None,
-    preserve_expiration_timeout: bool = None,
-    preserve_creation_time: bool = None,
-    preserve_modification_time: bool = None,
-    pessimistic_quota_check: bool = None,
-    enable_cross_cell_copying: bool = None,
+    recursive: Optional[bool] = None,
+    force: Optional[bool] = None,
+    preserve_account: Optional[bool] = None,
+    preserve_owner: Optional[bool] = None,
+    preserve_acl: Optional[bool] = None,
+    preserve_expiration_time: Optional[bool] = None,
+    preserve_expiration_timeout: Optional[bool] = None,
+    preserve_creation_time: Optional[bool] = None,
+    preserve_modification_time: Optional[bool] = None,
+    pessimistic_quota_check: Optional[bool] = None,
+    enable_cross_cell_copying: Optional[bool] = None,
     client=None,
 ):
     """Moves (renames) Cypress node.
@@ -365,7 +365,7 @@ def link(
     link_path: Union[str, YPath],
     recursive: bool = False,
     ignore_existing: bool = False,
-    lock_existing: bool = None,
+    lock_existing: Optional[bool] = None,
     force: bool = False,
     attributes: Optional[Dict[str, Any]] = None,
     client=None,
@@ -403,13 +403,13 @@ def list(
     path: Union[str, YPath],
     max_size: Optional[int] = None,
     format: Optional[Format] = None,
-    absolute: bool = None,
+    absolute: Optional[bool] = None,
     attributes: Union[List[str], Tuple, None] = None,
     sort: bool = True,
     read_from=None,
-    cache_sticky_group_size: int = None,
-    suppress_transaction_coordinator_sync: bool = None,
-    suppress_upstream_sync: bool = None,
+    cache_sticky_group_size: Optional[int] = None,
+    suppress_transaction_coordinator_sync: Optional[bool] = None,
+    suppress_upstream_sync: Optional[bool] = None,
     client=None,
 ):
     """Lists directory (map_node) content. Node type must be "map_node".
@@ -470,8 +470,8 @@ def list(
 def exists(
     path: Union[str, YPath],
     read_from: str = None,
-    cache_sticky_group_size: int = None,
-    suppress_transaction_coordinator_sync: bool = None,
+    cache_sticky_group_size: Optional[int] = None,
+    suppress_transaction_coordinator_sync: Optional[bool] = None,
     client=None,
 ):
     """Checks if Cypress node exists.
@@ -522,8 +522,8 @@ def create(
     path: Union[str, YPath, None] = None,
     recursive: bool = False,
     ignore_existing: bool = False,
-    lock_existing: bool = None,
-    force: bool = None,
+    lock_existing: Optional[bool] = None,
+    force: Optional[bool] = None,
     attributes: Optional[Dict[str, Any]] = None,
     ignore_type_mismatch: bool = False,
     client=None,
@@ -542,7 +542,29 @@ def create(
 
     .. seealso:: `create in the docs <https://ytsaurus.tech/docs/en/api/commands#create>`_
     """
+    def _get_object_annotations(type, client):
+        if type in ["table", "file", "map_node"]:
+            annotate_objects = get_config(client)["annotate_objects"]
+            if annotate_objects and isinstance(annotate_objects, Mapping):
+                annotate_objects = dict([(name, value) for name, value in annotate_objects.items() if name.startswith("_")])
+                # YT-28611
+                if "_nirvana_meta" in annotate_objects:
+                    annotate_objects["_nirvana_meta"] = {
+                        "block_url": annotate_objects["_nirvana_meta"].get("block_url")
+                    }
+                return annotate_objects
+        return None
+
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
+
+    annotate_objects = _get_object_annotations(type, client)
+    if annotate_objects:
+        if attributes:
+            attributes = deepcopy(attributes)
+            attributes.update(annotate_objects)
+        else:
+            attributes = annotate_objects
+
     params = {
         "type": type,
     }
@@ -600,7 +622,7 @@ def internalize(path: Union[str, YPath], client=None):
 
 def mkdir(
     path: Union[str, YPath],
-    recursive: bool = None,
+    recursive: Optional[bool] = None,
     client=None,
 ):
     """Makes directory (Cypress node of map_node type).
@@ -716,11 +738,11 @@ def search(
     list_node_order: Callable[[str, List[Any]], List[int]] = None,
     attributes: Union[List[str], Tuple, None] = None,
     exclude: Union[List[str], Tuple, None] = None,
-    depth_bound: int = None,
+    depth_bound: Optional[int] = None,
     follow_links: bool = False,
     read_from: Literal["cache"] = None,
-    cache_sticky_group_size: int = None,
-    enable_batch_mode: bool = None,
+    cache_sticky_group_size: Optional[int] = None,
+    enable_batch_mode: Optional[bool] = None,
     client=None,
 ):
     """Searches for some nodes in Cypress subtree.

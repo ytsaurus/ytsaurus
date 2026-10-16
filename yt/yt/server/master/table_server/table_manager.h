@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "master_table_schema.h"
-#include "secondary_index.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -11,6 +10,8 @@
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
+
+#include <yt/yt/server/lib/tablet_server/public.h>
 
 #include <library/cpp/yt/memory/ref_counted.h>
 
@@ -162,14 +163,23 @@ struct ITableManager
         std::optional<NTableClient::TColumnNameToConstraintMap> constraints) = 0;
 
     // Secondary index management.
+    virtual std::pair<TTableNode*, TTableNode*> ValidateSecondaryIndexCreationAndGetTables(
+        ESecondaryIndexKind kind,
+        TTableId tableId,
+        TTableId indexTableId,
+        const std::optional<std::string>& predicate,
+        const std::optional<NTabletClient::TUnfoldedColumns>& unfoldedColumns,
+        const NTableClient::TTableSchemaPtr& evaluatedColumnsSchema,
+        bool skipIsAlreadyIndexCheck = false) = 0;
     virtual TSecondaryIndex* CreateSecondaryIndex(
         NObjectClient::TObjectId hintId,
         ESecondaryIndexKind type,
-        TTableId table,
-        TTableId secondaryIndex,
+        TTableNode* table,
+        TTableNode* indexTable,
+        TTableId indexTableId,
         std::optional<std::string> predicate,
         std::optional<NTabletClient::TUnfoldedColumns> unfoldedColumns,
-        NTableClient::TTableSchemaPtr evaluatedColumns) = 0;
+        NTableClient::TTableSchemaPtr evaluatedColumns) noexcept = 0;
 
     // Table collocation management.
     virtual TTableCollocation* CreateTableCollocation(
@@ -195,8 +205,6 @@ struct ITableManager
     virtual void UnregisterQueueProducer(TTableNode* node) = 0;
 
     virtual TFuture<NYson::TYsonString> GetQueueAgentObjectRevisionsAsync() const = 0;
-
-    virtual void OnTableCopied(TTableNode* sourceNode, TTableNode* clonedNode) = 0;
 
     virtual void UpdateReplicationCollocationOptions(
         TTableCollocation* collocation,

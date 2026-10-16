@@ -6,62 +6,21 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/atomic"
 
 	"go.ytsaurus.tech/library/go/core/metrics"
 )
 
 func TestMetrics_MarshalJSON(t *testing.T) {
+	counter := NewCounter("mycounter", 42, WithTags(map[string]string{"ololo": "trololo"}))
+	ratedCounter := NewCounter("myratedcounter", 42, WithTags(map[string]string{"ololo": "trololo"}), WithRated(true))
+	gauge := NewGauge("mygauge", 14.89, WithTags(map[string]string{"shimba": "boomba"}))
+	gaugeWithTS := NewGauge("mygauge", 42.24, WithTags(map[string]string{"shimba": "boomba"}), WithTimestamp(time.Unix(1500000000, 0)))
+	timer := NewTimer("mytimer", 1456*time.Millisecond, WithTags(map[string]string{"looken": "tooken"}))
+	hist := NewHistogram("myhistogram", []float64{1, 2, 3}, []int64{1, 2, 1}, 1, WithTags(map[string]string{"chicken": "cooken"}))
+	ratedHist := NewHistogram("myratedhistogram", []float64{1, 2, 3}, []int64{1, 2, 1}, 1, WithTags(map[string]string{"chicken": "cooken"}), WithRated(true))
+
 	s := &Metrics{
-		metrics: []Metric{
-			&Counter{
-				name:       "mycounter",
-				metricType: typeCounter,
-				tags:       map[string]string{"ololo": "trololo"},
-				value:      *atomic.NewInt64(42),
-			},
-			&Counter{
-				name:       "myratedcounter",
-				metricType: typeRated,
-				tags:       map[string]string{"ololo": "trololo"},
-				value:      *atomic.NewInt64(42),
-			},
-			&Gauge{
-				name:       "mygauge",
-				metricType: typeGauge,
-				tags:       map[string]string{"shimba": "boomba"},
-				value:      *atomic.NewFloat64(14.89),
-			},
-			&Gauge{
-				name:       "mygauge",
-				metricType: typeGauge,
-				tags:       map[string]string{"shimba": "boomba"},
-				value:      *atomic.NewFloat64(42.24),
-				timestamp:  timeAsRef(time.Unix(1500000000, 0)),
-			},
-			&Timer{
-				name:       "mytimer",
-				metricType: typeGauge,
-				tags:       map[string]string{"looken": "tooken"},
-				value:      *atomic.NewDuration(1456 * time.Millisecond),
-			},
-			&Histogram{
-				name:         "myhistogram",
-				metricType:   typeHistogram,
-				tags:         map[string]string{"chicken": "cooken"},
-				bucketBounds: []float64{1, 2, 3},
-				bucketValues: []int64{1, 2, 1},
-				infValue:     *atomic.NewInt64(1),
-			},
-			&Histogram{
-				name:         "myratedhistogram",
-				metricType:   typeRatedHistogram,
-				tags:         map[string]string{"chicken": "cooken"},
-				bucketBounds: []float64{1, 2, 3},
-				bucketValues: []int64{1, 2, 1},
-				infValue:     *atomic.NewInt64(1),
-			},
-		},
+		metrics: []Metric{&counter, &ratedCounter, &gauge, &gaugeWithTS, &timer, &hist, &ratedHist},
 	}
 
 	b, err := json.Marshal(s)
@@ -84,22 +43,11 @@ func timeAsRef(t time.Time) *time.Time {
 }
 
 func TestMetrics_with_timestamp_MarshalJSON(t *testing.T) {
+	counter := NewCounter("mycounter", 42, WithTags(map[string]string{"ololo": "trololo"}))
+	gauge := NewGauge("mygauge", 42.24, WithTags(map[string]string{"oki": "toki"}), WithTimestamp(time.Unix(1500000000, 0)))
+
 	s := &Metrics{
-		metrics: []Metric{
-			&Counter{
-				name:       "mycounter",
-				metricType: typeCounter,
-				tags:       map[string]string{"ololo": "trololo"},
-				value:      *atomic.NewInt64(42),
-			},
-			&Gauge{
-				name:       "mygauge",
-				metricType: typeGauge,
-				tags:       map[string]string{"oki": "toki"},
-				value:      *atomic.NewFloat64(42.24),
-				timestamp:  timeAsRef(time.Unix(1500000000, 0)),
-			},
-		},
+		metrics:   []Metric{&counter, &gauge},
 		timestamp: timeAsRef(time.Unix(1657710477, 0)),
 	}
 
@@ -113,89 +61,46 @@ func TestMetrics_with_timestamp_MarshalJSON(t *testing.T) {
 	assert.Equal(t, expected, b)
 }
 
+func TestMetrics_with_common_labels_MarshalJSON(t *testing.T) {
+	counter := NewCounter("mycounter", 42, WithTags(map[string]string{"ololo": "trololo"}))
+	gauge := NewGauge("mygauge", 42.24, WithTags(map[string]string{"oki": "toki"}))
+	s := &Metrics{
+		metrics:      []Metric{&counter, &gauge},
+		commonLabels: map[string]string{"host": "myhost"},
+	}
+
+	b, err := json.Marshal(s)
+	assert.NoError(t, err)
+
+	expected := []byte(`{"metrics":[` +
+		`{"type":"COUNTER","labels":{"ololo":"trololo","sensor":"mycounter"},"value":42},` +
+		`{"type":"DGAUGE","labels":{"oki":"toki","sensor":"mygauge"},"value":42.24}` +
+		`],"commonLabels":{"host":"myhost"}}`)
+	assert.Equal(t, expected, b)
+}
+
 func TestRated(t *testing.T) {
+	counter := NewCounter("mycounter", 42, WithTags(map[string]string{"ololo": "trololo"}))
+	counterRated := NewCounter("mycounter", 42, WithTags(map[string]string{"ololo": "trololo"}), WithRated(true))
+	gauge := NewGauge("mygauge", 42, WithTags(map[string]string{"ololo": "trololo"}))
+	gaugeUnchanged := NewGauge("mygauge", 42, WithTags(map[string]string{"ololo": "trololo"}))
+	timer := NewTimer("mytimer", 1*time.Second, WithTags(map[string]string{"ololo": "trololo"}))
+	timerUnchanged := NewTimer("mytimer", 1*time.Second, WithTags(map[string]string{"ololo": "trololo"}))
+	hist := NewHistogram("myhistogram", []float64{1, 2, 3}, nil, 0, WithTags(map[string]string{"ololo": "trololo"}))
+	histRated := NewHistogram("myhistogram", []float64{1, 2, 3}, nil, 0, WithTags(map[string]string{"ololo": "trololo"}), WithRated(true))
+	ifaceCounter := NewCounter("mycounter", 42, WithTags(map[string]string{"ololo": "trololo"}))
+	ifaceCounterRated := NewCounter("mycounter", 42, WithTags(map[string]string{"ololo": "trololo"}), WithRated(true))
+
 	testCases := []struct {
 		name     string
-		s        interface{}
+		s        any
 		expected Metric
 	}{
-		{
-			"counter",
-			&Counter{
-				name:       "mycounter",
-				metricType: typeCounter,
-				tags:       map[string]string{"ololo": "trololo"},
-				value:      *atomic.NewInt64(42),
-			},
-			&Counter{
-				name:       "mycounter",
-				metricType: typeRated,
-				tags:       map[string]string{"ololo": "trololo"},
-				value:      *atomic.NewInt64(42),
-			},
-		},
-		{
-			"gauge",
-			&Gauge{
-				name:       "mygauge",
-				metricType: typeGauge,
-				tags:       map[string]string{"ololo": "trololo"},
-				value:      *atomic.NewFloat64(42),
-			},
-			&Gauge{
-				name:       "mygauge",
-				metricType: typeGauge,
-				tags:       map[string]string{"ololo": "trololo"},
-				value:      *atomic.NewFloat64(42),
-			},
-		},
-		{
-			"timer",
-			&Timer{
-				name:       "mytimer",
-				metricType: typeGauge,
-				tags:       map[string]string{"ololo": "trololo"},
-				value:      *atomic.NewDuration(1 * time.Second),
-			},
-			&Timer{
-				name:       "mytimer",
-				metricType: typeGauge,
-				tags:       map[string]string{"ololo": "trololo"},
-				value:      *atomic.NewDuration(1 * time.Second),
-			},
-		},
-		{
-			"histogram",
-			&Histogram{
-				name:         "myhistogram",
-				metricType:   typeHistogram,
-				tags:         map[string]string{"ololo": "trololo"},
-				bucketBounds: []float64{1, 2, 3},
-				infValue:     *atomic.NewInt64(0),
-			},
-			&Histogram{
-				name:         "myhistogram",
-				metricType:   typeRatedHistogram,
-				tags:         map[string]string{"ololo": "trololo"},
-				bucketBounds: []float64{1, 2, 3},
-				infValue:     *atomic.NewInt64(0),
-			},
-		},
-		{
-			"metric_interface",
-			metrics.Counter(&Counter{
-				name:       "mycounter",
-				metricType: typeCounter,
-				tags:       map[string]string{"ololo": "trololo"},
-				value:      *atomic.NewInt64(42),
-			}),
-			&Counter{
-				name:       "mycounter",
-				metricType: typeRated,
-				tags:       map[string]string{"ololo": "trololo"},
-				value:      *atomic.NewInt64(42),
-			},
-		},
+		{"counter", &counter, &counterRated},
+		{"gauge", &gauge, &gaugeUnchanged},
+		{"timer", &timer, &timerUnchanged},
+		{"histogram", &hist, &histRated},
+		{"metric_interface", metrics.Counter(&ifaceCounter), &ifaceCounterRated},
 	}
 
 	for _, tc := range testCases {
@@ -207,36 +112,25 @@ func TestRated(t *testing.T) {
 }
 
 func TestSplitToChunks(t *testing.T) {
+	mk := func(name string) *Counter {
+		c := NewCounter(name, 0)
+		return &c
+	}
+
 	zeroMetrics := Metrics{
 		metrics: []Metric{},
 	}
 	oneMetric := Metrics{
-		metrics: []Metric{
-			&Counter{name: "a"},
-		},
+		metrics: []Metric{mk("a")},
 	}
 	twoMetrics := Metrics{
-		metrics: []Metric{
-			&Counter{name: "a"},
-			&Counter{name: "b"},
-		},
+		metrics: []Metric{mk("a"), mk("b")},
 	}
 	fourMetrics := Metrics{
-		metrics: []Metric{
-			&Counter{name: "a"},
-			&Counter{name: "b"},
-			&Counter{name: "c"},
-			&Counter{name: "d"},
-		},
+		metrics: []Metric{mk("a"), mk("b"), mk("c"), mk("d")},
 	}
 	fiveMetrics := Metrics{
-		metrics: []Metric{
-			&Counter{name: "a"},
-			&Counter{name: "b"},
-			&Counter{name: "c"},
-			&Counter{name: "d"},
-			&Counter{name: "e"},
-		},
+		metrics: []Metric{mk("a"), mk("b"), mk("c"), mk("d"), mk("e")},
 	}
 
 	chunks := zeroMetrics.SplitToChunks(2)

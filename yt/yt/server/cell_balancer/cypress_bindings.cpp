@@ -4,10 +4,6 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const std::string DefaultSpareNodeName = "spare";
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TSysConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("disable_bundle_controller", &TThis::DisableBundleController)
@@ -259,9 +255,9 @@ void TZoneInfo::Register(TRegistrar registrar)
     registrar.Parameter("yp_cluster", &TThis::DefaultYPCluster)
         .Default();
     registrar.Parameter("max_tablet_node_count", &TThis::MaxTabletNodeCount)
-        .Default(10);
+        .Default();
     registrar.Parameter("max_rpc_proxy_count", &TThis::MaxRpcProxyCount)
-        .Default(10);
+        .Default();
     registrar.Parameter("tablet_node_nanny_service", &TThis::DefaultTabletNodeNannyService)
         .Default();
     registrar.Parameter("rpc_proxy_nanny_service", &TThis::DefaultRpcProxyNannyService)
@@ -277,7 +273,7 @@ void TZoneInfo::Register(TRegistrar registrar)
     registrar.Parameter("spare_target_config", &TThis::SpareTargetConfig)
         .DefaultNew();
     registrar.Parameter("spare_bundle_name", &TThis::SpareBundleName)
-        .Default(DefaultSpareNodeName);
+        .Default("spare");
     registrar.Parameter("disrupted_threshold_factor", &TThis::DisruptedThresholdFactor)
         .GreaterThan(0)
         .Default(1);
@@ -536,6 +532,20 @@ void TTabletNodeInfo::Register(TRegistrar registrar)
 bool TTabletNodeInfo::IsOnline() const
 {
     return State == InstanceStateOnline && LocalState != ELocalNodeState::Offline;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDataNodeInfo::Register(TRegistrar registrar)
+{
+    registrar.Parameter("host", &TThis::Host)
+        .Default();
+    registrar.Parameter("switch", &TThis::Switch)
+        .Default();
+    registrar.Parameter("state", &TThis::State)
+        .Default();
+    registrar.Parameter("last_seen_time", &TThis::LastSeenTime)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

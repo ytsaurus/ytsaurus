@@ -9,6 +9,7 @@ SRCS(
     controller_agent.cpp
     controller_agent_service.cpp
     counter_manager.cpp
+    experiments.cpp
     helpers.cpp
     input_statistics_collector.cpp
     intermediate_chunk_scraper.cpp
@@ -25,6 +26,8 @@ SRCS(
     partitioning_parameters_evaluator.cpp
     private.cpp
     program.cpp
+    push_based_shuffle_registry.cpp
+    push_based_shuffle_service.cpp
     scheduling_context.cpp
     snapshot_builder.cpp
     snapshot_downloader.cpp
@@ -58,6 +61,12 @@ PEERDIR(
 )
 
 END()
+
+IF (NOT OPENSOURCE AND OS_LINUX)
+    RECURSE(
+        benchmarks
+    )
+ENDIF()
 
 RECURSE_FOR_TESTS(
     unittests

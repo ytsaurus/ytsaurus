@@ -18,6 +18,10 @@ func isPrintable(b byte) bool {
 	return b >= 32 && b <= 126
 }
 
+func isControlRune(r rune) bool {
+	return r < 0x20 || r == 0x7f
+}
+
 func isHexDigit(b byte) bool {
 	return (b >= '0' && b <= '9') || (b >= 'A' && b <= 'F') || (b >= 'a' && b <= 'f')
 }
@@ -130,7 +134,7 @@ func escapeByte(b, nextByte byte, nextRune rune) (escaped [4]byte, n int, encode
 		escaped[3] = octDigit(int(b&0007) >> 0)
 		n = 4
 
-	case nextRune != utf8.RuneError:
+	case nextRune != utf8.RuneError && !isControlRune(nextRune):
 		n = utf8.EncodeRune(escaped[:], nextRune)
 		encodedAsRune = true
 

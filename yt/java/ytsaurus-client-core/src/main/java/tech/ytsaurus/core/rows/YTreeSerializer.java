@@ -9,7 +9,7 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 /**
- * @author sankear
+ * Serializes Java values to YSON tree representation and deserializes them back.
  */
 public interface YTreeSerializer<T> {
 

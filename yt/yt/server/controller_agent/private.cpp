@@ -31,7 +31,7 @@ void FormatValue(TStringBuilderBase* builder, const TJobMonitoringDescriptor& de
 ////////////////////////////////////////////////////////////////////////////////
 
 TTraceContextGuard CreateOperationTraceContextGuard(
-    TString spanName,
+    std::string spanName,
     TOperationId operationId)
 {
     auto traceContext = CreateTraceContextFromCurrent(std::move(spanName));
@@ -56,7 +56,7 @@ bool TCompositePendingJobCount::IsZero() const
     return true;
 }
 
-int TCompositePendingJobCount::GetJobCountFor(const TString& tree) const
+int TCompositePendingJobCount::GetJobCountFor(const std::string& tree) const
 {
     auto it = CountByPoolTree.find(tree);
     return it != CountByPoolTree.end()
@@ -64,12 +64,13 @@ int TCompositePendingJobCount::GetJobCountFor(const TString& tree) const
         : DefaultCount;
 }
 
-void TCompositePendingJobCount::Persist(const TStreamPersistenceContext &context)
+void TCompositePendingJobCount::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, DefaultCount);
-    Persist(context, CountByPoolTree);
+    PHOENIX_REGISTER_FIELD(1, DefaultCount);
+    PHOENIX_REGISTER_FIELD(2, CountByPoolTree);
 }
+
+PHOENIX_DEFINE_TYPE(TCompositePendingJobCount);
 
 void Serialize(const TCompositePendingJobCount& allocationCount, NYson::IYsonConsumer* consumer)
 {

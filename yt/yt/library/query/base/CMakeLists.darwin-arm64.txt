@@ -12,6 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(unittests)
+
 add_library(library-query-base)
 
 
@@ -50,6 +52,7 @@ target_sources(library-query-base PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/expr_builder_v2.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/functions.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/hierarchical_join_rewriter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/builtin_function_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/builtin_function_types.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/functions_common.cpp

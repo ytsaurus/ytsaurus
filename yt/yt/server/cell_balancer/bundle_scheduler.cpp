@@ -10,6 +10,8 @@
 #include "node_tag_manager.h"
 #include "system_accounts.h"
 
+#include <yt/yt/core/logging/log_manager.h>
+
 #include <library/cpp/yt/yson_string/public.h>
 
 #include <util/string/subst.h>
@@ -54,7 +56,7 @@ std::string GenerateShortNameForBundle(
     }
 
     THROW_ERROR_EXCEPTION("Cannot generate short name for bundle")
-        << TErrorAttribute("bundle_name", bundleName);
+        .With("bundle_name", bundleName);
 }
 
 THashMap<std::string, std::string> MapBundlesToShortNames(const TSchedulerInputState& input)
@@ -76,7 +78,7 @@ THashMap<std::string, std::string> MapBundlesToShortNames(const TSchedulerInputS
     }
 
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
-        if (auto it = bundleToShortName.find(bundleName); it != bundleToShortName.end()) {
+        if (bundleToShortName.contains(bundleName)) {
             continue;
         }
 
@@ -90,10 +92,17 @@ THashMap<std::string, std::string> MapBundlesToShortNames(const TSchedulerInputS
 
         THROW_ERROR_EXCEPTION_UNLESS(
             maxShortNameLength >= MinBundleShortName,
-            "Please set cluster short name, cluster name it too long");
+            "Please set cluster short name, cluster name is too long");
 
         auto shortName = GenerateShortNameForBundle(bundleName, shortNameToBundle, maxShortNameLength);
         YT_VERIFY(std::ssize(shortName) <= maxShortNameLength);
+
+        if (bundleInfo->Spare && shortName != bundleName) {
+            THROW_ERROR_EXCEPTION("Spare bundle name %Qv must match its generated short-name; "
+                "the name must not contain the \"_\" character and must be at most %v characters long",
+                bundleName,
+                maxShortNameLength);
+        }
 
         bundleToShortName[bundleName] = shortName;
         shortNameToBundle[shortName] = bundleName;
@@ -154,7 +163,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
 
             auto perDCaliveNodes = GetAliveNodes(
                 bundleName,
-                input.BundleNodes[bundleName],
+                input.NodesAllocatedForBundle[bundleName],
                 input,
                 bundleState,
                 EGracePeriodBehaviour::Wait);
@@ -162,7 +171,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
             auto aliveNodes = FlattenAliveInstances(perDCaliveNodes);
             calculateResources(aliveNodes, input.TabletNodes, aliveResourceUsage, input.AliveNodesBySize[bundleName]);
 
-            auto aliveProxies = FlattenAliveInstances(GetAliveProxies(input.BundleProxies[bundleName], input, EGracePeriodBehaviour::Wait));
+            auto aliveProxies = FlattenAliveInstances(GetAliveProxies(input.ProxiesAllocatedForBundle[bundleName], input, EGracePeriodBehaviour::Wait));
             calculateResources(aliveProxies, input.RpcProxies, aliveResourceUsage, input.AliveProxiesBySize[bundleName]);
 
             aliveResources[bundleName] = aliveResourceUsage;
@@ -173,8 +182,8 @@ void CalculateResourceUsage(TSchedulerInputState& input)
             // Default values are non-zero, so we need to clear them.
             allocated->Clear();
 
-            calculateResources(FlattenBundleInstances(input.BundleNodes[bundleName]), input.TabletNodes, allocated, input.AllocatedNodesBySize[bundleName]);
-            calculateResources(FlattenBundleInstances(input.BundleProxies[bundleName]), input.RpcProxies, allocated, input.AllocatedProxiesBySize[bundleName]);
+            calculateResources(FlattenBundleInstances(input.NodesAllocatedForBundle[bundleName]), input.TabletNodes, allocated, input.AllocatedNodesBySize[bundleName]);
+            calculateResources(FlattenBundleInstances(input.ProxiesAllocatedForBundle[bundleName]), input.RpcProxies, allocated, input.AllocatedProxiesBySize[bundleName]);
 
             allocatedResources[bundleName] = allocated;
         }
@@ -240,16 +249,16 @@ THashMap<std::string, THashSet<std::string>> GetAliveNodes(
             }
 
             if (nodeInfo->DisableTabletCells) {
-                YT_LOG_DEBUG("Tablet cells are disabled for the node (BundleName: %v, Node: %v)",
-                    bundleName,
-                    nodeName);
+                YT_TLOG_DEBUG("Tablet cells are disabled for the node")
+                    .With("BundleName", bundleName)
+                    .With("Node", nodeName);
                 continue;
             }
 
             if (!bundleInfo->NodeTagFilter.empty() && nodeInfo->Decommissioned && !internallyDecommissioned) {
-                YT_LOG_DEBUG("Node is externally decommissioned (BundleName: %v, Node: %v)",
-                    bundleName,
-                    nodeName);
+                YT_TLOG_DEBUG("Node is externally decommissioned")
+                    .With("BundleName", bundleName)
+                    .With("Node", nodeName);
                 continue;
             }
 
@@ -296,19 +305,6 @@ THashMap<std::string, THashSet<std::string>> GetAliveProxies(
     }
 
     return aliveProxies;
-}
-
-bool EnsureNodeDecommissioned(
-    const std::string& nodeName,
-    const TTabletNodeInfoPtr& nodeInfo,
-    TSchedulerMutations* mutations)
-{
-    if (!nodeInfo->Decommissioned) {
-        mutations->ChangedDecommissionedFlag[nodeName] = mutations->WrapMutation(true);
-        return false;
-    }
-    // Wait tablet cells to migrate.
-    return GetUsedSlotCount(nodeInfo) == 0;
 }
 
 struct TTabletCellRemoveOrder
@@ -377,9 +373,9 @@ void ProcessRemovingCells(
     for (const auto& [cellId, removingStateInfo] : state->RemovingCells) {
         auto it = input.TabletCells.find(cellId);
         if (it == input.TabletCells.end()) {
-            YT_LOG_INFO("Tablet cell removal finished (BundleName: %v, TabletCellId: %v)",
-                bundleName,
-                cellId);
+            YT_TLOG_INFO("Tablet cell removal finished")
+                .With("BundleName", bundleName)
+                .With("TabletCellId", cellId);
             removeCompleted.push_back(cellId);
             continue;
         }
@@ -387,11 +383,11 @@ void ProcessRemovingCells(
         auto removingTime = TInstant::Now() - removingStateInfo->RemovedTime;
 
         if (removingTime > input.Config->CellRemovalTimeout) {
-            YT_LOG_WARNING("Tablet cell removal is stuck (BundleName: %v, TabletCellId: %v, RemovingTime: %v, Threshold: %v)",
-                bundleName,
-                cellId,
-                removingTime,
-                input.Config->CellRemovalTimeout);
+            YT_TLOG_WARNING("Tablet cell removal is stuck")
+                .With("BundleName", bundleName)
+                .With("TabletCellId", cellId)
+                .With("RemovingTime", removingTime)
+                .With("Threshold", input.Config->CellRemovalTimeout);
 
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "stuck_tablet_cell_removal",
@@ -404,10 +400,9 @@ void ProcessRemovingCells(
             });
         }
 
-        YT_LOG_DEBUG("Tablet cell removal in progress"
-            " (BundleName: %v, TabletCellId: %v)",
-            bundleName,
-            cellId);
+        YT_TLOG_DEBUG("Tablet cell removal in progress")
+            .With("BundleName", bundleName)
+            .With("TabletCellId", cellId);
     }
 
     for (const auto& cellId : removeCompleted) {
@@ -453,17 +448,17 @@ void CreateRemoveTabletCells(
     int targetCellCount = GetTargetCellCount(bundleInfo, zoneInfo);
     int cellCountDiff = targetCellCount - std::ssize(bundleInfo->TabletCellIds);
 
-    YT_LOG_DEBUG("Managing tablet cells (BundleName: %v, TargetCellCount: %v, ExistingCount: %v)",
-        bundleName,
-        targetCellCount,
-        std::ssize(bundleInfo->TabletCellIds));
+    YT_TLOG_DEBUG("Managing tablet cells")
+        .With("BundleName", bundleName)
+        .With("TargetCellCount", targetCellCount)
+        .With("ExistingCount", std::ssize(bundleInfo->TabletCellIds));
 
     if (cellCountDiff < 0) {
         auto cellsToRemove = PickTabletCellsToRemove(std::abs(cellCountDiff), bundleInfo->TabletCellIds);
 
-        YT_LOG_INFO("Removing tablet cells (BundleName: %v, CellIds: %v)",
-            bundleName,
-            cellsToRemove);
+        YT_TLOG_INFO("Removing tablet cells")
+            .With("BundleName", bundleName)
+            .With("CellIds", cellsToRemove);
 
         mutations->CellsToRemove.reserve(cellsToRemove.size());
         for (const auto& cellId : cellsToRemove) {
@@ -476,9 +471,9 @@ void CreateRemoveTabletCells(
             bundleState->RemovingCells[cellId] = removingCellState;
         }
     } else if (cellCountDiff > 0) {
-        YT_LOG_INFO("Creating tablet cells (BundleName: %v, CellCount: %v)",
-            bundleName,
-            cellCountDiff);
+        YT_TLOG_INFO("Creating tablet cells")
+            .With("BundleName", bundleName)
+            .With("CellCount", cellCountDiff);
 
         mutations->CellsToCreate[bundleName] = cellCountDiff;
     }
@@ -508,13 +503,15 @@ void ManageResourceLimits(TSchedulerInputState& input, TSchedulerMutations* muta
             continue;
         }
 
-        auto availableTabletStatic = *targetConfig->MemoryLimits->TabletStatic * targetConfig->TabletNodeCount;
+        auto availableTabletStatic =
+            *targetConfig->MemoryLimits->TabletStatic * targetConfig->TabletNodeCount /
+            bundleInfo->Options->PeerCount;
 
         if (availableTabletStatic != bundleInfo->ResourceLimits->TabletStaticMemory) {
-            YT_LOG_INFO("Adjusting tablet static memory limit (BundleName: %v, NewValue: %v, OldValue: %v)",
-                bundleName,
-                availableTabletStatic,
-                bundleInfo->ResourceLimits->TabletStaticMemory);
+            YT_TLOG_INFO("Adjusting tablet static memory limit")
+                .With("BundleName", bundleName)
+                .With("NewValue", availableTabletStatic)
+                .With("OldValue", bundleInfo->ResourceLimits->TabletStaticMemory);
 
             mutations->ChangedTabletStaticMemory[bundleName] = availableTabletStatic;
         }
@@ -522,11 +519,6 @@ void ManageResourceLimits(TSchedulerInputState& input, TSchedulerMutations* muta
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-std::string GetSpareBundleName(const TZoneInfoPtr& zoneInfo)
-{
-    return zoneInfo->SpareBundleName;
-}
 
 THashMap<TSchedulerInputState::TQualifiedDCName, TDataCenterDisruptedState> GetDataCenterDisruptedState(const TSchedulerInputState& input)
 {
@@ -542,11 +534,11 @@ THashMap<TSchedulerInputState::TQualifiedDCName, TDataCenterDisruptedState> GetD
                     continue;
                 }
 
-                YT_LOG_DEBUG("Node is offline (NodeName: %v, NannyService: %v, Banned: %v, LastSeen: %v)",
-                    nodeName,
-                    nodeInfo->BundleControllerAnnotations->NannyService,
-                    nodeInfo->Banned,
-                    nodeInfo->LastSeenTime);
+                YT_TLOG_DEBUG("Node is offline")
+                    .With("NodeName", nodeName)
+                    .With("NannyService", nodeInfo->BundleControllerAnnotations->NannyService)
+                    .With("Banned", nodeInfo->Banned)
+                    .With("LastSeen", nodeInfo->LastSeenTime);
 
                 ++zoneOfflineNodeCount[std::pair(zoneName, dataCenterName)];
             }
@@ -562,9 +554,9 @@ THashMap<TSchedulerInputState::TQualifiedDCName, TDataCenterDisruptedState> GetD
                     continue;
                 }
 
-                YT_LOG_DEBUG("Proxy is offline (ProxyName: %v, NannyService: %v)",
-                    proxyName,
-                    proxyInfo->BundleControllerAnnotations->NannyService);
+                YT_TLOG_DEBUG("Proxy is offline")
+                    .With("ProxyName", proxyName)
+                    .With("NannyService", proxyInfo->BundleControllerAnnotations->NannyService);
 
                 ++zoneOfflineProxyCount[std::pair(zoneName, dataCenterName)];
             }
@@ -579,24 +571,22 @@ THashMap<TSchedulerInputState::TQualifiedDCName, TDataCenterDisruptedState> GetD
             dataCenterDisrupted.OfflineNodeCount = zoneOfflineNodeCount[std::pair(zoneName, dataCenterName)];
             dataCenterDisrupted.OfflineNodeThreshold = zoneInfo->SpareTargetConfig->TabletNodeCount * zoneInfo->DisruptedThresholdFactor / std::ssize(zoneInfo->DataCenters);
 
-            YT_LOG_WARNING_IF(dataCenterDisrupted.IsNodesDisrupted(), "Zone data center is in disrupted state"
-                " (ZoneName: %v, DataCenter: %v, NannyService: %v, DisruptedThreshold: %v, OfflineNodeCount: %v)",
-                zoneName,
-                dataCenterName,
-                dataCenterInfo->TabletNodeNannyService,
-                dataCenterDisrupted.OfflineNodeThreshold,
-                dataCenterDisrupted.OfflineNodeCount);
+            YT_TLOG_WARNING_IF(dataCenterDisrupted.IsNodesDisrupted(), "Zone data center is in disrupted state")
+                .With("ZoneName", zoneName)
+                .With("DataCenter", dataCenterName)
+                .With("NannyService", dataCenterInfo->TabletNodeNannyService)
+                .With("DisruptedThreshold", dataCenterDisrupted.OfflineNodeThreshold)
+                .With("OfflineNodeCount", dataCenterDisrupted.OfflineNodeCount);
 
             dataCenterDisrupted.OfflineProxyThreshold = zoneInfo->SpareTargetConfig->RpcProxyCount * zoneInfo->DisruptedThresholdFactor / std::ssize(zoneInfo->DataCenters);
             dataCenterDisrupted.OfflineProxyCount = zoneOfflineProxyCount[std::pair(zoneName, dataCenterName)];
 
-            YT_LOG_WARNING_IF(dataCenterDisrupted.IsProxiesDisrupted(), "Zone data center is in disrupted state"
-                " (ZoneName: %v, DataCenter: %v, NannyService: %v, DisruptedThreshold: %v, OfflineProxyCount: %v)",
-                zoneName,
-                dataCenterName,
-                dataCenterInfo->RpcProxyNannyService,
-                dataCenterDisrupted.OfflineProxyThreshold,
-                dataCenterDisrupted.OfflineProxyCount);
+            YT_TLOG_WARNING_IF(dataCenterDisrupted.IsProxiesDisrupted(), "Zone data center is in disrupted state")
+                .With("ZoneName", zoneName)
+                .With("DataCenter", dataCenterName)
+                .With("NannyService", dataCenterInfo->RpcProxyNannyService)
+                .With("DisruptedThreshold", dataCenterDisrupted.OfflineProxyThreshold)
+                .With("OfflineProxyCount", dataCenterDisrupted.OfflineProxyCount);
         }
     }
 
@@ -637,7 +627,8 @@ THashSet<std::string> ScanForObsoleteCypressNodes(const TSchedulerInputState& in
         }
 
         if (IsOnline(instanceInfo)) {
-            YT_LOG_WARNING("Skipping obsolete Cypress node in online state (InstanceName: %v)", instanceName);
+            YT_TLOG_WARNING("Skipping obsolete Cypress node in online state")
+                .With("InstanceName", instanceName);
             continue;
         }
 
@@ -679,6 +670,23 @@ void ManageInstances(
     ISpareInstanceAllocatorPtr spareProxiesAllocator,
     TSchedulerMutations* mutations)
 {
+    if (!input.Config->HasInstanceAllocatorService) {
+        // Temporary adapters used only for AnnotateNewInstances; they don't need real bundle state.
+        auto dummyState = New<TBundleControllerState>();
+        TDataCenterToInstanceMap emptyMap;
+        THashMap<std::string, THashSet<std::string>> emptyAlive;
+
+        if (input.DynamicConfig->AnnotateNewNodes.value_or(input.Config->AnnotateNewNodes)) {
+            auto nodeAdapter = CreateTabletNodeAllocatorAdapter(dummyState, emptyMap, emptyAlive);
+            AnnotateNewInstances(input, nodeAdapter.Get(), mutations);
+        }
+
+        if (input.DynamicConfig->AnnotateNewProxies.value_or(input.Config->AnnotateNewProxies)) {
+            auto proxyAdapter = CreateRpcProxyAllocatorAdapter(dummyState, emptyMap, emptyAlive);
+            AnnotateNewInstances(input, proxyAdapter.Get(), mutations);
+        }
+    }
+
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
         auto guard = mutations->MakeBundleNameGuard(bundleName);
 
@@ -698,7 +706,7 @@ void ManageInstances(
             continue;
         }
 
-        const auto& bundleNodes = input.BundleNodes[bundleName];
+        const auto& bundleNodes = input.NodesAllocatedForBundle[bundleName];
         auto aliveNodes = GetAliveNodes(
             bundleName,
             bundleNodes,
@@ -709,7 +717,7 @@ void ManageInstances(
         TInstanceManager nodeAllocator(bundleName, input, spareNodesAllocator, nodeAdapter.Get(), mutations);
         nodeAllocator.ManageInstances();
 
-        const auto& bundleProxies = input.BundleProxies[bundleName];
+        const auto& bundleProxies = input.ProxiesAllocatedForBundle[bundleName];
         auto aliveProxies = GetAliveProxies(bundleProxies, input, EGracePeriodBehaviour::Wait);
         auto proxyAdapter = CreateRpcProxyAllocatorAdapter(bundleState, bundleProxies, aliveProxies);
         TInstanceManager proxyAllocator(bundleName, input, spareProxiesAllocator, proxyAdapter.Get(), mutations);
@@ -737,7 +745,7 @@ void ManageCells(TSchedulerInputState& input, TSchedulerMutations* mutations)
             continue;
         }
 
-        const auto& bundleNodes = input.BundleNodes[bundleName];
+        const auto& bundleNodes = input.NodesAllocatedForBundle[bundleName];
         CreateRemoveTabletCells(bundleName, bundleNodes, input, mutations);
         ProcessRemovingCells(bundleName, bundleNodes, input, mutations);
     }
@@ -784,15 +792,13 @@ TCpuLimitsPtr GetBundleEffectiveCpuLimits(
     }
 
     if (currentCellCount > targetCellCount || removingCellCount > 0) {
-        YT_LOG_DEBUG("Will not set new bundle dynamic config with reduced \"write_thread_pool_size\" since not all cells are removed "
-            "(BundleName: %v, CurrentCellCount: %v, TargetCellCount: %v, RemovingCellCount: %v, "
-            "OldCpuLimits: %v, NewCpuLimits: %v)",
-            bundleName,
-            currentCellCount,
-            targetCellCount,
-            removingCellCount,
-            ConvertToYsonString(previousCpuLimits, EYsonFormat::Text),
-            ConvertToYsonString(currentCpuLimits, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Will not set new bundle dynamic config with reduced \"write_thread_pool_size\" since not all cells are removed")
+            .With("BundleName", bundleName)
+            .With("CurrentCellCount", currentCellCount)
+            .With("TargetCellCount", targetCellCount)
+            .With("RemovingCellCount", removingCellCount)
+            .With("OldCpuLimits", ConvertToYsonString(previousCpuLimits, EYsonFormat::Text))
+            .With("NewCpuLimits", ConvertToYsonString(currentCpuLimits, EYsonFormat::Text));
         return previousCpuLimits;
     }
 
@@ -813,7 +819,8 @@ void ManageBundlesDynamicConfig(TSchedulerInputState& input, TSchedulerMutations
         }
 
         if (bundleInfo->NodeTagFilter.empty()) {
-            YT_LOG_WARNING("Bundle has empty node tag filter (BundleName: %v)", bundleName);
+            YT_TLOG_WARNING("Bundle has empty node tag filter")
+                .With("BundleName", bundleName);
             continue;
         }
 
@@ -828,8 +835,8 @@ void ManageBundlesDynamicConfig(TSchedulerInputState& input, TSchedulerMutations
         return;
     }
 
-    YT_LOG_INFO("Bundles dynamic config has changed (Config: %v)",
-        ConvertToYsonString(freshConfig, EYsonFormat::Text));
+    YT_TLOG_INFO("Bundles dynamic config has changed")
+        .With("Config", ConvertToYsonString(freshConfig, EYsonFormat::Text));
 
     mutations->BundlesDynamicConfig = freshConfig;
 }
@@ -852,10 +859,10 @@ TIndexedEntries<TBundleControllerState> GetActuallyChangedStates(
         if (AreNodesEqual(ConvertTo<NYTree::INodePtr>(it->second), ConvertTo<NYTree::INodePtr>(possiblyChangedState))) {
             unchangedBundleStates.push_back(bundleName);
         } else {
-            YT_LOG_DEBUG("Bundle state changed (Bundle: %v, OldState: %v, NewState: %v)",
-                bundleName,
-                ConvertToYsonString(it->second, EYsonFormat::Text),
-                ConvertToYsonString(possiblyChangedState, EYsonFormat::Text));
+            YT_TLOG_DEBUG("Bundle state changed")
+                .With("Bundle", bundleName)
+                .With("OldState", ConvertToYsonString(it->second, EYsonFormat::Text))
+                .With("NewState", ConvertToYsonString(possiblyChangedState, EYsonFormat::Text));
         }
     }
 
@@ -879,9 +886,9 @@ void ManageBundleShortName(TSchedulerInputState& input, TSchedulerMutations* mut
             continue;
         }
 
-        YT_LOG_INFO("Assigning short name for bundle (Bundle: %v, ShortName: %v)",
-            bundleName,
-            shortName);
+        YT_TLOG_INFO("Assigning short name for bundle")
+            .With("Bundle", bundleName)
+            .With("ShortName", shortName);
 
         mutations->ChangedBundleShortName[bundleName] = shortName;
     }
@@ -901,8 +908,8 @@ void InitializeNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* 
         }
 
         if (bundleInfo->Areas.empty()) {
-            YT_LOG_WARNING("Bundle does not have any tablet cell area (BundleName: %v)",
-                bundleName);
+            YT_TLOG_WARNING("Bundle does not have any tablet cell area")
+                .With("BundleName", bundleName);
 
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "no_areas_found",
@@ -920,9 +927,9 @@ void InitializeNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* 
             bundleInfo->NodeTagFilter = nodeTagFilter;
             mutations->ChangedNodeTagFilters[bundleName] = mutations->WrapMutation(static_cast<std::string>(nodeTagFilter));
 
-            YT_LOG_INFO("Initializing node tag filter for bundle (Bundle: %v, NodeTagFilter: %v)",
-                bundleName,
-                nodeTagFilter);
+            YT_TLOG_INFO("Initializing node tag filter for bundle")
+                .With("Bundle", bundleName)
+                .With("NodeTagFilter", nodeTagFilter);
         }
     }
 }
@@ -945,15 +952,15 @@ void ProcessEnableDrillsMode(const std::string& bundleName, const TSchedulerInpu
         return;
     }
 
-    YT_LOG_DEBUG("Processing turning on drills mode (BundleName: %v)",
-        bundleName);
+    YT_TLOG_DEBUG("Processing turning on drills mode")
+        .With("BundleName", bundleName);
 
     auto operationAge = TInstant::Now() - drillsMode->TurningOn->CreationTime;
     if (operationAge > input.Config->NodeAssignmentTimeout) {
-        YT_LOG_WARNING("Turning on drills mode is stuck (BundleName: %v, OperationAge: %v, Threshold: %v)",
-            bundleName,
-            operationAge,
-            input.Config->NodeAssignmentTimeout);
+        YT_TLOG_WARNING("Turning on drills mode is stuck")
+            .With("BundleName", bundleName)
+            .With("OperationAge", operationAge)
+            .With("Threshold", input.Config->NodeAssignmentTimeout);
 
         mutations->AlertsToFire.push_back(TAlert{
             .Id = "stuck_drills_mode",
@@ -970,24 +977,24 @@ void ProcessEnableDrillsMode(const std::string& bundleName, const TSchedulerInpu
         mutations->ChangedMuteTabletCellsCheck[bundleName] = mutations->WrapMutation(true);
         mutations->ChangedMuteTabletCellSnapshotsCheck[bundleName] = mutations->WrapMutation(true);
 
-        YT_LOG_DEBUG("Disabling tablet cell checks for bundle (BundleName: %v)",
-            bundleName);
+        YT_TLOG_DEBUG("Disabling tablet cell checks for bundle")
+            .With("BundleName", bundleName);
 
         return;
     }
 
     auto drillsNodeTagFilter = GetDrillsNodeTagFilter(bundleInfo, bundleName);
     if (bundleInfo->NodeTagFilter != drillsNodeTagFilter) {
-        YT_LOG_DEBUG("Setting drills node tag filter for bundle (BundleName: %v, NodeTagFilter: %v)",
-            bundleName,
-            drillsNodeTagFilter);
+        YT_TLOG_DEBUG("Setting drills node tag filter for bundle")
+            .With("BundleName", bundleName)
+            .With("NodeTagFilter", drillsNodeTagFilter);
 
         mutations->ChangedNodeTagFilters[bundleName] = mutations->WrapMutation(drillsNodeTagFilter);
         return;
     }
 
-    YT_LOG_DEBUG("Finished turning on drills mode (BundleName: %v)",
-        bundleName);
+    YT_TLOG_DEBUG("Finished turning on drills mode")
+        .With("BundleName", bundleName);
 
     drillsMode->TurningOn.Reset();
 }
@@ -1001,17 +1008,17 @@ void ProcessDisableDrillsMode(const std::string& bundleName, const TSchedulerInp
         return;
     }
 
-    YT_LOG_DEBUG("Processing turning off drills mode (BundleName: %v)",
-        bundleName);
+    YT_TLOG_DEBUG("Processing turning off drills mode")
+        .With("BundleName", bundleName);
 
     auto operationAge = TInstant::Now() - drillsMode->TurningOff->CreationTime;
     auto disableTimeout = input.Config->NodeAssignmentTimeout + input.Config->MuteTabletCellsCheckGracePeriod;
 
     if (operationAge > disableTimeout) {
-        YT_LOG_WARNING("Turning off drills mode is stuck (BundleName: %v, OperationAge: %v, Threshold: %v)",
-            bundleName,
-            operationAge,
-            disableTimeout);
+        YT_TLOG_WARNING("Turning off drills mode is stuck")
+            .With("BundleName", bundleName)
+            .With("OperationAge", operationAge)
+            .With("Threshold", disableTimeout);
 
         mutations->AlertsToFire.push_back(TAlert{
             .Id = "stuck_disable_drills_mode",
@@ -1028,33 +1035,33 @@ void ProcessDisableDrillsMode(const std::string& bundleName, const TSchedulerInp
     if (bundleInfo->NodeTagFilter != nodeTagFilter) {
         mutations->ChangedNodeTagFilters[bundleName] = mutations->WrapMutation(nodeTagFilter);
 
-        YT_LOG_DEBUG("Setting node tag filter for bundle (BundleName: %v, NodeTagFilter: %v)",
-            bundleName,
-            nodeTagFilter);
+        YT_TLOG_DEBUG("Setting node tag filter for bundle")
+            .With("BundleName", bundleName)
+            .With("NodeTagFilter", nodeTagFilter);
 
         return;
     }
 
     if (operationAge < input.Config->MuteTabletCellsCheckGracePeriod) {
-        YT_LOG_DEBUG("Waiting grace period before enabling tablet cell checks (BundleName: %v, OperationAge: %v, Threshold: %v)",
-            bundleName,
-            operationAge,
-            input.Config->MuteTabletCellsCheckGracePeriod);
+        YT_TLOG_DEBUG("Waiting grace period before enabling tablet cell checks")
+            .With("BundleName", bundleName)
+            .With("OperationAge", operationAge)
+            .With("Threshold", input.Config->MuteTabletCellsCheckGracePeriod);
 
         return;
     }
 
     if (bundleInfo->MuteTabletCellsCheck || bundleInfo->MuteTabletCellSnapshotsCheck) {
-        YT_LOG_DEBUG("Enabling tablet cell checks for bundle (BundleName: %v)",
-            bundleName);
+        YT_TLOG_DEBUG("Enabling tablet cell checks for bundle")
+            .With("BundleName", bundleName);
 
         mutations->ChangedMuteTabletCellsCheck[bundleName] = mutations->WrapMutation(false);
         mutations->ChangedMuteTabletCellSnapshotsCheck[bundleName] = mutations->WrapMutation(false);
         return;
     }
 
-    YT_LOG_DEBUG("Finished turning off drills mode (BundleName: %v)",
-        bundleName);
+    YT_TLOG_DEBUG("Finished turning off drills mode")
+        .With("BundleName", bundleName);
 
     drillsMode->TurningOff.Reset();
 }
@@ -1185,9 +1192,9 @@ void InitializeBundleTargetConfig(TSchedulerInputState& input, TSchedulerMutatio
     }
 
     for (const auto& [bundleName, targetConfig] : mutations->InitializedBundleTargetConfig) {
-        YT_LOG_INFO("Initializing target config for bundle (Bundle: %v, TargetConfig: %v)",
-            bundleName,
-            ConvertToYsonString(targetConfig, EYsonFormat::Text));
+        YT_TLOG_INFO("Initializing target config for bundle")
+            .With("Bundle", bundleName)
+            .With("TargetConfig", ConvertToYsonString(targetConfig, EYsonFormat::Text));
     }
 }
 
@@ -1201,8 +1208,8 @@ void MiscBundleChecks(const TSchedulerInputState& input, TSchedulerMutations* mu
         }
 
         if (bundleInfo->BundleHotfix) {
-            YT_LOG_WARNING("Hotfix mode is enabled for bundle (BundleName: %v)",
-                bundleName);
+            YT_TLOG_WARNING("Hotfix mode is enabled for bundle")
+                .With("BundleName", bundleName);
 
             mutations->AlertsToFire.push_back({
                 .Id = "hotfix_mode_is_enabled",
@@ -1215,9 +1222,9 @@ void MiscBundleChecks(const TSchedulerInputState& input, TSchedulerMutations* mu
     for (const auto& [zoneName, zoneInfo] : input.Zones) {
         for (const auto& [dataCenterName, dataCenter] : zoneInfo->DataCenters) {
             if (dataCenter->Forbidden) {
-                YT_LOG_WARNING("Data center is forbidden (Zone: %v, DataCenter: %v)",
-                    zoneName,
-                    dataCenterName);
+                YT_TLOG_WARNING("Data center is forbidden")
+                    .With("Zone", zoneName)
+                    .With("DataCenter", dataCenterName);
 
                 mutations->AlertsToFire.push_back({
                     .Id = "dc_is_forbidden",
@@ -1266,8 +1273,12 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
 
     mutations->ChangedStates = GetActuallyChangedStates(input, *mutations);
 
-    YT_LOG_DEBUG("Logging scheduled mutations");
+    YT_TLOG_DEBUG("Logging scheduled mutations");
     mutations->Log(Logger());
+
+    if (input.DynamicConfig->FlushLogAfterMutations) {
+        NLogging::TLogManager::Get()->Synchronize();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

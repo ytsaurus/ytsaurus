@@ -1,15 +1,14 @@
 #include "chunk_proxy.h"
 
-#include "private.h"
 #include "chunk.h"
 #include "chunk_manager.h"
 #include "chunk_reincarnator.h"
+#include "chunk_replica_fetcher.h"
 #include "chunk_replicator.h"
+#include "helpers.h"
 #include "job.h"
 #include "job_registry.h"
-#include "domestic_medium.h"
-#include "helpers.h"
-#include "chunk_replica_fetcher.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
@@ -35,9 +34,12 @@
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+
 #include <yt/yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
@@ -278,6 +280,9 @@ private:
         descriptors->emplace_back(EInternedAttributeKey::ScheduleReincarnation)
             .SetWritable(!isForeign)
             .SetPresent(false);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableVerboseLogging)
+            .SetWritable(!chunk->IsForeign())
+            .SetPresent(!chunk->IsForeign()));
     }
 
     void SerializeReplica(
@@ -493,8 +498,7 @@ private:
                 const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
                 const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
                 BuildYsonFluently(consumer)
-                    .DoMapFor(0, std::ssize(cellTags), [&] (TFluentMap fluent, int index) {
-                        auto cellTag = cellTags[index];
+                    .DoMapFor(cellTags, [&] (TFluentMap fluent, TCellTag cellTag) {
                         const auto exportData = chunk->GetExportData(cellTag);
                         if (exportData.RefCounter > 0) {
                             auto requisitionIndex = exportData.ChunkRequisitionIndex;
@@ -513,8 +517,7 @@ private:
 
                 const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
                 BuildYsonFluently(consumer)
-                    .DoMapFor(0, std::ssize(cellTags), [&] (TFluentMap fluent, int index) {
-                        auto cellTag = cellTags[index];
+                    .DoMapFor(cellTags, [&] (TFluentMap fluent, TCellTag cellTag) {
                         const auto exportData = chunk->GetExportData(cellTag);
                         if (exportData.RefCounter > 0) {
                             fluent
@@ -546,8 +549,7 @@ private:
                 const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
                 const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
                 BuildYsonFluently(consumer)
-                    .DoMapFor(0, std::ssize(cellTags), [&] (TFluentMap fluent, int index) {
-                        auto cellTag = cellTags[index];
+                    .DoMapFor(cellTags, [&] (TFluentMap fluent, TCellTag cellTag) {
                         const auto exportData = chunk->GetExportData(cellTag);
                         if (exportData.RefCounter > 0) {
                             auto requisitionIndex = exportData.ChunkRequisitionIndex;
@@ -965,6 +967,16 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::EnableVerboseLogging: {
+                if (isForeign) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(chunkManager->IsVerboselyLogged(chunk));
+                return true;
+            }
+
             default:
                 break;
         }
@@ -983,6 +995,9 @@ private:
 
         auto isForeign = chunk->IsForeign();
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto userNameToForward = securityManager->GetAuthenticatedUserNameToForward();
+
         auto requestAttributeFromAllPeers = [&] (const std::string& attributeSuffix) {
             std::vector<TFuture<TIntrusivePtr<TObjectYPathProxy::TRspGet>>> responseFutures;
             responseFutures.reserve(cellManager->GetTotalPeerCount());
@@ -993,7 +1008,7 @@ private:
                 // TODO(nadya02): Set the correct timeout here.
                 proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
                 auto req = TYPathProxy::Get(FromObjectId(chunk->GetId()) + attributeSuffix);
-                responseFutures.push_back(proxy.Execute(req));
+                responseFutures.push_back(proxy.ExecuteAs(userNameToForward, req));
             }
 
             return responseFutures;
@@ -1003,7 +1018,7 @@ private:
             auto replicatorChannel = chunkManager->GetChunkReplicatorChannelOrThrow(chunk);
             auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(replicatorChannel));
             auto req = TYPathProxy::Get(FromObjectId(chunk->GetId()) + attributeSuffix);
-            return proxy.Execute(req)
+            return proxy.ExecuteAs(userNameToForward, req)
                 .Apply(BIND([] (const TIntrusivePtr<TObjectYPathProxy::TRspGet>& rsp) {
                     return MakeFuture(TYsonString{rsp->value()});
                 }));
@@ -1034,7 +1049,10 @@ private:
                     break;
                 }
 
-                return chunkReplicaFetcher->GetChunkReplicasAsync({TEphemeralObjectPtr<TChunk>(chunk)})
+                TEphemeralObjectPtr<TChunk> chunkPtr(chunk);
+                return chunkReplicaFetcher->GetChunkReplicasAsync(
+                    chunkPtr.Clone(),
+                    /*includeUnapproved*/ false)
                     .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TSequoiaChunkReplica>& replicas) {
                         auto aliveReplicas = chunkReplicaFetcher->FilterAliveReplicas(replicas);
                         auto statuses = chunkReplicator->ComputeChunkStatuses(chunk, aliveReplicas);
@@ -1062,6 +1080,10 @@ private:
                                         .Item("parity_missing").Value(Any(status & EChunkStatus::ParityMissing))
                                         .Item("unsafely_placed").Value(Any(status & EChunkStatus::UnsafelyPlaced))
                                         .Item("temporarily_unavailable").Value(Any(status & EChunkStatus::TemporarilyUnavailable))
+                                        .Item("data_decommissioned").Value(Any(status & EChunkStatus::DataDecommissioned))
+                                        .Item("parity_decommissioned").Value(Any(status & EChunkStatus::ParityDecommissioned))
+                                        .Item("sealed_missing").Value(Any(status & EChunkStatus::SealedMissing))
+                                        .Item("inconsistently_placed").Value(Any(status & EChunkStatus::InconsistentlyPlaced))
                                     .EndMap();
                             });
                     })
@@ -1080,7 +1102,8 @@ private:
                         THashSet<EChunkScanKind> seenScanKinds;
                         for (const auto& rspOrError : rspOrErrors) {
                             if (!rspOrError.IsOK()) {
-                                YT_LOG_DEBUG(rspOrError, "Failed to request chunk scan flags from peer");
+                                YT_TLOG_DEBUG("Failed to request chunk scan flags from peer")
+                                    .With(rspOrError);
                                 continue;
                             }
 
@@ -1101,7 +1124,8 @@ private:
                         auto builder = BuildYsonStringFluently().BeginList();
                         for (const auto& rspOrError : rspOrErrors) {
                             if (!rspOrError.IsOK()) {
-                                YT_LOG_DEBUG(rspOrError, "Failed to request chunk jobs from peer");
+                                YT_TLOG_DEBUG("Failed to request chunk jobs from peer")
+                                    .With(rspOrError);
                                 continue;
                             }
 
@@ -1139,7 +1163,9 @@ private:
                 }
 
                 auto chunkId = chunk->GetId();
-                return chunkReplicaFetcher->GetChunkReplicasAsync({TEphemeralObjectPtr<TChunk>(chunk)})
+                return chunkReplicaFetcher->GetChunkReplicasAsync(
+                    TEphemeralObjectPtr<TChunk>(chunk),
+                    /*includeUnapproved*/ true)
                     .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TSequoiaChunkReplica>& replicas) {
                         auto aliveReplicas = chunkReplicaFetcher->FilterAliveReplicas(replicas);
                         return BuildYsonStringFluently()
@@ -1204,7 +1230,8 @@ private:
                             auto error = TError("Unexpected last seen replicas size %v for erasure chunk %v",
                                 std::ssize(lastSeenReplicas),
                                 chunkId);
-                            YT_LOG_ALERT(error);
+                            YT_TLOG_ALERT("Unexpected last seen replica count for erasure chunk")
+                                .With(error);
                             THROW_ERROR_EXCEPTION(error);
                         }
                         for (int index = 0; index < ::NErasure::MaxTotalPartCount; ++index) {
@@ -1278,16 +1305,30 @@ private:
     {
         switch (key) {
             case EInternedAttributeKey::ScheduleReincarnation: {
+                ValidateSuperuserOnAttributeModification(Bootstrap_->GetSecurityManager(), key.Unintern());
+
                 auto* chunk = GetThisImpl<TChunk>();
                 if (chunk->IsForeign()) {
                     THROW_ERROR_EXCEPTION("Reincarnation can be scheduled for native chunks only");
                 }
 
-                ValidateSuperuserOnAttributeModification(Bootstrap_->GetSecurityManager(), key.Unintern());
-
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 const auto& chunkReincarnator = chunkManager->GetChunkReincarnator();
                 chunkReincarnator->ScheduleReincarnation(chunk, ConvertTo<TChunkReincarnationOptions>(value));
+
+                return true;
+            }
+
+            case EInternedAttributeKey::EnableVerboseLogging: {
+                ValidateSuperuserOnAttributeModification(Bootstrap_->GetSecurityManager(), key.Unintern());
+
+                auto* chunk = GetThisImpl<TChunk>();
+                if (chunk->IsForeign()) {
+                    THROW_ERROR_EXCEPTION("Verbose chunk logging can be enabled for native chunks only");
+                }
+
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                chunkManager->SetVerboselyLogged(chunk, ConvertTo<bool>(value));
 
                 return true;
             }
@@ -1308,7 +1349,7 @@ private:
 
         DeclareNonMutating();
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         auto chunk = TEphemeralObjectPtr<TChunk>(GetThisImpl());
 

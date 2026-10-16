@@ -1,9 +1,12 @@
 #include "squash_fs_layout_builder.h"
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 namespace NYT::NSquashFS {
 
 using namespace NConcurrency;
 using namespace NNbd;
+using namespace NNbd::NImage;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -139,7 +142,7 @@ DEFINE_REFCOUNTED_TYPE(TFileInode)
 struct IEntry
     : public virtual TRefCounted
 {
-    virtual const TString& Name() const = 0;
+    virtual const std::string& Name() const = 0;
     virtual ui16 GetPermissions() const = 0;
     virtual ui32 GetUid() const = 0;
     virtual ui32 GetGid() const = 0;
@@ -160,7 +163,7 @@ class TDirectory
     : public IEntry
 {
 public:
-    DEFINE_BYREF_RO_PROPERTY_NO_INIT_OVERRIDE(TString, Name);
+    DEFINE_BYREF_RO_PROPERTY_NO_INIT_OVERRIDE(std::string, Name);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT_OVERRIDE(ui16, Permissions);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT_OVERRIDE(ui32, Uid);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT_OVERRIDE(ui32, Gid);
@@ -169,7 +172,7 @@ public:
 
 public:
     TDirectory(
-        TString name,
+        std::string name,
         ui16 permissions,
         ui32 uid,
         ui32 gid,
@@ -181,11 +184,11 @@ public:
 
     EInodeType GetType() const override;
 
-    TDirectoryPtr CreateDirectory(const TString& name);
+    TDirectoryPtr CreateDirectory(const std::string& name);
 
     void CreateFile(
-        const TString& name,
-        const TString& path,
+        const std::string& name,
+        const std::string& path,
         ui16 permissions,
         IRandomAccessFileReaderPtr reader);
 
@@ -194,7 +197,7 @@ public:
 private:
     TDirectoryInodePtr Inode_;
 
-    IEntryPtr GetEntry(const TString& name) const;
+    IEntryPtr GetEntry(const std::string& name) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDirectory)
@@ -205,8 +208,8 @@ class TFile
     : public IEntry
 {
 public:
-    DEFINE_BYREF_RO_PROPERTY_NO_INIT_OVERRIDE(TString, Name);
-    DEFINE_BYVAL_RO_PROPERTY_NO_INIT(TString, Path);
+    DEFINE_BYREF_RO_PROPERTY_NO_INIT_OVERRIDE(std::string, Name);
+    DEFINE_BYVAL_RO_PROPERTY_NO_INIT(std::string, Path);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT(i64, Size);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT_OVERRIDE(ui16, Permissions);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT_OVERRIDE(ui32, Uid);
@@ -216,8 +219,8 @@ public:
 
 public:
     TFile(
-        TString name,
-        TString path,
+        std::string name,
+        std::string path,
         ui16 permissions,
         ui32 uid,
         ui32 gid,
@@ -245,7 +248,7 @@ public:
     explicit TSquashFSLayoutBuilder(TSquashFSLayoutBuilderOptions options);
 
     void AddFile(
-        TString path,
+        std::string path,
         ui16 permissions,
         IRandomAccessFileReaderPtr reader) override;
     TSquashFSLayoutPtr Build() override;
@@ -455,7 +458,7 @@ private:
 
     // Store image in buffer by metadata rules
     // https://dr-emann.github.io/squashfs/squashfs.html#_packing_metadata
-    // and return lookup table at the begining of each block.
+    // and return lookup table at the beginning of each block.
     // https://dr-emann.github.io/squashfs/squashfs.html#_storing_lookup_tables .
     static std::vector<ui64> AppendMetadata(
         TBlobOutput& buffer,
@@ -497,9 +500,9 @@ TSharedRef TSquashFSLayout::ReadHead(
         offset + length > std::ssize(Head_))
     {
         THROW_ERROR_EXCEPTION("Invalid read of squashfs header")
-            << TErrorAttribute("offset", offset)
-            << TErrorAttribute("length", length)
-            << TErrorAttribute("head_size", std::ssize(Head_));
+            .With("offset", offset)
+            .With("length", length)
+            .With("head_size", std::ssize(Head_));
     }
 
     return Head_.Slice(
@@ -521,9 +524,9 @@ TSharedRef TSquashFSLayout::ReadTail(
         offset + length > std::ssize(Tail_))
     {
         THROW_ERROR_EXCEPTION("Invalid read of squashfs tail")
-            << TErrorAttribute("offset", offset)
-            << TErrorAttribute("length", length)
-            << TErrorAttribute("tail_size", std::ssize(Tail_));
+            .With("offset", offset)
+            .With("length", length)
+            .With("tail_size", std::ssize(Tail_));
     }
 
     return Tail_.Slice(
@@ -605,7 +608,7 @@ void TSquashFSLayout::DumpHexText(IOutputStream& output) const
 ////////////////////////////////////////////////////////////////////////////////
 
 TDirectory::TDirectory(
-    TString name,
+    std::string name,
     ui16 permissions,
     ui32 uid,
     ui32 gid,
@@ -637,13 +640,13 @@ EInodeType TDirectory::GetType() const
     return EInodeType::BasicDirectory;
 }
 
-TDirectoryPtr TDirectory::CreateDirectory(const TString& name)
+TDirectoryPtr TDirectory::CreateDirectory(const std::string& name)
 {
     auto entry = GetEntry(name);
     if (entry) {
         if (entry->GetType() != EInodeType::BasicDirectory) {
             THROW_ERROR_EXCEPTION("Cannot open directory: file with the same name already exists")
-                << TErrorAttribute("name", name);
+                .With("name", name);
         }
 
         return DynamicPointerCast<TDirectory>(entry);
@@ -660,8 +663,8 @@ TDirectoryPtr TDirectory::CreateDirectory(const TString& name)
 }
 
 void TDirectory::CreateFile(
-    const TString& name,
-    const TString& path,
+    const std::string& name,
+    const std::string& path,
     ui16 permissions,
     IRandomAccessFileReaderPtr reader)
 {
@@ -669,10 +672,10 @@ void TDirectory::CreateFile(
     if (entry) {
         if (entry->GetType() == EInodeType::BasicFile) {
             THROW_ERROR_EXCEPTION("The file was already created")
-                << TErrorAttribute("name", name);
+                .With("name", name);
         }
         THROW_ERROR_EXCEPTION("Cannot create file: directory with the same name already exists")
-            << TErrorAttribute("name", name);
+            .With("name", name);
     }
 
     auto newFile = New<TFile>(
@@ -698,7 +701,7 @@ void TDirectory::SortEntries()
         compareNames);
 }
 
-IEntryPtr TDirectory::GetEntry(const TString& name) const
+IEntryPtr TDirectory::GetEntry(const std::string& name) const
 {
     for (const auto& entry : Entries_) {
         if (entry->Name() == name) {
@@ -712,8 +715,8 @@ IEntryPtr TDirectory::GetEntry(const TString& name) const
 ////////////////////////////////////////////////////////////////////////////////
 
 TFile::TFile(
-    TString name,
-    TString path,
+    std::string name,
+    std::string path,
     ui16 permissions,
     ui32 uid,
     ui32 gid,
@@ -770,16 +773,16 @@ TSquashFSLayoutBuilder::TSquashFSLayoutBuilder(TSquashFSLayoutBuilderOptions opt
         THROW_ERROR_EXCEPTION("Incorrect squashfs block size: it must be a power of two between %v and %v bytes",
             MinDataBlockSize,
             MaxDataBlockSize)
-            << TErrorAttribute("block_size", BlockSize_);
+            .With("block_size", BlockSize_);
     }
 }
 
 void TSquashFSLayoutBuilder::AddFile(
-    TString path,
+    std::string path,
     ui16 permissions,
     IRandomAccessFileReaderPtr reader)
 {
-    auto splittedPath = StringSplitter(path).Split('/').ToList<TString>();
+    auto splittedPath = StringSplitter(path).Split('/').ToList<std::string>();
 
     if (splittedPath.empty()) {
         THROW_ERROR_EXCEPTION("The path is empty");
@@ -793,14 +796,14 @@ void TSquashFSLayoutBuilder::AddFile(
         THROW_ERROR_EXCEPTION("The path ends by directory, not by file");
     }
 
-    auto validateName = [] (const TString& name) {
+    auto validateName = [] (const std::string& name) {
         if (name.empty() ||
             name.size() > MaxEntryNameLength)
         {
             THROW_ERROR_EXCEPTION("The directory/file name has incorrect number of symbols: it must be between 1 and %v characters",
                 MaxEntryNameLength)
-                << TErrorAttribute("name", name)
-                << TErrorAttribute("name_size", std::ssize(name));
+                .With("name", name)
+                .With("name_size", std::ssize(name));
         }
     };
 
@@ -1232,11 +1235,12 @@ void TSquashFSLayoutBuilder::TDirectoryTable::Add(const TDirectoryPtr& directory
             std::vector<ui8> nameVector(nameString.begin(), nameString.end());
 
             // Create entry.
+            i64 nameVectorSize = nameVector.size();
             auto newEntry = TDirectoryTableEntry(
                 inode->InodeBlockOffset,
                 inode->InodeNumber - inodeNumber,
                 entry->GetType(),
-                nameVector.size() - 1,
+                nameVectorSize - 1,
                 std::move(nameVector));
 
             i64 entrySize = GetDirectoryTableEntrySize(newEntry);

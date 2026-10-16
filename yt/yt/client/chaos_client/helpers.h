@@ -17,8 +17,10 @@ NObjectClient::TCellTag GetSiblingChaosCellTag(NObjectClient::TCellTag cellTag);
 
 bool IsValidReplicationProgress(const TReplicationProgress& progress);
 bool IsOrderedTabletReplicationProgress(const TReplicationProgress& progress);
+bool IsOrderedTableReplicationProgress(const TReplicationProgress& progress, int tabletCount);
 void ValidateOrderedTabletReplicationProgress(const TReplicationProgress& progress);
+void ValidateOrderedTableReplicationProgress(const TReplicationProgress& progress, int tabletCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletClient
+} // namespace NYT::NChaosClient

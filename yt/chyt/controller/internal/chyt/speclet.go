@@ -6,11 +6,16 @@ import (
 	"go.ytsaurus.tech/yt/go/ypath"
 )
 
+type ClusterConnectionDynamicConfigMode string
+
 type Speclet struct {
 	Resources
 
 	CHYTVersion       *string `yson:"chyt_version"`
 	TrampolineVersion *string `yson:"trampoline_version"`
+
+	// ClusterConnectionDynamicConfigMode requires a server-side configured synchronizer.
+	ClusterConnectionDynamicConfigMode *ClusterConnectionDynamicConfigMode `yson:"cluster_connection_dynamic_config_mode"`
 
 	EnableGeodata *bool       `yson:"enable_geodata"`
 	GeodataPath   *ypath.Path `yson:"geodata_path"`
@@ -37,6 +42,12 @@ type Speclet struct {
 	QueryStickyGroupSize          *int `yson:"query_sticky_group_size"`
 
 	RestartOnVersionDrift *bool `yson:"restart_on_version_drift"`
+
+	// ODBCConfig contains ODBC drivers, data sources, and extra files configuration.
+	ODBCConfig *ODBCConfig `yson:"odbc_config"`
+	JDBCConfig *JDBCConfig `yson:"jdbc_config"`
+
+	logsDir *string
 }
 
 type runtimeDataSpec struct {
@@ -45,6 +56,9 @@ type runtimeDataSpec struct {
 }
 
 const (
+	ClusterConnectionFromStaticConfig ClusterConnectionDynamicConfigMode = "from_static_config"
+	ClusterConnectionFromDirectory    ClusterConnectionDynamicConfigMode = "from_cluster_directory"
+
 	DefaultCHYTVersion       = "ytserver-clickhouse"
 	DefaultTrampolineVersion = "clickhouse-trampoline"
 
@@ -57,6 +71,13 @@ const (
 
 	DefaultRestartOnVersionDrift = false
 )
+
+func (speclet *Speclet) ClusterConnectionDynamicConfigModeOrDefault(defaultValue ClusterConnectionDynamicConfigMode) ClusterConnectionDynamicConfigMode {
+	if speclet.ClusterConnectionDynamicConfigMode != nil {
+		return *speclet.ClusterConnectionDynamicConfigMode
+	}
+	return defaultValue
+}
 
 func (speclet *Speclet) CHYTVersionOrDefault() string {
 	if speclet.CHYTVersion != nil {

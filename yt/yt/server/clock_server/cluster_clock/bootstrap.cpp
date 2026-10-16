@@ -46,6 +46,8 @@
 
 #include <yt/yt/core/http/server.h>
 
+#include <yt/yt/core/https/server.h>
+
 #include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker.h>
@@ -57,6 +59,7 @@
 #include <yt/yt/core/rpc/bus/server.h>
 #include <yt/yt/core/rpc/server.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/tree_builder.h>
 #include <yt/yt/core/ytree/virtual.h>
@@ -68,6 +71,7 @@ namespace NYT::NClusterClock {
 using namespace NApi;
 using namespace NAdmin;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NRpc;
 using namespace NNet;
 using namespace NYTree;
@@ -87,7 +91,7 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Bootstrap");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -178,7 +182,7 @@ TFuture<void> TBootstrap::Run()
 }
 
 void TBootstrap::LoadSnapshot(
-    const TString& fileName,
+    const std::string& fileName,
     ESerializationDumpMode dumpMode)
 {
     BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, dumpMode)
@@ -212,10 +216,10 @@ void TBootstrap::DoInitialize()
     CellId_ = localCellConfig->CellId;
     CellTag_ = CellTagFromId(CellId_);
 
-    YT_LOG_INFO("Running clock server (CellId: %v, CellTag: %v, PeerId: %v)",
-        CellId_,
-        CellTag_,
-        localPeerId);
+    YT_TLOG_INFO("Running clock server")
+        .With("CellId", CellId_)
+        .With("CellTag", CellTag_)
+        .With("PeerId", localPeerId);
 
     auto channelFactory = CreateCachingChannelFactory(NRpc::NBus::CreateTcpBusChannelFactory(Config_->BusClient));
 
@@ -269,12 +273,17 @@ void TBootstrap::DoStart()
 {
     HydraFacade_->Initialize();
 
-    YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+    YT_TLOG_INFO("Listening for HTTP requests")
+        .With("Port", Config_->MonitoringPort);
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+    if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+        HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+    }
 
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
+        HttpsServer_,
         ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
         &MonitoringManager_,
         &orchidRoot);
@@ -303,8 +312,14 @@ void TBootstrap::DoStart()
         CreateVirtualNode(CreateCellOrchidService()));
 
     HttpServer_->Start();
+    if (HttpsServer_) {
+        YT_TLOG_INFO("Listening for HTTPS requests")
+            .With("Port", HttpsServer_->GetAddress().GetPort());
+        HttpsServer_->Start();
+    }
 
-    YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+    YT_TLOG_INFO("Listening for RPC requests")
+        .With("Port", Config_->RpcPort);
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
         GetControlInvoker(),
@@ -313,7 +328,7 @@ void TBootstrap::DoStart()
 }
 
 void TBootstrap::DoLoadSnapshot(
-    const TString& fileName,
+    const std::string& fileName,
     ESerializationDumpMode dumpMode)
 {
     auto reader = CreateLocalSnapshotReader(
@@ -325,7 +340,7 @@ void TBootstrap::DoLoadSnapshot(
 
 IYPathServicePtr TBootstrap::CreateCellOrchidService() const
 {
-    return New<TCompositeMapService>()
+    return CreateCompositeMapService()
         ->AddAttribute(EInternedAttributeKey::Opaque, BIND([] (IYsonConsumer* consumer) {
             BuildYsonFluently(consumer)
                 .Value(true);

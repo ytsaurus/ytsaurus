@@ -3,8 +3,8 @@
 #include "automaton.h"
 #include "chaos_manager.h"
 #include "chaos_slot.h"
-#include "private.h"
-#include "replication_card.h"
+#include "helpers.h"
+#include "chaos_object_base.h"
 #include "shortcut_snapshot_store.h"
 #include "transaction.h"
 #include "transaction_manager.h"
@@ -21,6 +21,7 @@
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
 
@@ -172,6 +173,8 @@ private:
         TReplicationEra Era;
         EShortcutState State;
         THashSet<TTransactionId> AliveTransactions;
+        TTimestamp EraStartTimestamp = NullTimestamp;
+        TTimestamp LastTransactionCommitTimestamp = NullTimestamp;
 
         void Persist(const TPersistenceContext& context)
         {
@@ -180,6 +183,19 @@ private:
             Persist(context, Era);
             Persist(context, State);
             Persist(context, AliveTransactions);
+            if (context.IsSave()) {
+                Persist(context, EraStartTimestamp);
+                Persist(context, LastTransactionCommitTimestamp);
+            } else if (context.IsLoad()) {
+                // COMPAT(osidorkin)
+                if (auto reign = static_cast<EChaosReign>(context.LoadContext().GetVersion());
+                    reign >= EChaosReign::CheckLastTransactionCommitTimestamp ||
+                    (reign >= EChaosReign::CheckLastTransactionCommitTimestamp_26_1 && reign < EChaosReign::Start_26_2))
+                {
+                    Persist(context, EraStartTimestamp);
+                    Persist(context, LastTransactionCommitTimestamp);
+                }
+            }
         }
     };
 
@@ -238,7 +254,7 @@ private:
     TShortcut* FindShortcut(TChaosObjectId chaosObjectId)
     {
         auto it = Shortcuts_.find(chaosObjectId);
-        return it ? &it->second : nullptr;
+        return it != Shortcuts_.end() ? &it->second : nullptr;
     }
 
     void HydraReqSuspend(NChaosClient::NProto::TReqSuspendCoordinator* /*request*/)
@@ -267,8 +283,8 @@ private:
 
         Suspended_ = true;
 
-        YT_LOG_DEBUG("Coordinator suspended (SuspendedAtCells: %v)",
-            cellIds);
+        YT_TLOG_DEBUG("Coordinator suspended")
+            .With("SuspendedAtCells", cellIds);
     }
 
     void HydraReqResume(NChaosClient::NProto::TReqResumeCoordinator* /*request*/)
@@ -297,37 +313,43 @@ private:
 
         Suspended_ = false;
 
-        YT_LOG_DEBUG("Coordinator resumed (ResumedAtCells: %v)",
-            cellIds);
+        YT_TLOG_DEBUG("Coordinator resumed")
+            .With("ResumedAtCells", cellIds);
     }
 
 
     void HydraReqGrantShortcuts(NChaosNode::NProto::TReqGrantShortcuts* request)
     {
         auto chaosCellId = FromProto<TCellId>(request->chaos_cell_id());
-        std::vector<std::pair<TChaosObjectId, TReplicationEra>> grantedShortcuts;
 
         NChaosNode::NProto::TRspGrantShortcuts rsp;
         ToProto(rsp.mutable_coordinator_cell_id(), Slot_->GetCellId());
         rsp.set_suspended(Suspended_);
 
+        std::vector<std::pair<TChaosObjectId, TReplicationEra>> grantedShortcuts;
+        grantedShortcuts.reserve(request->shortcuts().size());
+
         for (const auto& protoShortcut : request->shortcuts()) {
             auto chaosObjectId = FromProto<NChaosClient::TChaosObjectId>(protoShortcut.chaos_object_id());
             auto era = protoShortcut.era();
+            auto eraStartTimestamp = protoShortcut.has_era_start_timestamp()
+                ? FromProto<TTimestamp>(protoShortcut.era_start_timestamp())
+                : NullTimestamp;
 
-            if (auto it = Shortcuts_.find(chaosObjectId)) {
-                YT_LOG_ALERT("Granting shortcut while shortcut already present "
-                    "(ChaosCellId: %v, ChaosObjectId: %v, Type: %v, OldEra: %v, OldState: %v)",
-                    chaosCellId,
-                    chaosObjectId,
-                    TypeFromId(chaosObjectId),
-                    it->second.Era,
-                    it->second.State);
+            if (auto it = Shortcuts_.find(chaosObjectId); it != Shortcuts_.end()) {
+                YT_TLOG_ALERT("Granting shortcut while shortcut already present")
+                    .With("ChaosCellId", chaosCellId)
+                    .With("ChaosObjectId", chaosObjectId)
+                    .With("Era", era)
+                    .With("EraStartTimestamp", eraStartTimestamp)
+                    .With("Type", TypeFromId(chaosObjectId))
+                    .With("OldEra", it->second.Era)
+                    .With("OldState", it->second.State);
 
                 YT_VERIFY(it->second.AliveTransactions.empty());
             }
 
-            InsertShortcut(chaosObjectId, {chaosCellId, era, EShortcutState::Granted, {}});
+            InsertShortcut(chaosObjectId, chaosCellId, era, EShortcutState::Granted, eraStartTimestamp);
             grantedShortcuts.emplace_back(chaosObjectId, era);
 
             auto* rspShortcut = rsp.add_shortcuts();
@@ -339,8 +361,8 @@ private:
         auto mailbox = hiveManager->GetOrCreateCellMailbox(chaosCellId);
         hiveManager->PostMessage(mailbox, rsp);
 
-        YT_LOG_DEBUG("Shortcuts granted (Shortcuts: %v)",
-            MakeFormattableView(grantedShortcuts, [] (auto* builder, const auto& grantedShortcut) {
+        YT_TLOG_DEBUG("Shortcuts granted")
+            .With("Shortcuts", MakeFormattableView(grantedShortcuts, [] (auto* builder, const auto& grantedShortcut) {
                 builder->AppendFormat("<%v, %v>", grantedShortcut.first, grantedShortcut.second);
             }));
     }
@@ -349,34 +371,34 @@ private:
     {
         auto chaosCellId = FromProto<TCellId>(request->chaos_cell_id());
         std::vector<std::pair<TChaosObjectId, TReplicationEra>> revokedShortcuts;
-        std::vector<std::pair<TChaosObjectId, TReplicationEra>> inactiveShortcuts;
+        std::vector<std::tuple<TChaosObjectId, TReplicationEra, TTimestamp>> inactiveShortcuts;
 
         for (auto protoShortcut : request->shortcuts()) {
             auto chaosObjectId = FromProto<NChaosClient::TChaosObjectId>(protoShortcut.chaos_object_id());
             auto era = protoShortcut.era();
 
-            if (!Shortcuts_.contains(chaosObjectId)) {
-                YT_LOG_ALERT("Revoking unknown shortcut (ChaosCellId: %v, ChaosObjectId: %v, Type: %v, Era: %v)",
-                    chaosCellId,
-                    chaosObjectId,
-                    TypeFromId(chaosObjectId),
-                    era);
+            auto it = Shortcuts_.find(chaosObjectId);
+            if (it == Shortcuts_.end()) {
+                YT_TLOG_ALERT("Revoking unknown shortcut")
+                    .With("ChaosCellId", chaosCellId)
+                    .With("ChaosObjectId", chaosObjectId)
+                    .With("Type", TypeFromId(chaosObjectId))
+                    .With("Era", era);
                 continue;
             }
 
-            auto& shortcut = Shortcuts_[chaosObjectId];
+            auto& shortcut = it->second;
             if (IsChaosLeaseType(TypeFromId(chaosObjectId))) {
                 shortcut.CellId = chaosCellId;
             }
 
             if (shortcut.Era != era) {
-                YT_LOG_ALERT("Revoking shortcut with invalid era "
-                    "(ChaosCellId: %v, ChaosObjectId: %v, Type: %v, ShortcutEra: %v, RequestedEra: %v)",
-                    chaosCellId,
-                    chaosObjectId,
-                    TypeFromId(chaosObjectId),
-                    shortcut.Era,
-                    era);
+                YT_TLOG_ALERT("Revoking shortcut with invalid era")
+                    .With("ChaosCellId", chaosCellId)
+                    .With("ChaosObjectId", chaosObjectId)
+                    .With("Type", TypeFromId(chaosObjectId))
+                    .With("ShortcutEra", shortcut.Era)
+                    .With("RequestedEra", era);
             }
 
             revokedShortcuts.emplace_back(chaosObjectId, shortcut.Era);
@@ -384,7 +406,7 @@ private:
             if (!shortcut.AliveTransactions.empty()) {
                 shortcut.State = EShortcutState::Revoking;
             } else {
-                inactiveShortcuts.emplace_back(chaosObjectId, shortcut.Era);
+                inactiveShortcuts.emplace_back(chaosObjectId, shortcut.Era, shortcut.LastTransactionCommitTimestamp);
                 EraseShortcut(chaosObjectId);
             }
         }
@@ -393,12 +415,12 @@ private:
             SendRevokeShortcutsResponse(chaosCellId, inactiveShortcuts);
         }
 
-        YT_LOG_DEBUG("Shortcuts revoked (Shortcuts: %v, Inactive: %v)",
-            MakeFormattableView(revokedShortcuts, [] (auto* builder, const auto& shortcut) {
+        YT_TLOG_DEBUG("Shortcuts revoked")
+            .With("Shortcuts", MakeFormattableView(revokedShortcuts, [] (auto* builder, const auto& shortcut) {
                 builder->AppendFormat("<%v, %v>", shortcut.first, shortcut.second);
-            }),
-            MakeFormattableView(inactiveShortcuts, [] (auto* builder, const auto& shortcut) {
-                builder->AppendFormat("<%v, %v>", shortcut.first, shortcut.second);
+            }))
+            .With("Inactive", MakeFormattableView(inactiveShortcuts, [] (auto* builder, const auto& shortcut) {
+                builder->AppendFormat("<%v, %v>", std::get<0>(shortcut), std::get<1>(shortcut));
             }));
     }
 
@@ -407,32 +429,33 @@ private:
         NChaosClient::NProto::TReqForsakeShortcut* request,
         NChaosClient::NProto::TRspForsakeShortcut* response)
     {
-        auto chaosObjectId = FromProto<TCellId>(request->chaos_object_id());
+        auto chaosObjectId = FromProto<TChaosObjectId>(request->chaos_object_id());
 
-        if (!Shortcuts_.contains(chaosObjectId)) {
-            YT_LOG_DEBUG("Trying to forsake unknown shortcut (ChaosObjectId: %v, Type: %v)",
-                chaosObjectId,
-                TypeFromId(chaosObjectId));
+        auto it = Shortcuts_.find(chaosObjectId);
+        if (it == Shortcuts_.end()) {
+            YT_TLOG_DEBUG("Trying to forsake unknown shortcut")
+                .With("ChaosObjectId", chaosObjectId)
+                .With("Type", TypeFromId(chaosObjectId));
 
             response->set_success(false);
+            return;
         }
 
-        auto& shortcut = Shortcuts_[chaosObjectId];
+        const auto& shortcut = it->second;
 
         if (!shortcut.AliveTransactions.empty()) {
-            YT_LOG_DEBUG("Trying to forsake shortcut with alive transactions "
-                "(ChaosObjectId: %v, Type: %v, TransactionCount: %v)",
-                chaosObjectId,
-                TypeFromId(chaosObjectId),
-                shortcut.AliveTransactions.size());
+            YT_TLOG_DEBUG("Trying to forsake shortcut with alive transactions")
+                .With("ChaosObjectId", chaosObjectId)
+                .With("Type", TypeFromId(chaosObjectId))
+                .With("TransactionCount", shortcut.AliveTransactions.size());
 
             response->set_success(false);
         } else {
             EraseShortcut(chaosObjectId);
 
-            YT_LOG_DEBUG("Shortcut was forsaken (ChaosObjectId: %v, Type: %v)",
-                chaosObjectId,
-                TypeFromId(chaosObjectId));
+            YT_TLOG_DEBUG("Shortcut was forsaken")
+                .With("ChaosObjectId", chaosObjectId)
+                .With("Type", TypeFromId(chaosObjectId));
 
             response->set_success(true);
         }
@@ -453,66 +476,88 @@ private:
             THROW_ERROR_EXCEPTION(
                 NChaosClient::EErrorCode::ShortcutNotFound,
                 "Shortcut for replication card is not found")
-                << TErrorAttribute("replication_card_id", replicationCardId);
+                .With("chaos_object_type", TypeFromId(replicationCardId))
+                .With("chaos_object_id", replicationCardId);
         }
         if (it->second.State != EShortcutState::Granted) {
             THROW_ERROR_EXCEPTION(
                 NChaosClient::EErrorCode::ShortcutRevoked,
                 "Shortcut for replication card has been revoked")
-                << TErrorAttribute("replication_card_id", replicationCardId)
-                << TErrorAttribute("shortcut_state", it->second.State);
+                .With("chaos_object_type", TypeFromId(replicationCardId))
+                .With("chaos_object_id", replicationCardId)
+                .With("shortcut_state", it->second.State);
         }
         if (it->second.Era != era) {
             THROW_ERROR_EXCEPTION(
                 NChaosClient::EErrorCode::ShortcutHasDifferentEra,
                 "Shortcut for replication card has different era")
-                << TErrorAttribute("replication_card_id", replicationCardId)
-                << TErrorAttribute("shortcut_era", it->second.Era)
-                << TErrorAttribute("replication_card_era", era);
+                .With("chaos_object_type", TypeFromId(replicationCardId))
+                .With("chaos_object_id", replicationCardId)
+                .With("shortcut_era", it->second.Era)
+                .With("replication_card_era", era);
         }
 
+        auto transactionId = transaction->GetId();
+
+        // TODO(osidorkin): Make chaos lease a usual transaction participant so we can drop this field.
         auto chaosLeaseIds = FromProto<std::vector<TChaosLeaseId>>(request->prerequisite_ids());
+        SortUnique(chaosLeaseIds);
+
         for (const auto& chaosLeaseId : chaosLeaseIds) {
-            auto it = Shortcuts_.find(chaosLeaseId);
-            if (it == Shortcuts_.end()) {
-                THROW_ERROR_EXCEPTION("Shortcut for chaos lease is not found")
-                    << TErrorAttribute("chaos_lease_id", chaosLeaseId);
+            auto leaseIt = Shortcuts_.find(chaosLeaseId);
+            if (leaseIt == Shortcuts_.end()) {
+                THROW_ERROR_EXCEPTION(
+                    NChaosClient::EErrorCode::ShortcutNotFound,
+                    "Shortcut for chaos lease is not found")
+                    .With("chaos_object_type", TypeFromId(chaosLeaseId))
+                    .With("chaos_object_id", chaosLeaseId);
             }
-            if (it->second.State != EShortcutState::Granted) {
-                THROW_ERROR_EXCEPTION("Shortcut is not in 'Granted' state")
-                    << TErrorAttribute("chaos_lease_id", chaosLeaseId)
-                    << TErrorAttribute("shortcut_state", it->second.State);
+
+            if (leaseIt->second.State != EShortcutState::Granted) {
+                THROW_ERROR_EXCEPTION(
+                    NChaosClient::EErrorCode::ShortcutRevoked,
+                    "Shortcut for chaos lease has been revoked")
+                    .With("chaos_object_type", TypeFromId(chaosLeaseId))
+                    .With("chaos_object_id", chaosLeaseId)
+                    .With("shortcut_state", leaseIt->second.State);
+            }
+
+            if (leaseIt->second.AliveTransactions.contains(transactionId)) {
+                THROW_ERROR_EXCEPTION(
+                    "Transaction already prepared for chaos lease")
+                    .With("chaos_object_id", chaosLeaseId)
+                    .With("transaction_id", transactionId);
             }
         }
 
-        InsertOrCrash(it->second.AliveTransactions, transaction->GetId());
+        InsertOrCrash(it->second.AliveTransactions, transactionId);
 
         for (const auto& chaosLeaseId : chaosLeaseIds) {
-            auto it = GetIteratorOrCrash(Shortcuts_, chaosLeaseId);
-            InsertOrCrash(it->second.AliveTransactions, transaction->GetId());
+            auto leaseIt = GetIteratorOrCrash(Shortcuts_, chaosLeaseId);
+            InsertOrCrash(leaseIt->second.AliveTransactions, transactionId);
         }
 
-        YT_LOG_DEBUG("Replication batch prepared (ReplicationCardId: %v, TransactionId: %v, ChaosLeaseIds: %v)",
-            replicationCardId,
-            transaction->GetId(),
-            chaosLeaseIds);
+        YT_TLOG_DEBUG("Replication batch prepared")
+            .With("ReplicationCardId", replicationCardId)
+            .With("TransactionId", transactionId)
+            .With("ChaosLeaseIds", chaosLeaseIds);
     }
 
     void HydraCommitReplicatedCommit(
         TTransaction* transaction,
         NChaosClient::NProto::TReqReplicatedCommit* request,
-        const TTransactionCommitOptions& /*options*/)
+        const TTransactionCommitOptions& options)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        DiscardAliveTransaction(replicationCardId, transaction->GetId(), false);
+        DiscardAliveTransaction(replicationCardId, transaction->GetId(), options.CommitTimestamp, false);
         for (const auto& protoPrerequisiteId : request->prerequisite_ids()) {
             auto chaosLeaseId = FromProto<TChaosLeaseId>(protoPrerequisiteId);
-            DiscardAliveTransaction(chaosLeaseId, transaction->GetId(), false);
+            DiscardAliveTransaction(chaosLeaseId, transaction->GetId(), options.CommitTimestamp, false);
         }
 
-        YT_LOG_DEBUG("Replication batch committed (ReplicationCardId: %v, TransactionId: %v)",
-            replicationCardId,
-            transaction->GetId());
+        YT_TLOG_DEBUG("Replication batch committed")
+            .With("ReplicationCardId", replicationCardId)
+            .With("TransactionId", transaction->GetId());
     }
 
     void HydraAbortReplicatedCommit(
@@ -521,68 +566,105 @@ private:
         const TTransactionAbortOptions& /*options*/)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        DiscardAliveTransaction(replicationCardId, transaction->GetId(), true);
+        DiscardAliveTransaction(replicationCardId, transaction->GetId(), NullTimestamp, true);
         for (const auto& prerequisiteId : request->prerequisite_ids()) {
             auto chaosLeaseId = FromProto<TChaosLeaseId>(prerequisiteId);
-            DiscardAliveTransaction(chaosLeaseId, transaction->GetId(), true);
+            DiscardAliveTransaction(chaosLeaseId, transaction->GetId(), NullTimestamp, true);
         }
 
-        YT_LOG_DEBUG("Replication batch aborted (ReplicationCardId: %v, TransactionId: %v)",
-            replicationCardId,
-            transaction->GetId());
+        YT_TLOG_DEBUG("Replication batch aborted")
+            .With("ReplicationCardId", replicationCardId)
+            .With("TransactionId", transaction->GetId());
     }
 
-    void DiscardAliveTransaction(TChaosObjectId chaosObjectId, TTransactionId transactionId, bool isAbort)
+    void DiscardAliveTransaction(
+        TChaosObjectId chaosObjectId,
+        TTransactionId transactionId,
+        TTimestamp commitTimestamp,
+        bool isAbort)
     {
         auto it = Shortcuts_.find(chaosObjectId);
         if (it == Shortcuts_.end()) {
-            YT_LOG_DEBUG("Trying to decrease transaction count for absent shortcut "
-                "(ChaosObjectId: %v, Type: %v, TransactionId: %v)",
-                chaosObjectId,
-                TypeFromId(chaosObjectId),
-                transactionId);
+            YT_TLOG_DEBUG("Trying to decrease transaction count for absent shortcut")
+                .With("ChaosObjectId", chaosObjectId)
+                .With("Type", TypeFromId(chaosObjectId))
+                .With("TransactionId", transactionId);
             YT_VERIFY(isAbort);
             return;
         }
 
         auto& aliveTransactions = it->second.AliveTransactions;
-        if (auto transactionIt = aliveTransactions.find(transactionId); transactionIt == aliveTransactions.end()) {
-            YT_LOG_DEBUG("Trying to decrease transaction count for transaction absent shortcut "
-                "(ChaosObjectId: %v, Type: %v, TransactionId: %v)",
-                chaosObjectId,
-                TypeFromId(chaosObjectId),
-                transactionId);
+        auto transactionIt = aliveTransactions.find(transactionId);
+        if (transactionIt == aliveTransactions.end()) {
+            YT_TLOG_DEBUG("Trying to decrease transaction count for transaction absent shortcut")
+                .With("ChaosObjectId", chaosObjectId)
+                .With("Type", TypeFromId(chaosObjectId))
+                .With("TransactionId", transactionId);
             YT_VERIFY(isAbort);
             return;
-        } else {
-            aliveTransactions.erase(transactionIt);
+        }
+
+        aliveTransactions.erase(transactionIt);
+
+        if (!isAbort) {
+            if (commitTimestamp < it->second.EraStartTimestamp) [[unlikely]] {
+                YT_TLOG_ALERT("Shortcut commit timestamp is less than era start timestamp")
+                    .With("ChaosObjectId", chaosObjectId)
+                    .With("Type", TypeFromId(chaosObjectId))
+                    .With("TransactionId", transactionId)
+                    .With("CommitTimestamp", commitTimestamp)
+                    .With("EraStartTimestamp", it->second.EraStartTimestamp);
+            }
+
+            // COMPAT(osidorkin)
+            if (auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+                reign >= EChaosReign::CheckLastTransactionCommitTimestamp ||
+                (reign >= EChaosReign::CheckLastTransactionCommitTimestamp_26_1 && reign < EChaosReign::Start_26_2))
+            {
+                if (commitTimestamp > it->second.LastTransactionCommitTimestamp) {
+                    it->second.LastTransactionCommitTimestamp = commitTimestamp;
+                }
+            }
         }
 
         if (aliveTransactions.empty() && it->second.State == EShortcutState::Revoking) {
             auto chaosCellId = it->second.CellId;
             auto era = it->second.Era;
+            auto lastTransactionCommitTimestamp = it->second.LastTransactionCommitTimestamp;
 
-            SendRevokeShortcutsResponse(chaosCellId, {{chaosObjectId, era}});
+            SendRevokeShortcutsResponse(chaosCellId, {{chaosObjectId, era, lastTransactionCommitTimestamp}});
             EraseShortcut(chaosObjectId);
 
-            YT_LOG_DEBUG("Shortcut revoked (ChaosObjectId: %v, Type: %v, Era: %v)",
-                chaosObjectId,
-                TypeFromId(chaosObjectId),
-                era);
+            YT_TLOG_DEBUG("Shortcut revoked")
+                .With("ChaosObjectId", chaosObjectId)
+                .With("Type", TypeFromId(chaosObjectId))
+                .With("Era", era);
         }
     }
 
     void SendRevokeShortcutsResponse(
         TCellId chaosCellId,
-        const std::vector<std::pair<TReplicationCardId, TReplicationEra>>& shortcuts)
+        const std::vector<std::tuple<TChaosObjectId, TReplicationEra, TTimestamp>>& shortcuts)
     {
         NChaosNode::NProto::TRspRevokeShortcuts rsp;
         ToProto(rsp.mutable_coordinator_cell_id(), Slot_->GetCellId());
 
-        for (const auto& [chaosObjectId, era] : shortcuts) {
+        auto maxCommitTimestamp = NullTimestamp;
+
+        rsp.mutable_shortcuts()->Reserve(shortcuts.size());
+        for (const auto& [chaosObjectId, era, lastTransactionCommitTimestamp] : shortcuts) {
             auto* shortcut = rsp.add_shortcuts();
             ToProto(shortcut->mutable_chaos_object_id(), chaosObjectId);
             shortcut->set_era(era);
+            maxCommitTimestamp = std::max(maxCommitTimestamp, lastTransactionCommitTimestamp);
+        }
+
+        // COMPAT(osidorkin)
+        if (auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+            reign >= EChaosReign::CheckLastTransactionCommitTimestamp ||
+            (reign >= EChaosReign::CheckLastTransactionCommitTimestamp_26_1 && reign < EChaosReign::Start_26_2))
+        {
+            rsp.set_max_commit_timestamp(ToProto(maxCommitTimestamp));
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
@@ -590,22 +672,45 @@ private:
         hiveManager->PostMessage(mailbox, rsp);
     }
 
-    void InsertShortcut(TChaosObjectId chaosObjectId, TShortcut shortcut)
+    void InsertShortcut(
+        TChaosObjectId chaosObjectId,
+        TCellId chaosCellId,
+        TReplicationEra era,
+        EShortcutState state,
+        TTimestamp eraStartTimestamp)
     {
-        Shortcuts_[chaosObjectId] = shortcut;
-        SnapshotStore_->UpdateShortcut(chaosObjectId, {shortcut.Era});
+        auto localEraStartTimestamp = NullTimestamp;
+
+        // COMPAT(osidorkin)
+        if (auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+            reign >= EChaosReign::CheckLastTransactionCommitTimestamp ||
+            (reign >= EChaosReign::CheckLastTransactionCommitTimestamp_26_1 && reign < EChaosReign::Start_26_2))
+        {
+            localEraStartTimestamp = eraStartTimestamp;
+        }
+
+        Shortcuts_[chaosObjectId] = TShortcut{
+            .CellId = chaosCellId,
+            .Era = era,
+            .State = state,
+            .AliveTransactions = {},
+            .EraStartTimestamp = localEraStartTimestamp,
+            .LastTransactionCommitTimestamp = localEraStartTimestamp,
+        };
+
+        SnapshotStore_->UpdateShortcut(chaosObjectId, {era});
     }
 
     void EraseShortcut(TChaosObjectId chaosObjectId)
     {
-        Shortcuts_.erase(chaosObjectId);
         SnapshotStore_->RemoveShortcut(chaosObjectId);
+        Shortcuts_.erase(chaosObjectId);
     }
 
 
-    TCompositeMapServicePtr CreateOrchidService()
+    ICompositeMapServicePtr CreateOrchidService()
     {
-        return New<TCompositeMapService>()
+        return CreateCompositeMapService()
             ->AddAttribute(EInternedAttributeKey::Opaque, BIND([] (IYsonConsumer* consumer) {
                     BuildYsonFluently(consumer)
                         .Value(true);
@@ -621,10 +726,12 @@ private:
 
     void BuildInternalOrchid(IYsonConsumer* consumer) const
     {
+        bool completelySuspended = Suspended_ && Shortcuts_.empty();
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("suspended").Value(
-                    Suspended_ && Shortcuts_.empty())
+                    completelySuspended)
+                .Item("suspension_status").Value(GetSuspensionStatus(Suspended_, completelySuspended))
             .EndMap();
     }
 
@@ -645,9 +752,8 @@ private:
 
     std::vector<TCellId> GetMetadataCellIds()
     {
-        std::vector<TCellId> cells;
         const auto& chaosManager = Slot_->GetChaosManager();
-        cells = chaosManager->CoordinatorCellIds();
+        auto cells = chaosManager->CoordinatorCellIds();
         SortUnique(cells);
         return cells;
     }

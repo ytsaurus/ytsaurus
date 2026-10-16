@@ -17,26 +17,26 @@ struct THttpRequest final
     NHttp::EMethod Method;
 
     //! Protocol (usually http).
-    TString Protocol;
+    std::string Protocol;
 
     //! Host and port.
-    TString Host;
+    std::string Host;
     std::optional<ui16> Port;
 
     //! Request path.
-    TString Path;
+    std::string Path;
 
     //! Region (S3 specific).
-    TString Region;
+    std::string Region;
 
     // Service (S3 specific).
-    TString Service;
+    std::string Service;
 
     //! Request query (for example k=v for ytsaurus.tech/docs?k=v).
-    THashMap<TString, TString> Query;
+    THashMap<std::string, std::string> Query;
 
     //! Request headers.
-    THashMap<TString, TString> Headers;
+    THashMap<std::string, std::string> Headers;
 
     //! Payload (null if no payload).
     TSharedRef Payload;

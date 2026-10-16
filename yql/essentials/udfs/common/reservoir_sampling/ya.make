@@ -1,19 +1,13 @@
-YQL_UDF(reservoir_sampling_udf)
-    
-    YQL_ABI_VERSION(
-        2
-        43
-        0
-    )
+YQL_UDF_CONTRIB(reservoir_sampling_udf)
 
-    SRCS(
-        reservoir_udf.cpp
-    )
+IF (NOT OPENSOURCE AND NOT BUILD_YQL_FROM_SOURCES)
+    INCLUDE(${ARCADIA_ROOT}/yql/resources.inc)
+ENDIF()
 
-PEERDIR(
-    yql/essentials/udfs/common/reservoir_sampling/lib
-)
+INCLUDE(ya.make.inc)
 
 END()
 
-RECURSE_FOR_TESTS(test)
+RECURSE_FOR_TESTS(
+    test
+)

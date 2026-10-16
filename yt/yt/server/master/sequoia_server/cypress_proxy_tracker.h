@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
+#include <yt/yt/server/lib/cypress_proxy/config.h>
+
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
@@ -32,6 +34,10 @@ public:
     virtual TCypressProxyObject* FindCypressProxyByAddress(const std::string& address) = 0;
 
     virtual NRpc::IChannelPtr GetCypressProxyChannelOrThrow(const std::string& address) = 0;
+
+    virtual const NCypressProxy::TCypressProxyDynamicConfigPtr& GetDynamicConfig() const = 0;
+
+    virtual void SetDynamicConfig(NCypressProxy::TCypressProxyDynamicConfigPtr config) = 0;
 
     DECLARE_INTERFACE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(CypressProxy, CypressProxies, TCypressProxyObject);
 

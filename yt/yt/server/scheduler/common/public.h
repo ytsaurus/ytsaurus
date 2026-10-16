@@ -5,7 +5,7 @@
 #include <library/cpp/yt/memory/ref_counted.h>
 
 #include <library/cpp/yt/misc/enum.h>
-#include <library/cpp/yt/misc/global.h>
+#include <library/cpp/yt/misc/leaky_global.h>
 
 #include <library/cpp/yt/logging/logger.h>
 
@@ -39,12 +39,12 @@ using TMemoryDistribution = THashMap<i64, int>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, SchedulerEventLogger, NLogging::TLogger("SchedulerEventLog").WithEssential());
-YT_DEFINE_GLOBAL(const NLogging::TLogger, SchedulerStructuredLogger, NLogging::TLogger("SchedulerStructuredLog").WithEssential());
-YT_DEFINE_GLOBAL(const NLogging::TLogger, SchedulerGpuEventLogger, NLogging::TLogger("SchedulerGpuStructuredLog").WithEssential());
-YT_DEFINE_GLOBAL(const NLogging::TLogger, SchedulerResourceMeteringLogger, NLogging::TLogger("SchedulerResourceMetering").WithEssential());
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, SchedulerEventLogger, NLogging::TLogger("SchedulerEventLog").WithEssential());
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, SchedulerStructuredLogger, NLogging::TLogger("SchedulerStructuredLog").WithEssential());
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, SchedulerGpuEventLogger, NLogging::TLogger("SchedulerGpuStructuredLog").WithEssential());
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, SchedulerResourceMeteringLogger, NLogging::TLogger("SchedulerResourceMetering").WithEssential());
 
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, SchedulerProfiler, "/scheduler");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, SchedulerProfiler, "/scheduler");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -57,6 +57,8 @@
 #include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
+#include <library/cpp/yt/system/thread_id.h>
+
 namespace NYT::NCellMaster {
 
 using namespace NConcurrency;
@@ -106,7 +108,8 @@ public:
 
         TDistributedHydraManagerOptions hydraManagerOptions{
             .UseFork = true,
-            .ResponseKeeper = ResponseKeeper_
+            .ResponseKeeper = ResponseKeeper_,
+            .Testing = Bootstrap_->GetConfig()->ExposeTestingFacilities,
         };
         if (Config_->DryRun->EnableDryRun) {
             hydraManagerOptions.UseFork = false;
@@ -128,6 +131,7 @@ public:
                 Bootstrap_->GetRpcServer(),
                 electionManagerThunk,
                 Bootstrap_->GetCellManager()->GetCellId(),
+                Bootstrap_->GetCellManager()->GetTotalPeerCount(),
                 Bootstrap_->GetChangelogStoreFactory(),
                 Bootstrap_->GetSnapshotStore(),
                 Bootstrap_->GetNativeAuthenticator(),
@@ -244,7 +248,7 @@ public:
         YT_ASSERT(!AutomatonBlocked_);
         AutomatonBlocked_ = true;
 
-        YT_LOG_TRACE("Automaton thread blocked");
+        YT_TLOG_TRACE("Automaton thread blocked");
     }
 
     void UnblockAutomaton() override
@@ -254,7 +258,7 @@ public:
         YT_ASSERT(AutomatonBlocked_);
         AutomatonBlocked_ = false;
 
-        YT_LOG_TRACE("Automaton thread unblocked");
+        YT_TLOG_TRACE("Automaton thread unblocked");
     }
 
     bool IsAutomatonLocked() override
@@ -269,8 +273,8 @@ public:
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
         if (IsAutomatonLocked()) {
             auto automatonThreadId = AutomatonThread_Slot.GetBoundThreadId();
-            YT_VERIFY(automatonThreadId != NThreading::InvalidThreadId);
-            YT_VERIFY(GetCurrentThreadId() != automatonThreadId);
+            YT_VERIFY(automatonThreadId != InvalidThreadId);
+            YT_VERIFY(GetSystemThreadId() != automatonThreadId);
         } else {
             YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         }
@@ -316,7 +320,7 @@ public:
                     replyCallback = std::move(replyCallback)
                 ] (TErrorOr<TAsyncSemaphoreGuard>&& guardOrError) {
                     if (!guardOrError.IsOK()) {
-                        context->Reply(TError("Failed to acquire semaphore") << guardOrError);
+                        context->Reply(TError("Failed to acquire semaphore").With(guardOrError));
                         return;
                     }
 

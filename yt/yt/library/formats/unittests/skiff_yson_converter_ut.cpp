@@ -13,6 +13,9 @@
 #include <library/cpp/skiff/skiff.h>
 #include <library/cpp/skiff/skiff_schema.h>
 
+#include <library/cpp/yt/string/stream.h>
+#include <library/cpp/yt/string/string.h>
+
 #include <util/string/hex.h>
 
 #include <util/stream/mem.h>
@@ -51,7 +54,7 @@ std::string ConvertYsonHex(
     // Yson parsers have a bug when they can't parse some values that end unexpectedly.
     std::string spacedYsonInput = std::string{ysonString} + " ";
 
-    TStringStream out;
+    TStdStringStream out;
     {
         TCheckedInDebugSkiffWriter writer(skiffSchema, &out);
 
@@ -65,12 +68,10 @@ std::string ConvertYsonHex(
         writer.Finish();
     }
 
-    auto result = HexEncode(out.Str());
-    result.to_lower();
-    return result;
+    return AsciiStringToLower(HexEncode(out.Str()));
 }
 
-TString ConvertHexToTextYson(
+std::string ConvertHexToTextYson(
     const TLogicalTypePtr& logicalType,
     const std::shared_ptr<TSkiffSchema>& skiffSchema,
     TStringBuf hexString,
@@ -79,7 +80,7 @@ TString ConvertHexToTextYson(
     auto converter = CreateSkiffToYsonConverter(TComplexTypeFieldDescriptor("test-field", logicalType), skiffSchema, config);
 
 
-    TStringStream binaryOut;
+    TStdStringStream binaryOut;
     {
         std::string binaryString = HexDecode(hexString);
         TMemoryInput in(binaryString);
@@ -91,7 +92,7 @@ TString ConvertHexToTextYson(
     }
     binaryOut.Finish();
 
-    TStringStream out;
+    TStdStringStream out;
     {
         auto writer = TYsonWriter(&out, EYsonFormat::Text);
         ParseYsonStringBuffer(binaryOut.Str(), EYsonType::Node, &writer);
@@ -706,6 +707,28 @@ INSTANTIATE_TEST_SUITE_P(
         ::testing::ValuesIn({ELogicalMetatype::VariantStruct, ELogicalMetatype::VariantTuple}),
         ::testing::ValuesIn({EWireType::Variant8, EWireType::Variant16}))
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TYsonSkiffConverterTest, TestAggregateState)
+{
+    auto sumAggregate = AggregateState(EAggregateFunction::Sum, Int32());
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        sumAggregate,
+        CreateSimpleTypeSchema(EWireType::Int64),
+        "42",
+        "2a00000000000000");
+
+    auto avgAggregate = AggregateState(EAggregateFunction::Avg, Int8());
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        avgAggregate,
+        CreateTupleSchema({
+            CreateSimpleTypeSchema(EWireType::Int64)->SetName("sum"),
+            CreateSimpleTypeSchema(EWireType::Int64)->SetName("count"),
+        }),
+        "[6;3;]",
+        "0600000000000000" "0300000000000000");
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

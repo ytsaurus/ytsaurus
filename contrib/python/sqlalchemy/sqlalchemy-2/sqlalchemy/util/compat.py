@@ -33,7 +33,6 @@ from typing import Tuple
 from typing import Type
 from typing import TypeVar
 
-
 py314b1 = sys.version_info >= (3, 14, 0, "beta", 1)
 py314 = sys.version_info >= (3, 14)
 py313 = sys.version_info >= (3, 13)
@@ -177,7 +176,7 @@ def inspect_getfullargspec(func: Callable[..., Any]) -> FullArgSpec:
 
     if inspect.ismethod(func):
         func = func.__func__
-    if not inspect.isfunction(func):
+    if not inspect.isfunction(func) and not hasattr(func, "__code__"):
         raise TypeError(f"{func!r} is not a Python function")
 
     co = func.__code__
@@ -245,7 +244,7 @@ else:
     _NOT_PROVIDED = object()
     from collections.abc import AsyncIterator
 
-    async def anext_(async_iterator, default=_NOT_PROVIDED):
+    async def anext_(async_iterator, default=_NOT_PROVIDED):  # type: ignore[misc]  # noqa: E501
         """vendored from https://github.com/python/cpython/pull/8895"""
 
         if not isinstance(async_iterator, AsyncIterator):

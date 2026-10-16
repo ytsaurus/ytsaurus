@@ -1,7 +1,5 @@
 #pragma once
 
-#include "public.h"
-
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/client/chaos_client/replication_card_cache.h>

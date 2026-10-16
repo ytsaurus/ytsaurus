@@ -10,10 +10,6 @@ on:
         # cmake or ya-make
         type: string
         default: cmake
-      publish-strawberry:
-        required: false
-        default: false
-        type: boolean
       publish-ytsaurus:
         required: false
         default: false
@@ -23,6 +19,10 @@ on:
         default: false
         type: boolean
       publish-chyt:
+        required: false
+        default: false
+        type: boolean
+      publish-flow:
         required: false
         default: false
         type: boolean
@@ -81,7 +81,7 @@ jobs:
         run: |
           cat << 'EOF' > docker-jobs-retry.sh
           function retry {
-              local retries=3
+              local retries=30
               local count=0
               until "$@"; do
                   exit_code=$?
@@ -102,25 +102,31 @@ jobs:
         run: |
           echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
 
-      - name: Docker setup mirror
+      - name: Docker setup daemon
         run: |
           mkdir -p /etc/docker
           touch /etc/docker/daemon.json
-          if grep -q 'mirror.gcr.io' /etc/docker/daemon.json; then
-            echo "Docker mirror already set up, skipping."
+          if grep -q 'mirror.gcr.io' /etc/docker/daemon.json && grep -Eq '"containerd-snapshotter"[[:space:]]*:[[:space:]]*true' /etc/docker/daemon.json; then
+            echo "Docker daemon already set up, skipping."
           else
-            echo '{"registry-mirrors": ["https://mirror.gcr.io"]}' > /etc/docker/daemon.json
+            echo '{"features":{"containerd-snapshotter":true},"registry-mirrors":["https://mirror.gcr.io"]}' > /etc/docker/daemon.json
             systemctl restart docker
           fi
+
+      - name: Docker setup buildx
+        run: |
+          source docker-jobs-retry.sh
+          docker buildx use default
+          retry docker buildx inspect default --bootstrap
 
       - name: YTsaurus image (${{ inputs.cpp-build-system }}, ${{ matrix.build-type }})
         if: ${{ inputs.publish-ytsaurus }}
         run: |
           source docker-jobs-retry.sh
-          output_path=../docker-${{ inputs.component }}-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
+          output_path=../docker-ytsaurus-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path
 
-          retry ./ytsaurus/yt/docker/ytsaurus/build.sh --component ytsaurus --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }} --install-nvidia-packages true
+          retry ./ytsaurus/yt/docker/ytsaurus/build.sh --component ytsaurus --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }} --install-nvidia-packages true --server-image-base base-server-crio --build-cache-repository ghcr.io/ytsaurus/ytsaurus-build-cache
 
           if ! [[ ${{ steps.vars.outputs.IMAGE_TAG }} =~ "dev" ]]; then
             retry docker push ghcr.io/ytsaurus/ytsaurus:${{ steps.vars.outputs.IMAGE_TAG }}
@@ -135,7 +141,7 @@ jobs:
           output_path=../docker-query-tracker-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path
 
-          retry ./ytsaurus/yt/docker/ytsaurus/build.sh --component query-tracker --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --yql-build-path ${{ steps.vars.outputs.YQL_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }}
+          retry ./ytsaurus/yt/docker/ytsaurus/build.sh --component query-tracker --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --yql-build-path ${{ steps.vars.outputs.YQL_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }} --build-cache-repository ghcr.io/ytsaurus/ytsaurus-build-cache
 
           if ! [[ ${{ steps.vars.outputs.IMAGE_TAG }} =~ "dev" ]]; then
             retry docker push ghcr.io/ytsaurus/query-tracker:${{ steps.vars.outputs.IMAGE_TAG }}
@@ -150,7 +156,7 @@ jobs:
           output_path=../docker-chyt-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path
 
-          retry ./ytsaurus/yt/docker/ytsaurus/build.sh --component chyt --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }}
+          retry ./ytsaurus/yt/docker/ytsaurus/build.sh --component chyt --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }} --build-cache-repository ghcr.io/ytsaurus/ytsaurus-build-cache
 
           if ! [[ ${{ steps.vars.outputs.IMAGE_TAG }} =~ "dev" ]]; then
             retry docker push ghcr.io/ytsaurus/chyt:${{ steps.vars.outputs.IMAGE_TAG }}
@@ -158,20 +164,24 @@ jobs:
           docker tag ghcr.io/ytsaurus/chyt:${{ steps.vars.outputs.IMAGE_TAG }} ghcr.io/ytsaurus/chyt-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
           retry docker push ghcr.io/ytsaurus/chyt-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
 
-      - name: Strawberry image
-        if: ${{ inputs.publish-strawberry }}
+      - name: Flow images (${{ inputs.cpp-build-system }}, ${{ matrix.build-type }})
+        if: ${{ inputs.publish-flow }}
         run: |
           source docker-jobs-retry.sh
-          output_path=../docker-strawberry-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
+          output_path=../docker-flow-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path
 
-          retry ./ytsaurus/yt/docker/ytsaurus/build.sh --component strawberry --ytsaurus-source-path $(pwd)/ytsaurus --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }}
+          # flow is the bare server; flow-java adds a JRE and flow-python the Python SDK,
+          # for pipelines whose companions run in those languages.
+          for component in flow flow-java flow-python; do
+            retry ./ytsaurus/yt/docker/ytsaurus/build.sh --component ${component} --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }} --build-cache-repository ghcr.io/ytsaurus/ytsaurus-build-cache
 
-          if ! [[ ${{ steps.vars.outputs.IMAGE_TAG }} =~ "dev" ]]; then
-            retry docker push ghcr.io/ytsaurus/strawberry:${{ steps.vars.outputs.IMAGE_TAG }}
-          fi
-          docker tag ghcr.io/ytsaurus/strawberry:${{ steps.vars.outputs.IMAGE_TAG }} ghcr.io/ytsaurus/strawberry-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
-          retry docker push ghcr.io/ytsaurus/strawberry-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
+            if ! [[ ${{ steps.vars.outputs.IMAGE_TAG }} =~ "dev" ]]; then
+              retry docker push ghcr.io/ytsaurus/${component}:${{ steps.vars.outputs.IMAGE_TAG }}
+            fi
+            docker tag ghcr.io/ytsaurus/${component}:${{ steps.vars.outputs.IMAGE_TAG }} ghcr.io/ytsaurus/${component}-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
+            retry docker push ghcr.io/ytsaurus/${component}-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
+          done
 
       - name: Local image (${{ inputs.cpp-build-system }}, ${{ matrix.build-type }})
         if: ${{ inputs.publish-local }}
@@ -180,7 +190,7 @@ jobs:
           output_path=../docker-local-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path
 
-          retry ./ytsaurus/yt/docker/ytsaurus/build.sh --component local --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --yql-build-path ${{ steps.vars.outputs.YQL_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }}
+          retry ./ytsaurus/yt/docker/ytsaurus/build.sh --component local --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --yql-build-path ${{ steps.vars.outputs.YQL_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }} --build-cache-repository ghcr.io/ytsaurus/ytsaurus-build-cache
 
           retry docker push ghcr.io/ytsaurus/local:${{ steps.vars.outputs.IMAGE_TAG }}
           docker tag ghcr.io/ytsaurus/local:${{ steps.vars.outputs.IMAGE_TAG }} ghcr.io/ytsaurus/local-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
@@ -193,14 +203,14 @@ jobs:
           output_path=../docker-job-environment
           mkdir -p $output_path
 
-          retry ./ytsaurus/yt/docker/ytsaurus/build.sh --component job-environment --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --yql-build-path ${{ steps.vars.outputs.YQL_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/
+          retry ./ytsaurus/yt/docker/ytsaurus/build.sh --component job-environment --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --yql-build-path ${{ steps.vars.outputs.YQL_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --build-cache-repository ghcr.io/ytsaurus/ytsaurus-build-cache
 
           retry docker push ghcr.io/ytsaurus/job-environment:${{ steps.vars.outputs.IMAGE_TAG }}
 
       - name: Clear workspace
         if: ${{ always() }}
         run: |
-          rm -rf ../docker-${{ inputs.component }}-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
+          rm -rf ../docker-ytsaurus-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           rm -rf ../docker-query-tracker-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           rm -rf ../docker-chyt-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           rm -rf ../docker-strawberry-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}

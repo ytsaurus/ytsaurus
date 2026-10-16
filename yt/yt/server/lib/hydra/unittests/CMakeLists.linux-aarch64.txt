@@ -35,6 +35,7 @@ target_link_libraries(unittester-hydra PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   server-lib-hydra
+  lib-hydra-mock
 )
 
 target_allocator(unittester-hydra
@@ -57,9 +58,11 @@ target_sources(unittester-hydra PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/checkpointable_stream_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/file_changelog_index_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/hydra_janitor_helpers_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/mutation_committer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/changelog_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/hostname_sanitization_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/unbuffered_file_changelog_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/snapshot_load_ut.cpp
 )
 
 

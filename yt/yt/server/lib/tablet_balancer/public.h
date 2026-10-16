@@ -6,7 +6,15 @@
 
 #include <yt/yt/client/tablet_client/public.h>
 
+#define YT_TABLET_BALANCER_MAX_METRIC_COUNT 8
+
 namespace NYT::NTabletBalancer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr int MaxMetricCount = YT_TABLET_BALANCER_MAX_METRIC_COUNT;
+
+constexpr int MaxVerboseLogMessagesPerIteration = 2000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,18 +60,25 @@ DECLARE_REFCOUNTED_STRUCT(TTabletCell)
 DECLARE_REFCOUNTED_STRUCT(TTabletCellBundle)
 
 struct TReshardDescriptor;
+using TReshardDescriptorPtr = TIntrusivePtr<TReshardDescriptor>;
 struct TMoveDescriptor;
 using TActionDescriptor = std::variant<TMoveDescriptor, TReshardDescriptor>;
 
 using TNodeAddress = std::string;
-using TGroupName = TString;
+using TGroupName = std::string;
 using TClusterName = std::string;
 
 struct TParameterizedReassignSolverConfig;
 
+template <int MetricSize>
+class TParameterizedMetricsCalculator;
+
 DECLARE_REFCOUNTED_STRUCT(TTableParameterizedMetricTracker)
 DECLARE_REFCOUNTED_STRUCT(IParameterizedReassignSolver)
 DECLARE_REFCOUNTED_STRUCT(IParameterizedResharder)
+
+template <int Size>
+class TGenericMetric;
 
 ////////////////////////////////////////////////////////////////////////////////
 

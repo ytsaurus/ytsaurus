@@ -3,6 +3,7 @@ package solomon
 import (
 	"encoding/binary"
 	"io"
+	"sync"
 
 	"github.com/OneOfOne/xxhash"
 	"github.com/pierrec/lz4"
@@ -41,45 +42,72 @@ type lz4CompressionWriteCloser struct {
 	underlying io.Writer
 	buffer     []byte
 	table      []int
+	dst        []byte
 	written    int
+}
+
+var lz4WriterPool = sync.Pool{
+	New: func() any {
+		return &lz4CompressionWriteCloser{
+			buffer: make([]byte, 0, compressionFrameLength),
+			table:  make([]int, hashTableSize),
+			dst:    make([]byte, lz4.CompressBlockBound(compressionFrameLength)),
+		}
+	},
+}
+
+func acquireLZ4Writer(w io.Writer) *lz4CompressionWriteCloser {
+	cw := lz4WriterPool.Get().(*lz4CompressionWriteCloser)
+	cw.underlying = w
+	cw.buffer = cw.buffer[:0]
+	cw.written = 0
+	return cw
+}
+
+func releaseLZ4Writer(cw *lz4CompressionWriteCloser) {
+	cw.underlying = nil
+	lz4WriterPool.Put(cw)
 }
 
 func (w *lz4CompressionWriteCloser) flushFrame() (written int, err error) {
 	src := w.buffer
-	dst := make([]byte, lz4.CompressBlockBound(len(src)))
-
-	sz, err := lz4.CompressBlock(src, dst, w.table)
-	if err != nil {
-		return written, err
-	}
-
-	if sz == 0 {
-		dst = src
+	need := lz4.CompressBlockBound(len(src))
+	if cap(w.dst) < need {
+		w.dst = make([]byte, need)
 	} else {
-		dst = dst[:sz]
+		w.dst = w.dst[:need]
 	}
 
-	err = binary.Write(w.underlying, binary.LittleEndian, uint32(len(dst)))
+	sz, err := lz4.CompressBlock(src, w.dst, w.table)
 	if err != nil {
 		return written, err
 	}
-	w.written += 4
 
-	err = binary.Write(w.underlying, binary.LittleEndian, uint32(len(src)))
-	if err != nil {
+	var out []byte
+	if sz == 0 {
+		out = src
+	} else {
+		out = w.dst[:sz]
+	}
+
+	var lenBuf [8]byte
+	binary.LittleEndian.PutUint32(lenBuf[0:4], uint32(len(out)))
+	binary.LittleEndian.PutUint32(lenBuf[4:8], uint32(len(src)))
+	if _, err := w.underlying.Write(lenBuf[:]); err != nil {
 		return written, err
 	}
-	w.written += 4
+	w.written += 8
 
-	n, err := w.underlying.Write(dst)
+	n, err := w.underlying.Write(out)
 	if err != nil {
 		return written, err
 	}
 	w.written += n
 
-	checksum := xxhash.Checksum32S(dst, 0x1337c0de)
-	err = binary.Write(w.underlying, binary.LittleEndian, checksum)
-	if err != nil {
+	checksum := xxhash.Checksum32S(out, 0x1337c0de)
+	var sumBuf [4]byte
+	binary.LittleEndian.PutUint32(sumBuf[:], checksum)
+	if _, err := w.underlying.Write(sumBuf[:]); err != nil {
 		return written, err
 	}
 	w.written += 4
@@ -112,7 +140,6 @@ func (w *lz4CompressionWriteCloser) Write(p []byte) (written int, err error) {
 }
 
 func (w *lz4CompressionWriteCloser) Close() error {
-	var err error
 	if len(w.buffer) > 0 {
 		n, err := w.flushFrame()
 		if err != nil {
@@ -120,23 +147,12 @@ func (w *lz4CompressionWriteCloser) Close() error {
 		}
 		w.written += n
 	}
-	err = binary.Write(w.underlying, binary.LittleEndian, uint32(0))
-	if err != nil {
-		return nil
-	}
-	w.written += 4
 
-	err = binary.Write(w.underlying, binary.LittleEndian, uint32(0))
-	if err != nil {
-		return nil
+	var trailer [12]byte
+	if _, err := w.underlying.Write(trailer[:]); err != nil {
+		return err
 	}
-	w.written += 4
-
-	err = binary.Write(w.underlying, binary.LittleEndian, uint32(0))
-	if err != nil {
-		return nil
-	}
-	w.written += 4
+	w.written += 12
 
 	return nil
 }
@@ -150,12 +166,7 @@ func newCompressedWriter(w io.Writer, compression CompressionType) io.WriteClose
 	case CompressionZstd:
 		panic("zstd compression not supported")
 	case CompressionLz4:
-		return &lz4CompressionWriteCloser{
-			w,
-			make([]byte, 0, compressionFrameLength),
-			make([]int, hashTableSize),
-			0,
-		}
+		return acquireLZ4Writer(w)
 	default:
 		panic("unsupported compression algorithm")
 	}

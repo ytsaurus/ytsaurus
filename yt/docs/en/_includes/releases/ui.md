@@ -8,9 +8,374 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**3.23.0**" %}
+
+**Release date:** 2026-08-26
+
+
+**Release page:** [3.23.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.23.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.23.0](https://github.com/orgs/ytsaurus/packages/container/ui/1174308505?tag=3.23.0)
+
+
+#### [3.23.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.22.0...ui-v3.23.0) (2026-08-26)
+
+
+#### Features
+
+* **Scheduling:** add pool sort filter [YTFRONT-5930] ([1896c53](https://github.com/ytsaurus/ytsaurus-ui/commit/1896c53e5fd17fe63da3bc3c1fb4dc97385d1cdc))
+* **System:** add new master status icons [YTFRONT-5992] ([af32c83](https://github.com/ytsaurus/ytsaurus-ui/commit/af32c832db22c227ff5c1ad060041b79d0b7fc75))
+
+
+#### Bug Fixes
+
+* **Navigation:** broken download path [YTFRONT-5990] ([e710716](https://github.com/ytsaurus/ytsaurus-ui/commit/e710716fd493e248621e4048b0f17f59c876f8b4))
+* **Operations:** vanilla operation statuses [YTFRONT-5967] ([f987558](https://github.com/ytsaurus/ytsaurus-ui/commit/f98755882c5a92ea1addf44ffe061a77281ee472))
+* **Operations:** progress can be null [YTFRONT-5928] ([856f188](https://github.com/ytsaurus/ytsaurus-ui/commit/856f188b057909ef6630a2edb62027c6bdcbd903))
+* **Queries:** double scroll [YTFRONT-5943] ([291e254](https://github.com/ytsaurus/ytsaurus-ui/commit/291e254580d8c6f500bdc70227afd7a55cb68c32))
+* **UI:** range date selector buttons [YTFRONT-5755] ([6c482c1](https://github.com/ytsaurus/ytsaurus-ui/commit/6c482c1ca7aee5935e719d3746d76c22e16a9668))
+
+{% endcut %}
+
+
+{% cut "**3.22.0**" %}
+
+**Release date:** 2026-08-19
+
+
+**Release page:** [3.22.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.22.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.22.0](https://github.com/orgs/ytsaurus/packages/container/ui/1149494747?tag=3.22.0)
+
+
+#### [3.22.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.21.1...ui-v3.22.0) (2026-08-19)
+
+
+#### Features
+
+* **ACL:** hide 'Full read' under 'Additional permissions' [YTFRONT-5871] ([a5a2f36](https://github.com/ytsaurus/ytsaurus-ui/commit/a5a2f364c3d7e35ca0ee9e9335e3dba8c69b4d32))
+* **Navigation/Content:** render nirvana block url and fixes [YTFRONT-5942] ([5a2e917](https://github.com/ytsaurus/ytsaurus-ui/commit/5a2e9171fc7e4a04a65e0e0818e5f8a824d2dc1a))
+* **Navigation/Tablets:** filter by pivot [YTFRONT-5931] ([366ceba](https://github.com/ytsaurus/ytsaurus-ui/commit/366cebad9705cdea4b4e0ce280a5bfd8e38b43df))
+* **Queries/Navigation:** add external schema columns [YTFRONT-5891] ([0fb198c](https://github.com/ytsaurus/ytsaurus-ui/commit/0fb198c185d7da4694939a11cacbfed1d1ded4da))
+
+
+#### Bug Fixes
+
+* **Accounts:** last open tab [YTFRONT-5963] ([6d7330d](https://github.com/ytsaurus/ytsaurus-ui/commit/6d7330d5b9a968eabd231db1a905eb1792dc63ce))
+* **ACL:** allow tvm apps as responsibles [YTFRONT-5933] ([5c9b25b](https://github.com/ytsaurus/ytsaurus-ui/commit/5c9b25b4ec011d39c9e3774d5eb37a8f8f9b14ac))
+* **ACL:** do not display RLS-meta item for live_preview [YTFRONT-5889] ([1156e7e](https://github.com/ytsaurus/ytsaurus-ui/commit/1156e7e8d9b5523abb445325fd01796c6170e6d5))
+* **Flow/Worker:** use 'worker_groups' instead of 'groups' [YTFRONT-5944] ([a91f8c2](https://github.com/ytsaurus/ytsaurus-ui/commit/a91f8c2909e4545332bd617d7a1beaaaf07e104d))
+* incorrect removal of the page favicon [YTFRONT-5965] ([366c92b](https://github.com/ytsaurus/ytsaurus-ui/commit/366c92bf0bedc3bbcf87bf03e2aeaebfca171c02))
+* **makeDirectDownloadPath:** do not ignore `secure` flag for `proxy` field [YTFRONT-5795] ([5d50d13](https://github.com/ytsaurus/ytsaurus-ui/commit/5d50d131956837771da59eb35c9ee3446db26adc))
+* **Operations/Details:** edit operation attributes modal title [YTFRONT-5902] ([32015e1](https://github.com/ytsaurus/ytsaurus-ui/commit/32015e1c6e5d00f8dd6c7d2b8dc87e89d72f3eda))
+* **Operations/Details:** edit operation attributes weight format [YTFRONT-5902] ([9d0aeeb](https://github.com/ytsaurus/ytsaurus-ui/commit/9d0aeeb55553cf36acae56770093d53ae07198de))
+* **Queries:** wrong clique in shared query [YTFRONT-5924] ([066df2e](https://github.com/ytsaurus/ytsaurus-ui/commit/066df2e6c66dba892344f998be56df066d57488d))
+* **Scheduling:** operation attributes [YTFRONT-5954] ([ff23973](https://github.com/ytsaurus/ytsaurus-ui/commit/ff23973eba977259dd10a31f1b5f04d61ffd1bb7))
+
+{% endcut %}
+
+
+{% cut "**3.19.0**" %}
+
+**Release date:** 2026-07-13
+
+
+**Release page:** [3.19.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.19.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.19.0](https://github.com/orgs/ytsaurus/packages/container/ui/1025841168?tag=3.19.0)
+
+
+#### [3.19.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.18.1...ui-v3.19.0) (2026-07-13)
+
+
+#### Features
+
+* **Queries:** unified path action menu [YTFRONT-4886] ([ce3f485](https://github.com/ytsaurus/ytsaurus-ui/commit/ce3f4850553caeeac6967374e9603dd26d74fa17))
+
+* **Account:** add versioned column sort [YTFRONT-5361] ([e2ec066](https://github.com/ytsaurus/ytsaurus-ui/commit/e2ec066ab8bc6ff399eb34eb220c982a290e87ff))
+
+
+
+#### Bug Fixes
+
+* **Queries:** cyrillic name in history [YTFRONT-5881] ([ecc03cf](https://github.com/ytsaurus/ytsaurus-ui/commit/ecc03cfc5a5e64754fe32df1298c6359e36e0af6))
+
+* **System/Chunks:** do not highlight 'Lost' values ([fd961cc](https://github.com/ytsaurus/ytsaurus-ui/commit/fd961cca387f0acd932b9035dbc4e59af8d6dbca))
+
+* **Operartion/Jobs:** fix state filter [YTFRONT-5919] ([a90e810](https://github.com/ytsaurus/ytsaurus-ui/commit/a90e810c0351db26995e8aafb0e9a0371659bf45))
+
+* **PageHead:** use cluster-theme specific favicon [YTFRONT-5918] ([cb6e981](https://github.com/ytsaurus/ytsaurus-ui/commit/cb6e9816fdb342a25f82dd90569285f8eafec764))
+
+{% endcut %}
+
+
+{% cut "**3.17.1**" %}
+
+**Release date:** 2026-07-09
+
+
+**Release page:** [3.17.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.17.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.17.1](https://github.com/orgs/ytsaurus/packages/container/ui/1015719296?tag=3.17.1)
+
+
+#### [3.17.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.17.0...ui-v3.17.1) (2026-07-09)
+
+
+#### Bug Fixes
+
+* **Dockerfile:** do not show nginx welcome page [[#1694](https://github.com/ytsaurus/ytsaurus-ui/issues/1694)] ([5aa72ec](https://github.com/ytsaurus/ytsaurus-ui/commit/5aa72eceda1d7d187a1c440840ac9ae851976b40))
+* **UI:** format min/max bounds in NumberInput validation errors [YTFRONT-5452] ([50a0b07](https://github.com/ytsaurus/ytsaurus-ui/commit/50a0b0797f6a129c370efb48d68b6b9174fec7c8))
+
+{% endcut %}
+
+
+{% cut "**3.17.0**" %}
+
+**Release date:** 2026-07-02
+
+
+**Release page:** [3.17.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.17.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.17.0](https://github.com/orgs/ytsaurus/packages/container/ui/995139631?tag=3.17.0)
+
+
+#### [3.17.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.16.0...ui-v3.17.0) (2026-07-02)
+
+
+#### Features
+
+* **Accounts:** resource warning [YTFRONT-5886] ([3de1ce2](https://github.com/ytsaurus/ytsaurus-ui/commit/3de1ce2a1b0648633a73641b9be4835a62e9904b))
+
+
+#### Bug Fixes
+
+* **Accounts:** edit quota limit text fix [YTFRONT-5854] ([c8b226a](https://github.com/ytsaurus/ytsaurus-ui/commit/c8b226adb889af62158cc422096650e9f2ad5a40))
+* **ACL/RowGroups:** order groups by name [YTFRONT-5758] ([7012f35](https://github.com/ytsaurus/ytsaurus-ui/commit/7012f354cbdb83f9080a2f753c687726ed649772))
+* **App/Toaster:** better background color for toasts [YTFRONT-5856] ([f1c3219](https://github.com/ytsaurus/ytsaurus-ui/commit/f1c321962182e93c816124c0170a7f4587b6e054))
+* **App:** get rid of unnecessary import [YTFRONT-5870] ([1bb667f](https://github.com/ytsaurus/ytsaurus-ui/commit/1bb667f197939e3716e10e4d8a548c3f23c97234))
+* **Navigation:** remote-copy path validation [YTFRONT-5898] ([66a1471](https://github.com/ytsaurus/ytsaurus-ui/commit/66a1471387bb688d705046556c7ebecb046bf7a5))
+* **Navigation:** user attributes typed output [YTFRONT-5880] ([a9092da](https://github.com/ytsaurus/ytsaurus-ui/commit/a9092daabd248b07d8773bfb6d2dbe13d218b170))
+* **Operations/Incarnations:** events section selected text copy [YTFRONT-5740] ([64355b9](https://github.com/ytsaurus/ytsaurus-ui/commit/64355b94db51bc875ef7b4766f249261ba5e361f))
+* **Operations:** wrong data in timeline modal [YTFRONT-5894] ([c7d6dd0](https://github.com/ytsaurus/ytsaurus-ui/commit/c7d6dd0c0dacae990544d129ff831fb28d168ff3))
+* **PrometheusDashboards:** handle 'gbytes' properly [YTFRONT-5831] ([761d0d5](https://github.com/ytsaurus/ytsaurus-ui/commit/761d0d56c1a1505284008655119ff881d8847e6b))
+* **Queries:** correct color for warnings within errors [YTFRONT-5264] ([9c12fca](https://github.com/ytsaurus/ytsaurus-ui/commit/9c12fca871baf3283a7e59613a2874f8e4a4ff8b))
+* **Queries:** cyrillic name in history [YTFRONT-5881] ([287681d](https://github.com/ytsaurus/ytsaurus-ui/commit/287681d1594df05d73acca849cdd1c81c8dec17d))
+* **Queries:** do not disable the start until the controller responds [YTFRONT-5818] ([9c6304e](https://github.com/ytsaurus/ytsaurus-ui/commit/9c6304ea331357b80519bf836065c55bd903d9f2))
+* **Queries:** dont add discovery path in spark connect [YTFRONT-5887] ([58c9f96](https://github.com/ytsaurus/ytsaurus-ui/commit/58c9f96cc60120ba1a948a6aab66e66bd0dce763))
+* **Queries:** wrong default aco [YTFRONT-5668] ([83dc3c0](https://github.com/ytsaurus/ytsaurus-ui/commit/83dc3c0975341dfe3828e17530e636a4af2571fc))
+* **Scheduling/ACL:** reset acl state for new path [YTFRONT-5848] ([a7be8dd](https://github.com/ytsaurus/ytsaurus-ui/commit/a7be8dd98db2705655df24aa353d5ff0cdfb0e02))
+* **Scheduling/Attributes:** keep pool,tree url params [YTFRONT-5867] ([058b8ef](https://github.com/ytsaurus/ytsaurus-ui/commit/058b8ef3e0f069f29dad34e22e99940313607066))
+* **Scheduling:** fix a misprint [YTFRONT-5680] ([3416cc0](https://github.com/ytsaurus/ytsaurus-ui/commit/3416cc08b0f3e88e0211f4faaee69a72e2996d5e))
+* **System:** manual container selection [YTFRONT-5778] ([1f2423c](https://github.com/ytsaurus/ytsaurus-ui/commit/1f2423ce835a759fa5e473599f62f40008fde656))
+
+{% endcut %}
+
+
+{% cut "**3.16.0**" %}
+
+**Release date:** 2026-06-17
+
+
+**Release page:** [3.16.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.16.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.16.0](https://github.com/orgs/ytsaurus/packages/container/ui/953128211?tag=3.16.0)
+
+
+#### [3.16.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.15.0...ui-v3.16.0) (2026-06-17)
+
+
+#### Features
+
+* **Components/node:** add new tab - table for exe tables [YTFRONT-5037] ([640cea2](https://github.com/ytsaurus/ytsaurus-ui/commit/640cea24a519b9d097cbaa15b7c6121a4191ada1))
+
+
+#### Bug Fixes
+
+* **Components/Operations:** redesign of operation's dialog of pools and weight editing [YTFRONT-3779] ([2e5056d](https://github.com/ytsaurus/ytsaurus-ui/commit/2e5056d70cdec8699bfe4eb7fd0c196fe25aa083))
+* **Navigation:** copy selected paths [YTFRONT-5809] ([a0dd387](https://github.com/ytsaurus/ytsaurus-ui/commit/a0dd38759f3b02113ecb09c2061561ae90d9734a))
+
+{% endcut %}
+
+
+{% cut "**3.15.0**" %}
+
+**Release date:** 2026-06-11
+
+
+**Release page:** [3.15.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.15.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.15.0](https://github.com/orgs/ytsaurus/packages/container/ui/936669709?tag=3.15.0)
+
+
+#### [3.15.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.14.0...ui-v3.15.0) (2026-06-10)
+
+
+#### Features
+
+* **DownloadManager:** add CSV tab [YTFRONT-3983] ([4727540](https://github.com/ytsaurus/ytsaurus-ui/commit/47275403f529cc1ee4b2ce7d952d434052c623f9))
+* **Navigation:** add CurrentPathActions [YTFRONT-4037] ([d8acc22](https://github.com/ytsaurus/ytsaurus-ui/commit/d8acc229d2364eeb7b6d43a9ee9f5c44b252d28a))
+* **Navigation/Attributes:** view opaque attributes [YTFRONT-2241] ([ce8596a](https://github.com/ytsaurus/ytsaurus-ui/commit/ce8596a24f1c2d4d11a82e28b7addce759b95f86))
+* **Navigation/Table:** add rls-access meta table item [YTFRONT-5782] ([13d7b3a](https://github.com/ytsaurus/ytsaurus-ui/commit/13d7b3a9d0ee95670faa1b71ca2611bcc73ac91f))
+* **Queries/History:** add ctrl check [YTFRONT-5793] ([bb5d027](https://github.com/ytsaurus/ytsaurus-ui/commit/bb5d027ef647c12877258b3bc740e0a732284462))
+
+
+#### Bug Fixes
+
+* **Components/Suggest:** handle 'Tab', 'Shift+Tab' [YTFRONT-5823] ([0508ae6](https://github.com/ytsaurus/ytsaurus-ui/commit/0508ae64ab1b108225c74f5e95eef659a3428fb3))
+* **Flow:** fix a misprint [YTFRONT-5826] ([8ef5e88](https://github.com/ytsaurus/ytsaurus-ui/commit/8ef5e88ab1adf0310adc4ff86d018f07d3351c94))
+* **Flow/Messages:** make body of dialog scrollable [YTFRONT-5780] ([84a810f](https://github.com/ytsaurus/ytsaurus-ui/commit/84a810fbc0ff9c3868d11aebf2d5dc75974bc316))
+* **Operations:** fix operation's job showing [YTFRONT-5699] ([a9ffe4e](https://github.com/ytsaurus/ytsaurus-ui/commit/a9ffe4e6c4291fbda1aba46f796ddc16944e8f25))
+* **Queries:** minor css fix [YTFRONT-5850] ([bf0e94c](https://github.com/ytsaurus/ytsaurus-ui/commit/bf0e94c82c78c379fdbe115bf327155c78e5f474))
+* **SegmentedRadioGroupOrSelect:** add new component [YTFRONT-5790] ([eab0716](https://github.com/ytsaurus/ytsaurus-ui/commit/eab0716184cc2d1376a81d2b4d88ed7dab5fbcd1))
+* **Scheduling:** allow any pool name suggestion [YTFRONT-4228] ([9f115f4](https://github.com/ytsaurus/ytsaurus-ui/commit/9f115f4300520400797ceb1563e862a41fe50fff))
+* **YTErrorBlock:** handle properly unexpected error format [YTFRONT-5665] ([bb940ed](https://github.com/ytsaurus/ytsaurus-ui/commit/bb940eddfcb25e2045c631607b20bfc27368bab3))
+
+{% endcut %}
+
+
+{% cut "**3.13.0**" %}
+
+**Release date:** 2026-05-27
+
+
+**Release page:** [3.13.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.13.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.13.0](https://github.com/orgs/ytsaurus/packages/container/ui/896105506?tag=3.13.0)
+
+
+#### [3.13.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.12.2...ui-v3.13.0) (2026-05-26)
+
+
+#### Features
+
+* **PrometheusDashboard:** use //sys/interface_monitoring [YTFRONT-5802] ([96ddd54](https://github.com/ytsaurus/ytsaurus-ui/commit/96ddd547b1f4a6d3022313768739daa9274c3fea))
+
+
+#### Bug Fixes
+
+* **Dockerfile:** update nginx/1.30.1 [YTFRONT-5787] ([9eb8033](https://github.com/ytsaurus/ytsaurus-ui/commit/9eb8033bf22628f5263986d1f0d273558d393530))
+* **Queries/Timeline:** add durations background [YTFRONT-5811] ([7f7f10e](https://github.com/ytsaurus/ytsaurus-ui/commit/7f7f10e27bb6de505956e0f89f7469cf69ba7dc8))
+* **Queries/Timeline:** broken links [YTFRONT-5811] ([ed1f5a2](https://github.com/ytsaurus/ytsaurus-ui/commit/ed1f5a2e655ddb01b802e1982888bc60095f2cc6))
+* **Queries/Timeline:** interval problem [YTFRONT-5811] ([68e4afa](https://github.com/ytsaurus/ytsaurus-ui/commit/68e4afa8fe50a3559e4f18026c582e7871cb3964))
+* **UI:** data type theme [YTFRONT-5601] ([5f8bb0a](https://github.com/ytsaurus/ytsaurus-ui/commit/5f8bb0a3ecac9effc8547c20e2280aa7af1a5319))
+* **Components:** shift in clipboard button [YTFRONT-5799] ([7838626](https://github.com/ytsaurus/ytsaurus-ui/commit/783862668ad2fdc1b583693be023e79839eb39c8))
+
+{% endcut %}
+
+
+{% cut "**3.12.1**" %}
+
+**Release date:** 2026-05-15
+
+
+**Release page:** [3.12.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.12.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.12.1](https://github.com/orgs/ytsaurus/packages/container/ui/867156894?tag=3.12.1)
+
+
+#### [3.12.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.12.0...ui-v3.12.1) (2026-05-15)
+
+#### Features
+
+* **Queries/Navigation:** allow to edit navigation path ([5221504](https://github.com/ytsaurus/ytsaurus-ui/commit/5221504cc5700fe32301ecc862e743f4d61b600f))
+* **Queries:** sort result table [YTFRONT-5766] ([b91831c](https://github.com/ytsaurus/ytsaurus-ui/commit/b91831cbd4f0ec98196e416b1e17c1576d237938))
+* **Components/Node** update color pallete [YTFRONT-4270] ([4782884](https://github.com/ytsaurus/ytsaurus-ui/commit/4782884c79880a6537945e6c9f5febead945a483))
+* **Queries:** new spyt settings [YTFRONT-5378] ([a76ee3d](https://github.com/ytsaurus/ytsaurus-ui/commit/a76ee3da42282b072191e1e711b0d262c26535d3))
+* **Queries/Search:** add full search [YTFRONT-5697] ([806b52d](https://github.com/ytsaurus/ytsaurus-ui/commit/806b52d6d13af111b453188cbaebfd4a33f0fa2b))
+
+#### Bug Fixes
+
+* **Navigation/ReplicatedTable:** fix 'Table automatic mode switch' [YTFRONT-5784] ([44e6c66](https://github.com/ytsaurus/ytsaurus-ui/commit/44e6c662db6e623ec6b2c142fd904b1e633bb0a9))
+* **ACL/ManageAcl:** add 'name' parameter for updateAcl [YTFRONT-5762] ([7e636f0](https://github.com/ytsaurus/ytsaurus-ui/commit/7e636f05f8f5f8296c08668e1806cdf4e7ff1926))
+* **Navigation/QueryTracker:** always show share button [YTFRONT-5776] ([496267b](https://github.com/ytsaurus/ytsaurus-ui/commit/496267ba34aee07a54530967fe983e6bbad7b0c7))
+* **Navigation/ReplicatedTable:** add sorting in replicated tables and saving state in settings [YTFRONT-5703] ([818040f](https://github.com/ytsaurus/ytsaurus-ui/commit/818040f0adcb1ef23f02cd2ee5d178167d52c623))
+* **Navigation:** cell preview [YTFRONT-5751] ([92fc00f](https://github.com/ytsaurus/ytsaurus-ui/commit/92fc00fc5c976fd584b33b67e8c11cd532c1b362))
+* **PathEditor:** open suggest popup on input change ([51fa332](https://github.com/ytsaurus/ytsaurus-ui/commit/51fa332f5f66b81b38cedb32d0c3f4ebdddb10fa))
+* **Navigation/tablets:** correcting the sorting and display of fields [YTFRONT-5611] ([6dce89d](https://github.com/ytsaurus/ytsaurus-ui/commit/6dce89d553ace9bd4f9a1d94b066de7b9a774044))
+* **server/configure-app:** check clusterConfigPath,ytInterfaceSecret on start [YTFRONT-5764] ([05c6614](https://github.com/ytsaurus/ytsaurus-ui/commit/05c66146d17e731dcd37aabf4dbf5677df356fb7))
+* **Components:** remove role filter text capitalization [YTFRONT-5718] ([e794f63](https://github.com/ytsaurus/ytsaurus-ui/commit/e794f6324e1b00a6576faaff32216e8fd4720000))
+* **Modal,SimpleModal:** do not use deprecated 'onClose', 'onOutsideClick' [YTFRONT-5695] ([a95f480](https://github.com/ytsaurus/ytsaurus-ui/commit/a95f480aafa998525cef9ef7596629df7b71249c))
+* **Navigation/MapNode:** add 'Too many items selected' message [YTFRONT-5739] ([095feaf](https://github.com/ytsaurus/ytsaurus-ui/commit/095feaf75001b92a4e3fa378cadf39aeb953ad19))
+* **Navigation/Queue:** fix a mispring [YTFRONT-5746] ([414c956](https://github.com/ytsaurus/ytsaurus-ui/commit/414c956ec1dade0efec69d154d9b78196b8580db))
+* **Queries/Graph:** wrong cluster in link [YTFRONT-5723] ([e56f1a5](https://github.com/ytsaurus/ytsaurus-ui/commit/e56f1a5cdef86d832c8db15cf45d939932c1aa89))
+* **Jobs:** show all attributes of job [YTFRONT-4414] ([492e1fa](https://github.com/ytsaurus/ytsaurus-ui/commit/492e1fa593f2b2718c84b5a86f74148fbf7213dc))
+
+
+{% endcut %}
+
+
+{% cut "**3.9.0**" %}
+
+**Release date:** 2026-04-16
+
+
+**Release page:** [3.9.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.9.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.9.0](https://github.com/orgs/ytsaurus/packages/container/ui/801427271?tag=3.9.0)
+
+
+#### [3.9.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.8.0...ui-v3.9.0) (2026-04-16)
+
+
+#### Features
+
+* **Navigation/Description:** allow to edit external annotation [YTFRONT-5096] ([d3795b3](https://github.com/ytsaurus/ytsaurus-ui/commit/d3795b3fc1f717243c496ffb60dfb7066ec0e7c1))
+* **Navigation/tablets:** add new columns to tables [YTFRONT-5611] ([3bcb2c6](https://github.com/ytsaurus/ytsaurus-ui/commit/3bcb2c6f289a086f6a51fe340f733db60b5a52af))
+* **Components/Nodes:** show field register_time to node's info [YTFRONT-3578] ([732380b](https://github.com/ytsaurus/ytsaurus-ui/commit/732380bb0ac64d129b7806336d5d137262c18d96))
+* **Navigation/ACL:** add 'Row groups permissions' [YTFRONT-5385] ([a32e730](https://github.com/ytsaurus/ytsaurus-ui/commit/a32e730016fb0718e9b60a7fae36540eaa8fc6ac))
+* **Queries:** always show spyt engine [YTFRONT-5528] ([2a25e28](https://github.com/ytsaurus/ytsaurus-ui/commit/2a25e28eebc1d45bd34dbc1011a2fa031bb4ba81))
+* **Queries:** disable run button [YTFRONT-5598] ([ea59b04](https://github.com/ytsaurus/ytsaurus-ui/commit/ea59b042f84073a2fa8e41617e7e5cb259408903))
+
+
+#### Bug Fixes
+
+* **Navigation:** fix table sort for dates [YTFRONT-5406] ([5549f84](https://github.com/ytsaurus/ytsaurus-ui/commit/5549f84db342cb4922eb5cddcc74f4719c3b75b8))
+* **Operation/Details:** show additional state only for running operations [YTFRONT-5709] ([1368881](https://github.com/ytsaurus/ytsaurus-ui/commit/136888105cb94500304e01db3cfbcdb993e6552d))
+* **Queries/Graph:** duration in node popup [YTFRONT-5674] ([f9f1663](https://github.com/ytsaurus/ytsaurus-ui/commit/f9f1663f8a9f683989e885c0db41ebc341c02320))
+* **Queries/Timeline:** colors in dark theme [YTFRONT-5716] ([a37fb1d](https://github.com/ytsaurus/ytsaurus-ui/commit/a37fb1d6e076e0272c52866566f28e934018f2a7))
+* **Queries:** wrong jobs count [YTFRONT-5708] ([fe82410](https://github.com/ytsaurus/ytsaurus-ui/commit/fe82410b526fd13f0d7e77a0c5b5b4ab6ad1980f))
+* **Query/Suggestions:** store variable may be undefined ([35edf38](https://github.com/ytsaurus/ytsaurus-ui/commit/35edf3812eb1d63762c16a3c405723f16eb92e1f))
+* **ACL:** fix for empty subjects [[#1268](https://github.com/ytsaurus/ytsaurus-ui/issues/1268)] ([69167dc](https://github.com/ytsaurus/ytsaurus-ui/commit/69167dcb07ab2f1c92e01f1a84a6f33a2af8fb68))
+* **Flow/Graph:** usage cpu_usage,memory_usage instead of metrics.*_10m [YTFRONT-5644] ([abd0e50](https://github.com/ytsaurus/ytsaurus-ui/commit/abd0e50c6286e0ba6c2b7294caa4481adb942ab5))
+* **Navigation/ACL:** add 'full_read' permission to check [YTFRONT-5311] ([e3f464c](https://github.com/ytsaurus/ytsaurus-ui/commit/e3f464c676b2d5e1273f948cd331889845c88e7c))
+* **Navigation/DownloadManager:** downloading excel, processing a number divided by digits [YTFRONT-3613] ([cab8256](https://github.com/ytsaurus/ytsaurus-ui/commit/cab82562f6df02dd0504a4103f8a13653a5690ec))
+* **Navigation/MapNodesTable:** disable redicret on checkbox-click in table [YTFRONT-5493] ([a6befb1](https://github.com/ytsaurus/ytsaurus-ui/commit/a6befb1a60ec0434963b95156e1393c1fce2778f))
+* **Navigation/Table:** add 'omit_inaccessible_rows: true' for reader [YTFRONT-5297] ([fe99458](https://github.com/ytsaurus/ytsaurus-ui/commit/fe9945819de79ae798607ac567f1159d3a12477b))
+* **Navigation:** column selector list resize [YTFRONT-5527] ([cf0536a](https://github.com/ytsaurus/ytsaurus-ui/commit/cf0536acd3e4102c27d5ebe4db2cb8eecea334cb))
+* **Nginx:** increase timeout[YTFRONT-5607] ([ad2bfe7](https://github.com/ytsaurus/ytsaurus-ui/commit/ad2bfe71221c7d39e53885b5de72049ad3c5afdd))
+* **Operation/Details:** better operation status [YTFRONT-5659] ([885a8f7](https://github.com/ytsaurus/ytsaurus-ui/commit/885a8f732ca02304d4717ff15f2965c2487d980e))
+* **Operation/Details:** minor layout fix [YTFRONT-5529] ([ae30800](https://github.com/ytsaurus/ytsaurus-ui/commit/ae30800f3bee7655554fc52e1e1db3ab7276afc0))
+* **Operation/Jobs:** do not display 'Progress' for 'vanilla' [YTFRONT-5662] ([0240bb5](https://github.com/ytsaurus/ytsaurus-ui/commit/0240bb5dea4b21d0b1285ab824552278f1859cd5))
+* **Operation:** progress in intermediate state [YTFRONT-5634] ([51a44b9](https://github.com/ytsaurus/ytsaurus-ui/commit/51a44b98b6c4d7f2331a9d7263feddd99c60eff0))
+* **Scheduling/ACL:** allow to disable acl inheritance [YTFRONT-5616] ([bbb1177](https://github.com/ytsaurus/ytsaurus-ui/commit/bbb1177d01dae1e43120fe147ed2e95288c2ed64))
+* **Scheduling/Meta:** better strong guarantees progress [YTFRONT-5660] ([ccfec33](https://github.com/ytsaurus/ytsaurus-ui/commit/ccfec336c5d0b848f506b96930772c42dc431ea6))
+* **Scheduling/PoolEditor:** better message for missing write permission [YTFRONT-5656] ([7744329](https://github.com/ytsaurus/ytsaurus-ui/commit/774432925b1c4003fc1cc5e143caab22060d1bb9))
+* **System:** new version attribute [YTFRONT-5566] ([e277e83](https://github.com/ytsaurus/ytsaurus-ui/commit/e277e83823767d6aac13b4b798fb11b51fa97224))
+* **Tablet:** simplify tablet id display to single editable link [YTFRONT-5632] ([16ebc1f](https://github.com/ytsaurus/ytsaurus-ui/commit/16ebc1f157b039efa469f98f01ec84eac29cd10d))
+
+{% endcut %}
+
+
 {% cut "**3.7.0**" %}
 
 **Release date:** 2026-03-19
+
+
+**Release page:** [3.7.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.7.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.7.0](https://github.com/orgs/ytsaurus/packages/container/ui/746071989?tag=3.7.0)
 
 
 #### [3.7.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.6.1...ui-v3.7.0) (2026-03-19)
@@ -45,6 +410,12 @@ Is released as a docker image.
 **Release date:** 2026-02-18
 
 
+**Release page:** [3.6.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.6.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.6.0](https://github.com/orgs/ytsaurus/packages/container/ui/696857218?tag=3.6.0)
+
+
 #### [3.6.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.5.1...ui-v3.6.0) (2026-02-18)
 
 
@@ -75,6 +446,12 @@ Is released as a docker image.
 {% cut "**3.5.1**" %}
 
 **Release date:** 2026-02-02
+
+
+**Release page:** [3.5.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.5.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.5.1](https://github.com/orgs/ytsaurus/packages/container/ui/667539257?tag=3.5.1)
 
 
 
@@ -130,6 +507,12 @@ Is released as a docker image.
 **Release date:** 2025-12-23
 
 
+**Release page:** [3.4.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.4.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.4.1](https://github.com/orgs/ytsaurus/packages/container/ui/621108018?tag=3.4.1)
+
+
 #### [3.4.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.4.0...ui-v3.4.1) (2025-12-23)
 
 
@@ -154,6 +537,12 @@ Is released as a docker image.
 {% cut "**3.3.1**" %}
 
 **Release date:** 2025-12-12
+
+
+**Release page:** [3.3.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.3.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.3.1](https://github.com/orgs/ytsaurus/packages/container/ui/609454535?tag=3.3.1)
 
 
 #### [3.3.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.3.0...ui-v3.3.1) (2025-12-12)
@@ -211,6 +600,12 @@ Is released as a docker image.
 **Release date:** 2025-11-11
 
 
+**Release page:** [2.7.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v2.7.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:2.7.0](https://github.com/orgs/ytsaurus/packages/container/ui/573170766?tag=2.7.0)
+
+
 #### [2.7.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v2.6.0...ui-v2.7.0) (2025-11-11)
 
 
@@ -257,6 +652,12 @@ Is released as a docker image.
 {% cut "**2.1.0**" %}
 
 **Release date:** 2025-09-18
+
+
+**Release page:** [2.1.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v2.1.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:2.1.0](https://github.com/orgs/ytsaurus/packages/container/ui/519415157?tag=2.1.0)
 
 
 #### [2.1.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v2.0.0...ui-v2.1.0) (2025-09-18)
@@ -338,6 +739,12 @@ Is released as a docker image.
 **Release date:** 2025-07-01
 
 
+**Release page:** [1.98.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.98.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:1.98.0](https://github.com/orgs/ytsaurus/packages/container/ui/451253868?tag=1.98.0)
+
+
 #### [1.98.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.97.0...ui-v1.98.0) (2025-07-01)
 
 #### Features
@@ -407,6 +814,12 @@ Is released as a docker image.
 {% cut "**1.91.3**" %}
 
 **Release date:** 2025-05-21
+
+
+**Release page:** [1.91.3](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.91.3)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:1.91.3](https://github.com/orgs/ytsaurus/packages/container/ui/420661217?tag=1.91.3)
 
 
 #### [1.91.3](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.91.2...ui-v1.91.3) (2025-05-21)
@@ -497,6 +910,12 @@ Is released as a docker image.
 **Release date:** 2025-03-12
 
 
+**Release page:** [1.84.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.84.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:1.84.0](https://github.com/orgs/ytsaurus/packages/container/ui/372794424?tag=1.84.0)
+
+
 #### [1.84.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.83.0...ui-v1.84.0) (2025-03-12)
 
 
@@ -536,6 +955,12 @@ Is released as a docker image.
 **Release date:** 2025-02-15
 
 
+**Release page:** [1.82.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.82.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:1.82.1](https://github.com/orgs/ytsaurus/packages/container/ui/356327466?tag=1.82.1)
+
+
 #### [1.82.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.82.0...ui-v1.82.1) (2025-02-15)
 
 
@@ -550,6 +975,12 @@ Is released as a docker image.
 {% cut "**1.82.0**" %}
 
 **Release date:** 2025-02-14
+
+
+**Release page:** [1.82.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.82.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:1.82.0](https://github.com/orgs/ytsaurus/packages/container/ui/355778977?tag=1.82.0)
 
 
 #### [1.82.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.81.0...ui-v1.82.0) (2025-02-14)
@@ -617,6 +1048,12 @@ Is released as a docker image.
 **Release date:** 2024-12-18
 
 
+**Release page:** [1.75.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.75.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:1.75.1](https://github.com/orgs/ytsaurus/packages/container/ui/324935827?tag=1.75.1)
+
+
 #### [1.75.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.75.0...ui-v1.75.1) (2024-12-18)
 
 #### Features
@@ -643,6 +1080,12 @@ Is released as a docker image.
 {% cut "**1.74.0**" %}
 
 **Release date:** 2024-12-09
+
+
+**Release page:** [1.74.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.74.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:1.74.0](https://github.com/orgs/ytsaurus/packages/container/ui/319304938?tag=1.74.0)
 
 
 #### [1.74.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.73.0...ui-v1.74.0) (2024-12-09)
@@ -692,6 +1135,9 @@ Is released as a docker image.
 **Release date:** 2024-11-18
 
 
+**Release page:** [1.68.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.68.1)
+
+
 #### [1.68.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.68.0...ui-v1.68.1) (2024-11-18)
 
 
@@ -722,6 +1168,12 @@ Is released as a docker image.
 **Release date:** 2024-11-01
 
 
+**Release page:** [1.66.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.66.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:1.66.0](https://github.com/orgs/ytsaurus/packages/container/ui/299155508?tag=1.66.0)
+
+
 #### [1.66.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.65.0...ui-v1.66.0) (2024-11-01)
 
 
@@ -743,6 +1195,12 @@ Is released as a docker image.
 {% cut "**1.65.0**" %}
 
 **Release date:** 2024-10-25
+
+
+**Release page:** [1.65.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.65.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:1.65.0](https://github.com/orgs/ytsaurus/packages/container/ui/295203548?tag=1.65.0)
 
 
 #### [1.65.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.64.0...ui-v1.65.0) (2024-10-25)
@@ -784,6 +1242,12 @@ Is released as a docker image.
 **Release date:** 2024-10-02
 
 
+**Release page:** [1.60.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.60.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:1.60.1](https://github.com/orgs/ytsaurus/packages/container/ui/283122529?tag=1.60.1)
+
+
 #### [1.60.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.60.0...ui-v1.60.1) (2024-10-02)
 
 #### Features
@@ -796,7 +1260,7 @@ Is released as a docker image.
 
 #### Bug Fixes
 
-* **BFF** fix logging of axios error in sendAndLogError function ([b9239dc](https://github.com/ytsaurus/ytsaurus-ui/commit/b9239dc43feab214b4e3520b21e662755be4f33a))
+* **BFF** fix logging of axios error in `sendAndLogError` function ([b9239dc](https://github.com/ytsaurus/ytsaurus-ui/commit/b9239dc43feab214b4e3520b21e662755be4f33a))
 * **Navigation:** pool tree select popup [YTFRONT-4380] ([f52eb90](https://github.com/ytsaurus/ytsaurus-ui/commit/f52eb90da82306d6bf191a0d1375f3c30eaa3aac))
 * **Navigation/Consumer,Navigation/Queue:** show errors [YTFRONT-4144] ([914a6a0](https://github.com/ytsaurus/ytsaurus-ui/commit/914a6a066ce30928673749bd8e2250c51a3e637b))
 * **Navigation/Table/CellPreview:** fix opening preview for table with offset [[#778](https://github.com/ytsaurus/ytsaurus-ui/issues/778)] ([7347349](https://github.com/ytsaurus/ytsaurus-ui/commit/7347349c9adaedb1a8d7ea4a933a8316f2b296d2))
@@ -813,6 +1277,12 @@ Is released as a docker image.
 {% cut "**1.58.1**" %}
 
 **Release date:** 2024-09-10
+
+
+**Release page:** [1.58.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.58.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:1.58.1](https://github.com/orgs/ytsaurus/packages/container/ui/271454584?tag=1.58.1)
 
 
 #### [1.58.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.58.0...ui-v1.58.1) (2024-09-10)
@@ -897,6 +1367,12 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-07-21
 
 
+**Release page:** [1.46.2](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.46.2)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:1.46.2](https://github.com/orgs/ytsaurus/packages/container/ui/246513825?tag=1.46.2)
+
+
 #### [1.46.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.46.1...ui-v1.46.2) (2024-07-21)
 
 
@@ -910,6 +1386,12 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.46.0**" %}
 
 **Release date:** 2024-07-02
+
+
+**Release page:** [1.46.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.46.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:1.46.0](https://github.com/orgs/ytsaurus/packages/container/ui/238180350?tag=1.46.0)
 
 
 #### [1.46.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.45.0...ui-v1.46.0) (2024-07-02)
@@ -955,6 +1437,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-05-28
 
 
+**Release page:** [1.41.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.41.1)
+
+
 #### [1.41.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.41.0...ui-v1.41.1) (2024-05-28)
 
 #### Features
@@ -985,6 +1470,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-05-23
 
 
+**Release page:** [1.39.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.39.0)
+
+
 #### [1.39.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.38.2...ui-v1.39.0) (2024-05-23)
 
 
@@ -1004,6 +1492,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.38.0**" %}
 
 **Release date:** 2024-05-16
+
+
+**Release page:** [1.38.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.38.0)
 
 
 #### [1.38.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.37.0...ui-v1.38.0) (2024-05-16)
@@ -1031,6 +1522,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-05-08
 
 
+**Release page:** [1.33.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.33.0)
+
+
 #### [1.33.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.32.0...ui-v1.33.0) (2024-05-08)
 
 
@@ -1051,6 +1545,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.32.0**" %}
 
 **Release date:** 2024-05-07
+
+
+**Release page:** [1.32.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.32.0)
 
 
 #### [1.32.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.31.0...ui-v1.32.0) (2024-05-07)
@@ -1082,6 +1579,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-04-19
 
 
+**Release page:** [1.31.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.31.0)
+
+
 #### [1.31.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.30.0...ui-v1.31.0) (2024-04-19)
 
 
@@ -1109,6 +1609,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-04-17
 
 
+**Release page:** [1.30.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.30.0)
+
+
 #### [1.30.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.29.0...ui-v1.30.0) (2024-04-17)
 
 
@@ -1129,6 +1632,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.29.0**" %}
 
 **Release date:** 2024-04-12
+
+
+**Release page:** [1.29.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.29.0)
 
 
 #### [1.29.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.28.1...ui-v1.29.0) (2024-04-12)
@@ -1155,6 +1661,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-04-10
 
 
+**Release page:** [1.28.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.28.1)
+
+
 #### [1.28.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.28.0...ui-v1.28.1) (2024-04-10)
 
 
@@ -1169,6 +1678,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.28.0**" %}
 
 **Release date:** 2024-04-09
+
+
+**Release page:** [1.28.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.28.0)
 
 
 #### [1.28.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.27.0...ui-v1.28.0) (2024-04-09)
@@ -1192,6 +1704,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.27.0**" %}
 
 **Release date:** 2024-04-04
+
+
+**Release page:** [1.27.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.27.0)
 
 
 #### [1.27.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.26.0...ui-v1.27.0) (2024-04-04)
@@ -1222,6 +1737,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-03-29
 
 
+**Release page:** [1.26.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.26.0)
+
+
 #### [1.26.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.25.0...ui-v1.26.0) (2024-03-29)
 
 
@@ -1235,6 +1753,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.25.0**" %}
 
 **Release date:** 2024-03-28
+
+
+**Release page:** [1.25.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.25.0)
 
 
 #### [1.25.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.24.1...ui-v1.25.0) (2024-03-28)
@@ -1258,6 +1779,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-03-26
 
 
+**Release page:** [1.24.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.24.1)
+
+
 #### [1.24.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.24.0...ui-v1.24.1) (2024-03-26)
 
 
@@ -1273,6 +1797,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-03-21
 
 
+**Release page:** [1.24.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.24.0)
+
+
 #### [1.24.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.23.1...ui-v1.24.0) (2024-03-21)
 
 
@@ -1286,6 +1813,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.23.1**" %}
 
 **Release date:** 2024-03-21
+
+
+**Release page:** [1.23.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.23.1)
 
 
 #### [1.23.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.23.0...ui-v1.23.1) (2024-03-21)
@@ -1304,6 +1834,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-03-20
 
 
+**Release page:** [1.23.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.23.0)
+
+
 #### [1.23.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.22.3...ui-v1.23.0) (2024-03-20)
 
 
@@ -1319,6 +1852,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-03-18
 
 
+**Release page:** [1.22.3](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.22.3)
+
+
 #### [1.22.3](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.22.2...ui-v1.22.3) (2024-03-18)
 
 
@@ -1332,6 +1868,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.22.2**" %}
 
 **Release date:** 2024-03-18
+
+
+**Release page:** [1.22.2](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.22.2)
 
 
 #### [1.22.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.22.1...ui-v1.22.2) (2024-03-18)
@@ -1353,6 +1892,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-03-17
 
 
+**Release page:** [1.22.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.22.1)
+
+
 #### [1.22.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.22.0...ui-v1.22.1) (2024-03-17)
 
 
@@ -1368,6 +1910,12 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-03-13
 
 
+**Release page:** [1.22.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.22.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:1.22.0](https://github.com/orgs/ytsaurus/packages/container/ui/223076043?tag=1.22.0)
+
+
 #### [1.22.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.21.0...ui-v1.22.0) (2024-03-13)
 
 
@@ -1381,6 +1929,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.21.0**" %}
 
 **Release date:** 2024-03-12
+
+
+**Release page:** [1.21.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.21.0)
 
 
 #### [1.21.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.20.0...ui-v1.21.0) (2024-03-12)
@@ -1403,6 +1954,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-03-06
 
 
+**Release page:** [1.20.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.20.0)
+
+
 #### [1.20.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.19.0...ui-v1.20.0) (2024-03-06)
 
 
@@ -1416,6 +1970,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.19.0**" %}
 
 **Release date:** 2024-03-04
+
+
+**Release page:** [1.19.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.19.0)
 
 
 #### [1.19.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.18.1...ui-v1.19.0) (2024-03-04)
@@ -1442,6 +1999,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-02-27
 
 
+**Release page:** [1.18.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.18.1)
+
+
 #### [1.18.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.18.0...ui-v1.18.1) (2024-02-27)
 
 
@@ -1457,6 +2017,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-02-27
 
 
+**Release page:** [1.18.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.18.0)
+
+
 #### [1.18.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.17.1...ui-v1.18.0) (2024-02-27)
 
 
@@ -1470,6 +2033,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.17.1**" %}
 
 **Release date:** 2024-02-27
+
+
+**Release page:** [1.17.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.17.1)
 
 
 #### [1.17.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.17.0...ui-v1.17.1) (2024-02-27)
@@ -1488,6 +2054,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-02-22
 
 
+**Release page:** [1.16.2](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.16.2)
+
+
 #### [1.16.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.16.1...ui-v1.16.2) (2024-02-22)
 
 
@@ -1501,6 +2070,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.17.0**" %}
 
 **Release date:** 2024-02-16
+
+
+**Release page:** [1.17.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.17.0)
 
 
 #### [1.17.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.16.1...ui-v1.17.0) (2024-02-16)
@@ -1519,6 +2091,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-02-14
 
 
+**Release page:** [1.16.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.16.1)
+
+
 #### [1.16.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.16.0...ui-v1.16.1) (2024-02-14)
 
 
@@ -1532,6 +2107,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.16.0**" %}
 
 **Release date:** 2024-02-14
+
+
+**Release page:** [1.16.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.16.0)
 
 
 #### [1.16.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.15.3...ui-v1.16.0) (2024-02-14)
@@ -1550,6 +2128,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-02-12
 
 
+**Release page:** [1.15.3](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.15.3)
+
+
 #### [1.15.3](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.15.2...ui-v1.15.3) (2024-02-12)
 
 
@@ -1563,6 +2144,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.15.2**" %}
 
 **Release date:** 2024-02-09
+
+
+**Release page:** [1.15.2](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.15.2)
 
 
 #### [1.15.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.15.1...ui-v1.15.2) (2024-02-09)
@@ -1584,6 +2168,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-02-05
 
 
+**Release page:** [1.15.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.15.1)
+
+
 #### [1.15.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.15.0...ui-v1.15.1) (2024-02-05)
 
 
@@ -1599,6 +2186,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-02-05
 
 
+**Release page:** [1.15.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.15.0)
+
+
 #### [1.15.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.14.3...ui-v1.15.0) (2024-02-05)
 
 
@@ -1611,7 +2201,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 
 * **Operations/Details:** minor css fix [YTFRONT-3518] ([91d9b01](https://github.com/ytsaurus/ytsaurus-ui/commit/91d9b0172dd8de0c1d610bc9eb1ca8d2117b1dd6))
 * **Scheduling/PoolEditor:** correct value for fifo_sort_parameters [YTFRONT-3957] ([34d5cdb](https://github.com/ytsaurus/ytsaurus-ui/commit/34d5cdb672b0eeadce80f10d1f828f1579e326ac))
-* **SupportForm:** rework api of makeSupportContent [YTFRONT-3994] ([a563179](https://github.com/ytsaurus/ytsaurus-ui/commit/a563179b6ce5d85e79e24a58a4aa425b5708b281))
+* **SupportForm:** rework api of `makeSupportContent` [YTFRONT-3994] ([a563179](https://github.com/ytsaurus/ytsaurus-ui/commit/a563179b6ce5d85e79e24a58a4aa425b5708b281))
 
 {% endcut %}
 
@@ -1619,6 +2209,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.14.3**" %}
 
 **Release date:** 2024-02-01
+
+
+**Release page:** [1.14.3](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.14.3)
 
 
 #### [1.14.3](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.14.2...ui-v1.14.3) (2024-02-01)
@@ -1637,6 +2230,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-01-30
 
 
+**Release page:** [1.14.2](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.14.2)
+
+
 #### [1.14.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.14.1...ui-v1.14.2) (2024-01-30)
 
 
@@ -1651,6 +2247,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.14.1**" %}
 
 **Release date:** 2024-01-30
+
+
+**Release page:** [1.14.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.14.1)
 
 
 #### [1.14.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.14.0...ui-v1.14.1) (2024-01-30)
@@ -1669,6 +2268,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.14.0**" %}
 
 **Release date:** 2024-01-29
+
+
+**Release page:** [1.14.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.14.0)
 
 
 #### [1.14.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.13.1...ui-v1.14.0) (2024-01-29)
@@ -1694,6 +2296,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-01-29
 
 
+**Release page:** [1.13.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.13.1)
+
+
 #### [1.13.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.13.0...ui-v1.13.1) (2024-01-29)
 
 
@@ -1709,6 +2314,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-01-26
 
 
+**Release page:** [1.13.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.13.0)
+
+
 #### [1.13.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.12.2...ui-v1.13.0) (2024-01-26)
 
 
@@ -1722,6 +2330,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.12.2**" %}
 
 **Release date:** 2024-01-23
+
+
+**Release page:** [1.12.2](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.12.2)
 
 
 #### [1.12.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.12.1...ui-v1.12.2) (2024-01-23)
@@ -1740,6 +2351,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-01-22
 
 
+**Release page:** [1.12.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.12.1)
+
+
 #### [1.12.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.12.0...ui-v1.12.1) (2024-01-22)
 
 
@@ -1753,6 +2367,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.12.0**" %}
 
 **Release date:** 2024-01-22
+
+
+**Release page:** [1.12.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.12.0)
 
 
 #### [1.12.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.11.2...ui-v1.12.0) (2024-01-22)
@@ -1771,6 +2388,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-01-16
 
 
+**Release page:** [1.11.2](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.11.2)
+
+
 #### [1.11.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.11.1...ui-v1.11.2) (2024-01-16)
 
 
@@ -1786,6 +2406,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2024-01-11
 
 
+**Release page:** [1.11.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.11.1)
+
+
 #### [1.11.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.11.0...ui-v1.11.1) (2024-01-11)
 
 
@@ -1799,6 +2422,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.11.0**" %}
 
 **Release date:** 2024-01-09
+
+
+**Release page:** [1.11.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.11.0)
 
 
 #### [1.11.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.10.0...ui-v1.11.0) (2024-01-09)
@@ -1820,6 +2446,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.10.0**" %}
 
 **Release date:** 2023-12-22
+
+
+**Release page:** [1.10.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.10.0)
 
 
 #### [1.10.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.9.0...ui-v1.10.0) (2023-12-22)
@@ -1845,6 +2474,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-12-20
 
 
+**Release page:** [1.9.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.9.0)
+
+
 #### [1.9.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.8.0...ui-v1.9.0) (2023-12-20)
 
 
@@ -1858,6 +2490,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.8.0**" %}
 
 **Release date:** 2023-12-19
+
+
+**Release page:** [1.8.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.8.0)
 
 
 #### [1.8.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.7.3...ui-v1.8.0) (2023-12-19)
@@ -1875,6 +2510,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-12-18
 
 
+**Release page:** [1.7.3](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.7.3)
+
+
 #### [1.7.3](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.7.2...ui-v1.7.3) (2023-12-18)
 
 
@@ -1890,6 +2528,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-12-13
 
 
+**Release page:** [1.7.2](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.7.2)
+
+
 #### [1.7.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.7.1...ui-v1.7.2) (2023-12-13)
 
 
@@ -1903,6 +2544,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.7.0**" %}
 
 **Release date:** 2023-12-13
+
+
+**Release page:** [1.7.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.7.0)
 
 
 #### [1.7.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.6.0...ui-v1.7.0) (2023-12-13)
@@ -1928,6 +2572,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-12-08
 
 
+**Release page:** [1.6.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.6.0)
+
+
 #### [1.6.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.5.2...ui-v1.6.0) (2023-12-08)
 
 
@@ -1948,6 +2595,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-12-06
 
 
+**Release page:** [1.5.2](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.5.2)
+
+
 #### [1.5.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.5.1...ui-v1.5.2) (2023-12-05)
 
 
@@ -1965,6 +2615,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-12-01
 
 
+**Release page:** [1.5.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.5.1)
+
+
 #### [1.5.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.5.0...ui-v1.5.1) (2023-12-01)
 
 
@@ -1978,6 +2631,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.5.0**" %}
 
 **Release date:** 2023-12-01
+
+
+**Release page:** [1.5.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.5.0)
 
 
 #### [1.5.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.4.0...ui-v1.5.0) (2023-12-01)
@@ -2002,6 +2658,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-11-17
 
 
+**Release page:** [1.4.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.4.0)
+
+
 #### [1.4.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.3.1...ui-v1.4.0) (2023-11-17)
 
 
@@ -2015,6 +2674,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.3.1**" %}
 
 **Release date:** 2023-11-16
+
+
+**Release page:** [1.3.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.3.1)
 
 
 #### [1.3.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.3.0...ui-v1.3.1) (2023-11-16)
@@ -2039,6 +2701,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-11-10
 
 
+**Release page:** [1.3.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.3.0)
+
+
 #### [1.3.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.2.0...ui-v1.3.0) (2023-11-10)
 
 
@@ -2052,6 +2717,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.2.0**" %}
 
 **Release date:** 2023-11-10
+
+
+**Release page:** [1.2.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.2.0)
 
 
 #### [1.2.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.1.2...ui-v1.2.0) (2023-11-10)
@@ -2075,6 +2743,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-11-09
 
 
+**Release page:** [1.1.2](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.1.2)
+
+
 #### [1.1.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.1.1...ui-v1.1.2) (2023-11-09)
 
 
@@ -2088,6 +2759,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.1.1**" %}
 
 **Release date:** 2023-10-27
+
+
+**Release page:** [1.1.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.1.1)
 
 
 #### [1.1.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.1.0...ui-v1.1.1) (2023-10-27)
@@ -2107,6 +2781,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-10-26
 
 
+**Release page:** [0.23.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.23.1)
+
+
 #### [0.23.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.23.0...ui-v0.23.1) (2023-10-26)
 
 
@@ -2122,6 +2799,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.1.0**" %}
 
 **Release date:** 2023-10-20
+
+
+**Release page:** [1.1.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.1.0)
 
 
 #### [1.1.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.0.2...ui-v1.1.0) (2023-10-20)
@@ -2153,6 +2833,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-10-09
 
 
+**Release page:** [1.0.2](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.0.2)
+
+
 #### [1.0.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.0.1...ui-v1.0.2) (2023-10-09)
 
 
@@ -2168,6 +2851,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-10-09
 
 
+**Release page:** [1.0.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.0.1)
+
+
 #### [1.0.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.0.0...ui-v1.0.1) (2023-10-09)
 
 
@@ -2181,6 +2867,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**1.0.0**" %}
 
 **Release date:** 2023-10-09
+
+
+**Release page:** [1.0.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v1.0.0)
 
 
 #### [1.0.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.23.0...ui-v1.0.0) (2023-10-09)
@@ -2202,6 +2891,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-10-02
 
 
+**Release page:** [0.23.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.23.0)
+
+
 #### [0.23.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.22.0...ui-v0.23.0) (2023-10-02)
 
 
@@ -2216,6 +2908,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.22.0**" %}
 
 **Release date:** 2023-09-29
+
+
+**Release page:** [0.22.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.22.0)
 
 
 #### [0.22.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.21.1...ui-v0.22.0) (2023-09-29)
@@ -2239,6 +2934,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-09-26
 
 
+**Release page:** [0.21.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.21.1)
+
+
 #### [0.21.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.21.0...ui-v0.21.1) (2023-09-26)
 
 
@@ -2253,6 +2951,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.21.0**" %}
 
 **Release date:** 2023-09-19
+
+
+**Release page:** [0.21.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.21.0)
 
 
 #### [0.21.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.20.0...ui-v0.21.0) (2023-09-19)
@@ -2275,6 +2976,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-09-15
 
 
+**Release page:** [0.20.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.20.0)
+
+
 #### [0.20.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.19.1...ui-v0.20.0) (2023-09-15)
 
 
@@ -2290,6 +2994,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-09-14
 
 
+**Release page:** [0.19.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.19.1)
+
+
 #### [0.19.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.19.0...ui-v0.19.1) (2023-09-14)
 
 
@@ -2303,6 +3010,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.19.0**" %}
 
 **Release date:** 2023-09-13
+
+
+**Release page:** [0.19.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.19.0)
 
 
 #### [0.19.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.18.0...ui-v0.19.0) (2023-09-13)
@@ -2329,6 +3039,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-09-11
 
 
+**Release page:** [0.18.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.18.0)
+
+
 #### [0.18.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.17.0...ui-v0.18.0) (2023-09-07)
 
 
@@ -2349,6 +3062,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.17.0**" %}
 
 **Release date:** 2023-08-31
+
+
+**Release page:** [0.17.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.17.0)
 
 
 #### [0.17.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.16.1...ui-v0.17.0) (2023-08-30)
@@ -2373,6 +3089,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-08-21
 
 
+**Release page:** [0.16.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.16.1)
+
+
 #### [0.16.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.16.0...ui-v0.16.1) (2023-08-21)
 
 
@@ -2388,6 +3107,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-08-16
 
 
+**Release page:** [0.16.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.16.0)
+
+
 #### [0.16.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.15.0...ui-v0.16.0) (2023-08-15)
 
 
@@ -2401,6 +3123,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.15.0**" %}
 
 **Release date:** 2023-08-08
+
+
+**Release page:** [0.15.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.15.0)
 
 
 #### [0.15.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.14.2...ui-v0.15.0) (2023-08-07)
@@ -2429,6 +3154,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-07-28
 
 
+**Release page:** [0.14.2](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.14.2)
+
+
 #### [0.14.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.14.1...ui-v0.14.2) (2023-07-28)
 
 
@@ -2442,6 +3170,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.14.1**" %}
 
 **Release date:** 2023-07-27
+
+
+**Release page:** [0.14.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.14.1)
 
 
 #### [0.14.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.14.0...ui-v0.14.1) (2023-07-27)
@@ -2459,6 +3190,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-07-27
 
 
+**Release page:** [0.14.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.14.0)
+
+
 #### [0.14.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.13.1...ui-v0.14.0) (2023-07-27)
 
 
@@ -2472,6 +3206,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.13.1**" %}
 
 **Release date:** 2023-07-27
+
+
+**Release page:** [0.13.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.13.1)
 
 
 #### [0.13.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.13.0...ui-v0.13.1) (2023-07-27)
@@ -2490,6 +3227,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-07-26
 
 
+**Release page:** [0.13.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.13.0)
+
+
 #### [0.13.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.12.0...ui-v0.13.0) (2023-07-26)
 
 
@@ -2503,6 +3243,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.12.0**" %}
 
 **Release date:** 2023-07-21
+
+
+**Release page:** [0.12.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.12.0)
 
 
 #### [0.12.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.11.3...ui-v0.12.0) (2023-07-21)
@@ -2527,6 +3270,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-07-14
 
 
+**Release page:** [0.11.3](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.11.3)
+
+
 #### [0.11.3](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.11.2...ui-v0.11.3) (2023-07-14)
 
 
@@ -2540,6 +3286,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.11.2**" %}
 
 **Release date:** 2023-07-14
+
+
+**Release page:** [0.11.2](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.11.2)
 
 
 #### [0.11.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.11.1...ui-v0.11.2) (2023-07-14)
@@ -2557,6 +3306,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-07-14
 
 
+**Release page:** [0.11.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.11.1)
+
+
 #### Dependencies
 
 * The following workspace dependencies were updated
@@ -2569,6 +3321,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.11.0**" %}
 
 **Release date:** 2023-07-06
+
+
+**Release page:** [0.11.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.11.0)
 
 
 #### [0.11.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.10.0...ui-v0.11.0) (2023-07-06)
@@ -2595,6 +3350,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-07-04
 
 
+**Release page:** [0.10.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.10.0)
+
+
 #### [0.10.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.9.1...ui-v0.10.0) (2023-07-04)
 
 
@@ -2610,6 +3368,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-06-26
 
 
+**Release page:** [0.9.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.9.1)
+
+
 #### [0.9.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.9.0...ui-v0.9.1) (2023-06-26)
 
 
@@ -2623,6 +3384,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.9.0**" %}
 
 **Release date:** 2023-06-20
+
+
+**Release page:** [0.9.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.9.0)
 
 
 #### [0.9.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.8.0...ui-v0.9.0) (2023-06-20)
@@ -2643,6 +3407,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-06-19
 
 
+**Release page:** [0.8.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.8.0)
+
+
 #### [0.8.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.7.0...ui-v0.8.0) (2023-06-19)
 
 
@@ -2661,6 +3428,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.7.0**" %}
 
 **Release date:** 2023-06-16
+
+
+**Release page:** [0.7.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.7.0)
 
 
 #### [0.7.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.6.4...ui-v0.7.0) (2023-06-16)
@@ -2684,6 +3454,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-06-02
 
 
+**Release page:** [0.6.4](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.6.4)
+
+
 #### [0.6.4](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.6.3...ui-v0.6.4) (2023-06-02)
 
 
@@ -2697,6 +3470,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.6.3**" %}
 
 **Release date:** 2023-06-02
+
+
+**Release page:** [0.6.3](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.6.3)
 
 
 #### [0.6.3](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.6.2...ui-v0.6.3) (2023-06-02)
@@ -2715,6 +3491,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-06-01
 
 
+**Release page:** [0.6.2](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.6.2)
+
+
 #### [0.6.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.6.1...ui-v0.6.2) (2023-06-01)
 
 
@@ -2730,6 +3509,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-06-01
 
 
+**Release page:** [0.6.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.6.1)
+
+
 #### [0.6.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.6.0...ui-v0.6.1) (2023-06-01)
 
 
@@ -2743,6 +3525,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.6.0**" %}
 
 **Release date:** 2023-05-25
+
+
+**Release page:** [0.6.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.6.0)
 
 
 #### [0.6.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.5.1...ui-v0.6.0) (2023-05-25)
@@ -2767,6 +3552,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-05-19
 
 
+**Release page:** [0.5.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.5.1)
+
+
 #### [0.5.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.5.0...ui-v0.5.1) (2023-05-19)
 
 
@@ -2782,6 +3570,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.5.0**" %}
 
 **Release date:** 2023-05-12
+
+
+**Release page:** [0.5.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.5.0)
 
 
 #### [0.5.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.4.2...ui-v0.5.0) (2023-05-10)
@@ -2804,6 +3595,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-05-03
 
 
+**Release page:** [0.4.2](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.4.2)
+
+
 #### [0.4.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.4.1...ui-v0.4.2) (2023-05-03)
 
 
@@ -2823,6 +3617,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-04-28
 
 
+**Release page:** [0.4.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.4.1)
+
+
 #### [0.4.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.4.0...ui-v0.4.1) (2023-04-28)
 
 
@@ -2836,6 +3633,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.4.0**" %}
 
 **Release date:** 2023-04-27
+
+
+**Release page:** [0.4.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.4.0)
 
 
 #### [0.4.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.3.1...ui-v0.4.0) (2023-04-27)
@@ -2867,6 +3667,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-04-19
 
 
+**Release page:** [0.3.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.3.1)
+
+
 #### [0.3.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.3.0...ui-v0.3.1) (2023-04-19)
 
 
@@ -2880,6 +3683,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.3.0**" %}
 
 **Release date:** 2023-04-18
+
+
+**Release page:** [0.3.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.3.0)
 
 
 #### [0.3.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.2.3...ui-v0.3.0) (2023-04-18)
@@ -2897,6 +3703,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-04-17
 
 
+**Release page:** [0.2.3](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.2.3)
+
+
 #### [0.2.3](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.2.2...ui-v0.2.3) (2023-04-17)
 
 
@@ -2910,6 +3719,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.2.2**" %}
 
 **Release date:** 2023-04-14
+
+
+**Release page:** [0.2.2](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.2.2)
 
 
 #### [0.2.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.2.1...ui-v0.2.2) (2023-04-14)
@@ -2928,6 +3740,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-04-07
 
 
+**Release page:** [0.2.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.2.1)
+
+
 #### [0.2.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.2.0...ui-v0.2.1) (2023-04-07)
 
 
@@ -2941,6 +3756,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.2.0**" %}
 
 **Release date:** 2023-04-06
+
+
+**Release page:** [0.2.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.2.0)
 
 
 #### [0.2.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.1.0...ui-v0.2.0) (2023-04-06)
@@ -2961,6 +3779,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.1.0**" %}
 
 **Release date:** 2023-04-05
+
+
+**Release page:** [0.1.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.1.0)
 
 
 #### [0.1.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.0.4...ui-v0.1.0) (2023-04-05)
@@ -2989,6 +3810,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-03-24
 
 
+**Release page:** [0.0.4](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.0.4)
+
+
 #### [0.0.4](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.0.3...ui-v0.0.4) (2023-03-24)
 
 
@@ -3004,6 +3828,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 **Release date:** 2023-03-24
 
 
+**Release page:** [0.0.3](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.0.3)
+
+
 #### [0.0.3](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.0.2...ui-v0.0.3) (2023-03-24)
 
 
@@ -3017,6 +3844,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 {% cut "**0.0.2**" %}
 
 **Release date:** 2023-03-24
+
+
+**Release page:** [0.0.2](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v0.0.2)
 
 
 #### [0.0.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.0.1...ui-v0.0.2) (2023-03-24)

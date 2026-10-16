@@ -1,6 +1,7 @@
 RECURSE(
     chaos_cells
     bundle_hotfix
+    bundle_mutes
     clock_quorum_health
     controller_agent_alerts
     controller_agent_count
@@ -41,12 +42,14 @@ RECURSE(
     scheduler
     scheduler_alerts
     scheduler_alerts_jobs_archivation
+    gpu_sre_alerts
     scheduler_alerts_update_fair_share
     scheduler_uptime
     sort_result
     stuck_missing_part_chunks
     suspicious_jobs
     system_quotas
+    system_quotas_microservices
     system_quotas_yt_job_logs
     system_quotas_yt_logs
     tablet_cell_gossip

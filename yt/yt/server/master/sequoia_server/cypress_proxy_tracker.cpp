@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
@@ -25,11 +27,12 @@
 
 #include <yt/yt/core/misc/id_generator.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NSequoiaServer {
 
 using namespace NCellMaster;
+using namespace NCypressProxy;
 using namespace NHydra;
 using namespace NObjectServer;
 using namespace NRpc;
@@ -96,11 +99,11 @@ public:
             auto* transactionFeatures = response.mutable_sequoia_transaction_features();
             ToProto(transactionFeatures, sequoiaManager->GetSequoiaTransactionFeatures());
         } else {
-            YT_LOG_EVENT(
+            YT_TLOG_EVENT(
                 Logger,
                 SequoiaEnabled_.load(std::memory_order::acquire) ? NLogging::ELogLevel::Alert : NLogging::ELogLevel::Error,
-                error,
-                "Failed to register Cypress proxy");
+                "Failed to register Cypress proxy")
+                .With(error);
         }
         context->Reply(error);
 
@@ -143,8 +146,20 @@ public:
 
     DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS_OVERRIDE(CypressProxy, CypressProxies, TCypressProxyObject);
 
+    const TCypressProxyDynamicConfigPtr& GetDynamicConfig() const override
+    {
+        return DynamicConfig_;
+    }
+
+    void SetDynamicConfig(TCypressProxyDynamicConfigPtr config) override
+    {
+        DynamicConfig_ = std::move(config);
+    }
+
 private:
     const IChannelFactoryPtr ChannelFactory_;
+
+    TCypressProxyDynamicConfigPtr DynamicConfig_ = New<TCypressProxyDynamicConfig>();
 
     // Part of dynamic config to read it from non-automaton thread.
     std::atomic<int> MaxCopiableSubtreeSize_;
@@ -158,6 +173,7 @@ private:
     {
         CypressProxyByAddress_.clear();
         CypressProxyMap_.Clear();
+        DynamicConfig_ = New<TCypressProxyDynamicConfig>();
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
@@ -168,6 +184,7 @@ private:
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
         CypressProxyMap_.SaveValues(context);
+        Save(context, *DynamicConfig_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -178,6 +195,9 @@ private:
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         CypressProxyMap_.LoadValues(context);
+        if (context.GetVersion() >= EMasterReign::InternCypressProxyConfig) {
+            Load(context, *DynamicConfig_);
+        }
     }
 
     void OnAfterSnapshotLoaded() override
@@ -192,16 +212,17 @@ private:
     void RegisterCypressProxy(TCypressProxyObject* proxyObject)
     {
         EmplaceOrCrash(CypressProxyByAddress_, proxyObject->GetAddress(), proxyObject);
-        YT_LOG_DEBUG("Cypress proxy registered (Address: %v, SequoiaReign: %v, Version: %v)",
-            proxyObject->GetAddress(),
-            proxyObject->GetSequoiaReign(),
-            proxyObject->GetVersion());
+        YT_TLOG_DEBUG("Cypress proxy registered")
+            .With("Address", proxyObject->GetAddress())
+            .With("SequoiaReign", proxyObject->GetSequoiaReign())
+            .With("Version", proxyObject->GetVersion());
     }
 
     void UnregisterCypressProxy(TCypressProxyObject* proxyObject)
     {
         EraseOrCrash(CypressProxyByAddress_, proxyObject->GetAddress());
-        YT_LOG_DEBUG("Cypress proxy unregistered (Address: %v)", proxyObject->GetAddress());
+        YT_TLOG_DEBUG("Cypress proxy unregistered")
+            .With("Address", proxyObject->GetAddress());
     }
 
     TCypressProxyObject* CreateCypressProxy(const std::string& address)

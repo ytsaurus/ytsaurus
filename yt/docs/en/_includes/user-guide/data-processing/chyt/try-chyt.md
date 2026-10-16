@@ -89,8 +89,9 @@ To do this, you just need to make the ODBC configuration represented below. The 
 [ClickHouse]
 Driver = <path to driver libclickhouseodbc>
 # For example /usr/local/opt/clickhouse-odbc/lib/libclickhouseodbc.dylib
-user = $CHYT_ALIAS
+username = $CHYT_ALIAS
 password = $YT_TOKEN
+database = YT
 url = http://$YT_PROXY/chyt
 port = 80
 # trace = 1
@@ -127,6 +128,10 @@ SQL> SELECT * FROM "//tmp/sample_table"
 SQLRowCount returns 10
 10 rows fetched
 ```
+
+### Connecting external databases over ODBC { #external-odbc }
+
+CHYT can also act as an ODBC client and query external databases through the ClickHouse ODBC bridge. For configuration details and limitations, see [Connecting external databases over ODBC](../../../../user-guide/data-processing/chyt/reference/odbc.md).
 
 ## JDBC interface { #jdbc }
 

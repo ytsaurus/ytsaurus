@@ -12,7 +12,6 @@ import sys
 import os
 
 
-PY39 = sys.version_info[:2] >= (3, 9)
 PY311 = sys.version_info[:2] >= (3, 11)
 PY312 = sys.version_info[:2] >= (3, 12)
 PY313 = sys.version_info[:2] >= (3, 13)
@@ -23,7 +22,45 @@ LINUX = sys.platform.startswith('linux')
 OSX = MAC = sys.platform == 'darwin'
 
 
-PURE_PYTHON = PYPY or os.getenv('PURE_PYTHON') or os.getenv('GEVENT_PURE_PYTHON')
+GLOBAL_PURE_PYTHON = bool(PYPY or os.environ.get('PURE_PYTHON'))
+# .. versionchanged:: 25.9.1
+#
+# GEVENT_PURE_PYTHON previously was treated like PURE_PYTHON,
+# meaning any value at all would disable extensions.
+# Now, we want to treat GEVENT_PURE_PYTHON as a comma-separated list of
+# module names for which we disable the acceleration, but we want to be
+# compatible with previous values, like so:
+#
+# - GEVENT_PURE_PYTHON=1
+#   GEVENT_PURE_PYTHON=all
+#   GEVENT_PURE_PYTHON=some_string
+#    Disable all extensions
+# - GEVENT_PURE_PYTHON=gevent.queue
+#    Disable the extension ONLY for gevent.queue
+# - GEVENT_PURE_PYTHON=gevent.queue,gevent.hub
+#    Disable the extension for those two modules only
+# - PURE_PYTHON=<anything>
+#    Disable all extensions.
+#
+# CAUTION: Not all configurations of mixing python/C modules
+# will necessarily work together. None of them are tested.
+# Some are certainly safe to disable independently, like gevent.queue.
+_GEVENT_PURE_PYTHON = os.environ.get('GEVENT_PURE_PYTHON')
+if _GEVENT_PURE_PYTHON and 'gevent.' not in _GEVENT_PURE_PYTHON:
+    GLOBAL_PURE_PYTHON = True
+
+#: ..deprecated:: 25.9.1
+PURE_PYTHON = GLOBAL_PURE_PYTHON
+
+def pure_python_module(mod_name):
+    if GLOBAL_PURE_PYTHON:
+        pure = True
+    elif not _GEVENT_PURE_PYTHON:
+        pure = False
+    else:
+        pure = mod_name in _GEVENT_PURE_PYTHON.split(',')
+    return pure
+
 
 ## Types
 
@@ -47,7 +84,7 @@ from abc import ABC # pylint:disable=unused-import
 ## Exceptions
 
 def reraise(t, value, tb=None): # pylint:disable=unused-argument
-    if value.__traceback__ is not tb and tb is not None:
+    if value.__traceback__ is not tb:
         raise value.with_traceback(tb)
     raise value
 def exc_clear():

@@ -1,0 +1,696 @@
+#pragma once
+
+#include "public.h"
+
+#include "job_state/job_init_context.h"
+#include "job_state/state_manager.h"
+#include "key_visitor.h"
+#include "lineage_accumulator.h"
+#include "processing_observation_accumulator.h"
+#include "universal_controller.h"
+
+#include <yt/yt/flow/library/cpp/common/computation.h>
+#include <yt/yt/flow/library/cpp/common/external_state_manager.h>
+#include <yt/yt/flow/library/cpp/common/input_context.h>
+#include <yt/yt/flow/library/cpp/common/key.h>
+#include <yt/yt/flow/library/cpp/common/lag.h>
+#include <yt/yt/flow/library/cpp/common/message.h>
+#include <yt/yt/flow/library/cpp/common/output_collector.h>
+#include <yt/yt/flow/library/cpp/common/registry.h>
+#include <yt/yt/flow/library/cpp/common/schema.h>
+#include <yt/yt/flow/library/cpp/common/spec.h>
+#include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
+#include <yt/yt/flow/library/cpp/common/time_provider.h>
+#include <yt/yt/flow/library/cpp/common/timer.h>
+#include <yt/yt/flow/library/cpp/common/visit.h>
+#include <yt/yt/flow/library/cpp/common/yson_message.h>
+#include <yt/yt/flow/library/cpp/misc/counter.h>
+
+#include <yt/yt/flow/library/cpp/distributed_throttler/public.h>
+
+#include <yt/yt/flow/library/cpp/tables/transaction_manager.h>
+
+#include <yt/yt/flow/library/cpp/serializer/serializer.h>
+
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/rowset.h>
+#include <yt/yt/client/api/transaction.h>
+
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+
+#include <yt/yt/core/actions/bind.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
+#include <library/cpp/yt/system/atomic_object.h>
+#include <library/cpp/yt/system/spin_lock.h>
+
+#include <library/cpp/iterator/concatenate.h>
+
+namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline constexpr TStringBuf ActiveSourceStateName = "$active_source";
+inline constexpr TStringBuf WatermarkStateName = "$watermark";
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A default abstract base class for all computations.
+/*!
+ *  This base provides the following features out-of-the-box:
+ *  1) Properly tagged logger.
+ *  2) Version management.
+ */
+
+class TComputationBase
+    : public IComputation
+{
+public:
+    void Reconfigure(TDynamicComputationContextPtr dynamicContext) final;
+    void UpdateWatermarkState(TWatermarkStatePtr watermarkState) final;
+    void SetInputTraverse(THashMap<TStreamId, TStreamTraverseDataPtr> inputStreams) final;
+
+protected:
+    const NLogging::TLogger Logger;
+
+    TComputationBase(
+        TComputationContextPtr context,
+        TDynamicComputationContextPtr dynamicContext);
+
+    const TComputationContextPtr& GetContext() const;
+    const ITimeProviderPtr& GetTimeProvider() const;
+    const TComputationSpecPtr& GetSpec() const;
+    TDynamicComputationSpecPtr GetDynamicSpec() const;
+    TDynamicComputationContextPtr GetDynamicContext() const;
+
+    IComputation::TParametersPtr GetParametersBase() const final;
+    IComputation::TDynamicParametersPtr GetDynamicParametersBase() const final;
+    IComputation::TDynamicPartitionSpecPtr GetDynamicPartitionSpecBase() const final;
+
+    i64 GetSpecGeneration() const;
+
+    //! Returns schema of key of all input messages. In fact it is equal to GetSpec()->GroupBySchema.
+    const NTableClient::TTableSchemaPtr& GetKeySchema() const;
+    TWatermarkStatePtr GetWatermarkState() const;
+    const THashMap<TStreamId, TStreamTraverseDataPtr>& GetInputTraverse() const;
+
+    EPartitionState GetPartitionState() const;
+    TJobId GetJobId() const;
+    const TComputationId& GetComputationId() const;
+    TPartitionId GetPartitionId() const;
+
+    IRetryableClientPtr GetRetryableClient() const;
+    NTables::TTransactionManagerPtr GetTransactionManager() const;
+
+    TMessageBuilder MakeOutputMessageBuilder(std::optional<TStreamId> streamId = {}, TMessageBuilder::TInitFunction init = {}) const;
+
+    //! Converts a message to the output stream schema and sets its StreamId.
+    //! If |streamId| is not provided, uses the single output stream (throws if there is not exactly one).
+    TMessage ConvertToOutputMessage(const TMessage& message, std::optional<TStreamId> streamId = {}) const;
+
+    TTimer MakeTimer(
+        const TKey& key,
+        const TStreamId& streamId,
+        const TSystemTimestamp& triggerTimestamp,
+        const TSystemTimestamp& eventTimestamp) const;
+
+    TNodeTraverseDataPtr GetNodeTraverse();
+
+    //! Applies states received since the previous call.
+    //! Must be called from JobSerializedInvoker_.
+    void ApplyPendingStates();
+
+    //! Registers an callback to be called when the dynamic computation spec changes.
+    //! Callback called at the start of each RunIteration only if the dynamic spec changes.
+    void SubscribeOnReconfigure(NYT::TCallback<void()> callback, EWatchReconfigure watchReconfigureMask = EWatchReconfigure::DynamicComputationSpec) final;
+
+    /*!
+     *  Registers an object to be reconfigured when the dynamic computation spec changes.
+     *
+     *  When the specification is reconfigured, the `Reconfigure` method of the provided object is called with the updated dynamic field value.
+     *  The dynamic field value can be obtained in two ways:
+     *  - via a pointer to the dynamic parameters field, or
+     *  - by invoking a callable that extracts the value from the dynamic parameters.
+     *
+     *  Reconfiguration occurs at the start of each RunIteration only if the dynamic spec changes.
+     *
+     *  \param derived Pointer to an instance of the derived computation class.
+     *  \param object Object that needs to be reconfigured when the dynamic field changes.
+     *  \param dynamicField Pointer to the dynamic parameters field or a callable for extracting the parameters.
+     *  \param watchReconfigureMask Mask of fields to watch for changes.
+     */
+    template <class TDerived, class TObject, class TDynamicField>
+    static void RegisterForReconfiguration(TDerived* derived, TObject object, TDynamicField dynamicField, EWatchReconfigure watchReconfigureMask = EWatchReconfigure::DynamicComputationSpec)
+    {
+        derived->SubscribeOnReconfigure(BIND(
+            [weakDerived = MakeWeak(derived), object, dynamicField] () {
+                if (auto derived = weakDerived.Lock()) {
+                    if (auto&& params = std::invoke(dynamicField, derived->GetDynamicParameters())) {
+                        object->Reconfigure(params);
+                    }
+                }
+            }),
+            watchReconfigureMask);
+    }
+
+    bool UpdateTraverse(
+        TSystemTimestamp reportTime,
+        TSystemTimestamp systemWatermark,
+        const THashMap<TStreamId, TInflightStreamTraverseDataPtr>& inflights,
+        i64 iterationCycle);
+
+    //! Returns the distributed throttler client for the given id.
+    //! Throws if |throttlerId| is not in the dynamic pipeline spec's
+    //! `throttlers` — this is a configuration error.
+    NConcurrency::IThroughputThrottlerPtr GetThrottlerOrThrow(const TThrottlerId& throttlerId);
+    NConcurrency::IThroughputThrottlerPtr TryGetThrottler(const TThrottlerId& throttlerId);
+
+protected:
+    const NDistributedThrottler::IDistributedThrottlerFactoryPtr& GetThrottlerFactory() const
+    {
+        return ThrottlerFactory_;
+    }
+
+private:
+    const TComputationContextPtr Context_;
+    const IComputation::TParametersPtr Parameters_;
+    const std::vector<TStreamId> TopologicalStreamOrder_;
+    const IRetryableClientPtr RetryableClient_;
+    const ITimeProviderPtr TimeProvider_;
+    const NTables::TTransactionManagerPtr TransactionManager_;
+
+
+    // Written from ControlSerializedInvoker_, read from JobSerializedInvoker_ (in ApplyPendingStates).
+    TAtomicIntrusivePtr<TWatermarkState> PendingWatermarkState_;
+    TAtomicObject<std::optional<THashMap<TStreamId, TStreamTraverseDataPtr>>> PendingInputStreams_;
+    TAtomicIntrusivePtr<TDynamicComputationContext> PendingDynamicContext_;
+
+    // Only from JobSerializedInvoker_.
+    TWatermarkStatePtr WatermarkState_;
+    std::optional<THashMap<TStreamId, TStreamTraverseDataPtr>> InputStreams_;
+    TDynamicComputationContextPtr DynamicContext_;
+    IComputation::TDynamicParametersPtr DynamicParameters_;
+    IComputation::TDynamicPartitionSpecPtr DynamicPartitionSpec_;
+
+    // Declared after DynamicContext_ so its ctor init can read
+    // DynamicContext_->Throttlers.
+    const NDistributedThrottler::IDistributedThrottlerFactoryPtr ThrottlerFactory_;
+
+    // Callbacks called from ApplyPendingStates when spec changes.
+    // Only from JobSerializedInvoker_.
+    std::vector<std::pair<NYT::TCallback<void()>, EWatchReconfigure>> ReconfigureCallbacks_;
+
+    // Read from ControlSerializedInvoker_, written from JobSerializedInvoker_.
+    TAtomicIntrusivePtr<TNodeTraverseData> NodeTraverse_;
+
+private:
+    NTables::TTransactionManagerPtr CreateTransactionManager() const;
+
+    static std::vector<TStreamId> BuildTopologicalStreamOrder(TComputationSpecPtr spec);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRootOutputCollector
+    : public TRefCounted
+{
+public:
+    struct TTransformResult
+    {
+        std::vector<TMessage> OutputMessages;
+        //! Per-output-message distribute flag, kept in lockstep with OutputMessages.
+        std::vector<bool> OutputMessagesDistribute;
+        std::vector<TMessageParentsConstPtr> OutputMessagesParentMessageIds;
+        std::vector<TTimer> OutputTimers;
+        std::vector<TMessageParentsConstPtr> OutputTimersParentMessageIds;
+        TLineageDelta LineageDelta;
+    };
+
+    TRootOutputCollector(
+        TComputationSpecPtr spec,
+        IMetaSetterPtr metaSetter,
+        bool supportsDistribute = false);
+
+    [[nodiscard]] IOutputCollectorPtr SetParents(
+        const std::vector<TInputMessageConstPtr>& messages,
+        const std::vector<TInputTimerConstPtr>& timers,
+        const std::vector<TInputVisitConstPtr>& visits);
+
+    void AddMessage(
+        TMessage&& message,
+        const TMessageParentsConstPtr& parents,
+        const TOutputMessageIdSuffix& messageIdSuffix,
+        bool distribute);
+    void AddTimer(TTimer&& timer, const TMessageParentsConstPtr& parents);
+
+    TTransformResult CollectResult();
+
+private:
+    const TComputationSpecPtr Spec_;
+    const IMetaSetterPtr MetaSetter_;
+    //! Whether messages with |distribute| = false remain available for watermark handling.
+    const bool SupportsDistribute_;
+    TLineageAccumulator LineageAccumulator_;
+    TTransformResult Result_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TRootOutputCollector);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOutputCollector
+    : public IOutputCollector
+{
+public:
+    TOutputCollector(TRootOutputCollectorPtr rootCollector, const TMessageParentsConstPtr& parents);
+
+    [[nodiscard]] IOutputCollectorPtr SetParents(
+        const std::vector<TInputMessageConstPtr>& messages,
+        const std::vector<TInputTimerConstPtr>& timers,
+        const std::vector<TInputVisitConstPtr>& visits) override;
+    void AddTimer(TSystemTimestamp triggerTimestamp, std::optional<TSystemTimestamp> eventTimestamp = {}) override;
+    void AddTimer(const TStreamId& streamId, TSystemTimestamp triggerTimestamp, std::optional<TSystemTimestamp> eventTimestamp = {}) override;
+    void AddTimer(TTimer&& timer) override;
+
+private:
+    void DoAddMessage(TMessage&& message, TAddMessageOptions options) override;
+
+    const TRootOutputCollectorPtr RootCollector_;
+    const TMessageParentsConstPtr Parents_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Shared state for tracker callbacks: holds two pending deques and a Finished flag.
+// Callbacks capture a strong pointer and push under the spinlock; if Finished is set
+// (set in the destructor of TUniversalComputationBase) they do nothing, avoiding
+// any weak-pointer lock overhead.
+class TPendingDistributedOutputs
+    : public TRefCounted
+{
+public:
+    using TDeque = std::deque<TOutputMessageConstPtr>;
+
+    void PushNormal(TOutputMessageConstPtr&& message);
+    void PushInit(TOutputMessageConstPtr&& message);
+
+    // Atomically extracts both deques and returns them as a pair.
+    // If finish=true, also sets Finished=true to prevent further pushes.
+    std::pair<TDeque, TDeque> Extract(bool finish = false);
+
+private:
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
+    bool Finished_ = false;
+    TDeque Normal_;
+    TDeque Init_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Throws if any visitor-driven joiner is listed in the ``external_names`` of more than one
+//! key-visitor stream. Such a joiner holds a single forward-sweep cursor and must be driven
+//! by at most one stream. Visitor-driven-ness comes from the registry trait, so unregistered
+//! classes are skipped (reported by #TRegistry::ValidateComputationSpec separately).
+void ValidateKeyVisitorJoinerBindings(const TComputationSpec& spec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! True once every stream the key-visitor stream |visitStreamId| waits for is listed in
+//! |completedUpstreamStreams|, which holds the input and source streams that have nothing
+//! left to deliver to this partition. This is the signal that lets the visitor arm its
+//! final pass.
+bool IsKeyVisitorUpstreamCompleted(
+    const TComputationSpec& spec,
+    const TStreamId& visitStreamId,
+    const THashSet<TStreamId>& completedUpstreamStreams);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Measures the share of the job lifetime spent blocked on each (limit type,
+//! stream), as reported in #TJobEntityLimitStatus::BlockedTimeShare.
+class TBlockedTimeAccountant
+{
+public:
+    struct TBlockedLimit
+    {
+        TStringBuf LimitType;
+        TStreamId StreamId;
+    };
+
+    explicit TBlockedTimeAccountant(TInstant startTime);
+
+    //! Accounts the elapsed blocked and idle time for every known limit and stream.
+    void Account(TInstant now, TDuration window, const std::vector<TBlockedLimit>& blocked);
+
+    //! Writes the nonzero shares into |limits|, keyed as #TJobStatus::OutputLimits is.
+    void FillShares(THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>>* limits) const;
+
+private:
+    const TInstant StartTime_;
+
+    THashMap<std::string, THashMap<TStreamId, TSimpleEmaCounter>> Counters_;
+    TSimpleEmaCounter Lifetime_;
+    std::optional<TInstant> LastUpdate_;
+
+    double GetShare(const TSimpleEmaCounter& blocked) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUniversalComputationBase
+    : public TComputationBase
+{
+private:
+    struct TExtendedDynamicParameters
+        : public virtual TComputationBase::TDynamicParameters
+        , public virtual TPartitioningSpec
+    {
+        REGISTER_YSON_STRUCT(TExtendedDynamicParameters);
+
+        static void Register(TRegistrar registrar);
+    };
+
+public:
+    using TComputationController = TUniversalComputationController;
+
+    YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TExtendedDynamicParameters);
+    YT_FLOW_EXTEND_SPEC_VALIDATION(ValidateSpec);
+
+    struct TCheckOutputLimitsResult
+    {
+        THashSet<TStreamId> AllowedInputStreams;
+
+        // If AllowedInputStreams.empty() at least one of flags is true.
+        bool OutputBufferOverflow = false;
+        bool OutputStoreOverflow = false;
+        bool BlockedByController = false;
+
+        // TODO: Highlight critical output stream (the one that is latest in stream DAG).
+        // TStreamId CriticalOutputStreamId;
+    };
+
+public:
+    TUniversalComputationBase(
+        TComputationContextPtr context,
+        TDynamicComputationContextPtr dynamicContext);
+    ~TUniversalComputationBase() override;
+
+    TComputationStatusPtr GetStatus() override;
+
+    bool UpdateStatus(
+        TSystemTimestamp reportTime,
+        TSystemTimestamp systemWatermark,
+        const THashMap<TStreamId, TInflightStreamTraverseDataPtr>& inflights);
+
+protected:
+    //! Override to add extra entries to InputLimits reported via GetStatus().
+    //! Called from UpdateStatus() on the serialized invoker.
+    //! The returned map is merged into the base input limits (input_buffer_bytes, etc.).
+    virtual THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> GetExtraInputLimits();
+
+    TWatermarkStatePtr GetEpochWatermarkState() const;
+    TSystemTimestamp GetCurrentTimestamp() const;
+    TSystemTimestamp GetInputEventWatermark() const;
+    TSystemTimestamp GetEpochInputEventWatermark() const;
+    TSystemTimestamp GetEventWatermark(const TStreamId& streamId) const;
+    TSystemTimestamp GetEpochEventWatermark(const TStreamId& streamId) const;
+    TSystemTimestamp GetSystemWatermark(const TStreamId& streamId) const;
+    TSystemTimestamp GetEpochSystemWatermark(const TStreamId& streamId) const;
+    TSystemTimestamp GetWatermark(const TStreamId& streamId, ETimeType timeType) const;
+    TSystemTimestamp GetEpochWatermark(const TStreamId& streamId, ETimeType timeType) const;
+
+    THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflights(
+        const IComputationRunContextPtr& context) const;
+
+    struct TFilteredInputBatch
+    {
+        std::vector<TInputMessageConstPtr> Messages;
+        THashMap<TStreamId, TBatchStatistics> SkippedStatistics;
+    };
+
+    TFilteredInputBatch FilterInputBatch(
+        const IComputationRunContextPtr& context,
+        std::vector<TInputMessageConstPtr> messages);
+
+    void RegisterInputBeforeProcessing(
+        const std::vector<TInputMessageConstPtr>& inputMessages,
+        const std::vector<TInputTimerConstPtr>& inputTimers,
+        const std::vector<TInputVisitConstPtr>& inputVisits,
+        const THashMap<TStreamId, TSystemTimestamp>& watermarkOverrides = {});
+
+    //! Blocks until the throttlers picked by `InputRowsThrottlerId` and
+    //! `InputBytesThrottlerId` grant quota for the batch. No-op if neither
+    //! id is set or the batch is empty. Must run on the job serialized
+    //! invoker; wrapped in the "Input.Throttle" trace part.
+    void ThrottleInputBatch(
+        const std::vector<TInputMessageConstPtr>& messages,
+        const std::vector<TInputTimerConstPtr>& timers,
+        const std::vector<TInputVisitConstPtr>& visits);
+
+    // Batch variant: registers all messages at once, taking locks once for the whole batch.
+    void RegisterOutputMessages(
+        const IComputationRunContextPtr& context,
+        std::span<const TOutputMessageConstPtr> messages,
+        const std::optional<TKey>& parentKey);
+
+    template <class TCallback>
+    void SubscribeRunIterationStart(TCallback callback)
+    {
+        auto guard = Guard(Lock_);
+        RunIterationStartPromise_.ToFuture().Subscribe(callback);
+    }
+
+    template <class TCallback>
+    void SubscribeBeforeNextCommitInIteration(TCallback callback)
+    {
+        auto guard = Guard(Lock_);
+        BeforeCommitInIterationPromise_.ToFuture().Subscribe(callback);
+    }
+
+    template <class TCallback>
+    void SubscribeRunIterationFinish(TCallback callback)
+    {
+        auto guard = Guard(Lock_);
+        RunIterationFinishPromise_.ToFuture().Subscribe(callback);
+    }
+
+    struct TRunIterationGuard
+    {
+        NTracing::TTraceContextPtr TraceContext;
+        NTracing::TTraceContextGuard TraceContextGuard;
+    };
+
+    TRunIterationGuard StartRunIteration(const IComputationRunContextPtr& context);
+    IRetryableTransactionPtr PrepareTransaction(const IComputationRunContextPtr& context);
+    void Commit(IComputationRunContextPtr context, IRetryableTransactionPtr transaction);
+    void FinishRunIteration();
+    //! Call once per run iteration that had input to process, see #TComputationStatus::NonEmptyIterationCount.
+    void NoteNonEmptyRunIteration();
+
+    TCheckOutputLimitsResult CheckOutputLimits(
+        const TDynamicComputationSpecPtr& dynamicSpec,
+        const IComputation::TDynamicPartitionSpecPtr& dynamicPartitionSpec);
+    void InitBufferWarmupState();
+    void RefreshBufferWarmupState();
+
+    void RegisterResults(
+        const IInputContextPtr& inputs,
+        TLineageDelta lineageDelta,
+        THashMap<TStreamId, TBatchStatistics> skipped = {});
+
+    void WaitForBackoff(
+        const TDynamicComputationSpecPtr& dynamicSpec,
+        const TCheckOutputLimitsResult& outputLimitsCheckResult,
+        bool emptyInput) const;
+    void ValidateTimerStoreLimits(const TDynamicComputationSpecPtr& dynamicSpec) const;
+
+    ITimeProvider::TGlobalUniqueSeqNo GenerateGlobalUniqueSeqNo();
+
+    std::optional<TUniqueSeqNo> GetEpochUniqueSeqNo() const;
+
+    template <class... T>
+    void ClearAsynchronously(T&&... args) const
+    {
+        static_assert((std::is_rvalue_reference_v<T&&> && ...), "All arguments must be rvalue");
+        GetContext()->PoolInvoker->Invoke(BIND([object = std::tuple<T...>{std::move(args)...}] () mutable {
+            object = {};
+        }));
+    }
+
+    void InitOutputStoreDistribution(const IComputationRunContextPtr& context);
+    void InitSinks();
+    bool HasSinkInflight() const;
+
+    void Run(const IComputationRunContextPtr& context) final;
+
+    virtual void DoPrepare(const IComputationRunContextPtr& context) = 0;
+    virtual void DoExecute(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard) = 0;
+    void DrainOutputMessages(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard);
+    void DoInterrupt(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard);
+    void DoComplete(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard);
+    void DoCleanup(const IComputationRunContextPtr& context, bool eraseOwnedState);
+
+    //! Computations that register persisted keyed output (#IOutputStore::TryRegisterKeyedBatch
+    //! with |persist| = true) must drain it before DoCleanup erases the source key's state,
+    //! or the output rows are orphaned (never delivered, no TTL) and get re-sent with a reset
+    //! dedup state if the key's range is later re-read.
+    virtual bool HasPersistedKeyedOutput() const;
+
+    ISinkPtr GetSink(const TSinkId& sinkId) const;
+
+    void PreloadKeyStates(const IInputContextPtr& inputContext);
+
+    //! Maps each visitor-driven joiner (bound to a key-visitor stream via ``external_names``)
+    //! to the keys of the visits that stream delivered in |inputContext|.
+    THashMap<std::string, THashSet<TKey>> CollectVisitorDrivenJoinerKeys(
+        const IInputContextPtr& inputContext) const;
+
+    TYsonMessagePtr ConvertToYsonMessage(const TInputMessageConstPtr& message) const
+    {
+        return ConvertToYsonMessage(*message);
+    }
+
+    TYsonMessagePtr ConvertToYsonMessage(const TMessage& message) const
+    {
+        const auto spec = GetContext()->StreamSpecStorage->GetSpec(message.StreamId);
+        if (!spec->ClassName) {
+            THROW_ERROR_EXCEPTION("Impossible to convert message to yson message due to undefined \"class_name\"")
+                .With("stream_id", message.StreamId);
+        }
+        auto ysonMessage = TRegistry::Get()->CreateYsonMessage(*spec->ClassName);
+        ::NYT::NFlow::ConvertToYsonMessage(message, ysonMessage);
+        return ysonMessage;
+    }
+
+    TMessage ConvertToMessage(const TYsonMessagePtr& ysonMessage) const
+    {
+        auto streamId = ysonMessage->Meta->StreamId;
+        if (streamId.Underlying().empty()) {
+            if (GetSpec()->OutputStreamIds.size() == 1) {
+                streamId = *GetSpec()->OutputStreamIds.begin();
+            } else {
+                THROW_ERROR_EXCEPTION("Impossible to guess output stream");
+            }
+        }
+        auto spec = GetContext()->StreamSpecStorage->GetSpec(streamId);
+        if (!spec->ClassName) {
+            THROW_ERROR_EXCEPTION("Impossible to convert yson message to message due to undefined \"class_name\"")
+                .With("stream_id", streamId);
+        }
+        TRegistry::Get()->ValidateYsonMessageType(*spec->ClassName, ysonMessage);
+        auto message = ::NYT::NFlow::ConvertToMessage(ysonMessage, spec->Schema);
+        message.StreamId = streamId;
+        return message;
+    }
+
+    template <class T>
+    TIntrusivePtr<T> ConvertToYsonKey(const TKey& key) const
+    {
+        return NYsonSerializer::Deserialize<T>(key.Underlying(), GetKeySchema());
+    }
+
+    virtual void ProcessDistributedMessages(const IComputationRunContextPtr& context, std::deque<TOutputMessageConstPtr>&& messages) = 0;
+
+protected:
+    const TJobStateManagerPtr StateManager_;
+    //! System partition state carrying #TPartitionBufferWarmup: read at start to
+    //! seed the buffer manager, refreshed (drift-gated) before every commit.
+    IMutableStateProviderPtr BufferWarmupState_;
+    TPartitionBufferWarmup LastWrittenWarmup_;
+    TInstant LastWarmupRefreshInstant_;
+    const bool HasVisitorDrivenJoiners_;
+    const std::optional<TStreamId> ActiveSourceStreamId_;
+    const ISourcePtr ActiveSource_;
+
+    THashMap<TSinkId, ISinkPtr> Sinks_;
+
+    const IInputStorePtr InputStore_;
+    const ITimerStorePtr TimerStore_;
+    const IOutputStorePtr OutputStore_;
+    //! KeyVisitor objects per visit-stream id; empty when the partition is not Executing
+    //! or when no key_visitor_streams entries are configured.
+    const THashMap<TStreamId, TKeyVisitorPtr> KeyVisitors_;
+    const IComputationTracerPtr Tracer_;
+    const IEventTimestampAssignerPtr EventTimestampAssigner_;
+    const IMessageFilterPtr Filter_;
+
+private:
+    struct TStreamMessageCounters
+    {
+        NProfiling::TCounter TotalMessages;
+        NProfiling::TCounter LateMessages;
+    };
+
+    const TInstant StartTime_;
+    const NProfiling::TCounter InputSkippedByExpressionCounter_;
+
+    YT_DECLARE_SPIN_LOCK(TSpinLock, LimitsLock_);
+    THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> InputLimits_;
+    THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> OutputLimits_;
+
+    //! Touched from the run fiber only.
+    TBlockedTimeAccountant BlockedTimeAccountant_{StartTime_};
+
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
+    i64 RunIteration_ = -1;
+    std::atomic<i64> NonEmptyRunIterations_ = 0;
+    TPromise<void> RunIterationStartPromise_;
+    TPromise<void> BeforeCommitInIterationPromise_;
+    TPromise<void> RunIterationFinishPromise_;
+    TPromise<void> CurrentRunIterationPromise_;
+
+    NProfiling::TEventTimer EpochTimer_;
+    NProfiling::TCounter EpochCounter_;
+    //! Touched from the run fiber only; published by GenerateGlobalUniqueSeqNo.
+    std::optional<TUniqueSeqNo> EpochUniqueSeqNo_;
+    THashMap<TStreamId, TStreamMessageCounters> StreamMessageCounters_;
+
+    TStreamEventLagObserver InputEventLagObserver_;
+    TStreamEventLagObserver OutputEventLagObserver_;
+
+    TIntrusivePtr<TPendingDistributedOutputs> PendingProcessedOutputs_;
+
+    TProcessingObservationAccumulator ProcessingObservationAccumulator_{StartTime_};
+    TAtomicIntrusivePtr<TProcessingObservation> ProcessingObservation_;
+
+    std::optional<TStreamId> CreateActiveSourceStreamId();
+    ISourcePtr CreateActiveSource();
+    THashMap<TSinkId, ISinkPtr> CreateSinks();
+    IInputStorePtr CreateInputStore();
+    ITimerStorePtr CreateTimerStore();
+    IOutputStorePtr CreateOutputStore();
+    THashMap<TStreamId, TKeyVisitorPtr> CreateKeyVisitors() const;
+    TJobStateManagerPtr CreateStateManager() const;
+    bool ComputeHasVisitorDrivenJoiners() const;
+    static void ValidateSpec(const TComputationSpec& spec);
+
+    static THashMap<TStreamId, TStreamMessageCounters> CreateStreamMessageCounters(const NProfiling::TProfiler& profiler, const TComputationSpecPtr& spec);
+
+    static std::vector<TStreamId> GetInputEventLagStreamIds(const TComputationSpecPtr& spec);
+    static std::vector<TStreamId> GetOutputEventLagStreamIds(const TComputationSpecPtr& spec);
+
+    void ObserveEpochEventLags(TInstant commitNow);
+
+    void ValidateOutputParentKey(const std::optional<TKey>& parentKey) const;
+    void ClearStateOwners();
+
+    // Common implementation for RegisterOutputMessages and InitOutputStoreDistribution.
+    // Iterates over |messages|, distributes each to the appropriate sink, registers
+    // with context, and activates all trackers.
+    // |makeTrackerCallback(i)| returns the completion callback stored in the tracker for |messages[i]|.
+    template <class TMakeTrackerCallback>
+    void DistributeOutputMessagesImpl(
+        const IComputationRunContextPtr& context,
+        std::span<const TOutputMessageConstPtr> messages,
+        TMakeTrackerCallback&& makeTrackerCallback);
+
+    void DrainDistributedOutputs(const IComputationRunContextPtr& context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow

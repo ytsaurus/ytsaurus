@@ -1,11 +1,10 @@
 #include "master_cell_chunk_statistics_collector.h"
 
-#include "private.h"
-
 #include "chunk.h"
 #include "chunk_manager.h"
 #include "chunk_scanner.h"
 #include "config.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -14,6 +13,8 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
 #include <yt/yt/server/master/chunk_server/proto/master_cell_chunk_statistics_collector.pb.h>
+
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NChunkServer {
 
@@ -303,10 +304,11 @@ private:
         auto error = WaitFor(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), mutationRequest)
             ->CommitAndLog(Logger()));
         if (error.IsOK()) {
-            YT_LOG_DEBUG("Master cell chunk statistics updated successfully (GlobalScanFinished: %v)",
-                !ChunkScanner_.HasUnscannedChunk());
+            YT_TLOG_DEBUG("Master cell chunk statistics updated successfully")
+                .With("GlobalScanFinished", !ChunkScanner_.HasUnscannedChunk());
         } else {
-            YT_LOG_ERROR(error, "Failed to update master cell chunk statistics");
+            YT_TLOG_ERROR("Failed to update master cell chunk statistics")
+                .With(error);
         }
     }
 

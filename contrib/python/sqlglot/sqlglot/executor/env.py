@@ -9,6 +9,54 @@ from sqlglot.generator import Generator
 from sqlglot.helper import PYTHON_VERSION, is_int, seq_get
 
 
+def sql_not(value):
+    return None if value is None else not bool(value)
+
+
+def sql_and(left, right):
+    left = left()
+    left = None if left is None else bool(left)
+
+    if left is False:
+        return False
+
+    right = right()
+    right = None if right is None else bool(right)
+    if right is False:
+        return False
+
+    return None if left is None or right is None else True
+
+
+def sql_or(left, right):
+    left = left()
+    left = None if left is None else bool(left)
+
+    if left is True:
+        return True
+
+    right = right()
+    right = None if right is None else bool(right)
+    if right is True:
+        return True
+
+    return None if left is None or right is None else False
+
+
+def sql_in(value, *candidates):
+    if value is None:
+        return None
+
+    has_null = False
+    for candidate in candidates:
+        if candidate is None:
+            has_null = True
+        elif value == candidate:
+            return True
+
+    return None if has_null else False
+
+
 class reverse_key:
     def __init__(self, obj):
         self.obj = obj
@@ -99,32 +147,32 @@ def substring(this, start=None, length=None):
 
 @null_if_any
 def cast(this, to):
-    if to == exp.DataType.Type.DATE:
+    if to == exp.DType.DATE:
         if isinstance(this, datetime.datetime):
             return this.date()
         if isinstance(this, datetime.date):
             return this
         if isinstance(this, str):
             return datetime.date.fromisoformat(this)
-    if to == exp.DataType.Type.TIME:
+    if to == exp.DType.TIME:
         if isinstance(this, datetime.datetime):
             return this.time()
         if isinstance(this, datetime.time):
             return this
         if isinstance(this, str):
             return datetime.time.fromisoformat(this)
-    if to in (exp.DataType.Type.DATETIME, exp.DataType.Type.TIMESTAMP):
+    if to in (exp.DType.DATETIME, exp.DType.TIMESTAMP):
         if isinstance(this, datetime.datetime):
             return this
         if isinstance(this, datetime.date):
             return datetime.datetime(this.year, this.month, this.day)
         if isinstance(this, str):
             return datetime.datetime.fromisoformat(this)
-    if to == exp.DataType.Type.BOOLEAN:
+    if to == exp.DType.BOOLEAN:
         return bool(this)
     if to in exp.DataType.TEXT_TYPES:
         return str(this)
-    if to in {exp.DataType.Type.FLOAT, exp.DataType.Type.DOUBLE}:
+    if to in {exp.DType.FLOAT, exp.DType.DOUBLE}:
         return float(this)
     if to in exp.DataType.NUMERIC_TYPES:
         return int(this)
@@ -168,6 +216,7 @@ def jsonextract(this, expression):
 
 ENV = {
     "exp": exp,
+    "AND": sql_and,
     # aggs
     "ARRAYAGG": list,
     "ARRAYUNIQUEAGG": filter_nulls(lambda acc: list(set(acc))),
@@ -201,6 +250,7 @@ ENV = {
     "GT": null_if_any(lambda this, e: this > e),
     "GTE": null_if_any(lambda this, e: this >= e),
     "IF": lambda predicate, true, false: true if predicate else false,
+    "IN": sql_in,
     "INTDIV": null_if_any(lambda e, this: e // this),
     "INTERVAL": interval,
     "JSONEXTRACT": jsonextract,
@@ -216,6 +266,8 @@ ENV = {
     "MUL": null_if_any(lambda e, this: e * this),
     "NEQ": null_if_any(lambda this, e: this != e),
     "ORD": null_if_any(ord),
+    "NOT": sql_not,
+    "OR": sql_or,
     "ORDERED": ordered,
     "POW": pow,
     "RIGHT": null_if_any(lambda this, e: this[-e:]),

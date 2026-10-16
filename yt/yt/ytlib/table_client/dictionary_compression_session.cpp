@@ -11,6 +11,7 @@
 
 #include <yt/yt/client/table_client/config.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/private.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_value.h>
 
@@ -58,8 +59,7 @@ public:
         YT_VERIFY(!Promise_);
         Promise_ = NewPromise<std::vector<TSharedRef>>();
 
-        Logger.AddTag("ReadSessionId: %v",
-            chunkReadOptions.ReadSessionId);
+        Logger.AddTag("ReadSessionId", chunkReadOptions.ReadSessionId);
 
         auto dictionaryCompressionFactory = DictionaryCompressionFactory_.Lock();
         if (!dictionaryCompressionFactory) {
@@ -71,8 +71,8 @@ public:
         THashSet<TChunkId> dictionaryIdSet(dictionaryIds.begin(), dictionaryIds.end());
         YT_VERIFY(!dictionaryIdSet.contains(NullChunkId));
 
-        YT_LOG_DEBUG("Dictionary decompression session will fetch decompressors from cache (DictionaryIds: %v)",
-            dictionaryIdSet);
+        YT_TLOG_DEBUG("Dictionary decompression session will fetch decompressors from cache")
+            .With("DictionaryIds", dictionaryIdSet);
 
         auto decompressorsFuture = dictionaryCompressionFactory->GetDecompressors(
             chunkReadOptions,
@@ -170,14 +170,15 @@ private:
                 contentSize = frameInfo.ContentSize;
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to read frame info of a dictionary compressed value")
-                    << TErrorAttribute("dictionary_id", dictionaryId)
-                    << TErrorAttribute("value_id", compressedValue->Id)
-                    << TErrorAttribute("value_size", compressedValue->Length)
-                    << TErrorAttribute("decompressed_value_count", decompressedValueCount)
-                    << TErrorAttribute("new_decompressed_value_count", newDecompressedValueCount)
-                    << TErrorAttribute("decompressed_size", decompressedSize);
+                    .With("dictionary_id", dictionaryId)
+                    .With("value_id", compressedValue->Id)
+                    .With("value_size", compressedValue->Length)
+                    .With("decompressed_value_count", decompressedValueCount)
+                    .With("new_decompressed_value_count", newDecompressedValueCount)
+                    .With("decompressed_size", decompressedSize);
 
-                YT_LOG_ALERT(error);
+                YT_TLOG_ALERT("Decompressed value count mismatch")
+                    .With(error);
                 Promise_.TrySet(error);
                 return;
             }
@@ -226,14 +227,12 @@ private:
 
         YT_VERIFY(currentDecompressedSize == std::ssize(blob));
 
-        YT_LOG_DEBUG("Dictionary decompression session successfully decompressed values "
-            "(DecompressionTime: %v, ProcessedValueCount: %v/%v, CompressedSize: %v, DecompressedSize: %v, UncompressedSize: %v)",
-            decompressionTimer.GetElapsedTime(),
-            newDecompressedValueCount,
-            values.size(),
-            currentCompressedSize,
-            currentDecompressedSize,
-            currentUncompressedSize);
+        YT_TLOG_DEBUG("Dictionary decompression session successfully decompressed values")
+            .With("DecompressionTime", decompressionTimer.GetElapsedTime())
+            .WithFormat("ProcessedValueCount", "%v/%v", newDecompressedValueCount, values.size())
+            .With("CompressedSize", currentCompressedSize)
+            .With("DecompressedSize", currentDecompressedSize)
+            .With("UncompressedSize", currentUncompressedSize);
 
         DecompressionTime_ += decompressionTimer.GetElapsedTime();
 
@@ -390,10 +389,10 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
 
     if (!metaOrError.IsOK()) {
         THROW_ERROR_EXCEPTION("Failed to read meta of a dictionary chunk")
-            << TErrorAttribute("dictionary_id", dictionaryId)
-            << TErrorAttribute("is_decompression", isDecompression)
-            << TErrorAttribute("read_session_id", chunkReadOptions.ReadSessionId)
-            << metaOrError;
+            .With("dictionary_id", dictionaryId)
+            .With("is_decompression", isDecompression)
+            .With("read_session_id", chunkReadOptions.ReadSessionId)
+            .With(metaOrError);
     }
 
     chunkReadOptions.ChunkReaderStatistics->MetaWaitTime.fetch_add(
@@ -442,12 +441,12 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
         chunkReadOptions.ChunkReaderStatistics = hunkChunkReaderStatistics->GetChunkReaderStatistics();
     }
 
-    YT_LOG_DEBUG("Will read fragments of a dictionary chunk (FragmentCount: %v)",
-        requests.size());
+    YT_TLOG_DEBUG("Will read fragments of a dictionary chunk")
+        .With("FragmentCount", requests.size());
 
     return chunkFragmentReader->ReadFragments(
-        chunkReadOptions,
-        std::move(requests))
+        std::move(requests),
+        chunkReadOptions)
         .Apply(BIND(
             [
                 =,
@@ -461,16 +460,16 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
 
             if (!responseOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Failed to read fragments of a dictionary chunk")
-                    << TErrorAttribute("dictionary_id", dictionaryId)
-                    << TErrorAttribute("is_decompression", isDecompression)
-                    << TErrorAttribute("read_session_id", chunkReadOptions.ReadSessionId)
-                    << responseOrError;
+                    .With("dictionary_id", dictionaryId)
+                    .With("is_decompression", isDecompression)
+                    .With("read_session_id", chunkReadOptions.ReadSessionId)
+                    .With(responseOrError);
             }
 
-            auto response = responseOrError.Value();
+            const auto& response = responseOrError.Value();
             YT_VERIFY(response.Fragments.size() == columnIdMapping.size());
 
-            YT_LOG_DEBUG("Successfully read fragments of a dictionary chunk");
+            YT_TLOG_DEBUG("Successfully read fragments of a dictionary chunk");
 
             if (hunkChunkReaderStatistics) {
                 hunkChunkReaderStatistics->DataWeight() += GetByteSize(response.Fragments);
@@ -522,11 +521,12 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
                             storage.Slice(startOffset, startOffset + estimatedSize));
                     } catch (const std::exception& ex) {
                         auto error = TError("Failed to construct digested decompression dictionary")
-                            << TErrorAttribute("column_index", index)
-                            << TErrorAttribute("column_id", columnId)
-                            << TErrorAttribute("dictionary_id", dictionaryId)
-                            << TErrorAttribute("read_session_id", chunkReadOptions.ReadSessionId);
-                        YT_LOG_ALERT(error);
+                            .With("column_index", index)
+                            .With("column_id", columnId)
+                            .With("dictionary_id", dictionaryId)
+                            .With("read_session_id", chunkReadOptions.ReadSessionId);
+                        YT_TLOG_ALERT("Failed to construct digested dictionary")
+                            .With(error);
                         THROW_ERROR(error);
                     }
                     startOffset += estimatedSize;
@@ -586,11 +586,12 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
                             dictionaryReaderConfig->CompressionLevel);
                     } catch (const std::exception& ex) {
                         auto error = TError("Failed to construct digested compression dictionary")
-                            << TErrorAttribute("column_index", index)
-                            << TErrorAttribute("column_id", columnId)
-                            << TErrorAttribute("dictionary_id", dictionaryId)
-                            << TErrorAttribute("read_session_id", chunkReadOptions.ReadSessionId);
-                        YT_LOG_ALERT(error);
+                            .With("column_index", index)
+                            .With("column_id", columnId)
+                            .With("dictionary_id", dictionaryId)
+                            .With("read_session_id", chunkReadOptions.ReadSessionId);
+                        YT_TLOG_ALERT("Failed to construct digested dictionary")
+                            .With(error);
                         THROW_ERROR(error);
                     }
                     startOffset += estimatedSize;
@@ -620,14 +621,14 @@ TFuture<TRowDigestedDictionary> ReadDigestedDictionary(
     bool suitableForCaching,
     NLogging::TLogger logger)
 {
-    logger.AddTag("ReadSessionId: %v, DictionaryId: %v, IsDecompression: %v",
-        chunkReadOptions.ReadSessionId,
-        dictionaryId,
-        isDecompression);
+    logger
+        .AddTag("ReadSessionId", chunkReadOptions.ReadSessionId)
+        .AddTag("DictionaryId", dictionaryId)
+        .AddTag("IsDecompression", isDecompression);
 
     const auto& Logger = logger;
 
-    YT_LOG_DEBUG("Will read meta of a dictionary chunk");
+    YT_TLOG_DEBUG("Will read meta of a dictionary chunk");
 
     TWallTimer metaWaitTimer;
 

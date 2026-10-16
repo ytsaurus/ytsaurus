@@ -18,6 +18,8 @@ add_library(contrib-libs-h3)
 
 
 target_compile_options(contrib-libs-h3 PRIVATE
+  -DBUILDING_H3=1
+  -DBUILD_SHARED_LIBS=1
   -DH3_PREFIX=
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
@@ -32,21 +34,23 @@ target_link_libraries(contrib-libs-h3 PUBLIC
 
 target_sources(contrib-libs-h3 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/algos.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/area.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/baseCells.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/bbox.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/coordijk.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/cellsToMultiPoly.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/directedEdge.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/faceijk.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/geoCoord.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/h3Assert.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/h3Index.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/h3UniEdge.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/iterators.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/latLng.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/linkedGeo.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/localij.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/mathExtensions.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/polyfill.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/polygon.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/vec2d.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/vec3d.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/vertex.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/vertexGraph.c
 )
 
 
@@ -60,6 +64,14 @@ set_property(
 
 set_property(
   SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/area.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/baseCells.c
   APPEND
   PROPERTY
@@ -76,7 +88,15 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/coordijk.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/cellsToMultiPoly.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/directedEdge.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -92,7 +112,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/geoCoord.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/h3Assert.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -108,7 +128,15 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/h3UniEdge.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/iterators.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/latLng.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -140,6 +168,14 @@ set_property(
 
 set_property(
   SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/polyfill.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/polygon.c
   APPEND
   PROPERTY
@@ -156,23 +192,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/vec3d.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/vertex.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/vertexGraph.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS

@@ -4,8 +4,8 @@
 
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
@@ -39,6 +39,9 @@ class TShuffleChunkPool
     : public TChunkPoolInputBase
     , public IShuffleChunkPool
 {
+public:
+    DEFINE_SIGNAL_OVERRIDE(void(), OutputsFinalized);
+
 public:
     //! For persistence only.
     TShuffleChunkPool() = default;
@@ -80,8 +83,6 @@ public:
         inputStripe.ElementaryIndexBegin = std::ssize(ElementaryStripes_);
 
         for (const auto& dataSlice : stripe->DataSlices()) {
-            YT_VERIFY(!dataSlice->IsLegacy);
-
             // NB: TShuffleChunkPool contains only chunks from unversioned tables.
             const auto& chunkSpec = dataSlice->GetSingleUnversionedChunk();
 
@@ -166,6 +167,13 @@ public:
             output->FinishInput();
             output->CheckCompleted();
         }
+
+        OutputsFinalized_.Fire();
+    }
+
+    bool AreOutputsFinalized() const override
+    {
+        return Finished;
     }
 
     i64 GetTotalDataSliceCount() const override
@@ -335,12 +343,6 @@ private:
 
             list->SetApproximate(run.IsApproximate);
 
-            for (const auto& stripe : list->Stripes()) {
-                for (const auto& dataSlice : stripe->DataSlices()) {
-                    YT_VERIFY(!dataSlice->IsLegacy);
-                }
-            }
-
             return list;
         }
 
@@ -445,11 +447,11 @@ private:
             TProgressCounterGuard JobProgressCounterGuard;
 
             template <class... TArgs>
-            void CallProgressCounterGuards(void (TProgressCounterGuard::*Method)(TArgs...), TArgs... args)
+            void CallProgressCounterGuards(void (TProgressCounterGuard::*Method)(TArgs...), const TArgs&... args)
             {
-                (DataWeightProgressCounterGuard.*Method)(std::forward<TArgs>(args)...);
-                (RowProgressCounterGuard.*Method)(std::forward<TArgs>(args)...);
-                (JobProgressCounterGuard.*Method)(std::forward<TArgs>(args)...);
+                (DataWeightProgressCounterGuard.*Method)(args...);
+                (RowProgressCounterGuard.*Method)(args...);
+                (JobProgressCounterGuard.*Method)(args...);
             }
 
             int GetSliceCount() const

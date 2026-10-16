@@ -78,7 +78,7 @@ private:
 
     TFuture<void> ReadyEvent_ = OKFuture;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     NProto::TDataStatistics DataStatistics_;
     TCodecStatistics CodecStatistics_;
     IChunkWriterBasePtr CurrentTemplateWriter_;

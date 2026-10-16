@@ -9,6 +9,8 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 namespace NYT::NApi::NNative {
 namespace {
 
@@ -19,8 +21,9 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NQueryClient;
 
-////////////////////////////////////////////////////////////////////////////////
+using NTransactionClient::operator""_ts;
 
+////////////////////////////////////////////////////////////////////////////////
 
 class TTabletRequestBatcherTest
     : public Test
@@ -135,7 +138,7 @@ TEST_F(TTabletRequestBatcherTest, SimpleVersionedSorted)
     auto rowBuffer = New<TRowBuffer>();
     TVersionedRowBuilder builder(rowBuffer);
     builder.AddKey(MakeUnversionedInt64Value(1, /*id*/ 0));
-    builder.AddValue(MakeVersionedInt64Value(1, /*timestamp*/ 0x42, /*id*/ 0));
+    builder.AddValue(MakeVersionedInt64Value(1, /*timestamp*/ 0x42_ts, /*id*/ 0));
     auto row = builder.FinishRow();
 
     Batcher_->SubmitVersionedRow(row.ToTypeErasedRow());

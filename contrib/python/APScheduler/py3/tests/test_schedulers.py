@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import pickle
+import sys
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from io import StringIO
@@ -43,7 +44,7 @@ from apscheduler.schedulers import (
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.schedulers.base import STATE_RUNNING, STATE_STOPPED, BaseScheduler
 from apscheduler.triggers.base import BaseTrigger
-from apscheduler.util import undefined
+from apscheduler.util import localize, undefined
 
 
 class DummyScheduler(BaseScheduler):
@@ -779,6 +780,8 @@ Jobstore other:
         jobs.sort(key=lambda job: job.name)
 
         job = jobs.pop(0)
+        assert job._scheduler is new_scheduler
+        assert job._jobstore_alias == "default"
         assert job.name == "cronjob"
         assert job.args == ["foo", "bar"]
         assert job.kwargs == {"end": ""}
@@ -787,6 +790,8 @@ Jobstore other:
         )
 
         job = jobs.pop(0)
+        assert job._scheduler is new_scheduler
+        assert job._jobstore_alias == "default"
         assert job.name == "datejob"
         assert job.args == ["foo", "bar"]
         assert job.kwargs == {"end": ""}
@@ -795,6 +800,8 @@ Jobstore other:
         )
 
         job = jobs.pop(0)
+        assert job._scheduler is new_scheduler
+        assert job._jobstore_alias == "default"
         assert job.name == "intervaljob"
         assert job.args == ["foo", "bar"]
         assert job.kwargs == {"end": ""}
@@ -1136,6 +1143,27 @@ class TestProcessJobs:
 
         assert scheduler._process_jobs() == 5
 
+    def test_wait_time_across_dst_transition(self, scheduler, freeze_time, timezone):
+        """
+        Tests that the wait time is computed from absolute (UTC) instants across a
+        DST spring-forward transition.
+
+        Regression test for #1103: when the scheduler time zone is a ``ZoneInfo``
+        object, ``next_wakeup_time`` and ``now`` share the same ``tzinfo``
+        instance, so subtracting them used to ignore the UTC offsets and produce
+        the naive wall-clock difference. Across the spring-forward gap that
+        yielded a ~1 hour wait instead of ~1 second, stalling sub-minute interval
+        jobs for the entire DST gap.
+
+        """
+        now = localize(datetime(2026, 3, 29, 1, 59, 59), timezone)
+        next_run_time = localize(datetime(2026, 3, 29, 3, 0, 0), timezone)
+        jobstore = MagicMock(BaseJobStore)
+        jobstore.get_next_run_time.configure_mock(return_value=next_run_time)
+        scheduler = DummyScheduler(jobstores={"default": jobstore}, timezone=timezone)
+        freeze_time.set(now)
+        assert scheduler._process_jobs() == 1
+
 
 class SchedulerImplementationTestBase:
     @pytest.fixture(autouse=True)
@@ -1321,10 +1349,19 @@ class TestTwistedScheduler(SchedulerImplementationTestBase):
 
 
 class TestQtScheduler(SchedulerImplementationTestBase):
-    @pytest.fixture(scope="class")
-    def coreapp(self):
-        QtCore = pytest.importorskip("PySide6.QtCore")
-        QtCore.QCoreApplication([])
+    if sys.version_info >= (3, 10):  # pytest 9.1.x or later
+
+        @pytest.fixture(scope="class")
+        @classmethod
+        def coreapp(cls):
+            QtCore = pytest.importorskip("PySide6.QtCore")
+            QtCore.QCoreApplication([])
+    else:
+
+        @pytest.fixture(scope="class")
+        def coreapp(self):
+            QtCore = pytest.importorskip("PySide6.QtCore")
+            QtCore.QCoreApplication([])
 
     @pytest.fixture
     def scheduler(self, coreapp):

@@ -11,7 +11,6 @@ RECURSE(
     crash_handler_test
     distributed_throttler
     dns_test
-    dynamic_table_nbd_server
     footprint
     formats_test
     grpc_proxy_python_sample
@@ -20,7 +19,6 @@ RECURSE(
     http_server
     hunkifier
     hydra_stress_test
-    in_memory_nbd_server
     log_compression
     lsm_simulator
     moody_camel_skew

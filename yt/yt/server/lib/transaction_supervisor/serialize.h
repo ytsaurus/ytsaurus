@@ -14,13 +14,15 @@ bool ValidateSnapshotReign(NHydra::TReign reign);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETransactionSupervisorReign,
-    ((CellIdsToSyncWithBeforePrepare)                               (10))  // babenko
-    ((MaxAllowedCommitTimestamp)                                    (11))  // ifsmirnov
-    ((CoordinatorPrepareMode)                                       (12))  // gritukan
-    ((AbortFailedSimpleTransactions)                                (13))  // gritukan
     ((Sequencer)                                                    (14))  // aleksandra-zh
     ((SequencerFixes)                                               (15))  // aleksandra-zh
     ((SaveLastCoordinatorCommitTimestamp)                           (16))  // aleksandra-zh
+    ((StrongOrderingTags)                                           (17))  // h0pless
+    ((ExpectedPrepareSignature)                                     (18))  // atalmenev
+    ((StopSendingUnnecessaryRequests)                               (19))  // h0pless
+    ((RemoveUnusedAliases)                                          (20))  // h0pless
+    ((RenameReadyToCommit)                                          (21))  // h0pless
+    ((CommitApprovalCount)                                          (22))  // kvk1920
 );
 
 static_assert(

@@ -1,0 +1,25 @@
+RECURSE(
+    pipeline_helpers
+    buffers
+    client
+    delta_codecs
+    native_client
+    serializer
+    common
+    common/worker
+    companion
+    computation
+    connectors
+    controller
+    controller/describe
+    file_providers
+    file_storage
+    misc
+    multiplexer
+    parsers
+    partitioning
+    process_function
+    tables
+    vanilla
+    worker
+)

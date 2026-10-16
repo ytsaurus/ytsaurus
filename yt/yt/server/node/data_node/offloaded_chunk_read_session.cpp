@@ -4,6 +4,7 @@
 #include "chunk.h"
 #include "chunk_registry.h"
 #include "local_chunk_reader.h"
+#include "location.h"
 #include "private.h"
 #include "table_schema_cache.h"
 #include "chunk_meta_manager.h"
@@ -74,6 +75,7 @@ public:
         : Bootstrap_(bootstrap)
         , Chunk_(std::move(chunk))
         , ChunkId_(Chunk_->GetId())
+        , BlockCache_(Bootstrap_->GetBlockCacheForMedium(Chunk_->GetLocation()->GetMediumIndex()))
         , ColumnFilter_(std::move(columnFilter))
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
@@ -82,9 +84,9 @@ public:
         , EnableHashChunkIndex_(enableHashChunkIndex)
         , UseDirectIO_(useDirectIO)
         , CodecId_(codecId)
-        , Logger(DataNodeLogger().WithTag("ChunkId: %v, ReadSessionId: %v",
-            ChunkId_,
-            readSessionId))
+        , Logger(DataNodeLogger()
+            .WithTag("ChunkId", ChunkId_)
+            .WithTag("ReadSessionId", readSessionId))
     {
         Options_.ChunkReaderStatistics = ChunkReaderStatistics_;
         Options_.ReadSessionId = readSessionId;
@@ -95,21 +97,21 @@ public:
         YT_VERIFY(TableSchema_);
         if (!TableSchema_->IsUniqueKeys()) {
             THROW_ERROR_EXCEPTION("Table schema for chunk %v must have unique keys", ChunkId_)
-                << TErrorAttribute("read_session_id", readSessionId);
+                .With("read_session_id", readSessionId);
         }
         if (!TableSchema_->IsStrict()) {
             THROW_ERROR_EXCEPTION("Table schema for chunk %v must be strict", ChunkId_)
-                << TErrorAttribute("read_session_id", readSessionId);
+                .With("read_session_id", readSessionId);
         }
 
         // TODO(akozhikhov): Do not create it when reading fragments (now we need it to read meta).
         UnderlyingChunkReader_ = CreateLocalChunkReader(
             New<TReplicationReaderConfig>(),
             Chunk_,
-            Bootstrap_->GetBlockCache(),
+            BlockCache_,
             Bootstrap_->GetDataNodeBootstrap()->GetChunkMetaManager()->GetBlockMetaCache());
 
-        YT_LOG_DEBUG("Local chunk reader is created for offloaded chunk read session");
+        YT_TLOG_DEBUG("Local chunk reader is created for offloaded chunk read session");
     }
 
     TFuture<TSharedRef> Lookup(const std::vector<TSharedRef>& keyRefs) override
@@ -154,6 +156,7 @@ private:
     IBootstrap* const Bootstrap_;
     const IChunkPtr Chunk_;
     const TChunkId ChunkId_;
+    const IBlockCachePtr BlockCache_;
     const TColumnFilter ColumnFilter_;
     const NTransactionClient::TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
@@ -176,8 +179,8 @@ private:
         auto type = FromProto<EChunkType>(chunkMeta->type());
         if (type != EChunkType::Table) {
             THROW_ERROR_EXCEPTION("Chunk %v is of invalid type", ChunkId_)
-                << TErrorAttribute("expected_chunk_type", EChunkType::Table)
-                << TErrorAttribute("chunk_type", type);
+                .With("expected_chunk_type", EChunkType::Table)
+                .With("chunk_type", type);
         }
 
         const auto& tableKeyColumns = TableSchema_->GetKeyColumns();
@@ -203,8 +206,8 @@ private:
                 tableKeyColumns.begin());
         if (!isCompatibleKeyColumns) {
             THROW_ERROR_EXCEPTION("Chunk %v has incompatible key columns", ChunkId_)
-                << TErrorAttribute("table_key_columns", tableKeyColumns)
-                << TErrorAttribute("chunk_key_columns", chunkKeyColumns);
+                .With("table_key_columns", tableKeyColumns)
+                .With("chunk_key_columns", chunkKeyColumns);
         }
 
         return true;
@@ -232,7 +235,7 @@ private:
         }
 
         auto chunkState = New<TChunkState>(TChunkState{
-            .BlockCache = Bootstrap_->GetBlockCache(),
+            .BlockCache = BlockCache_,
             .ChunkSpec = std::move(chunkSpec),
             .ChunkMeta = chunkMeta,
             .OverrideTimestamp = OverrideTimestamp_,
@@ -298,8 +301,8 @@ private:
     {
         auto keyCount = keys.Size();
 
-        YT_LOG_DEBUG("Creating local chunk index read session (KeyCount: %v)",
-            keyCount);
+        YT_TLOG_DEBUG("Creating local chunk index read session")
+            .With("KeyCount", keyCount);
 
         auto controller = CreateChunkIndexReadController(
             Chunk_->GetId(),
@@ -310,7 +313,7 @@ private:
             TableSchema_,
             Timestamp_,
             ProduceAllVersions_,
-            Bootstrap_->GetBlockCache(),
+            BlockCache_,
             /*testingOptions*/ std::nullopt,
             Logger);
 
@@ -324,7 +327,7 @@ private:
         }
 
         if (auto future = chunkFragmentReader->PrepareToReadChunkFragments(Options_)) {
-            YT_LOG_DEBUG("Will wait for chunk reader to become prepared");
+            YT_TLOG_DEBUG("Will wait for chunk reader to become prepared");
 
             return future.Apply(BIND([
                 =,
@@ -426,14 +429,13 @@ std::tuple<TTableSchemaPtr, bool> FindTableSchemaForOffloadedReadSession(
     if (!schemaData.has_schema()) {
         bool isSchemaRequested = tableSchemaWrapper->TryRequestSchema();
 
-        YT_LOG_DEBUG("Schema for lookup request is missing "
-            "(ChunkId: %v, ReadSessionId: %v, TableId: %v, Revision: %x, SchemaSize: %v, IsSchemaRequested: %v)",
-            chunkId,
-            readSessionId,
-            tableId,
-            revision,
-            schemaSize,
-            isSchemaRequested);
+        YT_TLOG_DEBUG("Schema for lookup request is missing")
+            .With("ChunkId", chunkId)
+            .With("ReadSessionId", readSessionId)
+            .With("TableId", tableId)
+            .WithFormat("Revision", "%x", revision)
+            .With("SchemaSize", schemaSize)
+            .With("IsSchemaRequested", isSchemaRequested);
 
         return {nullptr, isSchemaRequested};
     }
@@ -441,13 +443,12 @@ std::tuple<TTableSchemaPtr, bool> FindTableSchemaForOffloadedReadSession(
     auto tableSchema = FromProto<TTableSchemaPtr>(schemaData.schema());
     tableSchemaWrapper->SetValue(tableSchema);
 
-    YT_LOG_DEBUG("Inserted schema to schema cache for lookup request "
-        "(ChunkId: %v, ReadSessionId: %v, TableId: %v, Revision: %x, SchemaSize: %v)",
-        chunkId,
-        readSessionId,
-        tableId,
-        revision,
-        schemaSize);
+    YT_TLOG_DEBUG("Inserted schema to schema cache for lookup request")
+        .With("ChunkId", chunkId)
+        .With("ReadSessionId", readSessionId)
+        .With("TableId", tableId)
+        .WithFormat("Revision", "%x", revision)
+        .With("SchemaSize", schemaSize);
 
     return {tableSchema, false};
 }

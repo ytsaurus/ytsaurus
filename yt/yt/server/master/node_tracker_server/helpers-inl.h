@@ -21,7 +21,7 @@ T GenerateCounterId(TIdGenerator& generator, T invalidId, T maxId)
             // Just wait for the next attempt.
         } else if (id > maxId) {
             constexpr auto& Logger = NodeTrackerServerLogger;
-            YT_LOG_ALERT("Counter id generator was reset");
+            YT_TLOG_ALERT("Counter id generator was reset");
 
             generator.Reset();
         } else {

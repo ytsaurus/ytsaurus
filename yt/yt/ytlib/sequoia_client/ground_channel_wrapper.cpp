@@ -26,16 +26,20 @@ public:
         Underlying_->HandleAcknowledgement();
     }
 
-    void HandleResponse(TSharedRefArray message, const std::string& address) override
+    void HandleResponse(
+        TSharedRefArray message,
+        const std::string& address,
+        NYT::NBus::IDirectPlacementTransferPtr attachmentsTransfer) override
     {
-        Underlying_->HandleResponse(std::move(message), address);
+        Underlying_->HandleResponse(std::move(message), address, std::move(attachmentsTransfer));
     }
 
-    void HandleError(TError error) override
+    void HandleError(TError error, const std::string& address) override
     {
         Underlying_->HandleError(
             TError(EErrorCode::SequoiaRetriableError, "Sequoia ground request failed")
-            << error);
+            .With(error),
+            address);
     }
 
     void HandleStreamingPayload(const TStreamingPayload& payload) override

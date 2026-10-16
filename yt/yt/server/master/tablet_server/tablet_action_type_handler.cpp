@@ -9,6 +9,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/table_client/unversioned_row.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NHydra;
@@ -115,7 +117,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    TCellTagList DoGetReplicationCellTags(const TTabletAction* /*action*/) override
+    NObjectClient::TCellTagSet DoGetReplicationCellTags(const TTabletAction* /*action*/) override
     {
         return AllSecondaryCellTags();
     }

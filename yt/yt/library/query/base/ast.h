@@ -1,9 +1,11 @@
 #pragma once
 #include "query_common.h"
 
-#include <yt/yt/core/ytree/yson_struct.h>
-
 #include <yt/yt/library/query/misc/objects_holder.h>
+
+#include <yt/yt/client/query_client/table_hint.h>
+
+#include <util/generic/noncopyable.h>
 
 #include <variant>
 
@@ -28,6 +30,7 @@ XX(TTransformExpression)
 XX(TCaseExpression)
 XX(TLikeExpression)
 XX(TQueryExpression)
+XX(TQueryAstHead)
 
 #undef XX
 
@@ -425,35 +428,18 @@ struct TLikeExpression
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTableHint
-    : public NYTree::TYsonStruct
-{
-    bool RequireSyncReplica;
-    bool PushDownGroupBy;
-
-    bool operator==(const TTableHint& other) const = default;
-
-    REGISTER_YSON_STRUCT(TTableHint);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TTableHint)
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TTableDescriptor
 {
     NYPath::TYPath Path;
     std::optional<std::string> Alias;
-    TTableHintPtr Hint = New<TTableHint>();
+    TTableHint Hint;
 
     TTableDescriptor() = default;
 
     explicit TTableDescriptor(
         NYPath::TYPath path,
         std::optional<std::string> alias = std::nullopt,
-        TTableHintPtr hint = New<TTableHint>())
+        TTableHint hint = {})
         : Path(std::move(path))
         , Alias(std::move(alias))
         , Hint(std::move(hint))
@@ -561,15 +547,11 @@ struct TAstHead
 };
 
 struct TQueryAstHead
-    : public TObjectsHolder
-    , public TRefCounted
 {
     TQuery Ast;
     TAliasMap AliasMap;
     std::optional<std::string> Alias;
 };
-
-DEFINE_REFCOUNTED_TYPE(TQueryAstHead);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -604,7 +586,6 @@ std::string FormatQuery(const TQuery& query);
 std::string FormatQueryConcise(const TQuery& query);
 std::string InferColumnName(const TExpression& expr);
 std::string InferColumnName(const TColumnReference& ref);
-void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

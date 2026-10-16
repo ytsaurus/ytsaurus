@@ -65,9 +65,9 @@ public:
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TJournalReaderConfig>())
         , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
-        , Logger(ApiLogger().WithTag("Path: %v, TransactionId: %v",
-            Path_,
-            Options_.TransactionId))
+        , Logger(ApiLogger()
+            .WithTag("Path", Path_)
+            .WithTag("TransactionId", Options_.TransactionId))
         , ReaderInvoker_(CreateSerializedInvoker(NChunkClient::TDispatcher::Get()->GetReaderInvoker()))
     {
         if (Options_.TransactionId) {
@@ -116,7 +116,7 @@ private:
 
     void DoOpen()
     {
-        YT_LOG_DEBUG("Opening journal reader");
+        YT_TLOG_DEBUG("Opening journal reader");
 
         TUserObject userObject(Path_);
 
@@ -135,7 +135,7 @@ private:
         }
 
         {
-            YT_LOG_DEBUG("Fetching journal chunks");
+            YT_TLOG_DEBUG("Fetching journal chunks");
 
             auto proxy = CreateObjectServiceReadProxy(
                 Client_,
@@ -187,7 +187,7 @@ private:
             StartListenTransaction(Transaction_);
         }
 
-        YT_LOG_DEBUG("Journal reader opened");
+        YT_TLOG_DEBUG("Journal reader opened");
     }
 
     std::vector<TSharedRef> DoRead()
@@ -237,10 +237,9 @@ private:
 
                 CurrentRowIndex_ = BeginRowIndex_;
 
-                YT_LOG_DEBUG("Switched to another journal chunk (ChunkId: %v, PhysicalRowIndexes: %v-%v)",
-                    chunkId,
-                    BeginRowIndex_,
-                    EndRowIndex_ - 1);
+                YT_TLOG_DEBUG("Switched to another journal chunk")
+                    .With("ChunkId", chunkId)
+                    .WithFormat("PhysicalRowIndexes", "%v-%v", BeginRowIndex_, EndRowIndex_ - 1);
             }
 
             // TODO(savrus): profile chunk reader statistics.

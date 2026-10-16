@@ -2,6 +2,10 @@
 
 #include "public.h"
 
+#include <yt/yt/client/job_tracker_client/public.h>
+
+#include <yt/yt/library/erasure/public.h>
+
 #include <yt/yt/core/http/config.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -204,9 +208,6 @@ struct TDynamicChunkMergerConfig
     // COMPAT(aleksandra-zh) COMPAT(shakurov).
     bool TweakTraversalInfoAfterRebalance;
 
-    // COMPAT(h0pless): Hotfix for copy with preserve-modification-time. Should be set to #false asap.
-    bool UpdateModificationTime;
-
     REGISTER_YSON_STRUCT(TDynamicChunkMergerConfig);
 
     static void Register(TRegistrar registrar);
@@ -301,12 +302,35 @@ DEFINE_REFCOUNTED_TYPE(TDanglingLocationCleanerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDynamicDataNodeTrackerTestingConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<TDuration> FullHeartbeatDelay;
+    // COMPAT(evanevannnn)
+    bool SuppressRegistrationRevisionValidation;
+
+    REGISTER_YSON_STRUCT(TDynamicDataNodeTrackerTestingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicDataNodeTrackerTestingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDynamicDataNodeTrackerConfig
     : public NYTree::TYsonStruct
 {
     int MaxConcurrentChunkReplicasDuringFullHeartbeat;
 
     int MaxConcurrentChunkReplicasDuringIncrementalHeartbeat;
+
+    // COMPAT(danilalexeev): YT-23781.
+    int MaxConcurrentFullHeartbeats;
+
+    int MaxConcurrentLocationFullHeartbeats;
+
+    int MaxConcurrentIncrementalHeartbeats;
 
     TDanglingLocationCleanerConfigPtr DanglingLocationCleaner;
 
@@ -317,6 +341,12 @@ struct TDynamicDataNodeTrackerConfig
     TDuration ValidationFullHeartbeatPeriod;
     TDuration ValidationFullHeartbeatSplay;
     bool ValidateSequoiaReplicas;
+    bool ValidateMasterReplicas;
+    // COMPAT(grphil)
+    bool IgnoreReplicasWithChangedStateDuringValidation;
+
+    bool EnableChunkReplicasThrottlingInHeartbeats;
+    bool FlushBatchedIncrementalHeartbeatsOnThrottling;
 
     bool EnableLocationIndexesInDataNodeHeartbeats;
 
@@ -330,6 +360,18 @@ struct TDynamicDataNodeTrackerConfig
     bool CheckLocationConvergenceByIndexAndUuidOnConfirmation;
 
     bool VerifyAllLocationsAreReportedInFullHeartbeats;
+
+    // COMPAT(aleksandra-zh): these are just in case.
+    bool RejectSimultaneousFullHeartbeats;
+    bool RejectSimultaneousIncrementalHeartbeats;
+
+    // When disabled, registration revision mismatches are alerted but heartbeats are not rejected.
+    // Enable only after upgrading nodes to send revisions; missing revisions are rejected too.
+    bool EnableRegistrationRevisionValidation;
+
+    TDuration ExpectedDataNodeHeartbeatDuration;
+
+    TDynamicDataNodeTrackerTestingConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TDynamicDataNodeTrackerConfig);
 
@@ -521,6 +563,11 @@ struct TDynamicSequoiaChunkReplicasConfig
     TDuration ConfirmPeriod;
     int ConfirmBatchSize;
 
+    bool BatchIncrementalHeartbeat;
+    TDuration BatchIncrementalHeartbeatPeriod;
+    int MaxRequestsInIncrementalHeartbeatBatch;
+    int MaxReplicasInIncrementalHeartbeatBatch;
+
     // COMPAT(grphil).
     int CompatReplicasPercentage;
     bool CompatFetchReplicasFromSequoia;
@@ -532,6 +579,7 @@ struct TDynamicSequoiaChunkReplicasConfig
     bool EnableSequoiaChunkRefresh;
     TDuration SequoiaChunkRefreshPeriod;
     int SequoiaChunkCountToFetchFromRefreshQueue;
+    int MaxUnsuccessfulSequoiaChunkRefreshIterations;
 
     bool UseLocationReplacementForLocationFullHeartbeat;
 
@@ -554,6 +602,33 @@ struct TDynamicSequoiaChunkReplicasConfig
     int MaxUnsuccessfulGlobalSequoiaChunkRefreshIterations;
 
     bool FixSequoiaReplicasIfReplicaValidationFailed;
+
+    bool EnableLocationRefresh;
+    TDuration LocationRefreshPeriod;
+    int MaxConcurrentLocationsToRefresh;
+    int MaxLocationsAwaitingRefresh;
+    int MaxUnsuccessfulLocationRefreshAttempts;
+
+    bool ScheduleChunkSealInSequoiaChunkRefresh;
+
+    // If sequoia replicas are enabled in ghost mode, all data node heartbeats will trigger sequoia replicas modifications.
+    // These modifications will be run in background and will not affect master state.
+    // All actions with chunks will use master stored replicas, and the state of sequoia replicas will have no effect on master.
+    bool EnableInGhostMode;
+    bool GhostFullHeartbeats;
+    bool GhostIncrementalHeartbeats;
+    bool GhostValidationHeartbeats;
+    bool GhostEmptyValidationHeartbeats;
+
+    bool ThrottleSequoiaReplicaModifications;
+    bool EnablePerReplicaSequoiaModificationsThrottling;
+    bool ThrottleIncrementalHeartbeatSequoiaReplicaModifications;
+    int MaxConcurrentSequoiaReplicaModifications;
+    int MaxConcurrentReplicasInSequoiaReplicaModifications;
+
+    bool AlwaysShowMasterLastSeenReplicas;
+
+    std::optional<TDuration> SleepDurationBeforeSequoiaReplicaModifications;
 
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 
@@ -681,6 +756,10 @@ struct TDynamicChunkManagerConfig
     // Alert if the number of chunk refresh attempts reaches that number.
     int MaxUnsuccessfullRefreshAttempts;
 
+    //! Alert if a chunk has been waiting in the refresh queue for longer than this.
+    TDuration MaxChunkRefreshQueueWaitTime;
+    TDuration MaxGlobalChunkRefreshQueueWaitTime;
+
     //! Interval between consequent replicator state checks.
     TDuration ReplicatorEnabledCheckPeriod;
 
@@ -716,6 +795,10 @@ struct TDynamicChunkManagerConfig
     //! in order to receive responses from all the replicas and then run fast path
     //! during chunk seal.
     TDuration QuorumSessionDelay;
+    //! Maximum number of chunks to process during a global seal scan.
+    int MaxChunksPerGlobalSealScan;
+    //! Maximum number of chunks to examine during a seal queue scan.
+    int MaxChunksPerSealQueueScan;
     //! Maximum number of chunks to process during a seal scan.
     int MaxChunksPerSeal;
     //! Maximum number of chunks that can be sealed concurrently.
@@ -747,7 +830,7 @@ struct TDynamicChunkManagerConfig
     NConcurrency::TThroughputThrottlerConfigPtr JobThrottler;
 
     //! Throttles chunk jobs per type.
-    THashMap<EJobType, NConcurrency::TThroughputThrottlerConfigPtr> JobTypeToThrottler;
+    THashMap<NJobTrackerClient::EJobType, NConcurrency::TThroughputThrottlerConfigPtr> JobTypeToThrottler;
 
     //! Maximum number of heavy columns in chunk approximate statistics.
     int MaxHeavyColumns;
@@ -805,6 +888,13 @@ struct TDynamicChunkManagerConfig
     //! Set of storage data centers on which replica placement is forbidden.
     THashSet<std::string> BannedStorageDataCenters;
 
+    //! Set of storage data centers that are temporarily unavailable due to planned maintenance.
+    //! Must be disjoint from |BannedStorageDataCenters|.
+    THashSet<std::string> TemporarilyUnavailableStorageDataCenters;
+
+    //! Number of additional rack failures a chunk must tolerate while some replicas are temporarily unavailable.
+    int TemporarilyUnavailableExtraFailureDomainTolerance;
+
     TDynamicDataCenterFailureDetectorConfigPtr DataCenterFailureDetector;
 
     TDuration ProfilingPeriod;
@@ -841,11 +931,26 @@ struct TDynamicChunkManagerConfig
 
     int MaxLostVitalChunksToLog;
 
-    // COMPAT(grphil)
     bool AlwaysFetchNonOnlineReplicas;
+
+    // COMPAT(grphil)
+    bool RefreshNodeOnRegistered;
+    bool RefreshNodeOnOnline;
 
     // COMPAT(koloshmet)
     bool UpdateHistoricallyNonVitalInUnexport;
+
+    // COMPAT(danilalexeev)
+    bool UpdateHistoricallyNonVitalOnChunkCreationAndExport;
+
+    bool AllowOffshoreMedia;
+
+    int MaxVerboselyLoggedChunks;
+    TDuration MaxVerboseLoggingEnabledDuration;
+
+    // COMPAT(theevilbird): Get rid of it. Remove requisitions for chunk_wise_accounting_migration
+    // account and set |AggregatedRequisitionIndex_| to |EmptyChunkRequisitionIndex| in TChunk constructor.
+    bool SetEmptyRequisitionIndexOnImport;
 
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 

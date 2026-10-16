@@ -206,10 +206,10 @@ TUpdateCacheStatistics TRowCache::UpdateItems(
             updatedItem->InsertTime = foundItem->InsertTime;
             updatedItem->UpdateTime = currentTime;
 
-            YT_LOG_TRACE("Updating cache (Row: %v, Outdated: %v, StoreFlushIndex: %v)",
-                updatedItem->GetVersionedRow(),
-                foundItem->Outdated.load(),
-                storeFlushIndex);
+            YT_TLOG_TRACE("Updating cache")
+                .With("Row", updatedItem->GetVersionedRow())
+                .With("Outdated", foundItem->Outdated.load())
+                .With("StoreFlushIndex", storeFlushIndex);
 
             YT_VERIFY(!foundItem->Updated.Exchange(updatedItem));
 
@@ -236,7 +236,7 @@ void TRowCache::ReallocateItems(const NLogging::TLogger& Logger)
     bool hasReallocatedArenas = Allocator_.ReallocateArenasIfNeeded();
 
     if (hasReallocatedArenas) {
-        YT_LOG_DEBUG("Lookup cache reallocation started");
+        YT_TLOG_DEBUG("Lookup cache reallocation started");
 
         int reallocatedRows = 0;
         auto onItem = [&] (auto itemRef) {
@@ -267,13 +267,29 @@ void TRowCache::ReallocateItems(const NLogging::TLogger& Logger)
         auto hashTable = lookuper.GetPrimary();
         hashTable->ForEach(onItem);
 
-        YT_LOG_DEBUG("Lookup cache reallocation finished (ReallocatedRows: %v)", reallocatedRows);
+        YT_TLOG_DEBUG("Lookup cache reallocation finished")
+            .With("ReallocatedRows", reallocatedRows);
     }
 }
 
 i64 TRowCache::GetUsedBytesCount() const
 {
     return MemoryTracker_->GetUsedBytesCount();
+}
+
+i64 TRowCache::GetAliveByteSize() const
+{
+    return Allocator_.GetAliveByteSize();
+}
+
+i64 TRowCache::GetAliveItemCount() const
+{
+    return Allocator_.GetAliveItemCount();
+}
+
+void TRowCache::ForceRotate()
+{
+    Cache_.ForceRotate();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

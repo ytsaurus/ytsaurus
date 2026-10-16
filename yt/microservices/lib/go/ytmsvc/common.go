@@ -1,3 +1,5 @@
+// TODO(ilyaibraev): Split ytmsvc into smaller subpackages by responsibility.
+
 package ytmsvc
 
 import (

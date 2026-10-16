@@ -1,4 +1,4 @@
-GTEST()
+GTEST(unittester-server-lib-rpc-proxy)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 

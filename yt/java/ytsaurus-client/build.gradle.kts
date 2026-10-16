@@ -16,6 +16,14 @@ java {
     withJavadocJar()
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(11)
+}
+
+tasks.withType<Javadoc>().configureEach {
+    (options as CoreJavadocOptions).addStringOption("source", "11")
+}
+
 dependencies {
     api("io.dropwizard.metrics:metrics-core:3.1.2")
     api(project(":yt:java:annotations"))
@@ -29,6 +37,7 @@ dependencies {
     api("io.netty:netty-codec:4.1.42.Final")
     api("io.netty:netty-common:4.1.42.Final")
     api("io.netty:netty-handler:4.1.42.Final")
+    api("io.netty:netty-handler-proxy:4.1.42.Final")
     api("io.netty:netty-transport:4.1.42.Final")
     api("io.netty:netty-transport-native-epoll:4.1.42.Final:linux-x86_64")
     api("org.lz4:lz4-java:1.6.0")

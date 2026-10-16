@@ -21,7 +21,7 @@ void TResourceTreeElement::SetNonAlive()
     Alive_ = false;
 }
 
-const TString& TResourceTreeElement::GetId()
+const std::string& TResourceTreeElement::GetId()
 {
     return Id_;
 }

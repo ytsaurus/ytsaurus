@@ -40,7 +40,8 @@ IExecutorPtr CreateQueryExecutor(
     IColumnEvaluatorCachePtr columnEvaluatorCache,
     IEvaluatorPtr evaluator,
     NNodeTrackerClient::INodeChannelFactoryPtr nodeChannelFactory,
-    TFunctionImplCachePtr functionImplCache);
+    TFunctionImplCachePtr functionImplCache,
+    bool retryOnMetadataCacheInconsistency = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

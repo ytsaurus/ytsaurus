@@ -13,6 +13,16 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(TSubplanFutureHolders)
+
+struct TSubplanFutureHolders final
+    : public std::vector<TFutureHolder<TQueryStatistics>> // Use TFutureHolder to prevent leaking subqueries.
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TSubplanFutureHolders)
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::pair<TConstFrontQueryPtr, TConstQueryPtr> GetDistributedQueryPattern(const TConstQueryPtr& query);
 
 TSharedRange<TRowRange> GetPrunedRanges(
@@ -57,6 +67,10 @@ struct TEvaluateResult
 
 using TSubQueryEvaluator = std::function<TEvaluateResult()>;
 
+using TMiddleQueryEvaluator = std::function<TEvaluateResult(
+    ISchemafulUnversionedReaderPtr /*reader*/,
+    TFuture<TFeatureFlags> /*responseFeatureFlags*/)>;
+
 using TTopQueryEvaluator = std::function<TQueryStatistics(
     const ISchemafulUnversionedReaderPtr& /*reader*/,
     TFuture<TFeatureFlags> /*responseFeatureFlags*/)>;
@@ -69,7 +83,16 @@ TQueryStatistics CoordinateAndExecute(
     i64 limit,
     bool useAdaptiveOrderedSchemafulReader,
     TSubQueryEvaluator evaluateSubQuery,
-    TTopQueryEvaluator evaluateTopQuery);
+    TTopQueryEvaluator evaluateTopQuery,
+    TSubplanFutureHoldersPtr subplanHolders = nullptr);
+
+TQueryStatistics CoordinateAndExecuteWithShuffle(
+    int splitCount,
+    int groupKeyPrefix,
+    TSubQueryEvaluator evaluateSubQuery,
+    TMiddleQueryEvaluator evaluateMiddleQuery,
+    TTopQueryEvaluator evaluateTopQuery,
+    const IMemoryChunkProviderPtr& memoryChunkProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

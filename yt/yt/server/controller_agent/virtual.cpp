@@ -41,7 +41,7 @@ TVirtualStaticTable::TVirtualStaticTable(
     TTableSchemaPtr schema,
     TNodeDirectoryPtr nodeDirectory,
     TOperationId operationId,
-    TString name,
+    std::string name,
     TYPath path)
     : Chunks_(chunks)
     , Schema_(std::move(schema))
@@ -65,8 +65,8 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, GetBasicAttributes)
 {
     auto permission = YT_OPTIONAL_FROM_PROTO(*request, permission, EPermission);
 
-    context->SetRequestInfo("Permission: %v",
-        permission);
+    context->AnnotateRequest()
+        .With("Permission", permission);
 
     if (permission) {
         ValidatePermission(EPermissionCheckScope::This, *permission);
@@ -82,7 +82,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, GetBasicAttributes)
 
 DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
 {
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     TNodeDirectoryBuilder nodeDirectoryBuilder(NodeDirectory_, response->mutable_node_directory());
 
@@ -136,7 +136,8 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
         }
     }
 
-    context->SetResponseInfo("ChunkCount: %v", response->chunks_size());
+    context->AnnotateResponse()
+        .With("ChunkCount", response->chunks_size());
     context->Reply();
 }
 
@@ -182,7 +183,7 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
         compressedDataSize += chunk->GetCompressedDataSize();
     }
 
-    TString annotation;
+    std::string annotation;
     if (OperationId_ && !Name_.empty()) {
         annotation = Format(
             "### Live preview for `%v` table of operation `%v`\n\n"
@@ -190,7 +191,7 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
             "```\n"
             "yt concatenate --src %v/controller_orchid/live_previews/%v --dst //path/to/table\n"
             "```\n",
-            Path_.empty() ? Name_ : Path_,
+            Path_.empty() ? TStringBuf(Name_) : TStringBuf(Path_),
             OperationId_,
             GetOperationPath(OperationId_),
             Name_);
@@ -222,7 +223,7 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
             return true;
         case EInternedAttributeKey::UserAttributeKeys:
             BuildYsonFluently(consumer)
-                .Value(std::vector<TString>{});
+                .Value(std::vector<std::string>{});
             return true;
         case EInternedAttributeKey::ChunkCount:
             BuildYsonFluently(consumer)

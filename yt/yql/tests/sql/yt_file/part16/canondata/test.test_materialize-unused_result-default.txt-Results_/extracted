@@ -1,0 +1,5 @@
+<tmp_path>/program.sql:<main>: Warning: Parse Sql
+
+    <tmp_path>/program.sql:<main>:4:13: Warning: Symbol $unused is not used
+    	MATERIALIZE Input INTO $unused;
+	            ^

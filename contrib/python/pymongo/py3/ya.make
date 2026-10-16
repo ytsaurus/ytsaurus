@@ -4,7 +4,7 @@ PY3_LIBRARY()
 
 PROVIDES(pymongo)
 
-VERSION(4.16.0)
+VERSION(4.18.1)
 
 LICENSE(Apache-2.0)
 
@@ -76,6 +76,9 @@ PY_SRCS(
     pymongo/_client_bulk_shared.py
     pymongo/_csot.py
     pymongo/_gcp_helpers.py
+    pymongo/_op_id.py
+    pymongo/_psl.py
+    pymongo/_telemetry.py
     pymongo/_version.py
     pymongo/asynchronous/__init__.py
     pymongo/asynchronous/aggregation.py
@@ -88,13 +91,14 @@ PY_SRCS(
     pymongo/asynchronous/client_session.py
     pymongo/asynchronous/collection.py
     pymongo/asynchronous/command_cursor.py
+    pymongo/asynchronous/command_runner.py
     pymongo/asynchronous/cursor.py
+    pymongo/asynchronous/cursor_base.py
     pymongo/asynchronous/database.py
     pymongo/asynchronous/encryption.py
     pymongo/asynchronous/helpers.py
     pymongo/asynchronous/mongo_client.py
     pymongo/asynchronous/monitor.py
-    pymongo/asynchronous/network.py
     pymongo/asynchronous/pool.py
     pymongo/asynchronous/server.py
     pymongo/asynchronous/settings.py
@@ -109,6 +113,7 @@ PY_SRCS(
     pymongo/change_stream.py
     pymongo/client_options.py
     pymongo/client_session.py
+    pymongo/client_session_shared.py
     pymongo/collation.py
     pymongo/collection.py
     pymongo/command_cursor.py
@@ -122,6 +127,7 @@ PY_SRCS(
     pymongo/driver_info.py
     pymongo/encryption.py
     pymongo/encryption_options.py
+    pymongo/encryption_shared.py
     pymongo/errors.py
     pymongo/event_loggers.py
     pymongo/hello.py
@@ -131,6 +137,7 @@ PY_SRCS(
     pymongo/max_staleness_selectors.py
     pymongo/message.py
     pymongo/mongo_client.py
+    pymongo/mongo_client_shared.py
     pymongo/monitoring.py
     pymongo/network_layer.py
     pymongo/ocsp_cache.py
@@ -150,6 +157,7 @@ PY_SRCS(
     pymongo/server_description.py
     pymongo/server_selectors.py
     pymongo/server_type.py
+    pymongo/settings_shared.py
     pymongo/socket_checker.py
     pymongo/ssl_context.py
     pymongo/ssl_support.py
@@ -164,13 +172,14 @@ PY_SRCS(
     pymongo/synchronous/client_session.py
     pymongo/synchronous/collection.py
     pymongo/synchronous/command_cursor.py
+    pymongo/synchronous/command_runner.py
     pymongo/synchronous/cursor.py
+    pymongo/synchronous/cursor_base.py
     pymongo/synchronous/database.py
     pymongo/synchronous/encryption.py
     pymongo/synchronous/helpers.py
     pymongo/synchronous/mongo_client.py
     pymongo/synchronous/monitor.py
-    pymongo/synchronous/network.py
     pymongo/synchronous/pool.py
     pymongo/synchronous/server.py
     pymongo/synchronous/settings.py
@@ -178,6 +187,7 @@ PY_SRCS(
     pymongo/synchronous/topology.py
     pymongo/synchronous/uri_parser.py
     pymongo/topology_description.py
+    pymongo/topology_shared.py
     pymongo/typings.py
     pymongo/uri_parser.py
     pymongo/uri_parser_shared.py
@@ -190,6 +200,7 @@ RESOURCE_FILES(
     .dist-info/top_level.txt
     bson/py.typed
     gridfs/py.typed
+    pymongo/public_suffix_list.dat
     pymongo/py.typed
 )
 

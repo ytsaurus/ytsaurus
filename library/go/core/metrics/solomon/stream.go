@@ -8,8 +8,6 @@ import (
 	"go.ytsaurus.tech/library/go/core/xerrors"
 )
 
-const HeaderSize = 24
-
 type StreamFormat string
 
 const (
@@ -36,7 +34,7 @@ func (r *Registry) StreamJSON(ctx context.Context, w io.Writer) (written int, er
 	}
 
 	first := true
-	r.metrics.Range(func(_, s interface{}) bool {
+	r.metrics.Range(func(_, s any) bool {
 		if ctx.Err() != nil {
 			err = xerrors.Errorf("streamJSON context error: %w", ctx.Err())
 			return false

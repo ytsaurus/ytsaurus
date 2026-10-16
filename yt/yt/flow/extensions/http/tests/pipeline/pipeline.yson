@@ -1,0 +1,83 @@
+{
+    "spec" = {
+        "computations" = {
+            "writer" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["payloads"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {};
+                    };
+                };
+                "sinks" = {
+                    "http" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncHttpSink";
+                        "input_stream_ids" = ["payloads"];
+                        "parameters" = {
+                            "payload_column" = "payload";
+                            "headers" = {
+                                "Content-Type" = "application/octet-stream";
+                                "X-Flow-Test" = "async-http-sink";
+                            };
+                            "keep_alive" = %true;
+                        };
+                    };
+                    "http_secondary" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncHttpSink";
+                        "input_stream_ids" = ["payloads"];
+                        "parameters" = {
+                            "payload_column" = "payload";
+                            "headers" = {
+                                "Content-Type" = "application/octet-stream";
+                                "X-Flow-Test" = "async-http-sink";
+                            };
+                            "keep_alive" = %false;
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "payloads" = {
+                "schema" = [
+                    {name = "payload"; type = "string"; required = %true;};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "writer" = {
+                "parameters" = {};
+                "sinks" = {
+                    "http" = {
+                        "parameters" = {
+                            "request_timeout" = "30s";
+                            "attempt_timeout" = "20s";
+                            "retry_initial_delay" = "10ms";
+                            "retry_minimum_delay" = "1ms";
+                            "retry_multiplier" = 2.0;
+                            "retry_maximum_delay" = "100ms";
+                            "retry_jitter_ratio" = 0.0;
+                            "max_attempt_count" = 3;
+                        };
+                    };
+                    "http_secondary" = {
+                        "parameters" = {
+                            "request_timeout" = "30s";
+                            "attempt_timeout" = "20s";
+                            "retry_initial_delay" = "10ms";
+                            "retry_minimum_delay" = "1ms";
+                            "retry_multiplier" = 2.0;
+                            "retry_maximum_delay" = "100ms";
+                            "retry_jitter_ratio" = 0.0;
+                            "max_attempt_count" = 3;
+                        };
+                    };
+                };
+            };
+        };
+    };
+}

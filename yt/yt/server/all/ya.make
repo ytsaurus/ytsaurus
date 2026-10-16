@@ -41,25 +41,10 @@ PEERDIR(
     yt/yt/server/tools
     yt/yt/server/replicated_table_tracker
     yt/yt/server/multidaemon
+    yt/yt/server/offshore_data_gateway
 
     yt/yt/library/oom
 )
-
-IF (YT_ROPSAN_ENABLE_ACCESS_CHECK)
-    CXXFLAGS(-DYT_ROPSAN_ENABLE_ACCESS_CHECK)
-ENDIF()
-
-IF (YT_ROPSAN_ENABLE_SERIALIZATION_CHECK)
-    CXXFLAGS(-DYT_ROPSAN_ENABLE_SERIALIZATION_CHECK)
-ENDIF()
-
-IF (YT_ROPSAN_ENABLE_LEAK_DETECTION)
-    CXXFLAGS(-DYT_ROPSAN_ENABLE_LEAK_DETECTION)
-ENDIF()
-
-IF (YT_ROPSAN_ENABLE_PTR_TAGGING)
-    CXXFLAGS(-DYT_ROPSAN_ENABLE_PTR_TAGGING)
-ENDIF()
 
 END()
 

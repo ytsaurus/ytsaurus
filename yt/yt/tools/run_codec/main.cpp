@@ -44,13 +44,13 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    const TString action = argv[1];
-    const TString codecName = argv[2];
+    const std::string action = argv[1];
+    const std::string codecName = argv[2];
 
     std::optional<std::vector<size_t>> sizes;
     if (argc == 4) {
         sizes = std::vector<size_t>();
-        const TString sizesFilename = argv[3];
+        const std::string sizesFilename = argv[3];
         std::ifstream fin(sizesFilename);
         while (!(fin >> std::ws).eof()) {
             size_t size;

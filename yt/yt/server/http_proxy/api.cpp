@@ -146,7 +146,7 @@ int TApi::GetNumberOfConcurrentRequests()
     return GlobalSemaphore_.load();
 }
 
-std::optional<TSemaphoreGuard> TApi::AcquireSemaphore(const std::string& user, const TString& command)
+std::optional<TSemaphoreGuard> TApi::AcquireSemaphore(const std::string& user, const std::string& command)
 {
     auto value = GlobalSemaphore_.load();
     do {
@@ -296,7 +296,7 @@ void TApi::IncrementBytesInProfilingCounters(
 
 void TApi::IncrementProfilingCounters(
     const std::string& user,
-    const TString& command,
+    const std::string& command,
     std::optional<EStatusCode> httpStatusCode,
     TErrorCode apiErrorCode,
     TDuration wallTime,
@@ -341,7 +341,7 @@ void TApi::IncrementProfilingCounters(
 
 void TApi::IncrementCpuProfilingCounter(
     const std::string& user,
-    const TString& command,
+    const std::string& command,
     TDuration cpuTime)
 {
     auto* counters = GetProfilingCounters({user, command});

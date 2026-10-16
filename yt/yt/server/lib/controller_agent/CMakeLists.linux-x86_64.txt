@@ -28,6 +28,8 @@ get_built_tool_path(
   cpp_styleguide
 )
 
+add_subdirectory(unittests)
+
 add_library(server-lib-controller_agent)
 
 
@@ -56,6 +58,7 @@ target_link_libraries(server-lib-controller_agent PUBLIC
 )
 
 target_sources(server-lib-controller_agent PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/job_statistics_wire.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/structs.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/progress_counter.cpp
@@ -66,10 +69,12 @@ target_sources(server-lib-controller_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/job_report.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/network_project.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/controller_agent/proto/job_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/controller_agent/proto/push_based_shuffle_service.pb.h
 )
 
 target_proto_messages(server-lib-controller_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/proto/job_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/proto/push_based_shuffle_service.proto
 )
 
 
@@ -87,8 +92,6 @@ target_proto_addincls(server-lib-controller_agent
   ${PROJECT_SOURCE_DIR}/yt
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc-format/src/main/proto/orc/proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/contrib/cri-api
-  ${PROJECT_SOURCE_DIR}/yt/yt/contrib/gogoproto
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )

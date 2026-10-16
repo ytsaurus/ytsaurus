@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NScheduler {
@@ -23,12 +25,13 @@ TDiskQuota::operator bool() const
     return !DiskSpacePerMedium.empty() || DiskSpaceWithoutMedium;
 }
 
-void TDiskQuota::Persist(const TStreamPersistenceContext& context)
+void TDiskQuota::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, DiskSpacePerMedium);
-    Persist(context, DiskSpaceWithoutMedium);
+    PHOENIX_REGISTER_FIELD(1, DiskSpacePerMedium);
+    PHOENIX_REGISTER_FIELD(2, DiskSpaceWithoutMedium);
 }
+
+PHOENIX_DEFINE_TYPE(TDiskQuota);
 
 TDiskQuota CreateDiskQuota(i32 mediumIndex, i64 diskSpace)
 {
@@ -169,12 +172,13 @@ void TJobResourcesWithQuota::SetJobResources(const TJobResources& jobResources)
     #undef XX
 }
 
-void TJobResourcesWithQuota::Persist(const TStreamPersistenceContext& context)
+void TJobResourcesWithQuota::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, *static_cast<TJobResources*>(this));
-    Persist(context, DiskQuota_);
+    registrar.template BaseType<TJobResources>();
+    PHOENIX_REGISTER_FIELD(1, DiskQuota_);
 }
+
+PHOENIX_DEFINE_TYPE(TJobResourcesWithQuota);
 
 TJobResourcesWithQuota  operator+(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs)
 {

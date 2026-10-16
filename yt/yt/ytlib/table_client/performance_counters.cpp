@@ -52,12 +52,12 @@ void TChunkReaderPerformanceCounters::Increment(
     auto& sensor = isSystemWorkload ? SystemDataBytesTransmitted : UserDataBytesTransmitted;
 
     sensor.Counter.fetch_add(
-        chunkReadOptions.ChunkReaderStatistics->DataBytesTransmitted.load(std::memory_order_relaxed),
-        std::memory_order_relaxed);
+        chunkReadOptions.ChunkReaderStatistics->DataBytesTransmitted.load(std::memory_order::relaxed),
+        std::memory_order::relaxed);
     if (const auto& hunkStatistics = chunkReadOptions.HunkChunkReaderStatistics) {
         sensor.Counter.fetch_add(
-            hunkStatistics->GetChunkReaderStatistics()->DataBytesTransmitted.load(std::memory_order_relaxed),
-            std::memory_order_relaxed);
+            hunkStatistics->GetChunkReaderStatistics()->DataBytesTransmitted.load(std::memory_order::relaxed),
+            std::memory_order::relaxed);
     }
 }
 

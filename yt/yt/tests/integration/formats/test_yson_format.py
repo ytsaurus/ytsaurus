@@ -62,7 +62,6 @@ def _test_invalid_write(type, optimize_for, value, format):
 
 
 @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-@pytest.mark.enabled_multidaemon
 class TestYsonPositionalFormat(YTEnvSetup):
     POSITIONAL_YSON = yson.loads(b"<complex_type_mode=positional>yson")
     POSITIONAL_DICT_YSON = yson.loads(b"<string_keyed_dict_mode=positional>yson")
@@ -125,7 +124,6 @@ class TestYsonPositionalFormat(YTEnvSetup):
 
 @authors("nadya73")
 @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-@pytest.mark.enabled_multidaemon
 class TestYsonNamedFormat(YTEnvSetup):
     NAMED_YSON = yson.loads(b"<complex_type_mode=named>yson")
     NAMED_DICT_YSON = yson.loads(b"<string_keyed_dict_mode=named>yson")
@@ -178,7 +176,6 @@ class TestYsonNamedFormat(YTEnvSetup):
 
 @authors("egor-gutrov")
 @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-@pytest.mark.enabled_multidaemon
 class TestYsonDecimalFormat(YTEnvSetup):
     TEXT_DECIMAL_FORMAT = yson.loads(b"<decimal_mode=text>yson")
     BINARY_PI = b"\x80\x00\x7A\xB7"
@@ -219,7 +216,6 @@ class TestYsonDecimalFormat(YTEnvSetup):
 
 @authors("egor-gutrov")
 @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-@pytest.mark.enabled_multidaemon
 class TestYsonTimeFormat(YTEnvSetup):
     TEXT_TIME_FORMAT = yson.loads(b"<time_mode=text>yson")
     DATE = {"type_name": "date"}
@@ -324,7 +320,6 @@ class TestYsonTimeFormat(YTEnvSetup):
 
 @authors("egor-gutrov")
 @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-@pytest.mark.enabled_multidaemon
 class TestYsonUuidFormat(YTEnvSetup):
     TEXT_YT_FORMAT = yson.loads(b"<uuid_mode=text_yt>yson")
     TEXT_YQL_FORMAT = yson.loads(b"<uuid_mode=text_yql>yson")

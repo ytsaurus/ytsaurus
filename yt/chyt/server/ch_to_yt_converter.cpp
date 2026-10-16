@@ -27,6 +27,7 @@
 #include <Columns/ColumnMap.h>
 #include <Columns/IColumn.h>
 #include <Columns/ColumnStringHelpers.h>
+#include <Common/DateLUT.h>
 #include <Common/formatIPv6.h>
 #include <Core/Types.h>
 #include <DataTypes/DataTypeArray.h>
@@ -60,7 +61,7 @@ using namespace NLogging;
 using namespace NTableClient;
 using namespace NYson;
 
-// Used only for YT_LOG_FATAL below.
+// Used only for YT_TLOG_FATAL below.
 static const TLogger Logger("CHToYTConverter");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,9 +73,14 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Node in the conversion tree-like structure. Child nodes are saved by
-//! std::unique_ptr<IConverter> in member fields of particular implementations.
-struct IConverter
+//! std::unique_ptr<TConverterBase> in member fields of particular implementations.
+class TConverterBase
 {
+public:
+    explicit TConverterBase(const DB::DataTypePtr& dataType)
+        : NativeTypeName_(GetNativeTypeName(dataType))
+    { }
+
     //! Setup converter to work with given column.
     virtual void InitColumn(const DB::IColumn* column) = 0;
 
@@ -87,22 +93,65 @@ struct IConverter
     //! when this converter is enclosed in Nullable converter).
     virtual void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) = 0;
 
-    virtual TLogicalTypePtr GetLogicalType() const = 0;
-    virtual ~IConverter() = default;
+    TLogicalTypePtr GetLogicalType(bool annotateWithNativeType) const
+    {
+        auto logicalType = BuildLogicalType(annotateWithNativeType);
+        if (!annotateWithNativeType) {
+            return logicalType;
+        }
+        return TaggedLogicalType(NativeTypeName_, std::move(logicalType));
+    }
+
+    virtual ~TConverterBase() = default;
+
+private:
+    const std::string NativeTypeName_;
+
+    virtual TLogicalTypePtr BuildLogicalType(bool annotateUnderlyingWithNativeType) const = 0;
+
+    static std::string GetNativeTypeName(const DB::DataTypePtr& dataType)
+    {
+        if (const auto* customName = dataType->getCustomName()) {
+            return customName->getName();
+        }
+
+        switch (dataType->getTypeId()) {
+            case DB::TypeIndex::Nullable:
+            case DB::TypeIndex::Array:
+            case DB::TypeIndex::Tuple:
+            case DB::TypeIndex::LowCardinality:
+            case DB::TypeIndex::Map:
+                return dataType->getFamilyName();
+            default:
+                return dataType->getName();
+        }
+    }
 };
 
-using IConverterPtr = std::unique_ptr<IConverter>;
+using TConverterPtr = std::unique_ptr<TConverterBase>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static i64 GetTimezoneOffsetAtEpoch(const std::string& timezoneName)
+{
+    if (timezoneName.empty()) {
+        return 0;
+    }
+    return DateLUT::instance(timezoneName).getOffsetAtStartOfEpoch();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Value TypeId == Nothing is a special value that corresponds to Bool.
 template <DB::TypeIndex TypeId, ESimpleLogicalValueType LogicalType>
 class TSimpleValueConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
-    explicit TSimpleValueConverter(DB::DataTypePtr dataType)
-        : DataType_(std::move(dataType))
+    explicit TSimpleValueConverter(DB::DataTypePtr dataType, bool adjustTimezoneForDateTypes = false)
+        : TConverterBase(dataType)
+        , DataType_(std::move(dataType))
+        , TimezoneAdjustmentSeconds_(ComputeTimezoneAdjustment(DataType_, adjustTimezoneForDateTypes))
     { }
 
     void InitColumn(const DB::IColumn* column) override
@@ -139,7 +188,7 @@ public:
                         values[index].Length = TzStringHolder_.back().size(); \
                     } else { \
                         values[index].Type = EValueType::valueType; \
-                        values[index].Data.valueType = typedData[index]; \
+                        values[index].Data.valueType = static_cast<decltype(typedData[index])>(typedData[index] + TimezoneAdjustmentSeconds_); \
                     } \
                 } else
 
@@ -175,11 +224,12 @@ public:
             } else if constexpr (TypeId == DB::TypeIndex::DateTime64) {
                 auto* typedData = reinterpret_cast<const DB::DateTime64*>(Data_);
                 if constexpr (LogicalType == ESimpleLogicalValueType::Timestamp) {
-                    if (typedData[index] < 0) {
+                    auto adjustedValue = static_cast<DB::DateTime64>(typedData[index] + TimezoneAdjustmentSeconds_);
+                    if (adjustedValue < 0) {
                         THROW_ERROR_EXCEPTION("Cannot convert value %v to YT timestamp", static_cast<i64>(typedData[index]));
                     }
                     values[index].Type = EValueType::Uint64;
-                    values[index].Data.Uint64 = typedData[index];
+                    values[index].Data.Uint64 = adjustedValue;
                 } else if constexpr (LogicalType == ESimpleLogicalValueType::TzTimestamp ||
                     LogicalType == ESimpleLogicalValueType::TzDatetime64 ||
                     LogicalType == ESimpleLogicalValueType::TzTimestamp64) {
@@ -189,7 +239,7 @@ public:
                     values[index].Length = TzStringHolder_.back().size();
                 } else {
                     values[index].Type = EValueType::Int64;
-                    values[index].Data.Int64 = typedData[index];
+                    values[index].Data.Int64 = static_cast<i64>(typedData[index] + TimezoneAdjustmentSeconds_);
                 }
             } else {
                 THROW_ERROR_EXCEPTION(
@@ -223,7 +273,7 @@ public:
                 if constexpr (LogicalType == ESimpleLogicalValueType::Tz##tzType) { \
                     writer->WriteBinaryString(NTzTypes::MakeTzString<TTzIntegerType<LogicalType>>(typedData[CurrentValueIndex_], DateLUT::instance().getTimeZone())); \
                 } else { \
-                    writer->WriteBinary##method(typedData[CurrentValueIndex_]); \
+                    writer->WriteBinary##method(static_cast<decltype(typedData[CurrentValueIndex_])>(typedData[CurrentValueIndex_] + TimezoneAdjustmentSeconds_)); \
                 } \
             } else
 
@@ -256,17 +306,18 @@ public:
         } else if constexpr (TypeId == DB::TypeIndex::DateTime64) {
             auto* typedData = reinterpret_cast<const DB::DateTime64*>(Data_);
             if constexpr (LogicalType == ESimpleLogicalValueType::Timestamp) {
-                if (typedData[CurrentValueIndex_] < 0) {
+                auto adjustedValue = static_cast<DB::DateTime64>(typedData[CurrentValueIndex_] + TimezoneAdjustmentSeconds_);
+                if (adjustedValue < 0) {
                     THROW_ERROR_EXCEPTION("Cannot convert value %v to YT timestamp", static_cast<i64>(typedData[CurrentValueIndex_]));
                 }
-                writer->WriteBinaryUint64(typedData[CurrentValueIndex_]);
+                writer->WriteBinaryUint64(adjustedValue);
             } else if constexpr (LogicalType == ESimpleLogicalValueType::TzTimestamp ||
                 LogicalType == ESimpleLogicalValueType::TzDatetime64 ||
                 LogicalType == ESimpleLogicalValueType::TzTimestamp64)
             {
                 writer->WriteBinaryString(NTzTypes::MakeTzString<TTzIntegerType<LogicalType>>(typedData[CurrentValueIndex_], DateLUT::instance().getTimeZone()));
             } else {
-                writer->WriteBinaryInt64(typedData[CurrentValueIndex_]);
+                writer->WriteBinaryInt64(static_cast<i64>(typedData[CurrentValueIndex_] + TimezoneAdjustmentSeconds_));
             }
         } else {
             THROW_ERROR_EXCEPTION(
@@ -280,7 +331,7 @@ public:
         #undef TZ_XX
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool /*annotateUnderlyingWithNativeType*/) const override
     {
         return SimpleLogicalType(LogicalType);
     }
@@ -294,16 +345,57 @@ private:
     std::vector<std::string> TzStringHolder_;
 
     DB::DataTypePtr DataType_;
+    //! Timezone adjustment in seconds to add to date/datetime values when
+    //! AdjustTimezoneForDateTypes is enabled. Equals (column_tz_offset - default_tz_offset).
+    i64 TimezoneAdjustmentSeconds_ = 0;
+
+    //! For DateTime/DateTime64 types with an explicit timezone that differs from the
+    //! server default, returns the difference in UTC offsets (column_tz - default_tz).
+    //! Returns 0 for all other types or when adjustment is disabled.
+    static i64 ComputeTimezoneAdjustment(const DB::DataTypePtr& dataType, bool adjustTimezoneForDateTypes)
+    {
+        if (!adjustTimezoneForDateTypes) {
+            return 0;
+        }
+
+        // Only adjust for DateTime and DateTime64 types that carry an explicit timezone.
+        std::string columnTimezone;
+        if constexpr (TypeId == DB::TypeIndex::DateTime) {
+            auto* dtType = dynamic_cast<const DB::DataTypeDateTime*>(dataType.get());
+            if (dtType && dtType->hasExplicitTimeZone()) {
+                columnTimezone = dtType->getTimeZone().getTimeZone();
+            }
+        } else if constexpr (TypeId == DB::TypeIndex::DateTime64) {
+            auto* dt64Type = dynamic_cast<const DB::DataTypeDateTime64*>(dataType.get());
+            if (dt64Type && dt64Type->hasExplicitTimeZone()) {
+                columnTimezone = dt64Type->getTimeZone().getTimeZone();
+            }
+        }
+
+        if (columnTimezone.empty()) {
+            return 0;
+        }
+
+        const auto& defaultTimezone = DateLUT::instance().getTimeZone();
+        if (columnTimezone == defaultTimezone) {
+            return 0;
+        }
+
+        i64 columnOffset = GetTimezoneOffsetAtEpoch(columnTimezone);
+        i64 defaultOffset = GetTimezoneOffsetAtEpoch(defaultTimezone);
+        return columnOffset - defaultOffset;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNullableConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
-    explicit TNullableConverter(IConverterPtr underlyingConverter)
-        : UnderlyingConverter_(std::move(underlyingConverter))
+    TNullableConverter(DB::DataTypePtr dataType, TConverterPtr underlyingConverter)
+        : TConverterBase(dataType)
+        , UnderlyingConverter_(std::move(underlyingConverter))
     { }
 
     void InitColumn(const DB::IColumn* column) override
@@ -348,26 +440,27 @@ public:
         ++CurrentValueIndex_;
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool annotateUnderlyingWithNativeType) const override
     {
-        return OptionalLogicalType(UnderlyingConverter_->GetLogicalType());
+        return OptionalLogicalType(UnderlyingConverter_->GetLogicalType(annotateUnderlyingWithNativeType));
     }
 
 private:
     const DB::ColumnUInt8* NullColumn_ = nullptr;
     const DB::ColumnUInt8::Container* NullData_ = nullptr;
     i64 CurrentValueIndex_ = 0;
-    const IConverterPtr UnderlyingConverter_;
+    const TConverterPtr UnderlyingConverter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TArrayConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
-    explicit TArrayConverter(IConverterPtr underlyingConverter)
-        : UnderlyingConverter_(std::move(underlyingConverter))
+    TArrayConverter(DB::DataTypePtr dataType, TConverterPtr underlyingConverter)
+        : TConverterBase(dataType)
+        , UnderlyingConverter_(std::move(underlyingConverter))
     { }
 
     void InitColumn(const DB::IColumn* column) override
@@ -411,25 +504,30 @@ public:
         ++CurrentValueIndex_;
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool annotateUnderlyingWithNativeType) const override
     {
-        return ListLogicalType(UnderlyingConverter_->GetLogicalType());
+        return ListLogicalType(UnderlyingConverter_->GetLogicalType(annotateUnderlyingWithNativeType));
     }
 
 private:
     const DB::ColumnArray::Offsets* Offsets_ = nullptr;
     i64 CurrentValueIndex_ = 0;
-    const IConverterPtr UnderlyingConverter_;
+    const TConverterPtr UnderlyingConverter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
-    TMapConverter(IConverterPtr keyConverter, IConverterPtr valueConverter, IConverterPtr nestedConverter)
-        : KeyConverter_(std::move(keyConverter))
+    TMapConverter(
+        DB::DataTypePtr dataType,
+        TConverterPtr keyConverter,
+        TConverterPtr valueConverter,
+        TConverterPtr nestedConverter)
+        : TConverterBase(dataType)
+        , KeyConverter_(std::move(keyConverter))
         , ValueConverter_(std::move(valueConverter))
         , NestedConverter_(std::move(nestedConverter))
     {
@@ -454,27 +552,31 @@ public:
         NestedConverter_->ExtractNextValueYson(writer);
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool annotateUnderlyingWithNativeType) const override
     {
-        return DictLogicalType(KeyConverter_->GetLogicalType(), ValueConverter_->GetLogicalType());
+        return DictLogicalType(
+            KeyConverter_->GetLogicalType(annotateUnderlyingWithNativeType),
+            ValueConverter_->GetLogicalType(annotateUnderlyingWithNativeType));
     }
 
 private:
-    const IConverterPtr KeyConverter_;
-    const IConverterPtr ValueConverter_;
-    const IConverterPtr NestedConverter_;
+    const TConverterPtr KeyConverter_;
+    const TConverterPtr ValueConverter_;
+    const TConverterPtr NestedConverter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTupleConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
     TTupleConverter(
-        std::vector<IConverterPtr> underlyingConverters,
+        DB::DataTypePtr dataType,
+        std::vector<TConverterPtr> underlyingConverters,
         std::optional<std::vector<std::string>> elementNames)
-        : UnderlyingConverters_(std::move(underlyingConverters))
+        : TConverterBase(dataType)
+        , UnderlyingConverters_(std::move(underlyingConverters))
         , ElementNames_(std::move(elementNames))
     {
         YT_VERIFY(!ElementNames_ || ElementNames_->size() == UnderlyingConverters_.size());
@@ -513,13 +615,13 @@ public:
         writer->WriteEndList();
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool annotateUnderlyingWithNativeType) const override
     {
         if (!ElementNames_) {
             std::vector<TLogicalTypePtr> underlyingLogicalTypes;
             underlyingLogicalTypes.reserve(UnderlyingConverters_.size());
             for (const auto& underlyingConverter : UnderlyingConverters_) {
-                underlyingLogicalTypes.emplace_back(underlyingConverter->GetLogicalType());
+                underlyingLogicalTypes.emplace_back(underlyingConverter->GetLogicalType(annotateUnderlyingWithNativeType));
             }
             return TupleLogicalType(std::move(underlyingLogicalTypes));
         } else {
@@ -529,7 +631,7 @@ public:
                 structFields.push_back({
                     .Name = elementName,
                     .StableName = elementName,
-                    .Type = underlyingConverter->GetLogicalType(),
+                    .Type = underlyingConverter->GetLogicalType(annotateUnderlyingWithNativeType),
                 });
             }
             return StructLogicalType(std::move(structFields), /*removedFieldStableNames*/ {});
@@ -537,7 +639,7 @@ public:
     }
 
 private:
-    const std::vector<IConverterPtr> UnderlyingConverters_;
+    const std::vector<TConverterPtr> UnderlyingConverters_;
     const std::optional<std::vector<std::string>> ElementNames_;
 };
 
@@ -545,7 +647,7 @@ private:
 
 template <class TUnderlyingIntegerType>
 class TDecimalConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
     static_assert(std::is_same_v<TUnderlyingIntegerType, DB::Int32>
@@ -557,8 +659,9 @@ public:
     using TDecimalColumn = DB::ColumnDecimal<TClickHouseDecimal>;
     static constexpr i64 DecimalSize = sizeof(TUnderlyingIntegerType);
 
-    TDecimalConverter(int precision, int scale)
-        : Precision_(precision)
+    TDecimalConverter(DB::DataTypePtr dataType, int precision, int scale)
+        : TConverterBase(dataType)
+        , Precision_(precision)
         , Scale_(scale)
     { }
 
@@ -604,7 +707,7 @@ public:
         ++CurrentValueIndex_;
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool /*annotateUnderlyingWithNativeType*/) const override
     {
         return DecimalLogicalType(Precision_, Scale_);
     }
@@ -646,7 +749,7 @@ private:
 
 template <class TUnderlyingIntegerType>
 class TEnumConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
     static_assert(std::is_same_v<TUnderlyingIntegerType, DB::Int8>
@@ -655,7 +758,8 @@ public:
     using TDataTypeEnum = DB::DataTypeEnum<TUnderlyingIntegerType>;
 
     explicit TEnumConverter(const DB::DataTypePtr& dataType)
-        : EnumType_(dynamic_pointer_cast<const TDataTypeEnum>(dataType))
+        : TConverterBase(dataType)
+        , EnumType_(dynamic_pointer_cast<const TDataTypeEnum>(dataType))
     {
         YT_VERIFY(EnumType_);
     }
@@ -693,7 +797,7 @@ public:
         ++CurrentValueIndex_;
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool /*annotateUnderlyingWithNativeType*/) const override
     {
         return SimpleLogicalType(ESimpleLogicalValueType::String);
     }
@@ -709,7 +813,7 @@ private:
 
 template <class TIPAddressType>
 class TIPAddressConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
     static_assert(std::is_same_v<TIPAddressType, DB::IPv4>
@@ -720,7 +824,9 @@ public:
         ? (IPV4_MAX_TEXT_LENGTH + 1)
         : (IPV6_MAX_TEXT_LENGTH + 1);
 
-    TIPAddressConverter() = default;
+    explicit TIPAddressConverter(const DB::DataTypePtr& dataType)
+        : TConverterBase(dataType)
+    { }
 
     void InitColumn(const DB::IColumn* column) override
     {
@@ -760,7 +866,7 @@ public:
         ++CurrentValueIndex_;
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool /*annotateUnderlyingWithNativeType*/) const override
     {
         return SimpleLogicalType(ESimpleLogicalValueType::String);
     }
@@ -787,11 +893,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLowCardinalityConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
-    explicit TLowCardinalityConverter(IConverterPtr underlyingConverter)
-        : UnderlyingConverter_(std::move(underlyingConverter))
+    TLowCardinalityConverter(DB::DataTypePtr dataType, TConverterPtr underlyingConverter)
+        : TConverterBase(dataType)
+        , UnderlyingConverter_(std::move(underlyingConverter))
     { }
 
     void InitColumn(const DB::IColumn* column) override
@@ -830,14 +937,14 @@ public:
         UnderlyingConverter_->ExtractNextValueYson(writer);
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool annotateUnderlyingWithNativeType) const override
     {
-        return UnderlyingConverter_->GetLogicalType();
+        return UnderlyingConverter_->GetLogicalType(annotateUnderlyingWithNativeType);
     }
 
 private:
     const DB::ColumnLowCardinality* LowCardinalityColumn_;
-    const IConverterPtr UnderlyingConverter_;
+    const TConverterPtr UnderlyingConverter_;
 
     DB::ColumnPtr FullColumn_;
 };
@@ -845,11 +952,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnsupportedTypesToStringConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
     explicit TUnsupportedTypesToStringConverter(DB::DataTypePtr dataType)
-        : DataType_(std::move(dataType))
+        : TConverterBase(dataType)
+        , DataType_(std::move(dataType))
         , UnderlyingConverter_(
             std::make_unique<TSimpleValueConverter<DB::TypeIndex::String, ESimpleLogicalValueType::String>>(
                 std::make_shared<DB::DataTypeString>()))
@@ -883,14 +991,14 @@ public:
         UnderlyingConverter_->ExtractNextValueYson(writer);
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool /*annotateUnderlyingWithNativeType*/) const override
     {
-        return UnderlyingConverter_->GetLogicalType();
+        return UnderlyingConverter_->GetLogicalType(/*annotateWithNativeType*/ false);
     }
 
 private:
     const DB::DataTypePtr DataType_;
-    const IConverterPtr UnderlyingConverter_;
+    const TConverterPtr UnderlyingConverter_;
 
     DB::ColumnString::MutablePtr StringColumn_;
 };
@@ -904,7 +1012,7 @@ private:
 class TCHToYTConverter::TImpl
 {
 public:
-    TImpl(DB::DataTypePtr dataType, TCompositeSettingsPtr settings)
+    TImpl(DB::DataTypePtr dataType, TConversionSettingsPtr settings)
         : DataType_(std::move(dataType))
         , Settings_(std::move(settings))
         , RootConverter_(CreateConverter(DataType_))
@@ -912,7 +1020,7 @@ public:
 
     TLogicalTypePtr GetLogicalType() const
     {
-        return RootConverter_->GetLogicalType();
+        return RootConverter_->GetLogicalType(Settings_->Composite->AnnotateResultSchemaWithNativeTypes);
     }
 
     TUnversionedValueRange ConvertColumnToUnversionedValues(const DB::ColumnPtr& column)
@@ -928,7 +1036,7 @@ public:
 
         RootConverter_->InitColumn(CurrentColumn_.get());
 
-        auto logicalType = RootConverter_->GetLogicalType();
+        auto logicalType = RootConverter_->GetLogicalType(/*annotateWithNativeType*/ false);
         bool isDecimal = (logicalType->GetMetatype() == ELogicalMetatype::Decimal ||
             (logicalType->GetMetatype() == ELogicalMetatype::Optional && logicalType->GetElement()->GetMetatype() == ELogicalMetatype::Decimal));
 
@@ -959,7 +1067,9 @@ public:
                     TYsonInput ysonInput(&input);
                     ParseYson(ysonInput, &consumer);
                 } catch (const std::exception& ex) {
-                    YT_LOG_FATAL(ex, "Error while converting value %v", index);
+                    YT_TLOG_FATAL("Error while converting value")
+                        .With("Index", index)
+                        .With(ex);
                 }
             }
 
@@ -980,20 +1090,22 @@ public:
 
 private:
     const DB::DataTypePtr DataType_;
-    TCompositeSettingsPtr Settings_;
+    TConversionSettingsPtr Settings_;
 
-    const IConverterPtr RootConverter_;
+    const TConverterPtr RootConverter_;
 
     DB::ColumnPtr CurrentColumn_;
     std::vector<TUnversionedValue> CurrentValues_;
     TBuffer Buffer_;
 
-    IConverterPtr CreateSimpleValueConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateSimpleValueConverter(const DB::DataTypePtr& dataType) const
     {
+        bool adjustTz = Settings_->AdjustTimezoneForDateTypes;
+
         switch (dataType->getTypeId()) {
             #define XX(typeId, simpleLogicalValueType) \
                 case DB::TypeIndex::typeId: \
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::typeId, ESimpleLogicalValueType::simpleLogicalValueType>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::typeId, ESimpleLogicalValueType::simpleLogicalValueType>>(dataType, adjustTz);
 
 
             #define TZ_XX(typeId, simpleLogicalValueType) \
@@ -1002,7 +1114,7 @@ private:
                         return std::make_unique<TSimpleValueConverter<DB::TypeIndex::typeId, ESimpleLogicalValueType::Tz##simpleLogicalValueType>>(dataType); \
                     } \
                     else { \
-                        return std::make_unique<TSimpleValueConverter<DB::TypeIndex::typeId, ESimpleLogicalValueType::simpleLogicalValueType>>(dataType); \
+                        return std::make_unique<TSimpleValueConverter<DB::TypeIndex::typeId, ESimpleLogicalValueType::simpleLogicalValueType>>(dataType, adjustTz); \
                     } \
                 }
 
@@ -1024,15 +1136,15 @@ private:
             case DB::TypeIndex::UInt8:
                 if (DB::isBool(dataType)) {
                     // Nothing is a special value standing for boolean for simplicity.
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::Nothing, ESimpleLogicalValueType::Boolean>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::Nothing, ESimpleLogicalValueType::Boolean>>(dataType, adjustTz);
                 } else {
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::UInt8, ESimpleLogicalValueType::Uint8>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::UInt8, ESimpleLogicalValueType::Uint8>>(dataType, adjustTz);
                 }
             case DB::TypeIndex::DateTime64:
             {
                 int scale = DB::getDecimalScale(*dataType);
                 if (scale != 0 && scale != 6) {
-                    if (Settings_->ConvertUnsupportedTypesToString) {
+                    if (Settings_->Composite->ConvertUnsupportedTypesToString) {
                         return CreateUnsupportedTypesToStringConverter(dataType);
                     } else {
                         THROW_ERROR_EXCEPTION("ClickHouse type %Qv with scale %v is not representable as YT type: "
@@ -1042,17 +1154,17 @@ private:
                     }
                 }
                 if (dataType->getName() == "YtTimestamp") {
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::Timestamp>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::Timestamp>>(dataType, adjustTz);
                 } else if (dataType->getName() == "TzDateTime64") {
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::TzDatetime64>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::TzDatetime64>>(dataType, adjustTz);
                 } else if (dataType->getName() == "TzTimestamp") {
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::TzTimestamp>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::TzTimestamp>>(dataType, adjustTz);
                 } else if (dataType->getName() == "TzTimestamp64") {
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::TzTimestamp64>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::TzTimestamp64>>(dataType, adjustTz);
                 } else if (scale == 0) {
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::Datetime64>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::Datetime64>>(dataType, adjustTz);
                 } else {
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::Timestamp64>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::Timestamp64>>(dataType, adjustTz);
                 }
             }
 
@@ -1064,68 +1176,69 @@ private:
         }
     }
 
-    IConverterPtr CreateNullableConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateNullableConverter(const DB::DataTypePtr& dataType) const
     {
         auto dataTypeNullable = dynamic_pointer_cast<const DB::DataTypeNullable>(dataType);
         YT_VERIFY(dataTypeNullable);
         auto underlyingConverter = CreateConverter(dataTypeNullable->getNestedType());
-        return std::make_unique<TNullableConverter>(std::move(underlyingConverter));
+        return std::make_unique<TNullableConverter>(dataType, std::move(underlyingConverter));
     }
 
-    IConverterPtr CreateArrayConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateArrayConverter(const DB::DataTypePtr& dataType) const
     {
         auto dataTypeArray = dynamic_pointer_cast<const DB::DataTypeArray>(dataType);
         YT_VERIFY(dataTypeArray);
         auto underlyingConverter = CreateConverter(dataTypeArray->getNestedType());
-        return std::make_unique<TArrayConverter>(std::move(underlyingConverter));
+        return std::make_unique<TArrayConverter>(dataType, std::move(underlyingConverter));
     }
 
-    IConverterPtr CreateTupleConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateTupleConverter(const DB::DataTypePtr& dataType) const
     {
         auto dataTypeTuple = dynamic_pointer_cast<const DB::DataTypeTuple>(dataType);
         YT_VERIFY(dataTypeTuple);
-        std::vector<IConverterPtr> underlyingConverters;
+        std::vector<TConverterPtr> underlyingConverters;
         auto elementNames = dataTypeTuple->getElementNames();
         underlyingConverters.reserve(dataTypeTuple->getElements().size());
         for (const auto& elementDataType : dataTypeTuple->getElements()) {
             underlyingConverters.emplace_back(CreateConverter(elementDataType));
         }
         return std::make_unique<TTupleConverter>(
+            dataType,
             std::move(underlyingConverters),
             dataTypeTuple->haveExplicitNames() ? std::make_optional(elementNames) : std::nullopt);
     }
 
-    IConverterPtr CreateDecimalConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateDecimalConverter(const DB::DataTypePtr& dataType) const
     {
         int precision = DB::getDecimalPrecision(*dataType);
         int scale = DB::getDecimalScale(*dataType);
 
         if (precision > MaxSupportedCHDecimalPrecision) {
-            if (Settings_->ConvertUnsupportedTypesToString) {
+            if (Settings_->Composite->ConvertUnsupportedTypesToString) {
                 return CreateUnsupportedTypesToStringConverter(dataType);
             } else {
                 THROW_ERROR_EXCEPTION("ClickHouse type %Qv is not representable as YT type: "
                     "maximum decimal precision in YT is %v",
                     DataType_->getName(), MaxSupportedCHDecimalPrecision)
-                    << TErrorAttribute("docs", "https://ytsaurus.tech/docs/en/user-guide/storage/data-types#schema_decimal");
+                    .With("docs", "https://ytsaurus.tech/docs/en/user-guide/storage/data-types#schema_decimal");
             }
         }
 
         switch (dataType->getTypeId()) {
             case DB::TypeIndex::Decimal32:
-                return std::make_unique<TDecimalConverter<DB::Int32>>(precision, scale);
+                return std::make_unique<TDecimalConverter<DB::Int32>>(dataType, precision, scale);
             case DB::TypeIndex::Decimal64:
-                return std::make_unique<TDecimalConverter<DB::Int64>>(precision, scale);
+                return std::make_unique<TDecimalConverter<DB::Int64>>(dataType, precision, scale);
             case DB::TypeIndex::Decimal128:
-                return std::make_unique<TDecimalConverter<DB::Int128>>(precision, scale);
+                return std::make_unique<TDecimalConverter<DB::Int128>>(dataType, precision, scale);
             case DB::TypeIndex::Decimal256:
-                return std::make_unique<TDecimalConverter<DB::Int256>>(precision, scale);
+                return std::make_unique<TDecimalConverter<DB::Int256>>(dataType, precision, scale);
             default:
                 YT_ABORT();
         }
     }
 
-    IConverterPtr CreateEnumConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateEnumConverter(const DB::DataTypePtr& dataType) const
     {
         switch (dataType->getTypeId()) {
             case DB::TypeIndex::Enum8:
@@ -1137,42 +1250,46 @@ private:
         }
     }
 
-    IConverterPtr CreateIPAddressConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateIPAddressConverter(const DB::DataTypePtr& dataType) const
     {
         switch (dataType->getTypeId()) {
             case DB::TypeIndex::IPv4:
-                return std::make_unique<TIPAddressConverter<DB::DataTypeIPv4::FieldType>>();
+                return std::make_unique<TIPAddressConverter<DB::DataTypeIPv4::FieldType>>(dataType);
             case DB::TypeIndex::IPv6:
-                return std::make_unique<TIPAddressConverter<DB::DataTypeIPv6::FieldType>>();
+                return std::make_unique<TIPAddressConverter<DB::DataTypeIPv6::FieldType>>(dataType);
             default:
                 YT_ABORT();
         }
     }
 
-    IConverterPtr CreateLowCardinalityConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateLowCardinalityConverter(const DB::DataTypePtr& dataType) const
     {
         auto dataTypeLowCardinality = dynamic_pointer_cast<const DB::DataTypeLowCardinality>(dataType);
         YT_VERIFY(dataTypeLowCardinality);
         auto underlyingConverter = CreateConverter(dataTypeLowCardinality->getDictionaryType());
-        return std::make_unique<TLowCardinalityConverter>(std::move(underlyingConverter));
+        return std::make_unique<TLowCardinalityConverter>(dataType, std::move(underlyingConverter));
     }
 
-    IConverterPtr CreateMapConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateMapConverter(const DB::DataTypePtr& dataType) const
     {
         auto dataTypeMap = dynamic_pointer_cast<const DB::DataTypeMap>(dataType);
         YT_VERIFY(dataTypeMap);
         auto keyConverter = CreateConverter(dataTypeMap->getKeyType());
         auto valueConverter = CreateConverter(dataTypeMap->getValueType());
         auto nestedConverter = CreateArrayConverter(dataTypeMap->getNestedType());
-        return std::make_unique<TMapConverter>(std::move(keyConverter), std::move(valueConverter), std::move(nestedConverter));
+        return std::make_unique<TMapConverter>(
+            dataType,
+            std::move(keyConverter),
+            std::move(valueConverter),
+            std::move(nestedConverter));
     }
 
-    IConverterPtr CreateUnsupportedTypesToStringConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateUnsupportedTypesToStringConverter(const DB::DataTypePtr& dataType) const
     {
         return std::make_unique<TUnsupportedTypesToStringConverter>(dataType);
     }
 
-    IConverterPtr CreateConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateConverter(const DB::DataTypePtr& dataType) const
     {
         switch (dataType->getTypeId()) {
             case DB::TypeIndex::Int8:
@@ -1214,7 +1331,7 @@ private:
             case DB::TypeIndex::Map:
                 return CreateMapConverter(dataType);
             default:
-                if (Settings_->ConvertUnsupportedTypesToString) {
+                if (Settings_->Composite->ConvertUnsupportedTypesToString) {
                     return CreateUnsupportedTypesToStringConverter(dataType);
                 } else {
                     THROW_ERROR_EXCEPTION(
@@ -1229,7 +1346,7 @@ private:
 
 TCHToYTConverter::TCHToYTConverter(
     DB::DataTypePtr dataType,
-    TCompositeSettingsPtr settings)
+    TConversionSettingsPtr settings)
     : Impl_(std::make_unique<TImpl>(std::move(dataType), std::move(settings)))
 { }
 

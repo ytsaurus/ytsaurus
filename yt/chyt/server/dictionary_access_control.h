@@ -10,12 +10,9 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IDictionaryAccessControl
+struct IDictionaryAccessControl
     : public virtual TRefCounted
 {
-public:
-    virtual ~IDictionaryAccessControl() = default;
-
     virtual void Start(DB::ContextMutablePtr serverContext) = 0;
 
     //! Synchronize user grants for clique dictionaries with the ACLs of all relevant YT sources.

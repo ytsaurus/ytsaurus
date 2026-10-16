@@ -3,92 +3,9 @@ package NYT.NTableClient.NProto;
 import "yt/ytlib/hive/proto/cell_directory.proto";
 import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
+import "yt_proto/yt/client/tablet_client/proto/secondary_index.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt/ytlib/tablet_client/proto/backup.proto";
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqMount
-{
-    // If omitted then all tablets are affected.
-    required int32 first_tablet_index = 1 [default = -1];
-    required int32 last_tablet_index = 2 [default = -1];
-
-    // If omitted then cell is chosen automatically.
-    optional NYT.NProto.TGuid cell_id = 3;
-
-    required bool freeze = 4;
-    optional uint64 mount_timestamp = 5 [default = 0];
-
-    repeated NYT.NProto.TGuid target_cell_ids = 6;
-}
-
-message TRspMount
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqUnmount
-{
-    // If omitted then all tablets are affected.
-    required int32 first_tablet_index = 1 [default = -1];
-    required int32 last_tablet_index = 2 [default = -1];
-    required bool force = 3 [default = false];
-}
-
-message TRspUnmount
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqRemount
-{
-    // If omitted then all tablets are affected.
-    required int32 first_tablet_index = 1 [default = -1];
-    required int32 last_tablet_index = 2 [default = -1];
-}
-
-message TRspRemount
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqFreeze
-{
-    // If omitted then all tablets are affected.
-    required int32 first_tablet_index = 1 [default = -1];
-    required int32 last_tablet_index = 2 [default = -1];
-}
-
-message TRspFreeze
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqUnfreeze
-{
-    // If omitted then all tablets are affected.
-    required int32 first_tablet_index = 1 [default = -1];
-    required int32 last_tablet_index = 2 [default = -1];
-}
-
-message TRspUnfreeze
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqReshard
-{
-    // If omitted then all tablets are affected.
-    required int32 first_tablet_index = 1 [default = -1];
-    required int32 last_tablet_index = 2 [default = -1];
-    // For sorted tables only.
-    repeated bytes pivot_keys = 3;
-    required int32 tablet_count = 4;
-}
-
-message TRspReshard
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,6 +28,7 @@ message TTabletInfo
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required uint64 mount_revision = 7;
+    optional uint64 logical_mount_revision = 9;
     required int32 state = 2; // ETabletState
     required int32 in_memory_mode = 8; // EInMemoryMode
     optional bytes pivot_key = 3;
@@ -126,21 +44,15 @@ message TReplicaInfo
     required int32 mode = 4; // ETableReplicaMode
 }
 
-message TUnfoldedColumns
-{
-    required string table_column = 1;
-    required string index_column = 2;
-}
-
 message TIndexInfo
 {
     required NYT.NProto.TGuid index_table_id = 1;
-    required int32 index_kind = 2; // NTableClient::ESecondaryIndexKind
+    required int32 index_kind = 2; // NTabletClient::ESecondaryIndexKind
     optional string predicate = 3;
     optional string unfolded_column = 4;
     optional int32 index_correspondence = 6; // NTableClient::ETableToIndexCorrespondence
     optional TTableSchemaExt evaluated_columns_schema = 7;
-    optional TUnfoldedColumns unfolded_columns = 8;
+    optional NYT.NTabletClient.NProto.TUnfoldedColumns unfolded_columns = 8;
 }
 
 message TRspGetMountInfo
@@ -159,6 +71,7 @@ message TRspGetMountInfo
     reserved 12; // Deprecated
     optional int32 tablet_count = 13; // Queue tablet count for chaos replicated tables
     optional int32 serialization_type = 14 [default = 0]; // ETabletTransactionSerializationType [default = Coarse]
+    optional int32 commit_ordering = 15 [default = 0]; // NTransactionClient::ECommitOrdering [default = Weak]
 }
 
 ////////////////////////////////////////////////////////////////////////////////

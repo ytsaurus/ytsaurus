@@ -77,7 +77,7 @@ private:
     bool IsMultiModule_ = false;
 
     using TMap = THashMap<TSchedulingSegmentModule, TValue>;
-    using TMapForDeserialize = THashMap<TString, TValue>;
+    using TMapForDeserialize = THashMap<std::string, TValue>;
     TMap Map_;
 
     [[nodiscard]] const TValue& GetOrDefaultImpl(

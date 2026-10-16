@@ -34,7 +34,7 @@ target_link_libraries(tools-trigrep-lib PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
-  cpp-containers-absl_flat_hash
+  cpp-containers-absl
   cpp-yt-coding
   contrib-libs-zstd
 )
@@ -45,6 +45,7 @@ target_sources(tools-trigrep-lib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/trigrep/lib/index_builder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/trigrep/lib/line_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/trigrep/lib/matcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/trigrep/lib/posting_codec.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/trigrep/lib/helpers.cpp
 )
 

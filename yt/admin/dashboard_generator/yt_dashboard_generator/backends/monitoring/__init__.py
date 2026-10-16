@@ -33,7 +33,15 @@ class MonitoringProjectDashboardParameter:
 
 
 class MonitoringLabelDashboardParameter:
-    def __init__(self, project_id, label_key, default_value, selectors=None, hidden=None):
+    def __init__(
+        self,
+        project_id,
+        label_key,
+        default_value,
+        selectors=None,
+        hidden=None,
+        multiselectable=False,
+    ):
         values = {
             "projectId": project_id,
             "labelKey": label_key,
@@ -41,6 +49,8 @@ class MonitoringLabelDashboardParameter:
         }
         if selectors:
             values["selectors"] = selectors
+        if multiselectable:
+            values["multiselectable"] = True
         self.dict = {"labelValues": values}
         if hidden is not None:
             self.dict["hidden"] = hidden
@@ -50,13 +60,46 @@ class MonitoringLabelDashboardParameter:
 
 
 class MonitoringCustomDashboardParameter:
-    def __init__(self, values, default_value):
+    def __init__(self, values, default_value, multiselectable=False):
         self.dict = {
             "custom": {
                 "values": values,
                 "defaultValues": [default_value],
             }
         }
+        if multiselectable:
+            self.dict["custom"]["multiselectable"] = True
+
+
+##################################################################
+
+
+class MonitoringQueryDashboardParameter:
+    def __init__(
+        self,
+        project_id,
+        label_key,
+        default_value,
+        selectors="{}",
+        custom_items=None,
+        multiselectable=False,
+    ):
+        query = {
+            "defaultValues": [default_value],
+            "monitoring": {
+                "projectId": project_id,
+                "selectors": selectors,
+                "labelKey": label_key,
+            },
+        }
+        if custom_items:
+            query["customItems"] = [
+                {"key": key, "value": value}
+                for key, value in custom_items
+            ]
+        if multiselectable:
+            query["multiselectable"] = True
+        self.dict = {"queryParameter": query}
 
 
 ##################################################################
@@ -226,6 +269,7 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
         self.widgets = []
         self.row_heights = []
         self.halign = "center"
+        self.timeline = None
 
     def on_options(self, options):
         self.__dict__.update(options.get("monitoring", {}))
@@ -259,6 +303,7 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
         axis_to_precision = {}
         axis_to_type = {}
         downsampling_aggregation = None
+        downsampling_grid_interval = None
         targets = []
         for sensor in sensors:
             tags = sensor.get_tags()
@@ -278,6 +323,8 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
                 axis_to_type[axis] = axis_type
             if MonitoringSystemFields.DownsamplingAggregation in tags:
                 downsampling_aggregation = tags[MonitoringSystemFields.DownsamplingAggregation]
+            if MonitoringSystemFields.DownsamplingGridInterval in tags:
+                downsampling_grid_interval = tags[MonitoringSystemFields.DownsamplingGridInterval]
             structure = {}
             structure["query"] = self._get_sensor_query(sensor)
 
@@ -300,10 +347,13 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
             }
         }
 
-        if downsampling_aggregation is not None:
-            result["chart"]["queries"]["downsampling"] = {
-                "grid_aggregation": downsampling_aggregation,
-            }
+        if downsampling_aggregation is not None or downsampling_grid_interval is not None:
+            downsampling = {}
+            if downsampling_aggregation is not None:
+                downsampling["grid_aggregation"] = downsampling_aggregation
+            if downsampling_grid_interval is not None:
+                downsampling["grid_interval"] = downsampling_grid_interval
+            result["chart"]["queries"]["downsampling"] = downsampling
 
         settings = result["chart"]["visualization_settings"]
         if stack is not None:
@@ -462,6 +512,7 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
                     MonitoringLabelDashboardParameter,
                     MonitoringTextDashboardParameter,
                     MonitoringCustomDashboardParameter,
+                    MonitoringQueryDashboardParameter,
                 ]:
                     dct.update(arg.dict)
             result.append(dct)
@@ -484,6 +535,8 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
             }
         if dashboard.monitoring_links is not None:
             result["links"] = dashboard.monitoring_links
+        if self.timeline is not None:
+            result["timeline"] = self.timeline
 
         return result
 

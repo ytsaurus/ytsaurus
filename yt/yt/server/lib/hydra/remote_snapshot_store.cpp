@@ -64,7 +64,7 @@ public:
         , Path_(std::move(path))
         , Client_(client)
         , PrerequisiteTransactionId_(prerequisiteTransactionId)
-        , Logger(HydraLogger().WithTag("Path: %v", Path_))
+        , Logger(HydraLogger().WithTag("Path", Path_))
         , SnapshotOutThrottlerProvider_(std::move(snapshotOutThrottlerProvider))
     { }
 
@@ -106,7 +106,7 @@ private:
             : Store_(store)
             , SnapshotId_(snapshotId)
             , Path_(Store_->GetSnapshotPath(SnapshotId_))
-            , Logger(HydraLogger().WithTag("Path: %v", Path_))
+            , Logger(HydraLogger().WithTag("Path", Path_))
         { }
 
         TFuture<void> Open() override
@@ -147,7 +147,7 @@ private:
         void DoOpen()
         {
             try {
-                YT_LOG_DEBUG("Requesting remote snapshot parameters");
+                YT_TLOG_DEBUG("Requesting remote snapshot parameters");
                 INodePtr node;
                 {
                     TGetNodeOptions options;
@@ -168,7 +168,7 @@ private:
                         .ValueOrThrow();
                     node = ConvertToNode(result);
                 }
-                YT_LOG_DEBUG("Remote snapshot parameters received");
+                YT_TLOG_DEBUG("Remote snapshot parameters received");
 
                 {
                     const auto& attributes = node->Attributes();
@@ -191,28 +191,28 @@ private:
                     Params_.CompressedLength = Params_.UncompressedLength = -1;
                 }
 
-                YT_LOG_DEBUG("Opening remote snapshot reader");
+                YT_TLOG_DEBUG("Opening remote snapshot reader");
                 {
                     TFileReaderOptions options;
                     options.Config = Store_->Config_->Reader;
                     UnderlyingReader_ = WaitFor(Store_->Client_->CreateFileReader(Path_, options))
                         .ValueOrThrow();
                 }
-                YT_LOG_DEBUG("Remote snapshot reader opened");
+                YT_TLOG_DEBUG("Remote snapshot reader opened");
             } catch (const TErrorException& ex) {
                 if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
                     THROW_ERROR_EXCEPTION(NHydra::EErrorCode::NoSuchSnapshot, "Error opening remote snapshot for reading")
-                        << TErrorAttribute("snapshot_path", Path_)
-                        << ex;
+                        .With("snapshot_path", Path_)
+                        .With(ex);
                 } else {
                     THROW_ERROR_EXCEPTION("Error opening remote snapshot for reading")
-                        << TErrorAttribute("snapshot_path", Path_)
-                        << ex;
+                        .With("snapshot_path", Path_)
+                        .With(ex);
                 }
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error opening remote snapshot for reading")
-                    << TErrorAttribute("snapshot_path", Path_)
-                    << ex;
+                    .With("snapshot_path", Path_)
+                    .With(ex);
             }
         }
 
@@ -223,8 +223,8 @@ private:
                     .ValueOrThrow();
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error reading remote snapshot")
-                    << TErrorAttribute("snapshot_path", Path_)
-                    << ex;
+                    .With("snapshot_path", Path_)
+                    .With(ex);
             }
         }
     };
@@ -238,7 +238,7 @@ private:
             , SnapshotId_(snapshotId)
             , Meta_(meta)
             , Path_(Store_->GetSnapshotPath(SnapshotId_))
-            , Logger(HydraLogger().WithTag("Path: %v", Path_))
+            , Logger(HydraLogger().WithTag("Path", Path_))
         { }
 
         TFuture<void> Open() override
@@ -296,7 +296,7 @@ private:
             try {
                 YT_VERIFY(!IsOpened_);
 
-                YT_LOG_DEBUG("Starting remote snapshot upload transaction");
+                YT_TLOG_DEBUG("Starting remote snapshot upload transaction");
                 {
                     TTransactionStartOptions options;
                     auto attributes = CreateEphemeralAttributes();
@@ -313,10 +313,10 @@ private:
                     Transaction_ = WaitFor(asyncResult)
                         .ValueOrThrow();
                 }
-                YT_LOG_DEBUG("Remote snapshot upload transaction started (TransactionId: %v)",
-                    Transaction_->GetId());
+                YT_TLOG_DEBUG("Remote snapshot upload transaction started")
+                    .With("TransactionId", Transaction_->GetId());
 
-                YT_LOG_DEBUG("Creating remote snapshot");
+                YT_TLOG_DEBUG("Creating remote snapshot");
                 {
                     TCreateNodeOptions options;
                     auto attributes = CreateEphemeralAttributes();
@@ -349,9 +349,9 @@ private:
                     WaitFor(asyncResult)
                         .ThrowOnError();
                 }
-                YT_LOG_DEBUG("Remote snapshot created");
+                YT_TLOG_DEBUG("Remote snapshot created");
 
-                YT_LOG_DEBUG("Opening remote snapshot writer");
+                YT_TLOG_DEBUG("Opening remote snapshot writer");
                 {
                     TFileWriterOptions options;
                     options.TransactionId = Transaction_->GetId();
@@ -370,13 +370,13 @@ private:
                     WaitFor(Writer_->Open())
                         .ThrowOnError();
                 }
-                YT_LOG_DEBUG("Remote snapshot writer opened");
+                YT_TLOG_DEBUG("Remote snapshot writer opened");
 
                 IsOpened_ = true;
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error opening remote snapshot for writing")
-                    << TErrorAttribute("snapshot_path", Path_)
-                    << ex;
+                    .With("snapshot_path", Path_)
+                    .With(ex);
             }
         }
 
@@ -385,15 +385,15 @@ private:
             try {
                 YT_VERIFY(IsOpened_ && !IsClosed_);
 
-                YT_LOG_DEBUG("Closing remote snapshot writer");
+                YT_TLOG_DEBUG("Closing remote snapshot writer");
                 WaitFor(Writer_->Close())
                     .ThrowOnError();
-                YT_LOG_DEBUG("Remote snapshot writer closed");
+                YT_TLOG_DEBUG("Remote snapshot writer closed");
 
-                YT_LOG_DEBUG("Committing snapshot upload transaction");
+                YT_TLOG_DEBUG("Committing snapshot upload transaction");
                 WaitFor(Transaction_->Commit())
                     .ThrowOnError();
-                YT_LOG_DEBUG("Snapshot upload transaction committed");
+                YT_TLOG_DEBUG("Snapshot upload transaction committed");
 
                 Params_.Meta = Meta_;
                 Params_.CompressedLength = Length_;
@@ -402,8 +402,8 @@ private:
                 IsClosed_ = true;
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error closing remote snapshot")
-                    << TErrorAttribute("snapshot_path", Path_)
-                    << ex;
+                    .With("snapshot_path", Path_)
+                    .With(ex);
             }
         }
     };
@@ -417,20 +417,21 @@ private:
     int DoGetLatestSnapshotId(int maxSnapshotId)
     {
         try {
-            YT_LOG_DEBUG("Requesting snapshot list from remote store (Path: %v)", Path_);
+            YT_TLOG_DEBUG("Requesting snapshot list from remote store")
+                .With("Path", Path_);
             auto result = WaitFor(Client_->ListNode(Path_))
                 .ValueOrThrow();
 
-            YT_LOG_DEBUG("Snapshot list received");
-            auto keys = ConvertTo<std::vector<TString>>(result);
+            YT_TLOG_DEBUG("Snapshot list received");
+            auto keys = ConvertTo<std::vector<std::string>>(result);
             int latestSnapshotId = InvalidSegmentId;
             for (const auto& key : keys) {
                 int id;
                 try {
                     id = FromString<int>(key);
                 } catch (const std::exception& ex) {
-                    YT_LOG_WARNING("Unrecognized item (Key: %v)",
-                        key);
+                    YT_TLOG_WARNING("Unrecognized item")
+                        .With("Key", key);
                     continue;
                 }
                 if (id <= maxSnapshotId && id > latestSnapshotId) {
@@ -440,8 +441,8 @@ private:
             return latestSnapshotId;
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error computing the latest snapshot id in remote store")
-                << TErrorAttribute("snapshot_path", Path_)
-                << ex;
+                .With("snapshot_path", Path_)
+                .With(ex);
         }
     }
 

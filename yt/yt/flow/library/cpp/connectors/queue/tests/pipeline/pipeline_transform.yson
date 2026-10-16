@@ -1,0 +1,66 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "TReader";
+                "watermark_strategy" = {
+                    "watermark_generator" = {
+                        "use_source_watermark" = true;
+                    };
+                };
+                "output_stream_ids" = ["data"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "writer" = {
+                "computation_class_name" = "NYT::NFlow::TPassthroughComputation";
+                "group_by_schema" = [
+                    {name = "hash"; expression = "farm_hash(data)"; type = "uint64"; required = %true;};
+                    {name = "data"; "type" = "string"; required = %true;};
+                ];
+                "input_stream_ids" = ["data"];
+                "output_stream_ids" = ["prepared"];
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "<sink_class_name>";
+                        "input_stream_ids" = ["prepared"];
+                        "parameters" = {
+                            "write_flow_queue_meta" = true;
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "data" = {
+                "schema" = [
+                    {name = "data"; type = "string"; required = %true;};
+                ];
+            };
+            "prepared" = {
+                "schema" = [
+                    {name = "data"; type = "string"; required = %true;};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {
+                "parameters" = {
+                };
+            };
+            "writer" = {
+                "parameters" = {
+                };
+            };
+        };
+    };
+}

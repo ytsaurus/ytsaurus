@@ -39,6 +39,18 @@ def discombobulate_nonvoting_peers(*args, **kwargs):
     get_driver_instance(None).discombobulate_nonvoting_peers(*args, **kwargs)
 
 
+def freeze_hydra_peer(*args, **kwargs):
+    get_driver_instance(None).freeze_hydra_peer(*args, **kwargs)
+
+
+def truncate_changelog(*args, **kwargs):
+    get_driver_instance(None).truncate_changelog(*args, **kwargs)
+
+
+def schedule_restart(*args, **kwargs):
+    get_driver_instance(None).schedule_restart(*args, **kwargs)
+
+
 def gc_collect(*args, **kwargs):
     get_driver_instance(None).gc_collect(*args, **kwargs)
 
@@ -59,6 +71,19 @@ def write_operation_controller_core_dump(*args, **kwargs):
 
 def clear_metadata_caches(*args, **kwargs):
     get_driver_instance(None).clear_metadata_caches(*args, **kwargs)
+
+
+def get_user_banned(*args, **kwargs):
+    print(get_driver_instance(None).get_user_banned(*args, **kwargs))
+
+
+def set_user_banned(*args, **kwargs):
+    get_driver_instance(None).set_user_banned(*args, **kwargs)
+
+
+def list_banned_users(*args, **kwargs):
+    for user in get_driver_instance(None).list_banned_users(*args, **kwargs):
+        print(user)
 
 
 def add_set_readonly_parser(parent_parser):
@@ -121,6 +146,29 @@ def main():
     discombobulate_nonvoting_peers_parser.set_defaults(func=discombobulate_nonvoting_peers)
     discombobulate_nonvoting_peers_parser.add_argument("--cell-id", required=True)
 
+    freeze_hydra_peer_parser = subparsers.add_parser(
+        "freeze-hydra-peer",
+        help="Freeze hydra peer at a given address for a given term")
+    freeze_hydra_peer_parser.add_argument("address")
+    freeze_hydra_peer_parser.add_argument("--cell-id", required=True)
+    freeze_hydra_peer_parser.add_argument("--term", required=True, type=int)
+    freeze_hydra_peer_parser.set_defaults(func=freeze_hydra_peer)
+
+    truncate_changelog_parser = subparsers.add_parser(
+        "truncate-changelog",
+        help="Drop uncommitted mutation records at a given address")
+    truncate_changelog_parser.add_argument("address")
+    truncate_changelog_parser.add_argument("--cell-id", required=True)
+    truncate_changelog_parser.add_argument("--last-sequence-number", required=True, type=int)
+    truncate_changelog_parser.set_defaults(func=truncate_changelog)
+
+    schedule_restart_parser = subparsers.add_parser(
+        "schedule-restart",
+        help="Schedule restart of a hydra peer at a given address")
+    schedule_restart_parser.add_argument("address")
+    schedule_restart_parser.add_argument("--cell-id", required=True)
+    schedule_restart_parser.set_defaults(func=schedule_restart)
+
     add_switch_leader_parser(subparsers)
 
     gc_collect_parser = subparsers.add_parser("gc-collect", help="Run garbage collection at master")
@@ -149,6 +197,20 @@ def main():
 
     clear_metadata_caches_parser = subparsers.add_parser("clear-caches", help="Clear metadata caches")
     clear_metadata_caches_parser.set_defaults(func=clear_metadata_caches)
+
+    get_user_banned_parser = subparsers.add_parser("get-user-banned", help="Print whether a user is banned")
+    get_user_banned_parser.add_argument("user")
+    get_user_banned_parser.set_defaults(func=get_user_banned)
+
+    set_user_banned_parser = subparsers.add_parser("set-user-banned", help="Ban or unban a user")
+    set_user_banned_parser.add_argument("user")
+    set_user_banned_action = set_user_banned_parser.add_mutually_exclusive_group(required=True)
+    set_user_banned_action.add_argument("--banned", dest="banned", action="store_true")
+    set_user_banned_action.add_argument("--not-banned", dest="banned", action="store_false")
+    set_user_banned_parser.set_defaults(func=set_user_banned)
+
+    list_banned_users_parser = subparsers.add_parser("list-banned-users", help="List all banned users")
+    list_banned_users_parser.set_defaults(func=list_banned_users)
 
     config_args, unparsed = config_parser.parse_known_args()
     if config_args.proxy is not None:

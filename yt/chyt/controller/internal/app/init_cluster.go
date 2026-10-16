@@ -46,7 +46,8 @@ func NewClusterInitializer(config *ClusterInitializerConfig, familyToInitializer
 	}
 	initializer.familyToInitializer = make(map[string]strawberry.ClusterInitializer)
 	for family, initializerFactory := range familyToInitializerFactory {
-		initializer.familyToInitializer[family] = initializerFactory(l, initializer.ytc, config.StrawberryRoot)
+		familyRoot := config.StrawberryRoot.Child(family)
+		initializer.familyToInitializer[family] = initializerFactory(l, initializer.ytc, familyRoot)
 	}
 	return
 }
@@ -106,6 +107,9 @@ func (initializer *ClusterInitializer) createRootsIfNotExists(ctx context.Contex
 	for _, family := range initializer.config.Families {
 		_, err := initializer.ytc.CreateNode(ctx, root.Child(family), yt.NodeMap, &yt.CreateNodeOptions{
 			IgnoreExisting: true,
+			Attributes: map[string]any{
+				"inherit_acl": false,
+			},
 		})
 		if err != nil {
 			return err

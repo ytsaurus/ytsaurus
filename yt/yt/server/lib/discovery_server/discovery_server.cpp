@@ -5,8 +5,8 @@
 #include "helpers.h"
 #include "member.h"
 
-#include <yt/yt/ytlib/discovery_client/discovery_client_service_proxy.h>
-#include <yt/yt/ytlib/discovery_client/helpers.h>
+#include <yt/yt/library/discovery_client/discovery_client_service_proxy.h>
+#include <yt/yt/library/discovery_client/helpers.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
@@ -55,7 +55,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetGroupMeta));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListGroups));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
+            .SetPooled(false));
     }
 
     void Initialize()
@@ -77,9 +78,9 @@ private:
         const auto& groupId = request->group_id();
         auto options = FromProto<TListMembersOptions>(request->options());
 
-        context->SetRequestInfo("GroupId: %v, Limit: %v",
-            groupId,
-            options.Limit);
+        context->AnnotateRequest()
+            .With("GroupId", groupId)
+            .With("Limit", options.Limit);
 
         auto group = GroupManager_->GetGroupOrThrow(groupId);
         auto members = group->ListMembers(options.Limit);
@@ -101,7 +102,8 @@ private:
             }
         }
 
-        context->SetResponseInfo("MemberCount: %v", members.size());
+        context->AnnotateResponse()
+            .With("MemberCount", members.size());
         context->Reply();
     }
 
@@ -110,9 +112,9 @@ private:
         const auto& prefix = request->prefix();
         auto options = FromProto<TListGroupsOptions>(request->options());
 
-        context->SetRequestInfo("Prefix: %v, Limit: %v",
-            prefix,
-            options.Limit);
+        context->AnnotateRequest()
+            .With("Prefix", prefix)
+            .With("Limit", options.Limit);
 
         auto result = GroupManager_->ListGroupsOrThrow(prefix, options);
         for (const auto& group : result.Groups) {
@@ -120,7 +122,8 @@ private:
         }
         response->set_incomplete(result.Incomplete);
 
-        context->SetResponseInfo("SubgroupsCount: %v", result.Groups.size());
+        context->AnnotateResponse()
+            .With("SubgroupsCount", result.Groups.size());
         context->Reply();
     }
 
@@ -128,8 +131,8 @@ private:
     {
         const auto& groupId = request->group_id();
 
-        context->SetRequestInfo("GroupId: %v",
-            groupId);
+        context->AnnotateRequest()
+            .With("GroupId", groupId);
 
         auto group = GroupManager_->GetGroupOrThrow(groupId);
 
@@ -137,7 +140,8 @@ private:
         meta.MemberCount = group->GetMemberCount();
         ToProto(response->mutable_meta(), meta);
 
-        context->SetResponseInfo("MemberCount: %v", meta.MemberCount);
+        context->AnnotateResponse()
+            .With("MemberCount", meta.MemberCount);
         context->Reply();
     }
 
@@ -146,12 +150,12 @@ private:
     {
         const auto& groupId = request->group_id();
         auto leaseTimeout = FromProto<TDuration>(request->lease_timeout());
-        auto memberInfo = FromProto<TMemberInfo>(request->member_info());
+        auto memberInfo = FromProto<TMemberInfo>(std::move(*request->mutable_member_info()));
 
-        context->SetRequestInfo("GroupId: %v, MemberId: %v, LeaseTimeout: %v",
-            groupId,
-            memberInfo.Id,
-            leaseTimeout);
+        context->AnnotateRequest()
+            .With("GroupId", groupId)
+            .With("MemberId", memberInfo.Id)
+            .With("LeaseTimeout", leaseTimeout);
 
         GroupManager_->ProcessHeartbeat(groupId, memberInfo, leaseTimeout);
 
@@ -186,7 +190,8 @@ public:
         , GroupManager_(std::move(groupManager))
         , GossipBatchSize_(config->GossipBatchSize)
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ProcessGossip));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ProcessGossip)
+            .SetPooled(false));
     }
 
     void Initialize()
@@ -206,11 +211,12 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ProcessGossip)
     {
-        context->SetRequestInfo("MemberCount: %v", request->members().size());
+        context->AnnotateRequest()
+            .With("MemberCount", request->members().size());
 
         std::vector<TGossipMemberInfo> membersBatch;
-        for (const auto& protoMember : request->members()) {
-            membersBatch.push_back(FromProto<TGossipMemberInfo>(protoMember));
+        for (auto& protoMember : *request->mutable_members()) {
+            membersBatch.push_back(FromProto<TGossipMemberInfo>(std::move(protoMember)));
             if (std::ssize(membersBatch) >= GossipBatchSize_) {
                 GroupManager_->ProcessGossip(membersBatch);
                 membersBatch.clear();
@@ -244,7 +250,7 @@ public:
         , SelfAddress_(std::move(selfAddress))
         , Config_(std::move(config))
         , ChannelFactory_(std::move(channelFactory))
-        , Logger(DiscoveryServerLogger().WithTag("SelfAddress: %v", SelfAddress_))
+        , Logger(DiscoveryServerLogger().WithTag("SelfAddress", SelfAddress_))
         , GroupManager_(New<TGroupManager>(Logger, Config_))
         , GossipPeriodicExecutor_(New<TPeriodicExecutor>(
             std::move(gossipInvoker),
@@ -270,7 +276,8 @@ public:
 
         GossipPeriodicExecutor_->Start();
 
-        YT_LOG_INFO("Server initialized (Addresses: %v)", Config_->ServerAddresses);
+        YT_TLOG_INFO("Server initialized")
+            .With("Addresses", Config_->ServerAddresses);
     }
 
     void Finalize() override
@@ -280,7 +287,7 @@ public:
 
         YT_UNUSED_FUTURE(GossipPeriodicExecutor_->Stop());
 
-        YT_LOG_INFO("Server finalized");
+        YT_TLOG_INFO("Server finalized");
     }
 
     NYTree::IYPathServicePtr GetYPathService() override
@@ -302,7 +309,8 @@ private:
     void SendGossip()
     {
         auto modifiedMembers = GroupManager_->GetModifiedMembers();
-        YT_LOG_DEBUG("Gossip started (ModifiedMemberCount: %v)", modifiedMembers.size());
+        YT_TLOG_DEBUG("Gossip started")
+            .With("ModifiedMemberCount", modifiedMembers.size());
 
         auto gossipStartTime = TInstant::Now();
 
@@ -311,7 +319,8 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG("Sending gossip (Address: %v)", address);
+            YT_TLOG_DEBUG("Sending gossip")
+                .With("Address", address);
 
             auto channel = ChannelFactory_->CreateChannel(address);
             auto proxy = TDiscoveryServerServiceProxy(std::move(channel));
@@ -326,7 +335,8 @@ private:
                 {
                     auto reader = member->CreateReader();
                     if (gossipStartTime - member->GetLastGossipAttributesUpdateTime() > Config_->AttributesUpdatePeriod) {
-                        YT_LOG_DEBUG("Sending attributes (Address: %v)", address);
+                        YT_TLOG_DEBUG("Sending attributes")
+                            .With("Address", address);
                         ToProto(memberInfo->mutable_attributes(), *reader.GetAttributes());
                     }
                     memberInfo->set_revision(reader.GetRevision());
@@ -339,9 +349,12 @@ private:
             req->Invoke().Subscribe(
                 BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TDiscoveryServerServiceProxy::TRspProcessGossipPtr>& rspOrError) {
                     if (rspOrError.IsOK()) {
-                        YT_LOG_DEBUG("Gossip succeeded (Address: %v)", address);
+                        YT_TLOG_DEBUG("Gossip succeeded")
+                            .With("Address", address);
                     } else {
-                        YT_LOG_DEBUG(rspOrError, "Gossip failed (Address: %v)", address);
+                        YT_TLOG_DEBUG("Gossip failed")
+                            .With("Address", address)
+                            .With(rspOrError);
                     }
                 }));
         }

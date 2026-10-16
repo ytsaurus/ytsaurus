@@ -2,7 +2,6 @@
 
 #include "cluster_directory.h"
 #include "config.h"
-#include "private.h"
 
 #include <yt/yt/ytlib/election/config.h>
 
@@ -15,7 +14,7 @@
 
 #include <yt/yt/core/rpc/roaming_channel.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NHiveClient {
 
@@ -84,12 +83,12 @@ public:
             return MakeFuture(connection->GetChannelFactory()->CreateChannel(Address_));
         }
 
-        YT_LOG_DEBUG("Cannot find cluster in the cluster directory (Cluster: %v)",
-            Cluster_);
+        YT_TLOG_DEBUG("Cannot find cluster in the cluster directory")
+            .With("Cluster", Cluster_);
         return MakeFuture<IChannelPtr>(
             TError(NRpc::EErrorCode::Unavailable, "Cannot find cluster in the cluster directory")
-                << TErrorAttribute("cluster", Cluster_)
-                << TErrorAttribute("directory_avaliable", strongDirectory.operator bool()));
+                .With("cluster", Cluster_)
+                .With("directory_avaliable", strongDirectory.operator bool()));
     }
 
     void Terminate(const TError& /*error*/) override
@@ -527,30 +526,34 @@ public:
         }
         auto it = CellIdToEntry_.find(descriptor.CellId);
         if (it == CellIdToEntry_.end()) {
-            it = CellIdToEntry_.emplace(descriptor.CellId, TEntry(descriptor)).first;
-            auto* entry = &it->second;
+            TEntry newEntry(descriptor);
             if (descriptor.ConfigVersion >= 0) {
-                InitChannel(entry);
+                InitChannel(&newEntry);
             }
+
+            it = CellIdToEntry_.emplace(descriptor.CellId, std::move(newEntry)).first;
+            auto* entry = &it->second;
             if (IsGlobalCellId(descriptor.CellId)) {
                 auto cellTag = CellTagFromId(descriptor.CellId);
                 if (auto [jt, inserted] = CellTagToEntry_.emplace(cellTag, entry); !inserted) {
-                    YT_LOG_ALERT("Duplicate global cell id (CellTag: %v, ExistingCellId: %v, NewCellId: %v)",
-                        cellTag,
-                        jt->second->Descriptor->CellId,
-                        descriptor.CellId);
+                    YT_TLOG_ALERT("Duplicate global cell id")
+                        .With("CellTag", cellTag)
+                        .With("ExistingCellId", jt->second->Descriptor->CellId)
+                        .With("NewCellId", descriptor.CellId);
                 }
             }
-            YT_LOG_DEBUG("Cell registered (CellId: %v, ConfigVersion: %v)",
-                descriptor.CellId,
-                descriptor.ConfigVersion);
+            YT_TLOG_DEBUG("Cell registered")
+                .With("CellId", descriptor.CellId)
+                .With("ConfigVersion", descriptor.ConfigVersion);
             return true;
         } else if (it->second.Descriptor->ConfigVersion < descriptor.ConfigVersion) {
-            it->second.Descriptor = New<TCellDescriptor>(descriptor);
-            InitChannel(&it->second);
-            YT_LOG_DEBUG("Cell reconfigured (CellId: %v, ConfigVersion: %v)",
-                descriptor.CellId,
-                descriptor.ConfigVersion);
+            TEntry newEntry(descriptor);
+            InitChannel(&newEntry);
+            it->second = std::move(newEntry);
+
+            YT_TLOG_DEBUG("Cell reconfigured")
+                .With("CellId", descriptor.CellId)
+                .With("ConfigVersion", descriptor.ConfigVersion);
             return true;
         }
         return false;
@@ -571,8 +574,8 @@ public:
         if (IsGlobalCellId(cellId)) {
             EraseOrCrash(CellTagToEntry_, CellTagFromId(cellId));
         }
-        YT_LOG_INFO("Cell unregistered (CellId: %v)",
-            cellId);
+        YT_TLOG_INFO("Cell unregistered")
+            .With("CellId", cellId);
         return true;
     }
 
@@ -600,7 +603,7 @@ private:
         TEnumIndexedArray<EPeerKind, IChannelPtr> Channels;
     };
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
     THashMap<TCellId, TEntry> CellIdToEntry_;
     THashMap<TCellTag, TEntry*> CellTagToEntry_;
     THashSet<TCellId> UnregisteredCellIds_;
@@ -637,8 +640,16 @@ private:
             ClusterDirectory_,
             Logger);
 
-        for (auto kind : TEnumTraits<EPeerKind>::GetDomainValues()) {
-            entry->Channels[kind] = CreatePeerChannel(peerConfig, alienClusterChannelFactory, kind);
+        // A single-peer cell has no followers so the sole peer serves every kind.
+        if (std::ssize(entry->Descriptor->Peers) == 1) {
+            auto channel = CreatePeerChannel(peerConfig, alienClusterChannelFactory, EPeerKind::Leader);
+            for (auto kind : TEnumTraits<EPeerKind>::GetDomainValues()) {
+                entry->Channels[kind] = channel;
+            }
+        } else {
+            for (auto kind : TEnumTraits<EPeerKind>::GetDomainValues()) {
+                entry->Channels[kind] = CreatePeerChannel(peerConfig, alienClusterChannelFactory, kind);
+            }
         }
     }
 };

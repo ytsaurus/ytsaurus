@@ -108,7 +108,7 @@ TFuture<void> TChunkSliceSizeFetcher::DoFetchFromNode(
 
 void TChunkSliceSizeFetcher::ProcessDynamicStore(int /*chunkIndex*/)
 {
-    YT_LOG_WARNING("Unable to get chunk size for dynamic store");
+    YT_TLOG_WARNING("Unable to get chunk size for dynamic store");
 }
 
 void TChunkSliceSizeFetcher::OnResponse(
@@ -116,14 +116,14 @@ void TChunkSliceSizeFetcher::OnResponse(
     std::vector<int> requestedChunkIndexes,
     const TDataNodeServiceProxy::TErrorOrRspGetChunkSliceDataWeightsPtr& rspOrError)
 {
-    YT_LOG_DEBUG("Node response received (NodeId: %v, ChunkIndexes: %v)",
-        nodeId,
-        requestedChunkIndexes);
+    YT_TLOG_DEBUG("Node response received")
+        .With("NodeId", nodeId)
+        .With("ChunkIndexes", requestedChunkIndexes);
 
     if (!rspOrError.IsOK()) {
-        YT_LOG_INFO("Failed to get chunk slice size from node (Address: %v, NodeId: %v)",
-            NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
-            nodeId);
+        YT_TLOG_INFO("Failed to get chunk slice size from node")
+            .With("Address", NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress())
+            .With("NodeId", nodeId);
 
         OnNodeFailed(nodeId, requestedChunkIndexes);
         return;

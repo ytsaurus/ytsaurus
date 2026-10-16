@@ -131,33 +131,30 @@ private:
         auto nodeType = TypeFromId(nodeId);
 
         if (AttributeFilter_ && !AttributeFilter_.IsEmpty()) {
-            const auto& attributes = GetOrCrash(*NodesWithAttributes_, nodeId);
+            const auto& nodeAttributes = GetOrCrash(*NodesWithAttributes_, nodeId);
 
-            auto node = NYT::Visit(attributes,
-                [&] (const INodePtr& node) -> std::optional<INodePtr> {
-                    return node;
+            auto* attributes = NYT::Visit(nodeAttributes,
+                [] (const INodePtr& node) {
+                    return node->MutableAttributes();
                 },
-                [&] (const IAttributeDictionaryPtr& attributes) -> std::optional<INodePtr> {
-                    // TODO(danilalexeev): YT-26172. Do not copy attributes.
-                    auto node = CreateEphemeralNodeFactory()->CreateEntity();
-                    node->MutableAttributes()->MergeFrom(*attributes);
-                    return std::move(node);
+                [] (const IAttributeDictionaryPtr& attributes) {
+                    return attributes.Get();
                 },
-                [&] (TMissingNodeTag) -> std::optional<INodePtr> {
-                    return {};
+                [] (TMissingNodeTag) -> IAttributeDictionary* {
+                    return nullptr;
                 });
 
-            if (!node) {
+            if (!attributes) {
                 return; // Omit the node.
             }
 
             if (CalculateOpaqueness_ && IsSequoiaCompositeNodeType(nodeType)) {
                 auto opaque = OpaqueNodeIds_->contains(nodeId);
-                (*node)->MutableAttributes()->Set(EInternedAttributeKey::Opaque.Unintern(), opaque);
+                attributes->Set(EInternedAttributeKey::Opaque.Unintern(), opaque);
             }
 
             maybeWriteKey();
-            (*node)->WriteAttributes(Consumer_, AttributeFilter_, /*stable*/ true);
+            WriteAttributeDictionary(Consumer_, *attributes, AttributeFilter_, /*stable*/ true);
         }
 
         maybeWriteKey();

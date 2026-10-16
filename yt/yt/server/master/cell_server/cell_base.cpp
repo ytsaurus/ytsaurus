@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/master/node_tracker_server/node.h>
+
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/server/master/object_server/object.h>
@@ -28,6 +30,7 @@ using namespace NCellMaster;
 using namespace NCellarAgent;
 using namespace NCellarClient;
 using namespace NHiveClient;
+using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
 using namespace NTabletClient;
@@ -84,6 +87,15 @@ void Serialize(const TCellStatus& status, NYson::IYsonConsumer* consumer)
         .EndMap();
 }
 
+void Serialize(const TCellHealthHistoryItem& item, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("time").Value(item.Time)
+            .Item("health").Value(item.Health)
+        .EndMap();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TCellBase::TPeer::Persist(const NCellMaster::TPersistenceContext& context)
@@ -105,7 +117,7 @@ TCellBase::TCellBase(TTamedCellId id)
     , ShardIndex_(GetCellShardIndex(id))
 { }
 
-void TCellBase::Save(TSaveContext& context) const
+void TCellBase::Save(NCellMaster::TSaveContext& context) const
 {
     TObject::Save(context);
 
@@ -128,7 +140,7 @@ void TCellBase::Save(TSaveContext& context) const
     Save(context, MaxChangelogId_);
 }
 
-void TCellBase::Load(TLoadContext& context)
+void TCellBase::Load(NCellMaster::TLoadContext& context)
 {
     TObject::Load(context);
 
@@ -203,12 +215,17 @@ void TCellBase::RevokePeer(int peerId, const TError& reason)
     peer.LastRevocationReason = reason;
 }
 
-void TCellBase::ExpirePeerRevocationReasons(TInstant deadline)
+void TCellBase::ExpireDiagnosticErrors(TInstant deadline)
 {
-    for (auto& peer : Peers_) {
-        if (!peer.LastRevocationReason.IsOK() && peer.LastRevocationReason.GetDatetime() < deadline) {
-            peer.LastRevocationReason = {};
+    auto clearError = [&] (TError* error) {
+        if (!error->IsOK() && error->GetDatetime() < deadline) {
+            *error = {};
         }
+    };
+
+    for (auto& peer : Peers_) {
+        clearError(&peer.LastRevocationReason);
+        clearError(&peer.LastHydraRestartReason);
     }
 }
 
@@ -239,13 +256,13 @@ void TCellBase::UpdatePeerState(int peerId, EPeerState peerState)
 {
     auto& peer = Peers_[peerId];
     if (peerId == GetLeadingPeerId() && peer.LastSeenState != EPeerState::Leading && peerState == EPeerState::Leading) {
-        const auto* hydraContext = NHydra::GetCurrentHydraContext();
+        const auto* hydraContext = GetCurrentHydraContext();
         LastLeaderChangeTime_ = hydraContext->GetTimestamp();
     }
     peer.LastSeenState = peerState;
 }
 
-TNode::TCellSlot* TCellBase::FindCellSlot(int peerId) const
+TCellSlot* TCellBase::FindCellSlot(int peerId) const
 {
     auto node = Peers_[peerId].Node;
     if (!node) {
@@ -255,11 +272,11 @@ TNode::TCellSlot* TCellBase::FindCellSlot(int peerId) const
     return node->FindCellSlot(this);
 }
 
-NHydra::EPeerState TCellBase::GetPeerState(int peerId) const
+EPeerState TCellBase::GetPeerState(int peerId) const
 {
     auto* slot = FindCellSlot(peerId);
     if (!slot) {
-        return NHydra::EPeerState::None;
+        return EPeerState::None;
     }
 
     return slot->PeerState;
@@ -381,6 +398,30 @@ void TCellBase::RecomputeClusterStatus()
     for (const auto& [cellTag, status] : GossipStatus().Multicell()) {
         GossipStatus().Cluster().Decommissioned &= status.Decommissioned;
         GossipStatus().Cluster().Health = CombineHealths(GossipStatus().Cluster().Health, status.Health);
+    }
+}
+
+void TCellBase::UpdateHealthHistory(
+    ECellHealth oldHealth,
+    ECellHealth newHealth,
+    int healthHistoryMaxSize,
+    TDuration healthHistoryExpirationTime)
+{
+    auto now = GetCurrentMutationContext()->GetTimestamp();
+    auto expirationDeadline = now - healthHistoryExpirationTime;
+    while (HealthHistory_.size() > 1 && HealthHistory_.front().Time < expirationDeadline) {
+        HealthHistory_.pop_front();
+    }
+
+    if (oldHealth != newHealth && healthHistoryMaxSize > 0) {
+        HealthHistory_.push_back({
+            .Time = now,
+            .Health = newHealth,
+        });
+    }
+
+    while (std::ssize(HealthHistory_) > healthHistoryMaxSize) {
+        HealthHistory_.pop_front();
     }
 }
 

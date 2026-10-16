@@ -34,7 +34,6 @@ target_link_libraries(restricted-boost-random PUBLIC
   restricted-boost-dynamic_bitset
   restricted-boost-integer
   restricted-boost-io
-  restricted-boost-static_assert
   restricted-boost-system
   restricted-boost-throw_exception
   restricted-boost-type_traits

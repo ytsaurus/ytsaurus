@@ -1029,6 +1029,8 @@ TMaybe<TYPath> GetFileFromCache(
 
 Currently these settings are available only from environment variables and are the same for all `IClient` instances. However, we are going to redesign this functionality so that almost everything can be configured directly from the code and changed at the individual `IClient` level.
 
+`YT_USER` is not listed because the `yt/cpp/mapreduce` client described on this page does not use this variable: the token determines the user. `GetClientOptionsFromEnv` belongs to C++ NApi and handles `YT_USER` according to [different rules](../../../user-guide/storage/auth.md#user-selection).
+
 | *Variable* | *Type* | *Value* |
 | ------------------------------------- | ------- | ------------------------------------------------------------ |
 | YT_TOKEN | string | Value of the custom token. |

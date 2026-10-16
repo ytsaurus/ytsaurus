@@ -6,7 +6,7 @@ namespace NYT::NDistributedChunkSessionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, DistributedChunkSessionServiceLogger, "DistributedChunkSessionService");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, DistributedChunkSessionServiceLogger, "DistributedChunkSessionService");
 
 ////////////////////////////////////////////////////////////////////////////////
 

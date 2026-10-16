@@ -20,6 +20,7 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 
+#include <yt/yt/server/master/sequoia_server/ground_update_queue_manager.h>
 #include <yt/yt/server/master/sequoia_server/config.h>
 
 #include <yt/yt/server/master/transaction_server/transaction_replication_session.h>
@@ -27,6 +28,8 @@
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
+
+#include <yt/yt/server/lib/hydra/persistent_response_keeper.h>
 
 #include <yt/yt/server/lib/object_server/helpers.h>
 
@@ -68,13 +71,14 @@
 #include <yt/yt/core/actions/cancelable_context.h>
 #include <yt/yt/core/actions/signal.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/quantized_executor.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <library/cpp/yt/threading/recursive_spin_lock.h>
-#include <library/cpp/yt/threading/spin_lock.h>
-#include <library/cpp/yt/threading/traceless_guard.h>
+#include <library/cpp/yt/system/recursive_spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
+#include <library/cpp/yt/system/traceless_guard.h>
 
 #include <library/cpp/yt/compact_containers/compact_vector.h>
 
@@ -101,10 +105,18 @@ using namespace NHiveServer;
 using namespace NCellMaster;
 using namespace NProfiling;
 using namespace NTracing;
+using namespace NSequoiaClient;
+using namespace NSequoiaServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+YT_DEFINE_ERROR_ENUM(
+    ((LeaderFallbackRequired) (5200))
+);
+
+// Supposed to be caught by type in sync case, and by EErrorCode::LeaderFallbackRequired in async case.
 class TLeaderFallbackException
+    : public TErrorException
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,7 +166,7 @@ public:
 private:
     const TCpuDuration ExpireTime_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
     //! Maps user name to (error, deadline) pairs.
     THashMap<std::string, std::pair<TError, TCpuInstant>> Map_;
 };
@@ -225,6 +237,7 @@ public:
         DeclareServerFeature(EMasterFeature::OverlayedJournals);
         DeclareServerFeature(EMasterFeature::Portals);
         DeclareServerFeature(EMasterFeature::PortalExitSynchronization);
+        DeclareServerFeature(EMasterFeature::AlterTable2PC);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->SubscribeUserCharged(BIND_NO_PROPAGATE(&TObjectService::OnUserCharged, MakeStrong(this)));
@@ -235,14 +248,27 @@ public:
         ProcessSessionsExecutor_->Start();
     }
 
+    IInvokerPtr GetAutomatonInvoker()
+    {
+        return AutomatonInvoker_;
+    }
+
     TObjectServiceCachePtr GetCache() override
     {
         return Cache_;
     }
 
-    IInvokerPtr CreateLocalReadInvoker(const std::string& user) override
+    IInvokerPtr CreateLocalReadInvoker(const std::string& user)
     {
         return New<TLocalReadInvoker>(LocalReadScheduler_, user);
+    }
+
+    IInvokerPtr CreateEpochLocalReadInvoker(const std::string& user) override
+    {
+        auto localReadInvoker = CreateLocalReadInvoker(user);
+        return Bootstrap_
+            ->GetHydraFacade()
+            ->CreateEpochInvoker(std::move(localReadInvoker));
     }
 
     IInvokerPtr GetLocalReadOffloadInvoker() override
@@ -252,17 +278,12 @@ public:
 
     void RequireLeader() override
     {
-        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        if (!hydraManager->IsLeader()) {
-            if (HasMutationContext()) {
-                // Just a precaution, not really expected to happen.
-                auto error = TError("Request can only be served at leaders");
-                YT_LOG_ALERT(error);
-                THROW_ERROR error;
-            } else {
-                throw TLeaderFallbackException();
-            }
-        }
+        RequireLeaderImpl</*shouldThrow*/ true>();
+    }
+
+    TError RequireLeaderAsync() override
+    {
+        return RequireLeaderImpl</*shouldThrow*/ false>();
     }
 
 private:
@@ -331,9 +352,9 @@ private:
             }
         }
 
-        NThreading::TThreadId GetThreadId() const final
+        TThreadId GetThreadId() const final
         {
-            return NThreading::InvalidThreadId;
+            return InvalidThreadId;
         }
 
         bool CheckAffinity(const IInvokerPtr& /*invoker*/) const final
@@ -368,11 +389,13 @@ private:
     std::atomic<bool> EnablePerUserThrottling_ = false;
     std::atomic<bool> EnableTwoLevelCache_ = false;
     std::atomic<bool> EnableCypressTransactionsInSequoia_ = false;
+    std::atomic<bool> ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_ = false;
     static constexpr auto DefaultScheduleReplyRetryBackoff = TDuration::MilliSeconds(100);
     std::atomic<TDuration> ScheduleReplyRetryBackoff_ = DefaultScheduleReplyRetryBackoff;
     std::atomic<bool> MinimizeExecuteLatency_ = false;
     static constexpr double NullPrematureBackoffAlarmProbability = -1.0;
     std::atomic<double> PrematureBackoffAlarmProbability_ = NullPrematureBackoffAlarmProbability;
+    std::atomic<bool> WrapRequestsIntoSequoiaTransactions_ = false;
 
     static IInvokerPtr GetRpcInvoker()
     {
@@ -411,6 +434,9 @@ private:
                 /*isAutomatonThread*/ false);
         };
     }
+
+    template <bool ShouldThrow>
+    std::conditional_t<ShouldThrow, void, TError> RequireLeaderImpl();
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -463,11 +489,13 @@ public:
         , Codicil_(Format("RequestId: %v, %v",
             RequestId_,
             Identity_))
-        , Logger(ObjectServerLogger().WithTag("RequestId: %v", RequestId_))
+        , Logger(ObjectServerLogger().WithTag("RequestId", RequestId_))
         , TentativePeerState_(Bootstrap_->GetHydraFacade()->GetHydraManager()->GetAutomatonState())
         , CellSyncSession_(New<TMultiPhaseCellSyncSession>(Bootstrap_, Logger))
         , PrematureBackoffAlarmProbability_(Owner_->GetPrematureBackoffAlarmProbability())
+        , WrapIntoSequoiaTransaction_(Owner_->WrapRequestsIntoSequoiaTransactions_.load(std::memory_order::acquire))
         , LocalReadInvoker_(Owner_->CreateLocalReadInvoker(Identity_.User))
+        , AutomatonInvoker_(Owner_->GetAutomatonInvoker())
         , ReplyLockCount_(TotalSubrequestCount_)
     { }
 
@@ -580,6 +608,7 @@ private:
     const EPeerState TentativePeerState_;
     const TMultiPhaseCellSyncSessionPtr CellSyncSession_;
     const std::optional<double> PrematureBackoffAlarmProbability_;
+    const bool WrapIntoSequoiaTransaction_;
 
     TDelayedExecutorCookie BackoffAlarmCookie_;
 
@@ -622,6 +651,9 @@ private:
         TFuture<TMutationResponse> MutationResponseFuture;
 
         TReadRequestComplexityOverrides ReadRequestComplexityOverrides;
+
+        i64 GroundUpdateQueueSequenceNumber = -1;
+        TNodeId SequoiaNodeIdToLock;
     };
 
     // For (local) read requests. (Write requests are handled by per-subrequest replication sessions.)
@@ -672,6 +704,7 @@ private:
     TEphemeralObjectPtr<TUser> User_;
     // NB: LocalRead invoker is user-specific and, consequently, session-specific.
     IInvokerPtr LocalReadInvoker_;
+    IInvokerPtr AutomatonInvoker_;
 
     struct TReadRequestComplexityLimits
     {
@@ -712,15 +745,13 @@ private:
 
         auto originalRequestId = FromProto<TRequestId>(request.original_request_id());
 
-        RpcContext_->SetRequestInfo("SubrequestCount: %v, SuppressUpstreamSync: %v, "
-            "SuppressTransactionCoordinatorSync: %v, SuppressStronglyOrderedTransactionBarrier: %v, "
-            "OriginalRequestId: %v, AllowResolveFromSequoiaObject: %v",
-            TotalSubrequestCount_,
-            GetSuppressUpstreamSync(RpcContext_),
-            GetSuppressTransactionCoordinatorSync(RpcContext_),
-            GetSuppressStronglyOrderedTransactionBarrier(RpcContext_->GetRequestHeader()),
-            originalRequestId,
-            GetAllowResolveFromSequoiaObject(RpcContext_->GetRequestHeader()));
+        RpcContext_->AnnotateRequest()
+            .With("SubrequestCount", TotalSubrequestCount_)
+            .With("SuppressUpstreamSync", GetSuppressUpstreamSync(RpcContext_))
+            .With("SuppressTransactionCoordinatorSync", GetSuppressTransactionCoordinatorSync(RpcContext_))
+            .With("SuppressStronglyOrderedTransactionBarrier", GetSuppressStronglyOrderedTransactionBarrier(RpcContext_->GetRequestHeader()))
+            .With("OriginalRequestId", originalRequestId)
+            .With("AllowResolveFromSequoiaObject", GetAllowResolveFromSequoiaObject(RpcContext_->GetRequestHeader()));
 
         if (TotalSubrequestCount_ == 0) {
             Reply();
@@ -801,6 +832,18 @@ private:
                 SetSuppressTransactionCoordinatorSync(&requestHeader, true);
             }
 
+            if (WrapIntoSequoiaTransaction_ &&
+                requestHeader.HasExtension(NObjectClient::NProto::TResolvedSequoiaObjectExt::resolved_sequoia_object))
+            {
+                auto nodeId = FromProto<TObjectId>(requestHeader.GetExtension(NObjectClient::NProto::TResolvedSequoiaObjectExt::resolved_sequoia_object).object_id());
+                if (IsVersionedType(TypeFromId(nodeId)) &&
+                    CellTagFromId(nodeId) == Owner_->Bootstrap_->GetCellTag() &&
+                    IsSequoiaId(nodeId))
+                {
+                    subrequest.SequoiaNodeIdToLock = nodeId;
+                }
+            }
+
             auto* ypathExt = requestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
             subrequest.YPathExt = ypathExt;
 
@@ -840,7 +883,7 @@ private:
             if (ypathExt->has_read_complexity_limits()) {
                 FromProto(&subrequest.ReadRequestComplexityOverrides, ypathExt->read_complexity_limits());
             }
-            if (TraceContext_ && TraceContext_->IsRecorded()) {
+            if (TraceContext_) {
                 subrequest.TraceContext = TraceContext_->CreateChild(
                     Format("YPath%v.%v.%v",
                         ypathExt->mutating() ? "Write"_sb : "Read"_sb,
@@ -854,6 +897,10 @@ private:
         }
         SuppressTransactionCoordinatorSync_ = suppressTransactionCoordinatorSync;
         SuppressStronglyOrderedTransactionBarrier_ = suppressStronglyOrderedTransactionBarrier;
+
+        if (SuppressStronglyOrderedTransactionBarrier_) {
+            CellSyncSession_->SuppressSyncWithSequoiaTransactions();
+        }
     }
 
     void LookupCachedSubrequests()
@@ -899,10 +946,10 @@ private:
                 FromProto<TDuration>(cachingRequestHeaderExt.success_staleness_bound()),
                 FromProto<NHydra::TRevision>(refreshRevision));
 
-            YT_LOG_DEBUG("Serving subrequest from cache (SubrequestIndex: %v, Key: %v, CookieActive: %v)",
-                subrequestIndex,
-                key,
-                cookie.IsActive());
+            YT_TLOG_DEBUG("Serving subrequest from cache")
+                .With("SubrequestIndex", subrequestIndex)
+                .With("Key", key)
+                .With("CookieActive", cookie.IsActive());
 
             if (cookie.IsActive()) {
                 subrequest.ActiveCacheCookie = std::move(cookie);
@@ -932,7 +979,7 @@ private:
                 if (!entryOrError.IsOK()) {
                     if (entryOrError.FindMatching(NYT::EErrorCode::Canceled)) {
                         this_->Reply(TError(NRpc::EErrorCode::TransientFailure, "Transient failure")
-                            << entryOrError);
+                            .With(entryOrError));
                     } else {
                         this_->Reply(entryOrError);
                     }
@@ -1062,8 +1109,9 @@ private:
         if (syncPhase == ESyncPhase::One &&
             !SuppressStronglyOrderedTransactionBarrier_)
         {
-            // NB: we have to wait for prepared Sequoia transactions to observe
-            // Cypress transaction replications, aborts and commits.
+            // NB: We have to wait for all currently prepared transactions
+            // with respect to barrier tags to observe side effects of
+            // Sequoia transactions.
             CellSyncSession_->ScheduleSyncWithSequoiaTransactions();
         }
 
@@ -1204,16 +1252,14 @@ private:
             CreateErrorResponseMessage(TError(
                 NObjectClient::EErrorCode::RequestInvolvesSequoia,
                 "Request resolved in Sequoia")
-                << TErrorAttribute("unresolved_suffix", resolveResult.UnresolvedPathSuffix)
-                << TErrorAttribute("rootstock_node_id", resolveResult.RootstockNodeId)
-                << TErrorAttribute("rootstock_path", resolveResult.RootstockPath)));
-        YT_LOG_DEBUG(
-            "Request redirected to Sequoia (Subrequest index: %v, TargetPath: %v, "
-            "RootstockNodeId: %v, RootstockPath: %v)",
-            subrequest->Index,
-            subrequest->YPathExt->target_path(),
-            resolveResult.RootstockNodeId,
-            resolveResult.RootstockPath);
+                .With("unresolved_suffix", resolveResult.UnresolvedPathSuffix)
+                .With("rootstock_node_id", resolveResult.RootstockNodeId)
+                .With("rootstock_path", resolveResult.RootstockPath)));
+        YT_TLOG_DEBUG("Request redirected to Sequoia")
+            .With("SubrequestIndex", subrequest->Index)
+            .With("TargetPath", subrequest->YPathExt->target_path())
+            .With("RootstockNodeId", resolveResult.RootstockNodeId)
+            .With("RootstockPath", resolveResult.RootstockPath);
     }
 
     void DecideSubrequestType(TSubrequest* subrequest)
@@ -1398,11 +1444,12 @@ private:
                             .RequestId = RequestId_,
                             .SubrequestIndex = subrequestIndex,
                         },
-                        Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire));
+                        Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire),
+                        Owner_->ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.load(std::memory_order::acquire));
                 }
                 if (subrequest.Mutation) {
                     // Pre-phase-two.
-                    subrequest.RemoteTransactionReplicationSession->SetMutation(std::move(subrequest.Mutation));
+                    subrequest.RemoteTransactionReplicationSession->SetMutation(std::move(subrequest.Mutation), subrequest.SequoiaNodeIdToLock);
                 }
             } else {
                 addSubrequestTransactions(
@@ -1422,7 +1469,8 @@ private:
                     .Identity = Identity_,
                     .RequestId = RequestId_,
                 },
-                Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire));
+                Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire),
+                Owner_->ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.load(std::memory_order::acquire));
         } else {
             // Pre-phase-two.
             RemoteTransactionReplicationSession_->Reset(std::move(transactionsToReplicateWithoutBoomerangs));
@@ -1629,14 +1677,13 @@ private:
             auto* batchOrError = getOrCreateBatch(subrequest.ForwardedCellTag, peerKind);
 
             if (!batchOrError->IsOK()) {
-                YT_LOG_DEBUG(
-                    *batchOrError,
-                    "Error forwarding subrequest (SubrequestIndex: %v, CellTag: %v, PeerKind: %v, Mutating: %v, Method: %v)",
-                    subrequestIndex,
-                    subrequest.ForwardedCellTag,
-                    peerKind,
-                    subrequest.YPathExt->mutating(),
-                    requestHeader.method());
+                YT_TLOG_DEBUG("Error forwarding subrequest")
+                    .With("SubrequestIndex", subrequestIndex)
+                    .With("CellTag", subrequest.ForwardedCellTag)
+                    .With("PeerKind", peerKind)
+                    .With("Mutating", subrequest.YPathExt->mutating())
+                    .With("Method", requestHeader.method())
+                    .With(*batchOrError);
                 OnCompletedSubresponse(&subrequest, CreateErrorResponseMessage(*batchOrError));
                 continue;
             }
@@ -1645,38 +1692,25 @@ private:
             batch.BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
             batch.Indexes.push_back(subrequestIndex);
 
-            YT_LOG_DEBUG("Forwarding object request (ForwardedRequestId: %v, Method: %v.%v, "
-                "%v%v%v%v, Mutating: %v%v, Retry: %v, CellTag: %v, PeerKind: %v)",
-                batch.BatchReq->GetRequestId(),
-                requestHeader.service(),
-                requestHeader.method(),
-                MakeFormatterWrapper([&] (auto* builder) {
-                    if (subrequest.TargetPathRewrite) {
-                        builder->AppendFormat("TargetPath: %v, ", subrequest.TargetPathRewrite);
-                    }
-                }),
-                MakeFormatterWrapper([&] (auto* builder) {
-                    if (subrequest.AdditionalPathRewrites && !subrequest.AdditionalPathRewrites->empty()) {
-                        builder->AppendFormat("AdditionalPaths: %v, ", *subrequest.AdditionalPathRewrites);
-                    }
-                }),
-                MakeFormatterWrapper([&] (auto* builder) {
-                    if (subrequest.PrerequisiteRevisionPathRewrites && !subrequest.PrerequisiteRevisionPathRewrites->empty()) {
-                        builder->AppendFormat("PrerequisiteRevisionPaths: %v, ", *subrequest.PrerequisiteRevisionPathRewrites);
-                    }
-                }),
-                RpcContext_->GetAuthenticationIdentity(),
-                ypathExt.mutating(),
-                MakeFormatterWrapper([&] (auto* builder) {
-                    if (!ypathExt.mutating()) {
-                        return;
-                    }
-                    builder->AppendFormat(", OriginMutationId: %v",
-                        NRpc::GetMutationId(subrequest.RequestHeader));
-                }),
-                subrequest.RequestHeader.retry(),
-                subrequest.ForwardedCellTag,
-                peerKind);
+            YT_TLOG_DEBUG("Forwarding object request")
+                .With("ForwardedRequestId", batch.BatchReq->GetRequestId())
+                .With("Service", requestHeader.service())
+                .With("Method", requestHeader.method())
+                .WithIf(static_cast<bool>(subrequest.TargetPathRewrite), "TargetPath", subrequest.TargetPathRewrite)
+                .WithIf(
+                    subrequest.AdditionalPathRewrites && !subrequest.AdditionalPathRewrites->empty(),
+                    "AdditionalPaths",
+                    subrequest.AdditionalPathRewrites)
+                .WithIf(
+                    subrequest.PrerequisiteRevisionPathRewrites && !subrequest.PrerequisiteRevisionPathRewrites->empty(),
+                    "PrerequisiteRevisionPaths",
+                    subrequest.PrerequisiteRevisionPathRewrites)
+                .With("AuthenticationIdentity", RpcContext_->GetAuthenticationIdentity())
+                .With("Mutating", ypathExt.mutating())
+                .WithIf(ypathExt.mutating(), "OriginMutationId", NRpc::GetMutationId(subrequest.RequestHeader))
+                .With("Retry", subrequest.RequestHeader.retry())
+                .With("CellTag", subrequest.ForwardedCellTag)
+                .With("PeerKind", peerKind);
         }
 
         for (auto& [cellTag, batchReqOrError] : batchMap) {
@@ -1696,9 +1730,9 @@ private:
                     const auto& Logger = this_->Logger;
 
                     if (batchRspOrError.IsOK()) {
-                        YT_LOG_DEBUG("Forwarded request succeeded (ForwardedRequestId: %v, SubrequestIndexes: %v)",
-                            batch.BatchReq->GetRequestId(),
-                            batch.Indexes);
+                        YT_TLOG_DEBUG("Forwarded request succeeded")
+                            .With("ForwardedRequestId", batch.BatchReq->GetRequestId())
+                            .With("SubrequestIndexes", batch.Indexes);
 
                         const auto& batchRsp = batchRspOrError.Value();
                         for (auto index : batchRsp->GetUncertainRequestIndexes()) {
@@ -1720,20 +1754,23 @@ private:
                     } else {
                         const auto& forwardingError = batchRspOrError;
 
-                        YT_LOG_DEBUG(forwardingError, "Forwarded request failed (ForwardedRequestId: %v, SubrequestIndexes: %v)",
-                            batch.BatchReq->GetRequestId(),
-                            batch.Indexes);
+                        YT_TLOG_DEBUG("Forwarded request failed")
+                            .With("ForwardedRequestId", batch.BatchReq->GetRequestId())
+                            .With("SubrequestIndexes", batch.Indexes)
+                            .With(forwardingError);
 
                         if (!IsRetriableError(forwardingError) || forwardingError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
-                            YT_LOG_DEBUG(forwardingError, "Failing request due to non-retryable forwarding error (SubrequestIndexes: %v)",
-                                batch.Indexes);
+                            YT_TLOG_DEBUG("Failing request due to non-retryable forwarding error")
+                                .With("SubrequestIndexes", batch.Indexes)
+                                .With(forwardingError);
                             this_->Reply(TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
-                                << forwardingError);
+                                .With(forwardingError));
                             return;
                         }
 
-                        YT_LOG_DEBUG(forwardingError, "Omitting subresponses due to retryable forwarding error (SubrequestIndexes: %v)",
-                            batch.Indexes);
+                        YT_TLOG_DEBUG("Omitting subresponses due to retryable forwarding error")
+                            .With("SubrequestIndexes", batch.Indexes)
+                            .With(forwardingError);
 
                         for (auto index : batch.Indexes) {
                             this_->MarkSubrequestAsUncertain(index);
@@ -1836,10 +1873,8 @@ private:
             }
         }
 
-        YT_LOG_ALERT_IF(
-            User_->GetPendingRemoval(),
-            "User pending for removal has accessed object service (User: %v)",
-            User_->GetName());
+        YT_TLOG_ALERT_IF(User_->GetPendingRemoval(), "User pending for removal has accessed object service")
+            .With("User", User_->GetName());
 
         if (NeedsUserAccessValidation_) {
             NeedsUserAccessValidation_ = false;
@@ -1857,8 +1892,8 @@ private:
                     NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded,
                     "User %Qv has exceeded its request queue size limit",
                     User_->GetName())
-                    << TErrorAttribute("limit", User_->GetRequestQueueSizeLimit(cellTag))
-                    << TErrorAttribute("cell_tag", cellTag);
+                    .With("limit", User_->GetRequestQueueSizeLimit(cellTag))
+                    .With("cell_tag", cellTag);
                 Owner_->SetStickyUserError(Identity_.User, error);
                 THROW_ERROR error;
             }
@@ -1898,11 +1933,11 @@ private:
             }
 
             if (!WaitForAndContinue<WorkloadType>(throttlerFuture)) {
-                YT_LOG_DEBUG("Throttling subrequest (User: %v, SubrequestIndex: %v, SubrequestType: %v, WorkloadType: %v)",
-                    User_->GetName(),
-                    subrequestIndex,
-                    SubrequestType,
-                    WorkloadType);
+                YT_TLOG_DEBUG("Throttling subrequest")
+                    .With("User", User_->GetName())
+                    .With("SubrequestIndex", subrequestIndex)
+                    .With("SubrequestType", SubrequestType)
+                    .With("WorkloadType", WorkloadType);
                 return false;
             }
         }
@@ -1989,7 +2024,7 @@ private:
             }
 
             if (GetCpuInstant() > batchDeadlineTime) {
-                YT_LOG_DEBUG("Yielding thread");
+                YT_TLOG_DEBUG("Yielding thread");
                 doReschedule(this);
                 break;
             }
@@ -2028,9 +2063,9 @@ private:
             case EExecutionSessionSubrequestType::Cache:
             case EExecutionSessionSubrequestType::Sequoia:
             case EExecutionSessionSubrequestType::Undefined:
-                YT_LOG_ALERT("Attempted to execute a subrequest of unexpected type (SubrequestIndex: %v, SubrequestType: %v)",
-                    subrequest->Index,
-                    subrequest->Type);
+                YT_TLOG_ALERT("Attempted to execute a subrequest of unexpected type")
+                    .With("SubrequestIndex", subrequest->Index)
+                    .With("SubrequestType", subrequest->Type);
                 break;
         }
     }
@@ -2050,11 +2085,37 @@ private:
         const auto& context = subrequest->RpcContext;
 
         if (response.Origin != EMutationResponseOrigin::Commit) {
+            const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
+            auto mutationId = context->GetMutationId();
+            if (mutationId != NullMutationId) {
+                auto sequenceNumber = responseKeeper->GetGroundUpdateQueueSequenceNumber(mutationId);
+                if (sequenceNumber) {
+                    // We should have patched it before.
+                    if (!response.GroundUpdateQueueSequenceNumber) {
+                        YT_TLOG_ALERT("Mutation response is missing GroundUpdateQueueSequenceNumber")
+                            .With("MutationId", mutationId)
+                            .With("GroundUpdateQueueSequenceNumber", sequenceNumber)
+                            .With("Origin", response.Origin);
+                        subrequest->GroundUpdateQueueSequenceNumber = *sequenceNumber;
+                    }
+                    if (response.GroundUpdateQueueSequenceNumber && response.GroundUpdateQueueSequenceNumber != sequenceNumber) {
+                        YT_TLOG_ALERT("GroundUpdateQueueSequenceNumber differs between response keeper and mutation response")
+                            .With("MutationId", mutationId)
+                            .With("ResponseGroundUpdateQueueSequenceNumber", response.GroundUpdateQueueSequenceNumber)
+                            .With("ResponseKeeperGroundUpdateQueueSequenceNumber", sequenceNumber);
+                        subrequest->GroundUpdateQueueSequenceNumber = std::max(*response.GroundUpdateQueueSequenceNumber, *sequenceNumber);
+                    }
+                }
+            }
+
             YT_VERIFY(!context->IsReplied());
             // Either we're answering with a kept response or this is a boomerang mutation.
-            context->SetRequestInfo();
-            context->SetResponseInfo("KeptResponse: %v", true);
+            context->AnnotateRequest();
+            context->AnnotateResponse()
+                .With("KeptResponse", true);
             context->Reply(response.Data);
+        }  else if (response.GroundUpdateQueueSequenceNumber) {
+            subrequest->GroundUpdateQueueSequenceNumber = *response.GroundUpdateQueueSequenceNumber;
         }
 
         WaitForSubresponse(subrequest);
@@ -2062,7 +2123,7 @@ private:
 
     void ForwardSubrequestToLeader(TSubrequest* subrequest)
     {
-        YT_LOG_DEBUG("Performing leader fallback");
+        YT_TLOG_DEBUG("Performing leader fallback");
 
         subrequest->ProfilingCounters->LeaderFallbackRequestCounter.Increment();
 
@@ -2101,8 +2162,7 @@ private:
 
         auto timeLeft = GetTimeLeft(subrequest);
 
-        if (subrequest->RemoteTransactionReplicationSession && !subrequest->MutationResponseFuture)
-        {
+        if (subrequest->RemoteTransactionReplicationSession && !subrequest->MutationResponseFuture) {
             YT_VERIFY(subrequest->Type == EExecutionSessionSubrequestType::LocalWrite);
 
             subrequest->MutationResponseFuture =
@@ -2124,6 +2184,10 @@ private:
                     return;
                 }
 
+                if (this_->InterruptIfCanceled()) {
+                    return;
+                }
+
                 if (!error.IsOK()) {
                     subrequest->RpcContext->Reply(error);
                 } else {
@@ -2137,9 +2201,24 @@ private:
             } else {
                 subrequest->RemoteTransactionReplicationFuture
                     .WithTimeout(timeLeft)
-                    .Subscribe(
+                    .Apply(
                         BIND(onRemoteTransactionReplicated)
-                            .Via(LocalReadInvoker_));
+                            .Via(LocalReadInvoker_))
+                    .Subscribe(BIND([Logger = Logger, weakThis = MakeWeak(this), requestId = GetRequestId()] (const TError& error) {
+                        if (error.IsOK()) {
+                            return;
+                        }
+
+                        YT_TLOG_ALERT(
+                            "Unexpected error while handling remote transaction replication")
+                            .With("RequestId", requestId)
+                            .With(error);
+
+                        auto this_ = weakThis.Lock();
+                        if (this_ && !this_->RpcContext_->IsReplied()) {
+                            this_->Reply(error);
+                        }
+                    }));
             }
         } else {
             YT_VERIFY(subrequest->MutationResponseFuture);
@@ -2247,6 +2326,16 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        NRpc::NProto::TResponseHeader header;
+        YT_VERIFY(TryParseResponseHeader(subresponseMessage, &header));
+
+        if (header.has_error() &&
+            FromProto<TError>(header.error()).FindMatching(EErrorCode::LeaderFallbackRequired))
+        {
+            ForwardSubrequestToLeader(subrequest);
+            return;
+        }
+
         if (subrequest->TraceContext) {
             subrequest->TraceContext->Finish();
         }
@@ -2320,6 +2409,8 @@ private:
         TCompactVector<int, 16> completedIndexes;
         TCompactVector<int, 16> uncertainIndexes;
 
+        i64 groundUpdateQueueSequenceNumber = -1;
+
         // Check for forwarding errors.
         for (auto index = 0; index < TotalSubrequestCount_; ++index) {
             auto& subrequest = Subrequests_[index];
@@ -2333,9 +2424,10 @@ private:
                 if (subrequest.Started) {
                     uncertainIndexes.push_back(index);
                 }
-
                 continue;
             }
+
+            groundUpdateQueueSequenceNumber = std::max(groundUpdateQueueSequenceNumber, subrequest.GroundUpdateQueueSequenceNumber);
 
             const auto& subresponseMessage = subrequest.ResponseMessage;
             NRpc::NProto::TResponseHeader subresponseHeader;
@@ -2347,14 +2439,16 @@ private:
 
                 const auto& forwardingError = wrapperError.InnerErrors()[0];
                 if (!IsRetriableError(forwardingError) || forwardingError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
-                    YT_LOG_DEBUG(forwardingError, "Failing request due to non-retryable forwarding error (SubrequestIndex: %v)",
-                        index);
+                    YT_TLOG_DEBUG("Failing request due to non-retryable forwarding error")
+                        .With("SubrequestIndex", index)
+                        .With(forwardingError);
                     RpcContext_->Reply(wrapperError);
                     return;
                 }
 
-                YT_LOG_DEBUG(forwardingError, "Omitting subresponse due to retryable forwarding error (SubrequestIndex: %v)",
-                    index);
+                YT_TLOG_DEBUG("Omitting subresponse due to retryable forwarding error")
+                    .With("SubrequestIndex", index)
+                    .With(forwardingError);
 
                 uncertainIndexes.push_back(index);
             } else {
@@ -2380,15 +2474,38 @@ private:
         ToProto(response.mutable_uncertain_subrequest_indexes(), uncertainIndexes);
 
         if (response.subresponses_size() == 0) {
-            YT_LOG_DEBUG("Dropping request since no subresponses are available");
+            YT_TLOG_DEBUG("Dropping request since no subresponses are available");
             return;
         }
 
-        RpcContext_->SetResponseInfo("SubresponseCount: %v, UncertainSubrequestIndexes: %v",
-            response.subresponses_size(),
-            response.uncertain_subrequest_indexes());
+        RpcContext_->AnnotateResponse()
+            .With("SubresponseCount", response.subresponses_size())
+            .With("UncertainSubrequestIndexes", response.uncertain_subrequest_indexes());
 
-        RpcContext_->Reply();
+        if (groundUpdateQueueSequenceNumber != -1) {
+            YT_TLOG_DEBUG("Synchronizing with ground update queue before replying")
+                .With("GroundUpdateQueueSequenceNumber", groundUpdateQueueSequenceNumber);
+
+            const auto& groundUpdateQueueManager = Bootstrap_->GetGroundUpdateQueueManager();
+            BIND(&IGroundUpdateQueueManager::Sync,
+                groundUpdateQueueManager,
+                EGroundUpdateQueue::Sequoia,
+                groundUpdateQueueSequenceNumber)
+            .AsyncVia(AutomatonInvoker_)
+            .Run()
+            .Subscribe(BIND([error, this, this_ = MakeStrong(this)] (const TError& syncError) {
+                if (!ReplyScheduled_.exchange(true)) {
+                    if (!syncError.IsOK()) {
+                        // Hope cypress proxies retry that.
+                        RpcContext_->Reply(error);
+                    } else {
+                        RpcContext_->Reply();
+                    }
+                }
+            }).Via(TObjectService::GetRpcInvoker()));
+        } else {
+            RpcContext_->Reply();
+        }
     }
 
     void CancelPendingCacheSubrequests()
@@ -2412,7 +2529,7 @@ private:
 
         if (RpcContext_->IsCanceled() || EpochCancelableContext_->IsCanceled()) {
             if (!LocalExecutionInterrupted_.exchange(true)) {
-                YT_LOG_DEBUG("Request interrupted due to cancellation");
+                YT_TLOG_DEBUG("Request interrupted due to cancellation");
             }
             return true;
         } else {
@@ -2445,13 +2562,12 @@ private:
         if (premature) [[unlikely]] {
             // Premature backoff alarm is only triggered from Automaton or LocalRead threads,
             // so it's safe to read subrequest indices here.
-            YT_LOG_DEBUG("Backoff alarm triggered prematurely "
-                "(CurrentAutomatonSubrequestIndex: %v, CurrentLocalReadSubrequestIndex: %v, TotalSubrequestCount: %v)",
-                CurrentAutomatonSubrequestIndex_,
-                CurrentLocalReadSubrequestIndex_,
-                TotalSubrequestCount_);
+            YT_TLOG_DEBUG("Backoff alarm triggered prematurely")
+                .With("CurrentAutomatonSubrequestIndex", CurrentAutomatonSubrequestIndex_)
+                .With("CurrentLocalReadSubrequestIndex", CurrentLocalReadSubrequestIndex_)
+                .With("TotalSubrequestCount", TotalSubrequestCount_);
         } else {
-            YT_LOG_DEBUG("Backoff alarm triggered");
+            YT_TLOG_DEBUG("Backoff alarm triggered");
         }
 
         BackoffAlarmTriggered_.store(true);
@@ -2465,8 +2581,8 @@ private:
 
         int result = --ReplyLockCount_;
         YT_VERIFY(result >= 0);
-        YT_LOG_TRACE("Reply lock released (LockCount: %v)",
-            result);
+        YT_TLOG_TRACE("Reply lock released")
+            .With("LockCount", result);
         return ScheduleReplyIfNeeded();
     }
 
@@ -2485,7 +2601,7 @@ private:
 
         if (BackoffAlarmTriggered_ && SomeSubrequestCompleted_) {
             if (!LocalExecutionInterrupted_.exchange(true)) {
-                YT_LOG_DEBUG("Local execution interrupted due to backoff alarm");
+                YT_TLOG_DEBUG("Local execution interrupted due to backoff alarm");
             }
             Reply();
             return true;
@@ -2553,6 +2669,12 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
     EnableCypressTransactionsInSequoia_.store(
         sequoiaConfig->Enable && sequoiaConfig->EnableCypressTransactionsInSequoia,
+        std::memory_order::release);
+    ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.store(
+        sequoiaConfig->ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator,
+        std::memory_order::release);
+    WrapRequestsIntoSequoiaTransactions_.store(
+        sequoiaConfig->WrapObjectServiceExecuteIntoSequoiaTransaction,
         std::memory_order::release);
 
     LocalReadExecutor_->SetThreadCount(objectServiceConfig->LocalReadThreadCount);
@@ -2695,6 +2817,41 @@ void TObjectService::SetStickyUserError(const std::string& userName, const TErro
     StickyUserErrorCache_.Put(userName, error);
 }
 
+
+template <bool ShouldThrow>
+std::conditional_t<ShouldThrow, void, TError> TObjectService::RequireLeaderImpl()
+{
+    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    if (hydraManager->IsLeader()) {
+        if constexpr (!ShouldThrow) {
+            return TError();
+        } else {
+            return;
+        }
+    }
+
+    if (HasMutationContext()) {
+        // Just a precaution, not really expected to happen.
+        auto error = TError("Request can only be served at leaders");
+        YT_TLOG_ALERT("RequireLeader() called in mutation");
+        if constexpr (ShouldThrow) {
+            THROW_ERROR error;
+        } else {
+            return error;
+        }
+    }
+
+    auto error = TError(
+        EErrorCode::LeaderFallbackRequired,
+        "Request can only be served at leaders; "
+        "internal signal, not meant to be seen, please report this");
+    if constexpr (ShouldThrow) {
+        throw TLeaderFallbackException() <<= error;
+    } else {
+        return error;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
@@ -2716,7 +2873,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
     Y_UNUSED(request);
     Y_UNUSED(response);
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     ValidateClusterInitialized();
     ValidatePeer(EPeerKind::Leader);

@@ -144,10 +144,14 @@ StoragePtr TableFunctionObjectStorage<Definition, Configuration>::executeImpl(
     const auto & client_info = context->getClientInfo();
 
     const auto parallel_replicas_cluster_name = query_settings[Setting::cluster_for_parallel_replicas].toString();
+    /// Only use parallel replicas if the Cluster variant of this table function exists
+    /// (e.g. `s3Cluster` for `s3`). Table functions without a Cluster variant (e.g. `paimonLocal`)
+    /// cannot distribute work via task iterators, so distributing would just read all data on every replica.
     const auto can_use_parallel_replicas = !parallel_replicas_cluster_name.empty()
         && query_settings[Setting::parallel_replicas_for_cluster_engines]
         && context->canUseTaskBasedParallelReplicas()
-        && !context->isDistributed();
+        && !context->isDistributed()
+        && TableFunctionFactory::instance().isTableFunctionName(String(name) + "Cluster");
 
     const auto is_secondary_query = context->getClientInfo().query_kind == ClientInfo::QueryKind::SECONDARY_QUERY;
 
@@ -166,10 +170,8 @@ StoragePtr TableFunctionObjectStorage<Definition, Configuration>::executeImpl(
         return storage;
     }
 
-    bool can_use_distributed_iterator =
-        client_info.collaborate_with_initiator &&
-        context->hasReadTaskCallback();
-
+    /// Note: distributed_processing is always false for non-cluster table functions (s3, azure, etc.).
+    /// Cluster table functions (s3Cluster, etc.) handle distributed processing in their own getStorage() method.
     storage = std::make_shared<StorageObjectStorage>(
         configuration,
         getObjectStorage(context, !is_insert_query),
@@ -180,7 +182,7 @@ StoragePtr TableFunctionObjectStorage<Definition, Configuration>::executeImpl(
         /* comment */ String{},
         /* format_settings */ std::nullopt,
         /* mode */ LoadingStrictnessLevel::CREATE,
-        /* distributed_processing */ can_use_distributed_iterator,
+        /* distributed_processing */ false,
         /* partition_by */ nullptr);
 
     storage->startup();

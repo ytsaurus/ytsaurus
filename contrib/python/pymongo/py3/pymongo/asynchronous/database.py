@@ -13,18 +13,17 @@
 # limitations under the License.
 
 """Database level operations."""
+
 from __future__ import annotations
 
+from collections.abc import Mapping, MutableMapping, Sequence
 from copy import deepcopy
 from typing import (
     TYPE_CHECKING,
     Any,
     Generic,
-    Mapping,
-    MutableMapping,
     NoReturn,
     Optional,
-    Sequence,
     Union,
     cast,
     overload,
@@ -153,8 +152,7 @@ class AsyncDatabase(common.BaseObject, Generic[_DocumentType]):
         read_preference: Optional[_ServerMode] = ...,
         write_concern: Optional[WriteConcern] = ...,
         read_concern: Optional[ReadConcern] = ...,
-    ) -> AsyncDatabase[_DocumentType]:
-        ...
+    ) -> AsyncDatabase[_DocumentType]: ...
 
     @overload
     def with_options(
@@ -163,8 +161,7 @@ class AsyncDatabase(common.BaseObject, Generic[_DocumentType]):
         read_preference: Optional[_ServerMode] = ...,
         write_concern: Optional[WriteConcern] = ...,
         read_concern: Optional[ReadConcern] = ...,
-    ) -> AsyncDatabase[_DocumentTypeArg]:
-        ...
+    ) -> AsyncDatabase[_DocumentTypeArg]: ...
 
     def with_options(
         self,
@@ -620,7 +617,7 @@ class AsyncDatabase(common.BaseObject, Generic[_DocumentType]):
                 and (not s or not s.in_transaction)
                 and name in await self._list_collection_names(filter={"name": name}, session=s)
             ):
-                raise CollectionInvalid("collection %s already exists" % name)
+                raise CollectionInvalid(f"collection {name} already exists")
             if s:
                 s._leave_alive = False
             coll = AsyncCollection(
@@ -733,8 +730,7 @@ class AsyncDatabase(common.BaseObject, Generic[_DocumentType]):
         parse_write_concern_error: bool = False,
         session: Optional[AsyncClientSession] = None,
         **kwargs: Any,
-    ) -> dict[str, Any]:
-        ...
+    ) -> dict[str, Any]: ...
 
     @overload
     async def _command(
@@ -750,8 +746,7 @@ class AsyncDatabase(common.BaseObject, Generic[_DocumentType]):
         parse_write_concern_error: bool = False,
         session: Optional[AsyncClientSession] = None,
         **kwargs: Any,
-    ) -> _CodecDocumentType:
-        ...
+    ) -> _CodecDocumentType: ...
 
     async def _command(
         self,
@@ -800,8 +795,7 @@ class AsyncDatabase(common.BaseObject, Generic[_DocumentType]):
         session: Optional[AsyncClientSession] = None,
         comment: Optional[Any] = None,
         **kwargs: Any,
-    ) -> dict[str, Any]:
-        ...
+    ) -> dict[str, Any]: ...
 
     @overload
     async def command(
@@ -815,8 +809,7 @@ class AsyncDatabase(common.BaseObject, Generic[_DocumentType]):
         session: Optional[AsyncClientSession] = None,
         comment: Optional[Any] = None,
         **kwargs: Any,
-    ) -> _CodecDocumentType:
-        ...
+    ) -> _CodecDocumentType: ...
 
     @_csot.apply
     async def command(
@@ -931,14 +924,15 @@ class AsyncDatabase(common.BaseObject, Generic[_DocumentType]):
 
         if read_preference is None:
             read_preference = (session and session._txn_read_preference()) or ReadPreference.PRIMARY
-        async with await self._client._conn_for_reads(
-            read_preference, session, operation=command_name
-        ) as (
-            connection,
-            read_preference,
-        ):
+
+        async def inner(
+            session: Optional[AsyncClientSession],
+            _server: Server,
+            conn: AsyncConnection,
+            read_preference: _ServerMode,
+        ) -> Union[dict[str, Any], _CodecDocumentType]:
             return await self._command(
-                connection,
+                conn,
                 command,
                 value,
                 check,
@@ -948,6 +942,10 @@ class AsyncDatabase(common.BaseObject, Generic[_DocumentType]):
                 session=session,
                 **kwargs,
             )
+
+        return await self._client._retryable_read(
+            inner, read_preference, session, command_name, None, False, is_run_command=True
+        )
 
     @_csot.apply
     async def cursor_command(
@@ -1016,17 +1014,17 @@ class AsyncDatabase(common.BaseObject, Generic[_DocumentType]):
 
         async with self._client._tmp_session(session) as tmp_session:
             opts = codec_options or DEFAULT_CODEC_OPTIONS
-
             if read_preference is None:
                 read_preference = (
                     tmp_session and tmp_session._txn_read_preference()
                 ) or ReadPreference.PRIMARY
-            async with await self._client._conn_for_reads(
-                read_preference, tmp_session, command_name
-            ) as (
-                conn,
-                read_preference,
-            ):
+
+            async def inner(
+                session: Optional[AsyncClientSession],
+                _server: Server,
+                conn: AsyncConnection,
+                read_preference: _ServerMode,
+            ) -> AsyncCommandCursor[_DocumentType]:
                 response = await self._command(
                     conn,
                     command,
@@ -1035,7 +1033,7 @@ class AsyncDatabase(common.BaseObject, Generic[_DocumentType]):
                     None,
                     read_preference,
                     opts,
-                    session=tmp_session,
+                    session=session,
                     **kwargs,
                 )
                 coll = self.get_collection("$cmd", read_preference=read_preference)
@@ -1045,13 +1043,17 @@ class AsyncDatabase(common.BaseObject, Generic[_DocumentType]):
                         response["cursor"],
                         conn.address,
                         max_await_time_ms=max_await_time_ms,
-                        session=tmp_session,
+                        session=session,
                         comment=comment,
                     )
                     await cmd_cursor._maybe_pin_connection(conn)
                     return cmd_cursor
                 else:
                     raise InvalidOperation("Command does not return a cursor.")
+
+            return await self.client._retryable_read(
+                inner, read_preference, tmp_session, command_name, None, False
+            )
 
     async def _retryable_read_command(
         self,
@@ -1254,15 +1256,19 @@ class AsyncDatabase(common.BaseObject, Generic[_DocumentType]):
         if comment is not None:
             command["comment"] = comment
 
-        async with await self._client._conn_for_writes(session, operation=_Op.DROP) as connection:
+        async def inner(
+            session: Optional[AsyncClientSession], conn: AsyncConnection, _retryable_write: bool
+        ) -> dict[str, Any]:
             return await self._command(
-                connection,
+                conn,
                 command,
                 allowable_errors=["ns not found", 26],
                 write_concern=self._write_concern_for(session),
                 parse_write_concern_error=True,
                 session=session,
             )
+
+        return await self.client._retryable_write(False, inner, session, _Op.DROP)
 
     @_csot.apply
     async def drop_collection(
@@ -1458,7 +1464,7 @@ class AsyncDatabase(common.BaseObject, Generic[_DocumentType]):
            Added ``session`` parameter.
         """
         if not isinstance(dbref, DBRef):
-            raise TypeError("cannot dereference a %s" % type(dbref))
+            raise TypeError(f"cannot dereference a {type(dbref)}")
         if dbref.database is not None and dbref.database != self._name:
             raise ValueError(
                 "trying to dereference a DBRef that points to "

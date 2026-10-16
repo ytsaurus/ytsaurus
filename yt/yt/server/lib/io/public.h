@@ -49,6 +49,12 @@ DECLARE_REFCOUNTED_STRUCT(THugePageManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(THugePageManagerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(IHugePageManager)
 
+struct TIOFairShareState
+{
+    i64 IOConsumed = 0;
+    double IOFairShareWeight = 0;
+};
+
 class TIOEngineHandle;
 using TIOEngineHandlePtr = TIntrusivePtr<TIOEngineHandle>;
 

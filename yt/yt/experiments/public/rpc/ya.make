@@ -13,11 +13,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/core
-    library/cpp/yt/phdr_cache
-    yt/yt/ytlib
-    yt/yt/server/lib
     library/cpp/getopt/small
-    library/cpp/deprecated/atomic
 )
 
 END()

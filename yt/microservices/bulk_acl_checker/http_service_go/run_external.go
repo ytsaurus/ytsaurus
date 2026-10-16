@@ -4,8 +4,6 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"net/http"
 	"os"
 
@@ -38,7 +36,7 @@ func GetCheckACLHandler() ytmsvc.HTTPHandlerE {
 	return createCheckACLHandler(checker)
 }
 
-func GetRouterHandler(ytClient yt.Client) http.Handler {
+func GetRouterHandler(_ yt.Client, _ *cobra.Command) http.Handler {
 	return createRouter(
 		GetInfoHandler(),
 		GetWhoamiHandler(),
@@ -50,18 +48,6 @@ func GetRouterHandler(ytClient yt.Client) http.Handler {
 		GetDropCacheHandler(),
 		GetMetricsHandler(),
 	)
-}
-
-func RunServer(cmd *cobra.Command, args []string) {
-	ctx, cancel := context.WithCancelCause(context.Background())
-	defer cancel(fmt.Errorf("normal terminate"))
-	ytClient := ytmsvc.MustNewYTClient(ytmsvc.Must(cmd.Flags().GetString("proxy")), ytmsvc.Must(cmd.Flags().GetString("token-env-variable")))
-	go perClusterRunner(ctx, ytClient, cmd)
-	port := ytmsvc.Must(cmd.Flags().GetUint16("port"))
-
-	addr := fmt.Sprintf(":%v", port)
-	router := GetRouterHandler(ytClient)
-	ytmsvc.Must0(http.ListenAndServe(addr, router))
 }
 
 func getHostNameForMetrics() string {

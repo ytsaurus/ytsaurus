@@ -13,10 +13,13 @@ from yt_commands import (
     patch_op_spec,
     raises_yt_error,
     read_table,
+    release_breakpoint,
     run_sleeping_vanilla,
     run_test_vanilla,
     update_controller_agent_config,
     wait,
+    wait_breakpoint,
+    with_breakpoint,
     write_table,
 )
 
@@ -74,6 +77,54 @@ class TestPatchSpec(YTEnvSetup):
                 }
             ],
         )
+
+
+class TestPatchSpecWithDiskSpace(YTEnvSetup):
+    USE_PORTO = True
+
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    @authors("krasovav")
+    @pytest.mark.timeout(180)
+    def test_patch_job_count_with_disk_space(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=1,
+            task_patch={
+                "volumes": {
+                    "disk": {
+                        "disk_request": {
+                            "type": "tmpfs",
+                            "disk_space": 100 * 1024 * 1024,
+                        },
+                    }
+                },
+                "job_volume_mounts": [
+                    {"volume_id": "disk", "mount_path": "/sandbox"}
+                ],
+            },
+        )
+
+        wait_breakpoint(job_count=1)
+
+        patch_op_spec(
+            op.id,
+            patches=[
+                {
+                    "path": "/tasks/task/job_count",
+                    "value": 2,
+                },
+            ],
+        )
+
+        wait_breakpoint(job_count=2)
+
+        release_breakpoint()
+        op.track()
+
+        assert op.get_job_count("completed") == 2
 
 
 class TestUpdateProtocolBase(YTEnvSetup):
@@ -180,7 +231,7 @@ class TestUpdateProtocol(TestUpdateProtocolBase):
                 with Restarter(self.Env, restart_services):
                     pass
 
-            with raises_yt_error("max_failed_job_count"):
+            with raises_yt_error("Failed jobs limit exceeded"):
                 op.track()
 
             assert op.get_job_count("failed"), op.get_job_count("aborted") == (1, 1)
@@ -287,7 +338,7 @@ class TestUpdateProtocol(TestUpdateProtocolBase):
 
         op.wait_for_state("running")
 
-        with raises_yt_error("Failed to validate"):
+        with raises_yt_error("Failed to validate patch"):
             patch_op_spec(op.id, patches=[make_patch("/max_failed_job_count", 1)])
 
         # Wait for possible failure.
@@ -330,12 +381,12 @@ class TestUpdateProtocolControllerCrashes(TestUpdateProtocolBase):
 
         op.wait_for_state("running")
 
-        with raises_yt_error("Failed to apply"):
+        with raises_yt_error("Failed to apply patch"):
             patch_op_spec(op.id, patches=[make_patch("/max_failed_job_count", 3)])
 
         # NB: This is kinda happy path: controller "promised" that it will fail operation without
         # the help from scheduler.
-        with raises_yt_error("Exception thrown in operation controller that led to operation failure"):
+        with raises_yt_error("Exception thrown in operation controller"):
             op.track()
 
     @authors("coteeq")

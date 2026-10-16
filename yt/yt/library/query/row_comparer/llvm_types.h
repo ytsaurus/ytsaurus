@@ -13,7 +13,6 @@ namespace NYT::NCodegen {
 template <>
 struct TTypeBuilder<NYT::NTabletClient::TDynamicString>
 {
-public:
     using TLength = TTypeBuilder<i32>;
     using TData = TTypeBuilder<char>;
 
@@ -49,7 +48,6 @@ public:
 template <>
 struct TTypeBuilder<NYT::NTabletClient::TDynamicValueData>
 {
-public:
     using TBoolean = TTypeBuilder<char>;
     using TInt64 = TTypeBuilder<i64>;
     using TUint64 = TTypeBuilder<ui64>;

@@ -136,7 +136,8 @@ public:
 
     void CommitTransaction(
         TMutationId& mutationId,
-        const TTransactionId& transactionId) override;
+        const TTransactionId& transactionId,
+        const TCommitTransactionOptions& options = {}) override;
 
     // Operations
 
@@ -210,10 +211,14 @@ public:
 
     // Files
 
-    std::unique_ptr<IInputStream> ReadFile(
+    std::unique_ptr<IAbortableInputStream> ReadFile(
         const TTransactionId& transactionId,
         const TRichYPath& path,
         const TFileReaderOptions& options = {}) override;
+
+    std::unique_ptr<IAbortableInputStream> ReadFilePartition(
+        const TString& cookie,
+        const TFilePartitionReaderOptions& options = {}) override;
 
     std::unique_ptr<IOutputStream> WriteFile(
         const TTransactionId& transactionId,
@@ -290,18 +295,18 @@ public:
         const TMaybe<TFormat>& format,
         const TTableWriterOptions& options = {}) override;
 
-    std::unique_ptr<IInputStream> ReadTable(
+    std::unique_ptr<IAbortableInputStream> ReadTable(
         const TTransactionId& transactionId,
         const TRichYPath& path,
         const TFormat& format,
         const TTableReaderOptions& options = {}) override;
 
-    std::unique_ptr<IInputStream> ReadTablePartition(
+    std::unique_ptr<IAbortableInputStream> ReadTablePartition(
         const TString& cookie,
         const TFormat& format,
         const TTablePartitionReaderOptions& options = {}) override;
 
-    std::unique_ptr<IInputStream> ReadBlobTable(
+    std::unique_ptr<IAbortableInputStream> ReadBlobTable(
         const TTransactionId& transactionId,
         const TRichYPath& path,
         const TKey& key,
@@ -398,6 +403,15 @@ public:
         const TTransactionId& transactionId,
         const TVector<TRichYPath>& paths,
         const TGetTablePartitionsOptions& options = {}) override;
+
+    TFilePartitions GetFilePartitions(
+        const TTransactionId& transactionId,
+        const TYPath& path,
+        const TVector<TFileReadRange>& ranges,
+        const TGetFilePartitionsOptions& options = {}) override;
+
+    void CheckClusterLiveness(
+        const TCheckClusterLivenessOptions& options = {}) override;
 
     ui64 GenerateTimestamp() override;
 

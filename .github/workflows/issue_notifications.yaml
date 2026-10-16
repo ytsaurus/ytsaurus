@@ -4,19 +4,15 @@ on:
   issues:
     types: [opened]
 
+permissions: {}
+
 jobs:
   telegram:
     name: Telegram
-    runs-on: ubuntu-latest
-    steps:
-      - name: Send telegram message
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_NOTIFICATIONS_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          disable_web_page_preview: true
-          format: markdown
-          message: |
-            New issue in *${{github.repository}}*: `${{github.event.issue.title}}`
-            ${{github.server_url}}/${{github.repository}}/issues/${{github.event.issue.number}}
-
+    uses: ./.github/workflows/send_telegram_notification.yaml
+    with:
+      notification_type: issue
+      runner: ubuntu-latest
+    secrets:
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_NOTIFICATIONS_CHAT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

@@ -1,7 +1,8 @@
 import pytest
 import yatest
 
-from yt_file import run_test, DATA_PATH
+from yt.yql.tests.sql.runners.yt_file import run_test
+from yt.yql.tests.sql.runners.common import DATA_PATH
 from test_utils import pytest_generate_tests_for_part
 from yql_utils import pytest_get_current_part
 

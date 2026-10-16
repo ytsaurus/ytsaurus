@@ -31,7 +31,8 @@ TEncodingWriter::TEncodingWriter(
     IChunkWriterPtr chunkWriter,
     IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     IBlockCachePtr blockCache,
-    NLogging::TLogger logger)
+    NLogging::TLogger logger,
+    IInvokerPtr compressionInvokerOverride)
     : Config_(std::move(config))
     , Options_(std::move(options))
     , ChunkWriter_(std::move(chunkWriter))
@@ -41,9 +42,11 @@ TEncodingWriter::TEncodingWriter(
     , SizeSemaphore_(New<TAsyncSemaphore>(Config_->EncodeWindowSize))
     , CodecSemaphore_(New<TAsyncSemaphore>(Config_->CompressionConcurrency))
     , Codec_(NCompression::GetCodec(Options_->CompressionCodec))
-    , CompressionInvoker_(CreateFixedPriorityInvoker(
-        NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
-        Config_->WorkloadDescriptor.GetPriority()))
+    , CompressionInvoker_(compressionInvokerOverride
+        ? std::move(compressionInvokerOverride)
+        : CreateFixedPriorityInvoker(
+            NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
+            Config_->WorkloadDescriptor.GetPriority()))
     , WritePendingBlockCallback_(BIND(
         &TEncodingWriter::WritePendingBlock,
         MakeWeak(this)).Via(CompressionInvoker_))
@@ -74,7 +77,8 @@ void TEncodingWriter::WriteBlock(
         .AsyncVia(CompressionInvoker_));
     PendingBlocks_.Enqueue(blockFuture);
 
-    YT_LOG_DEBUG("Pending block added (Block: %v)", AddedBlockIndex_);
+    YT_TLOG_DEBUG("Pending block added")
+        .With("Block", AddedBlockIndex_);
 
     ++AddedBlockIndex_;
 }
@@ -106,7 +110,8 @@ void TEncodingWriter::WriteBlock(
         .AsyncVia(CompressionInvoker_));
     PendingBlocks_.Enqueue(blockFuture);
 
-    YT_LOG_DEBUG("Pending block added (Block: %v)", AddedBlockIndex_);
+    YT_TLOG_DEBUG("Pending block added")
+        .With("Block", AddedBlockIndex_);
 
     ++AddedBlockIndex_;
 }
@@ -119,8 +124,8 @@ void TEncodingWriter::EnsureOpen()
             if (!error.IsOK()) {
                 CompletionError_.TrySet(error);
             } else {
-                YT_LOG_DEBUG("Underlying session for encoding writer opened (ChunkId: %v)",
-                    ChunkWriter_->GetChunkId());
+                YT_TLOG_DEBUG("Underlying session for encoding writer opened")
+                    .With("ChunkId", ChunkWriter_->GetChunkId());
                 PendingBlocks_.Dequeue().Subscribe(
                     WritePendingBlockCallback_);
             }
@@ -145,10 +150,10 @@ TBlock TEncodingWriter::DoCompressBlock(
     std::optional<int> groupIndex,
     TAsyncSemaphoreGuard&&)
 {
-    YT_LOG_DEBUG("Started compressing block (Block: %v, Codec: %v, UncompressedBlockSize: %v)",
-        blockIndex,
-        Codec_->GetId(),
-        uncompressedBlock.Size());
+    YT_TLOG_DEBUG("Started compressing block")
+        .With("Block", blockIndex)
+        .With("Codec", Codec_->GetId())
+        .With("UncompressedBlockSize", uncompressedBlock.Size());
 
     TBlock compressedBlock;
     compressedBlock.GroupIndex = groupIndex;
@@ -171,11 +176,11 @@ TBlock TEncodingWriter::DoCompressBlock(
         VerifyBlock(uncompressedBlock, compressedBlock.Data);
     }
 
-    YT_LOG_DEBUG("Finished compressing block (Block: %v, Codec: %v, UncompressedBlockSize: %v, CompressedBlockSize: %v)",
-        blockIndex,
-        Codec_->GetId(),
-        uncompressedBlock.Size(),
-        compressedBlock.Size());
+    YT_TLOG_DEBUG("Finished compressing block")
+        .With("Block", blockIndex)
+        .With("Codec", Codec_->GetId())
+        .With("UncompressedBlockSize", uncompressedBlock.Size())
+        .With("CompressedBlockSize", compressedBlock.Size());
 
     if (Any(BlockCache_->GetSupportedBlockTypes() & blockType)) {
         YT_UNUSED_FUTURE(OpenFuture_.Apply(BIND(
@@ -201,10 +206,10 @@ TBlock TEncodingWriter::DoCompressVector(
 {
     i64 uncompressedBlockSize = GetByteSize(uncompressedVectorizedBlock);
 
-    YT_LOG_DEBUG("Started compressing vectorized block (Block: %v, Codec: %v, UncompressedBlockSize: %v)",
-        blockIndex,
-        Codec_->GetId(),
-        uncompressedBlockSize);
+    YT_TLOG_DEBUG("Started compressing vectorized block")
+        .With("Block", blockIndex)
+        .With("Codec", Codec_->GetId())
+        .With("UncompressedBlockSize", uncompressedBlockSize);
 
     TBlock compressedBlock;
     compressedBlock.GroupIndex = groupIndex;
@@ -227,11 +232,11 @@ TBlock TEncodingWriter::DoCompressVector(
         VerifyVector(uncompressedVectorizedBlock, compressedBlock.Data);
     }
 
-    YT_LOG_DEBUG("Finished compressing vectorized block (Block: %v, Codec: %v, UncompressedBlockSize: %v, CompressedBlockSize: %v)",
-        blockIndex,
-        Codec_->GetId(),
-        GetByteSize(uncompressedVectorizedBlock),
-        compressedBlock.Size());
+    YT_TLOG_DEBUG("Finished compressing vectorized block")
+        .With("Block", blockIndex)
+        .With("Codec", Codec_->GetId())
+        .With("UncompressedBlockSize", GetByteSize(uncompressedVectorizedBlock))
+        .With("CompressedBlockSize", compressedBlock.Size());
 
     if (Any(BlockCache_->GetSupportedBlockTypes() & blockType)) {
         struct TMergedTag { };
@@ -260,12 +265,11 @@ void TEncodingWriter::VerifyVector(
     try {
         auto decompressedBlock = Codec_->Decompress(compressedBlock);
 
-        YT_LOG_FATAL_IF(
+        YT_TLOG_FATAL_IF(
             decompressedBlock.Size() != GetByteSize(uncompressedVectorizedBlock),
-            "Compression verification failed: decompressed size mismatch "
-            "(Expected: %v, Actual: %v)",
-            GetByteSize(uncompressedVectorizedBlock),
-            decompressedBlock.Size());
+            "Compression verification failed: decompressed size mismatch")
+            .With("Expected", GetByteSize(uncompressedVectorizedBlock))
+            .With("Actual", decompressedBlock.Size());
 
         const char* current = decompressedBlock.Begin();
         for (size_t blockIndex = 0; blockIndex < uncompressedVectorizedBlock.size(); ++blockIndex) {
@@ -288,22 +292,19 @@ void TEncodingWriter::VerifyVector(
                 }
             }
 
-            YT_LOG_FATAL_IF(
-                differBitsCount > 0,
-                "Compression verification failed: content differs "
-                "(BlockIndex: %v, BlockSize: %v, DifferBitsCount: %v, FirstMismatchedBitPosition: %v, "
-                "FirstMismatchedByteExpected: %v, FirstMismatchedByteActual: %v)",
-                blockIndex,
-                block.Size(),
-                differBitsCount,
-                firstMismatchedBitPosition,
-                expected[firstMismatchedBitPosition / CHAR_BIT],
-                actual[firstMismatchedBitPosition / CHAR_BIT]);
+            YT_TLOG_FATAL_IF(differBitsCount > 0, "Compression verification failed: content differs")
+                .With("BlockIndex", blockIndex)
+                .With("BlockSize", block.Size())
+                .With("DifferBitsCount", differBitsCount)
+                .With("FirstMismatchedBitPosition", firstMismatchedBitPosition)
+                .With("FirstMismatchedByteExpected", expected[firstMismatchedBitPosition / CHAR_BIT])
+                .With("FirstMismatchedByteActual", actual[firstMismatchedBitPosition / CHAR_BIT]);
 
             current += block.Size();
         }
     } catch (const std::exception& ex) {
-        YT_LOG_FATAL(ex, "Compression verification failed: decompressor error");
+        YT_TLOG_FATAL("Compression verification failed: decompressor error")
+            .With(ex);
     }
 }
 
@@ -314,11 +315,12 @@ void TEncodingWriter::VerifyBlock(
     try {
         auto decompressedBlock = Codec_->Decompress(compressedBlock);
 
-        YT_LOG_FATAL_IF(
+        YT_TLOG_FATAL_IF(
             !TRef::AreBitwiseEqual(decompressedBlock, uncompressedBlock),
             "Compression verification failed: content differs");
     } catch (const std::exception& ex) {
-        YT_LOG_FATAL(ex, "Compression verification failed: decompressor error");
+        YT_TLOG_FATAL("Compression verification failed: decompressor error")
+            .With(ex);
     }
 }
 
@@ -348,7 +350,8 @@ void TEncodingWriter::WritePendingBlock(const TErrorOr<TBlock>& blockOrError)
     CompressedSize_ += block.Size();
     CompressionRatio_ = double(CompressedSize_) / UncompressedSize_;
 
-    YT_LOG_DEBUG("Writing pending block (Block: %v)", WrittenBlockIndex_);
+    YT_TLOG_DEBUG("Writing pending block")
+        .With("Block", WrittenBlockIndex_);
 
     auto isReady = ChunkWriter_->WriteBlock(WriteBlocksOptions_, Config_->WorkloadDescriptor, block);
     ++WrittenBlockIndex_;
@@ -383,7 +386,7 @@ TFuture<void> TEncodingWriter::GetReadyEvent()
 
 TFuture<void> TEncodingWriter::Flush()
 {
-    YT_LOG_DEBUG("Flushing encoding writer");
+    YT_TLOG_DEBUG("Flushing encoding writer");
 
     // This must be the last enqueued element.
     PendingBlocks_.Enqueue(TBlock());

@@ -3,16 +3,13 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create, start_transaction, commit_transaction, insert_rows, select_rows, lookup_rows,
     delete_rows, sync_create_cells,
-    sync_mount_table)
+    sync_mount_table, raises_yt_error)
 
-from yt.common import YtError
-
-import pytest
+import pytest  # noqa: F401
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestTabletTransactions(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -66,9 +63,9 @@ class TestTabletTransactions(YTEnvSetup):
         assert lookup_rows("//tmp/t", _keys(0, 1), tx=tx2) == []
 
         # cannot commit transaction twice
-        with pytest.raises(YtError):
+        with raises_yt_error("Sticky transaction .* is not found, this usually means that you use tablet transactions within HTTP API; consider using RPC API instead"):
             commit_transaction(tx1)
 
         # cannot commit conflicting transaction
-        with pytest.raises(YtError):
+        with raises_yt_error("Row lock conflict due to concurrent write"):
             commit_transaction(tx2)

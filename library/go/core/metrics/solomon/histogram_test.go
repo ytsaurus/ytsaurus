@@ -10,46 +10,23 @@ import (
 )
 
 func TestHistogram_getID(t *testing.T) {
-	h := &Histogram{
-		name:         "myhistogram",
-		metricType:   typeHistogram,
-		tags:         map[string]string{"ololo": "trololo"},
-		bucketBounds: []float64{1, 2, 3},
-		bucketValues: []int64{1, 2, 1},
-		infValue:     *atomic.NewInt64(2),
-	}
+	h := NewHistogram("myhistogram", []float64{1, 2, 3}, make([]int64, 3), 0, WithTags(map[string]string{"ololo": "trololo"}))
 
 	assert.Equal(t, "myhistogram", h.getID())
 }
 
 func TestHistogram_getID_WithTS(t *testing.T) {
 	ts := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
-	h := &Histogram{
-		name:         "myhistogram",
-		metricType:   typeHistogram,
-		tags:         map[string]string{"ololo": "trololo"},
-		bucketBounds: []float64{1, 2, 3},
-		bucketValues: []int64{1, 2, 1},
-		infValue:     *atomic.NewInt64(2),
-		timestamp:    &ts,
-	}
+	h := NewHistogram("myhistogram", []float64{1, 2, 3}, make([]int64, 3), 0, WithTags(map[string]string{"ololo": "trololo"}), WithTimestamp(ts))
 
 	assert.Equal(t, "myhistogram(2020-01-01T00:00:00Z)", h.getID())
 }
 
 func TestHistogram_MarshalJSON(t *testing.T) {
 	ts := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
-	h := &Histogram{
-		name:         "myhistogram",
-		metricType:   typeHistogram,
-		tags:         map[string]string{"ololo": "trololo"},
-		bucketBounds: []float64{1, 2, 3},
-		bucketValues: []int64{1, 2, 1},
-		infValue:     *atomic.NewInt64(2),
-		timestamp:    &ts,
-	}
+	h := NewHistogram("myhistogram", []float64{1, 2, 3}, []int64{1, 2, 1}, 2, WithTags(map[string]string{"ololo": "trololo"}), WithTimestamp(ts))
 
-	b, err := json.Marshal(h)
+	b, err := json.Marshal(&h)
 	assert.NoError(t, err)
 
 	expected := []byte(`{"type":"HIST","labels":{"ololo":"trololo","sensor":"myhistogram"},"hist":{"bounds":[1,2,3],"buckets":[1,2,1],"inf":2},"ts":1577836800}`)
@@ -57,16 +34,9 @@ func TestHistogram_MarshalJSON(t *testing.T) {
 }
 
 func TestRatedHistogram_MarshalJSON(t *testing.T) {
-	h := &Histogram{
-		name:         "myhistogram",
-		metricType:   typeRatedHistogram,
-		tags:         map[string]string{"ololo": "trololo"},
-		bucketBounds: []float64{1, 2, 3},
-		bucketValues: []int64{1, 2, 1},
-		infValue:     *atomic.NewInt64(2),
-	}
+	h := NewHistogram("myhistogram", []float64{1, 2, 3}, []int64{1, 2, 1}, 2, WithTags(map[string]string{"ololo": "trololo"}), WithRated(true))
 
-	b, err := json.Marshal(h)
+	b, err := json.Marshal(&h)
 	assert.NoError(t, err)
 
 	expected := []byte(`{"type":"HIST_RATE","labels":{"ololo":"trololo","sensor":"myhistogram"},"hist":{"bounds":[1,2,3],"buckets":[1,2,1],"inf":2}}`)
@@ -74,17 +44,9 @@ func TestRatedHistogram_MarshalJSON(t *testing.T) {
 }
 
 func TestNameTagHistogram_MarshalJSON(t *testing.T) {
-	h := &Histogram{
-		name:         "myhistogram",
-		metricType:   typeRatedHistogram,
-		tags:         map[string]string{"ololo": "trololo"},
-		bucketBounds: []float64{1, 2, 3},
-		bucketValues: []int64{1, 2, 1},
-		infValue:     *atomic.NewInt64(2),
-		useNameTag:   true,
-	}
+	h := NewHistogram("myhistogram", []float64{1, 2, 3}, []int64{1, 2, 1}, 2, WithTags(map[string]string{"ololo": "trololo"}), WithRated(true), WithUseNameTag())
 
-	b, err := json.Marshal(h)
+	b, err := json.Marshal(&h)
 	assert.NoError(t, err)
 
 	expected := []byte(`{"type":"HIST_RATE","labels":{"name":"myhistogram","ololo":"trololo"},"hist":{"bounds":[1,2,3],"buckets":[1,2,1],"inf":2}}`)
@@ -92,13 +54,7 @@ func TestNameTagHistogram_MarshalJSON(t *testing.T) {
 }
 
 func TestHistogram_RecordDuration(t *testing.T) {
-	h := &Histogram{
-		name:         "myhistogram",
-		metricType:   typeHistogram,
-		tags:         map[string]string{"ololo": "trololo"},
-		bucketBounds: []float64{1, 2, 3},
-		bucketValues: make([]int64, 3),
-	}
+	h := NewHistogram("myhistogram", []float64{1, 2, 3}, make([]int64, 3), 0, WithTags(map[string]string{"ololo": "trololo"}))
 
 	h.RecordDuration(500 * time.Millisecond)
 	h.RecordDuration(1 * time.Second)
@@ -114,13 +70,7 @@ func TestHistogram_RecordDuration(t *testing.T) {
 }
 
 func TestHistogram_RecordValue(t *testing.T) {
-	h := &Histogram{
-		name:         "myhistogram",
-		metricType:   typeHistogram,
-		tags:         map[string]string{"ololo": "trololo"},
-		bucketBounds: []float64{1, 2, 3},
-		bucketValues: make([]int64, 3),
-	}
+	h := NewHistogram("myhistogram", []float64{1, 2, 3}, make([]int64, 3), 0, WithTags(map[string]string{"ololo": "trololo"}))
 
 	h.RecordValue(0.5)
 	h.RecordValue(1)
@@ -136,13 +86,7 @@ func TestHistogram_RecordValue(t *testing.T) {
 }
 
 func TestHistogram_Reset(t *testing.T) {
-	h := &Histogram{
-		name:         "myhistogram",
-		metricType:   typeHistogram,
-		tags:         map[string]string{"ololo": "trololo"},
-		bucketBounds: []float64{1, 2, 3},
-		bucketValues: make([]int64, 3),
-	}
+	h := NewHistogram("myhistogram", []float64{1, 2, 3}, make([]int64, 3), 0, WithTags(map[string]string{"ololo": "trololo"}))
 
 	h.RecordValue(0.5)
 	h.RecordValue(1)
@@ -160,13 +104,7 @@ func TestHistogram_Reset(t *testing.T) {
 }
 
 func TestHistogram_InitBucketValues(t *testing.T) {
-	h := &Histogram{
-		name:         "myhistogram",
-		metricType:   typeHistogram,
-		tags:         map[string]string{"ololo": "trololo"},
-		bucketBounds: []float64{1, 2, 3},
-		bucketValues: make([]int64, 3),
-	}
+	h := NewHistogram("myhistogram", []float64{1, 2, 3}, make([]int64, 3), 0, WithTags(map[string]string{"ololo": "trololo"}))
 
 	valsToInit := []int64{1, 2, 3, 4}
 	h.InitBucketValues(valsToInit[:2])

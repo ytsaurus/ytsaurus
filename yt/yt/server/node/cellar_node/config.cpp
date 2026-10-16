@@ -77,6 +77,8 @@ void TCellarNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("bundle_controller_connector", &TThis::BundleControllerConnector)
         .DefaultNew();
+    registrar.Parameter("deduce_profiling_tag_from_bundle_name", &TThis::DeduceProfilingTagFromBundleName)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,6 +93,9 @@ void TCellarNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("transaction_lease_tracker", &TThis::TransactionLeaseTracker)
         .DefaultNew();
+
+    registrar.Parameter("deduce_profiling_tag_from_bundle_name", &TThis::DeduceProfilingTagFromBundleName)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,8 @@
 #include "bootstrap.h"
 #include "config.h"
 
+#include <yt/yt/build/build.h>
+
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/program_config_mixin.h>
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
@@ -37,6 +39,13 @@ public:
         , TProgramSetsidMixin(Opts_)
         , TProgramConfigMixin(Opts_)
     { }
+
+    //! Override to print Query Tracker component version instead of the global YT version.
+    void PrintVersionAndExit() override
+    {
+        Cout << GetQueryTrackerVersion() << Endl;
+        Exit(0);
+    }
 
 protected:
     void DoRun() override

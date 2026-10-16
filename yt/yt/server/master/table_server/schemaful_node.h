@@ -10,7 +10,7 @@
 
 #include <yt/yt/client/table_client/constrained_schema.h>
 
-#include <yt/yt/core/misc/property.h>
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NTableServer {
 

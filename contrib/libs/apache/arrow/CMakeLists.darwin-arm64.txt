@@ -29,6 +29,7 @@ target_compile_options(libs-apache-arrow PUBLIC
 
 target_compile_options(libs-apache-arrow PRIVATE
   -DARROW_EXPORTING
+  -DARROW_WITH_BACKTRACE
   -DARROW_WITH_BROTLI
   -DARROW_WITH_LZ4
   -DARROW_WITH_RE2

@@ -31,6 +31,19 @@ std::vector<NChunkClient::TDataSliceDescriptor> UnpackDataSliceDescriptors(const
 std::vector<NChunkClient::TDataSliceDescriptor> UnpackDataSliceDescriptors(
     const ::google::protobuf::RepeatedPtrField<NControllerAgent::NProto::TTableInputSpec>& specList);
 
+NTableClient::ISchemalessMultiChunkReaderPtr CreatePushBasedShuffleMergingReader(
+    const std::vector<NTableClient::ISchemalessMultiChunkReaderPtr>& readers,
+    const NControllerAgent::NProto::TValidTaskJobIndexes& validTaskJobIndexes,
+    const NTableClient::TSortColumns& sortColumns);
+
+NTableClient::ISchemalessMultiChunkReaderPtr CreatePushBasedShuffleSortReader(
+    const NControllerAgent::NProto::TJobSpecExt& jobSpecExt,
+    const NControllerAgent::NProto::TPushBasedShuffleSortReaderSpec& readerSpec,
+    NTableClient::TNameTablePtr nameTable,
+    const NTableClient::TSortColumns& outputSortColumns,
+    const NChunkClient::TMultiChunkReaderHostPtr& chunkReaderHost,
+    TClosure onInputFetched);
+
 NTableClient::IPartitionerPtr CreatePartitioner(const NControllerAgent::NProto::TPartitionJobSpecExt& partitionJobSpecExt);
 
 ////////////////////////////////////////////////////////////////////////////////

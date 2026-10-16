@@ -85,11 +85,13 @@ public:
             segmentSizes.push_back(segmentSize);
         }
 
+        const auto& codecParams = Codec_->GetParams();
+
         THashMap<int, NErasure::TPartIndexSet> segmentIndexToRequiredParts;
         for (const auto& descriptor : plan) {
             auto& segmentState = SegmentIndexToState_[descriptor.SegmentIndex];
-            segmentState.PartFutures.resize(Codec_->GetTotalPartCount());
-            segmentState.PartIndexToRequestCount.resize(Codec_->GetTotalPartCount());
+            segmentState.PartFutures.resize(codecParams.TotalPartCount);
+            segmentState.PartIndexToRequestCount.resize(codecParams.TotalPartCount);
 
             if (!PartIndexToReaderIndex_.contains(descriptor.PartIndex)) {
                 segmentState.NeedRepair = true;
@@ -109,7 +111,7 @@ public:
                     .ReaderIndex = GetOrCrash(PartIndexToReaderIndex_, partIndex),
                     .BlockIndex = segmentIndex,
                     .Priority = segmentPartIndex,
-                    .UncompressedDataSize = segmentSizes[segmentIndex] / Codec_->GetDataPartCount(),
+                    .UncompressedDataSize = segmentSizes[segmentIndex] / codecParams.DataPartCount,
                     .BlockType = EBlockType::None,
                 });
             };
@@ -191,9 +193,11 @@ private:
 
     std::optional<NErasure::TPartIndexList> GetPartsToFetch(const NErasure::TPartIndexSet& requiredParts)
     {
+        const auto& codecParams = Codec_->GetParams();
+
         NErasure::TPartIndexSet partsToFetch;
         NErasure::TPartIndexList erasedParts;
-        for (int partIndex = 0; partIndex < Codec_->GetTotalPartCount(); ++partIndex) {
+        for (int partIndex = 0; partIndex < codecParams.TotalPartCount; ++partIndex) {
             if (requiredParts.test(partIndex)) {
                 if (PartIndexToReaderIndex_.contains(partIndex)) {
                     partsToFetch.set(partIndex);
@@ -214,7 +218,7 @@ private:
         }
 
         NErasure::TPartIndexList result;
-        for (int partIndex = 0; partIndex < Codec_->GetTotalPartCount(); ++partIndex) {
+        for (int partIndex = 0; partIndex < codecParams.TotalPartCount; ++partIndex) {
             if (partsToFetch.test(partIndex)) {
                 result.push_back(partIndex);
             }
@@ -252,9 +256,10 @@ private:
         };
 
         auto* segmentState = &GetOrCrash(SegmentIndexToState_, segmentIndex);
+        const auto& codecParams = Codec_->GetParams();
 
         NErasure::TPartIndexSet requiredParts;
-        for (int partIndex = 0; partIndex < Codec_->GetTotalPartCount(); ++partIndex) {
+        for (int partIndex = 0; partIndex < codecParams.TotalPartCount; ++partIndex) {
             if (segmentState->PartIndexToRequestCount[partIndex] > 0) {
                 requiredParts.set(partIndex);
             }
@@ -262,8 +267,8 @@ private:
         auto maybePartsToFetch = GetPartsToFetch(requiredParts);
         YT_VERIFY(maybePartsToFetch);
 
-        std::vector<TFuture<TBlock>> partFutures(Codec_->GetTotalPartCount(), MakeFuture(TBlock()));
-        std::vector<bool> partFetched(Codec_->GetTotalPartCount());
+        std::vector<TFuture<TBlock>> partFutures(codecParams.TotalPartCount, MakeFuture(TBlock()));
+        std::vector<bool> partFetched(codecParams.TotalPartCount);
         for (auto partIndex : *maybePartsToFetch) {
             partFutures[partIndex] = FetchSegmentPart(getPartDescriptor(partIndex));
             partFetched[partIndex] = true;
@@ -281,7 +286,7 @@ private:
                 .AsyncVia(HeavyInvoker_));
 
         NErasure::TPartIndexList erasedIndices;
-        for (int partIndex = 0; partIndex < Codec_->GetTotalPartCount(); ++partIndex) {
+        for (int partIndex = 0; partIndex < codecParams.TotalPartCount; ++partIndex) {
             if (segmentState->PartIndexToRequestCount[partIndex] > 0) {
                 if (partFetched[partIndex]) {
                     segmentState->PartFutures[partIndex] = partsFuture.Apply(BIND([=] (const std::vector<TBlock>& parts) {
@@ -352,7 +357,8 @@ private:
 
         block->Checksum = expectedChecksum;
         if (auto error = block->CheckChecksum(); !error.IsOK()) {
-            YT_LOG_ALERT(error);
+            YT_TLOG_ALERT("Invalid block checksum")
+                .With(error);
             THROW_ERROR_EXCEPTION(error);
         }
     }
@@ -415,6 +421,7 @@ public:
     TErasureRepairSession(
         TErasureReaderConfigPtr config,
         const NErasure::ICodec* codec,
+        NErasure::TPartIndexList erasedIndices,
         std::vector<IChunkReaderAllowingRepairPtr> partReaders,
         std::vector<IChunkWriterPtr> partWriters,
         TChunkReaderMemoryManagerHolderPtr memoryManagerHolder,
@@ -428,10 +435,9 @@ public:
             std::move(readBlocksOptions))
         , PartWriters_(std::move(partWriters))
         , WriteBlocksOptions_(std::move(writeBlocksOptions))
+        , ErasedIndices_(std::move(erasedIndices))
     {
-        for (const auto& writer : PartWriters_) {
-            ErasedIndices_.push_back(ReplicaIndexFromErasurePartId(writer->GetChunkId()));
-        }
+        YT_VERIFY(ErasedIndices_.size() == PartWriters_.size());
     }
 
     TFuture<void> Run()
@@ -444,7 +450,7 @@ public:
 private:
     const std::vector<IChunkWriterPtr> PartWriters_;
     const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
-    NErasure::TPartIndexList ErasedIndices_;
+    const NErasure::TPartIndexList ErasedIndices_;
 
     void DoRun()
     {
@@ -544,6 +550,7 @@ private:
 TFuture<void> RepairErasedPartsStriped(
     TErasureReaderConfigPtr config,
     const NErasure::ICodec* codec,
+    NErasure::TPartIndexList erasedPartIndices,
     std::vector<IChunkReaderAllowingRepairPtr> partReaders,
     std::vector<IChunkWriterPtr> partWriters,
     TChunkReaderMemoryManagerHolderPtr memoryManagerHolder,
@@ -553,6 +560,7 @@ TFuture<void> RepairErasedPartsStriped(
     auto repairSession = New<TErasureRepairSession>(
         std::move(config),
         codec,
+        std::move(erasedPartIndices),
         std::move(partReaders),
         std::move(partWriters),
         std::move(memoryManagerHolder),

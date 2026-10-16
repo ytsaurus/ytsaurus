@@ -14,8 +14,8 @@ TAG(
     ya:dump_test_env
     ya:large_tests_on_single_slots
 )
-    
-YT_SPEC(yt/yt/tests/integration/spec.yson)
+
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
 
 REQUIREMENTS(
     yav:YT_TOKEN=value:sec-01gg4hcd881t1nncr04nmbeg04:yt_token

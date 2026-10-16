@@ -109,9 +109,9 @@ using namespace NYTree;
 using namespace NYson;
 
 using NChunkClient::NProto::TMiscExt;
-using NYT::ToProto;
-using NYT::FromProto;
 using NQueryClient::TDistributedSessionId;
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,7 +121,7 @@ static constexpr i64 MaxRowsPerRemoteDynamicStoreRead = 1024;
 static const std::string DefaultQLExecutionPoolName = "default";
 static const std::string DefaultQLExecutionTag = "default";
 
-static const std::string DefaultPullRowsPoolName = "$ChaosPullRows";
+static const std::string DefaultPullRowsPoolName = "$chaos_pull_rows";
 static const std::string DefaultPullRowsTag = "default";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,7 +140,8 @@ T ExecuteRequestWithRetries(
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             if (IsRetriableQueryError(error)) {
-                YT_LOG_INFO(error, "Request failed, retrying");
+                YT_TLOG_INFO("Request failed, retrying")
+                    .With(error);
                 errors.push_back(error);
                 continue;
             } else {
@@ -149,7 +150,7 @@ T ExecuteRequestWithRetries(
         }
     }
     THROW_ERROR_EXCEPTION("Request failed after %v retries", maxRetries)
-        << errors;
+        .With(errors);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -169,6 +170,29 @@ void ValidateColumnFilterContainsAllKeyColumns(
                 columnIndex);
         }
     }
+}
+
+//! Returns the number of rows of an ordered tablet that reside in chunk stores
+//! (including trimmed ones); returns null for sorted tablets.
+//! NB: Store flushes are coordinated by master, so this never exceeds master's @flushed_row_count.
+std::optional<i64> GetFlushedRowCount(const NTabletNode::TTabletSnapshotPtr& tabletSnapshot)
+{
+    if (tabletSnapshot->PhysicalSchema->IsSorted()) {
+        return std::nullopt;
+    }
+
+    const auto& stores = tabletSnapshot->OrderedStores;
+    for (auto it = stores.rbegin(); it != stores.rend(); ++it) {
+        const auto& store = *it;
+        if (!store->IsDynamic()) {
+            return store->GetStartingRowIndex() + store->GetRowCount();
+        }
+    }
+
+    // No chunk stores: either all of them have been trimmed or nothing has been flushed yet.
+    return stores.empty()
+        ? tabletSnapshot->TotalRowCount
+        : stores.front()->GetStartingRowIndex();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -394,13 +418,14 @@ private:
         Bootstrap_->GetTabletSnapshotStore()->ValidateUserNotBanned(GetCurrentAuthenticationIdentity().User);
 
         const auto& requestHeaderExt = context->RequestHeader().GetExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
-        context->SetRequestInfo("ExecutionPool: %v",
-            requestHeaderExt.execution_pool());
+        context->AnnotateRequest()
+            .With("ExecutionPool", requestHeaderExt.execution_pool());
 
         TServiceProfilerGuard profilerGuard;
 
         auto query = FromProto<TConstQueryPtr>(request->query());
-        context->SetIncrementalResponseInfo("FragmentId: %v", query->Id);
+        context->AnnotateResponse()
+            .With("FragmentId", query->Id);
 
         auto externalCGInfo = New<TExternalCGInfo>();
         FromProto(&externalCGInfo->Functions, request->external_functions());
@@ -415,8 +440,8 @@ private:
 
         if (request->has_feature_flags()) {
             FromProto(&requestFeatureFlags, request->feature_flags());
-            YT_LOG_DEBUG("Got request feature flags (Flags: %v)",
-                ToString(requestFeatureFlags));
+            YT_TLOG_DEBUG("Got request feature flags")
+                .With("Flags", ToString(requestFeatureFlags));
         }
 
         auto memoryChunkProvider = MemoryProvider_->GetOrCreateProvider(
@@ -426,26 +451,25 @@ private:
 
         auto dataSources = FromProto<std::vector<NQueryClient::TDataSource>>(request->data_sources(), memoryChunkProvider);
 
-        YT_LOG_DEBUG("Query deserialized (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
-            "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
-            "ReadSessionId: %v, MemoryLimitPerNode: %v, "
-            "RowsetProcessingBatchSize: %v, WriteRowsetSize: %v, MaxJoinBatchSize: %v, "
-            "DataRangeCount: %v, RandomTabletId: %v, StatisticsAggregation: %Qv)",
-            query->Id,
-            queryOptions.InputRowLimit,
-            queryOptions.OutputRowLimit,
-            queryOptions.RangeExpansionLimit,
-            queryOptions.MaxSubqueries,
-            queryOptions.EnableCodeCache,
-            queryOptions.WorkloadDescriptor,
-            queryOptions.ReadSessionId,
-            queryOptions.MemoryLimitPerNode,
-            queryOptions.RowsetProcessingBatchSize,
-            queryOptions.WriteRowsetSize,
-            queryOptions.MaxJoinBatchSize,
-            dataSources.size(),
-            dataSources.begin()->ObjectId,
-            queryOptions.StatisticsAggregation);
+        auto attachments = std::move(request->Attachments()); // TODO: capture in MemoryTracker_;
+
+        YT_TLOG_DEBUG("Query deserialized")
+            .With("FragmentId", query->Id)
+            .With("InputRowLimit", queryOptions.InputRowLimit)
+            .With("OutputRowLimit", queryOptions.OutputRowLimit)
+            .With("RangeExpansionLimit", queryOptions.RangeExpansionLimit)
+            .With("MaxSubqueries", queryOptions.MaxSubqueries)
+            .With("EnableCodeCache", queryOptions.EnableCodeCache)
+            .With("WorkloadDescriptor", queryOptions.WorkloadDescriptor)
+            .With("ReadSessionId", queryOptions.ReadSessionId)
+            .With("MemoryLimitPerNode", queryOptions.MemoryLimitPerNode)
+            .With("RowsetProcessingBatchSize", queryOptions.RowsetProcessingBatchSize)
+            .With("WriteRowsetSize", queryOptions.WriteRowsetSize)
+            .With("MaxJoinBatchSize", queryOptions.MaxJoinBatchSize)
+            .With("DataRangeCount", dataSources.size())
+            .With("RandomTabletId", dataSources.begin()->ObjectId)
+            .With("StatisticsAggregation", queryOptions.StatisticsAggregation)
+            .With("AttachmentCount", attachments.size());
 
         if (RejectUponThrottlerOverdraft_.load(std::memory_order::relaxed)) {
             TClientChunkReadOptions chunkReadOptions{
@@ -487,6 +511,7 @@ private:
                     query,
                     externalCGInfo,
                     dataSources,
+                    attachments,
                     writer,
                     memoryChunkProvider,
                     invoker,
@@ -498,8 +523,8 @@ private:
                     memoryChunkProvider->GetMaxAllocated(),
                     queryOptions.StatisticsAggregation);
 
-                YT_LOG_DEBUG("Query evaluation finished (TotalMemoryUsage: %v)",
-                    statistics.MemoryUsage.GetTotal());
+                YT_TLOG_DEBUG("Query evaluation finished")
+                    .With("TotalMemoryUsage", statistics.MemoryUsage.GetTotal());
 
                 auto responseFeatureFlags = MostFreshFeatureFlags();
                 ToProto(response->mutable_feature_flags(), responseFeatureFlags);
@@ -561,19 +586,16 @@ private:
             ? FromProto<TVersionedReadOptions>(request->versioned_read_options())
             : TVersionedReadOptions();
 
-        context->SetRequestInfo("TabletIds: %v, Timestamp: %v, RetentionTimestamp: %v, RequestCodec: %v, ResponseCodec: %v, "
-            "ReadSessionId: %v, InMemoryMode: %v, RetentionConfig: %v, VersionedReadMode: %v",
-            MakeFormattableView(request->tablet_ids(), [] (auto* builder, const auto& protoTabletId) {
-                FormatValue(builder, FromProto<TTabletId>(protoTabletId), TStringBuf());
-            }),
-            timestamp,
-            retentionTimestamp,
-            requestCodecId,
-            responseCodecId,
-            chunkReadOptions.ReadSessionId,
-            inMemoryMode,
-            retentionConfig,
-            versionedReadOptions.ReadMode);
+        context->AnnotateRequest()
+            .With("TabletIds", MakeFormattableView(request->tablet_ids(), [] (auto* builder, const auto& protoTabletId) { FormatValue(builder, FromProto<TTabletId>(protoTabletId), TStringBuf()); }))
+            .With("Timestamp", timestamp)
+            .With("RetentionTimestamp", retentionTimestamp)
+            .With("RequestCodec", requestCodecId)
+            .With("ResponseCodec", responseCodecId)
+            .With("ReadSessionId", chunkReadOptions.ReadSessionId)
+            .With("InMemoryMode", inMemoryMode)
+            .With("RetentionConfig", retentionConfig)
+            .With("VersionedReadMode", versionedReadOptions.ReadMode);
 
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto* responseCodec = NCompression::GetCodec(responseCodecId);
@@ -593,6 +615,29 @@ private:
 
         Bootstrap_->GetInThrottler(EWorkloadCategory::UserInteractive)->Acquire(
             request->ByteSizeLong());
+
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        std::vector<TError> servantNotActiveErrors;
+        for (int index = 0; index < tabletCount; ++index) {
+            auto tabletId = FromProto<TTabletId>(request->tablet_ids(index));
+            auto cellId = FromProto<TCellId>(request->cell_ids(index));
+            auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revisions(index));
+            auto snapshot = snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
+            if (auto error = snapshot->ValidateServantIsActive(Bootstrap_->GetClient()->GetNativeConnection()->GetCellDirectory());
+                !error.IsOK())
+            {
+                servantNotActiveErrors.push_back(std::move(error));
+            }
+        }
+
+        if (!servantNotActiveErrors.empty()) {
+            if (servantNotActiveErrors.size() == 1) {
+                servantNotActiveErrors[0].ThrowOnError();
+            } else {
+                THROW_ERROR_EXCEPTION("Some tablet servants are not active")
+                    .With(servantNotActiveErrors);
+            }
+        }
 
         auto lookupSession = CreateLookupSession(
             inMemoryMode,
@@ -661,7 +706,7 @@ private:
         auto startReplicationRowIndex = request->has_start_replication_row_index()
             ? std::make_optional(request->start_replication_row_index())
             : std::nullopt;
-        auto upperTimestamp = request->upper_timestamp();
+        auto upperTimestamp = FromProto<NTransactionClient::TTimestamp>(request->upper_timestamp());
         auto maxDataWeight = request->has_max_data_weight()
             ? request->max_data_weight()
             : std::numeric_limits<i64>::max();
@@ -686,16 +731,15 @@ private:
             .MaxRowsPerRead = request->max_rows_per_read(),
         };
 
-        context->SetRequestInfo("TabletId: %v, StartReplicationRowIndex: %v, Progress: %v, UpperTimestamp: %v, "
-            "ResponseCodec: %v, ReadSessionId: %v, RequestTimeout: %v, PullerTabletId: %v)",
-            tabletId,
-            startReplicationRowIndex,
-            progress,
-            upperTimestamp,
-            responseCodecId,
-            chunkReadOptions.ReadSessionId,
-            requestTimeout,
-            pullerTabletId);
+        context->AnnotateRequest()
+            .With("TabletId", tabletId)
+            .With("StartReplicationRowIndex", startReplicationRowIndex)
+            .With("Progress", progress)
+            .With("UpperTimestamp", upperTimestamp)
+            .With("ResponseCodec", responseCodecId)
+            .With("ReadSessionId", chunkReadOptions.ReadSessionId)
+            .With("RequestTimeout", requestTimeout)
+            .WithFormat("PullerTabletId", "%v)", pullerTabletId);
 
         auto requestDeadLine = (requestTimeout - Config_->PullRowsTimeoutSlack).ToDeadLine();
 
@@ -735,9 +779,9 @@ private:
                     upperTimestamp = NullTimestamp;
                 }
 
-                YT_LOG_DEBUG("Trying to get replication log batch for pull rows (ReplicationProgress: %v, UpperTimestamp: %v)",
-                    static_cast<NChaosClient::TReplicationProgress>(*replicationProgress),
-                    upperTimestamp);
+                YT_TLOG_DEBUG("Trying to get replication log batch for pull rows")
+                    .With("ReplicationProgress", static_cast<NChaosClient::TReplicationProgress>(*replicationProgress))
+                    .With("UpperTimestamp", upperTimestamp);
 
                 auto* serviceCounters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(currentProfilingUser);
                 profilerGuard.Start(serviceCounters->PullRows);
@@ -764,9 +808,17 @@ private:
                 auto trimmedRowCount = tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load();
                 auto totalRowCount = tabletSnapshot->TabletRuntimeData->TotalRowCount.load();
 
-                YT_LOG_DEBUG("Reading replication log (TrimmedRowCount: %v, TotalRowCount: %v)",
-                    trimmedRowCount,
-                    totalRowCount);
+                YT_TLOG_DEBUG("Reading replication log")
+                    .With("TrimmedRowCount", trimmedRowCount)
+                    .With("TotalRowCount", totalRowCount);
+
+                if (startReplicationRowIndex && *startReplicationRowIndex < trimmedRowCount) {
+                    YT_TLOG_DEBUG("Start row index is outdated, ignoring")
+                        .With("TrimmedRowCount", trimmedRowCount)
+                        .With("StartReplicationRowIndex", *startReplicationRowIndex);
+
+                    startReplicationRowIndex = std::nullopt;
+                }
 
                 auto startRowIndex = logParser->ComputeStartRowIndex(
                     tabletSnapshot,
@@ -800,20 +852,19 @@ private:
                     endReplicationRowIndex = startReplicationRowIndex;
                 }
 
-                YT_LOG_DEBUG("Read replication batch (LastTimestamp: %v, ReadAllRows: %v, UpperTimestamp: %v, ProgressMinTimestamp: %v)",
-                    result.MaxTimestamp,
-                    result.ReadAllRows,
-                    upperTimestamp,
-                    GetReplicationProgressMinTimestamp(*replicationProgress));
+                auto replicationProgressMinTimestamp = GetReplicationProgressMinTimestamp(*replicationProgress);
+                YT_TLOG_DEBUG("Read replication batch")
+                    .With("LastTimestamp", result.MaxTimestamp)
+                    .With("ReadAllRows", result.ReadAllRows)
+                    .With("UpperTimestamp", upperTimestamp)
+                    .With("ProgressMinTimestamp", replicationProgressMinTimestamp);
 
                 if (result.ReadAllRows) {
                     if (upperTimestamp) {
                         result.MaxTimestamp = upperTimestamp;
                     }
 
-                    result.MaxTimestamp = std::max(
-                        result.MaxTimestamp,
-                        GetReplicationProgressMinTimestamp(*replicationProgress));
+                    result.MaxTimestamp = std::max(result.MaxTimestamp, replicationProgressMinTimestamp);
                 }
 
                 auto endProgress = AdvanceReplicationProgress(progress, result.MaxTimestamp);
@@ -836,23 +887,21 @@ private:
                 response->Attachments().push_back(responseCodec->Compress(writer->Finish()));
                 AcquireUserBackendOutTraffic(GetAttachmentBytes(response));
 
-                context->SetResponseInfo("RowCount: %v, DataWeight: %v, ProcessedRowCount: %v, EndRowIndex: %v, Progress: %v",
-                    result.ResponseRowCount,
-                    result.ResponseDataWeight,
-                    result.ReadRowCount,
-                    endReplicationRowIndex,
-                    endProgress);
+                context->AnnotateResponse()
+                    .With("RowCount", result.ResponseRowCount)
+                    .With("DataWeight", result.ResponseDataWeight)
+                    .With("ProcessedRowCount", result.ReadRowCount)
+                    .With("EndRowIndex", endReplicationRowIndex)
+                    .With("Progress", endProgress);
                 context->Reply();
             });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, GetTabletInfo)
     {
-        context->SetRequestInfo("TabletIds: %v, RequestErrors: %v",
-            MakeFormattableView(request->tablet_ids(), [] (auto* builder, const auto& protoTabletId) {
-                FormatValue(builder, FromProto<TTabletId>(protoTabletId), TStringBuf());
-            }),
-            request->request_errors());
+        context->AnnotateRequest()
+            .With("TabletIds", MakeFormattableView(request->tablet_ids(), [] (auto* builder, const auto& protoTabletId) { FormatValue(builder, FromProto<TTabletId>(protoTabletId), TStringBuf()); }))
+            .With("RequestErrors", request->request_errors());
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
 
@@ -874,11 +923,12 @@ private:
             auto* protoTabletInfo = response->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletId);
             // NB: Read barrier timestamp first to ensure a certain degree of consistency with TotalRowCount.
-            protoTabletInfo->set_barrier_timestamp(tabletSnapshot->TabletCellRuntimeData->BarrierTimestamp.load());
+            protoTabletInfo->set_barrier_timestamp(ToProto(tabletSnapshot->TabletCellRuntimeData->BarrierTimestamp.load()));
             protoTabletInfo->set_total_row_count(tabletSnapshot->TabletRuntimeData->TotalRowCount.load());
             protoTabletInfo->set_trimmed_row_count(tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load());
+            YT_OPTIONAL_SET_PROTO(protoTabletInfo, flushed_row_count, GetFlushedRowCount(tabletSnapshot));
             protoTabletInfo->set_delayed_lockless_row_count(tabletSnapshot->TabletRuntimeData->DelayedLocklessRowCount.load());
-            protoTabletInfo->set_last_write_timestamp(tabletSnapshot->TabletRuntimeData->LastWriteTimestamp.load());
+            protoTabletInfo->set_last_write_timestamp(ToProto(tabletSnapshot->TabletRuntimeData->LastWriteTimestamp.load()));
 
             if (request->request_errors()) {
                 tabletSnapshot->TabletRuntimeData->Errors.ForEachError([&] (const TError& error) {
@@ -899,7 +949,7 @@ private:
 
                 auto* protoReplicaInfo = protoTabletInfo->add_replicas();
                 ToProto(protoReplicaInfo->mutable_replica_id(), replicaId);
-                protoReplicaInfo->set_last_replication_timestamp(lastReplicationTimestamp);
+                protoReplicaInfo->set_last_replication_timestamp(ToProto(lastReplicationTimestamp));
                 protoReplicaInfo->set_mode(ToProto(replicaSnapshot->RuntimeData->Mode.load()));
                 protoReplicaInfo->set_current_replication_row_index(replicaSnapshot->RuntimeData->CurrentReplicationRowIndex.load());
                 protoReplicaInfo->set_committed_replication_row_index(replicaSnapshot->RuntimeData->CommittedReplicationRowIndex.load());
@@ -924,14 +974,14 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto cellId = FromProto<TCellId>(request->cell_id());
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
-        auto timestamp = request->timestamp();
+        auto timestamp = FromProto<NTransactionClient::TTimestamp>(request->timestamp());
 
-        context->SetRequestInfo("StoreId: %v, TabletId: %v, CellId: %v, ReadSessionId: %v, Timestamp: %v",
-            storeId,
-            tabletId,
-            cellId,
-            readSessionId,
-            timestamp);
+        context->AnnotateRequest()
+            .With("StoreId", storeId)
+            .With("TabletId", tabletId)
+            .With("CellId", cellId)
+            .With("ReadSessionId", readSessionId)
+            .With("Timestamp", timestamp);
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
@@ -943,12 +993,11 @@ private:
         }
 
         if (tabletSnapshot->IsPreallocatedDynamicStoreId(storeId)) {
-            YT_LOG_DEBUG("Dynamic store is not created yet, sending nothing (TabletId: %v, StoreId: %v, "
-                "ReadSessionId: %v, RequestId: %v)",
-                tabletId,
-                storeId,
-                readSessionId,
-                context->GetRequestId());
+            YT_TLOG_DEBUG("Dynamic store is not created yet, sending nothing")
+                .With("TabletId", tabletId)
+                .With("StoreId", storeId)
+                .With("ReadSessionId", readSessionId)
+                .With("RequestId", context->GetRequestId());
             HandleInputStreamingRequest(
                 context,
                 [] { return TSharedRef(); });
@@ -1001,17 +1050,15 @@ private:
                     : MaxRowsPerRemoteDynamicStoreRead
             };
 
-            YT_LOG_DEBUG("Started serving remote dynamic store read request "
-                "(TabletId: %v, StoreId: %v, Timestamp: %v, ReadSessionId: %v, "
-                "LowerBound: %v, UpperBound: %v, ColumnFilter: %v, RequestId: %v)",
-                tabletId,
-                storeId,
-                timestamp,
-                readSessionId,
-                lowerBound,
-                upperBound,
-                columnFilter,
-                context->GetRequestId());
+            YT_TLOG_DEBUG("Started serving remote dynamic store read request")
+                .With("TabletId", tabletId)
+                .With("StoreId", storeId)
+                .With("Timestamp", timestamp)
+                .With("ReadSessionId", readSessionId)
+                .With("LowerBound", lowerBound)
+                .With("UpperBound", upperBound)
+                .With("ColumnFilter", columnFilter)
+                .With("RequestId", context->GetRequestId());
 
             HandleInputStreamingRequest(context, [&] {
                 TFiberWallTimer timer;
@@ -1044,6 +1091,10 @@ private:
 
                 struct TReadDynamicStoreTag { };
                 auto mergedRef = MergeRefsToRef<TReadDynamicStoreTag>(data);
+                mergedRef = TrackMemory(
+                    Bootstrap_->GetNodeMemoryUsageTracker(),
+                    EMemoryCategory::ReadDynamicStore,
+                    std::move(mergedRef));
                 dataWeight += mergedRef.size();
 
                 auto throttleResult = WaitFor(bandwidthThrottler->Throttle(mergedRef.size()));
@@ -1070,16 +1121,14 @@ private:
                 /*chunkReadOptions*/ {},
                 /*workloadCategory*/ {});
 
-            YT_LOG_DEBUG("Started serving remote dynamic store read request "
-                "(TabletId: %v, StoreId: %v, ReadSessionId: %v, "
-                "StartRowIndex: %v, EndRowIndex: %v, ColumnFilter: %v, RequestId: %v)",
-                tabletId,
-                storeId,
-                readSessionId,
-                startRowIndex,
-                endRowIndex,
-                columnFilter,
-                context->GetRequestId());
+            YT_TLOG_DEBUG("Started serving remote dynamic store read request")
+                .With("TabletId", tabletId)
+                .With("StoreId", storeId)
+                .With("ReadSessionId", readSessionId)
+                .With("StartRowIndex", startRowIndex)
+                .With("EndRowIndex", endRowIndex)
+                .With("ColumnFilter", columnFilter)
+                .With("RequestId", context->GetRequestId());
 
             bool sendOffset = true;
 
@@ -1128,6 +1177,10 @@ private:
 
                 struct TReadDynamicStoreTag { };
                 auto mergedRef = MergeRefsToRef<TReadDynamicStoreTag>(data);
+                mergedRef = TrackMemory(
+                    Bootstrap_->GetNodeMemoryUsageTracker(),
+                    EMemoryCategory::ReadDynamicStore,
+                    std::move(mergedRef));
                 dataWeight += mergedRef.size();
 
                 auto throttleResult = WaitFor(bandwidthThrottler->Throttle(mergedRef.size()));
@@ -1202,7 +1255,7 @@ private:
         }
 
         if (auto overrideTimestamp = chunk->GetOverrideTimestamp()) {
-            chunkSpec->set_override_timestamp(overrideTimestamp);
+            chunkSpec->set_override_timestamp(ToProto(overrideTimestamp));
         }
     }
 
@@ -1296,12 +1349,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, FetchTabletStores)
     {
-        context->SetRequestInfo("Subrequests: %v",
-            MakeFormattableView(request->subrequests(), [] (auto* builder, const auto& subrequest) {
-                builder->AppendFormat("{TabletId: %v, TableIndex: %v}",
-                    FromProto<TTabletId>(subrequest.tablet_id()),
-                    subrequest.table_index());
-            }));
+        context->AnnotateRequest()
+            .With("Subrequests", MakeFormattableView(request->subrequests(), [] (auto* builder, const auto& subrequest) { builder->AppendFormat("{TabletId: %v, TableIndex: %v}", FromProto<TTabletId>(subrequest.tablet_id()), subrequest.table_index()); }));
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
 
@@ -1471,8 +1520,8 @@ private:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error fetching tablet %v stores",
                     tabletId)
-                    << TErrorAttribute("tablet_id", tabletId)
-                    << ex;
+                    .With("tablet_id", tabletId)
+                    .With(ex);
             }
         }
 
@@ -1520,27 +1569,24 @@ private:
             THROW_ERROR_EXCEPTION("Missing obligatory \"max_data_weight\" parameter");
         }
 
-        context->SetRequestInfo(
-            "TabletId: %v, CellId: %v, TabletIndex: %v, RowIndex: %v, MaxRowCount: %v, MaxDataWeight: %v",
-            tabletId,
-            cellId,
-            request->tablet_index(),
-            request->row_index(),
-            request->max_row_count(),
-            request->max_data_weight());
+        context->AnnotateRequest()
+            .With("TabletId", tabletId)
+            .With("CellId", cellId)
+            .With("TabletIndex", request->tablet_index())
+            .With("RowIndex", request->row_index())
+            .With("MaxRowCount", request->max_row_count())
+            .With("MaxDataWeight", request->max_data_weight());
 
         auto trimmedRowCount = tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load();
-        YT_LOG_DEBUG(
-            "Loading current trimmed row count from tablet runtime data (TabletId: %v, TrimmedRowCount: %v)",
-            tabletId,
-            trimmedRowCount);
+        YT_TLOG_DEBUG("Loading current trimmed row count from tablet runtime data")
+            .With("TabletId", tabletId)
+            .With("TrimmedRowCount", trimmedRowCount);
 
         auto rowIndex = request->row_index();
         if (trimmedRowCount > rowIndex) {
-            YT_LOG_DEBUG(
-                "Some of the desired rows are trimmed; reading from first untrimmed row (RowIndex: %v, TrimmedRowCount: %v)",
-                rowIndex,
-                trimmedRowCount);
+            YT_TLOG_DEBUG("Some of the desired rows are trimmed; reading from first untrimmed row")
+                .With("RowIndex", rowIndex)
+                .With("TrimmedRowCount", trimmedRowCount);
             rowIndex = trimmedRowCount;
         }
 
@@ -1548,11 +1594,10 @@ private:
 
         IOrderedStorePtr desiredStore;
 
-        YT_LOG_DEBUG(
-            "Searching for appropriate ordered store to fetch rows from (TabletId: %v, StoreCount: %v, RowIndex: %v)",
-            tabletId,
-            orderedStores.size(),
-            rowIndex);
+        YT_TLOG_DEBUG("Searching for appropriate ordered store to fetch rows from")
+            .With("TabletId", tabletId)
+            .With("StoreCount", orderedStores.size())
+            .With("RowIndex", rowIndex);
 
         TServiceProfilerGuard profilerGuard;
 
@@ -1589,10 +1634,10 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Found store to read from (StoreId: %v, StartingRowIndex: %v, RowCount: %v)",
-            desiredStore->GetId(),
-            desiredStore->GetStartingRowIndex(),
-            desiredStore->GetRowCount());
+        YT_TLOG_DEBUG("Found store to read from")
+            .With("StoreId", desiredStore->GetId())
+            .With("StartingRowIndex", desiredStore->GetStartingRowIndex())
+            .With("RowCount", desiredStore->GetRowCount());
 
         TClientChunkReadOptions chunkReadOptions;
         if (request->options().has_workload_descriptor()) {
@@ -1642,9 +1687,9 @@ private:
         const IThroughputThrottlerPtr& throttler,
         TFetchRowsFromOrderedStoreResult result)
     {
-        context->SetResponseInfo("RowCount: %v, DataWeight: %v",
-            result.RowCount,
-            result.DataWeight);
+        context->AnnotateResponse()
+            .With("RowCount", result.RowCount)
+            .With("DataWeight", result.DataWeight);
 
         auto* response = &context->Response();
         response->Attachments() = std::move(result.Rowsets);
@@ -1653,8 +1698,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, GetOrderedTabletSafeTrimRowCount)
     {
-        context->SetRequestInfo("Subrequests: %v",
-            request->subrequests_size());
+        context->AnnotateRequest()
+            .With("Subrequests", request->subrequests_size());
 
         std::vector<TFuture<i64>> asyncSubrequests;
         asyncSubrequests.reserve(request->subrequests_size());
@@ -1666,7 +1711,7 @@ private:
                 FromProto<TTabletId>(subrequest.tablet_id()),
                 FromProto<TCellId>(subrequest.cell_id()),
                 YT_OPTIONAL_FROM_PROTO(subrequest, mount_revision, NHydra::TRevision),
-                subrequest.timestamp())
+                FromProto<NTransactionClient::TTimestamp>(subrequest.timestamp()))
                 .AsyncVia(GetCurrentInvoker())
                 .Run());
         }
@@ -1712,10 +1757,16 @@ private:
 
         // In practice, this should rarely happen, since there is almost always at least one active store.
         if (orderedStores.empty()) {
+            YT_TLOG_DEBUG("Ordered stores are empty")
+                .With("TabletId", tabletId)
+                .With("Timestamp", timestamp)
+                .With("SafeToTrimRowCount", tabletSnapshot->TotalRowCount);
+
             return tabletSnapshot->TotalRowCount;
         }
 
         // Should match TabletManaget::ValidateTrimmedRowCountPrecedeReplication
+        auto requestedTimestamp = timestamp;
         if (auto replicationCard = tabletSnapshot->TabletRuntimeData->ReplicationCard.Acquire();
             replicationCard && !replicationCard->Replicas.empty())
         {
@@ -1753,8 +1804,6 @@ private:
             // NB: FinishRowIndex, MinTimestamp and MaxTimestamp might be inconsistent with each other.
         }
 
-        const auto& lastStore = storeSnapshots.back();
-
         // We want to find the first store containing timestamps >= T.
         //
         // For this we look for the first store S, such that T <= S->GetMaxTimestamp().
@@ -1780,9 +1829,29 @@ private:
         // The list of ordered stores is produced from a mapping of the form [startingRowIndex -> store],
         // so only the last store can potentially be empty. This is perfectly fine for us.
 
-        return desiredStoreIt != storeSnapshots.end()
-            ? desiredStoreIt->StartRowIndex
-            : lastStore.FinishRowIndex;
+        if (desiredStoreIt == storeSnapshots.end()) {
+            const auto& lastStore = storeSnapshots.back();
+            i64 rowCount = lastStore.FinishRowIndex;
+
+            YT_TLOG_DEBUG("Using the last store")
+                .With("TabletId", tabletId)
+                .With("Timestamp", timestamp)
+                .With("RequestedTimestamp", requestedTimestamp)
+                .With("SafeToTrimRowCount", rowCount);
+
+            return rowCount;
+        } else {
+            i64 rowCount = desiredStoreIt->StartRowIndex;
+
+            YT_TLOG_DEBUG("Store found")
+                .With("TabletId", tabletId)
+                .With("StoreId", desiredStoreIt->Id)
+                .With("Timestamp", timestamp)
+                .With("RequestedTimestamp", requestedTimestamp)
+                .With("SafeToTrimRowCount", rowCount);
+
+            return rowCount;
+        }
     }
 
     void OnDynamicConfigChanged(
@@ -1811,9 +1880,9 @@ private:
         auto retentionTime = FromProto<TDuration>(request->retention_time());
         auto codecId = FromProto<ECodec>(request->codec());
 
-        context->SetRequestInfo("DistributedSessionId: %v, CodecId: %v",
-            sessionId,
-            codecId);
+        context->AnnotateRequest()
+            .With("DistributedSessionId", sessionId)
+            .With("CodecId", codecId);
 
         auto memoryLimitPerNode = YT_OPTIONAL_FROM_PROTO(*request, memory_limit_per_node);
 
@@ -1837,8 +1906,8 @@ private:
         auto sessionId = FromProto<TDistributedSessionId>(request->session_id());
         auto session = DistributedSessionManager_->GetDistributedSessionOrThrow(sessionId);
 
-        context->SetRequestInfo("DistributedSessionId: %v",
-            sessionId);
+        context->AnnotateRequest()
+            .With("DistributedSessionId", sessionId);
 
         session->RenewLease();
 
@@ -1853,11 +1922,12 @@ private:
     {
         auto sessionId = FromProto<TDistributedSessionId>(request->session_id());
 
-        context->SetRequestInfo("SessionId: %v",
-            sessionId);
+        context->AnnotateRequest()
+            .With("SessionId", sessionId);
 
         if (DistributedSessionManager_->CloseDistributedSession(sessionId)) {
-            YT_LOG_DEBUG("Distributed query session closed remotely (SessionId: %v)", sessionId);
+            YT_TLOG_DEBUG("Distributed query session closed remotely")
+                .With("SessionId", sessionId);
         }
 
         context->Reply();
@@ -1869,9 +1939,9 @@ private:
         auto rowsetId = FromProto<TRowsetId>(request->rowset_id());
         auto schema = FromProto<TTableSchemaPtr>(request->schema());
 
-        context->SetRequestInfo("SessionId: %v, RowsetId: %v",
-            sessionId,
-            rowsetId);
+        context->AnnotateRequest()
+            .With("SessionId", sessionId)
+            .With("RowsetId", rowsetId);
 
         auto session = DistributedSessionManager_->GetDistributedSessionOrThrow(sessionId);
 

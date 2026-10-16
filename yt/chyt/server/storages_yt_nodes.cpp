@@ -362,7 +362,7 @@ std::vector<INodePtr> ResolveLinks(
             } else {
                 // Errors other than ResolveError are not expected.
                 THROW_ERROR_EXCEPTION("Failed to resolve links in directory")
-                    << resolvedNodeOrError;
+                    .With(resolvedNodeOrError);
             }
             ++linkIndex;
         }
@@ -782,7 +782,7 @@ protected:
                 // Some dirs may not exist, ignore them.
             } else {
                 THROW_ERROR_EXCEPTION("Failed to list directory")
-                    << nodeOrError;
+                    .With(nodeOrError);
             }
         }
 
@@ -856,6 +856,84 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStorageYtQueueExports
+    : public TStorageYtNodesBase
+{
+public:
+    TStorageYtQueueExports(std::string exportDirectory, TStorageYtQueueExportsOptions options)
+        : ExportDirectory_(std::move(exportDirectory))
+        , Options_(std::move(options))
+    { }
+
+protected:
+    std::vector<INodePtr> FetchNodesWithAttributes(
+        const std::vector<TString>& attributesToFetch,
+        TQueryContext* queryContext) override
+    {
+        auto nodes = ValuesOrThrow(ListDirs({TString(ExportDirectory_)}, attributesToFetch, queryContext));
+
+        std::erase_if(nodes, [this] (const INodePtr& node) {
+            return !IsTable(node) || !IsNodeKeySuitable(node);
+        });
+
+        return nodes;
+    }
+
+private:
+    std::string ExportDirectory_;
+    TStorageYtQueueExportsOptions Options_;
+
+    bool IsNodeKeySuitable(const INodePtr& node) const
+    {
+        auto maybeTimestamp = GetTableTimestamp(node);
+        if (!maybeTimestamp) {
+            return false;
+        }
+
+        if (!Options_.From && !Options_.To) {
+            return true;
+        }
+
+        auto timestamp = *maybeTimestamp;
+
+        auto startTime = Options_.UseUpperBoundForTableNames ? timestamp - Options_.Period : timestamp;
+        auto finishTime = startTime + Options_.Period;
+
+        if (Options_.From && finishTime <= *Options_.From) {
+            return false;
+        }
+        if (Options_.To && *Options_.To <= startTime) {
+            return false;
+        }
+
+        return true;
+    }
+
+    std::optional<TInstant> GetTableTimestamp(const INodePtr& node) const
+    {
+        std::string name = BaseName(node->GetValue<TYPath>());
+
+        auto name_prefix_size = Options_.OutputTableNamePatternPrefix.size();
+        auto name_suffix_size = Options_.OutputTableNamePatternSuffix.size();
+
+        if (!name.starts_with(Options_.OutputTableNamePatternPrefix) || !name.ends_with(Options_.OutputTableNamePatternSuffix) ||
+            name.size() < name_prefix_size + name_suffix_size) {
+            return std::nullopt;
+        }
+
+        std::string value = name.substr(name_prefix_size, name.size() - name_prefix_size - name_suffix_size);
+
+        ui64 timestamp;
+        if (!TryFromString<ui64>(value, timestamp)) {
+            return std::nullopt;
+        }
+
+        return TInstant::Seconds(timestamp);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 DB::StoragePtr CreateStorageYtDir(TString dirPath, TStorageYtDirOptions options)
 {
     return std::make_shared<TStorageYtDir>(std::move(dirPath), std::move(options));
@@ -873,6 +951,13 @@ DB::StoragePtr CreateStorageYtNodeAttributes(std::vector<TString> paths)
 DB::StoragePtr CreateStorageYtLogTables(TString logPath, TStorageYtLogTablesOptions options)
 {
     return std::make_shared<TStorageYtLogTables>(std::move(logPath), std::move(options));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DB::StoragePtr CreateStorageYtQueueExports(const std::string& exportDirectory, const TStorageYtQueueExportsOptions& options)
+{
+    return std::make_shared<TStorageYtQueueExports>(exportDirectory, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

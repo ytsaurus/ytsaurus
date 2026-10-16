@@ -1,0 +1,22 @@
+{
+    "cluster_url" = "<cluster>";
+    "proxy_role" = #;
+    "path" = "//tmp/<login>/quickstart/pipeline";
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "source_streams" = {
+                    "random" = {
+                        "source_class_name" = "NYT::NFlow::TRandomSource";
+                    };
+                };
+            };
+        };
+    };
+    "vanilla" = {
+        "enable" = %true;
+        "pool" = "<login>";
+        "worker" = {"count" = 1};
+    };
+}

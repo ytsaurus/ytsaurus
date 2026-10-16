@@ -12,6 +12,8 @@
 
 #include <library/cpp/yt/misc/tls.h>
 
+#include <cstring>
+
 namespace NYT::NIO {
 
 using namespace NConcurrency;
@@ -38,6 +40,11 @@ void TIOEngineConfigBase::Register(TRegistrar registrar)
         .GreaterThanOrEqual(1)
         .Default(256_MB);
 
+    registrar.Parameter("direct_io_block_size", &TThis::DirectIOBlockSize)
+        .Alias("direct_io_page_size")
+        .GreaterThan(0)
+        .Default(4_KB);
+
     registrar.Parameter("simulated_max_bytes_per_read", &TThis::SimulatedMaxBytesPerRead)
         .Default()
         .GreaterThan(0);
@@ -63,6 +70,8 @@ void TIOEngineConfigBase::Register(TRegistrar registrar)
 
     registrar.Parameter("use_direct_io_for_reads", &TThis::UseDirectIOForReads)
         .Default(EDirectIOPolicy::Never);
+    registrar.Parameter("use_direct_io_for_writes", &TThis::UseDirectIOForWrites)
+        .Default(EDirectIOPolicy::Never);
 
     registrar.Parameter("total_request_limit", &TThis::TotalRequestLimit)
         .Default(std::numeric_limits<i64>::max());
@@ -70,6 +79,19 @@ void TIOEngineConfigBase::Register(TRegistrar registrar)
         .Default(std::numeric_limits<i64>::max());
     registrar.Parameter("read_request_limit", &TThis::ReadRequestLimit)
         .Default(std::numeric_limits<i64>::max());
+
+    registrar.Postprocessor([] (TThis* config) {
+        THROW_ERROR_EXCEPTION_IF(
+            config->MaxBytesPerRead < config->DirectIOBlockSize,
+            "\"max_bytes_per_read\" must be at least \"direct_io_block_size\" (MaxBytesPerRead: %v, DirectIOBlockSize: %v)",
+            config->MaxBytesPerRead,
+            config->DirectIOBlockSize);
+        THROW_ERROR_EXCEPTION_IF(
+            config->MaxBytesPerWrite < config->DirectIOBlockSize,
+            "\"max_bytes_per_write\" must be at least \"direct_io_block_size\" (MaxBytesPerWrite: %v, DirectIOBlockSize: %v)",
+            config->MaxBytesPerWrite,
+            config->DirectIOBlockSize);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,7 +112,7 @@ void TInflightCounter::Decrement()
     State_->Counter.fetch_sub(1, std::memory_order::relaxed);
 }
 
-TInflightCounter TInflightCounter::Create(TProfiler& profiler, const TString& name)
+TInflightCounter TInflightCounter::Create(TProfiler& profiler, const std::string& name)
 {
     TInflightCounter counter;
     counter.State_ = New<TState>();
@@ -102,15 +124,15 @@ TInflightCounter TInflightCounter::Create(TProfiler& profiler, const TString& na
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TIOEngineSensors::RegisterWrittenBytes(i64 count)
+void TIOEngineSensors::RegisterWrittenBytes(i64 count, EWorkloadCategory category)
 {
-    WrittenBytesCounter.Increment(count);
+    WrittenBytesCounter[category].Increment(count);
     TotalWrittenBytesCounter.fetch_add(count, std::memory_order::relaxed);
 }
 
-void TIOEngineSensors::RegisterReadBytes(i64 count)
+void TIOEngineSensors::RegisterReadBytes(i64 count, EWorkloadCategory category)
 {
-    ReadBytesCounter.Increment(count);
+    ReadBytesCounter[category].Increment(count);
     TotalReadBytesCounter.fetch_add(count, std::memory_order::relaxed);
 }
 
@@ -158,7 +180,7 @@ TRequestStatsGuard::TRequestStatsGuard(TIOEngineSensors::TRequestSensors sensors
 TRequestStatsGuard::~TRequestStatsGuard()
 {
     auto duration = Timer_.GetElapsedTime();
-    Sensors_.Timer.Record(duration);
+    Sensors_.ExecTimer.Record(duration);
     Sensors_.TotalTimeCounter.Add(duration);
     Sensors_.InflightCounter.Decrement();
 
@@ -180,18 +202,21 @@ TRequestCounterGuard::TRequestCounterGuard()
     Engine_ = nullptr;
 }
 
-TRequestCounterGuard::TRequestCounterGuard(TIntrusivePtr<TIOEngineBase> engine, EIOEngineRequestType requestType)
+TRequestCounterGuard::TRequestCounterGuard(TIntrusivePtr<TIOEngineBase> engine, EIOEngineRequestType requestType, EWorkloadCategory category)
     : Engine_(std::move(engine))
     , RequestType_(requestType)
+    , Category_(category)
 {
     YT_VERIFY(Engine_);
 
     switch (RequestType_) {
         case EIOEngineRequestType::Read:
             Engine_->InFlightReadRequestCount_.fetch_add(1);
+            Engine_->Sensors_->InflightReadRequestSensors[category].Increment();
             break;
         case EIOEngineRequestType::Write:
             Engine_->InFlightWriteRequestCount_.fetch_add(1);
+            Engine_->Sensors_->InflightWriteRequestSensors[category].Increment();
             break;
         default:
             YT_ABORT();
@@ -223,9 +248,11 @@ void TRequestCounterGuard::Release()
         switch (RequestType_) {
             case EIOEngineRequestType::Read:
                 Engine_->InFlightReadRequestCount_.fetch_sub(1);
+                Engine_->Sensors_->InflightReadRequestSensors[Category_].Decrement();
                 break;
             case EIOEngineRequestType::Write:
                 Engine_->InFlightWriteRequestCount_.fetch_sub(1);
+                Engine_->Sensors_->InflightWriteRequestSensors[Category_].Decrement();
                 break;
             default:
                 YT_ABORT();
@@ -239,6 +266,7 @@ void TRequestCounterGuard::MoveFrom(TRequestCounterGuard&& other)
 {
     Engine_ = other.Engine_;
     RequestType_ = other.RequestType_;
+    Category_ = other.Category_;
 
     other.Engine_.Reset();
 }
@@ -256,7 +284,7 @@ TFuture<TCloseResponse>
 TIOEngineBase::Close(TCloseRequest request, EWorkloadCategory category)
 {
     auto invoker = (request.Flush || request.Size) ? FsyncInvoker_ : AuxInvoker_;
-    return BIND(&TIOEngineBase::DoClose, MakeStrong(this), std::move(request))
+    return BIND(&TIOEngineBase::DoClose, MakeStrong(this), std::move(request), category)
         .AsyncVia(NConcurrency::CreateFixedPriorityInvoker(invoker, GetBasicPriority(category)))
         .Run();
 }
@@ -315,6 +343,11 @@ EDirectIOPolicy TIOEngineBase::UseDirectIOForReads() const
     return Config_.Acquire()->UseDirectIOForReads;
 }
 
+EDirectIOPolicy TIOEngineBase::UseDirectIOForWrites() const
+{
+    return Config_.Acquire()->UseDirectIOForWrites;
+}
+
 bool TIOEngineBase::IsInFlightRequestLimitExceeded() const
 {
     return GetInFlightRequestCount() >= GetTotalRequestLimit();
@@ -362,7 +395,7 @@ i64 TIOEngineBase::GetWriteRequestLimit() const
 
 TIOEngineBase::TIOEngineBase(
     TConfigPtr config,
-    TString locationId,
+    std::string locationId,
     IHugePageManagerPtr hugePageManager,
     NProfiling::TProfiler profiler,
     NLogging::TLogger logger)
@@ -391,8 +424,8 @@ TIOEngineHandlePtr TIOEngineBase::DoOpen(const TOpenRequest& request)
         THROW_ERROR_EXCEPTION(
             "Cannot open %v",
             request.Path)
-            << TErrorAttribute("mode", DecodeOpenMode(request.Mode))
-            << TError::FromSystem();
+            .With("mode", DecodeOpenMode(request.Mode))
+            .With(TError::FromSystem());
     }
     return handle;
 }
@@ -414,7 +447,7 @@ TFlushDirectoryResponse TIOEngineBase::DoFlushDirectory(const TFlushDirectoryReq
     return response;
 }
 
-TCloseResponse TIOEngineBase::DoClose(const TCloseRequest& request)
+TCloseResponse TIOEngineBase::DoClose(const TCloseRequest& request, EWorkloadCategory category)
 {
     TCloseResponse response;
 
@@ -422,10 +455,13 @@ TCloseResponse TIOEngineBase::DoClose(const TCloseRequest& request)
     NFS::WrapIOErrors([&] {
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
         if (request.Size) {
-            request.Handle->Resize(*request.Size);
+            YT_TLOG_ERROR_IF(!request.Handle->Resize(*request.Size), "Failed to resize file on close")
+                .With("handle", *request.Handle)
+                .With("size", request.Size)
+                .With(TError::FromSystem());
         }
         if (request.Flush && StaticConfig_->EnableSync) {
-            TRequestStatsGuard statsGuard(Sensors_->SyncSensors);
+            TRequestStatsGuard statsGuard(Sensors_->SyncSensors[category]);
             request.Handle->Flush();
             response.IOSyncRequests = 1;
         }
@@ -445,11 +481,12 @@ void TIOEngineBase::DoAllocate(const TAllocateRequest& request)
     if (result != 0) {
         if ((errno == EPERM || errno == EOPNOTSUPP) && mode == FALLOC_FL_CONVERT_UNWRITTEN) {
             if (EnableFallocateConvertUnwritten_.exchange(false)) {
-                YT_LOG_INFO(TError::FromSystem(), "fallocate call failed; disabling FALLOC_FL_CONVERT_UNWRITTEN mode");
+                YT_TLOG_INFO("fallocate call failed; disabling FALLOC_FL_CONVERT_UNWRITTEN mode")
+                    .With(TError::FromSystem());
             }
         } else {
             THROW_ERROR_EXCEPTION(NFS::EErrorCode::IOError, "fallocate call failed")
-                << TError::FromSystem();
+                .With(TError::FromSystem());
         }
     }
 #else
@@ -475,19 +512,64 @@ TSharedMutableRef TIOEngineBase::AllocateWriteBlob(
     i64 size,
     i64 directIoBlockSize)
 {
+    size = AlignUp(size, directIoBlockSize);
+
     TSharedMutableRef hugePageBlob;
     if (HugePageManager_ && HugePageManager_->IsEnabled() && HugePageManager_->GetHugePageBlobSize() >= size) {
         auto hugePageBlobReservingResult = HugePageManager_->ReserveHugePageBlob();
         if (hugePageBlobReservingResult.IsOK()) {
             hugePageBlob = hugePageBlobReservingResult.Value();
         } else {
-            YT_LOG_DEBUG(hugePageBlobReservingResult, "Failed to reserve huge page blob");
+            YT_TLOG_DEBUG("Failed to reserve huge page blob")
+                .With(hugePageBlobReservingResult);
             return TSharedMutableRef::AllocateAligned(size, directIoBlockSize, {.InitializeStorage = false}, {});
         }
     } else {
         return TSharedMutableRef::AllocateAligned(size, directIoBlockSize, {.InitializeStorage = false}, {});
     }
     return hugePageBlob;
+}
+
+std::vector<TSharedRef> TIOEngineBase::PrepareDirectIOWriteBuffers(
+    const std::vector<TSharedRef>& buffers,
+    i64 directIoBlockSize)
+{
+    auto size = static_cast<i64>(GetByteSize(buffers));
+
+    auto shouldCopy = [&] {
+        if (size % directIoBlockSize != 0) {
+            return true;
+        }
+        for (const auto& buffer : buffers) {
+            if (buffer.Size() == 0) {
+                continue;
+            }
+            if (reinterpret_cast<i64>(buffer.Begin()) % directIoBlockSize != 0 ||
+                buffer.Size() % directIoBlockSize != 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (!shouldCopy()) {
+        return buffers;
+    }
+
+    auto alignedSize = AlignUp(size, directIoBlockSize);
+    auto writeBlob = AllocateWriteBlob(alignedSize, directIoBlockSize).Slice(0, alignedSize);
+    auto* current = writeBlob.Begin();
+    for (const auto& buffer : buffers) {
+        if (buffer.Size() == 0) {
+            continue;
+        }
+        memcpy(current, buffer.Begin(), buffer.Size());
+        current += buffer.Size();
+    }
+    memset(current, 0, alignedSize - size);
+
+    return {std::move(writeBlob)};
 }
 
 TSharedMutableRef TIOEngineBase::AllocateHugeBlob()
@@ -498,7 +580,8 @@ TSharedMutableRef TIOEngineBase::AllocateHugeBlob()
         if (hugePageBlobReservingResult.IsOK()) {
             hugePageBlob = hugePageBlobReservingResult.Value();
         } else {
-            YT_LOG_DEBUG(hugePageBlobReservingResult, "Failed to reserve huge page blob");
+            YT_TLOG_DEBUG("Failed to reserve huge page blob")
+                .With(hugePageBlobReservingResult);
         }
     }
     return hugePageBlob;
@@ -525,8 +608,10 @@ void TIOEngineBase::DoResize(const TResizeRequest& request)
     });
 }
 
-void TIOEngineBase::AddWriteWaitTimeSample(TDuration duration)
+void TIOEngineBase::AddWriteWaitTimeSample(TDuration duration, EWorkloadCategory category)
 {
+    Sensors_->WriteSensors[category].WaitTimer.Record(duration);
+
     auto config = Config_.Acquire();
     if (config->SickWriteTimeThreshold && config->SickWriteTimeWindow && config->SicknessExpirationTimeout && !Sick_) {
         if (duration > *config->SickWriteTimeThreshold) {
@@ -536,7 +621,7 @@ void TIOEngineBase::AddWriteWaitTimeSample(TDuration duration)
                 SickWriteWaitStart_ = now;
             } else if (now - *SickWriteWaitStart_ > *config->SickWriteTimeWindow) {
                 auto error = TError("Write is too slow")
-                    << TErrorAttribute("sick_write_wait_start", *SickWriteWaitStart_);
+                    .With("sick_write_wait_start", *SickWriteWaitStart_);
                 guard.Release();
                 SetSickFlag(error);
             }
@@ -547,8 +632,10 @@ void TIOEngineBase::AddWriteWaitTimeSample(TDuration duration)
     }
 }
 
-void TIOEngineBase::AddReadWaitTimeSample(TDuration duration)
+void TIOEngineBase::AddReadWaitTimeSample(TDuration duration, EWorkloadCategory category)
 {
+    Sensors_->ReadSensors[category].WaitTimer.Record(duration);
+
     auto config = Config_.Acquire();
     if (config->SickReadTimeThreshold && config->SickReadTimeWindow && config->SicknessExpirationTimeout && !Sick_) {
         if (duration > *config->SickReadTimeThreshold) {
@@ -558,7 +645,7 @@ void TIOEngineBase::AddReadWaitTimeSample(TDuration duration)
                 SickReadWaitStart_ = now;
             } else if (now - *SickReadWaitStart_ > *config->SickReadTimeWindow) {
                 auto error = TError("Read is too slow")
-                    << TErrorAttribute("sick_read_wait_start", *SickReadWaitStart_);
+                    .With("sick_read_wait_start", *SickReadWaitStart_);
                 guard.Release();
                 SetSickFlag(error);
             }
@@ -569,9 +656,9 @@ void TIOEngineBase::AddReadWaitTimeSample(TDuration duration)
     }
 }
 
-TRequestCounterGuard TIOEngineBase::CreateInFlightRequestGuard(EIOEngineRequestType requestType)
+TRequestCounterGuard TIOEngineBase::CreateInFlightRequestGuard(EIOEngineRequestType requestType, EWorkloadCategory category)
 {
-    return TRequestCounterGuard(MakeStrong(this), requestType);
+    return TRequestCounterGuard(MakeStrong(this), requestType, category);
 }
 
 void TIOEngineBase::Reconfigure(const NYTree::INodePtr& node)
@@ -595,23 +682,12 @@ void TIOEngineBase::InitProfilerSensors()
         return SicknessCounter_.load();
     });
 
-    Profiler.AddFuncCounter("/inflight_write_request_count", MakeStrong(this), [this] {
-        return GetInFlightWriteRequestCount();
-    });
-
-    Profiler.AddFuncCounter("/inflight_read_request_count", MakeStrong(this), [this] {
-        return GetInFlightReadRequestCount();
-    });
-
-    Sensors_->WrittenBytesCounter = Profiler.Counter("/written_bytes");
-    Sensors_->ReadBytesCounter = Profiler.Counter("/read_bytes");
-
     Sensors_->KernelWrittenBytesCounter = Profiler.Counter("/kernel_written_bytes");
     Sensors_->KernelReadBytesCounter = Profiler.Counter("/kernel_read_bytes");
 
-    auto makeRequestSensors = [] (TProfiler profiler) {
+    auto makeRequestSensors = [] (TProfiler profiler, TStringBuf execTimerName) {
         TIOEngineSensors::TRequestSensors sensors;
-        sensors.Timer = profiler.Timer("/time");
+        sensors.ExecTimer = profiler.Timer(execTimerName);
         sensors.HugePageTimer = profiler.Timer("/huge_page_time");
         sensors.TotalTimeCounter = profiler.TimeCounter("/total_time");
         sensors.Counter = profiler.Counter("/request_count");
@@ -620,11 +696,29 @@ void TIOEngineBase::InitProfilerSensors()
         return sensors;
     };
 
-    Sensors_->ReadSensors = makeRequestSensors(Profiler.WithPrefix("/read"));
-    Sensors_->WriteSensors = makeRequestSensors(Profiler.WithPrefix("/write"));
-    Sensors_->SyncSensors = makeRequestSensors(Profiler.WithPrefix("/sync"));
-    Sensors_->DataSyncSensors = makeRequestSensors(Profiler.WithPrefix("/datasync"));
-    Sensors_->IOSubmitSensors = makeRequestSensors(Profiler.WithPrefix("/uring_io_submit"));
+    auto makeReadWriteSensors = [&] (TProfiler profiler) {
+        auto sensors = makeRequestSensors(profiler, "/time/exec");
+        sensors.WaitTimer = profiler.Timer("/time/wait");
+        sensors.TotalTimer = profiler.Timer("/time/total");
+        return sensors;
+    };
+
+    Sensors_->IOSubmitSensors = makeRequestSensors(Profiler.WithPrefix("/uring_io_submit"), "/time");
+
+    for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
+        auto profilerCategory = Profiler.WithTag("category", FormatEnum(category));
+
+        Sensors_->InflightReadRequestSensors[category] = TInflightCounter::Create(profilerCategory, "/inflight_read_request_count");
+        Sensors_->InflightWriteRequestSensors[category] = TInflightCounter::Create(profilerCategory, "/inflight_write_request_count");
+
+        Sensors_->WrittenBytesCounter[category] = profilerCategory.Counter("/written_bytes");
+        Sensors_->ReadBytesCounter[category] = profilerCategory.Counter("/read_bytes");
+
+        Sensors_->ReadSensors[category] = makeReadWriteSensors(profilerCategory.WithPrefix("/read"));
+        Sensors_->WriteSensors[category] = makeReadWriteSensors(profilerCategory.WithPrefix("/write"));
+        Sensors_->SyncSensors[category] = makeRequestSensors(profilerCategory.WithPrefix("/sync"), "/time");
+        Sensors_->DataSyncSensors[category] = makeRequestSensors(profilerCategory.WithPrefix("/datasync"), "/time");
+    }
 }
 
 void TIOEngineBase::SetSickFlag(const TError& error)
@@ -643,7 +737,8 @@ void TIOEngineBase::SetSickFlag(const TError& error)
             BIND(&TIOEngineBase::ResetSickFlag, MakeStrong(this)),
             *config->SicknessExpirationTimeout);
 
-        YT_LOG_WARNING(error, "Sick flag set");
+        YT_TLOG_WARNING("Sick flag set")
+            .With(error);
     }
 }
 
@@ -662,7 +757,7 @@ void TIOEngineBase::ResetSickFlag()
     Sick_ = false;
     SickGauge_.Update(false);
 
-    YT_LOG_WARNING("Sick flag reset");
+    YT_TLOG_WARNING("Sick flag reset");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

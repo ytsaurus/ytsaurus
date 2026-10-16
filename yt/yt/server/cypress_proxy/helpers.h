@@ -10,6 +10,8 @@
 
 #include <yt/yt/client/object_client/public.h>
 
+#include <yt/yt_proto/yt/core/ytree/proto/ypath.pb.h>
+
 namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,13 +125,6 @@ void FromProto(
 void FromProto(
     TMultisetAttributesSubrequest* subrequest,
     const NYTree::NProto::TReqMultisetAttributes::TSubrequest& protoSubrequest);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<NYTree::IAttributeDictionaryPtr> FetchSingleObjectAttributes(
-    const NApi::NNative::IClientPtr& client,
-    NCypressClient::TVersionedObjectId objectId,
-    const NYTree::TAttributeFilter& attributeFilter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

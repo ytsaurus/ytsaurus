@@ -1,0 +1,16 @@
+JAVA_CONTRIB()
+
+VERSION(2.2.2)
+
+LICENSE(
+    Public-Domain AND
+    BSD-2-Clause
+)
+
+JAR_RESOURCE(6621254423)
+
+SRC_RESOURCE(6621254422)
+
+ORIGINAL_SOURCE(scm:git:git://github.com/HdrHistogram/HdrHistogram.git)
+
+END()

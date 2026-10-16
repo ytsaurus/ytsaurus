@@ -926,7 +926,7 @@ class PortoApi(object):
             try:
                 sched = open(sched_path)
                 for line in sched:
-                    if re.search('\s{0,}' + metric_name, line): # noqa W605
+                    if re.search(r'\s{0,}' + metric_name, line):
                         line = line.split()
                         return int(line[-1])
             except: # noqa E722

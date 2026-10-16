@@ -47,6 +47,8 @@ message TReqRegisterNode
 
     optional bool location_indexes_in_heartbeats_supported = 18;
 
+    optional uint64 registration_revision = 19;
+
     reserved 2, 11;
 }
 
@@ -55,6 +57,7 @@ message TRspRegisterNode
     required uint32 node_id = 1;
     repeated string tags = 3;
     repeated NCellMasterClient.NProto.TMasterCellConnectionConfig secondary_masters_configs = 4;
+    optional uint64 registration_revision = 5;
 
     extensions 100 to max;
     reserved 2;

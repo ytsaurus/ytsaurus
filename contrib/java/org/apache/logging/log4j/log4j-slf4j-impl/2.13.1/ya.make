@@ -11,6 +11,9 @@ PEERDIR(
 )
 
 JAR_RESOURCE(1403621451)
+
 SRC_RESOURCE(1403621324)
+
+ORIGINAL_SOURCE(https://git-wip-us.apache.org/repos/asf?p=logging-log4j2.git;a=summary)
 
 END()

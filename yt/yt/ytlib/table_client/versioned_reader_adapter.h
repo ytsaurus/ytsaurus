@@ -34,6 +34,11 @@ IVersionedReaderPtr MaybeWrapWithAnyEncodingAdapter(
     const TTableSchemaPtr& chunkSchema,
     const std::vector<TColumnIdMapping>& schemaIdMapping);
 
+IVersionedReaderPtr MaybeWrapWithTranslatingAdapter(
+    IVersionedReaderPtr underlyingReader,
+    const TTableSchemaPtr& tableSchema,
+    const std::vector<TColumnIdMapping>& schemaIdMapping);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

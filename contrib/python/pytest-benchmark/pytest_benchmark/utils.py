@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 
 TIME_UNITS = {'': 'Seconds', 'm': 'Milliseconds (ms)', 'u': 'Microseconds (us)', 'n': 'Nanoseconds (ns)'}
 ALLOWED_COLUMNS = ['min', 'max', 'mean', 'stddev', 'median', 'iqr', 'ops', 'outliers', 'rounds', 'iterations']
+DEFAULT_COLUMNS = ['min', 'max', 'mean', 'stddev', 'median', 'iqr', 'outliers', 'ops', 'rounds', 'iterations']
 
 
 class SecondsDecimal(Decimal):
@@ -55,7 +56,7 @@ def get_tag(project_name=None):
     info = get_commit_info(project_name)
     parts = [info['id'], get_current_time()]
     if info['dirty']:
-        parts.append('uncommited-changes')
+        parts.append('uncommitted-changes')
     return '_'.join(parts)
 
 
@@ -127,7 +128,7 @@ def in_any_parent(name, path=None):
 
 
 def subprocess_output(cmd):
-    return check_output(cmd.split(), stderr=subprocess.STDOUT, universal_newlines=True).strip()
+    return check_output(cmd.split(), stderr=subprocess.STDOUT, text=True).strip()
 
 
 def get_commit_info(project_name=None):
@@ -370,6 +371,17 @@ def parse_rounds(string):
         return value
 
 
+def parse_fraction(string):
+    try:
+        value = float(string)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(exc) from None
+    else:
+        if not 0 < value < 1:
+            raise argparse.ArgumentTypeError('Value must be a fraction strictly between 0 and 1.')
+        return value
+
+
 def parse_seconds(string):
     try:
         return SecondsDecimal(string).as_string
@@ -414,10 +426,10 @@ def parse_elasticsearch_storage(string, default_index='benchmark', default_docty
     index = default_index
     doctype = default_doctype
     if storage_url.path and storage_url.path != '/':
-        splitted = storage_url.path.strip('/').split('/')
-        index = splitted[0]
-        if len(splitted) >= 2:
-            doctype = splitted[1]
+        split_path = storage_url.path.strip('/').split('/')
+        index = split_path[0]
+        if len(split_path) >= 2:
+            doctype = split_path[1]
     query = parse_qs(storage_url.query)
     try:
         project_name = query['project_name'][0]

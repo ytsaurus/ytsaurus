@@ -64,10 +64,10 @@ void TTabletOwnerProxyBase::DoListSystemAttributes(
         .SetPresent(showTabletAttributes));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
         .SetWritable(true)
-        .SetPresent(IsObjectAlive(trunkTable->TabletCellBundle()))
+        .SetPresent(IsObjectAlive(trunkTable->GetTabletCellBundle()))
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundleId)
-        .SetPresent(IsObjectAlive(trunkTable->TabletCellBundle())));
+        .SetPresent(IsObjectAlive(trunkTable->GetTabletCellBundle())));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::InMemoryMode)
         .SetReplicated(true)
         .SetWritable(true));
@@ -100,10 +100,10 @@ bool TTabletOwnerProxyBase::DoGetBuiltinAttribute(
             return;
         }
 
-        YT_LOG_ALERT("Tablet statistics mismatch (TableId: %v, OldStatistics: %v, NewStatistics: %v)",
-            trunkTable->GetId(),
-            ToString(oldFashionedStatistics, chunkManager),
-            ToString(ultraModernStatistics, chunkManager));
+        YT_TLOG_ALERT("Tablet statistics mismatch")
+            .With("TableId", trunkTable->GetId())
+            .With("OldStatistics", ToString(oldFashionedStatistics, chunkManager))
+            .With("NewStatistics", ToString(ultraModernStatistics, chunkManager));
     };
 
     if (showTabletAttributes && !isExternal && config->TabletManager->EnableAggressiveTabletStatisticsValidation) {
@@ -200,18 +200,18 @@ bool TTabletOwnerProxyBase::DoGetBuiltinAttribute(
             return true;
 
         case EInternedAttributeKey::TabletCellBundle:
-            if (const auto& cellBundle = trunkTable->TabletCellBundle()) {
+            if (auto cellBundle = trunkTable->GetTabletCellBundle()) {
                 BuildYsonFluently(consumer)
-                    .Value(trunkTable->TabletCellBundle()->GetName());
+                    .Value(cellBundle->GetName());
                 return true;
             } else {
                 return false;
             }
 
         case EInternedAttributeKey::TabletCellBundleId:
-            if (const auto& cellBundle = trunkTable->TabletCellBundle()) {
+            if (auto cellBundle = trunkTable->GetTabletCellBundle()) {
                 BuildYsonFluently(consumer)
-                    .Value(trunkTable->TabletCellBundle()->GetId());
+                    .Value(cellBundle->GetId());
                 return true;
             } else {
                 return false;

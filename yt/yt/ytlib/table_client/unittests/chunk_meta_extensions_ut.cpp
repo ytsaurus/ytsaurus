@@ -1,5 +1,6 @@
 #include <yt/yt/ytlib/table_chunk_format/chunk_meta_extensions.h>
 
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 
 #include <yt/yt/client/table_client/unittests/helpers/helpers.h>
@@ -55,6 +56,34 @@ TEST(TChunkMetaExtensionsTest, SamplesExtensionParsing)
     expectedSamplesExt.add_weights(3);
     auto parsedSamples = NYT::FromProto<TSamplesExtension>(expectedSamplesExt);
     EXPECT_TRUE(google::protobuf::util::MessageDifferencer::Equals(NYT::ToProto<NProto::TSamplesExt>(parsedSamples), expectedSamplesExt));
+}
+
+TEST(TChunkMetaExtensionsTest, FindsMinHashDigestBlockIndex)
+{
+    NProto::TDataBlockMetaExt dataBlockMetaExt;
+    for (int index = 0; index < 3; ++index) {
+        dataBlockMetaExt.add_data_blocks();
+    }
+
+    NProto::TSystemBlockMetaExt systemBlockMetaExt;
+    systemBlockMetaExt.add_system_blocks();
+    auto* minHashDigestBlockMeta = systemBlockMetaExt.add_system_blocks();
+    minHashDigestBlockMeta->MutableExtension(
+        NProto::TMinHashDigestSystemBlockMeta::min_hash_digest_block_meta);
+
+    auto blockIndex = FindMinHashDigestBlockIndex(dataBlockMetaExt, systemBlockMetaExt);
+
+    ASSERT_TRUE(blockIndex);
+    EXPECT_EQ(4, *blockIndex);
+}
+
+TEST(TChunkMetaExtensionsTest, DoesNotFindMinHashDigestBlockIndex)
+{
+    NProto::TDataBlockMetaExt dataBlockMetaExt;
+    NProto::TSystemBlockMetaExt systemBlockMetaExt;
+    systemBlockMetaExt.add_system_blocks();
+
+    EXPECT_FALSE(FindMinHashDigestBlockIndex(dataBlockMetaExt, systemBlockMetaExt));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

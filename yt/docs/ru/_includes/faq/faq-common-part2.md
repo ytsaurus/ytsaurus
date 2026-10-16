@@ -11,9 +11,6 @@
 2. Изучите вкладку Detailed Usage на странице аккаунта (но имейте в виду, что информация там обновляется со значительной задержкой);
 {% endif %}
 3. Поищите с помощью `yt find <path> --name "*" --account <account_name>` таблицы под вашим аккаунтом в `//tmp` и связных с вами проектных директориях. Обратите внимание, что `yt find` не заходит в директории, в которые у вас нет доступа;
-{% if audience == "internal" %}
-4. Данные могут быть удалены из Кипариса, но использоваться выполняющимися операциями. Такие операции можно поискать с помощью скрипта [find_top_operations](https://a.yandex-team.ru/arc/trunk/arcadia/yt/yt/scripts/find_top_operations), например так: `./find_top_operations --proxy hahn --in-account dev`
-{% endif %}
 
 ------
 #### **Q: Как изменить аккаунт таблицы?** {#change-table-account}

@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <library/cpp/yt/string/guid.h>
 
@@ -15,7 +15,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int ConcurrentHashBucketCount = 256;
+inline static constexpr int ConcurrentHashBucketCount = 256;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,10 +79,10 @@ private:
     struct TBucket
     {
         THashMap<TChaosObjectId, TShortcutSnapshot> ShortcutSnapshots;
-        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock);
+        YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock);
     };
 
-    std::vector<TBucket> Buckets_{ConcurrentHashBucketCount};
+    std::array<TBucket, ConcurrentHashBucketCount> Buckets_;
 
     TBucket* GetBucket(TChaosObjectId replicationCardId)
     {

@@ -8,7 +8,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, update_nodes_dynamic_config,
     start_transaction, abort_transaction, commit_transaction,
     sync_unmount_table, create_dynamic_table, wait_for_sys_config_sync,
-    get_singular_chunk_id, get_driver)
+    get_singular_chunk_id, get_driver, get_table_columnar_statistics)
 
 from yt.test_helpers import assert_items_equal
 
@@ -156,18 +156,18 @@ class TestChunkMerger(YTEnvSetup):
         set("//tmp/t/@chunk_merger_mode", "auto")
         assert get("//tmp/t/@chunk_merger_mode") == "auto"
 
-        with raises_yt_error("Error parsing EChunkMergerMode"):
+        with raises_yt_error("Error parsing .* value"):
             set("//tmp/t/@chunk_merger_mode", "sdjkfhdskj")
 
         create_account("a")
 
         set("//sys/accounts/a/@merge_job_rate_limit", 7)
-        with raises_yt_error("cannot be negative"):
+        with raises_yt_error(".* cannot be negative"):
             set("//sys/accounts/a/@merge_job_rate_limit", -1)
         assert get("//sys/accounts/a/@merge_job_rate_limit") == 7
 
         set("//sys/accounts/a/@chunk_merger_node_traversal_concurrency", 12)
-        with raises_yt_error("cannot be negative"):
+        with raises_yt_error(".* cannot be negative"):
             set("//sys/accounts/a/@chunk_merger_node_traversal_concurrency", -1)
         assert get("//sys/accounts/a/@chunk_merger_node_traversal_concurrency") == 12
 
@@ -177,7 +177,7 @@ class TestChunkMerger(YTEnvSetup):
         set("//sys/accounts/d/@chunk_merger_criteria", data)
         assert get("//sys/accounts/d/@chunk_merger_criteria") == data
 
-        with raises_yt_error("must be positive"):
+        with raises_yt_error(".* must be positive"):
             set("//sys/accounts/d/@chunk_merger_criteria/max_row_count", -1)
         set("//sys/accounts/d/@chunk_merger_criteria/max_row_count", 2)
         assert get("//sys/accounts/d/@chunk_merger_criteria/max_row_count") == 2
@@ -219,8 +219,34 @@ class TestChunkMerger(YTEnvSetup):
 
         _wait_for_merge("//tmp/t", None)
 
+        traversal_info = get("//tmp/t/@chunk_merger_info")
+        revision = traversal_info["revision"]
+        assert revision > 0
+
         chunk_id = get_singular_chunk_id("//tmp/t")
         assert get("#{}/@data_weight".format(chunk_id)) > 0
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_heavy_column_statistics_are_preserved(self, merge_mode):
+        create("table", "//tmp/t")
+        self._remove_merge_quotas("//tmp/t")
+
+        write_table("<append=true>//tmp/t", {"a": "b" * 100})
+        write_table("<append=true>//tmp/t", {"a": "c" * 200})
+        write_table("<append=true>//tmp/t", {"a": "d" * 300})
+        write_table("<append=true>//tmp/t", {"a": "e" * 400})
+
+        def get_master_statistics():
+            return get_table_columnar_statistics('["//tmp/t{a}";]', fetcher_mode="from_master")[0]
+
+        assert get_master_statistics()["column_data_weights"]["a"] > 0
+        assert get_master_statistics()["legacy_chunks_data_weight"] == 0
+
+        _wait_for_merge("//tmp/t", merge_mode)
+
+        assert get_master_statistics()["column_data_weights"]["a"] > 0
+        assert get_master_statistics()["legacy_chunks_data_weight"] == 0
 
     @authors("aleksandra-zh", "cherepashka")
     @pytest.mark.parametrize("transactional", [False, True])
@@ -621,7 +647,7 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: get("//tmp/t/@chunk_count") == 4)
         wait(lambda: get("//tmp/t/@chunk_merger_status") == "not_in_merge_pipeline")
 
-        traversal_info1 = get("//tmp/t/@chunk_merger_traversal_info")
+        traversal_info1 = get("//tmp/t/@chunk_merger_info")
         assert traversal_info1["chunk_count"] > 0
 
         write_table("<append=true>//tmp/t", {"c": "d"})
@@ -630,8 +656,8 @@ class TestChunkMerger(YTEnvSetup):
         # [{"a": "b"}, {"b": "c"}], [{"c": "d"}, {"q": "d"}], rows, rows, [{"c": "d"}, {"q": "d"}]
         wait(lambda: get("//tmp/t/@chunk_count") == 5)
 
-        wait(lambda: get("//tmp/t/@chunk_merger_traversal_info")["chunk_count"] > traversal_info1["chunk_count"])
-        traversal_info2 = get("//tmp/t/@chunk_merger_traversal_info")
+        wait(lambda: get("//tmp/t/@chunk_merger_info")["chunk_count"] > traversal_info1["chunk_count"])
+        traversal_info2 = get("//tmp/t/@chunk_merger_info")
         assert traversal_info2["config_version"] == traversal_info1["config_version"]
 
         set("//sys/@config/chunk_manager/chunk_merger/max_chunk_count", 10)
@@ -643,7 +669,7 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: get("//tmp/t/@chunk_count") == 1)
         wait(lambda: get("//tmp/t/@chunk_merger_status") == "not_in_merge_pipeline")
 
-        traversal_info3 = get("//tmp/t/@chunk_merger_traversal_info")
+        traversal_info3 = get("//tmp/t/@chunk_merger_info")
         assert traversal_info3["config_version"] > traversal_info2["config_version"]
 
     @authors("aleksandra-zh")
@@ -1152,12 +1178,6 @@ class TestChunkMerger(YTEnvSetup):
         assert read_table("//tmp/t{c, b}") == read_table("//tmp/t1{c, b}")
         assert read_table("//tmp/t{zzzzz}") == read_table("//tmp/t1{zzzzz}")
 
-        assert read_table("//tmp/t{a}") == read_table("//tmp/t1{a}")
-        assert read_table("//tmp/t{a, }") == read_table("//tmp/t1{a, }")
-        assert read_table("//tmp/t{a, a}") == read_table("//tmp/t1{a, a}")
-        assert read_table("//tmp/t{c, b}") == read_table("//tmp/t1{c, b}")
-        assert read_table("//tmp/t{zzzzz}") == read_table("//tmp/t1{zzzzz}")
-
     @authors("babenko", "h0pless")
     @pytest.mark.parametrize(
         "optimize_for, merge_mode",
@@ -1475,7 +1495,8 @@ class TestChunkMerger(YTEnvSetup):
         create("table", "//aba/d1/d2/t", recursive=True)
         set("//aba/d1/d2/t/@chunk_merger_mode", "none")
         self._remove_merge_quotas("//aba/d1/d2/t")
-        operation("//aba/d1", "//tmp/d/d1")
+        # Keep the account whose merge quotas were zeroed.
+        operation("//aba/d1", "//tmp/d/d1", preserve_account=True)
         assert get("//tmp/d/d1/d2/t/@chunk_merger_mode") == merge_mode
 
         write_table("<append=true>//tmp/d/d1/d2/t", {"a": "b"})
@@ -1607,7 +1628,6 @@ class TestChunkMergerPortal(TestChunkMergerMulticell):
         _wait_for_merge("//home/t2", None)
 
 
-@pytest.mark.enabled_multidaemon
 class TestChunkMergerSequoia(TestChunkMergerMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1622,7 +1642,6 @@ class TestChunkMergerSequoia(TestChunkMergerMulticell):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestTableDataStatisticsConsistency(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1

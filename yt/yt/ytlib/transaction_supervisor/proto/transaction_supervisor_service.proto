@@ -6,6 +6,18 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TStrongOrderingTags
+{
+    optional NYT.NProto.TGuid cell_id = 1;
+    repeated string strong_ordering_tags = 2;
+}
+
+message TCommitApprovalInfo
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required int32 target_commit_approval_count = 2;
+}
+
 message TReqCommitTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
@@ -21,6 +33,10 @@ message TReqCommitTransaction
     optional int32 clock_cluster_tag = 10;
     optional bool strongly_ordered = 12 [default = false];
     optional bool dynamic_tables_locked = 13 [default = false];
+    repeated TStrongOrderingTags strong_ordering_tags_map = 14;
+    repeated uint32 expected_prepare_signatures = 15;
+    optional uint32 coordinator_expected_prepare_signature = 16;
+    repeated TCommitApprovalInfo commit_approval_infos = 17;
 }
 
 message TRspCommitTransaction
@@ -67,11 +83,11 @@ message TReqPingTransactions
 }
 
 message TRspPingTransactions
-{ 
+{
     message TSubresponse
     {
         optional NYT.NProto.TError error = 1;
-    } 
+    }
 
     repeated TSubresponse subresponses = 1;
 }

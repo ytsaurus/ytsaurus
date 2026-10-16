@@ -1,6 +1,5 @@
 PY3TEST()
 
-
 COPY_FILE(
     yt/yt/tests/conftest_lib/conftest.py conftest.py
 )
@@ -19,5 +18,11 @@ INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 PEERDIR(
     yt/yt/tests/library
 )
+
+IF (SANITIZER_TYPE)
+    TAG(ya:not_autocheck)
+ENDIF()
+
+SIZE(MEDIUM)
 
 END()

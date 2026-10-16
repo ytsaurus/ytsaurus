@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 PROTO_NAMESPACE(yt)
 
 SRCS(
+    access_log.cpp
     helpers.cpp
     permission_checker.cpp
 
@@ -12,6 +13,7 @@ SRCS(
 
     user_access_validator.cpp
     config.cpp
+    detailed_master_memory.cpp
 )
 
 PEERDIR(

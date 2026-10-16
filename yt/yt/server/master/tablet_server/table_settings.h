@@ -32,6 +32,7 @@ struct TSerializedTableSettings
     NYson::TYsonString HunkWriterOptions;
     NYson::TYsonString GlobalPatch;
     NYson::TYsonString Experiments;
+    NYson::TYsonString TabletBalancerConfig;
 };
 
 struct THunkStorageSettings

@@ -11,7 +11,7 @@ namespace NYT {
 struct TOomWatchdogOptions
 {
     std::optional<i64> MemoryLimit;
-    TString HeapDumpPath = "oom.pb.gz";
+    std::string HeapDumpPath = "oom.pb.gz";
 };
 
 void EnableEarlyOomWatchdog(TOomWatchdogOptions options);

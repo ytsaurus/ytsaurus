@@ -1,9 +1,9 @@
 #pragma once
 
-#include "public.h"
-#include "chunk_replica.h"
+#include "private.h"
+
 #include "chunk_tree_statistics.h"
-#include "config.h"
+#include "cumulative_statistics.h"
 #include "stored_chunk_replica.h"
 
 #include <yt/yt/server/master/cypress_server/public.h>
@@ -17,6 +17,8 @@
 #include <yt/yt/ytlib/journal_client/public.h>
 
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
+
+#include <yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
@@ -34,13 +36,10 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Calls |functor(chunkList, child)| and |functor(parent(x), x)|, where |x|
-//! iterates through proper ancestors of |chunkList|.
+//! Calls |functor(chunkTree, child)| and |functor(parent(x), x)|, where |x|
+//! iterates through proper ancestors of |chunkTree|.
 template <class F>
-void VisitUniqueAncestors(TChunkList* chunkList, F functor, TChunkTree* child = nullptr);
-
-template <class F>
-void VisitAncestors(TChunkList* chunkList, F functor);
+void VisitUniqueAncestors(TChunkTree* chunkTree, F&& functor, TChunkTree* child = nullptr);
 
 bool CanUnambiguouslyDetachChild(TChunkList* rootChunkList, const TChunkTree* child);
 
@@ -51,13 +50,17 @@ TChunkTree* FindFirstUnsealedChild(const TChunkList* chunkList);
 //! NB: Returns null in case of journal hunk chunk.
 std::optional<i64> GetJournalChunkStartRowIndex(const TChunk* chunk);
 
-TChunkList* GetUniqueParent(const TChunkTree* chunkTree);
+TChunkTree* GetUniqueParent(const TChunkTree* chunkTree);
 int GetParentCount(const TChunkTree* chunkTree);
 bool HasParent(const TChunkTree* chunkTree, TChunkList* potentialParent);
 
 void AttachToChunkList(
     TChunkList* chunkList,
-    TRange<TChunkTreeRawPtr> children);
+    TRange<TChunkTreeRawPtr> children,
+    bool updateChunkListStatistics = true);
+
+EChunkDetachPolicy DeriveChunkTreeDetachPolicy(const TChunkList* chunkList);
+
 void DetachFromChunkList(
     TChunkList* chunkList,
     TRange<TChunkTreeRawPtr> children,
@@ -71,17 +74,37 @@ void SetChunkTreeParent(TChunkTree* parent, TChunkTree* child);
 void ResetChunkTreeParent(TChunkTree* parent, TChunkTree* child);
 
 TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree);
+THunkChunkTreeStatistics GetHunkChunkTreeStatistics(TChunkTree* chunkTree);
+
+TCumulativeStatisticsEntry GetCumulativeStatisticsEntry(TChunkTree* chunkTree);
+
 void AppendChunkTreeChild(
     TChunkList* chunkList,
     TChunkTree* child,
     TChunkTreeStatistics* statistics);
 
-//! Apply statisticsDelta to all proper ancestors of |child|.
+//! Apply |statisticsDelta| to all proper ancestors of |child|.
 //! Both statistics and cumulative statistics are updated.
 //! |statisticsDelta| should have |child|'s rank.
 void AccumulateUniqueAncestorsStatistics(
     TChunkTree* child,
     const TChunkTreeStatistics& statisticsDelta);
+void AccumulateHunkStatisticsInUniqueAncestors(
+    TChunkList* parent,
+    TChunkTree* child,
+    bool updateChunkListStatistics);
+bool IsHunkChunkUniquelyPresentInChunkList(
+    TChunkList* chunkList,
+    TChunkTree* chunkTree);
+
+//! Iterates over the hunk tree ancestors of |hunkChunk|, calling |functor(parent, firstOccurrence)| for each.
+//! Scratch parents are skipped; any other one is expected to be of hunk-related chunk list kind.
+//! Maximum two generations are expected.
+//! First-generation parents are assumed to be encountered only once during iteration.
+//! Second-generation parents can be encountered multiple times during iteration, thus #firstOccurrence argument.
+template <class F>
+void VisitHunkTreeAncestors(TChunk* hunkChunk, F&& functor);
+
 void ResetChunkListStatistics(TChunkList* chunkList);
 void RecomputeChunkListStatistics(TChunkList* chunkList);
 
@@ -158,7 +181,9 @@ void SerializeLocationIndexes(
     const std::vector<TChunkLocationUuid>& locationUuids,
     NChunkClient::NProto::TLocationIndexes* protoLocationIndexes);
 
-int GetChunkShardIndex(TChunkId chunkId);
+i8 GetChunkShardIndex(TChunkId chunkId);
+
+NSequoiaClient::NRecords::TChunkReplicasKey BuildChunkReplicasRecordKey(TChunkId chunkId);
 
 std::vector<TInstant> GenerateChunkCreationTimeHistogramBucketBounds(TInstant now);
 
@@ -175,7 +200,22 @@ NSequoiaClient::TSelectRowsQuery BuildSelectLocationSequoiaReplicasQuery(
     TNodeId nodeId,
     NNodeTrackerClient::TChunkLocationIndex locationIndex);
 
-void ValidateChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+TError CheckChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+
+EChunkReplicaState GetAddedChunkReplicaState(
+        TChunkId chunkId,
+        const NChunkClient::NProto::TChunkAddInfo& chunkAddInfo);
+
+bool IsSealNeeded(const TChunk* chunk);
+
+NLogging::ELogLevel GetChunkLogLevel(
+    const TChunk* chunk,
+    const IChunkManagerPtr& chunkManager);
+
+int EncodeRepairQueueKey(int mediumIndex, int priority);
+std::pair<int, int> DecodeRepairQueueKey(int key);
+
+ESealPriority GetChunkSealPriority(const TChunk* chunk);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -193,6 +233,29 @@ struct TChunkSequoiaConfig
 };
 
 TChunkSequoiaConfig GetChunkSequoiaConfig(TChunkId chunkId, const TDynamicSequoiaChunkReplicasConfigPtr& config);
+
+bool IsHunkChunkFormat(NChunkClient::EChunkFormat chunkFormat);
+
+i64 ComputeDiskSpaceFromDataSize(i64 dataSize, NErasure::ECodec erasureCodec);
+
+void AccumulateNewlyReferencedHunkStatistics(TChunk* hunkChunk, i64 dataWeightDelta, i64 dataSizeDelta);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsReplicaDecommissioned(TChunkLocation* replica);
+
+//! Returns the number of additional replicas needed to satisfy requisition and extra-rack-failure-tolerance policies.
+int ComputeReplicaDeficit(
+    int targetReplicaCount,
+    int availableReplicaCount,
+    int temporarilyUnavailableReplicaCount,
+    int additionalRackFailureTolerance,
+    int maxReplicasPerRack);
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define YT_VERBOSE_LOG_CHUNK_EVENT(chunk, message) \
+    YT_TLOG_EVENT(Logger(), GetChunkLogLevel(chunk, Bootstrap_->GetChunkManager()), message)
 
 ////////////////////////////////////////////////////////////////////////////////
 

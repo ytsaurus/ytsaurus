@@ -25,6 +25,8 @@ add_library(library-cpp-skiff)
 target_link_libraries(library-cpp-skiff PUBLIC
   contrib-libs-cxxsupp
   yutil
+  cpp-yt-coding
+  cpp-yt-exception
   tools-enum_parser-enum_serialization_runtime
 )
 

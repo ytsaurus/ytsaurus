@@ -117,6 +117,9 @@ DEFINE_REFCOUNTED_TYPE(TMinHashDigestConfig)
 struct TCompactionHintsConfig
     : public NYTree::TYsonStruct
 {
+    // Minimum total compressed size of stores selected for compaction by digest hints.
+    i64 MinCompactionDataSize;
+
     TRowDigestConfigPtr RowDigest;
     TMinHashDigestConfigPtr MinHashDigest;
 
@@ -144,17 +147,18 @@ struct TGradualCompactionConfig
 
 // TODO(dave11ar): This is a temporary interface that will be replaced by a more general solution.
 struct TOverloadReactiveBalancingConfig
-    : public NYTree::TYsonStruct
+    : public NYTree::TYsonStructLite
 {
-    std::string Metric;
-    double Limit;
+    bool Enable;
 
-    REGISTER_YSON_STRUCT(TOverloadReactiveBalancingConfig);
+    // Legacy mode. Use actual tablet balancer configs to set metric and limit.
+    std::optional<std::string> Metric;
+    std::optional<double> Limit;
+
+    REGISTER_YSON_STRUCT_LITE(TOverloadReactiveBalancingConfig);
 
     static void Register(TRegistrar registrar);
 };
-
-DEFINE_REFCOUNTED_TYPE(TOverloadReactiveBalancingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -188,7 +192,7 @@ public:
     std::optional<NHydra::TRevision> ForcedChunkViewCompactionRevision;
 
     EDynamicTableProfilingMode ProfilingMode;
-    TString ProfilingTag;
+    std::string ProfilingTag;
 
     bool EnableDynamicStoreRead;
 
@@ -231,6 +235,8 @@ struct TTestingTableMountConfig
     TDuration PartitioningDelay;
     TDuration CompactionDelay;
 
+    bool RejectReplicatedContentReceiving;
+
     REGISTER_YSON_STRUCT_LITE(TTestingTableMountConfig);
 
     static void Register(TRegistrar registrar);
@@ -259,6 +265,9 @@ struct TCustomTableMountConfig
     int MinPartitioningStoreCount;
     i64 MaxPartitioningDataSize;
     int MaxPartitioningStoreCount;
+    // If set, Eden chunk stores whose min timestamp lags behind the max
+    // timestamp of partition chunks by more than this duration are forcibly partitioned
+    std::optional<TDuration> MaxOldEdenChunkPartitioningLag;
 
     int MinCompactionStoreCount;
     int MaxCompactionStoreCount;
@@ -292,6 +301,7 @@ struct TCustomTableMountConfig
     double AutoCompactionPeriodSplayRatio;
     EPeriodicCompactionMode PeriodicCompactionMode;
     TCompactionHintsConfigPtr CompactionHints;
+    bool DisablePeriodicCompactionOnlyIfDigestsAllowed;
 
     bool EnableLookupHashTable;
 
@@ -389,7 +399,7 @@ struct TCustomTableMountConfig
 
     i64 MaxEdenDataSizeForSplitting;
 
-    TOverloadReactiveBalancingConfigPtr OverloadReactiveBalancing;
+    TOverloadReactiveBalancingConfig OverloadReactiveBalancing;
 
     bool ValidateRowIndexInChaosReplication;
 
@@ -397,9 +407,12 @@ struct TCustomTableMountConfig
     // if there are too many unexpected conflicts.
     bool CheckConflictHorizon;
 
+    // Quantum of waiting on blocked row for tables with enabled per-row serialization.
+    TDuration PerRowSerializationBlockedRowWaitQuantum;
+
     TTestingTableMountConfig Testing;
 
-    bool TablePullerStronglyPreferLocalQueue;
+    bool TablePullerForceSameClusterQueue;
 
     REGISTER_YSON_STRUCT(TCustomTableMountConfig);
 

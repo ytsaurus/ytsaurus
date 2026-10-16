@@ -55,6 +55,7 @@ target_link_options(unittester-server-lib-misc PRIVATE
 )
 
 target_sources(unittester-server-lib-misc PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/unittests/format_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/unittests/max_min_balancer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/unittests/release_queue_ut.cpp
 )

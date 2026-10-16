@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/job_proxy/stderr_writer.h>
 
+#include <yt/yt/client/api/operation_client.h>
+
 namespace NYT::NJobProxy {
 namespace {
 

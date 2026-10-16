@@ -1,6 +1,7 @@
 #include <yt/yt/library/program/program.h>
 
 #include <yt/yt/core/bus/bus.h>
+#include <yt/yt/core/bus/message_handler.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/client.h>
@@ -15,6 +16,7 @@
 namespace NYT {
 
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NConcurrency;
 
 static const auto Logger = NLogging::TLogger("BusEchoServer");
@@ -31,14 +33,23 @@ public:
 
     virtual void HandleMessage(
         TSharedRefArray message,
-        IBusPtr replyBus) noexcept override
+        IBusPtr replyBus,
+        IDirectPlacementTransferPtr /*transfer*/,
+        TPacketId /*packetId*/) noexcept override
     {
         const auto& peer = replyBus->GetEndpointDescription();
         auto id = Counter_++;
 
-        YT_LOG_INFO("Received message with %v parts (Peer: %v, MessageId: %v)", message.Size(), peer, id);
+        YT_TLOG_INFO("Received message")
+            .With("PartCount", message.Size())
+            .With("Peer", peer)
+            .With("MessageId", id);
         for (size_t i = 0; i < message.Size(); ++i) {
-            YT_LOG_INFO("in[%v] = %Qv (Size: %v, MessageId: %v)", i, message[i], message[i].Size(), id);
+            YT_TLOG_INFO("Received message part")
+                .With("PartIndex", i)
+                .With("Part", message[i])
+                .With("Size", message[i].Size())
+                .With("MessageId", id);
         }
 
         if (id + 1 == ExpectedCounter_) {
@@ -117,7 +128,8 @@ protected:
             config->CertificateAuthority->FileName = CAFile_;
         }
 
-        YT_LOG_INFO("Connecting echo client to %v", Address_);
+        YT_TLOG_INFO("Connecting echo client")
+            .With("Address", Address_);
 
         auto client = CreateBusClient(config);
         auto handler = New<TBusEchoMessageHandler>(1);
@@ -137,28 +149,34 @@ protected:
         }
         auto message = arrayBuilder.Finish();
 
-        YT_LOG_INFO("Getting ready future");
+        YT_TLOG_INFO("Getting ready future");
 
         auto readyFuture = bus->GetReadyFuture();
         auto res = WaitFor(readyFuture);
         if (!res.IsOK()) {
-            YT_LOG_INFO("bus is NOT ready for use %v", res.GetMessage());
+            YT_TLOG_INFO("Bus is not ready for use")
+                .With("Error", res.GetMessage());
             return;
         }
 
-        YT_LOG_INFO("bus is ready for use");
+        YT_TLOG_INFO("bus is ready for use");
 
-        YT_LOG_INFO("Sending message with %v parts", message.Size());
+        YT_TLOG_INFO("Sending message")
+            .With("PartCount", message.Size());
         for (size_t i = 0; i < message.Size(); ++i) {
-            YT_LOG_INFO("out[%v] = %Qv (Size: %v)", i, message[i], message[i].Size());
+            YT_TLOG_INFO("Sending message part")
+                .With("PartIndex", i)
+                .With("Part", message[i])
+                .With("Size", message[i].Size());
         }
 
         auto future = bus->Send(message, {.TrackingLevel = EDeliveryTrackingLevel::Full});
         future.Subscribe(BIND([] (const TError& error) {
             if (error.IsOK()) {
-                YT_LOG_INFO("Message was sent");
+                YT_TLOG_INFO("Message was sent");
             } else {
-                YT_LOG_ERROR(error, "Failed to send message");
+                YT_TLOG_ERROR("Failed to send message")
+                    .With(error);
             }
         }));
 
@@ -166,10 +184,10 @@ protected:
     }
 
 private:
-    TString Address_;
-    TString CAFile_;
-    TString EncryptionMode_;
-    TString VerificationMode_;
+    std::string Address_;
+    std::string CAFile_;
+    std::string EncryptionMode_;
+    std::string VerificationMode_;
     bool Flood_ = false;
 };
 

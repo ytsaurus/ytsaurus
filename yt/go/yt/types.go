@@ -35,6 +35,8 @@ const (
 	NodeSys               NodeType = "sys_node"
 	NodePortalEntrance    NodeType = "portal_entrance"
 	NodePortalExit        NodeType = "portal_exit"
+	NodeScion             NodeType = "scion"
+	NodeRootstock         NodeType = "rootstock"
 	NodeSchedulerPool     NodeType = "scheduler_pool"
 	NodeSchedulerPoolTree NodeType = "scheduler_pool_tree"
 
@@ -181,6 +183,8 @@ func (id NodeID) YPath() ypath.Path {
 
 type Revision uint64
 
+type CellTag uint16
+
 type OperationID guid.GUID
 
 var NullOperationID = OperationID(guid.FromHalves(0, 0))
@@ -225,6 +229,14 @@ func (id *TxID) UnmarshalYSON(data []byte) (err error) {
 	return
 }
 
+func (id TxID) MarshalText() ([]byte, error) {
+	return guid.GUID(id).MarshalText()
+}
+
+func (id *TxID) UnmarshalText(data []byte) error {
+	return (*guid.GUID)(id).UnmarshalText(data)
+}
+
 type MutationID guid.GUID
 
 func (id MutationID) String() string {
@@ -242,6 +254,14 @@ func (id *MutationID) UnmarshalYSON(data []byte) (err error) {
 	return
 }
 
+func (id MutationID) MarshalText() ([]byte, error) {
+	return guid.GUID(id).MarshalText()
+}
+
+func (id *MutationID) UnmarshalText(data []byte) error {
+	return (*guid.GUID)(id).UnmarshalText(data)
+}
+
 type JobID guid.GUID
 
 func (id JobID) String() string {
@@ -257,6 +277,14 @@ func (id *JobID) UnmarshalYSON(data []byte) (err error) {
 	err = g.UnmarshalYSON(data)
 	*id = JobID(g)
 	return
+}
+
+func (id JobID) MarshalText() ([]byte, error) {
+	return guid.GUID(id).MarshalText()
+}
+
+func (id *JobID) UnmarshalText(data []byte) error {
+	return (*guid.GUID)(id).UnmarshalText(data)
 }
 
 type LockMode string
@@ -392,6 +420,22 @@ func (id *MaintenanceID) UnmarshalYSON(data []byte) (err error) {
 	return
 }
 
+func (id MaintenanceID) MarshalText() ([]byte, error) {
+	return guid.GUID(id).MarshalText()
+}
+
+func (id *MaintenanceID) UnmarshalText(data []byte) error {
+	return (*guid.GUID)(id).UnmarshalText(data)
+}
+
+type PartitionMode string
+
+const (
+	PartitionModeSorted    PartitionMode = "sorted"
+	PartitionModeOrdered   PartitionMode = "ordered"
+	PartitionModeUnordered PartitionMode = "unordered"
+)
+
 type OrderedTableBackupMode string
 
 const (
@@ -434,6 +478,14 @@ func (id *QueryID) UnmarshalYSON(data []byte) (err error) {
 	err = g.UnmarshalYSON(data)
 	*id = QueryID(g)
 	return
+}
+
+func (id QueryID) MarshalText() ([]byte, error) {
+	return guid.GUID(id).MarshalText()
+}
+
+func (id *QueryID) UnmarshalText(data []byte) error {
+	return (*guid.GUID)(id).UnmarshalText(data)
 }
 
 type QueryState string

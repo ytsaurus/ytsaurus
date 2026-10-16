@@ -19,6 +19,6 @@ func (initializer *ClusterInitializer) ACONamespace() string {
 	return "livy"
 }
 
-func NewClusterInitializer(l log.Logger, ytc yt.Client, root ypath.Path) strawberry.ClusterInitializer {
+func NewClusterInitializer(l log.Logger, ytc yt.Client, familyRoot ypath.Path) strawberry.ClusterInitializer {
 	return &ClusterInitializer{ytc: ytc}
 }

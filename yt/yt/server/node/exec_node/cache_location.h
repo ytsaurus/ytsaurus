@@ -59,9 +59,9 @@ class TCacheLocation
 {
 public:
     TCacheLocation(
-        TString id,
+        std::string id,
         NDataNode::TCacheLocationConfigPtr config,
-        const NClusterNode::IBootstrap* bootstrap,
+        NClusterNode::IBootstrapBase* bootstrap,
         TArtifactCachePtr artifactCache);
 
     const NDataNode::TCacheLocationConfigPtr& GetStaticConfig() const;
@@ -82,14 +82,16 @@ private:
 
     const std::string MediumName_;
 
-    const NClusterNode::IBootstrap* const Bootstrap_;
+    NClusterNode::IBootstrapBase* const Bootstrap_;
+
+    const NProfiling::TCounter EnospcRate_;
 
     TFuture<void> RemoveChunks();
 
-    std::optional<NNode::TChunkDescriptor> Repair(NDataNode::TChunkId chunkId, const TString& metaSuffix);
+    std::optional<NNode::TChunkDescriptor> Repair(NDataNode::TChunkId chunkId, const std::string& metaSuffix);
     std::optional<NNode::TChunkDescriptor> RepairChunk(NDataNode::TChunkId chunkId) override;
 
-    std::vector<TString> GetChunkPartNames(NDataNode::TChunkId chunkId) const override;
+    std::vector<std::string> GetChunkPartNames(NDataNode::TChunkId chunkId) const override;
 
     NNode::TBriefChunkLocationConfig GetBriefConfig() const;
 };

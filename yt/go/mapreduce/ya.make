@@ -39,6 +39,7 @@ IF (NOT OPENSOURCE)
 ENDIF()
 
 GO_TEST_SRCS(
+    client_test.go
     io_test.go
     main_test.go
     reader_test.go

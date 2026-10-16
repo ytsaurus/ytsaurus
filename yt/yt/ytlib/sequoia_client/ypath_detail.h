@@ -15,7 +15,7 @@ class TPathBase
 {
 public:
     //! Returns the path's last segment key.
-    TString GetBaseName() const;
+    std::string GetBaseName() const;
 
     //! Removes the path's last segment. No-op in case of an empty path.
     void RemoveLastSegment();
@@ -103,10 +103,10 @@ public:
 
 template <bool Absolute>
 class TBasicPath
-    : public TPathBaseImpl<Absolute, TString>
+    : public TPathBaseImpl<Absolute, std::string>
 {
 public:
-    using TBase = TPathBaseImpl<Absolute, TString>;
+    using TBase = TPathBaseImpl<Absolute, std::string>;
     using TBase::TBase;
 
     template <class T>

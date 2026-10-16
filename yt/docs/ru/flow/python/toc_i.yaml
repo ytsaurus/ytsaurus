@@ -1,0 +1,8 @@
+items:
+  - include:
+      mode: merge
+      path: toc_pages_i.yaml
+  - name: Примеры
+    include:
+      mode: link
+      path: examples/toc_i.yaml

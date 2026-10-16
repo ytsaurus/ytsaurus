@@ -1,0 +1,77 @@
+{{- if .Values.rule.enable }}
+{{- if not .Values.metrics.enable }}
+{{- fail "rule.enable=true requires metrics.enable=true" }}
+{{- end }}
+{{- $alertDefaults := .Values.rule.defaults }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "odin.fullname" . }}-checks
+  labels:
+    {{- include "odin.labels" . | nindent 4 }}
+    {{- with .Values.rule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: {{ .Values.rule.groupName }}
+      rules:
+      {{- range $checkName := keys .Values.config.checks | sortAlpha }}
+        {{- $check := index $.Values.config.checks $checkName }}
+        {{- $alertOverrides := $check.alert | default dict }}
+        {{- if and $check.enable (not $alertOverrides.disable) }}
+          {{- $alertNameSuffix := $checkName | replace "_" " " | title | replace " " "" }}
+          {{- $metricName := printf "yt_odin_%s" $checkName }}
+          {{- $checkDisplayName := $check.displayName | default $checkName }}
+          {{- $templateCtx := dict "name" $checkName "displayName" $checkDisplayName }}
+          {{- $extraLabels := merge (deepCopy ($alertOverrides.extraLabels | default dict)) ($alertDefaults.extraLabels | default dict) }}
+          {{- $aggregatedState := printf "min by (cluster) (%s{sensor=\"state\"})" $metricName }}
+          {{- if not $alertOverrides.disableFail }}
+        - alert: OdinCheck{{ $alertNameSuffix }}Failed
+          expr: {{ printf "%s == 0 or %s == 2 or %s == 3" $aggregatedState $aggregatedState $aggregatedState | quote }}
+          for: {{ coalesce $alertOverrides.failureFor $alertDefaults.failureFor }}
+          labels:
+            severity: {{ coalesce $alertOverrides.severityFail $alertDefaults.severityFail }}
+            check: {{ $checkName }}
+            {{- with $extraLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: {{ tpl (coalesce $alertOverrides.summaryFail $alertDefaults.summaryFail) $templateCtx | quote }}
+            description: {{ tpl (coalesce $alertOverrides.descriptionFail $alertDefaults.descriptionFail) $templateCtx | quote }}
+          {{- end }}
+          {{- if not $alertOverrides.disablePartial }}
+        - alert: OdinCheck{{ $alertNameSuffix }}Partial
+          expr: {{ printf "%s == 0.5" $aggregatedState | quote }}
+          for: {{ coalesce $alertOverrides.partialFor $alertDefaults.partialFor }}
+          labels:
+            severity: {{ coalesce $alertOverrides.severityPartial $alertDefaults.severityPartial }}
+            check: {{ $checkName }}
+            {{- with $extraLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: {{ tpl (coalesce $alertOverrides.summaryPartial $alertDefaults.summaryPartial) $templateCtx | quote }}
+            description: {{ tpl (coalesce $alertOverrides.descriptionPartial $alertDefaults.descriptionPartial) $templateCtx | quote }}
+          {{- end }}
+          {{- if not $alertOverrides.disableAbsent }}
+          {{- range $cluster := $.Values.config.odin.clusters }}
+          {{- $absentTemplateCtx := dict "name" $checkName "displayName" $checkDisplayName "cluster" $cluster.cluster }}
+        - alert: OdinCheck{{ $alertNameSuffix }}Absent
+          expr: {{ printf "absent(%s{sensor=\"state\", cluster=\"%s\"})" $metricName $cluster.cluster | quote }}
+          for: {{ coalesce $alertOverrides.absentFor $alertDefaults.absentFor }}
+          labels:
+            severity: {{ coalesce $alertOverrides.severityAbsent $alertDefaults.severityAbsent }}
+            check: {{ $checkName }}
+            cluster: {{ $cluster.cluster }}
+            {{- with $extraLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: {{ tpl (coalesce $alertOverrides.summaryAbsent $alertDefaults.summaryAbsent) $absentTemplateCtx | quote }}
+            description: {{ tpl (coalesce $alertOverrides.descriptionAbsent $alertDefaults.descriptionAbsent) $absentTemplateCtx | quote }}
+          {{- end }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+{{- end }}

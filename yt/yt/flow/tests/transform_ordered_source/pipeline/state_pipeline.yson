@@ -1,0 +1,71 @@
+{
+    "cluster_url" = "<to_be_overridden>";
+    "path" = "//<to_be_overridden>";
+    "spec" = {
+        "computations" = {
+            "CountingTransform" = {
+                "computation_class_name" = "NTest::TCountingTransform";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["counts"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "//<to_be_overridden>";
+                            "consumer_path" = "//<to_be_overridden>";
+                        };
+                    };
+                };
+            };
+            "Writer" = {
+                "computation_class_name" = "NYT::NFlow::TPassthroughComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(reduce_id)"; "type" = "uint64"; required = %true;};
+                    {"name" = "reduce_id"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["counts"];
+                "output_stream_ids" = ["sink_count"];
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["sink_count";];
+                        "parameters" = {
+                            "queue_path" = "//<to_be_overridden>";
+                        };
+                    };
+                };
+            };
+        };
+        "streams" = {
+            "counts" = {
+                "schema" = [
+                    {"name" = "reduce_id"; "type" = "uint64";};
+                    {"name" = "count"; "type" = "int64";};
+                ];
+            };
+            "sink_count" = {
+                "schema" = [
+                    {"name" = "reduce_id"; "type" = "uint64";};
+                    {"name" = "count"; "type" = "int64";};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "CountingTransform" = {
+                "batch_duration" = 100;
+                "max_rows_per_batch" = 10;
+            };
+            "Writer" = {
+                "parameters" = {"desired_partition_count" = 4;};
+            };
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+        "message_distributor" = {
+            "send_queue_batch_duration" = "3s";
+        };
+    };
+}

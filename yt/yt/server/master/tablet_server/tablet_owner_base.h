@@ -57,8 +57,6 @@ private:
     };
 
 public:
-    DEFINE_BYREF_RW_PROPERTY(TTabletCellBundlePtr, TabletCellBundle);
-
     DECLARE_EXTRA_PROPERTY_HOLDER(TTabletOwnerAttributes, TabletOwnerAttributes);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(TabletOwnerAttributes, InMemoryMode);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(TabletOwnerAttributes, TabletCountByState);
@@ -92,6 +90,12 @@ public:
     TTabletOwnerBase* GetTrunkNode();
     const TTabletOwnerBase* GetTrunkNode() const;
 
+    //! Returns the bundle of the trunk node; safe to call for branched nodes.
+    TTabletCellBundleRawPtr GetTabletCellBundle() const;
+    //! Only trunk nodes carry a tablet cell bundle.
+    //! NB: Prefer ITabletManager::SetTabletCellBundle, which also updates resource accounting.
+    void SetTabletCellBundle(TTabletCellBundle* cellBundle);
+
     NSecurityServer::TDetailedMasterMemory GetDetailedMasterMemoryUsage() const override;
     void RecomputeTabletMasterMemoryUsage();
 
@@ -122,7 +126,8 @@ public:
         int lastTabletIndex,
         int newTabletCount,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
-        const std::vector<i64>& trimmedRowCounts) const;
+        const std::vector<i64>& trimmedRowCounts,
+        const std::vector<i64>& cumulativeDataWeights) const;
 
     void LockCurrentMountTransaction(NTransactionClient::TTransactionId transactionId);
     void UnlockCurrentMountTransaction(NTransactionClient::TTransactionId transactionId);
@@ -130,13 +135,15 @@ public:
     void OnRemountNeeded();
 
 private:
+    TTabletCellBundlePtr TabletCellBundle_;
+
     void ValidateExpectedTabletState(TStringBuf message, bool allowFrozen) const;
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TTabletOwnerBase)
 
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TTabletOwnerBase, 592);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TTabletOwnerBase, 584);
 
 ////////////////////////////////////////////////////////////////////////////////
 

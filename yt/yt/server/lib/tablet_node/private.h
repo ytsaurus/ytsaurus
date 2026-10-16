@@ -10,8 +10,8 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, TabletNodeLogger, "TabletNode");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, TabletNodeProfiler, "/tablet_node");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, TabletNodeLogger, "TabletNode");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, TabletNodeProfiler, "/tablet_node");
 
 ////////////////////////////////////////////////////////////////////////////////
 

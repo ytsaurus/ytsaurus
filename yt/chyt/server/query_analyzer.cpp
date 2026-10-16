@@ -10,11 +10,12 @@
 #include "subquery.h"
 #include "subquery_spec.h"
 #include "storage_distributor.h"
+#include "storage_yt_materialized_view.h"
 #include "table.h"
 #include "read_range_inference.h"
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
@@ -32,7 +33,6 @@
 #include <Analyzer/TableNode.h>
 #include <Analyzer/TableFunctionNode.h>
 #include <Analyzer/ConstantNode.h>
-#include <Analyzer/ColumnNode.h>
 #include <Analyzer/FunctionNode.h>
 #include <Analyzer/Utils.h>
 #include <Analyzer/WindowFunctionsUtils.h>
@@ -72,6 +72,7 @@
 #include <Parsers/makeASTForLogicalFunction.h>
 
 #include <Storages/buildQueryTreeForShard.h>
+#include <Storages/KeyDescription.h>
 
 #include <library/cpp/string_utils/base64/base64.h>
 #include <library/cpp/iterator/enumerate.h>
@@ -80,7 +81,9 @@ namespace DB::Setting {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const SettingsBool allow_push_predicate_ast_for_distributed_subqueries;
 extern const SettingsBool extremes;
+
 extern const SettingsUInt64 limit;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,7 +121,8 @@ int GetUsedKeyPrefixSize(const DB::QueryTreeNodePtr& keyNode, const TTableSchema
 
     int usedPrefixSize = 0;
 
-    for (int index = 0; index < schema->GetKeyColumnCount(); ++index) {
+    int keyColumnCount = GetAscendingKeyPrefixLength(*schema);
+    for (int index = 0; index < keyColumnCount; ++index) {
         const auto& column = schema->Columns()[index];
         if (!usedColumns.contains(column.Name())) {
             break;
@@ -389,7 +393,7 @@ JoinKeyLists ParseJoinKeyColumns(const DB::QueryTreeNodePtr& queryNode, const DB
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IStorageDistributorPtr GetStorage(const DB::QueryTreeNodePtr& tableExpression)
+IStorageDistributorPtr GetStorage(const DB::QueryTreeNodePtr& tableExpression, DB::ContextPtr context)
 {
     if (!tableExpression) {
         return nullptr;
@@ -403,6 +407,11 @@ IStorageDistributorPtr GetStorage(const DB::QueryTreeNodePtr& tableExpression)
         storage = tableExpression->as<DB::TableFunctionNode&>().getStorage();
     } else {
         return nullptr;
+    }
+
+    // Reading through a materialized view reads its target table.
+    if (auto materializedView = std::dynamic_pointer_cast<IStorageYtMaterializedView>(storage)) {
+        return materializedView->ResolveTargetDistributor(context);
     }
 
     return std::dynamic_pointer_cast<IStorageDistributor>(storage);
@@ -431,7 +440,7 @@ public:
         if (functionNode->getArguments().getNodes().size() != 2) {
             THROW_ERROR_EXCEPTION("Wrong number of arguments passed to function %v",
                 functionNode->getFunctionName())
-                << TErrorAttribute("number_of_arguments", functionNode->getArguments().getNodes().size());
+                .With("number_of_arguments", functionNode->getArguments().getNodes().size());
         }
 
         auto rhs = functionNode->getArguments().getNodes()[1];
@@ -563,6 +572,11 @@ private:
     bool HasMinMax_ = false;
 };
 
+int ConvertSortDirectionToInt(DB::SortDirection sortDirection)
+{
+    return sortDirection == DB::SortDirection::ASCENDING ? 1 : -1;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -588,17 +602,17 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
     bool isCompleteSubquery,
     bool isLastSubquery)
 {
-    auto Logger = this->Logger.WithTag("SubqueryIndex: %v", subqueryIndex);
+    auto Logger = this->Logger.WithTag("SubqueryIndex", subqueryIndex);
 
     i64 totalRowCount = 0;
     i64 totalDataWeight = 0;
     i64 totalChunkCount = 0;
     for (const auto& subquery : threadSubqueries) {
-        YT_LOG_DEBUG("Thread subquery (Cookie: %v, LowerBound: %v, UpperBound: %v, StripeListStatistics: %v)",
-            subquery.Cookie,
-            subquery.Bounds.first,
-            subquery.Bounds.second,
-            subquery.StripeList->GetAggregateStatistics());
+        YT_TLOG_DEBUG("Thread subquery")
+            .With("Cookie", subquery.Cookie)
+            .With("LowerBound", subquery.Bounds.first)
+            .With("UpperBound", subquery.Bounds.second)
+            .With("StripeListStatistics", subquery.StripeList->GetAggregateStatistics());
 
         const auto& stripeListStatistics = subquery.StripeList->GetAggregateStatistics();
         totalRowCount += stripeListStatistics.RowCount;
@@ -606,12 +620,11 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
         totalChunkCount += stripeListStatistics.ChunkCount;
     }
 
-    YT_LOG_DEBUG(
-        "Creating secondary query (ThreadSubqueryCount: %v, TotalDataWeight: %v, TotalRowCount: %v, TotalChunkCount: %v)",
-        threadSubqueries.size(),
-        totalDataWeight,
-        totalRowCount,
-        totalChunkCount);
+    YT_TLOG_DEBUG("Creating secondary query")
+        .With("ThreadSubqueryCount", threadSubqueries.size())
+        .With("TotalDataWeight", totalDataWeight)
+        .With("TotalRowCount", totalRowCount)
+        .With("TotalChunkCount", totalChunkCount);
 
     DB::Scalars scalars;
     for (int index = 0; index < std::ssize(OperandSpecs_); ++index) {
@@ -632,10 +645,9 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
         auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
         auto encodedSpec = protoSpec.SerializeAsString();
 
-        YT_LOG_DEBUG(
-            "Serializing subquery spec (TableIndex: %v, SpecLength: %v)",
-            index,
-            encodedSpec.size());
+        YT_TLOG_DEBUG("Serializing subquery spec")
+            .With("TableIndex", index)
+            .With("SpecLength", encodedSpec.size());
 
         std::string scalarName = Format("yt_table_%v", index);
         scalars[scalarName] = DB::Block{{
@@ -677,7 +689,8 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
 
     auto secondaryQueryAst = DB::queryNodeToDistributedSelectQuery(secondaryQuery);
 
-    YT_LOG_DEBUG("Query was created (NewQuery: %v)", *secondaryQueryAst);
+    YT_TLOG_DEBUG("Query was created")
+        .With("NewQuery", *secondaryQueryAst);
 
     return {
         .Query = std::move(secondaryQueryAst),
@@ -691,9 +704,9 @@ DB::QueryTreeNodePtr TSecondaryQueryBuilder::AddBoundConditionToJoinedSubquery(
     TOwningKeyBound lowerBound,
     TOwningKeyBound upperBound)
 {
-    YT_LOG_DEBUG("Adding bound condition to joined subquery (LowerLimit: %v, UpperLimit: %v)",
-        lowerBound,
-        upperBound);
+    YT_TLOG_DEBUG("Adding bound condition to joined subquery")
+        .With("LowerLimit", lowerBound)
+        .With("UpperLimit", upperBound);
 
     auto createBoundCondition = [&] (const auto& bound) -> DB::ASTPtr {
         if (bound.IsUniversal()) {
@@ -751,10 +764,10 @@ DB::QueryTreeNodePtr TSecondaryQueryBuilder::AddBoundConditionToJoinedSubquery(
 
     DB::ASTPtr boundConditions = DB::makeASTForLogicalAnd(std::move(conjunctionArgs));
 
-    YT_LOG_TRACE("Bound conditions generated (LowerBound: %v, UpperBound: %v, Conditions: %v)",
-        lowerBound,
-        upperBound,
-        *boundConditions);
+    YT_TLOG_TRACE("Bound conditions generated")
+        .With("LowerBound", lowerBound)
+        .With("UpperBound", upperBound)
+        .With("Conditions", *boundConditions);
 
     // Adding where condition into existing table expression is difficult or impossible because of:
     // 1. Table expression is a table function (e.g. numberes(10)) or not-yt table identifier (e.g. system.clique).
@@ -871,10 +884,10 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
                 "you can suppress this error at cost of possible performance degradation "
                 "by wrapping the table into subquery",
                 errorPrefix)
-                << TErrorAttribute("table_expression", tableExpression->formatASTForErrorMessage())
-                << TErrorAttribute("table_index", tableIndex)
-                << TErrorAttribute("underlying_table_count", underlyingTables.size())
-                << TErrorAttribute("docs", "https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/queries/joins");
+                .With("table_expression", tableExpression->formatASTForErrorMessage())
+                .With("table_index", tableIndex)
+                .With("underlying_table_count", underlyingTables.size())
+                .With("docs", "https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/queries/joins");
         }
 
         const auto& path = underlyingTables.front()->Path;
@@ -887,8 +900,8 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
                 "by wrapping the table into subquery",
                 errorPrefix,
                 path)
-                << TErrorAttribute("table_index", tableIndex)
-                << TErrorAttribute("docs", "https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/queries/joins");
+                .With("table_index", tableIndex)
+                .With("docs", "https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/queries/joins");
         }
     };
 
@@ -971,16 +984,19 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
         ++matchedKeyPrefixSize;
     }
 
+    int ascendingPrefix = GetAscendingKeyPrefixLength(leftTableSchema);
+    if (TwoYTTableJoin_) {
+        ascendingPrefix = std::min(ascendingPrefix, GetAscendingKeyPrefixLength(rightTableSchema));
+    }
+    matchedKeyPrefixSize = std::min(matchedKeyPrefixSize, ascendingPrefix);
+
     if (matchedKeyPrefixSize == 0) {
-        YT_LOG_DEBUG(
-            "As a result of the inferring sorted join key columns, the key turned out to be empty "
-            "(MatchedLeftKeyNames: %v, LeftKeyPositionMap: %v, RightKeyPositionMap: %v, "
-            "UnmatchedKeyPairs: %v, JoinKeySize: %v)",
-            matchedLeftKeyNames,
-            leftKeyPositionMap,
-            rightKeyPositionMap,
-            unmatchedKeyPairs,
-            joinKeySize);
+        YT_TLOG_DEBUG("As a result of the inferring sorted join key columns, the key turned out to be empty")
+            .With("MatchedLeftKeyNames", matchedLeftKeyNames)
+            .With("LeftKeyPositionMap", leftKeyPositionMap)
+            .With("RightKeyPositionMap", rightKeyPositionMap)
+            .With("UnmatchedKeyPairs", unmatchedKeyPairs)
+            .With("JoinKeySize", joinKeySize);
 
         return;
     }
@@ -997,7 +1013,8 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
 
 void TQueryAnalyzer::ParseQuery()
 {
-    YT_LOG_DEBUG("Analyzing query (Query: %v)", QueryInfo_.query_tree->toAST());
+    YT_TLOG_DEBUG("Analyzing query")
+        .With("Query", QueryInfo_.query_tree->toAST());
 
     // We need to collect the table expression data before calling buildQueryTreeForShard,
     // because the pointers to the table expression nodes will change and we won't be able to find them.
@@ -1048,7 +1065,7 @@ void TQueryAnalyzer::ParseQuery()
         }
 
         if (tableExpressionNodeType == DB::QueryTreeNodeType::CROSS_JOIN) {
-            YT_LOG_DEBUG("Query is a cross join");
+            YT_TLOG_DEBUG("Query is a cross join");
             Join_ = true;
             CrossJoin_ = true;
         }
@@ -1056,12 +1073,13 @@ void TQueryAnalyzer::ParseQuery()
             Join_ = true;
             const auto& joinNode = tableExpression->as<DB::JoinNode&>();
             if (joinNode.getLocality() == DB::JoinLocality::Global) {
-                YT_LOG_DEBUG("Table expression is a global join (Index: %v)", index);
+                YT_TLOG_DEBUG("Table expression is a global join")
+                    .With("Index", index);
                 GlobalJoin_ = true;
             }
             auto joinKind = joinNode.getKind();
             if (joinKind == DB::JoinKind::Right || joinKind == DB::JoinKind::Full) {
-                YT_LOG_DEBUG("Query is a right or full join");
+                YT_TLOG_DEBUG("Query is a right or full join");
                 RightOrFullJoin_ = true;
             }
         }
@@ -1075,18 +1093,25 @@ void TQueryAnalyzer::ParseQuery()
         TableExpressions_.emplace_back(tableExpression);
     }
 
+    // An n-ary CROSS_JOIN emits all operands before its single join marker.
+    // Keep only the first pair since this analyzer handles the first join.
+    if (CrossJoin_ && TableExpressions_.size() > 2) {
+        TableExpressions_.resize(2);
+    }
+
     YT_VERIFY(TableExpressions_.size() >= 1 && TableExpressions_.size() <= 2);
+    auto context = getContext();
     for (size_t tableExpressionIndex = 0; tableExpressionIndex < TableExpressions_.size(); ++tableExpressionIndex) {
         const auto& tableExpression = TableExpressions_[tableExpressionIndex];
 
-        auto storage = GetStorage(tableExpression);
+        auto storage = GetStorage(tableExpression, context);
         if (storage) {
-            YT_LOG_DEBUG("Table expression corresponds to TStorageDistributor (TableExpression: %v)",
-                tableExpression->toAST());
+            YT_TLOG_DEBUG("Table expression corresponds to TStorageDistributor")
+                .With("TableExpression", tableExpression->toAST());
             Storages_.emplace_back(storage);
         } else {
-            YT_LOG_DEBUG("Table expression does not correspond to TStorageDistributor (TableExpression: %v)",
-                tableExpression->toAST());
+            YT_TLOG_DEBUG("Table expression does not correspond to TStorageDistributor")
+                .With("TableExpression", tableExpression->toAST());
         }
     }
 
@@ -1100,10 +1125,10 @@ void TQueryAnalyzer::ParseQuery()
 
     if (Storages_.size() == 2) {
         if (!CrossJoin_) {
-            YT_LOG_DEBUG("Query is a two-YT-table join");
+            YT_TLOG_DEBUG("Query is a two-YT-table join");
             TwoYTTableJoin_ = true;
         } else {
-            YT_LOG_DEBUG("Query is a two-YT-table cross join; considering this as a single YT table join");
+            YT_TLOG_DEBUG("Query is a two-YT-table cross join; considering this as a single YT table join");
             TwoYTTableJoin_ = false;
             TableExpressions_.pop_back();
             Storages_.pop_back();
@@ -1112,21 +1137,14 @@ void TQueryAnalyzer::ParseQuery()
     SecondaryQueryOperandCount_ = Storages_.size();
     TableExpressionDataPtrs_.resize(TableExpressions_.size());
 
-    YT_LOG_DEBUG(
-        "Extracted table expressions from query (Query: %v, TableExpressionCount: %v, YtTableCount: %v, "
-        "IsJoin: %v, IsGlobalJoin: %v, IsRightOrFullJoin: %v, IsCrossJoin: %v)",
-        *QueryInfo_.query,
-        TableExpressions_.size(),
-        Storages_.size(),
-        Join_,
-        GlobalJoin_,
-        RightOrFullJoin_,
-        CrossJoin_);
-}
-
-DB::QueryTreeNodePtr TQueryAnalyzer::GetParsedQueryTree() const
-{
-    return QueryInfo_.query_tree->clone();
+    YT_TLOG_DEBUG("Extracted table expressions from query")
+        .With("Query", *QueryInfo_.query)
+        .With("TableExpressionCount", TableExpressions_.size())
+        .With("YtTableCount", Storages_.size())
+        .With("IsJoin", Join_)
+        .With("IsGlobalJoin", GlobalJoin_)
+        .With("IsRightOrFullJoin", RightOrFullJoin_)
+        .With("IsCrossJoin", CrossJoin_);
 }
 
 DB::QueryProcessingStage::Enum TQueryAnalyzer::GetOptimizedQueryProcessingStage() const
@@ -1253,13 +1271,14 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
     OptimizedQueryProcessingStage_ = DB::QueryProcessingStage::Complete;
 }
 
-void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNanKeys)
+void TQueryAnalyzer::InferReadInOrderModeAndSortDescription(bool assumeNoNullKeys, bool assumeNoNanKeys)
 {
     auto* queryNode = QueryInfo_.query_tree->as<DB::QueryNode>();
 
     // Read in order is forbidden in JOINs and queries with aggregation.
     // It might be useful in some of these cases, but that is a question for another day.
     if (Join_ || queryNode->hasGroupBy() || queryNode->hasHaving() || queryNode->hasWindow() || queryNode->hasLimitBy()) {
+        // TODO(ivanzhukov): Support joins (at least of two sorted YT tables) and other stuff if possible.
         return;
     }
 
@@ -1272,12 +1291,32 @@ void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNa
     // Read in order makes no sense without any limits specified.
     // The whole table will probably be read anyway.
     if (!queryNode->hasLimit() && !getContext()->getSettingsRef()[DB::Setting::limit]) {
+        // TODO(ivanzhukov): Optimize chunk readers so that reading data in order (even with no limit) has no drawbacks.
         return;
     }
 
     YT_VERIFY(Storages_.size() == 1);
-    const auto& schema = Storages_[0]->GetSchema();
+    const auto& storage = Storages_[0];
+    const auto& tables = storage->GetTables();
+    if (tables.size() > 1) {
+        // If we have multiple sorted tables with the same schema, e.g. `SELECT * FROM concatYtTables(t1, t2) ORDER BY ...`,
+        // then data from them could overlap.
+        // TODO(ivanzhukov): (CHYT-1470) If tables' chunks don't overlap (even if tables themselves overlap), we still could read in order.
+        return;
+    }
+    const auto& table = tables[0];
+    if (table->EnableDynamicStoreRead) {
+        // Since data is simultaneously read from two 'storages' (a persistent one and from RAM) we can't guarantee
+        // that the resulting stream would be sorted.
+        return;
+    }
+    if (table->Path.HasNontrivialRanges()) {
+        // Technically user-specified slices could overlap, e.g. `SELECT * FROM "//path/to/table[#1:#10, #2:#11, #3:#12]"`
+        // TODO(ivanzhukov): If row ranges don't actually overlap, still produce sort description and read-in-order mode.
+        return;
+    }
 
+    const auto& schema = storage->GetSchema();
     // If the underlying table is not sorted we cannot help in any way.
     if (!schema->IsSorted()) {
         return;
@@ -1286,10 +1325,11 @@ void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNa
     auto commonDirection = EReadInOrderMode::None;
 
     // Columns from the ORDER BY clause must form a prefix of the table's primary key.
-    if (std::ssize(queryNode->getOrderBy().getNodes()) > schema->GetKeyColumnCount()) {
+    if (std::ssize(queryNode->getOrderBy().getNodes()) > GetAscendingKeyPrefixLength(*schema)) {
         return;
     }
 
+    DB::SortDescription sortDescription;
     for (const auto& [columnIndex, orderByElementNode] : Enumerate(queryNode->getOrderBy().getNodes())) {
         auto orderBySortNode = orderByElementNode->as<DB::SortNode>();
 
@@ -1305,6 +1345,12 @@ void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNa
 
         // Columns from the ORDER BY clause must form a prefix of the table's primary key.
         if (orderByColumnNode->getColumnName() != schemaColumn.Name()) {
+            return;
+        }
+
+        // Column is sorted by a custom alphabet, so there's a very small chance that physical data is already sorted that way.
+        // TODO(ivanzhukov): Probability is small, but not zero. Check that data could conform to a custom collator.
+        if (orderBySortNode->getCollator()) {
             return;
         }
 
@@ -1335,10 +1381,6 @@ void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNa
             return;
         }
 
-        if (!couldHaveNulls && !couldHaveNans) {
-            continue;
-        }
-
         // The value of nulls_direction is equal to direction for NULLS LAST and to the opposite
         // of direction for NULLS FIRST.
         auto nullsDirection = orderBySortNode->getNullsSortDirection().value_or(orderBySortNode->getSortDirection());
@@ -1354,9 +1396,60 @@ void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNa
         if (couldHaveNans && nullsDirection != DB::SortDirection::ASCENDING) {
             return;
         }
+
+        sortDescription.emplace_back(
+            schemaColumn.Name(),
+            /*direction_*/ ConvertSortDirectionToInt(orderBySortNode->getSortDirection()),
+            /*nulls_direction_*/ ConvertSortDirectionToInt(nullsDirection));
     }
 
     ReadInOrderMode_ = commonDirection;
+    // Imagine a query such as
+    // ```
+    // SELECT a, d
+    // FROM t -- CREATE TABLE t (a UInt8, b UInt8, c UInt8, d UInt8) ENGINE=YtTable() ORDER BY (a, b, c)
+    // ORDER BY a, b, c
+    // ```
+    // This query will be executed on two different levels:
+    // - First on worker nodes, where data will be read from YT tables raw and all data transformations will be
+    //   performed by the CH's query engine. Therefore in order for CH to better optimize query execution (e.g. LIMIT)
+    //   we would, on worker nodes, return a sort description as verbose as possible. In this case {a, b, c}.
+    //   More than that, even though columns b and c are not physically read, data read on a particular host is still
+    //   physically sorted in that way, because it was stored as such by the YT storage layer. Therefore by returning
+    //   sort description {a, b, c} we're not technically lying.
+    if (ReadInOrderMode_ == EReadInOrderMode::Forward) {
+        // TODO(ivanzhukov):
+        // Right now a secondary node performs full sort for data read backwards. However, it seems like in DESC case either
+        // the YT reader itself could reverse-sort all data while reading it or it could read a block, reverse-sort it in memory,
+        // and return to a client so that a client could just merge backward-sorted blocks. Then we'd be able to propagate
+        // sort description right to secondary nodes.
+
+        // With this optimization (UseDistinctReadOptimization) rows come out in dictionary/RLE value order with NULL last,
+        // not key order (see `ReduceFilterToDistinct`, `UnwrapSimpleDistinctColumn`).
+        if (!NeedOnlyDistinct_) {
+            SubquerySortDescription_ = sortDescription;
+        }
+    }
+    // - Then on a coordinator node, when all data is already transformed on worker nodes and CH only needs to
+    //   aggregate it from all remote hosts. However, since part of data is already 'lost' (columns b and c are not selected),
+    //   there's no way for a CH engine to merge sorted streams from remote hosts so that the resulting stream still
+    //   complies to {a, b, c} sorting, only to {a}. Therefore we drop {b, c} from the coordinator's sort description.
+    //   Simply put, we keep the longest prefix of sort columns that are selected:
+    const auto& selectColumns = queryNode->getProjectionColumns();
+    for (const auto& sortColumn : sortDescription) {
+        auto isSortColumn = [&] (const auto& selectColumn) { return selectColumn.name == sortColumn.column_name; };
+        if (std::ranges::none_of(selectColumns, isSortColumn)) {
+            break;
+        }
+        CoordinatorSortDescription_.push_back(sortColumn);
+    }
+    // NB: It's okay to have a coordinator sort description without a subquery sort description.
+    // Even if a subquery doesn't have a sort description its output data will be sorted by the CH query engine. Therefore:
+    // - output data within every subquery is sorted
+    // - subqueries process boundary-sorted non-overlapping sets of chunks
+    // - coordinator concats subqueries output in the order of subquery boundaries
+    // Which means that in the read-in-order case the resulting data stream [secondary_0_out; secondary_1_out; ...]
+    // will be sorted. Hence the coordinator will (almost) always have a sort description.
 }
 
 TQueryAnalysisResult TQueryAnalyzer::Analyze() const
@@ -1379,7 +1472,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
         std::optional<DB::KeyCondition> keyCondition;
         if (schema->IsSorted()) {
             auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(DB::ActionsDAG(
-                ToNamesAndTypesList(*schema, settings->Composite)));
+                ToNamesAndTypesList(*schema, settings->Conversion)));
 
             std::shared_ptr<const DB::ActionsDAG> filterActionsDAG;
 
@@ -1430,7 +1523,13 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
             }
 
             DB::ActionsDAGWithInversionPushDown invertedDAG(filterActionsDAG ? filterActionsDAG->getOutputs().front() : nullptr, getContext());
-            keyCondition.emplace(invertedDAG, getContext(), schema->GetKeyColumns(), primaryKeyExpression);
+            DB::KeyDescription keyDescription;
+            keyDescription.column_names = schema->GetKeyColumns();
+            keyDescription.expression = primaryKeyExpression;
+            for (int keyIndex = 0; keyIndex < schema->GetKeyColumnCount(); ++keyIndex) {
+                keyDescription.reverse_flags.push_back(schema->Columns()[keyIndex].SortOrder() == ESortOrder::Descending);
+            }
+            keyCondition.emplace(invertedDAG, getContext(), std::move(keyDescription));
 
             bool suitableForReadRangeInferring = settings->Execution->EnableReadRangeInferring && TableExpressions_.size() == 1 && selectQuery->getWhere();
             for (int tableIndex = 0; suitableForReadRangeInferring && tableIndex < std::ssize(result.Tables.back()); ++tableIndex) {
@@ -1440,7 +1539,9 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
 
             if (suitableForReadRangeInferring) {
                 result.KeyReadRanges = InferReadRange(selectQuery->getWhere(), storage->GetSchema(), getContext()->getSettingsRef());
-                YT_LOG_DEBUG("Inferred read range for table (Table: %v, KeyReadRange: %v)", storage->GetTables(), result.KeyReadRanges);
+                YT_TLOG_DEBUG("Inferred read range for table")
+                    .With("Table", storage->GetTables())
+                    .With("KeyReadRange", result.KeyReadRanges);
             }
         }
         result.KeyConditions.emplace_back(std::move(keyCondition));
@@ -1448,10 +1549,17 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
     }
 
     result.ReadInOrderMode = ReadInOrderMode_;
+    result.SubquerySortDescription = SubquerySortDescription_;
+    result.CoordinatorSortDescription = CoordinatorSortDescription_;
 
     if (ReadInOrderMode_ != EReadInOrderMode::None) {
         result.PoolKind = EPoolKind::Sorted;
-        result.KeyColumnCount = Storages_[0]->GetSchema()->GetKeyColumnCount();
+        auto prefixLen = GetAscendingKeyPrefixLength(*Storages_[0]->GetSchema());
+        // For a read-in-order query such as `SELECT DISTINCT k1, value FROM t ORDER BY k1, k2, k3` we
+        // use min(len([k1]), len([k1, k2, k3])) — which is 1 — telling the sorted chunk pool to split
+        // chunks by a key that would produce correct results (if we split by (k1, k2, k3) then the same k1 value
+        // could be distributed across multiple secondary nodes thus producing an output with k1 duplicates)
+        result.KeyColumnCount = KeyColumnCount_ == 0 ? prefixLen : std::min(KeyColumnCount_, prefixLen);
     } else {
         result.PoolKind = (KeyColumnCount_ > 0 ? EPoolKind::Sorted : EPoolKind::Unordered);
         result.KeyColumnCount = KeyColumnCount_;
@@ -1465,6 +1573,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
     }
 
     result.EnableMinMaxOptimization = EnableMinMaxOptimization_;
+    result.QueryTree = QueryInfo_.query_tree->clone();
 
     return result;
 }
@@ -1507,7 +1616,8 @@ std::shared_ptr<TSecondaryQueryBuilder> TQueryAnalyzer::GetSecondaryQueryBuilder
     }
 
     auto queryTreeToDistribute = QueryInfo_.query_tree->cloneAndReplace(replacementMap);
-    YT_LOG_DEBUG("Query tree for distribution: %v", queryTreeToDistribute->formatConvertedASTForErrorMessage());
+    YT_TLOG_DEBUG("Built query tree for distribution")
+        .With("QueryTree", queryTreeToDistribute->formatConvertedASTForErrorMessage());
 
     TBoundJoinOptions boundJoinOptions{};
     const auto& executionSettings = StorageContext_->Settings->Execution;
@@ -1589,8 +1699,8 @@ void TQueryAnalyzer::Prepare()
     if (settings->Execution->OptimizeQueryProcessingStage) {
         OptimizeQueryProcessingStage();
     }
-    if (settings->Execution->EnableOptimizeReadInOrder) {
-        InferReadInOrderMode(settings->Execution->AssumeNoNullKeys, settings->Execution->AssumeNoNanKeys);
+    if (settings->Execution->EnableOptimizeReadInOrder && !settings->Execution->EnableInputSpecsPulling) {
+        InferReadInOrderModeAndSortDescription(settings->Execution->AssumeNoNullKeys, settings->Execution->AssumeNoNanKeys);
     }
 
     Prepared_ = true;

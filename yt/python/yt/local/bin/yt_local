@@ -27,10 +27,19 @@ def start_func(**kwargs):
     sync = kwargs.pop("sync", False)
     quiet = kwargs.pop("quiet", False)
     timeout = kwargs.pop("timeout", None)
+    components_to_not_watch = [
+        component.replace("-", "_")
+        for component in kwargs.pop("components_to_not_watch", [])
+    ]
     forbid_chunk_storage_in_tmpfs = kwargs.pop("forbid_chunk_storage_in_tmpfs", None)
 
     if not sync and timeout is not None:
         print("Warning! --timeout option has no effect when --sync flag is not specified", file=sys.stderr)
+    if not sync and components_to_not_watch:
+        print(
+            "Warning! --ignore-component-exit option has no effect when --sync flag is not specified",
+            file=sys.stderr,
+        )
 
     kwargs["allow_chunk_storage_in_tmpfs"] = not forbid_chunk_storage_in_tmpfs
 
@@ -126,7 +135,12 @@ def start_func(**kwargs):
         if quiet:
             print(environment.id)
 
-        checking_thread = YTCheckingThread(environment, delay=sync_mode_sleep_timeout, timeout=timeout)
+        checking_thread = YTCheckingThread(
+            environment,
+            delay=sync_mode_sleep_timeout,
+            timeout=timeout,
+            components_to_not_watch=components_to_not_watch,
+        )
         checking_thread.start()
 
         def interrupt_action():
@@ -179,6 +193,14 @@ def add_start_subparser(subparsers):
 
     parser.add_argument("--sync", action="store_true", default=False,
                         help="start in synchronized mode (hangs up console and prints info there)")
+    parser.add_argument(
+        "--ignore-component-exit",
+        action="append",
+        default=[],
+        dest="components_to_not_watch",
+        help="do not stop synchronized local YT when this component exits; "
+             "may be specified multiple times",
+    )
     parser.add_argument("--id", help="local YT id (guid will be generated if not specified)")
     parser.add_argument("--local-cypress-dir", help="local Cypress directory (map_nodes and tables will be created in "
                                                     "Cypress according to this directory layout)")

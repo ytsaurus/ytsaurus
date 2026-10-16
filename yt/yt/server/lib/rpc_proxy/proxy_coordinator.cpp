@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <atomic>
 
@@ -19,8 +19,8 @@ public:
     bool SetBannedState(bool banned) override;
     bool GetBannedState() const override;
 
-    void SetBanMessage(const TString& message) override;
-    TString GetBanMessage() const override;
+    void SetBanMessage(const std::string& message) override;
+    std::string GetBanMessage() const override;
 
     void SetProxyRole(const std::optional<std::string>& role) override;
     std::optional<std::string> GetProxyRole() const override;
@@ -37,9 +37,9 @@ private:
     std::atomic<bool> Banned_ = false;
     std::atomic<bool> Available_ = false;
 
-    NThreading::TAtomicObject<TString> BanMessage_;
+    TAtomicObject<std::string> BanMessage_;
 
-    NThreading::TAtomicObject<std::optional<std::string>> ProxyRole_;
+    TAtomicObject<std::optional<std::string>> ProxyRole_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,12 +54,12 @@ bool TProxyCoordinator::GetBannedState() const
     return Banned_.load(std::memory_order::relaxed);
 }
 
-void TProxyCoordinator::SetBanMessage(const TString& message)
+void TProxyCoordinator::SetBanMessage(const std::string& message)
 {
     BanMessage_.Store(message);
 }
 
-TString TProxyCoordinator::GetBanMessage() const
+std::string TProxyCoordinator::GetBanMessage() const
 {
     return BanMessage_.Load();
 }
@@ -97,7 +97,7 @@ void TProxyCoordinator::ValidateOperable() const
     }
     if (GetBannedState()) {
         THROW_ERROR_EXCEPTION(NApi::NRpcProxy::EErrorCode::ProxyBanned, "Proxy is banned")
-            << TErrorAttribute("message", GetBanMessage());
+            .With("message", GetBanMessage());
     }
 }
 

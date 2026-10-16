@@ -7,6 +7,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/job_io_meter.h>
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 
@@ -121,6 +122,9 @@ struct TTestCase
     bool MarkSomeNodesSuspicious = false;
     std::optional<std::vector<TProbeStatistics>> ProbeResults;
     std::optional<THashSet<int>> SelectedPeers;
+    std::optional<double> IoFairShareWeight = 2.5;
+    std::optional<double> JobIoFairShareWeight = 3.5;
+    bool EnableJobIoStatistics = true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,6 +196,14 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
     {
         SetCalled();
+        DataRequestCalled_.store(true);
+        LastHasIoConsumed_.store(request->has_io_consumed());
+
+        if (request->has_io_fair_share_weight()) {
+            LastIoFairShareWeight_.store(request->io_fair_share_weight());
+        } else {
+            LastIoFairShareWeight_.store(-1);
+        }
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         response->set_has_complete_chunk(ChunkBlocks_.contains(chunkId));
@@ -212,6 +224,14 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
     {
         SetCalled();
+        DataRequestCalled_.store(true);
+        LastHasIoConsumed_.store(request->has_io_consumed());
+
+        if (request->has_io_fair_share_weight()) {
+            LastIoFairShareWeight_.store(request->io_fair_share_weight());
+        } else {
+            LastIoFairShareWeight_.store(-1);
+        }
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         response->set_has_complete_chunk(ChunkBlocks_.contains(chunkId));
@@ -250,7 +270,7 @@ public:
         auto metaIt = ChunkMetas_.find(chunkId);
 
         if (metaIt.IsEnd()) {
-            THROW_ERROR_EXCEPTION("Chunk meta not found (ChunkId: %v)", chunkId);
+            THROW_ERROR_EXCEPTION("Chunk meta not found for chunk %v", chunkId);
         }
 
         *response->mutable_chunk_meta() = metaIt->second;
@@ -311,6 +331,21 @@ public:
         return PeerCalled_;
     }
 
+    double GetLastIoFairShareWeight() const
+    {
+        return LastIoFairShareWeight_.load();
+    }
+
+    bool GetLastHasIoConsumed() const
+    {
+        return LastHasIoConsumed_.load();
+    }
+
+    bool IsDataRequestCalled() const
+    {
+        return DataRequestCalled_.load();
+    }
+
 private:
     THashMap<TChunkId, THashMap<int, TSharedRef>> ChunkBlocks_;
     THashMap<TChunkId, NProto::TChunkMeta> ChunkMetas_;
@@ -321,6 +356,9 @@ private:
     std::atomic<bool> PostponeProbingReply_ = false;
     std::optional<TProbeStatistics> ProbeStatistics_;
     bool PeerCalled_ = false;
+    std::atomic<double> LastIoFairShareWeight_ = -1;
+    std::atomic<bool> LastHasIoConsumed_ = false;
+    std::atomic<bool> DataRequestCalled_ = false;
 
     TRandomGenerator Generator_{42};
 
@@ -530,6 +568,7 @@ TEST_P(TReplicationReaderTest, ReadTest)
     config->MaxBackoffTime = TDuration::MilliSeconds(1);
     config->BlockSetSubrequestThreshold = testCase.BlockSetSubrequestThreshold;
     config->PartialPeerProbingTimeouts = testCase.PartialPeerProbingTimeouts;
+    config->IoFairShareWeight = testCase.IoFairShareWeight;
     config->Postprocess();
 
     auto reader = CreateReplicationReader(
@@ -544,6 +583,11 @@ TEST_P(TReplicationReaderTest, ReadTest)
     std::vector<bool> requestedBlockMask(blockCount);
 
     IChunkReader::TReadBlocksOptions readBlockOptions;
+    auto jobIoMeter = New<TJobIoMeter>(TDuration::Hours(1), testCase.EnableJobIoStatistics);
+    if (testCase.JobIoFairShareWeight) {
+        jobIoMeter->SetIoFairShareWeight(*testCase.JobIoFairShareWeight);
+    }
+    readBlockOptions.ClientOptions.JobIoMeter = jobIoMeter;
     for (int batchIndex = 0; batchIndex < batchCount; batchIndex++) {
         std::vector<TFuture<std::vector<TBlock>>> futures;
 
@@ -610,6 +654,34 @@ TEST_P(TReplicationReaderTest, ReadTest)
     EXPECT_GE(statistics->DataBytesReadFromDisk, minBytesToRead);
     EXPECT_LE(statistics->DataBytesReadFromDisk, maxBytesToRead);
 
+    // The job I/O meter accounts disk-read bytes in the same place chunk reader
+    // statistics are handled; since the mock reports only data_bytes_read_from_disk,
+    // the enabled meter must match DataBytesReadFromDisk exactly.
+    auto expectedIoConsumed = testCase.EnableJobIoStatistics
+        ? statistics->DataBytesReadFromDisk.load()
+        : 0;
+    EXPECT_EQ(jobIoMeter->GetIoConsumedInWindow(TDuration::Hours(1)), expectedIoConsumed);
+
+    // Every node that served a read request must have observed the expected
+    // io_fair_share_weight, or none when job I/O statistics are disabled.
+    std::optional<double> expectedIoFairShareWeight;
+    if (testCase.EnableJobIoStatistics) {
+        expectedIoFairShareWeight = testCase.IoFairShareWeight
+            ? testCase.IoFairShareWeight
+            : testCase.JobIoFairShareWeight;
+    }
+    bool dataRequestObserved = false;
+    for (const auto& service : services) {
+        if (!service->IsDataRequestCalled()) {
+            continue;
+        }
+
+        dataRequestObserved = true;
+        EXPECT_EQ(service->GetLastHasIoConsumed(), testCase.EnableJobIoStatistics);
+        EXPECT_EQ(service->GetLastIoFairShareWeight(), expectedIoFairShareWeight.value_or(-1));
+    }
+    EXPECT_TRUE(dataRequestObserved);
+
     pool->Shutdown();
     memoryTracker->ClearTrackers();
 }
@@ -619,6 +691,12 @@ INSTANTIATE_TEST_SUITE_P(
     TReplicationReaderTest,
     ::testing::Values(
         TTestCase{},
+        TTestCase{
+            .IoFairShareWeight = std::nullopt,
+        },
+        TTestCase{
+            .EnableJobIoStatistics = false,
+        },
         TTestCase{
             .BatchCount = 16,
             .NodeCount = 3,
@@ -1076,6 +1154,99 @@ TEST(TReplicationReaderConfigTest, ValidateAdaptiveProbingConfig)
         std::make_pair(2, TDuration::Seconds(2)),
     };
     EXPECT_THROW(config->Postprocess(), NYT::TErrorException);
+}
+
+TEST(TReplicationReaderTest, FailOnUnresolvedNodeId)
+{
+    auto pool = NConcurrency::CreateThreadPool(4, "Worker");
+    auto invoker = pool->GetInvoker();
+
+    auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+    auto memoryTracker = CreateNodeMemoryTracker(32_MB, New<TNodeMemoryTrackerConfig>(), {});
+
+    std::vector<TIntrusivePtr<TTestDataNodeService>> services;
+    THashMap<std::string, IServicePtr> addressToService;
+
+    auto chunkId = NObjectClient::MakeRandomId(
+        NObjectClient::EObjectType::Chunk,
+        NObjectClient::TCellTag(0xf003));
+
+    TRandomGenerator generator(42);
+    auto blocks = CreateBlocks(4, &generator);
+
+    // Add descriptors only for nodes 0 and 1.
+    for (int index = 0; index < 2; ++index) {
+        auto address = std::string(Format("local:%v", index));
+        nodeDirectory->AddDescriptor(
+            NNodeTrackerClient::TNodeId(index),
+            NNodeTrackerClient::TNodeDescriptor(address));
+
+        auto service = New<TTestDataNodeService>(invoker);
+        service->SetChunkBlocks(chunkId, blocks);
+
+        services.push_back(service);
+        addressToService[address] = service;
+    }
+
+    // But include node 2 in seed replicas without adding its descriptor.
+    TChunkReplicaList replicas;
+    replicas.emplace_back(NNodeTrackerClient::TNodeId(0), 0);
+    replicas.emplace_back(NNodeTrackerClient::TNodeId(1), 1);
+    replicas.emplace_back(NNodeTrackerClient::TNodeId(2), 2);
+
+    auto options = New<TRemoteReaderOptions>();
+    options->AllowFetchingSeedsFromMaster = false;
+
+    auto channelFactory = CreateTestChannelFactory(
+        addressToService,
+        THashMap<std::string, IServicePtr>());
+
+    auto connection = CreateConnection(
+        std::move(channelFactory),
+        {"default"},
+        std::move(nodeDirectory),
+        /*nodeStatusDirectory*/ nullptr,
+        invoker,
+        memoryTracker);
+
+    EXPECT_CALL(*connection, CreateNativeClient)
+        .WillRepeatedly([&connection, &memoryTracker] (const NApi::NNative::TClientOptions& options) -> NApi::NNative::IClientPtr {
+            return New<NApi::NNative::TClient>(connection, options, memoryTracker);
+        });
+    EXPECT_CALL(*connection, GetPrimaryMasterCellId).Times(testing::AtLeast(1));
+    EXPECT_CALL(*connection, GetClusterDirectory).Times(testing::AtLeast(1));
+    EXPECT_CALL(*connection, SubscribeReconfigured).Times(testing::AtLeast(1));
+    EXPECT_CALL(*connection, UnsubscribeReconfigured).Times(testing::AtLeast(1));
+    EXPECT_CALL(*connection, GetPrimaryMasterCellTag).Times(testing::AtLeast(1));
+    EXPECT_CALL(*connection, GetSecondaryMasterCellTags).Times(testing::AtLeast(1));
+
+    auto readerHost = CreateChunkReaderHost(connection);
+
+    auto config = New<TReplicationReaderConfig>();
+    config->FailOnUnresolvedNodeId = true;
+    config->BackoffTimeMultiplier = 1.01;
+    config->MinBackoffTime = TDuration::MilliSeconds(1);
+    config->MaxBackoffTime = TDuration::MilliSeconds(1);
+    config->RetryCount = 1;
+    config->PassCount = 1;
+    config->Postprocess();
+
+    auto reader = CreateReplicationReader(
+        std::move(config),
+        std::move(options),
+        std::move(readerHost),
+        chunkId,
+        std::move(replicas));
+
+    IChunkReader::TReadBlocksOptions readBlockOptions;
+    auto future = reader->ReadBlocks(readBlockOptions, std::vector<int>{0, 1});
+
+    auto result = WaitFor(future);
+    EXPECT_FALSE(result.IsOK());
+    EXPECT_TRUE(result.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNode).has_value());
+
+    pool->Shutdown();
+    memoryTracker->ClearTrackers();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

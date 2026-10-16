@@ -256,6 +256,7 @@ struct TDynamicDistributedHydraManagerConfig
     std::optional<TDuration> AbandonLeaderLeaseRequestTimeout;
 
     std::optional<bool> EnableStateHashChecker;
+    std::optional<bool> EnableStateHashCheckerDuringRecovery;
     std::optional<int> MaxStateHashCheckerEntryCount;
     std::optional<int> StateHashCheckerMutationVerificationSamplingRate;
 
@@ -438,6 +439,10 @@ struct TDistributedHydraManagerConfig
     //! It checks that after applying each N-th mutation, automaton state hash is the same on all peers.
     bool EnableStateHashChecker;
 
+    //! If set, stores all (sequenceNumber, stateHash) pairs in state hash checker
+    // and enables state hash reporting during recovery.
+    bool EnableStateHashCheckerDuringRecovery;
+
     //! Maximum number of entries stored in state hash checker.
     int MaxStateHashCheckerEntryCount;
 
@@ -510,12 +515,15 @@ struct TDistributedHydraManagerConfig
     //! The default value of this flag is passed through TDistributedHydraManagerOptions.
     std::optional<bool> ReportReignChange;
 
-    //! Sets log level at which the exceptions which are not marked as acceptible
+    //! Sets log level at which the exceptions which are not marked as acceptable
     //! and thrown from mutation handlers are logged.
     NLogging::ELogLevel MutationHandlerFailureLogLevel;
 
     //! Sets per-mutation overrides for the log level above.
     THashMap<std::string, NLogging::ELogLevel> MutationHandlerFailureLogLevelOverrides;
+
+    //! Sets log level at which unknown automaton parts on snapshot load are reported.
+    NLogging::ELogLevel UnknownAutomatonPartsLogLevel;
 
     TDistributedHydraManagerConfigPtr ApplyDynamic(const TDynamicDistributedHydraManagerConfigPtr& dynamicConfig) const;
     void ApplyDynamicInplace(const TDynamicDistributedHydraManagerConfig& dynamicConfig);

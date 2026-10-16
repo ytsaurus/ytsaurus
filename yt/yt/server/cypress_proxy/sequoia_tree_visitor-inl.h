@@ -10,7 +10,7 @@ namespace NYT::NCypressProxy {
 
 // Simulates an in-order tree traversal using a precomputed sequence of nodes.
 template <std::ranges::input_range TNodeRange, class TCallback>
-    requires CInvocable<
+    requires NMpl::CInvocable<
         TCallback,
         bool(
             const std::ranges::range_value_t<TNodeRange>&,

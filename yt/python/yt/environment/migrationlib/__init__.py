@@ -43,6 +43,15 @@ def _mount_table(client, path):
     client.mount_table(path, sync=True)
 
 
+def _mount_tables(client, tables_path, table_names):
+    for table in table_names:
+        client.mount_table(ypath_join(tables_path, table), sync=False)
+    for table in table_names:
+        _wait_for_predicate(
+            lambda table=table: client.get(ypath_join(tables_path, table) + "/@tablet_state") == "mounted",
+            "table {} becomes mounted".format(table))
+
+
 def _swap_table(client, target, source, version, mount=True):
     backup_path = target + ".bak.{0}".format(version)
     has_target = False
@@ -54,8 +63,8 @@ def _swap_table(client, target, source, version, mount=True):
 
     logging.info("Swapping tables %s <-> %s", source, target)
     if has_target:
-        client.move(target, backup_path, force=True)
-    client.move(source, target)
+        client.move(target, backup_path, force=True, preserve_account=True)
+    client.move(source, target, preserve_account=True)
 
     if mount:
         _mount_table(client, target)
@@ -155,7 +164,12 @@ class TableInfo(object):
                     del column["sort_order"]
 
         attributes = _make_dynamic_table_attributes(schema, key_columns, self.optimize_for)
-        attributes.update(self.attributes)
+
+        # Be aware of dynamic-tables-only attributes present in `self.attributes`.
+        for key in ["primary_medium", "account", "tablet_cell_bundle"]:
+            if key in self.attributes:
+                attributes[key] = self.attributes[key]
+
         attributes["dynamic"] = False
 
         logging.info("Creating table %s with attributes %s", path, attributes)
@@ -187,6 +201,7 @@ class TableInfo(object):
             "intermediate_data_account": account,
             "use_new_partitions_heuristic": True,
             "max_speculative_job_count_per_task": 20,
+            "max_compressed_data_size_per_job": 2**40,
         }
         if pool is not None:
             spec["pool"] = pool
@@ -283,7 +298,10 @@ class Conversion(object):
 
             if len(source_tables) == 1:
                 old_key_columns = client.get(source_tables[0] + "/@key_columns")
-                need_sort = False if self.operation == "temporarily-copy" else old_key_columns != table_info.key_columns
+                need_sort = not (
+                    self.operation == "temporarily-copy"
+                    or old_key_columns == table_info.key_columns[:len(old_key_columns)]
+                )
             else:
                 need_sort = True
         else:
@@ -433,12 +451,7 @@ class Migration(object):
         client.set(tables_path + "/@version", version)
 
         if mount:
-            for table_name in table_infos.keys():
-                client.mount_table(ypath_join(tables_path, table_name), sync=False)
-            for table_name in table_infos.keys():
-                _wait_for_predicate(
-                    lambda: client.get(ypath_join(tables_path, table_name) + "/@tablet_state") == "mounted",
-                    "table {} becomes mounted".format(table_name))
+            _mount_tables(client, tables_path, table_infos)
 
     def _transform(self, client, transform_begin, transform_end, force, retransform, tables_path, shard_count, pool):
         # TODO(bystrovserg): Mount tables back in case we fail to transform
@@ -598,7 +611,11 @@ class Migration(object):
                 table_info.attributes["tablet_cell_bundle"] = override_tablet_cell_bundle
             if not client.exists(table_path):
                 table_info.create_dynamic_table(client, table_path)
-            table_info.alter_table(client, table_path, shard_count)
+            # Alter without mounting so all tables can be mounted concurrently below;
+            # a synchronous per-table mount here serializes startup (each mount waits).
+            table_info.alter_table(client, table_path, shard_count, mount=False)
+
+        _mount_tables(client, tables_path, table_infos)
 
         client.set(tables_path + "/@version", target_version)
 

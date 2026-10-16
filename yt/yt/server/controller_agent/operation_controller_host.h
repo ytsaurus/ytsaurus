@@ -99,6 +99,9 @@ public:
     void SetJobTrackerOperationHandler(TJobTrackerOperationHandlerPtr jobTrackerOperationHandler);
     const TJobTrackerOperationHandlerPtr& GetJobTrackerOperationHandler() const override;
 
+    const TPushBasedShuffleRegistryPtr& GetPushBasedShuffleRegistry() const override;
+    const NDistributedChunkSessionClient::IDistributedChunkSessionSealMonitorPtr& GetPushBasedShuffleSealMonitor() const override;
+
     void Disconnect(const TError& error) override;
 
     void InterruptJob(TJobId jobId, EInterruptionReason reason, TDuration timeout) override;

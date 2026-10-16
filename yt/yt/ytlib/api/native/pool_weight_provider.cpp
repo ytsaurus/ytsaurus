@@ -28,7 +28,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             invoker,
-            std::move(logger).WithTag("Cache: PoolWeight"))
+            std::move(logger).WithTag("Cache", "PoolWeight"))
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
     { }
@@ -108,8 +108,9 @@ private:
         }
 
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Failed to get pool info from Cypress, assuming defaults (Pool: %v)",
-                poolName);
+            YT_TLOG_WARNING("Failed to get pool info from Cypress, assuming defaults")
+                .With("Pool", poolName)
+                .With(rspOrError);
             return DefaultPoolWeight;
         }
 
@@ -119,8 +120,9 @@ private:
                 "Weight must be a finite positive number");
             return weight;
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error parsing pool weight retrieved from Cypress, assuming default (Pool: %v)",
-                poolName);
+            YT_TLOG_WARNING("Error parsing pool weight retrieved from Cypress, assuming default")
+                .With("Pool", poolName)
+                .With(ex);
             return DefaultPoolWeight;
         }
     }

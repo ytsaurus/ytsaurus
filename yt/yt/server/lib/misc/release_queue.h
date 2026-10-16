@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/core/misc/ring_queue.h>
+#include <library/cpp/yt/containers/ring_queue.h>
 
 namespace NYT::NServer {
 

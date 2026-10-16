@@ -7,11 +7,11 @@ from yt_commands import (
     start_transaction, abort_transaction,
     create_account_resource_usage_lease, update_controller_agent_config,
     abort_job, run_test_vanilla, extract_statistic_v2 as extract_statistic,
-    with_breakpoint, wait_breakpoint, wait_no_assert,
+    with_breakpoint, wait_breakpoint, release_breakpoint, wait_no_assert,
     raises_yt_error, write_file, print_debug,
 )
 
-from yt.common import YtError, update
+from yt.common import update
 
 import pytest
 
@@ -205,6 +205,7 @@ class TestDiskUsagePorto(YTEnvSetup):
     def test_statistics(self):
         op = run_test_vanilla(
             command=" ; ".join([
+                events_on_fs().breakpoint_cmd("before_write"),
                 "dd if=/dev/zero of=zeros.txt count=500 bs=1024",
                 events_on_fs().breakpoint_cmd("file_written"),
                 "rm zeros.txt",
@@ -214,37 +215,38 @@ class TestDiskUsagePorto(YTEnvSetup):
             spec={"max_failed_job_count": 1},
         )
 
-        events_on_fs().wait_breakpoint("file_written")
+        def get_disk_statistic(statistics, name):
+            return extract_statistic(
+                statistics,
+                key="user_job.disk." + name,
+                job_state="running",
+                job_type=None,
+                summary_type="max")
 
         def check_disk_statistics(usage, max_usage, limit):
             statistics = op.get_statistics()
-            assert extract_statistic(
-                statistics,
-                key="user_job.disk.usage",
-                job_state="running",
-                job_type=None,
-                summary_type="max") == usage
+            assert get_disk_statistic(statistics, "usage") == usage
+            assert get_disk_statistic(statistics, "max_usage") == max_usage
+            assert get_disk_statistic(statistics, "limit") == limit
 
-            assert extract_statistic(
-                statistics,
-                key="user_job.disk.max_usage",
-                job_state="running",
-                job_type=None,
-                summary_type="max") == max_usage
+        events_on_fs().wait_breakpoint("before_write")
+        wait(lambda: get_disk_statistic(op.get_statistics(), "limit") == 1024 * 1024)
+        # The root volume has its own disk usage. Measure the exact size added
+        # by zeros.txt relative to the running job's baseline.
+        initial_statistics = op.get_statistics()
+        initial_usage = get_disk_statistic(initial_statistics, "usage")
+        initial_max_usage = get_disk_statistic(initial_statistics, "max_usage")
+        events_on_fs().release_breakpoint("before_write")
 
-            assert extract_statistic(
-                statistics,
-                key="user_job.disk.limit",
-                job_state="running",
-                job_type=None,
-                summary_type="max") == limit
-
-        wait_no_assert(lambda: check_disk_statistics(usage=500 * 1024, max_usage=500 * 1024, limit=1024 * 1024))
+        written_usage = initial_usage + 500 * 1024
+        max_usage = max(initial_max_usage, written_usage)
+        events_on_fs().wait_breakpoint("file_written")
+        wait_no_assert(lambda: check_disk_statistics(usage=written_usage, max_usage=max_usage, limit=1024 * 1024))
 
         events_on_fs().release_breakpoint("file_written")
         events_on_fs().wait_breakpoint("file_removed")
 
-        wait_no_assert(lambda: check_disk_statistics(usage=0, max_usage=500 * 1024, limit=1024 * 1024))
+        wait_no_assert(lambda: check_disk_statistics(usage=initial_usage, max_usage=max_usage, limit=1024 * 1024))
 
 
 ##################################################################
@@ -350,9 +352,10 @@ class TestDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
         create("table", "//tmp/out")
 
         op = map(
-            command="cat; echo $(pwd) >&2",
+            command=with_breakpoint("cat; BREAKPOINT"),
             in_="//tmp/in",
             out="//tmp/out",
+            track=False,
             spec={
                 "mapper": {
                     "disk_request": {
@@ -364,11 +367,16 @@ class TestDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
             },
         )
 
-        assert read_table("//tmp/out") == [{"foo": "bar"}]
-
-        jobs = op.list_jobs()
+        jobs = wait_breakpoint()
         assert len(jobs) == 1
-        assert op.read_stderr(jobs[0]).startswith(self.fake_ssd_disk_path.encode("ascii"))
+
+        job_id = jobs[0]
+        wait(lambda: "exec_attributes" in op.get_job_node_orchid(job_id), ignore_exceptions=True)
+        assert op.get_job_node_orchid(job_id)["exec_attributes"]["medium_name"] == "ssd"
+
+        release_breakpoint()
+        op.track()
+        assert read_table("//tmp/out") == [{"foo": "bar"}]
 
     @authors("ignat")
     def test_unfeasible_ssd_request(self):
@@ -403,7 +411,7 @@ class TestDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
         write_table("//tmp/in", [{"foo": "bar"}])
         create("table", "//tmp/out")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown medium .*"):
             map(
                 command="cat; echo $(pwd) >&2",
                 in_="//tmp/in",
@@ -650,7 +658,7 @@ class TestDiskMediumRenamePorto(YTEnvSetup, DiskMediumTestConfiguration):
             )
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown medium .*"):
             start_op(2, "ssd", track=True)
 
         set("//sys/cluster_nodes/{0}/@resource_limits_overrides/cpu".format(node), 3.0)
@@ -1131,7 +1139,7 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
             )
 
         # Check that account is obligatory for ssd medium
-        with pytest.raises(YtError):
+        with raises_yt_error("Account must be specified for disk request with given medium"):
             start_op("ssd", None, 1024 * 1024, track=True)
 
         start_op("ssd", "my_account", 1024 * 1024, track=True, sleep_seconds=1)
@@ -1142,7 +1150,7 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
         set("#{}/@resource_usage".format(lease_id), {"disk_space_per_medium": {"ssd": 1024}})
 
         # Check that operation failed due to lack of space.
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over disk space limit in medium .*"):
             start_op("ssd", "my_account", 1024 * 1024, track=True)
 
         abort_transaction(tx)
@@ -1151,7 +1159,7 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
         wait(lambda: op.get_running_jobs())
 
         # Check that second operation failed due to lack of space.
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take .* lock for node .* since .* lock is taken by concurrent transaction .*"):
             start_op("ssd", "my_account", 768 * 1024, track=True)
 
     @authors("ignat")
@@ -1187,7 +1195,7 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
             )
 
         # Check that account is obligatory for ssd medium
-        with pytest.raises(YtError):
+        with raises_yt_error("Account must be specified for disk request with given medium"):
             start_op("ssd", None, 1024 * 1024, track=True)
 
         start_op("ssd", "my_account", 1024 * 1024, track=True, sleep_seconds=1)
@@ -1373,12 +1381,6 @@ class TestRootVolumeDiskQuota(YTEnvSetup):
     }
 
     def setup_files(self):
-        create("file", "//tmp/exec.tar.gz")
-        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
-
-        create("file", "//tmp/rootfs.tar.gz")
-        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
-
         create("file", "//tmp/mapper.sh", attributes={"executable": True})
 
         create("table", "//tmp/t_in")
@@ -1387,9 +1389,8 @@ class TestRootVolumeDiskQuota(YTEnvSetup):
         create("table", "//tmp/t_out")
 
     @authors("artemagafonov")
-    @pytest.mark.parametrize("enable_fault_in", [None, b"", b"/tmp/", b"tmpfs/"])
-    @pytest.mark.parametrize("enable_root_volume_disk_quota", [False, True])
-    def test_root_volume_disk_quota(self, enable_fault_in, enable_root_volume_disk_quota):
+    @pytest.mark.parametrize("enable_fault_in", [None, b"", b"tmpfs/"])
+    def test_root_volume_disk_quota(self, enable_fault_in):
         self.setup_files()
 
         command = b""
@@ -1408,12 +1409,10 @@ class TestRootVolumeDiskQuota(YTEnvSetup):
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
                     "disk_space_limit": 1024 * 1024,
                     "tmpfs_path": "tmpfs",
                     "tmpfs_size": 1024 * 1024,
                 },
-                "enable_root_volume_disk_quota": enable_root_volume_disk_quota,
             },
             track=False,
         )

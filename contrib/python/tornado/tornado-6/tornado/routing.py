@@ -184,7 +184,18 @@ from tornado.escape import url_escape, url_unescape, utf8
 from tornado.log import app_log
 from tornado.util import basestring_type, import_object, re_unescape, unicode_type
 
-from typing import Any, Union, Optional, Awaitable, List, Dict, Pattern, Tuple, overload
+from typing import (
+    Any,
+    Union,
+    Optional,
+    Awaitable,
+    List,
+    Dict,
+    Pattern,
+    Tuple,
+    overload,
+    Sequence,
+)
 
 
 class Router(httputil.HTTPServerConnectionDelegate):
@@ -268,8 +279,8 @@ class _RoutingDelegate(httputil.HTTPMessageDelegate):
         self.delegate.finish()
 
     def on_connection_close(self) -> None:
-        assert self.delegate is not None
-        self.delegate.on_connection_close()
+        if self.delegate is not None:
+            self.delegate.on_connection_close()
 
 
 class _DefaultMessageDelegate(httputil.HTTPMessageDelegate):
@@ -286,7 +297,7 @@ class _DefaultMessageDelegate(httputil.HTTPMessageDelegate):
 
 # _RuleList can either contain pre-constructed Rules or a sequence of
 # arguments to be passed to the Rule constructor.
-_RuleList = List[
+_RuleList = Sequence[
     Union[
         "Rule",
         List[Any],  # Can't do detailed typechecking of lists.
@@ -438,7 +449,7 @@ class ReversibleRuleRouter(ReversibleRouter, RuleRouter):
         return None
 
 
-class Rule(object):
+class Rule:
     """A routing rule."""
 
     def __init__(
@@ -478,7 +489,7 @@ class Rule(object):
         return self.matcher.reverse(*args)
 
     def __repr__(self) -> str:
-        return "%s(%r, %s, kwargs=%r, name=%r)" % (
+        return "{}({!r}, {}, kwargs={!r}, name={!r})".format(
             self.__class__.__name__,
             self.matcher,
             self.target,
@@ -487,7 +498,7 @@ class Rule(object):
         )
 
 
-class Matcher(object):
+class Matcher:
     """Represents a matcher for request features."""
 
     def match(self, request: httputil.HTTPServerRequest) -> Optional[Dict[str, Any]]:
@@ -582,9 +593,9 @@ class PathMatches(Matcher):
         # unnamed groups, we want to use either groups
         # or groupdict but not both.
         if self.regex.groupindex:
-            path_kwargs = dict(
-                (str(k), _unquote_or_none(v)) for (k, v) in match.groupdict().items()
-            )
+            path_kwargs = {
+                str(k): _unquote_or_none(v) for (k, v) in match.groupdict().items()
+            }
         else:
             path_args = [_unquote_or_none(s) for s in match.groups()]
 
@@ -686,7 +697,7 @@ class URLSpec(Rule):
         self.kwargs = kwargs
 
     def __repr__(self) -> str:
-        return "%s(%r, %s, kwargs=%r, name=%r)" % (
+        return "{}({!r}, {}, kwargs={!r}, name={!r})".format(
             self.__class__.__name__,
             self.regex.pattern,
             self.handler_class,

@@ -1,0 +1,14 @@
+#pragma once
+
+#include <yt/yt/core/misc/public.h>
+
+namespace NYT::NLockElection {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(ILockElectionManager)
+DECLARE_REFCOUNTED_STRUCT(TLockElectionManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NLockElection

@@ -84,7 +84,7 @@ private:
 
     const TPeriodicExecutorPtr SyncExecutor_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     bool Started_ = false;
     bool Stopped_= false;
     TPromise<void> NextSyncPromise_ = NewPromise<void>();
@@ -121,13 +121,18 @@ private:
                 THROW_ERROR_EXCEPTION("Cluster connection is not available");
             }
 
-            YT_LOG_DEBUG("Started synchronizing medium directory");
+            YT_TLOG_DEBUG("Started synchronizing medium directory");
 
             auto client = connection->CreateClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
 
             TGetClusterMetaOptions options;
             options.ReadFrom = NApi::EMasterChannelKind::MasterSideCache;
             options.PopulateMediumDirectory = true;
+
+            // For tests.
+            if (Config_->Testing->BypassCache) {
+                options.ReadFrom = NApi::EMasterChannelKind::Follower;
+            }
 
             auto result = WaitFor(client->GetClusterMeta(options))
                 .ValueOrThrow();
@@ -138,10 +143,10 @@ private:
             }
             mediumDirectory->LoadFrom(*result.MediumDirectory);
 
-            YT_LOG_DEBUG("Finished synchronizing medium directory");
+            YT_TLOG_DEBUG("Finished synchronizing medium directory");
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error synchronizing medium directory")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -154,7 +159,8 @@ private:
         } catch (const std::exception& ex) {
             error = TError(ex);
             Synchronized_.Fire(error);
-            YT_LOG_DEBUG(error);
+            YT_TLOG_DEBUG("Error synchronizing medium directory")
+                .With(error);
         }
 
         auto nextSyncPromise = NextSyncPromise_;

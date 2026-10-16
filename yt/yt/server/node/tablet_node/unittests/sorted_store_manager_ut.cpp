@@ -463,7 +463,7 @@ TEST_P(TBlockedWriteTest, WriteBlockedWrite)
     PrepareTransaction(transaction1.get());
     PrepareRow(transaction1.get(), rowRef1);
 
-    auto transaction2 = StartTransaction(transaction1->GetPrepareTimestamp() + 10);
+    auto transaction2 = StartTransaction(TTimestamp(transaction1->GetPrepareTimestamp().Underlying() + 10));
 
     if (GetParam()) {
         RotateStores();
@@ -489,7 +489,7 @@ TEST_P(TBlockedWriteTest, WriteConflictingWrite)
     auto rowRef1 = WriteRow(transaction1.get(), row, false);
     EXPECT_EQ(store, rowRef1.Store);
 
-    auto transaction2 = StartTransaction(transaction1->GetPrepareTimestamp() + 10);
+    auto transaction2 = StartTransaction(TTimestamp(transaction1->GetPrepareTimestamp().Underlying() + 10));
 
     PrepareTransaction(transaction1.get());
     PrepareRow(transaction1.get(), rowRef1);

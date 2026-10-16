@@ -1,15 +1,12 @@
 # Overview
 
-## What is Flink
+FLYT is a project for integrating [Apache Flink](https://flink.apache.org/) with {{product-name}}. It lets you use Flink for streaming and batch data processing, reading data from {{product-name}} and writing results back in real time.
 
-[Apache Flink](https://flink.apache.org/) is a framework and distributed processing engine for stateful computations over unbounded and bounded data streams. Flink has been designed to run in all common cluster environments, perform computations at in-memory speed and at any scale.
+## Components {#components}
 
-## What is FLYT?
+- [flink-connector-ytsaurus](../../../../user-guide/data-processing/flyt/flink-connector-ytsaurus.md) — Apache Flink connector for sorted dynamic tables in {{product-name}}; supports writes, reading bounded streams, and Lookup operations;
+- [flink-yson](../../../../user-guide/data-processing/flyt/flink-yson.md) — formatter for working with [YSON](../../../../user-guide/storage/yson.md) in Flink jobs.
 
-FLYT is a project for integrating Apache Flink and {{product-name}}.
+## Getting Started {#getting-started}
 
-## What components does FLYT provide?
-
-- [flink-connector-ytsaurus](../../../../user-guide/data-processing/flyt/flink-connector-ytsaurus.md) - Apache Flink connector for sorted dynamic tables in {{product-name}};
-
-- [flink-yson](../../../../user-guide/data-processing/flyt/flink-yson.md) - Apache Flink formatter for working with [YSON](../../../../user-guide/storage/yson.md) format.
+If you are new to FLYT, start with the [Quick Start](../../../../user-guide/data-processing/flyt/flink-connector-ytsaurus.md#quick-start-guide) section in the connector documentation.

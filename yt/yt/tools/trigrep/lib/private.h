@@ -10,7 +10,7 @@ namespace NYT::NTrigrep {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, TrigrepLogger, "Trigrep");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, TrigrepLogger, "Trigrep");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,17 +25,6 @@ constexpr auto MaxBlocksPerChunk = 1ULL << 10;
 
 constexpr int BitsPerLineFingerprint = 8;
 constexpr ui32 LineFingerprintMask = 0xff;
-
-constexpr ui8 MaxShortBitpackedTag = 47;
-constexpr ui8 MaxLongBitpackedTag = 55;
-constexpr ui8 BitmapGroupTag = 60;
-constexpr ui8 GroupSize1Tag = 61;
-constexpr ui8 GroupSize2Tag = 62;
-constexpr ui8 TerminatorGroupTag = 63;
-
-// (2 ** BitsPerLineFingerprint) / 8 == 32
-static constexpr int LineFingerprintBitmapByteSize = 32;
-using TLineFingerprintBitmap = std::array<ui8, LineFingerprintBitmapByteSize>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

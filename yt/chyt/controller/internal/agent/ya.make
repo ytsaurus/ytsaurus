@@ -7,11 +7,16 @@ SRCS(
     health_state.go
     helpers.go
     job_checker.go
+    metrics.go
     operation_collector.go
     tracker.go
 )
 
-GO_TEST_SRCS(tracker_test.go)
+GO_TEST_SRCS(
+    job_checker_test.go
+    operation_collector_test.go
+    tracker_test.go
+)
 
 END()
 

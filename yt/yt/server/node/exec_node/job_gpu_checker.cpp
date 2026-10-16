@@ -23,9 +23,9 @@ TJobGpuChecker::TJobGpuChecker(
     NLogging::TLogger logger)
     : Context_(std::move(context))
     , Logger(std::move(logger)
-        .WithTag("Type: %v", Context_.Type))
+        .WithTag("Type", Context_.Type))
 {
-    YT_LOG_DEBUG("Creating job GPU checker");
+    YT_TLOG_DEBUG("Creating job GPU checker");
 }
 
 TFuture<void> TJobGpuChecker::RunGpuCheck()
@@ -45,7 +45,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
     RunCheck_.Fire();
 
     {
-        YT_LOG_INFO("Verifying GPU check command");
+        YT_TLOG_INFO("Verifying GPU check command");
 
         auto testFileCommand = New<TShellCommandConfig>();
         testFileCommand->Path = "/usr/bin/test";
@@ -64,22 +64,24 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
                 /*throwOnFailedCommand*/ true));
 
         if (!testFileResultOrError.IsOK()) {
-            auto error = TError(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed, "Failed to verify GPU check binary")
-                << TErrorAttribute("check_type", Context_.Type)
-                << TErrorAttribute("path", Context_.Options.BinaryPath)
-                << std::move(testFileResultOrError);
+            static constexpr auto Message = "Failed to verify GPU check binary"_sb;
+            YT_TLOG_INFO(Message)
+                .With("CheckType", Context_.Type)
+                .With("Path", Context_.Options.BinaryPath)
+                .With(testFileResultOrError);
 
-            YT_LOG_INFO(error);
-
-            THROW_ERROR error;
+            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed, Message)
+                .With("check_type", Context_.Type)
+                .With("path", Context_.Options.BinaryPath)
+                .With(std::move(testFileResultOrError));
         }
 
-        YT_LOG_INFO("GPU check command successfully verified");
+        YT_TLOG_INFO("GPU check command successfully verified");
     }
 
     // Setup actions should be performed only once (in preliminary GPU check).
     if (Context_.Type == EGpuCheckType::Preliminary && !Context_.Options.SetupCommands.empty()) {
-        YT_LOG_INFO("Run GPU check setup commands");
+        YT_TLOG_INFO("Run GPU check setup commands");
 
         auto resultOrError = WaitFor(
             Context_.Slot->RunPreparationCommands(
@@ -94,16 +96,17 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
                 /*throwOnFailedCommand*/ true));
 
         if (!resultOrError.IsOK()) {
-            auto error = TError(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed, "Failed to run setup commands for GPU check")
-                << TErrorAttribute("check_type", Context_.Type)
-                << std::move(resultOrError);
+            static constexpr auto Message = "Failed to run setup commands for GPU check"_sb;
+            YT_TLOG_INFO(Message)
+                .With("CheckType", Context_.Type)
+                .With(resultOrError);
 
-            YT_LOG_INFO(error);
-
-            THROW_ERROR error;
+            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed, Message)
+                .With("check_type", Context_.Type)
+                .With(std::move(resultOrError));
         }
 
-        YT_LOG_INFO("GPU check setup commands successfully executed");
+        YT_TLOG_INFO("GPU check setup commands successfully executed");
     }
 
     auto checkCommand = New<TShellCommandConfig>();
@@ -117,7 +120,8 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         checkCommand->EnvironmentVariables.emplace("YT_NETWORK_PROJECT_ID", ToString(Context_.Options.NetworkAttributes->ProjectId));
         for (const auto& networkAddress : Context_.Options.NetworkAttributes->Addresses) {
             checkCommand->EnvironmentVariables.emplace(
-                Format("YT_IP_ADDRESS_%v", to_upper(networkAddress->Name)),
+                // TODO(babenko): migrate to std::string
+                Format("YT_IP_ADDRESS_%v", to_upper(TString(networkAddress->Name))),
                 ToString(networkAddress->Address));
         }
     }
@@ -126,10 +130,10 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         checkCommand->EnvironmentVariables.emplace("YT_INFINIBAND_CLUSTER", *Context_.Options.InfinibandCluster);
     }
 
-    YT_LOG_INFO("Running GPU check commands");
+    YT_TLOG_INFO("Running GPU check commands");
 
     if (Context_.TestExtraGpuCheckCommandFailure) {
-        YT_LOG_INFO("Testing extra GPU check command failed");
+        YT_TLOG_INFO("Testing extra GPU check command failed");
 
         return MakeFuture(TError("Testing extra GPU check command failed"));
     }
@@ -171,17 +175,17 @@ void TJobGpuChecker::OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std:
         const auto& gpuCheckResult = result.Value().front();
 
         if (gpuCheckResult.Error.IsOK()) {
-            YT_LOG_INFO("GPU check command completed (Stdout: %Qv, Stderr: %Qv)",
-                gpuCheckResult.Stdout,
-                gpuCheckResult.Stderr);
+            YT_TLOG_INFO("GPU check command completed")
+                .With("Stdout", gpuCheckResult.Stdout)
+                .With("Stderr", gpuCheckResult.Stderr);
         } else {
             error = gpuCheckResult.Error;
-            YT_LOG_INFO("GPU check command failed (Stdout: %Qv, Stderr: %Qv)",
-                gpuCheckResult.Stdout,
-                gpuCheckResult.Stderr);
+            YT_TLOG_INFO("GPU check command failed")
+                .With("Stdout", gpuCheckResult.Stdout)
+                .With("Stderr", gpuCheckResult.Stderr);
         }
 
-        if (gpuCheckResult.Stderr) {
+        if (!gpuCheckResult.Stderr.empty()) {
             auto job = checker->Context_.Job;
             job->HandleJobReport(
                 TNodeJobReport()
@@ -190,7 +194,8 @@ void TJobGpuChecker::OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std:
         }
     } else {
         error = result;
-        YT_LOG_INFO(error, "Failed to run GPU check command");
+        YT_TLOG_INFO("Failed to run GPU check command")
+            .With(error);
     }
 
     checker->FinishCheck_.Fire();
@@ -200,7 +205,7 @@ void TJobGpuChecker::OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std:
 
 TJobGpuChecker::~TJobGpuChecker()
 {
-    YT_LOG_DEBUG("Destroying job GPU checker");
+    YT_TLOG_DEBUG("Destroying job GPU checker");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

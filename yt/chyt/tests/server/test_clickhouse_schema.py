@@ -49,7 +49,7 @@ class TestClickHouseSchema(ClickHouseTestBase):
         write_table("//tmp/t", [{"key": 42, "value": "x"}])
 
         with Clique(1) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select * from "//tmp/t"')
 
     @staticmethod
@@ -102,7 +102,7 @@ class TestClickHouseSchema(ClickHouseTestBase):
             ]
 
             settings = {"chyt.concat_tables.missing_column_mode": "throw"}
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('describe concatYtTables("//tmp/t1", "//tmp/t2")', settings=settings)
 
             settings = {"chyt.concat_tables.missing_column_mode": "drop"}
@@ -114,7 +114,7 @@ class TestClickHouseSchema(ClickHouseTestBase):
                 {"a": 42},
             ]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('describe concatYtTables("//tmp/t2", "//tmp/t3")')
 
             settings = {
@@ -147,7 +147,7 @@ class TestClickHouseSchema(ClickHouseTestBase):
                 {"a": "2"},
             ]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('describe concatYtTables("//tmp/t3", "//tmp/t5")')
 
             settings = {"chyt.concat_tables.allow_empty_schema_intersection": 1}
@@ -256,7 +256,7 @@ class TestClickHouseSchema(ClickHouseTestBase):
                 {"a": 20, "b": 30, "c": 40},
             ]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("describe concatYtTables('//tmp/t1', '//tmp/t3')")
 
             settings = {"chyt.concat_tables.type_mismatch_mode": "read_as_any"}
@@ -269,9 +269,9 @@ class TestClickHouseSchema(ClickHouseTestBase):
                 {"a": 30, "b": yson.dumps("40", yson_format="binary").decode()},
             ]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("describe concatYtTables('//tmp/t1', '//tmp/t4')")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("describe concatYtTables('//tmp/t1', '//tmp/t4')", settings=settings)
 
             settings = {

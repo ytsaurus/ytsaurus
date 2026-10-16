@@ -6,11 +6,7 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, wait_breakpoint, with_breakpoint,
-    run_test_vanilla, update_controller_agent_config)
-
-from yt.common import YtError
-
-import pytest
+    run_test_vanilla, update_controller_agent_config, raises_yt_error)
 
 
 class TestJobProbingDuringRevival(YTEnvSetup):
@@ -30,7 +26,7 @@ class TestJobProbingDuringRevival(YTEnvSetup):
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Job cannot be interrupted as it is in aborted state|Allocation .* not found|no child with key .*"):
             op.interrupt_job(job_id)
 
         op.abort()

@@ -36,30 +36,37 @@ public:
         NYson::TYsonString settings,
         std::vector<TQueryFile> files) override;
 
+    TClustersResult GetClustersInfo(TQueryId queryId) override;
 
     TQueryResult Run(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         NYson::TYsonString credentials,
         TString queryText,
         NYson::TYsonString settings,
         std::vector<TQueryFile> files,
-        int executeMode) override;
-
+        int executeMode,
+        NYqlClient::EQueryType queryType) override;
 
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         TString queryText,
         NYson::TYsonString settings,
         NYson::TYsonString credentials) override;
 
-
-    TQueryResult GetProgress(TQueryId queryId) override;
+    TQueryResult GetProgress(TQueryId queryId, std::optional<ui32> revision) override;
 
     TAbortResult Abort(TQueryId queryId) override;
 
-    void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) override;
+    void OnDynamicConfigChanged(TYqlPluginDynamicConfigPtr config) override;
+
+    void OnUdfMetaChanged(TUdfMetaPtr udfMeta) override;
+
+    void RegisterQuery(TQueryId queryId, NYson::TYsonString settings) override;
+    void UnregisterQuery(TQueryId queryId) override;
 
     void Stop();
     void SubscribeOnFinish(TCallback<void (const TErrorOr<void>&)> callback);
@@ -80,7 +87,7 @@ private:
     TFuture<void> ProcessFinishFuture_;
     std::optional<TQueryId> ActiveQueryId_;
     TDuration RunRequestTimeout_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ActiveQueryIdLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ActiveQueryIdLock_);
 
     std::shared_ptr<IRetryPolicy<const std::exception&>> StartPluginRetryPolicy_ = IRetryPolicy<const std::exception&>::GetExponentialBackoffPolicy(
         /*retryClassFunction*/ [](const std::exception&) {

@@ -9,13 +9,6 @@ from yt.testlib import authors, check_rows_equality
 import yt.wrapper as yt
 import yt.clickhouse as chyt
 
-try:
-    from yt.packages.six import PY3
-    from yt.packages.six.moves import map as imap
-except ImportError:
-    from six import PY3
-    from six.moves import map as imap
-
 from yt.test_helpers import wait
 
 from yt.clickhouse.test_helpers import (get_host_paths, create_symlinks_for_chyt_binaries,
@@ -117,12 +110,12 @@ class TestClickhouseCli(object):
 
         def check_lines(lhs, rhs):
             def decode_as_utf8(smth):
-                if PY3 and isinstance(smth, bytes):
+                if isinstance(smth, bytes):
                     return smth.decode("utf-8")
                 return smth
 
-            lhs = list(imap(decode_as_utf8, lhs))
-            rhs = list(imap(decode_as_utf8, rhs))
+            lhs = list(map(decode_as_utf8, lhs))
+            rhs = list(map(decode_as_utf8, rhs))
             assert lhs == rhs
 
         check_lines(chyt.execute("select * from `//tmp/t`", self.alias, format="TabSeparated"),

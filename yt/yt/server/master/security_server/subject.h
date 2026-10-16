@@ -3,11 +3,9 @@
 #include "public.h"
 #include "acl.h"
 
-#include <yt/yt/server/master/cell_master/bootstrap.h>
-
 #include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/yt/core/misc/property.h>
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NSecurityServer {
 

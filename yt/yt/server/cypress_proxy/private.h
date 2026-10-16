@@ -18,6 +18,7 @@ struct TRequestExecutedPayload
 struct TForwardToMasterPayload
 {
     std::optional<NYson::TYsonString> EffectiveAcl;
+    bool HasRowLevelAce = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,8 +75,8 @@ using TNodeIdToAttributes = THashMap<NCypressClient::TNodeId, std::variant<TMiss
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, CypressProxyLogger, "CypressProxy");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, CypressProxyProfiler, "/cypress_proxy");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, CypressProxyLogger, "CypressProxy");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, CypressProxyProfiler, "/cypress_proxy");
 
 ////////////////////////////////////////////////////////////////////////////////
 

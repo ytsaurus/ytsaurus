@@ -3,7 +3,15 @@ from __future__ import annotations
 import math
 import sys
 from abc import ABCMeta, abstractmethod
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from collections.abc import (
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Iterable,
+    Mapping,
+    Sequence,
+)
 from contextlib import AbstractContextManager
 from os import PathLike
 from signal import Signals
@@ -43,6 +51,7 @@ if TYPE_CHECKING:
     from ._testing import TestRunner
 
 T_Retval = TypeVar("T_Retval")
+T_co = TypeVar("T_co", covariant=True)
 PosArgsT = TypeVarTuple("PosArgsT")
 StrOrBytesPath: TypeAlias = str | bytes | PathLike[str] | PathLike[bytes]
 
@@ -209,10 +218,10 @@ class AsyncBackend(metaclass=ABCMeta):
     @abstractmethod
     def run_async_from_thread(
         cls,
-        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+        func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
         args: tuple[Unpack[PosArgsT]],
         token: object,
-    ) -> T_Retval:
+    ) -> T_co:
         pass
 
     @classmethod
@@ -234,6 +243,16 @@ class AsyncBackend(metaclass=ABCMeta):
         stdin: int | IO[Any] | None,
         stdout: int | IO[Any] | None,
         stderr: int | IO[Any] | None,
+        cwd: StrOrBytesPath | None = None,
+        env: Mapping[str, str] | None = None,
+        startupinfo: Any = None,
+        creationflags: int = 0,
+        start_new_session: bool = False,
+        pass_fds: Sequence[int] = (),
+        user: str | int | None = None,
+        group: str | int | None = None,
+        extra_groups: Iterable[str | int] | None = None,
+        umask: int = -1,
         **kwargs: Any,
     ) -> Process:
         pass

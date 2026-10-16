@@ -11,14 +11,15 @@ import (
 )
 
 type RegistryOpts struct {
-	Separator    rune
-	Prefix       string
-	Tags         map[string]string
-	Rated        bool
-	UseNameTag   bool
-	Collectors   []func(metrics.Registry)
-	StreamFormat StreamFormat
-	Logger       log.Logger
+	Separator          rune
+	Prefix             string
+	Tags               map[string]string
+	Rated              bool
+	TrackRateStartTime bool
+	UseNameTag         bool
+	Collectors         []func(metrics.Registry)
+	StreamFormat       StreamFormat
+	Logger             log.Logger
 }
 
 // NewRegistryOpts returns new initialized instance of RegistryOpts
@@ -73,6 +74,12 @@ func (o *RegistryOpts) SetSeparator(separator rune) *RegistryOpts {
 // SetRated overrides existing rated flag
 func (o *RegistryOpts) SetRated(rated bool) *RegistryOpts {
 	o.Rated = rated
+	return o
+}
+
+// SetTrackRateStartTime records creation time for counters and histograms that may become rates.
+func (o *RegistryOpts) SetTrackRateStartTime(track bool) *RegistryOpts {
+	o.TrackRateStartTime = track
 	return o
 }
 

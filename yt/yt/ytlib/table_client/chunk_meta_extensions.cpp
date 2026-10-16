@@ -3,11 +3,13 @@
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/yt/client/table_client/key_bound.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/core/misc/object_pool.h>
-#include <yt/yt/core/misc/range_helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <library/cpp/yt/misc/range_helpers.h>
 
 namespace NYT::NTableClient {
 
@@ -16,6 +18,10 @@ using namespace NChunkClient::NProto;
 using namespace NTableClient::NProto;
 using namespace NYTree;
 using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -139,6 +145,31 @@ bool FindBoundaryKeyBounds(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<int> FindMinHashDigestBlockIndex(
+    const TDataBlockMetaExt& dataBlockMetaExt,
+    const TSystemBlockMetaExt& systemBlockMetaExt)
+{
+    std::optional<int> minHashDigestBlockIndex;
+    for (int systemBlockIndex = 0; systemBlockIndex < systemBlockMetaExt.system_blocks_size(); ++systemBlockIndex) {
+        const auto& systemBlockMeta = systemBlockMetaExt.system_blocks(systemBlockIndex);
+        if (!systemBlockMeta.HasExtension(TMinHashDigestSystemBlockMeta::min_hash_digest_block_meta)) {
+            continue;
+        }
+
+        int blockIndex = dataBlockMetaExt.data_blocks_size() + systemBlockIndex;
+
+        YT_TLOG_ALERT_IF(minHashDigestBlockIndex, "There are two blocks with min hash digest")
+            .With("FirstBlockIndex", *minHashDigestBlockIndex)
+            .With("SecondBlockIndex", blockIndex);
+
+        minHashDigestBlockIndex = blockIndex;
+    }
+
+    return minHashDigestBlockIndex;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkMeta FilterChunkMetaByPartitionTags(
     const TChunkMeta& chunkMeta,
     const TCachedBlockMetaPtr& cachedBlockMeta,
@@ -154,7 +185,7 @@ TChunkMeta FilterChunkMetaByPartitionTags(
             return Contains(partitionTags, blockMeta.partition_index());
         }));
 
-    auto blockMetaExt = ObjectPool<TDataBlockMetaExt>().Allocate();
+    auto blockMetaExt = ObjectPool<TDataBlockMetaExt>().AllocateUnique();
     NYT::ToProto(blockMetaExt->mutable_data_blocks(), filteredBlocks);
     SetProtoExtension(filteredChunkMeta.mutable_extensions(), *blockMetaExt);
 

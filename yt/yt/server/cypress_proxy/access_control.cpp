@@ -56,11 +56,9 @@ void LogAndThrowAuthorizationError(
             });
 
         if (it == std::ranges::end(nodeRange)) {
-            YT_LOG_ALERT(
-                "Missing path for node with matching ACE "
-                "(PathMissingObjectId: %v, TargetNodeId: %v)",
-                result.ObjectId,
-                nodeAncestry.Back().Id);
+            YT_TLOG_ALERT("Missing path for node with matching ACE")
+                .With("PathMissingObjectId", result.ObjectId)
+                .With("TargetNodeId", nodeAncestry.Back().Id);
 
             THROW_ERROR_EXCEPTION("Path not found for node %v with matching ACE",
                 result.ObjectId);
@@ -72,7 +70,8 @@ void LogAndThrowAuthorizationError(
         resultSubjectName = subject->Name;
     }
 
-    auto errorPath = nodeAncestry.Back().Path.ToRealPath().Underlying();
+    // TODO(babenko): think about proper cast
+    auto errorPath = TYPath(nodeAncestry.Back().Path.ToRealPath().Underlying());
     NSecurityServer::LogAndThrowAuthorizationError(
         Logger(),
         target,
@@ -187,7 +186,7 @@ TPermissionCheckResponse CheckPermissionForNode(
     return std::move(checker).GetResponse();
 }
 
-void ValidatePermissionForNode(
+TPermissionValidationResult ValidatePermissionForNode(
     const TSequoiaSessionPtr& sequoiaSession,
     TNodeAncestry nodeAncestry,
     EPermission permission,
@@ -201,7 +200,7 @@ void ValidatePermissionForNode(
         options,
         userDirectory);
     if (response.Action == ESecurityAction::Allow) {
-        return;
+        return TPermissionValidationResult{.HasRowLevelAce = response.HasRowLevelAce};
     }
 
     auto user = sequoiaSession->GetCurrentAuthenticatedUser();
@@ -211,6 +210,7 @@ void ValidatePermissionForNode(
         std::move(user),
         std::move(userDirectory),
         nodeAncestry);
+    Y_UNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -224,7 +224,7 @@ public:
         EPermission permission,
         const TMatchAceSubjectCallback* matchAceSubjectCallback,
         const TPermissionCheckBasicOptions* options)
-        : Underlying_(permission, *matchAceSubjectCallback, options)
+        : Underlying_(permission, *matchAceSubjectCallback, options, /*checkAllAceColumnsFullRead*/ true)
     { }
 
     void Put(const TAccessControlDescriptor* acd)
@@ -474,7 +474,7 @@ TIntermediateReadPermissionCheckResult TIntermediateReadPermissionCheckResult::P
     checker.Put(&trivialAcd);
     auto descendantsAction = checker.CheckPermission().Action;
 
-    auto objectAction = [=] {
+    auto objectAction = [&] {
         if (currentAction == ESecurityAction::Deny ||
             inheritedImmediateDescendatsAction == ESecurityAction::Deny ||
             inheritedDescendatsAction == ESecurityAction::Deny)

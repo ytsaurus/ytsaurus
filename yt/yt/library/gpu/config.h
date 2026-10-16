@@ -62,7 +62,7 @@ DEFINE_REFCOUNTED_TYPE(TGrpcGpuInfoProviderConfigBase)
 struct TNvManagerGpuInfoProviderConfig
     : public TGrpcGpuInfoProviderConfigBase
 {
-    std::optional<TString> DevicesCgroupPath;
+    std::optional<std::string> DevicesCgroupPath;
     bool GpuIndexesFromNvidiaSmi;
 
     REGISTER_YSON_STRUCT(TNvManagerGpuInfoProviderConfig);

@@ -32,7 +32,7 @@ THashMap<TGroupId, TGroupPtr> TGroupManager::GetOrCreateGroups(const std::vector
 
 void TGroupManager::ProcessGossip(const std::vector<TGossipMemberInfo>& membersBatch)
 {
-    YT_LOG_DEBUG("Started processing gossip");
+    YT_TLOG_DEBUG("Started processing gossip");
 
     std::vector<TGroupId> groupIds;
     groupIds.reserve(membersBatch.size());
@@ -57,9 +57,9 @@ void TGroupManager::ProcessHeartbeat(
     const NDiscoveryClient::TMemberInfo& memberInfo,
     TDuration leaseTimeout)
 {
-    YT_LOG_DEBUG("Started processing heartbeat (GroupId: %v, MemberId: %v)",
-        groupId,
-        memberInfo.Id);
+    YT_TLOG_DEBUG("Started processing heartbeat")
+        .With("GroupId", groupId)
+        .With("MemberId", memberInfo.Id);
 
     if (memberInfo.Id.empty()) {
         THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::InvalidMemberId,

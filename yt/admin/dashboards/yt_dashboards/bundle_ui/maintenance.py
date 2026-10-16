@@ -1,12 +1,34 @@
 # flake8: noqa
 from yt_dashboard_generator.dashboard import Rowset
-from yt_dashboard_generator.sensor import MultiSensor
+from yt_dashboard_generator.sensor import MultiSensor, Text, EmptyCell
 from yt_dashboard_generator.backends.monitoring import MonitoringTag
-from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr, PlainMonitoringExpr
+from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 
 from ..common.sensors import *
 
 ##################################################################
+
+
+drills_mode_hint = """\
+When bundle enters drills mode, all tablet cells become failed.
+"""
+
+
+def build_cell_health():
+    return (Rowset()
+        .row()
+            .cell(
+                "Tablet cell health",
+                MonitoringExpr(Master("yt.tablet_server.tablet_cell_count"))
+                    .all("container", "health"))
+            .cell(
+                "Drills mode",
+                BundleController("yt.bundle_controller.scan_bundles_alarms_count.rate")
+                    .all("host")
+                    .value("alarm_id", "bundle_has_drills_mode_enabled")
+                    .aggr("data_center"),
+                description=drills_mode_hint)
+    ).owner
 
 
 def build_user_hydra():
@@ -16,7 +38,11 @@ def build_user_hydra():
             .cell("Hydra restart rate", NodeTablet("yt.hydra.restart_count.rate")
                 .aggr(MonitoringTag("host"))
                 .all("#B", "reason"))
-            .cell("Cell move rate", Master("yt.tablet_server.tablet_tracker.tablet_cell_moves.rate"))
+            .cell(
+                "Cell move rate",
+                MonitoringExpr(Master("yt.tablet_server.tablet_tracker.tablet_cell_moves.rate"))
+                    .all("container")
+                    .series_sum())
     ).owner
 
 
@@ -24,18 +50,36 @@ def build_tablet_balancer():
     tb = Master("yt.tablet_server.tablet_balancer.{}.rate")
     stb = TabletBalancer("yt.tablet_balancer.tablet_balancer.{}.rate")
     return (Rowset()
-        .all("#HB", "container")
         .stack(False)
         .row()
             .cell("Tablet balancer moves", MultiSensor(
-                    tb("*_memory_moves"),
-                    stb("*moves").aggr("group", "table_path")
+                    MonitoringExpr(tb("in_memory_moves").aggr("#H")).alias("in-memory tablet moves"),
+                    MonitoringExpr(tb("ext_memory_moves").aggr("#H")).alias("ordinary tablet moves"),
+                    MonitoringExpr(stb("in_memory_moves").all("container").aggr("group", "table_path"))
+                        .alias("in-memory tablet moves"),
+                    MonitoringExpr(stb("ordinary_moves").all("container").aggr("group", "table_path"))
+                        .alias("ordinary tablet moves"),
+                    MonitoringExpr(
+                        stb("parameterized_moves").all("container", "group").aggr("table_path"))
+                        .alias("parameterized tablet moves, {{group}}"),
+                    MonitoringExpr(
+                        stb("parameterized_replica_moves").all("container", "group").aggr("table_path"))
+                        .alias("replica tablet moves, {{group}}")
                 ))
             .cell("Tablet balancer reshards", MultiSensor(
-                tb("tablet_merges"),
-                stb("non_trivial_reshards").aggr("group", "table_path"),
-                stb("tablet_merges").aggr("group", "table_path"),
-                stb("tablet_splits").aggr("group", "table_path")
+                MonitoringExpr(tb("tablet_merges").aggr("#H")).alias("tablet merges"),
+                MonitoringExpr(stb("non_trivial_reshards").all("container").aggr("group", "table_path"))
+                    .alias("non-trivial reshards"),
+                MonitoringExpr(stb("tablet_merges").all("container").aggr("group", "table_path"))
+                    .alias("tablet merges"),
+                MonitoringExpr(stb("tablet_splits").all("container").aggr("group", "table_path"))
+                    .alias("tablet splits"),
+                MonitoringExpr(
+                    stb("parameterized_reshard_merges").all("container", "group").aggr("table_path"))
+                    .alias("parameterized tablet merges, {{group}}"),
+                MonitoringExpr(
+                    stb("parameterized_reshard_splits").all("container", "group").aggr("table_path"))
+                    .alias("parameterized tablet splits, {{group}}")
             ))
         ).owner
 
@@ -59,7 +103,7 @@ def build_bundle_controller():
                     (MonitoringExpr(TabNodeYtcfgen("yt.error_watcher.ooms"))
                         .diff()
                         .drop_below(0)
-                        + PlainMonitoringExpr("constant_line(0)"))
+                        + MonitoringExpr.constant_line(0))
                         .top_max(10)
                         .alias("memory limit kills {{container}}")
                 ))
@@ -68,7 +112,7 @@ def build_bundle_controller():
             .cell("Overload Controller", MonitoringExpr(NodeTablet("yt.tablet_node.overload_controller.overloaded.rate")
                 .all("tracker")).alias("{{tracker}}"))
             .cell("Bundle Controller Alerts", MonitoringExpr(BundleController("yt.bundle_controller.scan_bundles_alarms_count.rate")
-                .all("alarm_id")).alias("{{alarm_id}}"))
+                .all("alarm_id", "data_center")).alias("{{alarm_id}}"))
         .row()
             .stack()
             .cell("Target tablet node count", MonitoringExpr(bc("target_tablet_node_count")
@@ -120,3 +164,34 @@ def build_bundle_controller():
                     MonitoringExpr(bc("proxy_deallocation_request_age")).alias("proxy deallocation age max"),
                 ).stack(False))
         ).owner
+
+
+LOGGING_PROFILING_GREETING = """\
+Logging and profiling overloads do not directly affect user requests, \
+but they make diagnostics more difficult. If the charts below show \
+overloads, take appropriate action and contact support.
+"""
+
+
+def build_logging_profiling():
+    return (Rowset()
+        .row(height=2)
+            .cell("", Text(LOGGING_PROFILING_GREETING))
+            .cell("", EmptyCell())
+            .cell("", EmptyCell())
+        .row()
+            .top()
+            .all("host")
+            .cell(
+                "Tablet node dropped logs",
+                TabNodeInternal("yt.logging.dropped_events.rate"))
+            .cell(
+                "Tablet node Logging/LogCompress utilization",
+                TabNodeCpu("yt.resource_tracker.utilization")
+                    .value("thread", "Logging|LogCompress"))
+            .cell(
+                "Tablet node profiling threads utilization",
+                TabNodeCpu("yt.resource_tracker.utilization")
+                    .value("thread", "Prof*"))
+        .row()
+    )

@@ -28,6 +28,8 @@ target_link_libraries(library-cpp-skiff PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  cpp-yt-coding
+  cpp-yt-exception
   tools-enum_parser-enum_serialization_runtime
 )
 

@@ -11,4 +11,6 @@ JAR_RESOURCE(502328047)
 
 SRC_RESOURCE(502330944)
 
+ORIGINAL_SOURCE(https://github.com/ceki/logback)
+
 END()

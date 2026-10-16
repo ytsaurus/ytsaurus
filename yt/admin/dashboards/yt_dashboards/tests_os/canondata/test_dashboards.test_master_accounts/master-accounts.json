@@ -1,0 +1,517 @@
+{
+    "panels": [
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Disk space",
+                        "fillOpacity": 100,
+                        "hideFrom": {
+                            "legend": false
+                        },
+                        "stacking": {
+                            "group": "A",
+                            "mode": "normal"
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "gbytes"
+                            },
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "none"
+                                }
+                            },
+                            {
+                                "id": "custom.fillOpacity",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "gbytes"
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "C"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "gbytes"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 10,
+                "w": 12,
+                "x": 0,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_accounts_disk_space_limit_in_gb\", account=~\"$account\", medium=~\"$left_medium\"}",
+                    "legendFormat": "\"{{left_medium}} limit\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_accounts_detailed_disk_space_in_gb\", account=~\"$account\", medium=~\"$left_medium\", status=~\"committed\"}",
+                    "legendFormat": "\"{{left_medium}} usage committed\"",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_accounts_detailed_disk_space_in_gb\", account=~\"$account\", medium=~\"$left_medium\", status=~\"uncommitted\"}",
+                    "legendFormat": "\"{{left_medium}} usage uncommitted\"",
+                    "refId": "C"
+                }
+            ],
+            "title": "Disk usage/limit",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Disk space",
+                        "fillOpacity": 100,
+                        "hideFrom": {
+                            "legend": false
+                        },
+                        "stacking": {
+                            "group": "A",
+                            "mode": "normal"
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "gbytes"
+                            },
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "none"
+                                }
+                            },
+                            {
+                                "id": "custom.fillOpacity",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "gbytes"
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "C"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "gbytes"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 10,
+                "w": 12,
+                "x": 12,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_accounts_disk_space_limit_in_gb\", account=~\"$account\", medium=~\"$right_medium\"}",
+                    "legendFormat": "\"{{right_medium}} limit\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_accounts_detailed_disk_space_in_gb\", account=~\"$account\", medium=~\"$right_medium\", status=~\"committed\"}",
+                    "legendFormat": "\"{{right_medium}} usage committed\"",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_accounts_detailed_disk_space_in_gb\", account=~\"$account\", medium=~\"$right_medium\", status=~\"uncommitted\"}",
+                    "legendFormat": "\"{{right_medium}} usage uncommitted\"",
+                    "refId": "C"
+                }
+            ],
+            "title": "Disk usage/limit",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 10
+            },
+            "options": {
+                "content": "Disk space usage and limit represents raw space available for account and total usage of this raw space.\nIf you are running out of quota, you can contact your administrator.",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Chunks count",
+                        "fillOpacity": 100,
+                        "hideFrom": {
+                            "legend": false
+                        },
+                        "stacking": {
+                            "group": "A",
+                            "mode": "normal"
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "count"
+                            },
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "none"
+                                }
+                            },
+                            {
+                                "id": "custom.fillOpacity",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "count"
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "C"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "count"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 10,
+                "w": 12,
+                "x": 0,
+                "y": 12
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_accounts_chunk_count_limit\", account=~\"$account\"}",
+                    "legendFormat": "\"Chunk limit\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_accounts_detailed_chunk_count\", account=~\"$account\", status=~\"committed\"}",
+                    "legendFormat": "\"Chunk usage committed\"",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_accounts_detailed_chunk_count\", account=~\"$account\", status=~\"uncommitted\"}",
+                    "legendFormat": "\"Chunk usage uncommitted\"",
+                    "refId": "C"
+                }
+            ],
+            "title": "Chunk usage/limit",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Nodes count",
+                        "fillOpacity": 100,
+                        "hideFrom": {
+                            "legend": false
+                        },
+                        "stacking": {
+                            "group": "A",
+                            "mode": "normal"
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "count"
+                            },
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "none"
+                                }
+                            },
+                            {
+                                "id": "custom.fillOpacity",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "count"
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "C"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "count"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 10,
+                "w": 12,
+                "x": 12,
+                "y": 12
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_accounts_node_count_limit\", account=~\"$account\"}",
+                    "legendFormat": "\"Nodes limit\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_accounts_detailed_node_count\", account=~\"$account\", status=~\"committed\"}",
+                    "legendFormat": "\"Nodes usage committed\"",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-master\", __name__=~\"yt_accounts_detailed_node_count\", account=~\"$account\", status=~\"uncommitted\"}",
+                    "legendFormat": "\"Nodes usage uncommitted\"",
+                    "refId": "C"
+                }
+            ],
+            "title": "Nodes usage/limit",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 22
+            },
+            "options": {
+                "content": "All data stored in tables and files are split into parts called [chunks](https://ytsaurus.tech/docs/en/user-guide/storage/chunks).\n**Nodes** - is a number of objects in the account (tables, files, folders, locks, etc.).\nIf you are running out of quota, you can contact your administrator.",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        }
+    ],
+    "tags": [],
+    "templating": {
+        "list": [
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "hide": 0,
+                "label": "Cluster",
+                "name": "cluster",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": "sys",
+                    "value": "sys"
+                },
+                "hide": 0,
+                "label": "Account",
+                "name": "account",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "sys",
+                        "value": "sys"
+                    }
+                ],
+                "query": "sys",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": "default",
+                    "value": "default"
+                },
+                "discover_values": {
+                    "label": "medium",
+                    "match": "{cluster=~\"$cluster\", service=~\"yt-master\", account=~\"$account\"}"
+                },
+                "hide": 0,
+                "label": "Left medium",
+                "name": "left_medium",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "default",
+                        "value": "default"
+                    }
+                ],
+                "query": "default",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": "ssd_blobs",
+                    "value": "ssd_blobs"
+                },
+                "discover_values": {
+                    "label": "medium",
+                    "match": "{cluster=~\"$cluster\", service=~\"yt-master\", account=~\"$account\"}"
+                },
+                "hide": 0,
+                "label": "Right medium",
+                "name": "right_medium",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "ssd_blobs",
+                        "value": "ssd_blobs"
+                    }
+                ],
+                "query": "ssd_blobs",
+                "skipUrlSync": false,
+                "type": "textbox"
+            }
+        ],
+        "permissions": [
+            {
+                "cluster": "$cluster",
+                "path": "//sys/accounts/$account",
+                "permission": "use"
+            }
+        ]
+    },
+    "title": "Accounts [Autogenerated]"
+}

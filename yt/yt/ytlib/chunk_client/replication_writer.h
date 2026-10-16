@@ -21,7 +21,7 @@ IChunkWriterPtr CreateReplicationWriter(
     TSessionId sessionId,
     TChunkReplicaWithMediumList targets,
     NApi::NNative::IClientPtr client,
-    const std::string& localHostName,
+    std::string localHostName,
     IBlockCachePtr blockCache = GetNullBlockCache(),
     TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());

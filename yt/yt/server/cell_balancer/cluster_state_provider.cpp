@@ -27,8 +27,8 @@ constinit const auto Logger = CellBalancerLogger;
 
 TClusterStateProvider::TClusterStateProvider(NCellBalancerClient::NProto::TRspGetClusterState* response)
 {
-    THashMap<TNode::TCellSlot*, TTamedCellId> fullSlots;
-    auto fillSlot = [&] (TNode::TCellSlot* slot, const NCellBalancerClient::NProto::TSlot* protoSlot) {
+    THashMap<TCellSlot*, TTamedCellId> fullSlots;
+    auto fillSlot = [&] (TCellSlot* slot, const NCellBalancerClient::NProto::TSlot* protoSlot) {
         if (protoSlot->has_cell_id()) {
             YT_VERIFY(protoSlot->has_is_warmed_up() && protoSlot->has_peer_id() && protoSlot->has_peer_state());
             fullSlots[slot] = FromProto<TTamedCellId>(protoSlot->cell_id());
@@ -176,11 +176,11 @@ TClusterStateProvider::TClusterStateProvider(NCellBalancerClient::NProto::TRspGe
         AddressToNode_[node->GetDefaultAddress()] = node.get();
     }
 
-    YT_LOG_DEBUG("Cluster state is created (CellCount: %v, AreaCount: %v, CellBundleCount: %v, NodeCount: %v)",
-        CellMap_.GetSize(),
-        AreaMap_.GetSize(),
-        CellBundleMap_.GetSize(),
-        std::ssize(NodeMap_));
+    YT_TLOG_DEBUG("Cluster state is created")
+        .With("CellCount", CellMap_.GetSize())
+        .With("AreaCount", AreaMap_.GetSize())
+        .With("CellBundleCount", CellBundleMap_.GetSize())
+        .With("NodeCount", std::ssize(NodeMap_));
 }
 
 std::vector<TNodeHolder> TClusterStateProvider::GetNodes(NCellarClient::ECellarType cellarType)
@@ -222,7 +222,7 @@ bool TClusterStateProvider::IsPossibleHost(const TNode* node, const TArea* area)
     return it->second.contains(node);
 }
 
-bool TClusterStateProvider::IsSlotWarmedUp(const TNode::TCellSlot* slot) const
+bool TClusterStateProvider::IsSlotWarmedUp(const TCellSlot* slot) const
 {
     return WarmedUpSlots_.contains(slot);
 }

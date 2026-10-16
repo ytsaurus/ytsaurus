@@ -64,7 +64,7 @@ class TArrowRawIterator
 public:
     TArrowRawIterator(Py::PythonClassInstance* self, Py::Tuple& args, Py::Dict& kwargs);
 
-    void Initialize(const TString& inputFilePath, EFileFormat format, int arrowBatchSize);
+    void Initialize(const std::string& inputFilePath, EFileFormat format, int arrowBatchSize);
 
     Py::Object iter() override;
     PyObject* iternext() override;

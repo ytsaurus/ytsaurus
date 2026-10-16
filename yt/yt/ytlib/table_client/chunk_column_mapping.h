@@ -2,9 +2,20 @@
 
 #include "public.h"
 
-#include <yt/yt/client/complex_types/public.h>
+#include <yt/yt/client/complex_types/positional_yson_translation.h>
 
 namespace NYT::NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TColumnIdMapping
+{
+    int ChunkSchemaIndex;
+    int ReaderSchemaIndex;
+
+    // Yson representation of complexly-typed data might need to be translated.
+    std::optional<NComplexTypes::TPositionalYsonTranslator> Translator;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,9 +34,18 @@ private:
     const int TableKeyColumnCount_;
     const int ChunkKeyColumnCount_;
     const int ChunkColumnCount_;
-    // Mapping from table schema value index to chunk schema value id.
-    // Schema value index is value id minus key column count.
-    std::vector<int> ValueIdMapping_;
+
+    struct TChunkColumnInfo
+    {
+        int Index;
+        std::optional<NComplexTypes::TPositionalYsonTranslator> Translator;
+    };
+
+    // For each value (aka non-key) column of the table, store its index
+    // in the chunk schema. Note that this vector is indexed by relative
+    // index of the value column, so 0 for the first non-key column, 1 for
+    // the second, etc.
+    const std::vector<std::optional<TChunkColumnInfo>> TableValueIndexToChunkColumnInfo_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkColumnMapping)

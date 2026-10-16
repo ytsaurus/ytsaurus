@@ -1,12 +1,19 @@
 GTEST(unittester-scheduler)
 
+EXPLICIT_DATA()
+
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 ALLOCATOR(TCMALLOC)
 
 SRCS(
+    allocation_update_ut.cpp
     helpers_ut.cpp
 )
+
+IF (NOT OPENSOURCE)
+    INCLUDE(ya_non_opensource.inc)
+ENDIF()
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 

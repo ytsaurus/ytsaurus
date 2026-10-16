@@ -11,6 +11,8 @@
 #include "nbd_session.h"
 
 #include <yt/yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
@@ -170,9 +172,9 @@ ISessionPtr TSessionManager::StartSession(
         const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
         auto masterCellTags = clusterNodeMasterConnector->GetMasterCellTags();
         if (Find(masterCellTags, chunkCellTag) == masterCellTags.end()) {
-            YT_LOG_ALERT("Attempt to start a write session with an unknown master cell tag (SessionId: %v, CellTag: %v)",
-                sessionId,
-                chunkCellTag);
+            YT_TLOG_ALERT("Attempt to start a write session with an unknown master cell tag")
+                .With("SessionId", sessionId)
+                .With("CellTag", chunkCellTag);
             THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
                 chunkCellTag);
         }
@@ -291,8 +293,8 @@ void TSessionManager::OnSessionLeaseExpired(TChunkId chunkId)
         return;
     }
 
-    YT_LOG_DEBUG("Session lease expired (ChunkId: %v)",
-        chunkId);
+    YT_TLOG_DEBUG("Session lease expired")
+        .With("ChunkId", chunkId);
 
     session->Cancel(TError("Session lease expired"));
 }
@@ -306,8 +308,8 @@ void TSessionManager::OnSessionFinished(const TWeakPtr<ISession>& weakSession, c
         return;
     }
 
-    YT_LOG_DEBUG("Session finished (ChunkId: %v)",
-        session->GetChunkId());
+    YT_TLOG_DEBUG("Session finished")
+        .With("ChunkId", session->GetChunkId());
 
     {
         auto guard = WriterGuard(SessionMapLock_);
@@ -410,8 +412,8 @@ void TSessionManager::CancelLocationSessions(const TChunkLocationPtr& location)
     for (const auto& [sessionId, session] : sessionMap) {
         if (location == session->GetStoreLocation()) {
             session->Cancel(TError("Location disabled")
-                << TErrorAttribute("location_uuid", location->GetUuid())
-                << TErrorAttribute("location_index", location->GetIndex()));
+                .With("location_uuid", location->GetUuid())
+                .With("location_index", location->GetIndex()));
         }
     }
 }
@@ -420,7 +422,10 @@ bool TSessionManager::CanPassSessionOutOfTurn(TChunkId chunkId)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto count = Config_->MaxOutOfTurnSessions;
+    auto count = Bootstrap_->GetDynamicConfigManager()
+        ->GetConfig()
+        ->DataNode
+        ->MaxOutOfTurnSessions.value_or(Config_->MaxOutOfTurnSessions);
     if (count == 0) {
         return false;
     }

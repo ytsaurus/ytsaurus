@@ -215,29 +215,30 @@ void SaveJobFiles(
 
     for (const auto& [externalCellTag, files] : externalCellTagToFiles) {
         TChunkServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, externalCellTag));
-        auto batchReq = proxy.ExecuteBatch();
-        SetSuppressUpstreamSync(&batchReq->Header(), true);
-        // COMPAT(shakurov): prefer proto ext (above).
-        batchReq->set_suppress_upstream_sync(true);
-        GenerateMutationId(batchReq);
 
+        std::vector<TFuture<TChunkServiceProxy::TRspAttachChunkTreesPtr>> futures;
+        futures.reserve(files.size());
         for (const auto* file : files) {
             const auto& info = fileToInfo[file];
-            auto* req = batchReq->add_attach_chunk_trees_subrequests();
+            auto req = proxy.AttachChunkTrees();
+            SetSuppressUpstreamSync(&req->Header(), true);
+            GenerateMutationId(req);
+
             ToProto(req->mutable_parent_id(), info.ChunkListId);
             ToProto(req->add_child_ids(), file->ChunkId);
             req->set_request_statistics(true);
+
+            futures.push_back(req->Invoke());
         }
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-        const auto& batchRsp = batchRspOrError.Value();
+        auto rspsOrError = WaitFor(AllSucceeded(futures));
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspsOrError);
+        const auto& rsps = rspsOrError.Value();
 
-        for (int index = 0; index < batchRsp->attach_chunk_trees_subresponses_size(); ++index) {
-            const auto& rsp = batchRsp->attach_chunk_trees_subresponses(index);
+        for (int index = 0; index < std::ssize(files); ++index) {
             const auto* file = files[index];
             auto& info = fileToInfo[file];
-            info.Statistics = rsp.statistics();
+            info.Statistics = rsps[index]->statistics();
         }
     }
 
@@ -282,7 +283,7 @@ void ValidateEnvironmentVariableName(TStringBuf name)
     for (char c : name) {
         if (!IsAsciiAlnum(c) && c != '_') {
             THROW_ERROR_EXCEPTION("Only alphanumeric characters and underscore are allowed in environment variable names")
-                << TErrorAttribute("name", name);
+                .With("name", name);
         }
     }
 }
@@ -357,11 +358,11 @@ void SanitizeJobSpec(NProto::TJobSpec* jobSpec)
     }
 
     auto* userJobSpec = jobSpecExt->mutable_user_job_spec();
-    auto environment = FromProto<std::vector<TString>>(userJobSpec->environment());
+    auto environment = FromProto<std::vector<std::string>>(userJobSpec->environment());
 
     userJobSpec->clear_environment();
     for (const auto& variable : environment) {
-        if (!variable.StartsWith(SecureVaultEnvPrefix)) {
+        if (!variable.starts_with(SecureVaultEnvPrefix)) {
             userJobSpec->add_environment(variable);
         }
     }
@@ -419,32 +420,13 @@ void FormatValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<ELayerAccessMethod, ELayerFilesystem> GetAccessMethodAndFilesystemFromStrings(
-    const TString& accessMethod,
-    const TString& filesystem)
+void ValidateCompatibility(ELayerAccessMethod accessMethod, ELayerFilesystem filesystem)
 {
-    std::pair<ELayerAccessMethod, ELayerFilesystem> res;
-    try {
-        res.first = ParseEnum<ELayerAccessMethod>(accessMethod);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("\"access_method\" has invalid value %Qlv",
-            accessMethod) << ex;
-    }
-
-    try {
-        res.second = ParseEnum<ELayerFilesystem>(filesystem);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("\"filesystem\" has invalid value %Qv",
-            filesystem) << ex;
-    }
-
-    if (!AreCompatible(res.first, res.second)) {
+    if (!AreCompatible(accessMethod, filesystem)) {
         THROW_ERROR_EXCEPTION("Incompatible combination of access method %Qv and filesystem %Qv",
             accessMethod,
             filesystem);
     }
-
-    return res;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

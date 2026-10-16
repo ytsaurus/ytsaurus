@@ -1,0 +1,13 @@
+#pragma once
+
+namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Exports the network bandwidth guaranteed to the node's pod as a sensor.
+//! Does nothing in deployments that do not report the guarantee.
+void TryExportNetworkBandwidthGuarantee();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow

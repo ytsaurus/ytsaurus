@@ -22,7 +22,7 @@ using namespace NPipeIO;
 
 static const size_t PipeBlockSize = 64 * 1024;
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Subprocess");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Subprocess");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,17 +51,18 @@ TSubprocessResult TSubprocess::Execute(const TSharedRef& input, TDuration timeou
 #ifdef _unix_
     auto killCookie = TDelayedExecutor::Submit(
         BIND([=, path = Path_, process = GetProcess()] {
-            YT_LOG_WARNING("Killing process due to timeout (Path: %v, ProcessId: %v, Timeout: %v)",
-                path,
-                process->GetProcessId(),
-                timeout);
+            YT_TLOG_WARNING("Killing process due to timeout")
+                .With("Path", path)
+                .With("ProcessId", process->GetProcessId())
+                .With("Timeout", timeout);
 
             try {
                 process->Kill(SIGKILL);
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Failed to kill process (Path: %v, ProcessId: %v)",
-                    path,
-                    process->GetProcessId());
+                YT_TLOG_ERROR("Failed to kill process")
+                    .With("Path", path)
+                    .With("ProcessId", process->GetProcessId())
+                    .With(ex);
             }
         }),
         timeout);
@@ -156,7 +157,7 @@ TProcessBasePtr TSubprocess::GetProcess() const
 void RunSubprocess(const std::vector<std::string>& cmd)
 {
     if (cmd.empty()) {
-        THROW_ERROR_EXCEPTION("Command can't be empty");
+        THROW_ERROR_EXCEPTION("Command cannot be empty");
     }
 
     auto process = TSubprocess(cmd[0]);
@@ -167,9 +168,9 @@ void RunSubprocess(const std::vector<std::string>& cmd)
     auto result = process.Execute();
     if (!result.Status.IsOK()) {
         THROW_ERROR_EXCEPTION("Failed to run %v", cmd[0])
-            << result.Status
-            << TErrorAttribute("command_line", process.GetCommandLine())
-            << TErrorAttribute("error", std::string(result.Error.Begin(), result.Error.End()));
+            .With(result.Status)
+            .With("command_line", process.GetCommandLine())
+            .With("error", std::string(result.Error.Begin(), result.Error.End()));
     }
 }
 

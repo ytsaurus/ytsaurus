@@ -180,6 +180,6 @@ struct arity
 {};
 #endif
 
-}}     // namespace boost::heap
+}} // namespace boost::heap
 
 #endif /* BOOST_HEAP_POLICIES_HPP */

@@ -1,7 +1,6 @@
 package strawberry
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"reflect"
@@ -40,10 +39,12 @@ type AgentInfo struct {
 	// RobotUsername is needed for a temporary workaround to add the robot to the operation acl.
 	//
 	// TODO(dakovalkov): remove after YT-17557
-	RobotUsername            string
-	DefaultNetworkProject    *string
-	ClusterURL               string
-	UseFamilyPrefixInOpAlias bool
+	RobotUsername                          string
+	DefaultNetworkProject                  *string
+	ClusterURL                             string
+	UseFamilyPrefixInOpAlias               bool
+	BrokenStateSignalErrorCodes            []yterrors.ErrorCode
+	MaxConsecutiveBrokenStateSignalRetries int
 }
 
 func DescribeOptions(a AgentInfo, speclet Speclet) []OptionGroupDescriptor {
@@ -178,6 +179,10 @@ type Oplet struct {
 	// brokenReason is a brief reason why the oplet is in broken state.
 	// It contains a message from brokenError without any details like attributes and inner errors.
 	brokenReason string
+	// nodeDeleted is set when the oplet's cypress node has been resolved to be missing.
+	// Unlike other broken reasons, this one can never be fixed by the oplet itself (there is nothing
+	// left to reread), so the agent forgets such an oplet instead of keeping it broken forever.
+	nodeDeleted bool
 
 	acl []yt.ACE
 
@@ -240,21 +245,79 @@ func (oplet *Oplet) CypressNode() ypath.Path {
 	return oplet.cypressNode
 }
 
-func (oplet *Oplet) Broken() bool {
+const restartsExhaustedReason = "too many consecutive restart attempts"
+
+// stateCorrupted returns |true| whenever the oplet state is damaged and can not be processed at all.
+func (oplet *Oplet) stateCorrupted() bool {
 	return oplet.brokenError != nil
 }
 
+// restartsExhausted returns |true| whenever the operation restart repeatedly failed with a permanent error
+// and neither the speclet nor the secrets have been changed since then,
+// so there is no point in restarting the operation again.
+func (oplet *Oplet) restartsExhausted() bool {
+	maxAttempts := oplet.agentInfo.MaxConsecutiveBrokenStateSignalRetries
+	return maxAttempts > 0 &&
+		oplet.persistentState.ConsecutiveBrokenRestartAttempts >= maxAttempts &&
+		oplet.persistentState.BadRestartSpecletRevision == oplet.persistentState.SpecletRevision &&
+		oplet.persistentState.BadRestartSecretsRevision == oplet.secretsRevision
+}
+
+func (oplet *Oplet) Broken() bool {
+	return oplet.stateCorrupted() || oplet.restartsExhausted()
+}
+
 func (oplet *Oplet) BrokenReason() string {
-	return oplet.brokenReason
+	switch {
+	case oplet.stateCorrupted():
+		return oplet.brokenReason
+	case oplet.restartsExhausted():
+		return restartsExhaustedReason
+	default:
+		return ""
+	}
+}
+
+func (oplet *Oplet) SetExceedingFailedJobsLimitFailure() {
+	oplet.infoState.ExceedingFailedJobsLimit = true
+}
+
+func (oplet *Oplet) ClearExceedingFailedJobsLimitFailure() {
+	oplet.infoState.ExceedingFailedJobsLimit = false
+}
+
+// JobCount returns the saved job count and whether it is known.
+func (oplet *Oplet) JobCount() (int, bool) {
+	if oplet.persistentState.YTOpJobCount == nil {
+		return 0, false
+	}
+	return *oplet.persistentState.YTOpJobCount, true
 }
 
 func (oplet *Oplet) BrokenError() error {
-	return oplet.brokenError
+	switch {
+	case oplet.stateCorrupted():
+		return oplet.brokenError
+	case oplet.restartsExhausted():
+		var args []any
+		if oplet.infoState.Error != nil {
+			args = append(args, yterrors.Attr("last_restart_error", *oplet.infoState.Error))
+		}
+		args = append(args,
+			yterrors.Attr("consecutive_restart_attempts", oplet.persistentState.ConsecutiveBrokenRestartAttempts),
+			restartsExhaustedReason)
+		return yterrors.Err(args...)
+	default:
+		return nil
+	}
 }
 
-// Inappropriate returns |true| whenever the oplet does not belong to provided agent.
+// Inappropriate returns |true| whenever the oplet does not belong to provided agent
+// or its cypress node has been deleted (e.g. removed directly or via strawberry): in both
+// cases there is nothing left to reread or fix, so the oplet should be forgotten by the agent.
 func (oplet *Oplet) Inappropriate() bool {
-	return oplet.strawberrySpeclet.FamilyOrDefault() != oplet.c.Family() ||
+	return oplet.nodeDeleted ||
+		oplet.strawberrySpeclet.FamilyOrDefault() != oplet.c.Family() ||
 		oplet.strawberrySpeclet.StageOrDefault() != oplet.agentInfo.Stage
 }
 
@@ -284,6 +347,10 @@ func (oplet *Oplet) SetSecret(secret string, value any) {
 		oplet.secrets = make(map[string]any)
 	}
 	oplet.secrets[secret] = value
+}
+
+func (oplet *Oplet) OpletInfo() yson.RawValue {
+	return oplet.persistentState.OpletInfo
 }
 
 func (oplet *Oplet) SetOpletInfo(info any) {
@@ -324,10 +391,13 @@ const (
 
 func (oplet *Oplet) Health() (health OpletHealth, healthReason string) {
 	if oplet.Broken() {
-		return OpletHealthFailed, "oplet is broken: " + oplet.brokenReason
+		return OpletHealthFailed, "oplet is broken: " + oplet.BrokenReason()
 	}
 	if oplet.infoState.Error != nil {
 		return OpletHealthFailed, "info state contains error"
+	}
+	if oplet.HasYTOperation() && oplet.infoState.ExceedingFailedJobsLimit {
+		return OpletHealthFailed, "crash loop detected: too many jobs are simultaneously unavailable"
 	}
 
 	if ok, reason := oplet.needsRestart(); ok {
@@ -367,12 +437,16 @@ func (oplet *Oplet) Health() (health OpletHealth, healthReason string) {
 	return oplet.infoState.Health, oplet.infoState.HealthReason
 }
 
-// setBroken sets oplet state to broken and returns corresponding error.
 func (oplet *Oplet) setBroken(reason string, args ...any) (brokenError error) {
 	oplet.brokenReason = reason
 	oplet.brokenError = yterrors.Err(append(args, reason)...)
 	oplet.l.Debug("Oplet is broken", log.Error(oplet.brokenError))
 	return oplet.brokenError
+}
+
+func (oplet *Oplet) clearBroken() {
+	oplet.brokenError = nil
+	oplet.brokenReason = ""
 }
 
 func (oplet *Oplet) OnCypressNodeChanged() {
@@ -401,6 +475,7 @@ func (oplet *Oplet) EnsureUpdatedFromCypress(ctx context.Context) error {
 			return err
 		}
 	}
+	oplet.clearBroken()
 	return nil
 }
 
@@ -449,6 +524,7 @@ func (oplet *Oplet) CheckOperationLiveness(ctx context.Context) error {
 func (oplet *Oplet) EnsureOperationInValidState(ctx context.Context) error {
 	if ok, reason := oplet.needsRestart(); ok {
 		if err := oplet.restartOp(ctx, reason); err != nil {
+			oplet.registerRestartFailure(err)
 			return err
 		}
 	}
@@ -465,6 +541,7 @@ func (oplet *Oplet) EnsureOperationInValidState(ctx context.Context) error {
 
 	if ctlOpletState.NeedsRestart {
 		if err := oplet.restartOp(ctx, "controller decided to restart the oplet"); err != nil {
+			oplet.registerRestartFailure(err)
 			return err
 		}
 	}
@@ -562,15 +639,43 @@ func (oplet *Oplet) needsRestart() (needsRestart bool, reason string) {
 	if oplet.secretsRevision != oplet.persistentState.YTOpSecretsRevision {
 		return true, "secrets changed"
 	}
-	if oplet.strawberrySpeclet.RestartOnControllerChangeOrDefault() {
-		snapshot, err := oplet.c.GetControllerSnapshot()
+	if oplet.strawberrySpeclet.RestartOnControllerChangeOrDefault() && oplet.persistentState.YTOpControllerSnapshot != nil {
+		outdated, err := oplet.c.IsControllerSnapshotOutdated(oplet.persistentState.YTOpControllerSnapshot, oplet)
 		if err != nil {
-			oplet.l.Error("failed to get controller snapshot", log.Error(err))
-		} else if oplet.persistentState.YTOpControllerSnapshot != nil && !bytes.Equal(oplet.persistentState.YTOpControllerSnapshot, snapshot) {
+			oplet.l.Error("failed to compare controller snapshots", log.Error(err))
+		} else if outdated {
 			return true, "controller snapshot changed"
 		}
 	}
 	return false, "up to date"
+}
+
+func (oplet *Oplet) registerRestartFailure(err error) {
+	if !containsAnyErrorCode(err, oplet.agentInfo.BrokenStateSignalErrorCodes) {
+		oplet.persistentState.ConsecutiveBrokenRestartAttempts = 0
+		return
+	}
+
+	// The speclet or the secrets have been changed since the last failed restart,
+	// so we are trying to start the operation with a new configuration
+	// and the old counter can be reset.
+	if oplet.persistentState.BadRestartSpecletRevision != oplet.persistentState.SpecletRevision ||
+		oplet.persistentState.BadRestartSecretsRevision != oplet.secretsRevision {
+		oplet.persistentState.ConsecutiveBrokenRestartAttempts = 0
+		oplet.persistentState.BadRestartSpecletRevision = oplet.persistentState.SpecletRevision
+		oplet.persistentState.BadRestartSecretsRevision = oplet.secretsRevision
+	}
+
+	oplet.persistentState.ConsecutiveBrokenRestartAttempts++
+
+	oplet.l.Warn("restart failed with a permanent error", log.Error(err),
+		log.Int("consecutive_bad_restart_failures", oplet.persistentState.ConsecutiveBrokenRestartAttempts))
+
+	if oplet.restartsExhausted() {
+		oplet.l.Warn("restart repeatedly failed with a permanent error, oplet is broken",
+			log.String("reason", restartsExhaustedReason),
+			log.Int("consecutive_bad_restart_failures", oplet.persistentState.ConsecutiveBrokenRestartAttempts))
+	}
 }
 
 func (oplet *Oplet) needsUpdateOpParameters() (needsUpdate bool, reason string) {
@@ -664,6 +769,70 @@ func (oplet *Oplet) modifyPersistentState(ctx context.Context, mod persistentSta
 	return nil
 }
 
+func integerAsInt(value any) (int, bool) {
+	var n uint64
+	switch v := value.(type) {
+	case int:
+		n = uint64(v)
+	case int64:
+		n = uint64(v)
+	case uint64:
+		n = v
+	case *uint64:
+		if v == nil {
+			return 0, false
+		}
+		n = *v
+	default:
+		return 0, false
+	}
+	if n > uint64(^uint(0)>>1) {
+		return 0, false
+	}
+	return int(n), true
+}
+
+func totalJobCountFromSpec(spec map[string]any) (int, error) {
+	tasksValue, ok := spec["tasks"]
+	if !ok {
+		return 0, yterrors.Err("operation spec does not contain tasks")
+	}
+
+	tasks, ok := tasksValue.(map[string]any)
+	if !ok {
+		return 0, yterrors.Err("tasks type is not 'map'",
+			yterrors.Attr("tasks", tasksValue),
+			yterrors.Attr("type", fmt.Sprintf("%T", tasksValue)))
+	}
+
+	totalJobCount := 0
+	for taskName, taskValue := range tasks {
+		task, ok := taskValue.(map[string]any)
+		if !ok {
+			return 0, yterrors.Err("task type is not 'map'",
+				yterrors.Attr("task_name", taskName),
+				yterrors.Attr("task", taskValue),
+				yterrors.Attr("type", fmt.Sprintf("%T", taskValue)))
+		}
+
+		jobCountValue, ok := task["job_count"]
+		if !ok {
+			return 0, yterrors.Err("task does not contain job_count",
+				yterrors.Attr("task_name", taskName))
+		}
+		jobCount, ok := integerAsInt(jobCountValue)
+		if !ok {
+			return 0, yterrors.Err("job_count is not a non-negative integer representable as int",
+				yterrors.Attr("task_name", taskName),
+				yterrors.Attr("job_count", jobCountValue),
+				yterrors.Attr("type", fmt.Sprintf("%T", jobCountValue)))
+		}
+		totalJobCount += jobCount
+	}
+
+	return totalJobCount, nil
+}
+
 func (oplet *Oplet) needsBackoff() bool {
 	return oplet.persistentState.BackoffUntil.After(time.Now())
 }
@@ -708,6 +877,7 @@ func (oplet *Oplet) updateFromCypressNode(ctx context.Context) error {
 	err := oplet.systemClient.GetNode(ctx, oplet.cypressNode, &node, &yt.GetNodeOptions{Attributes: CypressStateAttributes})
 
 	if yterrors.ContainsResolveError(err) {
+		oplet.nodeDeleted = true
 		return oplet.setBroken("cypress state does not exist", err)
 	} else if err != nil {
 		oplet.l.Error("failed to get operation state from cypress", log.Error(err))
@@ -967,13 +1137,16 @@ func (oplet *Oplet) getUserClient() (yt.Client, error) {
 	return client, nil
 }
 
+// TODO(iharbychyk): add new package for strawberry-specific error codes
+const CodePoolIsNotSet yterrors.ErrorCode = 800000
+
 func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	oplet.l.Info("restarting operation",
 		log.Int("next_incarnation_index", oplet.NextIncarnationIndex()),
 		log.String("reason", reason))
 
 	if oplet.strawberrySpeclet.Pool == nil && oplet.strawberrySpeclet.StageOrDefault() != StageUntracked {
-		err := yterrors.Err("can't run operation because pool is not set")
+		err := yterrors.Err(CodePoolIsNotSet, "can't run operation because pool is not set")
 		oplet.setError(err)
 		return err
 	}
@@ -992,6 +1165,14 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		oplet.setError(err)
 		return err
 	}
+
+	previousOpletInfo := oplet.persistentState.OpletInfo
+	operationStarted := false
+	defer func() {
+		if !operationStarted {
+			oplet.persistentState.OpletInfo = previousOpletInfo
+		}
+	}()
 
 	spec, description, annotations, runAsUser, err := oplet.c.Prepare(ctx, oplet)
 	if err != nil {
@@ -1108,12 +1289,22 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		return err
 	} else {
 		oplet.clearError()
+		oplet.ClearExceedingFailedJobsLimitFailure()
 	}
 
+	operationStarted = true
 	oplet.persistentState.YTOpID = opID
+	oplet.persistentState.YTOpJobCount = nil
+	if jobCount, err := totalJobCountFromSpec(spec); err != nil {
+		oplet.l.Warn("failed to get job count from operation spec", log.Error(err))
+	} else {
+		oplet.persistentState.YTOpJobCount = &jobCount
+	}
+
 	oplet.persistentState.YTOpState = yt.StateInitializing
 	oplet.persistentState.YTOpSuspended = false
 	oplet.persistentState.ResumeMarker = oplet.strawberrySpeclet.ResumeMarker
+	oplet.persistentState.ConsecutiveBrokenRestartAttempts = 0
 	oplet.infoState.YTOpStartTime = yson.Time{}
 	oplet.infoState.YTOpFinishTime = yson.Time{}
 
@@ -1209,7 +1400,7 @@ func (oplet *Oplet) flushPersistentState(ctx context.Context) error {
 		log.UInt64("flushed_state_revision", uint64(oplet.flushedStateRevision)))
 
 	// Sanity check, should never happen.
-	if oplet.Broken() {
+	if oplet.stateCorrupted() {
 		return yterrors.Err("cannot flush persistent state of broken oplet",
 			yterrors.Attr("broken_reason", oplet.brokenReason))
 	}
@@ -1378,9 +1569,9 @@ func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo) {
 		// NB: We should get a list of available options even if
 		// an oplet is broken and there is no speclet.
 		defaultSpeclet, _ := oplet.c.ParseSpeclet(yson.RawValue("{}"))
-		briefInfo.CtlAttributes = oplet.c.GetOpBriefAttributes(defaultSpeclet)
+		briefInfo.CtlAttributes = oplet.c.GetOpBriefAttributes(defaultSpeclet, briefInfo.OpletInfo)
 	} else {
-		briefInfo.CtlAttributes = oplet.c.GetOpBriefAttributes(oplet.controllerSpeclet)
+		briefInfo.CtlAttributes = oplet.c.GetOpBriefAttributes(oplet.controllerSpeclet, briefInfo.OpletInfo)
 	}
 
 	if oplet.Broken() {

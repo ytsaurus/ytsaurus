@@ -4,11 +4,11 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/yt/ytlib/discovery_client/config.h>
-
 #include <yt/yt/ytlib/queue_client/config.h>
 
 #include <yt/yt/client/security_client/public.h>
+
+#include <yt/yt/library/discovery_client/config.h>
 
 #include <yt/yt/library/re2/re2.h>
 
@@ -42,6 +42,27 @@ void TCypressSynchronizerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("chaos_replicated_table_queue_agent_stage", &TThis::ChaosReplicatedTableQueueAgentStage)
         .Default(NQueueClient::ProductionStage);
+    registrar.Parameter("ignored_object_list", &TThis::IgnoredObjectList)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMultiConsumerNamesGarbageCollectorDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("pass_period", &TThis::PassPeriod)
+        .Default(TDuration::Minutes(1))
+        .GreaterThan(TDuration::Zero());
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TQueueExportManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("user", &TThis::User)
+        .Optional(/*init*/ false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,6 +71,8 @@ void TQueueAgentConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("stage", &TThis::Stage)
         .NonEmpty();
+    registrar.Parameter("queue_export_manager", &TThis::QueueExportManager)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,6 +96,12 @@ void TQueueExporterDynamicConfig::Register(TRegistrar registrar)
         .Default(DefaultRetryBackoff);
     registrar.Parameter("implementation", &TThis::Implementation)
         .Default(EQueueExporterImplementation::Old);
+    registrar.Parameter("enable_row_count_check", &TThis::EnableRowCountCheck)
+        .Default(true);
+    registrar.Parameter("max_hunk_chunk_count_per_fetch", &TThis::MaxHunkChunkCountPerFetch)
+        .Default(1000)
+        .GreaterThan(0)
+        .DontSerializeDefault();
 
     registrar.Postprocessor([] (TQueueExporterDynamicConfig* config) {
         THROW_ERROR_EXCEPTION_UNLESS(config->RetryBackoff.InvocationCount == DefaultRetryBackoff.InvocationCount, "Invalid value of \"invocation_count\"");
@@ -113,6 +142,9 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("verbose_logging_objects", &TThis::VerboseLoggingObjects)
         .Default();
+    registrar.Parameter("multi_consumer_select_batch_size", &TThis::MultiConsumerSelectBatchSize)
+        .GreaterThan(0)
+        .Default(10'000);
 
     registrar.Postprocessor([] (TQueueControllerDynamicConfig* config) {
         if (config->TrimmingPeriod && config->TrimmingPeriod->GetValue() <= 0) {
@@ -147,6 +179,9 @@ void TQueueAgentDynamicConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0);
     registrar.Parameter("handle_replicated_objects", &TThis::HandleReplicatedObjects)
         .Default(false);
+    registrar.Parameter("queue_agent_channel_request_timeout", &TThis::QueueAgentChannelRequestTimeout)
+        .Default(TDuration::Minutes(1))
+        .GreaterThan(TDuration::Zero());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,7 +215,10 @@ void TQueueAgentBootstrapConfig::Register(TRegistrar registrar)
         ->AsMap());
     registrar.Parameter("dynamic_state", &TThis::DynamicState)
         .DefaultNew();
-    registrar.Parameter("election_manager", &TThis::ElectionManager)
+    registrar.Parameter("cypress_synchronizer_election_manager", &TThis::CypressSynchronizerElectionManager)
+        .Alias("election_manager")
+        .DefaultNew();
+    registrar.Parameter("multi_consumer_names_garbage_collector_election_manager", &TThis::MultiConsumerNamesGarbageCollectorElectionManager)
         .DefaultNew();
     registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
         .DefaultNew();
@@ -188,8 +226,11 @@ void TQueueAgentBootstrapConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Postprocessor([] (TThis* config) {
-        if (auto& lockPath = config->ElectionManager->LockPath; lockPath.empty()) {
+        if (auto& lockPath = config->CypressSynchronizerElectionManager->LockPath; lockPath.empty()) {
             lockPath = config->DynamicState->Root + "/leader_lock";
+        }
+        if (auto& lockPath = config->MultiConsumerNamesGarbageCollectorElectionManager->LockPath; lockPath.empty()) {
+            lockPath = config->DynamicState->Root + "/multi_consumer_names_garbage_collector_leader_lock";
         }
         if (auto& dynamicConfigPath = config->DynamicConfigPath; dynamicConfigPath.empty()) {
             dynamicConfigPath = config->DynamicState->Root + "/config";
@@ -218,6 +259,10 @@ void TQueueAgentComponentDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("queue_agent", &TThis::QueueAgent)
         .DefaultNew();
     registrar.Parameter("cypress_synchronizer", &TThis::CypressSynchronizer)
+        .DefaultNew();
+    registrar.Parameter("multi_consumer_names_garbage_collector", &TThis::MultiConsumerNamesGarbageCollector)
+        .DefaultNew();
+    registrar.Parameter("dynamic_state", &TThis::DynamicState)
         .DefaultNew();
 }
 

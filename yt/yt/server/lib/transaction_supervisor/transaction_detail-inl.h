@@ -4,6 +4,8 @@
 #include "transaction_detail.h"
 #endif
 
+#include <yt/yt/server/lib/hydra/serialize.h>
+
 #include <library/cpp/yt/assert/assert.h>
 
 namespace NYT::NTransactionSupervisor {
@@ -109,10 +111,8 @@ void TTransactionBase<TBase, TSaveContext, TLoadContext>::Load(TLoadContext& con
     using NYT::Load;
 
     // COMPAT(kvk1920, babenko)
-    constexpr int ChaosReignBase = 300000;
     constexpr int ChaosReignSaneTxActionAbortFix = 300014;
     constexpr int ChaosReignTransactionActionStates = 300104;
-    constexpr int TabletReignBase = 100000;
     constexpr int TabletReignTransactionActionStates = 101208;
     constexpr int MasterReignSaneTxActionAbortFix = 2528;
     constexpr int MasterReignTransactionActionStates = 2930;
@@ -121,10 +121,10 @@ void TTransactionBase<TBase, TSaveContext, TLoadContext>::Load(TLoadContext& con
     bool hasActionStates;
     int version = ToUnderlying(context.GetVersion());
 
-    if (version > ChaosReignBase) {
+    if (NHydra::IsChaosReign(version)) {
         hasPreparedActionCount = version >= ChaosReignSaneTxActionAbortFix;
         hasActionStates = version >= ChaosReignTransactionActionStates;
-    } else if (version > TabletReignBase) {
+    } else if (NHydra::IsTabletReign(version)) {
         hasPreparedActionCount = true;
         hasActionStates = version >= TabletReignTransactionActionStates;
     } else {

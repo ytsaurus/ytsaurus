@@ -17,6 +17,7 @@ ADDINCL(
 )
 
 PEERDIR(
+    yt/yt/library/numeric
     yt/yt/core
     contrib/restricted/wavm/Lib
 )

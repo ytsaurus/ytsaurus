@@ -1,6 +1,7 @@
 GTEST(unittester-queue-agent)
 
 SRCS(
+    ytree_helpers_ut.cpp
     queue_export_ut.cpp
 )
 

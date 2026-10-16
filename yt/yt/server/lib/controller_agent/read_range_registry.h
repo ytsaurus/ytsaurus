@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 
 #include <yt/yt/ytlib/controller_agent/persistence.h>
 
@@ -10,16 +10,17 @@ namespace NYT::NControllerAgent {
 
 //! This class is responsible for holding input read ranges for
 //! data slices.
-//! TODO(max42): YT-13880.
+//! TODO(max42): YT-13880: Store the full physical data slice representation in this registry and
+//! expose only logical bounds and an opaque payload to chunk pools.
 class TReadRangeRegistry
 {
 public:
     TReadRangeRegistry() = default;
 
-    void RegisterDataSlice(const NChunkClient::TLegacyDataSlicePtr& dataSlice);
+    void RegisterDataSlice(const NChunkClient::TDataSlicePtr& dataSlice);
 
     void ApplyReadRange(
-        const NChunkClient::TLegacyDataSlicePtr& dataSlice,
+        const NChunkClient::TDataSlicePtr& dataSlice,
         const NTableClient::TComparator& comparator) const;
 
 private:

@@ -21,12 +21,8 @@ type Response struct {
 
 type contextKey string
 
+// AuthInfoKey is the key of ytmsvc.AuthInfo in the context of an authenticated request.
 const AuthInfoKey contextKey = "auth_info"
-
-type AuthInfo struct {
-	Login     string `json:"login"`
-	IsService bool   `json:"is_service"`
-}
 
 type ACLCacheStatus struct {
 	Ready       bool                 `json:"ready"`

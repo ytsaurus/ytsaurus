@@ -55,16 +55,33 @@ Since the data in the system is actually sorted by a set of key columns, the sys
 
 When building the query, remember that if the system fails to infer non-trivial `key ranges`, `full scan` of the data will occur. `Full scan` occurs, for example, if you specify `key1, key2` as key columns and set filtering only by `key2`.
 
-### Writing rows { #insert_rows }
+### Limiting the read time range { #retention-timestamp }
 
-The client can write using the `insert_rows` method within the active transaction. To do this, the rows to be written must be reported. All key fields must be present in each such row. Some of the data fields from those specified in the schema may be missing.
+When reading a sorted dynamic table, you can specify the `retention_timestamp` option — the inclusive lower bound of the time range. If the `timestamp` option is also specified, the result is built from value versions in the range `[retention_timestamp; timestamp]`. The `retention_timestamp` value can’t be greater than `timestamp`. You can’t combine the `retention_timestamp` option with versioned lookup.
 
-Semantically, if a row with the specified key is not in the table, it appears. If there is already a row with this key, some of the columns are overwritten.
+The bound is applied to each column separately. If one column was written before `retention_timestamp` and another after, the first will contain `null` and the second will contain the written value. If no values remain in a row after applying the bound, the row is considered absent. By default, `lookup_rows` doesn’t return such a row; with the `keep_missing_rows` option, `null` is returned instead.
 
-There are 2 modes when some of the fields are specified:
+`retention_timestamp` affects only the read result and doesn’t delete old versions. Physical data deletion is controlled by [TTL settings](#remove_old_data).
 
-- `overwrite` (default): All unspecified fields update their values to `null`.
-- `update`: Enabled by the `update == true` option. The previous value will then be retained. In this mode, all columns marked with the `required` attribute must be transmitted.
+{% note warning "Warning" %}
+
+For aggregating columns, the semantics of `retention_timestamp` are **undefined**. Values before the bound don’t participate in aggregation, and compaction may pre-merge versions on different sides of the bound. As a result, the read result for an aggregating column before and after compaction may differ. **Don’t use this option to read the tail of changes for an aggregating column.**
+
+{% endnote %}
+
+
+### Inserting a row { #insert_rows }
+
+You can insert data using the `insert_rows` method within an active transaction. To do this, you must provide the rows to write. Each such row must include all key fields. Some data fields specified in the schema may be missing.
+
+Semantically, if a row with the specified key doesn’t exist in the table, it’s created. If a row with that key already exists, some columns are overwritten.
+
+When specifying only some fields, there are two modes:
+
+- `overwrite` (default) — all unspecified fields are updated to `null`.
+- `update` — enabled with the `update == true` option. In this case, the previous value is preserved. In this mode, you must provide all columns marked with the `required` attribute.
+
+
 
 {% note info "Note" %}
 
@@ -192,7 +209,7 @@ To enable deletion using a watermark, follow the steps below:
 - Set the `@custom_runtime_data` attribute for the table.
 
 The `custom_runtime_data` attribute must be as follows:
-```
+```yson
 {
     "watermark" = {
         "column_name" = "<column name>";
@@ -218,6 +235,7 @@ The default setting is to overwrite what is in the table. To write a delta, spec
 
 ## Row-by-row cache { #lookup_cache }
 
+
 For point reads of rows (reading specific rows by their full keys) from a dynamic table, there's a lookup rows API call.
 
 In a basic scenario, the table is stored on a disk (HDD, SSD, NVMe). Data read from disk or compressed by a codec (LZ, gzip, zstd) is measured in blocks. When reading blocks from disk, the data is cached at multiple levels: at the OS level and at the level of the {{product-name}} node process. In the {{product-name}} node process, blocks are cached in both compressed and uncompressed form.
@@ -234,6 +252,7 @@ A lookup cache is an LRU cache that stores individual rows from the table. You c
 
 The problem is that the table data can change at any time: a table row that is stored in the cache may at any given point of time be modified or deleted by a currently running transaction. For this reason, to ensure data consistency and isolation during reads, the cache must be synchronized with any data modifications in the table. And that is why the cache is integrated with {{product-name}}.
 
+
 To use the cache, make sure you do the following:
 - Request a quota for the `lookup_rows_cache` memory category (similar to the `tablet_static` quota for in-memory tables).
 - Set the `@lookup_cache_rows_ratio` attribute for the tables. This attribute specifies the fraction of rows to be cached for each tablet. You can start at fractions of a percent (0.0005) and gradually increase the value all the way up to a few percent (0.03).
@@ -242,15 +261,20 @@ To use the cache, make sure you do the following:
 
 Once this is done, all lookup queries to the table will be processed using the cache.
 
+
 If you do not want to use the cache for some queries, you can specify the `use_lookup_cache` option in the lookup rows query itself. This can be particularly useful if there's a background process that periodically modifies data across the entire table (performs a lookup followed by an insert). Using the cache for these lookups could otherwise cause data to be flushed from it. On the other hand, if this process only updates a small fraction of the table data, using the cache could be useful for all lookup queries, as this would speed up the execution of the periodic process.
 
 By default, the `use_lookup_cache` option is set to `null`. If `use_lookup_cache` is `null`, the cache's usage is determined by the table's `@enable_lookup_cache_by_default` attribute value (cache size must also be configured). If the passed `use_lookup_cache` value is `true` or `false`, the cache's usage for the lookup query is determined by this option instead.
 
+
 The `@lookup_cache_rows_per_tablet` table attribute is deprecated, so we do not recommend using it. The problem with this attribute is that different tablets can contain different amounts of data. The cache's operation may not be efficient with fixed tablet sizes. Furthermore, a fixed cache size can often become suboptimal as sharding settings change and the table grows in size.
+
 
 If you are using hunks, it may be beneficial to enable the lookup cache and set the `@in_memory_mode=uncompressed` mode for the table. In this case, the in-memory data contains references to hunks. The amount of this data is typically not very large. The lookup cache allows storing hunks and reducing the frequency of disk reads and network consumption.
 
+
 ### Diagnostic metrics for lookup cache performance
+
 
 When the cache operates efficiently, the frequency of block reads from disk or from the block cache should gradually decrease.
 When cache is enabled, `unmerged_row_count` is expected to decrease; however, `unmerged_data_weight / unmerged_row_count` (data amount per row) might increase, because all versions and all columns are read to fill the cache.
@@ -277,13 +301,11 @@ Lookup cache–specific metrics:
 - `yt.tablet_node.lookup.cache_misses.rate`: Number of cache misses per second.
 - `yt.tablet_node.lookup.cache_inserts.rate`: Number of cache inserts per second. This value may be different from "cache_misses" if the keys aren't anywhere in the table, or if the cache runs out of memory (`lookup_rows_cache` memory categories). For the number of queried keys that are absent from the table, use the metric "yt.tablet_node.lookup.missing_row_count.rate". If the table is not loaded into memory, any attempts to read missing keys always result in queries to the disk. To prevent this, enable the key xor filter.
 - `yt.tablet_node.lookup.cache_outdated.rate`: Number of keys per second that present in the cache but are outdated because the cache ran out of memory and could not update them in time. Once the cache reaches its memory quota ("lookup_rows_cache" memory category), it can no longer update existing rows. In this case, the old value remains cached but can no longer be read.
-
 As the cache is processed, the system performs garbage collection. The following metrics allow tracking the actual amount of memory being used.
 - `yt.tablet_node.row_cache.slab_allocator.lookup.alive_items`: Number of current allocations.
 - `yt.tablet_node.row_cache.slab_allocator.lookup.allocated_items.rate`: Number of allocations per second.
 - `yt.tablet_node.row_cache.slab_allocator.lookup.freed_items.rate`: Number of deallocations per second.
 - `yt.tablet_node.row_cache.slab_allocator.lookup.arena_size`: Sizes of arenas (sets of allocations of the same size) in bytes.
-
 These metrics have a "rank" tag, which represents the allocation size in bytes: 16, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1022, 1536, 2048, 3072, 4096, 6144, 8192, 12288, 16384, 22576, 32768, large. "Large" is used for allocation sizes that are greater than 32768 bytes.
 
 ## Filtering out non-existent keys { #key_filter }
@@ -301,31 +323,26 @@ Filtering is supported for lookup queries as well as for select queries that inc
 To enable filtering:
 - Allocate memory for the key filter block cache within the bundle (recommended value is 500 MB). You can do this yourself by navigating to the Edit Bundle -> Resources menu. For bundles that are still using the legacy resource model, {% if audience == "internal" %}contact the administrator.{% else %}use the [dynamic node config](../../../admin-guide/cluster-operations#ytdyncfgen) to set the "data_node/block_cache/xor_filter/capacity" field value. This action is available to the cluster administrator.{% endif %}
 - Enable saving filters during write operations. To do this, set the `@chunk_writer/key_filter/enable = %true` attribute for the table. If the table does not have the `@chunk_writer` attribute, set it to `{key_filter={enable=%true}}`.
-- If you need filtering for select queries, use the `@chunk_writer/key_filter_prefix` attribute to enable writes and specify the "prefix_lengths" parameter for this attribute.
+- If you need filtering in select queries by key prefix — that is, in queries formulated using the `IN` or `BETWEEN` keywords — use the `@chunk_writer/key_prefix_filter` attribute to enable writes and specify the "prefix_lengths" parameter for this attribute.
 - Set `@mount_config/enable_key_filter_for_lookup = %true`. This option enables filtering for both lookup and select queries.
 - Perform the remount-table command on the table.
 - To add the filter for all existing chunks, you can use [forced compaction](../../../user-guide/dynamic-tables/compaction#forced_compaction).
 
+
 ### Filter parameters
 
-Filter write parameters are specified in `@chunk_writer/key_filter` for lookup queries and in `@chunk_writer/key_filter_prefix` for select queries:
+Filter write parameters are specified in `@chunk_writer/key_filter` for lookup queries and in `@chunk_writer/key_prefix_filter` for select queries:
 - enable: Whether a filter should be created for the chunk's blocks.
 - false_positive_rate: Percentage of incorrect filter responses (the filter did not filter out a key that was, in fact, missing). The default value is 1 / 256. The higher the precision, the more space the filter will take up.
 - bits_per_key: Number of bits that a single key takes up in the filter.
-- prefix_lengths: List of key prefix lengths for which the filter should be created. This parameter is only valid for `@chunk_writer/key_filter_prefix`.
+- prefix_lengths: List of key prefix lengths for which the filter should be created. This parameter is only valid for `@chunk_writer/key_prefix_filter`. Not all prefix lengths need to have filters built — `select` queries for a prefix of length l will use the filter built for the longest prefix length not exceeding l.
 
 You cannot set both "false_positive_rate" and "bits_per_key" at the same time. If "false_positive_rate" is set, the "bits_per_key" value is derived from it. We recommend using the "false_positive_rate" parameter.
 
 ### Diagnostic metrics for filter performance
 
+
 When the filter is running efficiently, the number of block reads from disk or from the block cache should decrease.
-
-To make monitoring the filter's performance easier, use the ready-made Key Filter (table-based) and Bundle UI Key Filter (bundle-based, available in the bundle interface) dashboards.
-
-#### Common metrics
-
-To determine whether you should enable filtering, it is useful to calculate the ratio of the total number of chunks where the key was looked up to the number of successfully read keys. We recommend that you consider enabling the filter if this ratio is greater than 3:
-- yt.tablet_node.lookup.unmerged_missing_row_count.rate / yt.tablet_node.lookup.row_count.rate
 
 #### Metrics for lookup operations
 
@@ -346,9 +363,16 @@ Metrics for disk or cache reads:
 
 - yt.tablet_node.select.chunk_reader_statistics.data_bytes_read_from_cache.rate: Number of bytes read by select queries from the block cache.
 - yt.tablet_node.select.chunk_reader_statistics.data_bytes_read_from_disk.rate: Number of bytes read by select queries from disk.
-
 Filter-specific metrics:
 
 - yt.tablet_node.select.range_filter.input_range_count.rate: Number of ranges that the filter received as input.
 - yt.tablet_node.select.range_filter.filtered_out_range_count.rate: Number of ranges filtered out by the filter.
 - yt.tablet_node.select.range_filter.false_positive_range_count.rate: Number of ranges that were not filtered out by the filter, even though they did not actually exist.
+
+#### Common metrics
+
+Also, to evaluate the filter's performance, we recommend considering the following ratio:
+- yt.tablet_node.lookup.unmerged_missing_row_count.rate / yt.tablet_node.lookup.row_count.rate
+
+
+In the numerator, this value corresponds to the number of (unmerged) rows that were requested when reading separately from each chunk but were not found in the chunk. In the denominator, it's the final number of (already merged) rows read. The `xor filter` usually works effectively if this ratio is greater than three.

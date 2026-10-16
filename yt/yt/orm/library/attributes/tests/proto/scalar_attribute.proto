@@ -10,6 +10,7 @@ message TNestedMessage
     repeated int32 repeated_int32_field = 100;
     map<string, TNestedMessage> nested_message_map = 3 [(NYT.NYson.NProto.yson_map) = true];
     optional NYT.NYTree.NProto.TAttributeDictionary attribute_dictionary = 4;
+    optional bytes yson_string_field = 7 [(NYT.NYson.NProto.yson_string) = true];
     // Field umbers 5-6 are reserved for unknown field tests, intentionally not marked as reserved.
 }
 
@@ -51,5 +52,7 @@ message TMessage
     map<string, int32> string_to_int32_map = 23 [(NYT.NYson.NProto.yson_map) = true];
     map<int32, int32> int32_to_int32_map = 35 [(NYT.NYson.NProto.yson_map) = true];
     optional NYT.NYTree.NProto.TAttributeDictionary attribute_dictionary = 36;
+    optional bytes yson_string_field = 39 [(NYT.NYson.NProto.yson_string) = true];
+    repeated bytes repeated_yson_string_field = 40 [(NYT.NYson.NProto.yson_string) = true];
     // Field numbers 37-38 are reserved for unknown field tests, intentionally not marked as reserved.
 }

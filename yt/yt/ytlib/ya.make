@@ -8,15 +8,11 @@ INCLUDE(../ya_check_dependencies.inc)
 PROTO_NAMESPACE(yt)
 
 SRCS(
-    admin/proto/admin_service.proto
-    admin/proto/restart_service.proto
-
     api/connection.cpp
     api/native/backup_session.cpp
     api/native/bundle_controller_client_impl.cpp
     api/native/cell_commit_session.cpp
     api/native/chaos_helpers.cpp
-    api/native/chaos_lease.cpp
     api/native/chaos_lease_type_handler.cpp
     api/native/chaos_replicated_table_type_handler.cpp
     api/native/chaos_table_replica_type_handler.cpp
@@ -61,6 +57,7 @@ SRCS(
     api/native/pick_replica_session.cpp
     api/native/pipeline_type_handler.cpp
     api/native/pool_weight_provider.cpp
+    api/native/public.cpp
     api/native/queue_producer_type_handler.cpp
     api/native/register_transaction_actions_request_factory.cpp
     api/native/replicated_table_replica_type_handler.cpp
@@ -78,6 +75,7 @@ SRCS(
     api/native/tablet_action_type_handler.cpp
     api/native/tablet_commit_session.cpp
     api/native/tablet_helpers.cpp
+    api/native/two_phase_table_operation.cpp
     api/native/tablet_request_batcher.cpp
     api/native/tablet_sync_replica_cache.cpp
     api/native/transaction_helpers.cpp
@@ -122,11 +120,16 @@ SRCS(
     chaos_client/banned_replica_tracker.cpp
     chaos_client/chaos_cell_channel_factory.cpp
     chaos_client/chaos_cell_directory_synchronizer.cpp
+    chaos_client/chaos_lease_serialization.cpp
+    chaos_client/chaos_leases_watcher.cpp
+    chaos_client/chaos_leases_watcher_client.cpp
     chaos_client/chaos_object_channel_factory.cpp
     chaos_client/chaos_residency_cache.cpp
     chaos_client/config.cpp
     chaos_client/master_cache_channel.cpp
+    chaos_client/native_chaos_lease_cache.cpp
     chaos_client/native_replication_card_cache_detail.cpp
+    chaos_client/object_watcher_client.cpp
     chaos_client/replication_card_updates_batcher.cpp
     chaos_client/replication_card_updates_batcher_serialization.cpp
     chaos_client/replication_cards_watcher.cpp
@@ -165,6 +168,7 @@ SRCS(
     GLOBAL chunk_client/configure_dispatcher.cpp
     chunk_client/confirming_writer.cpp
     chunk_client/data_sink.cpp
+    chunk_client/data_slice.cpp
     chunk_client/data_slice_descriptor.cpp
     chunk_client/data_source.cpp
     chunk_client/deferred_chunk_meta.cpp
@@ -183,8 +187,8 @@ SRCS(
     chunk_client/helpers.cpp
     chunk_client/input_chunk_slice.cpp
     chunk_client/input_chunk.cpp
+    chunk_client/job_io_meter.cpp
     GLOBAL chunk_client/job_spec_extensions.cpp
-    chunk_client/legacy_data_slice.cpp
     chunk_client/medium_directory_synchronizer.cpp
     chunk_client/medium_directory.cpp
     chunk_client/medium_descriptor.cpp
@@ -260,10 +264,16 @@ SRCS(
     data_node_tracker_client/proto/data_node_tracker_service.proto
 
     distributed_chunk_session_client/config.cpp
-    distributed_chunk_session_client/distributed_chunk_writer.cpp
-    distributed_chunk_session_client/distributed_chunk_session_controller.cpp
+    distributed_chunk_session_client/helpers.cpp
+    distributed_chunk_session_client/seal_summary_fetcher.cpp
+    distributed_chunk_session_client/seal_monitor.cpp
+    distributed_chunk_session_client/statistics.cpp
+    distributed_chunk_session_client/session_pool.cpp
+    distributed_chunk_session_client/session_writer.cpp
+    distributed_chunk_session_client/session_controller.cpp
+    distributed_chunk_session_client/session_reader.cpp
 
-    distributed_chunk_session_client/proto/distributed_chunk_session_service.proto
+    distributed_chunk_session_client/proto/session_service.proto
 
     driver/config.cpp
 
@@ -276,6 +286,8 @@ SRCS(
     event_log/config.cpp
     event_log/event_log.cpp
 
+    exec_node/public.cpp
+
     exec_node_admin/proto/exec_node_admin_service.proto
     exec_node_tracker_client/proto/exec_node_tracker_service.proto
 
@@ -284,8 +296,10 @@ SRCS(
     file_client/file_chunk_reader.cpp
     file_client/file_chunk_writer.cpp
     file_client/file_fragment_writer.cpp
+    file_client/partition_utils.cpp
 
     file_client/proto/file_chunk_meta.proto
+    file_client/proto/file_partition_cookie.proto
 
     hive/cell_directory_synchronizer.cpp
     hive/cell_directory.cpp
@@ -315,9 +329,9 @@ SRCS(
 
     job_proxy/any_to_composite_converter.cpp
     job_proxy/config.cpp
+    job_proxy/first_batch_tracking_base.cpp
     job_proxy/helpers.cpp
     job_proxy/job_spec_helper.cpp
-    job_proxy/private.cpp
     job_proxy/profiling_reader.cpp
     job_proxy/profiling_writer.cpp
     job_proxy/user_job_io_factory.cpp
@@ -374,6 +388,19 @@ SRCS(
     object_client/proto/object_ypath.proto
     object_client/proto/user_directory.proto
 
+    offshore_data_gateway/config.cpp
+    offshore_data_gateway/offshore_data_gateway_channel.cpp
+
+    push_based_shuffle_client/config.cpp
+    push_based_shuffle_client/record_format.cpp
+    push_based_shuffle_client/session_provider.cpp
+    push_based_shuffle_client/partition_reader.cpp
+    push_based_shuffle_client/shuffle_writer.cpp
+    push_based_shuffle_client/shuffle_writer_adapter.cpp
+    push_based_shuffle_client/sort_reader.cpp
+    push_based_shuffle_client/sort_reader_adapter.cpp
+    push_based_shuffle_client/sorted_merging_reader.cpp
+
     query_client/executor.cpp
     query_client/explain.cpp
     query_client/functions_cache.cpp
@@ -412,6 +439,7 @@ SRCS(
     security_client/helpers.cpp
     security_client/permission_cache.cpp
     security_client/public.cpp
+    security_client/query_pool_permission_cache.cpp
     security_client/user_attribute_cache.cpp
 
     security_client/proto/account_ypath.proto
@@ -433,6 +461,10 @@ SRCS(
     sequoia_client/ypath_detail.cpp
 
     sequoia_client/proto/transaction_client.proto
+
+    shuffle_client/config.cpp
+
+    shuffle_client/proto/shuffle_service.proto
 
     table_chunk_format/boolean_column_reader.cpp
     table_chunk_format/boolean_column_writer.cpp
@@ -499,6 +531,7 @@ SRCS(
     table_client/schemaful_chunk_reader.cpp
     table_client/schemaful_concatenating_reader.cpp
     table_client/schemaful_reader_adapter.cpp
+    table_client/schemaful_translating_reader_adapter.cpp
     table_client/schemaless_block_reader.cpp
     table_client/schemaless_block_writer.cpp
     table_client/schemaless_buffered_table_writer.cpp
@@ -512,7 +545,6 @@ SRCS(
     table_client/table_columnar_statistics_cache.cpp
     table_client/table_read_spec.cpp
     table_client/timing_reader.cpp
-    table_client/timing_statistics.cpp
     table_client/versioned_block_reader.cpp
     table_client/versioned_block_writer.cpp
     table_client/versioned_chunk_reader.cpp
@@ -572,8 +604,6 @@ SRCS(
     yql_client/proto/yql_service.proto
 
     yql_plugin/proto/yql_plugin.proto
-
-    shuffle_client/proto/shuffle_service.proto
 )
 
 GENERATE_YT_RECORD(
@@ -775,6 +805,13 @@ GENERATE_YT_RECORD(
 )
 
 GENERATE_YT_RECORD(
+    queue_client/records/multi_consumer_object.yaml
+    OUTPUT_INCLUDES
+        yt/yt/core/yson/string.h
+        yt/yt/ytlib/queue_client/public.h
+)
+
+GENERATE_YT_RECORD(
     queue_client/records/queue_agent_object_mapping.yaml
     OUTPUT_INCLUDES
         yt/yt/core/yson/string.h
@@ -806,9 +843,10 @@ PEERDIR(
     library/cpp/erasure
     library/cpp/iterator
     library/cpp/yt/backtrace/symbolizers/dwarf
-    library/cpp/containers/absl_flat_hash
+    library/cpp/containers/absl
     yt/yt/library/erasure/impl
     yt/yt/library/containers
+    yt/yt/library/discovery_client
     yt/yt/library/disk_manager
     yt/yt/library/process
     yt/yt/library/random
@@ -832,23 +870,21 @@ PEERDIR(
     yt/yt/library/s3
     yt/yt/library/row_merger
     yt/yt/library/query/base
-    yt/yt/library/query/engine
     yt/yt/library/query/engine_api
     yt/yt/library/query/row_comparer_api
     yt/yt/library/query/secondary_index
     yt/yt/library/vector_hdrf
     yt/yt/library/web_assembly/api
-    yt/yt/ytlib/discovery_client
+    yt/yt/ytlib/admin
     yt/yt/ytlib/query_tracker_client
     yt/yt_proto/yt/client
-    yt/yt/flow/lib/client
-    yt/yt/flow/lib/native_client
+    yt/yt/flow/library/cpp/client
+    yt/yt/flow/library/cpp/native_client
 )
 
 END()
 
 RECURSE(
-    discovery_client
     distributed_throttler
 )
 

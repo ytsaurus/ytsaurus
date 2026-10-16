@@ -1,4 +1,4 @@
-from base import ClickHouseTestBase, Clique
+from base import ClickHouseTestBase, Clique, enable_sequoia
 
 from yt_commands import (write_table, authors, print_debug, create, merge)
 
@@ -71,3 +71,8 @@ class TestTracing(ClickHouseTestBase):
 
         with Clique(5) as clique:
             assert clique.make_query('select count(*) from "//tmp/t"')[0]["count()"] == 100
+
+
+@enable_sequoia
+class TestTracingSequoia(TestTracing):
+    pass

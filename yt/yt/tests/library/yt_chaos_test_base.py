@@ -5,7 +5,8 @@ from yt_commands import (
     print_debug, wait, get_driver, get, set, ls, exists, create, alter_table, insert_rows, pull_rows,
     create_replication_card, create_chaos_table_replica, alter_table_replica,
     create_tablet_cell, wait_for_cells, mount_table, wait_for_tablet_state,
-    sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id, migrate_replication_cards)
+    sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id, migrate_replication_cards,
+    align_chaos_cell_tag)
 
 import yt_error_codes
 
@@ -26,16 +27,6 @@ class ChaosTestBase(DynamicTablesBase):
     NUM_MASTER_CACHES = 1
     NUM_NODES = 4
     NUM_CHAOS_NODES = 1
-
-    DELTA_DYNAMIC_NODE_CONFIG = {
-        "%true": {
-            "tablet_node": {
-                "replication_card_updates_batcher": {
-                    "enable": True,
-                }
-            }
-        }
-    }
 
     DELTA_CHAOS_NODE_CONFIG = {
         "chaos_node": {
@@ -67,9 +58,11 @@ class ChaosTestBase(DynamicTablesBase):
             node_tag_filter=node_tag_filter,
             options=options)
 
-    def _sync_create_chaos_cell(self, name="c", peer_cluster_names=None, meta_cluster_names=[], area="default"):
+    def _sync_create_chaos_cell(self, name="c", peer_cluster_names=None, meta_cluster_names=[], area="default", align_cell_tags=False):
         if peer_cluster_names is None:
             peer_cluster_names = self.get_cluster_names()
+        if align_cell_tags:
+            align_chaos_cell_tag()
         cell_id = generate_chaos_cell_id()
         sync_create_chaos_cell(name, cell_id, peer_cluster_names, meta_cluster_names=meta_cluster_names, area=area)
         return cell_id
@@ -81,7 +74,8 @@ class ChaosTestBase(DynamicTablesBase):
         meta_cluster_names=[],
         clock_cluster_tag=None,
         node_tag_filter=None,
-        chaos_bundle_options=None
+        chaos_bundle_options=None,
+        align_cell_tags=False,
     ):
         if peer_cluster_names is None:
             peer_cluster_names = self.get_cluster_names()
@@ -95,7 +89,8 @@ class ChaosTestBase(DynamicTablesBase):
         return self._sync_create_chaos_cell(
             name=name,
             peer_cluster_names=peer_cluster_names,
-            meta_cluster_names=meta_cluster_names)
+            meta_cluster_names=meta_cluster_names,
+            align_cell_tags=align_cell_tags)
 
     def _list_chaos_nodes(self, driver=None):
         nodes = ls("//sys/cluster_nodes", attributes=["state", "flavors"], driver=driver)
@@ -104,7 +99,10 @@ class ChaosTestBase(DynamicTablesBase):
     def _get_table_orchids(self, path, driver=None):
         tablets = get("{0}/@tablets".format(path), driver=driver)
         tablet_ids = [tablet["tablet_id"] for tablet in tablets]
-        orchids = [get("#{0}/orchid".format(tablet_id), driver=driver) for tablet_id in tablet_ids]
+        orchids = map_in_parallel(
+            lambda tablet_id: get("#{0}/orchid".format(tablet_id), driver=driver),
+            tablet_ids,
+        )
         return orchids
 
     def _get_chaos_cell_orchid_path(self, cell_id, driver=None):
@@ -115,18 +113,38 @@ class ChaosTestBase(DynamicTablesBase):
         orchid_path = self._get_chaos_cell_orchid_path(cell_id, driver=driver)
         return get("{0}{1}".format(orchid_path, path), driver=driver)
 
-    def _wait_for_card_era(self, path, card_id, era=1, check_write=False, driver=None):
+    def _has_chaos_cell_orchid(self, cell_id, path, driver=None):
+        orchid_path = self._get_chaos_cell_orchid_path(cell_id, driver=driver)
+        return exists("{0}{1}".format(orchid_path, path), driver=driver)
+
+    def _wait_for_card_era(self, replica, card_id, era=1, driver=None):
         import logging
         logger = logging.getLogger()
 
+        def _find_replica(card, cluster_name, path):
+            replica = next(filter(lambda r: r["cluster_name"] == cluster_name and r["replica_path"] == path, card["replicas"].values()), None)
+            assert replica, f"Replica {cluster_name}:{path} is not found in the replication card"
+            return replica
+
+        def _enabled(replica):
+            return replica["enabled"] if "enabled" in replica else (replica["state"] in ["enabled", "enabling"])
+
         def _check():
             nonlocal era
+            nonlocal replica
+
+            check_write = replica["mode"] == "sync" and _enabled(replica)
+            path = replica["replica_path"]
+
             for orchid in self._get_table_orchids(path, driver=driver):
                 if not orchid["replication_card"] or orchid["replication_card"]["era"] != era:
                     logger.debug("Waiting {0} for era {1} got {2}".format(path, era, orchid["replication_card"]["era"] if orchid["replication_card"] else None))
                     if orchid["replication_card"] and orchid["replication_card"]["era"] > era:
                         logger.debug("Renewing replication card era")
-                        era = self._sync_replication_card(card_id)["era"]
+                        card = self._sync_replication_card(card_id)
+                        era = card["era"]
+                        cluster_name = replica["cluster_name"]
+                        replica = _find_replica(card, cluster_name, path)
                     return False
                 if check_write and orchid["write_mode"] != "direct":
                     logger.debug("Waiting {0} for direct write mode but got {1}".format(path, orchid["write_mode"]))
@@ -174,8 +192,13 @@ class ChaosTestBase(DynamicTablesBase):
                 attributes[key] = kwargs[key]
         return create_chaos_table_replica(replica["cluster_name"], replica["replica_path"], attributes=attributes)
 
-    def _create_chaos_table_replicas(self, replicas, replication_card_id=None, table_path=None):
-        return [self._create_chaos_table_replica(replica, replication_card_id=replication_card_id, table_path=table_path) for replica in replicas]
+    def _create_chaos_table_replicas(self, replicas, replication_card_id=None, table_path=None, catchup=None):
+        return [self._create_chaos_table_replica(
+            replica,
+            replication_card_id=replication_card_id,
+            table_path=table_path,
+            catchup=catchup
+        ) for replica in replicas]
 
     def _prepare_replica_tables(self, replicas, replica_ids, create_tablet_cells=True, mount_tables=True):
         created_cells = []
@@ -211,6 +234,7 @@ class ChaosTestBase(DynamicTablesBase):
                                replication_progress=None,
                                tablet_cell_bundle=None,
                                trimmed_row_counts=None,
+                               cumulative_data_weights=None,
                                tablet_count=None,
                                external_cell_tag=None):
         def create_replica(zipped_args):
@@ -234,6 +258,8 @@ class ChaosTestBase(DynamicTablesBase):
             if replica["content_type"] == "queue":
                 if trimmed_row_counts:
                     kwargs["trimmed_row_counts"] = trimmed_row_counts
+                if cumulative_data_weights:
+                    kwargs["cumulative_data_weights"] = cumulative_data_weights
             if tablet_count:
                 if ordered:
                     kwargs["tablet_count"] = tablet_count
@@ -257,15 +283,15 @@ class ChaosTestBase(DynamicTablesBase):
 
         def _present(replica):
             return any([r["cluster_name"] == replica["cluster_name"] and r["replica_path"] == replica["replica_path"] for r in replicas])
+
         replicas = [replica for replica in card_replicas if _present(replica)] if replicas else card_replicas
 
-        def _enabled(replica):
-            return replica["enabled"] if "enabled" in replica else (replica["state"] in ["enabled", "enabling"])
-        for replica in replicas:
-            path = replica["replica_path"]
-            driver = get_driver(cluster=replica["cluster_name"])
-            check_write = replica["mode"] == "sync" and _enabled(replica)
-            self._wait_for_card_era(path, card_id, era=replication_card["era"], check_write=check_write, driver=driver)
+        def _wait_for_replica(replica):
+            cluster_name = replica["cluster_name"]
+            driver = get_driver(cluster=cluster_name)
+            self._wait_for_card_era(replica, card_id, era=replication_card["era"], driver=driver)
+
+        map_in_parallel(_wait_for_replica, replicas)
 
     def _create_chaos_tables(
             self,

@@ -82,7 +82,7 @@
 
 Поэтому для таблиц с `atomicity=none` рекомендуется выставить следующие опции:
 
-```json
+```yson
 min_data_ttl = 0
 merge_rows_on_flush = %true
 ```

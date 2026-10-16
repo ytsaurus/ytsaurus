@@ -78,7 +78,22 @@ if hasattr(__thread__, 'set_name'):
 
 def get_ident(gr=None):
     if gr is None:
-        gr = getcurrent()
+        try:
+            gr = getcurrent()
+        except RuntimeError:
+            # greenlet is being finalized, being called very late during
+            # interpreter shutdown. Some earlier versions returned
+            # potentially broken objects at that phase, then it switched to
+            # returning None (but the C API we use from Cython code raised
+            # an exception), then this API also started raising an
+            # exception. We have one test failure,
+            # test__lock:TestLockReinitAfterFork.test_it which complains
+            # because the RuntimeError gets printed to stderr when we're
+            # not expecting it. In that case, this API is used to determine
+            # if threading.Lock objects are owned by the current "thread"
+            # (greenlet), so there's not a good value to return here. Reverting to the
+            # previous behaviour of returning id(None) fixes that test.
+            gr = None
     return id(gr)
 
 
@@ -214,7 +229,8 @@ class _ThreadHandle:
 
         By default, this will bounce back to the hub so that waiters
         in ``join`` can get notified. Set *enter_hub* to false not to
-        do this.
+        do this. This private API is tightly coupled to our ``threading``
+        implementation.
         """
         if not self._had_greenlet:
             raise RuntimeError('thread not started')
@@ -263,13 +279,16 @@ class LockType(BoundedSemaphore):
 
     _TIMEOUT_MAX = __thread__.TIMEOUT_MAX # pylint:disable=no-member
 
-    def __init__(self):
+    def __init__(self): # pylint: disable=useless-parent-delegation
         """
         .. versionchanged:: 24.10.1
            No longer accepts arguments to pass to the super class. If you
            want a semaphore with a different count, use a semaphore class directly.
            This matches the Lock API of Python 3
         """
+        # Yes, we want to override __init__ (to not take arguments) and yes,
+        # we need to call super's __init__. Pylint is wrong about this
+        # being useless; our use is to change the signature.
         super().__init__()
 
     @classmethod
@@ -339,6 +358,15 @@ if hasattr(__thread__, 'stack_size'):
             return _original_stack_size()
         if size > _original_stack_size():
             return _original_stack_size(size)
+        if size == 0:
+            # Meant to be the default. Not going to
+            # change anything.
+            return 0
+        if size < 32_768:
+            # Documented as the minimum. The
+            # stdlib tests pass a small number (123)
+            # and also a negative number.
+            raise ValueError(size)
         # not going to decrease stack_size, because otherwise other
         # greenlets in this thread will suffer
 else:

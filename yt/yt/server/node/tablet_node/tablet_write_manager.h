@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include "dynamic_store_bits.h"
-#include "serialize.h"
 #include "transaction.h"
 #include "write_log.h"
 
@@ -69,8 +68,7 @@ struct ITabletWriteManager
 
     virtual void WriteDelayedRows(
         TTransaction* transaction,
-        const TTransactionWriteRecord& record,
-        bool lockless) = 0;
+        const TTransactionWriteRecord& record) = 0;
 
     virtual void OnTransactionPrepared(TTransaction* transaction, bool persistent) = 0;
     virtual void OnTransactionCommitted(TTransaction* transaction) = 0;

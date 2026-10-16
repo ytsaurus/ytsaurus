@@ -64,10 +64,10 @@ void CreateTabletCellBundle(
 
     mutations->ForeignTabletCellBundlesToCreate[clusterName][bundleName] = attributes;
 
-    YT_LOG_INFO("Creating new foreign tablet cell bundle (Cluster: %v, TabletCellBundle: %v, BundleInfo: %v)",
-        clusterName,
-        bundleName,
-        ConvertToYsonString(attributes, EYsonFormat::Text));
+    YT_TLOG_INFO("Creating new foreign tablet cell bundle")
+        .With("Cluster", clusterName)
+        .With("TabletCellBundle", bundleName)
+        .With("BundleInfo", ConvertToYsonString(attributes, EYsonFormat::Text));
 }
 
 void SetClockClusterTag(
@@ -85,9 +85,9 @@ void SetClockClusterTag(
     }
 
     if (!bundleInfo->TabletCellIds.empty()) {
-        YT_LOG_WARNING("Cannot set clock cluster tag for a bundle with created cells (Cluster: %v, TabletCellBundle: %v)",
-            clusterName,
-            bundleName);
+        YT_TLOG_WARNING("Cannot set clock cluster tag for a bundle with created cells")
+            .With("Cluster", clusterName)
+            .With("TabletCellBundle", bundleName);
 
         mutations->AlertsToFire.push_back(TAlert{
             .Id = "cannot_set_clock_cluster_tag",
@@ -99,10 +99,10 @@ void SetClockClusterTag(
         return;
     }
 
-    YT_LOG_INFO("Setting clock cluster tag for a bundle (Cluster: %v, TabletCellBundle: %v, ClockClusterTag: %v)",
-        clusterName,
-        bundleName,
-        chaosConfig->ClockClusterTag);
+    YT_TLOG_INFO("Setting clock cluster tag for a bundle")
+        .With("Cluster", clusterName)
+        .With("TabletCellBundle", bundleName)
+        .With("ClockClusterTag", chaosConfig->ClockClusterTag);
 
     mutations->ForeignBundleCellTagsToSet[clusterName][bundleName] = chaosConfig->ClockClusterTag;
 }
@@ -113,8 +113,8 @@ void ProcessTabletCellBundles(const std::string& bundleName, const TChaosSchedul
     for (const auto& clusterName : chaosConfig->TabletCellClusters) {
         auto clusterIt = input.ForeignTabletCellBundles.find(clusterName);
         if (clusterIt == input.ForeignTabletCellBundles.end()) {
-            YT_LOG_WARNING("Cannot find tablet cell bundles for cluster (Cluster: %v)",
-                clusterName);
+            YT_TLOG_WARNING("Cannot find tablet cell bundles for cluster")
+                .With("Cluster", clusterName);
 
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "cannot_find_tablet_cell_bundles",
@@ -170,10 +170,10 @@ void CreateChaosCellBundle(
 
     mutations->ForeignChaosCellBundlesToCreate[clusterName][bundleName] = attributes;
 
-    YT_LOG_INFO("Creating new foreign chaos cell bundle (Cluster: %v, ChaosCellBundle: %v, BundleInfo: %v)",
-        clusterName,
-        bundleName,
-        ConvertToYsonString(attributes, EYsonFormat::Text));
+    YT_TLOG_INFO("Creating new foreign chaos cell bundle")
+        .With("Cluster", clusterName)
+        .With("ChaosCellBundle", bundleName)
+        .With("BundleInfo", ConvertToYsonString(attributes, EYsonFormat::Text));
 }
 
 void CreateBetaArea(
@@ -211,10 +211,10 @@ void CreateBetaArea(
 
     mutations->ForeignChaosAreasToCreate[clusterName][bundleName] = attributes;
 
-    YT_LOG_INFO("Creating new foreign chaos area (Cluster: %v, ChaosCellBundle: %v, AreaInfo: %v)",
-        clusterName,
-        bundleName,
-        ConvertToYsonString(attributes, EYsonFormat::Text));
+    YT_TLOG_INFO("Creating new foreign chaos area")
+        .With("Cluster", clusterName)
+        .With("ChaosCellBundle", bundleName)
+        .With("AreaInfo", ConvertToYsonString(attributes, EYsonFormat::Text));
 }
 
 void RegisterChaosCells(
@@ -230,12 +230,11 @@ void RegisterChaosCells(
     auto lastCellTag = mutations->ChangedChaosCellTagLast.value_or(registry->CellTagLast);
 
     if (lastCellTag + 1 < registry->CellTagRangeBegin) {
-        YT_LOG_WARNING("Cannot register new chaos cells for bundle: inconsistent global registry "
-            "(ChaosCellBundle: %v, CellTagRangeBegin: %v, CellTagRangeEnd: %v, LastCellTag: %v)",
-            bundleName,
-            registry->CellTagRangeBegin,
-            registry->CellTagRangeEnd,
-            lastCellTag);
+        YT_TLOG_WARNING("Cannot register new chaos cells for bundle: inconsistent global registry")
+            .With("ChaosCellBundle", bundleName)
+            .With("CellTagRangeBegin", registry->CellTagRangeBegin)
+            .With("CellTagRangeEnd", registry->CellTagRangeEnd)
+            .With("LastCellTag", lastCellTag);
 
         mutations->AlertsToFire.push_back(TAlert{
             .Id = "global_cell_registry_is_inconsistent",
@@ -246,9 +245,9 @@ void RegisterChaosCells(
     }
 
     if (lastCellTag + 2 > registry->CellTagRangeEnd) {
-        YT_LOG_WARNING("Cannot register new chaos cells for bundle: "
-            "chaos cell tag range is exhausted (ChaosCellBundle: %v)",
-            bundleName);
+        YT_TLOG_WARNING("Cannot register new chaos cells for bundle: "
+            "chaos cell tag range is exhausted")
+            .With("ChaosCellBundle", bundleName);
 
         mutations->AlertsToFire.push_back(TAlert{
             .Id = "chaos_cell_tag_range_is_exhausted",
@@ -265,19 +264,18 @@ void RegisterChaosCells(
         cellTagInfo->CellBundle = bundleName;
         cellTagInfo->CellId = MakeChaosCellId(nextCellTag);
 
-        YT_LOG_INFO("Registering new chaos cell to global registry "
-            "(ChaosCellBundle: %v, Area: %v, CellTag: %v, CellId: %v)",
-            bundleName,
-            cellTagInfo->Area,
-            nextCellTag,
-            cellTagInfo->CellId);
+        YT_TLOG_INFO("Registering new chaos cell to global registry")
+            .With("ChaosCellBundle", bundleName)
+            .With("Area", cellTagInfo->Area)
+            .With("CellTag", nextCellTag)
+            .With("CellId", cellTagInfo->CellId);
 
         mutations->CellTagsToRegister[nextCellTag] = std::move(cellTagInfo);
     }
 
-    YT_LOG_INFO("Updating last cell tag (CurrentLastCellTag: %v, NewLastCellTag: %v)",
-        mutations->ChangedChaosCellTagLast,
-        lastCellTag);
+    YT_TLOG_INFO("Updating last cell tag")
+        .With("CurrentLastCellTag", mutations->ChangedChaosCellTagLast)
+        .With("NewLastCellTag", lastCellTag);
 
     mutations->ChangedChaosCellTagLast = lastCellTag;
 }
@@ -307,12 +305,11 @@ void RegisterAdditionalChaos(
     }
 
     if (lastCellTag + 1 < registry->CellTagRangeBegin) {
-        YT_LOG_WARNING("Cannot register additional chaos cells for bundle: inconsistent global registry "
-            "(ChaosCellBundle: %v, CellTagRangeBegin: %v, CellTagRangeEnd: %v, LastCellTag: %v)",
-            bundleName,
-            registry->CellTagRangeBegin,
-            registry->CellTagRangeEnd,
-            lastCellTag);
+        YT_TLOG_WARNING("Cannot register additional chaos cells for bundle: inconsistent global registry")
+            .With("ChaosCellBundle", bundleName)
+            .With("CellTagRangeBegin", registry->CellTagRangeBegin)
+            .With("CellTagRangeEnd", registry->CellTagRangeEnd)
+            .With("LastCellTag", lastCellTag);
 
         mutations->AlertsToFire.push_back(TAlert{
             .Id = "global_cell_registry_is_inconsistent",
@@ -323,9 +320,9 @@ void RegisterAdditionalChaos(
     }
 
     if (lastCellTag + cellsToRegister > registry->CellTagRangeEnd) {
-        YT_LOG_WARNING("Cannot register new chaos cells for bundle: "
-            "chaos cell tag range is exhausted (ChaosCellBundle: %v)",
-            bundleName);
+        YT_TLOG_WARNING("Cannot register new chaos cells for bundle: "
+            "chaos cell tag range is exhausted")
+            .With("ChaosCellBundle", bundleName);
 
         mutations->AlertsToFire.push_back(TAlert{
             .Id = "chaos_cell_tag_range_is_exhausted",
@@ -343,20 +340,19 @@ void RegisterAdditionalChaos(
             cellTagInfo->CellBundle = bundleName;
             cellTagInfo->CellId = MakeChaosCellId(nextCellTag);
 
-            YT_LOG_INFO("Registering additional chaos cell to global registry "
-                "(ChaosCellBundle: %v, Area: %v, CellTag: %v, CellId: %v)",
-                bundleName,
-                cellTagInfo->Area,
-                nextCellTag,
-                cellTagInfo->CellId);
+            YT_TLOG_INFO("Registering additional chaos cell to global registry")
+                .With("ChaosCellBundle", bundleName)
+                .With("Area", cellTagInfo->Area)
+                .With("CellTag", nextCellTag)
+                .With("CellId", cellTagInfo->CellId);
 
             mutations->AdditionalCellTagsToRegister[nextCellTag] = std::move(cellTagInfo);
         }
     }
 
-    YT_LOG_INFO("Updating last cell tag (CurrentLastCellTag: %v, NewLastCellTag: %v)",
-        mutations->ChangedChaosCellTagLast,
-        lastCellTag);
+    YT_TLOG_INFO("Updating last cell tag")
+        .With("CurrentLastCellTag", mutations->ChangedChaosCellTagLast)
+        .With("NewLastCellTag", lastCellTag);
 
     mutations->ChangedChaosCellTagLast = lastCellTag;
 }
@@ -385,9 +381,9 @@ void CreateChaosCells(
             .Item("cell_bundle").Value(cellInfo->CellBundle)
             .Finish();
 
-        YT_LOG_INFO("Creating chaos cell for bundle (Cluster: %v, Attributes: %v)",
-            clusterName,
-            ConvertToYsonString(attributes, EYsonFormat::Text));
+        YT_TLOG_INFO("Creating chaos cell for bundle")
+            .With("Cluster", clusterName)
+            .With("Attributes", ConvertToYsonString(attributes, EYsonFormat::Text));
 
         mutations->ForeignChaosCellsToCreate[clusterName][ToString(cellInfo->CellId)] = std::move(attributes);
     }
@@ -413,12 +409,11 @@ void SetMetadataCellIds(
         return;
     }
 
-    YT_LOG_INFO("Setting metadata cell ids for chaos bundle "
-        "(Cluster: %v, ChaosCellBundle: %v, MetadataCellIds: %v, CurrentMetadataCellIds: %v)",
-        clusterName,
-        bundleName,
-        metadataCellIds,
-        chaosBundleInfo->MetadataCellIds);
+    YT_TLOG_INFO("Setting metadata cell ids for chaos bundle")
+        .With("Cluster", clusterName)
+        .With("ChaosCellBundle", bundleName)
+        .With("MetadataCellIds", metadataCellIds)
+        .With("CurrentMetadataCellIds", chaosBundleInfo->MetadataCellIds);
 
     mutations->ForeignMetadataCellIdsToSet[clusterName][bundleName] = std::move(metadataCellIds);
 }
@@ -429,8 +424,8 @@ void ProcessChaosCellBundles(const std::string& bundleName, TChaosSchedulerInput
     for (const auto& clusterName : chaosConfig->ChaosCellClusters) {
         auto clusterIt = input.ForeignChaosCellBundles.find(clusterName);
         if (clusterIt == input.ForeignChaosCellBundles.end()) {
-            YT_LOG_WARNING("Cannot find chaos cell bundles for cluster (Cluster: %v)",
-                clusterName);
+            YT_TLOG_WARNING("Cannot find chaos cell bundles for cluster")
+                .With("Cluster", clusterName);
 
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "cannot_find_chaos_cell_bundles",

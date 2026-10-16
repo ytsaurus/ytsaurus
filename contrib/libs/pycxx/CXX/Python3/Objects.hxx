@@ -2244,7 +2244,10 @@ namespace Py
         }
 #endif
 
-#if !defined( Py_UNICODE_WIDE ) && !defined( Py_LIMITED_API )
+// On Python 3.13+ PYCXX_UNICODE_TYPE is char32_t, so unicodestring and ucs4string are the
+// same type and this overload collides with the unicodestring one above.
+#if !defined( Py_UNICODE_WIDE ) && !defined( Py_LIMITED_API ) \
+    && !( PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13 )
         String &operator=( const ucs4string &v )
         {
             set( PyUnicode_FromKindAndData( PyUnicode_4BYTE_KIND, reinterpret_cast<const char32_t *>( v.data() ), v.length() ), true );

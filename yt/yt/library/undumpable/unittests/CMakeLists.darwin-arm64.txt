@@ -12,10 +12,10 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(yt-yt-library-undumpable-unittests)
+add_executable(unittester-library-undumpable)
 
 
-target_compile_options(yt-yt-library-undumpable-unittests PRIVATE
+target_compile_options(unittester-library-undumpable PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -25,7 +25,7 @@ target_compile_options(yt-yt-library-undumpable-unittests PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(yt-yt-library-undumpable-unittests PUBLIC
+target_link_libraries(unittester-library-undumpable PUBLIC
   contrib-libs-cxxsupp
   yutil
   build-cow-on
@@ -34,11 +34,11 @@ target_link_libraries(yt-yt-library-undumpable-unittests PUBLIC
   yt-library-undumpable
 )
 
-target_allocator(yt-yt-library-undumpable-unittests
+target_allocator(unittester-library-undumpable
   system_allocator
 )
 
-target_link_options(yt-yt-library-undumpable-unittests PRIVATE
+target_link_options(unittester-library-undumpable PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
@@ -46,21 +46,21 @@ target_link_options(yt-yt-library-undumpable-unittests PRIVATE
   CoreFoundation
 )
 
-target_sources(yt-yt-library-undumpable-unittests PRIVATE
+target_sources(unittester-library-undumpable PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/undumpable/unittests/undumpable_ut.cpp
 )
 
 
 add_test(
   NAME
-  yt-yt-library-undumpable-unittests
+  unittester-library-undumpable
   COMMAND
-  yt-yt-library-undumpable-unittests
+  unittester-library-undumpable
 )
 
 set_property(
   TEST
-  yt-yt-library-undumpable-unittests
+  unittester-library-undumpable
   PROPERTY
   LABELS
   SMALL
@@ -68,16 +68,16 @@ set_property(
 
 set_property(
   TEST
-  yt-yt-library-undumpable-unittests
+  unittester-library-undumpable
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(yt-yt-library-undumpable-unittests)
+vcs_info(unittester-library-undumpable)
 
 set_property(
   TEST
-  yt-yt-library-undumpable-unittests
+  unittester-library-undumpable
   PROPERTY
   PROCESSORS
   1

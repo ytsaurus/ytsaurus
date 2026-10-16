@@ -12,6 +12,8 @@
 #ifndef T_GREENLET_GLOBALS
 #define T_GREENLET_GLOBALS
 
+#include <algorithm>
+
 #include "greenlet_refs.hpp"
 #include "greenlet_exceptions.hpp"
 #include "greenlet_thread_support.hpp"
@@ -66,6 +68,9 @@ public:
         // do any deallocation.)
     }
 
+    /**
+     * Must be holding the ``thread_states_to_destroy`` lock.
+     */
     void queue_to_destroy(ThreadState* ts) const
     {
         // we're currently accessed through a static const object,
@@ -74,13 +79,27 @@ public:
         // const.
         //
         // Do that for callers.
-        greenlet::cleanup_queue_t& q = const_cast<greenlet::cleanup_queue_t&>(this->thread_states_to_destroy);
+        greenlet::cleanup_queue_t& q = const_cast<greenlet::cleanup_queue_t&>(
+            this->thread_states_to_destroy);
+        // make sure we don't ever try to clean up a state more than
+        // once. Because they're thread-local, and we ultimately call this
+        // method from the destructor of the thread local variable,
+        // we should never find the item already present. This check
+        // is nominally O(n) in the size of the vector.
+        assert(std::find(q.begin(), q.end(), ts) == q.end());
         q.push_back(ts);
     }
 
+    /**
+     * Must be holding the ``thread_states_to_destroy`` lock.
+     */
     ThreadState* take_next_to_destroy() const
     {
-        greenlet::cleanup_queue_t& q = const_cast<greenlet::cleanup_queue_t&>(this->thread_states_to_destroy);
+        greenlet::cleanup_queue_t& q = const_cast<greenlet::cleanup_queue_t&>(
+            this->thread_states_to_destroy);
+        if (q.empty()) {
+            return nullptr;
+        }
         ThreadState* result = q.back();
         q.pop_back();
         return result;

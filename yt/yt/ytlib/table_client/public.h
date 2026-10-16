@@ -20,13 +20,9 @@ using NChunkClient::TPartitionTags;
 // TODO(ifsmirnov): calculate actual estimates.
 constexpr i64 DefaultRemoteDynamicStoreReaderMemoryEstimate = 64_MB;
 
-DECLARE_REFCOUNTED_CLASS(TChunkColumnMapping)
+struct TColumnIdMapping;
 
-struct TColumnIdMapping
-{
-    int ChunkSchemaIndex;
-    int ReaderSchemaIndex;
-};
+DECLARE_REFCOUNTED_CLASS(TChunkColumnMapping)
 
 DECLARE_REFCOUNTED_CLASS(TTableSchema)
 
@@ -39,6 +35,7 @@ using TColumnFilterDictionary = TGenericColumnFilterDictionary<std::string>;
 using TColumnStableNameFilterDictionary = TGenericColumnFilterDictionary<TColumnStableName>;
 
 class THorizontalBlockReader;
+class THorizontalBlockWriter;
 
 struct THunkChunkRef;
 struct THunkChunksInfo;

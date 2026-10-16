@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/misc/serialize.h>
+
 #include <util/generic/hash.h>
 
 namespace NYT::NCellMaster {
@@ -22,7 +24,11 @@ public:
     TGossipValue();
 
     TValue* Remote(NObjectClient::TCellTag cellTag);
-    void Initialize(TBootstrap* bootstrap);
+    void Initialize(
+        NObjectClient::TCellTag cellTag,
+        NObjectClient::TCellTag primaryCellTag,
+        const NObjectClient::TCellTagSet& secondaryCellTags,
+        bool allowMasterCellRemoval);
 
     void Persist(const TPersistenceContext& context);
 };

@@ -20,9 +20,12 @@ public:
         : ChangelogId_(changelogId)
         , FutureChangelog_(futureChangelog)
         , BacklogAppendPromise_(NewPromise<void>())
+    { }
+
+    void InitializeRefCounted()
     {
         FutureChangelog_.Subscribe(
-            BIND(&TLazyChangelog::OnUnderlyingChangelogReady, MakeWeak(this)));
+            BIND(&TLazyChangelog::OnUnderlyingChangelogReady, MakeStrong(this)));
     }
 
     int GetId() const override
@@ -46,12 +49,23 @@ public:
             : BacklogDataSize_;
     }
 
-    i64 EstimateChangelogSize(i64 payloadSize) const override
+    i64 EstimateWriteSize(i64 payloadSize) const override
     {
         auto guard = Guard(SpinLock_);
         return UnderlyingChangelog_
-            ? UnderlyingChangelog_->EstimateChangelogSize(payloadSize)
+            ? UnderlyingChangelog_->EstimateWriteSize(payloadSize)
             : payloadSize;
+    }
+
+    i64 EstimateReadSize(
+        int firstRecordId,
+        int maxRecords,
+        i64 maxBytes) const override
+    {
+        auto guard = Guard(SpinLock_);
+        return UnderlyingChangelog_
+            ? UnderlyingChangelog_->EstimateReadSize(firstRecordId, maxRecords, maxBytes)
+            : std::min(maxBytes, BacklogDataSize_);
     }
 
     const TChangelogMeta& GetMeta() const override
@@ -133,7 +147,7 @@ private:
     const int ChangelogId_;
     const TFuture<IChangelogPtr> FutureChangelog_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     //! If non-OK then the underlying changelog could not open.
     TError UnderlyingError_;

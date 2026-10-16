@@ -24,7 +24,6 @@ class TClusterResources;
 class TAccountStatistics;
 class TRequestStatisticsUpdate;
 class TUserStatistics;
-class TDetailedMasterMemory;
 
 } // namespace NProto
 
@@ -69,7 +68,7 @@ DECLARE_REFCOUNTED_CLASS(TUserRequestLimitsOptions)
 DECLARE_REFCOUNTED_CLASS(TUserQueueSizeLimitsOptions)
 DECLARE_REFCOUNTED_STRUCT(TUserRequestLimitsConfig)
 DECLARE_REFCOUNTED_STRUCT(TUserReadRequestComplexityLimitsOptions)
-DECLARE_REFCOUNTED_STRUCT(TSerializableUserRequestLimitsOptions)
+DECLARE_REFCOUNTED_CLASS(TSerializableUserRequestLimitsOptions)
 DECLARE_REFCOUNTED_CLASS(TSerializableUserQueueSizeLimitsOptions)
 DECLARE_REFCOUNTED_STRUCT(TSerializableUserRequestLimitsConfig)
 DECLARE_REFCOUNTED_CLASS(TSerializableUserReadRequestComplexityLimitsOptions)
@@ -85,6 +84,8 @@ struct TAcdOverride;
 struct TAccountStatistics;
 using TAccountMulticellStatistics = THashMap<NObjectClient::TCellTag, TAccountStatistics>;
 
+struct TAccountBackupConfig;
+
 struct TPermissionCheckOptions;
 
 class TClusterResources;
@@ -93,12 +94,7 @@ class TClusterResourceLimits;
 class TViolatedClusterResourceLimits;
 struct TChunkMergerCriteria;
 
-class TDetailedMasterMemory;
-
 struct TUserWorkload;
-
-constexpr int TypicalAccessLogAttributeCount = 2;
-using TAccessLogAttributes = TCompactVector<std::pair<TStringBuf, TStringBuf>, TypicalAccessLogAttributeCount>;
 
 constexpr int TypicalSecurityTagCount = 16;
 using TSecurityTagsItems = TCompactVector<TSecurityTag, TypicalSecurityTagCount>;
@@ -124,14 +120,6 @@ DECLARE_REFCOUNTED_CLASS(TRequestTracker)
 DEFINE_ENUM(EUserWorkloadType,
     (Read)
     (Write)
-);
-
-DEFINE_ENUM(EMasterMemoryType,
-    ((Nodes)          (0))
-    ((Chunks)         (1))
-    ((Attributes)     (2))
-    ((Tablets)        (3))
-    ((Schemas)        (4))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

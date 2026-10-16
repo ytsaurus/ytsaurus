@@ -17,18 +17,19 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GenerateRandomLogFileName()
+std::string GenerateRandomLogFileName()
 {
     return GenerateRandomFileName("log");
 }
 
 void WriteZstdLog(
-    const TString& fileName,
+    const std::string& fileName,
     TStringBuf payload,
     const TAppendableCompressedFileOptions& options)
 {
     auto codec = CreateZstdLogCodec();
-    TFile file(fileName, CreateAlways);
+    // TODO(babenko): migrate to std::string
+    TFile file(TString(fileName), CreateAlways);
     auto output = CreateAppendableCompressedFile(
         std::move(file),
         std::move(codec),
@@ -53,6 +54,19 @@ std::vector<std::string> ReadZstdLogFrames(const std::string& fileName)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST(TZstdReaderTest, EmptyFile)
+{
+    auto fileName = GenerateRandomLogFileName();
+    {
+        TFileOutput output{TString(fileName)};
+    }
+
+    auto reader = CreateSequentialZstdReader(fileName);
+    EXPECT_EQ(reader->GetTotalInputSize(), 0);
+    EXPECT_EQ(reader->TryBeginNextFrame(), nullptr);
+    EXPECT_EQ(reader->TryBeginNextFrame(), nullptr);
+}
 
 TEST(TZstdReaderTest, AllowBreakLines)
 {

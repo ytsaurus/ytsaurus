@@ -22,14 +22,6 @@ SRCS(
     strategy.cpp
 
     # TODO(eshcherbin): Remove cyclic dependencies and extract policy to a separate build target.
-    policy/gpu/assignment_plan_update_context_detail.cpp
-    policy/gpu/assignment_plan_update.cpp
-    policy/gpu/scheduling_policy.cpp
-    policy/gpu/scheduling_policy_detail.cpp
-    policy/gpu/structs.cpp
-    policy/gpu/helpers.cpp
-    policy/gpu/persistent_state.cpp
-
     policy/helpers.cpp
     policy/operation_shared_state.cpp
     policy/packing.cpp
@@ -41,6 +33,9 @@ SRCS(
     policy/scheduling_policy_detail.cpp
     policy/scheduling_segment_manager.cpp
     policy/structs.cpp
+
+    policy/gpu/noop_scheduling_policy.cpp
+    policy/gpu/scheduling_policy.cpp
 )
 
 PEERDIR(
@@ -57,6 +52,10 @@ PEERDIR(
 
     library/cpp/yt/threading
 )
+
+IF (NOT OPENSOURCE)
+    INCLUDE(ya_non_opensource.inc)
+ENDIF()
 
 END()
 

@@ -3,8 +3,6 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-
 #include <yt/yt/ytlib/admin/restart_service_proxy.h>
 
 #include <yt/yt/core/actions/future.h>

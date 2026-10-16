@@ -10,6 +10,7 @@ SRCDIR(
 
 TEST_SRCS(
     __init__.py
+    _helpers.py
     test_bigint_as_string.py
     test_bitsize_int_as_string.py
     test_check_circular.py
@@ -35,6 +36,7 @@ TEST_SRCS(
     test_scanstring.py
     test_separators.py
     test_speedups.py
+    test_subinterpreters.py
     test_str_subclass.py
     test_subclass.py
     # test_tool.py

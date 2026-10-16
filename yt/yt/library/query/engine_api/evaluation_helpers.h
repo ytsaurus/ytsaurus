@@ -1,14 +1,15 @@
 #pragma once
 
+#include "public.h"
+
 #include "expression_context.h"
 #include "position_independent_value.h"
-#include <yt/yt/library/query/base/join_profiler.h>
-#include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/library/web_assembly/api/data_transfer.h>
 #include <yt/yt/library/web_assembly/api/function.h>
 
 #include <yt/yt/library/query/base/callbacks.h>
+#include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/library/query/misc/allocator.h>
 #include <yt/yt/library/query/misc/objects_holder.h>
@@ -48,6 +49,7 @@ constexpr const size_t InitialGroupOpHashtableCapacity = 1024;
 using THasherFunction = ui64(const TPIValue*);
 using TComparerFunction = char(const TPIValue*, const TPIValue*);
 using TTernaryComparerFunction = i64(const TPIValue*, const TPIValue*);
+using TRowsConsumer = bool(void** closure, TExpressionContext* context, const TPIValue** rows, i64 size);
 
 namespace NDetail {
 
@@ -125,7 +127,7 @@ struct TExecutionContext;
 struct TArrayJoinParameters
 {
     bool IsLeft;
-    std::vector<EValueType> FlattenedTypes;
+    std::vector<NTableClient::EValueType> FlattenedTypes;
     std::vector<int> SelfJoinedColumns;
     std::vector<int> ArrayJoinedColumns;
 };
@@ -189,6 +191,39 @@ struct TMultiJoinClosure
     std::function<bool()> ProcessJoinBatch;
 };
 
+struct THierarchicalJoinClosure
+{
+    struct TBufferTag
+    { };
+
+    using TSelfSideDomainBatch = google::dense_hash_set<
+        const TPIValue*,
+        NDetail::TGroupHasher,
+        NDetail::TRowComparer>;
+
+    using TForeignSideLookup = google::dense_hash_map<
+        const TPIValue*,
+        std::vector<TPIValue*>,
+        NDetail::TGroupHasher,
+        NDetail::TRowComparer>;
+
+    TExpressionContext SelfContext;
+    std::vector<const TPIValue*> SelfSideRowBatch;
+    TSelfSideDomainBatch SelfSideDomainBatch;
+
+    TExpressionContext ForeignContext;
+    TForeignSideLookup ForeignSideLookup;
+
+    TExecutionContext* ExecutionContext = nullptr;
+    TSingleJoinParameters* Parameters = nullptr;
+    void** ConsumeJoinedRowsClosure = nullptr;
+    NWebAssembly::TCompartmentFunction<TRowsConsumer> ConsumeJoinedRowsFunction;
+    NWebAssembly::TCompartmentFunction<TComparerFunction> SuffixLessComparer;
+
+    i64 PrimaryRowSize = 0;
+    i64 BatchSize = 0;
+};
+
 class TGroupByClosure;
 
 struct TWriteOpClosure
@@ -204,7 +239,7 @@ struct TWriteOpClosure
 
 struct TSubqueryParameters
 {
-    std::vector<EValueType> FromTypes;
+    std::vector<NTableClient::EValueType> FromTypes;
 };
 
 struct TSubqueryWriteOpClosure
@@ -245,6 +280,30 @@ struct TExecutionContext
 };
 
 using TNestedGroupByClosure = TLookupRows;
+
+class TNestedOrderByClosure
+{
+public:
+    TNestedOrderByClosure(
+        TExpressionContext* context,
+        NWebAssembly::TCompartmentFunction<TComparerFunction> comparer,
+        i64 limit,
+        int rowSize);
+
+    void AddRow(const TPIValue* row);
+    TRange<TPIValue*> GetRows();
+
+private:
+    TExpressionContext* const Context_;
+    const NWebAssembly::TCompartmentFunction<TComparerFunction> Comparer_;
+    const i64 Limit_;
+    const int RowSize_;
+
+    std::vector<TPIValue*> Rows_;
+    i64 RowCount_ = 0;
+
+    void Trim();
+};
 
 struct TNestedExecutionContext
 {

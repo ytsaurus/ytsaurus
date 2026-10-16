@@ -73,7 +73,7 @@ IInvokerPtr TTabletContextMock::GetAutomatonInvoker() const
     return GetSyncInvoker();
 }
 
-IInvokerPtr TTabletContextMock::GetStorageHeavyInvoker() const
+IPrioritizedInvokerPtr TTabletContextMock::GetStorageHeavyInvoker() const
 {
     return nullptr;
 }
@@ -159,6 +159,11 @@ INodeMemoryTrackerPtr TTabletContextMock::GetNodeMemoryUsageTracker() const
     return nullptr;
 }
 
+TRowCacheControllerPtr TTabletContextMock::GetRowCacheController() const
+{
+    return nullptr;
+}
+
 NChunkClient::IChunkReplicaCachePtr TTabletContextMock::GetChunkReplicaCache() const
 {
     return nullptr;
@@ -171,7 +176,7 @@ IHedgingManagerRegistryPtr TTabletContextMock::GetHedgingManagerRegistry() const
 
 std::string TTabletContextMock::GetLocalHostName() const
 {
-    return TString();
+    return {};
 }
 
 ITabletWriteManagerHostPtr TTabletContextMock::GetTabletWriteManagerHost() const

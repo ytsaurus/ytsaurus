@@ -52,8 +52,8 @@ public:
             return nullptr;
         }
 
-        YT_LOG_DEBUG("Transaction participant is provided by cell directory (CellId: %v)",
-            cellId);
+        YT_TLOG_DEBUG("Transaction participant is provided by cell directory")
+            .With("CellId", cellId);
 
         return NNative::CreateTransactionParticipant(
             CellDirectory_,
@@ -115,9 +115,9 @@ public:
             return nullptr;
         }
 
-        YT_LOG_DEBUG("Transaction participant is provided by remote connection (CellId: %v, ClusterId: %v)",
-            cellId,
-            connection->GetClusterId());
+        YT_TLOG_DEBUG("Transaction participant is provided by remote connection")
+            .With("CellId", cellId)
+            .With("ClusterId", connection->GetClusterId());
 
         return connection->CreateTransactionParticipant(cellId, options);
     }

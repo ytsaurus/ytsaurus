@@ -16,21 +16,21 @@ namespace NYT::NShell {
 
 struct TShellOptions
 {
-    TString ExePath = "/bin/bash";
+    std::string ExePath = "/bin/bash";
     std::optional<int> Uid;
     std::optional<int> Gid;
-    TString Term = "xterm";
+    std::string Term = "xterm";
     int Height = 24;
     int Width = 80;
-    TString PreparationDir = "/";
-    TString WorkingDir = "/";
-    std::vector<TString> Environment;
-    std::optional<TString> Bashrc;
-    std::optional<TString> MessageOfTheDay;
+    std::string PreparationDir = "/";
+    std::string WorkingDir = "/";
+    std::vector<std::string> Environment;
+    std::optional<std::string> Bashrc;
+    std::optional<std::string> MessageOfTheDay;
     std::vector<NContainers::TBind> Binds;
     TDuration InactivityTimeout;
-    std::optional<TString> Command;
-    TString ContainerName;
+    std::optional<std::string> Command;
+    std::string ContainerName;
     TGuid Id;
     int Index;
     std::string ContainerUser;

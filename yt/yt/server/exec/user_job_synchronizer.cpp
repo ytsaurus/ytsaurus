@@ -13,6 +13,7 @@
 namespace NYT::NExec {
 
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////

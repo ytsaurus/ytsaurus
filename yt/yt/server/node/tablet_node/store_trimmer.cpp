@@ -65,7 +65,7 @@ public:
         TChaosTabletDataPtr chaosTabletData,
         TCancelableContextPtr tabletCancelableContext,
         const TLogger& logger)
-        : Logger(logger.WithTag("TrimGuardId: %v", TGuid::Create()))
+        : Logger(logger.WithTag("TrimGuardId", TGuid::Create()))
         , TabletCancelableContext_(std::move(tabletCancelableContext))
         , ChaosTabletData_(std::move(chaosTabletData))
     {
@@ -87,16 +87,16 @@ public:
         }
 
         if (TabletCancelableContext_ && TabletCancelableContext_->IsCanceled()) {
-            YT_LOG_DEBUG("Tablet epoch changed, do nothing");
+            YT_TLOG_DEBUG("Tablet epoch changed, do nothing");
             return;
         }
 
         if (!ChaosTabletData_->IsTrimInProgress.exchange(false)) {
-            YT_LOG_ALERT("Chaos data trimming progress flag was reset unexpectedly");
+            YT_TLOG_ALERT("Chaos data trimming progress flag was reset unexpectedly");
             return;
         }
 
-        YT_LOG_DEBUG("Replication log trimming finished without actually trimming");
+        YT_TLOG_DEBUG("Replication log trimming finished without actually trimming");
     }
 
     void Release()
@@ -112,6 +112,7 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
 class TStoreTrimmer
     : public IStoreTrimmer
 {
@@ -236,7 +237,7 @@ private:
         }
 
         auto logger = TabletNodeLogger()
-            .WithTag("%v", tablet->GetLoggingTag());
+            .WithTags(tablet->GetLoggingTags());
         auto finallyGuard = TChaosDataTrimProgressGuard(
             nullptr,
             tablet->GetCancelableContext(),
@@ -270,10 +271,10 @@ private:
         auto tabletId = tablet->GetId();
         auto tabletChaosData = tablet->ChaosData();
 
-        auto Logger = TabletNodeLogger().WithTag("%v", tablet->GetLoggingTag());
+        auto Logger = TabletNodeLogger().WithTags(tablet->GetLoggingTags());
 
         if (tabletChaosData->IsTrimInProgress.load()) {
-            YT_LOG_DEBUG("Skipping replication log trimming because previous iteration is not finished yet");
+            YT_TLOG_DEBUG("Skipping replication log trimming because previous iteration is not finished yet");
             return;
         }
 
@@ -296,7 +297,7 @@ private:
 
         TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ChaosReplicationLogStoreTrim"));
 
-        YT_LOG_DEBUG("Replication log trimming started");
+        YT_TLOG_DEBUG("Replication log trimming started");
 
         auto startRowIndexFuture = BIND(
             &TStoreTrimmer::ComputeReplicationLogTrimRowIndex,
@@ -318,30 +319,23 @@ private:
                 Logger
             ] (TErrorOr<std::optional<i64>>&& errorOrStartRowIndex) mutable {
                 if (!errorOrStartRowIndex.IsOK()) {
-                    YT_LOG_DEBUG(errorOrStartRowIndex,
-                        "Skipping replication log trimming due to start index calculation error");
+                    YT_TLOG_DEBUG("Skipping replication log trimming due to start index calculation error")
+                        .With(errorOrStartRowIndex);
                     return;
                 }
 
                 if (!errorOrStartRowIndex.Value()) {
-                    YT_LOG_DEBUG("Skipping replication log trimming due to start index calculated to null");
+                    YT_TLOG_DEBUG("Skipping replication log trimming due to start index calculated to null");
                     return;
                 }
 
-                tabletInvoker->Invoke(BIND([
+                tabletInvoker->Invoke(BIND(
+                    &TStoreTrimmer::CommitTrimRowsMutation,
+                    std::move(slot),
                     tabletId,
-                    slot = std::move(slot),
-                    startRowIndex = *errorOrStartRowIndex.Value(),
-                    finallyGuard = std::move(finallyGuard),
-                    logger = Logger
-                ] () mutable {
-                    TStoreTrimmer::CommitTrimRowsMutation(
-                        std::move(slot),
-                        tabletId,
-                        startRowIndex,
-                        std::move(finallyGuard),
-                        std::move(logger));
-                }));
+                    *errorOrStartRowIndex.Value(),
+                    Passed(std::move(finallyGuard)),
+                    Logger));
             }));
     }
 
@@ -363,10 +357,9 @@ private:
         }
 
         if (tabletSnapshot->MountRevision != mountRevision) {
-            YT_LOG_DEBUG("Skipping replication log trim iteration due to mount revision mismatch "
-                "(RequestedMountRevision: %v, CurrentMountRevision: %v)",
-                mountRevision,
-                tabletSnapshot->MountRevision);
+            YT_TLOG_DEBUG("Skipping replication log trim iteration due to mount revision mismatch")
+                .With("RequestedMountRevision", mountRevision)
+                .With("CurrentMountRevision", tabletSnapshot->MountRevision);
             return std::nullopt;
         }
 
@@ -386,13 +379,14 @@ private:
                 trimTimestamp,
                 chunkReadOptions);
 
-            YT_LOG_DEBUG("Computed replication log trim row count (TrimTimestamp: %v, TrimRowCount: %v)",
-                trimTimestamp,
-                startRowIndex);
+            YT_TLOG_DEBUG("Computed replication log trim row count")
+                .With("TrimTimestamp", trimTimestamp)
+                .With("TrimRowCount", startRowIndex);
 
             return startRowIndex;
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error computing replication log trim row count");
+            YT_TLOG_ERROR("Error computing replication log trim row count")
+                .With(ex);
             return std::nullopt;
         }
     }
@@ -406,7 +400,7 @@ private:
     {
         auto* tablet = slot->GetTabletManager()->FindTablet(tabletId);
         if (!tablet) {
-            YT_LOG_ALERT("Tablet not found while we are in tablet automaton invoker");
+            YT_TLOG_ALERT("Tablet not found while we are in tablet automaton invoker");
             return;
         }
 
@@ -432,15 +426,15 @@ private:
         auto tabletId = tablet->GetId();
 
         auto Logger = TabletNodeLogger()
-            .WithTag("%v", tablet->GetLoggingTag());
+            .WithTags(tablet->GetLoggingTags());
 
         try {
-            YT_LOG_INFO("Trimming tablet stores (StoreIds: %v)",
-                MakeFormattableView(stores, TStoreIdFormatter()));
+            YT_TLOG_INFO("Trimming tablet stores")
+                .With("StoreIds", MakeFormattableView(stores, TStoreIdFormatter()));
 
             NNative::ITransactionPtr transaction;
             {
-                YT_LOG_INFO("Creating tablet trim transaction");
+                YT_TLOG_INFO("Creating tablet trim transaction");
 
                 auto transactionAttributes = CreateEphemeralAttributes();
                 transactionAttributes->Set("title", Format("Tablet trim: table %v, tablet %v",
@@ -459,10 +453,10 @@ private:
                 transaction = WaitFor(asyncTransaction)
                     .ValueOrThrow();
 
-                YT_LOG_INFO("Tablet trim transaction created (TransactionId: %v)",
-                    transaction->GetId());
+                YT_TLOG_INFO("Tablet trim transaction created")
+                    .With("TransactionId", transaction->GetId());
 
-                Logger.AddTag("TransactionId: %v", transaction->GetId());
+                Logger.AddTag("TransactionId", transaction->GetId());
             }
 
             tablet->ThrottleTabletStoresUpdate(slot, Logger);
@@ -488,7 +482,8 @@ private:
 
             // NB: There's no need to call EndStoreCompaction since these stores are gone.
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error trimming tablet stores");
+            YT_TLOG_ERROR("Error trimming tablet stores")
+                .With(ex);
 
             const auto& storeManager = tablet->GetStoreManager();
             for (const auto& store : stores) {

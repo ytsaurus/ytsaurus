@@ -1,0 +1,106 @@
+name: Send Telegram notification
+
+on:
+  workflow_call:
+    inputs:
+      notification_type:
+        description: Notification template to use.
+        required: true
+        type: string
+      runner:
+        description: Runner label.
+        required: true
+        type: string
+    secrets:
+      TELEGRAM_CHAT_ID:
+        required: true
+      TELEGRAM_BOT_TOKEN:
+        required: true
+
+permissions: {}
+
+jobs:
+  send:
+    name: Send Telegram notification
+    runs-on: "${{ inputs.runner }}"
+    steps:
+      - name: Send Telegram message
+        shell: bash
+        env:
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          NOTIFICATION_TYPE: ${{ inputs.notification_type }}
+          REPOSITORY: ${{ github.repository }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          PULL_REQUEST_TITLE: ${{ github.event.pull_request.title }}
+          PULL_REQUEST_URL: ${{ github.event.pull_request.html_url }}
+          WORKFLOW: ${{ github.workflow }}
+          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          escape_html() {
+            local value=$1
+            value=${value//&/\&amp;}
+            value=${value//</\&lt;}
+            value=${value//>/\&gt;}
+            printf '%s' "$value"
+          }
+
+          case "$NOTIFICATION_TYPE" in
+            issue)
+              printf -v message 'New issue in <b>%s</b>: <code>%s</code>\n%s' \
+                "$(escape_html "$REPOSITORY")" \
+                "$(escape_html "$ISSUE_TITLE")" \
+                "$(escape_html "$ISSUE_URL")"
+              ;;
+            pull_request)
+              printf -v message 'New PR in <b>%s</b>: <code>%s</code>\n%s' \
+                "$(escape_html "$REPOSITORY")" \
+                "$(escape_html "$PULL_REQUEST_TITLE")" \
+                "$(escape_html "$PULL_REQUEST_URL")"
+              ;;
+            workflow_failure)
+              printf -v message 'Workflow <b>%s</b> failed: %s.\nGit %s: <b>%s</b>.\nCommit:\n<pre>%s</pre>' \
+                "$(escape_html "$WORKFLOW")" \
+                "$(escape_html "$WORKFLOW_URL")" \
+                "$(escape_html "$REF_TYPE")" \
+                "$(escape_html "$REF_NAME")" \
+                "$(escape_html "$COMMIT_MESSAGE")"
+              ;;
+            cache_heater_failure)
+              message='Cache heater failed'
+              ;;
+            *)
+              printf 'Unsupported notification type: %s\n' "$NOTIFICATION_TYPE" >&2
+              exit 1
+              ;;
+          esac
+
+          if [[ -z "$TELEGRAM_BOT_TOKEN" ]]; then
+            echo 'Missing Telegram bot token' >&2
+            exit 1
+          fi
+
+          if [[ -z "${TELEGRAM_CHAT_ID//[[:space:],]/}" ]]; then
+            echo 'Missing Telegram chat ID' >&2
+            exit 1
+          fi
+
+          chat_id_list="${TELEGRAM_CHAT_ID//$'\n'/,}"
+          IFS=',' read -r -a chat_ids <<< "$chat_id_list"
+          for chat_id in "${chat_ids[@]}"; do
+            chat_id="${chat_id#"${chat_id%%[![:space:]]*}"}"
+            chat_id="${chat_id%"${chat_id##*[![:space:]]}"}"
+            [[ -n $chat_id ]] || continue
+
+            curl --fail --silent --show-error --output /dev/null \
+              --request POST \
+              --data-urlencode "chat_id=${chat_id}" \
+              --data-urlencode "text=${message}" \
+              --data-urlencode 'parse_mode=HTML' \
+              --data-urlencode 'link_preview_options={"is_disabled":true}' \
+              "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
+          done

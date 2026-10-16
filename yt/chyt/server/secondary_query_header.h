@@ -16,11 +16,10 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSerializableSpanContext
+struct TSerializableSpanContext
     : public NYTree::TYsonStruct
     , public NTracing::TSpanContext
 {
-public:
     REGISTER_YSON_STRUCT(TSerializableSpanContext);
 
     static void Register(TRegistrar registrar);
@@ -30,10 +29,9 @@ DEFINE_REFCOUNTED_TYPE(TSerializableSpanContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecondaryQueryHeader
+struct TSecondaryQueryHeader
     : public NYTree::TYsonStruct
 {
-public:
     TQueryId QueryId;
     TQueryId ParentQueryId;
     TSerializableSpanContextPtr SpanContext;

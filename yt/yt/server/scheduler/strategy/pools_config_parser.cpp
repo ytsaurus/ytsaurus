@@ -14,9 +14,9 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TPoolsConfigParser::TPoolsConfigParser(
-    THashMap<TString, TString> poolToParentMap,
-    THashSet<TString> ephemeralPools,
-    THashMap<TString, INodePtr> poolConfigPresets)
+    THashMap<std::string, std::string> poolToParentMap,
+    THashSet<std::string> ephemeralPools,
+    THashMap<std::string, INodePtr> poolConfigPresets)
     : OldPoolToParentMap_(std::move(poolToParentMap))
     , EphemeralPools_(std::move(ephemeralPools))
     , PoolConfigPresets_(std::move(poolConfigPresets))
@@ -39,7 +39,7 @@ const std::vector<TPoolsConfigParser::TUpdatePoolAction>& TPoolsConfigParser::Ge
     return UpdatePoolActions_;
 }
 
-bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& poolName, bool isFifo)
+bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const std::string& poolName, bool isFifo)
 {
     auto nodeType = configNode->GetType();
     if (nodeType != ENodeType::Map) {
@@ -61,10 +61,7 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& poo
         }
     }
 
-    for (const auto& [childName_, childNode] : children) {
-        // TODO(babenko): migrate to std::string
-        auto childName = TString(childName_);
-
+    for (const auto& [childName, childNode] : children) {
         if (ParsedPoolNames_.contains(childName)) {
             Error_ = TError("Duplicate pool %Qv found in new configuration", childName);
             return false;
@@ -101,7 +98,7 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& poo
             updatePoolAction.ObjectId = childNode->Attributes().Get<TGuid>("id");
         } catch (const std::exception& ex) {
             Error_ = TError("Parsing configuration of pool %Qv failed", childName)
-                << ex;
+                .With(ex);
             return false;
         }
 
@@ -130,19 +127,19 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& poo
 
 void TPoolsConfigParser::ProcessErasedPools()
 {
-    THashMap<TString, TString> erasingPoolToParent;
+    THashMap<std::string, std::string> erasingPoolToParent;
     for (const auto& [poolName, parent] : OldPoolToParentMap_) {
         if (!ParsedPoolNames_.contains(poolName) && !EphemeralPools_.contains(poolName)) {
             erasingPoolToParent.emplace(poolName, parent);
         }
     }
-    THashMap<TString, int> parentReferenceCount;
+    THashMap<std::string, int> parentReferenceCount;
     for (const auto& [poolName, parent] : erasingPoolToParent) {
         if (erasingPoolToParent.contains(parent)) {
             ++parentReferenceCount[parent];
         }
     }
-    std::vector<TString> candidates;
+    std::vector<std::string> candidates;
     for (const auto& [poolName, _] : erasingPoolToParent) {
         if (!parentReferenceCount.contains(poolName)) {
             candidates.push_back(poolName);
@@ -173,7 +170,7 @@ void TPoolsConfigParser::ProcessErasedPools()
     YT_VERIFY(eraseActionCount == std::ssize(erasingPoolToParent));
 }
 
-void TPoolsConfigParser::ValidatePoolPresetConfig(const TString& presetName, const INodePtr& presetNode)
+void TPoolsConfigParser::ValidatePoolPresetConfig(const std::string& presetName, const INodePtr& presetNode)
 {
     auto presetConfig = New<TPoolPresetConfig>();
 
@@ -182,14 +179,14 @@ void TPoolsConfigParser::ValidatePoolPresetConfig(const TString& presetName, con
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Config of preset %Qv failed to load as TPoolPresetConfig",
             presetName)
-            << ex;
+            .With(ex);
     }
 
     auto unrecognized = presetConfig->GetRecursiveUnrecognized();
     if (unrecognized && unrecognized->GetChildCount() > 0) {
         THROW_ERROR_EXCEPTION("Config of preset %Qv contains unrecognized options",
             presetName)
-            << TErrorAttribute("unrecognized", unrecognized);
+            .With("unrecognized", unrecognized);
     }
 }
 

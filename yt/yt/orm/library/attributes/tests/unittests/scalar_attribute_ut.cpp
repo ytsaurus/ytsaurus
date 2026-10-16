@@ -2,6 +2,9 @@
 
 #include <yt/yt/orm/library/attributes/scalar_attribute.h>
 
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/yson/protobuf_interop.h>
@@ -85,6 +88,15 @@ TEST(TClearAttributesTest, SimpleField)
     EXPECT_FALSE(message.has_int64_field());
     EXPECT_FALSE(message.nested_message().has_nested_message());
     EXPECT_EQ(2, message.nested_message().int32_field());
+}
+
+TEST(TClearAttributesTest, RejectsNestedYsonStringPath)
+{
+    NProto::TMessage message;
+
+    EXPECT_THROW_WITH_ERROR_CODE(
+        ClearProtobufFieldByPath(message, "/yson_string_field/key", /*skipMissing*/ true),
+        EErrorCode::MalformedPath);
 }
 
 TEST(TClearAttributesTest, MapField)
@@ -483,7 +495,7 @@ public:
 
     void SetProtobufFieldByPath(
         NProtoBuf::Message& message,
-        const NYPath::TYPath& path,
+        NYPath::TYPathBuf path,
         const NYTree::INodePtr& value,
         const NYson::TProtobufWriterOptions& options = {},
         bool recursive = false)
@@ -543,6 +555,100 @@ TEST_P(TSetAttributeTest, Scalar)
     TESTCASE(float_field, 1.0f);
     TESTCASE(double_field, 0.1);
 #undef TESTCASE
+}
+
+TEST_P(TSetAttributeTest, YsonStringField)
+{
+    NProto::TMessage message;
+
+    for (const auto& value : {"123", "#", "", "{key=value;}"}) {
+        auto node = NYTree::ConvertToNode(value);
+        EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/yson_string_field", node));
+        EXPECT_EQ(NYson::ConvertToYsonString(node).AsStringBuf(), message.yson_string_field());
+        EXPECT_EQ(
+            value,
+            NYTree::ConvertToNode(NYson::TYsonString(message.yson_string_field()))->AsString()->GetValue());
+    }
+
+    auto mapValue = NYTree::BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("key").Value("value")
+        .EndMap();
+    EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/yson_string_field", mapValue));
+    EXPECT_EQ(NYson::ConvertToYsonString(mapValue).AsStringBuf(), message.yson_string_field());
+}
+
+TEST_P(TSetAttributeTest, RepeatedYsonStringField)
+{
+    NProto::TMessage message;
+    message.add_repeated_yson_string_field("{old=value;}");
+
+    auto itemValue = NYTree::BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("new").Value("value")
+        .EndMap();
+    EXPECT_NO_THROW(SetProtobufFieldByPath(
+        message,
+        "/repeated_yson_string_field/0",
+        itemValue));
+    EXPECT_EQ(
+        NYson::ConvertToYsonString(itemValue).AsStringBuf(),
+        message.repeated_yson_string_field(0));
+
+    EXPECT_THROW_WITH_ERROR_CODE(
+        SetProtobufFieldByPath(
+            message,
+            "/repeated_yson_string_field/0/key",
+            NYTree::ConvertToNode("value"),
+            {},
+            /*recursive*/ true),
+        EErrorCode::MalformedPath);
+}
+
+TEST(TSetAttributeWireStringTest, YsonStringFields)
+{
+    const auto* rootType = NYson::ReflectProtobufMessageType<NProto::TMessage>();
+    NProto::TMessage message;
+
+    auto singularValue = NYTree::BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("key").Value("value")
+        .EndMap();
+    auto singularElement = NYson::ResolveProtobufElementByYPath(rootType, "/yson_string_field").Element;
+    auto singularWireStringBuffer = ConvertYsonStringToWireString(singularValue, singularElement);
+    auto singularWireString = TWireString::FromSerialized(singularWireStringBuffer);
+    SetProtobufFieldByPath(message, "/yson_string_field", singularWireString);
+    EXPECT_EQ(NYson::ConvertToYsonString(singularValue).AsStringBuf(), message.yson_string_field());
+
+    message.add_repeated_yson_string_field("{old=value;}");
+    auto repeatedValue = NYTree::BuildYsonNodeFluently()
+        .BeginList()
+            .Item().Value(1)
+            .Item().Value(2)
+        .EndList();
+    auto repeatedElement = NYson::ResolveProtobufElementByYPath(
+        rootType,
+        "/repeated_yson_string_field/0").Element;
+    auto repeatedWireStringBuffer = ConvertYsonStringToWireString(repeatedValue, repeatedElement);
+    auto repeatedWireString = TWireString::FromSerialized(repeatedWireStringBuffer);
+    SetProtobufFieldByPath(message, "/repeated_yson_string_field/0", repeatedWireString);
+    EXPECT_EQ(
+        NYson::ConvertToYsonString(repeatedValue).AsStringBuf(),
+        message.repeated_yson_string_field(0));
+}
+
+TEST_P(TSetAttributeTest, RejectsNestedYsonStringPath)
+{
+    NProto::TMessage message;
+
+    EXPECT_THROW_WITH_ERROR_CODE(
+        SetProtobufFieldByPath(
+            message,
+            "/yson_string_field/key",
+            NYTree::ConvertToNode("value"),
+            {},
+            /*recursive*/ true),
+        EErrorCode::MalformedPath);
 }
 
 TEST_P(TSetAttributeTest, Message)
@@ -925,7 +1031,7 @@ TEST_P(TSetAttributeTest, UnknownYsonFields)
 TEST_P(TSetAttributeTest, UnknownYsonFieldsByPath)
 {
     NYson::TProtobufWriterOptions options;
-    options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath& path) {
+    options.UnknownYsonFieldModeResolver = [] (NYPath::TYPathBuf path) {
         if (path == "/nested_message/unknown_map") {
             return NYson::EUnknownYsonFieldsMode::Keep;
         }
@@ -964,7 +1070,7 @@ TEST_P(TSetAttributeTest, UnknownYsonFieldsByPath)
 TEST_P(TSetAttributeTest, UnknownYsonNestedFieldsByPath)
 {
     NYson::TProtobufWriterOptions options;
-    options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath&) {
+    options.UnknownYsonFieldModeResolver = [] (NYPath::TYPathBuf) {
         return NYson::EUnknownYsonFieldsMode::Keep;
     };
 
@@ -1067,6 +1173,72 @@ TEST_F(TSetAttributeTest, DiscardUnknownFields)
     EXPECT_EQ(message.repeated_nested_message().at(0).unknown_fields().field_count(), 0);
 }
 
+TEST_F(TSetAttributeTest, RejectsInvalidYsonStringInWireMessage)
+{
+    auto expectInvalid = [] (const NProto::TMessage& updateMessage) {
+        NProto::TMessage message;
+        EXPECT_THROW(
+            NAttributes::SetProtobufFieldByPath(
+                message,
+                /*path*/ {},
+                TWireString::FromSerialized(updateMessage.SerializeAsString())),
+            std::exception);
+    };
+
+    NProto::TMessage updateMessage;
+    updateMessage.set_yson_string_field("{");
+    expectInvalid(updateMessage);
+
+    updateMessage.Clear();
+    updateMessage.add_repeated_yson_string_field("{");
+    expectInvalid(updateMessage);
+
+    updateMessage.Clear();
+    updateMessage.mutable_nested_message()->set_yson_string_field("{");
+    expectInvalid(updateMessage);
+
+    updateMessage.Clear();
+    (*updateMessage.mutable_nested_message_map())["key"].set_yson_string_field("{");
+    expectInvalid(updateMessage);
+}
+
+TEST_F(TSetAttributeTest, ValidatesOnlyUpdatedYsonStringFields)
+{
+    NProto::TMessage message;
+    message.set_yson_string_field("{");
+
+    auto int32Value = SerializeInt64(
+        42,
+        NYson::TProtobufElementType{NProtoBuf::FieldDescriptor::TYPE_INT32});
+    EXPECT_NO_THROW(NAttributes::SetProtobufFieldByPath(
+        message,
+        "/int32_field",
+        TWireString::FromSerialized(int32Value)));
+    EXPECT_EQ(42, message.int32_field());
+
+    EXPECT_THROW(
+        NAttributes::SetProtobufFieldByPath(
+            message,
+            "/yson_string_field",
+            TWireString::FromSerialized("{")),
+        std::exception);
+    EXPECT_THROW(
+        NAttributes::SetProtobufFieldByPath(
+            message,
+            "/repeated_yson_string_field/end",
+            TWireString::FromSerialized("{")),
+        std::exception);
+
+    NProto::TNestedMessage nestedMessage;
+    nestedMessage.set_yson_string_field("{");
+    EXPECT_THROW(
+        NAttributes::SetProtobufFieldByPath(
+            message,
+            "/nested_message",
+            TWireString::FromSerialized(nestedMessage.SerializeAsString())),
+        std::exception);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 INSTANTIATE_TEST_SUITE_P(
@@ -1079,11 +1251,40 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TScalarAttributeEqualityTest, RepeatedYsonString)
+{
+    const std::vector<NYson::TYsonString> lhs{
+        NYson::TYsonString(TStringBuf("{value=1;}")),
+        NYson::TYsonString(TStringBuf("[2;3;]")),
+    };
+    const auto equal = lhs;
+    auto different = lhs;
+    different[1] = NYson::TYsonString(TStringBuf("[2;4;]"));
+
+    EXPECT_TRUE(AreScalarAttributesEqual(lhs, equal));
+    EXPECT_FALSE(AreScalarAttributesEqual(lhs, different));
+}
+
+TEST(TScalarAttributeEqualityTest, RejectsNestedYsonStringPath)
+{
+    const auto value = NYson::TYsonString(TStringBuf("{title=book;}"));
+    EXPECT_THROW_WITH_ERROR_CODE(
+        AreScalarAttributesEqualByPath(value, value, "/title"),
+        EErrorCode::MalformedPath);
+
+    const std::vector values{value};
+    EXPECT_THROW_WITH_ERROR_CODE(
+        AreScalarAttributesEqualByPath(values, values, "/*/title", {}),
+        EErrorCode::MalformedPath);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TScalarAttributesEqualitySuite
     : public ::testing::Test
 {
 public:
-    bool AreEqual(const NYPath::TYPath& path, const TComparisonOptions& options = {})
+    bool AreEqual(NYPath::TYPathBuf path, const TComparisonOptions& options = {})
     {
         return NAttributes::AreScalarAttributesEqualByPath(Message1, Message2, path, options);
     }
@@ -1127,6 +1328,13 @@ TEST_F(TScalarAttributesEqualitySuite, Simple)
     EXPECT_FALSE(AreEqual("/int32_field"));
     Message1.set_int32_field(16);
     EXPECT_TRUE(AreEqual("/int32_field"));
+}
+
+TEST_F(TScalarAttributesEqualitySuite, RejectsNestedYsonStringPath)
+{
+    EXPECT_THROW_WITH_ERROR_CODE(
+        AreEqual("/yson_string_field/key"),
+        EErrorCode::MalformedPath);
 }
 
 TEST_F(TScalarAttributesEqualitySuite, Map)
@@ -1272,6 +1480,265 @@ TEST_F(TScalarAttributesEqualitySuite, CompareAbsentInsideNestedMessage)
     EXPECT_TRUE(AreEqual(
         "/nested_message/int32_field",
         TComparisonOptions{.CompareAbsentAsDefault = true}));
+}
+
+TEST_F(TScalarAttributesEqualitySuite, UnknownFields)
+{
+    // Field numbers 37-38 are reserved for unknown field tests in TMessage.
+    Message1.mutable_unknown_fields()->AddVarint(37, 42);
+    EXPECT_FALSE(AreEqual(""));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.LhsAbsentEqualsRhsDefault = true}));
+
+    Message2.mutable_unknown_fields()->AddVarint(37, 42);
+    EXPECT_TRUE(AreEqual(""));
+    EXPECT_TRUE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_TRUE(AreEqual("", TComparisonOptions{.LhsAbsentEqualsRhsDefault = true}));
+
+    // Comparison is insensitive to the order of unknown fields with different numbers.
+    Message1.mutable_unknown_fields()->AddLengthDelimited(38, "value");
+    Message2.Clear();
+    Message2.mutable_unknown_fields()->AddLengthDelimited(38, "value");
+    Message2.mutable_unknown_fields()->AddVarint(37, 42);
+    EXPECT_TRUE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_TRUE(AreEqual("", TComparisonOptions{.LhsAbsentEqualsRhsDefault = true}));
+
+    Message2.mutable_unknown_fields()->AddVarint(37, 43);
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.LhsAbsentEqualsRhsDefault = true}));
+}
+
+TEST_F(TScalarAttributesEqualitySuite, UnknownFieldsNested)
+{
+    // Field numbers 5-6 are reserved for unknown field tests in TNestedMessage.
+    Message1.mutable_nested_message();
+    Message2.mutable_nested_message();
+    Message1.mutable_nested_message()->mutable_unknown_fields()->AddVarint(5, 42);
+    EXPECT_FALSE(AreEqual(""));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.LhsAbsentEqualsRhsDefault = true}));
+    EXPECT_FALSE(AreEqual("/nested_message"));
+    EXPECT_FALSE(AreEqual("/nested_message", TComparisonOptions{.CompareAbsentAsDefault = true}));
+
+    Message2.mutable_nested_message()->mutable_unknown_fields()->AddVarint(5, 42);
+    EXPECT_TRUE(AreEqual(""));
+    EXPECT_TRUE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_TRUE(AreEqual("/nested_message"));
+}
+
+TEST_F(TScalarAttributesEqualitySuite, UnknownFieldsOutsidePath)
+{
+    Message1.mutable_unknown_fields()->AddVarint(37, 42);
+    EXPECT_FALSE(AreEqual(""));
+    // Unknown fields outside the requested path do not affect the comparison.
+    EXPECT_TRUE(AreEqual("/nested_message"));
+    EXPECT_TRUE(AreEqual("/string_field"));
+}
+
+TEST_F(TScalarAttributesEqualitySuite, UnknownFieldsPresenceMismatch)
+{
+    Message1.mutable_nested_message()->mutable_unknown_fields()->AddVarint(5, 42);
+
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.LhsAbsentEqualsRhsDefault = true}));
+    EXPECT_FALSE(AreEqual("/nested_message", TComparisonOptions{.CompareAbsentAsDefault = true}));
+
+    // Message with unknown fields present on the rhs side only.
+    Message1.Swap(&Message2);
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.LhsAbsentEqualsRhsDefault = true}));
+    EXPECT_FALSE(AreEqual("/nested_message", TComparisonOptions{.CompareAbsentAsDefault = true}));
+}
+
+TEST_F(TScalarAttributesEqualitySuite, UnknownFieldsInRepeated)
+{
+    Message1.add_repeated_nested_message();
+    Message2.add_repeated_nested_message();
+    Message1.mutable_repeated_nested_message(0)->mutable_unknown_fields()->AddVarint(5, 42);
+    EXPECT_FALSE(AreEqual(""));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_FALSE(AreEqual("/repeated_nested_message"));
+    EXPECT_FALSE(AreEqual("/repeated_nested_message/0", TComparisonOptions{.CompareAbsentAsDefault = true}));
+
+    Message2.mutable_repeated_nested_message(0)->mutable_unknown_fields()->AddVarint(5, 42);
+    EXPECT_TRUE(AreEqual(""));
+    EXPECT_TRUE(AreEqual("/repeated_nested_message"));
+}
+
+TEST_F(TScalarAttributesEqualitySuite, UnknownFieldsInMap)
+{
+    auto getMap = [] (NProto::TMessage& message) -> auto& {
+        return *message.mutable_nested_message_map();
+    };
+    getMap(Message1)["a"];
+    getMap(Message2)["a"];
+    getMap(Message1)["a"].mutable_unknown_fields()->AddVarint(5, 42);
+    EXPECT_FALSE(AreEqual(""));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_FALSE(AreEqual("/nested_message_map/a"));
+
+    getMap(Message2)["a"].mutable_unknown_fields()->AddVarint(5, 42);
+    EXPECT_TRUE(AreEqual(""));
+    EXPECT_TRUE(AreEqual("/nested_message_map/a"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TUnversionedValueProtoRoundTripTest, VectorOfMessages)
+{
+    auto buffer = New<NTableClient::TRowBuffer>();
+
+    std::vector<NProto::TNestedMessage> messages;
+    {
+        auto& m = messages.emplace_back();
+        m.set_int32_field(42);
+    }
+    {
+        auto& m = messages.emplace_back();
+        m.set_int32_field(7);
+        m.mutable_nested_message()->set_int32_field(100);
+    }
+
+    NTableClient::TUnversionedValue value;
+    NTableClient::ToUnversionedValue(&value, messages, buffer);
+
+    std::vector<NProto::TNestedMessage> reconstructed;
+    NTableClient::FromUnversionedValue(&reconstructed, value);
+
+    ASSERT_EQ(2u, reconstructed.size());
+    EXPECT_EQ(42, reconstructed[0].int32_field());
+    EXPECT_FALSE(reconstructed[0].has_nested_message());
+    EXPECT_EQ(7, reconstructed[1].int32_field());
+    EXPECT_EQ(100, reconstructed[1].nested_message().int32_field());
+}
+
+TEST(TUnversionedValueProtoRoundTripTest, EmptyVectorOfMessages)
+{
+    auto buffer = New<NTableClient::TRowBuffer>();
+
+    std::vector<NProto::TNestedMessage> messages;
+    NTableClient::TUnversionedValue value;
+    NTableClient::ToUnversionedValue(&value, messages, buffer);
+
+    std::vector<NProto::TNestedMessage> reconstructed;
+    NTableClient::FromUnversionedValue(&reconstructed, value);
+
+    EXPECT_TRUE(reconstructed.empty());
+}
+
+TEST(TUnversionedValueProtoRoundTripTest, VectorOfMessagesFromNullValue)
+{
+    std::vector<NProto::TNestedMessage> reconstructed;
+    reconstructed.emplace_back().set_int32_field(1);
+
+    NTableClient::FromUnversionedValue(&reconstructed, NTableClient::MakeUnversionedNullValue());
+
+    EXPECT_TRUE(reconstructed.empty());
+}
+
+TEST(TUnversionedValueProtoRoundTripTest, VectorUnknownYsonFieldsKept)
+{
+    auto ysonList = NYTree::BuildYsonStringFluently()
+        .BeginList()
+            .Item().BeginMap()
+                .Item("int32_field").Value(42)
+                .Item("unknown_key").Value(123)
+            .EndMap()
+        .EndList();
+
+    auto buffer = New<NTableClient::TRowBuffer>();
+    auto input = buffer->CaptureValue(
+        NTableClient::MakeUnversionedAnyValue(ysonList.AsStringBuf()));
+
+    std::vector<NProto::TNestedMessage> messages;
+    NTableClient::FromUnversionedValue(&messages, input);
+
+    ASSERT_EQ(1u, messages.size());
+    EXPECT_EQ(42, messages[0].int32_field());
+
+    NTableClient::TUnversionedValue output;
+    NTableClient::ToUnversionedValue(&output, messages, buffer);
+
+    auto node = NYTree::ConvertToNode(NYson::TYsonString(output.AsStringBuf()));
+    auto item = node->AsList()->GetChildOrThrow(0)->AsMap();
+    EXPECT_EQ(42, item->GetChildOrThrow("int32_field")->AsInt64()->GetValue());
+    EXPECT_EQ(123, item->GetChildOrThrow("unknown_key")->AsInt64()->GetValue());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TUnversionedValueProtoRoundTripTest, HashMapOfMessages)
+{
+    auto buffer = New<NTableClient::TRowBuffer>();
+
+    THashMap<std::string, NProto::TNestedMessage> map;
+    map["a"].set_int32_field(1);
+    map["b"].set_int32_field(2);
+    map["b"].mutable_nested_message()->set_int32_field(3);
+
+    NTableClient::TUnversionedValue value;
+    NTableClient::ToUnversionedValue(&value, map, buffer);
+
+    THashMap<std::string, NProto::TNestedMessage> reconstructed;
+    NTableClient::FromUnversionedValue(&reconstructed, value);
+
+    ASSERT_EQ(2u, reconstructed.size());
+    EXPECT_EQ(1, reconstructed.at("a").int32_field());
+    EXPECT_EQ(2, reconstructed.at("b").int32_field());
+    EXPECT_EQ(3, reconstructed.at("b").nested_message().int32_field());
+}
+
+TEST(TUnversionedValueProtoRoundTripTest, EmptyHashMapOfMessages)
+{
+    auto buffer = New<NTableClient::TRowBuffer>();
+
+    THashMap<std::string, NProto::TNestedMessage> map;
+    NTableClient::TUnversionedValue value;
+    NTableClient::ToUnversionedValue(&value, map, buffer);
+
+    THashMap<std::string, NProto::TNestedMessage> reconstructed;
+    NTableClient::FromUnversionedValue(&reconstructed, value);
+
+    EXPECT_TRUE(reconstructed.empty());
+}
+
+TEST(TUnversionedValueProtoRoundTripTest, HashMapOfMessagesFromNullValue)
+{
+    THashMap<std::string, NProto::TNestedMessage> reconstructed;
+    reconstructed["a"].set_int32_field(1);
+
+    NTableClient::FromUnversionedValue(&reconstructed, NTableClient::MakeUnversionedNullValue());
+
+    EXPECT_TRUE(reconstructed.empty());
+}
+
+TEST(TUnversionedValueProtoRoundTripTest, HashMapUnknownYsonFieldsKept)
+{
+    auto ysonMap = NYTree::BuildYsonStringFluently()
+        .BeginMap()
+            .Item("entry").BeginMap()
+                .Item("int32_field").Value(42)
+                .Item("unknown_key").Value(123)
+            .EndMap()
+        .EndMap();
+
+    auto buffer = New<NTableClient::TRowBuffer>();
+    auto input = buffer->CaptureValue(
+        NTableClient::MakeUnversionedAnyValue(ysonMap.AsStringBuf()));
+
+    THashMap<std::string, NProto::TNestedMessage> map;
+    NTableClient::FromUnversionedValue(&map, input);
+
+    ASSERT_EQ(1u, map.size());
+    EXPECT_EQ(42, map.at("entry").int32_field());
+
+    NTableClient::TUnversionedValue output;
+    NTableClient::ToUnversionedValue(&output, map, buffer);
+
+    auto node = NYTree::ConvertToNode(NYson::TYsonString(output.AsStringBuf()));
+    auto entry = node->AsMap()->GetChildOrThrow("entry")->AsMap();
+    EXPECT_EQ(42, entry->GetChildOrThrow("int32_field")->AsInt64()->GetValue());
+    EXPECT_EQ(123, entry->GetChildOrThrow("unknown_key")->AsInt64()->GetValue());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

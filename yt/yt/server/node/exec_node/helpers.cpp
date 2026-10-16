@@ -1,4 +1,5 @@
 #include "bootstrap.h"
+#include "private.h"
 #include "helpers.h"
 
 #include <yt/yt/server/node/exec_node/job_controller.h>
@@ -81,10 +82,9 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     userObject.Path = path;
 
     {
-        YT_LOG_INFO(
-            "Fetching layer basic attributes (LayerPath: %v, OldContentRevision: %x)",
-            path,
-            contentRevision);
+        YT_TLOG_INFO("Fetching layer basic attributes")
+            .With("LayerPath", path)
+            .WithFormat("OldContentRevision", "%x", contentRevision);
 
         TGetUserObjectBasicAttributesOptions options;
         options.SuppressAccessTracking = true;
@@ -104,9 +104,9 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
                 path,
                 EObjectType::File,
                 userObject.Type)
-                << TErrorAttribute("path", path)
-                << TErrorAttribute("expected_type", EObjectType::File)
-                << TErrorAttribute("actual_type", userObject.Type);
+                .With("path", path)
+                .With("expected_type", EObjectType::File)
+                .With("actual_type", userObject.Type);
         }
     }
 
@@ -115,13 +115,15 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
 
     // COMPAT(shakurov): remove this once YT-13605 is deployed everywhere.
     if (userObject.ContentRevision == NHydra::NullRevision) {
-        YT_LOG_INFO("Fetching layer revision (LayerPath: %v, OldContentRevision: %x)", path, contentRevision);
+        YT_TLOG_INFO("Fetching layer revision")
+            .With("LayerPath", path)
+            .WithFormat("OldContentRevision", "%x", contentRevision);
         try {
             FetchContentRevision(bootstrap, &userObject);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
                 "Error fetching revision for layer %v", path)
-                << ex;
+                .With(ex);
         }
     }
 
@@ -130,18 +132,16 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     };
 
     if (contentRevision == userObject.ContentRevision) {
-        YT_LOG_INFO(
-            "Layer revision not changed, using cached (LayerPath: %v, ObjectId: %v)",
-            path,
-            objectId);
+        YT_TLOG_INFO("Layer revision not changed, using cached")
+            .With("LayerPath", path)
+            .With("ObjectId", objectId);
         return result;
     }
 
-    YT_LOG_INFO(
-        "Fetching layer chunk specs (LayerPath: %v, ObjectId: %v, ContentRevision: %x)",
-        path,
-        objectId,
-        userObject.ContentRevision);
+    YT_TLOG_INFO("Fetching layer chunk specs")
+        .With("LayerPath", path)
+        .With("ObjectId", objectId)
+        .WithFormat("ContentRevision", "%x", userObject.ContentRevision);
 
     const auto& client = bootstrap->GetClient();
     const auto& connection = client->GetNativeConnection();
@@ -209,14 +209,15 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     auto attributeDictionaryPtr = ConvertToAttributes(NYson::TYsonString(getAttributesRsp->value()));
     const auto& attributes = *attributeDictionaryPtr;
 
-    auto [accessMethod, filesystem] = GetAccessMethodAndFilesystemFromStrings(
-        attributes.Find<TString>("access_method").value_or(ToString(ELayerAccessMethod::Local)),
-        attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
+    auto accessMethod = attributes.Find<ELayerAccessMethod>("access_method").value_or(ELayerAccessMethod::Local);
+    auto filesystem = attributes.Find<ELayerFilesystem>("filesystem").value_or(ELayerFilesystem::Archive);
+
+    ValidateCompatibility(accessMethod, filesystem);
 
     // Create artifact key.
-    TArtifactKey layerKey;
-    ToProto(layerKey.mutable_chunk_specs(), chunkSpecs);
-    layerKey.mutable_data_source()->set_type(ToProto(EDataSourceType::File));
+    auto layerKey = TArtifactKey(
+        EDataSourceType::File,
+        std::move(chunkSpecs));
     layerKey.mutable_data_source()->set_path(path);
     layerKey.set_access_method(ToProto(accessMethod));
     layerKey.set_filesystem(ToProto(filesystem));
@@ -242,7 +243,7 @@ TErrorOr<std::string> TryParseControllerAgentAddress(
         return TError(
             "No suitable controller agent address exists from %v",
             GetValues(addresses))
-            << TError(ex);
+            .With(ex);
     }
 }
 
@@ -278,13 +279,13 @@ TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
 
     if (!proto.has_addresses()) {
         return TError("Controller agent descriptor has no addresses")
-            << TErrorAttribute("incarnation_id", incarnationId);
+            .With("incarnation_id", incarnationId);
     }
 
     auto addressOrError = TryParseControllerAgentAddress(proto.addresses(), networks);
     if (!addressOrError.IsOK()) {
         return TError{std::move(addressOrError)}
-            << TErrorAttribute("incarnation_id", incarnationId);
+            .With("incarnation_id", incarnationId);
     }
 
     return TControllerAgentDescriptor{std::move(addressOrError.Value()), incarnationId};
@@ -328,28 +329,7 @@ void TControllerAgentAffiliationInfo::ResetControllerAgent()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClosure MakeJobInterrupter(TJobId jobId, const IBootstrap* bootstrap)
-{
-    // NB. It is all right to pass only bootstrap pointer since it outlives the closure.
-    return BIND_NO_PROPAGATE(
-        [
-            jobId,
-            bootstrap,
-            jobInterrupted = std::make_unique<std::atomic<bool>>(false)
-        ] () {
-            // Interrupt job only once.
-            if (!jobInterrupted->exchange(true)) {
-                bootstrap->GetJobController()->InterruptJob(
-                jobId,
-                EInterruptionReason::NbdDeviceStopping,
-                TDuration::Zero());
-            }
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-const std::string& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts)
+const TAbsoluteNormalizedPath& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<TVolumeMountPtr>& volumeMounts)
 {
     auto volumeMountIt = std::find_if(volumeMounts.begin(), volumeMounts.end(), [&] (const auto& volumeMount) {
         return volumeMount->VolumeId == volumeId;
@@ -373,22 +353,30 @@ const TVolumeResultPtr& GetNonRootVolumeResultByVolumeId(const std::string& volu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FromProto(TSandboxNbdRootVolumeData* nbd, const NScheduler::NProto::TNbdDiskRequest& protoNbd)
+void FromProto(TSandboxNbdRootVolumeSpec* nbd, const NScheduler::NProto::TNbdDiskRequest& protoNbd)
 {
-    nbd->Size = protoNbd.disk_request().storage_request_common_parameters().disk_space();
-    nbd->MediumIndex = static_cast<int>(protoNbd.disk_request().medium_index());
+    nbd->DeviceSize = protoNbd.disk_request().storage_request_common_parameters().disk_space();
 
-    const auto& nbdDisk = protoNbd.nbd();
-    if (nbdDisk.has_data_node_address()) {
-        nbd->DataNodeAddress = nbdDisk.data_node_address();
+    switch (protoNbd.backend_case()) {
+        case NScheduler::NProto::TNbdDiskRequest::kChunkNbd: {
+            const auto& protoChunkDisk = protoNbd.chunk_nbd();
+            nbd->BackendSpec = TChunkNbdVolumeSpec{
+                .MediumIndex = static_cast<int>(protoNbd.disk_request().medium_index()),
+                .DataNodeRpcTimeout = FromProto<TDuration>(protoChunkDisk.data_node_rpc_timeout()),
+                .DataNodeAddress = YT_OPTIONAL_FROM_PROTO(protoChunkDisk, data_node_address),
+                .DataNodeNbdServiceRpcTimeout = FromProto<TDuration>(protoChunkDisk.data_node_nbd_service_rpc_timeout()),
+                .DataNodeNbdServiceMakeTimeout = FromProto<TDuration>(protoChunkDisk.data_node_nbd_service_make_timeout()),
+                .MasterRpcTimeout = FromProto<TDuration>(protoChunkDisk.master_rpc_timeout()),
+                .MinDataNodeCount = protoChunkDisk.min_data_node_count(),
+                .MaxDataNodeCount = protoChunkDisk.max_data_node_count(),
+                .MultiplexingParallelism = protoChunkDisk.multiplexing_parallelism(),
+            };
+            break;
+        }
+
+        case NScheduler::NProto::TNbdDiskRequest::BACKEND_NOT_SET:
+            THROW_ERROR_EXCEPTION("NBD disk request specifies no backend");
     }
-
-    nbd->DataNodeRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_rpc_timeout());
-    nbd->MasterRpcTimeout = FromProto<TDuration>(nbdDisk.master_rpc_timeout());
-    nbd->DataNodeNbdServiceRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_rpc_timeout());
-    nbd->DataNodeNbdServiceMakeTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_make_timeout());
-    nbd->MinDataNodeCount = nbdDisk.min_data_node_count();
-    nbd->MaxDataNodeCount = nbdDisk.max_data_node_count();
 }
 
 void FromProto(TTmpfsVolumeParams* tmpfs, const NScheduler::NProto::TTmpfsStorageRequest& protoTmpfs)

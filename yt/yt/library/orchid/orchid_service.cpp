@@ -50,10 +50,9 @@ private:
             THROW_ERROR_EXCEPTION("Error parsing request header");
         }
 
-        context->SetRequestInfo("%v.%v %v",
-            requestHeader.service(),
-            requestHeader.method(),
-            GetRequestTargetYPath(requestHeader));
+        context->AnnotateRequest()
+            .WithFormat("Method", "%v.%v", requestHeader.service(), requestHeader.method())
+            .With("Path", GetRequestTargetYPath(requestHeader));
 
         ExecuteVerb(RootService_, requestMessage)
             .Subscribe(BIND([=] (const TErrorOr<TSharedRefArray>& responseMessageOrError) {
@@ -71,7 +70,8 @@ private:
                 }
 
                 auto error = FromProto<TError>(responseHeader.error());
-                context->SetResponseInfo("InnerError: %v", error);
+                context->AnnotateResponse()
+                    .With("InnerError", error);
 
                 response->Attachments() = responseMessage.ToVector();
 

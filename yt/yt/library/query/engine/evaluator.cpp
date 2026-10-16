@@ -11,6 +11,7 @@
 
 #include <yt/yt/client/query_client/query_statistics.h>
 
+#include <yt/yt/client/table_client/tracked_memory_chunk_provider.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -67,36 +68,79 @@ public:
         NTracing::TChildTraceContextGuard guard("QueryClient.Evaluate");
         NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
             traceContext->AddTag("fragment_id", query->Id);
-
-            constexpr auto ellipsis = "... <truncated>"sv;
-            if (options.TruncatedQueryLengthForTracing &&
-                std::ssize(queryFingerprint) > *options.TruncatedQueryLengthForTracing + std::ssize(ellipsis))
-            {
-                traceContext->AddTag(
-                    "query_fingerprint",
-                    queryFingerprint
-                        .substr(0, *options.TruncatedQueryLengthForTracing)
-                        .append(ellipsis));
-            } else {
-                traceContext->AddTag("query_fingerprint", queryFingerprint);
-            }
+            traceContext->AddTag(
+                "query_fingerprint",
+                TTruncatedStringView(
+                    queryFingerprint,
+                    options.TruncatedQueryLengthForTracing.value_or(std::numeric_limits<int>::max())));
         });
 
         auto Logger = MakeQueryLogger(query);
 
-        YT_LOG_DEBUG("Executing query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, ExecutionBackend: %v, OptimizationLevel: %v)",
-            queryFingerprint,
-            *query->GetReadSchema(),
-            *query->GetTableSchema(),
-            options.ExecutionBackend,
-            options.OptimizationLevel);
+        YT_TLOG_DEBUG("Executing query")
+            .With("Fingerprint", queryFingerprint)
+            .With("ReadSchema", *query->GetReadSchema())
+            .With("ResultSchema", *query->GetTableSchema())
+            .With("ExecutionBackend", options.ExecutionBackend)
+            .With("OptimizationLevel", options.OptimizationLevel);
 
+        TQueryStatistics queryStatistics;
+
+        DoRun(
+            &queryStatistics,
+            query,
+            reader,
+            writer,
+            joinProfilerRegistry,
+            functionProfilers,
+            aggregateProfilers,
+            sdk,
+            memoryChunkProvider,
+            options,
+            requestFeatureFlags,
+            std::move(responseFeatureFlags),
+            Logger);
+
+        return queryStatistics;
+    }
+
+private:
+    void DoRun(
+        TQueryStatistics* queryStatistics,
+        const TConstBaseQueryPtr& query,
+        const ISchemafulUnversionedReaderPtr& reader,
+        const IUnversionedRowsetWriterPtr& writer,
+        const TJoinProfilerRegistry& joinProfilerRegistry,
+        const TConstFunctionProfilerMapPtr& functionProfilers,
+        const TConstAggregateProfilerMapPtr& aggregateProfilers,
+        const NWebAssembly::TModuleBytecode& sdk,
+        const IMemoryChunkProviderPtr& memoryChunkProvider,
+        const TQueryOptions& options,
+        const TFeatureFlags& requestFeatureFlags,
+        TFuture<TFeatureFlags> responseFeatureFlags,
+        const NLogging::TLogger& Logger)
+    {
         TExecutionStatistics statistics;
         NProfiling::TWallTimer wallTime;
         NProfiling::TFiberWallTimer syncTime;
 
-        auto finalLogger = Finally([&] {
-            YT_LOG_DEBUG("Finalizing evaluation");
+        auto finallyRecordStatistics = Finally([&] {
+            statistics.SyncTime = syncTime.GetElapsedTime();
+            statistics.AsyncTime = wallTime.GetElapsedTime() - statistics.SyncTime;
+            statistics.ExecuteTime =
+                statistics.SyncTime - statistics.ReadTime - statistics.WriteTime - statistics.CodegenTime;
+            *queryStatistics = TQueryStatistics::FromExecutionStatistics(
+                statistics,
+                options.StatisticsAggregation);
+
+            YT_TLOG_DEBUG("Finalizing evaluation")
+                .With("QueryStatistics", *queryStatistics);
+
+            NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
+                if (auto* tracked = dynamic_cast<NTableClient::TTrackedMemoryChunkProvider*>(memoryChunkProvider.Get())) {
+                    traceContext->AddTag("peak_memory_usage", tracked->GetMaxAllocated());
+                }
+            });
         });
 
         // TODO(dtorilov): Catch here WAVM::Runtime::Exception*.
@@ -143,7 +187,7 @@ public:
                 .ResponseFeatureFlags = responseFeatureFlags,
             };
 
-            YT_LOG_DEBUG("Evaluating query");
+            YT_TLOG_DEBUG("Evaluating query");
 
             queryInstance.SetDeadline(options.Deadline);
 
@@ -153,25 +197,12 @@ public:
                 fragmentParams.GetOpaqueDataSizes(),
                 &executionContext);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Query evaluation failed");
-            THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
+            YT_TLOG_DEBUG("Query evaluation failed")
+                .With(ex);
+            THROW_ERROR_EXCEPTION("Query evaluation failed").With(ex);
         }
-
-        statistics.SyncTime = syncTime.GetElapsedTime();
-        statistics.AsyncTime = wallTime.GetElapsedTime() - statistics.SyncTime;
-        statistics.ExecuteTime =
-            statistics.SyncTime - statistics.ReadTime - statistics.WriteTime - statistics.CodegenTime;
-
-        auto queryStatistics = TQueryStatistics::FromExecutionStatistics(
-            statistics,
-            options.StatisticsAggregation);
-
-        YT_LOG_DEBUG("Query statistics (%v)", queryStatistics);
-
-        return queryStatistics;
     }
 
-private:
     TCGQueryInstance Codegen(
         TConstBaseQueryPtr query,
         TCGVariables& variables,
@@ -189,24 +220,28 @@ private:
     {
         llvm::FoldingSetNodeID id;
 
+        TQueryFoldingProfilerOptions options{
+            .UseCanonicalNullRelations = useCanonicalNullRelations,
+            .ExecutionBackend = executionBackend,
+            .OptimizationLevel = optimizationLevel,
+            .AllowUnorderedGroupByWithLimit = allowUnorderedGroupByWithLimit,
+            .MaxJoinBatchSize = maxJoinBatchSize,
+        };
+
         auto makeCodegenQuery = Profile(
             query,
             &id,
             &variables,
             joinProfilerRegistry,
-            useCanonicalNullRelations,
-            executionBackend,
-            optimizationLevel,
+            options,
             functionProfilers,
             aggregateProfilers,
-            sdk,
-            allowUnorderedGroupByWithLimit,
-            maxJoinBatchSize);
+            sdk);
 
         auto Logger = MakeQueryLogger(query);
 
         // See condition in folding_profiler.cpp.
-        bool considerLimit = (query->GetScanOrder(allowUnorderedGroupByWithLimit) == EScanOrder::Ordered) && !query->GroupClause;
+        bool considerLimit = (query->GetScanOrder(allowUnorderedGroupByWithLimit) != EScanOrder::Unordered) && !query->GroupClause;
 
         auto queryFingerprint = InferName(query, TInferNameOptions{
             .OmitValues = true,
@@ -232,18 +267,19 @@ private:
 
         if (query->Offset < 0) {
             THROW_ERROR_EXCEPTION("Negative OFFSET is forbidden")
-                << TErrorAttribute("offset", query->Offset);
+                .With("offset", query->Offset);
         }
 
         if (query->Limit < 0) {
             THROW_ERROR_EXCEPTION("Negative LIMIT is forbidden")
-                << TErrorAttribute("limit", query->Limit);
+                .With("limit", query->Limit);
         }
 
-        if (query->Offset + query->Limit < 0) {
-            THROW_ERROR_EXCEPTION("Negative OFFSET + LIMIT is forbidden")
-                << TErrorAttribute("offset_limit_sum", query->Offset + query->Limit);
-        }
+        THROW_ERROR_EXCEPTION_IF(
+            query->Offset > std::numeric_limits<i64>::max() - query->Limit,
+            "Sum of offset %v and limit %v overflows i64",
+            query->Offset,
+            query->Limit);
     }
 };
 

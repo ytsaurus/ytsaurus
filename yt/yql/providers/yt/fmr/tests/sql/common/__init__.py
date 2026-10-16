@@ -62,7 +62,10 @@ def sort_yson(yson):
     for res in yson:
         for data in res[b'Write']:
             if b'Unordered' in res and b'Data' in data:
-                data[b'Data'] = sorted(data[b'Data'])
+                # Rows can mix None (NULL fields, e.g. from an unmatched LEFT JOIN side) with lists
+                # (present fields) across rows, which plain sorted() can't compare - sort by the
+                # serialized bytes instead, same as stable_result_file() in yql_utils.py.
+                data[b'Data'] = sorted(data[b'Data'], key=cyson.dumps)
     return yson
 
 
@@ -87,4 +90,5 @@ def get_yson_from_file_sql_query_result(query_result):
 
 def get_yson_from_yt_sql_query_result(query_result):
     yt_res_yson = query_result.results.get('data', [])
-    return replace_vals(cyson.loads(yson.dumps(yt_res_yson)))
+    res_yson = replace_vals(cyson.loads(yson.dumps(yt_res_yson)))
+    return sort_yson(res_yson)

@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "builder_base.h"
 #endif
-#undef BUILDER_BASE_INL_H_
 
 namespace NYT::NCodegen {
 

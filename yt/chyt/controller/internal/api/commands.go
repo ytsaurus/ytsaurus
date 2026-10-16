@@ -481,6 +481,21 @@ func (a HTTPAPI) HandleDescribeOptions(w http.ResponseWriter, r *http.Request, p
 	a.ReplyOK(w, options)
 }
 
+var DescribeDefaultOptionsCmdDescriptor = CmdDescriptor{
+	Name:        "describe_default_options",
+	Description: "get default speclet options",
+	Handler:     HTTPAPI.HandleDescribeDefaultOptions,
+}
+
+func (a HTTPAPI) HandleDescribeDefaultOptions(w http.ResponseWriter, r *http.Request, params map[string]any) {
+	options, err := a.API.DescribeDefaultOptions()
+	if err != nil {
+		a.ReplyWithError(w, err)
+		return
+	}
+	a.ReplyOK(w, options)
+}
+
 var GetSecretsCmdDescriptor = CmdDescriptor{
 	Name:        "get_secrets",
 	Parameters:  []CmdParameter{AliasParameter},
@@ -557,6 +572,7 @@ var AllCommands = []CmdDescriptor{
 	RestartCmdDescriptor,
 	StopCmdDescriptor,
 	DescribeOptionsCmdDescriptor,
+	DescribeDefaultOptionsCmdDescriptor,
 	GetSecretsCmdDescriptor,
 	SetSecretsCmdDescriptor,
 	ResumeCmdDescriptor,
@@ -600,11 +616,11 @@ func ControllerRouter(cfg HTTPAPIConfig, family string, cf strawberry.Controller
 
 		apiCfg := cfg.BaseAPIConfig
 		apiCfg.AgentInfo = clusterInfo
+		apiCfg.Deprecated = cf.Deprecated
 
-		locDefaultSpeclet := cfg.LocationControllerDefaultSpeclet[proxy][family]
-		ctlCfg, err := strawberry.AddDefaultSpecletToConfig(cf.Config, locDefaultSpeclet)
-		if err != nil {
-			l.Fatal("failed to add location default speclet", log.Error(err))
+		ctlCfg, ok := cfg.LocationControllerConfigs[proxy][family]
+		if !ok {
+			ctlCfg = cf.Config
 		}
 
 		ctl := cf.Ctor(l, ytc, clusterInfo.StrawberryRoot, proxy, ctlCfg)

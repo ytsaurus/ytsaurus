@@ -1,0 +1,216 @@
+#pragma once
+
+#ifndef TWO_LEVEL_CACHE_INL_H_
+    #error "Direct inclusion of this file is not allowed, include two_level_cache.h"
+    // For the sake of sane code completion.
+    #include "two_level_cache.h"
+#endif
+
+#include <yt/yt/flow/library/cpp/misc/destruction_context.h>
+
+#include <library/cpp/yt/assert/assert.h>
+
+#include <library/cpp/yt/string/format.h>
+
+#include <util/generic/yexception.h>
+
+namespace NYT::NFlow::NCache {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TCompressibleValue>
+TTwoLevelCache<TKey, TCompressibleValue>::TItem::TItem(TKey key, TCompressibleValuePtr value)
+    : TAsyncCacheValueBase<TKey, TItem>(std::move(key))
+    , Value(std::move(value))
+    , InsertTimestamp(TInstant::Now())
+{ }
+
+template <class TKey, class TCompressibleValue>
+TTwoLevelCache<TKey, TCompressibleValue>::TCompressedCache::TCompressedCache(
+    TSlruCacheConfigPtr config,
+    TWeakPtr<TTwoLevelCache> owner,
+    NProfiling::TProfiler profiler)
+    : TSyncSlruCacheBase<TKey, TItem>(std::move(config), profiler)
+    , Owner_(std::move(owner))
+    , HitCounter_(profiler.WithTag("hit_type", "sync").Counter("/hit_count"))
+    , HitWeightCounter_(profiler.WithTag("hit_type", "sync").Counter("/hit_weight"))
+    , MissedCounter_(profiler.Counter("/missed_count"))
+    , MissedWeightCounter_(profiler.Counter("/missed_weight"))
+    , TimeToExpire_(profiler.WithSparse().Timer("/time_to_expire"))
+{
+    profiler.AddFuncGauge("/weight", MakeStrong(this), [this] {
+        return Weight_.load();
+    });
+    profiler.AddFuncGauge("/size", MakeStrong(this), [this] {
+        return this->GetSize();
+    });
+}
+
+template <class TKey, class TCompressibleValue>
+void TTwoLevelCache<TKey, TCompressibleValue>::TCompressedCache::Insert(const TItemPtr& item)
+{
+    // Values may share mutable state with live providers; keep the admission charge stable.
+    i64 keyWeight = 0;
+    if (auto owner = Owner_.Lock()) {
+        keyWeight = owner->GetKeyWeight(item->GetKey());
+    }
+    item->CompressedWeight = item->Value->GetWeight() + keyWeight;
+
+    TItemPtr existingItem;
+    if (this->TryInsert(item, &existingItem)) {
+        MissedCounter_.Increment();
+        MissedWeightCounter_.Increment(GetWeight(item));
+    } else {
+        HitCounter_.Increment();
+        HitWeightCounter_.Increment(GetWeight(existingItem));
+    }
+
+    // Promote the inserted item without recording another Flow lookup.
+    TSyncSlruCacheBase<TKey, TItem>::Find(item->GetKey());
+}
+
+template <class TKey, class TCompressibleValue>
+auto TTwoLevelCache<TKey, TCompressibleValue>::TCompressedCache::Find(const TKey& key) -> TItemPtr
+{
+    auto item = TSyncSlruCacheBase<TKey, TItem>::Find(key);
+    if (item) {
+        HitCounter_.Increment();
+        HitWeightCounter_.Increment(GetWeight(item));
+    } else {
+        MissedCounter_.Increment();
+    }
+    return item;
+}
+
+template <class TKey, class TCompressibleValue>
+i64 TTwoLevelCache<TKey, TCompressibleValue>::TCompressedCache::GetWeight(const TItemPtr& item) const
+{
+    return item->CompressedWeight;
+}
+
+template <class TKey, class TCompressibleValue>
+void TTwoLevelCache<TKey, TCompressibleValue>::TCompressedCache::OnRemoved(const TItemPtr& item) noexcept
+{
+    try {
+        // A compressed eviction may still be nested inside the primary cache's lock.
+        TDestructionContextGuard::Add(item);
+        TimeToExpire_.Record(TInstant::Now() - item->InsertTimestamp);
+    } catch (...) {
+        YT_ABORT(Format("Exception in cache eviction callback: %v", CurrentExceptionMessage()));
+    }
+}
+
+template <class TKey, class TCompressibleValue>
+void TTwoLevelCache<TKey, TCompressibleValue>::TCompressedCache::OnTotalWeightUpdated(i64 weightDelta)
+{
+    Weight_.fetch_add(weightDelta);
+}
+
+template <class TKey, class TCompressibleValue>
+TTwoLevelCache<TKey, TCompressibleValue>::TCache::TCache(
+    TSlruCacheConfigPtr config,
+    TCompressedCachePtr nextCache,
+    TWeakPtr<TTwoLevelCache> owner,
+    NProfiling::TProfiler profiler)
+    : TAsyncSlruCacheBase<TKey, TItem>(std::move(config), profiler)
+    , NextCache_(std::move(nextCache))
+    , Owner_(std::move(owner))
+    , TimeToExpire_(profiler.WithSparse().Timer("/time_to_expire"))
+{ }
+
+template <class TKey, class TCompressibleValue>
+i64 TTwoLevelCache<TKey, TCompressibleValue>::TCache::GetWeight(const TItemPtr& item) const
+{
+    i64 keyWeight = 0;
+    if (auto owner = Owner_.Lock()) {
+        keyWeight = owner->GetKeyWeight(item->GetKey());
+    }
+    return item->Value->GetWeight() + keyWeight;
+}
+
+template <class TKey, class TCompressibleValue>
+void TTwoLevelCache<TKey, TCompressibleValue>::TCache::OnRemoved(const TItemPtr& item) noexcept
+{
+    try {
+        if (NextCache_ && item->AllowCompression.exchange(false) == true) {
+            item->Value->Compress();
+            NextCache_->Insert(item);
+        }
+        if (!NextCache_) {
+            // Keep the evicted item alive until the outermost cache operation finishes.
+            TDestructionContextGuard::Add(item);
+        }
+        TimeToExpire_.Record(TInstant::Now() - item->InsertTimestamp);
+    } catch (...) {
+        YT_ABORT(Format("Exception in cache eviction callback: %v", CurrentExceptionMessage()));
+    }
+}
+
+template <class TKey, class TCompressibleValue>
+bool TTwoLevelCache<TKey, TCompressibleValue>::TCache::IsResurrectionSupported() const
+{
+    return false;
+}
+
+template <class TKey, class TCompressibleValue>
+TTwoLevelCache<TKey, TCompressibleValue>::TTwoLevelCache(NProfiling::TProfiler profiler)
+    : CompressedCache_(New<TCompressedCache>(New<TSlruCacheConfig>(), MakeWeak(this), profiler.WithTag("cache", "compressed")))
+    , Cache_(New<TCache>(New<TSlruCacheConfig>(), CompressedCache_, MakeWeak(this), profiler.WithTag("cache", "uncompressed")))
+{ }
+
+template <class TKey, class TCompressibleValue>
+void TTwoLevelCache<TKey, TCompressibleValue>::Reconfigure(i64 capacity, i64 compressedCapacity)
+{
+    TDestructionContextGuard guard;
+    {
+        auto cacheConfig = New<TSlruCacheDynamicConfig>();
+        cacheConfig->Capacity = capacity;
+        Cache_->Reconfigure(cacheConfig);
+    }
+    {
+        auto cacheConfig = New<TSlruCacheDynamicConfig>();
+        cacheConfig->Capacity = compressedCapacity;
+        CompressedCache_->Reconfigure(cacheConfig);
+    }
+}
+
+template <class TKey, class TCompressibleValue>
+void TTwoLevelCache<TKey, TCompressibleValue>::Insert(const TKey& key, TCompressibleValuePtr value)
+{
+    YT_VERIFY(value);
+    TDestructionContextGuard guard;
+    auto cookie = Cache_->BeginInsert(key);
+    auto item = New<TItem>(key, std::move(value));
+    cookie.EndInsert(item);
+    Cache_->Touch(item);
+}
+
+// Removes value from cache and returns it.
+// Expects no concurrent access to one key.
+template <class TKey, class TCompressibleValue>
+TIntrusivePtr<TCompressibleValue> TTwoLevelCache<TKey, TCompressibleValue>::Extract(const TKey& key)
+{
+    TDestructionContextGuard guard;
+    if (auto item = Cache_->Find(key)) {
+        auto value = item->Value;
+        bool mayCompress = item->AllowCompression.exchange(false);
+        Cache_->TryRemove(key);
+        CompressedCache_->TryRemove(key);
+        if (!mayCompress) {
+            value->Decompress();
+        }
+        return value;
+    } else if (auto item = CompressedCache_->Find(key)) {
+        auto value = item->Value;
+        bool mayCompress = item->AllowCompression.exchange(false);
+        YT_VERIFY(!mayCompress);
+        CompressedCache_->TryRemove(key);
+        value->Decompress();
+        return value;
+    }
+    return nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow::NCache

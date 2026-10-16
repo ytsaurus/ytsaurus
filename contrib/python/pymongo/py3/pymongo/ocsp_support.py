@@ -13,13 +13,15 @@
 # permissions and limitations under the License.
 
 """Support for requesting and verifying OCSP responses."""
+
 from __future__ import annotations
 
 import logging as _logging
 import re as _re
+from collections.abc import Iterable
 from datetime import datetime as _datetime
 from datetime import timezone
-from typing import TYPE_CHECKING, Iterable, Optional, Type, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 from cryptography.exceptions import InvalidSignature as _InvalidSignature
 from cryptography.hazmat.backends import default_backend as _default_backend
@@ -27,6 +29,12 @@ from cryptography.hazmat.primitives.asymmetric.dsa import DSAPublicKey as _DSAPu
 from cryptography.hazmat.primitives.asymmetric.ec import ECDSA as _ECDSA
 from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurvePublicKey as _EllipticCurvePublicKey,
+)
+from cryptography.hazmat.primitives.asymmetric.mlkem import (
+    MLKEM768PublicKey as _MLKEM768PublicKey,
+)
+from cryptography.hazmat.primitives.asymmetric.mlkem import (
+    MLKEM1024PublicKey as _MLKEM1024PublicKey,
 )
 from cryptography.hazmat.primitives.asymmetric.padding import PKCS1v15 as _PKCS1v15
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey as _RSAPublicKey
@@ -65,6 +73,8 @@ if TYPE_CHECKING:
         ec,
         ed448,
         ed25519,
+        mldsa,
+        mlkem,
         rsa,
         x448,
         x25519,
@@ -79,12 +89,20 @@ if TYPE_CHECKING:
     from pymongo.ocsp_cache import _OCSPCache
     from pymongo.pyopenssl_context import _CallbackData
 
+    # Must stay in step with cryptography's CertificatePublicKeyTypes, the
+    # return type of Certificate.public_key(). cryptography does not export a
+    # public alias for it, so it is spelled out here.
     CertificateIssuerPublicKeyTypes = Union[
         dsa.DSAPublicKey,
         rsa.RSAPublicKey,
         ec.EllipticCurvePublicKey,
         ed25519.Ed25519PublicKey,
         ed448.Ed448PublicKey,
+        mldsa.MLDSA44PublicKey,
+        mldsa.MLDSA65PublicKey,
+        mldsa.MLDSA87PublicKey,
+        mlkem.MLKEM768PublicKey,
+        mlkem.MLKEM1024PublicKey,
         x25519.X25519PublicKey,
         x448.X448PublicKey,
     ]
@@ -139,6 +157,13 @@ def _verify_signature(
             key, (_X25519PublicKey, _X448PublicKey)
         ):  # Curve25519 and Curve448 keys do not require verification
             return 1
+        elif isinstance(key, (_MLKEM768PublicKey, _MLKEM1024PublicKey)):
+            # ML-KEM is a key encapsulation mechanism, not a signature
+            # algorithm, so such a key cannot have produced this signature and
+            # has no verify(). Certificate.public_key() can still return one,
+            # so fail closed rather than raise AttributeError.
+            _LOGGER.debug("%s cannot verify signatures", type(key).__name__)
+            return 0
         else:
             key.verify(signature, data)
     except _InvalidSignature:
@@ -147,7 +172,7 @@ def _verify_signature(
 
 
 def _get_extension(
-    cert: Certificate, klass: Type[ExtensionTypeVar]
+    cert: Certificate, klass: type[ExtensionTypeVar]
 ) -> Optional[Extension[ExtensionTypeVar]]:
     try:
         return cert.extensions.get_extension_for_class(klass)
@@ -198,7 +223,7 @@ def _verify_response_signature(issuer: Certificate, response: OCSPResponse) -> i
     name = response.responder_name
     rkey_hash = response.responder_key_hash
     ikey_hash = response.issuer_key_hash
-    if name is not None and name == issuer.subject or rkey_hash == ikey_hash:
+    if (name is not None and name == issuer.subject) or rkey_hash == ikey_hash:
         _LOGGER.debug("Responder is issuer")
         # Responder is the issuer
         responder_cert = issuer
@@ -328,22 +353,15 @@ def _ocsp_callback(conn: Connection, ocsp_bytes: bytes, user_data: Optional[_Cal
     """Callback for use with OpenSSL.SSL.Context.set_ocsp_client_callback."""
     # always pass in user_data but OpenSSL requires it be optional
     assert user_data
-    pycert = conn.get_peer_certificate()
-    if pycert is None:
+    cert = conn.get_peer_certificate(as_cryptography=True)
+    if cert is None:
         _LOGGER.debug("No peer cert?")
         return False
-    cert = pycert.to_cryptography()
-    # Use the verified chain when available (pyopenssl>=20.0).
-    if hasattr(conn, "get_verified_chain"):
-        pychain = conn.get_verified_chain()
-        trusted_ca_certs = None
-    else:
-        pychain = conn.get_peer_cert_chain()
-        trusted_ca_certs = user_data.trusted_ca_certs
-    if not pychain:
+    chain = conn.get_verified_chain(as_cryptography=True)
+    trusted_ca_certs = None
+    if not chain:
         _LOGGER.debug("No peer cert chain?")
         return False
-    chain = [cer.to_cryptography() for cer in pychain]
     issuer = _get_issuer_cert(cert, chain, trusted_ca_certs)
     must_staple = False
     # https://tools.ietf.org/html/rfc7633#section-4.2.3.1
@@ -419,6 +437,4 @@ def _ocsp_callback(conn: Connection, ocsp_bytes: bytes, user_data: Optional[_Cal
     # Cache the verified, stapled response.
     ocsp_response_cache[_build_ocsp_request(cert, issuer)] = response
     _LOGGER.debug("OCSP cert status: %r", response.certificate_status)
-    if response.certificate_status == _OCSPCertStatus.REVOKED:
-        return False
-    return True
+    return response.certificate_status != _OCSPCertStatus.REVOKED

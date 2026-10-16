@@ -1,4 +1,5 @@
 import typing
+from typing import Literal
 
 if typing.TYPE_CHECKING:
     from importlib import import_module
@@ -16,6 +17,10 @@ else:
         fernet_import_error = ex.msg
 
 from yt.wrapper.errors import YtError
+
+from yt.wrapper import encryption as _encryption_mod
+
+EncryptionEngine = Literal["native_chacha", "cryptography_fernet"]
 
 FRAMEWORKS = {
     "dill": ("yt.packages.dill",),
@@ -58,8 +63,7 @@ class _EncryptBase:
         for cls in classes:
             if cls.module_to_check in globals():
                 return cls()
-            else:
-                return None
+            return None
 
     def __init__(self):
         self.key: bytes = None
@@ -111,18 +115,52 @@ class _EncryptFernet(_EncryptBase):
             raise YtError("Cannot decrypt pickled file")
 
 
+class _EncryptChaCha20(_EncryptBase):
+    """ChaCha20 via ctypes+OpenSSL with pure Python fallback."""
+    data_prefix = _EncryptBase.data_base_prefix + b'2'
+    module_to_check = "_encryption_mod"
+
+    def _generate_key(self) -> bytes:
+        return _encryption_mod.generate_key()
+
+    def set_key(self, key: bytes = None) -> bytes:
+        if key:
+            try:
+                self.key = bytes.fromhex(key.decode())
+            except (ValueError, UnicodeDecodeError):
+                self.key = key
+        else:
+            self.key = self._generate_key()
+        return self.key.hex().encode()
+
+    def _encrypt(self, data: bytes) -> bytes:
+        return _encryption_mod.encrypt(self.key, data)
+
+    def _decrypt(self, data: bytes) -> typing.Optional[bytes]:
+        try:
+            return _encryption_mod.decrypt(self.key, data)
+        except (ValueError, RuntimeError) as ex:
+            raise YtError(f"Cannot decrypt pickled file: {ex}")
+
+
 class Pickler(object):
     def __init__(self, framework):
         self._cypher = None
         self.framework_module = import_framework_module(framework)
 
-    def enable_encryption(self, key: str = None) -> typing.Optional[str]:
+    def enable_encryption(self, key: str = None, engine: EncryptionEngine = "cryptography_fernet") -> typing.Optional[str]:
         if key is None:
             return None
-        self._cypher = _EncryptBase.create(classes=(_EncryptFernet, ))
-        if not self._cypher:
-            raise YtError(f"Cannot encrypt pickled file, missing module: \"cryptography\" ({fernet_import_error})."
-                          " Either install one or disable encryption in config (pickling/encrypt_pickle_files).")
+        if engine == "native_chacha":
+            self._cypher = _EncryptBase.create(classes=(_EncryptChaCha20,))
+        elif engine == "cryptography_fernet":
+            self._cypher = _EncryptBase.create(classes=(_EncryptFernet,))
+            if not self._cypher:
+                raise YtError(f"Cannot encrypt pickled file, missing module: \"cryptography\" ({fernet_import_error})."
+                              " Either install one or disable encryption in config (pickling/encrypt_pickle_files).")
+        else:
+            raise YtError(f"Unknown encryption engine: \"{engine}\"."
+                          " Supported: \"native_chacha\", \"cryptography_fernet\".")
         return self._cypher.set_key(key.encode()).decode() if self._cypher else None
 
     def dumps(self, obj: object, *args, **kwargs) -> bytes:
@@ -141,22 +179,39 @@ class Pickler(object):
 
 class Unpickler(object):
     def __init__(self, framework):
-        self._cypher = None
+        self._ciphers = {}
+        self._encryption_enabled = False
         self.framework_module = import_framework_module(framework)
 
     def enable_encryption(self, key: str) -> typing.Optional[str]:
         if key is None:
             return None
-        self._cypher = _EncryptBase.create(classes=(_EncryptFernet, ))
-        if not self._cypher:
-            raise YtError(f"Cannot encrypt pickled file, missing module: \"cryptography\" ({fernet_import_error})."
-                          " Either install one or disable encryption in config (pickling/encrypt_pickle_files).")
-        return self._cypher.set_key(key.encode()).decode() if self._cypher else None
+        self._encryption_enabled = True
+        key_bytes = key.encode()
+
+        chacha = _EncryptBase.create(classes=(_EncryptChaCha20,))
+        if chacha:
+            chacha.set_key(key_bytes)
+            self._ciphers[_EncryptChaCha20.data_prefix] = chacha
+
+        fernet = _EncryptBase.create(classes=(_EncryptFernet,))
+        if fernet:
+            fernet.set_key(key_bytes)
+            self._ciphers[_EncryptFernet.data_prefix] = fernet
+
+        return key
+
+    def _decrypt_data(self, data: bytes) -> typing.Optional[bytes]:
+        if not data or not data.startswith(_EncryptBase.data_base_prefix):
+            return data
+        for prefix, cipher in self._ciphers.items():
+            if data.startswith(prefix):
+                return cipher.decrypt(data)
+        raise YtError("Cannot decrypt pickled file: unsupported encryption format")
 
     def loads(self, data: bytes, *args, **kwargs):
-        if self._cypher:
-            if data:
-                data = self._cypher.decrypt(data)
+        if self._encryption_enabled and data:
+            data = self._decrypt_data(data)
         return self.framework_module.loads(data)
 
     def load(self, file: typing.IO, *args, **kwargs):

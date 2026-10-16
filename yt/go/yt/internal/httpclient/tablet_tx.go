@@ -45,10 +45,11 @@ func (c *httpClient) BeginTabletTx(ctx context.Context, options *yt.StartTabletT
 	}
 
 	startOptions := &yt.StartTabletTxOptions{
-		Type:      yt.TxTypeTablet,
-		Sticky:    true,
-		Atomicity: options.Atomicity,
-		Timeout:   &txTimeout,
+		Type:                       yt.TxTypeTablet,
+		Sticky:                     true,
+		Atomicity:                  options.Atomicity,
+		Timeout:                    &txTimeout,
+		PrerequisiteTransactionIDs: options.PrerequisiteTransactionIDs,
 	}
 
 	tx.txID, err = tx.StartTabletTx(ctx, startOptions)

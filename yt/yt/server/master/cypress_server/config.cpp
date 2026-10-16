@@ -1,4 +1,5 @@
 #include "config.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/journal_client/helpers.h>
 
@@ -127,11 +128,26 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_weaker_access_validation_check", &TThis::UseWeakerAccessValidationCheck)
         .Default(false);
 
+    registrar.Parameter("enable_more_efficient_conflict_check", &TThis::EnableMoreEfficientConflictCheck)
+        .Default(false)
+        .DontSerializeDefault();
+    registrar.Parameter("enable_even_more_efficient_conflict_check", &TThis::EnableEvenMoreEfficientConflictCheck)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Parameter("default_optimize_for", &TThis::DefaultOptimizeFor)
         .Default(NTableClient::EOptimizeFor::Lookup);
 
     registrar.Parameter("default_dynamic_table_optimize_for", &TThis::DefaultDynamicTableOptimizeFor)
         .Default(NTableClient::EOptimizeFor::Scan);
+
+    registrar.Parameter("ignore_rootstock_absence_on_scion_removal", &TThis::IgnoreRootstockAbsenceOnScionRemoval)
+        .Default(false)
+        .DontSerializeDefault();
+
+    registrar.Parameter("enable_sequoia_node_state_validation_in_create_lock", &TThis::EnableSequoiaNodeStateValidationInCreateLock)
+        .Default(false)
+        .DontSerializeDefault();
 
     registrar.Postprocessor([] (TThis* config) {
         NJournalClient::ValidateJournalAttributes(

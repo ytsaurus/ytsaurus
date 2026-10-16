@@ -82,10 +82,10 @@ public:
         const NTableClient::TColumnFilter& columnFilter,
         NTransactionClient::TTimestamp timestamp) override
     {
-        YT_LOG_DEBUG("Looking up (Table: %v, Keys: %v, Timestamp: %v)",
-            table,
-            MakeShrunkFormattableView(keys, TDefaultFormatter(), 20),
-            timestamp);
+        YT_TLOG_DEBUG("Looking up")
+            .With("Table", table)
+            .With("Keys", MakeShrunkFormattableView(keys, TDefaultFormatter(), 20))
+            .With("Timestamp", timestamp);
         XX(LookupRows, (table, keys, columnFilter, timestamp))
     }
 
@@ -94,7 +94,10 @@ public:
         const TSelectRowsQuery& query,
         NTransactionClient::TTimestamp timestamp) override
     {
-        YT_LOG_DEBUG("Selecting (Table: %v, Query: %v, Timestamp: %v)", table, query, timestamp);
+        YT_TLOG_DEBUG("Selecting")
+            .With("Table", table)
+            .With("Query", query)
+            .With("Timestamp", timestamp);
         XX(SelectRows, (table, query, timestamp))
     }
 
@@ -103,7 +106,10 @@ public:
         const TSelectRowsQuery& query,
         NTransactionClient::TTimestamp timestamp) override
     {
-        YT_LOG_DEBUG("Selecting (TablePathDescriptor: %v, Query: %v, Timestamp: %v)", descriptor, query, timestamp);
+        YT_TLOG_DEBUG("Selecting")
+            .With("TablePathDescriptor", descriptor)
+            .With("Query", query)
+            .With("Timestamp", timestamp);
         XX(SelectRows, (descriptor, query, timestamp))
     }
 
@@ -112,7 +118,10 @@ public:
         int tabletIndex,
         i64 trimmedRowCount) override
     {
-        YT_LOG_DEBUG("Trimming (TablePathDescriptor: %v, TabletIndex: %v, TrimmedRowCount: %v)", descriptor, tabletIndex, trimmedRowCount);
+        YT_TLOG_DEBUG("Trimming")
+            .With("TablePathDescriptor", descriptor)
+            .With("TabletIndex", tabletIndex)
+            .With("TrimmedRowCount", trimmedRowCount);
         XX(TrimTable, (descriptor, tabletIndex, trimmedRowCount))
     }
 
@@ -121,13 +130,13 @@ public:
         const NApi::TTransactionStartOptions& transactionStartOptions,
         const TSequoiaTransactionOptions& sequoiaTransactionOptions) override
     {
-        YT_LOG_DEBUG("Starting transaction (Type: %v, Id: %v, ParentId: %v, Timeout: %v, CellTag: %v, PrerequisiteTransactionIds: %v)",
-            type,
-            transactionStartOptions.Id,
-            transactionStartOptions.ParentId,
-            transactionStartOptions.Timeout,
-            transactionStartOptions.CellTag,
-            transactionStartOptions.PrerequisiteTransactionIds);
+        YT_TLOG_DEBUG("Starting transaction")
+            .With("Type", type)
+            .With("Id", transactionStartOptions.Id)
+            .With("ParentId", transactionStartOptions.ParentId)
+            .With("Timeout", transactionStartOptions.Timeout)
+            .With("CellTag", transactionStartOptions.CellTag)
+            .With("PrerequisiteTransactionIds", transactionStartOptions.PrerequisiteTransactionIds);
         XX(StartTransaction, (type, transactionStartOptions, sequoiaTransactionOptions))
     }
 
@@ -162,11 +171,27 @@ private:
         TSequoiaTablePathDescriptor tablePathDescriptor{
             .Table = table,
         };
-        return GetGroundClientOrThrow()->LookupRows(
+        auto groundClient = GetGroundClientOrThrow();
+        return groundClient->LookupRows(
             GetSequoiaTablePath(tablePathDescriptor),
             tableDescriptor->GetRecordDescriptor()->GetNameTable(),
             std::move(keys),
-            options);
+            options)
+        .Apply(BIND([groundClient] (const TErrorOr<TUnversionedLookupRowsResult>& result) -> TErrorOr<TUnversionedLookupRowsResult> {
+            static NProfiling::TCounter LookupsSucceeded = SequoiaClientProfiler().Counter("/sequoia_lookups_succeeded");
+            static NProfiling::TCounter LookupsFailed = SequoiaClientProfiler().Counter("/sequoia_lookups_failed");
+
+            (result.IsOK() ? LookupsSucceeded : LookupsFailed).Increment();
+
+            if (result.FindMatching(NHiveClient::EErrorCode::UnknownCell) &&
+                groundClient->GetNativeConnection()->IsTerminated())
+            {
+                return TError(EErrorCode::SequoiaRetriableError, "Sequoia Ground connection was probably reconfigured")
+                    .With(result);
+            }
+
+            return result;
+        }));
     }
 
     TFuture<TSelectRowsResult> DoSelectRows(
@@ -177,7 +202,15 @@ private:
         TSequoiaTablePathDescriptor descriptor{
             .Table = table,
         };
-        return DoSelectRows(descriptor, query, timestamp);
+        return DoSelectRows(descriptor, query, timestamp)
+            .Apply(BIND([] (const TErrorOr<TSelectRowsResult>& result) -> TErrorOr<TSelectRowsResult> {
+                static NProfiling::TCounter SelectsSucceeded = SequoiaClientProfiler().Counter("/sequoia_selects_succeeded");
+                static NProfiling::TCounter SelectsFailed = SequoiaClientProfiler().Counter("/sequoia_selects_failed");
+
+                (result.IsOK() ? SelectsSucceeded : SelectsFailed).Increment();
+
+                return result;
+            }));
     }
 
     TFuture<TSelectRowsResult> DoSelectRows(
@@ -208,8 +241,19 @@ private:
         options.AllowFullScan = false;
         options.Timestamp = timestamp;
 
-        return GetGroundClientOrThrow()
-            ->SelectRows(builder.Build(), options);
+        auto groundClient = GetGroundClientOrThrow();
+        return groundClient
+            ->SelectRows(builder.Build(), options)
+            .Apply(BIND([groundClient] (const TErrorOr<TSelectRowsResult>& result) -> TErrorOr<TSelectRowsResult> {
+                if (result.FindMatching(NHiveClient::EErrorCode::UnknownCell) &&
+                    groundClient->GetNativeConnection()->IsTerminated())
+                {
+                    return TError(EErrorCode::SequoiaRetriableError, "Sequoia connection was probably reconfigured")
+                        .With(result);
+                }
+
+                return result;
+            }));
     }
 
     TFuture<void> DoTrimTable(

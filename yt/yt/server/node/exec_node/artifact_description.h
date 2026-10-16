@@ -12,12 +12,11 @@ namespace NYT::NExecNode {
 struct TArtifactDescription
 {
     ESandboxKind SandboxKind;
-    TString Name;
+    std::string Name;
     bool Executable;
     bool BypassArtifactCache;
     bool CopyFile;
     TArtifactKey Key;
-    TArtifactPtr Artifact;
     bool AccessedViaBind = false;
     bool AccessedViaVirtualSandbox = false;
 

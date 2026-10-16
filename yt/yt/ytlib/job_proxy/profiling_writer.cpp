@@ -1,4 +1,4 @@
-#include "private.h"
+#include "first_batch_tracking_base.h"
 #include "profiling_writer.h"
 
 #include <yt/yt/client/table_client/row_batch.h>
@@ -19,7 +19,7 @@ class TProfilingMultiChunkWriter
     , public TFirstBatchTimeTrackingBase
 {
 public:
-    TProfilingMultiChunkWriter(ISchemalessMultiChunkWriterPtr underlying, TInstant start)
+    TProfilingMultiChunkWriter(ISchemalessMultiChunkWriterPtr underlying, TCpuInstant start)
         : TFirstBatchTimeTrackingBase(start)
         , Underlying_(std::move(underlying))
     { }
@@ -154,7 +154,7 @@ private:
     const ISchemalessMultiChunkWriterPtr Underlying_;
 
     //! Lock_ protects everything below.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     int WaiterCount_ = 0;
     TWallTimer WriteTimer_ = TWallTimer(/*start*/ false);
     TWallTimer TotalTimer_ = TWallTimer();
@@ -169,7 +169,7 @@ class TProfilingSchemalessFormatWriter
     , public TFirstBatchTimeTrackingBase
 {
 public:
-    TProfilingSchemalessFormatWriter(ISchemalessFormatWriterPtr underlying, TInstant start)
+    TProfilingSchemalessFormatWriter(ISchemalessFormatWriterPtr underlying, TCpuInstant start)
         : TFirstBatchTimeTrackingBase(start)
         , Underlying_(std::move(underlying))
     { }
@@ -246,14 +246,14 @@ private:
 
 IProfilingMultiChunkWriterPtr CreateProfilingMultiChunkWriter(
     NTableClient::ISchemalessMultiChunkWriterPtr underlying,
-    TInstant start)
+    TCpuInstant start)
 {
     return New<TProfilingMultiChunkWriter>(std::move(underlying), start);
 }
 
 IProfilingSchemalessFormatWriterPtr CreateProfilingSchemalessFormatWriter(
     ISchemalessFormatWriterPtr underlying,
-    TInstant start)
+    TCpuInstant start)
 {
     return New<TProfilingSchemalessFormatWriter>(std::move(underlying), start);
 }

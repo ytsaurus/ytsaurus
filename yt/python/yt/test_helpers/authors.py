@@ -1,4 +1,3 @@
-
 def pytest_configure(config):
     for line in [
         "authors(*authors): mark explicating test authors (owners)",
@@ -6,7 +5,6 @@ def pytest_configure(config):
         "timeout(timeout)",
         "opensource",
         "ignore_in_opensource_ci",
-        "enabled_multidaemon",
     ]:
         config.addinivalue_line("markers", line)
 
@@ -24,7 +22,14 @@ def pytest_collection_modifyitems(items, config):
     for item in items:
         authors = _get_first_marker(item, name="authors")
         if authors is not None:
-            item._nodeid += " ({})".format(", ".join(authors))
+            if isinstance(authors, (list, tuple)):
+                item._nodeid += " ({})".format(", ".join(authors))
+            else:
+                raise ValueError(
+                    "Authors must be a list/tuple of strings, got {}({}). Node id is {}".format(
+                        type(authors), repr(authors), item._nodeid
+                    )
+                )
 
 
 def pytest_itemcollected(item):

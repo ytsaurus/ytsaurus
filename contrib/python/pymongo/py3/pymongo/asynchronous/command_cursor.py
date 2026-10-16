@@ -12,34 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""CommandCursor class to iterate over command results."""
+"""AsyncCommandCursor class to iterate over command results."""
+
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import (
     TYPE_CHECKING,
     Any,
-    AsyncIterator,
-    Generic,
-    Mapping,
     NoReturn,
     Optional,
-    Sequence,
-    Union,
 )
 
 from bson import CodecOptions, _convert_raw_document_lists_to_streams
-from pymongo import _csot
-from pymongo.asynchronous.cursor import _ConnectionManager
+from pymongo.asynchronous.cursor_base import _AsyncCursorBase, _ConnectionManager
 from pymongo.cursor_shared import _CURSOR_CLOSED_ERRORS
 from pymongo.errors import ConnectionFailure, InvalidOperation, OperationFailure
-from pymongo.message import (
-    _CursorAddress,
-    _GetMore,
-    _OpMsg,
-    _OpReply,
-    _RawBatchGetMore,
-)
+from pymongo.message import _GetMore, _OpMsg, _RawBatchGetMore
 from pymongo.response import PinnedResponse
 from pymongo.typings import _Address, _DocumentOut, _DocumentType
 
@@ -51,8 +41,19 @@ if TYPE_CHECKING:
 _IS_SYNC = False
 
 
-class AsyncCommandCursor(Generic[_DocumentType]):
-    """An asynchronous cursor / iterator over command cursors."""
+class AsyncCommandCursor(_AsyncCursorBase[_DocumentType]):
+    """An asynchronous cursor / iterator over command cursors.
+    Used by :meth:`~pymongo.asynchronous.collection.AsyncCollection.aggregate`,
+    :meth:`~pymongo.asynchronous.database.AsyncDatabase.aggregate`,
+    :meth:`~pymongo.asynchronous.collection.AsyncCollection.list_indexes`,
+    :meth:`~pymongo.asynchronous.collection.AsyncCollection.list_search_indexes`
+    :meth:`~pymongo.asynchronous.database.AsyncDatabase.list_collections`,
+    :meth:`~pymongo.asynchronous.database.AsyncDatabase.cursor_command`,
+    and :meth:`~pymongo.asynchronous.mongo_client.AsyncMongoClient.list_databases`
+    to iterate MongoDB command results.
+
+    Should not be called directly by application developers.
+    """
 
     _getmore_class = _GetMore
 
@@ -86,7 +87,7 @@ class AsyncCommandCursor(Generic[_DocumentType]):
         if self._killed:
             self._end_session()
 
-        if "ns" in cursor_info:  # noqa: SIM401
+        if "ns" in cursor_info:
             self._ns = cursor_info["ns"]
         else:
             self._ns = collection.full_name
@@ -98,8 +99,8 @@ class AsyncCommandCursor(Generic[_DocumentType]):
                 f"max_await_time_ms must be an integer or None, not {type(max_await_time_ms)}"
             )
 
-    def __del__(self) -> None:
-        self._die_no_lock()
+    def _get_namespace(self) -> str:
+        return self._ns
 
     def batch_size(self, batch_size: int) -> AsyncCommandCursor[_DocumentType]:
         """Limits the number of documents returned in one batch. Each batch
@@ -121,7 +122,7 @@ class AsyncCommandCursor(Generic[_DocumentType]):
         if batch_size < 0:
             raise ValueError("batch_size must be >= 0")
 
-        self._batch_size = batch_size == 1 and 2 or batch_size
+        self._batch_size = (batch_size == 1 and 2) or batch_size
         return self
 
     def _has_next(self) -> bool:
@@ -153,7 +154,7 @@ class AsyncCommandCursor(Generic[_DocumentType]):
 
     def _unpack_response(
         self,
-        response: Union[_OpReply, _OpMsg],
+        response: _OpMsg,
         cursor_id: Optional[int],
         codec_options: CodecOptions[Mapping[str, Any]],
         user_fields: Optional[Mapping[str, Any]] = None,
@@ -161,100 +162,18 @@ class AsyncCommandCursor(Generic[_DocumentType]):
     ) -> Sequence[_DocumentOut]:
         return response.unpack_response(cursor_id, codec_options, user_fields, legacy_response)
 
-    @property
-    def alive(self) -> bool:
-        """Does this cursor have the potential to return more data?
-
-        Even if :attr:`alive` is ``True``, :meth:`next` can raise
-        :exc:`StopIteration`. Best to use a for loop::
-
-            async for doc in collection.aggregate(pipeline):
-                print(doc)
-
-        .. note:: :attr:`alive` can be True while iterating a cursor from
-          a failed server. In this case :attr:`alive` will return False after
-          :meth:`next` fails to retrieve the next batch of results from the
-          server.
-        """
-        return bool(len(self._data) or (not self._killed))
-
-    @property
-    def cursor_id(self) -> int:
-        """Returns the id of the cursor."""
-        return self._id
-
-    @property
-    def address(self) -> Optional[_Address]:
-        """The (host, port) of the server used, or None.
-
-        .. versionadded:: 3.0
-        """
-        return self._address
-
-    @property
-    def session(self) -> Optional[AsyncClientSession]:
-        """The cursor's :class:`~pymongo.asynchronous.client_session.AsyncClientSession`, or None.
-
-        .. versionadded:: 3.6
-        """
-        if self._session and not self._session._implicit:
-            return self._session
-        return None
-
-    def _prepare_to_die(self) -> tuple[int, Optional[_CursorAddress]]:
-        already_killed = self._killed
-        self._killed = True
-        if self._id and not already_killed:
-            cursor_id = self._id
-            assert self._address is not None
-            address = _CursorAddress(self._address, self._ns)
-        else:
-            # Skip killCursors.
-            cursor_id = 0
-            address = None
-        return cursor_id, address
-
-    def _die_no_lock(self) -> None:
-        """Closes this cursor without acquiring a lock."""
-        cursor_id, address = self._prepare_to_die()
-        self._collection.database.client._cleanup_cursor_no_lock(
-            cursor_id, address, self._sock_mgr, self._session
-        )
-        if self._session and self._session._implicit:
-            self._session._attached_to_cursor = False
-            self._session = None
-        self._sock_mgr = None
-
-    async def _die_lock(self) -> None:
-        """Closes this cursor."""
-        cursor_id, address = self._prepare_to_die()
-        await self._collection.database.client._cleanup_cursor_lock(
-            cursor_id,
-            address,
-            self._sock_mgr,
-            self._session,
-        )
-        if self._session and self._session._implicit:
-            self._session._attached_to_cursor = False
-            self._session = None
-        self._sock_mgr = None
-
     def _end_session(self) -> None:
         if self._session and self._session._implicit:
             self._session._attached_to_cursor = False
             self._session._end_implicit_session()
             self._session = None
 
-    async def close(self) -> None:
-        """Explicitly close / kill this cursor."""
-        await self._die_lock()
-
     async def _send_message(self, operation: _GetMore) -> None:
         """Send a getmore message and handle the response."""
         client = self._collection.database.client
         try:
             response = await client._run_operation(
-                operation, self._unpack_response, address=self._address
+                operation, self._run_with_conn, address=self._address
             )
         except OperationFailure as exc:
             if exc.code in _CURSOR_CLOSED_ERRORS:
@@ -279,15 +198,10 @@ class AsyncCommandCursor(Generic[_DocumentType]):
         if isinstance(response, PinnedResponse):
             if not self._sock_mgr:
                 self._sock_mgr = _ConnectionManager(response.conn, response.more_to_come)  # type: ignore[arg-type]
-        if response.from_command:
-            cursor = response.docs[0]["cursor"]
-            documents = cursor["nextBatch"]
-            self._postbatchresumetoken = cursor.get("postBatchResumeToken")
-            self._id = cursor["id"]
-        else:
-            documents = response.docs
-            assert isinstance(response.data, _OpReply)
-            self._id = response.data.cursor_id
+        cursor = response.docs[0]["cursor"]
+        documents = cursor["nextBatch"]
+        self._postbatchresumetoken = cursor.get("postBatchResumeToken")
+        self._id = cursor["id"]
 
         if self._id == 0:
             await self.close()
@@ -328,6 +242,9 @@ class AsyncCommandCursor(Generic[_DocumentType]):
         return len(self._data)
 
     def __aiter__(self) -> AsyncIterator[_DocumentType]:
+        return self
+
+    async def __aenter__(self) -> AsyncCommandCursor[_DocumentType]:
         return self
 
     async def next(self) -> _DocumentType:
@@ -385,41 +302,6 @@ class AsyncCommandCursor(Generic[_DocumentType]):
         """
         return await self._try_next(get_more_allowed=True)
 
-    async def __aenter__(self) -> AsyncCommandCursor[_DocumentType]:
-        return self
-
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        await self.close()
-
-    @_csot.apply
-    async def to_list(self, length: Optional[int] = None) -> list[_DocumentType]:
-        """Converts the contents of this cursor to a list more efficiently than ``[doc async for doc in cursor]``.
-
-        To use::
-
-          >>> await cursor.to_list()
-
-        Or, so read at most n items from the cursor::
-
-          >>> await cursor.to_list(n)
-
-        If the cursor is empty or has no more results, an empty list will be returned.
-
-        .. versionadded:: 4.9
-        """
-        res: list[_DocumentType] = []
-        remaining = length
-        if isinstance(length, int) and length < 1:
-            raise ValueError("to_list() length must be greater than 0")
-        while self.alive:
-            if not await self._next_batch(res, remaining):
-                break
-            if length is not None:
-                remaining = length - len(res)
-                if remaining == 0:
-                    break
-        return res
-
 
 class AsyncRawBatchCommandCursor(AsyncCommandCursor[_DocumentType]):
     _getmore_class = _RawBatchGetMore
@@ -455,7 +337,7 @@ class AsyncRawBatchCommandCursor(AsyncCommandCursor[_DocumentType]):
 
     def _unpack_response(  # type: ignore[override]
         self,
-        response: Union[_OpReply, _OpMsg],
+        response: _OpMsg,
         cursor_id: Optional[int],
         codec_options: CodecOptions[dict[str, Any]],
         user_fields: Optional[Mapping[str, Any]] = None,

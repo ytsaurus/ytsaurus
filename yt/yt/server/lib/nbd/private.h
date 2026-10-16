@@ -9,9 +9,9 @@ namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, NbdLogger, "Nbd");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, NbdLogger, "Nbd");
 
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, NbdProfiler, "/nbd");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, NbdProfiler, "/nbd");
 
 ////////////////////////////////////////////////////////////////////////////////
 

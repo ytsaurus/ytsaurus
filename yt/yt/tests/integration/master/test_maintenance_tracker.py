@@ -18,7 +18,6 @@ from datetime import datetime
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestMaintenanceTracker(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 3
@@ -100,7 +99,7 @@ class TestMaintenanceTracker(YTEnvSetup):
         try:
             node = ls("//sys/cluster_nodes")[0]
             for flag in self._KIND_TO_FLAG.values():
-                with raises_yt_error("deprecated"):
+                with raises_yt_error("Node attribute .* is deprecated"):
                     set(f"//sys/cluster_nodes/{node}/@{flag}", True)
         finally:
             set("//sys/@config/node_tracker/forbid_maintenance_attribute_writes", False)
@@ -325,7 +324,6 @@ class TestMaintenanceTracker(YTEnvSetup):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestMaintenanceTrackerMulticell(TestMaintenanceTracker):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -358,7 +356,6 @@ class TestMaintenanceTrackerMulticell(TestMaintenanceTracker):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestMaintenanceTrackerWithRpc(TestMaintenanceTracker):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

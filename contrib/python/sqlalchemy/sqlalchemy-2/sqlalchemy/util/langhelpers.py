@@ -10,6 +10,7 @@
 modules, classes, hierarchies, attributes, functions, and methods.
 
 """
+
 from __future__ import annotations
 
 import collections
@@ -264,9 +265,19 @@ def decorator(target: Callable[..., Any]) -> Callable[[_Fn], _Fn]:
         if inspect.iscoroutinefunction(fn):
             metadata["prefix"] = "async "
             metadata["target_prefix"] = "await "
+            metadata["target_suffix"] = ""
+        elif inspect.isgeneratorfunction(fn):
+            # a generator function has to remain a generator function
+            # after decoration; tools such as pytest fixtures test for
+            # inspect.isgeneratorfunction() and will otherwise never
+            # iterate the function at all
+            metadata["prefix"] = ""
+            metadata["target_prefix"] = "(yield from "
+            metadata["target_suffix"] = ")"
         else:
             metadata["prefix"] = ""
             metadata["target_prefix"] = ""
+            metadata["target_suffix"] = ""
 
         # look for __ positional arguments.  This is a convention in
         # SQLAlchemy that arguments should be passed positionally
@@ -277,21 +288,15 @@ def decorator(target: Callable[..., Any]) -> Callable[[_Fn], _Fn]:
         # more kinds of methods that use @decorator, things may have to
         # be further improved in this area
         if "__" in repr(spec[0]):
-            code = (
-                """\
+            code = """\
 %(prefix)sdef %(name)s%(grouped_args)s:
-    return %(target_prefix)s%(target)s(%(fn)s, %(apply_pos)s)
-"""
-                % metadata
-            )
+    return %(target_prefix)s%(target)s(%(fn)s, %(apply_pos)s)%(target_suffix)s
+""" % metadata
         else:
-            code = (
-                """\
+            code = """\
 %(prefix)sdef %(name)s%(grouped_args)s:
-    return %(target_prefix)s%(target)s(%(fn)s, %(apply_kw)s)
-"""
-                % metadata
-            )
+    return %(target_prefix)s%(target)s(%(fn)s, %(apply_kw)s)%(target_suffix)s
+""" % metadata
 
         env: Dict[str, Any] = {
             targ_name: target,
@@ -476,7 +481,11 @@ def get_callable_argspec(
     """
     if inspect.isbuiltin(fn):
         raise TypeError("Can't inspect builtin: %s" % fn)
-    elif inspect.isfunction(fn):
+    elif inspect.isfunction(fn) or (
+        hasattr(fn, "__code__")
+        and not inspect.isclass(fn)
+        and not inspect.ismethod(fn)
+    ):
         if _is_init and no_self:
             spec = compat.inspect_getfullargspec(fn)
             return compat.FullArgSpec(
@@ -1564,9 +1573,13 @@ class hybridmethod(Generic[_T]):
 
     def __get__(self, instance: Any, owner: Any) -> Callable[..., _T]:
         if instance is None:
-            return self.clslevel.__get__(owner, owner.__class__)  # type:ignore
+            return self.clslevel.__get__(  # type: ignore[no-any-return]
+                owner, owner.__class__
+            )
         else:
-            return self.func.__get__(instance, owner)  # type:ignore
+            return self.func.__get__(  # type: ignore[no-any-return]
+                instance, owner
+            )
 
     def classlevel(self, func: Callable[..., Any]) -> hybridmethod[_T]:
         self.clslevel = func
@@ -1862,7 +1875,7 @@ def _warnings_warn(
 
             if frame.f_code in _warning_tags:
                 warning_tag_found = True
-                (_suffix, _category) = _warning_tags[frame.f_code]
+                _suffix, _category = _warning_tags[frame.f_code]
                 category = category or _category
                 message = f"{message} ({_suffix})"
 
@@ -2032,6 +2045,99 @@ def wrap_callable(wrapper, fn):
             _f.__doc__ = fn.__doc__
 
         return _f
+
+
+def find_matching_paren(text: str, start: int = 0) -> Optional[int]:
+    """Return the index of the ``)`` that matches the ``(`` at ``start``.
+
+    The walk skips single-quoted (``'...'``) and double-quoted (``"..."``)
+    string literals, so parentheses inside string literals do not affect
+    the depth counter. ``''`` and ``""`` are treated as escaped quotes
+    inside their respective contexts, matching PostgreSQL/SQLite literal
+    conventions.
+
+    Returns ``None`` if the opening parenthesis is never closed
+    (unbalanced).  The character at ``text[start]`` must be ``(``.
+
+    Note for SQLite use, SQLite also supports MySQL backtick-style quotes as
+    well as SQL Server bracket style quotes; the latter has different escaping
+    behaviors.  A follow-up patch could add support for these two additional
+    styles (consider using an enum like QuotingStyle.DOUBLE |
+    QuotingStyle.BRACKET, etc.)
+
+    E.g.::
+
+        >>> find_matching_paren("(a + b)")
+        6
+        >>> find_matching_paren("((a)(b))")
+        7
+        >>> find_matching_paren("(a = '(' AND b = ')')")
+        20
+
+    """
+    assert text[start] == "(", "start index must point at an open paren"
+
+    depth = 0
+    in_single = False
+    in_double = False
+    n = len(text)
+    i = start
+    while i < n:
+        ch = text[i]
+        if in_single:
+            if ch == "'":
+                if i + 1 < n and text[i + 1] == "'":
+                    i += 2
+                    continue
+                in_single = False
+        elif in_double:
+            if ch == '"':
+                if i + 1 < n and text[i + 1] == '"':
+                    i += 2
+                    continue
+                in_double = False
+        elif ch == "'":
+            in_single = True
+        elif ch == '"':
+            in_double = True
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return None
+
+
+def strip_outer_parens(text: str) -> str:
+    """Remove one layer of outer parentheses from ``text`` if they wrap the
+    entire (stripped) string.
+
+    Whitespace is preserved if the parentheses do not wrap the whole
+    expression. String literals are honored via :func:`find_matching_paren`,
+    so ``"(a = '(' AND b = ')')"`` correctly strips to
+    ``"a = '(' AND b = ')'"`` rather than being interpreted as two separate
+    paren groups.
+
+    E.g.::
+
+        >>> strip_outer_parens("(a IS NOT NULL)")
+        'a IS NOT NULL'
+        >>> strip_outer_parens("(a) AND (b)")
+        '(a) AND (b)'
+        >>> strip_outer_parens("a NOT NULL")
+        'a NOT NULL'
+
+    """
+    stripped = text.strip()
+    lstripped = len(stripped)
+    if lstripped < 2 or stripped[0] != "(" or stripped[-1] != ")":
+        return text
+    close = find_matching_paren(stripped, 0)
+    if close is not None and close == lstripped - 1:
+        return stripped[1:-1]
+    return text
 
 
 def quoted_token_parser(value):

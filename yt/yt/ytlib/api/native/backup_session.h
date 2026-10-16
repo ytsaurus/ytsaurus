@@ -33,9 +33,9 @@ public:
         std::string ClusterName;
         NTabletClient::ETableReplicaMode Mode;
         NTabletClient::ETableReplicaState State;
-        TString ReplicaPath;
+        NYPath::TYPath ReplicaPath;
         // Path to the corresponding backed up or restored table.
-        TString ClonedReplicaPath;
+        NYPath::TYPath ClonedReplicaPath;
         NTabletClient::TTableReplicaId ClonedReplicaId;
     };
 

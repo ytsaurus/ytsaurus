@@ -4,12 +4,18 @@
 
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+
+#include <yt/yt/server/master/security_server/security_manager.h>
+
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <yt/yt/core/yson/string.h>
+
 #include <yt/yt/core/ytree/attributes.h>
 
 namespace NYT::NChunkServer {
@@ -111,15 +117,11 @@ void TChunksSamples::Load(TLoadContext& context)
 {
     using NYT::Load;
     Load(context, LostVitalChunksSample_);
-    if (context.GetVersion() >= NCellMaster::EMasterReign::MulticellChunksSamples) {
-        Load(context, DataMissingChunksSample_);
-        Load(context, ParityMissingChunksSample_);
-    }
-    if (context.GetVersion() >= NCellMaster::EMasterReign::AdditionalMulticellChunksSamples) {
-        Load(context, OldestPartMissingChunksSample_);
-        Load(context, QuorumMissingChunksSample_);
-        Load(context, InconsistentlyPlacedChunksSample_);
-    }
+    Load(context, DataMissingChunksSample_);
+    Load(context, ParityMissingChunksSample_);
+    Load(context, OldestPartMissingChunksSample_);
+    Load(context, QuorumMissingChunksSample_);
+    Load(context, InconsistentlyPlacedChunksSample_);
 }
 
 void TChunksSamples::Save(TSaveContext& context) const
@@ -150,22 +152,28 @@ void TChunksSamples::HydraApplyMulticellStatisticsUpdate(NProto::TReqChunksSampl
     InconsistentlyPlacedChunksSample_[cellTag] = FromProto<std::vector<TObjectId>>(request->inconsistently_placed_chunk_ids());
 
     if (!request->lost_vital_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received lost vital chunks sample (LostVitalChunksSampleSize: %v)", request->lost_vital_chunk_ids_size());
+        YT_TLOG_DEBUG("Received lost vital chunks sample")
+            .With("LostVitalChunksSampleSize", request->lost_vital_chunk_ids_size());
     }
     if (!request->data_missing_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received data missing chunks sample (DataMissingChunksSampleSize: %v)", request->data_missing_chunk_ids_size());
+        YT_TLOG_DEBUG("Received data missing chunks sample")
+            .With("DataMissingChunksSampleSize", request->data_missing_chunk_ids_size());
     }
     if (!request->parity_missing_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received parity missing chunks sample (ParityMissingChunksSampleSize: %v)", request->parity_missing_chunk_ids_size());
+        YT_TLOG_DEBUG("Received parity missing chunks sample")
+            .With("ParityMissingChunksSampleSize", request->parity_missing_chunk_ids_size());
     }
     if (!request->oldest_part_missing_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received oldest part missing chunks sample (OldestPartMissingChunksSampleSize: %v)", request->oldest_part_missing_chunk_ids_size());
+        YT_TLOG_DEBUG("Received oldest part missing chunks sample")
+            .With("OldestPartMissingChunksSampleSize", request->oldest_part_missing_chunk_ids_size());
     }
     if (!request->quorum_missing_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received quorum missing chunks sample (QuorumMissingChunksSampleSize: %v)", request->quorum_missing_chunk_ids_size());
+        YT_TLOG_DEBUG("Received quorum missing chunks sample")
+            .With("QuorumMissingChunksSampleSize", request->quorum_missing_chunk_ids_size());
     }
     if (!request->inconsistently_placed_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received inconsistently placed chunks sample (InconsistentlyPlacedChunksSampleSize: %v)", request->inconsistently_placed_chunk_ids_size());
+        YT_TLOG_DEBUG("Received inconsistently placed chunks sample")
+            .With("InconsistentlyPlacedChunksSampleSize", request->inconsistently_placed_chunk_ids_size());
     }
 }
 
@@ -177,6 +185,9 @@ std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> TChunksSamples::S
     TAttributeFilter attributeFilter,
     std::optional<int> limit)
 {
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    auto userNameToForward = securityManager->GetAuthenticatedUserNameToForward();
+
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto channels = chunkManager->GetChunkReplicatorChannels();
 
@@ -187,6 +198,7 @@ std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> TChunksSamples::S
         // TODO(nadya02): Set the correct timeout here.
         proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
         auto batchReq = proxy.ExecuteBatch();
+        batchReq->SetUser(userNameToForward);
         auto req = TCypressYPathProxy::Enumerate(localChunksPath);
         if (limit) {
             req->set_limit(limit.value());

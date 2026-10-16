@@ -1,0 +1,13 @@
+JAVA_CONTRIB()
+
+VERSION(1.82)
+
+LICENSE(Apache-2.0)
+
+JAR_RESOURCE(3685857849)
+
+SRC_RESOURCE(3685857835)
+
+ORIGINAL_SOURCE(https://github.com/cbeust/jcommander)
+
+END()

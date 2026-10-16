@@ -19,6 +19,8 @@ get_built_tool_path(
   rescompiler
 )
 
+add_subdirectory(mock)
+
 add_executable(unittester-fair-share-update)
 
 
@@ -40,6 +42,7 @@ target_link_libraries(unittester-fair-share-update PUBLIC
   cpp-testing-gtest_main
   library-cpp-resource
   yt-library-vector_hdrf
+  vector_hdrf-unittests-mock
   yt-core-test_framework
 )
 

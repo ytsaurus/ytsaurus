@@ -1,5 +1,5 @@
 from .helpers import (get_tests_location, get_tests_sandbox,
-                      wait, sync_create_cell, create_job_events, TEST_DIR)
+                      wait, sync_create_cell, create_job_events, TEST_DIR, CUSTOM_MEDIUM)
 
 import yt.environment.init_operations_archive as init_operations_archive
 from yt.test_helpers.authors import pytest_configure, pytest_collection_modifyitems, pytest_itemcollected  # noqa
@@ -14,11 +14,6 @@ from yt.environment.components.query_tracker import QueryTracker
 
 import yt.wrapper as yt
 
-try:
-    from yt.packages.six import PY3
-except ImportError:
-    from six import PY3
-
 import pytest
 
 import os
@@ -26,6 +21,7 @@ import re
 import socket
 import sys
 import time
+import types
 from copy import deepcopy
 
 try:
@@ -147,14 +143,18 @@ def yt_env_multicluster_v4(request):
             mode="multicluster_v4",
             delta_controller_agent_config=delta_controller_agent_config,
             cluster_name="first",
-            env_options={"primary_cell_tag": 1}
+            env_options={"primary_cell_tag": 1},
+            # Cf. YT-28168
+            default_abort_on_alert=False,
         ),
         init_environment_for_test_session(
             request,
             mode="multicluster_v4",
             delta_controller_agent_config=delta_controller_agent_config,
             cluster_name="second",
-            env_options={"primary_cell_tag": 2}
+            env_options={"primary_cell_tag": 2},
+            # Cf. YT-28168
+            default_abort_on_alert=False,
         ),
     )
     for env in environments:
@@ -308,20 +308,36 @@ def test_environment_chaos(request):
     return environment
 
 
-@pytest.fixture(scope="class")
-def test_environment_additional_media(request):
-    def apply_config_patches(configs):
-        for index, config in enumerate(configs["node"]):
-            assert len(config["data_node"]["store_locations"]) == 2
+@pytest.fixture(scope="class", params=["native_v4"])
+def test_environment_hydra(request):
+    def patch_master_config(configs: dict) -> None:
+        tag = configs["master"]["primary_cell_tag"]
+        for peer_config in configs["master"][tag]:
+            peer_config["logging"]["abort_on_alert"] = False
 
-            config["data_node"]["store_locations"][0]["medium_name"] = "default"
-            config["data_node"]["store_locations"][1]["medium_name"] = "custom_medium"
+    environment = init_environment_for_test_session(
+        request,
+        request.param,
+        env_options={"master_count": 3},
+        modify_configs_func=patch_master_config,
+    )
+    return environment
+
+
+@pytest.fixture(scope="class")
+def test_environment_custom_medium(request):
+    def create_custom_medium(client):
+        # The nodes come up with a location on this medium, so create it before they start.
+        client.create("domestic_medium", attributes={"name": CUSTOM_MEDIUM})
+        client.set(
+            f"//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{CUSTOM_MEDIUM}",
+            10 * 1024**3)
 
     environment = init_environment_for_test_session(
         request,
         "v4",
-        env_options=dict(store_location_count=2),
-        modify_configs_func=apply_config_patches,
+        env_options=dict(store_location_media=["default", CUSTOM_MEDIUM]),
+        on_masters_started_func=create_custom_medium,
     )
     return environment
 
@@ -500,25 +516,23 @@ def yt_env_chaos(request, test_environment_chaos):
 
 
 @pytest.fixture(scope="function")
-def yt_env_additional_media(request, test_environment_additional_media):
-    return _yt_env(request, test_environment_additional_media)
+def yt_env_hydra(request, test_environment_hydra):
+    return _yt_env(request, test_environment_hydra)
+
+
+@pytest.fixture(scope="function")
+def yt_env_custom_medium(request, test_environment_custom_medium):
+    return _yt_env(request, test_environment_custom_medium)
 
 
 @pytest.fixture(scope="function")
 def test_dynamic_library(request, yt_env_with_increased_memory):
-    if PY3:
-        import types
-    else:
-        import imp
     libs_dir = os.path.abspath("yt_test_modules")
     dependant_lib_output = os.path.join(libs_dir, "yt_test_dynamic_library.so")
 
     # Adding this pseudo-module to sys.modules and ensuring it will be collected with
     # its dependency (libgetnumber.so)
-    if PY3:
-        module = types.ModuleType("yt_test_dynamic_library")
-    else:
-        module = imp.new_module("yt_test_dynamic_library")
+    module = types.ModuleType("yt_test_dynamic_library")
     module.__file__ = dependant_lib_output
     sys.modules["yt_test_dynamic_library"] = module
 

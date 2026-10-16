@@ -6,26 +6,28 @@
 
 #include <yt/yt/client/queue_client/common.h>
 
-#include <yt/yt/core/logging/log.h>
-
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueAgentLogger, "QueueAgent");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueControllerLogger, "QueueController");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ConsumerControllerLogger, "ConsumerController");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueExporterLogger, "QueueExporter");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, QueueAgentLogger, "QueueAgent");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, QueueControllerLogger, "QueueController");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ConsumerControllerLogger, "ConsumerController");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, MultiConsumerControllerLogger, "MultiConsumerController");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, QueueExporterLogger, "QueueExporter");
 // COMPAT(apachee): For old queue export implementation.
-YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueStaticTableExporterLogger, "QueueStaticTableExporterLogger");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueExportManagerLogger, "QueueExportManager");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueAgentShardingManagerLogger, "QueueAgentShardingManager");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, CypressSynchronizerLogger, "CypressSynchronizer");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, QueueStaticTableExporterLogger, "QueueStaticTableExporterLogger");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, QueueExportManagerLogger, "QueueExportManager");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, QueueAgentShardingManagerLogger, "QueueAgentShardingManager");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, CypressSynchronizerLogger, "CypressSynchronizer");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, MultiConsumerNamesGarbageCollectorLogger, "MultiConsumerNamesGarbageCollector");
 
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, QueueAgentProfiler, "/queue_agent");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, QueueAgentProfilerGlobal, QueueAgentProfiler().WithGlobal());
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, QueueAgentProfiler, "/queue_agent");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, QueueAgentProfilerGlobal, QueueAgentProfiler().WithGlobal());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,6 +49,10 @@ YT_DEFINE_ERROR_ENUM(
     ((QueueAgentQueueControllerStaticExportMisconfiguration)        (3037))
 
     ((QueueAgentShardingManagerPassFailed)                          (3050))
+
+    ((QueueAgentMultiConsumerControllerPassFailed)                  (3060))
+
+    ((QueueAgentMultiConsumerNamesGarbageCollectorPassFailed)       (3070))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,6 +62,7 @@ YT_DEFINE_ERROR_ENUM(
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TQueueAgent)
+DECLARE_REFCOUNTED_STRUCT(TQueueExportManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueControllerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueExportManagerDynamicConfig)
@@ -65,6 +72,9 @@ DECLARE_REFCOUNTED_STRUCT(ICypressSynchronizer)
 DECLARE_REFCOUNTED_CLASS(TCypressSynchronizer)
 DECLARE_REFCOUNTED_STRUCT(TCypressSynchronizerConfig)
 DECLARE_REFCOUNTED_STRUCT(TCypressSynchronizerDynamicConfig)
+
+DECLARE_REFCOUNTED_STRUCT(IMultiConsumerNamesGarbageCollector)
+DECLARE_REFCOUNTED_STRUCT(TMultiConsumerNamesGarbageCollectorDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IQueueAgentShardingManager)
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentShardingManagerDynamicConfig)
@@ -83,7 +93,7 @@ DECLARE_REFCOUNTED_STRUCT(IQueueExportManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TAgentId = TString;
+using TAgentId = std::string;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,11 +102,14 @@ DECLARE_REFCOUNTED_STRUCT(IObjectController)
 DECLARE_REFCOUNTED_STRUCT(IQueueController)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentClientDirectory)
 
+DECLARE_REFCOUNTED_CLASS(TVirtualMapPartBase)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EObjectKind,
     (Queue)
     (Consumer)
+    (MultiConsumer)
 );
 
 DEFINE_ENUM(EQueueFamily,
@@ -110,6 +123,7 @@ DECLARE_REFCOUNTED_STRUCT(TObjectSnapshotBase)
 DECLARE_REFCOUNTED_STRUCT(TQueueSnapshot)
 using TQueueSnapshotConstPtr = TIntrusivePtr<const TQueueSnapshot>;
 DECLARE_REFCOUNTED_STRUCT(TQueuePartitionSnapshot)
+DECLARE_REFCOUNTED_STRUCT(TMultiConsumerSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TConsumerSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TSubConsumerSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TConsumerPartitionSnapshot)

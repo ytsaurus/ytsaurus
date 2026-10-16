@@ -1,10 +1,10 @@
 #pragma once
 
-#include "public.h"
-#include "chunk_requisition.h"
+#include "private.h"
+
 #include "chunk_replica.h"
+#include "chunk_requisition.h"
 #include "chunk_tree.h"
-#include "incumbency_epoch.h"
 #include "stored_chunk_replica.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
@@ -17,14 +17,14 @@
 
 #include <yt/yt/library/erasure/public.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <library/cpp/yt/containers/intrusive_linked_list.h>
 
-#include <library/cpp/yt/compact_containers/compact_vector.h>
 #include <library/cpp/yt/compact_containers/compact_flat_map.h>
+#include <library/cpp/yt/compact_containers/compact_vector.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <optional>
 
@@ -51,7 +51,7 @@ static_assert(sizeof(TCellTagToChunkExportData) == 56, "sizeof(TCellTagToChunkEx
 struct TChunkDynamicData
     : public NObjectServer::TObjectDynamicData
 {
-    using TMediumToRepairQueueIterator = TCompactFlatMap<int, TChunkRepairQueueIterator, 2>;
+    using TRepairQueueIteratorMap = TCompactFlatMap<int, TChunkRepairQueueIterator, 2>;
 
     using TJobSet = TCompactVector<TJobPtr, 1>;
 
@@ -73,8 +73,7 @@ struct TChunkDynamicData
 
     //! For each medium, contains a valid iterator for those chunks belonging to the repair queue
     //! and null (default iterator value) for others.
-    TMediumToRepairQueueIterator MissingPartRepairQueueIterators;
-    TMediumToRepairQueueIterator DecommissionedPartRepairQueueIterators;
+    TRepairQueueIteratorMap RepairQueueIterators;
 
     //! Set of jobs that are currently scheduled for this chunk.
     TJobSet Jobs;
@@ -85,14 +84,11 @@ struct TChunkDynamicData
 };
 
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TChunkDynamicData, 144);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TChunkDynamicData, 104);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EChunkRepairQueue,
-    ((Missing)           (0))
-    ((Decommissioned)    (1))
-);
+static constexpr int ErasureChunkDecommissionPriority = RepairPriorityCount - 1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,6 +115,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NTableServer::TMasterTableSchemaPtr, Schema);
 
     //! Some TMiscExt fields extracted for effective access.
+    // NB: For hunk chunks UncompressedDataSize and DataWeight are updated via regular chunks
+    // that are referencing it and correspond to currently referenced part of data stored in hunks.
     DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
     DEFINE_BYVAL_RO_PROPERTY(i64, CompressedDataSize);
     DEFINE_BYVAL_RO_PROPERTY(i64, UncompressedDataSize);
@@ -146,7 +144,9 @@ public:
 
     TChunkDynamicData* GetDynamicData() const;
 
-    TChunkTreeStatistics GetStatistics() const;
+    TChunkTreeStatistics GetStatistics(bool includeReferencedHunkData = true) const;
+
+    THunkChunkTreeStatistics GetHunkStatistics() const;
 
     //! Get disk size of a single part of the chunk.
     /*!
@@ -174,6 +174,7 @@ public:
     //! For non-erasure chunks, contains a FIFO queue of seen replicas; its tail position is kept in #CurrentLastSeenReplicaIndex_.
     //! For erasure chunks, this array is directly addressed by replica indexes; at most one replica is kept per part.
     TRange<TNodeId> LastSeenReplicas() const;
+    void ClearLastSeenReplicas();
 
     void AddReplica(
         TAugmentedStoredChunkReplicaPtr replica,
@@ -211,9 +212,9 @@ public:
     void SetPartLossTime(NProfiling::TCpuInstant partLossTime);
     void ResetPartLossTime();
 
-    TChunkRepairQueueIterator GetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue) const;
-    void SetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue, TChunkRepairQueueIterator value);
-    TChunkDynamicData::TMediumToRepairQueueIterator* SelectRepairQueueIteratorMap(EChunkRepairQueue queue) const;
+    TChunkRepairQueueIterator GetRepairQueueIterator(int mediumIndex, int priority) const;
+    void SetRepairQueueIterator(int mediumIndex, int priority, TChunkRepairQueueIterator value);
+    const TChunkDynamicData::TRepairQueueIteratorMap& SelectRepairQueueIteratorMap() const;
 
     const TChunkDynamicData::TJobSet& GetJobs() const;
 
@@ -231,10 +232,12 @@ public:
         const NObjectServer::IObjectManagerPtr& objectManager) const;
 
     TChunkRequisitionIndex GetLocalRequisitionIndex() const;
+    // COMPAT(theevilbird): Get rid of |force| after removing requisitions for chunk_wise_accounting_migration.
     void SetLocalRequisitionIndex(
         TChunkRequisitionIndex requisitionIndex,
         TChunkRequisitionRegistry* registry,
-        const NObjectServer::IObjectManagerPtr& objectManager);
+        const NObjectServer::IObjectManagerPtr& objectManager,
+        bool forceAggregatedRequisitionUpdate = false);
 
     //! Prerequisite: IsExportedToCell(cellTag).
     TChunkRequisitionIndex GetExternalRequisitionIndex(NObjectServer::TCellTag cellTag) const;
@@ -378,6 +381,8 @@ public:
     int CapTotalReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const;
     int CapPerRackReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const;
 
+    void AccumulateNewlyReferencedHunkStatistics(i64 dataWeightDelta, i64 dataSizeDelta);
+
 private:
     //! -1 stands for std::nullopt for non-overlayed chunks.
     i64 FirstOverlayedRowIndex_ = -1;
@@ -425,7 +430,7 @@ private:
         virtual void Save(NCellMaster::TSaveContext& context) const = 0;
     };
 
-    template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+    template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
     struct TReplicasData
         : public TReplicasDataBase
     {
@@ -455,12 +460,18 @@ private:
 
     static constexpr int RegularChunkTypicalReplicaCount = 5;
     static constexpr int RegularChunkLastSeenReplicaCount = 5;
-    using TRegularChunkReplicasData = TReplicasData<RegularChunkTypicalReplicaCount, RegularChunkLastSeenReplicaCount>;
+    using TRegularChunkReplicasData = TReplicasData<
+        RegularChunkTypicalReplicaCount,
+        RegularChunkLastSeenReplicaCount,
+        /*IsErasure*/ false>;
 
     static constexpr int ErasureChunkTypicalReplicaCount = 24;
     static constexpr int ErasureChunkLastSeenReplicaCount = 16;
     static_assert(ErasureChunkLastSeenReplicaCount >= ::NErasure::MaxTotalPartCount, "ErasureChunkLastSeenReplicaCount < NErasure::MaxTotalPartCount");
-    using TErasureChunkReplicasData = TReplicasData<ErasureChunkTypicalReplicaCount, ErasureChunkLastSeenReplicaCount>;
+    using TErasureChunkReplicasData = TReplicasData<
+        ErasureChunkTypicalReplicaCount,
+        ErasureChunkLastSeenReplicaCount,
+        /*IsErasure*/ true>;
 
     //! This additional indirection helps to save up some space since
     //! no replicas are being maintained for foreign chunks.
@@ -473,15 +484,17 @@ private:
     const TReplicasDataBase& ReplicasData() const;
     TReplicasDataBase* MutableReplicasData();
 
+    // COMPAT(theevilbird): Get rid of |force| after removing requisitions for chunk_wise_accounting_migration.
     void UpdateAggregatedRequisitionIndex(
         TChunkRequisitionRegistry* registry,
-        const NObjectServer::IObjectManagerPtr& objectManager);
+        const NObjectServer::IObjectManagerPtr& objectManager,
+        bool forceAggregatedRequisitionUpdate = false);
 
     void MaybeResetObsoleteEpochData();
 
     void OnMiscExtUpdated(const NChunkClient::NProto::TMiscExt& miscExt);
 
-    using TEmptyChunkReplicasData = TReplicasData<0, 0>;
+    using TEmptyChunkReplicasData = TReplicasData<0, 0, false>;
     static const TEmptyChunkReplicasData EmptyChunkReplicasData;
 };
 

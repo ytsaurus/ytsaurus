@@ -123,16 +123,16 @@ bool TCellTracker::IsEnabled()
 
     if (gotOnline < needOnline) {
         if (!LastEnabled_ || *LastEnabled_) {
-            YT_LOG_INFO("Cell tracker disabled: too few online nodes, needed >= %v but got %v",
-                needOnline,
-                gotOnline);
+            YT_TLOG_INFO("Cell tracker disabled: too few online nodes")
+                .With("NeededOnlineNodeCount", needOnline)
+                .With("OnlineNodeCount", gotOnline);
             LastEnabled_ = false;
         }
         return false;
     }
 
     if (!LastEnabled_ || !*LastEnabled_) {
-        YT_LOG_INFO("Cell tracker enabled");
+        YT_TLOG_INFO("Cell tracker enabled");
         LastEnabled_ = true;
     }
 

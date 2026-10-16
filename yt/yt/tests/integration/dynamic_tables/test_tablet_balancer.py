@@ -1,15 +1,15 @@
-from yt_dynamic_tables_base import DynamicTablesBase
+from yt_dynamic_tables_base import DynamicTablesBase, SmoothMovementHelper
 from .test_tablet_actions import TabletActionsBase, TabletBalancerBase
 from .test_dynamic_tables_profiling import TestStatisticsReporterBase
 
 from yt_commands import (
-    authors, set, get, ls, exists, update, wait, sync_mount_table, sync_reshard_table,
+    authors, set, get, ls, update, wait, sync_mount_table, sync_reshard_table,
     insert_rows, sync_create_cells, sync_flush_table, remove, get_driver,
     sync_compact_table, wait_for_tablet_state, create_tablet_cell_bundle,
-    sync_unmount_table, print_debug, select_rows, WaitFailed, remount_table,
+    sync_unmount_table, print_debug, select_rows, WaitFailed, remount_table, lookup_rows,
     create, create_table_replica, sync_enable_table_replica, update_nodes_dynamic_config)
 
-from yt.common import update_inplace
+from yt.common import YtError, update_inplace
 
 import yt.yson as yson
 
@@ -141,11 +141,15 @@ class TestStandaloneTabletBalancerBase:
 
     def setup_method(self, method):
         super(TestStandaloneTabletBalancerBase, self).setup_method(method)
+        self._apply_dynamic_config_patch({
+            "bundle_state_provider": {
+                "use_internal_api": True,
+            },
+        })
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)
 
 
 @authors("alexelexa")
-@pytest.mark.enabled_multidaemon
 class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalancerBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5
@@ -177,9 +181,13 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         })
         self._test_simple_reshard()
 
-    def test_pick_pivot_keys_merge(self):
+    @pytest.mark.parametrize("use_internal_api", [False, True])
+    def test_pick_pivot_keys_merge(self, use_internal_api):
         self._apply_dynamic_config_patch({
             "pick_reshard_pivot_keys": True,
+            "bundle_state_provider": {
+                "use_internal_api": use_internal_api,
+            },
         })
 
         self._test_simple_reshard()
@@ -260,11 +268,13 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
             "//sys/tablet_balancer/orchid/tablet_balancer/bundles/default/tables/\\/\\/tmp\\/t/effective_config"
 
         def _has_expected_table():
-            if not exists(effective_config_path):
-                return False
-
-            config = get(effective_config_path)
-            return len(config) > 0 and config["group_name"] == "legacy"
+            try:
+                config = get(effective_config_path)
+                return len(config) > 0 and config["group_name"] == "legacy"
+            except YtError as e:
+                if e.is_resolve_error():
+                    return False
+                raise
 
         wait(lambda: _has_expected_table())
 
@@ -287,6 +297,7 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         for index in range(1, 4):
             wait(lambda: get(f"//tmp/t{index}/@tablet_count") == 1)
 
+        wait_for_tablet_state("//tmp/t3", "mounted")
         sync_unmount_table("//tmp/t3")
         set("//tmp/t3/@tablet_cell_bundle", "another")
 
@@ -368,8 +379,9 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         assert _run_and_get_action()["kind"] == "move"
 
     @authors("atalmenev")
-    def test_inplace_reshard(self):
-        sync_create_cells(1)
+    @pytest.mark.parametrize("cell_count", [1, 2])
+    def test_inplace_reshard(self, cell_count):
+        cell_ids = sync_create_cells(cell_count)
 
         existing_action_ids = builtins.set(ls("//sys/tablet_actions"))
 
@@ -377,22 +389,43 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
             "pick_reshard_pivot_keys": True,
         })
 
-        def _get_singular_new_action_id():
+        def _run_and_get_actions(desired_tablet_count, expected_action_count=1):
             nonlocal existing_action_ids
 
-            def _has_new_action():
+            config = get("//tmp/t/@tablet_balancer_config")
+            config.update({
+                "enable_auto_reshard": True,
+                "desired_tablet_count": desired_tablet_count,
+            })
+            set("//tmp/t/@tablet_balancer_config", config)
+
+            new_action_ids = None
+
+            def _has_enough_actions():
+                nonlocal new_action_ids
+                all_action_ids = builtins.set(ls("//sys/tablet_actions"))
+                diff = all_action_ids - existing_action_ids
+                if len(diff) >= expected_action_count:
+                    new_action_ids = diff
+                    return True
                 self._wait_full_iteration()
-                new_action_ids = builtins.set(ls("//sys/tablet_actions"))
-                diff = new_action_ids - existing_action_ids
-                return len(diff) == 1
+                return False
 
-            wait(_has_new_action)
+            wait(_has_enough_actions)
+            existing_action_ids = builtins.set(ls("//sys/tablet_actions"))
+            set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
 
-            new_action_ids = builtins.set(ls("//sys/tablet_actions"))
-            diff = new_action_ids - existing_action_ids
-            existing_action_ids = new_action_ids
+            def _check_action(action_id):
+                action = get(f"#{action_id}/@", attributes=["kind", "state", "error", "inplace_reshard"])
+                return action["state"] in ("completed", "failed"), action
 
-            return diff.pop()
+            actions = []
+            for action_id in new_action_ids:
+                wait(lambda: _check_action(action_id)[0])
+                _, action = _check_action(action_id)
+                actions.append(action)
+
+            return actions
 
         self._create_sorted_table(
             "//tmp/t",
@@ -406,49 +439,65 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         insert_rows("//tmp/t", [{"key": key, "value": "A"} for key in range(100)])
         sync_flush_table("//tmp/t")
 
-        def _run_and_get_action(desired_tablet_count):
-            config = get("//tmp/t/@tablet_balancer_config")
-            config.update({
-                "enable_auto_reshard": True,
-                "desired_tablet_count": desired_tablet_count,
+        if cell_count == 1:
+            # Feature config: split and merge without inplace.
+            assert not _run_and_get_actions(desired_tablet_count=2)[0]["inplace_reshard"]
+            assert get("//tmp/t/@tablet_count") == 2
+
+            self._apply_dynamic_config_patch({
+                "enable_inplace_split": True,
+                "enable_inplace_merge": True,
             })
-            set("//tmp/t/@tablet_balancer_config", config)
 
-            action_id = _get_singular_new_action_id()
-            set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
+            # Merge with inplace enabled (same cell).
+            assert _run_and_get_actions(desired_tablet_count=1)[0]["inplace_reshard"]
+            assert get("//tmp/t/@tablet_count") == 1
 
-            action = None
+            # Split with inplace enabled.
+            assert _run_and_get_actions(desired_tablet_count=2)[0]["inplace_reshard"]
+            assert get("//tmp/t/@tablet_count") == 2
 
-            def _check():
-                nonlocal action
-                action = get(f"#{action_id}/@", attributes=["kind", "state", "error", "inplace_reshard"])
-                return action["state"] == "completed"
+            # Feature config: disable inplace.
+            self._apply_dynamic_config_patch({
+                "enable_inplace_split": False,
+                "enable_inplace_merge": False,
+            })
 
-            wait(_check)
+            assert not _run_and_get_actions(desired_tablet_count=1)[0]["inplace_reshard"]
+            assert get("//tmp/t/@tablet_count") == 1
 
-            return action
+            assert not _run_and_get_actions(desired_tablet_count=2)[0]["inplace_reshard"]
+            assert get("//tmp/t/@tablet_count") == 2
 
-        # Split
-        assert not _run_and_get_action(desired_tablet_count=2)["inplace_reshard"]
-        assert get("//tmp/t/@tablet_count") == 2
+            return
 
-        set("//sys/tablet_balancer/config/enable_inplace_reshard", True)
-        # Merge
-        assert not _run_and_get_action(desired_tablet_count=1)["inplace_reshard"]
+        # Cross-cell merge with smooth movement.
+        self._apply_dynamic_config_patch({
+            "enable_inplace_split": True,
+            "enable_inplace_merge": True,
+        })
+
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [50]])
+        sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0, cell_id=cell_ids[0])
+        sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1, cell_id=cell_ids[1])
+
+        tablet_cell_ids = [tablet["cell_id"] for tablet in get("//tmp/t/@tablets")]
+        assert tablet_cell_ids[0] != tablet_cell_ids[1]
+
+        config = get("//tmp/t/@tablet_balancer_config")
+        config.update({
+            "enable_smooth_movement": True,
+        })
+        set("//tmp/t/@tablet_balancer_config", config)
+
+        actions = _run_and_get_actions(desired_tablet_count=1, expected_action_count=2)
+
+        actions_by_kind = {action["kind"]: action for action in actions}
+        assert "smooth_move" in actions_by_kind
+        assert "reshard" in actions_by_kind
+        assert actions_by_kind["reshard"]["inplace_reshard"]
         assert get("//tmp/t/@tablet_count") == 1
-
-        # Split
-        assert _run_and_get_action(desired_tablet_count=2)["inplace_reshard"]
-        assert get("//tmp/t/@tablet_count") == 2
-
-        set("//tmp/t/@tablet_balancer_config/enable_inplace_reshard", False)
-        # Merge
-        assert not _run_and_get_action(desired_tablet_count=1)["inplace_reshard"]
-        assert get("//tmp/t/@tablet_count") == 1
-
-        # Split
-        assert not _run_and_get_action(desired_tablet_count=2)["inplace_reshard"]
-        assert get("//tmp/t/@tablet_count") == 2
 
     def test_many_bundles(self):
         bundles = ["default", "another", "third", "fourth"]
@@ -471,7 +520,6 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
 
 
 @authors("alexelexa")
-@pytest.mark.enabled_multidaemon
 class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletActionsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -531,9 +579,9 @@ class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletA
 
 
 @authors("alexelexa")
-@pytest.mark.enabled_multidaemon
 class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
+    NUM_TEST_PARTITIONS = 2
 
     @classmethod
     def modify_tablet_balancer_config(cls, config, multidaemon_config):
@@ -685,6 +733,78 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         assert tablets[0]["cell_id"] == tablets[1]["cell_id"]
         assert tablets[2]["cell_id"] == tablets[3]["cell_id"]
 
+    @authors("dave11ar")
+    def test_multimetric_simple_move_distribution(self):
+        cell_count = 5
+        cells = sync_create_cells(cell_count)
+
+        cell_to_node = {cell: get(f"#{cell}/@peers/0/address") for cell in cells}
+        assert len(builtins.set(cell_to_node.values())) == cell_count
+
+        self._create_sorted_table("//tmp/t", dynamic_store_auto_flush_period=yson.YsonEntity())
+
+        set("//tmp/t/@tablet_balancer_config", {
+            "enable_auto_reshard": False,
+            "enable_auto_tablet_move": True,
+        })
+
+        write_metric = "double([/performance_counters/dynamic_row_write_count])"
+        read_metric = "double([/performance_counters/dynamic_row_lookup_count])"
+        set(
+            "//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups",
+            {"default": {"parameterized": {"metrics": [write_metric, read_metric]}}})
+
+        tablet_count = 10
+        sync_reshard_table("//tmp/t", [[]] + [[i] for i in range(1, tablet_count)])
+        sync_mount_table("//tmp/t", cell_id=cells[0])
+
+        write_tablets = builtins.set(range(0, tablet_count // 2))
+        read_tablets = builtins.set(range(tablet_count // 2, tablet_count))
+
+        start_count = 7
+        step_count = 2
+
+        for tablet_index in read_tablets:
+            insert_rows("//tmp/t", [{"key": tablet_index, "value": "v"}])
+
+        for tablet_index in read_tablets:
+            request_count = start_count + (tablet_index - 5) * step_count
+            for _ in range(request_count):
+                lookup_rows("//tmp/t", [{"key": tablet_index}])
+
+        for tablet_index in write_tablets:
+            request_count = start_count + tablet_index * step_count
+            for i in range(request_count):
+                insert_rows("//tmp/t", [{"key": tablet_index, "value": "v"}])
+
+        def _counters_ready():
+            tablets = get("//tmp/t/@tablets")
+            for index, tablet in enumerate(tablets):
+                counters = tablet["performance_counters"]
+
+                if index in write_tablets and counters["dynamic_row_write_count"] == 0:
+                    return False
+                if index in read_tablets and counters["dynamic_row_lookup_count"] == 0:
+                    return False
+
+            return True
+
+        wait(_counters_ready)
+
+        set("//tmp/t/@tablet_balancer_config/enable_parameterized", True)
+
+        def _balanced():
+            per_node = {node: [0, 0] for node in cell_to_node.values()}
+            for index, tablet in enumerate(get("//tmp/t/@tablets")):
+                node = cell_to_node.get(tablet["cell_id"])
+                if node is None:
+                    return False
+                per_node[node][0 if index in write_tablets else 1] += 1
+            # Every node must have exactly one written-into and one read-from tablet.
+            return all(counts == [1, 1] for counts in per_node.values())
+
+        wait(_balanced)
+
     @pytest.mark.parametrize("trigger_by", ["node", "cell"])
     def test_move_trigger(self, trigger_by):
         parameterized_balancing_metric = "double([/statistics/uncompressed_data_size])"
@@ -706,7 +826,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
 
         other_trigger = "node" if trigger_by == "cell" else "cell"
         self._apply_dynamic_config_patch({
-            f"parameterized_{other_trigger}_deviation_threshold": 0.
+            f"parameterized_{other_trigger}_deviation_threshold": 0.3
         })
 
         sync_reshard_table("//tmp/t", [[]] + [[i] for i in range(1, 20)])
@@ -919,7 +1039,8 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             ("double([/statistics/uncompressed_data_size])", 273)
         ],
     )
-    def test_reactive_balancing(self, parameterized_balancing_metric, desired_tablet_metric):
+    @pytest.mark.parametrize("use_tablet_balancer_config", [False, True])
+    def test_reactive_balancing(self, parameterized_balancing_metric, desired_tablet_metric, use_tablet_balancer_config):
         sync_create_cells(2)
 
         # Disable balancing via schedule.
@@ -968,10 +1089,18 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         assert get(f"{table}/@tablet_count") == 1
         assert len(get(f"{table}/@chunk_ids")) == chunk_count
 
-        set(f"{table}/@mount_config/overload_reactive_balancing", {
-            "metric": parameterized_balancing_metric,
-            "limit": desired_tablet_metric + 0.1,
-        })
+        reactive_balancing_config = {
+            "enable": True
+        }
+
+        # Legacy mode.
+        if not use_tablet_balancer_config:
+            reactive_balancing_config.update({
+                "metric": parameterized_balancing_metric,
+                "limit": 1.9 * desired_tablet_metric
+            })
+
+        set(f"{table}/@mount_config/overload_reactive_balancing", reactive_balancing_config)
         remount_table(table)
 
         update_nodes_dynamic_config({
@@ -989,11 +1118,79 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
 
         wait(lambda: get(f"{table}/@tablet_count") == 4)
 
+    @authors("navasardianna")
+    def test_incorrect_reactive_balancing_settings(self):
+        sync_create_cells(1)
+
+        self._set_default_metric("incorrect_metric")
+
+        table = "//tmp/t"
+        self._create_sorted_table(
+            table,
+            tablet_balancer_config={
+                "enable_auto_reshard": True,
+                "desired_tablet_metric": 1,
+            })
+
+        set(f"{table}/@mount_config/overload_reactive_balancing", {"enable": True})
+        remount_table(table)
+
+        sleep(5)
+
+    @authors("navasardianna")
+    def test_tablet_balancer_config_at_node(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+
+        set("//tmp/t/@tablet_balancer_config/desired_tablet_metric", 1)
+
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        def _get_option_from_tablet():
+            return get(
+                f"//sys/tablets/{tablet_id}/orchid/tablet_balancer_config/desired_tablet_metric")
+
+        assert _get_option_from_tablet() == 1.0
+
+        set("//tmp/t/@tablet_balancer_config/desired_tablet_metric", 2)
+
+        remount_table("//tmp/t")
+        wait(lambda: _get_option_from_tablet() == 2.0)
+
+    @authors("navasardianna")
+    def test_tablet_balancer_config_at_node_in_smooth_move(self):
+        sync_create_cells(2)
+        self._create_sorted_table("//tmp/t")
+
+        set("//tmp/t/@tablet_balancer_config/desired_tablet_metric", 1)
+
+        def _get_metric_from_tablet():
+            tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+            return get(f"//sys/tablets/{tablet_id}/orchid/tablet_balancer_config/desired_tablet_metric")
+
+        sync_mount_table("//tmp/t")
+
+        assert _get_metric_from_tablet() == 1.0
+
+        h = SmoothMovementHelper("//tmp/t")
+        with h.forwarding_context():
+            wait(lambda: get(f"{h.source_orchid}/tablet_balancer_config/desired_tablet_metric") == 1.0)
+            wait(lambda: get(f"{h.target_orchid}/tablet_balancer_config/desired_tablet_metric") == 1.0)
+
+            set("//tmp/t/@tablet_balancer_config/desired_tablet_metric", 2)
+            remount_table("//tmp/t")
+
+            wait(lambda: get(f"{h.source_orchid}/tablet_balancer_config/desired_tablet_metric") == 2.0)
+            wait(lambda: get(f"{h.target_orchid}/tablet_balancer_config/desired_tablet_metric") == 2.0)
+
+        assert _get_metric_from_tablet() == 2.0
+
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestStandaloneTabletBalancerMulticell(TestStandaloneTabletBalancer):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1004,7 +1201,6 @@ class TestStandaloneTabletBalancerMulticell(TestStandaloneTabletBalancer):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestStandaloneTabletBalancerSlowMulticell(TestStandaloneTabletBalancerSlow):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1015,7 +1211,6 @@ class TestStandaloneTabletBalancerSlowMulticell(TestStandaloneTabletBalancerSlow
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestParameterizedBalancingMulticell(TestParameterizedBalancing):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1402,6 +1597,7 @@ class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, TestStati
 
         set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", [])
 
+        wait_for_tablet_state("//tmp/t", "mounted")
         sync_unmount_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [10]])
         sync_mount_table("//tmp/t")

@@ -1,6 +1,7 @@
-from sqlglot import exp, parser, tokens
+from sqlglot import tokens
 from sqlglot.dialects.dialect import Dialect, NormalizationStrategy
-from sqlglot.tokens import TokenType
+from sqlglot.generators.solr import SolrGenerator
+from sqlglot.parsers.solr import SolrParser
 
 
 # https://solr.apache.org/guide/solr/latest/query-guide/sql-query.html
@@ -9,13 +10,10 @@ from sqlglot.tokens import TokenType
 class Solr(Dialect):
     NORMALIZATION_STRATEGY = NormalizationStrategy.CASE_INSENSITIVE
     DPIPE_IS_STRING_CONCAT = False
-    SUPPORTS_SEMI_ANTI_JOIN = False
 
-    class Parser(parser.Parser):
-        DISJUNCTION = {
-            **parser.Parser.DISJUNCTION,
-            TokenType.DPIPE: exp.Or,
-        }
+    Generator = SolrGenerator
+
+    Parser = SolrParser
 
     class Tokenizer(tokens.Tokenizer):
         QUOTES = ["'"]

@@ -1,0 +1,59 @@
+{
+    "spec" = {
+        "computations" = {
+            "key_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["keys"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "mirror" = {
+                "computation_class_name" = "TMirrorComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["keys"];
+                "output_stream_ids" = [];
+                "external_state_joiners" = {
+                    "/source" = {
+                        "external_state_joiner_class_name" = "NYT::NFlow::TStaticTableKeyVisitorJoiner";
+                        "parameters" = {
+                            "path" = "//path/to/source";
+                        };
+                    };
+                };
+                "key_visitor_streams" = {
+                    "visit_iter" = {
+                        "names" = ["/mirror"];
+                        "external_names" = ["/source"];
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "key_reader" = {
+            };
+            "mirror" = {
+                "key_visitor_streams" = {
+                    "visit_iter" = {
+                        "period" = "1s";
+                    };
+                };
+            };
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+    };
+}

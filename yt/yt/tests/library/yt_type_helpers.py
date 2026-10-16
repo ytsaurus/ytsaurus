@@ -150,3 +150,11 @@ def decimal_type(precision, scale):
         "precision": precision,
         "scale": scale,
     }
+
+
+def aggregate_state_type(function, argument_type):
+    return {
+        "type_name": "aggregate_state",
+        "function": function,
+        "argument_type": argument_type,
+    }

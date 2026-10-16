@@ -8,17 +8,26 @@
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/misc/guid.h>
-#include <yt/yt/core/misc/property.h>
 
 #include <library/cpp/yt/memory/range.h>
 
+#include <library/cpp/yt/misc/property.h>
+
 namespace NYT::NQueryClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr i64 UnorderedReadHint = std::numeric_limits<i64>::max();
+// TODO(sabdenovch): Deprecate this.
+constexpr i64 OrderedReadWithPrefetchHint = UnorderedReadHint - 1;
+constexpr i64 MaxQueryLimit = OrderedReadWithPrefetchHint - 1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EScanOrder,
     ((Unordered) (0))
     ((Ordered)   (1))
+    ((Reversed)  (2))
 );
 
 DEFINE_ENUM(EExpressionKind,
@@ -279,6 +288,10 @@ struct TSubqueryExpression
     TConstExpressionPtr WhereClause;
     TConstGroupClausePtr GroupClause;
     TConstProjectClausePtr ProjectClause;
+    TConstOrderClausePtr OrderClause;
+
+    i64 Offset = 0;
+    i64 Limit = UnorderedReadHint;
 
     using TExpression::TExpression;
 };
@@ -373,6 +386,8 @@ struct TJoinClause
 
     bool IsLeft = false;
 
+    std::optional<std::pair<int, int>> PrefetchedBlockRange;
+
     //! See #TDataSource::ObjectId.
     NObjectClient::TObjectId ForeignObjectId;
     //! See #TDataSource::CellId.
@@ -398,6 +413,44 @@ struct TJoinClause
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoinClause)
+
+struct THierarchicalJoinClause
+    : public TRefCounted
+{
+    TMappedSchema ForeignTableSchema;
+
+    std::vector<TConstExpressionPtr> ForeignEquations;
+    std::vector<TConstExpressionPtr> SelfEquations;
+
+    bool IsLeft = false;
+
+    //! See #TDataSource::ObjectId.
+    NObjectClient::TObjectId ForeignObjectId;
+    //! See #TDataSource::CellId.
+    NObjectClient::TCellId ForeignCellId;
+
+    THashSet<std::string> ForeignJoinedColumns;
+
+    std::string ResultColumnName;
+
+    TConstSubqueryExpressionPtr SelfSideJoinKeys;
+    TConstSubqueryExpressionPtr JoiningSubquery;
+
+    THierarchicalJoinClause() = default;
+    THierarchicalJoinClause(const THierarchicalJoinClause& other);
+
+    TTableSchemaPtr GetForeignTableRenamedSchema() const;
+
+    TKeyColumns GetForeignTableKeyColumns() const;
+
+    TTableSchemaPtr GetTableSchema(const TTableSchema& source) const;
+
+    std::vector<size_t> GetForeignColumnIndices() const;
+
+    TQueryPtr GetJoinSubquery() const;
+};
+
+DEFINE_REFCOUNTED_TYPE(THierarchicalJoinClause)
 
 std::vector<size_t> GetJoinGroups(
     const std::vector<TConstJoinClausePtr>& joinClauses,
@@ -440,17 +493,14 @@ DEFINE_REFCOUNTED_TYPE(TProjectClause)
 // Front Query is not Coordinatable
 // IsMerge is always true for front Query and false for Bottom Query
 
-constexpr i64 UnorderedReadHint = std::numeric_limits<i64>::max();
-// TODO(sabdenovch): Deprecate this.
-constexpr i64 OrderedReadWithPrefetchHint = std::numeric_limits<i64>::max() - 1;
-
 struct TBaseQuery
     : public TRefCounted
 {
     TGuid Id;
 
-    // Merge and Final
     bool IsFinal = true;
+    bool HasExclusiveGroupKeyView = false;
+    bool EnableCombineGroupOpWithOrderOp = true;
 
     TConstGroupClausePtr GroupClause;
     TConstExpressionPtr HavingClause;
@@ -470,6 +520,8 @@ struct TBaseQuery
     bool InferRanges = true;
 
     bool ForceLightRangeInference = false;
+
+    bool IsReverseScan = false;
 
     explicit TBaseQuery(TGuid id = TGuid::Create());
 
@@ -492,6 +544,9 @@ struct TQuery
 
     // Bottom
     std::vector<TConstJoinClausePtr> JoinClauses;
+    std::vector<TConstHierarchicalJoinClausePtr> HierarchicalJoinsInWhereClause;
+    std::vector<TConstHierarchicalJoinClausePtr> HierarchicalJoinsBeforeGroupBy;
+    std::vector<TConstHierarchicalJoinClausePtr> HierarchicalJoinsAfterGroupBy;
     TConstExpressionPtr WhereClause;
 
     explicit TQuery(TGuid id = TGuid::Create());
@@ -517,6 +572,8 @@ struct TFrontQuery
     TFrontQuery(const TFrontQuery& other) = default;
 
     TTableSchemaPtr Schema;
+
+    std::vector<TConstHierarchicalJoinClausePtr> HierarchicalJoinsAfterGroupBy;
 
     TTableSchemaPtr GetReadSchema() const override;
 

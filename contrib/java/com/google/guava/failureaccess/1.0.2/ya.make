@@ -1,0 +1,13 @@
+JAVA_CONTRIB()
+
+VERSION(1.0.2)
+
+LICENSE(Apache-2.0)
+
+JAR_RESOURCE(5880089206)
+
+SRC_RESOURCE(5880089207)
+
+ORIGINAL_SOURCE(https://github.com/google/guava)
+
+END()

@@ -1,8 +1,10 @@
 from yt_odin_checks.lib.check_runner import main
 
-from yt.common import join_exceptions
+from yt.common import datetime_to_string, join_exceptions
 
 import yt.wrapper as yt
+
+import datetime
 
 
 class InfoIsMissing(object):
@@ -121,12 +123,20 @@ def run_check(yt_client, logger, options, states):
                 reconnected_agents.append(agent)
                 logger.info("Agent %s has reconnected at %s", agent, current_info["connection_time"])
 
-    yt_client.set(CONTROLLER_AGENT_UPTIME_PATH, agent_to_info)
-
+    result = states.FULLY_AVAILABLE_STATE
     if reconnected_agents:
-        return states.UNAVAILABLE_STATE, "Agent(s) {} has reconnected".format(", ".join(reconnected_agents))
+        mute_until = yt_client.get_attribute(CONTROLLER_AGENT_UPTIME_PATH, "mute_until", default="")
+        if datetime_to_string(datetime.datetime.now(datetime.UTC)) < mute_until:
+            logger.info("Check is muted until %s", mute_until)
+            result = states.PARTIALLY_AVAILABLE_STATE
+        else:
+            result = states.UNAVAILABLE_STATE, "Agent(s) {} has reconnected".format(
+                ", ".join(reconnected_agents)
+            )
 
-    return states.FULLY_AVAILABLE_STATE
+    # Record muted reconnections too, so they are not reported after the mute expires.
+    yt_client.set(CONTROLLER_AGENT_UPTIME_PATH, agent_to_info)
+    return result
 
 
 if __name__ == "__main__":

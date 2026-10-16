@@ -33,9 +33,11 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, CreateChunk);
     DEFINE_RPC_PROXY_METHOD(NProto, ConfirmChunk);
     DEFINE_RPC_PROXY_METHOD(NProto, SealChunk);
+    DEFINE_RPC_PROXY_METHOD(NProto, ScheduleChunkSeal);
     DEFINE_RPC_PROXY_METHOD(NProto, CreateChunkLists);
     DEFINE_RPC_PROXY_METHOD(NProto, UnstageChunkTree);
     DEFINE_RPC_PROXY_METHOD(NProto, AttachChunkTrees);
+    DEFINE_RPC_PROXY_METHOD(NProto, DetachChunkTrees);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

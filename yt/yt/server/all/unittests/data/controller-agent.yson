@@ -1,14 +1,8 @@
 {
     "controller_agent" = {
-        "reduce_operation_options" = {
-            "spec_template" = {
-                "use_new_sorted_pool" = %true;
-            };
-        };
         "operations_push_period" = 10;
         "map_reduce_operation_options" = {
             "spec_template" = {
-                "use_new_sorted_pool" = %true;
                 "partition_data_size" = 536870912;
             };
         };
@@ -18,7 +12,6 @@
         "safe_scheduler_online_time" = 5000;
         "sort_operation_options" = {
             "spec_template" = {
-                "use_new_sorted_pool" = %true;
                 "partition_data_size" = 536870912;
             };
         };
@@ -31,7 +24,6 @@
         };
         "sorted_merge_operation_options" = {
             "spec_template" = {
-                "use_new_sorted_pool" = %true;
             };
         };
         "controller_exec_node_info_update_period" = 100;
@@ -45,7 +37,6 @@
         "config_update_period" = 100;
         "join_reduce_operation_options" = {
             "spec_template" = {
-                "use_new_sorted_pool" = %true;
             };
         };
         "enable_locality" = %false;

@@ -160,7 +160,7 @@ In addition to the above rules, there are some special agreements. Most of them 
 
 If there is no `<prefix>` and `<suffix>`, rich  YPath can have, for example, the following form:
 
-```
+```yson
 <
   append = %true;
   compression_codec = lz4;
@@ -295,7 +295,7 @@ yt merge --src '//home/users/table1{a,b,c}' --dst //home/users/table2 --spec '{s
 
 Example: after canonicalizing the `<append=true>//home/user/table[#10:#20]` path, you get the following YSON structure:
 
-```
+```yson
 <
   append = true;
   ranges = [
@@ -319,7 +319,7 @@ Suffix: `[#10:#20]`.
 
 This will be converted to a more verbose string inside the system:
 
-```
+```yson
   ranges = [
     {
       lower_limit = {row_index = 10};
@@ -414,7 +414,7 @@ If the `key` selector is specified as part of the `exact` attribute (or as the o
 
 Suppose the `//tmp/t` table has two key columns and contains the following keys:
 
-```
+```yson
 ["a"; 1];
 ["a"; 3];
 ["a"; 5];
@@ -424,20 +424,20 @@ Suppose the `//tmp/t` table has two key columns and contains the following keys
 ```
 
 The `//tmp/t[(b):]` slice, also expressed as `<ranges = [{lower_limit = {key = [b]}}]>//tmp/t`:
-```
+```yson
 ["b"; 2];
 ["b"; 4];
 ["c"; 0];
 ```
 
 The `//tmp/t[(b, 2, 56):]` slice (note that a key within a slice can have more values than there are key columns present in the table):
-```
+```yson
 ["b"; 4];
 ["c"; 0];
 ```
 
 The `//tmp/t[:(c, 0)]` slice:
-```
+```yson
 ["a"; 1];
 ["a"; 3];
 ["a"; 5];
@@ -446,7 +446,7 @@ The `//tmp/t[:(c, 0)]` slice:
 ```
 
 The `//tmp/t[(b)]` slice:
-```
+```yson
 ["b"; 2];
 ["b"; 4];
 ```
@@ -483,7 +483,7 @@ Specifically, according to the definition above, the selectors `[">="; []]` and 
 #### Examples
 
 Let's examine the `//tmp/t` table with the keys from the example above:
-```
+```yson
 ["a"; 1];
 ["a"; 3];
 ["a"; 5];
@@ -493,7 +493,7 @@ Let's examine the `//tmp/t` table with the keys from the example above:
 ```
 
 The `<ranges = [{lower_limit = {key_bound = [">"; ["a"; 3]]}}]>//tmp/t` slice:
-```
+```yson
 ["a"; 5];
 ["b"; 2];
 ["b"; 4];
@@ -501,7 +501,7 @@ The `<ranges = [{lower_limit = {key_bound = [">"; ["a"; 3]]}}]>//tmp/t` slice:
 ```
 
 The `<ranges = [{upper_limit = {key_bound = ["<="; ["b"]]}}]>//tmp/t` slice:
-```
+```yson
 ["a"; 1];
 ["a"; 3];
 ["a"; 5];

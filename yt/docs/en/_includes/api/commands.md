@@ -392,6 +392,7 @@ Parameters:
 | `attributes` | No | `{}` | Enables you to set attributes for the created node. |
 | `ignore_existing` | No | `false` | If the created node exists already, it is not recreated. In particular, the transmitted attributes are ignored. Moreover, both the existing and created nodes must have the same type, otherwise the query will return an error. |
 | `lock_existing` | No | `false` | Set an [exclusive lock](../../user-guide/storage/transactions.md#locks) on the specified node even if it already exists. This parameter is only used together with `ignore_existing`. If the lock couldn't be set, the command fails. |
+| `ignore_type_mismatch` | No | `false` | Do not return an error if the existing node has a type different from the requested one. The node is not recreated, and the transmitted attributes are ignored. This parameter is only used together with `ignore_existing`. |
 | `force` | No | `false` | If the specified node already exists, it is deleted and replaced with a new one. In this situation, the existing node can be of any type. When the node is recreated, its ID changes. |
 
 Input data:
@@ -823,7 +824,7 @@ Input data:
 Output data:
 
 - Type: `structured`.
-- Value: `true` or `false` string.
+- Value: (API v4) dictionary with a key `value` and `true` or `false` string as a value. (API v3) `true` or `false` string.
 
 Example:
 
@@ -831,6 +832,8 @@ Example:
 PARAMETERS {
     "path" = "//tmp/my_table/@_format" ;
 }
+OUTPUT(API v4) { "value" = "true" }
+OUTPUT(API v3) true
 ```
 
 ### concatenate { #concatenate }
@@ -1346,6 +1349,8 @@ Parameters:
 | `table_reader` | No | From the driver configuration | [Table's read options](../../user-guide/storage/io-configuration.md#table_reader). |
 | `control_attributes` | No | From the driver configuration | [Configuration of the control read attributes](../../user-guide/storage/io-configuration.md#control_attributes). |
 | `unordered` | No | `false` | Whether to read data in parallel, regardless of the entry order. |
+| `omit_inaccessible_columns` | No | `false` | Skip columns the user has no access to instead of returning an error. |
+| `omit_inaccessible_rows` | No | `false` | Skip rows the user has no access to instead of returning an error. |
 
 Input data:
 

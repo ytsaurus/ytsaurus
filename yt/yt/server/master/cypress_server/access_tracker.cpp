@@ -19,6 +19,8 @@
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NCypressServer {
@@ -167,8 +169,8 @@ void TAccessTracker::OnFlush()
     }
 
     if (accessStatisticsUpdateCount > 0) {
-        YT_LOG_DEBUG("Starting access statistics commit (NodeCount: %v)",
-            accessStatisticsUpdateCount);
+        YT_TLOG_DEBUG("Starting access statistics commit")
+            .With("NodeCount", accessStatisticsUpdateCount);
 
         NProto::TReqUpdateAccessStatistics request;
         for (const auto& shard : Shards_) {
@@ -184,8 +186,8 @@ void TAccessTracker::OnFlush()
     }
 
     if (touchedNodeCount > 0) {
-        YT_LOG_DEBUG("Sending node touch commit (NodeCount: %v)",
-            touchedNodeCount);
+        YT_TLOG_DEBUG("Sending node touch commit")
+            .With("NodeCount", touchedNodeCount);
 
         NProto::TReqTouchNodes request;
         for (const auto& shard : Shards_) {

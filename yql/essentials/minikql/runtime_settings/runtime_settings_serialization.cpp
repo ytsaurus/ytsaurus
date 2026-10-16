@@ -1,6 +1,7 @@
 #include "runtime_settings_serialization.h"
+#include "runtime_settings_configuration.h"
 
-#include <yql/essentials/providers/common/config/yql_dispatch.h>
+#include <yql/essentials/providers/common/config/yql_config_qplayer.h>
 #include <yql/essentials/providers/common/activation/yql_activation.h>
 
 namespace NYql {
@@ -8,15 +9,17 @@ namespace NYql {
 namespace {
 
 void FillUdfSettings(
-    TRuntimeSettingsConfiguration& config,
+    TRuntimeSettings& config,
     const google::protobuf::RepeatedPtrField<NProto::TUdfSettings>& udfSettings,
-    const std::function<bool(const NProto::TRuntimeSetting&)>& filter)
+    const std::function<bool(const NProto::TRuntimeSetting&)>& filter,
+    const TQContext& qContext)
 {
     for (const auto& udf : udfSettings) {
-        for (const auto& setting : udf.GetRuntimeSettings()) {
-            if (filter(setting)) {
-                config.SetUdfSetting(udf.GetModule(), setting.GetName(), setting.GetValue());
-            }
+        TString activationLabel = TStringBuilder() << "runtime_settings_udf_" << udf.GetModule();
+        auto flags = NCommon::SelectAndSaveActivatedFlags<NProto::TRuntimeSetting>(
+            activationLabel, qContext, udf.GetRuntimeSettings(), filter, /*hasProviderName=*/true);
+        for (const auto& setting : flags) {
+            config.SetUdfSetting(udf.GetModule(), setting.GetName(), setting.GetValue());
         }
     }
 }
@@ -25,27 +28,28 @@ TRuntimeSettings::TPtr CreateRuntimeSettingsFromProtoImpl(
     const NProto::TRuntimeSettings& proto,
     const TString& userName,
     TCredentials::TPtr credentials,
-    bool allowActivation)
+    bool allowActivation,
+    const TQContext& qContext,
+    const std::function<void(const TString&)>& onPartialFeatureActivation)
 {
-    auto config = MakeRuntimeSettingsConfigurationMutable();
-    auto filter = NConfig::MakeActivationFilter<NProto::TRuntimeSetting>(userName, credentials, [&](const TString&) {
+    auto config = MakeRuntimeSettingsMutable();
+    auto filter = NConfig::MakeActivationFilter<NProto::TRuntimeSetting>(userName, credentials, [&](const TString& name) {
         YQL_ENSURE(allowActivation, "Activation is not allowed. "
                                     "Seems you are trying to load runtime settings with activation but all settings must be already activated.");
+        if (onPartialFeatureActivation) {
+            onPartialFeatureActivation(name);
+        }
     });
-    config->Dispatch(proto.GetHostSettings(), filter);
-    FillUdfSettings(*config, proto.GetUdfSettings(), filter);
+    TRuntimeSettingsConfiguration::Get().Dispatch(*config, proto.GetHostSettings(), filter, qContext);
+    FillUdfSettings(*config, proto.GetUdfSettings(), filter, qContext);
     return config;
 }
 
-TRuntimeSettings::TPtr CreateRuntimeSettingsFromStringImpl(
-    const TString& data,
-    const TString& userName,
-    TCredentials::TPtr credentials,
-    bool allowActivation)
+TRuntimeSettings::TPtr CreateRuntimeSettingsFromStringImpl(const TString& data)
 {
     NProto::TRuntimeSettings proto;
     proto.ParseFromStringOrThrow(data);
-    return CreateRuntimeSettingsFromProtoImpl(proto, userName, credentials, allowActivation);
+    return CreateRuntimeSettingsFromProtoImpl(proto, "", nullptr, /*allowActivation=*/false, TQContext(), {});
 }
 
 } // namespace
@@ -53,17 +57,24 @@ TRuntimeSettings::TPtr CreateRuntimeSettingsFromStringImpl(
 TRuntimeSettings::TPtr CreateRuntimeSettingsFromProto(
     const NProto::TRuntimeSettings& proto,
     const TString& userName,
-    TCredentials::TPtr credentials)
+    TCredentials::TPtr credentials,
+    const TQContext& qContext,
+    std::function<void(const TString&)> onPartialFeatureActivation)
 {
-    return CreateRuntimeSettingsFromProtoImpl(proto, userName, credentials, /*allowActivation=*/true);
+    return CreateRuntimeSettingsFromProtoImpl(proto, userName, credentials, /*allowActivation=*/true, qContext, onPartialFeatureActivation);
+}
+
+TRuntimeSettings::TPtr DeserializeRuntimeSettingsFromProto(
+    const NProto::TRuntimeSettings& proto)
+{
+    return CreateRuntimeSettingsFromProtoImpl(proto, "", nullptr, /*allowActivation=*/false, TQContext(), {});
 }
 
 NProto::TRuntimeSettings SerializeRuntimeSettingsToProto(
     const TRuntimeSettings& config)
 {
     NProto::TRuntimeSettings proto;
-    TRuntimeSettingsConfiguration configuration(config);
-    configuration.SerializeStaticSettings([&proto](const TString& name, const TString& value) {
+    TRuntimeSettingsConfiguration::Get().SerializeStaticSettings(config, [&proto](const TString& name, const TString& value) {
         auto* setting = proto.AddHostSettings();
         setting->SetName(name);
         setting->SetValue(value);
@@ -89,19 +100,9 @@ TString SerializeRuntimeSettingsToString(const TRuntimeSettings& config) {
 }
 
 TRuntimeSettings::TPtr CreateRuntimeSettingsFromString(
-    const TString& data,
-    const TString& userName,
-    TCredentials::TPtr credentials)
-{
-    return CreateRuntimeSettingsFromStringImpl(data, userName, credentials, /*allowActivation=*/true);
-}
-
-TRuntimeSettings::TPtr CreateRuntimeSettingsFromString(
     const TString& data)
 {
-    NProto::TRuntimeSettings proto;
-    proto.ParseFromStringOrThrow(data);
-    return CreateRuntimeSettingsFromStringImpl(data, "", nullptr, /*allowActivation=*/false);
+    return CreateRuntimeSettingsFromStringImpl(data);
 }
 
 } // namespace NYql

@@ -173,7 +173,7 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
         elif initial == "frozen":
             sync_mount_table("//tmp/t", freeze=True)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot .* tablet .* in .* state"):
             self._get_callback(command)("//tmp/t")
 
     def _do_test_transition(self, initial, first_command, second_command):
@@ -181,7 +181,7 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
         if expected == "error":
             with Restarter(self.Env, NODES_SERVICE):
                 self._get_callback(first_command)("//tmp/t")
-                with pytest.raises(YtError):
+                with raises_yt_error("Cannot .* tablet .* in .* state"):
                     self._get_callback(second_command)("//tmp/t")
         else:
             self._get_callback(first_command)("//tmp/t")

@@ -1,0 +1,1 @@
+{% include [Internal authentication {{product-name}} Flow](../../_includes/flow/contributor/internal-authentication.md) %}

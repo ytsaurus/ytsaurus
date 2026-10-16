@@ -1,0 +1,176 @@
+import sys
+import sysconfig
+import types
+
+import pytest
+
+import multidict
+
+FREETHREADED = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
+
+
+def test_proxies(multidict_module: types.ModuleType) -> None:
+    assert issubclass(
+        multidict_module.CIMultiDictProxy,
+        multidict_module.MultiDictProxy,
+    )
+
+
+def test_dicts(multidict_module: types.ModuleType) -> None:
+    assert issubclass(multidict_module.CIMultiDict, multidict_module.MultiDict)
+
+
+def test_proxy_not_inherited_from_dict(multidict_module: types.ModuleType) -> None:
+    assert not issubclass(multidict_module.MultiDictProxy, multidict_module.MultiDict)
+
+
+def test_dict_not_inherited_from_proxy(multidict_module: types.ModuleType) -> None:
+    assert not issubclass(multidict_module.MultiDict, multidict_module.MultiDictProxy)
+
+
+def test_multidict_proxy_copy_type(multidict_module: types.ModuleType) -> None:
+    d = multidict_module.MultiDict(key="val")
+    p = multidict_module.MultiDictProxy(d)
+    assert isinstance(p.copy(), multidict_module.MultiDict)
+
+
+def test_cimultidict_proxy_copy_type(multidict_module: types.ModuleType) -> None:
+    d = multidict_module.CIMultiDict(key="val")
+    p = multidict_module.CIMultiDictProxy(d)
+    assert isinstance(p.copy(), multidict_module.CIMultiDict)
+
+
+def test_create_multidict_proxy_from_nonmultidict(
+    multidict_module: types.ModuleType,
+) -> None:
+    with pytest.raises(TypeError):
+        multidict_module.MultiDictProxy({})
+
+
+def test_create_multidict_proxy_from_cimultidict(
+    multidict_module: types.ModuleType,
+) -> None:
+    d = multidict_module.CIMultiDict(key="val")
+    p = multidict_module.MultiDictProxy(d)
+    assert p == d
+
+
+def test_create_multidict_proxy_from_multidict_proxy_from_mdict(
+    multidict_module: types.ModuleType,
+) -> None:
+    d = multidict_module.MultiDict(key="val")
+    p = multidict_module.MultiDictProxy(d)
+    assert p == d
+    p2 = multidict_module.MultiDictProxy(p)
+    assert p2 == p
+
+
+def test_create_cimultidict_proxy_from_cimultidict_proxy_from_ci(
+    multidict_module: types.ModuleType,
+) -> None:
+    d = multidict_module.CIMultiDict(key="val")
+    p = multidict_module.CIMultiDictProxy(d)
+    assert p == d
+    p2 = multidict_module.CIMultiDictProxy(p)
+    assert p2 == p
+
+
+@pytest.mark.skipif(
+    FREETHREADED,
+    reason="getrefcount is not meaningful under the free-threaded build",
+)
+@pytest.mark.c_extension
+@pytest.mark.parametrize(
+    ("dict_class_name", "proxy_class_name"),
+    (("MultiDict", "MultiDictProxy"), ("CIMultiDict", "CIMultiDictProxy")),
+)
+def test_proxy_reinitialization_releases_old_target(
+    multidict_module: types.ModuleType,
+    dict_class_name: str,
+    proxy_class_name: str,
+) -> None:
+    dict_class = getattr(multidict_module, dict_class_name)
+    proxy_class = getattr(multidict_module, proxy_class_name)
+    original = dict_class()
+    replacement = dict_class()
+    proxy = proxy_class(original)
+    original_refcount = sys.getrefcount(original)
+
+    proxy.__init__(replacement)
+
+    assert sys.getrefcount(original) == original_refcount - 1
+
+
+def test_create_cimultidict_proxy_from_nonmultidict(
+    multidict_module: types.ModuleType,
+) -> None:
+    with pytest.raises(
+        TypeError,
+        match=(
+            "ctor requires CIMultiDict or CIMultiDictProxy instance, not <class 'dict'>"
+        ),
+    ):
+        multidict_module.CIMultiDictProxy({})
+
+
+def test_create_ci_multidict_proxy_from_multidict(
+    multidict_module: types.ModuleType,
+) -> None:
+    d = multidict_module.MultiDict(key="val")
+    with pytest.raises(
+        TypeError,
+        match=(
+            "ctor requires CIMultiDict or CIMultiDictProxy instance, "
+            "not <class 'multidict._multidict.*.MultiDict'>"
+        ),
+    ):
+        multidict_module.CIMultiDictProxy(d)
+
+
+@pytest.mark.parametrize("proxy_class_name", ("MultiDictProxy", "CIMultiDictProxy"))
+def test_create_multidict_proxy_missing_arg(
+    multidict_module: types.ModuleType,
+    proxy_class_name: str,
+) -> None:
+    proxy_class = getattr(multidict_module, proxy_class_name)
+    with pytest.raises(TypeError, match="missing 1 required positional argument"):
+        proxy_class()
+
+
+@pytest.mark.parametrize("proxy_class_name", ("MultiDictProxy", "CIMultiDictProxy"))
+def test_create_multidict_proxy_too_many_args(
+    multidict_module: types.ModuleType,
+    proxy_class_name: str,
+) -> None:
+    proxy_class = getattr(multidict_module, proxy_class_name)
+    dict_class_name = proxy_class_name.replace("Proxy", "")
+    d = getattr(multidict_module, dict_class_name)(key="val")
+    with pytest.raises(TypeError, match="positional argument"):
+        proxy_class(d, d)
+
+
+@pytest.mark.c_extension
+@pytest.mark.parametrize("proxy_class_name", ("MultiDictProxy", "CIMultiDictProxy"))
+def test_create_multidict_proxy_rejects_kwargs(proxy_class_name: str) -> None:
+    # Unlike the pure-Python implementation, the C extension's
+    # constructor does not accept its single argument by keyword.
+    proxy_class = getattr(multidict, proxy_class_name)
+    dict_class_name = proxy_class_name.replace("Proxy", "")
+    d = getattr(multidict, dict_class_name)(key="val")
+    with pytest.raises(TypeError, match="keyword arguments"):
+        proxy_class(arg=d)
+
+
+def test_generic_alias(multidict_module: types.ModuleType) -> None:
+    assert multidict_module.MultiDict[int] == types.GenericAlias(
+        multidict_module.MultiDict, (int,)
+    )
+    assert multidict_module.MultiDictProxy[int] == types.GenericAlias(
+        multidict_module.MultiDictProxy, (int,)
+    )
+    assert multidict_module.CIMultiDict[int] == types.GenericAlias(
+        multidict_module.CIMultiDict, (int,)
+    )
+    assert multidict_module.CIMultiDictProxy[int] == types.GenericAlias(
+        multidict_module.CIMultiDictProxy, (int,)
+    )

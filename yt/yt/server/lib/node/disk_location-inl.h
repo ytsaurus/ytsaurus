@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "disk_location.h"
 #endif
-#undef DISK_LOCATION_INL_H_
 
 #include <yt/yt/server/lib/misc/private.h>
 
@@ -38,7 +37,7 @@ TFuture<T> TDiskLocation::RegisterAction(TCallback<TFuture<T>()> action)
     auto currentState = State_.load();
     if (!CanHandleIncomingActions()) {
         return MakeFuture(TError("Location cannot handle incoming actions")
-            << TErrorAttribute("state", currentState));
+            .With("state", currentState));
     }
 
     auto future = action.Run();

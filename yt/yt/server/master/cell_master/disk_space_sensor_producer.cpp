@@ -28,21 +28,21 @@ public:
     void CollectSensors(ISensorWriter* writer) override
     {
         try {
-            // TODO(babenko): migrate to std::string
-            auto snapshotsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(TString(Config_->Snapshots->Path));
+            auto snapshotsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Snapshots->Path);
             writer->AddGauge("/snapshots/free_space", snapshotsStorageDiskSpaceStatistics.FreeSpace);
             writer->AddGauge("/snapshots/available_space", snapshotsStorageDiskSpaceStatistics.AvailableSpace);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Failed to profile snapshots storage disk space");
+            YT_TLOG_DEBUG("Failed to profile snapshots storage disk space")
+                .With(ex);
         }
 
         try {
-            // TODO(babenko): migrate to std::string
-            auto changelogsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(TString(Config_->Changelogs->Path));
+            auto changelogsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Changelogs->Path);
             writer->AddGauge("/changelogs/free_space", changelogsStorageDiskSpaceStatistics.FreeSpace);
             writer->AddGauge("/changelogs/available_space", changelogsStorageDiskSpaceStatistics.AvailableSpace);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Failed to profile changelogs storage disk space");
+            YT_TLOG_DEBUG("Failed to profile changelogs storage disk space")
+                .With(ex);
         }
     }
 

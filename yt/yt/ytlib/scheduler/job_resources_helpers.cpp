@@ -5,19 +5,19 @@
 
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <functional>
 
-namespace NYT {
+namespace NYT::NScheduler {
 
 using namespace NYson;
 using namespace NYTree;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NProfiling;
-
-namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +86,7 @@ void SerializeJobResourcesWithQuota(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString FormatResource(
+std::string FormatResource(
     const TJobResources& usage,
     const TJobResources& limits)
 {
@@ -109,14 +109,14 @@ TString FormatResource(
         limits.GetNetwork());
 }
 
-TString FormatResourceUsage(
+std::string FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits)
 {
     return Format("{%v}", FormatResource(usage, limits));
 }
 
-TString FormatResourceUsage(
+std::string FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits,
     const NNodeTrackerClient::NProto::TDiskResources& diskResources,
@@ -127,7 +127,7 @@ TString FormatResourceUsage(
         NNodeTrackerClient::ToString(diskResources, mediumDirectory));
 }
 
-TString FormatResources(const TJobResourcesWithQuota& resources)
+std::string FormatResources(const TJobResourcesWithQuota& resources)
 {
     return Format(
         "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %vMB, Network: %v, DiskQuota: %v}",
@@ -140,7 +140,7 @@ TString FormatResources(const TJobResourcesWithQuota& resources)
 
 }
 
-TString FormatResourcesConfig(const TJobResourcesConfigPtr& config)
+std::string FormatResourcesConfig(const TJobResourcesConfigPtr& config)
 {
     TStringBuilder builder;
     builder.AppendChar('{');
@@ -209,7 +209,7 @@ void TJobResourcesProfiler::Update(
 void ProfileResources(
     NProfiling::ISensorWriter* writer,
     const TJobResources& resources,
-    const TString& prefix,
+    const std::string& prefix,
     NProfiling::EMetricType metricType)
 {
     switch (metricType) {
@@ -302,6 +302,13 @@ void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NYT::NScheduler
 
-} // namespace NYT
+PHOENIX_DEFINE_EXTERNAL_TYPE(NYT::NScheduler::TJobResources)
+{
+    PHOENIX_REGISTER_FIELD(1, UserSlots_);
+    PHOENIX_REGISTER_FIELD(2, Cpu_);
+    PHOENIX_REGISTER_FIELD(3, Gpu_);
+    PHOENIX_REGISTER_FIELD(4, Memory_);
+    PHOENIX_REGISTER_FIELD(5, Network_);
+}

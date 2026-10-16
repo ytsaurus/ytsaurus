@@ -15,10 +15,13 @@ import contextlib
 import decimal
 import gc
 from itertools import chain
+import os
 import pickle
 import random
+import subprocess
 import sys
 from sys import getsizeof
+from tempfile import mkstemp
 import time
 import types
 from typing import Any
@@ -40,7 +43,6 @@ from ..util import defaultdict
 from ..util import has_refcount_gc
 from ..util import inspect_getfullargspec
 
-
 if not has_refcount_gc:
 
     def non_refcount_gc_collect(*args):
@@ -61,6 +63,44 @@ def picklers():
 
     for protocol in range(-2, pickle.HIGHEST_PROTOCOL + 1):
         yield nt(pickle.loads, lambda d: pickle.dumps(d, protocol))
+
+
+def unpickle_in_subprocess(obj, code):
+    """pickle ``obj`` to a file, then unpickle it in a new interpreter.
+
+    ``code`` is Python source run by that interpreter, which receives the
+    name of the pickle file as ``sys.argv[1]``.  The new interpreter has
+    the current ``sys.path``, so that the SQLAlchemy under test, as well
+    as the ``test`` package, are importable.
+
+    Returns the stripped stdout of the subprocess; a non-zero exit status
+    fails the test, reporting its stderr.
+
+    """
+
+    fd, filename = mkstemp("pkl")
+    try:
+        with os.fdopen(fd, "wb") as file_:
+            pickle.dump(obj, file_)
+
+        parts = list(sys.path)
+        if os.environ.get("PYTHONPATH"):
+            parts.append(os.environ["PYTHONPATH"])
+
+        proc = subprocess.run(
+            [sys.executable, "-c", code, filename.replace(os.sep, "/")],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env={**os.environ, "PYTHONPATH": os.pathsep.join(parts)},
+        )
+    finally:
+        os.unlink(filename)
+
+    if proc.returncode != 0:
+        raise AssertionError(
+            "subprocess failed: %s" % proc.stderr.decode(errors="replace")
+        )
+    return proc.stdout.strip()
 
 
 def random_choices(population, k=1):

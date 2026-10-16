@@ -2,11 +2,10 @@ LIBRARY()
 
 SRCS(
     GLOBAL plugin.cpp
-    error_helpers.cpp
-    progress_merger.cpp
     dq_gateway_with_offloading.cpp
     dq_manager.cpp
     provider_load.cpp
+    ytflow_load.cpp
 )
 
 PEERDIR(
@@ -40,7 +39,7 @@ PEERDIR(
     yql/essentials/utils/backtrace
     yql/essentials/utils/log
     yql/essentials/utils/log/proto
-    yql/essentials/sql/v1
+    yql/essentials/sql/v1/translation
     yql/essentials/sql/v1/lexer/antlr4
     yql/essentials/sql/v1/lexer/antlr4_ansi
     yql/essentials/sql/v1/proto_parser/antlr4
@@ -48,20 +47,24 @@ PEERDIR(
     yql/essentials/providers/common/proto
     yql/essentials/providers/common/codec
     yql/essentials/providers/common/udf_resolve
-    contrib/ydb/library/yql/providers/solomon/gateway
-    contrib/ydb/library/yql/providers/solomon/provider
     yql/essentials/core
     yql/essentials/core/url_preprocessing
     contrib/ydb/library/yql/dq/comp_nodes
     contrib/ydb/library/yql/dq/opt
-    contrib/ydb/library/yql/providers/dq/actors/yt
-    contrib/ydb/library/yql/providers/dq/global_worker_manager
+    yt/yql/providers/dq/actors/yt
+    yt/yql/providers/dq/clique
+    yt/yql/providers/dq/common
+    yt/yql/providers/dq/global_worker_manager
+    yt/yql/providers/dq/metrics
     contrib/ydb/library/yql/providers/dq/helper
     contrib/ydb/library/yql/providers/dq/provider
     contrib/ydb/library/yql/providers/dq/provider/exec
-    contrib/ydb/library/yql/providers/dq/service
-    contrib/ydb/library/yql/providers/dq/stats_collector
     contrib/ydb/library/yql/providers/dq/worker_manager/interface
+    yt/yql/library/token_resolver
+    yt/yql/providers/dq/control
+    yt/yql/providers/dq/gateway
+    yt/yql/providers/dq/service
+    yt/yql/providers/dq/stats_collector
     yt/yql/providers/yt/gateway/native
     yt/yql/providers/yt/codec
     yt/yql/providers/yt/codec/codegen
@@ -78,9 +81,12 @@ PEERDIR(
     yt/yql/providers/yt/codec/codegen
     yt/yql/providers/yt/comp_nodes/dq/llvm16
     yt/yql/providers/yt/comp_nodes/llvm16
+    yt/yql/providers/ytflow/gateway
+    yt/yql/providers/ytflow/provider
     contrib/ydb/library/yql/providers/yt/dq_task_preprocessor
 
     yt/yql/plugin
+    yt/yql/plugin/lib
 )
 
 IF (NOT OPENSOURCE)
@@ -88,7 +94,6 @@ IF (NOT OPENSOURCE)
 ELSE()
     SRCS(
         dummy_secret_masker.cpp
-        no_ytflow_load.cpp
         no_pq_load.cpp
         no_solomon_load.cpp
     )

@@ -25,11 +25,11 @@ namespace NYT::NHiveServer {
 //! posted via Hive.
 bool IsHiveMutation();
 
-//! Returns the id of the cell that posted a mutation currently handed
+//! Returns the id of the cell that posted a mutation currently handled
 //! by a current fiber or null id if that mutation is not a Hive one.
 TCellId GetHiveMutationSenderId();
 
-//! Returns the reign of the cell that posted a mutation currently handed
+//! Returns the reign of the cell that posted a mutation currently handled
 //! by a current fiber or 0 if that mutation is not a Hive one.
 NHydra::TReign GetHiveMutationSenderReign();
 

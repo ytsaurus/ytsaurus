@@ -104,7 +104,8 @@ TLogger TChunkPoolTestBase::GetTestLogger()
     const auto* testInfo = UnitTest::GetInstance()->current_test_info();
 
     return ChunkPoolLogger()
-        .WithTag("OperationId: %v, Name: %v::%v", TGuid::Create(), testInfo->name(), testInfo->test_suite_name());
+        .WithTag("OperationId", TGuid::Create())
+        .WithTagFormat("Name", "%v::%v", testInfo->name(), testInfo->test_suite_name());
 }
 
 void TChunkPoolTestBase::CheckCounter(const TConstProgressCounterPtr& actual, const TExpectedCounter& expected)
@@ -124,7 +125,7 @@ void TChunkPoolTestBase::CheckCounter(const TConstProgressCounterPtr& actual, co
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLegacyKey TSortedChunkPoolTestBase::BuildRow(std::vector<i64> values)
+TLegacyKey TSortedChunkPoolTestBase::BuildRow(std::vector<i64> values) const
 {
     auto row = RowBuffer_->AllocateUnversioned(values.size());
     for (int index = 0; index < std::ssize(values); ++index) {
@@ -133,7 +134,7 @@ TLegacyKey TSortedChunkPoolTestBase::BuildRow(std::vector<i64> values)
     return row;
 }
 
-NTableClient::TKeyBound TSortedChunkPoolTestBase::BuildBound(const char* boolOperator, std::vector<i64> values)
+NTableClient::TKeyBound TSortedChunkPoolTestBase::BuildBound(const char* boolOperator, std::vector<i64> values) const
 {
     auto allowedStrings = {"<", "<=", ">", ">="};
     YT_VERIFY(Find(allowedStrings, boolOperator));

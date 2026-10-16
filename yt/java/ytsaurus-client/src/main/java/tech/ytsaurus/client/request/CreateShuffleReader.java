@@ -1,31 +1,20 @@
 package tech.ytsaurus.client.request;
 
-import java.io.ByteArrayOutputStream;
-
 import javax.annotation.Nullable;
 
-import com.google.protobuf.ByteString;
 import tech.ytsaurus.rpcproxy.TReqReadShuffleData;
 import tech.ytsaurus.rpcproxy.TReqReadShuffleData.TIndexRange;
-import tech.ytsaurus.ysontree.YTree;
-import tech.ytsaurus.ysontree.YTreeBinarySerializer;
-import tech.ytsaurus.ysontree.YTreeNode;
 
 public class CreateShuffleReader extends RequestBase<CreateShuffleReader.Builder, CreateShuffleReader> {
     private final ShuffleHandle handle;
     private final int partitionIndex;
     @Nullable
-    private final YTreeNode config;
-    @Nullable
     private final Range range;
-
-    private static final YTreeNode EMPTY_CONFIG = YTree.builder().beginMap().endMap().build();
 
     public CreateShuffleReader(BuilderBase<?> builder) {
         super(builder);
         this.handle = builder.handle;
         this.partitionIndex = builder.partitionIndex;
-        this.config = builder.config;
         this.range = builder.range;
     }
 
@@ -40,11 +29,6 @@ public class CreateShuffleReader extends RequestBase<CreateShuffleReader.Builder
             TIndexRange indexRange = TIndexRange.newBuilder().setBegin(range.begin).setEnd(range.end).build();
             builder.setWriterIndexRange(indexRange);
         }
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        YTreeBinarySerializer.serialize(this.config == null ? EMPTY_CONFIG : this.config, baos);
-        byte[] data = baos.toByteArray();
-        builder.setReaderConfig(ByteString.copyFrom(data));
     }
 
     @Override
@@ -52,7 +36,6 @@ public class CreateShuffleReader extends RequestBase<CreateShuffleReader.Builder
         return builder()
                 .setHandle(handle)
                 .setPartitionIndex(partitionIndex)
-                .setConfig(config)
                 .setRange(range);
     }
 
@@ -69,8 +52,6 @@ public class CreateShuffleReader extends RequestBase<CreateShuffleReader.Builder
         private ShuffleHandle handle;
         private int partitionIndex;
         @Nullable
-        private YTreeNode config = null;
-        @Nullable
         private Range range = null;
 
         public TBuilder setHandle(ShuffleHandle handle) {
@@ -80,11 +61,6 @@ public class CreateShuffleReader extends RequestBase<CreateShuffleReader.Builder
 
         public TBuilder setPartitionIndex(int partitionIndex) {
             this.partitionIndex = partitionIndex;
-            return self();
-        }
-
-        public TBuilder setConfig(@Nullable YTreeNode config) {
-            this.config = config;
             return self();
         }
 

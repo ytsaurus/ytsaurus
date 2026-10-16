@@ -19,6 +19,7 @@ from gevent._hub_primitives import wait_on_watcher
 from gevent.hub import get_hub
 from gevent.os import _read
 from gevent.os import _write
+from gevent.os import _close
 from gevent.os import ignored_errors
 from gevent.os import make_nonblocking
 
@@ -44,7 +45,11 @@ class GreenFileDescriptorIO(RawIOBase):
         self._closefd = closefd
         self._fileno = fileno
         self.name = fileno
-        self.mode = open_descriptor.fileio_mode
+        # Use the full mode (including the 't'/'b' suffix), matching what
+        # io.FileIO itself reports; open_descriptor.fileio_mode is the
+        # stripped-down string meant only for constructing the raw FileIO,
+        # not for user-facing introspection.
+        self.mode = open_descriptor.mode
         make_nonblocking(fileno)
         readable = open_descriptor.can_read
         writable = open_descriptor.can_write
@@ -136,7 +141,7 @@ class GreenFileDescriptorIO(RawIOBase):
     def __finish_close(closefd, fileno, keep_alive):
         try:
             if closefd:
-                os.close(fileno)
+                _close(fileno)
         finally:
             if hasattr(keep_alive, 'close'):
                 keep_alive.close()

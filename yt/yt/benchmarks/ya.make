@@ -1,6 +1,5 @@
 RECURSE(
     action_queue
-    bus
     future
     context_switch
     exceptions
@@ -22,3 +21,11 @@ RECURSE(
     versioned_block_format
     yson_struct
 )
+
+# The bus benchmark can drive the UCX/RDMA transport, which is Linux-only and
+# not built in OpenSource.
+IF (NOT OPENSOURCE AND OS_LINUX)
+    RECURSE(
+        bus
+    )
+ENDIF()

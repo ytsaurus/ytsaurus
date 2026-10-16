@@ -1,4 +1,5 @@
 #include "query.h"
+#include "query_helpers.h"
 #include "query_visitors.h"
 #include "helpers.h"
 
@@ -253,8 +254,8 @@ TAggregateItem::TAggregateItem(
     : Arguments(std::move(arguments))
     , Name(name)
     , AggregateFunction(aggregateFunction)
-    , StateType(stateType)
-    , ResultType(resultType)
+    , StateType(std::move(stateType))
+    , ResultType(std::move(resultType))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -283,10 +284,15 @@ TKeyColumns TMappedSchema::GetKeyColumns() const
 
 TTableSchemaPtr TMappedSchema::GetRenamedSchema() const
 {
+    auto orderedMapping = GetOrderedSchemaMapping();
+
     TSchemaColumns result;
-    for (const auto& item : GetOrderedSchemaMapping()) {
-        result.emplace_back(item.Name, Original->Columns()[item.Index].LogicalType());
+    result.reserve(orderedMapping.size());
+
+    for (auto& item : orderedMapping) {
+        result.emplace_back(std::move(item.Name), Original->Columns()[item.Index].LogicalType());
     }
+
     return New<TTableSchema>(std::move(result));
 }
 
@@ -412,6 +418,110 @@ std::vector<size_t> TJoinClause::GetForeignColumnIndices() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THierarchicalJoinClause::THierarchicalJoinClause(const THierarchicalJoinClause& other)
+    : ForeignTableSchema(other.ForeignTableSchema)
+    , ForeignEquations(other.ForeignEquations)
+    , SelfEquations(other.SelfEquations)
+    , IsLeft(other.IsLeft)
+    , ForeignObjectId(other.ForeignObjectId)
+    , ForeignCellId(other.ForeignCellId)
+    , ForeignJoinedColumns(other.ForeignJoinedColumns)
+    , ResultColumnName(other.ResultColumnName)
+    , SelfSideJoinKeys(other.SelfSideJoinKeys)
+    , JoiningSubquery(other.JoiningSubquery)
+{ }
+
+TTableSchemaPtr THierarchicalJoinClause::GetForeignTableRenamedSchema() const
+{
+    return ForeignTableSchema.GetRenamedSchema();
+}
+
+TKeyColumns THierarchicalJoinClause::GetForeignTableKeyColumns() const
+{
+    return ForeignTableSchema.GetKeyColumns();
+}
+
+TTableSchemaPtr THierarchicalJoinClause::GetTableSchema(const TTableSchema& source) const
+{
+    TSchemaColumns result;
+
+    for (const auto& column : source.Columns()) {
+        result.push_back(column);
+    }
+
+    auto logicalType = JoiningSubquery->LogicalType;
+    if (IsLeft && !logicalType->IsNullable()) {
+        logicalType = OptionalLogicalType(std::move(logicalType));
+    }
+    result.emplace_back(ResultColumnName, std::move(logicalType));
+
+    return New<TTableSchema>(std::move(result));
+}
+
+TQueryPtr THierarchicalJoinClause::GetJoinSubquery() const
+{
+    auto joinSubplan = New<TQuery>();
+
+    joinSubplan->Schema = ForeignTableSchema;
+
+    THROW_ERROR_EXCEPTION_IF(std::ssize(JoiningSubquery->JoinClauses) != 1,
+        "Expected one join clause, but got %v",
+        std::ssize(JoiningSubquery->JoinClauses));
+
+    auto whereClause = JoiningSubquery->JoinClauses[0]->Predicate;
+
+    if (IsLeft && JoiningSubquery->WhereClause) {
+        // WhereClause filter stays as correctness guard: it excludes rows for unmatched keys.
+        // Pushing this predicate into the fetch subplan is an optimization.
+        auto foreignRenamedSchema = GetForeignTableRenamedSchema();
+        auto [foreignFilter, _] = SplitPredicateByColumnSubset(JoiningSubquery->WhereClause, *foreignRenamedSchema);
+        if (!IsTrue(foreignFilter)) {
+            whereClause = MakeAndExpression(whereClause, foreignFilter);
+        }
+    }
+
+    joinSubplan->WhereClause = whereClause;
+
+    auto projectClause = New<TProjectClause>();
+    for (const auto& column : ForeignEquations) {
+        projectClause->AddProjection(column, InferName(column));
+    }
+
+    auto foreignTableColumns = GetForeignTableRenamedSchema()->Columns();
+    for (const auto& renamedColumn : foreignTableColumns) {
+        // TODO(dtorilov): eliminate possible(?) duplication between ForeignEquations and ForeignJoinedColumns.
+        if (ForeignJoinedColumns.contains(renamedColumn.Name())) {
+            projectClause->AddProjection(
+                New<TReferenceExpression>(
+                    renamedColumn.LogicalType(),
+                    renamedColumn.Name()),
+                renamedColumn.Name());
+        }
+    }
+
+    joinSubplan->ProjectClause = std::move(projectClause);
+
+    return joinSubplan;
+}
+
+std::vector<size_t> THierarchicalJoinClause::GetForeignColumnIndices() const
+{
+    std::vector<size_t> foreignColumns;
+
+    size_t foreignColumnsIndex = ForeignEquations.size();
+    auto foreignTableColumns = GetForeignTableRenamedSchema()->Columns();
+    for (const auto& renamedColumn : foreignTableColumns) {
+        if (ForeignJoinedColumns.contains(renamedColumn.Name())) {
+            foreignColumns.push_back(foreignColumnsIndex);
+            ++foreignColumnsIndex;
+        }
+    }
+
+    return foreignColumns;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TGroupClause::AddGroupItem(TNamedItem namedItem)
 {
     GroupItems.push_back(std::move(namedItem));
@@ -504,10 +614,15 @@ TBaseQuery::TBaseQuery(const TBaseQuery& other)
     , Limit(other.Limit)
     , UseDisjointGroupBy(other.UseDisjointGroupBy)
     , InferRanges(other.InferRanges)
+    , IsReverseScan(other.IsReverseScan)
 { }
 
 EScanOrder TBaseQuery::GetScanOrder(bool allowUnorderedGroupByWithLimit) const
 {
+    if (IsReverseScan) {
+        return EScanOrder::Reversed;
+    }
+
     if (Limit < std::numeric_limits<i64>::max()) {
         if (allowUnorderedGroupByWithLimit) {
             bool ordered = !OrderClause && (!GroupClause || GroupClause->AllAggregatesAreFirst() || GroupClause->CommonPrefixWithPrimaryKey > 0);
@@ -539,13 +654,13 @@ TKeyColumns TQuery::GetKeyColumns() const
 
 TTableSchemaPtr TQuery::GetReadSchema() const
 {
-    TSchemaColumns result;
+    auto orderedMapping = Schema.GetOrderedSchemaMapping();
 
-    for (const auto& item : Schema.GetOrderedSchemaMapping()) {
-        auto& columnSchema = result.emplace_back(
-            Schema.Original->Columns()[item.Index].Name(),
-            Schema.Original->Columns()[item.Index].LogicalType());
-        columnSchema.SetStableName(Schema.Original->Columns()[item.Index].StableName());
+    TSchemaColumns result;
+    result.reserve(orderedMapping.size());
+
+    for (const auto& item : orderedMapping) {
+        result.emplace_back(Schema.Original->Columns()[item.Index]);
     }
 
     return New<TTableSchema>(std::move(result));
@@ -570,6 +685,10 @@ TTableSchemaPtr TQuery::GetTableSchema(bool castToQLType) const
 
     for (const auto& joinClause : JoinClauses) {
         result = joinClause->GetTableSchema(*result);
+    }
+
+    for (const auto& hierarchicalJoin : HierarchicalJoinsBeforeGroupBy) {
+        result = hierarchicalJoin->GetTableSchema(*result);
     }
 
     return result;
@@ -694,6 +813,24 @@ std::string InferName(TConstBaseQueryPtr query, const TInferNameOptions& options
             }
         }
 
+        for (const auto& hierarchicalJoin : derivedQuery->HierarchicalJoinsInWhereClause) {
+            clauses.push_back(Format(
+                "%v HIERARCHICAL JOIN IN WHERE [result: %v, keys: %v, subquery: %v]",
+                hierarchicalJoin->IsLeft ? "LEFT" : "INNER",
+                hierarchicalJoin->ResultColumnName,
+                InferName(hierarchicalJoin->SelfSideJoinKeys, options),
+                InferName(hierarchicalJoin->JoiningSubquery, options)));
+        }
+
+        for (const auto& hierarchicalJoin : derivedQuery->HierarchicalJoinsBeforeGroupBy) {
+            clauses.push_back(Format(
+                "%v HIERARCHICAL JOIN [result: %v, keys: %v, subquery: %v]",
+                hierarchicalJoin->IsLeft ? "LEFT" : "INNER",
+                hierarchicalJoin->ResultColumnName,
+                InferName(hierarchicalJoin->SelfSideJoinKeys, options),
+                InferName(hierarchicalJoin->JoiningSubquery, options)));
+        }
+
         if (derivedQuery->WhereClause) {
             clauses.push_back(std::string("WHERE ") + InferName(derivedQuery->WhereClause, options));
         }
@@ -719,6 +856,26 @@ std::string InferName(TConstBaseQueryPtr query, const TInferNameOptions& options
         clauses.push_back(std::string("HAVING ") + InferName(query->HavingClause, afterGroupByOptions));
         if (query->GroupClause->TotalsMode == ETotalsMode::AfterHaving) {
             clauses.push_back("WITH TOTALS");
+        }
+    }
+
+    if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
+        for (const auto& hierarchicalJoin : derivedQuery->HierarchicalJoinsAfterGroupBy) {
+            clauses.push_back(Format(
+                "%v HIERARCHICAL JOIN AFTER GROUP BY [result: %v, keys: %v, subquery: %v]",
+                hierarchicalJoin->IsLeft ? "LEFT" : "INNER",
+                hierarchicalJoin->ResultColumnName,
+                InferName(hierarchicalJoin->SelfSideJoinKeys, options),
+                InferName(hierarchicalJoin->JoiningSubquery, options)));
+        }
+    } else if (auto derivedQuery = dynamic_cast<const TFrontQuery*>(query.Get())) {
+        for (const auto& hierarchicalJoin : derivedQuery->HierarchicalJoinsAfterGroupBy) {
+            clauses.push_back(Format(
+                "%v HIERARCHICAL JOIN AFTER GROUP BY [result: %v, keys: %v, subquery: %v]",
+                hierarchicalJoin->IsLeft ? "LEFT" : "INNER",
+                hierarchicalJoin->ResultColumnName,
+                InferName(hierarchicalJoin->SelfSideJoinKeys, options),
+                InferName(hierarchicalJoin->JoiningSubquery, options)));
         }
     }
 
@@ -883,7 +1040,23 @@ bool Compare(
         CHECK(subqueryRhs);
 
         CHECK(Compare(subqueryLhs->FromExpressions, subqueryRhs->FromExpressions, referenceComparer));
-        CHECK(Compare(subqueryLhs->WhereClause, subqueryRhs->WhereClause, referenceComparer));
+        CHECK(static_cast<bool>(subqueryLhs->WhereClause) == static_cast<bool>(subqueryRhs->WhereClause));
+        if (subqueryLhs->WhereClause) {
+            CHECK(Compare(subqueryLhs->WhereClause, subqueryRhs->WhereClause, referenceComparer));
+        }
+
+        CHECK(subqueryLhs->Offset == subqueryRhs->Offset);
+        CHECK(subqueryLhs->Limit == subqueryRhs->Limit);
+        CHECK(static_cast<bool>(subqueryLhs->OrderClause) == static_cast<bool>(subqueryRhs->OrderClause));
+        if (subqueryLhs->OrderClause) {
+            const auto& lhsItems = subqueryLhs->OrderClause->OrderItems;
+            const auto& rhsItems = subqueryRhs->OrderClause->OrderItems;
+            CHECK(lhsItems.size() == rhsItems.size());
+            for (int index = 0; index < std::ssize(lhsItems); ++index) {
+                CHECK(lhsItems[index].Descending == rhsItems[index].Descending);
+                CHECK(Compare(lhsItems[index].Expression, rhsItems[index].Expression, referenceComparer));
+            }
+        }
 
         if (subqueryLhs->ProjectClause) {
             CHECK(subqueryRhs->ProjectClause);
@@ -981,6 +1154,9 @@ void FromProto(TConstGroupClausePtr* original, const NProto::TGroupClause& seria
 
 void ToProto(NProto::TProjectClause* proto, const TConstProjectClausePtr& original);
 void FromProto(TConstProjectClausePtr* original, const NProto::TProjectClause& serialized);
+
+void ToProto(NProto::TOrderClause* proto, const TConstOrderClausePtr& original);
+void FromProto(TConstOrderClausePtr* original, const NProto::TOrderClause& serialized);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1091,7 +1267,7 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
 
             case EValueType::Composite: {
                 THROW_ERROR_EXCEPTION("Unsupported value type")
-                    << TErrorAttribute("type", value.Type);
+                    .With("type", value.Type);
             }
 
             default:
@@ -1185,6 +1361,7 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         auto* proto = serialized->MutableExtension(NProto::TSubqueryExpression::subquery_expression);
 
         ToProto(proto->mutable_from_expressions(), subqueryExpr->FromExpressions);
+        ToProto(proto->mutable_join_clauses(), subqueryExpr->JoinClauses);
 
         if (subqueryExpr->WhereClause) {
             ToProto(proto->mutable_where_clause(), subqueryExpr->WhereClause);
@@ -1197,6 +1374,13 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         if (subqueryExpr->ProjectClause) {
             ToProto(proto->mutable_project_clause(), subqueryExpr->ProjectClause);
         }
+
+        if (subqueryExpr->OrderClause) {
+            ToProto(proto->mutable_order_clause(), subqueryExpr->OrderClause);
+        }
+
+        proto->set_offset(subqueryExpr->Offset);
+        proto->set_limit(subqueryExpr->Limit);
 
         ToProto(proto->mutable_join_clauses(), subqueryExpr->JoinClauses);
     }
@@ -1382,6 +1566,8 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
                 result->FromExpressions.push_back(FromProto<TNamedItem>(ext.from_expressions(i)));
             }
 
+            FromProto(&result->JoinClauses, ext.join_clauses());
+
             if (ext.has_where_clause()) {
                 FromProto(&result->WhereClause, ext.where_clause());
             }
@@ -1392,6 +1578,15 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
 
             if (ext.has_project_clause()) {
                 FromProto(&result->ProjectClause, ext.project_clause());
+            }
+
+            if (ext.has_order_clause()) {
+                FromProto(&result->OrderClause, ext.order_clause());
+            }
+
+            result->Offset = ext.offset();
+            if (ext.has_limit()) {
+                result->Limit = ext.limit();
             }
 
             FromProto(&result->JoinClauses, ext.join_clauses());
@@ -1551,6 +1746,11 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
     }
 
     proto->set_require_sync_replica(original->RequireSyncReplica);
+
+    if (const auto& prefetchedBlockRange = original->PrefetchedBlockRange) {
+        proto->set_prefetched_first_block(prefetchedBlockRange->first);
+        proto->set_prefetched_last_block(prefetchedBlockRange->second);
+    }
 }
 
 void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& serialized)
@@ -1589,6 +1789,69 @@ void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& seriali
     }
 
     FromProto(&result->RequireSyncReplica, serialized.require_sync_replica());
+
+    if (serialized.has_prefetched_first_block()) {
+        result->PrefetchedBlockRange = std::pair(
+            serialized.prefetched_first_block(),
+            serialized.prefetched_last_block());
+    }
+
+    *original = result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::THierarchicalJoinClause* proto, const TConstHierarchicalJoinClausePtr& original)
+{
+    ToProto(proto->mutable_foreign_table_original_schema(), original->ForeignTableSchema.Original);
+    ToProto(proto->mutable_foreign_table_schema_mapping(), original->ForeignTableSchema.Mapping);
+
+    ToProto(proto->mutable_foreign_equations(), original->ForeignEquations);
+    ToProto(proto->mutable_self_equations(), original->SelfEquations);
+
+    ToProto(proto->mutable_foreign_object_id(), original->ForeignObjectId);
+    ToProto(proto->mutable_foreign_cell_id(), original->ForeignCellId);
+
+    proto->set_is_left(original->IsLeft);
+
+    proto->set_result_column_name(original->ResultColumnName);
+
+    if (original->SelfSideJoinKeys) {
+        ToProto(proto->mutable_self_side_join_keys(), original->SelfSideJoinKeys);
+    }
+
+    if (original->JoiningSubquery) {
+        ToProto(proto->mutable_joining_subquery(), original->JoiningSubquery);
+    }
+
+    ToProto(proto->mutable_foreign_joined_columns(), original->ForeignJoinedColumns);
+}
+
+void FromProto(TConstHierarchicalJoinClausePtr* original, const NProto::THierarchicalJoinClause& serialized)
+{
+    auto result = New<THierarchicalJoinClause>();
+    FromProto(&result->ForeignTableSchema.Original, serialized.foreign_table_original_schema());
+    FromProto(&result->ForeignTableSchema.Mapping, serialized.foreign_table_schema_mapping());
+    FromProto(&result->ForeignEquations, serialized.foreign_equations());
+    FromProto(&result->SelfEquations, serialized.self_equations());
+    FromProto(&result->ForeignObjectId, serialized.foreign_object_id());
+    FromProto(&result->ForeignCellId, serialized.foreign_cell_id());
+    FromProto(&result->IsLeft, serialized.is_left());
+
+    result->ResultColumnName = serialized.result_column_name();
+    FromProto(&result->ForeignJoinedColumns, serialized.foreign_joined_columns());
+
+    if (serialized.has_self_side_join_keys()) {
+        TConstExpressionPtr expr;
+        FromProto(&expr, serialized.self_side_join_keys());
+        result->SelfSideJoinKeys = expr->As<TSubqueryExpression>();
+    }
+
+    if (serialized.has_joining_subquery()) {
+        TConstExpressionPtr expr;
+        FromProto(&expr, serialized.joining_subquery());
+        result->JoiningSubquery = expr->As<TSubqueryExpression>();
+    }
 
     *original = result;
 }
@@ -1670,6 +1933,9 @@ void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
     ToProto(serialized->mutable_schema_mapping(), original->Schema.Mapping);
 
     ToProto(serialized->mutable_join_clauses(), original->JoinClauses);
+    ToProto(serialized->mutable_hierarchical_joins_in_where_clause(), original->HierarchicalJoinsInWhereClause);
+    ToProto(serialized->mutable_hierarchical_joins_before_group_by(), original->HierarchicalJoinsBeforeGroupBy);
+    ToProto(serialized->mutable_hierarchical_joins_after_group_by(), original->HierarchicalJoinsAfterGroupBy);
 
     if (original->WhereClause) {
         ToProto(serialized->mutable_where_clause(), original->WhereClause);
@@ -1707,6 +1973,9 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
     FromProto(&result->Schema.Mapping, serialized.schema_mapping());
 
     FromProto(&result->JoinClauses, serialized.join_clauses());
+    FromProto(&result->HierarchicalJoinsInWhereClause, serialized.hierarchical_joins_in_where_clause());
+    FromProto(&result->HierarchicalJoinsBeforeGroupBy, serialized.hierarchical_joins_before_group_by());
+    FromProto(&result->HierarchicalJoinsAfterGroupBy, serialized.hierarchical_joins_after_group_by());
 
     if (serialized.has_where_clause()) {
         FromProto(&result->WhereClause, serialized.where_clause());

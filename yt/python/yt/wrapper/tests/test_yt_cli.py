@@ -4,22 +4,21 @@ from .conftest import authors
 from .helpers import get_tests_sandbox, wait, get_environment_for_binary_test, set_cypress_attribute
 from .helpers_cli import YtCli
 
-
 from yt import yson
-
 from yt.testlib.test_environment import YtTestEnvironment
-
 from yt.common import makedirp
-
 import yt.wrapper as yt
 
-
 from flaky import flaky
+from unittest.mock import patch
 
 import os
 import json
+import pyarrow
+import pyarrow.parquet
 import pytest
 import random
+import subprocess
 import string
 import time
 import uuid
@@ -170,6 +169,78 @@ class TestYtBinary(object):
 
         yt_cli.check_output(["yt", "write", "//home/wrapper_test/test_table", "--format", "dsv"], stdin="value=y\nvalue=x\n")
         assert yt_cli.check_output(["yt", "read", "//home/wrapper_test/test_table", "--format", "dsv"]) == b"value=y\nvalue=x\n"
+
+    @authors("ilyaibraev")
+    def test_parquet_commands(self, yt_cli: YtCli):
+        table = "//home/wrapper_test/table"
+        input_file = os.path.join(yt_cli.cwd, "input.parquet")
+        output_file = os.path.join(yt_cli.cwd, "output.parquet")
+        arrow_schema = pyarrow.schema([
+            pyarrow.field("key", pyarrow.string(), nullable=False),
+            pyarrow.field("value", pyarrow.int64(), nullable=False),
+            pyarrow.field("optional_value", pyarrow.float64()),
+            pyarrow.field("bool_value", pyarrow.bool_(), nullable=False),
+            pyarrow.field("uint64_value", pyarrow.uint64(), nullable=False),
+            pyarrow.field("int32_value", pyarrow.int32(), nullable=False),
+            pyarrow.field("float32_value", pyarrow.float32(), nullable=False),
+            pyarrow.field("binary_value", pyarrow.binary(), nullable=False),
+        ])
+        rows = [
+            {
+                "key": "привет",
+                "value": -(2 ** 63),
+                "optional_value": 1.5,
+                "bool_value": True,
+                "uint64_value": 2 ** 64 - 1,
+                "int32_value": -(2 ** 31),
+                "float32_value": 1.25,
+                "binary_value": b"\x00\xff",
+            },
+            {
+                "key": "",
+                "value": 2 ** 63 - 1,
+                "optional_value": None,
+                "bool_value": False,
+                "uint64_value": 0,
+                "int32_value": 2 ** 31 - 1,
+                "float32_value": -0.5,
+                "binary_value": b"",
+            },
+        ]
+        parquet_table = pyarrow.Table.from_pydict(
+            {name: [row[name] for row in rows] for name in arrow_schema.names},
+            schema=arrow_schema,
+        )
+        pyarrow.parquet.write_table(parquet_table, input_file)
+
+        yt_cli.check_output(["yt", "upload-parquet", table, "--input-file", input_file])
+
+        schema = yson.loads(yt_cli.check_output(["yt", "get", table + "/@schema"]))
+        assert schema.attributes["strict"]
+        assert [(column["name"], column["type_v3"]) for column in schema] == [
+            ("key", "utf8"),
+            ("value", "int64"),
+            ("optional_value", {"type_name": "optional", "item": "double"}),
+            ("bool_value", "bool"),
+            ("uint64_value", "uint64"),
+            ("int32_value", "int32"),
+            ("float32_value", "float"),
+            ("binary_value", "string"),
+        ]
+        actual_rows = list(yson.loads(
+            yt_cli.check_output(["yt", "read", table, "--format", "yson"]),
+            yson_type="list_fragment",
+        ))
+        for row in actual_rows:
+            row["binary_value"] = yson.get_bytes(row["binary_value"])
+        assert actual_rows == rows
+
+        yt_cli.check_output(["yt", "dump-parquet", table, "--output-path", output_file])
+
+        input_parquet = pyarrow.parquet.read_table(input_file)
+        output_parquet = pyarrow.parquet.read_table(output_file)
+        assert output_parquet.schema == input_parquet.schema
+        assert output_parquet.to_pydict() == input_parquet.to_pydict()
 
     @authors("ilyaibraev")
     def test_file_commands(self, yt_cli: YtCli):
@@ -626,6 +697,12 @@ class TestYtBinary(object):
         stdout = yt_cli.check_output(["yt", "check-permission", "test_user", "read", "//home/wrapper_test/table", "--columns", "[a]"])
         assert b"allow" in stdout
 
+        with patch.dict(yt_cli.env, {"YT_LOG_LEVEL": "ERROR"}):
+            completed_process = yt_cli.run(["yt", "check-permission", "test_user", "read", table, "--quiet"])
+        assert completed_process.returncode == 0
+        assert completed_process.stdout == b""
+        assert completed_process.stderr == b""
+
     @authors("ilyaibraev")
     def test_transfer_account_resources(self, yt_cli: YtCli):
         yt_cli.check_output(["yt", "create", "account", "--attributes", "{name=a1;resource_limits={node_count=10}}"])
@@ -787,3 +864,10 @@ class TestYtBinary(object):
         assert push_result["last_sequence_number"] == 3
 
         yt_cli.check_output(["yt", "remove-queue-producer-session", "--producer-path", producer_path, "--queue-path", queue_path, "--session-id", session_id])
+
+    @authors("denvr")
+    def test_cli_bad_conditions(self, yt_cli: YtCli):
+        with pytest.raises(subprocess.CalledProcessError) as ex:
+            yt_cli.check_output(["yt", "execute", "foo", "{}"])
+            assert "yt.common.YtError: Command \"foo\" is not supported by cluster" in ex.stderr
+            assert ex.returncode == 1

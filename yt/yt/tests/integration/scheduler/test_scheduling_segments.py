@@ -15,7 +15,7 @@ from yt_commands import (
     execute_batch, get_batch_error,
     vanilla, run_test_vanilla, run_sleeping_vanilla, update_scheduler_config, abort_job,
     update_controller_agent_config, update_pool_tree_config, update_pool_tree_config_option,
-    print_debug, map)
+    print_debug, map, raises_yt_error)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path,
@@ -24,9 +24,9 @@ from yt_scheduler_helpers import (
 
 from yt_helpers import profiler_factory, read_structured_log, wait_and_get_controller_incarnation, write_log_barrier
 
-from yt.test_helpers import are_almost_equal
+from yt_gpu_scheduler_helpers import read_gpu_events, wait_for_gpu_event
 
-from yt.common import YtError
+from yt.test_helpers import are_almost_equal
 
 import yt.yson as yson
 
@@ -512,7 +512,7 @@ class TestSchedulingSegments(YTEnvSetup):
             == "default"
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             run_sleeping_vanilla(
                 spec={
                     "pool": "small_gpu",
@@ -911,17 +911,17 @@ class TestSchedulingSegments(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_invalid_config(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Data center name cannot be empty"):
             set("//sys/pool_trees/default/@config/scheduling_segments/data_centers", ["SAS", "VLA", ""])
-        with pytest.raises(YtError):
+        with raises_yt_error("Data center name cannot be empty"):
             set("//sys/pool_trees/default/@config/scheduling_segments/data_centers", ["SAS", "VLA", ""])
-        with pytest.raises(YtError):
+        with raises_yt_error(".* has invalid type: expected .*, actual .*"):
             set("//sys/pool_trees/default/@config/scheduling_segments/reserve_fair_resource_amount", {"default": "-3.0"})
-        with pytest.raises(YtError):
+        with raises_yt_error(".* has invalid type: expected .*, actual .*"):
             set("//sys/pool_trees/default/@config/scheduling_segments/reserve_fair_resource_amount", {"default": {"SAS": "3.0"}})
-        with pytest.raises(YtError):
+        with raises_yt_error(".* has invalid type: expected .*, actual .*"):
             set("//sys/pool_trees/default/@config/scheduling_segments/reserve_fair_resource_amount", {"large_gpu": {"VLA": "3.0"}})
-        with pytest.raises(YtError):
+        with raises_yt_error("Error setting builtin attribute"):
             set("//sys/pool_trees/default/@config/scheduling_segments/reserve_fair_resource_amount", {"large_gpu": {"SAS": "-3.0"}})
 
     @authors("eshcherbin")
@@ -1295,7 +1295,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
     @authors("ignat")
     def test_missing_specified_module(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Segment modules .* are not found in the tree"):
             run_sleeping_vanilla(
                 spec={"pool": "large_gpu", "scheduling_segment_modules": ["UNKNOWN"]},
                 task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
@@ -1427,6 +1427,35 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         wait(lambda: self._get_operation_module(ops_in_large_module[0]) == large_module)
         wait(lambda: self._get_operation_module(ops_in_large_module[2]) == large_module)
         wait(lambda: self._get_operation_module(ops_in_large_module[1]) != large_module)
+
+    @authors("yaishenka")
+    def test_module_assignment_with_exactly_fitting_demand(self):
+        update_pool_tree_config_option(
+            "default",
+            "scheduling_segments/module_assignment_heuristic",
+            "min_remaining_feasible_capacity")
+
+        module = self._get_all_modules()[0]
+
+        # NB(yaishenka): The fair shares of the three operations are each 0.1, but their sum
+        # is slightly greater than 0.3 due to a floating point error. The computed remaining
+        # capacity of the module then falls slightly below 16.0, and an operation demanding
+        # exactly 16 GPUs must still be assigned to the module.
+        for _ in range(3):
+            op = run_sleeping_vanilla(
+                spec={"pool": "large_gpu", "scheduling_segment_modules": [module]},
+                task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            )
+            wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
+            wait(lambda: self._get_operation_module(op) == module)
+
+        exactly_fitting_op = run_sleeping_vanilla(
+            job_count=2,
+            spec={"pool": "large_gpu", "scheduling_segment_modules": [module]},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: self._get_operation_module(exactly_fitting_op) == module)
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(exactly_fitting_op.id), 0.2))
 
     @authors("eshcherbin")
     def test_module_reset_on_zero_fair_share(self):
@@ -1817,27 +1846,33 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         set("//sys/pool_trees/default/large_gpu/@mode", "fifo")
         wait(lambda: get(scheduler_orchid_pool_path("large_gpu") + "/mode", default=None) == "fifo")
 
+        # NB(babenko): Module assignment is greedy and irrevocable, so operations becoming visible to
+        # the segments manager in different iterations may be packed infeasibly; start them one by one.
         large_op1 = run_sleeping_vanilla(
             job_count=1,
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op1.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(large_op1.id), 0.1))
+
         large_op2 = run_sleeping_vanilla(
             job_count=5,
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op2.id), 0.5))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(large_op2.id), 0.5))
+
         large_op3 = run_sleeping_vanilla(
             job_count=4,
             spec={"pool": "large_gpu", "is_gang": True},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op1.id), 0.1))
-        wait(lambda: are_almost_equal(self._get_dominant_usage_share(large_op1.id), 0.1))
-        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op2.id), 0.5))
-        wait(lambda: are_almost_equal(self._get_dominant_usage_share(large_op2.id), 0.5))
         wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op3.id), 0.4))
         wait(lambda: are_almost_equal(self._get_dominant_usage_share(large_op3.id), 0.4))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(large_op1.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(large_op2.id), 0.5))
 
         op = run_sleeping_vanilla(
             job_count=8,
@@ -1888,6 +1923,71 @@ class TestSchedulingSegmentsMultiDataCenter(BaseTestSchedulingSegmentsMultiModul
 
     def _get_node_tag_from_module(self, module):
         return module
+
+    @authors("severovv")
+    def test_operation_timeline_events(self):
+        update_pool_tree_config_option("default", "enable_step_function_for_gang_operations", True)
+        update_pool_tree_config_option(
+            "default",
+            "scheduling_segments/enable_module_reset_on_zero_fair_share_and_usage",
+            True,
+        )
+
+        scheduler_log_file = self.path_to_run + "/logs/scheduler-0.json.log"
+        scheduler_address = ls("//sys/scheduler/instances")[0]
+        from_barrier = write_log_barrier(scheduler_address)
+
+        gang_op = run_sleeping_vanilla(
+            spec={"pool": "large_gpu", "is_gang": True},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: len(gang_op.get_running_jobs()) == 1)
+        wait_for_gpu_event(
+            scheduler_log_file,
+            from_barrier,
+            "operation_received_fair_share",
+            op=gang_op,
+        )
+
+        gang_op.suspend(abort_running_jobs=True)
+        wait_for_gpu_event(
+            scheduler_log_file,
+            from_barrier,
+            "operation_module_assignment_revoked",
+            op=gang_op,
+        )
+        to_barrier = write_log_barrier(scheduler_address)
+        events = read_gpu_events(
+            scheduler_log_file,
+            from_barrier,
+            to_barrier=to_barrier,
+            op=gang_op,
+        )
+
+        expected_event_types = [
+            "operation_received_fair_share",
+            "operation_assigned_to_module",
+            "operation_lost_fair_share",
+            "operation_module_assignment_revoked",
+        ]
+        timeline_events = [
+            event
+            for event in events
+            if event["event_type"] in expected_event_types
+        ]
+        actual_event_types = [event["event_type"] for event in timeline_events]
+        assert actual_event_types == expected_event_types
+        assert all(event["policy_kind"] == "classic" for event in events)
+
+        received_fair_share, assigned_to_module, lost_fair_share, module_assignment_revoked = timeline_events
+
+        for fair_share_event in [received_fair_share, lost_fair_share]:
+            assert "resource_demand" in fair_share_event
+            assert "fair_resources" in fair_share_event
+        assert (
+            module_assignment_revoked["scheduling_segment_module"]
+            == assigned_to_module["scheduling_segment_module"]
+        )
 
 
 class TestSchedulingSegmentsMultiInfinibandCluster(BaseTestSchedulingSegmentsMultiModule):
@@ -2600,9 +2700,9 @@ class TestDefaultGpuFullHostPreemption(YTEnvSetup):
             track=False,
         )
         wait(lambda: big_mapper.get_running_jobs())
+        wait(lambda: len(preemptible_op.get_running_jobs()) == 0)
         for op in small_ops:
             assert len(op.get_running_jobs()) == 2
-        assert len(preemptible_op.get_running_jobs()) == 0
 
     @authors("severovv")
     def test_self_preemption(self):

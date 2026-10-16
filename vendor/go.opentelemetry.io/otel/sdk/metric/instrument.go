@@ -16,7 +16,6 @@ import (
 	"go.opentelemetry.io/otel/metric/embedded"
 	"go.opentelemetry.io/otel/sdk/instrumentation"
 	"go.opentelemetry.io/otel/sdk/metric/internal/aggregate"
-	"go.opentelemetry.io/otel/sdk/metric/internal/x"
 )
 
 var zeroScope instrumentation.Scope
@@ -142,6 +141,10 @@ type Stream struct {
 	// the attribute will not be recorded, otherwise, if it returns true, it
 	// will record the attribute.
 	//
+	// Note that attributes filtered out by a View may still appear on Exemplars,
+	// because Exemplars are recorded with the dropped measurement attributes
+	// when View attribute filtering is applied.
+	//
 	// Use NewAllowKeysFilter from "go.opentelemetry.io/otel/attribute" to
 	// provide an allow-list of attribute keys here.
 	AttributeFilter attribute.Filter
@@ -191,7 +194,6 @@ var (
 	_ metric.Int64UpDownCounter = (*int64Inst)(nil)
 	_ metric.Int64Histogram     = (*int64Inst)(nil)
 	_ metric.Int64Gauge         = (*int64Inst)(nil)
-	_ x.EnabledInstrument       = (*int64Inst)(nil)
 )
 
 func (i *int64Inst) Add(ctx context.Context, val int64, opts ...metric.AddOption) {
@@ -232,7 +234,6 @@ var (
 	_ metric.Float64UpDownCounter = (*float64Inst)(nil)
 	_ metric.Float64Histogram     = (*float64Inst)(nil)
 	_ metric.Float64Gauge         = (*float64Inst)(nil)
-	_ x.EnabledInstrument         = (*float64Inst)(nil)
 )
 
 func (i *float64Inst) Add(ctx context.Context, val float64, opts ...metric.AddOption) {

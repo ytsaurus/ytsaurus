@@ -12,6 +12,18 @@ namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const auto DefaultTabletBalancerSchedule = MakeTimeFormula("minutes % 5 == 0");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTabletBalancerMasterConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_tablet_balancer", &TThis::EnableTabletBalancer)
@@ -25,7 +37,7 @@ void TTabletBalancerMasterConfig::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->TabletBalancerSchedule.IsEmpty()) {
-            THROW_ERROR_EXCEPTION("tablet_balancer_schedule cannot be empty in master config");
+            THROW_ERROR_EXCEPTION("\"tablet_balancer_schedule\" cannot be empty in master config");
         }
     });
 }
@@ -91,6 +103,9 @@ void TDynamicTabletCellBalancerMasterConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("rebalance_wait_time", &TThis::RebalanceWaitTime)
         .Default(TDuration::Minutes(1));
+    registrar.Parameter("enable_leader_smoothing", &TThis::EnableLeaderSmoothing)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,6 +153,29 @@ void TDynamicTabletManagerTestingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("mount_via_orphaned_tablet_actions", &TThis::MountViaOrphanedTabletActions)
         .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TStoresUpdateThrottlerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("throttler", &TThis::Throttler)
+        .DefaultNew();
+    registrar.Parameter("bundle_limit", &TThis::BundleLimit)
+        .GreaterThanOrEqual(0)
+        .Default(500);
+    registrar.Parameter("flush_relative_limit", &TThis::FlushRelativeLimit)
+        .Default(0.7)
+        .InRange(0.0, 1.0);
+    registrar.Parameter("regular_relative_limit", &TThis::RegularRelativeLimit)
+        .Default(0.7)
+        .InRange(0.0, 1.0);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->Throttler->Limit) {
+            config->Throttler->Limit = 2000;
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -214,8 +252,6 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("extra_peer_drop_delay", &TThis::ExtraPeerDropDelay)
         .Default(TDuration::Minutes(1));
-    registrar.Parameter("accumulate_preload_pending_store_count_correctly", &TThis::AccumulatePreloadPendingStoreCountCorrectly)
-        .Default(false);
     registrar.Parameter("increase_upload_replication_factor", &TThis::IncreaseUploadReplicationFactor)
         .Default(false);
     registrar.Parameter("enable_tablet_resource_validation", &TThis::EnableTabletResourceValidation)
@@ -243,7 +279,7 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("forbid_arbitrary_data_versions_in_retention_config", &TThis::ForbidArbitraryDataVersionsInRetentionConfig)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("max_table_collocation_size", &TThis::MaxTableCollocationSize)
         .Default(500);
@@ -259,6 +295,9 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_chunks_per_mounted_tablet", &TThis::MaxChunksPerMountedTablet)
         .Default(15000);
+
+    registrar.Parameter("stores_update_throttler", &TThis::StoresUpdateThrottler)
+        .DefaultNew();
 
     registrar.Parameter("enable_hunk_specific_media", &TThis::EnableHunkSpecificMedia)
         .Default(true);
@@ -279,8 +318,22 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_alter_to_static_with_hunks", &TThis::EnableAlterToStaticWithHunks)
         .Default(false);
 
+    registrar.Parameter("enable_legacy_dynamicity_alter", &TThis::EnableLegacyDynamicityAlter)
+        .Default(true);
+
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
+
+    registrar.Parameter("max_reshard_complexity", &TThis::MaxReshardComplexity)
+        .Default(5'000'000);
+
+    registrar.Parameter("update_table_content_revision_on_heartbeat", &TThis::UpdateTableContentRevisionOnHeartbeat)
+        .Default(false)
+        .DontSerializeDefault();
+
+    registrar.Parameter("log_revise_on_heartbeat_at_native_cell", &TThis::LogReviseOnHeartbeatAtNativeCell)
+        .Default(false)
+        .DontSerializeDefault();
 
     registrar.Preprocessor([] (TThis* config) {
         config->MaxSnapshotCountToKeep = 2;
@@ -294,6 +347,29 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TThis* config) {
         config->MaxSnapshotCountToKeep = 2;
+
+        auto addChildIfMissing = [] (const NYTree::IMapNodePtr& node, TStringBuf key, const auto& value) {
+            if (!node->FindChild(key)) {
+                node->AddChild(key, NYTree::ConvertToNode(value));
+            }
+        };
+
+        addChildIfMissing(
+            config->IOConfigTemplatePatch->StoreReaderConfig,
+            "suspicious_node_grace_period",
+            config->StoreChunkReader->SuspiciousNodeGracePeriod);
+        addChildIfMissing(
+            config->IOConfigTemplatePatch->StoreReaderConfig,
+            "ban_peers_permanently",
+            config->StoreChunkReader->BanPeersPermanently);
+        addChildIfMissing(
+            config->IOConfigTemplatePatch->StoreWriterConfig,
+            "block_size",
+            config->StoreChunkWriter->BlockSize);
+        addChildIfMissing(
+            config->IOConfigTemplatePatch->StoreWriterConfig,
+            "sample_rate",
+            config->StoreChunkWriter->SampleRate);
 
         for (const auto& [name, experiment] : config->TableConfigExperiments) {
             if (experiment->Salt.empty()) {

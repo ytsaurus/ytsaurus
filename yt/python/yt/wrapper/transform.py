@@ -171,8 +171,9 @@ def transform(
             data_weight_per_job = min(1, max_data_weight_per_job)
         else:
             data_weight_per_job = max(1, min(max_data_weight_per_job, int(desired_chunk_size / ratio)))
-            # force "one job - one chunk" mode (real chunk size based on data_size_per_job)
-            desired_chunk_size = desired_chunk_size * 2 + 1024 ** 3
+
+        # force "one job - one chunk" mode (real chunk size based on data_size_per_job)
+        writer_chunk_size = desired_chunk_size * 2 + 1024 ** 3
 
         base_spec = {
             "title": "Transform table",
@@ -180,7 +181,7 @@ def transform(
             "force_transform": True,
             "job_io": {
                 "table_writer": {
-                    "desired_chunk_size": desired_chunk_size
+                    "desired_chunk_size": writer_chunk_size
                 }
             },
         }

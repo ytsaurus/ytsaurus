@@ -3,8 +3,10 @@
 #include "alien_cluster_client_cache.h"
 #include "backing_store_cleaner.h"
 #include "chunk_replica_cache_pinger.h"
+#include "compaction_hint_fetching.h"
 #include "compression_dictionary_builder.h"
 #include "compression_dictionary_manager.h"
+#include "distributed_throttler_manager.h"
 #include "error_manager.h"
 #include "hedging_manager_registry.h"
 #include "hint_manager.h"
@@ -13,8 +15,11 @@
 #include "in_memory_service.h"
 #include "lsm_interop.h"
 #include "master_connector.h"
+#include "medium_throttler_manager.h"
 #include "overload_reporter.h"
 #include "partition_balancer.h"
+#include "row_cache.h"
+#include "row_cache_controller.h"
 #include "serialize.h"
 #include "slot_manager.h"
 #include "statistics_reporter.h"
@@ -24,7 +29,10 @@
 #include "store_trimmer.h"
 #include "structured_logger.h"
 #include "table_config_manager.h"
+#include "tablet.h"
 #include "tablet_cell_service.h"
+#include "tablet_manager.h"
+#include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
 
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
@@ -42,16 +50,19 @@
 
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
+#include <yt/yt/server/lib/cellar_agent/occupant.h>
 
-#include <yt/yt/server/node/tablet_node/distributed_throttler_manager.h>
-#include <yt/yt/server/node/tablet_node/medium_throttler_manager.h>
+#include <yt/yt/server/lib/tablet_node/performance_counters.h>
 
+#include <yt/yt/ytlib/api/native/client_cache.h>
 #include <yt/yt/ytlib/api/native/pool_weight_provider.h>
 
 #include <yt/yt/ytlib/chaos_client/config.h>
 #include <yt/yt/ytlib/chaos_client/replication_card_updates_batcher.h>
 
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
@@ -62,6 +73,7 @@
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/poller.h>
@@ -70,11 +82,14 @@
 
 #include <yt/yt/core/net/address.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 #include <yt/yt/core/rpc/dispatcher.h>
 #include <yt/yt/core/rpc/overload_controller.h>
 
 namespace NYT::NTabletNode {
 
+using namespace NApi::NNative;
 using namespace NCellarAgent;
 using namespace NCellarClient;
 using namespace NCellarNode;
@@ -120,7 +135,7 @@ public:
 
     void Initialize() override
     {
-        YT_LOG_INFO("Initializing tablet node");
+        YT_TLOG_INFO("Initializing tablet node");
 
         // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
@@ -177,6 +192,8 @@ public:
         TableRowFetchThreadPool_ = CreateThreadPool(
             GetConfig()->QueryAgent->TableRowFetchThreadPoolSize,
             "TableRowFetch");
+
+        TabletStatisticsActionQueue_ = New<TActionQueue>("TabletStatistics");
 
         if (GetConfig()->EnableFairThrottler) {
             for (auto kind : {
@@ -241,6 +258,9 @@ public:
             }
         }
 
+        CompactionHintFetchThrottlers_ = New<TCompactionHintFetchThrottlers>(
+            GetTabletNodeDynamicConfig()->StoreCompactor->CompactionHintFetchers);
+
         auto selfAddress = NNet::BuildServiceAddress(GetLocalHostName(), GetConfig()->RpcPort);
         DistributedThrottlerManager_ = CreateDistributedThrottlerManager(
             this,
@@ -253,7 +273,7 @@ public:
 
         RowComparerProvider_ = NQueryClient::CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
 
-        StatisticsReporter_ = New<TStatisticsReporter>(this);
+        StatisticsReporter_ = CreateStatisticsReporter(this);
         OverloadReporter_ = CreateOverloadReporter(this);
         StoreCompactor_ = CreateStoreCompactor(this);
         StoreFlusher_ = CreateStoreFlusher(this);
@@ -266,6 +286,9 @@ public:
         ChunkReplicaCachePinger_ = CreateChunkReplicaCachePinger(this);
         CompressionDictionaryBuilder_ = CreateCompressionDictionaryBuilder(this);
         ErrorManager_ = CreateErrorManager(this);
+        RowCacheController_ = New<TRowCacheController>(
+            New<TRowCacheControllerDynamicConfig>(),
+            this);
         CompressionDictionaryManager_ = CreateCompressionDictionaryManager(
             GetConfig()->TabletNode->CompressionDictionaryCache,
             this);
@@ -281,6 +304,9 @@ public:
         if (ReplicationCardUpdatesBatcher_) {
             ReplicationCardUpdatesBatcher_->Start();
         }
+        ClientCache_ = New<TClientCache>(
+            GetConfig()->TabletNode->ClientCache,
+            GetConnection());
 
         InitializeOverloadController();
 
@@ -295,14 +321,14 @@ public:
         }
 
         if (!GetConfig()->TabletNode->AllowReignChange) {
-            YT_LOG_DEBUG("Tablet cell reign change is forbidden by config");
+            YT_TLOG_DEBUG("Tablet cell reign change is forbidden by config");
             SetReignChangeAllowed(false);
         }
     }
 
     void InitializeOverloadController()
     {
-        OverloadController_->TrackInvoker(BusXferThreadPoolName, NBus::TTcpDispatcher::Get()->GetXferPoller()->GetInvoker());
+        OverloadController_->TrackInvoker(BusXferThreadPoolName, NBus::NTcp::TDispatcher::Get()->GetXferPoller()->GetInvoker());
         OverloadController_->TrackInvoker(CompressionThreadPoolName, NRpc::TDispatcher::Get()->GetCompressionPoolInvoker());
         OverloadController_->TrackInvoker(LookupThreadPoolName, TabletLookupThreadPool_->GetInvoker());
         OverloadController_->TrackFSHThreadPool(QueryThreadPoolName, QueryThreadPool_);
@@ -310,6 +336,20 @@ public:
 
     void Run() override
     {
+        SetNodeByYPath(
+            GetOrchidRoot(),
+            "/performance_counter_names",
+            BuildYsonNodeFluently()
+                .BeginAttributes()
+                    .Item("opaque").Value(true)
+                .EndAttributes()
+                .BeginList()
+                    #define XX(name, Name) .Item().Value(#name)
+                    ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
+                    ITERATE_NODE_TABLET_PERFORMANCE_COUNTERS(XX)
+                    #undef XX
+                .EndList());
+
         SetNodeByYPath(
             GetOrchidRoot(),
             "/tablet_cells",
@@ -363,6 +403,7 @@ public:
         CompressionDictionaryBuilder_->Start();
         OverloadController_->Start();
         ErrorManager_->Start();
+        RowCacheController_->Start();
     }
 
     NYTree::IYPathServicePtr CreateThreadPoolsOrchidService()
@@ -462,6 +503,11 @@ public:
         return TableRowFetchThreadPool_->GetInvoker();
     }
 
+    const IInvokerPtr& GetTabletStatisticsInvoker() const override
+    {
+        return TabletStatisticsActionQueue_->GetInvoker();
+    }
+
     IInvokerPtr GetQueryPoolInvoker(
         const std::string& poolName,
         const TFairShareThreadPoolTag& tag) const override
@@ -509,6 +555,11 @@ public:
         return it == WorkloadCategoryToThrottlerKind.end()
             ? GetDefaultOutThrottler()
             : Throttlers_[it->second];
+    }
+
+    const TCompactionHintFetchThrottlersPtr& GetCompactionHintFetchThrottlers() const override
+    {
+        return CompactionHintFetchThrottlers_;
     }
 
     const IDistributedThrottlerManagerPtr& GetDistributedThrottlerManager() const override
@@ -563,6 +614,11 @@ public:
         }
     }
 
+    const TRowCacheControllerPtr& GetRowCacheController() const override
+    {
+        return RowCacheController_;
+    }
+
     const ICompressionDictionaryManagerPtr& GetCompressionDictionaryManager() const override
     {
         return CompressionDictionaryManager_;
@@ -576,6 +632,11 @@ public:
     const IReplicationCardUpdatesBatcherPtr& GetReplicationCardUpdatesBatcher() const override
     {
         return ReplicationCardUpdatesBatcher_;
+    }
+
+    const NApi::NNative::TClientCachePtr& GetClientCache() const override
+    {
+        return ClientCache_;
     }
 
 private:
@@ -596,11 +657,14 @@ private:
     IThreadPoolPtr TabletFetchThreadPool_;
     IThreadPoolPtr TableRowFetchThreadPool_;
 
+    TActionQueuePtr TabletStatisticsActionQueue_;
+
     ITwoLevelFairShareThreadPoolPtr QueryThreadPool_;
     IFairShareThreadPoolPtr PullRowsThreadPool_;
 
     TEnumIndexedArray<ETabletNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> LegacyRawThrottlers_;
     TEnumIndexedArray<ETabletNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
+    TCompactionHintFetchThrottlersPtr CompactionHintFetchThrottlers_;
     IDistributedThrottlerManagerPtr DistributedThrottlerManager_;
     IMediumThrottlerManagerFactoryPtr MediumThrottlerManagerFactory_;
 
@@ -613,17 +677,19 @@ private:
     IStoreTrimmerPtr StoreTrimmer_;
     IHunkChunkSweeperPtr HunkChunkSweeper_;
     IPartitionBalancerPtr PartitionBalancer_;
-    TStatisticsReporterPtr StatisticsReporter_;
+    IStatisticsReporterPtr StatisticsReporter_;
     IOverloadReporterPtr OverloadReporter_;
     IBackingStoreCleanerPtr BackingStoreCleaner_;
     ILsmInteropPtr LsmInterop_;
     IChunkReplicaCachePingerPtr ChunkReplicaCachePinger_;
     ICompressionDictionaryBuilderPtr CompressionDictionaryBuilder_;
     IErrorManagerPtr ErrorManager_;
+    TRowCacheControllerPtr RowCacheController_;
     ICompressionDictionaryManagerPtr CompressionDictionaryManager_;
     NRpc::IOverloadControllerPtr OverloadController_;
     IAlienClusterClientCachePtr ReplicatorClientCache_;
     IReplicationCardUpdatesBatcherPtr ReplicationCardUpdatesBatcher_;
+    TClientCachePtr ClientCache_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -645,6 +711,9 @@ private:
             }
         }
 
+        CompactionHintFetchThrottlers_->Reconfigure(
+            tabletNodeConfig->StoreCompactor->CompactionHintFetchers);
+
         TableReplicatorThreadPool_->SetThreadCount(
             tabletNodeConfig->TabletManager->ReplicatorThreadPoolSize.value_or(
                 GetConfig()->TabletNode->TabletManager->ReplicatorThreadPoolSize));
@@ -662,11 +731,15 @@ private:
 
         ErrorManager_->Reconfigure(tabletNodeConfig);
 
+        RowCacheController_->Reconfigure(tabletNodeConfig->RowCacheController);
+
         if (ReplicationCardUpdatesBatcher_) {
             ReplicationCardUpdatesBatcher_->Reconfigure(
                 GetConfig()->TabletNode->ChaosReplicationCardUpdatesBatcher->ApplyDynamic(
                     tabletNodeConfig->ChaosReplicationCardUpdatesBatcher));
         }
+
+        ClientCache_->Reconfigure(newConfig->TabletNode->ClientCache);
 
         NTesting::SetCurrentReignOverride(newConfig->TabletNode->Testing.ReignOverride);
 

@@ -43,6 +43,23 @@ ui64 EntropyFromAllocationId(TAllocationId allocationId)
     return allocationId.Underlying().Parts64[1];
 }
 
+bool CheckAllocationId(TAllocationId allocationId, TNodeId nodeId)
+{
+    return TypeFromId(allocationId.Underlying()) == EObjectType::SchedulerJob &&
+        NodeIdFromAllocationId(allocationId) == nodeId;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAllocationIdGenerator::TAllocationIdGenerator(TCellTag cellTag)
+    : CellTag_(cellTag)
+{ }
+
+TAllocationId TAllocationIdGenerator::Generate(TNodeId nodeId) const
+{
+    return GenerateAllocationId(CellTag_, nodeId);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSerializableAccessControlList MakeOperationArtifactAcl(const TSerializableAccessControlList& acl)
@@ -63,6 +80,37 @@ void ValidateGpuSchedulingModuleName(TStringBuf name)
 {
     if (name.empty()) {
         THROW_ERROR_EXCEPTION("GPU scheduling module name cannot be empty");
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<TNetworkPriority> ComputeNetworkPriority(
+    double share,
+    const std::vector<TModuleShareAndNetworkPriority>& table)
+{
+    std::optional<TNetworkPriority> previousPriority;
+    for (const auto& entry : table) {
+        if (share < entry.ModuleShare) {
+            return previousPriority;
+        }
+        previousPriority = entry.NetworkPriority;
+    }
+
+    return previousPriority;
+}
+
+void ValidateModuleShareToNetworkPriority(
+    const std::vector<TModuleShareAndNetworkPriority>& table)
+{
+    double previousModuleShare = 0.0;
+    for (const auto& entry : table) {
+        if (entry.ModuleShare <= previousModuleShare && entry.ModuleShare > 0) {
+            THROW_ERROR_EXCEPTION("Module shares must be in strictly ascending order")
+                .With("module", entry.ModuleShare)
+                .With("previous_module_share", previousModuleShare);
+        }
+        previousModuleShare = entry.ModuleShare;
     }
 }
 
@@ -92,7 +140,9 @@ void MaybeDelay(const TDelayConfigPtr& delayConfig, const TLogger* logger)
     if (delayConfig) {
         if (logger) {
             const auto& Logger = *logger;
-            YT_LOG_DEBUG("Making test delay (Duration: %v, Type: %v)", delayConfig->Duration, delayConfig->Type);
+            YT_TLOG_DEBUG("Making test delay")
+                .With("Duration", delayConfig->Duration)
+                .With("Type", delayConfig->Type);
         }
 
         Delay(delayConfig->Duration, delayConfig->Type);

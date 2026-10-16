@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v3.24.2)
+VERSION(v3.24.5)
 
 SRCS(
     cpu.go
@@ -28,6 +28,10 @@ ENDIF()
 
 IF (OS_DARWIN AND CGO_ENABLED)
     CGO_SRCS(cpu_darwin_cgo.go)
+ENDIF()
+
+IF(OS_DARWIN AND NOT CGO_ENABLED)
+    SRCS(cpu_darwin_nocgo.go)
 ENDIF()
 
 IF (OS_WINDOWS)

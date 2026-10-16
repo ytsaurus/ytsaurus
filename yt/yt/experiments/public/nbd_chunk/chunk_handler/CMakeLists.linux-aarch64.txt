@@ -24,6 +24,7 @@ target_link_libraries(chunk_handler PUBLIC
   build-cow-on
   yt-yt-core
   server-lib-nbd
+  lib-nbd-chunk
   yt-library-program
   yt-yt-ytlib
 )

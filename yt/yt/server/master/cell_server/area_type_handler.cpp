@@ -72,7 +72,7 @@ public:
     }
 
 private:
-    TCellTagList DoGetReplicationCellTags(const TArea* /*area*/) override
+    TCellTagSet DoGetReplicationCellTags(const TArea* /*area*/) override
     {
         return AllSecondaryCellTags();
     }

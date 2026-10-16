@@ -118,7 +118,7 @@ int TCustomPrinter::TruncateLimit_ = 30;
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<google::protobuf::Message> DeserializeMessage(
-    TString type,
+    std::string type,
     TSharedRef data,
     ::google::protobuf::TextFormat::Printer* printer)
 {
@@ -139,7 +139,7 @@ std::unique_ptr<google::protobuf::Message> DeserializeMessage(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string PrintMutationContent(TString type, TSharedRef data, int indent)
+std::string PrintMutationContent(std::string type, TSharedRef data, int indent)
 {
     google::protobuf::TextFormat::Printer printer;
     printer.SetInitialIndentLevel(indent);

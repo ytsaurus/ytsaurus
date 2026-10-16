@@ -1,8 +1,11 @@
 #include "helpers.h"
 
+#include "object.h"
 #include "private.h"
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
+
+#include <yt/yt/library/re2/re2.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -54,8 +57,8 @@ void ValidateFolderId(const std::string& folderId)
     static constexpr size_t MaxFolderIdLength = 256;
     if (folderId.size() > MaxFolderIdLength) {
         THROW_ERROR_EXCEPTION("Folder id %Qv is too long", folderId)
-            << TErrorAttribute("length", folderId.size())
-            << TErrorAttribute("max_folder_id_length", MaxFolderIdLength);
+            .With("length", folderId.size())
+            .With("max_folder_id_length", MaxFolderIdLength);
     }
     if (folderId.empty()) {
         THROW_ERROR_EXCEPTION("Folder id cannot be empty");
@@ -68,15 +71,38 @@ TError CheckObjectName(TStringBuf name)
 {
     if (name.StartsWith(ObjectIdPathPrefix)) {
         auto error = TError("Invalid object name: starts with %v", ObjectIdPathPrefix)
-            << TErrorAttribute("name", name);
+            .With("name", name);
         if (NHiveServer::IsHiveMutation()) {
-            YT_LOG_ALERT(error, "Invalid object name in Hive mutation (Name: %v)", name);
+            YT_TLOG_ALERT("Invalid object name in Hive mutation")
+                .With("Name", name)
+                .With(error);
             return {};
         }
         return error;
     }
 
     return {};
+}
+
+void ValidateObjectName(
+    const std::string& name,
+    EObjectType objectType,
+    int maxNameLength)
+{
+    if (name.empty()) {
+        THROW_ERROR_EXCEPTION("Name cannot be empty");
+    }
+
+    if (std::ssize(name) > maxNameLength) {
+        THROW_ERROR_EXCEPTION("Name is too long for an object of type %Qv", objectType)
+            .With("length", name.length())
+            .With("max_length", maxNameLength);
+    }
+
+    static NRe2::TRe2Ptr regex = New<NRe2::TRe2>("[A-Za-z0-9-_]+");
+    if (!NRe2::TRe2::FullMatch(re2::StringPiece(name), *regex)) {
+        THROW_ERROR_EXCEPTION("Name must match regular expression %Qv", regex->pattern());
+    }
 }
 
 std::variant<TObjectId, TStringBuf, TError> ParseObjectNameOrId(TStringBuf name)
@@ -90,6 +116,16 @@ std::variant<TObjectId, TStringBuf, TError> ParseObjectNameOrId(TStringBuf name)
         return id;
     }
     return name;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsNativeSequoiaNode(const TObject* object)
+{
+    return
+        object->IsNative() &&
+        object->IsSequoia() &&
+        IsVersionedType(object->GetType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

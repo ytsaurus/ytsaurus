@@ -7,6 +7,7 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
+#include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
 #include <yt/yt/server/lib/hydra/hydra_manager.h>
@@ -97,10 +98,10 @@ private:
 
     void OnAreaCreated(TArea* area)
     {
-        YT_LOG_DEBUG("Bundle node tracker caught area create signal (CellBundle: %v, Area: %v, AreaId: %v)",
-            area->GetCellBundle()->GetName(),
-            area->GetName(),
-            area->GetId());
+        YT_TLOG_DEBUG("Bundle node tracker caught area create signal")
+            .With("CellBundle", area->GetCellBundle()->GetName())
+            .With("Area", area->GetName())
+            .With("AreaId", area->GetId());
 
         auto result = NodeMap_.emplace(area, TNodeSet());
         YT_VERIFY(result.second);
@@ -109,10 +110,10 @@ private:
 
     void OnAreaChanged(TArea* area)
     {
-        YT_LOG_DEBUG("Bundle node tracker caught area change signal (CellBundle: %v, Area: %v, AreaId: %v)",
-            area->GetCellBundle()->GetName(),
-            area->GetName(),
-            area->GetId());
+        YT_TLOG_DEBUG("Bundle node tracker caught area change signal")
+            .With("CellBundle", area->GetCellBundle()->GetName())
+            .With("Area", area->GetName())
+            .With("AreaId", area->GetId());
 
         RevisitAreaNodes(&GetOrCrash(NodeMap_, area), area);
     }
@@ -131,18 +132,18 @@ private:
 
     void OnAreaRemoved(TArea* area)
     {
-        YT_LOG_DEBUG("Bundle node tracker caught area remove signal (CellBundle: %v, Area: %v, AreaId: %v)",
-            area->GetCellBundle()->GetName(),
-            area->GetName(),
-            area->GetId());
+        YT_TLOG_DEBUG("Bundle node tracker caught area remove signal")
+            .With("CellBundle", area->GetCellBundle()->GetName())
+            .With("Area", area->GetName())
+            .With("AreaId", area->GetId());
 
         YT_VERIFY(NodeMap_.erase(area) > 0);
     }
 
     void OnNodeChanged(TNode* node)
     {
-        YT_LOG_DEBUG("Bundle node tracker caught node change signal (NodeAddress: %v)",
-            node->GetDefaultAddress());
+        YT_TLOG_DEBUG("Bundle node tracker caught node change signal")
+            .With("NodeAddress", node->GetDefaultAddress());
 
         // TODO(gritukan): Ignore non-tablet nodes.
 
@@ -163,34 +164,33 @@ private:
         bool good = CheckIfNodeCanHostCells(node);
         bool satisfy = area->NodeTagFilter().IsSatisfiedBy(node->Tags());
 
-        YT_LOG_DEBUG("Bundle node tracker is checking node (NodeAddress: %v, CellBundle: %v, Area: %v, AreaId: %v, "
-            "State: %v, ReportedTabletNodeHeartbeat: %v, IsGood: %v, Satisfy: %v)",
-            node->GetDefaultAddress(),
-            area->GetCellBundle()->GetName(),
-            area->GetName(),
-            area->GetId(),
-            node->GetLocalState(),
-            node->ReportedTabletNodeHeartbeat(),
-            good,
-            satisfy);
+        YT_TLOG_DEBUG("Bundle node tracker is checking node")
+            .With("NodeAddress", node->GetDefaultAddress())
+            .With("CellBundle", area->GetCellBundle()->GetName())
+            .With("Area", area->GetName())
+            .With("AreaId", area->GetId())
+            .With("State", node->GetLocalState())
+            .With("ReportedTabletNodeHeartbeat", node->ReportedTabletNodeHeartbeat())
+            .With("IsGood", good)
+            .With("Satisfy", satisfy);
 
         if (good & satisfy) {
             if (!nodeSet->contains(node)) {
-                YT_LOG_DEBUG("Node added to area (NodeAddress: %v, CellBundle: %v, Area: %v, AreaId: %v)",
-                    node->GetDefaultAddress(),
-                    area->GetCellBundle()->GetName(),
-                    area->GetName(),
-                    area->GetId());
+                YT_TLOG_DEBUG("Node added to area")
+                    .With("NodeAddress", node->GetDefaultAddress())
+                    .With("CellBundle", area->GetCellBundle()->GetName())
+                    .With("Area", area->GetName())
+                    .With("AreaId", area->GetId());
                 YT_VERIFY(nodeSet->insert(node).second);
                 AreaNodesChanged_.Fire(area);
             }
         } else {
             if (auto it = nodeSet->find(node); it != nodeSet->end()) {
-                YT_LOG_DEBUG("Node removed from area (NodeAddress: %v, CellBundle: %v, Area: %v, AreaId: %v)",
-                    node->GetDefaultAddress(),
-                    area->GetCellBundle()->GetName(),
-                    area->GetName(),
-                    area->GetId());
+                YT_TLOG_DEBUG("Node removed from area")
+                    .With("NodeAddress", node->GetDefaultAddress())
+                    .With("CellBundle", area->GetCellBundle()->GetName())
+                    .With("Area", area->GetName())
+                    .With("AreaId", area->GetId());
                 nodeSet->erase(it);
                 AreaNodesChanged_.Fire(area);
             }

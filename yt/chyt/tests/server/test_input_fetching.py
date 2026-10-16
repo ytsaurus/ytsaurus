@@ -1,12 +1,12 @@
 from yt_commands import (create, authors, write_table, insert_rows, get, sync_reshard_table, sync_mount_table,
                          read_table, get_singular_chunk_id, copy, raises_yt_error, alter_table, sync_unmount_table,
-                         print_debug, select_rows, trim_rows, sync_flush_table)
+                         print_debug, select_rows, trim_rows, sync_flush_table, exists)
 
 from yt_type_helpers import optional_type
 
 from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
 
-from .helpers import get_disabled_cache_config
+from helpers import get_disabled_cache_config
 
 import yt.yson as yson
 
@@ -946,7 +946,7 @@ class TestInputFetching(ClickHouseTestBase):
         write_table("//tmp/t2", {"a": 18, "c_new": 2.71})
 
         with Clique(1) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select * from concatYtTables("//tmp/t1", "//tmp/t2") where a > 18')
 
     @authors("levysotsky")
@@ -1013,10 +1013,10 @@ class TestInputFetching(ClickHouseTestBase):
         write_table("//tmp/table_explicitly_not_banned", data)
 
         with Clique(1) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select * from "//tmp/table_banned"')
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('exists "//tmp/table_banned"')
 
             assert clique.make_query('select * from "//tmp/table_implicitly_not_banned"') == data
@@ -1087,6 +1087,177 @@ class TestInputFetching(ClickHouseTestBase):
             clique.make_query_and_validate_read_row_count(f'select b from "{table_path}" where e is not null', exact=4)
 
     @authors("buyval01")
+    def test_min_max_filtering_optional_tagged_string(self):
+        create("table", "//tmp/t", attributes={"schema": [
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type_v3": optional_type({
+                "type_name": "tagged",
+                "tag": "AggregateFunction(uniq, Nullable(String))",
+                "item": "string",
+            })},
+        ]})
+        write_table("//tmp/t", [{"key": 1, "value": "foo"}])
+        write_table("<append=%true>//tmp/t", [{"key": 2, "value": None}])
+        write_table("<append=%true>//tmp/t", [{"key": 3, "value": "bar"}])
+
+        with Clique(1) as clique:
+            assert clique.make_query(
+                'select key, value from "//tmp/t" order by key'
+            ) == [{"key": 1, "value": "foo"}, {"key": 2, "value": None}, {"key": 3, "value": "bar"}]
+            assert clique.make_query_and_validate_read_row_count(
+                'select key from "//tmp/t" where value = \'foo\' '
+                'settings optimize_move_to_prewhere = 0', exact=1
+            ) == [{"key": 1}]
+
+    @authors("buyval01")
+    def test_predicate_pushdown_through_subquery(self):
+        table_path = "//tmp/t"
+        create("table", table_path, attributes={"schema": [{"name": "a", "type": "int64"}]})
+        for chunk in [[0, 1, 2, 3, 4], [10, 11, 12, 13, 14], [16, 17, 18, 19, 20], [30, 31, 32, 33, 34]]:
+            write_table("<append=%true>" + table_path, [{"a": v} for v in chunk])
+
+        create("table", "//tmp/tt", attributes={"schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "int64"}]})
+        write_table("<append=%true>//tmp/tt", [{"a": 2, "b": 4}, {"a": 16, "b": 256}])
+        write_table("<append=%true>//tmp/tt", [{"a": 4, "b": 16}, {"a": 20, "b": 400}])
+
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_min_max_filtering": True,
+                    },
+                }
+            }
+        }
+        with Clique(1, config_patch=config_patch) as clique:
+            query = "select aa as aaa, b from (select t1.a as aa, b from '//tmp/t' t1 global join '//tmp/tt' t2 on t1.a = t2.a) where aaa > 15"
+            assert clique.make_query_and_validate_read_row_count(query, exact=18) == [
+                {"aaa": 16, "b": 256},
+                {"aaa": 20, "b": 400},
+            ]
+
+            for table_expression in [f"'{table_path}'", f"ytTables('{table_path}')"]:
+                query = f'select a from (select * from {table_expression}) t where t.a > 19'
+                result = clique.make_query_and_validate_read_row_count(query, exact=10)
+                assert_items_equal([row["a"] for row in result], [20, 30, 31, 32, 33, 34])
+
+    @authors("buyval01")
+    def test_predicate_pushdown_through_join(self):
+        # A predicate pushed into a joined table's read must reference that table by the alias
+        # used in the re-serialized secondary query, not the coordinator-level one. See CHYT-1446.
+        create("table", "//tmp/left", attributes={"schema": [
+            {"name": "k", "type": "int64", "sort_order": "ascending"},
+            {"name": "a", "type": "int64"},
+        ]})
+        write_table("//tmp/left", [{"k": 0, "a": 1}, {"k": 1, "a": 2}, {"k": 2, "a": 3}])
+
+        create("table", "//tmp/right", attributes={"schema": [
+            {"name": "k", "type": "int64", "sort_order": "ascending"},
+            {"name": "b", "type": "int64"},
+            {"name": "c", "type": "int64"},
+            {"name": "d", "type": "int64"},
+        ]})
+        write_table("//tmp/right", [
+            {"k": 0, "b": 1, "c": 100, "d": 1000},
+            {"k": 1, "b": 2, "c": 200, "d": 2000},
+            {"k": 2, "b": 3, "c": 100, "d": 3000},
+        ])
+
+        create("table", "//tmp/t1", attributes={"schema": [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "v", "type": "int64"},
+        ]})
+        write_table("//tmp/t1", [{"key": 1, "v": 100}, {"key": 2, "v": 200}, {"key": 3, "v": 100}])
+
+        create("table", "//tmp/t2", attributes={"schema": [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "v", "type": "int64"},
+        ]})
+        write_table("//tmp/t2", [{"key": 1, "v": 10}, {"key": 2, "v": 20}, {"key": 3, "v": 30}])
+
+        # Co-distributed sorted join whose tables share column "v"; the predicate lives in an
+        # outer query over the subquery so it is pushed down as a filter rather than serialized
+        # into the join. ClickHouse disambiguates the shared name to "v" (t1.v) and "t2.v".
+        inner = (
+            "select t1.key as key, t1.v, t2.v "
+            "from '//tmp/t1' as t1 join '//tmp/t2' as t2 using key"
+        )
+        settings = {"output_format_json_quote_64bit_integers": 0}
+
+        with Clique(1) as clique:
+            # Non-key join: the right table is read as a separate single-table secondary query
+            # with a renamed alias.
+            query = (
+                "select l.a as a, r.d as d from '//tmp/left' as l "
+                "left join '//tmp/right' as r on r.b = l.a and r.c = 100 "
+                "order by a"
+            )
+            assert clique.make_query(query) == [
+                {"a": 1, "d": 1000},
+                {"a": 2, "d": None},
+                {"a": 3, "d": 3000},
+            ]
+
+            first_table_query = "select * from ({}) where v = 100 order by key".format(inner)
+            assert clique.make_query(first_table_query, settings=settings) == [
+                {"key": 1, "v": 100, "t2.v": 10},
+                {"key": 3, "v": 100, "t2.v": 30},
+            ]
+
+            # 30 exists only in t2.v (t1.v is 100/200), so a misresolution to t1.v yields an empty
+            # result instead of key 3.
+            second_table_query = "select * from ({}) where `t2.v` = 30 order by key".format(inner)
+            assert clique.make_query(second_table_query, settings=settings) == [
+                {"key": 3, "v": 100, "t2.v": 30},
+            ]
+
+            explain_query = "explain plan actions = 1 select * from ({}) where `t2.v` = 30".format(inner)
+            assert any(
+                e["explain"].strip().startswith("Pushed filter:")
+                for e in clique.make_query(explain_query)
+            ), "predicate was not pushed down into the read"
+
+    @authors("buyval01")
+    def test_explain_predicate_pushdown(self):
+        table_path = "//tmp/t"
+        create("table", table_path, attributes={"schema": [{"name": "a", "type": "int64"}]})
+        for chunk in [[0, 1, 2, 3, 4], [10, 11, 12, 13, 14], [16, 17, 18, 19, 20], [30, 31, 32, 33, 34]]:
+            write_table("<append=%true>" + table_path, [{"a": v} for v in chunk])
+
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_min_max_filtering": True,
+                    },
+                }
+            }
+        }
+        with Clique(1, config_patch=config_patch) as clique:
+            query = f'explain plan actions = 1 select a from (select * from \'{table_path}\') t where t.a > 19'
+            assert any(expl["explain"].strip().startswith("Pushed filter:") for expl in clique.make_query(query))
+
+    @authors("ivanzhukov")
+    def test_explain_distributed(self):
+        table_path = "//tmp/t"
+        create("table", table_path, attributes={"schema": [{"name": "a", "type": "int64"}]})
+
+        with Clique(1) as clique:
+            query_no_dist = f'EXPLAIN PLAN /*distributed=1*/ SELECT t.a FROM (SELECT * FROM \'{table_path}\') t'
+            query_dist = f'EXPLAIN PLAN   distributed=1   SELECT t.a FROM (SELECT * FROM \'{table_path}\') t'
+            output_no_dist = clique.make_query(query_no_dist)
+            output_dist = clique.make_query(query_dist)
+
+            # Check that the output for distributed=1 is an addition to the first one.
+            assert output_dist[:len(output_no_dist)] == output_no_dist
+
+            output_last_line_no_dist = output_no_dist[-1]["explain"].strip()
+            output_last_line_dist = output_dist[-1]["explain"].strip()
+
+            assert output_last_line_no_dist.endswith("ReadFromYTRemote (Tables: [//tmp/t, ] )")
+            assert output_last_line_dist.endswith("ReadFromPreparedSource (Read from NullSource)")
+
+    @authors("buyval01")
     def test_timestamp_key_filtering(self):
         create(
             "table",
@@ -1128,6 +1299,7 @@ class TestInputFetching(ClickHouseTestBase):
                 "settings": {
                     "execution": {
                         "enable_min_max_filtering": False,
+                        "enable_read_range_inferring": False,
                     }
                 }
             },
@@ -1196,6 +1368,9 @@ class TestReadInOrder(ClickHouseTestBase):
 
     @staticmethod
     def wait_for_query_in_log(log_table, query_id=None, query_ids=tuple()):
+        # Query log table is created on the first flush.
+        wait(lambda: exists(log_table))
+        wait(lambda: get(f"{log_table}/@tablet_state") == "mounted")
         wait(lambda: len(TestReadInOrder.get_log_messages(log_table, query_id=query_id, query_ids=query_ids)) == (1 if query_id is not None else len(query_ids)))
 
     @staticmethod
@@ -1226,6 +1401,7 @@ class TestReadInOrder(ClickHouseTestBase):
         return read_in_order_modes
 
     @authors("achulkov2")
+    @pytest.mark.skipif(True, reason="CHYT-1470")
     @pytest.mark.parametrize("instance_count", [1, 2])
     def test_optimize_read_in_order_optimizes(self, instance_count):
         schema = [
@@ -1255,7 +1431,7 @@ class TestReadInOrder(ClickHouseTestBase):
                     for row_index in range(chunk_row_count)])
                 ts_column += [chunk_index * 256 + row_index for row_index in range(chunk_row_count)]
 
-        with Clique(1, export_query_log=True, config_patch={
+        with Clique(1, disable_logging=True, export_query_log=True, config_patch={
             "yt": {
                 "settings": {
                     "execution": {
@@ -1326,6 +1502,54 @@ class TestReadInOrder(ClickHouseTestBase):
                 settings={"chyt.execution.input_streams_per_secondary_query": 8}, verbose=False)
             assert [r["ts"] for r in result] == sorted(ts_column, reverse=True)
 
+    @authors("ivanzhukov")
+    def test_sort_description_gets_noticed_by_CH(self):
+        sorted_table_path = "//tmp/t_sorted"
+        unsorted_table_path = "//tmp/t_unsorted"
+        create("table", sorted_table_path, attributes={"schema": [
+            {"name": "a", "type": "int64", "sort_order": "ascending", "required": True}
+        ]})
+        create("table", unsorted_table_path, attributes={"schema": [{"name": "a", "type": "int64"}]})
+        for path in [sorted_table_path, unsorted_table_path]:
+            write_table(f'<append=%true>{path}', [{"a": 1}, {"a": 10}, {"a": 100}])
+
+        with Clique(1, disable_logging=True, config_patch={
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_optimize_read_in_order": True,
+                    },
+                },
+                "subquery": {
+                    "min_data_weight_per_thread": 30,
+                    "min_slice_data_weight": 1,
+                },
+            },
+        }) as clique:
+            query = 'SELECT a FROM \'{path}\' ORDER BY a LIMIT 1'
+            query_sorted = query.format(path=sorted_table_path)
+            query_unsorted = query.format(path=unsorted_table_path)
+
+            output_sorted = clique.make_query(query_sorted, only_rows=False)
+            output_unsorted = clique.make_query(query_unsorted, only_rows=False)
+            assert output_sorted["statistics"]["rows_read"] < output_unsorted["statistics"]["rows_read"]
+
+            explain = 'EXPLAIN PLAN actions=1, sorting=1, distributed=1'
+            explain_sorted = f'{explain} {query_sorted}'
+            explain_unsorted = f'{explain} {query_unsorted}'
+
+            output_explain_sorted = [row["explain"] for row in clique.make_query(explain_sorted)]
+            output_explain_unsorted = [row["explain"] for row in clique.make_query(explain_unsorted)]
+
+            def does_merge_sorted_streams(output):
+                return any(
+                    "Merge sorted streams after aggregation stage for ORDER BY" in line
+                    for line in output
+                )
+
+            assert not does_merge_sorted_streams(output_explain_unsorted)
+            assert does_merge_sorted_streams(output_explain_sorted)
+
     def _register_query_check(self, expected_read_in_order_modes, clique, query, expected_read_in_order_mode, expected_result=None, query_settings=None):
         result, query_id = self.make_query(
             clique,
@@ -1334,6 +1558,7 @@ class TestReadInOrder(ClickHouseTestBase):
         if expected_result is not None:
             assert result == expected_result
         expected_read_in_order_modes[query_id] = (query, expected_read_in_order_mode)
+        return result
 
     def _check_read_in_order_modes(self, log_table, expected_read_in_order_modes):
         self.wait_for_query_in_log(log_table, query_ids=tuple(expected_read_in_order_modes.keys()))
@@ -1345,6 +1570,10 @@ class TestReadInOrder(ClickHouseTestBase):
 
     @authors("achulkov2")
     def test_optimize_read_in_order_nulls_and_nans(self):
+        # TODO(ivanzhukov): (CHYT-1470) bring back after read-in-order for concatYtTables(...) is supported
+        # table_count = 3
+        table_count = 1
+
         def generate_test_params(key_column_type, required, add_nulls, add_nans):
             assert key_column_type in {"int", "float"}
 
@@ -1353,8 +1582,6 @@ class TestReadInOrder(ClickHouseTestBase):
             schema = [
                 {"name": "key", "type": "int64" if key_column_type == "int" else "float", "sort_order": "ascending", "required": required},
             ]
-
-            table_count = 3
 
             data = [[5.7, 15.43], [20.07, 42.42]]
             if key_column_type == "int":
@@ -1365,7 +1592,7 @@ class TestReadInOrder(ClickHouseTestBase):
                 assert key_column_type == "float"
                 data[1] += [float("nan")]
 
-            ordered_keys = sum(([x, x, x] for x in data[0] + data[1]), start=[])
+            ordered_keys = sum(([x] * table_count for x in data[0] + data[1]), start=[])
 
             table_names = []
             for table_index in range(table_count):
@@ -1378,13 +1605,14 @@ class TestReadInOrder(ClickHouseTestBase):
 
             concatenated_table_expression = ", ".join(f'"{name}"' for name in table_names)
             concatenated_table_expression = f"concatYtTables({concatenated_table_expression})"
+            table_expression = f"'{table_names[0]}'" if table_count == 1 else concatenated_table_expression
 
             return {
-                "table": concatenated_table_expression,
+                "table": table_expression,
                 "ordered_table": [{"key": k if str(k) != "nan" else str(k)} for k in ordered_keys],
             }
 
-        with Clique(1, export_query_log=True, config_patch={
+        with Clique(1, disable_logging=True, export_query_log=True, config_patch={
             "yt": {
                 "settings": {
                     "execution": {
@@ -1517,16 +1745,17 @@ class TestReadInOrder(ClickHouseTestBase):
             register_query_check(
                 f'select * from {test_params["table"]} order by key nulls last limit 10000',
                 # None values will be at the end instead of the beginning.
-                read_in_order_mode="none", result=test_params["ordered_table"][3:] + test_params["ordered_table"][:3])
+                read_in_order_mode="none", result=test_params["ordered_table"][table_count:] + test_params["ordered_table"][:table_count])
 
             self._check_read_in_order_modes(log_table, expected_read_in_order_modes)
 
     @authors("achulkov2")
     @pytest.mark.parametrize("instance_count", [1, 2])
-    def test_optimize_read_in_order_disabled(self, instance_count):
+    @pytest.mark.parametrize("second_sort_order", ["ascending", "descending"])
+    def test_optimize_read_in_order_disabled(self, instance_count, second_sort_order):
         schema = [
             {"name": "ts", "type": "int64", "sort_order": "ascending"},
-            {"name": "ts_2", "type": "int64", "sort_order": "ascending"},
+            {"name": "ts_2", "type": "int64", "sort_order": second_sort_order},
             {"name": "message", "type": "string"},
         ]
 
@@ -1543,7 +1772,7 @@ class TestReadInOrder(ClickHouseTestBase):
                 "message": f"{row_index}, {chunk_index}, 0"}
                 for row_index in range(chunk_row_count)])
 
-        with Clique(1, export_query_log=True, config_patch={
+        with Clique(1, disable_logging=True, export_query_log=True, config_patch={
             "yt": {
                 "settings": {
                     "execution": {
@@ -1579,14 +1808,17 @@ class TestReadInOrder(ClickHouseTestBase):
             # Incompatible read directions.
             register_query_check('select message from "//tmp/table-0" order by ts desc, ts_2 limit 1', read_in_order_mode="none")
             # These are fine though.
-            register_query_check('select message from "//tmp/table-0" order by ts desc, ts_2 desc limit 1', read_in_order_mode="backward")
-            register_query_check('select message from "//tmp/table-0" order by ts, ts_2 limit 1', read_in_order_mode="forward")
+            register_query_check('select message from "//tmp/table-0" order by ts desc, ts_2 desc limit 1',
+                                 read_in_order_mode="backward" if second_sort_order == "ascending" else "none")
+            register_query_check('select message from "//tmp/table-0" order by ts, ts_2 limit 1',
+                                 read_in_order_mode="forward" if second_sort_order == "ascending" else "none")
             # No ORDER BY.
             register_query_check('select message from "//tmp/table-0" limit 5', read_in_order_mode="none")
             # Complex expressions in ORDER BY.
             register_query_check('select message from "//tmp/table-0" order by ts * 2 limit 1', read_in_order_mode="none")
             # It seems that CH flattens tuples in ORDER BY somewhere along the way, so this works.
-            register_query_check('select message from "//tmp/table-0" order by (ts, ts_2) desc limit 1', read_in_order_mode="backward")
+            register_query_check('select message from "//tmp/table-0" order by (ts, ts_2) desc limit 1',
+                                 read_in_order_mode="backward" if second_sort_order == "ascending" else "none")
             # Positional arguments in ORDER BY are supported.
             register_query_check('select ts from "//tmp/table-0" order by 1 limit 1', read_in_order_mode="forward")
             # Aliases also work.
@@ -1594,6 +1826,513 @@ class TestReadInOrder(ClickHouseTestBase):
             # Ordering by non-key columns.
             register_query_check('select message from "//tmp/table-0" order by 1 limit 1', read_in_order_mode="none")
             register_query_check('select message from "//tmp/table-0" order by ts, ts_2, message limit 1', read_in_order_mode="none")
+
+            self._check_read_in_order_modes(log_table, expected_read_in_order_modes)
+
+    KEY_COLUMNS = ["k1", "k2", "k3"]
+
+    @staticmethod
+    def _create_table_for_read_in_order(table_path, chunk_count=20, chunk_row_count=10):
+        # Key prefixes (k1) and (k1, k2) are heavily duplicated, so equal prefixes span chunk (and block) boundaries,
+        # while the full key (k1, k2, k3) is unique. Column |value| is a unique row identifier.
+        all_keys = [(k1, k2, k3) for k1 in range(10) for k2 in range(5) for k3 in "abcde"]
+        keys = sorted(all_keys)
+        values = list(range(len(keys)))
+        rows = [
+            {"k1": k1, "k2": k2, "k3": k3, "value": value, "payload": f"payload-{value}"}
+            for (k1, k2, k3), value in zip(keys, values)
+        ]
+
+        create("table", table_path, attributes={
+            "schema": [
+                {"name": "k1", "type": "int64", "sort_order": "ascending", "required": True},
+                {"name": "k2", "type": "int64", "sort_order": "ascending", "required": True},
+                {"name": "k3", "type": "string", "sort_order": "ascending", "required": True},
+                {"name": "value", "type": "int64", "required": True},
+                {"name": "payload", "type": "string", "required": True},
+            ],
+            "chunk_writer": {"block_size": 16},
+        })
+        for chunk_index in range(chunk_count):
+            write_table(f"<append=%true>{table_path}", rows[chunk_index * chunk_row_count:(chunk_index + 1) * chunk_row_count])
+
+        return rows[:chunk_count * chunk_row_count]
+
+    @staticmethod
+    def _sort_rows(rows, order_by):
+        # |order_by| is a list of (column, is_descending) pairs. Python's sort is stable, so sorting
+        # by the least significant column first yields the lexicographical order.
+        result = list(rows)
+        for column, descending in reversed(order_by):
+            result.sort(key=lambda row: row[column], reverse=descending)
+        return result
+
+    @staticmethod
+    def _format_order_by(order_by):
+        return ", ".join(f"{column} desc" if descending else column for column, descending in order_by)
+
+    @staticmethod
+    def _format_sort_description(sort_description):
+        return ", ".join(f"{column} {'DESC' if descending else 'ASC'}" for column, descending in sort_description)
+
+    @staticmethod
+    def _get_coordinator_sort_description(order_by, selected_columns):
+        # The coordinator keeps only the longest prefix of the ORDER BY columns that are present in the output.
+        result = []
+        for column, descending in order_by:
+            if column not in selected_columns:
+                break
+            result.append((column, descending))
+        return result
+
+    @staticmethod
+    def _get_step_sort_descriptions(explain_lines, step_name):
+        # Extracts sort descriptions of all steps named |step_name| from the `EXPLAIN PLAN sorting = 1` output.
+        # The sort description is None if the step doesn't have one.
+        result = []
+        for index, line in enumerate(explain_lines):
+            if line.strip().split(" ")[0] != step_name:
+                continue
+            indent = len(line) - len(line.lstrip())
+            sort_description = None
+            for step_line in explain_lines[index + 1:]:
+                if len(step_line) - len(step_line.lstrip()) != indent:
+                    break
+                if step_line.strip().startswith("Sorting: "):
+                    sort_description = step_line.strip()[len("Sorting: "):]
+                    break
+            result.append(sort_description)
+        return result
+
+    @staticmethod
+    def _check_ordered_result(result, rows, order_by, where=None, limit=None, offset=0):
+        filtered_rows = [row for row in rows if where is None or where(row)]
+        expected = TestReadInOrder._sort_rows(filtered_rows, order_by)[offset:]
+        if limit is not None:
+            expected = expected[:limit]
+
+        # Rows with equal ORDER BY keys may legitimately come in any order (and may be cut by LIMIT arbitrarily),
+        # so we compare the sequence of ORDER BY keys and check that each row is a real input row.
+        def get_order_key(row):
+            return tuple(row[column] for column, _ in order_by)
+
+        assert [get_order_key(row) for row in result] == [get_order_key(row) for row in expected]
+
+        rows_by_value = {row["value"]: row for row in filtered_rows}
+        result_values = [row["value"] for row in result]
+        assert len(builtins.set(result_values)) == len(result_values)
+        for row in result:
+            assert row["value"] in rows_by_value
+            assert row == {column: rows_by_value[row["value"]][column] for column in row}
+
+    @staticmethod
+    def _get_read_in_order_config_patch(instance_count=1):
+        return {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_optimize_read_in_order": True,
+                    },
+                    "testing": {
+                        # This is a workaround for simultaneous mounts when exporting query log in cliques with multiple instances.
+                        "local_clique_size": instance_count,
+                    },
+                },
+                "subquery": {
+                    "min_data_weight_per_thread": 30,
+                    "min_slice_data_weight": 1,
+                },
+            },
+        }
+
+    @authors("ivanzhukov")
+    @pytest.mark.timeout(300)
+    @pytest.mark.parametrize("instance_count", [1, 2])
+    def test_read_in_order_result_is_sorted(self, instance_count):
+        table_path = "//tmp/t"
+        rows = self._create_table_for_read_in_order(table_path)
+        row_count = len(rows)
+
+        with Clique(instance_count, disable_logging=True, export_query_log=True, config_patch=self._get_read_in_order_config_patch(instance_count)) as clique:
+            log_table = clique.query_log_table_path
+            expected_read_in_order_modes = {}
+
+            def _check_sort_description(query, explain, coordinator_sort_description, secondary_sort_description):
+                explain_message = f"for query {query}:\n" + "\n".join(explain)
+
+                def format_expected(sort_description):
+                    return self._format_sort_description(sort_description) if sort_description else None
+
+                coordinator_sort_descriptions = self._get_step_sort_descriptions(explain, "ReadFromYTRemote")
+                assert coordinator_sort_descriptions == [format_expected(coordinator_sort_description)], \
+                    f"Coordinator sort description {coordinator_sort_descriptions} differs from expected {explain_message}"
+
+                secondary_sort_descriptions = self._get_step_sort_descriptions(explain, "ReadFromYTExecutor")
+                assert secondary_sort_descriptions, f"No secondary query plans {explain_message}"
+                assert all(
+                    sort_description == format_expected(secondary_sort_description)
+                    for sort_description in secondary_sort_descriptions
+                ), f"Secondary sort description ({secondary_sort_descriptions}) differs from expected {explain_message}"
+
+            def run_query(query, read_in_order_mode, settings=None, coordinator_sort_description=None, secondary_sort_description=None):
+                query_settings = {"chyt.execution.input_streams_per_secondary_query": 8}
+                query_settings.update(settings or {})
+
+                assert read_in_order_mode != "none" or not coordinator_sort_description
+                assert read_in_order_mode == "forward" or not secondary_sort_description
+
+                explain = [
+                    row["explain"]
+                    for row in clique.make_query(f"EXPLAIN PLAN sorting=1, distributed=1 {query}", settings=query_settings)
+                ]
+                _check_sort_description(query, explain, coordinator_sort_description, secondary_sort_description)
+
+                return self._register_query_check(
+                    expected_read_in_order_modes, clique, query,
+                    expected_read_in_order_mode=read_in_order_mode, query_settings=query_settings
+                )
+
+            def check_query(order_by, read_in_order_mode, where_sql=None, where=None, limit=None, offset=0, settings=None, prewhere=False):
+                query = f'select * from "{table_path}"'
+                if where_sql is not None:
+                    query += f' {"prewhere" if prewhere else "where"} {where_sql}'
+                query += f" order by {self._format_order_by(order_by)}"
+                if limit is not None:
+                    query += f" limit {limit}"
+                if offset:
+                    query += f" offset {offset}"
+                result = run_query(
+                    query, read_in_order_mode, settings,
+                    coordinator_sort_description=order_by if read_in_order_mode != "none" else None,
+                    secondary_sort_description=order_by if read_in_order_mode == "forward" else None)
+                limit = limit if limit else settings["limit"]
+                self._check_ordered_result(result, rows, order_by, where=where, limit=limit, offset=offset)
+
+            asc_cols = [(column, False) for column in self.KEY_COLUMNS]
+            desc_cols = [(column, True) for column in self.KEY_COLUMNS]
+
+            # Forward reads.
+            for limit in [1, 5, 10, 11, 37, row_count - 1, row_count, row_count + 1, 10000]:
+                check_query(asc_cols[:1], "forward", limit=limit)
+            check_query(asc_cols[:2], "forward", limit=23)
+            check_query(asc_cols, "forward", limit=10000)
+            check_query(asc_cols, "forward", limit=15, offset=42)
+            check_query(asc_cols, "forward", limit=10000, offset=row_count - 3)
+            check_query(asc_cols, "forward", where_sql="value % 3 = 0", where=lambda row: row["value"] % 3 == 0, limit=30)
+            check_query(asc_cols[:2], "forward", where_sql="k1 between 3 and 6", where=lambda row: 3 <= row["k1"] <= 6, limit=50)
+            check_query(asc_cols[:1], "forward", where_sql="k3 = 'c'", where=lambda row: row["k3"] == "c", limit=25, prewhere=True)
+            check_query(asc_cols, "forward", where_sql="k2 = 4 and value > 50", where=lambda row: row["k2"] == 4 and row["value"] > 50, limit=10000)
+            check_query(asc_cols, "forward", where_sql="value < 0", where=lambda row: row["value"] < 0, limit=10)
+            # LIMIT set via settings instead of the query itself.
+            check_query(asc_cols, "forward", settings={"limit": 17})
+            check_query(asc_cols, "forward", limit=row_count - 5, settings={"chyt.execution.input_streams_per_secondary_query": 1})
+
+            # Backward reads.
+            for limit in [1, 10, 37, row_count, 10000]:
+                check_query(desc_cols[:1], "backward", limit=limit)
+            check_query(desc_cols, "backward", limit=10000)
+            check_query(desc_cols, "backward", limit=9, offset=100)
+            check_query(desc_cols[:2], "backward", where_sql="value % 2 = 1", where=lambda row: row["value"] % 2 == 1, limit=40)
+
+            # Mixed directions are not optimized, but still must be sorted.
+            check_query([("k1", False), ("k2", True)], "none", limit=50)
+            check_query([("k1", True), ("k2", False), ("k3", True)], "none", limit=10000)
+
+            # Positional arguments.
+            result = run_query(f'select k1, k2, k3, value from "{table_path}" order by 1, 2, 3 limit 31', "forward",
+                               coordinator_sort_description=asc_cols, secondary_sort_description=asc_cols)
+            assert result == [{column: row[column] for column in ["k1", "k2", "k3", "value"]} for row in rows[:31]]
+            result = run_query(f'select k3, k2, k1, value from "{table_path}" order by k1, k2, k3 limit 31', "forward",
+                               coordinator_sort_description=asc_cols, secondary_sort_description=asc_cols)
+            assert result == [{column: row[column] for column in ["k3", "k2", "k1", "value"]} for row in rows[:31]]
+
+            # Selecting only a part of the sorting key. The coordinator is able to merge streams only by the longest
+            # prefix of the sorting key that is present in the output, but the result must be sorted by the whole key anyway.
+            # Secondary nodes still read data sorted by the whole key.
+            for columns in [["value"], ["k1", "value"], ["k1", "k2", "value"], ["k3", "k1", "value"], ["k1", "k3", "value"], ["k2", "k3", "value"]]:
+                for limit in [50, 10000]:
+                    result = run_query(
+                        f'select {", ".join(columns)} from "{table_path}" order by k1, k2, k3 limit {limit}', "forward",
+                        coordinator_sort_description=self._get_coordinator_sort_description(asc_cols, columns),
+                        secondary_sort_description=asc_cols)
+                    assert result == [{column: row[column] for column in columns} for row in rows[:limit]]
+
+                    result = run_query(
+                        f'select {", ".join(columns)} from "{table_path}" order by k1 desc, k2 desc, k3 desc limit {limit}', "backward",
+                        coordinator_sort_description=self._get_coordinator_sort_description(desc_cols, columns))
+                    assert result == [{column: row[column] for column in columns} for row in rows[::-1][:limit]]
+
+            result = run_query(f'select payload from "{table_path}" where value % 5 = 0 order by k1, k2, k3 limit 10000', "forward",
+                               secondary_sort_description=asc_cols)
+            assert result == [{"payload": row["payload"]} for row in rows if row["value"] % 5 == 0]
+
+            # Aliases. Sort columns are matched against the output columns by name, so the coordinator
+            # doesn't get a sort description for aliased columns. Secondary nodes are not affected by that.
+            result = run_query(f'select k1 as x, k2 as y, value from "{table_path}" order by x, y, k3 limit 10000', "forward",
+                               secondary_sort_description=asc_cols)
+            assert result == [{"x": row["k1"], "y": row["k2"], "value": row["value"]} for row in rows]
+
+            result = run_query(f'select k2 as k1, k1 as k2, k3, value from "{table_path}" order by k2, k1, k3 limit 10000', "none")
+            assert result == [
+                {"k1": row["k1"], "k2": row["k2"], "k3": row["k3"], "value": row["value"]}
+                for row in sorted(rows, key=lambda x: (x["k2"], x["k1"], x["k3"]))
+            ]
+            # Here ORDER BY k2, k1 means ORDER BY k2, k2, which is not a prefix of the sorting key.
+            result = run_query(f'select k2 as k1, k3, value from "{table_path}" order by k2, k1, k3 limit 10000', "none")
+            assert [(row["k1"], row["k3"]) for row in result] == sorted((row["k2"], row["k3"]) for row in rows)
+            assert sorted(row["value"] for row in result) == sorted(row["value"] for row in rows)
+
+            # With the distinct read optimization secondary nodes don't read rows in key order, so they don't get a sort description.
+            distinct_settings = {"chyt.execution.enable_distinct_read_optimization": 1}
+            for limit in [3, 100]:
+                result = run_query(f'select distinct k1 from "{table_path}" order by k1 limit {limit}', "forward", settings=distinct_settings,
+                                   coordinator_sort_description=asc_cols[:1])
+                assert result == [{"k1": k1} for k1 in sorted(builtins.set(row["k1"] for row in rows))[:limit]]
+                result = run_query(f'select distinct k1 from "{table_path}" order by k1, k2, k3 limit {limit}', "forward", settings=distinct_settings,
+                                   coordinator_sort_description=asc_cols[:1])
+                assert result == [{"k1": k1} for k1 in sorted(builtins.set(row["k1"] for row in rows))[:limit]]
+                result = run_query(f'select distinct k1 from "{table_path}" order by k1 desc limit {limit}', "backward", settings=distinct_settings,
+                                   coordinator_sort_description=desc_cols[:1])
+                assert result == [{"k1": k1} for k1 in sorted(builtins.set(row["k1"] for row in rows), reverse=True)[:limit]]
+            result = run_query(f'select distinct k3 from "{table_path}" where k1 = 3 order by k3 limit 100', "none", settings=distinct_settings)
+            assert result == [{"k3": k3} for k3 in sorted(builtins.set(row["k3"] for row in rows if row["k1"] == 3))]
+
+            # Randomized queries.
+            rng = random.Random(1470 + instance_count)
+            filters = [
+                (None, None),
+                ("value % 3 = 0", lambda row: row["value"] % 3 == 0),
+                ("value % 7 != 1", lambda row: row["value"] % 7 != 1),
+                ("k1 between 2 and 7", lambda row: 2 <= row["k1"] <= 7),
+                ("k1 = 5", lambda row: row["k1"] == 5),
+                ("k2 >= 3", lambda row: row["k2"] >= 3),
+                ("k3 in ('a', 'e')", lambda row: row["k3"] in ("a", "e")),
+                ("k1 > 4 and k3 != 'b'", lambda row: row["k1"] > 4 and row["k3"] != "b"),
+            ]
+            for _ in range(40):
+                prefix_length = rng.randint(1, len(self.KEY_COLUMNS))
+                descending = rng.choice([False, True])
+                order_by = [(column, descending) for column in self.KEY_COLUMNS[:prefix_length]]
+                where_sql, where = rng.choice(filters)
+                check_query(
+                    order_by,
+                    "backward" if descending else "forward",
+                    where_sql=where_sql,
+                    where=where,
+                    limit=rng.choice([1, 2, 7, 10, 19, 50, 133, 10000]),
+                    offset=rng.choice([0, 0, 0, 3, 25]),
+                    settings={"chyt.execution.input_streams_per_secondary_query": rng.choice([1, 2, 3, 8, 64])},
+                    prewhere=where_sql is not None and rng.choice([False, True]))
+
+            self._check_read_in_order_modes(log_table, expected_read_in_order_modes)
+
+    @authors("ivanzhukov")
+    @pytest.mark.timeout(300)
+    @pytest.mark.parametrize("instance_count", [1, 2])
+    def test_read_in_order_distinct_truncates_pool_key(self, instance_count):
+        # Look at this beautiful query:
+        # ```
+        # SELECT DISTINCT k1, value
+        # FROM table -- ordered by (k1, k2, k3)
+        # ORDER BY k1, k2, k3
+        # SETTINGS chyt.execution.enable_optimize_read_in_order=1
+        # ```
+        # In this case the resulting set of (k1, value) should be ordered by (k1, k2, k3). But our query analyzer
+        # will truncate key columns from (k1, k2, k3) to (k1) in |TQueryAnalyzer::OptimizeQueryProcessingStage|. Thus
+        # the sorted chunk pool will slice and sort chunks only by (k1) and not by (k1, k2, k3). In the general case
+        # the result of the query would be incorrect since chunks sorted by only (k1) could interleave by (k2, k3) and
+        # a concatenation of secondary nodes' output on a coordinator would produce data in an incorrect order.
+        # _However_, the sorted chunk pool guarantees that each stripe contains data slices in the order they follow
+        # in the input (see the comment near |TSortedJobOptions::ValidateOrder| usage in |TSortedJobBuilder| and
+        # |TSortedJobBuilder::SortPrimaryEndpoints|, which breaks ties between equal key bounds by the input order).
+        # Our input slices are produced by |CombineVersionedChunkSlices| using the full key, so they do not overlap
+        # by (k1, k2, k3) and are already ordered by it; the pool only keeps that order inside (k1) groups, which
+        # in turn produces correct data for the whole query.
+        # NB: Reduce operation relies on the same guarantee: the pool slices input by |reduce_by| columns only,
+        # while rows inside a job are guaranteed to be sorted by a longer |sort_by| (see the reduce operation docs).
+        # This test is more of a contract between the sorted chunk pool and us using it.
+        table_path = "//tmp/dt"
+        create("table", table_path, attributes={
+            "schema": [
+                {"name": "k1", "type": "int64", "sort_order": "ascending", "required": True},
+                {"name": "k2", "type": "int64", "sort_order": "ascending", "required": True},
+                {"name": "k3", "type": "string", "sort_order": "ascending", "required": True},
+                {"name": "value", "type": "int64", "required": True},
+                {"name": "payload", "type": "string", "required": True},
+            ],
+            "dynamic": True,
+            "enable_dynamic_store_read": False,
+            "dynamic_store_auto_flush_period": yson.YsonEntity(),
+            "enable_compaction_and_partitioning": False,
+            "chunk_writer": {"block_size": 16},
+        })
+        # Pivot keys are located both on k1 group boundaries and inside k1 groups.
+        sync_reshard_table(table_path, [[], [2, 3, "c"], [5], [7, 1, "a"]])
+        sync_mount_table(table_path)
+
+        keys = sorted((k1, k2, k3) for k1 in range(10) for k2 in range(5) for k3 in "abcde")
+        rows = [
+            {"k1": k1, "k2": k2, "k3": k3, "value": value, "payload": f"payload-{value}"}
+            for value, (k1, k2, k3) in enumerate(keys)
+        ]
+        row_count = len(rows)
+
+        # Each batch covers a couple of k1 groups and takes every |batch_count|-th key of each group
+        # with a shifting offset, so chunks of the same k1 group interleave by (k2, k3).
+        batch_count = 3
+        for k1_begin in range(0, 10, 2):
+            for batch_index in reversed(range(batch_count)):
+                batch = [
+                    row for row in rows
+                    if k1_begin <= row["k1"] < k1_begin + 2 and (
+                        row["k2"] * 5 + "abcde".index(row["k3"])  # index within a group
+                        + row["k1"]  # shifting within a group
+                    ) % batch_count == batch_index  # to which batch a row is written: 2, 1, 0, 2, 1, 0, 2, 1, 0, ...
+                ]
+                insert_rows(table_path, batch)
+                sync_flush_table(table_path)
+
+        config_patch = self._get_read_in_order_config_patch(instance_count)
+        config_patch["yt"]["settings"]["dynamic_table"] = {"enable_dynamic_store_read": 0}
+
+        with Clique(instance_count, disable_logging=True, export_query_log=True, config_patch=config_patch) as clique:
+            log_table = clique.query_log_table_path
+            expected_read_in_order_modes = {}
+
+            def make_query(query, read_in_order_mode, input_streams_per_secondary_query):
+                return self._register_query_check(
+                    expected_read_in_order_modes, clique, query,
+                    expected_read_in_order_mode=read_in_order_mode,
+                    query_settings={
+                        "chyt.execution.enable_distinct_read_optimization": 0,
+                        "chyt.execution.input_streams_per_secondary_query": input_streams_per_secondary_query,
+                    })
+
+            # Sanity check: without DISTINCT the pool uses the whole sorting key.
+            for limit in [13, row_count]:
+                result = make_query(f'select * from "{table_path}" order by k1, k2, k3 limit {limit}', "forward", 8)
+                assert result == rows[:limit]
+
+            # Column |value| is unique, so DISTINCT does not drop any rows and the result must be equal
+            # to the prefix of the table in (k1, k2, k3) order.
+            for columns in [["k1", "value"], ["k1", "k3", "value"], ["k1", "k2", "value"], ["k1", "value", "payload"]]:
+                for input_streams_per_secondary_query in [1, 3, 8]:
+                    for limit in [13, 100, row_count]:
+                        result = make_query(
+                            f'select distinct {", ".join(columns)} from "{table_path}" order by k1, k2, k3 limit {limit}',
+                            "forward",
+                            input_streams_per_secondary_query)
+                        assert result == [{column: row[column] for column in columns} for row in rows[:limit]]
+
+                        result = make_query(
+                            f'select distinct {", ".join(columns)} from "{table_path}" order by k1 desc, k2 desc, k3 desc limit {limit}',
+                            "backward",
+                            input_streams_per_secondary_query)
+                        assert result == [{column: row[column] for column in columns} for row in rows[::-1][:limit]]
+
+            self._check_read_in_order_modes(log_table, expected_read_in_order_modes)
+
+    @authors("ivanzhukov")
+    def test_read_in_order_not_applicable_but_sorted(self):
+        table_path = "//tmp/t"
+        rows = self._create_table_for_read_in_order(table_path)
+        copy(table_path, "//tmp/t_copy")
+
+        asc_cols = [(column, False) for column in self.KEY_COLUMNS]
+
+        with Clique(1, disable_logging=True, export_query_log=True, config_patch=self._get_read_in_order_config_patch()) as clique:
+            log_table = clique.query_log_table_path
+            expected_read_in_order_modes = {}
+
+            def make_query(query, read_in_order_mode, settings=None):
+                query_settings = {"chyt.execution.input_streams_per_secondary_query": 8}
+                query_settings.update(settings or {})
+                return self._register_query_check(
+                    expected_read_in_order_modes, clique, query,
+                    expected_read_in_order_mode=read_in_order_mode, query_settings=query_settings)
+
+            # No LIMIT.
+            result = make_query(f'select * from "{table_path}" order by k1, k2, k3', "none")
+            assert result == rows
+
+            # Data from several tables overlaps.
+            for limit in [5, 10000]:
+                result = make_query(f'select * from concatYtTables("{table_path}", "//tmp/t_copy") order by k1, k2, k3 limit {limit}', "none")
+                assert result == self._sort_rows(rows * 2, asc_cols)[:limit]
+
+            # Non-trivial ranges.
+            result = make_query(f'select * from "{table_path}[#17:#133]" order by k1, k2, k3 limit 10000', "none")
+            assert result == rows[17:133]
+            result = make_query(f'select * from "{table_path}[(3):(6)]" order by k1, k2, k3 limit 10000', "none")
+            assert result == [row for row in rows if 3 <= row["k1"] < 6]
+            result = make_query(f'select * from "{table_path}[#100:#110,#0:#10]" order by k1, k2, k3 limit 10000', "none")
+            assert result == rows[0:10] + rows[100:110]
+
+            # Input specs pulling is not compatible with read in order.
+            result = make_query(
+                f'select * from "{table_path}" order by k1, k2, k3 limit 50', "none",
+                settings={"chyt.execution.enable_input_specs_pulling": 1})
+            assert result == rows[:50]
+
+            # Custom collation.
+            result = make_query(f'select * from "{table_path}" order by k1, k2, k3 collate \'en\' limit 10000', "none")
+            assert result == rows
+
+            self._check_read_in_order_modes(log_table, expected_read_in_order_modes)
+
+    @authors("ivanzhukov")
+    @pytest.mark.parametrize("enable_dynamic_store_read", [False, True])
+    def test_read_in_order_dynamic_table(self, enable_dynamic_store_read):
+        table_path = "//tmp/dt"
+        create("table", table_path, attributes={
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending", "required": True},
+                {"name": "value", "type": "int64"},
+            ],
+            "dynamic": True,
+            "enable_dynamic_store_read": enable_dynamic_store_read,
+            "dynamic_store_auto_flush_period": yson.YsonEntity(),
+            "chunk_writer": {"block_size": 16},
+        })
+        sync_reshard_table(table_path, [[], [100], [200]])
+        sync_mount_table(table_path)
+
+        # Each flush produces chunks with interleaving (overlapping) key ranges; later batches overwrite some keys.
+        expected = {}
+        batch_count = 5
+        for batch_index in range(batch_count):
+            batch = [{"key": key, "value": key} for key in range(batch_index, 300, 3 + batch_index)]
+            insert_rows(table_path, batch)
+            expected.update((row["key"], row["value"]) for row in batch)
+            # With dynamic store read enabled, keep the last batch in dynamic stores.
+            if not enable_dynamic_store_read or batch_index + 1 < batch_count:
+                sync_flush_table(table_path)
+
+        expected_rows = [{"key": key, "value": value} for key, value in sorted(expected.items())]
+
+        config_patch = self._get_read_in_order_config_patch()
+        config_patch["yt"]["settings"]["dynamic_table"] = {"enable_dynamic_store_read": (1 if enable_dynamic_store_read else 0)}
+
+        with Clique(1, disable_logging=True, export_query_log=True, config_patch=config_patch) as clique:
+            log_table = clique.query_log_table_path
+            expected_read_in_order_modes = {}
+
+            def make_query(query, read_in_order_mode):
+                return self._register_query_check(
+                    expected_read_in_order_modes, clique, query,
+                    expected_read_in_order_mode=read_in_order_mode,
+                    query_settings={"chyt.execution.input_streams_per_secondary_query": 8})
+
+            # Read in order is not guaranteed for dynamic stores.
+            asc_mode = "none" if enable_dynamic_store_read else "forward"
+            desc_mode = "none" if enable_dynamic_store_read else "backward"
+            for limit in [1, 10, 150, 10000]:
+                result = make_query(f'select * from "{table_path}" order by key limit {limit}', asc_mode)
+                assert result == expected_rows[:limit]
+                result = make_query(f'select * from "{table_path}" order by key desc limit {limit}', desc_mode)
+                assert result == expected_rows[::-1][:limit]
+            result = make_query(f'select value from "{table_path}" where key % 2 = 0 order by key limit 10000', asc_mode)
+            assert result == [{"value": row["value"]} for row in expected_rows if row["key"] % 2 == 0]
 
             self._check_read_in_order_modes(log_table, expected_read_in_order_modes)
 
@@ -1609,6 +2348,62 @@ class TestInferReadRange(ClickHouseTestBase):
                 }
             }
         }
+
+    @authors("buyval01")
+    def test_key_filtering_sort_orders(self):
+        predicates = [
+            ("a IN (1, 3) AND b IN (0, 5)", lambda a, b: a in (1, 3) and b in (0, 5)),
+            ("a >= 1 AND a < 3", lambda a, b: 1 <= a < 3),
+            ("(a = 1 AND b < 3) OR (a = 1 AND b > 1)", lambda a, b: a == 1),
+            ("a > 1 OR (a = 1 AND b >= 2)", lambda a, b: a > 1 or (a == 1 and b >= 2)),
+            ("(a, b) > (2, 2)", lambda a, b: (a, b) > (2, 2)),
+            ("a = 2 AND b != 3", lambda a, b: a == 2 and b != 3),
+            ("a = 2 AND b > 5", lambda a, b: False),
+        ]
+        with Clique(1) as clique:
+            for directions in [
+                ("ascending", "ascending"),
+                ("descending", "ascending"),
+                ("ascending", "descending"),
+                ("descending", "descending"),
+            ]:
+                table = f"//tmp/sort_order_{directions[0]}_{directions[1]}"
+                schema = [
+                    {"name": "a", "type": "int64", "sort_order": directions[0]},
+                    {"name": "b", "type": "int64", "sort_order": directions[1]},
+                ]
+                create("table", table, attributes={"schema": schema})
+                aa = list(range(4))[::1 if directions[0] == "ascending" else -1]
+                bb = list(range(6))[::1 if directions[1] == "ascending" else -1]
+                for a in aa:
+                    for start in range(0, len(bb), 2):
+                        write_table(f"<append=%true>{table}",
+                                    [{"a": a, "b": b} for b in bb[start:start + 2]])
+
+                for infer_ranges in [False, True]:
+                    settings = {
+                        "chyt.execution.enable_read_range_inferring": int(infer_ranges),
+                        "chyt.enable_key_condition_filtering": int(not infer_ranges),
+                        "chyt.execution.enable_min_max_filtering": 0,
+                        "optimize_move_to_prewhere": 0,
+                    }
+                    query = (f'SELECT a, b FROM "{table}" '
+                             'WHERE a = 2 AND b >= 2 AND b < 4 ORDER BY a, b')
+                    result = clique.make_query_and_validate_read_row_count(
+                        query, exact=2, settings=settings)
+                    assert result == [{"a": 2, "b": 2}, {"a": 2, "b": 3}]
+
+                    query = f'SELECT a, b FROM "{table}" WHERE a = 2 ORDER BY b'
+                    assert clique.make_query_and_validate_read_row_count(
+                        query,
+                        exact=6,
+                        settings=settings,
+                    ) == [{"a": 2, "b": b} for b in range(6)]
+
+                    for predicate, matches in predicates:
+                        query = f'SELECT a, b FROM "{table}" WHERE {predicate} ORDER BY a, b'
+                        assert clique.make_query(query, settings=settings) == [
+                            {"a": a, "b": b} for a in range(4) for b in range(6) if matches(a, b)]
 
     @authors("buyval01")
     def test_simple_range(self):

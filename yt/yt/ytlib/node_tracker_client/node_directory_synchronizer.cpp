@@ -59,6 +59,24 @@ public:
         return SyncExecutor_->Stop();
     }
 
+    TFuture<void> SyncOnce(TDuration stalenessThreshold) override
+    {
+        auto guard = Guard(SyncOnceLock_);
+
+        if (SyncOnceFuture_ && !SyncOnceFuture_.IsSet()) {
+            return SyncOnceFuture_;
+        }
+
+        if (LastSuccessfulSyncTime_ != TInstant::Zero() && TInstant::Now() - LastSuccessfulSyncTime_ < stalenessThreshold) {
+            return OKFuture;
+        }
+
+        SyncOnceFuture_ = BIND(&TNodeDirectorySynchronizer::DoSyncOnce, MakeStrong(this))
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+            .Run();
+        return SyncOnceFuture_;
+    }
+
 private:
     const TNodeDirectorySynchronizerConfigPtr Config_;
     const TWeakPtr<NApi::IConnection> Connection_;
@@ -66,6 +84,9 @@ private:
 
     const TPeriodicExecutorPtr SyncExecutor_;
 
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SyncOnceLock_);
+    TFuture<void> SyncOnceFuture_;
+    TInstant LastSuccessfulSyncTime_ = TInstant::Zero();
 
     void DoSync()
     {
@@ -77,7 +98,7 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Started synchronizing node directory");
+            YT_TLOG_DEBUG("Started synchronizing node directory");
 
             auto client = connection->CreateClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
 
@@ -95,10 +116,15 @@ private:
 
             NodeDirectory_->MergeFrom(*meta.NodeDirectory);
 
-            YT_LOG_DEBUG("Finished synchronizing node directory");
+            {
+                auto guard = Guard(SyncOnceLock_);
+                LastSuccessfulSyncTime_ = TInstant::Now();
+            }
+
+            YT_TLOG_DEBUG("Finished synchronizing node directory");
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error synchronizing node directory")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -107,7 +133,18 @@ private:
         try {
             DoSync();
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(TError(ex));
+            YT_TLOG_DEBUG("Error synchronizing node directory")
+                .With(ex);
+        }
+    }
+
+    void DoSyncOnce()
+    {
+        try {
+            DoSync();
+        } catch (const std::exception& ex) {
+            YT_TLOG_DEBUG("Error synchronizing node directory")
+                .With(ex);
         }
     }
 };

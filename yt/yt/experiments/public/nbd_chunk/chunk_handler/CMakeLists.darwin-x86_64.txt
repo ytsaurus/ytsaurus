@@ -22,6 +22,7 @@ target_link_libraries(chunk_handler PUBLIC
   library-cpp-cpuid_check
   yt-yt-core
   server-lib-nbd
+  lib-nbd-chunk
   yt-library-program
   yt-yt-ytlib
 )

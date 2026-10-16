@@ -60,6 +60,7 @@ target_sources(unittester-data-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/unittests/p2p_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/unittests/journal_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/unittests/data_node_service_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/unittests/medium_aware_block_cache_manager_ut.cpp
 )
 
 

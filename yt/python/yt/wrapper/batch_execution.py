@@ -4,7 +4,7 @@ from .batch_response import BatchResponse
 from .common import chunk_iter_list, get_value
 from .config import get_config, get_option, get_client_state
 from .driver import get_api_version
-from .errors import YtError, YtResponseError
+from .errors import YtError, create_response_error
 from .etc_commands import execute_batch
 from .format import create_format
 from .http_helpers import get_retriable_errors
@@ -47,7 +47,7 @@ class BatchRequestRetrier(Retrier):
         responses = []
         for task, response in zip(self._tasks, self._responses):
             if not response.is_ok():
-                error = YtResponseError(response.get_error())
+                error = create_response_error(response.get_error())
                 if isinstance(error, get_retriable_errors()):
                     tasks.append(task)
                     responses.append(response)

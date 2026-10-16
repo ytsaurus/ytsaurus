@@ -36,7 +36,6 @@ target_link_libraries(restricted-boost-math INTERFACE
   restricted-boost-lexical_cast
   restricted-boost-predef
   restricted-boost-random
-  restricted-boost-static_assert
   restricted-boost-throw_exception
 )
 

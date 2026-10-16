@@ -63,6 +63,8 @@ void LogAccess(
 
 bool IsAccessLoggedType(const NCypressClient::EObjectType type);
 
+bool IsAccessLoggedMethod(TStringBuf method);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer

@@ -12,10 +12,10 @@ int main() {
 
     NYql::NLog::YqlLoggerScope logger(&Cerr);
     try {
-        NYql::NFmr::TFmrUserJob mapJob;
+        NYql::NFmr::TFmrUserJob fmrUserJob; // Map or Reduce Job.
         TFileInput fileStream("fmrjob.bin");
-        mapJob.Load(fileStream);
-        mapJob.DoFmrJob(NYql::NFmr::TFmrUserJobOptions{.WriteStatsToFile = true});
+        fmrUserJob.Load(fileStream);
+        fmrUserJob.DoFmrJob(NYql::NFmr::TFmrUserJobOptions{.WriteStatsToFile = true});
         return 0;
     } catch (...) {
         Cerr << CurrentExceptionMessage() << Endl;

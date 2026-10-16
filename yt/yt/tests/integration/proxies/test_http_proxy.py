@@ -11,7 +11,7 @@ from yt.environment.tls_helpers import (
 )
 
 from yt_commands import (
-    authors, wait, wait_no_assert, create, ls, get, set, remove, map,
+    authors, wait, wait_no_assert, create, ls, get, set, remove, exists, map,
     create_user, create_proxy_role, issue_token, make_ace,
     create_access_control_object_namespace, create_access_control_object,
     with_breakpoint, wait_breakpoint, print_debug, raises_yt_error,
@@ -19,7 +19,7 @@ from yt_commands import (
     start_transaction,
 )
 
-from yt.common import YtResponseError, YtError
+from yt.common import YtResponseError
 import yt.packages.requests as requests
 import yt.yson as yson
 import yt_error_codes
@@ -58,18 +58,14 @@ def try_parse_yt_error_trailers(rsp):
 
 class HttpProxyTestBase(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 5
-    NUM_SCHEDULERS = 1
+    NUM_NODES = 3
     ENABLE_HTTP_PROXY = True
-    ENABLE_RPC_PROXY = True
-    NUM_SECONDARY_MASTER_CELLS = 2
     NUM_HTTP_PROXIES = 1
-    NUM_RPC_PROXIES = 2
 
     DELTA_HTTP_PROXY_CONFIG = {
         "coordinator": {
             "heartbeat_interval": 100,
-            "death_age": 500,
+            "death_age": 2000,
             "cypress_timeout": 50,
         },
         "api": {
@@ -419,50 +415,6 @@ class TestHttpProxy(HttpProxyTestBase):
         assert ["v3", "v4"] == requests.get(self._get_proxy_address() + "/api").json()
 
     @authors("prime")
-    def test_discover_versions_v2(self):
-        # Give all components some time to be considered online.
-        time.sleep(5)
-
-        rsp = requests.get(self._get_proxy_address() + "/internal/discover_versions/v2")
-        rsp.raise_for_status()
-
-        versions = rsp.json()
-        assert "details" in versions
-        assert "summary" in versions
-
-        print_debug(f"Collected component versions: {versions}")
-
-        counts = collections.Counter()
-
-        for instance in versions["details"]:
-            assert "address" in instance
-            assert "start_time" in instance
-            assert "type" in instance
-            assert "version" in instance
-
-            if "state" in instance:
-                assert instance["state"] == "online"
-
-            counts[instance["type"]] += 1
-
-        summary = versions["summary"]
-        # All components run on the same version + there is a total summary.
-        assert len(summary) == 2
-        for version_summary in summary.values():
-            for type, component_summary in version_summary.items():
-                assert component_summary["total"] == counts[type]
-                assert component_summary["banned"] == 0
-                assert component_summary["offline"] == 0
-
-        assert counts["primary_master"] == 1
-        assert counts["secondary_master"] == 2
-        assert counts["cluster_node"] == 5
-        assert counts["scheduler"] == 1
-        assert counts["controller_agent"] == 1
-        assert counts["http_proxy"] == 1
-        assert counts["rpc_proxy"] == 2
-
-    @authors("prime")
     def test_cache_control(self):
         rsp = requests.get(self._get_proxy_address() + "/api/v4/get?path=//@")
         rsp.raise_for_status()
@@ -483,9 +435,8 @@ class TestHttpProxy(HttpProxyTestBase):
         wait(config_updated)
 
     @authors("prime")
+    @pytest.mark.skip
     def test_taken_port(self):
-        pytest.skip()
-
         monitoring_port = self.Env.configs["node"][0]["monitoring_port"]
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -703,8 +654,25 @@ class TestHttpProxy(HttpProxyTestBase):
         else:
             raise AssertionError(f"Request {correlation_id} doesn't seem to be canceled")
 
+    @authors("dagorokhov")
+    @pytest.mark.parametrize("yson_format", ["yson", "<format=binary>yson", "<format=text>yson", "<format=pretty>yson"])
+    def test_header_format_yson(self, yson_format):
+        create("table", "//tmp/test")
 
-@pytest.mark.enabled_multidaemon
+        headers_text = {
+            "X-YT-Header-Format": yson_format,
+        }
+        rsp = requests.request(
+            "GET",
+            "{}/api/v4/read_table?path=//tmp/test".format(self._get_proxy_address()),
+            headers=headers_text,
+        )
+        yson_string = rsp.headers['X-YT-Response-Parameters']
+        yson_decoded = yson.loads(bytes(yson_string, 'utf-8'))
+        yson_encoded = yson.dumps(yson_decoded)
+        assert yson_string == yson_encoded.decode('utf-8')
+
+
 class TestHttpProxyMemoryDrop(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
 
@@ -795,7 +763,6 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
         self._execute_command("GET", "read_table", {"path": "//tmp/test"})
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1017,7 +984,6 @@ class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):
             self._execute_command("GET", "read_table", {"path": "//tmp/test"})
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyPoolMetrics(HttpProxyTestBase):
     @authors("nadya02")
     @pytest.mark.timeout(120)
@@ -1051,6 +1017,10 @@ class TestHttpProxyPoolMetrics(HttpProxyTestBase):
 
 class TestFullDiscoverVersions(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = False  # Cell balancer crashes in multidaemon mode.
+    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SCHEDULERS = 1
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 2
     NUM_DISCOVERY_SERVERS = 1
     NUM_TIMESTAMP_PROVIDERS = 1
     NUM_MASTER_CACHES = 1
@@ -1098,13 +1068,14 @@ class TestFullDiscoverVersions(HttpProxyTestBase):
 
         assert counts["primary_master"] == 1
         assert counts["secondary_master"] == 2
-        assert counts["cluster_node"] == 5
+        assert counts["cluster_node"] == 3
         assert counts["scheduler"] == 1
         assert counts["controller_agent"] == 1
         assert counts["http_proxy"] == 1
         assert counts["rpc_proxy"] == 2
         assert counts["discovery"] == 1
         assert counts["timestamp_provider"] == 1
+        assert counts["timestamp_proxy"] == 1
         assert counts["master_cache"] == 1
         assert counts["bundle_controller"] == 1
         assert counts["queue_agent"] == 1
@@ -1112,11 +1083,14 @@ class TestFullDiscoverVersions(HttpProxyTestBase):
         assert counts["replicated_table_tracker"] == 1
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressProxyDiscoverVersions(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
 
     USE_SEQUOIA = True
+    NUM_SECONDARY_MASTER_CELLS = 2
+    ENABLE_RPC_PROXY = True
+    NUM_SCHEDULERS = 1
+    NUM_RPC_PROXIES = 2
     NUM_CLOCKS = 1
     NUM_REMOTE_CLUSTERS = 1
     USE_SEQUOIA_REMOTE_0 = False
@@ -1159,7 +1133,7 @@ class TestCypressProxyDiscoverVersions(HttpProxyTestBase):
 
         assert counts["primary_master"] == 1
         assert counts["secondary_master"] == 2
-        assert counts["cluster_node"] == 5
+        assert counts["cluster_node"] == 3
         assert counts["scheduler"] == 1
         assert counts["http_proxy"] == 1
         assert counts["rpc_proxy"] == 2
@@ -1174,6 +1148,7 @@ class TestSolomonProxy(HttpProxyTestBase):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_HTTP_PROXIES = 1
+    ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
 
     # Just to make the test run faster.
@@ -1181,7 +1156,7 @@ class TestSolomonProxy(HttpProxyTestBase):
 
     DELTA_HTTP_PROXY_CONFIG = {
         "solomon_proxy": {
-            "public_component_names": ["rpc_proxy", "primary_master", "http_proxy"],
+            "public_component_names": ["rpc_proxy", "primary_master", "primary_master_sidecar", "http_proxy"],
             # We will configure the endpoint providers later, since monitoring ports are not yet generated at this point.
         }
     }
@@ -1197,6 +1172,7 @@ class TestSolomonProxy(HttpProxyTestBase):
         rpc_proxy_config = configs["rpc_proxy"][0]
         http_proxy_config = configs["http_proxy"][0]
         scheduler_config = configs["scheduler"][0]
+        controller_agent_config = configs["controller_agent"][0]
 
         configs["http_proxy"][0]["solomon_proxy"]["endpoint_providers"] = [
             {
@@ -1215,6 +1191,14 @@ class TestSolomonProxy(HttpProxyTestBase):
                 "monitoring_port": http_proxy_config["monitoring_port"],
                 "include_port_in_instance_name": True,
             },
+            # Providers for the same component type may only coexist under distinct names.
+            # This one imitates a sidecar: same hosts as the master, its own monitoring port.
+            {
+                "name": "primary_master_sidecar",
+                "component_type": "primary_master",
+                "monitoring_port": controller_agent_config["monitoring_port"],
+                "include_port_in_instance_name": True,
+            },
             # Not declared public above!
             {
                 "component_type": "scheduler",
@@ -1229,6 +1213,7 @@ class TestSolomonProxy(HttpProxyTestBase):
         rpc_proxy_config["solomon_exporter"]["host"] = "rpc-proxy.yt.test"
         http_proxy_config["solomon_exporter"]["host"] = "http-proxy.yt.test"
         scheduler_config["solomon_exporter"]["host"] = "scheduler.yt.test"
+        controller_agent_config["solomon_exporter"]["host"] = "controller-agent.yt.test"
 
     @staticmethod
     def filter_sensors(sensors, sensor_name=None, host=None):
@@ -1262,7 +1247,7 @@ class TestSolomonProxy(HttpProxyTestBase):
 
         build_version_sensors = self.filter_sensors(sensors, sensor_name="build.version")
         # Sensors for schedulers are not returned, since they are declared public.
-        assert len(build_version_sensors) == 3
+        assert len(build_version_sensors) == 4
 
         # No labels should be lost!
         assert self.filter_sensors(build_version_sensors, host="http-proxy")[0]["labels"]["proxy_role"] == "data"
@@ -1271,7 +1256,8 @@ class TestSolomonProxy(HttpProxyTestBase):
     @authors("achulkov2")
     def test_filters(self):
         # Component name.
-        rpc_proxy_sensors = self.get_sensors(params={"component": "rpc_proxies"})
+        rpc_proxy_sensors = self.get_sensors(params={"component": "rpc_proxy"})
+        assert self.get_instance_count(rpc_proxy_sensors) == 1
         assert self.filter_sensors(rpc_proxy_sensors, host="rpc-proxy") == rpc_proxy_sensors
 
         # Instance name.
@@ -1283,35 +1269,47 @@ class TestSolomonProxy(HttpProxyTestBase):
         rpc_proxy_address = ls("//sys/rpc_proxies")[0]
 
         set(f"//sys/rpc_proxies/{rpc_proxy_address}/@banned", True)
-        wait(lambda: self.get_instance_count(self.get_sensors(params={"instance_banned": "0"})) == 2)
-
-        set(f"//sys/rpc_proxies/{rpc_proxy_address}/@banned", False)
         wait(lambda: self.get_instance_count(self.get_sensors(params={"instance_banned": "0"})) == 3)
 
+        set(f"//sys/rpc_proxies/{rpc_proxy_address}/@banned", False)
+        wait(lambda: self.get_instance_count(self.get_sensors(params={"instance_banned": "0"})) == 4)
+
         # Solomon shards (which are also instance labels).
-        assert self.get_instance_count(self.get_sensors(params={"instance_shard": "all"})) == 3
+        assert self.get_instance_count(self.get_sensors(params={"instance_shard": "all"})) == 4
         assert self.get_instance_count(self.get_sensors(params={"instance_shard": "we-miss-prime"})) == 0
 
     @authors("achulkov2")
     def test_sharding(self):
         first_shard_size = self.get_instance_count(self.get_sensors(params={"shard_index": 0, "shard_count": 2}))
         second_shard_size = self.get_instance_count(self.get_sensors(params={"shard_index": 1, "shard_count": 2}))
-        assert first_shard_size + second_shard_size == 3
+        assert first_shard_size + second_shard_size == 4
 
     @authors("achulkov2")
     def test_formats(self):
         # Json (default).
-        assert self.get_instance_count(self.get_sensors(headers={"Accept": "application/json"})) == 3
+        assert self.get_instance_count(self.get_sensors(headers={"Accept": "application/json"})) == 4
 
         # Prometheus.
         prometheus_sensors_rsp = self.get_sensors_raw(headers={"Accept": "text/plain"})
-        assert len([line for line in prometheus_sensors_rsp.text.split("\n") if "# TYPE" not in line and "build_version" in line]) == 3
+        assert len([line for line in prometheus_sensors_rsp.text.split("\n") if "# TYPE" not in line and "build_version" in line]) == 4
         # No counter-to-rate transformation for prometheus format.
         assert len([line for line in prometheus_sensors_rsp.text.split("\n") if "_rate" in line and "_rate_limit" not in line]) == 0
 
         # Spack (only check for errors).
         self.get_sensors_raw(headers={"Accept": "application/x-solomon-spack"})
         self.get_sensors_raw(headers={"Accept": "application/x-solomon-spack", "Accept-Encoding": "zstd"})
+
+    @authors("tinarsky")
+    def test_endpoint_provider_name(self):
+        # Both providers are of the primary_master component type and are told apart by name only.
+        master_sensors = self.get_sensors(params={"component": "primary_master"})
+        assert self.get_instance_count(master_sensors) == 1
+        assert self.filter_sensors(master_sensors, sensor_name="build.version")[0]["labels"]["host"] == "master.yt.test"
+
+        # The named provider is pulled from its own monitoring port.
+        sidecar_sensors = self.get_sensors(params={"component": "primary_master_sidecar"})
+        assert self.get_instance_count(sidecar_sensors) == 1
+        assert self.filter_sensors(sidecar_sensors, sensor_name="build.version")[0]["labels"]["host"] == "controller-agent.yt.test"
 
     @authors("achulkov2")
     def test_errors(self):
@@ -1324,7 +1322,6 @@ class TestSolomonProxy(HttpProxyTestBase):
             self.get_sensors(params={"period": "5s"})
 
 
-@pytest.mark.enabled_multidaemon
 class HttpProxyAccessCheckerTestBase(HttpProxyTestBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "access_checker": {
@@ -1411,7 +1408,6 @@ class HttpProxyAccessCheckerTestBase(HttpProxyTestBase):
         wait(lambda: not check_access(proxy_address, "u"))
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyAccessChecker(HttpProxyAccessCheckerTestBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1425,17 +1421,15 @@ class TestHttpProxyAccessChecker(HttpProxyAccessCheckerTestBase):
         set(f"//sys/http_proxy_roles/{role}/@acl", acl)
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyAccessCheckerWithAco(HttpProxyAccessCheckerTestBase):
     ENABLE_MULTIDAEMON = True
 
-    @classmethod
-    def setup_class(cls):
-        cls.DELTA_HTTP_PROXY_CONFIG["access_checker"].update({
+    DELTA_HTTP_PROXY_CONFIG = {
+        "access_checker": {
             "use_access_control_objects": True,
             "path_prefix": "//sys/access_control_object_namespaces/http_proxy_roles",
-        })
-        super().setup_class()
+        }
+    }
 
     def create_proxy_role_namespace(self):
         create_access_control_object_namespace("http_proxy_roles")
@@ -1447,7 +1441,6 @@ class TestHttpProxyAccessCheckerWithAco(HttpProxyAccessCheckerTestBase):
         set(f"//sys/access_control_object_namespaces/http_proxy_roles/{role}/principal/@acl", acl)
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyRoleFromStaticConfig(HttpProxyTestBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "role": "ab"
@@ -1473,16 +1466,14 @@ class TestHttpProxyRoleFromStaticConfig(HttpProxyTestBase):
         assert get_yson(self._get_proxy_address() + "/hosts?role=ab") == [proxy]
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyAuth(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
 
-    @classmethod
-    def setup_class(cls):
-        cls.DELTA_HTTP_PROXY_CONFIG["auth"] = {
+    DELTA_HTTP_PROXY_CONFIG = {
+        "auth": {
             "enable_authentication": True,
         }
-        super(TestHttpProxyAuth, cls).setup_class()
+    }
 
     def create_user_with_token(self, user):
         create_user(user)
@@ -1551,7 +1542,6 @@ class TestHttpProxyAuth(HttpProxyTestBase):
         wait(lambda: check_access(proxy_address, status_code=401, token=test_user_token, user="root"))
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyFraming(HttpProxyTestBase):
     SUSPENDING_TABLE = "//tmp/suspending_table"
     DELAY_BEFORE_COMMAND = 10 * 1000
@@ -1723,7 +1713,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
             self._execute_command("GET", "get_table_columnar_statistics", params)
 
     @authors("galtsev")
-    @pytest.mark.parametrize("encoding", ["identity", "gzip", "deflate", "brotly"])
+    @pytest.mark.parametrize("encoding", ["identity", "gzip", "deflate", "br"])
     def test_partition_tables(self, encoding):
         create("table", self.SUSPENDING_TABLE)
         write_table(self.SUSPENDING_TABLE, [{"column_1": 1, "column_2": "foo"}])
@@ -1745,13 +1735,8 @@ class TestHttpProxyFraming(HttpProxyTestBase):
             self._execute_command("GET", "get_table_columnar_statistics", params, extra_headers=headers)
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyJobShellAudit(HttpProxyTestBase):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
     NUM_SCHEDULERS = 1
-    ENABLE_HTTP_PROXY = True
-    NUM_HTTP_PROXIES = 1
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
@@ -1849,9 +1834,10 @@ class TestHttpProxyJobShellAudit(HttpProxyTestBase):
         op.abort()
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
     NUM_TEST_PARTITIONS = 6
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 2
     ENABLE_MULTIDAEMON = True
 
     def setup_method(self, method):
@@ -2006,21 +1992,10 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
         self._test_format_defaults_operations(format, user, content, expected_content_operation)
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
-    NUM_SCHEDULERS = 0
-
     DELTA_MASTER_CONFIG = {
         "hydra_manager": {
             "build_snapshot_delay": 10000,
-        },
-    }
-
-    DELTA_HTTP_PROXY_CONFIG = {
-        "coordinator": {
-            "heartbeat_interval": 100,
-            "cypress_timeout": 50,
-            "death_age": 500,
         },
     }
 
@@ -2084,7 +2059,6 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
             wait(_check_read_only)
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyBuildSnapshotNoReadonly(TestHttpProxyBuildSnapshotBase):
     ENABLE_MULTIDAEMON = True
 
@@ -2150,10 +2124,9 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyHeapUsageStatisticsBase(HttpProxyTestBase):
-    NUM_HTTP_PROXIES = 1
     ENABLE_MULTIDAEMON = True
+    ENABLE_TCMALLOC_PROFILING = True
 
     def enable_allocation_tags(self, proxy):
         set(f"//sys/{proxy}/@config", {
@@ -2245,7 +2218,6 @@ class TestHttpProxyHeapUsageStatistics(TestHttpProxyHeapUsageStatisticsBase):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyNullApiTestingOptions(TestHttpProxyHeapUsageStatisticsBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "heap_profiler": {
@@ -2263,20 +2235,8 @@ class TestHttpProxyNullApiTestingOptions(TestHttpProxyHeapUsageStatisticsBase):
 
 
 class TestHttpProxySignaturesBase(HttpProxyTestBase):
-    DELTA_HTTP_PROXY_CONFIG = {
-        "signature_components": {
-            "validation": {
-                "cypress_key_reader": dict(),
-            },
-            "generation": {
-                "cypress_key_writer": dict(),
-                "key_rotator": dict(),
-                "generator": dict(),
-            },
-        },
-    }
+    DELTA_HTTP_PROXY_CONFIG = {}
 
-    # NB(pavook): to avoid owner collision.
     NUM_HTTP_PROXIES = 1
 
     OWNERS_PATH = "//sys/public_keys/by_owner"
@@ -2305,7 +2265,8 @@ class TestHttpProxySignatures(TestHttpProxySignaturesBase):
         # commit and actual key emplace, this won't be enough: the key still won't be available.
         # But this probability should be neglectable, as some network packeting should happen before the signatures
         # even start generating.
-        wait(lambda: len(ls(cls.OWNERS_PATH)) > 0)
+        owner = ls("//sys/http_proxies")[0]
+        wait(lambda: exists(f"{cls.OWNERS_PATH}/{owner}"))
 
     @authors("ermolovd")
     def test_partition_tables_with_modified_cookie(self):
@@ -2394,18 +2355,21 @@ class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
     @authors("pavook")
     @pytest.mark.timeout(60)
     def test_public_key_rotates(self):
-        wait(lambda: ls(self.OWNERS_PATH))
-        owner = ls(self.OWNERS_PATH)[0]
-        wait(lambda: len(ls(f"{self.OWNERS_PATH}/{owner}")) > 1)
+        owner = ls("//sys/http_proxies")[0]
+        owner_path = f"{self.OWNERS_PATH}/{owner}"
+        wait(lambda: exists(owner_path) and len(ls(owner_path)) > 1)
 
     @authors("pavook")
     def test_dynamic_config(self):
-        wait(lambda: ls(self.OWNERS_PATH))
+        owner = ls("//sys/http_proxies")[0]
+        owner_path = f"{self.OWNERS_PATH}/{owner}"
+        wait(lambda: exists(owner_path))
+
         new_path = "//tmp/dynamic_test_public_keys"
         create("map_node", new_path)
         set(
             "//sys/http_proxies/@config",
-            deep_update(self.DELTA_HTTP_PROXY_CONFIG, {
+            {
                 "signature_components": {
                     "generation": {
                         "cypress_key_writer": {
@@ -2418,8 +2382,13 @@ class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
                         },
                     },
                 },
-            }))
-        wait(lambda: ls(new_path))
+            })
+
+        wait(lambda: exists(f"{new_path}/{owner}"))
+
+        static_keys = frozenset(ls(owner_path))
+        set("//sys/http_proxies/@config", {})
+        wait(lambda: frozenset(ls(owner_path)) != static_keys)
 
 
 class TestHttpsProxy(HttpProxyTestBase):
@@ -2483,7 +2452,6 @@ class TestHttpsProxy(HttpProxyTestBase):
         rsp.raise_for_status()
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyDiscovery(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
@@ -2551,7 +2519,7 @@ class TestHttpProxyDiscovery(YTEnvSetup):
 
     @authors("nadya73")
     def test_invalid_address_type(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             discover_proxies(type_="http", driver=self.driver, address_type="invalid")
 
     @authors("nadya73")
@@ -2565,7 +2533,6 @@ class TestHttpProxyDiscovery(YTEnvSetup):
         assert len(proxies) != 0
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyDiscoveryRoleFromStaticConfig(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
@@ -2603,7 +2570,6 @@ class TestHttpProxyDiscoveryRoleFromStaticConfig(YTEnvSetup):
         assert sorted(proxies) == configured_proxy_addresses
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyDiscoveryBalancers(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
@@ -2651,7 +2617,7 @@ class TestHttpProxyDiscoveryBalancers(YTEnvSetup):
 
     @authors("nadya73")
     def test_invalid_address_type(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             discover_proxies(type_="http", driver=self.driver, address_type="invalid")
 
     @authors("nadya73")

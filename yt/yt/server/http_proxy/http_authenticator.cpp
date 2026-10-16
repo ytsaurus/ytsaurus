@@ -4,6 +4,7 @@
 #include "config.h"
 
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/ytlib/security_client/user_attribute_cache.h>
 
@@ -37,6 +38,8 @@ DEFINE_REFCOUNTED_TYPE(TCompositeHttpAuthenticator)
 
 void SetStatusFromAuthError(const NHttp::IResponseWriterPtr& rsp, const TError& error)
 {
+    // TODO(dagorokhov): Some credential rejections are not marked with InvalidCredentials
+    // and are reported as ServiceUnavailable instead of Unauthorized.
     if (error.FindMatching(NRpc::EErrorCode::InvalidCredentials)) {
         rsp->SetStatus(EStatusCode::Unauthorized);
     } else if (error.FindMatching(NRpc::EErrorCode::InvalidCsrfToken)) {
@@ -84,6 +87,7 @@ void THttpAuthenticator::HandleRequest(const IRequestPtr& req, const IResponseWr
         });
     } else {
         SetStatusFromAuthError(rsp, TError(result));
+        FillYTErrorHeaders(rsp, TError(result));
         ReplyJson(rsp, [&] (auto consumer) {
             BuildYsonFluently(consumer)
                 .Value(TError(result));
@@ -107,7 +111,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
             .Realm = "YT",
             .UserTicket = UserTicket,
         };
-        return TAuthenticationResultAndToken{result, TString()};
+        return TAuthenticationResultAndToken{result, {}};
     }
 
     auto userIP = request->GetRemoteAddress();
@@ -185,9 +189,9 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
                         "Client has provided %v header but authenticated user %v is not whitelisted, or a superuser (or is banned)",
                         UserNameHeader,
                         authenticationResult.Login)
-                        << TErrorAttribute("is_superuser", isSuperuserOrError.Value())
-                        << TErrorAttribute("is_banned", isUserBannedOrError.Value())
-                        << TErrorAttribute("is_whitelisted", isWhitelisted);
+                        .With("is_superuser", isSuperuserOrError.Value())
+                        .With("is_banned", isUserBannedOrError.Value())
+                        .With("is_whitelisted", isWhitelisted);
                 }
             }
 
@@ -200,8 +204,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
     if (auto cookieHeader = request->GetHeaders()->Find(CookieHeaderName)) {
         auto cookies = ParseCookies(*cookieHeader);
         TCookieCredentials credentials{
-            // TODO(babenko): switch to std::string
-            .Cookies = {cookies.begin(), cookies.end()},
+            .Cookies = std::move(cookies),
             .UserIP = userIP,
         };
         if (CookieAuthenticator_->CanAuthenticate(credentials)) {
@@ -231,11 +234,14 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
                 }
             }
 
-            return TAuthenticationResultAndToken{authResult.Value(), TString()};
+            return TAuthenticationResultAndToken{authResult.Value(), {}};
         }
     }
 
-    if (auto userTicketHeader = request->GetHeaders()->Find(NHeaders::UserTicketHeaderName)) {
+    auto userTicketHeader = request->GetHeaders()->Find(NHeaders::UserTicketHeaderName);
+    auto serviceTicketHeader = request->GetHeaders()->Find(NHeaders::ServiceTicketHeaderName);
+
+    if (userTicketHeader) {
         const auto& ticketAuthenticator = AuthenticationManager_->GetTicketAuthenticator();
         if (!ticketAuthenticator) {
             return TError(
@@ -243,19 +249,19 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
                 "Client has provided a user ticket, but no ticket authenticator is configured");
         }
 
-        TTicketCredentials credentials{
-            // TODO(babenko): switch to std::string
-            .Ticket = TString(*userTicketHeader),
+        TUserTicketCredentials credentials{
+            .UserTicket = *userTicketHeader,
+            .ServiceTicket = serviceTicketHeader ? std::optional<std::string>(*serviceTicketHeader) : std::nullopt,
         };
+
         auto authResult = WaitFor(ticketAuthenticator->Authenticate(credentials));
         if (!authResult.IsOK()) {
             return TError(authResult);
         }
-
         return TAuthenticationResultAndToken{authResult.Value(), {}};
     }
 
-    if (auto serviceTicketHeader = request->GetHeaders()->Find(NHeaders::ServiceTicketHeaderName)) {
+    if (serviceTicketHeader) {
         const auto& ticketAuthenticator = AuthenticationManager_->GetTicketAuthenticator();
         if (!ticketAuthenticator) {
             return TError(
@@ -264,14 +270,13 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         }
 
         TServiceTicketCredentials credentials{
-            // TODO(babenko): switch to std::string
-            .Ticket = TString(*serviceTicketHeader),
+            .ServiceTicket = *serviceTicketHeader,
         };
+
         auto authResult = WaitFor(ticketAuthenticator->Authenticate(credentials));
         if (!authResult.IsOK()) {
             return TError(authResult);
         }
-
         return TAuthenticationResultAndToken{authResult.Value(), {}};
     }
 
@@ -300,6 +305,7 @@ void TCompositeHttpAuthenticator::HandleRequest(const IRequestPtr& req, const IR
     }
 
     SetStatusFromAuthError(rsp, TError(result));
+    FillYTErrorHeaders(rsp, TError(result));
     ReplyJson(rsp, [&] (auto consumer) {
         BuildYsonFluently(consumer)
             .Value(TError(result));

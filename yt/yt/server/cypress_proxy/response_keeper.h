@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/cypress_proxy/config.h>
+
 namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////

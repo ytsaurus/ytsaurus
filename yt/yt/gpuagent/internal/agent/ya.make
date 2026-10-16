@@ -17,7 +17,7 @@ RECURSE(
     nv
 )
 
-IF (NOT OPENSOURCE)
+IF (YT_CUSTOM_INTERNAL_BUILD)
     RECURSE(
         mx
     )

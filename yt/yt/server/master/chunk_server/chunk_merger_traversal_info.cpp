@@ -46,6 +46,24 @@ void FormatValue(TStringBuilderBase* builder, const TChunkMergerTraversalStatist
         traversalStatistics.ConfigVersion);
 }
 
+void TChunkMergerInfo::Save(TSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, TraversalInfo);
+    Save(context, UpdatedSinceLastMerge);
+    Save(context, Revision);
+}
+
+void TChunkMergerInfo::Load(TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, TraversalInfo);
+    Load(context, UpdatedSinceLastMerge);
+    Load(context, Revision);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

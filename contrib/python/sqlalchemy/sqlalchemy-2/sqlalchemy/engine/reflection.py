@@ -24,6 +24,7 @@ methods such as get_table_names, get_columns, etc.
    use the key 'name'. So for most return values, each record will have a
    'name' attribute..
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -1755,6 +1756,15 @@ class Inspector(inspection.Inspectable["Inspector"]):
                     and set(constrained_columns).difference(include_columns)
                 )
             ):
+                continue
+
+            if len(set(constrained_columns)) != len(constrained_columns):
+                util.warn(
+                    f"On reflected table {table.name}, skipping reflection of "
+                    f"foreign key constraint {conname}; duplicate source "
+                    f"columns within name(s) {', '.join(constrained_columns)} "
+                    "are not supported"
+                )
                 continue
 
             referred_schema = fkey_d["referred_schema"]

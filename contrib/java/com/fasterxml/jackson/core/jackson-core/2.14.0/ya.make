@@ -1,0 +1,13 @@
+JAVA_CONTRIB()
+
+VERSION(2.14.0)
+
+LICENSE(Apache-2.0)
+
+JAR_RESOURCE(3842799315)
+
+SRC_RESOURCE(3842798842)
+
+ORIGINAL_SOURCE(https://github.com/FasterXML/jackson-core)
+
+END()

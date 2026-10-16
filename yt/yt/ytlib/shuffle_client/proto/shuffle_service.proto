@@ -1,10 +1,15 @@
 package NYT.NShuffleClient.NProto;
 
 import "yt_proto/yt/client/chunk_client/proto/chunk_spec.proto";
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt/ytlib/chunk_client/proto/session_id.proto";
+import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Push-based and pull-based.
 message TReqStartShuffle
 {
     required string account = 1;
@@ -12,6 +17,16 @@ message TReqStartShuffle
     required NYT.NProto.TGuid parent_transaction_id = 3;
     optional string medium = 4;
     optional int32 replication_factor = 5;
+    optional bool use_push_based_shuffle = 6 [default = false];
+    // Required when use_push_based_shuffle is set. Push-based shuffle is
+    // schemaful: the schema is the single source of the column name-to-id
+    // mapping shared by writers and readers.
+    optional NYT.NTableClient.NProto.TTableSchemaExt schema = 7;
+    reserved 8;
+    // YSON-serialized TShuffleConfig.
+    optional bytes config = 9;
+    // NCompression::ECodec.
+    optional int32 codec = 10 [default = 0];
 }
 
 message TRspStartShuffle
@@ -21,11 +36,61 @@ message TRspStartShuffle
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Push-based only.
+message TReqRegisterWriter
+{
+    required bytes shuffle_handle = 1;
+    // Stable caller-assigned identity shared by retries of one logical writer.
+    optional int32 logical_writer_index = 2;
+    optional bool overwrite_existing_writer_data = 3 [default = false];
+}
+
+message TPartitionWriteSession
+{
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    required NYT.NNodeTrackerClient.NProto.TNodeDescriptor sequencer_node = 2;
+}
+
+message TRspRegisterWriter
+{
+    // Identity of this concrete registered writer.
+    required int32 writer_id = 1;
+
+    message TReadySession
+    {
+        required int32 partition_index = 1;
+        required TPartitionWriteSession session = 2;
+    }
+
+    // Sessions already started at registration time. The writer uses these directly and
+    // falls back to GetPartitionWriteSession for any partition absent here.
+    repeated TReadySession ready_sessions = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Push-based only.
+message TReqGetPartitionWriteSession
+{
+    required bytes shuffle_handle = 1;
+    required int32 partition_index = 2;
+    optional NYT.NChunkClient.NProto.TSessionId excluded_session_id = 3;
+}
+
+message TRspGetPartitionWriteSession
+{
+    required TPartitionWriteSession session = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Pull-based only.
 message TReqRegisterChunks
 {
     required bytes shuffle_handle = 1; // YSON-serialized TShuffleHandle
     repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 2;
-    optional int32 writer_index = 3;
+    // Stable caller-assigned identity shared by retries of one logical writer.
+    optional int32 logical_writer_index = 3;
     optional bool overwrite_existing_writer_data = 4 [default = false];
 }
 
@@ -35,6 +100,7 @@ message TRspRegisterChunks
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Push-based and pull-based.
 message TReqFetchChunks
 {
     message TIndexRange
@@ -45,10 +111,14 @@ message TReqFetchChunks
 
     required bytes shuffle_handle = 1; // YSON-serialized TShuffleHandle
     required int32 partition_index = 2;
-    optional TIndexRange writer_index_range = 3;
+    // Half-open range of caller-assigned logical writer indices.
+    optional TIndexRange logical_writer_index_range = 3;
 }
 
 message TRspFetchChunks
 {
     repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 1;
+    // Push-based only.
+    repeated int32 valid_writer_ids = 2;
+    optional NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 3;
 }

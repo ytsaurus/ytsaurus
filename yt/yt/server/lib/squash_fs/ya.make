@@ -15,6 +15,8 @@ PEERDIR(
 
 END()
 
-RECURSE_FOR_TESTS(
-    unittests
-)
+IF (NOT OPENSOURCE)
+    RECURSE_FOR_TESTS(
+        unittests
+    )
+ENDIF()

@@ -65,8 +65,8 @@ void LogAndThrowAuthorizationError(
             targetObjectName,
             resultSubjectName,
             resultObjectName)
-            << TErrorAttribute("denied_by", result.ObjectId)
-            << TErrorAttribute("denied_for", result.SubjectId);
+            .With("denied_by", result.ObjectId)
+            .With("denied_for", result.SubjectId);
 
         event
             .Item("reason").Value(EAccessDenialReason::DeniedByAce)
@@ -90,7 +90,7 @@ void LogAndThrowAuthorizationError(
     }
 
     if (!targetObjectPath.empty()) {
-        error = error << TErrorAttribute("path", targetObjectPath);
+        error = error.With("path", targetObjectPath);
     }
 
     ThrowAuthorizationError(std::move(error), target, permission, userName);
@@ -102,13 +102,13 @@ void ThrowAuthorizationError(
     NYTree::EPermission permission,
     const std::string &userName)
 {
-    error <<= TErrorAttribute("permission", permission);
-    error <<= TErrorAttribute("user", userName);
-    error <<= TErrorAttribute("object_id", target.ObjectId);
+    error.Add("permission", permission);
+    error.Add("user", userName);
+    error.Add("object_id", target.ObjectId);
     if (target.Column) {
-        error <<= TErrorAttribute("object_column", target.Column);
+        error.Add("object_column", target.Column);
     }
-    error <<= TErrorAttribute("object_type", TypeFromId(target.ObjectId));
+    error.Add("object_type", TypeFromId(target.ObjectId));
 
     THROW_ERROR(error);
 }
@@ -130,7 +130,7 @@ std::optional<EAceInheritanceMode> GetInheritedInheritanceMode(EAceInheritanceMo
     }
 }
 
-std::string FormatCypressNodeName(const std::string& name)
+std::string FormatCypressNodeName(NYPath::TYPathBuf name)
 {
     return Format("node %v", name);
 }

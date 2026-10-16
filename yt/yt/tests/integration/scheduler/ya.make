@@ -17,8 +17,6 @@ TEST_SRCS(
     test_scheduler_config.py
     test_scheduler_common.py
     test_scheduler_experiments.py
-    test_scheduler_gpu_allocating.py
-    test_scheduler_gpu_dry_run.py
     test_scheduler_job_commands.py
     test_scheduler_job_tables.py
     test_scheduler_node_interaction.py
@@ -39,6 +37,10 @@ TEST_SRCS(
     test_probing_jobs.py
     test_resource_metering.py
 )
+
+IF (NOT OPENSOURCE)
+    INCLUDE(ya_non_opensource.inc)
+ENDIF()
 
 END()
 

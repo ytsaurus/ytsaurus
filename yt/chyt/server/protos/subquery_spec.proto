@@ -7,10 +7,30 @@ import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TSortDescription
+{
+    enum ESortOrder
+    {
+        UNKNOWN = 0;
+        ASCENDING = 1;
+        DESCENDING = 2;
+    }
+
+    message TColumnSortDescription
+    {
+        required string name = 1;
+        required ESortOrder direction = 2;
+        required ESortOrder nulls_direction = 3;
+    }
+
+    repeated TColumnSortDescription columns = 1;
+}
+
 message TSubqueryOptions
 {
     optional bool use_distinct_read_optimization = 1;
     optional bool use_min_max_optimization = 2;
+    optional TSortDescription sort_description = 3;
 }
 
 message TSubquerySpec

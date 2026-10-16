@@ -47,15 +47,21 @@ type Agent struct {
 
 	opletInfoBatchCh chan []strawberry.OpletInfoForScaler
 	scalingTargetCh  chan []scalingRequest
+
+	metrics                  *AgentMetrics
+	metricsProvider          strawberry.MetricsProvider
+	collectControllerMetrics bool
 }
 
-func NewAgent(proxy, token string, ytc yt.Client, l log.Logger, controller strawberry.Controller, config *Config) *Agent {
+func NewAgent(proxy, token string, ytc yt.Client, l log.Logger, controller strawberry.Controller, config *Config, metrics *AgentMetrics) *Agent {
 	hostname, err := os.Hostname()
 	if err != nil {
 		l.Fatal("error getting hostname", log.Error(err))
 	}
 
 	tf := config.HealthCheckerToleranceFactorOrDefault()
+	metricsProvider, collectControllerMetrics := controller.(strawberry.MetricsProvider)
+	collectControllerMetrics = collectControllerMetrics && metrics != nil
 	return &Agent{
 		ytc:              ytc,
 		l:                l,
@@ -71,6 +77,9 @@ func NewAgent(proxy, token string, ytc yt.Client, l log.Logger, controller straw
 			time.Duration(tf*float64(config.PassPeriodOrDefault())),
 			time.Duration(tf*float64(config.RevisionCollectPeriodOrDefault())),
 			time.Duration(tf*float64(config.CollectOperationsPeriodOrDefault()))),
+		metrics:                  metrics,
+		metricsProvider:          metricsProvider,
+		collectControllerMetrics: collectControllerMetrics,
 	}
 }
 
@@ -108,6 +117,24 @@ func (a *Agent) updateACLs() error {
 	return nil
 }
 
+func getOpletAlias(op OperationStatus, family string) (string, bool) {
+	if op.BriefSpec == nil {
+		return "", false
+	}
+	opAlias, ok := op.BriefSpec["alias"]
+	if !ok {
+		return "", false
+	}
+	alias, ok := opAlias.(string)
+	if !ok || len(alias) == 0 {
+		return "", false
+	}
+	alias = alias[1:]
+	// Keep finding oplets after switching use_family_prefix_in_op_alias to false.
+	alias = strings.TrimPrefix(alias, family+strawberry.OpAliasFamilyDelimiter)
+	return alias, true
+}
+
 func (a *Agent) processRunningOperations(runningOps []OperationStatus) error {
 	family := a.controller.Family()
 	l := log.With(a.l, log.String("family", family))
@@ -117,23 +144,28 @@ func (a *Agent) processRunningOperations(runningOps []OperationStatus) error {
 	l.Info("processing running operations")
 	toAbort := make([]yt.OperationID, 0)
 	foundAliases := make(map[string]bool)
+	crashedJobs := make([]crashedJobBatchEntry, 0, len(runningOps))
 	for _, op := range runningOps {
+		alias, hasAlias := getOpletAlias(op, family)
+		if len(op.CrashedJobs) > 0 {
+			crashedJobs = append(crashedJobs, crashedJobBatchEntry{
+				operationID: op.ID,
+				opletAlias:  alias,
+				jobIDs:      op.CrashedJobs,
+			})
+		}
+
 		if op.BriefSpec == nil {
 			// This may happen on early stages of operation lifetime.
 			continue
 		}
 
-		opAlias, ok := op.BriefSpec["alias"]
-		if !ok {
+		if !hasAlias {
 			l.Debug("operation misses alias (how is that possible?), aborting it",
 				log.String("operation_id", op.ID.String()))
 			toAbort = append(toAbort, op.ID)
 			continue
 		}
-		alias := opAlias.(string)[1:]
-
-		// So that oplets are found even after switching use_family_prefix_in_op_alias -> false.
-		alias = strings.TrimPrefix(alias, family+strawberry.OpAliasFamilyDelimiter)
 
 		oplet, ok := a.aliasToOp[alias]
 		if !ok {
@@ -160,7 +192,23 @@ func (a *Agent) processRunningOperations(runningOps []OperationStatus) error {
 		if opState != op.State {
 			oplet.UpdateOpStatus(&op.OperationStatus)
 		}
+
+		if a.config.JobCheckerConfigOrDefault() == nil {
+			oplet.ClearExceedingFailedJobsLimitFailure()
+		} else if op.MaxUnavailableJobs != nil {
+			jobCount, ok := oplet.JobCount()
+			if !ok {
+				continue
+			}
+			maxAllowedUnavailable := int(float64(jobCount) * a.config.MaxUnavailableJobsRatioOrDefault())
+			if jobCount > 0 && *op.MaxUnavailableJobs > maxAllowedUnavailable {
+				oplet.SetExceedingFailedJobsLimitFailure()
+			} else {
+				oplet.ClearExceedingFailedJobsLimitFailure()
+			}
+		}
 	}
+	crashedJobCounts := a.cjMonitor.registerCrashedJobs(crashedJobs)
 
 	abortCh := make(chan yt.OperationID, len(toAbort))
 	checkCh := make(chan *strawberry.Oplet, len(a.aliasToOp)-len(foundAliases))
@@ -198,7 +246,9 @@ func (a *Agent) processRunningOperations(runningOps []OperationStatus) error {
 	close(abortCh)
 
 	checkedCnt := 0
+	opletAliases := make(map[string]struct{}, len(a.aliasToOp))
 	for alias, oplet := range a.aliasToOp {
+		opletAliases[alias] = struct{}{}
 		wasProcessed := foundAliases[alias]
 		if wasProcessed || !oplet.UpToDateWithCypress() || !oplet.HasYTOperation() {
 			continue
@@ -209,6 +259,7 @@ func (a *Agent) processRunningOperations(runningOps []OperationStatus) error {
 	close(checkCh)
 
 	wg.Wait()
+	a.metrics.SetCrashedJobCounts(opletAliases, crashedJobCounts)
 
 	l.Info("finished processing running operations",
 		log.Duration("elapsed_time", time.Since(startedAt)),
@@ -234,6 +285,7 @@ func (a *Agent) processOplets() {
 		dur   time.Duration
 		alias string
 	}, workerNumber)
+	workerControllerMetrics := make([][]controllerOpletMetricSet, workerNumber)
 	for i := 0; i < workerNumber; i++ {
 		go func(idx int) {
 			defer wg.Done()
@@ -243,12 +295,22 @@ func (a *Agent) processOplets() {
 				// We don't need to check the liveness of the operation in the agent,
 				// since we do it while processing the result of the operation listing.
 				_ = oplet.Pass(a.ctx, false /*checkOpLiveness*/)
-
 				passDur := time.Since(start)
+
+				a.metrics.RecordOpletPassDuration(passDur)
 				workerPassDur[idx] += passDur
 				if passDur > workerMaxPassDur[idx].dur {
 					workerMaxPassDur[idx].dur = passDur
 					workerMaxPassDur[idx].alias = oplet.Alias()
+				}
+
+				if a.collectControllerMetrics && !oplet.Inappropriate() {
+					workerControllerMetrics[idx] = append(
+						workerControllerMetrics[idx],
+						controllerOpletMetricSet{
+							alias:   oplet.Alias(),
+							metrics: a.metricsProvider.GetMetrics(oplet),
+						})
 				}
 			}
 		}(i)
@@ -260,6 +322,15 @@ func (a *Agent) processOplets() {
 	close(opletsChan)
 
 	wg.Wait()
+	if a.collectControllerMetrics {
+		var controllerMetrics []controllerOpletMetricSet
+		for _, workerMetrics := range workerControllerMetrics {
+			controllerMetrics = append(controllerMetrics, workerMetrics...)
+		}
+		if err := a.metrics.SetControllerMetrics(controllerMetrics); err != nil {
+			a.l.Warn("failed to update controller metrics", log.Error(err))
+		}
+	}
 
 	logFields := make([]log.Field, 0, 5)
 	logFields = append(logFields, log.Duration("elapsed_time", time.Since(startedAt)))
@@ -294,7 +365,9 @@ func (a *Agent) pass() {
 
 	a.l.Info("starting pass", log.Int("oplet_count", len(a.aliasToOp)))
 	defer func() {
+		a.metrics.RecordPassDuration(time.Since(startedAt))
 		if passErr != nil {
+			a.metrics.RecordPassError()
 			a.l.Info("pass failed", log.Error(passErr))
 			a.healthState.SetPassState(passErr)
 		} else {
@@ -314,17 +387,32 @@ func (a *Agent) pass() {
 	}
 
 	a.processOplets()
+
+	opletCount := 0
+	failedCount := 0
+	brokenOpletCount := 0
+
 	for _, oplet := range a.aliasToOp {
 		if oplet.Broken() {
-			a.l.Info("unregistering oplet: it is broken",
+			a.l.Info("oplet is broken",
 				log.String("alias", oplet.Alias()),
 				log.String("reason", oplet.BrokenReason()))
-			a.unregisterOplet(oplet)
-		} else if oplet.Inappropriate() {
+			brokenOpletCount++
+		}
+		if oplet.Inappropriate() {
 			a.l.Info("unregistering oplet: it is inappropriate", log.String("alias", oplet.Alias()))
 			a.unregisterOplet(oplet)
+			continue
+		}
+		opletCount++
+		if h, _ := oplet.Health(); h == strawberry.OpletHealthFailed {
+			failedCount++
 		}
 	}
+
+	a.metrics.SetOpletCount(opletCount)
+	a.metrics.SetBrokenOpletCount(brokenOpletCount)
+	a.metrics.SetFailedOpletCount(failedCount)
 
 	// Sanity check.
 	for alias, oplet := range a.aliasToOp {
@@ -424,8 +512,6 @@ func (a *Agent) background() {
 				continue
 			}
 
-			a.cjMonitor.registerCrashedJobs(event.Operations)
-
 			if err := a.processRunningOperations(event.Operations); err != nil {
 				err = yterrors.Err("failed to process running operations", err)
 				a.healthState.SetTrackOpsState(err)
@@ -474,17 +560,19 @@ func (a *Agent) GetAgentInfo() strawberry.AgentInfo {
 	}
 
 	return strawberry.AgentInfo{
-		StrawberryRoot:           a.root,
-		Hostname:                 a.hostname,
-		Stage:                    a.config.Stage,
-		Proxy:                    a.proxy,
-		ServiceToken:             a.token,
-		Family:                   a.family,
-		OperationNamespace:       a.OperationNamespace(),
-		RobotUsername:            a.config.RobotUsername,
-		DefaultNetworkProject:    a.config.DefaultNetworkProject,
-		ClusterURL:               strawberry.ExecuteTemplate(a.config.ClusterURLTemplate, clusterURLTemplateData),
-		UseFamilyPrefixInOpAlias: a.config.UseFamilyPrefixInOpAlias,
+		StrawberryRoot:                         a.root,
+		Hostname:                               a.hostname,
+		Stage:                                  a.config.Stage,
+		Proxy:                                  a.proxy,
+		ServiceToken:                           a.token,
+		Family:                                 a.family,
+		OperationNamespace:                     a.OperationNamespace(),
+		RobotUsername:                          a.config.RobotUsername,
+		DefaultNetworkProject:                  a.config.DefaultNetworkProject,
+		ClusterURL:                             strawberry.ExecuteTemplate(a.config.ClusterURLTemplate, clusterURLTemplateData),
+		UseFamilyPrefixInOpAlias:               a.config.UseFamilyPrefixInOpAlias,
+		BrokenStateSignalErrorCodes:            a.config.BrokenStateSignalErrorCodesOrDefault(),
+		MaxConsecutiveBrokenStateSignalRetries: a.config.MaxConsecutiveBrokenStateSignalRetriesOrDefault(),
 	}
 }
 
@@ -635,6 +723,8 @@ func (a *Agent) Stop() {
 	a.l.Info("stopping agent")
 	a.cancelCtx()
 	<-a.backgroundStopCh
+
+	a.metrics.Reset()
 
 	a.ctx = nil
 	a.aliasToOp = nil

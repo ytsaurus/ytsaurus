@@ -113,7 +113,7 @@ public:
     }
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     std::shared_ptr<THashSet<T>> Data_ = std::make_shared<THashSet<T>>();
 };
 

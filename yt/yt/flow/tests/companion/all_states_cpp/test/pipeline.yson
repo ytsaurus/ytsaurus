@@ -1,0 +1,142 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformOrderedSourceCompanionComputation";
+                "processing_function" = "NYT::NFlow::NCompanionTest::TStatefulSourceFunction";
+                "output_stream_ids" = ["words"];
+                "watermark_strategy" = {
+                    "watermark_generator" = {
+                        "out_of_orderness_bound" = 0;
+                        "idle_partitions" = {};
+                    };
+                };
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "//<to_be_overridden>";
+                            "consumer_path" = "//<to_be_overridden>";
+                            "finite" = %true;
+                        };
+                    };
+                };
+                "external_state_joiners" = {
+                    "/word-metadata" = {
+                        "external_state_joiner_class_name" = "NYT::NFlow::TSimpleExternalStateJoiner";
+                        "join_on" = {
+                            "key_schema_override" = [
+                                {"name" = "hash"; "expression" = "farm_hash(word)"; "type" = "uint64"; required = %true;};
+                                {"name" = "word"; "type" = "string";};
+                            ];
+                        };
+                        "parameters" = {
+                            "path" = "//<to_be_overridden>";
+                        };
+                    };
+                };
+                "sinks" = {
+                    "source-output" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["words"];
+                        "parameters" = {
+                            "queue_path" = "//<to_be_overridden>";
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = %true;
+                        "controller" = %false;
+                    };
+                };
+                "parameters" = {
+                    "internal_states" = ["reader-state"];
+                };
+            };
+            "counter" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "processing_function" = "NYT::NFlow::NCompanionTest::TWordCountAllStatesFunction";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(word)"; "type" = "uint64"; required = %true;};
+                    {"name" = "word"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["words"];
+                "output_stream_ids" = ["unique-words"];
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["unique-words"];
+                        "parameters" = {
+                            "queue_path" = "//<to_be_overridden>";
+                        };
+                    };
+                };
+                "external_state_managers" = {
+                    "/word-state-external" = {
+                        "external_state_manager_class_name" = "NYT::NFlow::TSimpleExternalStateManager";
+                        "parameters" = {
+                            "path" = "//<to_be_overridden>";
+                        };
+                    };
+                };
+                "external_state_joiners" = {
+                    "/tag-metadata" = {
+                        "external_state_joiner_class_name" = "NYT::NFlow::TSimpleExternalStateJoiner";
+                        "join_on" = {
+                            "key_schema_override" = [
+                                {"name" = "tag_hash"; "expression" = "farm_hash(tag)"; "type" = "uint64"; required = %true;};
+                                {"name" = "tag"; "type" = "string";};
+                            ];
+                        };
+                        "parameters" = {
+                            "path" = "//<to_be_overridden>";
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = %true;
+                        "controller" = %false;
+                    };
+                };
+                "parameters" = {
+                    "internal_states" = ["word-state"];
+                };
+            };
+        };
+        "streams" = {
+            "words" = {
+                "schema" = [
+                    {"name" = "word"; "type" = "string";};
+                    {"name" = "source_sequence"; "type" = "int64";};
+                    {"name" = "tag"; "type" = "string";};
+                ];
+            };
+            "unique-words" = {
+                "schema" = [
+                    {"name" = "word"; "type" = "string";};
+                    {"name" = "tag_weight"; "type" = "int64";};
+                ];
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
+                "parameters" = {
+                };
+                "dependencies" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {
+                "parameters" = {};
+            };
+            "counter" = {
+                "parameters" = {};
+            };
+        };
+    };
+}

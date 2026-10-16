@@ -1,8 +1,11 @@
-YQL_UDF_TEST()
+YQL_UDF_MINITEST()
 
-DEPENDS(yql/essentials/udfs/common/yson2)
+DEPENDS(
+    yql/essentials/udfs/common/yson2/impl
+)
 
-TIMEOUT(300)
+TIMEOUT(600)
+
 SIZE(MEDIUM)
 
 END()

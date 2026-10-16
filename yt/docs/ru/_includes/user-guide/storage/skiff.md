@@ -152,7 +152,7 @@ Skiff-схема в `table_skiff_schemas`, `skiff_schema_registry` может б
 
 Пример:
 
-```
+```yson
 <
     "table_skiff_schemas" = [
         "$table1"

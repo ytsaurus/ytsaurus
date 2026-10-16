@@ -1,0 +1,13 @@
+package NYT.NJobAgent.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TJobProfile
+{
+    required int32 profiling_binary = 1; // EProfilingBinary
+    required int32 profiler_type = 2; // EProfilerType
+    required bytes blob = 3;
+    required double profiling_probability = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -78,9 +78,9 @@ private:
         const auto& address = GetDefaultAddress(addresses);
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
 
-        context->SetRequestInfo("Address: %v, LeaseTransactionId: %v",
-            address,
-            leaseTransactionId);
+        context->AnnotateRequest()
+            .With("Address", address)
+            .With("LeaseTransactionId", leaseTransactionId);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->FindNodeByAddress(address);
@@ -101,9 +101,9 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
-        context->SetRequestInfo("NodeId: %v, Address: %v",
-            nodeId,
-            node->GetDefaultAddress());
+        context->AnnotateRequest()
+            .With("NodeId", nodeId)
+            .With("Address", node->GetDefaultAddress());
 
         nodeTracker->ProcessHeartbeat(context);
     }

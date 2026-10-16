@@ -8,11 +8,11 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/klauspost/compress/zstd"
 
+	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/zstdsync"
 )
 
@@ -75,7 +75,7 @@ func (w *SkippedRowsWriter) initialize() error {
 		return fmt.Errorf("failed to open skipped rows file %q: %w", w.path, err)
 	}
 
-	if strings.HasSuffix(w.path, ".zst") {
+	if pipelines.IsZstdPath(w.path) {
 		w.writer, err = newCompressedFileWriter(file, w.logger, w.path)
 		if err != nil {
 			_ = file.Close()

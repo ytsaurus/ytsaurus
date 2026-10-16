@@ -49,11 +49,10 @@ public:
         const char* symbol,
         TResult(*fp)(TArgs...))
     {
-        using namespace std::placeholders;
         RegisterRoutineImpl(
             symbol,
             reinterpret_cast<uint64_t>(fp),
-            std::bind(&TFunctionTypeBuilder<TResult(TArgs...)>::Get, _1));
+            std::bind_front(&TFunctionTypeBuilder<TResult(TArgs...)>::Get));
     }
 
     uint64_t GetAddress(const std::string& symbol) const;

@@ -32,6 +32,10 @@ public enum CypressNodeType implements StringValueEnum {
     // YT Flow Pipeline.
     PIPELINE(1600, "pipeline"),
 
+    // Queues.
+    QUEUE_CONSUMER(1700, "queue_consumer"),
+    QUEUE_PRODUCER(1701, "queue_producer"),
+
     // Portals.
     PORTAL_ENTRANCE(11000, "portal_entrance"),
     PORTAL_EXIT(11001, "portal_exit");

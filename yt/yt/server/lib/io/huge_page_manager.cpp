@@ -6,7 +6,7 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #ifdef _linux_
 #include <sys/mman.h>
@@ -116,10 +116,10 @@ public:
         Profiler_.AddFuncGauge("/huge_page_blob_size", MakeStrong(this), [this] {
             return GetHugePageBlobSize();
         });
-        profiler.AddFuncGauge("/huge_page_memory", MakeStrong(this), [this] {
+        Profiler_.AddFuncGauge("/huge_page_memory", MakeStrong(this), [this] {
             return GetHugePageSize() * GetUsedHugePageCount();
         });
-        profiler.AddFuncGauge("/huge_page_memory_limit", MakeStrong(this), [this] {
+        Profiler_.AddFuncGauge("/huge_page_memory_limit", MakeStrong(this), [this] {
             return GetHugePageMemoryLimit();
         });
     }
@@ -231,7 +231,7 @@ private:
     i64 HugePageSize_ = 0;
     std::atomic<int> UsedHugePageCount_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
     THashMap<i64, std::vector<TMutableRef>> HugePageSizeToFreeBlobs_;
 
@@ -276,9 +276,9 @@ private:
         auto hugePageSize = hugePageManager.GetHugePageSize();
         if (usedHugePageCount + pageCount > HugePageCount_) {
             return TError("Not enough huge pages")
-                << TErrorAttribute("requested_huge_page_count", pageCount)
-                << TErrorAttribute("available_huge_page_count", HugePageCount_)
-                << TErrorAttribute("used_huge_page_count", usedHugePageCount);
+                .With("requested_huge_page_count", pageCount)
+                .With("available_huge_page_count", HugePageCount_)
+                .With("used_huge_page_count", usedHugePageCount);
         }
 #ifdef _linux_
         void* page = mmap(
@@ -291,7 +291,7 @@ private:
 
         if (page == MAP_FAILED || !page) {
             return TError("Failed to allocate huge page")
-                << TSystemError();
+                .With(TSystemError());
         }
 #else
         YT_UNIMPLEMENTED();
@@ -307,11 +307,10 @@ private:
 
         const auto Logger = IOLogger;
         if (result == -1) {
-            YT_LOG_ERROR(
-                TSystemError(),
-                "Failed to munmap huge page blob (Address: %p, Size: %v)",
-                hugePageBlob.Begin(),
-                hugePageBlob.Size());
+            YT_TLOG_ERROR("Failed to munmap huge page blob")
+                .WithFormat("Address", "%p", hugePageBlob.Begin())
+                .With("Size", hugePageBlob.Size())
+                .With(TSystemError());
         }
 #else
         YT_UNIMPLEMENTED();
@@ -337,21 +336,21 @@ private:
         auto freeHugePageMemory = GetFreeHugePageMemory(hugePageManager);
         if (freeHugePageMemory < pageCount * hugePageSize) {
             return TError("Not enough huge pages")
-                << TErrorAttribute("requested_huge_page_count", pageCount)
-                << TErrorAttribute("available_huge_page_memory", freeHugePageMemory)
-                << TErrorAttribute("used_huge_page_memory", GetHugePageMemory(hugePageManager));
+                .With("requested_huge_page_count", pageCount)
+                .With("available_huge_page_memory", freeHugePageMemory)
+                .With("used_huge_page_memory", GetHugePageMemory(hugePageManager));
         }
 #ifdef _linux_
         void* page = ::aligned_malloc(pageCount * hugePageSize, hugePageSize);
 
         if (!page) {
             return TError("Failed to allocate aligned huge page")
-                << TSystemError();
+                .With(TSystemError());
         }
 
         if (::madvise(page, pageCount * hugePageSize, MADV_HUGEPAGE) != 0) {
             return TError("Failed to mark memory MADV_HUGEPAGE")
-                << TSystemError(errno);
+                .With(TSystemError(errno));
         }
 #else
         YT_UNIMPLEMENTED();

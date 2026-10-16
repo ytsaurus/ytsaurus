@@ -12,7 +12,7 @@ using namespace NYT::NYson;
 
 INodePtr GetNodeByPathOrEntity(
     const INodePtr& value,
-    const TYPath& path)
+    TYPathBuf path)
 {
     static const TNodeWalkOptions WalkOptions{
         .MissingAttributeHandler = [] (const std::string& /*key*/) {

@@ -1,5 +1,7 @@
 #include "clickhouse_singletons.h"
 
+#include "storage_yt_materialized_view.h"
+
 #include <AggregateFunctions/registerAggregateFunctions.h>
 #include <Dictionaries/registerDictionaries.h>
 #include <Formats/registerFormats.h>
@@ -30,6 +32,7 @@ void RegisterClickHouseSingletons()
     DB::registerStorageMemory(DB::StorageFactory::instance());
     DB::registerStorageBuffer(DB::StorageFactory::instance());
     DB::registerStorageDictionary(DB::StorageFactory::instance());
+    RegisterStorageYtMaterializedView(DB::StorageFactory::instance());
     DB::registerDictionaries(/*use_legacy_mongodb_integration*/ false);
 }
 

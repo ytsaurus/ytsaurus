@@ -5,9 +5,9 @@
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/column_meta.pb.h>
 #include <yt/yt/ytlib/table_client/block.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <library/cpp/yt/memory/ref.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NTableChunkFormat {
 
@@ -19,9 +19,12 @@ class TDataBlockWriter
 public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, GroupIndex);
     DEFINE_BYVAL_RO_PROPERTY(bool, EnableSegmentMetaInBlocks);
+    DEFINE_BYVAL_RO_PROPERTY(bool, EnableColumnMetaInChunkMeta);
 
 public:
-    explicit TDataBlockWriter(bool enableSegmentMetaInBlocks = false);
+    explicit TDataBlockWriter(
+        bool enableSegmentMetaInBlocks = false,
+        bool enableColumnMetaInChunkMeta = true);
     void WriteSegment(TRange<TSharedRef> segment);
 
     void RegisterColumnWriter(IColumnWriterBase* streamWriter);

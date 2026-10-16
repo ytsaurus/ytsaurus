@@ -48,6 +48,7 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NTabletNode {
@@ -201,16 +202,18 @@ private:
     NProfiling::TGauge DynamicMemoryUsageActiveCounter_ = Profiler_.WithTag("memory_type", "active").Gauge("/dynamic_memory_usage");
     NProfiling::TGauge DynamicMemoryUsagePassiveCounter_ = Profiler_.WithTag("memory_type", "passive").Gauge("/dynamic_memory_usage");
     NProfiling::TGauge DynamicMemoryUsageBackingCounter_ = Profiler_.WithTag("memory_type", "backing").Gauge("/dynamic_memory_usage");
+    NProfiling::TGauge DynamicMemoryUsageWriteLogsCounter_ = Profiler_.WithTag("memory_type", "write_logs").Gauge("/dynamic_memory_usage");
     NProfiling::TGauge DynamicMemoryUsageOtherCounter_ = Profiler_.WithTag("memory_type", "other").Gauge("/dynamic_memory_usage");
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     i64 PassiveMemoryUsage_;
     i64 ActiveMemoryUsage_;
     i64 BackingMemoryUsage_;
+    i64 WriteLogsMemoryUsage_;
 
     IYPathServicePtr CreateOrchidService()
     {
-        return New<TCompositeMapService>()
+        return CreateCompositeMapService()
             ->AddAttribute(EInternedAttributeKey::Opaque, BIND([] (IYsonConsumer* consumer) {
                 NYTree::BuildYsonFluently(consumer)
                     .Value(true);
@@ -237,6 +240,7 @@ private:
         ActiveMemoryUsage_ = 0;
         PassiveMemoryUsage_ = 0;
         BackingMemoryUsage_ = 0;
+        WriteLogsMemoryUsage_ = 0;
 
         Orchid_->OnProfiling();
     }
@@ -274,11 +278,12 @@ private:
     {
         const auto& tracker = Bootstrap_->GetNodeMemoryUsageTracker();
         auto otherUsage = tracker->GetUsed(EMemoryCategory::TabletDynamic) -
-            ActiveMemoryUsage_ - PassiveMemoryUsage_ - BackingMemoryUsage_;
+            ActiveMemoryUsage_ - PassiveMemoryUsage_ - BackingMemoryUsage_ - WriteLogsMemoryUsage_;
 
         DynamicMemoryUsageActiveCounter_.Update(ActiveMemoryUsage_);
         DynamicMemoryUsagePassiveCounter_.Update(PassiveMemoryUsage_);
         DynamicMemoryUsageBackingCounter_.Update(BackingMemoryUsage_);
+        DynamicMemoryUsageWriteLogsCounter_.Update(WriteLogsMemoryUsage_);
         DynamicMemoryUsageOtherCounter_.Update(otherUsage);
     }
 
@@ -296,11 +301,15 @@ private:
     void ScanTabletForRotationErrors(TTablet* tablet)
     {
         if (tablet->GetDynamicStoreCount() >= DynamicStoreCountLimit) {
-            auto error = TError("Dynamic store count limit is exceeded")
-                << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Rotation)
-                << TErrorAttribute("limit", DynamicStoreCountLimit);
-            YT_LOG_DEBUG(error);
+            static constexpr auto Message = "Dynamic store count limit is exceeded"_sb;
+            YT_TLOG_DEBUG(Message)
+                .With("TabletId", tablet->GetId())
+                .With("BackgroundActivity", ETabletBackgroundActivity::Rotation)
+                .With("Limit", DynamicStoreCountLimit);
+            auto error = TError(Message)
+                .With("tablet_id", tablet->GetId())
+                .With("background_activity", ETabletBackgroundActivity::Rotation)
+                .With("limit", DynamicStoreCountLimit);
             tablet->RuntimeData()->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Rotation].Store(error);
             return;
@@ -383,7 +392,10 @@ private:
 
     void ReallocateLookupCacheMemory(TTablet* tablet)
     {
-        const auto& rowCache = tablet->GetRowCache();
+        auto rowCache = tablet->GetRowCache();
+        if (!rowCache) {
+            return;
+        }
 
         try {
             auto reallocateResult = BIND(&TRowCache::ReallocateItems, rowCache, Logger())
@@ -395,7 +407,9 @@ private:
 
             rowCache->SetReallocatingItems(false);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error reallocating cache memory (TabletId: %v)", tablet->GetId());
+            YT_TLOG_ERROR("Error reallocating cache memory")
+                .With("TabletId", tablet->GetId())
+                .With(ex);
         }
     }
 
@@ -431,6 +445,8 @@ private:
         PassiveMemoryUsage_ += passiveMemoryUsage;
         ActiveMemoryUsage_ += activeMemoryUsage;
         BackingMemoryUsage_ += backingMemoryUsage;
+        WriteLogsMemoryUsage_ += tablet->RuntimeData()->DynamicMemoryUsagePerType[ETabletDynamicMemoryType::WriteLogs].load(
+            std::memory_order::relaxed);
     }
 
     void ScanStoreForFlush(std::unique_ptr<TFlushTask> task)
@@ -483,9 +499,8 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
 
         auto Logger = TabletNodeLogger()
-            .WithTag("%v, StoreId: %v",
-                tablet->GetLoggingTag(),
-                store->GetId());
+            .WithTags(tablet->GetLoggingTags())
+            .WithTag("StoreId", store->GetId());
 
         auto traceId = task->Info->TaskId;
         auto traceContext = TTraceContext::NewRoot("StoreFlusher", traceId);
@@ -494,7 +509,7 @@ private:
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
         if (!tabletSnapshot) {
-            YT_LOG_DEBUG("Tablet snapshot is missing, aborting flush");
+            YT_TLOG_DEBUG("Tablet snapshot is missing, aborting flush");
             storeManager->BackoffStoreFlush(store);
             return;
         }
@@ -505,7 +520,7 @@ private:
         try {
             NProfiling::TWallTimer timer;
 
-            YT_LOG_INFO("Store flush started");
+            YT_TLOG_INFO("Store flush started");
 
             auto transactionAttributes = CreateEphemeralAttributes();
             transactionAttributes->Set("title", Format("Store flush: table %v, store %v, tablet %v",
@@ -529,8 +544,8 @@ private:
             auto currentTimestamp = transaction->GetStartTimestamp();
             auto retainedTimestamp = CalculateRetainedTimestamp(currentTimestamp, mountConfig->MinDataTtl);
 
-            YT_LOG_INFO("Store flush transaction created (TransactionId: %v)",
-                transaction->GetId());
+            YT_TLOG_INFO("Store flush transaction created")
+                .With("TransactionId", transaction->GetId());
 
             tablet->GetStructuredLogger()->LogEvent("start_flush")
                 .Item("store_id").Value(store->GetId())
@@ -567,7 +582,7 @@ private:
                     ToProto(updateTabletStoresReq.mutable_unleashed_backing_store_id(), store->GetId());
                 }
 
-                updateTabletStoresReq.set_conflict_horizon_timestamp(store->GetMaxTimestamp());
+                updateTabletStoresReq.set_conflict_horizon_timestamp(ToProto(store->GetMaxTimestamp()));
             }
 
             updateTabletStoresReq.set_create_hunk_chunks_during_prepare(true);
@@ -595,13 +610,13 @@ private:
                 // and the tablet will have two dynamic stores as usual.
                 if (potentialDynamicStoreCount <= DynamicStoreIdPoolSize) {
                     updateTabletStoresReq.set_request_dynamic_store_id(true);
-                    YT_LOG_DEBUG("Dynamic store id requested with flush (PotentialDynamicStoreCount: %v)",
-                        potentialDynamicStoreCount);
+                    YT_TLOG_DEBUG("Dynamic store id requested with flush")
+                        .With("PotentialDynamicStoreCount", potentialDynamicStoreCount);
                 }
             }
 
             if (tabletSnapshot->Settings.MountConfig->MergeRowsOnFlush) {
-                updateTabletStoresReq.set_retained_timestamp(retainedTimestamp);
+                updateTabletStoresReq.set_retained_timestamp(ToProto(retainedTimestamp));
             }
 
             tablet->GetStructuredLogger()->LogEvent("end_flush")
@@ -638,16 +653,20 @@ private:
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Flush].Store(TError());
 
-            YT_LOG_INFO("Store flush completed (WallTime: %v)",
-                timer.GetElapsedTime());
+            YT_TLOG_INFO("Store flush completed")
+                .With("WallTime", timer.GetElapsedTime());
         } catch (const std::exception& ex) {
-            auto error = TError(ex)
-                << TErrorAttribute("tablet_id", tabletId)
-                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Flush);
+            static constexpr auto Message = "Error flushing tablet store, backing off"_sb;
+            auto error = TError(Message)
+                .With("tablet_id", tabletId)
+                .With("background_activity", ETabletBackgroundActivity::Flush)
+                .With(ex);
 
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Flush].Store(error);
-            YT_LOG_ERROR(error, "Error flushing tablet store, backing off");
+            YT_TLOG_ERROR(Message)
+                .With("BackgroundActivity", ETabletBackgroundActivity::Flush)
+                .With(ex);
 
             storeManager->BackoffStoreFlush(store);
 

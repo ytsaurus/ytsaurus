@@ -2,6 +2,7 @@ RECURSE(
     build-env
     cron
     local
+    monitoring
     sidecars
     ya-build
     ytmsvc

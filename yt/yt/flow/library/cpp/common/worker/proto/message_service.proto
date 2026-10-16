@@ -1,0 +1,67 @@
+package NYT.NFlow.NWorker.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Per-message data (meta + payload) is carried as self-delimiting flat records inside
+// the request attachments[0], grouped by destination job.
+// See common/message_batch.h (TMessageBatchSerializer).
+message TReqPushMessages
+{
+    message TStreamOffer
+    {
+        required sint64 stream_spec_id = 1;
+        // Buckets. One bucket describes several messages with close order timestamp.
+        repeated uint64 min_order_timestamps = 2 [packed = true];
+        repeated int64 inflated_byte_sizes = 3 [packed = true];
+    }
+
+    message TJobData
+    {
+        required NYT.NProto.TGuid job_id = 1;
+        // Number of this job's message records inside attachments[0].
+        // Records of all jobs are concatenated in (job order, message order).
+        optional int32 message_count = 2 [default = 0];
+        repeated TStreamOffer offers = 3;
+    }
+
+    optional NYT.NProto.TGuid connection_id = 1;
+    optional int64 committed_offset = 2;
+    repeated TJobData jobs = 3;
+    // Max number of finished-message-id records the worker reports per response.
+    // The real cap comes from the dynamic spec; the default here is max int64, i.e. effectively unlimited.
+    optional int64 max_processed_batch_size = 4 [default = 9223372036854775807];
+}
+
+message TRspPushMessages
+{
+    message TStreamLimit
+    {
+        required string stream_id = 1;
+
+        // Jobs and their limits.
+        repeated NYT.NProto.TGuid job_ids = 2;
+        repeated int64 inflated_next_batch_byte_limits = 3 [packed = true];
+    }
+
+    message TJobProcessedMessages
+    {
+        required NYT.NProto.TGuid job_id = 1;
+        // Number of this job's finished-message-id records inside attachments[0].
+        // Records of all jobs are concatenated in (job order, message order);
+        // each record is a varint length followed by the raw message id bytes.
+        // All entries are implicitly ProcessingFinished.
+        optional int32 message_count = 2 [default = 0];
+    }
+
+    // EMessageState per inbound message, in (job order, message order) matching the request.
+    repeated int32 message_states = 1 [packed = true];
+    optional int64 offset = 2;
+    repeated TJobProcessedMessages processed_jobs = 3;
+    repeated TStreamLimit stream_limits = 6;
+    required NYT.NProto.TGuid connection_id = 4;
+    required bool reset = 5 [default = false];
+}
+
+////////////////////////////////////////////////////////////////////////////////

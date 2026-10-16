@@ -32,7 +32,10 @@ from ._typing import insp_is_mapper_property
 from .attributes import QueryableAttribute
 from .base import InspectionAttr
 from .interfaces import LoaderOption
+from .path_registry import _ACCEPTED_TOKENS
+from .path_registry import _COLUMN_TOKEN
 from .path_registry import _DEFAULT_TOKEN
+from .path_registry import _RELATIONSHIP_TOKEN
 from .path_registry import _StrPathToken
 from .path_registry import _WILDCARD_TOKEN
 from .path_registry import AbstractEntityRegistry
@@ -51,12 +54,8 @@ from ..sql import roles
 from ..sql import traversals
 from ..sql import visitors
 from ..sql.base import _generative
-from ..util.typing import Final
 from ..util.typing import Literal
 from ..util.typing import Self
-
-_RELATIONSHIP_TOKEN: Final[Literal["relationship"]] = "relationship"
-_COLUMN_TOKEN: Final[Literal["column"]] = "column"
 
 _FN = TypeVar("_FN", bound="Callable[..., Any]")
 
@@ -1586,7 +1585,7 @@ class _LoadElement(
     def is_opts_only(self) -> bool:
         return bool(self.local_opts and self.strategy is None)
 
-    def _clone(self, **kw: Any) -> _LoadElement:
+    def _clone(self, **kw: Any) -> Self:
         cls = self.__class__
         s = cls.__new__(cls)
 
@@ -1807,7 +1806,7 @@ class _LoadElement(
 
         return self._prepend_path(parent.path)
 
-    def _prepend_path(self, path: PathRegistry) -> _LoadElement:
+    def _prepend_path(self, path: PathRegistry) -> Self:
         cloned = self._clone()
 
         assert cloned.strategy == self.strategy
@@ -1975,6 +1974,24 @@ class _AttributeStrategyLoad(_LoadElement):
             path = path.entity_path
 
         return path
+
+    def _prepend_path(self, path: PathRegistry) -> Self:
+        """Override to also prepend the path for _path_with_polymorphic_path.
+
+        When using .options() to chain loader options with of_type(), this
+        ensures that the polymorphic path information is correctly updated
+        to include the parent path. Fixes issue #13202.
+        """
+        cloned = super()._prepend_path(path)
+
+        # Also prepend the parent path to _path_with_polymorphic_path if
+        # present
+        if self._path_with_polymorphic_path is not None:
+            cloned._path_with_polymorphic_path = PathRegistry.coerce(
+                path[0:-1] + self._path_with_polymorphic_path[:]
+            )
+
+        return cloned
 
     def _generate_extra_criteria(self, context):
         """Apply the current bound parameters in a QueryContext to the
@@ -2155,8 +2172,14 @@ class _TokenStrategyLoad(_LoadElement):
     ):
         # assert isinstance(attr, str) or attr is None
         if attr is not None:
-            default_token = attr.endswith(_DEFAULT_TOKEN)
-            if attr.endswith(_WILDCARD_TOKEN) or default_token:
+            # the only strings accepted here are the wildcard and default
+            # tokens, either bare or already prefixed with a wildcard key.
+            # anything else is a leftover from the string based loader
+            # option API removed in 2.0 and gets the same error as any
+            # other string.  note that testing only for a trailing "*",
+            # as was formerly the case, lets a name like "addresses.*"
+            # through to build a loader path that matches nothing
+            if attr in _ACCEPTED_TOKENS:
                 if wildcard_key:
                     attr = f"{wildcard_key}:{attr}"
 

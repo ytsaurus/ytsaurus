@@ -15,6 +15,7 @@ struct IAlienClusterClientCache
 {
     virtual NApi::NNative::IClientPtr GetClient(const std::string& clusterName) = 0;
     virtual const NApi::NNative::IClientPtr& GetLocalClient() const = 0;
+    virtual const std::optional<std::string>& GetLocalDc() const = 0;
     virtual void ForceRemoveExpired() = 0;
     virtual TDuration GetEvictionPeriod() const = 0;
 };

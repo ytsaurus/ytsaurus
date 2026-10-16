@@ -29,6 +29,10 @@ extern "C" {
 static PyGreenlet*
 PyGreenlet_GetCurrent(void)
 {
+    if (greenlet::IsShuttingDown()) {
+        PyErr_SetString(PyExc_RuntimeError, "greenlet is being finalized");
+        return nullptr;
+    }
     return GET_THREAD_STATE().state().get_current().relinquish_ownership();
 }
 

@@ -41,7 +41,8 @@ struct ISmoothMovementTrackerHost
         TCellId siblingCellId) = 0;
 
     virtual void UnregisterSiblingTabletAvenue(
-        NHiveServer::TAvenueEndpointId siblingEndpointId) = 0;
+        NHiveServer::TAvenueEndpointId siblingEndpointId,
+        bool allowDestructionInMessageToSelf = false) = 0;
 
     virtual void PostMasterMessage(
         TTablet* tablet,
@@ -63,6 +64,7 @@ struct ISmoothMovementTracker
 {
     virtual void CheckTablet(TTablet* tablet) = 0;
     virtual void OnGotReplicatedContent(TTablet* tablet) = 0;
+    virtual void RejectMovement(TTablet* tablet, const TError& error) = 0;
 
     virtual void ValidateAgainstUnimplementedFeatures() const = 0;
 };

@@ -7,6 +7,8 @@
 
 #include <yt/yt/client/table_client/helpers.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NTableServer {
@@ -22,6 +24,8 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 
+using NTransactionClient::operator""_ts;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TReplicationCardId GenerateReplicationCardId()
@@ -31,7 +35,7 @@ TReplicationCardId GenerateReplicationCardId()
 
 TReplicaId AddReplicationCardReplica(
     TReplicationCardId replicationCardId,
-    TReplicationCardPtr& replicationCard,
+    const TReplicationCardPtr& replicationCard,
     ETableReplicaMode mode,
     ETableReplicaContentType contentType,
     std::string_view path,
@@ -80,7 +84,7 @@ TLagTimeItem ParseLagTime(const INodePtr& lagNode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TChaosReplicaLagTest, TestGetSortedLag)
+TEST(TChaosReplicaLagTest, GetSortedLag)
 {
     auto syncProgress = "{"
         "segments=[{lower_key=[];timestamp=107374182400};{lower_key=[\"c\"];timestamp=214748364800};];"
@@ -102,7 +106,7 @@ TEST(TChaosReplicaLagTest, TestGetSortedLag)
         syncProgress);
     replicationCard->Replicas[syncQueueReplicaId].History.emplace_back(TReplicaHistoryItem{
         .Era = 1,
-        .Timestamp = 1073741824, // 1s.
+        .Timestamp = 1073741824_ts, // 1s.
         .Mode = ETableReplicaMode::Sync,
         .State = ETableReplicaState::Enabled,
     });
@@ -116,7 +120,7 @@ TEST(TChaosReplicaLagTest, TestGetSortedLag)
         syncProgress);
     replicationCard->Replicas[syncDataReplicaId].History.emplace_back(TReplicaHistoryItem{
         .Era = 1,
-        .Timestamp = 161061273600, // 150s.
+        .Timestamp = 161061273600_ts, // 150s.
         .Mode = ETableReplicaMode::Sync,
         .State = ETableReplicaState::Enabled,
     });
@@ -130,7 +134,7 @@ TEST(TChaosReplicaLagTest, TestGetSortedLag)
         asyncProgress);
     replicationCard->Replicas[asyncDataReplicaId].History.emplace_back(TReplicaHistoryItem{
         .Era = 1,
-        .Timestamp = 10737418240, // 10s.
+        .Timestamp = 10737418240_ts, // 10s.
         .Mode = ETableReplicaMode::Async,
         .State = ETableReplicaState::Enabled,
     });

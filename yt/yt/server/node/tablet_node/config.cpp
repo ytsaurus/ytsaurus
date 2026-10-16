@@ -124,13 +124,26 @@ void TTabletManagerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("extended_snapshot_eviction_timeout", &TThis::ExtendedSnapshotEvictionTimeout)
         .Default(TDuration::Minutes(3));
+
+    registrar.Parameter("wait_on_read_only_smooth_movement_stage_timeout", &TThis::WaitOnReadOnlySmoothMovementStageTimeout)
+        .Default(TDuration::MilliSeconds(500));
+
+    registrar.Parameter("yield_before_building_lsm_actions", &TThis::YieldBeforeBuildingLsmActions)
+        .Default(false);
+
+    registrar.Parameter("account_active_store_lookup_hash_table_to_tablet_static", &TThis::AccountActiveStoreLookupHashTableToTabletStatic)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TTabletCellWriteManagerDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("write_failure_probability", &TThis::WriteFailureProbability)
+    registrar.Parameter("failure_probability_before_write", &TThis::FailureProbabilityBeforeWrite)
+        .InRange(0.0, 1.0)
+        .Default();
+    registrar.Parameter("failure_probability_after_write", &TThis::FailureProbabilityAfterWrite)
+        .InRange(0.0, 1.0)
         .Default();
 
     registrar.Parameter("detect_transient_transactions_per_tablet", &TThis::DetectTransientTransactionsPerTablet)
@@ -162,12 +175,28 @@ void TStoreBackgroundActivityOrchidConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TExponentialBackoffOptions TCompactionHintFetcherConfig::DefaultRetryBackoff{
+    .InvocationCount = std::numeric_limits<int>::max(),
+    .MinBackoff = TDuration::Seconds(5),
+    .MaxBackoff = TDuration::Minutes(5),
+    .BackoffMultiplier = 2.0,
+};
+
 void TCompactionHintFetcherConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("periodic_executor", &TThis::PeriodicExecutor)
-        .Default({.Period = TDuration::Seconds(5)});
+        .Default({.Period = TDuration::Seconds(1)});
     registrar.Parameter("request_throttler", &TThis::RequestThrottler)
         .DefaultCtor([] { return TThroughputThrottlerConfig::Create(/*limit*/ 300); });
+    registrar.Parameter("retry_backoff", &TThis::RetryBackoff)
+        .Default(DefaultRetryBackoff);
+
+    registrar.Postprocessor([] (TThis* config) {
+        THROW_ERROR_EXCEPTION_UNLESS(
+            config->RetryBackoff.InvocationCount == std::numeric_limits<int>::max(),
+            "\"invocation_count\" must be equal to %v",
+            std::numeric_limits<int>::max());
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -259,8 +288,8 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("partitioning_query_pool", &TThis::PartitioningFairSharePool)
         .Optional();
 
-    registrar.Parameter("schedule_new_tasks_after_task_completion", &TThis::ScheduleNewTasksAfterTaskCompletion)
-        .Default(true);
+    registrar.Parameter("reuse_compaction_invoker_for_writer_compression", &TThis::ReuseCompactionInvokerForWriterCompression)
+        .Default(false);
 
     registrar.Parameter("starving_tables_tasks_ratio", &TThis::StarvingTablesTasksRatio)
         .InRange(0.0, 1.0)
@@ -276,6 +305,18 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
             }
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TGlobalStoresUpdateThrottlerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
+        .Default(TDuration::Minutes(1));
+    registrar.Parameter("no_such_method_backoff_time", &TThis::NoSuchMethodBackoffTime)
+        .Default(TDuration::Hours(6));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -490,6 +531,8 @@ void TStatisticsReporterConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
     registrar.Parameter("report_backoff_time", &TThis::ReportBackoffTime)
         .Default(TDuration::Seconds(30));
+    registrar.Parameter("write_timeout", &TThis::WriteTimeout)
+        .Default(TDuration::Seconds(30));
     registrar.Parameter("table_path", &TThis::TablePath)
         .Default("//sys/tablet_balancer/performance_counters");
 
@@ -585,6 +628,29 @@ void TSmoothMovementTrackerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TRowCacheControllerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(false);
+    registrar.Parameter("period", &TThis::Period)
+        .Default(TDuration::Minutes(2));
+    registrar.Parameter("memory_limit_gap_in_bytes", &TThis::MemoryLimitGapInBytes)
+        .Default(0)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("memory_limit_gap_fraction", &TThis::MemoryLimitGapFraction)
+        .Default(0)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(1);
+    registrar.Parameter("rotation_memory_threshold", &TThis::RotationMemoryThreshold)
+        .Default(0.95)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(1);
+    registrar.Parameter("allow_filling_available_memory", &TThis::AllowFillingAvailableMemory)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TErrorManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("deduplication_cache_timeout", &TThis::DeduplicationCacheTimeout)
@@ -656,6 +722,8 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("compression_dictionary_builder", &TThis::CompressionDictionaryBuilder)
         .DefaultNew();
+    registrar.Parameter("global_stores_update_throttler", &TThis::GlobalStoresUpdateThrottler)
+        .DefaultNew();
 
     registrar.Parameter("versioned_chunk_meta_cache", &TThis::VersionedChunkMetaCache)
         .DefaultNew();
@@ -669,6 +737,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(5));
     registrar.Parameter("incremental_structured_tablet_heartbeat_period", &TThis::IncrementalStructuredTabletHeartbeatPeriod)
         .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("profiling_tag_export_mode", &TThis::ProfilingTagExportMode)
+        .Default(EProfilingTagExportMode::TableTag);
 
     registrar.Parameter("master_connector", &TThis::MasterConnector)
         .DefaultNew();
@@ -697,6 +768,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("error_manager", &TThis::ErrorManager)
         .DefaultNew();
 
+    registrar.Parameter("row_cache_controller", &TThis::RowCacheController)
+        .DefaultNew();
+
     registrar.Parameter("enable_chunk_fragment_reader_throttling", &TThis::EnableChunkFragmentReaderThrottling)
         .Default(false);
 
@@ -720,6 +794,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("testing", &TThis::Testing)
         .Default();
+
+    registrar.Parameter("client_cache", &TThis::ClientCache)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         // Instantiate default distributed throttler configs.
@@ -821,8 +898,12 @@ void TTabletNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("allow_reign_change", &TThis::AllowReignChange)
         .Default(true);
 
+    registrar.Parameter("client_cache", &TThis::ClientCache)
+        .DefaultNew();
+
     registrar.Preprocessor([] (TThis* config) {
         config->VersionedChunkMetaCache->Capacity = 10_GB;
+        config->ClientCache->Capacity = 1024;
     });
 
     registrar.Postprocessor([] (TThis* config) {

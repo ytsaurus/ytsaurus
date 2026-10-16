@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/api/public.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -16,10 +18,12 @@ struct ITicketAuthenticator
     : public virtual TRefCounted
 {
     virtual TFuture<TAuthenticationResult> Authenticate(
-        const TTicketCredentials& credentials) = 0;
+        const TUserTicketCredentials& credentials) = 0;
 
     virtual TFuture<TAuthenticationResult> Authenticate(
         const TServiceTicketCredentials& credentials) = 0;
+
+    virtual bool Reconfigure(const TUserTicketAuthenticationConfigPtr& config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITicketAuthenticator)
@@ -30,6 +34,11 @@ ITicketAuthenticatorPtr CreateBlackboxTicketAuthenticator(
     TBlackboxTicketAuthenticatorConfigPtr config,
     IBlackboxServicePtr blackboxService,
     ITvmServicePtr tvmService);
+
+ITicketAuthenticatorPtr CreateCachingTicketAuthenticator(
+    TCachingTicketAuthenticatorConfigPtr config,
+    ITicketAuthenticatorPtr underlying,
+    NProfiling::TProfiler profiler = {});
 
 NRpc::IAuthenticatorPtr CreateTicketAuthenticatorWrapper(
     ITicketAuthenticatorPtr underlying);

@@ -1,7 +1,5 @@
 #include "config.h"
 
-#include <yt/yt/client/federated/config.h>
-
 #include <yt/yt/client/ypath/rich.h>
 
 namespace NYT::NQueueClient {
@@ -17,7 +15,7 @@ namespace NDetail {
 
 bool TLookupSessionConfig::operator==(const TLookupSessionConfig& other) const
 {
-    return std::tie(User, Table, *FederationConfig) == std::tie(other.User, other.Table, *other.FederationConfig);
+    return std::tie(User, Table, SuccessfulLookupsRequired) == std::tie(other.User, other.Table, other.SuccessfulLookupsRequired);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,27 +74,14 @@ TCompoundStateLookupCacheConfigPtr TCompoundStateLookupCacheConfig::FromQueueCon
     // Initialize lookup session config.
 
     result->User = config->User;
-    result->FederationConfig = CloneYsonStruct(config->Cache->FederationConfig);
-    if (auto bundleName = config->Cache->CacheKindToBundleName[cacheKind]; bundleName) {
-        result->FederationConfig->BundleName = std::move(bundleName);
-    }
-    switch (cacheKind) {
-        case EQueueConsumerRegistrationManagerCacheKind::ListRegistrations:
-            [[fallthrough]];
-        case EQueueConsumerRegistrationManagerCacheKind::RegistrationLookup:
-            result->Table = config->StateReadPath;
-            break;
-        case EQueueConsumerRegistrationManagerCacheKind::ReplicaMappingLookup:
-            result->Table = config->ReplicaMappingReadPath;
-            break;
-    }
-
+    result->SuccessfulLookupsRequired = config->Cache->CacheKindToSuccessfulLookupsRequired[cacheKind];
+    result->Table = config->GetCachePath(cacheKind);
     return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NDetail
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,6 +101,22 @@ void TQueueAgentDynamicStateConfig::Register(TRegistrar registrar)
         .Default("//sys/queue_agents/consumer_registrations");
     registrar.Parameter("replicated_table_mapping_table_path", &TThis::ReplicatedTableMappingTablePath)
         .Default("//sys/queue_agents/replicated_table_mapping");
+    registrar.Parameter("retry_backoff", &TThis::RetryBackoff)
+        .Optional(/*init*/ false);
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->RetryBackoff.InvocationCount = 10;
+        config->RetryBackoff.MinBackoff = TDuration::Seconds(5);
+        config->RetryBackoff.MaxBackoff = TDuration::Seconds(30);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TQueueAgentDynamicStateDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("retry_backoff", &TThis::RetryBackoff)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,10 +156,8 @@ void TQueueConsumerRegistrationManagerCacheConfig::Register(TRegistrar registrar
         });
     registrar.Parameter("batch_lookup", &TThis::BatchLookup)
         .DefaultNew();
-    registrar.Parameter("federation_config", &TThis::FederationConfig)
-        .DefaultNew();
-    registrar.Parameter("cache_kind_to_bundle_name", &TThis::CacheKindToBundleName)
-        .Default();
+    registrar.Parameter("cache_kind_to_successful_lookups_required", &TThis::CacheKindToSuccessfulLookupsRequired)
+        .Optional();
 
     registrar.Preprocessor([] (TThis* config) {
         // NB(apachee): Batching lookups and selects to dynamic state is a must.
@@ -178,6 +177,22 @@ void TQueueConsumerRegistrationManagerCacheConfig::Register(TRegistrar registrar
             }
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYPath::TRichYPath TQueueConsumerRegistrationManagerConfig::GetCachePath(EQueueConsumerRegistrationManagerCacheKind kind) const
+{
+    switch (kind) {
+        case EQueueConsumerRegistrationManagerCacheKind::ListRegistrations:
+            [[fallthrough]];
+        case EQueueConsumerRegistrationManagerCacheKind::RegistrationLookup:
+            return StateReadPath;
+        case EQueueConsumerRegistrationManagerCacheKind::ReplicaMappingLookup:
+            return ReplicaMappingReadPath;
+    }
+
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -216,6 +231,33 @@ void TQueueConsumerRegistrationManagerConfig::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION(
                 "%v implementation requires option \"disable_list_all_registrations\" to be true",
                 config->Implementation);
+        }
+
+        for (auto cacheKind : TEnumTraits<EQueueConsumerRegistrationManagerCacheKind>::GetDomainValues()) {
+            if (!config->Cache->CacheKindToSuccessfulLookupsRequired[cacheKind]) {
+                continue;
+            }
+
+            auto successfulLookupsRequired = *config->Cache->CacheKindToSuccessfulLookupsRequired[cacheKind];
+
+            if (successfulLookupsRequired <= 0) {
+                THROW_ERROR_EXCEPTION("Successful lookup count requirement must be positive")
+                    .With("cache_kind", cacheKind)
+                    .With("successful_lookups_required", successfulLookupsRequired);
+            }
+
+            auto cachePath = config->GetCachePath(cacheKind);
+            int replicaCount = cachePath
+                .GetClusters()
+                .transform(&std::vector<std::string>::size)
+                .value_or(1);
+
+            if (replicaCount < successfulLookupsRequired) {
+                THROW_ERROR_EXCEPTION("Successful lookup count requirement cannot exceed replica count")
+                    .With("cache_kind", cacheKind)
+                    .With("successful_lookups_required", successfulLookupsRequired)
+                    .With("replica_count", replicaCount);
+            }
         }
     });
 }

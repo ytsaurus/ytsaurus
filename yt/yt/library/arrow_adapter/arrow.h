@@ -51,21 +51,21 @@ private:
 // Creating the TArrowRandomAccessFilePtr class, which combines a stream with data and a row with metadata into one stream.
 // Reader can be nullptr when we read only from metadata.
 TArrowRandomAccessFilePtr CreateParquetAdapter(
-    const TString* metadata,
+    const std::string* metadata,
     i64 startMetadataOffset,
     std::shared_ptr<IInputStream> reader = nullptr);
 
 TArrowRandomAccessFilePtr CreateOrcAdapter(
-    const TString* metadata,
+    const std::string* metadata,
     i64 startMetadataOffset,
     i64 maxStripeSize = 1,
     std::shared_ptr<IInputStream> reader = nullptr);
 
-i64 GetMaxStripeSize(const TString* metadata, i64 startMetadataOffset);
+i64 GetMaxStripeSize(const std::string* metadata, i64 startMetadataOffset);
 
-TArrowSchemaPtr CreateArrowSchemaFromParquetMetadata(const TString* metadata, i64 startIndex);
+TArrowSchemaPtr CreateArrowSchemaFromParquetMetadata(const std::string* metadata, i64 startIndex);
 
-TArrowSchemaPtr CreateArrowSchemaFromOrcMetadata(const TString* metadata, i64 startIndex);
+TArrowSchemaPtr CreateArrowSchemaFromOrcMetadata(const std::string* metadata, i64 startIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

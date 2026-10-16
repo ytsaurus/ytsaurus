@@ -1,0 +1,61 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "TReader";
+                "output_stream_ids" = ["data"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
+                        "input_stream_ids" = ["data"];
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "state_writer" = {
+                "computation_class_name" = "TStateWriter";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(data)"; "type" = "uint64"; required = %true;};
+                    {"name" = "data"; "type" = "string"; "required" = %true;};
+                ];
+                "input_stream_ids" = ["data"];
+                "output_stream_ids" = [];
+                "external_state_managers" = {
+                    "/external_state" = {
+                        "external_state_manager_class_name" = "NYT::NFlow::TSimpleExternalStateManager";
+                        "parameters" = {};
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "data" = {
+                "schema" = [
+                    {name = "data"; type = "string"; required = %true;};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {
+                "parameters" = {
+                };
+            };
+            "state_writer" = {
+                "parameters" = {
+                };
+            };
+        };
+    };
+}

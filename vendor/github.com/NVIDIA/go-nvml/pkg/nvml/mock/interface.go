@@ -63,11 +63,17 @@ var _ nvml.Interface = &Interface{}
 //			DeviceGetAccountingStatsFunc: func(device nvml.Device, v uint32) (nvml.AccountingStats, nvml.Return) {
 //				panic("mock out the DeviceGetAccountingStats method")
 //			},
+//			DeviceGetAccountingStats_v2Func: func(device nvml.Device, v uint32) (nvml.AccountingStats_v2, nvml.Return) {
+//				panic("mock out the DeviceGetAccountingStats_v2 method")
+//			},
 //			DeviceGetActiveVgpusFunc: func(device nvml.Device) ([]nvml.VgpuInstance, nvml.Return) {
 //				panic("mock out the DeviceGetActiveVgpus method")
 //			},
 //			DeviceGetAdaptiveClockInfoStatusFunc: func(device nvml.Device) (uint32, nvml.Return) {
 //				panic("mock out the DeviceGetAdaptiveClockInfoStatus method")
+//			},
+//			DeviceGetAdaptiveTgpModeInfo_v1Func: func(device nvml.Device) (nvml.AdaptiveTgpModeInfo_v1, nvml.Return) {
+//				panic("mock out the DeviceGetAdaptiveTgpModeInfo_v1 method")
 //			},
 //			DeviceGetAddressingModeFunc: func(device nvml.Device) (nvml.DeviceAddressingMode, nvml.Return) {
 //				panic("mock out the DeviceGetAddressingMode method")
@@ -86,6 +92,12 @@ var _ nvml.Interface = &Interface{}
 //			},
 //			DeviceGetBAR1MemoryInfoFunc: func(device nvml.Device) (nvml.BAR1Memory, nvml.Return) {
 //				panic("mock out the DeviceGetBAR1MemoryInfo method")
+//			},
+//			DeviceGetBBXTimeData_v1Func: func(device nvml.Device) (nvml.BBXTimeData_v1, nvml.Return) {
+//				panic("mock out the DeviceGetBBXTimeData_v1 method")
+//			},
+//			DeviceGetBankRemapperStatus_v1Func: func(device nvml.Device) (nvml.EccBankRemapperStatus_v1, nvml.Return) {
+//				panic("mock out the DeviceGetBankRemapperStatus_v1 method")
 //			},
 //			DeviceGetBoardIdFunc: func(device nvml.Device) (uint32, nvml.Return) {
 //				panic("mock out the DeviceGetBoardId method")
@@ -258,6 +270,9 @@ var _ nvml.Interface = &Interface{}
 //			DeviceGetGpuFabricInfoVFunc: func(device nvml.Device) nvml.GpuFabricInfoHandler {
 //				panic("mock out the DeviceGetGpuFabricInfoV method")
 //			},
+//			DeviceGetGpuFabricInfo_v4Func: func(device nvml.Device) (nvml.GpuFabricInfo_v4, nvml.Return) {
+//				panic("mock out the DeviceGetGpuFabricInfo_v4 method")
+//			},
 //			DeviceGetGpuInstanceByIdFunc: func(device nvml.Device, n int) (nvml.GpuInstance, nvml.Return) {
 //				panic("mock out the DeviceGetGpuInstanceById method")
 //			},
@@ -317,6 +332,9 @@ var _ nvml.Interface = &Interface{}
 //			},
 //			DeviceGetHostVgpuModeFunc: func(device nvml.Device) (nvml.HostVgpuMode, nvml.Return) {
 //				panic("mock out the DeviceGetHostVgpuMode method")
+//			},
+//			DeviceGetHostname_v1Func: func(device nvml.Device) (string, nvml.Return) {
+//				panic("mock out the DeviceGetHostname_v1 method")
 //			},
 //			DeviceGetIndexFunc: func(device nvml.Device) (int, nvml.Return) {
 //				panic("mock out the DeviceGetIndex method")
@@ -381,6 +399,9 @@ var _ nvml.Interface = &Interface{}
 //			DeviceGetMemoryInfo_v2Func: func(device nvml.Device) (nvml.Memory_v2, nvml.Return) {
 //				panic("mock out the DeviceGetMemoryInfo_v2 method")
 //			},
+//			DeviceGetMemoryLimits_v1Func: func(device nvml.Device, s string) (nvml.MemoryLimits_v1, nvml.Return) {
+//				panic("mock out the DeviceGetMemoryLimits_v1 method")
+//			},
 //			DeviceGetMigDeviceHandleByIndexFunc: func(device nvml.Device, n int) (nvml.Device, nvml.Return) {
 //				panic("mock out the DeviceGetMigDeviceHandleByIndex method")
 //			},
@@ -431,6 +452,9 @@ var _ nvml.Interface = &Interface{}
 //			},
 //			DeviceGetNvLinkStateFunc: func(device nvml.Device, n int) (nvml.EnableState, nvml.Return) {
 //				panic("mock out the DeviceGetNvLinkState method")
+//			},
+//			DeviceGetNvLinkTelemetrySamples_v1Func: func(device nvml.Device, nvlinkTelemetrySamples_v1 nvml.NvlinkTelemetrySamples_v1) (nvml.NvlinkTelemetrySamples_v1, nvml.Return) {
+//				panic("mock out the DeviceGetNvLinkTelemetrySamples_v1 method")
 //			},
 //			DeviceGetNvLinkUtilizationControlFunc: func(device nvml.Device, n1 int, n2 int) (nvml.NvLinkUtilizationControl, nvml.Return) {
 //				panic("mock out the DeviceGetNvLinkUtilizationControl method")
@@ -522,6 +546,9 @@ var _ nvml.Interface = &Interface{}
 //			DeviceGetRemappedRowsFunc: func(device nvml.Device) (int, int, bool, bool, nvml.Return) {
 //				panic("mock out the DeviceGetRemappedRows method")
 //			},
+//			DeviceGetRemappedRows_v2Func: func(device nvml.Device) (nvml.RemappedRowsInfo_v2, nvml.Return) {
+//				panic("mock out the DeviceGetRemappedRows_v2 method")
+//			},
 //			DeviceGetRepairStatusFunc: func(device nvml.Device) (nvml.RepairStatus, nvml.Return) {
 //				panic("mock out the DeviceGetRepairStatus method")
 //			},
@@ -603,6 +630,9 @@ var _ nvml.Interface = &Interface{}
 //			DeviceGetUUIDFunc: func(device nvml.Device) (string, nvml.Return) {
 //				panic("mock out the DeviceGetUUID method")
 //			},
+//			DeviceGetUnrepairableMemoryFlag_v1Func: func(device nvml.Device) (nvml.UnrepairableMemoryStatus_v1, nvml.Return) {
+//				panic("mock out the DeviceGetUnrepairableMemoryFlag_v1 method")
+//			},
 //			DeviceGetUtilizationRatesFunc: func(device nvml.Device) (nvml.Utilization, nvml.Return) {
 //				panic("mock out the DeviceGetUtilizationRates method")
 //			},
@@ -633,8 +663,14 @@ var _ nvml.Interface = &Interface{}
 //			DeviceGetVgpuSchedulerLogFunc: func(device nvml.Device) (nvml.VgpuSchedulerLog, nvml.Return) {
 //				panic("mock out the DeviceGetVgpuSchedulerLog method")
 //			},
+//			DeviceGetVgpuSchedulerLog_v2Func: func(device nvml.Device, vgpuSchedulerLogInfo_v2 nvml.VgpuSchedulerLogInfo_v2) (nvml.VgpuSchedulerLogInfo_v2, nvml.Return) {
+//				panic("mock out the DeviceGetVgpuSchedulerLog_v2 method")
+//			},
 //			DeviceGetVgpuSchedulerStateFunc: func(device nvml.Device) (nvml.VgpuSchedulerGetState, nvml.Return) {
 //				panic("mock out the DeviceGetVgpuSchedulerState method")
+//			},
+//			DeviceGetVgpuSchedulerState_v2Func: func(device nvml.Device, vgpuSchedulerStateInfo_v2 nvml.VgpuSchedulerStateInfo_v2) (nvml.VgpuSchedulerStateInfo_v2, nvml.Return) {
+//				panic("mock out the DeviceGetVgpuSchedulerState_v2 method")
 //			},
 //			DeviceGetVgpuTypeCreatablePlacementsFunc: func(device nvml.Device, vgpuTypeId nvml.VgpuTypeId) (nvml.VgpuPlacementList, nvml.Return) {
 //				panic("mock out the DeviceGetVgpuTypeCreatablePlacements method")
@@ -660,6 +696,9 @@ var _ nvml.Interface = &Interface{}
 //			DeviceOnSameBoardFunc: func(device1 nvml.Device, device2 nvml.Device) (int, nvml.Return) {
 //				panic("mock out the DeviceOnSameBoard method")
 //			},
+//			DevicePerfMetricsGetSamples_v1Func: func(device nvml.Device) (nvml.PerfMetricsSamples_v1, nvml.Return) {
+//				panic("mock out the DevicePerfMetricsGetSamples_v1 method")
+//			},
 //			DevicePowerSmoothingActivatePresetProfileFunc: func(device nvml.Device, powerSmoothingProfile *nvml.PowerSmoothingProfile) nvml.Return {
 //				panic("mock out the DevicePowerSmoothingActivatePresetProfile method")
 //			},
@@ -671,6 +710,9 @@ var _ nvml.Interface = &Interface{}
 //			},
 //			DeviceQueryDrainStateFunc: func(pciInfo *nvml.PciInfo) (nvml.EnableState, nvml.Return) {
 //				panic("mock out the DeviceQueryDrainState method")
+//			},
+//			DeviceReadPRMCounters_v1Func: func(device nvml.Device, pRMCounterIds []nvml.PRMCounterId, n int) ([]nvml.PRMCounter_v1, nvml.Return) {
+//				panic("mock out the DeviceReadPRMCounters_v1 method")
 //			},
 //			DeviceReadWritePRM_v1Func: func(device nvml.Device, pRMTLV_v1 *nvml.PRMTLV_v1) nvml.Return {
 //				panic("mock out the DeviceReadWritePRM_v1 method")
@@ -704,6 +746,9 @@ var _ nvml.Interface = &Interface{}
 //			},
 //			DeviceSetAccountingModeFunc: func(device nvml.Device, enableState nvml.EnableState) nvml.Return {
 //				panic("mock out the DeviceSetAccountingMode method")
+//			},
+//			DeviceSetAdaptiveTgpMode_v1Func: func(device nvml.Device, enableState nvml.EnableState) nvml.Return {
+//				panic("mock out the DeviceSetAdaptiveTgpMode_v1 method")
 //			},
 //			DeviceSetApplicationsClocksFunc: func(device nvml.Device, v1 uint32, v2 uint32) nvml.Return {
 //				panic("mock out the DeviceSetApplicationsClocks method")
@@ -753,8 +798,14 @@ var _ nvml.Interface = &Interface{}
 //			DeviceSetGpuOperationModeFunc: func(device nvml.Device, gpuOperationMode nvml.GpuOperationMode) nvml.Return {
 //				panic("mock out the DeviceSetGpuOperationMode method")
 //			},
+//			DeviceSetHostname_v1Func: func(device nvml.Device, s string) nvml.Return {
+//				panic("mock out the DeviceSetHostname_v1 method")
+//			},
 //			DeviceSetMemClkVfOffsetFunc: func(device nvml.Device, n int) nvml.Return {
 //				panic("mock out the DeviceSetMemClkVfOffset method")
+//			},
+//			DeviceSetMemoryLimits_v1Func: func(device nvml.Device, s string, v1 uint64, v2 uint64) nvml.Return {
+//				panic("mock out the DeviceSetMemoryLimits_v1 method")
 //			},
 //			DeviceSetMemoryLockedClocksFunc: func(device nvml.Device, v1 uint32, v2 uint32) nvml.Return {
 //				panic("mock out the DeviceSetMemoryLockedClocks method")
@@ -771,6 +822,9 @@ var _ nvml.Interface = &Interface{}
 //			DeviceSetNvlinkBwModeFunc: func(device nvml.Device, nvlinkSetBwMode *nvml.NvlinkSetBwMode) nvml.Return {
 //				panic("mock out the DeviceSetNvlinkBwMode method")
 //			},
+//			DeviceSetNvlinkBwModeAsync_v1Func: func(device nvml.Device, nvlinkSetBwModeAsync_v1 *nvml.NvlinkSetBwModeAsync_v1) nvml.Return {
+//				panic("mock out the DeviceSetNvlinkBwModeAsync_v1 method")
+//			},
 //			DeviceSetPersistenceModeFunc: func(device nvml.Device, enableState nvml.EnableState) nvml.Return {
 //				panic("mock out the DeviceSetPersistenceMode method")
 //			},
@@ -779,6 +833,9 @@ var _ nvml.Interface = &Interface{}
 //			},
 //			DeviceSetPowerManagementLimit_v2Func: func(device nvml.Device, powerValue_v2 *nvml.PowerValue_v2) nvml.Return {
 //				panic("mock out the DeviceSetPowerManagementLimit_v2 method")
+//			},
+//			DeviceSetRusdSettings_v1Func: func(device nvml.Device, rusdSettings_v1 nvml.RusdSettings_v1) nvml.Return {
+//				panic("mock out the DeviceSetRusdSettings_v1 method")
 //			},
 //			DeviceSetTemperatureThresholdFunc: func(device nvml.Device, temperatureThresholds nvml.TemperatureThresholds, n int) nvml.Return {
 //				panic("mock out the DeviceSetTemperatureThreshold method")
@@ -792,11 +849,17 @@ var _ nvml.Interface = &Interface{}
 //			DeviceSetVgpuSchedulerStateFunc: func(device nvml.Device, vgpuSchedulerSetState *nvml.VgpuSchedulerSetState) nvml.Return {
 //				panic("mock out the DeviceSetVgpuSchedulerState method")
 //			},
+//			DeviceSetVgpuSchedulerState_v2Func: func(device nvml.Device, vgpuSchedulerState_v2 *nvml.VgpuSchedulerState_v2) nvml.Return {
+//				panic("mock out the DeviceSetVgpuSchedulerState_v2 method")
+//			},
 //			DeviceSetVirtualizationModeFunc: func(device nvml.Device, gpuVirtualizationMode nvml.GpuVirtualizationMode) nvml.Return {
 //				panic("mock out the DeviceSetVirtualizationMode method")
 //			},
 //			DeviceValidateInforomFunc: func(device nvml.Device) nvml.Return {
 //				panic("mock out the DeviceValidateInforom method")
+//			},
+//			DeviceVgpuForceGspUnloadFunc: func(device nvml.Device) nvml.Return {
+//				panic("mock out the DeviceVgpuForceGspUnload method")
 //			},
 //			DeviceWorkloadPowerProfileClearRequestedProfilesFunc: func(device nvml.Device, workloadPowerProfileRequestedProfiles *nvml.WorkloadPowerProfileRequestedProfiles) nvml.Return {
 //				panic("mock out the DeviceWorkloadPowerProfileClearRequestedProfiles method")
@@ -810,6 +873,9 @@ var _ nvml.Interface = &Interface{}
 //			DeviceWorkloadPowerProfileSetRequestedProfilesFunc: func(device nvml.Device, workloadPowerProfileRequestedProfiles *nvml.WorkloadPowerProfileRequestedProfiles) nvml.Return {
 //				panic("mock out the DeviceWorkloadPowerProfileSetRequestedProfiles method")
 //			},
+//			DeviceWorkloadPowerProfileUpdateProfiles_v1Func: func(device nvml.Device, powerProfileOperation nvml.PowerProfileOperation, powerProfileTypes []nvml.PowerProfileType) nvml.Return {
+//				panic("mock out the DeviceWorkloadPowerProfileUpdateProfiles_v1 method")
+//			},
 //			ErrorStringFunc: func(returnMoqParam nvml.Return) string {
 //				panic("mock out the ErrorString method")
 //			},
@@ -819,8 +885,26 @@ var _ nvml.Interface = &Interface{}
 //			EventSetFreeFunc: func(eventSet nvml.EventSet) nvml.Return {
 //				panic("mock out the EventSetFree method")
 //			},
+//			EventSetGetContextCount_v1Func: func(eventSet nvml.EventSet) (nvml.GetContextCount_v1, nvml.Return) {
+//				panic("mock out the EventSetGetContextCount_v1 method")
+//			},
+//			EventSetGetContextData_v1Func: func(eventSet nvml.EventSet, getContextData_v1 nvml.GetContextData_v1) (nvml.GetContextData_v1, nvml.Return) {
+//				panic("mock out the EventSetGetContextData_v1 method")
+//			},
+//			EventSetGetContextInfo_v1Func: func(eventSet nvml.EventSet, v uint32) (nvml.GetContextInfo_v1, nvml.Return) {
+//				panic("mock out the EventSetGetContextInfo_v1 method")
+//			},
+//			EventSetGetGpuOperationalEventContextLegacyXid_v1Func: func(eventSet nvml.EventSet, v uint32) (uint32, nvml.Return) {
+//				panic("mock out the EventSetGetGpuOperationalEventContextLegacyXid_v1 method")
+//			},
+//			EventSetRegisterGpuOperationalEvents_v1Func: func(eventSet nvml.EventSet, gpuOperationalEventConfig_v1 *nvml.GpuOperationalEventConfig_v1) nvml.Return {
+//				panic("mock out the EventSetRegisterGpuOperationalEvents_v1 method")
+//			},
 //			EventSetWaitFunc: func(eventSet nvml.EventSet, v uint32) (nvml.EventData, nvml.Return) {
 //				panic("mock out the EventSetWait method")
+//			},
+//			EventSetWait_v3Func: func(eventSet nvml.EventSet, v uint32) (nvml.EventSetWaitData_v3, nvml.Return) {
+//				panic("mock out the EventSetWait_v3 method")
 //			},
 //			ExtensionsFunc: func() nvml.ExtendedInterface {
 //				panic("mock out the Extensions method")
@@ -912,8 +996,14 @@ var _ nvml.Interface = &Interface{}
 //			GpuInstanceGetVgpuSchedulerLogFunc: func(gpuInstance nvml.GpuInstance) (nvml.VgpuSchedulerLogInfo, nvml.Return) {
 //				panic("mock out the GpuInstanceGetVgpuSchedulerLog method")
 //			},
+//			GpuInstanceGetVgpuSchedulerLog_v2Func: func(gpuInstance nvml.GpuInstance, vgpuSchedulerLogInfo_v2 nvml.VgpuSchedulerLogInfo_v2) (nvml.VgpuSchedulerLogInfo_v2, nvml.Return) {
+//				panic("mock out the GpuInstanceGetVgpuSchedulerLog_v2 method")
+//			},
 //			GpuInstanceGetVgpuSchedulerStateFunc: func(gpuInstance nvml.GpuInstance) (nvml.VgpuSchedulerStateInfo, nvml.Return) {
 //				panic("mock out the GpuInstanceGetVgpuSchedulerState method")
+//			},
+//			GpuInstanceGetVgpuSchedulerState_v2Func: func(gpuInstance nvml.GpuInstance, vgpuSchedulerStateInfo_v2 nvml.VgpuSchedulerStateInfo_v2) (nvml.VgpuSchedulerStateInfo_v2, nvml.Return) {
+//				panic("mock out the GpuInstanceGetVgpuSchedulerState_v2 method")
 //			},
 //			GpuInstanceGetVgpuTypeCreatablePlacementsFunc: func(gpuInstance nvml.GpuInstance) (nvml.VgpuCreatablePlacementInfo, nvml.Return) {
 //				panic("mock out the GpuInstanceGetVgpuTypeCreatablePlacements method")
@@ -923,6 +1013,9 @@ var _ nvml.Interface = &Interface{}
 //			},
 //			GpuInstanceSetVgpuSchedulerStateFunc: func(gpuInstance nvml.GpuInstance, vgpuSchedulerState *nvml.VgpuSchedulerState) nvml.Return {
 //				panic("mock out the GpuInstanceSetVgpuSchedulerState method")
+//			},
+//			GpuInstanceSetVgpuSchedulerState_v2Func: func(gpuInstance nvml.GpuInstance, vgpuSchedulerState_v2 *nvml.VgpuSchedulerState_v2) nvml.Return {
+//				panic("mock out the GpuInstanceSetVgpuSchedulerState_v2 method")
 //			},
 //			InitFunc: func() nvml.Return {
 //				panic("mock out the Init method")
@@ -944,6 +1037,9 @@ var _ nvml.Interface = &Interface{}
 //			},
 //			SystemEventSetWaitFunc: func(systemEventSetWaitRequest *nvml.SystemEventSetWaitRequest) nvml.Return {
 //				panic("mock out the SystemEventSetWait method")
+//			},
+//			SystemGetCPER_v1Func: func(getCPER_v1 *nvml.GetCPER_v1) nvml.Return {
+//				panic("mock out the SystemGetCPER_v1 method")
 //			},
 //			SystemGetConfComputeCapabilitiesFunc: func() (nvml.ConfComputeSystemCaps, nvml.Return) {
 //				panic("mock out the SystemGetConfComputeCapabilities method")
@@ -1119,6 +1215,9 @@ var _ nvml.Interface = &Interface{}
 //			VgpuTypeGetGpuInstanceProfileIdFunc: func(vgpuTypeId nvml.VgpuTypeId) (uint32, nvml.Return) {
 //				panic("mock out the VgpuTypeGetGpuInstanceProfileId method")
 //			},
+//			VgpuTypeGetIDFunc: func(vgpuTypeId nvml.VgpuTypeId) uint32 {
+//				panic("mock out the VgpuTypeGetID method")
+//			},
 //			VgpuTypeGetLicenseFunc: func(vgpuTypeId nvml.VgpuTypeId) (string, nvml.Return) {
 //				panic("mock out the VgpuTypeGetLicense method")
 //			},
@@ -1192,11 +1291,17 @@ type Interface struct {
 	// DeviceGetAccountingStatsFunc mocks the DeviceGetAccountingStats method.
 	DeviceGetAccountingStatsFunc func(device nvml.Device, v uint32) (nvml.AccountingStats, nvml.Return)
 
+	// DeviceGetAccountingStats_v2Func mocks the DeviceGetAccountingStats_v2 method.
+	DeviceGetAccountingStats_v2Func func(device nvml.Device, v uint32) (nvml.AccountingStats_v2, nvml.Return)
+
 	// DeviceGetActiveVgpusFunc mocks the DeviceGetActiveVgpus method.
 	DeviceGetActiveVgpusFunc func(device nvml.Device) ([]nvml.VgpuInstance, nvml.Return)
 
 	// DeviceGetAdaptiveClockInfoStatusFunc mocks the DeviceGetAdaptiveClockInfoStatus method.
 	DeviceGetAdaptiveClockInfoStatusFunc func(device nvml.Device) (uint32, nvml.Return)
+
+	// DeviceGetAdaptiveTgpModeInfo_v1Func mocks the DeviceGetAdaptiveTgpModeInfo_v1 method.
+	DeviceGetAdaptiveTgpModeInfo_v1Func func(device nvml.Device) (nvml.AdaptiveTgpModeInfo_v1, nvml.Return)
 
 	// DeviceGetAddressingModeFunc mocks the DeviceGetAddressingMode method.
 	DeviceGetAddressingModeFunc func(device nvml.Device) (nvml.DeviceAddressingMode, nvml.Return)
@@ -1215,6 +1320,12 @@ type Interface struct {
 
 	// DeviceGetBAR1MemoryInfoFunc mocks the DeviceGetBAR1MemoryInfo method.
 	DeviceGetBAR1MemoryInfoFunc func(device nvml.Device) (nvml.BAR1Memory, nvml.Return)
+
+	// DeviceGetBBXTimeData_v1Func mocks the DeviceGetBBXTimeData_v1 method.
+	DeviceGetBBXTimeData_v1Func func(device nvml.Device) (nvml.BBXTimeData_v1, nvml.Return)
+
+	// DeviceGetBankRemapperStatus_v1Func mocks the DeviceGetBankRemapperStatus_v1 method.
+	DeviceGetBankRemapperStatus_v1Func func(device nvml.Device) (nvml.EccBankRemapperStatus_v1, nvml.Return)
 
 	// DeviceGetBoardIdFunc mocks the DeviceGetBoardId method.
 	DeviceGetBoardIdFunc func(device nvml.Device) (uint32, nvml.Return)
@@ -1387,6 +1498,9 @@ type Interface struct {
 	// DeviceGetGpuFabricInfoVFunc mocks the DeviceGetGpuFabricInfoV method.
 	DeviceGetGpuFabricInfoVFunc func(device nvml.Device) nvml.GpuFabricInfoHandler
 
+	// DeviceGetGpuFabricInfo_v4Func mocks the DeviceGetGpuFabricInfo_v4 method.
+	DeviceGetGpuFabricInfo_v4Func func(device nvml.Device) (nvml.GpuFabricInfo_v4, nvml.Return)
+
 	// DeviceGetGpuInstanceByIdFunc mocks the DeviceGetGpuInstanceById method.
 	DeviceGetGpuInstanceByIdFunc func(device nvml.Device, n int) (nvml.GpuInstance, nvml.Return)
 
@@ -1446,6 +1560,9 @@ type Interface struct {
 
 	// DeviceGetHostVgpuModeFunc mocks the DeviceGetHostVgpuMode method.
 	DeviceGetHostVgpuModeFunc func(device nvml.Device) (nvml.HostVgpuMode, nvml.Return)
+
+	// DeviceGetHostname_v1Func mocks the DeviceGetHostname_v1 method.
+	DeviceGetHostname_v1Func func(device nvml.Device) (string, nvml.Return)
 
 	// DeviceGetIndexFunc mocks the DeviceGetIndex method.
 	DeviceGetIndexFunc func(device nvml.Device) (int, nvml.Return)
@@ -1510,6 +1627,9 @@ type Interface struct {
 	// DeviceGetMemoryInfo_v2Func mocks the DeviceGetMemoryInfo_v2 method.
 	DeviceGetMemoryInfo_v2Func func(device nvml.Device) (nvml.Memory_v2, nvml.Return)
 
+	// DeviceGetMemoryLimits_v1Func mocks the DeviceGetMemoryLimits_v1 method.
+	DeviceGetMemoryLimits_v1Func func(device nvml.Device, s string) (nvml.MemoryLimits_v1, nvml.Return)
+
 	// DeviceGetMigDeviceHandleByIndexFunc mocks the DeviceGetMigDeviceHandleByIndex method.
 	DeviceGetMigDeviceHandleByIndexFunc func(device nvml.Device, n int) (nvml.Device, nvml.Return)
 
@@ -1560,6 +1680,9 @@ type Interface struct {
 
 	// DeviceGetNvLinkStateFunc mocks the DeviceGetNvLinkState method.
 	DeviceGetNvLinkStateFunc func(device nvml.Device, n int) (nvml.EnableState, nvml.Return)
+
+	// DeviceGetNvLinkTelemetrySamples_v1Func mocks the DeviceGetNvLinkTelemetrySamples_v1 method.
+	DeviceGetNvLinkTelemetrySamples_v1Func func(device nvml.Device, nvlinkTelemetrySamples_v1 nvml.NvlinkTelemetrySamples_v1) (nvml.NvlinkTelemetrySamples_v1, nvml.Return)
 
 	// DeviceGetNvLinkUtilizationControlFunc mocks the DeviceGetNvLinkUtilizationControl method.
 	DeviceGetNvLinkUtilizationControlFunc func(device nvml.Device, n1 int, n2 int) (nvml.NvLinkUtilizationControl, nvml.Return)
@@ -1651,6 +1774,9 @@ type Interface struct {
 	// DeviceGetRemappedRowsFunc mocks the DeviceGetRemappedRows method.
 	DeviceGetRemappedRowsFunc func(device nvml.Device) (int, int, bool, bool, nvml.Return)
 
+	// DeviceGetRemappedRows_v2Func mocks the DeviceGetRemappedRows_v2 method.
+	DeviceGetRemappedRows_v2Func func(device nvml.Device) (nvml.RemappedRowsInfo_v2, nvml.Return)
+
 	// DeviceGetRepairStatusFunc mocks the DeviceGetRepairStatus method.
 	DeviceGetRepairStatusFunc func(device nvml.Device) (nvml.RepairStatus, nvml.Return)
 
@@ -1732,6 +1858,9 @@ type Interface struct {
 	// DeviceGetUUIDFunc mocks the DeviceGetUUID method.
 	DeviceGetUUIDFunc func(device nvml.Device) (string, nvml.Return)
 
+	// DeviceGetUnrepairableMemoryFlag_v1Func mocks the DeviceGetUnrepairableMemoryFlag_v1 method.
+	DeviceGetUnrepairableMemoryFlag_v1Func func(device nvml.Device) (nvml.UnrepairableMemoryStatus_v1, nvml.Return)
+
 	// DeviceGetUtilizationRatesFunc mocks the DeviceGetUtilizationRates method.
 	DeviceGetUtilizationRatesFunc func(device nvml.Device) (nvml.Utilization, nvml.Return)
 
@@ -1762,8 +1891,14 @@ type Interface struct {
 	// DeviceGetVgpuSchedulerLogFunc mocks the DeviceGetVgpuSchedulerLog method.
 	DeviceGetVgpuSchedulerLogFunc func(device nvml.Device) (nvml.VgpuSchedulerLog, nvml.Return)
 
+	// DeviceGetVgpuSchedulerLog_v2Func mocks the DeviceGetVgpuSchedulerLog_v2 method.
+	DeviceGetVgpuSchedulerLog_v2Func func(device nvml.Device, vgpuSchedulerLogInfo_v2 nvml.VgpuSchedulerLogInfo_v2) (nvml.VgpuSchedulerLogInfo_v2, nvml.Return)
+
 	// DeviceGetVgpuSchedulerStateFunc mocks the DeviceGetVgpuSchedulerState method.
 	DeviceGetVgpuSchedulerStateFunc func(device nvml.Device) (nvml.VgpuSchedulerGetState, nvml.Return)
+
+	// DeviceGetVgpuSchedulerState_v2Func mocks the DeviceGetVgpuSchedulerState_v2 method.
+	DeviceGetVgpuSchedulerState_v2Func func(device nvml.Device, vgpuSchedulerStateInfo_v2 nvml.VgpuSchedulerStateInfo_v2) (nvml.VgpuSchedulerStateInfo_v2, nvml.Return)
 
 	// DeviceGetVgpuTypeCreatablePlacementsFunc mocks the DeviceGetVgpuTypeCreatablePlacements method.
 	DeviceGetVgpuTypeCreatablePlacementsFunc func(device nvml.Device, vgpuTypeId nvml.VgpuTypeId) (nvml.VgpuPlacementList, nvml.Return)
@@ -1789,6 +1924,9 @@ type Interface struct {
 	// DeviceOnSameBoardFunc mocks the DeviceOnSameBoard method.
 	DeviceOnSameBoardFunc func(device1 nvml.Device, device2 nvml.Device) (int, nvml.Return)
 
+	// DevicePerfMetricsGetSamples_v1Func mocks the DevicePerfMetricsGetSamples_v1 method.
+	DevicePerfMetricsGetSamples_v1Func func(device nvml.Device) (nvml.PerfMetricsSamples_v1, nvml.Return)
+
 	// DevicePowerSmoothingActivatePresetProfileFunc mocks the DevicePowerSmoothingActivatePresetProfile method.
 	DevicePowerSmoothingActivatePresetProfileFunc func(device nvml.Device, powerSmoothingProfile *nvml.PowerSmoothingProfile) nvml.Return
 
@@ -1800,6 +1938,9 @@ type Interface struct {
 
 	// DeviceQueryDrainStateFunc mocks the DeviceQueryDrainState method.
 	DeviceQueryDrainStateFunc func(pciInfo *nvml.PciInfo) (nvml.EnableState, nvml.Return)
+
+	// DeviceReadPRMCounters_v1Func mocks the DeviceReadPRMCounters_v1 method.
+	DeviceReadPRMCounters_v1Func func(device nvml.Device, pRMCounterIds []nvml.PRMCounterId, n int) ([]nvml.PRMCounter_v1, nvml.Return)
 
 	// DeviceReadWritePRM_v1Func mocks the DeviceReadWritePRM_v1 method.
 	DeviceReadWritePRM_v1Func func(device nvml.Device, pRMTLV_v1 *nvml.PRMTLV_v1) nvml.Return
@@ -1833,6 +1974,9 @@ type Interface struct {
 
 	// DeviceSetAccountingModeFunc mocks the DeviceSetAccountingMode method.
 	DeviceSetAccountingModeFunc func(device nvml.Device, enableState nvml.EnableState) nvml.Return
+
+	// DeviceSetAdaptiveTgpMode_v1Func mocks the DeviceSetAdaptiveTgpMode_v1 method.
+	DeviceSetAdaptiveTgpMode_v1Func func(device nvml.Device, enableState nvml.EnableState) nvml.Return
 
 	// DeviceSetApplicationsClocksFunc mocks the DeviceSetApplicationsClocks method.
 	DeviceSetApplicationsClocksFunc func(device nvml.Device, v1 uint32, v2 uint32) nvml.Return
@@ -1882,8 +2026,14 @@ type Interface struct {
 	// DeviceSetGpuOperationModeFunc mocks the DeviceSetGpuOperationMode method.
 	DeviceSetGpuOperationModeFunc func(device nvml.Device, gpuOperationMode nvml.GpuOperationMode) nvml.Return
 
+	// DeviceSetHostname_v1Func mocks the DeviceSetHostname_v1 method.
+	DeviceSetHostname_v1Func func(device nvml.Device, s string) nvml.Return
+
 	// DeviceSetMemClkVfOffsetFunc mocks the DeviceSetMemClkVfOffset method.
 	DeviceSetMemClkVfOffsetFunc func(device nvml.Device, n int) nvml.Return
+
+	// DeviceSetMemoryLimits_v1Func mocks the DeviceSetMemoryLimits_v1 method.
+	DeviceSetMemoryLimits_v1Func func(device nvml.Device, s string, v1 uint64, v2 uint64) nvml.Return
 
 	// DeviceSetMemoryLockedClocksFunc mocks the DeviceSetMemoryLockedClocks method.
 	DeviceSetMemoryLockedClocksFunc func(device nvml.Device, v1 uint32, v2 uint32) nvml.Return
@@ -1900,6 +2050,9 @@ type Interface struct {
 	// DeviceSetNvlinkBwModeFunc mocks the DeviceSetNvlinkBwMode method.
 	DeviceSetNvlinkBwModeFunc func(device nvml.Device, nvlinkSetBwMode *nvml.NvlinkSetBwMode) nvml.Return
 
+	// DeviceSetNvlinkBwModeAsync_v1Func mocks the DeviceSetNvlinkBwModeAsync_v1 method.
+	DeviceSetNvlinkBwModeAsync_v1Func func(device nvml.Device, nvlinkSetBwModeAsync_v1 *nvml.NvlinkSetBwModeAsync_v1) nvml.Return
+
 	// DeviceSetPersistenceModeFunc mocks the DeviceSetPersistenceMode method.
 	DeviceSetPersistenceModeFunc func(device nvml.Device, enableState nvml.EnableState) nvml.Return
 
@@ -1908,6 +2061,9 @@ type Interface struct {
 
 	// DeviceSetPowerManagementLimit_v2Func mocks the DeviceSetPowerManagementLimit_v2 method.
 	DeviceSetPowerManagementLimit_v2Func func(device nvml.Device, powerValue_v2 *nvml.PowerValue_v2) nvml.Return
+
+	// DeviceSetRusdSettings_v1Func mocks the DeviceSetRusdSettings_v1 method.
+	DeviceSetRusdSettings_v1Func func(device nvml.Device, rusdSettings_v1 nvml.RusdSettings_v1) nvml.Return
 
 	// DeviceSetTemperatureThresholdFunc mocks the DeviceSetTemperatureThreshold method.
 	DeviceSetTemperatureThresholdFunc func(device nvml.Device, temperatureThresholds nvml.TemperatureThresholds, n int) nvml.Return
@@ -1921,11 +2077,17 @@ type Interface struct {
 	// DeviceSetVgpuSchedulerStateFunc mocks the DeviceSetVgpuSchedulerState method.
 	DeviceSetVgpuSchedulerStateFunc func(device nvml.Device, vgpuSchedulerSetState *nvml.VgpuSchedulerSetState) nvml.Return
 
+	// DeviceSetVgpuSchedulerState_v2Func mocks the DeviceSetVgpuSchedulerState_v2 method.
+	DeviceSetVgpuSchedulerState_v2Func func(device nvml.Device, vgpuSchedulerState_v2 *nvml.VgpuSchedulerState_v2) nvml.Return
+
 	// DeviceSetVirtualizationModeFunc mocks the DeviceSetVirtualizationMode method.
 	DeviceSetVirtualizationModeFunc func(device nvml.Device, gpuVirtualizationMode nvml.GpuVirtualizationMode) nvml.Return
 
 	// DeviceValidateInforomFunc mocks the DeviceValidateInforom method.
 	DeviceValidateInforomFunc func(device nvml.Device) nvml.Return
+
+	// DeviceVgpuForceGspUnloadFunc mocks the DeviceVgpuForceGspUnload method.
+	DeviceVgpuForceGspUnloadFunc func(device nvml.Device) nvml.Return
 
 	// DeviceWorkloadPowerProfileClearRequestedProfilesFunc mocks the DeviceWorkloadPowerProfileClearRequestedProfiles method.
 	DeviceWorkloadPowerProfileClearRequestedProfilesFunc func(device nvml.Device, workloadPowerProfileRequestedProfiles *nvml.WorkloadPowerProfileRequestedProfiles) nvml.Return
@@ -1939,6 +2101,9 @@ type Interface struct {
 	// DeviceWorkloadPowerProfileSetRequestedProfilesFunc mocks the DeviceWorkloadPowerProfileSetRequestedProfiles method.
 	DeviceWorkloadPowerProfileSetRequestedProfilesFunc func(device nvml.Device, workloadPowerProfileRequestedProfiles *nvml.WorkloadPowerProfileRequestedProfiles) nvml.Return
 
+	// DeviceWorkloadPowerProfileUpdateProfiles_v1Func mocks the DeviceWorkloadPowerProfileUpdateProfiles_v1 method.
+	DeviceWorkloadPowerProfileUpdateProfiles_v1Func func(device nvml.Device, powerProfileOperation nvml.PowerProfileOperation, powerProfileTypes []nvml.PowerProfileType) nvml.Return
+
 	// ErrorStringFunc mocks the ErrorString method.
 	ErrorStringFunc func(returnMoqParam nvml.Return) string
 
@@ -1948,8 +2113,26 @@ type Interface struct {
 	// EventSetFreeFunc mocks the EventSetFree method.
 	EventSetFreeFunc func(eventSet nvml.EventSet) nvml.Return
 
+	// EventSetGetContextCount_v1Func mocks the EventSetGetContextCount_v1 method.
+	EventSetGetContextCount_v1Func func(eventSet nvml.EventSet) (nvml.GetContextCount_v1, nvml.Return)
+
+	// EventSetGetContextData_v1Func mocks the EventSetGetContextData_v1 method.
+	EventSetGetContextData_v1Func func(eventSet nvml.EventSet, getContextData_v1 nvml.GetContextData_v1) (nvml.GetContextData_v1, nvml.Return)
+
+	// EventSetGetContextInfo_v1Func mocks the EventSetGetContextInfo_v1 method.
+	EventSetGetContextInfo_v1Func func(eventSet nvml.EventSet, v uint32) (nvml.GetContextInfo_v1, nvml.Return)
+
+	// EventSetGetGpuOperationalEventContextLegacyXid_v1Func mocks the EventSetGetGpuOperationalEventContextLegacyXid_v1 method.
+	EventSetGetGpuOperationalEventContextLegacyXid_v1Func func(eventSet nvml.EventSet, v uint32) (uint32, nvml.Return)
+
+	// EventSetRegisterGpuOperationalEvents_v1Func mocks the EventSetRegisterGpuOperationalEvents_v1 method.
+	EventSetRegisterGpuOperationalEvents_v1Func func(eventSet nvml.EventSet, gpuOperationalEventConfig_v1 *nvml.GpuOperationalEventConfig_v1) nvml.Return
+
 	// EventSetWaitFunc mocks the EventSetWait method.
 	EventSetWaitFunc func(eventSet nvml.EventSet, v uint32) (nvml.EventData, nvml.Return)
+
+	// EventSetWait_v3Func mocks the EventSetWait_v3 method.
+	EventSetWait_v3Func func(eventSet nvml.EventSet, v uint32) (nvml.EventSetWaitData_v3, nvml.Return)
 
 	// ExtensionsFunc mocks the Extensions method.
 	ExtensionsFunc func() nvml.ExtendedInterface
@@ -2041,8 +2224,14 @@ type Interface struct {
 	// GpuInstanceGetVgpuSchedulerLogFunc mocks the GpuInstanceGetVgpuSchedulerLog method.
 	GpuInstanceGetVgpuSchedulerLogFunc func(gpuInstance nvml.GpuInstance) (nvml.VgpuSchedulerLogInfo, nvml.Return)
 
+	// GpuInstanceGetVgpuSchedulerLog_v2Func mocks the GpuInstanceGetVgpuSchedulerLog_v2 method.
+	GpuInstanceGetVgpuSchedulerLog_v2Func func(gpuInstance nvml.GpuInstance, vgpuSchedulerLogInfo_v2 nvml.VgpuSchedulerLogInfo_v2) (nvml.VgpuSchedulerLogInfo_v2, nvml.Return)
+
 	// GpuInstanceGetVgpuSchedulerStateFunc mocks the GpuInstanceGetVgpuSchedulerState method.
 	GpuInstanceGetVgpuSchedulerStateFunc func(gpuInstance nvml.GpuInstance) (nvml.VgpuSchedulerStateInfo, nvml.Return)
+
+	// GpuInstanceGetVgpuSchedulerState_v2Func mocks the GpuInstanceGetVgpuSchedulerState_v2 method.
+	GpuInstanceGetVgpuSchedulerState_v2Func func(gpuInstance nvml.GpuInstance, vgpuSchedulerStateInfo_v2 nvml.VgpuSchedulerStateInfo_v2) (nvml.VgpuSchedulerStateInfo_v2, nvml.Return)
 
 	// GpuInstanceGetVgpuTypeCreatablePlacementsFunc mocks the GpuInstanceGetVgpuTypeCreatablePlacements method.
 	GpuInstanceGetVgpuTypeCreatablePlacementsFunc func(gpuInstance nvml.GpuInstance) (nvml.VgpuCreatablePlacementInfo, nvml.Return)
@@ -2052,6 +2241,9 @@ type Interface struct {
 
 	// GpuInstanceSetVgpuSchedulerStateFunc mocks the GpuInstanceSetVgpuSchedulerState method.
 	GpuInstanceSetVgpuSchedulerStateFunc func(gpuInstance nvml.GpuInstance, vgpuSchedulerState *nvml.VgpuSchedulerState) nvml.Return
+
+	// GpuInstanceSetVgpuSchedulerState_v2Func mocks the GpuInstanceSetVgpuSchedulerState_v2 method.
+	GpuInstanceSetVgpuSchedulerState_v2Func func(gpuInstance nvml.GpuInstance, vgpuSchedulerState_v2 *nvml.VgpuSchedulerState_v2) nvml.Return
 
 	// InitFunc mocks the Init method.
 	InitFunc func() nvml.Return
@@ -2073,6 +2265,9 @@ type Interface struct {
 
 	// SystemEventSetWaitFunc mocks the SystemEventSetWait method.
 	SystemEventSetWaitFunc func(systemEventSetWaitRequest *nvml.SystemEventSetWaitRequest) nvml.Return
+
+	// SystemGetCPER_v1Func mocks the SystemGetCPER_v1 method.
+	SystemGetCPER_v1Func func(getCPER_v1 *nvml.GetCPER_v1) nvml.Return
 
 	// SystemGetConfComputeCapabilitiesFunc mocks the SystemGetConfComputeCapabilities method.
 	SystemGetConfComputeCapabilitiesFunc func() (nvml.ConfComputeSystemCaps, nvml.Return)
@@ -2248,6 +2443,9 @@ type Interface struct {
 	// VgpuTypeGetGpuInstanceProfileIdFunc mocks the VgpuTypeGetGpuInstanceProfileId method.
 	VgpuTypeGetGpuInstanceProfileIdFunc func(vgpuTypeId nvml.VgpuTypeId) (uint32, nvml.Return)
 
+	// VgpuTypeGetIDFunc mocks the VgpuTypeGetID method.
+	VgpuTypeGetIDFunc func(vgpuTypeId nvml.VgpuTypeId) uint32
+
 	// VgpuTypeGetLicenseFunc mocks the VgpuTypeGetLicense method.
 	VgpuTypeGetLicenseFunc func(vgpuTypeId nvml.VgpuTypeId) (string, nvml.Return)
 
@@ -2364,6 +2562,13 @@ type Interface struct {
 			// V is the v argument value.
 			V uint32
 		}
+		// DeviceGetAccountingStats_v2 holds details about calls to the DeviceGetAccountingStats_v2 method.
+		DeviceGetAccountingStats_v2 []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+			// V is the v argument value.
+			V uint32
+		}
 		// DeviceGetActiveVgpus holds details about calls to the DeviceGetActiveVgpus method.
 		DeviceGetActiveVgpus []struct {
 			// Device is the device argument value.
@@ -2371,6 +2576,11 @@ type Interface struct {
 		}
 		// DeviceGetAdaptiveClockInfoStatus holds details about calls to the DeviceGetAdaptiveClockInfoStatus method.
 		DeviceGetAdaptiveClockInfoStatus []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+		}
+		// DeviceGetAdaptiveTgpModeInfo_v1 holds details about calls to the DeviceGetAdaptiveTgpModeInfo_v1 method.
+		DeviceGetAdaptiveTgpModeInfo_v1 []struct {
 			// Device is the device argument value.
 			Device nvml.Device
 		}
@@ -2403,6 +2613,16 @@ type Interface struct {
 		}
 		// DeviceGetBAR1MemoryInfo holds details about calls to the DeviceGetBAR1MemoryInfo method.
 		DeviceGetBAR1MemoryInfo []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+		}
+		// DeviceGetBBXTimeData_v1 holds details about calls to the DeviceGetBBXTimeData_v1 method.
+		DeviceGetBBXTimeData_v1 []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+		}
+		// DeviceGetBankRemapperStatus_v1 holds details about calls to the DeviceGetBankRemapperStatus_v1 method.
+		DeviceGetBankRemapperStatus_v1 []struct {
 			// Device is the device argument value.
 			Device nvml.Device
 		}
@@ -2717,6 +2937,11 @@ type Interface struct {
 			// Device is the device argument value.
 			Device nvml.Device
 		}
+		// DeviceGetGpuFabricInfo_v4 holds details about calls to the DeviceGetGpuFabricInfo_v4 method.
+		DeviceGetGpuFabricInfo_v4 []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+		}
 		// DeviceGetGpuInstanceById holds details about calls to the DeviceGetGpuInstanceById method.
 		DeviceGetGpuInstanceById []struct {
 			// Device is the device argument value.
@@ -2828,6 +3053,11 @@ type Interface struct {
 		}
 		// DeviceGetHostVgpuMode holds details about calls to the DeviceGetHostVgpuMode method.
 		DeviceGetHostVgpuMode []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+		}
+		// DeviceGetHostname_v1 holds details about calls to the DeviceGetHostname_v1 method.
+		DeviceGetHostname_v1 []struct {
 			// Device is the device argument value.
 			Device nvml.Device
 		}
@@ -2952,6 +3182,13 @@ type Interface struct {
 			// Device is the device argument value.
 			Device nvml.Device
 		}
+		// DeviceGetMemoryLimits_v1 holds details about calls to the DeviceGetMemoryLimits_v1 method.
+		DeviceGetMemoryLimits_v1 []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+			// S is the s argument value.
+			S string
+		}
 		// DeviceGetMigDeviceHandleByIndex holds details about calls to the DeviceGetMigDeviceHandleByIndex method.
 		DeviceGetMigDeviceHandleByIndex []struct {
 			// Device is the device argument value.
@@ -3056,6 +3293,13 @@ type Interface struct {
 			Device nvml.Device
 			// N is the n argument value.
 			N int
+		}
+		// DeviceGetNvLinkTelemetrySamples_v1 holds details about calls to the DeviceGetNvLinkTelemetrySamples_v1 method.
+		DeviceGetNvLinkTelemetrySamples_v1 []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+			// NvlinkTelemetrySamples_v1 is the nvlinkTelemetrySamples_v1 argument value.
+			NvlinkTelemetrySamples_v1 nvml.NvlinkTelemetrySamples_v1
 		}
 		// DeviceGetNvLinkUtilizationControl holds details about calls to the DeviceGetNvLinkUtilizationControl method.
 		DeviceGetNvLinkUtilizationControl []struct {
@@ -3225,6 +3469,11 @@ type Interface struct {
 			// Device is the device argument value.
 			Device nvml.Device
 		}
+		// DeviceGetRemappedRows_v2 holds details about calls to the DeviceGetRemappedRows_v2 method.
+		DeviceGetRemappedRows_v2 []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+		}
 		// DeviceGetRepairStatus holds details about calls to the DeviceGetRepairStatus method.
 		DeviceGetRepairStatus []struct {
 			// Device is the device argument value.
@@ -3388,6 +3637,11 @@ type Interface struct {
 			// Device is the device argument value.
 			Device nvml.Device
 		}
+		// DeviceGetUnrepairableMemoryFlag_v1 holds details about calls to the DeviceGetUnrepairableMemoryFlag_v1 method.
+		DeviceGetUnrepairableMemoryFlag_v1 []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+		}
 		// DeviceGetUtilizationRates holds details about calls to the DeviceGetUtilizationRates method.
 		DeviceGetUtilizationRates []struct {
 			// Device is the device argument value.
@@ -3442,10 +3696,24 @@ type Interface struct {
 			// Device is the device argument value.
 			Device nvml.Device
 		}
+		// DeviceGetVgpuSchedulerLog_v2 holds details about calls to the DeviceGetVgpuSchedulerLog_v2 method.
+		DeviceGetVgpuSchedulerLog_v2 []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+			// VgpuSchedulerLogInfo_v2 is the vgpuSchedulerLogInfo_v2 argument value.
+			VgpuSchedulerLogInfo_v2 nvml.VgpuSchedulerLogInfo_v2
+		}
 		// DeviceGetVgpuSchedulerState holds details about calls to the DeviceGetVgpuSchedulerState method.
 		DeviceGetVgpuSchedulerState []struct {
 			// Device is the device argument value.
 			Device nvml.Device
+		}
+		// DeviceGetVgpuSchedulerState_v2 holds details about calls to the DeviceGetVgpuSchedulerState_v2 method.
+		DeviceGetVgpuSchedulerState_v2 []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+			// VgpuSchedulerStateInfo_v2 is the vgpuSchedulerStateInfo_v2 argument value.
+			VgpuSchedulerStateInfo_v2 nvml.VgpuSchedulerStateInfo_v2
 		}
 		// DeviceGetVgpuTypeCreatablePlacements holds details about calls to the DeviceGetVgpuTypeCreatablePlacements method.
 		DeviceGetVgpuTypeCreatablePlacements []struct {
@@ -3499,6 +3767,11 @@ type Interface struct {
 			// Device2 is the device2 argument value.
 			Device2 nvml.Device
 		}
+		// DevicePerfMetricsGetSamples_v1 holds details about calls to the DevicePerfMetricsGetSamples_v1 method.
+		DevicePerfMetricsGetSamples_v1 []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+		}
 		// DevicePowerSmoothingActivatePresetProfile holds details about calls to the DevicePowerSmoothingActivatePresetProfile method.
 		DevicePowerSmoothingActivatePresetProfile []struct {
 			// Device is the device argument value.
@@ -3524,6 +3797,15 @@ type Interface struct {
 		DeviceQueryDrainState []struct {
 			// PciInfo is the pciInfo argument value.
 			PciInfo *nvml.PciInfo
+		}
+		// DeviceReadPRMCounters_v1 holds details about calls to the DeviceReadPRMCounters_v1 method.
+		DeviceReadPRMCounters_v1 []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+			// PRMCounterIds is the pRMCounterIds argument value.
+			PRMCounterIds []nvml.PRMCounterId
+			// N is the n argument value.
+			N int
 		}
 		// DeviceReadWritePRM_v1 holds details about calls to the DeviceReadWritePRM_v1 method.
 		DeviceReadWritePRM_v1 []struct {
@@ -3597,6 +3879,13 @@ type Interface struct {
 		}
 		// DeviceSetAccountingMode holds details about calls to the DeviceSetAccountingMode method.
 		DeviceSetAccountingMode []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+			// EnableState is the enableState argument value.
+			EnableState nvml.EnableState
+		}
+		// DeviceSetAdaptiveTgpMode_v1 holds details about calls to the DeviceSetAdaptiveTgpMode_v1 method.
+		DeviceSetAdaptiveTgpMode_v1 []struct {
 			// Device is the device argument value.
 			Device nvml.Device
 			// EnableState is the enableState argument value.
@@ -3724,12 +4013,30 @@ type Interface struct {
 			// GpuOperationMode is the gpuOperationMode argument value.
 			GpuOperationMode nvml.GpuOperationMode
 		}
+		// DeviceSetHostname_v1 holds details about calls to the DeviceSetHostname_v1 method.
+		DeviceSetHostname_v1 []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+			// S is the s argument value.
+			S string
+		}
 		// DeviceSetMemClkVfOffset holds details about calls to the DeviceSetMemClkVfOffset method.
 		DeviceSetMemClkVfOffset []struct {
 			// Device is the device argument value.
 			Device nvml.Device
 			// N is the n argument value.
 			N int
+		}
+		// DeviceSetMemoryLimits_v1 holds details about calls to the DeviceSetMemoryLimits_v1 method.
+		DeviceSetMemoryLimits_v1 []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+			// S is the s argument value.
+			S string
+			// V1 is the v1 argument value.
+			V1 uint64
+			// V2 is the v2 argument value.
+			V2 uint64
 		}
 		// DeviceSetMemoryLockedClocks holds details about calls to the DeviceSetMemoryLockedClocks method.
 		DeviceSetMemoryLockedClocks []struct {
@@ -3774,6 +4081,13 @@ type Interface struct {
 			// NvlinkSetBwMode is the nvlinkSetBwMode argument value.
 			NvlinkSetBwMode *nvml.NvlinkSetBwMode
 		}
+		// DeviceSetNvlinkBwModeAsync_v1 holds details about calls to the DeviceSetNvlinkBwModeAsync_v1 method.
+		DeviceSetNvlinkBwModeAsync_v1 []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+			// NvlinkSetBwModeAsync_v1 is the nvlinkSetBwModeAsync_v1 argument value.
+			NvlinkSetBwModeAsync_v1 *nvml.NvlinkSetBwModeAsync_v1
+		}
 		// DeviceSetPersistenceMode holds details about calls to the DeviceSetPersistenceMode method.
 		DeviceSetPersistenceMode []struct {
 			// Device is the device argument value.
@@ -3794,6 +4108,13 @@ type Interface struct {
 			Device nvml.Device
 			// PowerValue_v2 is the powerValue_v2 argument value.
 			PowerValue_v2 *nvml.PowerValue_v2
+		}
+		// DeviceSetRusdSettings_v1 holds details about calls to the DeviceSetRusdSettings_v1 method.
+		DeviceSetRusdSettings_v1 []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+			// RusdSettings_v1 is the rusdSettings_v1 argument value.
+			RusdSettings_v1 nvml.RusdSettings_v1
 		}
 		// DeviceSetTemperatureThreshold holds details about calls to the DeviceSetTemperatureThreshold method.
 		DeviceSetTemperatureThreshold []struct {
@@ -3827,6 +4148,13 @@ type Interface struct {
 			// VgpuSchedulerSetState is the vgpuSchedulerSetState argument value.
 			VgpuSchedulerSetState *nvml.VgpuSchedulerSetState
 		}
+		// DeviceSetVgpuSchedulerState_v2 holds details about calls to the DeviceSetVgpuSchedulerState_v2 method.
+		DeviceSetVgpuSchedulerState_v2 []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+			// VgpuSchedulerState_v2 is the vgpuSchedulerState_v2 argument value.
+			VgpuSchedulerState_v2 *nvml.VgpuSchedulerState_v2
+		}
 		// DeviceSetVirtualizationMode holds details about calls to the DeviceSetVirtualizationMode method.
 		DeviceSetVirtualizationMode []struct {
 			// Device is the device argument value.
@@ -3836,6 +4164,11 @@ type Interface struct {
 		}
 		// DeviceValidateInforom holds details about calls to the DeviceValidateInforom method.
 		DeviceValidateInforom []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+		}
+		// DeviceVgpuForceGspUnload holds details about calls to the DeviceVgpuForceGspUnload method.
+		DeviceVgpuForceGspUnload []struct {
 			// Device is the device argument value.
 			Device nvml.Device
 		}
@@ -3863,6 +4196,15 @@ type Interface struct {
 			// WorkloadPowerProfileRequestedProfiles is the workloadPowerProfileRequestedProfiles argument value.
 			WorkloadPowerProfileRequestedProfiles *nvml.WorkloadPowerProfileRequestedProfiles
 		}
+		// DeviceWorkloadPowerProfileUpdateProfiles_v1 holds details about calls to the DeviceWorkloadPowerProfileUpdateProfiles_v1 method.
+		DeviceWorkloadPowerProfileUpdateProfiles_v1 []struct {
+			// Device is the device argument value.
+			Device nvml.Device
+			// PowerProfileOperation is the powerProfileOperation argument value.
+			PowerProfileOperation nvml.PowerProfileOperation
+			// PowerProfileTypes is the powerProfileTypes argument value.
+			PowerProfileTypes []nvml.PowerProfileType
+		}
 		// ErrorString holds details about calls to the ErrorString method.
 		ErrorString []struct {
 			// ReturnMoqParam is the returnMoqParam argument value.
@@ -3876,8 +4218,48 @@ type Interface struct {
 			// EventSet is the eventSet argument value.
 			EventSet nvml.EventSet
 		}
+		// EventSetGetContextCount_v1 holds details about calls to the EventSetGetContextCount_v1 method.
+		EventSetGetContextCount_v1 []struct {
+			// EventSet is the eventSet argument value.
+			EventSet nvml.EventSet
+		}
+		// EventSetGetContextData_v1 holds details about calls to the EventSetGetContextData_v1 method.
+		EventSetGetContextData_v1 []struct {
+			// EventSet is the eventSet argument value.
+			EventSet nvml.EventSet
+			// GetContextData_v1 is the getContextData_v1 argument value.
+			GetContextData_v1 nvml.GetContextData_v1
+		}
+		// EventSetGetContextInfo_v1 holds details about calls to the EventSetGetContextInfo_v1 method.
+		EventSetGetContextInfo_v1 []struct {
+			// EventSet is the eventSet argument value.
+			EventSet nvml.EventSet
+			// V is the v argument value.
+			V uint32
+		}
+		// EventSetGetGpuOperationalEventContextLegacyXid_v1 holds details about calls to the EventSetGetGpuOperationalEventContextLegacyXid_v1 method.
+		EventSetGetGpuOperationalEventContextLegacyXid_v1 []struct {
+			// EventSet is the eventSet argument value.
+			EventSet nvml.EventSet
+			// V is the v argument value.
+			V uint32
+		}
+		// EventSetRegisterGpuOperationalEvents_v1 holds details about calls to the EventSetRegisterGpuOperationalEvents_v1 method.
+		EventSetRegisterGpuOperationalEvents_v1 []struct {
+			// EventSet is the eventSet argument value.
+			EventSet nvml.EventSet
+			// GpuOperationalEventConfig_v1 is the gpuOperationalEventConfig_v1 argument value.
+			GpuOperationalEventConfig_v1 *nvml.GpuOperationalEventConfig_v1
+		}
 		// EventSetWait holds details about calls to the EventSetWait method.
 		EventSetWait []struct {
+			// EventSet is the eventSet argument value.
+			EventSet nvml.EventSet
+			// V is the v argument value.
+			V uint32
+		}
+		// EventSetWait_v3 holds details about calls to the EventSetWait_v3 method.
+		EventSetWait_v3 []struct {
 			// EventSet is the eventSet argument value.
 			EventSet nvml.EventSet
 			// V is the v argument value.
@@ -4057,10 +4439,24 @@ type Interface struct {
 			// GpuInstance is the gpuInstance argument value.
 			GpuInstance nvml.GpuInstance
 		}
+		// GpuInstanceGetVgpuSchedulerLog_v2 holds details about calls to the GpuInstanceGetVgpuSchedulerLog_v2 method.
+		GpuInstanceGetVgpuSchedulerLog_v2 []struct {
+			// GpuInstance is the gpuInstance argument value.
+			GpuInstance nvml.GpuInstance
+			// VgpuSchedulerLogInfo_v2 is the vgpuSchedulerLogInfo_v2 argument value.
+			VgpuSchedulerLogInfo_v2 nvml.VgpuSchedulerLogInfo_v2
+		}
 		// GpuInstanceGetVgpuSchedulerState holds details about calls to the GpuInstanceGetVgpuSchedulerState method.
 		GpuInstanceGetVgpuSchedulerState []struct {
 			// GpuInstance is the gpuInstance argument value.
 			GpuInstance nvml.GpuInstance
+		}
+		// GpuInstanceGetVgpuSchedulerState_v2 holds details about calls to the GpuInstanceGetVgpuSchedulerState_v2 method.
+		GpuInstanceGetVgpuSchedulerState_v2 []struct {
+			// GpuInstance is the gpuInstance argument value.
+			GpuInstance nvml.GpuInstance
+			// VgpuSchedulerStateInfo_v2 is the vgpuSchedulerStateInfo_v2 argument value.
+			VgpuSchedulerStateInfo_v2 nvml.VgpuSchedulerStateInfo_v2
 		}
 		// GpuInstanceGetVgpuTypeCreatablePlacements holds details about calls to the GpuInstanceGetVgpuTypeCreatablePlacements method.
 		GpuInstanceGetVgpuTypeCreatablePlacements []struct {
@@ -4080,6 +4476,13 @@ type Interface struct {
 			GpuInstance nvml.GpuInstance
 			// VgpuSchedulerState is the vgpuSchedulerState argument value.
 			VgpuSchedulerState *nvml.VgpuSchedulerState
+		}
+		// GpuInstanceSetVgpuSchedulerState_v2 holds details about calls to the GpuInstanceSetVgpuSchedulerState_v2 method.
+		GpuInstanceSetVgpuSchedulerState_v2 []struct {
+			// GpuInstance is the gpuInstance argument value.
+			GpuInstance nvml.GpuInstance
+			// VgpuSchedulerState_v2 is the vgpuSchedulerState_v2 argument value.
+			VgpuSchedulerState_v2 *nvml.VgpuSchedulerState_v2
 		}
 		// Init holds details about calls to the Init method.
 		Init []struct {
@@ -4111,6 +4514,11 @@ type Interface struct {
 		SystemEventSetWait []struct {
 			// SystemEventSetWaitRequest is the systemEventSetWaitRequest argument value.
 			SystemEventSetWaitRequest *nvml.SystemEventSetWaitRequest
+		}
+		// SystemGetCPER_v1 holds details about calls to the SystemGetCPER_v1 method.
+		SystemGetCPER_v1 []struct {
+			// GetCPER_v1 is the getCPER_v1 argument value.
+			GetCPER_v1 *nvml.GetCPER_v1
 		}
 		// SystemGetConfComputeCapabilities holds details about calls to the SystemGetConfComputeCapabilities method.
 		SystemGetConfComputeCapabilities []struct {
@@ -4386,6 +4794,11 @@ type Interface struct {
 			// VgpuTypeId is the vgpuTypeId argument value.
 			VgpuTypeId nvml.VgpuTypeId
 		}
+		// VgpuTypeGetID holds details about calls to the VgpuTypeGetID method.
+		VgpuTypeGetID []struct {
+			// VgpuTypeId is the vgpuTypeId argument value.
+			VgpuTypeId nvml.VgpuTypeId
+		}
 		// VgpuTypeGetLicense holds details about calls to the VgpuTypeGetLicense method.
 		VgpuTypeGetLicense []struct {
 			// VgpuTypeId is the vgpuTypeId argument value.
@@ -4426,380 +4839,413 @@ type Interface struct {
 			N int
 		}
 	}
-	lockComputeInstanceDestroy                           sync.RWMutex
-	lockComputeInstanceGetInfo                           sync.RWMutex
-	lockDeviceClearAccountingPids                        sync.RWMutex
-	lockDeviceClearCpuAffinity                           sync.RWMutex
-	lockDeviceClearEccErrorCounts                        sync.RWMutex
-	lockDeviceClearFieldValues                           sync.RWMutex
-	lockDeviceCreateGpuInstance                          sync.RWMutex
-	lockDeviceCreateGpuInstanceWithPlacement             sync.RWMutex
-	lockDeviceDiscoverGpus                               sync.RWMutex
-	lockDeviceFreezeNvLinkUtilizationCounter             sync.RWMutex
-	lockDeviceGetAPIRestriction                          sync.RWMutex
-	lockDeviceGetAccountingBufferSize                    sync.RWMutex
-	lockDeviceGetAccountingMode                          sync.RWMutex
-	lockDeviceGetAccountingPids                          sync.RWMutex
-	lockDeviceGetAccountingStats                         sync.RWMutex
-	lockDeviceGetActiveVgpus                             sync.RWMutex
-	lockDeviceGetAdaptiveClockInfoStatus                 sync.RWMutex
-	lockDeviceGetAddressingMode                          sync.RWMutex
-	lockDeviceGetApplicationsClock                       sync.RWMutex
-	lockDeviceGetArchitecture                            sync.RWMutex
-	lockDeviceGetAttributes                              sync.RWMutex
-	lockDeviceGetAutoBoostedClocksEnabled                sync.RWMutex
-	lockDeviceGetBAR1MemoryInfo                          sync.RWMutex
-	lockDeviceGetBoardId                                 sync.RWMutex
-	lockDeviceGetBoardPartNumber                         sync.RWMutex
-	lockDeviceGetBrand                                   sync.RWMutex
-	lockDeviceGetBridgeChipInfo                          sync.RWMutex
-	lockDeviceGetBusType                                 sync.RWMutex
-	lockDeviceGetC2cModeInfoV                            sync.RWMutex
-	lockDeviceGetCapabilities                            sync.RWMutex
-	lockDeviceGetClkMonStatus                            sync.RWMutex
-	lockDeviceGetClock                                   sync.RWMutex
-	lockDeviceGetClockInfo                               sync.RWMutex
-	lockDeviceGetClockOffsets                            sync.RWMutex
-	lockDeviceGetComputeInstanceId                       sync.RWMutex
-	lockDeviceGetComputeMode                             sync.RWMutex
-	lockDeviceGetComputeRunningProcesses                 sync.RWMutex
-	lockDeviceGetConfComputeGpuAttestationReport         sync.RWMutex
-	lockDeviceGetConfComputeGpuCertificate               sync.RWMutex
-	lockDeviceGetConfComputeMemSizeInfo                  sync.RWMutex
-	lockDeviceGetConfComputeProtectedMemoryUsage         sync.RWMutex
-	lockDeviceGetCoolerInfo                              sync.RWMutex
-	lockDeviceGetCount                                   sync.RWMutex
-	lockDeviceGetCpuAffinity                             sync.RWMutex
-	lockDeviceGetCpuAffinityWithinScope                  sync.RWMutex
-	lockDeviceGetCreatableVgpus                          sync.RWMutex
-	lockDeviceGetCudaComputeCapability                   sync.RWMutex
-	lockDeviceGetCurrPcieLinkGeneration                  sync.RWMutex
-	lockDeviceGetCurrPcieLinkWidth                       sync.RWMutex
-	lockDeviceGetCurrentClockFreqs                       sync.RWMutex
-	lockDeviceGetCurrentClocksEventReasons               sync.RWMutex
-	lockDeviceGetCurrentClocksThrottleReasons            sync.RWMutex
-	lockDeviceGetDecoderUtilization                      sync.RWMutex
-	lockDeviceGetDefaultApplicationsClock                sync.RWMutex
-	lockDeviceGetDefaultEccMode                          sync.RWMutex
-	lockDeviceGetDetailedEccErrors                       sync.RWMutex
-	lockDeviceGetDeviceHandleFromMigDeviceHandle         sync.RWMutex
-	lockDeviceGetDisplayActive                           sync.RWMutex
-	lockDeviceGetDisplayMode                             sync.RWMutex
-	lockDeviceGetDramEncryptionMode                      sync.RWMutex
-	lockDeviceGetDriverModel                             sync.RWMutex
-	lockDeviceGetDriverModel_v2                          sync.RWMutex
-	lockDeviceGetDynamicPstatesInfo                      sync.RWMutex
-	lockDeviceGetEccMode                                 sync.RWMutex
-	lockDeviceGetEncoderCapacity                         sync.RWMutex
-	lockDeviceGetEncoderSessions                         sync.RWMutex
-	lockDeviceGetEncoderStats                            sync.RWMutex
-	lockDeviceGetEncoderUtilization                      sync.RWMutex
-	lockDeviceGetEnforcedPowerLimit                      sync.RWMutex
-	lockDeviceGetFBCSessions                             sync.RWMutex
-	lockDeviceGetFBCStats                                sync.RWMutex
-	lockDeviceGetFanControlPolicy_v2                     sync.RWMutex
-	lockDeviceGetFanSpeed                                sync.RWMutex
-	lockDeviceGetFanSpeedRPM                             sync.RWMutex
-	lockDeviceGetFanSpeed_v2                             sync.RWMutex
-	lockDeviceGetFieldValues                             sync.RWMutex
-	lockDeviceGetGpcClkMinMaxVfOffset                    sync.RWMutex
-	lockDeviceGetGpcClkVfOffset                          sync.RWMutex
-	lockDeviceGetGpuFabricInfo                           sync.RWMutex
-	lockDeviceGetGpuFabricInfoV                          sync.RWMutex
-	lockDeviceGetGpuInstanceById                         sync.RWMutex
-	lockDeviceGetGpuInstanceId                           sync.RWMutex
-	lockDeviceGetGpuInstancePossiblePlacements           sync.RWMutex
-	lockDeviceGetGpuInstanceProfileInfo                  sync.RWMutex
-	lockDeviceGetGpuInstanceProfileInfoByIdV             sync.RWMutex
-	lockDeviceGetGpuInstanceProfileInfoV                 sync.RWMutex
-	lockDeviceGetGpuInstanceRemainingCapacity            sync.RWMutex
-	lockDeviceGetGpuInstances                            sync.RWMutex
-	lockDeviceGetGpuMaxPcieLinkGeneration                sync.RWMutex
-	lockDeviceGetGpuOperationMode                        sync.RWMutex
-	lockDeviceGetGraphicsRunningProcesses                sync.RWMutex
-	lockDeviceGetGridLicensableFeatures                  sync.RWMutex
-	lockDeviceGetGspFirmwareMode                         sync.RWMutex
-	lockDeviceGetGspFirmwareVersion                      sync.RWMutex
-	lockDeviceGetHandleByIndex                           sync.RWMutex
-	lockDeviceGetHandleByPciBusId                        sync.RWMutex
-	lockDeviceGetHandleBySerial                          sync.RWMutex
-	lockDeviceGetHandleByUUID                            sync.RWMutex
-	lockDeviceGetHandleByUUIDV                           sync.RWMutex
-	lockDeviceGetHostVgpuMode                            sync.RWMutex
-	lockDeviceGetIndex                                   sync.RWMutex
-	lockDeviceGetInforomConfigurationChecksum            sync.RWMutex
-	lockDeviceGetInforomImageVersion                     sync.RWMutex
-	lockDeviceGetInforomVersion                          sync.RWMutex
-	lockDeviceGetIrqNum                                  sync.RWMutex
-	lockDeviceGetJpgUtilization                          sync.RWMutex
-	lockDeviceGetLastBBXFlushTime                        sync.RWMutex
-	lockDeviceGetMPSComputeRunningProcesses              sync.RWMutex
-	lockDeviceGetMarginTemperature                       sync.RWMutex
-	lockDeviceGetMaxClockInfo                            sync.RWMutex
-	lockDeviceGetMaxCustomerBoostClock                   sync.RWMutex
-	lockDeviceGetMaxMigDeviceCount                       sync.RWMutex
-	lockDeviceGetMaxPcieLinkGeneration                   sync.RWMutex
-	lockDeviceGetMaxPcieLinkWidth                        sync.RWMutex
-	lockDeviceGetMemClkMinMaxVfOffset                    sync.RWMutex
-	lockDeviceGetMemClkVfOffset                          sync.RWMutex
-	lockDeviceGetMemoryAffinity                          sync.RWMutex
-	lockDeviceGetMemoryBusWidth                          sync.RWMutex
-	lockDeviceGetMemoryErrorCounter                      sync.RWMutex
-	lockDeviceGetMemoryInfo                              sync.RWMutex
-	lockDeviceGetMemoryInfo_v2                           sync.RWMutex
-	lockDeviceGetMigDeviceHandleByIndex                  sync.RWMutex
-	lockDeviceGetMigMode                                 sync.RWMutex
-	lockDeviceGetMinMaxClockOfPState                     sync.RWMutex
-	lockDeviceGetMinMaxFanSpeed                          sync.RWMutex
-	lockDeviceGetMinorNumber                             sync.RWMutex
-	lockDeviceGetModuleId                                sync.RWMutex
-	lockDeviceGetMultiGpuBoard                           sync.RWMutex
-	lockDeviceGetName                                    sync.RWMutex
-	lockDeviceGetNumFans                                 sync.RWMutex
-	lockDeviceGetNumGpuCores                             sync.RWMutex
-	lockDeviceGetNumaNodeId                              sync.RWMutex
-	lockDeviceGetNvLinkCapability                        sync.RWMutex
-	lockDeviceGetNvLinkErrorCounter                      sync.RWMutex
-	lockDeviceGetNvLinkInfo                              sync.RWMutex
-	lockDeviceGetNvLinkRemoteDeviceType                  sync.RWMutex
-	lockDeviceGetNvLinkRemotePciInfo                     sync.RWMutex
-	lockDeviceGetNvLinkState                             sync.RWMutex
-	lockDeviceGetNvLinkUtilizationControl                sync.RWMutex
-	lockDeviceGetNvLinkUtilizationCounter                sync.RWMutex
-	lockDeviceGetNvLinkVersion                           sync.RWMutex
-	lockDeviceGetNvlinkBwMode                            sync.RWMutex
-	lockDeviceGetNvlinkSupportedBwModes                  sync.RWMutex
-	lockDeviceGetOfaUtilization                          sync.RWMutex
-	lockDeviceGetP2PStatus                               sync.RWMutex
-	lockDeviceGetPciInfo                                 sync.RWMutex
-	lockDeviceGetPciInfoExt                              sync.RWMutex
-	lockDeviceGetPcieLinkMaxSpeed                        sync.RWMutex
-	lockDeviceGetPcieReplayCounter                       sync.RWMutex
-	lockDeviceGetPcieSpeed                               sync.RWMutex
-	lockDeviceGetPcieThroughput                          sync.RWMutex
-	lockDeviceGetPdi                                     sync.RWMutex
-	lockDeviceGetPerformanceModes                        sync.RWMutex
-	lockDeviceGetPerformanceState                        sync.RWMutex
-	lockDeviceGetPersistenceMode                         sync.RWMutex
-	lockDeviceGetPgpuMetadataString                      sync.RWMutex
-	lockDeviceGetPlatformInfo                            sync.RWMutex
-	lockDeviceGetPowerManagementDefaultLimit             sync.RWMutex
-	lockDeviceGetPowerManagementLimit                    sync.RWMutex
-	lockDeviceGetPowerManagementLimitConstraints         sync.RWMutex
-	lockDeviceGetPowerManagementMode                     sync.RWMutex
-	lockDeviceGetPowerMizerMode_v1                       sync.RWMutex
-	lockDeviceGetPowerSource                             sync.RWMutex
-	lockDeviceGetPowerState                              sync.RWMutex
-	lockDeviceGetPowerUsage                              sync.RWMutex
-	lockDeviceGetProcessUtilization                      sync.RWMutex
-	lockDeviceGetProcessesUtilizationInfo                sync.RWMutex
-	lockDeviceGetRemappedRows                            sync.RWMutex
-	lockDeviceGetRepairStatus                            sync.RWMutex
-	lockDeviceGetRetiredPages                            sync.RWMutex
-	lockDeviceGetRetiredPagesPendingStatus               sync.RWMutex
-	lockDeviceGetRetiredPages_v2                         sync.RWMutex
-	lockDeviceGetRowRemapperHistogram                    sync.RWMutex
-	lockDeviceGetRunningProcessDetailList                sync.RWMutex
-	lockDeviceGetSamples                                 sync.RWMutex
-	lockDeviceGetSerial                                  sync.RWMutex
-	lockDeviceGetSramEccErrorStatus                      sync.RWMutex
-	lockDeviceGetSramUniqueUncorrectedEccErrorCounts     sync.RWMutex
-	lockDeviceGetSupportedClocksEventReasons             sync.RWMutex
-	lockDeviceGetSupportedClocksThrottleReasons          sync.RWMutex
-	lockDeviceGetSupportedEventTypes                     sync.RWMutex
-	lockDeviceGetSupportedGraphicsClocks                 sync.RWMutex
-	lockDeviceGetSupportedMemoryClocks                   sync.RWMutex
-	lockDeviceGetSupportedPerformanceStates              sync.RWMutex
-	lockDeviceGetSupportedVgpus                          sync.RWMutex
-	lockDeviceGetTargetFanSpeed                          sync.RWMutex
-	lockDeviceGetTemperature                             sync.RWMutex
-	lockDeviceGetTemperatureThreshold                    sync.RWMutex
-	lockDeviceGetTemperatureV                            sync.RWMutex
-	lockDeviceGetThermalSettings                         sync.RWMutex
-	lockDeviceGetTopologyCommonAncestor                  sync.RWMutex
-	lockDeviceGetTopologyNearestGpus                     sync.RWMutex
-	lockDeviceGetTotalEccErrors                          sync.RWMutex
-	lockDeviceGetTotalEnergyConsumption                  sync.RWMutex
-	lockDeviceGetUUID                                    sync.RWMutex
-	lockDeviceGetUtilizationRates                        sync.RWMutex
-	lockDeviceGetVbiosVersion                            sync.RWMutex
-	lockDeviceGetVgpuCapabilities                        sync.RWMutex
-	lockDeviceGetVgpuHeterogeneousMode                   sync.RWMutex
-	lockDeviceGetVgpuInstancesUtilizationInfo            sync.RWMutex
-	lockDeviceGetVgpuMetadata                            sync.RWMutex
-	lockDeviceGetVgpuProcessUtilization                  sync.RWMutex
-	lockDeviceGetVgpuProcessesUtilizationInfo            sync.RWMutex
-	lockDeviceGetVgpuSchedulerCapabilities               sync.RWMutex
-	lockDeviceGetVgpuSchedulerLog                        sync.RWMutex
-	lockDeviceGetVgpuSchedulerState                      sync.RWMutex
-	lockDeviceGetVgpuTypeCreatablePlacements             sync.RWMutex
-	lockDeviceGetVgpuTypeSupportedPlacements             sync.RWMutex
-	lockDeviceGetVgpuUtilization                         sync.RWMutex
-	lockDeviceGetViolationStatus                         sync.RWMutex
-	lockDeviceGetVirtualizationMode                      sync.RWMutex
-	lockDeviceIsMigDeviceHandle                          sync.RWMutex
-	lockDeviceModifyDrainState                           sync.RWMutex
-	lockDeviceOnSameBoard                                sync.RWMutex
-	lockDevicePowerSmoothingActivatePresetProfile        sync.RWMutex
-	lockDevicePowerSmoothingSetState                     sync.RWMutex
-	lockDevicePowerSmoothingUpdatePresetProfileParam     sync.RWMutex
-	lockDeviceQueryDrainState                            sync.RWMutex
-	lockDeviceReadWritePRM_v1                            sync.RWMutex
-	lockDeviceRegisterEvents                             sync.RWMutex
-	lockDeviceRemoveGpu                                  sync.RWMutex
-	lockDeviceRemoveGpu_v2                               sync.RWMutex
-	lockDeviceResetApplicationsClocks                    sync.RWMutex
-	lockDeviceResetGpuLockedClocks                       sync.RWMutex
-	lockDeviceResetMemoryLockedClocks                    sync.RWMutex
-	lockDeviceResetNvLinkErrorCounters                   sync.RWMutex
-	lockDeviceResetNvLinkUtilizationCounter              sync.RWMutex
-	lockDeviceSetAPIRestriction                          sync.RWMutex
-	lockDeviceSetAccountingMode                          sync.RWMutex
-	lockDeviceSetApplicationsClocks                      sync.RWMutex
-	lockDeviceSetAutoBoostedClocksEnabled                sync.RWMutex
-	lockDeviceSetClockOffsets                            sync.RWMutex
-	lockDeviceSetComputeMode                             sync.RWMutex
-	lockDeviceSetConfComputeUnprotectedMemSize           sync.RWMutex
-	lockDeviceSetCpuAffinity                             sync.RWMutex
-	lockDeviceSetDefaultAutoBoostedClocksEnabled         sync.RWMutex
-	lockDeviceSetDefaultFanSpeed_v2                      sync.RWMutex
-	lockDeviceSetDramEncryptionMode                      sync.RWMutex
-	lockDeviceSetDriverModel                             sync.RWMutex
-	lockDeviceSetEccMode                                 sync.RWMutex
-	lockDeviceSetFanControlPolicy                        sync.RWMutex
-	lockDeviceSetFanSpeed_v2                             sync.RWMutex
-	lockDeviceSetGpcClkVfOffset                          sync.RWMutex
-	lockDeviceSetGpuLockedClocks                         sync.RWMutex
-	lockDeviceSetGpuOperationMode                        sync.RWMutex
-	lockDeviceSetMemClkVfOffset                          sync.RWMutex
-	lockDeviceSetMemoryLockedClocks                      sync.RWMutex
-	lockDeviceSetMigMode                                 sync.RWMutex
-	lockDeviceSetNvLinkDeviceLowPowerThreshold           sync.RWMutex
-	lockDeviceSetNvLinkUtilizationControl                sync.RWMutex
-	lockDeviceSetNvlinkBwMode                            sync.RWMutex
-	lockDeviceSetPersistenceMode                         sync.RWMutex
-	lockDeviceSetPowerManagementLimit                    sync.RWMutex
-	lockDeviceSetPowerManagementLimit_v2                 sync.RWMutex
-	lockDeviceSetTemperatureThreshold                    sync.RWMutex
-	lockDeviceSetVgpuCapabilities                        sync.RWMutex
-	lockDeviceSetVgpuHeterogeneousMode                   sync.RWMutex
-	lockDeviceSetVgpuSchedulerState                      sync.RWMutex
-	lockDeviceSetVirtualizationMode                      sync.RWMutex
-	lockDeviceValidateInforom                            sync.RWMutex
-	lockDeviceWorkloadPowerProfileClearRequestedProfiles sync.RWMutex
-	lockDeviceWorkloadPowerProfileGetCurrentProfiles     sync.RWMutex
-	lockDeviceWorkloadPowerProfileGetProfilesInfo        sync.RWMutex
-	lockDeviceWorkloadPowerProfileSetRequestedProfiles   sync.RWMutex
-	lockErrorString                                      sync.RWMutex
-	lockEventSetCreate                                   sync.RWMutex
-	lockEventSetFree                                     sync.RWMutex
-	lockEventSetWait                                     sync.RWMutex
-	lockExtensions                                       sync.RWMutex
-	lockGetExcludedDeviceCount                           sync.RWMutex
-	lockGetExcludedDeviceInfoByIndex                     sync.RWMutex
-	lockGetVgpuCompatibility                             sync.RWMutex
-	lockGetVgpuDriverCapabilities                        sync.RWMutex
-	lockGetVgpuVersion                                   sync.RWMutex
-	lockGpmMetricsGet                                    sync.RWMutex
-	lockGpmMetricsGetV                                   sync.RWMutex
-	lockGpmMigSampleGet                                  sync.RWMutex
-	lockGpmQueryDeviceSupport                            sync.RWMutex
-	lockGpmQueryDeviceSupportV                           sync.RWMutex
-	lockGpmQueryIfStreamingEnabled                       sync.RWMutex
-	lockGpmSampleAlloc                                   sync.RWMutex
-	lockGpmSampleFree                                    sync.RWMutex
-	lockGpmSampleGet                                     sync.RWMutex
-	lockGpmSetStreamingEnabled                           sync.RWMutex
-	lockGpuInstanceCreateComputeInstance                 sync.RWMutex
-	lockGpuInstanceCreateComputeInstanceWithPlacement    sync.RWMutex
-	lockGpuInstanceDestroy                               sync.RWMutex
-	lockGpuInstanceGetActiveVgpus                        sync.RWMutex
-	lockGpuInstanceGetComputeInstanceById                sync.RWMutex
-	lockGpuInstanceGetComputeInstancePossiblePlacements  sync.RWMutex
-	lockGpuInstanceGetComputeInstanceProfileInfo         sync.RWMutex
-	lockGpuInstanceGetComputeInstanceProfileInfoV        sync.RWMutex
-	lockGpuInstanceGetComputeInstanceRemainingCapacity   sync.RWMutex
-	lockGpuInstanceGetComputeInstances                   sync.RWMutex
-	lockGpuInstanceGetCreatableVgpus                     sync.RWMutex
-	lockGpuInstanceGetInfo                               sync.RWMutex
-	lockGpuInstanceGetVgpuHeterogeneousMode              sync.RWMutex
-	lockGpuInstanceGetVgpuSchedulerLog                   sync.RWMutex
-	lockGpuInstanceGetVgpuSchedulerState                 sync.RWMutex
-	lockGpuInstanceGetVgpuTypeCreatablePlacements        sync.RWMutex
-	lockGpuInstanceSetVgpuHeterogeneousMode              sync.RWMutex
-	lockGpuInstanceSetVgpuSchedulerState                 sync.RWMutex
-	lockInit                                             sync.RWMutex
-	lockInitWithFlags                                    sync.RWMutex
-	lockSetVgpuVersion                                   sync.RWMutex
-	lockShutdown                                         sync.RWMutex
-	lockSystemEventSetCreate                             sync.RWMutex
-	lockSystemEventSetFree                               sync.RWMutex
-	lockSystemEventSetWait                               sync.RWMutex
-	lockSystemGetConfComputeCapabilities                 sync.RWMutex
-	lockSystemGetConfComputeGpusReadyState               sync.RWMutex
-	lockSystemGetConfComputeKeyRotationThresholdInfo     sync.RWMutex
-	lockSystemGetConfComputeSettings                     sync.RWMutex
-	lockSystemGetConfComputeState                        sync.RWMutex
-	lockSystemGetCudaDriverVersion                       sync.RWMutex
-	lockSystemGetCudaDriverVersion_v2                    sync.RWMutex
-	lockSystemGetDriverBranch                            sync.RWMutex
-	lockSystemGetDriverVersion                           sync.RWMutex
-	lockSystemGetHicVersion                              sync.RWMutex
-	lockSystemGetNVMLVersion                             sync.RWMutex
-	lockSystemGetNvlinkBwMode                            sync.RWMutex
-	lockSystemGetProcessName                             sync.RWMutex
-	lockSystemGetTopologyGpuSet                          sync.RWMutex
-	lockSystemRegisterEvents                             sync.RWMutex
-	lockSystemSetConfComputeGpusReadyState               sync.RWMutex
-	lockSystemSetConfComputeKeyRotationThresholdInfo     sync.RWMutex
-	lockSystemSetNvlinkBwMode                            sync.RWMutex
-	lockUnitGetCount                                     sync.RWMutex
-	lockUnitGetDevices                                   sync.RWMutex
-	lockUnitGetFanSpeedInfo                              sync.RWMutex
-	lockUnitGetHandleByIndex                             sync.RWMutex
-	lockUnitGetLedState                                  sync.RWMutex
-	lockUnitGetPsuInfo                                   sync.RWMutex
-	lockUnitGetTemperature                               sync.RWMutex
-	lockUnitGetUnitInfo                                  sync.RWMutex
-	lockUnitSetLedState                                  sync.RWMutex
-	lockVgpuInstanceClearAccountingPids                  sync.RWMutex
-	lockVgpuInstanceGetAccountingMode                    sync.RWMutex
-	lockVgpuInstanceGetAccountingPids                    sync.RWMutex
-	lockVgpuInstanceGetAccountingStats                   sync.RWMutex
-	lockVgpuInstanceGetEccMode                           sync.RWMutex
-	lockVgpuInstanceGetEncoderCapacity                   sync.RWMutex
-	lockVgpuInstanceGetEncoderSessions                   sync.RWMutex
-	lockVgpuInstanceGetEncoderStats                      sync.RWMutex
-	lockVgpuInstanceGetFBCSessions                       sync.RWMutex
-	lockVgpuInstanceGetFBCStats                          sync.RWMutex
-	lockVgpuInstanceGetFbUsage                           sync.RWMutex
-	lockVgpuInstanceGetFrameRateLimit                    sync.RWMutex
-	lockVgpuInstanceGetGpuInstanceId                     sync.RWMutex
-	lockVgpuInstanceGetGpuPciId                          sync.RWMutex
-	lockVgpuInstanceGetLicenseInfo                       sync.RWMutex
-	lockVgpuInstanceGetLicenseStatus                     sync.RWMutex
-	lockVgpuInstanceGetMdevUUID                          sync.RWMutex
-	lockVgpuInstanceGetMetadata                          sync.RWMutex
-	lockVgpuInstanceGetRuntimeStateSize                  sync.RWMutex
-	lockVgpuInstanceGetType                              sync.RWMutex
-	lockVgpuInstanceGetUUID                              sync.RWMutex
-	lockVgpuInstanceGetVmDriverVersion                   sync.RWMutex
-	lockVgpuInstanceGetVmID                              sync.RWMutex
-	lockVgpuInstanceSetEncoderCapacity                   sync.RWMutex
-	lockVgpuTypeGetBAR1Info                              sync.RWMutex
-	lockVgpuTypeGetCapabilities                          sync.RWMutex
-	lockVgpuTypeGetClass                                 sync.RWMutex
-	lockVgpuTypeGetDeviceID                              sync.RWMutex
-	lockVgpuTypeGetFrameRateLimit                        sync.RWMutex
-	lockVgpuTypeGetFramebufferSize                       sync.RWMutex
-	lockVgpuTypeGetGpuInstanceProfileId                  sync.RWMutex
-	lockVgpuTypeGetLicense                               sync.RWMutex
-	lockVgpuTypeGetMaxInstances                          sync.RWMutex
-	lockVgpuTypeGetMaxInstancesPerGpuInstance            sync.RWMutex
-	lockVgpuTypeGetMaxInstancesPerVm                     sync.RWMutex
-	lockVgpuTypeGetName                                  sync.RWMutex
-	lockVgpuTypeGetNumDisplayHeads                       sync.RWMutex
-	lockVgpuTypeGetResolution                            sync.RWMutex
+	lockComputeInstanceDestroy                            sync.RWMutex
+	lockComputeInstanceGetInfo                            sync.RWMutex
+	lockDeviceClearAccountingPids                         sync.RWMutex
+	lockDeviceClearCpuAffinity                            sync.RWMutex
+	lockDeviceClearEccErrorCounts                         sync.RWMutex
+	lockDeviceClearFieldValues                            sync.RWMutex
+	lockDeviceCreateGpuInstance                           sync.RWMutex
+	lockDeviceCreateGpuInstanceWithPlacement              sync.RWMutex
+	lockDeviceDiscoverGpus                                sync.RWMutex
+	lockDeviceFreezeNvLinkUtilizationCounter              sync.RWMutex
+	lockDeviceGetAPIRestriction                           sync.RWMutex
+	lockDeviceGetAccountingBufferSize                     sync.RWMutex
+	lockDeviceGetAccountingMode                           sync.RWMutex
+	lockDeviceGetAccountingPids                           sync.RWMutex
+	lockDeviceGetAccountingStats                          sync.RWMutex
+	lockDeviceGetAccountingStats_v2                       sync.RWMutex
+	lockDeviceGetActiveVgpus                              sync.RWMutex
+	lockDeviceGetAdaptiveClockInfoStatus                  sync.RWMutex
+	lockDeviceGetAdaptiveTgpModeInfo_v1                   sync.RWMutex
+	lockDeviceGetAddressingMode                           sync.RWMutex
+	lockDeviceGetApplicationsClock                        sync.RWMutex
+	lockDeviceGetArchitecture                             sync.RWMutex
+	lockDeviceGetAttributes                               sync.RWMutex
+	lockDeviceGetAutoBoostedClocksEnabled                 sync.RWMutex
+	lockDeviceGetBAR1MemoryInfo                           sync.RWMutex
+	lockDeviceGetBBXTimeData_v1                           sync.RWMutex
+	lockDeviceGetBankRemapperStatus_v1                    sync.RWMutex
+	lockDeviceGetBoardId                                  sync.RWMutex
+	lockDeviceGetBoardPartNumber                          sync.RWMutex
+	lockDeviceGetBrand                                    sync.RWMutex
+	lockDeviceGetBridgeChipInfo                           sync.RWMutex
+	lockDeviceGetBusType                                  sync.RWMutex
+	lockDeviceGetC2cModeInfoV                             sync.RWMutex
+	lockDeviceGetCapabilities                             sync.RWMutex
+	lockDeviceGetClkMonStatus                             sync.RWMutex
+	lockDeviceGetClock                                    sync.RWMutex
+	lockDeviceGetClockInfo                                sync.RWMutex
+	lockDeviceGetClockOffsets                             sync.RWMutex
+	lockDeviceGetComputeInstanceId                        sync.RWMutex
+	lockDeviceGetComputeMode                              sync.RWMutex
+	lockDeviceGetComputeRunningProcesses                  sync.RWMutex
+	lockDeviceGetConfComputeGpuAttestationReport          sync.RWMutex
+	lockDeviceGetConfComputeGpuCertificate                sync.RWMutex
+	lockDeviceGetConfComputeMemSizeInfo                   sync.RWMutex
+	lockDeviceGetConfComputeProtectedMemoryUsage          sync.RWMutex
+	lockDeviceGetCoolerInfo                               sync.RWMutex
+	lockDeviceGetCount                                    sync.RWMutex
+	lockDeviceGetCpuAffinity                              sync.RWMutex
+	lockDeviceGetCpuAffinityWithinScope                   sync.RWMutex
+	lockDeviceGetCreatableVgpus                           sync.RWMutex
+	lockDeviceGetCudaComputeCapability                    sync.RWMutex
+	lockDeviceGetCurrPcieLinkGeneration                   sync.RWMutex
+	lockDeviceGetCurrPcieLinkWidth                        sync.RWMutex
+	lockDeviceGetCurrentClockFreqs                        sync.RWMutex
+	lockDeviceGetCurrentClocksEventReasons                sync.RWMutex
+	lockDeviceGetCurrentClocksThrottleReasons             sync.RWMutex
+	lockDeviceGetDecoderUtilization                       sync.RWMutex
+	lockDeviceGetDefaultApplicationsClock                 sync.RWMutex
+	lockDeviceGetDefaultEccMode                           sync.RWMutex
+	lockDeviceGetDetailedEccErrors                        sync.RWMutex
+	lockDeviceGetDeviceHandleFromMigDeviceHandle          sync.RWMutex
+	lockDeviceGetDisplayActive                            sync.RWMutex
+	lockDeviceGetDisplayMode                              sync.RWMutex
+	lockDeviceGetDramEncryptionMode                       sync.RWMutex
+	lockDeviceGetDriverModel                              sync.RWMutex
+	lockDeviceGetDriverModel_v2                           sync.RWMutex
+	lockDeviceGetDynamicPstatesInfo                       sync.RWMutex
+	lockDeviceGetEccMode                                  sync.RWMutex
+	lockDeviceGetEncoderCapacity                          sync.RWMutex
+	lockDeviceGetEncoderSessions                          sync.RWMutex
+	lockDeviceGetEncoderStats                             sync.RWMutex
+	lockDeviceGetEncoderUtilization                       sync.RWMutex
+	lockDeviceGetEnforcedPowerLimit                       sync.RWMutex
+	lockDeviceGetFBCSessions                              sync.RWMutex
+	lockDeviceGetFBCStats                                 sync.RWMutex
+	lockDeviceGetFanControlPolicy_v2                      sync.RWMutex
+	lockDeviceGetFanSpeed                                 sync.RWMutex
+	lockDeviceGetFanSpeedRPM                              sync.RWMutex
+	lockDeviceGetFanSpeed_v2                              sync.RWMutex
+	lockDeviceGetFieldValues                              sync.RWMutex
+	lockDeviceGetGpcClkMinMaxVfOffset                     sync.RWMutex
+	lockDeviceGetGpcClkVfOffset                           sync.RWMutex
+	lockDeviceGetGpuFabricInfo                            sync.RWMutex
+	lockDeviceGetGpuFabricInfoV                           sync.RWMutex
+	lockDeviceGetGpuFabricInfo_v4                         sync.RWMutex
+	lockDeviceGetGpuInstanceById                          sync.RWMutex
+	lockDeviceGetGpuInstanceId                            sync.RWMutex
+	lockDeviceGetGpuInstancePossiblePlacements            sync.RWMutex
+	lockDeviceGetGpuInstanceProfileInfo                   sync.RWMutex
+	lockDeviceGetGpuInstanceProfileInfoByIdV              sync.RWMutex
+	lockDeviceGetGpuInstanceProfileInfoV                  sync.RWMutex
+	lockDeviceGetGpuInstanceRemainingCapacity             sync.RWMutex
+	lockDeviceGetGpuInstances                             sync.RWMutex
+	lockDeviceGetGpuMaxPcieLinkGeneration                 sync.RWMutex
+	lockDeviceGetGpuOperationMode                         sync.RWMutex
+	lockDeviceGetGraphicsRunningProcesses                 sync.RWMutex
+	lockDeviceGetGridLicensableFeatures                   sync.RWMutex
+	lockDeviceGetGspFirmwareMode                          sync.RWMutex
+	lockDeviceGetGspFirmwareVersion                       sync.RWMutex
+	lockDeviceGetHandleByIndex                            sync.RWMutex
+	lockDeviceGetHandleByPciBusId                         sync.RWMutex
+	lockDeviceGetHandleBySerial                           sync.RWMutex
+	lockDeviceGetHandleByUUID                             sync.RWMutex
+	lockDeviceGetHandleByUUIDV                            sync.RWMutex
+	lockDeviceGetHostVgpuMode                             sync.RWMutex
+	lockDeviceGetHostname_v1                              sync.RWMutex
+	lockDeviceGetIndex                                    sync.RWMutex
+	lockDeviceGetInforomConfigurationChecksum             sync.RWMutex
+	lockDeviceGetInforomImageVersion                      sync.RWMutex
+	lockDeviceGetInforomVersion                           sync.RWMutex
+	lockDeviceGetIrqNum                                   sync.RWMutex
+	lockDeviceGetJpgUtilization                           sync.RWMutex
+	lockDeviceGetLastBBXFlushTime                         sync.RWMutex
+	lockDeviceGetMPSComputeRunningProcesses               sync.RWMutex
+	lockDeviceGetMarginTemperature                        sync.RWMutex
+	lockDeviceGetMaxClockInfo                             sync.RWMutex
+	lockDeviceGetMaxCustomerBoostClock                    sync.RWMutex
+	lockDeviceGetMaxMigDeviceCount                        sync.RWMutex
+	lockDeviceGetMaxPcieLinkGeneration                    sync.RWMutex
+	lockDeviceGetMaxPcieLinkWidth                         sync.RWMutex
+	lockDeviceGetMemClkMinMaxVfOffset                     sync.RWMutex
+	lockDeviceGetMemClkVfOffset                           sync.RWMutex
+	lockDeviceGetMemoryAffinity                           sync.RWMutex
+	lockDeviceGetMemoryBusWidth                           sync.RWMutex
+	lockDeviceGetMemoryErrorCounter                       sync.RWMutex
+	lockDeviceGetMemoryInfo                               sync.RWMutex
+	lockDeviceGetMemoryInfo_v2                            sync.RWMutex
+	lockDeviceGetMemoryLimits_v1                          sync.RWMutex
+	lockDeviceGetMigDeviceHandleByIndex                   sync.RWMutex
+	lockDeviceGetMigMode                                  sync.RWMutex
+	lockDeviceGetMinMaxClockOfPState                      sync.RWMutex
+	lockDeviceGetMinMaxFanSpeed                           sync.RWMutex
+	lockDeviceGetMinorNumber                              sync.RWMutex
+	lockDeviceGetModuleId                                 sync.RWMutex
+	lockDeviceGetMultiGpuBoard                            sync.RWMutex
+	lockDeviceGetName                                     sync.RWMutex
+	lockDeviceGetNumFans                                  sync.RWMutex
+	lockDeviceGetNumGpuCores                              sync.RWMutex
+	lockDeviceGetNumaNodeId                               sync.RWMutex
+	lockDeviceGetNvLinkCapability                         sync.RWMutex
+	lockDeviceGetNvLinkErrorCounter                       sync.RWMutex
+	lockDeviceGetNvLinkInfo                               sync.RWMutex
+	lockDeviceGetNvLinkRemoteDeviceType                   sync.RWMutex
+	lockDeviceGetNvLinkRemotePciInfo                      sync.RWMutex
+	lockDeviceGetNvLinkState                              sync.RWMutex
+	lockDeviceGetNvLinkTelemetrySamples_v1                sync.RWMutex
+	lockDeviceGetNvLinkUtilizationControl                 sync.RWMutex
+	lockDeviceGetNvLinkUtilizationCounter                 sync.RWMutex
+	lockDeviceGetNvLinkVersion                            sync.RWMutex
+	lockDeviceGetNvlinkBwMode                             sync.RWMutex
+	lockDeviceGetNvlinkSupportedBwModes                   sync.RWMutex
+	lockDeviceGetOfaUtilization                           sync.RWMutex
+	lockDeviceGetP2PStatus                                sync.RWMutex
+	lockDeviceGetPciInfo                                  sync.RWMutex
+	lockDeviceGetPciInfoExt                               sync.RWMutex
+	lockDeviceGetPcieLinkMaxSpeed                         sync.RWMutex
+	lockDeviceGetPcieReplayCounter                        sync.RWMutex
+	lockDeviceGetPcieSpeed                                sync.RWMutex
+	lockDeviceGetPcieThroughput                           sync.RWMutex
+	lockDeviceGetPdi                                      sync.RWMutex
+	lockDeviceGetPerformanceModes                         sync.RWMutex
+	lockDeviceGetPerformanceState                         sync.RWMutex
+	lockDeviceGetPersistenceMode                          sync.RWMutex
+	lockDeviceGetPgpuMetadataString                       sync.RWMutex
+	lockDeviceGetPlatformInfo                             sync.RWMutex
+	lockDeviceGetPowerManagementDefaultLimit              sync.RWMutex
+	lockDeviceGetPowerManagementLimit                     sync.RWMutex
+	lockDeviceGetPowerManagementLimitConstraints          sync.RWMutex
+	lockDeviceGetPowerManagementMode                      sync.RWMutex
+	lockDeviceGetPowerMizerMode_v1                        sync.RWMutex
+	lockDeviceGetPowerSource                              sync.RWMutex
+	lockDeviceGetPowerState                               sync.RWMutex
+	lockDeviceGetPowerUsage                               sync.RWMutex
+	lockDeviceGetProcessUtilization                       sync.RWMutex
+	lockDeviceGetProcessesUtilizationInfo                 sync.RWMutex
+	lockDeviceGetRemappedRows                             sync.RWMutex
+	lockDeviceGetRemappedRows_v2                          sync.RWMutex
+	lockDeviceGetRepairStatus                             sync.RWMutex
+	lockDeviceGetRetiredPages                             sync.RWMutex
+	lockDeviceGetRetiredPagesPendingStatus                sync.RWMutex
+	lockDeviceGetRetiredPages_v2                          sync.RWMutex
+	lockDeviceGetRowRemapperHistogram                     sync.RWMutex
+	lockDeviceGetRunningProcessDetailList                 sync.RWMutex
+	lockDeviceGetSamples                                  sync.RWMutex
+	lockDeviceGetSerial                                   sync.RWMutex
+	lockDeviceGetSramEccErrorStatus                       sync.RWMutex
+	lockDeviceGetSramUniqueUncorrectedEccErrorCounts      sync.RWMutex
+	lockDeviceGetSupportedClocksEventReasons              sync.RWMutex
+	lockDeviceGetSupportedClocksThrottleReasons           sync.RWMutex
+	lockDeviceGetSupportedEventTypes                      sync.RWMutex
+	lockDeviceGetSupportedGraphicsClocks                  sync.RWMutex
+	lockDeviceGetSupportedMemoryClocks                    sync.RWMutex
+	lockDeviceGetSupportedPerformanceStates               sync.RWMutex
+	lockDeviceGetSupportedVgpus                           sync.RWMutex
+	lockDeviceGetTargetFanSpeed                           sync.RWMutex
+	lockDeviceGetTemperature                              sync.RWMutex
+	lockDeviceGetTemperatureThreshold                     sync.RWMutex
+	lockDeviceGetTemperatureV                             sync.RWMutex
+	lockDeviceGetThermalSettings                          sync.RWMutex
+	lockDeviceGetTopologyCommonAncestor                   sync.RWMutex
+	lockDeviceGetTopologyNearestGpus                      sync.RWMutex
+	lockDeviceGetTotalEccErrors                           sync.RWMutex
+	lockDeviceGetTotalEnergyConsumption                   sync.RWMutex
+	lockDeviceGetUUID                                     sync.RWMutex
+	lockDeviceGetUnrepairableMemoryFlag_v1                sync.RWMutex
+	lockDeviceGetUtilizationRates                         sync.RWMutex
+	lockDeviceGetVbiosVersion                             sync.RWMutex
+	lockDeviceGetVgpuCapabilities                         sync.RWMutex
+	lockDeviceGetVgpuHeterogeneousMode                    sync.RWMutex
+	lockDeviceGetVgpuInstancesUtilizationInfo             sync.RWMutex
+	lockDeviceGetVgpuMetadata                             sync.RWMutex
+	lockDeviceGetVgpuProcessUtilization                   sync.RWMutex
+	lockDeviceGetVgpuProcessesUtilizationInfo             sync.RWMutex
+	lockDeviceGetVgpuSchedulerCapabilities                sync.RWMutex
+	lockDeviceGetVgpuSchedulerLog                         sync.RWMutex
+	lockDeviceGetVgpuSchedulerLog_v2                      sync.RWMutex
+	lockDeviceGetVgpuSchedulerState                       sync.RWMutex
+	lockDeviceGetVgpuSchedulerState_v2                    sync.RWMutex
+	lockDeviceGetVgpuTypeCreatablePlacements              sync.RWMutex
+	lockDeviceGetVgpuTypeSupportedPlacements              sync.RWMutex
+	lockDeviceGetVgpuUtilization                          sync.RWMutex
+	lockDeviceGetViolationStatus                          sync.RWMutex
+	lockDeviceGetVirtualizationMode                       sync.RWMutex
+	lockDeviceIsMigDeviceHandle                           sync.RWMutex
+	lockDeviceModifyDrainState                            sync.RWMutex
+	lockDeviceOnSameBoard                                 sync.RWMutex
+	lockDevicePerfMetricsGetSamples_v1                    sync.RWMutex
+	lockDevicePowerSmoothingActivatePresetProfile         sync.RWMutex
+	lockDevicePowerSmoothingSetState                      sync.RWMutex
+	lockDevicePowerSmoothingUpdatePresetProfileParam      sync.RWMutex
+	lockDeviceQueryDrainState                             sync.RWMutex
+	lockDeviceReadPRMCounters_v1                          sync.RWMutex
+	lockDeviceReadWritePRM_v1                             sync.RWMutex
+	lockDeviceRegisterEvents                              sync.RWMutex
+	lockDeviceRemoveGpu                                   sync.RWMutex
+	lockDeviceRemoveGpu_v2                                sync.RWMutex
+	lockDeviceResetApplicationsClocks                     sync.RWMutex
+	lockDeviceResetGpuLockedClocks                        sync.RWMutex
+	lockDeviceResetMemoryLockedClocks                     sync.RWMutex
+	lockDeviceResetNvLinkErrorCounters                    sync.RWMutex
+	lockDeviceResetNvLinkUtilizationCounter               sync.RWMutex
+	lockDeviceSetAPIRestriction                           sync.RWMutex
+	lockDeviceSetAccountingMode                           sync.RWMutex
+	lockDeviceSetAdaptiveTgpMode_v1                       sync.RWMutex
+	lockDeviceSetApplicationsClocks                       sync.RWMutex
+	lockDeviceSetAutoBoostedClocksEnabled                 sync.RWMutex
+	lockDeviceSetClockOffsets                             sync.RWMutex
+	lockDeviceSetComputeMode                              sync.RWMutex
+	lockDeviceSetConfComputeUnprotectedMemSize            sync.RWMutex
+	lockDeviceSetCpuAffinity                              sync.RWMutex
+	lockDeviceSetDefaultAutoBoostedClocksEnabled          sync.RWMutex
+	lockDeviceSetDefaultFanSpeed_v2                       sync.RWMutex
+	lockDeviceSetDramEncryptionMode                       sync.RWMutex
+	lockDeviceSetDriverModel                              sync.RWMutex
+	lockDeviceSetEccMode                                  sync.RWMutex
+	lockDeviceSetFanControlPolicy                         sync.RWMutex
+	lockDeviceSetFanSpeed_v2                              sync.RWMutex
+	lockDeviceSetGpcClkVfOffset                           sync.RWMutex
+	lockDeviceSetGpuLockedClocks                          sync.RWMutex
+	lockDeviceSetGpuOperationMode                         sync.RWMutex
+	lockDeviceSetHostname_v1                              sync.RWMutex
+	lockDeviceSetMemClkVfOffset                           sync.RWMutex
+	lockDeviceSetMemoryLimits_v1                          sync.RWMutex
+	lockDeviceSetMemoryLockedClocks                       sync.RWMutex
+	lockDeviceSetMigMode                                  sync.RWMutex
+	lockDeviceSetNvLinkDeviceLowPowerThreshold            sync.RWMutex
+	lockDeviceSetNvLinkUtilizationControl                 sync.RWMutex
+	lockDeviceSetNvlinkBwMode                             sync.RWMutex
+	lockDeviceSetNvlinkBwModeAsync_v1                     sync.RWMutex
+	lockDeviceSetPersistenceMode                          sync.RWMutex
+	lockDeviceSetPowerManagementLimit                     sync.RWMutex
+	lockDeviceSetPowerManagementLimit_v2                  sync.RWMutex
+	lockDeviceSetRusdSettings_v1                          sync.RWMutex
+	lockDeviceSetTemperatureThreshold                     sync.RWMutex
+	lockDeviceSetVgpuCapabilities                         sync.RWMutex
+	lockDeviceSetVgpuHeterogeneousMode                    sync.RWMutex
+	lockDeviceSetVgpuSchedulerState                       sync.RWMutex
+	lockDeviceSetVgpuSchedulerState_v2                    sync.RWMutex
+	lockDeviceSetVirtualizationMode                       sync.RWMutex
+	lockDeviceValidateInforom                             sync.RWMutex
+	lockDeviceVgpuForceGspUnload                          sync.RWMutex
+	lockDeviceWorkloadPowerProfileClearRequestedProfiles  sync.RWMutex
+	lockDeviceWorkloadPowerProfileGetCurrentProfiles      sync.RWMutex
+	lockDeviceWorkloadPowerProfileGetProfilesInfo         sync.RWMutex
+	lockDeviceWorkloadPowerProfileSetRequestedProfiles    sync.RWMutex
+	lockDeviceWorkloadPowerProfileUpdateProfiles_v1       sync.RWMutex
+	lockErrorString                                       sync.RWMutex
+	lockEventSetCreate                                    sync.RWMutex
+	lockEventSetFree                                      sync.RWMutex
+	lockEventSetGetContextCount_v1                        sync.RWMutex
+	lockEventSetGetContextData_v1                         sync.RWMutex
+	lockEventSetGetContextInfo_v1                         sync.RWMutex
+	lockEventSetGetGpuOperationalEventContextLegacyXid_v1 sync.RWMutex
+	lockEventSetRegisterGpuOperationalEvents_v1           sync.RWMutex
+	lockEventSetWait                                      sync.RWMutex
+	lockEventSetWait_v3                                   sync.RWMutex
+	lockExtensions                                        sync.RWMutex
+	lockGetExcludedDeviceCount                            sync.RWMutex
+	lockGetExcludedDeviceInfoByIndex                      sync.RWMutex
+	lockGetVgpuCompatibility                              sync.RWMutex
+	lockGetVgpuDriverCapabilities                         sync.RWMutex
+	lockGetVgpuVersion                                    sync.RWMutex
+	lockGpmMetricsGet                                     sync.RWMutex
+	lockGpmMetricsGetV                                    sync.RWMutex
+	lockGpmMigSampleGet                                   sync.RWMutex
+	lockGpmQueryDeviceSupport                             sync.RWMutex
+	lockGpmQueryDeviceSupportV                            sync.RWMutex
+	lockGpmQueryIfStreamingEnabled                        sync.RWMutex
+	lockGpmSampleAlloc                                    sync.RWMutex
+	lockGpmSampleFree                                     sync.RWMutex
+	lockGpmSampleGet                                      sync.RWMutex
+	lockGpmSetStreamingEnabled                            sync.RWMutex
+	lockGpuInstanceCreateComputeInstance                  sync.RWMutex
+	lockGpuInstanceCreateComputeInstanceWithPlacement     sync.RWMutex
+	lockGpuInstanceDestroy                                sync.RWMutex
+	lockGpuInstanceGetActiveVgpus                         sync.RWMutex
+	lockGpuInstanceGetComputeInstanceById                 sync.RWMutex
+	lockGpuInstanceGetComputeInstancePossiblePlacements   sync.RWMutex
+	lockGpuInstanceGetComputeInstanceProfileInfo          sync.RWMutex
+	lockGpuInstanceGetComputeInstanceProfileInfoV         sync.RWMutex
+	lockGpuInstanceGetComputeInstanceRemainingCapacity    sync.RWMutex
+	lockGpuInstanceGetComputeInstances                    sync.RWMutex
+	lockGpuInstanceGetCreatableVgpus                      sync.RWMutex
+	lockGpuInstanceGetInfo                                sync.RWMutex
+	lockGpuInstanceGetVgpuHeterogeneousMode               sync.RWMutex
+	lockGpuInstanceGetVgpuSchedulerLog                    sync.RWMutex
+	lockGpuInstanceGetVgpuSchedulerLog_v2                 sync.RWMutex
+	lockGpuInstanceGetVgpuSchedulerState                  sync.RWMutex
+	lockGpuInstanceGetVgpuSchedulerState_v2               sync.RWMutex
+	lockGpuInstanceGetVgpuTypeCreatablePlacements         sync.RWMutex
+	lockGpuInstanceSetVgpuHeterogeneousMode               sync.RWMutex
+	lockGpuInstanceSetVgpuSchedulerState                  sync.RWMutex
+	lockGpuInstanceSetVgpuSchedulerState_v2               sync.RWMutex
+	lockInit                                              sync.RWMutex
+	lockInitWithFlags                                     sync.RWMutex
+	lockSetVgpuVersion                                    sync.RWMutex
+	lockShutdown                                          sync.RWMutex
+	lockSystemEventSetCreate                              sync.RWMutex
+	lockSystemEventSetFree                                sync.RWMutex
+	lockSystemEventSetWait                                sync.RWMutex
+	lockSystemGetCPER_v1                                  sync.RWMutex
+	lockSystemGetConfComputeCapabilities                  sync.RWMutex
+	lockSystemGetConfComputeGpusReadyState                sync.RWMutex
+	lockSystemGetConfComputeKeyRotationThresholdInfo      sync.RWMutex
+	lockSystemGetConfComputeSettings                      sync.RWMutex
+	lockSystemGetConfComputeState                         sync.RWMutex
+	lockSystemGetCudaDriverVersion                        sync.RWMutex
+	lockSystemGetCudaDriverVersion_v2                     sync.RWMutex
+	lockSystemGetDriverBranch                             sync.RWMutex
+	lockSystemGetDriverVersion                            sync.RWMutex
+	lockSystemGetHicVersion                               sync.RWMutex
+	lockSystemGetNVMLVersion                              sync.RWMutex
+	lockSystemGetNvlinkBwMode                             sync.RWMutex
+	lockSystemGetProcessName                              sync.RWMutex
+	lockSystemGetTopologyGpuSet                           sync.RWMutex
+	lockSystemRegisterEvents                              sync.RWMutex
+	lockSystemSetConfComputeGpusReadyState                sync.RWMutex
+	lockSystemSetConfComputeKeyRotationThresholdInfo      sync.RWMutex
+	lockSystemSetNvlinkBwMode                             sync.RWMutex
+	lockUnitGetCount                                      sync.RWMutex
+	lockUnitGetDevices                                    sync.RWMutex
+	lockUnitGetFanSpeedInfo                               sync.RWMutex
+	lockUnitGetHandleByIndex                              sync.RWMutex
+	lockUnitGetLedState                                   sync.RWMutex
+	lockUnitGetPsuInfo                                    sync.RWMutex
+	lockUnitGetTemperature                                sync.RWMutex
+	lockUnitGetUnitInfo                                   sync.RWMutex
+	lockUnitSetLedState                                   sync.RWMutex
+	lockVgpuInstanceClearAccountingPids                   sync.RWMutex
+	lockVgpuInstanceGetAccountingMode                     sync.RWMutex
+	lockVgpuInstanceGetAccountingPids                     sync.RWMutex
+	lockVgpuInstanceGetAccountingStats                    sync.RWMutex
+	lockVgpuInstanceGetEccMode                            sync.RWMutex
+	lockVgpuInstanceGetEncoderCapacity                    sync.RWMutex
+	lockVgpuInstanceGetEncoderSessions                    sync.RWMutex
+	lockVgpuInstanceGetEncoderStats                       sync.RWMutex
+	lockVgpuInstanceGetFBCSessions                        sync.RWMutex
+	lockVgpuInstanceGetFBCStats                           sync.RWMutex
+	lockVgpuInstanceGetFbUsage                            sync.RWMutex
+	lockVgpuInstanceGetFrameRateLimit                     sync.RWMutex
+	lockVgpuInstanceGetGpuInstanceId                      sync.RWMutex
+	lockVgpuInstanceGetGpuPciId                           sync.RWMutex
+	lockVgpuInstanceGetLicenseInfo                        sync.RWMutex
+	lockVgpuInstanceGetLicenseStatus                      sync.RWMutex
+	lockVgpuInstanceGetMdevUUID                           sync.RWMutex
+	lockVgpuInstanceGetMetadata                           sync.RWMutex
+	lockVgpuInstanceGetRuntimeStateSize                   sync.RWMutex
+	lockVgpuInstanceGetType                               sync.RWMutex
+	lockVgpuInstanceGetUUID                               sync.RWMutex
+	lockVgpuInstanceGetVmDriverVersion                    sync.RWMutex
+	lockVgpuInstanceGetVmID                               sync.RWMutex
+	lockVgpuInstanceSetEncoderCapacity                    sync.RWMutex
+	lockVgpuTypeGetBAR1Info                               sync.RWMutex
+	lockVgpuTypeGetCapabilities                           sync.RWMutex
+	lockVgpuTypeGetClass                                  sync.RWMutex
+	lockVgpuTypeGetDeviceID                               sync.RWMutex
+	lockVgpuTypeGetFrameRateLimit                         sync.RWMutex
+	lockVgpuTypeGetFramebufferSize                        sync.RWMutex
+	lockVgpuTypeGetGpuInstanceProfileId                   sync.RWMutex
+	lockVgpuTypeGetID                                     sync.RWMutex
+	lockVgpuTypeGetLicense                                sync.RWMutex
+	lockVgpuTypeGetMaxInstances                           sync.RWMutex
+	lockVgpuTypeGetMaxInstancesPerGpuInstance             sync.RWMutex
+	lockVgpuTypeGetMaxInstancesPerVm                      sync.RWMutex
+	lockVgpuTypeGetName                                   sync.RWMutex
+	lockVgpuTypeGetNumDisplayHeads                        sync.RWMutex
+	lockVgpuTypeGetResolution                             sync.RWMutex
 }
 
 // ComputeInstanceDestroy calls ComputeInstanceDestroyFunc.
@@ -5317,6 +5763,42 @@ func (mock *Interface) DeviceGetAccountingStatsCalls() []struct {
 	return calls
 }
 
+// DeviceGetAccountingStats_v2 calls DeviceGetAccountingStats_v2Func.
+func (mock *Interface) DeviceGetAccountingStats_v2(device nvml.Device, v uint32) (nvml.AccountingStats_v2, nvml.Return) {
+	if mock.DeviceGetAccountingStats_v2Func == nil {
+		panic("Interface.DeviceGetAccountingStats_v2Func: method is nil but Interface.DeviceGetAccountingStats_v2 was just called")
+	}
+	callInfo := struct {
+		Device nvml.Device
+		V      uint32
+	}{
+		Device: device,
+		V:      v,
+	}
+	mock.lockDeviceGetAccountingStats_v2.Lock()
+	mock.calls.DeviceGetAccountingStats_v2 = append(mock.calls.DeviceGetAccountingStats_v2, callInfo)
+	mock.lockDeviceGetAccountingStats_v2.Unlock()
+	return mock.DeviceGetAccountingStats_v2Func(device, v)
+}
+
+// DeviceGetAccountingStats_v2Calls gets all the calls that were made to DeviceGetAccountingStats_v2.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceGetAccountingStats_v2Calls())
+func (mock *Interface) DeviceGetAccountingStats_v2Calls() []struct {
+	Device nvml.Device
+	V      uint32
+} {
+	var calls []struct {
+		Device nvml.Device
+		V      uint32
+	}
+	mock.lockDeviceGetAccountingStats_v2.RLock()
+	calls = mock.calls.DeviceGetAccountingStats_v2
+	mock.lockDeviceGetAccountingStats_v2.RUnlock()
+	return calls
+}
+
 // DeviceGetActiveVgpus calls DeviceGetActiveVgpusFunc.
 func (mock *Interface) DeviceGetActiveVgpus(device nvml.Device) ([]nvml.VgpuInstance, nvml.Return) {
 	if mock.DeviceGetActiveVgpusFunc == nil {
@@ -5378,6 +5860,38 @@ func (mock *Interface) DeviceGetAdaptiveClockInfoStatusCalls() []struct {
 	mock.lockDeviceGetAdaptiveClockInfoStatus.RLock()
 	calls = mock.calls.DeviceGetAdaptiveClockInfoStatus
 	mock.lockDeviceGetAdaptiveClockInfoStatus.RUnlock()
+	return calls
+}
+
+// DeviceGetAdaptiveTgpModeInfo_v1 calls DeviceGetAdaptiveTgpModeInfo_v1Func.
+func (mock *Interface) DeviceGetAdaptiveTgpModeInfo_v1(device nvml.Device) (nvml.AdaptiveTgpModeInfo_v1, nvml.Return) {
+	if mock.DeviceGetAdaptiveTgpModeInfo_v1Func == nil {
+		panic("Interface.DeviceGetAdaptiveTgpModeInfo_v1Func: method is nil but Interface.DeviceGetAdaptiveTgpModeInfo_v1 was just called")
+	}
+	callInfo := struct {
+		Device nvml.Device
+	}{
+		Device: device,
+	}
+	mock.lockDeviceGetAdaptiveTgpModeInfo_v1.Lock()
+	mock.calls.DeviceGetAdaptiveTgpModeInfo_v1 = append(mock.calls.DeviceGetAdaptiveTgpModeInfo_v1, callInfo)
+	mock.lockDeviceGetAdaptiveTgpModeInfo_v1.Unlock()
+	return mock.DeviceGetAdaptiveTgpModeInfo_v1Func(device)
+}
+
+// DeviceGetAdaptiveTgpModeInfo_v1Calls gets all the calls that were made to DeviceGetAdaptiveTgpModeInfo_v1.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceGetAdaptiveTgpModeInfo_v1Calls())
+func (mock *Interface) DeviceGetAdaptiveTgpModeInfo_v1Calls() []struct {
+	Device nvml.Device
+} {
+	var calls []struct {
+		Device nvml.Device
+	}
+	mock.lockDeviceGetAdaptiveTgpModeInfo_v1.RLock()
+	calls = mock.calls.DeviceGetAdaptiveTgpModeInfo_v1
+	mock.lockDeviceGetAdaptiveTgpModeInfo_v1.RUnlock()
 	return calls
 }
 
@@ -5574,6 +6088,70 @@ func (mock *Interface) DeviceGetBAR1MemoryInfoCalls() []struct {
 	mock.lockDeviceGetBAR1MemoryInfo.RLock()
 	calls = mock.calls.DeviceGetBAR1MemoryInfo
 	mock.lockDeviceGetBAR1MemoryInfo.RUnlock()
+	return calls
+}
+
+// DeviceGetBBXTimeData_v1 calls DeviceGetBBXTimeData_v1Func.
+func (mock *Interface) DeviceGetBBXTimeData_v1(device nvml.Device) (nvml.BBXTimeData_v1, nvml.Return) {
+	if mock.DeviceGetBBXTimeData_v1Func == nil {
+		panic("Interface.DeviceGetBBXTimeData_v1Func: method is nil but Interface.DeviceGetBBXTimeData_v1 was just called")
+	}
+	callInfo := struct {
+		Device nvml.Device
+	}{
+		Device: device,
+	}
+	mock.lockDeviceGetBBXTimeData_v1.Lock()
+	mock.calls.DeviceGetBBXTimeData_v1 = append(mock.calls.DeviceGetBBXTimeData_v1, callInfo)
+	mock.lockDeviceGetBBXTimeData_v1.Unlock()
+	return mock.DeviceGetBBXTimeData_v1Func(device)
+}
+
+// DeviceGetBBXTimeData_v1Calls gets all the calls that were made to DeviceGetBBXTimeData_v1.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceGetBBXTimeData_v1Calls())
+func (mock *Interface) DeviceGetBBXTimeData_v1Calls() []struct {
+	Device nvml.Device
+} {
+	var calls []struct {
+		Device nvml.Device
+	}
+	mock.lockDeviceGetBBXTimeData_v1.RLock()
+	calls = mock.calls.DeviceGetBBXTimeData_v1
+	mock.lockDeviceGetBBXTimeData_v1.RUnlock()
+	return calls
+}
+
+// DeviceGetBankRemapperStatus_v1 calls DeviceGetBankRemapperStatus_v1Func.
+func (mock *Interface) DeviceGetBankRemapperStatus_v1(device nvml.Device) (nvml.EccBankRemapperStatus_v1, nvml.Return) {
+	if mock.DeviceGetBankRemapperStatus_v1Func == nil {
+		panic("Interface.DeviceGetBankRemapperStatus_v1Func: method is nil but Interface.DeviceGetBankRemapperStatus_v1 was just called")
+	}
+	callInfo := struct {
+		Device nvml.Device
+	}{
+		Device: device,
+	}
+	mock.lockDeviceGetBankRemapperStatus_v1.Lock()
+	mock.calls.DeviceGetBankRemapperStatus_v1 = append(mock.calls.DeviceGetBankRemapperStatus_v1, callInfo)
+	mock.lockDeviceGetBankRemapperStatus_v1.Unlock()
+	return mock.DeviceGetBankRemapperStatus_v1Func(device)
+}
+
+// DeviceGetBankRemapperStatus_v1Calls gets all the calls that were made to DeviceGetBankRemapperStatus_v1.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceGetBankRemapperStatus_v1Calls())
+func (mock *Interface) DeviceGetBankRemapperStatus_v1Calls() []struct {
+	Device nvml.Device
+} {
+	var calls []struct {
+		Device nvml.Device
+	}
+	mock.lockDeviceGetBankRemapperStatus_v1.RLock()
+	calls = mock.calls.DeviceGetBankRemapperStatus_v1
+	mock.lockDeviceGetBankRemapperStatus_v1.RUnlock()
 	return calls
 }
 
@@ -7452,6 +8030,38 @@ func (mock *Interface) DeviceGetGpuFabricInfoVCalls() []struct {
 	return calls
 }
 
+// DeviceGetGpuFabricInfo_v4 calls DeviceGetGpuFabricInfo_v4Func.
+func (mock *Interface) DeviceGetGpuFabricInfo_v4(device nvml.Device) (nvml.GpuFabricInfo_v4, nvml.Return) {
+	if mock.DeviceGetGpuFabricInfo_v4Func == nil {
+		panic("Interface.DeviceGetGpuFabricInfo_v4Func: method is nil but Interface.DeviceGetGpuFabricInfo_v4 was just called")
+	}
+	callInfo := struct {
+		Device nvml.Device
+	}{
+		Device: device,
+	}
+	mock.lockDeviceGetGpuFabricInfo_v4.Lock()
+	mock.calls.DeviceGetGpuFabricInfo_v4 = append(mock.calls.DeviceGetGpuFabricInfo_v4, callInfo)
+	mock.lockDeviceGetGpuFabricInfo_v4.Unlock()
+	return mock.DeviceGetGpuFabricInfo_v4Func(device)
+}
+
+// DeviceGetGpuFabricInfo_v4Calls gets all the calls that were made to DeviceGetGpuFabricInfo_v4.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceGetGpuFabricInfo_v4Calls())
+func (mock *Interface) DeviceGetGpuFabricInfo_v4Calls() []struct {
+	Device nvml.Device
+} {
+	var calls []struct {
+		Device nvml.Device
+	}
+	mock.lockDeviceGetGpuFabricInfo_v4.RLock()
+	calls = mock.calls.DeviceGetGpuFabricInfo_v4
+	mock.lockDeviceGetGpuFabricInfo_v4.RUnlock()
+	return calls
+}
+
 // DeviceGetGpuInstanceById calls DeviceGetGpuInstanceByIdFunc.
 func (mock *Interface) DeviceGetGpuInstanceById(device nvml.Device, n int) (nvml.GpuInstance, nvml.Return) {
 	if mock.DeviceGetGpuInstanceByIdFunc == nil {
@@ -8117,6 +8727,38 @@ func (mock *Interface) DeviceGetHostVgpuModeCalls() []struct {
 	mock.lockDeviceGetHostVgpuMode.RLock()
 	calls = mock.calls.DeviceGetHostVgpuMode
 	mock.lockDeviceGetHostVgpuMode.RUnlock()
+	return calls
+}
+
+// DeviceGetHostname_v1 calls DeviceGetHostname_v1Func.
+func (mock *Interface) DeviceGetHostname_v1(device nvml.Device) (string, nvml.Return) {
+	if mock.DeviceGetHostname_v1Func == nil {
+		panic("Interface.DeviceGetHostname_v1Func: method is nil but Interface.DeviceGetHostname_v1 was just called")
+	}
+	callInfo := struct {
+		Device nvml.Device
+	}{
+		Device: device,
+	}
+	mock.lockDeviceGetHostname_v1.Lock()
+	mock.calls.DeviceGetHostname_v1 = append(mock.calls.DeviceGetHostname_v1, callInfo)
+	mock.lockDeviceGetHostname_v1.Unlock()
+	return mock.DeviceGetHostname_v1Func(device)
+}
+
+// DeviceGetHostname_v1Calls gets all the calls that were made to DeviceGetHostname_v1.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceGetHostname_v1Calls())
+func (mock *Interface) DeviceGetHostname_v1Calls() []struct {
+	Device nvml.Device
+} {
+	var calls []struct {
+		Device nvml.Device
+	}
+	mock.lockDeviceGetHostname_v1.RLock()
+	calls = mock.calls.DeviceGetHostname_v1
+	mock.lockDeviceGetHostname_v1.RUnlock()
 	return calls
 }
 
@@ -8824,6 +9466,42 @@ func (mock *Interface) DeviceGetMemoryInfo_v2Calls() []struct {
 	return calls
 }
 
+// DeviceGetMemoryLimits_v1 calls DeviceGetMemoryLimits_v1Func.
+func (mock *Interface) DeviceGetMemoryLimits_v1(device nvml.Device, s string) (nvml.MemoryLimits_v1, nvml.Return) {
+	if mock.DeviceGetMemoryLimits_v1Func == nil {
+		panic("Interface.DeviceGetMemoryLimits_v1Func: method is nil but Interface.DeviceGetMemoryLimits_v1 was just called")
+	}
+	callInfo := struct {
+		Device nvml.Device
+		S      string
+	}{
+		Device: device,
+		S:      s,
+	}
+	mock.lockDeviceGetMemoryLimits_v1.Lock()
+	mock.calls.DeviceGetMemoryLimits_v1 = append(mock.calls.DeviceGetMemoryLimits_v1, callInfo)
+	mock.lockDeviceGetMemoryLimits_v1.Unlock()
+	return mock.DeviceGetMemoryLimits_v1Func(device, s)
+}
+
+// DeviceGetMemoryLimits_v1Calls gets all the calls that were made to DeviceGetMemoryLimits_v1.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceGetMemoryLimits_v1Calls())
+func (mock *Interface) DeviceGetMemoryLimits_v1Calls() []struct {
+	Device nvml.Device
+	S      string
+} {
+	var calls []struct {
+		Device nvml.Device
+		S      string
+	}
+	mock.lockDeviceGetMemoryLimits_v1.RLock()
+	calls = mock.calls.DeviceGetMemoryLimits_v1
+	mock.lockDeviceGetMemoryLimits_v1.RUnlock()
+	return calls
+}
+
 // DeviceGetMigDeviceHandleByIndex calls DeviceGetMigDeviceHandleByIndexFunc.
 func (mock *Interface) DeviceGetMigDeviceHandleByIndex(device nvml.Device, n int) (nvml.Device, nvml.Return) {
 	if mock.DeviceGetMigDeviceHandleByIndexFunc == nil {
@@ -9405,6 +10083,42 @@ func (mock *Interface) DeviceGetNvLinkStateCalls() []struct {
 	mock.lockDeviceGetNvLinkState.RLock()
 	calls = mock.calls.DeviceGetNvLinkState
 	mock.lockDeviceGetNvLinkState.RUnlock()
+	return calls
+}
+
+// DeviceGetNvLinkTelemetrySamples_v1 calls DeviceGetNvLinkTelemetrySamples_v1Func.
+func (mock *Interface) DeviceGetNvLinkTelemetrySamples_v1(device nvml.Device, nvlinkTelemetrySamples_v1 nvml.NvlinkTelemetrySamples_v1) (nvml.NvlinkTelemetrySamples_v1, nvml.Return) {
+	if mock.DeviceGetNvLinkTelemetrySamples_v1Func == nil {
+		panic("Interface.DeviceGetNvLinkTelemetrySamples_v1Func: method is nil but Interface.DeviceGetNvLinkTelemetrySamples_v1 was just called")
+	}
+	callInfo := struct {
+		Device                    nvml.Device
+		NvlinkTelemetrySamples_v1 nvml.NvlinkTelemetrySamples_v1
+	}{
+		Device:                    device,
+		NvlinkTelemetrySamples_v1: nvlinkTelemetrySamples_v1,
+	}
+	mock.lockDeviceGetNvLinkTelemetrySamples_v1.Lock()
+	mock.calls.DeviceGetNvLinkTelemetrySamples_v1 = append(mock.calls.DeviceGetNvLinkTelemetrySamples_v1, callInfo)
+	mock.lockDeviceGetNvLinkTelemetrySamples_v1.Unlock()
+	return mock.DeviceGetNvLinkTelemetrySamples_v1Func(device, nvlinkTelemetrySamples_v1)
+}
+
+// DeviceGetNvLinkTelemetrySamples_v1Calls gets all the calls that were made to DeviceGetNvLinkTelemetrySamples_v1.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceGetNvLinkTelemetrySamples_v1Calls())
+func (mock *Interface) DeviceGetNvLinkTelemetrySamples_v1Calls() []struct {
+	Device                    nvml.Device
+	NvlinkTelemetrySamples_v1 nvml.NvlinkTelemetrySamples_v1
+} {
+	var calls []struct {
+		Device                    nvml.Device
+		NvlinkTelemetrySamples_v1 nvml.NvlinkTelemetrySamples_v1
+	}
+	mock.lockDeviceGetNvLinkTelemetrySamples_v1.RLock()
+	calls = mock.calls.DeviceGetNvLinkTelemetrySamples_v1
+	mock.lockDeviceGetNvLinkTelemetrySamples_v1.RUnlock()
 	return calls
 }
 
@@ -10404,6 +11118,38 @@ func (mock *Interface) DeviceGetRemappedRowsCalls() []struct {
 	return calls
 }
 
+// DeviceGetRemappedRows_v2 calls DeviceGetRemappedRows_v2Func.
+func (mock *Interface) DeviceGetRemappedRows_v2(device nvml.Device) (nvml.RemappedRowsInfo_v2, nvml.Return) {
+	if mock.DeviceGetRemappedRows_v2Func == nil {
+		panic("Interface.DeviceGetRemappedRows_v2Func: method is nil but Interface.DeviceGetRemappedRows_v2 was just called")
+	}
+	callInfo := struct {
+		Device nvml.Device
+	}{
+		Device: device,
+	}
+	mock.lockDeviceGetRemappedRows_v2.Lock()
+	mock.calls.DeviceGetRemappedRows_v2 = append(mock.calls.DeviceGetRemappedRows_v2, callInfo)
+	mock.lockDeviceGetRemappedRows_v2.Unlock()
+	return mock.DeviceGetRemappedRows_v2Func(device)
+}
+
+// DeviceGetRemappedRows_v2Calls gets all the calls that were made to DeviceGetRemappedRows_v2.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceGetRemappedRows_v2Calls())
+func (mock *Interface) DeviceGetRemappedRows_v2Calls() []struct {
+	Device nvml.Device
+} {
+	var calls []struct {
+		Device nvml.Device
+	}
+	mock.lockDeviceGetRemappedRows_v2.RLock()
+	calls = mock.calls.DeviceGetRemappedRows_v2
+	mock.lockDeviceGetRemappedRows_v2.RUnlock()
+	return calls
+}
+
 // DeviceGetRepairStatus calls DeviceGetRepairStatusFunc.
 func (mock *Interface) DeviceGetRepairStatus(device nvml.Device) (nvml.RepairStatus, nvml.Return) {
 	if mock.DeviceGetRepairStatusFunc == nil {
@@ -11324,6 +12070,38 @@ func (mock *Interface) DeviceGetUUIDCalls() []struct {
 	return calls
 }
 
+// DeviceGetUnrepairableMemoryFlag_v1 calls DeviceGetUnrepairableMemoryFlag_v1Func.
+func (mock *Interface) DeviceGetUnrepairableMemoryFlag_v1(device nvml.Device) (nvml.UnrepairableMemoryStatus_v1, nvml.Return) {
+	if mock.DeviceGetUnrepairableMemoryFlag_v1Func == nil {
+		panic("Interface.DeviceGetUnrepairableMemoryFlag_v1Func: method is nil but Interface.DeviceGetUnrepairableMemoryFlag_v1 was just called")
+	}
+	callInfo := struct {
+		Device nvml.Device
+	}{
+		Device: device,
+	}
+	mock.lockDeviceGetUnrepairableMemoryFlag_v1.Lock()
+	mock.calls.DeviceGetUnrepairableMemoryFlag_v1 = append(mock.calls.DeviceGetUnrepairableMemoryFlag_v1, callInfo)
+	mock.lockDeviceGetUnrepairableMemoryFlag_v1.Unlock()
+	return mock.DeviceGetUnrepairableMemoryFlag_v1Func(device)
+}
+
+// DeviceGetUnrepairableMemoryFlag_v1Calls gets all the calls that were made to DeviceGetUnrepairableMemoryFlag_v1.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceGetUnrepairableMemoryFlag_v1Calls())
+func (mock *Interface) DeviceGetUnrepairableMemoryFlag_v1Calls() []struct {
+	Device nvml.Device
+} {
+	var calls []struct {
+		Device nvml.Device
+	}
+	mock.lockDeviceGetUnrepairableMemoryFlag_v1.RLock()
+	calls = mock.calls.DeviceGetUnrepairableMemoryFlag_v1
+	mock.lockDeviceGetUnrepairableMemoryFlag_v1.RUnlock()
+	return calls
+}
+
 // DeviceGetUtilizationRates calls DeviceGetUtilizationRatesFunc.
 func (mock *Interface) DeviceGetUtilizationRates(device nvml.Device) (nvml.Utilization, nvml.Return) {
 	if mock.DeviceGetUtilizationRatesFunc == nil {
@@ -11652,6 +12430,42 @@ func (mock *Interface) DeviceGetVgpuSchedulerLogCalls() []struct {
 	return calls
 }
 
+// DeviceGetVgpuSchedulerLog_v2 calls DeviceGetVgpuSchedulerLog_v2Func.
+func (mock *Interface) DeviceGetVgpuSchedulerLog_v2(device nvml.Device, vgpuSchedulerLogInfo_v2 nvml.VgpuSchedulerLogInfo_v2) (nvml.VgpuSchedulerLogInfo_v2, nvml.Return) {
+	if mock.DeviceGetVgpuSchedulerLog_v2Func == nil {
+		panic("Interface.DeviceGetVgpuSchedulerLog_v2Func: method is nil but Interface.DeviceGetVgpuSchedulerLog_v2 was just called")
+	}
+	callInfo := struct {
+		Device                  nvml.Device
+		VgpuSchedulerLogInfo_v2 nvml.VgpuSchedulerLogInfo_v2
+	}{
+		Device:                  device,
+		VgpuSchedulerLogInfo_v2: vgpuSchedulerLogInfo_v2,
+	}
+	mock.lockDeviceGetVgpuSchedulerLog_v2.Lock()
+	mock.calls.DeviceGetVgpuSchedulerLog_v2 = append(mock.calls.DeviceGetVgpuSchedulerLog_v2, callInfo)
+	mock.lockDeviceGetVgpuSchedulerLog_v2.Unlock()
+	return mock.DeviceGetVgpuSchedulerLog_v2Func(device, vgpuSchedulerLogInfo_v2)
+}
+
+// DeviceGetVgpuSchedulerLog_v2Calls gets all the calls that were made to DeviceGetVgpuSchedulerLog_v2.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceGetVgpuSchedulerLog_v2Calls())
+func (mock *Interface) DeviceGetVgpuSchedulerLog_v2Calls() []struct {
+	Device                  nvml.Device
+	VgpuSchedulerLogInfo_v2 nvml.VgpuSchedulerLogInfo_v2
+} {
+	var calls []struct {
+		Device                  nvml.Device
+		VgpuSchedulerLogInfo_v2 nvml.VgpuSchedulerLogInfo_v2
+	}
+	mock.lockDeviceGetVgpuSchedulerLog_v2.RLock()
+	calls = mock.calls.DeviceGetVgpuSchedulerLog_v2
+	mock.lockDeviceGetVgpuSchedulerLog_v2.RUnlock()
+	return calls
+}
+
 // DeviceGetVgpuSchedulerState calls DeviceGetVgpuSchedulerStateFunc.
 func (mock *Interface) DeviceGetVgpuSchedulerState(device nvml.Device) (nvml.VgpuSchedulerGetState, nvml.Return) {
 	if mock.DeviceGetVgpuSchedulerStateFunc == nil {
@@ -11681,6 +12495,42 @@ func (mock *Interface) DeviceGetVgpuSchedulerStateCalls() []struct {
 	mock.lockDeviceGetVgpuSchedulerState.RLock()
 	calls = mock.calls.DeviceGetVgpuSchedulerState
 	mock.lockDeviceGetVgpuSchedulerState.RUnlock()
+	return calls
+}
+
+// DeviceGetVgpuSchedulerState_v2 calls DeviceGetVgpuSchedulerState_v2Func.
+func (mock *Interface) DeviceGetVgpuSchedulerState_v2(device nvml.Device, vgpuSchedulerStateInfo_v2 nvml.VgpuSchedulerStateInfo_v2) (nvml.VgpuSchedulerStateInfo_v2, nvml.Return) {
+	if mock.DeviceGetVgpuSchedulerState_v2Func == nil {
+		panic("Interface.DeviceGetVgpuSchedulerState_v2Func: method is nil but Interface.DeviceGetVgpuSchedulerState_v2 was just called")
+	}
+	callInfo := struct {
+		Device                    nvml.Device
+		VgpuSchedulerStateInfo_v2 nvml.VgpuSchedulerStateInfo_v2
+	}{
+		Device:                    device,
+		VgpuSchedulerStateInfo_v2: vgpuSchedulerStateInfo_v2,
+	}
+	mock.lockDeviceGetVgpuSchedulerState_v2.Lock()
+	mock.calls.DeviceGetVgpuSchedulerState_v2 = append(mock.calls.DeviceGetVgpuSchedulerState_v2, callInfo)
+	mock.lockDeviceGetVgpuSchedulerState_v2.Unlock()
+	return mock.DeviceGetVgpuSchedulerState_v2Func(device, vgpuSchedulerStateInfo_v2)
+}
+
+// DeviceGetVgpuSchedulerState_v2Calls gets all the calls that were made to DeviceGetVgpuSchedulerState_v2.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceGetVgpuSchedulerState_v2Calls())
+func (mock *Interface) DeviceGetVgpuSchedulerState_v2Calls() []struct {
+	Device                    nvml.Device
+	VgpuSchedulerStateInfo_v2 nvml.VgpuSchedulerStateInfo_v2
+} {
+	var calls []struct {
+		Device                    nvml.Device
+		VgpuSchedulerStateInfo_v2 nvml.VgpuSchedulerStateInfo_v2
+	}
+	mock.lockDeviceGetVgpuSchedulerState_v2.RLock()
+	calls = mock.calls.DeviceGetVgpuSchedulerState_v2
+	mock.lockDeviceGetVgpuSchedulerState_v2.RUnlock()
 	return calls
 }
 
@@ -11964,6 +12814,38 @@ func (mock *Interface) DeviceOnSameBoardCalls() []struct {
 	return calls
 }
 
+// DevicePerfMetricsGetSamples_v1 calls DevicePerfMetricsGetSamples_v1Func.
+func (mock *Interface) DevicePerfMetricsGetSamples_v1(device nvml.Device) (nvml.PerfMetricsSamples_v1, nvml.Return) {
+	if mock.DevicePerfMetricsGetSamples_v1Func == nil {
+		panic("Interface.DevicePerfMetricsGetSamples_v1Func: method is nil but Interface.DevicePerfMetricsGetSamples_v1 was just called")
+	}
+	callInfo := struct {
+		Device nvml.Device
+	}{
+		Device: device,
+	}
+	mock.lockDevicePerfMetricsGetSamples_v1.Lock()
+	mock.calls.DevicePerfMetricsGetSamples_v1 = append(mock.calls.DevicePerfMetricsGetSamples_v1, callInfo)
+	mock.lockDevicePerfMetricsGetSamples_v1.Unlock()
+	return mock.DevicePerfMetricsGetSamples_v1Func(device)
+}
+
+// DevicePerfMetricsGetSamples_v1Calls gets all the calls that were made to DevicePerfMetricsGetSamples_v1.
+// Check the length with:
+//
+//	len(mockedInterface.DevicePerfMetricsGetSamples_v1Calls())
+func (mock *Interface) DevicePerfMetricsGetSamples_v1Calls() []struct {
+	Device nvml.Device
+} {
+	var calls []struct {
+		Device nvml.Device
+	}
+	mock.lockDevicePerfMetricsGetSamples_v1.RLock()
+	calls = mock.calls.DevicePerfMetricsGetSamples_v1
+	mock.lockDevicePerfMetricsGetSamples_v1.RUnlock()
+	return calls
+}
+
 // DevicePowerSmoothingActivatePresetProfile calls DevicePowerSmoothingActivatePresetProfileFunc.
 func (mock *Interface) DevicePowerSmoothingActivatePresetProfile(device nvml.Device, powerSmoothingProfile *nvml.PowerSmoothingProfile) nvml.Return {
 	if mock.DevicePowerSmoothingActivatePresetProfileFunc == nil {
@@ -12101,6 +12983,46 @@ func (mock *Interface) DeviceQueryDrainStateCalls() []struct {
 	mock.lockDeviceQueryDrainState.RLock()
 	calls = mock.calls.DeviceQueryDrainState
 	mock.lockDeviceQueryDrainState.RUnlock()
+	return calls
+}
+
+// DeviceReadPRMCounters_v1 calls DeviceReadPRMCounters_v1Func.
+func (mock *Interface) DeviceReadPRMCounters_v1(device nvml.Device, pRMCounterIds []nvml.PRMCounterId, n int) ([]nvml.PRMCounter_v1, nvml.Return) {
+	if mock.DeviceReadPRMCounters_v1Func == nil {
+		panic("Interface.DeviceReadPRMCounters_v1Func: method is nil but Interface.DeviceReadPRMCounters_v1 was just called")
+	}
+	callInfo := struct {
+		Device        nvml.Device
+		PRMCounterIds []nvml.PRMCounterId
+		N             int
+	}{
+		Device:        device,
+		PRMCounterIds: pRMCounterIds,
+		N:             n,
+	}
+	mock.lockDeviceReadPRMCounters_v1.Lock()
+	mock.calls.DeviceReadPRMCounters_v1 = append(mock.calls.DeviceReadPRMCounters_v1, callInfo)
+	mock.lockDeviceReadPRMCounters_v1.Unlock()
+	return mock.DeviceReadPRMCounters_v1Func(device, pRMCounterIds, n)
+}
+
+// DeviceReadPRMCounters_v1Calls gets all the calls that were made to DeviceReadPRMCounters_v1.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceReadPRMCounters_v1Calls())
+func (mock *Interface) DeviceReadPRMCounters_v1Calls() []struct {
+	Device        nvml.Device
+	PRMCounterIds []nvml.PRMCounterId
+	N             int
+} {
+	var calls []struct {
+		Device        nvml.Device
+		PRMCounterIds []nvml.PRMCounterId
+		N             int
+	}
+	mock.lockDeviceReadPRMCounters_v1.RLock()
+	calls = mock.calls.DeviceReadPRMCounters_v1
+	mock.lockDeviceReadPRMCounters_v1.RUnlock()
 	return calls
 }
 
@@ -12497,6 +13419,42 @@ func (mock *Interface) DeviceSetAccountingModeCalls() []struct {
 	mock.lockDeviceSetAccountingMode.RLock()
 	calls = mock.calls.DeviceSetAccountingMode
 	mock.lockDeviceSetAccountingMode.RUnlock()
+	return calls
+}
+
+// DeviceSetAdaptiveTgpMode_v1 calls DeviceSetAdaptiveTgpMode_v1Func.
+func (mock *Interface) DeviceSetAdaptiveTgpMode_v1(device nvml.Device, enableState nvml.EnableState) nvml.Return {
+	if mock.DeviceSetAdaptiveTgpMode_v1Func == nil {
+		panic("Interface.DeviceSetAdaptiveTgpMode_v1Func: method is nil but Interface.DeviceSetAdaptiveTgpMode_v1 was just called")
+	}
+	callInfo := struct {
+		Device      nvml.Device
+		EnableState nvml.EnableState
+	}{
+		Device:      device,
+		EnableState: enableState,
+	}
+	mock.lockDeviceSetAdaptiveTgpMode_v1.Lock()
+	mock.calls.DeviceSetAdaptiveTgpMode_v1 = append(mock.calls.DeviceSetAdaptiveTgpMode_v1, callInfo)
+	mock.lockDeviceSetAdaptiveTgpMode_v1.Unlock()
+	return mock.DeviceSetAdaptiveTgpMode_v1Func(device, enableState)
+}
+
+// DeviceSetAdaptiveTgpMode_v1Calls gets all the calls that were made to DeviceSetAdaptiveTgpMode_v1.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceSetAdaptiveTgpMode_v1Calls())
+func (mock *Interface) DeviceSetAdaptiveTgpMode_v1Calls() []struct {
+	Device      nvml.Device
+	EnableState nvml.EnableState
+} {
+	var calls []struct {
+		Device      nvml.Device
+		EnableState nvml.EnableState
+	}
+	mock.lockDeviceSetAdaptiveTgpMode_v1.RLock()
+	calls = mock.calls.DeviceSetAdaptiveTgpMode_v1
+	mock.lockDeviceSetAdaptiveTgpMode_v1.RUnlock()
 	return calls
 }
 
@@ -13096,6 +14054,42 @@ func (mock *Interface) DeviceSetGpuOperationModeCalls() []struct {
 	return calls
 }
 
+// DeviceSetHostname_v1 calls DeviceSetHostname_v1Func.
+func (mock *Interface) DeviceSetHostname_v1(device nvml.Device, s string) nvml.Return {
+	if mock.DeviceSetHostname_v1Func == nil {
+		panic("Interface.DeviceSetHostname_v1Func: method is nil but Interface.DeviceSetHostname_v1 was just called")
+	}
+	callInfo := struct {
+		Device nvml.Device
+		S      string
+	}{
+		Device: device,
+		S:      s,
+	}
+	mock.lockDeviceSetHostname_v1.Lock()
+	mock.calls.DeviceSetHostname_v1 = append(mock.calls.DeviceSetHostname_v1, callInfo)
+	mock.lockDeviceSetHostname_v1.Unlock()
+	return mock.DeviceSetHostname_v1Func(device, s)
+}
+
+// DeviceSetHostname_v1Calls gets all the calls that were made to DeviceSetHostname_v1.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceSetHostname_v1Calls())
+func (mock *Interface) DeviceSetHostname_v1Calls() []struct {
+	Device nvml.Device
+	S      string
+} {
+	var calls []struct {
+		Device nvml.Device
+		S      string
+	}
+	mock.lockDeviceSetHostname_v1.RLock()
+	calls = mock.calls.DeviceSetHostname_v1
+	mock.lockDeviceSetHostname_v1.RUnlock()
+	return calls
+}
+
 // DeviceSetMemClkVfOffset calls DeviceSetMemClkVfOffsetFunc.
 func (mock *Interface) DeviceSetMemClkVfOffset(device nvml.Device, n int) nvml.Return {
 	if mock.DeviceSetMemClkVfOffsetFunc == nil {
@@ -13129,6 +14123,50 @@ func (mock *Interface) DeviceSetMemClkVfOffsetCalls() []struct {
 	mock.lockDeviceSetMemClkVfOffset.RLock()
 	calls = mock.calls.DeviceSetMemClkVfOffset
 	mock.lockDeviceSetMemClkVfOffset.RUnlock()
+	return calls
+}
+
+// DeviceSetMemoryLimits_v1 calls DeviceSetMemoryLimits_v1Func.
+func (mock *Interface) DeviceSetMemoryLimits_v1(device nvml.Device, s string, v1 uint64, v2 uint64) nvml.Return {
+	if mock.DeviceSetMemoryLimits_v1Func == nil {
+		panic("Interface.DeviceSetMemoryLimits_v1Func: method is nil but Interface.DeviceSetMemoryLimits_v1 was just called")
+	}
+	callInfo := struct {
+		Device nvml.Device
+		S      string
+		V1     uint64
+		V2     uint64
+	}{
+		Device: device,
+		S:      s,
+		V1:     v1,
+		V2:     v2,
+	}
+	mock.lockDeviceSetMemoryLimits_v1.Lock()
+	mock.calls.DeviceSetMemoryLimits_v1 = append(mock.calls.DeviceSetMemoryLimits_v1, callInfo)
+	mock.lockDeviceSetMemoryLimits_v1.Unlock()
+	return mock.DeviceSetMemoryLimits_v1Func(device, s, v1, v2)
+}
+
+// DeviceSetMemoryLimits_v1Calls gets all the calls that were made to DeviceSetMemoryLimits_v1.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceSetMemoryLimits_v1Calls())
+func (mock *Interface) DeviceSetMemoryLimits_v1Calls() []struct {
+	Device nvml.Device
+	S      string
+	V1     uint64
+	V2     uint64
+} {
+	var calls []struct {
+		Device nvml.Device
+		S      string
+		V1     uint64
+		V2     uint64
+	}
+	mock.lockDeviceSetMemoryLimits_v1.RLock()
+	calls = mock.calls.DeviceSetMemoryLimits_v1
+	mock.lockDeviceSetMemoryLimits_v1.RUnlock()
 	return calls
 }
 
@@ -13328,6 +14366,42 @@ func (mock *Interface) DeviceSetNvlinkBwModeCalls() []struct {
 	return calls
 }
 
+// DeviceSetNvlinkBwModeAsync_v1 calls DeviceSetNvlinkBwModeAsync_v1Func.
+func (mock *Interface) DeviceSetNvlinkBwModeAsync_v1(device nvml.Device, nvlinkSetBwModeAsync_v1 *nvml.NvlinkSetBwModeAsync_v1) nvml.Return {
+	if mock.DeviceSetNvlinkBwModeAsync_v1Func == nil {
+		panic("Interface.DeviceSetNvlinkBwModeAsync_v1Func: method is nil but Interface.DeviceSetNvlinkBwModeAsync_v1 was just called")
+	}
+	callInfo := struct {
+		Device                  nvml.Device
+		NvlinkSetBwModeAsync_v1 *nvml.NvlinkSetBwModeAsync_v1
+	}{
+		Device:                  device,
+		NvlinkSetBwModeAsync_v1: nvlinkSetBwModeAsync_v1,
+	}
+	mock.lockDeviceSetNvlinkBwModeAsync_v1.Lock()
+	mock.calls.DeviceSetNvlinkBwModeAsync_v1 = append(mock.calls.DeviceSetNvlinkBwModeAsync_v1, callInfo)
+	mock.lockDeviceSetNvlinkBwModeAsync_v1.Unlock()
+	return mock.DeviceSetNvlinkBwModeAsync_v1Func(device, nvlinkSetBwModeAsync_v1)
+}
+
+// DeviceSetNvlinkBwModeAsync_v1Calls gets all the calls that were made to DeviceSetNvlinkBwModeAsync_v1.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceSetNvlinkBwModeAsync_v1Calls())
+func (mock *Interface) DeviceSetNvlinkBwModeAsync_v1Calls() []struct {
+	Device                  nvml.Device
+	NvlinkSetBwModeAsync_v1 *nvml.NvlinkSetBwModeAsync_v1
+} {
+	var calls []struct {
+		Device                  nvml.Device
+		NvlinkSetBwModeAsync_v1 *nvml.NvlinkSetBwModeAsync_v1
+	}
+	mock.lockDeviceSetNvlinkBwModeAsync_v1.RLock()
+	calls = mock.calls.DeviceSetNvlinkBwModeAsync_v1
+	mock.lockDeviceSetNvlinkBwModeAsync_v1.RUnlock()
+	return calls
+}
+
 // DeviceSetPersistenceMode calls DeviceSetPersistenceModeFunc.
 func (mock *Interface) DeviceSetPersistenceMode(device nvml.Device, enableState nvml.EnableState) nvml.Return {
 	if mock.DeviceSetPersistenceModeFunc == nil {
@@ -13433,6 +14507,42 @@ func (mock *Interface) DeviceSetPowerManagementLimit_v2Calls() []struct {
 	mock.lockDeviceSetPowerManagementLimit_v2.RLock()
 	calls = mock.calls.DeviceSetPowerManagementLimit_v2
 	mock.lockDeviceSetPowerManagementLimit_v2.RUnlock()
+	return calls
+}
+
+// DeviceSetRusdSettings_v1 calls DeviceSetRusdSettings_v1Func.
+func (mock *Interface) DeviceSetRusdSettings_v1(device nvml.Device, rusdSettings_v1 nvml.RusdSettings_v1) nvml.Return {
+	if mock.DeviceSetRusdSettings_v1Func == nil {
+		panic("Interface.DeviceSetRusdSettings_v1Func: method is nil but Interface.DeviceSetRusdSettings_v1 was just called")
+	}
+	callInfo := struct {
+		Device          nvml.Device
+		RusdSettings_v1 nvml.RusdSettings_v1
+	}{
+		Device:          device,
+		RusdSettings_v1: rusdSettings_v1,
+	}
+	mock.lockDeviceSetRusdSettings_v1.Lock()
+	mock.calls.DeviceSetRusdSettings_v1 = append(mock.calls.DeviceSetRusdSettings_v1, callInfo)
+	mock.lockDeviceSetRusdSettings_v1.Unlock()
+	return mock.DeviceSetRusdSettings_v1Func(device, rusdSettings_v1)
+}
+
+// DeviceSetRusdSettings_v1Calls gets all the calls that were made to DeviceSetRusdSettings_v1.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceSetRusdSettings_v1Calls())
+func (mock *Interface) DeviceSetRusdSettings_v1Calls() []struct {
+	Device          nvml.Device
+	RusdSettings_v1 nvml.RusdSettings_v1
+} {
+	var calls []struct {
+		Device          nvml.Device
+		RusdSettings_v1 nvml.RusdSettings_v1
+	}
+	mock.lockDeviceSetRusdSettings_v1.RLock()
+	calls = mock.calls.DeviceSetRusdSettings_v1
+	mock.lockDeviceSetRusdSettings_v1.RUnlock()
 	return calls
 }
 
@@ -13588,6 +14698,42 @@ func (mock *Interface) DeviceSetVgpuSchedulerStateCalls() []struct {
 	return calls
 }
 
+// DeviceSetVgpuSchedulerState_v2 calls DeviceSetVgpuSchedulerState_v2Func.
+func (mock *Interface) DeviceSetVgpuSchedulerState_v2(device nvml.Device, vgpuSchedulerState_v2 *nvml.VgpuSchedulerState_v2) nvml.Return {
+	if mock.DeviceSetVgpuSchedulerState_v2Func == nil {
+		panic("Interface.DeviceSetVgpuSchedulerState_v2Func: method is nil but Interface.DeviceSetVgpuSchedulerState_v2 was just called")
+	}
+	callInfo := struct {
+		Device                nvml.Device
+		VgpuSchedulerState_v2 *nvml.VgpuSchedulerState_v2
+	}{
+		Device:                device,
+		VgpuSchedulerState_v2: vgpuSchedulerState_v2,
+	}
+	mock.lockDeviceSetVgpuSchedulerState_v2.Lock()
+	mock.calls.DeviceSetVgpuSchedulerState_v2 = append(mock.calls.DeviceSetVgpuSchedulerState_v2, callInfo)
+	mock.lockDeviceSetVgpuSchedulerState_v2.Unlock()
+	return mock.DeviceSetVgpuSchedulerState_v2Func(device, vgpuSchedulerState_v2)
+}
+
+// DeviceSetVgpuSchedulerState_v2Calls gets all the calls that were made to DeviceSetVgpuSchedulerState_v2.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceSetVgpuSchedulerState_v2Calls())
+func (mock *Interface) DeviceSetVgpuSchedulerState_v2Calls() []struct {
+	Device                nvml.Device
+	VgpuSchedulerState_v2 *nvml.VgpuSchedulerState_v2
+} {
+	var calls []struct {
+		Device                nvml.Device
+		VgpuSchedulerState_v2 *nvml.VgpuSchedulerState_v2
+	}
+	mock.lockDeviceSetVgpuSchedulerState_v2.RLock()
+	calls = mock.calls.DeviceSetVgpuSchedulerState_v2
+	mock.lockDeviceSetVgpuSchedulerState_v2.RUnlock()
+	return calls
+}
+
 // DeviceSetVirtualizationMode calls DeviceSetVirtualizationModeFunc.
 func (mock *Interface) DeviceSetVirtualizationMode(device nvml.Device, gpuVirtualizationMode nvml.GpuVirtualizationMode) nvml.Return {
 	if mock.DeviceSetVirtualizationModeFunc == nil {
@@ -13653,6 +14799,38 @@ func (mock *Interface) DeviceValidateInforomCalls() []struct {
 	mock.lockDeviceValidateInforom.RLock()
 	calls = mock.calls.DeviceValidateInforom
 	mock.lockDeviceValidateInforom.RUnlock()
+	return calls
+}
+
+// DeviceVgpuForceGspUnload calls DeviceVgpuForceGspUnloadFunc.
+func (mock *Interface) DeviceVgpuForceGspUnload(device nvml.Device) nvml.Return {
+	if mock.DeviceVgpuForceGspUnloadFunc == nil {
+		panic("Interface.DeviceVgpuForceGspUnloadFunc: method is nil but Interface.DeviceVgpuForceGspUnload was just called")
+	}
+	callInfo := struct {
+		Device nvml.Device
+	}{
+		Device: device,
+	}
+	mock.lockDeviceVgpuForceGspUnload.Lock()
+	mock.calls.DeviceVgpuForceGspUnload = append(mock.calls.DeviceVgpuForceGspUnload, callInfo)
+	mock.lockDeviceVgpuForceGspUnload.Unlock()
+	return mock.DeviceVgpuForceGspUnloadFunc(device)
+}
+
+// DeviceVgpuForceGspUnloadCalls gets all the calls that were made to DeviceVgpuForceGspUnload.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceVgpuForceGspUnloadCalls())
+func (mock *Interface) DeviceVgpuForceGspUnloadCalls() []struct {
+	Device nvml.Device
+} {
+	var calls []struct {
+		Device nvml.Device
+	}
+	mock.lockDeviceVgpuForceGspUnload.RLock()
+	calls = mock.calls.DeviceVgpuForceGspUnload
+	mock.lockDeviceVgpuForceGspUnload.RUnlock()
 	return calls
 }
 
@@ -13792,6 +14970,46 @@ func (mock *Interface) DeviceWorkloadPowerProfileSetRequestedProfilesCalls() []s
 	return calls
 }
 
+// DeviceWorkloadPowerProfileUpdateProfiles_v1 calls DeviceWorkloadPowerProfileUpdateProfiles_v1Func.
+func (mock *Interface) DeviceWorkloadPowerProfileUpdateProfiles_v1(device nvml.Device, powerProfileOperation nvml.PowerProfileOperation, powerProfileTypes []nvml.PowerProfileType) nvml.Return {
+	if mock.DeviceWorkloadPowerProfileUpdateProfiles_v1Func == nil {
+		panic("Interface.DeviceWorkloadPowerProfileUpdateProfiles_v1Func: method is nil but Interface.DeviceWorkloadPowerProfileUpdateProfiles_v1 was just called")
+	}
+	callInfo := struct {
+		Device                nvml.Device
+		PowerProfileOperation nvml.PowerProfileOperation
+		PowerProfileTypes     []nvml.PowerProfileType
+	}{
+		Device:                device,
+		PowerProfileOperation: powerProfileOperation,
+		PowerProfileTypes:     powerProfileTypes,
+	}
+	mock.lockDeviceWorkloadPowerProfileUpdateProfiles_v1.Lock()
+	mock.calls.DeviceWorkloadPowerProfileUpdateProfiles_v1 = append(mock.calls.DeviceWorkloadPowerProfileUpdateProfiles_v1, callInfo)
+	mock.lockDeviceWorkloadPowerProfileUpdateProfiles_v1.Unlock()
+	return mock.DeviceWorkloadPowerProfileUpdateProfiles_v1Func(device, powerProfileOperation, powerProfileTypes)
+}
+
+// DeviceWorkloadPowerProfileUpdateProfiles_v1Calls gets all the calls that were made to DeviceWorkloadPowerProfileUpdateProfiles_v1.
+// Check the length with:
+//
+//	len(mockedInterface.DeviceWorkloadPowerProfileUpdateProfiles_v1Calls())
+func (mock *Interface) DeviceWorkloadPowerProfileUpdateProfiles_v1Calls() []struct {
+	Device                nvml.Device
+	PowerProfileOperation nvml.PowerProfileOperation
+	PowerProfileTypes     []nvml.PowerProfileType
+} {
+	var calls []struct {
+		Device                nvml.Device
+		PowerProfileOperation nvml.PowerProfileOperation
+		PowerProfileTypes     []nvml.PowerProfileType
+	}
+	mock.lockDeviceWorkloadPowerProfileUpdateProfiles_v1.RLock()
+	calls = mock.calls.DeviceWorkloadPowerProfileUpdateProfiles_v1
+	mock.lockDeviceWorkloadPowerProfileUpdateProfiles_v1.RUnlock()
+	return calls
+}
+
 // ErrorString calls ErrorStringFunc.
 func (mock *Interface) ErrorString(returnMoqParam nvml.Return) string {
 	if mock.ErrorStringFunc == nil {
@@ -13883,6 +15101,182 @@ func (mock *Interface) EventSetFreeCalls() []struct {
 	return calls
 }
 
+// EventSetGetContextCount_v1 calls EventSetGetContextCount_v1Func.
+func (mock *Interface) EventSetGetContextCount_v1(eventSet nvml.EventSet) (nvml.GetContextCount_v1, nvml.Return) {
+	if mock.EventSetGetContextCount_v1Func == nil {
+		panic("Interface.EventSetGetContextCount_v1Func: method is nil but Interface.EventSetGetContextCount_v1 was just called")
+	}
+	callInfo := struct {
+		EventSet nvml.EventSet
+	}{
+		EventSet: eventSet,
+	}
+	mock.lockEventSetGetContextCount_v1.Lock()
+	mock.calls.EventSetGetContextCount_v1 = append(mock.calls.EventSetGetContextCount_v1, callInfo)
+	mock.lockEventSetGetContextCount_v1.Unlock()
+	return mock.EventSetGetContextCount_v1Func(eventSet)
+}
+
+// EventSetGetContextCount_v1Calls gets all the calls that were made to EventSetGetContextCount_v1.
+// Check the length with:
+//
+//	len(mockedInterface.EventSetGetContextCount_v1Calls())
+func (mock *Interface) EventSetGetContextCount_v1Calls() []struct {
+	EventSet nvml.EventSet
+} {
+	var calls []struct {
+		EventSet nvml.EventSet
+	}
+	mock.lockEventSetGetContextCount_v1.RLock()
+	calls = mock.calls.EventSetGetContextCount_v1
+	mock.lockEventSetGetContextCount_v1.RUnlock()
+	return calls
+}
+
+// EventSetGetContextData_v1 calls EventSetGetContextData_v1Func.
+func (mock *Interface) EventSetGetContextData_v1(eventSet nvml.EventSet, getContextData_v1 nvml.GetContextData_v1) (nvml.GetContextData_v1, nvml.Return) {
+	if mock.EventSetGetContextData_v1Func == nil {
+		panic("Interface.EventSetGetContextData_v1Func: method is nil but Interface.EventSetGetContextData_v1 was just called")
+	}
+	callInfo := struct {
+		EventSet          nvml.EventSet
+		GetContextData_v1 nvml.GetContextData_v1
+	}{
+		EventSet:          eventSet,
+		GetContextData_v1: getContextData_v1,
+	}
+	mock.lockEventSetGetContextData_v1.Lock()
+	mock.calls.EventSetGetContextData_v1 = append(mock.calls.EventSetGetContextData_v1, callInfo)
+	mock.lockEventSetGetContextData_v1.Unlock()
+	return mock.EventSetGetContextData_v1Func(eventSet, getContextData_v1)
+}
+
+// EventSetGetContextData_v1Calls gets all the calls that were made to EventSetGetContextData_v1.
+// Check the length with:
+//
+//	len(mockedInterface.EventSetGetContextData_v1Calls())
+func (mock *Interface) EventSetGetContextData_v1Calls() []struct {
+	EventSet          nvml.EventSet
+	GetContextData_v1 nvml.GetContextData_v1
+} {
+	var calls []struct {
+		EventSet          nvml.EventSet
+		GetContextData_v1 nvml.GetContextData_v1
+	}
+	mock.lockEventSetGetContextData_v1.RLock()
+	calls = mock.calls.EventSetGetContextData_v1
+	mock.lockEventSetGetContextData_v1.RUnlock()
+	return calls
+}
+
+// EventSetGetContextInfo_v1 calls EventSetGetContextInfo_v1Func.
+func (mock *Interface) EventSetGetContextInfo_v1(eventSet nvml.EventSet, v uint32) (nvml.GetContextInfo_v1, nvml.Return) {
+	if mock.EventSetGetContextInfo_v1Func == nil {
+		panic("Interface.EventSetGetContextInfo_v1Func: method is nil but Interface.EventSetGetContextInfo_v1 was just called")
+	}
+	callInfo := struct {
+		EventSet nvml.EventSet
+		V        uint32
+	}{
+		EventSet: eventSet,
+		V:        v,
+	}
+	mock.lockEventSetGetContextInfo_v1.Lock()
+	mock.calls.EventSetGetContextInfo_v1 = append(mock.calls.EventSetGetContextInfo_v1, callInfo)
+	mock.lockEventSetGetContextInfo_v1.Unlock()
+	return mock.EventSetGetContextInfo_v1Func(eventSet, v)
+}
+
+// EventSetGetContextInfo_v1Calls gets all the calls that were made to EventSetGetContextInfo_v1.
+// Check the length with:
+//
+//	len(mockedInterface.EventSetGetContextInfo_v1Calls())
+func (mock *Interface) EventSetGetContextInfo_v1Calls() []struct {
+	EventSet nvml.EventSet
+	V        uint32
+} {
+	var calls []struct {
+		EventSet nvml.EventSet
+		V        uint32
+	}
+	mock.lockEventSetGetContextInfo_v1.RLock()
+	calls = mock.calls.EventSetGetContextInfo_v1
+	mock.lockEventSetGetContextInfo_v1.RUnlock()
+	return calls
+}
+
+// EventSetGetGpuOperationalEventContextLegacyXid_v1 calls EventSetGetGpuOperationalEventContextLegacyXid_v1Func.
+func (mock *Interface) EventSetGetGpuOperationalEventContextLegacyXid_v1(eventSet nvml.EventSet, v uint32) (uint32, nvml.Return) {
+	if mock.EventSetGetGpuOperationalEventContextLegacyXid_v1Func == nil {
+		panic("Interface.EventSetGetGpuOperationalEventContextLegacyXid_v1Func: method is nil but Interface.EventSetGetGpuOperationalEventContextLegacyXid_v1 was just called")
+	}
+	callInfo := struct {
+		EventSet nvml.EventSet
+		V        uint32
+	}{
+		EventSet: eventSet,
+		V:        v,
+	}
+	mock.lockEventSetGetGpuOperationalEventContextLegacyXid_v1.Lock()
+	mock.calls.EventSetGetGpuOperationalEventContextLegacyXid_v1 = append(mock.calls.EventSetGetGpuOperationalEventContextLegacyXid_v1, callInfo)
+	mock.lockEventSetGetGpuOperationalEventContextLegacyXid_v1.Unlock()
+	return mock.EventSetGetGpuOperationalEventContextLegacyXid_v1Func(eventSet, v)
+}
+
+// EventSetGetGpuOperationalEventContextLegacyXid_v1Calls gets all the calls that were made to EventSetGetGpuOperationalEventContextLegacyXid_v1.
+// Check the length with:
+//
+//	len(mockedInterface.EventSetGetGpuOperationalEventContextLegacyXid_v1Calls())
+func (mock *Interface) EventSetGetGpuOperationalEventContextLegacyXid_v1Calls() []struct {
+	EventSet nvml.EventSet
+	V        uint32
+} {
+	var calls []struct {
+		EventSet nvml.EventSet
+		V        uint32
+	}
+	mock.lockEventSetGetGpuOperationalEventContextLegacyXid_v1.RLock()
+	calls = mock.calls.EventSetGetGpuOperationalEventContextLegacyXid_v1
+	mock.lockEventSetGetGpuOperationalEventContextLegacyXid_v1.RUnlock()
+	return calls
+}
+
+// EventSetRegisterGpuOperationalEvents_v1 calls EventSetRegisterGpuOperationalEvents_v1Func.
+func (mock *Interface) EventSetRegisterGpuOperationalEvents_v1(eventSet nvml.EventSet, gpuOperationalEventConfig_v1 *nvml.GpuOperationalEventConfig_v1) nvml.Return {
+	if mock.EventSetRegisterGpuOperationalEvents_v1Func == nil {
+		panic("Interface.EventSetRegisterGpuOperationalEvents_v1Func: method is nil but Interface.EventSetRegisterGpuOperationalEvents_v1 was just called")
+	}
+	callInfo := struct {
+		EventSet                     nvml.EventSet
+		GpuOperationalEventConfig_v1 *nvml.GpuOperationalEventConfig_v1
+	}{
+		EventSet:                     eventSet,
+		GpuOperationalEventConfig_v1: gpuOperationalEventConfig_v1,
+	}
+	mock.lockEventSetRegisterGpuOperationalEvents_v1.Lock()
+	mock.calls.EventSetRegisterGpuOperationalEvents_v1 = append(mock.calls.EventSetRegisterGpuOperationalEvents_v1, callInfo)
+	mock.lockEventSetRegisterGpuOperationalEvents_v1.Unlock()
+	return mock.EventSetRegisterGpuOperationalEvents_v1Func(eventSet, gpuOperationalEventConfig_v1)
+}
+
+// EventSetRegisterGpuOperationalEvents_v1Calls gets all the calls that were made to EventSetRegisterGpuOperationalEvents_v1.
+// Check the length with:
+//
+//	len(mockedInterface.EventSetRegisterGpuOperationalEvents_v1Calls())
+func (mock *Interface) EventSetRegisterGpuOperationalEvents_v1Calls() []struct {
+	EventSet                     nvml.EventSet
+	GpuOperationalEventConfig_v1 *nvml.GpuOperationalEventConfig_v1
+} {
+	var calls []struct {
+		EventSet                     nvml.EventSet
+		GpuOperationalEventConfig_v1 *nvml.GpuOperationalEventConfig_v1
+	}
+	mock.lockEventSetRegisterGpuOperationalEvents_v1.RLock()
+	calls = mock.calls.EventSetRegisterGpuOperationalEvents_v1
+	mock.lockEventSetRegisterGpuOperationalEvents_v1.RUnlock()
+	return calls
+}
+
 // EventSetWait calls EventSetWaitFunc.
 func (mock *Interface) EventSetWait(eventSet nvml.EventSet, v uint32) (nvml.EventData, nvml.Return) {
 	if mock.EventSetWaitFunc == nil {
@@ -13916,6 +15310,42 @@ func (mock *Interface) EventSetWaitCalls() []struct {
 	mock.lockEventSetWait.RLock()
 	calls = mock.calls.EventSetWait
 	mock.lockEventSetWait.RUnlock()
+	return calls
+}
+
+// EventSetWait_v3 calls EventSetWait_v3Func.
+func (mock *Interface) EventSetWait_v3(eventSet nvml.EventSet, v uint32) (nvml.EventSetWaitData_v3, nvml.Return) {
+	if mock.EventSetWait_v3Func == nil {
+		panic("Interface.EventSetWait_v3Func: method is nil but Interface.EventSetWait_v3 was just called")
+	}
+	callInfo := struct {
+		EventSet nvml.EventSet
+		V        uint32
+	}{
+		EventSet: eventSet,
+		V:        v,
+	}
+	mock.lockEventSetWait_v3.Lock()
+	mock.calls.EventSetWait_v3 = append(mock.calls.EventSetWait_v3, callInfo)
+	mock.lockEventSetWait_v3.Unlock()
+	return mock.EventSetWait_v3Func(eventSet, v)
+}
+
+// EventSetWait_v3Calls gets all the calls that were made to EventSetWait_v3.
+// Check the length with:
+//
+//	len(mockedInterface.EventSetWait_v3Calls())
+func (mock *Interface) EventSetWait_v3Calls() []struct {
+	EventSet nvml.EventSet
+	V        uint32
+} {
+	var calls []struct {
+		EventSet nvml.EventSet
+		V        uint32
+	}
+	mock.lockEventSetWait_v3.RLock()
+	calls = mock.calls.EventSetWait_v3
+	mock.lockEventSetWait_v3.RUnlock()
 	return calls
 }
 
@@ -14923,6 +16353,42 @@ func (mock *Interface) GpuInstanceGetVgpuSchedulerLogCalls() []struct {
 	return calls
 }
 
+// GpuInstanceGetVgpuSchedulerLog_v2 calls GpuInstanceGetVgpuSchedulerLog_v2Func.
+func (mock *Interface) GpuInstanceGetVgpuSchedulerLog_v2(gpuInstance nvml.GpuInstance, vgpuSchedulerLogInfo_v2 nvml.VgpuSchedulerLogInfo_v2) (nvml.VgpuSchedulerLogInfo_v2, nvml.Return) {
+	if mock.GpuInstanceGetVgpuSchedulerLog_v2Func == nil {
+		panic("Interface.GpuInstanceGetVgpuSchedulerLog_v2Func: method is nil but Interface.GpuInstanceGetVgpuSchedulerLog_v2 was just called")
+	}
+	callInfo := struct {
+		GpuInstance             nvml.GpuInstance
+		VgpuSchedulerLogInfo_v2 nvml.VgpuSchedulerLogInfo_v2
+	}{
+		GpuInstance:             gpuInstance,
+		VgpuSchedulerLogInfo_v2: vgpuSchedulerLogInfo_v2,
+	}
+	mock.lockGpuInstanceGetVgpuSchedulerLog_v2.Lock()
+	mock.calls.GpuInstanceGetVgpuSchedulerLog_v2 = append(mock.calls.GpuInstanceGetVgpuSchedulerLog_v2, callInfo)
+	mock.lockGpuInstanceGetVgpuSchedulerLog_v2.Unlock()
+	return mock.GpuInstanceGetVgpuSchedulerLog_v2Func(gpuInstance, vgpuSchedulerLogInfo_v2)
+}
+
+// GpuInstanceGetVgpuSchedulerLog_v2Calls gets all the calls that were made to GpuInstanceGetVgpuSchedulerLog_v2.
+// Check the length with:
+//
+//	len(mockedInterface.GpuInstanceGetVgpuSchedulerLog_v2Calls())
+func (mock *Interface) GpuInstanceGetVgpuSchedulerLog_v2Calls() []struct {
+	GpuInstance             nvml.GpuInstance
+	VgpuSchedulerLogInfo_v2 nvml.VgpuSchedulerLogInfo_v2
+} {
+	var calls []struct {
+		GpuInstance             nvml.GpuInstance
+		VgpuSchedulerLogInfo_v2 nvml.VgpuSchedulerLogInfo_v2
+	}
+	mock.lockGpuInstanceGetVgpuSchedulerLog_v2.RLock()
+	calls = mock.calls.GpuInstanceGetVgpuSchedulerLog_v2
+	mock.lockGpuInstanceGetVgpuSchedulerLog_v2.RUnlock()
+	return calls
+}
+
 // GpuInstanceGetVgpuSchedulerState calls GpuInstanceGetVgpuSchedulerStateFunc.
 func (mock *Interface) GpuInstanceGetVgpuSchedulerState(gpuInstance nvml.GpuInstance) (nvml.VgpuSchedulerStateInfo, nvml.Return) {
 	if mock.GpuInstanceGetVgpuSchedulerStateFunc == nil {
@@ -14952,6 +16418,42 @@ func (mock *Interface) GpuInstanceGetVgpuSchedulerStateCalls() []struct {
 	mock.lockGpuInstanceGetVgpuSchedulerState.RLock()
 	calls = mock.calls.GpuInstanceGetVgpuSchedulerState
 	mock.lockGpuInstanceGetVgpuSchedulerState.RUnlock()
+	return calls
+}
+
+// GpuInstanceGetVgpuSchedulerState_v2 calls GpuInstanceGetVgpuSchedulerState_v2Func.
+func (mock *Interface) GpuInstanceGetVgpuSchedulerState_v2(gpuInstance nvml.GpuInstance, vgpuSchedulerStateInfo_v2 nvml.VgpuSchedulerStateInfo_v2) (nvml.VgpuSchedulerStateInfo_v2, nvml.Return) {
+	if mock.GpuInstanceGetVgpuSchedulerState_v2Func == nil {
+		panic("Interface.GpuInstanceGetVgpuSchedulerState_v2Func: method is nil but Interface.GpuInstanceGetVgpuSchedulerState_v2 was just called")
+	}
+	callInfo := struct {
+		GpuInstance               nvml.GpuInstance
+		VgpuSchedulerStateInfo_v2 nvml.VgpuSchedulerStateInfo_v2
+	}{
+		GpuInstance:               gpuInstance,
+		VgpuSchedulerStateInfo_v2: vgpuSchedulerStateInfo_v2,
+	}
+	mock.lockGpuInstanceGetVgpuSchedulerState_v2.Lock()
+	mock.calls.GpuInstanceGetVgpuSchedulerState_v2 = append(mock.calls.GpuInstanceGetVgpuSchedulerState_v2, callInfo)
+	mock.lockGpuInstanceGetVgpuSchedulerState_v2.Unlock()
+	return mock.GpuInstanceGetVgpuSchedulerState_v2Func(gpuInstance, vgpuSchedulerStateInfo_v2)
+}
+
+// GpuInstanceGetVgpuSchedulerState_v2Calls gets all the calls that were made to GpuInstanceGetVgpuSchedulerState_v2.
+// Check the length with:
+//
+//	len(mockedInterface.GpuInstanceGetVgpuSchedulerState_v2Calls())
+func (mock *Interface) GpuInstanceGetVgpuSchedulerState_v2Calls() []struct {
+	GpuInstance               nvml.GpuInstance
+	VgpuSchedulerStateInfo_v2 nvml.VgpuSchedulerStateInfo_v2
+} {
+	var calls []struct {
+		GpuInstance               nvml.GpuInstance
+		VgpuSchedulerStateInfo_v2 nvml.VgpuSchedulerStateInfo_v2
+	}
+	mock.lockGpuInstanceGetVgpuSchedulerState_v2.RLock()
+	calls = mock.calls.GpuInstanceGetVgpuSchedulerState_v2
+	mock.lockGpuInstanceGetVgpuSchedulerState_v2.RUnlock()
 	return calls
 }
 
@@ -15056,6 +16558,42 @@ func (mock *Interface) GpuInstanceSetVgpuSchedulerStateCalls() []struct {
 	mock.lockGpuInstanceSetVgpuSchedulerState.RLock()
 	calls = mock.calls.GpuInstanceSetVgpuSchedulerState
 	mock.lockGpuInstanceSetVgpuSchedulerState.RUnlock()
+	return calls
+}
+
+// GpuInstanceSetVgpuSchedulerState_v2 calls GpuInstanceSetVgpuSchedulerState_v2Func.
+func (mock *Interface) GpuInstanceSetVgpuSchedulerState_v2(gpuInstance nvml.GpuInstance, vgpuSchedulerState_v2 *nvml.VgpuSchedulerState_v2) nvml.Return {
+	if mock.GpuInstanceSetVgpuSchedulerState_v2Func == nil {
+		panic("Interface.GpuInstanceSetVgpuSchedulerState_v2Func: method is nil but Interface.GpuInstanceSetVgpuSchedulerState_v2 was just called")
+	}
+	callInfo := struct {
+		GpuInstance           nvml.GpuInstance
+		VgpuSchedulerState_v2 *nvml.VgpuSchedulerState_v2
+	}{
+		GpuInstance:           gpuInstance,
+		VgpuSchedulerState_v2: vgpuSchedulerState_v2,
+	}
+	mock.lockGpuInstanceSetVgpuSchedulerState_v2.Lock()
+	mock.calls.GpuInstanceSetVgpuSchedulerState_v2 = append(mock.calls.GpuInstanceSetVgpuSchedulerState_v2, callInfo)
+	mock.lockGpuInstanceSetVgpuSchedulerState_v2.Unlock()
+	return mock.GpuInstanceSetVgpuSchedulerState_v2Func(gpuInstance, vgpuSchedulerState_v2)
+}
+
+// GpuInstanceSetVgpuSchedulerState_v2Calls gets all the calls that were made to GpuInstanceSetVgpuSchedulerState_v2.
+// Check the length with:
+//
+//	len(mockedInterface.GpuInstanceSetVgpuSchedulerState_v2Calls())
+func (mock *Interface) GpuInstanceSetVgpuSchedulerState_v2Calls() []struct {
+	GpuInstance           nvml.GpuInstance
+	VgpuSchedulerState_v2 *nvml.VgpuSchedulerState_v2
+} {
+	var calls []struct {
+		GpuInstance           nvml.GpuInstance
+		VgpuSchedulerState_v2 *nvml.VgpuSchedulerState_v2
+	}
+	mock.lockGpuInstanceSetVgpuSchedulerState_v2.RLock()
+	calls = mock.calls.GpuInstanceSetVgpuSchedulerState_v2
+	mock.lockGpuInstanceSetVgpuSchedulerState_v2.RUnlock()
 	return calls
 }
 
@@ -15270,6 +16808,38 @@ func (mock *Interface) SystemEventSetWaitCalls() []struct {
 	mock.lockSystemEventSetWait.RLock()
 	calls = mock.calls.SystemEventSetWait
 	mock.lockSystemEventSetWait.RUnlock()
+	return calls
+}
+
+// SystemGetCPER_v1 calls SystemGetCPER_v1Func.
+func (mock *Interface) SystemGetCPER_v1(getCPER_v1 *nvml.GetCPER_v1) nvml.Return {
+	if mock.SystemGetCPER_v1Func == nil {
+		panic("Interface.SystemGetCPER_v1Func: method is nil but Interface.SystemGetCPER_v1 was just called")
+	}
+	callInfo := struct {
+		GetCPER_v1 *nvml.GetCPER_v1
+	}{
+		GetCPER_v1: getCPER_v1,
+	}
+	mock.lockSystemGetCPER_v1.Lock()
+	mock.calls.SystemGetCPER_v1 = append(mock.calls.SystemGetCPER_v1, callInfo)
+	mock.lockSystemGetCPER_v1.Unlock()
+	return mock.SystemGetCPER_v1Func(getCPER_v1)
+}
+
+// SystemGetCPER_v1Calls gets all the calls that were made to SystemGetCPER_v1.
+// Check the length with:
+//
+//	len(mockedInterface.SystemGetCPER_v1Calls())
+func (mock *Interface) SystemGetCPER_v1Calls() []struct {
+	GetCPER_v1 *nvml.GetCPER_v1
+} {
+	var calls []struct {
+		GetCPER_v1 *nvml.GetCPER_v1
+	}
+	mock.lockSystemGetCPER_v1.RLock()
+	calls = mock.calls.SystemGetCPER_v1
+	mock.lockSystemGetCPER_v1.RUnlock()
 	return calls
 }
 
@@ -17081,6 +18651,38 @@ func (mock *Interface) VgpuTypeGetGpuInstanceProfileIdCalls() []struct {
 	mock.lockVgpuTypeGetGpuInstanceProfileId.RLock()
 	calls = mock.calls.VgpuTypeGetGpuInstanceProfileId
 	mock.lockVgpuTypeGetGpuInstanceProfileId.RUnlock()
+	return calls
+}
+
+// VgpuTypeGetID calls VgpuTypeGetIDFunc.
+func (mock *Interface) VgpuTypeGetID(vgpuTypeId nvml.VgpuTypeId) uint32 {
+	if mock.VgpuTypeGetIDFunc == nil {
+		panic("Interface.VgpuTypeGetIDFunc: method is nil but Interface.VgpuTypeGetID was just called")
+	}
+	callInfo := struct {
+		VgpuTypeId nvml.VgpuTypeId
+	}{
+		VgpuTypeId: vgpuTypeId,
+	}
+	mock.lockVgpuTypeGetID.Lock()
+	mock.calls.VgpuTypeGetID = append(mock.calls.VgpuTypeGetID, callInfo)
+	mock.lockVgpuTypeGetID.Unlock()
+	return mock.VgpuTypeGetIDFunc(vgpuTypeId)
+}
+
+// VgpuTypeGetIDCalls gets all the calls that were made to VgpuTypeGetID.
+// Check the length with:
+//
+//	len(mockedInterface.VgpuTypeGetIDCalls())
+func (mock *Interface) VgpuTypeGetIDCalls() []struct {
+	VgpuTypeId nvml.VgpuTypeId
+} {
+	var calls []struct {
+		VgpuTypeId nvml.VgpuTypeId
+	}
+	mock.lockVgpuTypeGetID.RLock()
+	calls = mock.calls.VgpuTypeGetID
+	mock.lockVgpuTypeGetID.RUnlock()
 	return calls
 }
 

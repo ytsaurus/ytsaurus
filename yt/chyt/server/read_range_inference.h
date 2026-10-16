@@ -15,7 +15,7 @@ namespace NYT::NClickHouseServer {
 NYT::NQueryClient::TConstExpressionPtr ConvertToConstExpression(
     DB::QueryTreeNodePtr node,
     const NTableClient::TTableSchemaPtr& schema,
-    const TCompositeSettingsPtr& settings,
+    const TConversionSettingsPtr& settings,
     DB::GetSetElementParams setParams = {});
 
 std::vector<NChunkClient::TReadRange> InferReadRange(

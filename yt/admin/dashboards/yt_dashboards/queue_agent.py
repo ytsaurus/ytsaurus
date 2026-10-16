@@ -2,7 +2,7 @@ from yt_dashboard_generator.backends.monitoring import MonitoringCustomDashboard
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 
 from yt_dashboard_generator.sensor import MultiSensor
-from yt_dashboard_generator.specific_sensors.monitoring import MonitoringExpr, PlainMonitoringExpr
+from yt_dashboard_generator.specific_sensors.monitoring import MonitoringExpr
 from yt_dashboards.common.sensors import QueueAgentPorto, QueueAgentCpu
 from yt_dashboards.common.queue_agent import build_pass_metrisc_rowsets
 
@@ -53,7 +53,7 @@ def _build_cpu_rowset(has_porto, config: QueueAgentDashboardConfig):
                             .value("container_category", "pod")
                         )
                     ).alias("{{container}}"),
-                    PlainMonitoringExpr("constant_line(100)").alias("Max CPU utilization"),
+                    MonitoringExpr.constant_line(100).alias("Max CPU utilization"),
                 ),
             )
         )
@@ -90,16 +90,16 @@ def _build_ram_rowset(has_porto, config: QueueAgentDashboardConfig):
     if has_porto:
         (
             row.cell(
-                "Porto RAM usage",
+                "Porto RAM utilization",
                 (
                     100
                     * (
-                        MonitoringExpr(QueueAgentPorto("yt.porto.memory.memory_usage"))
+                        MonitoringExpr(QueueAgentPorto("yt.porto.memory.anon_usage"))
                         .all(MonitoringTag("host"))
                         .value("container_category", "pod")
                     )
                     / (
-                        MonitoringExpr(QueueAgentPorto("yt.porto.memory.memory_limit"))
+                        MonitoringExpr(QueueAgentPorto("yt.porto.memory.anon_limit"))
                         .all(MonitoringTag("host"))
                         .value("container_category", "pod")
                     )

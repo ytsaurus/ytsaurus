@@ -8,6 +8,15 @@ import sys
 from copy import deepcopy
 
 
+# DO NOT EDIT SPECIAL "# __IF_OS:" MARKERS
+
+# __IF_OS:
+# _PACKAGE_DISTRIBUTION_TYPE = "OS"
+
+# __IF_NOT_OS:
+_PACKAGE_DISTRIBUTION_TYPE = "NOT_OS"
+
+
 def report_and_exit(error):
     sys.stderr.write(
         """Found difference in signatures between YtClient and client_api.py
@@ -26,8 +35,6 @@ Exiting.
         sys.exit(1)
 
 
-# DO NOT EDIT SPECIAL "# __IF_OS:" MARKERS
-
 try:
     pass
     # __IF_NOT_OS:
@@ -39,6 +46,11 @@ except ImportError:
 
 # __IF_OS:
 # from .client_impl import YtClient
+
+
+if _PACKAGE_DISTRIBUTION_TYPE == "OS" and hasattr(client_api, "make_idm_client"):
+    sys.stderr.write("Packages `ytsaurus-client` and `yandex-yt` conflict with each other. Uninstall one of them.")
+    sys.exit(1)
 
 
 try:

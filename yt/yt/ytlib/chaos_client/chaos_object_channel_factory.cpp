@@ -23,7 +23,7 @@
 
 #include <yt/yt/core/bus/tcp/config.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NChaosClient {
 
@@ -57,12 +57,11 @@ public:
                 .Item("chaos_object_id").Value(chaosObjectId)
             .EndMap()))
         , UnavailableError_(TError(NRpc::EErrorCode::Unavailable, "Chaos object channel is not available")
-            << TErrorAttribute("endpoint", EndpointDescription_))
+            .With("endpoint", EndpointDescription_))
         , Logger(ChaosClientLogger()
-            .WithTag("ProviderId: %v, ChaosObjectId: %v, Type: %v",
-                TGuid::Create(),
-                chaosObjectId,
-                TypeFromId(chaosObjectId)))
+            .WithTag("ProviderId", TGuid::Create())
+            .WithTag("ChaosObjectId", chaosObjectId)
+            .WithTag("Type", TypeFromId(chaosObjectId)))
     {
         YT_UNUSED_FUTURE(synchronizer->Sync());
     }
@@ -113,15 +112,17 @@ private:
 
     const NLogging::TLogger Logger;
 
-    NThreading::TAtomicObject<TFuture<IChannelPtr>> ChannelFuture_;
+    TAtomicObject<TFuture<IChannelPtr>> ChannelFuture_;
 
     IChannelPtr Channel_;
     TCellTag CellTag_ = InvalidCellTag;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
     void OnChannelFailed(const IChannelPtr& channel, const TError& error)
     {
-        YT_LOG_DEBUG(error, "Chaos object channel failed (IsUnavailable: %v)", IsUnavailableError(error));
+        YT_TLOG_DEBUG("Chaos object channel failed")
+            .With("IsUnavailable", IsUnavailableError(error))
+            .With(error);
 
         auto cellTag = InvalidCellTag;
 
@@ -134,13 +135,13 @@ private:
             ChaosResidencyCache_->ForceRefresh(ChaosObjectId_, cellTag);
             ChannelFuture_.Store(TFuture<IChannelPtr>());
 
-            YT_LOG_DEBUG("Invalidated chaos object cell tag from residency cache");
+            YT_TLOG_DEBUG("Invalidated chaos object cell tag from residency cache");
         }
     }
 
     TFuture<IChannelPtr> CreateChannel()
     {
-        YT_LOG_DEBUG("Creating new chaos object channel");
+        YT_TLOG_DEBUG("Creating new chaos object channel");
 
         auto future = ChaosResidencyCache_->GetChaosResidency(ChaosObjectId_)
             .Apply(BIND(&TChaosObjectChannelProvider::OnChaosResidencyFound, MakeStrong(this)));
@@ -151,8 +152,8 @@ private:
 
     TFuture<IChannelPtr> OnChaosResidencyFound(TCellTag cellTag)
     {
-        YT_LOG_DEBUG("Found chaos object residency (CellTag: %v)",
-            cellTag);
+        YT_TLOG_DEBUG("Found chaos object residency")
+            .With("CellTag", cellTag);
 
         if (auto channel = CellDirectory_->FindChannelByCellTag(cellTag, PeerKind_)) {
             auto detectingChannel = CreateFailureDetectingChannel(
@@ -167,14 +168,13 @@ private:
                 Channel_ = detectingChannel;
             }
 
-            YT_LOG_DEBUG("Created chaos object channel");
+            YT_TLOG_DEBUG("Created chaos object channel");
 
             return MakeFuture<IChannelPtr>(detectingChannel);
         }
 
-        YT_LOG_DEBUG(
-            "Unable to created chaos object channel due to cell tag absence in cell directory (CellTag: %v)",
-            cellTag);
+        YT_TLOG_DEBUG("Unable to create chaos object channel due to cell tag absence in cell directory")
+            .With("CellTag", cellTag);
 
         return MakeFuture<IChannelPtr>(UnavailableError_);
     }

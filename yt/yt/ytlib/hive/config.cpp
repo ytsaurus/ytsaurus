@@ -15,6 +15,10 @@ void TClusterDirectorySynchronizerConfig::Register(TRegistrar registrar)
     registrar.Parameter("expire_after_failed_update_time", &TThis::ExpireAfterFailedUpdateTime)
         .Alias("failure_expiration_time")
         .Default(TDuration::Seconds(15));
+
+    registrar.Parameter("tvm_id_rejection_staleness_multiplier", &TThis::TvmIdRejectionStalenessMultiplier)
+        .Default(3.0)
+        .GreaterThanOrEqual(1.0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,7 +1,8 @@
 import typing as t
 from enum import Enum, auto
+from collections.abc import Sequence, Iterable
 
-key = t.Sequence[t.Hashable]
+key = Sequence[t.Hashable]
 
 
 class TrieResult(Enum):
@@ -10,7 +11,7 @@ class TrieResult(Enum):
     EXISTS = auto()
 
 
-def new_trie(keywords: t.Iterable[key], trie: t.Optional[t.Dict] = None) -> t.Dict:
+def new_trie(keywords: Iterable[key], trie: t.Optional[dict] = None) -> dict:
     """
     Creates a new trie out of a collection of keywords.
 
@@ -40,7 +41,7 @@ def new_trie(keywords: t.Iterable[key], trie: t.Optional[t.Dict] = None) -> t.Di
     return trie
 
 
-def in_trie(trie: t.Dict, key: key) -> t.Tuple[TrieResult, t.Dict]:
+def in_trie(trie: dict, key: key) -> tuple[TrieResult, dict]:
     """
     Checks whether a key is in a trie.
 

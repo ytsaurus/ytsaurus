@@ -11,9 +11,9 @@ namespace NYT::NTransactionClient {
 struct TTransactionActionData
 {
     //! Protobuf message type.
-    TString Type;
+    std::string Type;
     //! Protobuf-encoded value.
-    TString Value;
+    std::string Value;
 };
 
 void ToProto(NProto::TTransactionActionData* protoData, const TTransactionActionData& data);

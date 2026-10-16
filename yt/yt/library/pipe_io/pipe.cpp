@@ -29,13 +29,16 @@ TNamedPipe::TNamedPipe(const std::string& path, std::optional<int> capacity, boo
 
 TNamedPipe::~TNamedPipe()
 {
-    YT_LOG_DEBUG("Destroying named pipe (Path: %v)", Path_);
+    YT_TLOG_DEBUG("Destroying named pipe")
+        .With("Path", Path_);
     if (!Owning_) {
         return;
     }
 
     if (unlink(Path_.c_str()) == -1) {
-        YT_LOG_INFO(TError::FromSystem(), "Failed to unlink pipe %v", Path_);
+        YT_TLOG_INFO("Failed to unlink pipe")
+            .With("Path", Path_)
+            .With(TError::FromSystem());
     }
 }
 
@@ -43,7 +46,9 @@ TNamedPipePtr TNamedPipe::Create(const std::string& path, int permissions, std::
 {
     auto pipe = New<TNamedPipe>(path, capacity, /*owning*/ true);
     pipe->Open(permissions);
-    YT_LOG_DEBUG("Named pipe created (Path: %v, Permissions: %v)", path, permissions);
+    YT_TLOG_DEBUG("Named pipe created")
+        .With("Path", path)
+        .With("Permissions", permissions);
     return pipe;
 }
 
@@ -56,7 +61,7 @@ void TNamedPipe::Open(int permissions)
 {
     if (mkfifo(Path_.c_str(), permissions) == -1) {
         THROW_ERROR_EXCEPTION("Failed to create named pipe %v", Path_)
-            << TError::FromSystem();
+            .With(TError::FromSystem());
     }
 }
 
