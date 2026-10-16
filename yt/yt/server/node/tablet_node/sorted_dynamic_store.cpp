@@ -121,8 +121,7 @@ void RecalculatePrepareTimestamp(TLockDescriptor* lock)
         : NotPreparedTimestamp;
 
     // COMPAT(savrus): An active transaction has NullTimestamp while its lock entry has NotPreparedTimestamp.
-    if (auto* context = TryGetCurrentMutationContext();
-        context == nullptr ||
+    if (!HasMutationContext() ||
         GetCurrentMutationEffectiveReign() >= ETabletReign::FixSharedWriteLockPrepareTimestamp ||
         (GetCurrentMutationEffectiveReign() >= ETabletReign::FixSharedWriteLockPrepareTimestamp_26_1 &&
          GetCurrentMutationEffectiveReign() < ETabletReign::Start_26_2))
