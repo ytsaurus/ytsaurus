@@ -44,6 +44,7 @@ GO_TEST_SRCS(
     retrier_test.go
     tablet_tx_test.go
     timestamp_test.go
+    wire_test.go
 )
 
 END()
