@@ -2801,6 +2801,7 @@ func writeStartQueryOptions(w *yson.Writer, o *yt.StartQueryOptions) {
 		w.Any(o.Secrets)
 	}
 	writeQueryTrackerOptions(w, o.QueryTrackerOptions)
+	writeMutatingOptions(w, o.MutatingOptions)
 }
 
 func logStartQueryOptions(o *yt.StartQueryOptions) []log.Field {
@@ -2827,6 +2828,7 @@ func logStartQueryOptions(o *yt.StartQueryOptions) []log.Field {
 		fields = append(fields, log.Any("secrets", o.Secrets))
 	}
 	fields = append(fields, logQueryTrackerOptions(o.QueryTrackerOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
 	return fields
 }
 
@@ -7144,6 +7146,10 @@ func (p *StartQueryParams) MarshalHTTP(w *yson.Writer) {
 
 func (p *StartQueryParams) QueryTrackerOptions() **yt.QueryTrackerOptions {
 	return &p.options.QueryTrackerOptions
+}
+
+func (p *StartQueryParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
 }
 
 type AbortQueryParams struct {

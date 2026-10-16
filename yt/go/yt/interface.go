@@ -1839,6 +1839,7 @@ type StartQueryOptions struct {
 	Secrets []Secret `http:"secrets,omitnil"`
 
 	*QueryTrackerOptions
+	*MutatingOptions
 }
 
 type AbortQueryOptions struct {
