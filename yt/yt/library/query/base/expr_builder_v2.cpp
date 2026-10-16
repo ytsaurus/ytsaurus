@@ -73,6 +73,7 @@ struct TAliasResolver
 
     bool AfterGroupBy = false;
     bool NeedSubstitute = false;
+    ETotalsMode TotalsMode = ETotalsMode::None;
 
     const TNamedItemList* GroupItems = nullptr;
     TAggregateItemList* AggregateItems = nullptr;
@@ -150,7 +151,7 @@ public:
         return InferColumnName(expressionsAst);
     }
 
-    void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems) override
+    void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems, ETotalsMode totalsMode) override
     {
         auto* aliasResolver = AliasResolvers_.back().get();
 
@@ -159,6 +160,7 @@ public:
         aliasResolver->GroupItems = groupItems;
         aliasResolver->AggregateItems = aggregateItems;
         aliasResolver->AfterGroupBy = true;
+        aliasResolver->TotalsMode = totalsMode;
     }
 
 private:
@@ -447,7 +449,11 @@ TConstExpressionPtr TExpressionBuilderV2::OnColumnReference(const NAst::TColumnR
             for (const auto& [expression, name] : *groupItems) {
                 // TODO(lukyan): InferColumnName(reference) instead of reference.ColumnName?
                 if (name == reference.ColumnName) {
-                    return New<TReferenceExpression>(expression->LogicalType, reference.ColumnName);
+                    auto type = expression->LogicalType;
+                    if (aliasResolver->TotalsMode != ETotalsMode::None) {
+                        type = MakeOptionalIfNot(type);
+                    }
+                    return New<TReferenceExpression>(type, reference.ColumnName);
                 }
             }
         }
@@ -1228,7 +1234,8 @@ TGroupClausePtr BuildGroupClause(
 
     builder->SetGroupData(
         &groupClause->GroupItems,
-        &groupClause->AggregateItems);
+        &groupClause->AggregateItems,
+        totalsMode);
 
     return groupClause;
 }
