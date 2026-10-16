@@ -191,7 +191,6 @@ class Clique(object):
             }
 
         self.orchid_root = config["yt"]["orchid_root"]
-        self.discovery_version = config["yt"]["discovery"]["version"]
         self.discovery_servers = ls("//sys/discovery_servers")
 
         # alias processing
@@ -342,30 +341,10 @@ class Clique(object):
             self.yt_client.create("file", llvm_symbolizer_path, attributes={"executable": True})
             self.yt_client.write_file(llvm_symbolizer_path, f)
 
-    def get_active_instances_for_discovery_v1(self):
-        if exists("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False):
-            instances = ls(
-                "//sys/clickhouse/cliques/{0}".format(self.op.id),
-                attributes=["locks", "host", "http_port", "monitoring_port", "job_cookie", "pid"],
-                verbose=False,
-            )
-
-            def is_active(instance):
-                if not instance.attributes["locks"]:
-                    return False
-                for lock in instance.attributes["locks"]:
-                    if lock["child_key"] and lock["child_key"] == "lock":
-                        return True
-                return False
-
-            return list(filter(is_active, instances))
-        else:
-            return []
-
     def get_group_id(self):
         return self.alias or self.get_clique_id()
 
-    def get_active_instances_for_discovery_v2(self):
+    def get_active_instances(self):
         assert len(self.discovery_servers) > 0
         discovery_server = self.discovery_servers[0]
         group_id = self.get_group_id()
@@ -379,13 +358,6 @@ class Clique(object):
             return [instance for instance in instances if instance.attributes]
         except YtResponseError:
             return []
-
-    def get_active_instances(self):
-        if self.discovery_version == 1:
-            return self.get_active_instances_for_discovery_v1()
-        else:
-            assert self.discovery_version == 2
-            return self.get_active_instances_for_discovery_v2()
 
     def get_active_instance_count(self):
         return len(self.get_active_instances())
@@ -471,16 +443,7 @@ class Clique(object):
             if counter % 30 == 0:
                 self._print_progress()
             elif counter >= max_counter_value:
-                clique_directory_path = "//sys/clickhouse/cliques/{}".format(self.op.id)
-                clique_directory = None
-                if exists(clique_directory_path):
-                    clique_directory = get(clique_directory_path, verbose=False)
-
-                raise YtError(
-                    "Clique did not start in time, clique directory: {}".format(
-                        clique_directory if clique_directory is not None else "does not exist"
-                    )
-                )
+                raise YtError("Clique did not start in time")
 
             time.sleep(self.op._poll_frequency)
             counter += 1
