@@ -9,6 +9,7 @@ SRCS(
     debug.go
     io.go
     job.go
+    job_profiler.go
     job_state.go
     main.go
     mapreduce.go
