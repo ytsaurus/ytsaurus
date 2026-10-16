@@ -8,6 +8,7 @@ IF (NOT OPENSOURCE)
     RECURSE(
         bin
         lib
+        raw_log_preprocessing
     )
 
     RECURSE_FOR_TESTS(

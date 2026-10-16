@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 SRCS(
     auth.go
-    batchedsort.go
+    batched.go
     common.go
     crypto.go
     http.go
