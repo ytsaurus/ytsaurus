@@ -2,8 +2,6 @@ PROGRAM(logslice)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
-ALLOCATOR(TCMALLOC)
-
 STRIP()
 
 NO_EXPORT_DYNAMIC_SYMBOLS()
