@@ -1093,6 +1093,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("set_empty_requisition_index_on_import", &TThis::SetEmptyRequisitionIndexOnImport)
         .Default(true);
 
+    registrar.Parameter("recompute_historically_non_vital_on_requisition_update", &TThis::RecomputeHistoricallyNonVitalOnRequisitionUpdate)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         for (const auto& dataCenter : config->BannedStorageDataCenters) {
             if (config->TemporarilyUnavailableStorageDataCenters.contains(dataCenter)) {

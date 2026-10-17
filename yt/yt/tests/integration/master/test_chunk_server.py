@@ -454,6 +454,38 @@ class TestChunkServer(YTEnvSetup):
         assert get("//sys/@lost_vital_chunk_count") == 0
         assert chunk_id not in get("//sys/lost_vital_chunks")
 
+    @authors("kvk1920")
+    def test_historically_non_vitality_recompute(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        nodes = get(f"#{chunk_id}/@stored_replicas")
+
+        set_nodes_banned(nodes, True)
+        wait(lambda: chunk_id in get("//sys/lost_chunks"))
+        assert chunk_id in get("//sys/lost_vital_chunks")
+
+        set("//tmp/t/@replication_factor", 1)
+        wait(lambda: chunk_id not in get("//sys/lost_vital_chunks"))
+        wait(lambda: get(f"#{chunk_id}/@historically_non_vital"))
+
+        set("//tmp/t/@replication_factor", 3)
+        wait(lambda: get(f"#{chunk_id}/@requisition")[0]["replication_policy"]["replication_factor"] == 3)
+        assert get(f"#{chunk_id}/@historically_non_vital")
+        assert chunk_id not in get("//sys/lost_vital_chunks")
+
+        set("//sys/@config/chunk_manager/recompute_historically_non_vital_on_requisition_update", True)
+
+        # Just to cause requisition update.
+        set("//tmp/t/@vital", False)
+        wait(lambda: not get(f"#{chunk_id}/@vital"))
+        set("//tmp/t/@vital", True)
+        wait(lambda: get(f"#{chunk_id}/@vital"))
+
+        assert not get(f"#{chunk_id}/@historically_non_vital")
+        wait(lambda: chunk_id in get("//sys/lost_vital_chunks"))
+
     @authors("achulkov2")
     def test_historically_non_vital_with_erasure(self):
         create("table", "//tmp/t", attributes={"erasure_codec": "isa_reed_solomon_3_3"})
