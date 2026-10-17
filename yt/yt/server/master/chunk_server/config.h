@@ -934,6 +934,9 @@ struct TDynamicChunkManagerConfig
     // account and set |AggregatedRequisitionIndex_| to |EmptyChunkRequisitionIndex| in TChunk constructor.
     bool SetEmptyRequisitionIndexOnImport;
 
+    // Reset HNV on requisition update once the chunk requires durability again.
+    bool RecomputeHistoricallyNonVitalOnRequisitionUpdate;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);
