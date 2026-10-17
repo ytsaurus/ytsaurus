@@ -707,7 +707,7 @@ public:
                 return nullptr;
             }
             TMaybeNode<TCoSecureParam> secParams;
-            if (ytState->ResolveClusterToken(cluster)) {
+            if (YtUnspecifiedCluster != cluster && ytState->ResolveClusterToken(cluster)) {
                 secParams = Build<TCoSecureParam>(ctx, read->Pos()).Name().Build(TString("cluster:default_").append(cluster)).Done();
             }
             return Build<TDqReadWrap>(ctx, read->Pos())
