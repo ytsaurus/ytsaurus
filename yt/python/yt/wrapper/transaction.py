@@ -12,8 +12,7 @@ import yt.logger as logger
 from _thread import interrupt_main
 
 from copy import deepcopy
-from time import sleep
-from threading import Thread, RLock
+from threading import Thread, RLock, Event
 from datetime import datetime, timedelta
 import signal
 import time
@@ -333,6 +332,7 @@ class PingTransaction(Thread):
         self.interrupt_on_failed = interrupt_on_failed
         self.failed = False
         self.is_running = True
+        self._stop_event = Event()
         self.daemon = True
         self.sleep_period = min(self.ping_period / 5, get_config(client)["transaction_sleep_period"])
         self.retry_config = retries_config(
@@ -371,6 +371,8 @@ class PingTransaction(Thread):
         if not self.is_alive():
             # If the thread has never been started, attempting to join it causes RuntimeError.
             return
+        # After fork a stopped thread may retain an Event with a locked condition.
+        self._stop_event.set()
         # timeout should be enough to execute ping
         timeout = (self.ping_timeout + 2 * self.sleep_period) / 1000.0
         self.join(timeout)
@@ -410,7 +412,7 @@ class PingTransaction(Thread):
 
             start_time = datetime.now()
             while datetime.now() - start_time < timedelta(seconds=self.ping_period / 1000.0):
-                sleep(self.sleep_period / 1000.0)
+                self._stop_event.wait(self.sleep_period / 1000.0)
                 if not self.is_running:
                     return
 
