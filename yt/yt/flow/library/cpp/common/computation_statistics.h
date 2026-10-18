@@ -24,6 +24,8 @@ struct TProcessingObservation
     i64 SpecGeneration = 0;
     TInstant CapturedAt;
     TDuration ObservationDuration;
+    std::optional<i64> NonemptyEpochCount;
+    std::optional<TDuration> NonemptyEpochDuration;
     // Processing work includes skipped inputs, timers and visits, not unique terminal completions.
     i64 ProcessedCount = 0;
     i64 ProcessedByteSize = 0;

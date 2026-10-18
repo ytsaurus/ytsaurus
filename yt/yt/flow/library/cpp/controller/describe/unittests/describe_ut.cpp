@@ -1040,13 +1040,13 @@ TEST_W(TDescribeTest, DescribeComputation)
     EXPECT_EQ(description.CpuUsage, 90);
 }
 
-TEST_W(TDescribeTest, RoutesComputationControllerErrors)
+TEST_W(TDescribeTest, RoutesComputationControllerAndPartitioningErrors)
 {
     Prepare();
 
     const std::string computation1Component = "/job_manager/computation_controllers/Computation_1/async_http_sink";
-    const std::string computation2Component = "/job_manager/computation_controllers/Computation_2";
-    const std::string staleComputationComponent = "/job_manager/computation_controllers/Computation_10/source";
+    const std::string computation2Component = "/job_manager/partitioning/Computation_2/throughput";
+    const std::string staleComputationComponent = "/job_manager/partitioning/Computation_10/throughput";
     const std::string pipelineComponent = "/job_manager/resource_manager/failed_resource";
     THashMap<std::string, TError> controllerErrors = {
         {computation1Component, TError("Computation 1 controller error")},

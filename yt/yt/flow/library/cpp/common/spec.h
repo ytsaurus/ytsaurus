@@ -548,6 +548,8 @@ DEFINE_REFCOUNTED_TYPE(TDynamicStateJoinerSpec);
 struct TPartitioningSpec
     : public virtual NYTree::TYsonStruct
 {
+    static constexpr int DefaultMinPartitionCount = 3;
+    static constexpr int DefaultMaxPartitionCount = 20'000;
     std::optional<int> DesiredPartitionCount;
     std::optional<int> MinPartitionCount;
     std::optional<int> MaxPartitionCount;
@@ -560,6 +562,10 @@ struct TPartitioningSpec
     std::optional<double> AllowedPartitionCountDeviation;
     std::optional<TDuration> PartitionCountDoubleDelay;
     std::optional<TDuration> PartitionCountHalfDelay;
+    std::optional<TDuration> ThroughputWarmupPeriod;
+    double ThroughputMaxExplorationFactor{};
+
+    std::pair<i64, i64> GetPartitionCountBounds() const;
 
     REGISTER_YSON_STRUCT(TPartitioningSpec);
 
@@ -1191,6 +1197,56 @@ DEFINE_REFCOUNTED_TYPE(TDynamicJobManagerGroupSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TThroughputSpec
+    : public NYTree::TYsonStruct
+{
+    TDuration WarmupPeriod;
+    double MinimumLoadShare{};
+    double MinimumBusyTimeShare{};
+    double MinimumComparablePartitionShare{};
+    double MinimumExplorationLoadShare{};
+    double MaximumOutputWaitingShare{};
+
+    TDuration CatchUpPeriod;
+    double NormalBacklogBatchCount{};
+    double MinimumGrowthFactor{};
+    double MaximumSteadyGrowthFactor{};
+    double MaximumCatchUpGrowthFactor{};
+    double CapacityChangeTolerance{};
+    double MinimumScalingEffectiveness{};
+
+    TDuration MaxRetryWarmupPeriod;
+    int RetryWarmupFactor{};
+    i64 ResetGeneration{};
+
+    double ScaleDownCapacityReserve{};
+    double ScaleDownTolerance{};
+    int MaximumScaleDownFactor{};
+    TDuration ScaleDownInterval;
+    TDuration PeakDemandWindow;
+
+    REGISTER_YSON_STRUCT(TThroughputSpec);
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TThroughputSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDynamicPartitioningSpec
+    : public NYTree::TYsonStruct
+{
+    bool EnableThroughputAutoscaler{};
+    TThroughputSpecPtr Throughput;
+
+    REGISTER_YSON_STRUCT(TDynamicPartitioningSpec);
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicPartitioningSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDynamicJobManagerSpec
     : public TDynamicJobManagerGroupSpec
 {
@@ -1200,6 +1256,8 @@ struct TDynamicJobManagerSpec
     THashMap<TWorkerGroupId, TDynamicJobManagerGroupSpecPtr> WorkerGroupOverride;
     //! Most partition histories kept in the balancer state; the lightest one goes when it is full.
     i64 PartitionHistoryLimit{};
+
+    TDynamicPartitioningSpecPtr Partitioning;
 
     REGISTER_YSON_STRUCT(TDynamicJobManagerSpec);
 

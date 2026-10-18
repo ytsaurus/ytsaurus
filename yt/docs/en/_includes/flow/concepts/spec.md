@@ -242,6 +242,7 @@ Flow provides a simple version of this config, `NYT::NFlow::TSimpleRunnerConfig`
 
 ## See also
 
+- [Autoscaler](../../../flow/concepts/autoscaler.md)
 - [Computation](../../../flow/concepts/computation.md)
 - [Watermarks and Timers](../../../flow/concepts/watermarks.md)
 - [Connectors](../../../flow/connectors/about.md)

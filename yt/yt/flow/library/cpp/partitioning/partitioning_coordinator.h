@@ -7,6 +7,11 @@
 #include <yt/yt/flow/library/cpp/common/init_context.h>
 #include <yt/yt/flow/library/cpp/common/state_client.h>
 
+#include <yt/yt/flow/library/cpp/throughput_autoscaler/processing_meter.h>
+#include <yt/yt/flow/library/cpp/throughput_autoscaler/throughput_autoscaler.h>
+
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NFlow::NPartitioning {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,6 +23,8 @@ struct TComputationPartitioningState
     std::optional<TVersion> LastAppliedSinkTopologyVersion;
     //! Source partitions to remove after their key disappears and they finish draining.
     THashSet<TPartitionId> RetiringSourcePartitions;
+    TThroughputFeedbackState ThroughputAutoscaler;
+    NYson::TYsonString ThroughputDemandHistory;
 
     REGISTER_YSON_STRUCT(TComputationPartitioningState);
 
@@ -48,8 +55,8 @@ class TPartitioningCoordinator
     : public TRefCounted
 {
 public:
-    static constexpr int DefaultMinInputPartitionCount = 3;
-    static constexpr int DefaultMaxInputPartitionCount = 20'000;
+    static constexpr int DefaultMinInputPartitionCount = TPartitioningSpec::DefaultMinPartitionCount;
+    static constexpr int DefaultMaxInputPartitionCount = TPartitioningSpec::DefaultMaxPartitionCount;
     static constexpr int DefaultSinkChannelMultiplier = 3;
     static constexpr double DefaultDesiredAveragePartitionCpuLoad = 0.1;
     static constexpr double DefaultDesiredAveragePartitionMemoryUsed = 300'000'000;
@@ -62,17 +69,21 @@ public:
 
     TPartitioningCoordinator(
         const THashMap<TComputationId, IComputationControllerPtr>& computationControllers,
+        TPipelineSpecPtr pipelineSpec,
         IInitContextPtr initContext,
         NLogging::TLogger logger,
-        NLogging::TLogger publicLogger);
+        NLogging::TLogger publicLogger,
+        NProfiling::TProfiler profiler = {},
+        IStatusProfilerPtr statusProfiler = {});
 
-    void BeginIteration();
+    void BeginIteration(const TFlowViewPtr& committedFlowView);
     //! Returns whether the computation's current partitions cover its desired partitioning.
     bool IsFullCoverage(
         const TComputationId& computationId,
         const std::vector<TPartitionId>& computationPartitions,
         const TFlowViewPtr& flowView);
     void DoPartitioning(const TFlowViewPtr& flowView);
+    void Sync();
     void Commit();
 
     //! Peak-hold envelope follower used to damp partition-count reductions.
@@ -91,28 +102,87 @@ private:
         THashSet<TPartitionId> InterruptingPartitions;
     };
 
+    struct TPreparedComputationPartitioning
+    {
+        TGroupedPartitions Grouped;
+        IComputationController::TPartitioningDescription Description;
+    };
+
     struct TCriterionEmaState
     {
         double ProposedCount{};
         TInstant UpdatedAt;
     };
 
+    struct TThroughputSensors
+    {
+        NProfiling::TGauge Demand;
+        NProfiling::TGauge SteadyDemand;
+        NProfiling::TGauge PeakSteadyDemand;
+        NProfiling::TGauge Processed;
+        NProfiling::TGauge Capacity;
+        NProfiling::TGauge DemandKnown;
+        NProfiling::TGauge SteadyDemandKnown;
+        NProfiling::TGauge ProcessedKnown;
+        NProfiling::TGauge CapacityKnown;
+        NProfiling::TGauge TargetPartitionCount;
+        NProfiling::TGauge TargetPartitionCountKnown;
+        NProfiling::TGauge AnchorPartitionCount;
+        NProfiling::TGauge AnchorCapacity;
+        NProfiling::TGauge AnchorKnown;
+        NProfiling::TGauge ExplorationOriginPartitionCount;
+        NProfiling::TGauge ExplorationOriginProcessed;
+        NProfiling::TGauge ExplorationBestProcessed;
+        NProfiling::TGauge ExplorationPartitionCountLimit;
+        NProfiling::TGauge ExplorationKnown;
+        NProfiling::TGauge SearchPhase;
+        NProfiling::TGauge CapacityDegraded;
+        NProfiling::TGauge RetryWarmupSeconds;
+        NProfiling::TGauge WarmupReady;
+        NProfiling::TGauge Repartitioning;
+
+        explicit TThroughputSensors(const NProfiling::TProfiler& profiler);
+    };
+
+    struct TCriterionSensors
+    {
+        NProfiling::TGauge Average;
+        NProfiling::TGauge ProposedPartitionCount;
+        NProfiling::TCounter DecisionCount;
+
+        explicit TCriterionSensors(const NProfiling::TProfiler& profiler);
+    };
+
     struct TComputationState
     {
         IComputationControllerPtr Controller;
+        TComputationSpecPtr Spec;
         NLogging::TLogger Logger;
         NLogging::TLogger PublicLogger;
+
+        NProfiling::TProfiler Profiler;
+        NProfiling::TGauge ProposedPartitionCountGauge;
+        std::optional<TThroughputSensors> ThroughputSensors;
+        THashMap<EPartitioningCriterion, TCriterionSensors> CriterionSensors;
+        THashMap<std::string, NProfiling::TCounter> RepartitionCounters;
+
         TInstant LastRepartitionTime = TInstant::Zero();
         TInstant LastObservedCommonRepartitioningInstant = TInstant::Zero();
-        THashMap<std::string, TCriterionEmaState> CriterionProposedCountEma;
+        THashMap<EPartitioningCriterion, TCriterionEmaState> CriterionProposedCountEma;
         TComputationPartitioningStatePtr PersistedState;
+        IStatusErrorStatePtr ThroughputErrorState;
         std::optional<TVersion> PendingAppliedSinkTopologyVersion;
         std::optional<TVersion> PreviousAppliedSinkTopologyVersion;
         std::optional<THashSet<TPartitionId>> PreviousRetiringSourcePartitions;
     };
 
+    void ProfileThroughput(
+        TComputationState& state,
+        const TThroughputAutoscalerTelemetry& telemetry);
+
     struct TRangePartitioningParameters
     {
+        TComputationId ComputationId;
         TPartitioningSpecPtr PartitioningSpec;
         THashSet<TStreamId> TimerStreamIds;
         bool FirstKeyIsUint = false;
@@ -131,6 +201,8 @@ private:
 
         i64 ProposedCount = 0;
         bool RecreateNow = false;
+        std::string DecisionInitiator;
+        std::string DecisionReason;
         THashMap<TPartitionId, double> Weights;
         std::optional<i64> MaxSinkChannelCount;
 
@@ -142,10 +214,19 @@ private:
             const THashMap<TPartitionId, TKeyRange>& partitionRanges);
     };
 
+    struct TPendingPartitionChange
+    {
+        TComputationId ComputationId;
+        i64 PreviousPartitionCount = 0;
+        i64 NewPartitionCount = 0;
+        std::string Initiator;
+        std::string Reason;
+    };
+
     void DoComputationPartitioning(
         const TComputationId& computationId,
         TComputationState& state,
-        const std::vector<TPartitionId>& computationPartitions,
+        TPreparedComputationPartitioning prepared,
         const TFlowViewPtr& flowView);
 
     static TGroupedPartitions GroupPartitions(
@@ -214,8 +295,14 @@ private:
     THashMap<TComputationId, TComputationState> Computations_;
     std::vector<TComputationId> ComputationOrder_;
     TInstant LastRepartitioningInstant_ = TInstant::Zero();
+    bool EnableThroughputAutoscaler_{};
+    bool ThroughputStatusPrepared_ = false;
+    TThroughputAutoscaler ThroughputAutoscaler_;
+    TProcessingMeter ProcessingMeter_;
+    TFlowStatePtr CommittedState_;
     const NLogging::TLogger Logger;
     const NLogging::TLogger PublicLogger;
+    std::vector<TPendingPartitionChange> PendingPartitionChanges_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPartitioningCoordinator);

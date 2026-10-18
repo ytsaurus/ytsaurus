@@ -6,6 +6,17 @@
 
 namespace NYT::NFlow::NPartitioning {
 
+DEFINE_ENUM(EPartitioningCriterion,
+    (SinkChannels)
+    (Cpu)
+    (Memory)
+    (Messages)
+    (Bytes)
+    (Timers)
+    (Throughput)
+    (ThroughputHold)
+);
+
 DECLARE_REFCOUNTED_STRUCT(TComputationPartitioningState);
 DECLARE_REFCOUNTED_STRUCT(TPartitioningCoordinatorState);
 DECLARE_REFCOUNTED_CLASS(TPartitioningCoordinator);
