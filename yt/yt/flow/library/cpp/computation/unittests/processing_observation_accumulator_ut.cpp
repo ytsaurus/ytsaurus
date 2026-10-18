@@ -16,6 +16,7 @@ TEST(TProcessingObservationAccumulatorTest, PublicationIsCoherentAndDoesNotChang
     estimator.StartEpoch(totals);
     estimator.AddInputs(600, 4800);
     totals[EEpochPartKind::Processing].TotalDuration = TDuration::Seconds(10);
+    totals[EEpochPartKind::Processing].WallTimeEma = TDuration::Hours(1);
     totals[EEpochPartKind::Waiting].TotalDuration = TDuration::Seconds(5);
     totals[EEpochPartKind::WaitingForInput].TotalDuration = TDuration::Seconds(30);
     totals[EEpochPartKind::WaitingForOutput].TotalDuration = TDuration::Seconds(15);
@@ -23,6 +24,8 @@ TEST(TProcessingObservationAccumulatorTest, PublicationIsCoherentAndDoesNotChang
     EXPECT_EQ(first->Sequence, 1);
     EXPECT_EQ(first->CapturedAt, StartTime + TDuration::Minutes(1));
     EXPECT_EQ(first->ObservationDuration, TDuration::Minutes(1));
+    EXPECT_EQ(first->NonemptyEpochCount, 1);
+    EXPECT_EQ(first->NonemptyEpochDuration, TDuration::Minutes(1));
     EXPECT_EQ(first->ProcessedCount, 600);
     EXPECT_EQ(first->ProcessedByteSize, 4800);
     EXPECT_EQ(first->ProcessingTime, TDuration::Seconds(10));
@@ -39,6 +42,8 @@ TEST(TProcessingObservationAccumulatorTest, PublicationIsCoherentAndDoesNotChang
     EXPECT_EQ(second->ProcessedCount, 690);
     EXPECT_EQ(second->ProcessingTime, TDuration::Seconds(13));
     EXPECT_EQ(second->ObservationDuration, TDuration::Seconds(3));
+    EXPECT_EQ(second->NonemptyEpochCount, 2);
+    EXPECT_EQ(second->NonemptyEpochDuration, TDuration::Seconds(63));
     EXPECT_EQ(first->Sequence, 1);
     EXPECT_EQ(first->ProcessedCount, 600);
     EXPECT_EQ(first->ProcessingTime, TDuration::Seconds(10));
@@ -65,6 +70,8 @@ TEST(TProcessingObservationAccumulatorTest, FailedAttemptDoesNotAdvanceCommitted
     EXPECT_EQ(committed->ProcessedCount, 12);
     EXPECT_EQ(committed->ProcessedByteSize, 96);
     EXPECT_EQ(committed->ObservationDuration, TDuration::Seconds(10));
+    EXPECT_EQ(committed->NonemptyEpochCount, 1);
+    EXPECT_EQ(committed->NonemptyEpochDuration, TDuration::Seconds(10));
     EXPECT_EQ(committed->ProcessingTime, TDuration::Seconds(2));
     EXPECT_EQ(committed->OtherWaitingTime, TDuration::Seconds(1));
     EXPECT_EQ(committed->InputWaitingTime, TDuration::Seconds(3));
@@ -100,6 +107,8 @@ TEST(TProcessingObservationAccumulatorTest, EmptyPublicationHasKnownWorkAndTime)
     auto observation = estimator.Commit(totals, StartTime + TDuration::Seconds(5));
     EXPECT_EQ(observation->Sequence, 1);
     EXPECT_EQ(observation->ProcessedCount, 0);
+    EXPECT_EQ(observation->NonemptyEpochCount, 0);
+    EXPECT_EQ(observation->NonemptyEpochDuration, TDuration::Zero());
     EXPECT_EQ(observation->ProcessedByteSize, 0);
     EXPECT_EQ(observation->InputWaitingTime, TDuration::Seconds(5));
 }
@@ -133,39 +142,6 @@ TEST(TProcessingObservationAccumulatorTest, ExcludesInitializationAndPreservesCo
     EXPECT_EQ(second->ProcessedByteSize, 16000);
 }
 
-TEST(TProcessingObservationAccumulatorTest, PublishOnlyEpochAddsTimeWithoutRecountingInputs)
-{
-    TProcessingObservationAccumulator accumulator(StartTime);
-    THashMap<EEpochPartKind, IComputationTracer::TPartState> totals;
-    accumulator.StartEpoch(totals);
-    accumulator.AddInputs(1000, 8000);
-    totals[EEpochPartKind::Processing].TotalDuration = TDuration::Seconds(10);
-    auto first = accumulator.Commit(totals, StartTime + TDuration::Seconds(10));
-
-    accumulator.StartEpoch(totals);
-    totals[EEpochPartKind::Processing].TotalDuration += TDuration::Seconds(30);
-    auto second = accumulator.Commit(totals, StartTime + TDuration::Seconds(40));
-    EXPECT_EQ(second->ProcessedCount, first->ProcessedCount);
-    EXPECT_EQ(second->ProcessedByteSize, first->ProcessedByteSize);
-    EXPECT_EQ(second->ProcessingTime - first->ProcessingTime, TDuration::Seconds(30));
-    EXPECT_EQ(second->ObservationDuration, TDuration::Seconds(30));
-}
-
-TEST(TProcessingObservationAccumulatorTest, CountsFirstBatchWithoutWarmupOrDiagnosticEma)
-{
-    TProcessingObservationAccumulator accumulator(StartTime);
-    THashMap<EEpochPartKind, IComputationTracer::TPartState> totals;
-    accumulator.StartEpoch(totals);
-    accumulator.AddInputs(1, 64);
-    totals[EEpochPartKind::Processing].TotalDuration = TDuration::MilliSeconds(1);
-    totals[EEpochPartKind::Processing].WallTimeEma = TDuration::Hours(1);
-    auto first = accumulator.Commit(totals, StartTime + TDuration::MilliSeconds(1));
-    EXPECT_EQ(first->ProcessedCount, 1);
-    EXPECT_EQ(first->ProcessedByteSize, 64);
-    EXPECT_EQ(first->ProcessingTime, TDuration::MilliSeconds(1));
-    EXPECT_EQ(first->ObservationDuration, TDuration::MilliSeconds(1));
-}
-
 TEST(TProcessingObservationAccumulatorTest, IdleEpochKeepsWorkAndIncludesActualOverhead)
 {
     TProcessingObservationAccumulator accumulator(StartTime);
@@ -180,6 +156,8 @@ TEST(TProcessingObservationAccumulatorTest, IdleEpochKeepsWorkAndIncludesActualO
     totals[EEpochPartKind::WaitingForInput].TotalDuration += TDuration::Days(10);
     auto idle = accumulator.Commit(totals, StartTime + TDuration::Days(10) + TDuration::Seconds(11));
     EXPECT_EQ(idle->ProcessedCount, first->ProcessedCount);
+    EXPECT_EQ(idle->NonemptyEpochCount, first->NonemptyEpochCount);
+    EXPECT_EQ(idle->NonemptyEpochDuration, first->NonemptyEpochDuration);
     EXPECT_EQ(idle->ProcessedByteSize, first->ProcessedByteSize);
     EXPECT_EQ(idle->ProcessingTime, TDuration::Seconds(11));
     EXPECT_EQ(idle->InputWaitingTime, TDuration::Days(10));

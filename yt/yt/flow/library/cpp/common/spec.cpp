@@ -592,8 +592,25 @@ bool ResolveUseCompactInputMessages(const TComputationSpecPtr& spec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::pair<i64, i64> TPartitioningSpec::GetPartitionCountBounds() const
+{
+    const int minimum = MinPartitionCount.value_or(DefaultMinPartitionCount);
+    const int maximum = MaxPartitionCount.value_or(DefaultMaxPartitionCount);
+    if (minimum <= maximum) {
+        return {minimum, maximum};
+    }
+    // An explicit bound takes precedence over the opposite default.
+    return MinPartitionCount ? std::pair{minimum, minimum} : std::pair{maximum, maximum};
+}
+
 void TPartitioningSpec::Register(TRegistrar registrar)
 {
+    registrar.Parameter("throughput_warmup_period", &TThis::ThroughputWarmupPeriod)
+        .Default()
+        .GreaterThan(TDuration::Zero());
+    registrar.Parameter("throughput_max_exploration_factor", &TThis::ThroughputMaxExplorationFactor)
+        .Default(8)
+        .GreaterThanOrEqual(1.0);
     registrar.Parameter("desired_partition_count", &TThis::DesiredPartitionCount)
         .Default();
     registrar.Parameter("min_partition_count", &TThis::MinPartitionCount)
@@ -1256,6 +1273,9 @@ void TDynamicJobManagerGroupSpec::Register(TRegistrar registrar)
 
 void TDynamicJobManagerSpec::Register(TRegistrar registrar)
 {
+    registrar.Parameter("partitioning", &TThis::Partitioning)
+        .DefaultNew();
+
     registrar.Parameter("worker_group_override", &TThis::WorkerGroupOverride)
         .Default();
     registrar.Parameter("partition_history_limit", &TThis::PartitionHistoryLimit)
@@ -1420,6 +1440,99 @@ void TDynamicStateCacheSpec::Register(TRegistrar registrar)
         .Default(NYTree::TSize(1_GB));
     registrar.Parameter("uncompressed_cache_weight", &TThis::UncompressedCacheWeight)
         .Default(NYTree::TSize(100_MB));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TThroughputSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("warmup_period", &TThis::WarmupPeriod)
+        .Default(TDuration::Minutes(3))
+        .GreaterThan(TDuration::Zero());
+    registrar.Parameter("minimum_load_share", &TThis::MinimumLoadShare)
+        .Default(0.25)
+        .InRange(0.0, 1.0);
+    registrar.Parameter("capacity_change_tolerance", &TThis::CapacityChangeTolerance)
+        .Default(0.1)
+        .GreaterThan(0.0)
+        .LessThan(1.0);
+    registrar.Parameter("max_retry_warmup_period", &TThis::MaxRetryWarmupPeriod)
+        .Default(TDuration::Minutes(24))
+        .GreaterThan(TDuration::Zero());
+    registrar.Parameter("reset_generation", &TThis::ResetGeneration)
+        .Default(0)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("catch_up_period", &TThis::CatchUpPeriod)
+        .Default(TDuration::Minutes(15))
+        .GreaterThan(TDuration::Zero());
+    registrar.Parameter("scale_down_capacity_reserve", &TThis::ScaleDownCapacityReserve)
+        .Default(2.0)
+        .GreaterThanOrEqual(1.0);
+    registrar.Parameter("scale_down_interval", &TThis::ScaleDownInterval)
+        .Default(TDuration::Hours(1))
+        .GreaterThanOrEqual(TDuration::Zero());
+    registrar.Parameter("peak_demand_window", &TThis::PeakDemandWindow)
+        .Default(TDuration::Days(9))
+        .GreaterThan(TDuration::Zero());
+    registrar.Parameter("normal_backlog_batch_count", &TThis::NormalBacklogBatchCount)
+        .Default(2)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("minimum_busy_time_share", &TThis::MinimumBusyTimeShare)
+        .Default(0.75)
+        .GreaterThan(0.0)
+        .LessThanOrEqual(1.0);
+    registrar.Parameter("minimum_comparable_partition_share", &TThis::MinimumComparablePartitionShare)
+        .Default(0.75)
+        .GreaterThan(0.0)
+        .LessThanOrEqual(1.0);
+    registrar.Parameter("minimum_exploration_load_share", &TThis::MinimumExplorationLoadShare)
+        .Default(0.75)
+        .InRange(0.0, 1.0);
+    registrar.Parameter("maximum_output_waiting_share", &TThis::MaximumOutputWaitingShare)
+        .Default(0.25)
+        .GreaterThan(0.0)
+        .LessThanOrEqual(1.0);
+    registrar.Parameter("minimum_growth_factor", &TThis::MinimumGrowthFactor)
+        .Default(1.5)
+        .GreaterThan(1.0);
+    registrar.Parameter("maximum_steady_growth_factor", &TThis::MaximumSteadyGrowthFactor)
+        .Default(4.0)
+        .GreaterThan(1.0);
+    registrar.Parameter("maximum_catch_up_growth_factor", &TThis::MaximumCatchUpGrowthFactor)
+        .Default(2.0)
+        .GreaterThan(1.0);
+    registrar.Parameter("minimum_scaling_effectiveness", &TThis::MinimumScalingEffectiveness)
+        .Default(0.1)
+        .InRange(0.0, 1.0);
+    registrar.Parameter("scale_down_tolerance", &TThis::ScaleDownTolerance)
+        .Default(0.1)
+        .InRange(0.0, 1.0);
+    registrar.Parameter("maximum_scale_down_factor", &TThis::MaximumScaleDownFactor)
+        .Default(2)
+        .GreaterThanOrEqual(2);
+    registrar.Parameter("retry_warmup_factor", &TThis::RetryWarmupFactor)
+        .Default(2)
+        .GreaterThanOrEqual(2);
+
+    registrar.Postprocessor([] (TThis* spec) {
+        THROW_ERROR_EXCEPTION_IF(
+            spec->MinimumGrowthFactor > spec->MaximumCatchUpGrowthFactor ||
+                spec->MaximumCatchUpGrowthFactor > spec->MaximumSteadyGrowthFactor,
+            "Throughput growth factors must satisfy minimum_growth_factor <= maximum_catch_up_growth_factor <= maximum_steady_growth_factor")
+            .With("minimum_growth_factor", spec->MinimumGrowthFactor)
+            .With("maximum_catch_up_growth_factor", spec->MaximumCatchUpGrowthFactor)
+            .With("maximum_steady_growth_factor", spec->MaximumSteadyGrowthFactor);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicPartitioningSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_throughput_autoscaler", &TThis::EnableThroughputAutoscaler)
+        .Default(false);
+    registrar.Parameter("throughput", &TThis::Throughput)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

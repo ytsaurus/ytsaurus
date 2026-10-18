@@ -96,6 +96,9 @@ Window within which the exponentially decaying counter of connection losses betw
 || `faulty_address_attempts` | **Type**: `unsigned long`
 **Default value**: `5`
 See the description of the `faulty_address_window` parameter. ||
+|| `partitioning` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicPartitioningSpec](./all_yson_structs#NYT_NFlow_TDynamicPartitioningSpec)`>`
+**Default value**: `{}`
+Pipeline partitioning settings. ||
 || `worker_group_override` | **Type**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TWorkerGroupIdTag, NYT::TStrongTypedefOptions{true}>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicJobManagerGroupSpec](./all_yson_structs#NYT_NFlow_TDynamicJobManagerGroupSpec)`>>`
 **Default value**: `{}`
  ||

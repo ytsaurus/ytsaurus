@@ -577,12 +577,16 @@ class Test(FlowTestBase):
             wait(check_reconfigured_filter, timeout=120)
 
     @pytest.mark.authors(["pechatnov"])
-    @pytest.mark.parametrize("reader_class", ["TTransformReader", "TDelayedReader"])
+    @pytest.mark.parametrize("reader_class", ["TReader", "TTransformReader", "TDelayedReader"])
     def test_source_processing_observations(self, reader_class):
         run_yt_sync("primary", self.work_yt_path)
         config = get_yson_config(PIPELINE_CONFIG_PATH)
         reader = config["spec"]["computations"]["reader"]
         reader["computation_class_name"] = reader_class
+        if reader_class == "TReader":
+            reader["source_streams"]["other"] = copy.deepcopy(reader["source_streams"]["random"])
+            sources = config["dynamic_spec"]["computations"]["reader"]["source_streams"]
+            sources["other"] = copy.deepcopy(sources["random"])
         observation_path = os.path.join(self.path_to_flow_logs, "source_processed_lineage")
         if reader_class == "TDelayedReader":
             clock = copy.deepcopy(reader)
@@ -617,6 +621,45 @@ class Test(FlowTestBase):
                     if rate:
                         return rate
                 return None
+
+            if reader_class == "TReader":
+
+                def check_source_metrics():
+                    view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                    active_streams = set()
+                    for partition_id, partition in view["state"]["execution_spec"]["layout"]["partitions"].items():
+                        if partition["computation_id"] != "reader":
+                            continue
+                        status = (
+                            view["feedback"]["partition_job_statuses"]
+                            .get(partition_id, {})
+                            .get("current_job_status", {})
+                        )
+                        if not processing_rates(status):
+                            return False
+                        streams = status["from_partition_traverse_data"]["node"]["streams"]
+                        active = [
+                            name
+                            for name in ("random", "other")
+                            if streams[name]["inflight_metrics"].get("offered_count_per_sec", 0) > 0
+                        ]
+                        if len(active) != 1:
+                            return False
+                        active_streams.add(active[0])
+                        inactive = streams["other" if active[0] == "random" else "random"]["inflight_metrics"]
+                        for name in (
+                            "count",
+                            "byte_size",
+                            "ready_count",
+                            "ready_byte_size",
+                            "offered_count_per_sec",
+                            "offered_bytes_per_sec",
+                        ):
+                            assert name in inactive, (partition_id, name, inactive)
+                            assert float(inactive[name]) == 0, (partition_id, name, inactive)
+                    return active_streams == {"random", "other"}
+
+                wait(check_source_metrics, timeout=180)
 
             wait(get_rates, timeout=180)
             rate = get_rates()

@@ -105,7 +105,7 @@ public:
 
     //! Single-entry inflight map; Empty becomes true once the Final pass is
     //! fully committed and the buffer is drained.
-    THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflight() const;
+    THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflight(TSystemTimestamp now) const;
 
     //! Persists the coverage diff produced since the last Sync.
     void Sync(NApi::IDynamicTableTransactionPtr transaction);

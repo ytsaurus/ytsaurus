@@ -1,3 +1,5 @@
+#include <yt/yt/core/misc/collection_helpers.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 
@@ -252,6 +254,7 @@ public:
     TPersistedStateControlPtr<std::string> PersistedControl;
     TFlowViewPtr FlowView;
     IJobManagerPtr JobManager;
+    IStatusProfilerPtr StatusProfiler;
     TPipelineSpecPtr Spec;
     TDynamicPipelineSpecPtr DynamicSpec;
     TComputationId ComputationId = "computation";
@@ -356,7 +359,8 @@ public:
         context->MainCycleInvoker = GetCurrentInvoker();
         context->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
         context->VersionProvider = VersionProvider;
-        context->StatusProfiler = CreateSyncStatusProfiler();
+        StatusProfiler = CreateSyncStatusProfiler();
+        context->StatusProfiler = StatusProfiler;
         context->VersionProvider = VersionProvider;
         JobManager = CreateJobManager(context, Spec, DynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
         FlowView->CurrentSpec->TrySetValue(Spec, VersionProvider);
@@ -384,7 +388,8 @@ public:
         context->MainCycleInvoker = GetCurrentInvoker();
         context->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
         context->VersionProvider = VersionProvider;
-        context->StatusProfiler = CreateSyncStatusProfiler();
+        StatusProfiler = CreateSyncStatusProfiler();
+        context->StatusProfiler = StatusProfiler;
         context->VersionProvider = VersionProvider;
         JobManager = CreateJobManager(context, Spec, DynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
     }
@@ -431,6 +436,70 @@ public:
         jobStatus->InputMetrics = std::move(metrics);
     }
 
+    void CreatePartitionJobs()
+    {
+        FlowView->State->StartMutation();
+        const auto& layout = FlowView->State->ExecutionSpec->Layout;
+        std::vector<TPartitionId> partitionIds;
+        for (const auto& [partitionId, partition] : layout->Partitions) {
+            partitionIds.push_back(partitionId);
+        }
+        for (const auto& partitionId : partitionIds) {
+            auto job = New<TJob>();
+            job->JobId = TJobId(TGuid::Create());
+            job->PartitionId = partitionId;
+            job->WorkerAddress = "worker-0.net:81";
+            job->WorkerIncarnationId = GetOrCrash(FlowView->State->Workers, job->WorkerAddress)->IncarnationId;
+            layout->CreateJob(job);
+        }
+        FlowView->State->CommitMutation();
+    }
+
+    void SetThroughputFeedback(double cpuUsage, i64 offered, i64 processed, i64 capacity, i64 sequence, i64 readyCount = 0)
+    {
+        SetFeedback(cpuUsage, 0, 0, 0);
+        auto now = TInstant::Seconds(FlowView->State->CurrentTimestamp.Underlying());
+        for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+            if (!partition->CurrentJobId) {
+                continue;
+            }
+            const auto& status = GetOrCrash(FlowView->Feedback->PartitionJobStatuses, partitionId);
+            status->CurrentJobId = partition->CurrentJobId;
+            status->CurrentJobStatusUpdateTime = now;
+            const auto& job = status->CurrentJobStatus;
+            job->JobId = *partition->CurrentJobId;
+            job->Epoch = FlowView->State->ExecutionSpec->GetEpoch();
+            job->UpdateTime = now;
+            job->InitedTime = now - TDuration::Hours(1);
+
+            auto observation = New<TProcessingObservation>();
+            observation->Sequence = sequence;
+            observation->SpecGeneration = job->Epoch;
+            observation->CapturedAt = now;
+            observation->ObservationDuration = TDuration::Seconds(1);
+            auto elapsed = TDuration::Minutes(sequence);
+            observation->ProcessedCount = elapsed.Seconds() * processed;
+            observation->ProcessedByteSize = observation->ProcessedCount * 10;
+            observation->ProcessingTime = TDuration::MicroSeconds(elapsed.MicroSeconds() * processed / capacity);
+            observation->InputWaitingTime = elapsed - observation->ProcessingTime;
+            job->ProcessingObservation = observation;
+
+            job->FromPartitionTraverseData = New<TFromPartitionTraverseData>();
+            for (const auto& streamId : {TStreamId("input_stream"), TStreamId("timer_stream")}) {
+                auto stream = New<TStreamTraverseData>();
+                auto& metrics = stream->InflightMetrics;
+                metrics = New<TInflightMetrics>();
+                metrics->ReadyCount = streamId == "input_stream" ? readyCount : 0;
+                metrics->ReadyByteSize = *metrics->ReadyCount * 10;
+                metrics->OfferedCountPerSec = streamId == "input_stream" ? offered : 0;
+                metrics->OfferedBytesPerSec = *metrics->OfferedCountPerSec * 10;
+                metrics->ProcessedCountPerSec = streamId == "input_stream" ? processed : 0;
+                metrics->ProcessedBytesPerSec = *metrics->ProcessedCountPerSec * 10;
+                job->FromPartitionTraverseData->Node->Streams[streamId] = stream;
+            }
+        }
+    }
+
     ssize_t GetExecutingPartitionCount(const TComputationId& computationId) const
     {
         ssize_t result = 0;
@@ -464,7 +533,8 @@ public:
 
     void RunPartitioning()
     {
-        JobManager->BeginIteration();
+        FlowView->Feedback->UpdateTime = TInstant::Seconds(FlowView->State->CurrentTimestamp.Underlying());
+        JobManager->BeginIteration(FlowView);
         FlowView->State->StartMutation();
         JobManager->DoPartitioning(FlowView);
         FlowView->State->CommitMutation();
@@ -478,8 +548,7 @@ TEST_F(TPartitioning, FirstPartitioning)
 {
     Prepare(1);
     RunPartitioning();
-    ui64 minCount = NPartitioning::TPartitioningCoordinator::DefaultMinInputPartitionCount;
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), minCount);
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 3u);
 
     Reset();
     Prepare(10);
@@ -503,7 +572,7 @@ TEST_F(TPartitioning, MalformedPartitionIsInterruptedWithoutBlockingRangeLookup)
     auto malformedPartition = makeMalformedPartition(EPartitionState::Executing);
     auto restoredMalformedPartition = makeMalformedPartition(EPartitionState::Interrupting);
 
-    JobManager->BeginIteration();
+    JobManager->BeginIteration(FlowView);
     FlowView->State->StartMutation();
     FlowView->State->ExecutionSpec->Layout->CreatePartition(malformedPartition);
     FlowView->State->ExecutionSpec->Layout->CreatePartition(restoredMalformedPartition);
@@ -512,19 +581,19 @@ TEST_F(TPartitioning, MalformedPartitionIsInterruptedWithoutBlockingRangeLookup)
     JobManager->Commit(FlowView);
 
     EXPECT_EQ(
-        FlowView->State->ExecutionSpec->Layout->Partitions.at(malformedPartition->PartitionId)->State,
+        GetOrCrash(FlowView->State->ExecutionSpec->Layout->Partitions, malformedPartition->PartitionId)->State,
         EPartitionState::Interrupting);
     EXPECT_EQ(
-        FlowView->State->ExecutionSpec->Layout->Partitions.at(restoredMalformedPartition->PartitionId)->State,
+        GetOrCrash(FlowView->State->ExecutionSpec->Layout->Partitions, restoredMalformedPartition->PartitionId)->State,
         EPartitionState::Interrupting);
 
     RunPartitioning();
 
     EXPECT_EQ(
-        FlowView->State->ExecutionSpec->Layout->Partitions.at(malformedPartition->PartitionId)->State,
+        GetOrCrash(FlowView->State->ExecutionSpec->Layout->Partitions, malformedPartition->PartitionId)->State,
         EPartitionState::Interrupting);
     EXPECT_EQ(
-        FlowView->State->ExecutionSpec->Layout->Partitions.at(restoredMalformedPartition->PartitionId)->State,
+        GetOrCrash(FlowView->State->ExecutionSpec->Layout->Partitions, restoredMalformedPartition->PartitionId)->State,
         EPartitionState::Interrupting);
 }
 
@@ -544,7 +613,7 @@ TEST_F(TPartitioning, RangePartitioningErasesRetiringSourceMarker)
     const auto preparedCoordinatorState = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(
         preparedState->Computations.at(TComputationId(TStateManager::PartitioningStateComputationId)).at("/v1"));
     ASSERT_TRUE(
-        preparedCoordinatorState->Computations.at(ComputationId)->RetiringSourcePartitions.contains(partitionId));
+        GetOrCrash(preparedCoordinatorState->Computations, ComputationId)->RetiringSourcePartitions.contains(partitionId));
 
     auto sourcePartition = New<TPartition>();
     sourcePartition->PartitionId = partitionId;
@@ -560,53 +629,433 @@ TEST_F(TPartitioning, RangePartitioningErasesRetiringSourceMarker)
     RunPartitioning();
 
     EXPECT_EQ(
-        FlowView->State->ExecutionSpec->Layout->Partitions.at(partitionId)->State,
+        GetOrCrash(FlowView->State->ExecutionSpec->Layout->Partitions, partitionId)->State,
         EPartitionState::Interrupting);
     const auto persistedState = JobManager->GetState();
     const auto restoredCoordinatorState = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(
         persistedState->Computations.at(TComputationId(TStateManager::PartitioningStateComputationId)).at("/v1"));
     EXPECT_TRUE(
-        restoredCoordinatorState->Computations.at(ComputationId)->RetiringSourcePartitions.empty());
+        GetOrCrash(restoredCoordinatorState->Computations, ComputationId)->RetiringSourcePartitions.empty());
+    const auto originalSnapshot = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(
+        preparedState->Computations.at(TComputationId(TStateManager::PartitioningStateComputationId)).at("/v1"));
+    EXPECT_TRUE(GetOrCrash(originalSnapshot->Computations, ComputationId)->RetiringSourcePartitions.contains(partitionId));
 }
 
-TEST_F(TPartitioning, RepartitioningCooldownIsSharedAcrossComputations)
+TEST_F(TPartitioning, LegacyGrowthKeepsItsDelayDuringThroughputWarmup)
 {
     Prepare(10, /*withSink*/ false, /*withSecondSink*/ false, /*withSecondComputation*/ true);
-
+    DynamicSpec->JobManager->Partitioning = ConvertTo<TDynamicPartitioningSpecPtr>(
+        TYsonString(TStringBuf("{enable_throughput_autoscaler=%true;}")));
+    JobManager->Reconfigure(DynamicSpec);
+    DynamicSpec->Computations[ComputationId]->Parameters->AddChild(
+        "desired_partition_count",
+        ConvertToNode(10));
+    DynamicSpec->Computations[SecondComputationId]->Parameters->RemoveChild("partition_count_double_delay");
+    DynamicSpec->Computations[SecondComputationId]->Parameters->AddChild(
+        "partition_count_double_delay",
+        ConvertToNode(TDuration::Minutes(20)));
+    JobManager->Reconfigure(DynamicSpec);
     RunPartitioning();
     ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 10);
     ASSERT_EQ(GetExecutingPartitionCount(SecondComputationId), 10);
 
-    DynamicSpec->Computations[ComputationId]->Parameters->AddChild(
-        "desired_partition_count",
-        ConvertToNode(20));
-    DynamicSpec->Computations[SecondComputationId]->Parameters = ConvertTo<IMapNodePtr>(
-        TYsonString(TStringBuf(R""""(
-            {
-                "partition_count_double_delay" = 1200000;
-                "partition_count_half_delay" = 0;
+    CreatePartitionJobs();
+    auto publish = [&] (i64 sequence) {
+        SetThroughputFeedback(/*cpuUsage*/ 0, /*offered*/ 10, /*processed*/ 10, /*capacity*/ 100, sequence);
+        for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+            if (partition->ComputationId == SecondComputationId) {
+                GetOrCrash(FlowView->Feedback->PartitionJobStatuses, partitionId)->CurrentJobStatus->PerformanceMetrics->CpuUsage10m =
+                    NPartitioning::TPartitioningCoordinator::DefaultDesiredAveragePartitionCpuLoad * 2;
             }
-        )"""")));
-    JobManager->Reconfigure(DynamicSpec);
+        }
+    };
+    publish(1);
+    RunPartitioning();
+    FlowView->State->CurrentTimestamp.Underlying() += TDuration::Minutes(1).Seconds();
+    publish(2);
+    RunPartitioning();
+    ASSERT_EQ(GetExecutingPartitionCount(SecondComputationId), 10);
 
-    FlowView->State->CurrentTimestamp.Underlying() += TDuration::Minutes(11).Seconds();
-    SetComputationFeedback(
-        SecondComputationId,
-        NPartitioning::TPartitioningCoordinator::DefaultDesiredAveragePartitionCpuLoad * 2,
-        0,
-        0,
-        0);
+    // Elapsed controller time alone cannot replace committed job observations.
+    FlowView->State->CurrentTimestamp.Underlying() += DynamicSpec->JobManager->Partitioning->Throughput->WarmupPeriod.Seconds();
+    RunPartitioning();
+    EXPECT_EQ(GetExecutingPartitionCount(SecondComputationId), 10);
 
-    for (int iteration = 0; iteration < 2; ++iteration) {
-        JobManager->BeginIteration();
-        FlowView->State->StartMutation();
-        JobManager->DoPartitioning(FlowView);
-        FlowView->State->CommitMutation();
-        JobManager->Commit(FlowView);
+    publish(5);
+    RunPartitioning();
+    EXPECT_EQ(GetExecutingPartitionCount(SecondComputationId), 10);
+    FlowView->State->CurrentTimestamp.Underlying() += DynamicSpec->JobManager->Partitioning->Throughput->WarmupPeriod.Seconds();
+    publish(8);
+    RunPartitioning();
+    EXPECT_EQ(GetExecutingPartitionCount(SecondComputationId), 10);
+
+    FlowView->State->CurrentTimestamp.Underlying() += TDuration::Minutes(21).Seconds();
+    publish(9);
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        if (partition->ComputationId == ComputationId) {
+            GetOrCrash(FlowView->Feedback->PartitionJobStatuses, partitionId)->CurrentJobStatus->ProcessingObservation.Reset();
+        }
     }
-
-    EXPECT_EQ(GetExecutingPartitionCount(ComputationId), 20);
+    RunPartitioning();
     EXPECT_EQ(GetExecutingPartitionCount(SecondComputationId), 20);
+}
+
+TEST_F(TPartitioning, ThroughputDownscaleWaitsForHourlyBatchBeforeChangingLayout)
+{
+    for (double cpuUsage : {0.0, 0.02}) {
+        Reset();
+        Prepare(20);
+        DynamicSpec->JobManager->Partitioning->EnableThroughputAutoscaler = true;
+        JobManager->Reconfigure(DynamicSpec);
+        auto parameters = DynamicSpec->Computations[ComputationId]->Parameters;
+        parameters->AddChild("max_partition_count", ConvertToNode(20));
+        parameters->RemoveChild("partition_count_half_delay");
+        parameters->AddChild("partition_count_half_delay", ConvertToNode(TDuration::Minutes(200)));
+        JobManager->Reconfigure(DynamicSpec);
+        RunPartitioning();
+        ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 20);
+
+        CreatePartitionJobs();
+        SetThroughputFeedback(cpuUsage, /*offered*/ 10, /*processed*/ 10, /*capacity*/ 100, /*sequence*/ 1);
+        RunPartitioning();
+        ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 20);
+
+        for (i64 sequence = 2; sequence <= 67 && GetExecutingPartitionCount(ComputationId) == 20; ++sequence) {
+            FlowView->State->CurrentTimestamp.Underlying() += TDuration::Minutes(1).Seconds();
+            SetThroughputFeedback(cpuUsage, /*offered*/ 10, /*processed*/ 10, /*capacity*/ 100, sequence);
+            RunPartitioning();
+            if (sequence <= 60) {
+                EXPECT_EQ(GetExecutingPartitionCount(ComputationId), 20);
+            }
+        }
+        EXPECT_EQ(GetExecutingPartitionCount(ComputationId), cpuUsage == 0 ? 10 : 12);
+    }
+}
+
+TEST_F(TPartitioning, ThroughputMultiplierKeepsIndependentCpuDelay)
+{
+    for (double cpuUsage : {0.0, 1.0}) {
+        Reset();
+        Prepare(100);
+        DynamicSpec->JobManager->Partitioning->EnableThroughputAutoscaler = true;
+        DynamicSpec->JobManager->Partitioning->Throughput->CatchUpPeriod = TDuration::Minutes(30);
+        DynamicSpec->Computations[ComputationId]->Parameters->RemoveChild("partition_count_double_delay");
+        DynamicSpec->Computations[ComputationId]->Parameters->AddChild(
+            "partition_count_double_delay",
+            ConvertToNode(TDuration::Minutes(20)));
+        JobManager->Reconfigure(DynamicSpec);
+        RunPartitioning();
+        ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 100);
+
+        FlowView->State->StartMutation();
+        for (const auto& [address, worker] : FlowView->State->Workers) {
+            worker->VcpuLimit = address == "worker-0.net:81" ? 1000 : 0;
+        }
+        FlowView->State->CommitMutation();
+        CreatePartitionJobs();
+
+        SetThroughputFeedback(cpuUsage, /*offered*/ 100, /*processed*/ 100, /*capacity*/ 100, /*sequence*/ 1, /*readyCount*/ 60'000);
+        RunPartitioning();
+        ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 100);
+        for (i64 sequence = 2; sequence <= 7 && GetExecutingPartitionCount(ComputationId) == 100; ++sequence) {
+            FlowView->State->CurrentTimestamp.Underlying() += TDuration::Minutes(1).Seconds();
+            SetThroughputFeedback(cpuUsage, /*offered*/ 100, /*processed*/ 100, /*capacity*/ 100, sequence, /*readyCount*/ 60'000);
+            RunPartitioning();
+        }
+        EXPECT_EQ(GetExecutingPartitionCount(ComputationId), 150);
+        RunPartitioning();
+        EXPECT_EQ(GetExecutingPartitionCount(ComputationId), 150);
+    }
+}
+
+TEST_F(TPartitioning, RefusedRecalibrationCannotPromoteTheLargerLayout)
+{
+    Prepare(32);
+    DynamicSpec->JobManager->Partitioning->EnableThroughputAutoscaler = true;
+    JobManager->Reconfigure(DynamicSpec);
+    RunPartitioning();
+    ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 32);
+
+    auto persisted = JobManager->GetState();
+    auto& domain = persisted->Computations[TComputationId(TStateManager::PartitioningStateComputationId)]["/v1"];
+    auto coordinator = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(domain);
+    auto& feedback = GetOrCrash(coordinator->Computations, ComputationId)->ThroughputAutoscaler;
+    feedback.Anchor.emplace();
+    feedback.Anchor->PartitionCount = 4;
+    feedback.Anchor->Capacity = 3200;
+    feedback.Phase = EThroughputSearchPhase::Plateau;
+    feedback.ObservedPartitionCount = 32;
+    domain = ConvertToYsonString(coordinator);
+    FlowView->State->JobManagerState = std::move(persisted);
+    DynamicSpec->JobManager->Partitioning->Throughput->ResetGeneration = 1;
+    RecreateJobManager(/*syncState*/ false);
+    CreatePartitionJobs();
+
+    for (i64 sequence = 1; sequence <= 15; ++sequence) {
+        FlowView->State->CurrentTimestamp.Underlying() += TDuration::Minutes(1).Seconds();
+        // The legacy reserve selects 30, but the 10% deadband rejects 32 -> 30.
+        SetThroughputFeedback(/*cpuUsage*/ 0.03125, /*offered*/ 100, /*processed*/ 100, /*capacity*/ 100, sequence, /*readyCount*/ 60'000);
+        RunPartitioning();
+        ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 32);
+    }
+    persisted = JobManager->GetState();
+    coordinator = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(
+        GetOrCrash(GetOrCrash(persisted->Computations, TComputationId(TStateManager::PartitioningStateComputationId)), "/v1"));
+    const auto& retained = GetOrCrash(coordinator->Computations, ComputationId)->ThroughputAutoscaler;
+    ASSERT_TRUE(retained.Anchor);
+    EXPECT_EQ(retained.Anchor->PartitionCount, 4);
+    EXPECT_EQ(retained.Phase, EThroughputSearchPhase::Recalibrating);
+    EXPECT_EQ(retained.PendingPartitionCount, 4);
+}
+
+TEST_F(TPartitioning, RestoredProbeRollsBackAndPublishesComputationWarning)
+{
+    Prepare(16);
+    DynamicSpec->JobManager->Partitioning->EnableThroughputAutoscaler = true;
+    JobManager->Reconfigure(DynamicSpec);
+    RunPartitioning();
+    ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 16);
+
+    auto persisted = JobManager->GetState();
+    auto& domain = persisted->Computations[TComputationId(TStateManager::PartitioningStateComputationId)]["/v1"];
+    auto coordinator = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(domain);
+    auto& feedback = GetOrCrash(coordinator->Computations, ComputationId)->ThroughputAutoscaler;
+    feedback.Anchor.emplace();
+    feedback.Anchor->PartitionCount = 4;
+    feedback.Anchor->Capacity = 1600;
+    feedback.Anchor->BusyPartitionShare = 1;
+    feedback.Phase = EThroughputSearchPhase::FirstProbe;
+    feedback.PendingPartitionCount = 16;
+    feedback.ObservedPartitionCount = 4;
+    domain = ConvertToYsonString(coordinator);
+    FlowView->State->JobManagerState = std::move(persisted);
+    RecreateJobManager(/*syncState*/ false);
+    CreatePartitionJobs();
+
+    SetThroughputFeedback(/*cpuUsage*/ 0, /*offered*/ 100, /*processed*/ 50, /*capacity*/ 50, /*sequence*/ 1, /*readyCount*/ 60'000);
+    RunPartitioning();
+    EXPECT_TRUE(StatusProfiler->GetStatus().Errors.empty());
+    for (i64 sequence = 2; sequence <= 7 && GetExecutingPartitionCount(ComputationId) == 16; ++sequence) {
+        FlowView->State->CurrentTimestamp.Underlying() += TDuration::Minutes(1).Seconds();
+        SetThroughputFeedback(/*cpuUsage*/ 0, /*offered*/ 100, /*processed*/ 50, /*capacity*/ 50, sequence, /*readyCount*/ 60'000);
+        RunPartitioning();
+    }
+    EXPECT_EQ(GetExecutingPartitionCount(ComputationId), 4);
+    const auto errorPath = "/partitioning/computation/throughput";
+    EXPECT_TRUE(StatusProfiler->GetStatus().Errors.contains(errorPath));
+
+    JobManager->BeginIteration(FlowView);
+    JobManager->Commit(FlowView);
+    EXPECT_TRUE(StatusProfiler->GetStatus().Errors.contains(errorPath));
+
+    RecreateJobManager();
+    RunPartitioning();
+    EXPECT_TRUE(StatusProfiler->GetStatus().Errors.contains(errorPath));
+    DynamicSpec->JobManager->Partitioning->EnableThroughputAutoscaler = false;
+    JobManager->Reconfigure(DynamicSpec);
+    RunPartitioning();
+    EXPECT_FALSE(StatusProfiler->GetStatus().Errors.contains(errorPath));
+    DynamicSpec->JobManager->Partitioning->EnableThroughputAutoscaler = true;
+    JobManager->Reconfigure(DynamicSpec);
+    RunPartitioning();
+    EXPECT_TRUE(StatusProfiler->GetStatus().Errors.contains(errorPath));
+
+    auto parameters = DynamicSpec->Computations[ComputationId]->Parameters;
+    parameters->AddChild("desired_partition_count", ConvertToNode(4));
+    JobManager->Reconfigure(DynamicSpec);
+    RunPartitioning();
+    EXPECT_FALSE(StatusProfiler->GetStatus().Errors.contains(errorPath));
+    parameters->RemoveChild("desired_partition_count");
+    JobManager->Reconfigure(DynamicSpec);
+    RunPartitioning();
+    EXPECT_TRUE(StatusProfiler->GetStatus().Errors.contains(errorPath));
+}
+
+TEST_F(TPartitioning, FailedThroughputPassRestoresStateBeforeSerializationAndUsesCurrentConfig)
+{
+    for (bool disableBeforeRollback : {false, true}) {
+        SCOPED_TRACE(disableBeforeRollback);
+        Reset();
+        Prepare(16);
+        RunPartitioning();
+        auto saved = JobManager->GetState();
+        const TComputationId domainId(TStateManager::PartitioningStateComputationId);
+        auto& domain = saved->Computations[domainId]["/v1"];
+        auto coordinator = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(domain);
+        auto& initial = GetOrCrash(coordinator->Computations, ComputationId)->ThroughputAutoscaler;
+        initial.Anchor.emplace();
+        initial.Anchor->PartitionCount = 4;
+        initial.Anchor->Capacity = 1600;
+        initial.Anchor->BusyPartitionShare = 1;
+        initial.Phase = EThroughputSearchPhase::FirstProbe;
+        initial.PendingPartitionCount = 16;
+        initial.ObservedPartitionCount = 4;
+        domain = ConvertToYsonString(coordinator);
+        FlowView->State->JobManagerState = std::move(saved);
+        RecreateJobManager(/*syncState*/ false);
+        auto feedback = [&] {
+            const auto state = JobManager->GetState();
+            const auto coordinator = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(
+                GetOrCrash(GetOrCrash(state->Computations, domainId), "/v1"));
+            return GetOrCrash(coordinator->Computations, ComputationId)->ThroughputAutoscaler;
+        };
+        EXPECT_EQ(feedback().PendingPartitionCount, 16);
+        DynamicSpec->JobManager->Partitioning->EnableThroughputAutoscaler = true;
+        JobManager->Reconfigure(DynamicSpec);
+        CreatePartitionJobs();
+        SetThroughputFeedback(/*cpuUsage*/ 0, /*offered*/ 100, /*processed*/ 50, /*capacity*/ 50, /*sequence*/ 1, /*readyCount*/ 60'000);
+        FlowView->Feedback->UpdateTime = TInstant::Seconds(FlowView->State->CurrentTimestamp.Underlying());
+        auto failedView = FlowView->CopyPtr();
+        failedView->State = failedView->State->Clone();
+        failedView->EphemeralState = CloneYsonStruct(failedView->EphemeralState);
+        JobManager->BeginIteration(FlowView);
+        failedView->State->StartMutation();
+        JobManager->DoPartitioning(failedView);
+        JobManager->DoPartitioning(failedView);
+        EXPECT_EQ(feedback().ObservedPartitionCount, 16);
+        EXPECT_FALSE(feedback().PendingPartitionCount);
+
+        DynamicSpec = CloneYsonStruct(DynamicSpec);
+        DynamicSpec->JobManager->Partitioning->EnableThroughputAutoscaler = !disableBeforeRollback;
+        DynamicSpec->JobManager->Partitioning->Throughput->ResetGeneration = 7;
+        AdvanceClock();
+        FlowView->State->StartMutation();
+        FlowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(DynamicSpec, VersionProvider);
+        FlowView->State->CommitMutation();
+        JobManager->Reconfigure(DynamicSpec);
+        JobManager->BeginIteration(FlowView);
+        const auto restored = feedback();
+        EXPECT_EQ(restored.ObservedPartitionCount, 4);
+        EXPECT_EQ(restored.PendingPartitionCount, 16);
+        EXPECT_EQ(restored.PipelineResetGeneration, 0);
+        ASSERT_TRUE(restored.Anchor);
+        EXPECT_EQ(restored.Anchor->PartitionCount, 4);
+        if (disableBeforeRollback) {
+            RunPartitioning();
+            EXPECT_EQ(feedback().PendingPartitionCount, 16);
+            DynamicSpec->JobManager->Partitioning->EnableThroughputAutoscaler = true;
+            JobManager->Reconfigure(DynamicSpec);
+        }
+        RunPartitioning();
+        EXPECT_EQ(feedback().PipelineResetGeneration, 7);
+        JobManager->BeginIteration(FlowView);
+        EXPECT_EQ(feedback().PipelineResetGeneration, 7);
+    }
+}
+
+TEST_F(TPartitioning, ExhaustedExplorationPublishesWarningUntilDemandIsCovered)
+{
+    for (const auto [processed, withSecondComputation] : {
+            std::pair(50, false),
+            std::pair(100, false),
+            std::pair(50, true),
+            std::pair(100, true),
+         })
+    {
+        Reset();
+        Prepare(16, /*withSink*/ false, /*withSecondSink*/ false, withSecondComputation);
+        DynamicSpec->JobManager->Partitioning->EnableThroughputAutoscaler = true;
+        auto parameters = DynamicSpec->Computations[ComputationId]->Parameters;
+        parameters->RemoveChild("partition_count_half_delay");
+        parameters->AddChild("partition_count_half_delay", ConvertToNode(TDuration::Hours(2)));
+        JobManager->Reconfigure(DynamicSpec);
+        RunPartitioning();
+        ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 16);
+
+        auto persisted = JobManager->GetState();
+        auto& domain = persisted->Computations[TComputationId(TStateManager::PartitioningStateComputationId)]["/v1"];
+        auto coordinator = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(domain);
+        auto& feedback = GetOrCrash(coordinator->Computations, ComputationId)->ThroughputAutoscaler;
+        feedback.Anchor.emplace();
+        feedback.Anchor->PartitionCount = 2;
+        feedback.Anchor->Capacity = 1600;
+        feedback.Exploration.emplace();
+        feedback.Exploration->OriginPartitionCount = 2;
+        feedback.Exploration->OriginProcessed = 1600;
+        feedback.Exploration->BestProcessed = 1600;
+        feedback.Phase = EThroughputSearchPhase::FirstProbe;
+        feedback.ObservedPartitionCount = 16;
+        domain = ConvertToYsonString(coordinator);
+        FlowView->State->JobManagerState = std::move(persisted);
+        RecreateJobManager(/*syncState*/ false);
+        CreatePartitionJobs();
+
+        for (i64 sequence = 1; sequence <= 12; ++sequence) {
+            FlowView->State->CurrentTimestamp.Underlying() += TDuration::Minutes(1).Seconds();
+            SetThroughputFeedback(/*cpuUsage*/ 0, sequence <= 8 ? 200 : 100, processed, /*capacity*/ 100, sequence);
+            RunPartitioning();
+            ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 16);
+            if (sequence < 7) {
+                continue;
+            }
+            const auto errors = StatusProfiler->GetStatus().Errors;
+            const auto errorPath = "/partitioning/computation/throughput";
+            if (sequence <= 8) {
+                ASSERT_TRUE(errors.contains(errorPath));
+                const auto& error = GetOrCrash(errors, errorPath);
+                EXPECT_EQ(error.Attributes().Get<EThroughputSearchPhase>("phase"), processed == 100 ? EThroughputSearchPhase::RatePlateau : EThroughputSearchPhase::ExplorationLimited);
+                EXPECT_EQ(error.Attributes().Get<i64>("origin_partition_count"), 2);
+                EXPECT_EQ(error.Attributes().Get<double>("best_processed"), 1600);
+                if (sequence == 7) {
+                    RecreateJobManager();
+                }
+                if (sequence == 8) {
+                    parameters->AddChild("desired_partition_count", ConvertToNode(16));
+                    JobManager->Reconfigure(DynamicSpec);
+                    RunPartitioning();
+                    EXPECT_FALSE(StatusProfiler->GetStatus().Errors.contains(errorPath));
+                    parameters->RemoveChild("desired_partition_count");
+                    JobManager->Reconfigure(DynamicSpec);
+                    RunPartitioning();
+                    EXPECT_TRUE(StatusProfiler->GetStatus().Errors.contains(errorPath));
+                }
+            } else if (sequence == 12) {
+                EXPECT_FALSE(errors.contains(errorPath));
+            }
+        }
+        persisted = JobManager->GetState();
+        coordinator = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(
+            GetOrCrash(GetOrCrash(persisted->Computations, TComputationId(TStateManager::PartitioningStateComputationId)), "/v1"));
+        const auto& exploration = GetOrCrash(coordinator->Computations, ComputationId)->ThroughputAutoscaler.Exploration;
+        ASSERT_TRUE(exploration);
+        EXPECT_EQ(exploration->OriginPartitionCount, 2);
+        EXPECT_EQ(exploration->BestProcessed, 1600);
+    }
+}
+
+TEST_F(TPartitioning, HardPartitionLimitPublishesWarningWithoutAnExplorationBaseline)
+{
+    Prepare(16);
+    DynamicSpec->JobManager->Partitioning->EnableThroughputAutoscaler = true;
+    auto parameters = DynamicSpec->Computations[ComputationId]->Parameters;
+    parameters->AddChild("max_partition_count", ConvertToNode(16));
+    JobManager->Reconfigure(DynamicSpec);
+    RunPartitioning();
+    ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 16);
+    CreatePartitionJobs();
+
+    const auto errorPath = "/partitioning/computation/throughput";
+    EXPECT_FALSE(StatusProfiler->GetStatus().Errors.contains(errorPath));
+    for (i64 sequence = 1; sequence <= 12; ++sequence) {
+        FlowView->State->CurrentTimestamp.Underlying() += TDuration::Minutes(1).Seconds();
+        SetThroughputFeedback(/*cpuUsage*/ 0, sequence <= 8 ? 200 : 100, /*processed*/ 100, /*capacity*/ 100, sequence);
+        RunPartitioning();
+        ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 16);
+        const auto errors = StatusProfiler->GetStatus().Errors;
+        if (sequence >= 7 && sequence <= 8) {
+            ASSERT_TRUE(errors.contains(errorPath));
+            const auto& error = GetOrCrash(errors, errorPath);
+            EXPECT_EQ(error.Attributes().Get<i64>("partition_count"), 16);
+            EXPECT_EQ(error.Attributes().Get<i64>("max_partition_count"), 16);
+            EXPECT_GT(error.Attributes().Get<double>("demand"), error.Attributes().Get<double>("capacity"));
+        } else if (sequence == 12) {
+            EXPECT_FALSE(errors.contains(errorPath));
+        }
+    }
+    const auto persisted = JobManager->GetState();
+    const auto coordinator = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(
+        GetOrCrash(GetOrCrash(persisted->Computations, TComputationId(TStateManager::PartitioningStateComputationId)), "/v1"));
+    EXPECT_FALSE(GetOrCrash(coordinator->Computations, ComputationId)->ThroughputAutoscaler.Exploration);
 }
 
 TEST_F(TPartitioning, LiveSourceSuppressionPrecedesSingleSnapshotAndUpdatesActiveSpec)
@@ -863,7 +1312,7 @@ TEST_F(TPartitioning, DisappearedSourcePartitionCompletesThenIsRemoved)
     auto failedFlowView = FlowView->CopyPtr();
     failedFlowView->State = failedFlowView->State->Clone();
     failedFlowView->EphemeralState = CloneYsonStruct(failedFlowView->EphemeralState);
-    JobManager->BeginIteration();
+    JobManager->BeginIteration(FlowView);
     failedFlowView->State->StartMutation();
     JobManager->DoPartitioning(failedFlowView);
 
@@ -1176,7 +1625,7 @@ TEST_F(TPartitioning, ResumeRearmsTheCooldown)
 
     AdvanceClock();
     VersionProvider->SetUnixTime(FlowView->State->CurrentTimestamp.Underlying());
-    JobManager->BeginIteration();
+    JobManager->BeginIteration(FlowView);
     FlowView->State->StartMutation();
     FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Paused, VersionProvider);
     JobManager->DoPartitioning(FlowView);
@@ -1186,7 +1635,7 @@ TEST_F(TPartitioning, ResumeRearmsTheCooldown)
 
     AdvanceClock();
     VersionProvider->SetUnixTime(FlowView->State->CurrentTimestamp.Underlying());
-    JobManager->BeginIteration();
+    JobManager->BeginIteration(FlowView);
     FlowView->State->StartMutation();
     FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, VersionProvider);
     JobManager->DoPartitioning(FlowView);
@@ -1426,7 +1875,7 @@ TEST_F(TPartitioning, PersistsSinkTopologyAcknowledgementWithRecreation)
     ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
 
     SinkChannelCountForTest = 7;
-    JobManager->BeginIteration();
+    JobManager->BeginIteration(FlowView);
     FlowView->State->StartMutation();
     JobManager->DoPartitioning(FlowView);
     FlowView->State->JobManagerState = JobManager->GetState();
@@ -1639,11 +2088,11 @@ TEST_F(TPartitioning, FailedPersistenceDoesNotAcknowledgeSinkTopologyVersion)
     auto failedFlowView = FlowView->CopyPtr();
     failedFlowView->State = failedFlowView->State->Clone();
     failedFlowView->EphemeralState = CloneYsonStruct(failedFlowView->EphemeralState);
-    JobManager->BeginIteration();
+    JobManager->BeginIteration(FlowView);
     failedFlowView->State->StartMutation();
     JobManager->DoPartitioning(failedFlowView);
 
-    JobManager->BeginIteration();
+    JobManager->BeginIteration(FlowView);
     const auto stateAfterSkippedIteration = JobManager->GetState();
     const auto coordinatorStateAfterSkippedIteration =
         ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(

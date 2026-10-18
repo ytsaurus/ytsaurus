@@ -282,6 +282,8 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicMessageDistributorSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicJobTrackerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicControllerConnectorSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicStateCacheSpec);
+DECLARE_REFCOUNTED_STRUCT(TThroughputSpec);
+DECLARE_REFCOUNTED_STRUCT(TDynamicPartitioningSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicPipelineSpec);
 
 using TVersionedPipelineSpec = TVersionedValue<TPipelineSpecPtr>;

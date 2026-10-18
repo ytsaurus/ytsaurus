@@ -86,7 +86,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
         auto iterGuard = StartRunIteration(context);
         const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
         DoInit(StateManager_->CreateContext());
-        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context));
+        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context, now));
         FinishRunIteration();
     }
 
@@ -206,7 +206,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
 
         context->MarkPersisted(unprocessedInputs);
 
-        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context));
+        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context, now));
 
         if (!emptyInput) {
             NoteNonEmptyRunIteration();

@@ -424,7 +424,8 @@ protected:
     TSystemTimestamp GetEpochWatermark(const TStreamId& streamId, ETimeType timeType) const;
 
     THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflights(
-        const IComputationRunContextPtr& context) const;
+        const IComputationRunContextPtr& context,
+        TSystemTimestamp now) const;
 
     struct TFilteredInputBatch
     {

@@ -17,6 +17,10 @@ void TProcessingObservation::Register(TRegistrar registrar)
     registrar.Parameter("spec_generation", &TThis::SpecGeneration);
     registrar.Parameter("captured_at", &TThis::CapturedAt);
     registrar.Parameter("observation_duration", &TThis::ObservationDuration);
+    registrar.Parameter("nonempty_epoch_count", &TThis::NonemptyEpochCount)
+        .Optional();
+    registrar.Parameter("nonempty_epoch_duration", &TThis::NonemptyEpochDuration)
+        .Optional();
     registrar.Parameter("processed_count", &TThis::ProcessedCount);
     registrar.Parameter("processed_byte_size", &TThis::ProcessedByteSize);
     registrar.Parameter("processing_time", &TThis::ProcessingTime);

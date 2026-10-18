@@ -148,6 +148,8 @@
 
 {% include [_](./NYT_NFlow_TDynamicPartitionTracerSpec.md) %}
 
+{% include [_](./NYT_NFlow_TDynamicPartitioningSpec.md) %}
+
 {% include [_](./NYT_NFlow_TDynamicPipelineSpec.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicResourceSpec.md) %}
@@ -295,6 +297,8 @@
 {% include [_](./NYT_NFlow_TTableFetcherSpec.md) %}
 
 {% include [_](./NYT_NFlow_TTableJoinerSpec.md) %}
+
+{% include [_](./NYT_NFlow_TThroughputSpec.md) %}
 
 {% include [_](./NYT_NFlow_TTimerSerializer.md) %}
 

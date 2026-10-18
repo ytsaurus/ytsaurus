@@ -21,6 +21,8 @@ items:
     href: guarantees.md
   - name: Порядок обработки сообщений
     href: ordering.md
+  - name: Автоскейлер
+    href: autoscaler.md
   - name: Lineage
     href: lineage.md
   - name: Компаньон (Companion)
