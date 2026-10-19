@@ -4,6 +4,7 @@ import java.io.Writer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -90,8 +91,9 @@ public class YaToolTraceListener implements TestExecutionListener {
 
             listener.reportChunkFinished();
 
-            checkExecutionFinished(testPlan, failedContainers, this::checkFailedContainers);
-            checkExecutionFinished(testPlan, skippedContainers, this::checkSkippedContainers);
+            failedContainers.forEach((container, result) -> checkFailedContainers(testPlan, container, result));
+            checkExecutionFinished(testPlan, skippedContainers,
+                    (container, reason) -> checkSkippedContainers(testPlan, container, reason));
 
             // Проверили все возможные причины падения и пропусков
             // Любой оставшийся тест - flaky
@@ -223,23 +225,36 @@ public class YaToolTraceListener implements TestExecutionListener {
         }
     }
 
-    private void checkFailedContainers(TestIdentifier container, TestExecutionResult result) {
-        List<TestIdentifier> testIdentifiers = container2Test.get(container);
-        if (testIdentifiers == null) {
+    private boolean hasRegisteredDescendants(TestPlan testPlan, TestIdentifier container) {
+        return testPlan.getDescendants(container).stream().anyMatch(container2Test::containsKey);
+    }
+
+    private void checkFailedContainers(TestPlan testPlan, TestIdentifier container, TestExecutionResult result) {
+        Set<TestIdentifier> unfinishedTests = getUnfinishedTests(testPlan, container);
+        if (unfinishedTests.isEmpty()) {
             executionFinished(container, result, true);
         } else {
-            for (TestIdentifier test : testIdentifiers) {
-                if (expectedTests.contains(test)) {
-                    executionFinished(test, result);
-                }
+            for (TestIdentifier test : unfinishedTests) {
+                executionFinished(test, result);
             }
         }
     }
 
-    private void checkSkippedContainers(TestIdentifier container, String reason) {
+    private Set<TestIdentifier> getUnfinishedTests(TestPlan testPlan, TestIdentifier container) {
+        Set<TestIdentifier> tests = new LinkedHashSet<>(container2Test.getOrDefault(container, List.of()));
+        for (TestIdentifier descendant : testPlan.getDescendants(container)) {
+            tests.addAll(container2Test.getOrDefault(descendant, List.of()));
+        }
+        tests.retainAll(expectedTests);
+        return tests;
+    }
+
+    private void checkSkippedContainers(TestPlan testPlan, TestIdentifier container, String reason) {
         List<TestIdentifier> testIdentifiers = container2Test.get(container);
         if (testIdentifiers == null) {
-            executionSkipped(container, reason, true);
+            if (!hasRegisteredDescendants(testPlan, container)) {
+                executionSkipped(container, reason, true);
+            }
         } else {
             for (TestIdentifier test : testIdentifiers) {
                 if (expectedTests.contains(test)) {
