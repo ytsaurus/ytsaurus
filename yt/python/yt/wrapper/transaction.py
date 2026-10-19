@@ -332,7 +332,6 @@ class PingTransaction(Thread):
         self.interrupt_on_failed = interrupt_on_failed
         self.failed = False
         self.is_running = True
-        self._stop_event = Event()
         self.daemon = True
         self.sleep_period = min(self.ping_period / 5, get_config(client)["transaction_sleep_period"])
         self.retry_config = retries_config(
@@ -343,6 +342,7 @@ class PingTransaction(Thread):
                 "constant_time": self.ping_period / 5,
             })
         self._client = client
+        self._stop_event = Event()
 
         self.ignore_no_such_transaction_error = False
 
