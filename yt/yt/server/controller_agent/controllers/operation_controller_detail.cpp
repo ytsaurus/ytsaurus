@@ -11415,13 +11415,13 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(23, CellTagToRequiredOutputChunkListCount_);
     PHOENIX_REGISTER_FIELD(82, CellTagToRequiredOutputHunkChunkListCount_);
     PHOENIX_REGISTER_FIELD(24, CellTagToRequiredDebugChunkListCount_);
-    registrar.template VirtualField<25>("PendingJobCount_", [] (TThis* this_, auto& context) {
-        auto pendingJobCount = Load<TCompositePendingJobCount>(context);
-        this_->CachedPendingJobCount_.Store(pendingJobCount);
-    }, [] (const TThis* this_, auto& context) {
-        auto pendingJobCount = this_->CachedPendingJobCount_.Load();
-        NYT::Save(context, pendingJobCount);
-    })();
+    registrar.template PropertyField<25,
+        [] (const TThis* this_) {
+            return this_->CachedPendingJobCount_.Load();
+        },
+        [] (TThis* this_, TCompositePendingJobCount pendingJobCount) {
+            this_->CachedPendingJobCount_.Store(pendingJobCount);
+        }>("PendingJobCount_")();
     PHOENIX_REGISTER_FIELD(26, CachedNeededResources_);
     PHOENIX_REGISTER_FIELD(27, ChunkOriginMap_);
 

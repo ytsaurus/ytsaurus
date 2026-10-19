@@ -986,7 +986,6 @@ private:
         }
     }
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TUnorderedChunkPool, 0xbacd26ad);
 };
 

@@ -1261,9 +1261,6 @@ private:
         }
     }
 
-    PHOENIX_DECLARE_FRIEND();
-
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TRemoteCopyController, 0xaa8829a9);
 };
 

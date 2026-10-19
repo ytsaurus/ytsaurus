@@ -231,8 +231,6 @@ public:
         const std::optional<std::vector<std::string>>& attributeKeys) const;
 
 private:
-    PHOENIX_DECLARE_FRIEND();
-
     // NB: InputManager does not outlive its host.
     IInputManagerHost* Host_;
     NLogging::TSerializableLogger Logger;

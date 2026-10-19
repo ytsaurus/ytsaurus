@@ -33,7 +33,6 @@ private:
     };
     std::vector<TInputReadRange> Ranges_;
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_TYPE(TReadRangeRegistry, 0x343abac7);
 };
 

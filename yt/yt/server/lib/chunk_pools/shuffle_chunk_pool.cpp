@@ -567,7 +567,6 @@ private:
             UpdateRun(&run);
         }
 
-        PHOENIX_DECLARE_FRIEND();
         PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOutput, 0xba17acf7);
     };
 
@@ -589,7 +588,6 @@ private:
     i64 TotalJobCount_ = 0;
     i64 TotalDataWeight_ = 0;
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TShuffleChunkPool, 0xbacd518a);
 };
 
