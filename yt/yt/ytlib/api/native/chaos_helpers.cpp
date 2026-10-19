@@ -41,13 +41,11 @@ TCellId GetCoordinatorCellId(
 {
     const auto& Logger = logger;
 
-    if (!replicationCard->CoordinatorCellIds.empty()) {
-        // Common case.
-        return downedCellTracker->ChooseOne(replicationCard->CoordinatorCellIds);
-    }
-
-    YT_TLOG_DEBUG("Replication card contains no coordinators, trying the watched one")
-        .With("ReplicationCardId", replicationCardId);
+    auto chooseFromReplicationCard = [&] {
+        return replicationCard->CoordinatorCellIds.empty()
+            ? NullCellId
+            : downedCellTracker->ChooseOne(replicationCard->CoordinatorCellIds);
+    };
 
     auto watchedCardKey = TReplicationCardCacheKey{
         .CardId = replicationCardId,
@@ -62,10 +60,19 @@ TCellId GetCoordinatorCellId(
             .With("ReplicationCardId", replicationCardId)
             .With(watchedReplicationCardOrError);
 
-        return NullCellId;
+        return chooseFromReplicationCard();
     }
 
     const auto& watchedReplicationCard = watchedReplicationCardOrError.Value();
+
+    if (watchedReplicationCard->Era < replicationCard->Era) {
+        YT_TLOG_DEBUG("Watched replication card is outdated, using coordinators from the progress card")
+            .With("ReplicationCardId", replicationCardId)
+            .With("WatchedReplicationCardEra", watchedReplicationCard->Era)
+            .With("ReplicationCardEra", replicationCard->Era);
+
+        return chooseFromReplicationCard();
+    }
 
     if (watchedReplicationCard->CoordinatorCellIds.empty()) {
         YT_TLOG_DEBUG("Watched replication card contains no coordinators")
@@ -89,7 +96,7 @@ TReplicationCardPtr GetSyncReplicationCard(
 {
     const auto& Logger = connection->GetLogger();
 
-    const auto& mountCacheConfig = connection->GetStaticConfig()->TableMountCache;
+    auto connectionConfig = connection->GetConfig();
     const auto& replicationCardCache = connection->GetReplicationCardCache();
 
     TReplicationCardPtr replicationCard;
@@ -105,7 +112,7 @@ TReplicationCardPtr GetSyncReplicationCard(
 
     auto coordinatorEra = InvalidReplicationEra;
 
-    for (int retryCount = 0; retryCount < mountCacheConfig->OnErrorRetryCount; ++retryCount) {
+    for (int retryCount = 0; retryCount < connectionConfig->ReplicationCardRetryCount; ++retryCount) {
         YT_TLOG_DEBUG("Synchronizing replication card")
             .With("ReplicationCardId", replicationCardId)
             .With("Attempt", retryCount);
@@ -116,7 +123,7 @@ TReplicationCardPtr GetSyncReplicationCard(
                 replicationCardCache->ForceRefresh(key, replicationCard);
             }
 
-            TDelayedExecutor::WaitForDuration(mountCacheConfig->OnErrorSlackPeriod);
+            TDelayedExecutor::WaitForDuration(connectionConfig->ReplicationCardRetrySlackPeriod);
         }
 
         auto futureReplicationCard = replicationCardCache->GetReplicationCard(key);
@@ -145,7 +152,7 @@ TReplicationCardPtr GetSyncReplicationCard(
 
         auto channel = connection->GetChaosChannelByCellId(coordinator, EPeerKind::Leader);
         auto proxy = TCoordinatorServiceProxy(channel);
-        proxy.SetDefaultTimeout(connection->GetConfig()->DefaultChaosNodeServiceTimeout);
+        proxy.SetDefaultTimeout(connectionConfig->DefaultChaosNodeServiceTimeout);
         auto req = proxy.GetReplicationCardEra();
 
         ToProto(req->mutable_replication_card_id(), replicationCardId);

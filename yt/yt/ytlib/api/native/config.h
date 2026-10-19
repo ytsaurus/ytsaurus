@@ -416,6 +416,8 @@ struct TConnectionDynamicConfig
 
     NTransactionClient::TDynamicClockManagerConfigPtr ClockManager;
 
+    int ReplicationCardRetryCount;
+    TDuration ReplicationCardRetrySlackPeriod;
     int ReplicaFallbackRetryCount;
 
     int LocalTabletWriteRetryCount;
