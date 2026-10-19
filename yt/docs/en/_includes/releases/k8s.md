@@ -21,7 +21,7 @@ Is released as helm charts on [GitHub Packages](https://github.com/ytsaurus/ytsa
 
 #### What's Changed
 * Tag API module during release by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/862
-* Added `minReadyInstanceCount` into OnDelete logic evaluation by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/866
+* Added minReadyInstanceCount into OnDelete logic evaluation by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/866
 * Add option to focus on test-case by name by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/868
 * Requeue reconcile after update step progress and fix race at UpdateIsPossible by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/864
 * Set memory limit in HTTP and RPC proxy configs by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/861
@@ -189,12 +189,12 @@ Is released as helm charts on [GitHub Packages](https://github.com/ytsaurus/ytsa
 * API: minReadyInstanceCount must be int32 by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/746
 * Fixed proxie's bug with lack of tls volumes during the rolling update by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/751
 * Fix pod removal and readiness logic by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/756
-* Improved `arePodsUpdatedToNewRevision` for onDelete logic by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/759
-* Fixed `rollingUpdate` bug for exec-nodes and added e2e test by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/773
+* Improved arePodsUpdatedToNewRevision for onDelete logic by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/759
+* Fixed rollingUpdate bug for exec-nodes and added e2e test by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/773
 * Construct ytsaurus client logger from controller logger by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/800
 
 #### Testing
-* Cleanup test for deprecated `EnableAntiAffinity` by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/745
+* Cleanup test for deprecated EnableAntiAffinity by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/745
 * test: add release 25.3 by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/752
 * Update helm in workflows by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/733
 * test/r8r: fix race in collecting events by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/757
@@ -323,7 +323,7 @@ Is released as helm charts on [GitHub Packages](https://github.com/ytsaurus/ytsa
 * Validate update plan consistency by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/603
 * Added ytop_strategy_on_delete_waiting_time_seconds prometheus metric by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/641
 * Fixed bug in scheduler's UpdatePreCheck by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/660
-* Improved `arePodsUpdatedToNewRevision` for onDelete logic by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/661
+* Improved arePodsUpdatedToNewRevision for onDelete logic by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/661
 * Added config checksum and pod-annotation, updated onDelete e2e by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/652
 * Added ca, ds and msc into new update strategy by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/662
 * Changed return value for some component with ComponentStatusReadyAfter by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/663
@@ -816,7 +816,7 @@ The bug was fixed in [0.18.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/
 
 
 #### Minor
-* Separate CHYT init options into `makeDefault` and `createPublicClique` by @achulkov2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/347
+* Separate CHYT init options into makeDefault and createPublicClique by @achulkov2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/347
 #### Bugfix
 * Fix queue agent init script usage for 24.* by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/356
 
