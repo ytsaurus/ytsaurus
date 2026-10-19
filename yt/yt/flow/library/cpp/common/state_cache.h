@@ -6,11 +6,50 @@
 
 #include <yt/yt/flow/library/cpp/misc/two_level_cache.h>
 
+#include <library/cpp/yt/system/cache_line_size.h>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TStateCacheKey = std::tuple<TJobId, std::optional<TKey>, std::string>;
+// Keep one namespace's immutable hash off another namespace's refcount cache line.
+struct alignas(CacheLineSize) TStateCacheNamespace
+    : public TRefCounted
+{
+    const TJobId JobId;
+    const std::string Name;
+    const size_t Hash;
+
+    TStateCacheNamespace(TJobId jobId, std::string name);
+};
+
+DEFINE_REFCOUNTED_TYPE(TStateCacheNamespace);
+
+struct TStateCacheKey
+{
+    TStateCacheNamespacePtr Namespace;
+    std::optional<TKey> Key;
+
+    TStateCacheKey();
+    TStateCacheKey(TJobId jobId, std::optional<TKey> key, std::string name);
+    TStateCacheKey(TStateCacheNamespacePtr cacheNamespace, std::optional<TKey> key);
+
+    bool operator==(const TStateCacheKey& other) const;
+};
+
+void FormatValue(TStringBuilderBase* builder, const TStateCacheKey& key, TStringBuf spec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow
+
+template <>
+struct THash<NYT::NFlow::TStateCacheKey>
+{
+    size_t operator()(const NYT::NFlow::TStateCacheKey& key) const;
+};
+
+namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +80,12 @@ public:
 
 protected:
     i64 GetKeyWeight(const TStateCacheKey& key) const override;
+
+private:
+    friend class TJobStateCache;
+
+    using NCache::TTwoLevelCache<TStateCacheKey, IStateCacheValue>::InsertItem;
+    using NCache::TTwoLevelCache<TStateCacheKey, IStateCacheValue>::ExtractItem;
 };
 
 DEFINE_REFCOUNTED_TYPE(TStateCache);
@@ -63,36 +108,27 @@ public:
         NProfiling::TCounter ExtractMissCounter;
         std::atomic<i64> Count = 0;
         std::atomic<i64> Size = 0;
-        NProfiling::TGauge CountGauge;
-        NProfiling::TGauge SizeGauge;
         NProfiling::TEventTimer TimeToCompress;
         NProfiling::TEventTimer TimeToExpire;
     };
 
     using TMetricsPtr = TIntrusivePtr<TMetrics>;
 
-    class TTrackedValue
-        : public IStateCacheValue
+    class TTrackedItem
+        : public TStateCache::TItem
     {
     public:
-        TTrackedValue(TMetricsPtr metrics, i64 size, IStateCacheValuePtr value);
+        TTrackedItem(TStateCacheKey key, TMetricsPtr metrics, i64 size, IStateCacheValuePtr value);
 
         void Compress() override;
+        void MarkExtracted() noexcept override;
 
-        void Decompress() override;
-
-        i64 GetWeight() override;
-
-        IStateCacheValuePtr Get();
-        void MarkExtracted();
-
-        ~TTrackedValue() override;
+        ~TTrackedItem() override;
 
     private:
         TMetricsPtr Metrics_;
         i64 Size_;
-        std::optional<TInstant> InsertTimestamp_;
-        IStateCacheValuePtr Value_;
+        bool Extracted_ = false;
     };
 
     using TJobStateCacheKey = std::pair<std::optional<TKey>, std::string>;
@@ -109,10 +145,20 @@ private:
     const TStateCachePtr StateCache_;
     const NProfiling::TProfiler Profiler_;
 
-    THashMap<std::string, TMetricsPtr> Metrics_;
+    friend class TJobNamedStateCache;
+
+    struct TNamedContext
+    {
+        TStateCacheNamespacePtr Namespace;
+        TMetricsPtr Metrics;
+    };
+
+    THashMap<std::string, TNamedContext> Contexts_;
 
 private:
-    TMetricsPtr GetMetrics(const std::string& name);
+    const TNamedContext& GetContext(const std::string& name);
+    void Insert(const std::optional<TKey>& key, const TNamedContext& context, IStateCacheValuePtr value);
+    IStateCacheValuePtr Extract(const std::optional<TKey>& key, const TNamedContext& context);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobStateCache);
@@ -131,7 +177,7 @@ public:
 
 private:
     const TJobStateCachePtr StateCache_;
-    const std::string Name_;
+    const TJobStateCache::TNamedContext Context_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobNamedStateCache);
@@ -213,3 +259,7 @@ DEFINE_REFCOUNTED_TYPE(TExpiringJobNamedStateCache);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow
+
+#define STATE_CACHE_INL_H_
+#include "state_cache-inl.h"
+#undef STATE_CACHE_INL_H_

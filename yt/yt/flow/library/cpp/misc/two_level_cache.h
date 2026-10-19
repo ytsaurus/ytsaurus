@@ -29,6 +29,9 @@ public:
     {
         TItem(TKey key, TCompressibleValuePtr value);
 
+        virtual void Compress();
+        virtual void MarkExtracted() noexcept;
+
         TCompressibleValuePtr Value;
         std::atomic<bool> AllowCompression = true;
         TInstant InsertTimestamp;
@@ -102,6 +105,9 @@ public:
     TCompressibleValuePtr Extract(const TKey& key);
 
 protected:
+    void InsertItem(const TItemPtr& item);
+    TItemPtr ExtractItem(const TKey& key);
+
     // Override to account for key memory in the cache budget.
     virtual i64 GetKeyWeight(const TKey& key) const = 0;
 

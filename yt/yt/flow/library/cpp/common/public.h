@@ -424,6 +424,7 @@ DECLARE_REFCOUNTED_STRUCT(TYsonMessage);
 template <class T>
 concept CYsonMessage = std::derived_from<T, TYsonMessage>;
 
+DECLARE_REFCOUNTED_STRUCT(TStateCacheNamespace);
 DECLARE_REFCOUNTED_CLASS(TStateCache);
 DECLARE_REFCOUNTED_CLASS(TJobStateCache);
 DECLARE_REFCOUNTED_CLASS(TJobNamedStateCache);
