@@ -27,6 +27,7 @@ RECURSE(
     message_filter
     multi_cluster
     pipeline_alter
+    process_function_graph
     process_function_overhead
     process_function_overhead/pipeline
     reanimate_vanilla

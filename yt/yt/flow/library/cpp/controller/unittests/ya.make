@@ -10,6 +10,7 @@ SRCS(
     controller_service_ut.cpp
     controller_ut.cpp
     dyntable_election_manager_ut.cpp
+    flow_executor_ut.cpp
     job_manager_ut.cpp
     lineage_aggregator_ut.cpp
     partitioning_ut.cpp
@@ -30,6 +31,7 @@ PEERDIR(
     yt/yt/flow/library/cpp/computation
     yt/yt/flow/library/cpp/common
     yt/yt/flow/library/cpp/partitioning
+    yt/yt/flow/library/cpp/process_function/host
     yt/yt/library/query/engine
     yt/yt/client/unittests/mock
     yt/yt/core/test_framework
