@@ -31,6 +31,8 @@ Source: [yt/yt/library/query/engine_api/query_engine_config.h]({{source-root}}/y
  ||
 || `allow_reverse_scan_for_order_by` | **Type**: `std::optional<bool>`
  ||
+|| `enable_scalar_subquery_order_by_and_limit` | **Type**: `std::optional<bool>`
+ ||
 || `allow_heavy_range_inference_in_joins` | **Type**: `std::optional<bool>`
  ||
 || `prefetch_join_tables` | **Type**: `std::optional<bool>`
