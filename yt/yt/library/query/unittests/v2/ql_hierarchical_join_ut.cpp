@@ -427,7 +427,7 @@ TEST_F(TQueryEvaluateTest, HierarchicalJoinLeftJoinSplitsWherePredicatesByColumn
     EXPECT_EQ(
         InferName(hierarchicalJoin->GetJoinSubquery(), {.OmitValues = true}),
         "SELECT `foreign_t.x` AS `foreign_t.x`, `foreign_t.c` AS foreign_t.c"
-        " WHERE `foreign_t.x` > ? AND `foreign_t.c` < ? AND `foreign_t.c` = ?");
+        " WHERE `foreign_t.x` > ? AND `foreign_t.c` < ?");
 
     EXPECT_EQ(
         InferName(hierarchicalJoin->JoiningSubquery->WhereClause, {.OmitValues = true}),
@@ -1514,6 +1514,69 @@ TEST_F(TQueryEvaluateTest, HierarchicalJoinLeftJoinForeignWherePredicateFiltersN
         {outerRows, foreignRows},
         ResultMatcher(result, resultSplit.TableSchema),
         {.SyntaxVersion = 2});
+}
+
+TEST_F(TQueryEvaluateTest, HierarchicalJoinLeftJoinWhereDoesNotInventUnmatchedRows)
+{
+    auto splits = MakeSplitsWithListColumn();
+
+    auto outerRows = std::vector<std::string>{
+        "a=1;arr=[10]",
+        "a=2;arr=[20]",
+        "a=3;arr=[30]",
+        "a=4;arr=[]",
+        "a=5;arr=[10;10]",
+        "a=6;arr=[30;30]",
+        "a=7;arr=[40]",
+        "a=8;arr=[50]",
+    };
+    auto foreignRows = std::vector<std::string>{
+        "x=10;c=5",
+        "x=30;c=#",
+        "x=30;c=5",
+        "x=40;c=5",
+        "x=40;c=6",
+        "x=50;c=#",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"joined_data", ListLogicalType(StructLogicalType({
+            {"li", "li", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"foreign_t.x", "foreign_t.x", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"foreign_t.c", "foreign_t.c", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        }, /*removedFieldStableNames*/ {}))},
+    });
+
+    auto result = YsonToRows({
+        "a=1;joined_data=[]",
+        "a=2;joined_data=[[20;#;#;];]",
+        "a=3;joined_data=[[30;30;#;];]",
+        "a=4;joined_data=[]",
+        "a=5;joined_data=[]",
+        "a=6;joined_data=[[30;30;#;];[30;30;#;];]",
+        "a=7;joined_data=[]",
+        "a=8;joined_data=[[50;#;#;];]",
+    }, resultSplit);
+
+    for (bool canonical : {false, true}) {
+        SCOPED_TRACE(Format("Canonical NULL relations: %v", canonical));
+        EvaluateOnlyViaNativeExecutionBackend(
+            R"(
+                select t.a as a,
+                    (select li, foreign_t.x, foreign_t.c
+                        from (t.arr as li)
+                        left join `//foreign` as foreign_t
+                            on li = foreign_t.x and foreign_t.x != 50
+                        where is_null(foreign_t.c)
+                    ) as joined_data
+                from `//t` as t
+            )",
+            splits,
+            {outerRows, foreignRows},
+            ResultMatcher(result, resultSplit.TableSchema),
+            {.SyntaxVersion = 2, .UseCanonicalNullRelations = canonical});
+    }
 }
 
 TEST_F(TQueryEvaluateTest, HierarchicalJoinInnerJoinFiltersUnmatchedKeysWithNoForeignColumnsSelected)
