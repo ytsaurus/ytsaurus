@@ -393,6 +393,33 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         trim_rows("//tmp/t", 0, -10)
         wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 0)
 
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("freeze_method", ["mount", "freeze"])
+    def test_total_row_count_after_fully_trimmed(self, freeze_method):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"a": 1}])
+        sync_flush_table("//tmp/t")
+        trim_rows("//tmp/t", 0, 1)
+        wait(lambda: get("//tmp/t/@chunk_ids") == [])
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        if freeze_method == "mount":
+            sync_unmount_table("//tmp/t")
+            sync_mount_table("//tmp/t", freeze=True)
+        else:
+            sync_freeze_table("//tmp/t")
+        assert get(f"#{tablet_id}/orchid/total_row_count") == 1
+
+        sync_unfreeze_table("//tmp/t")
+        assert get(f"#{tablet_id}/orchid/total_row_count") == 1
+
+        insert_rows("//tmp/t", [{"a": 2}])
+        assert select_rows("[$row_index], a from [//tmp/t]") == [{"$row_index": 1, "a": 2}]
+        assert get(f"#{tablet_id}/orchid/total_row_count") == 2
+
     @authors("babenko")
     def test_trim_drops_chunks(self):
         sync_create_cells(1)
