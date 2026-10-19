@@ -3,6 +3,7 @@ package tech.ytsaurus.flow.row.codec;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Type;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.core.rows.YTreeSerializer;
 import tech.ytsaurus.core.utils.ClassUtils;
 import tech.ytsaurus.flow.utils.YsonUtils;
@@ -71,6 +72,15 @@ public final class DefaultYsonCodec implements YsonCodec {
         return serializer.deserialize(yTree);
     }
 
+    @Override
+    public Object decodeWithSerializer(
+            YTreeSerializer<?> serializer,
+            ByteString bytes,
+            Class<?> fieldType
+    ) {
+        return serializer.deserialize(YsonUtils.yTreeFromProto(bytes));
+    }
+
     /**
      * Encodes {@code value} to YSON binary form by resolving a serializer for its runtime class
      * through {@link CacheAwareYTreeSerializerFactory}.
@@ -98,5 +108,10 @@ public final class DefaultYsonCodec implements YsonCodec {
     public Object decode(byte[] bytes, Class<?> fieldType) {
         var serializer = CacheAwareYTreeSerializerFactory.INSTANCE.forType(fieldType);
         return decodeWithSerializer(serializer, bytes, fieldType);
+    }
+
+    @Override
+    public Object decode(ByteString bytes, Class<?> fieldType) {
+        return decodeWithSerializer(getOrCreateSerializer(fieldType), bytes, fieldType);
     }
 }
