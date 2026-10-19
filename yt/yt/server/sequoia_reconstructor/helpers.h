@@ -1,14 +1,16 @@
 #pragma once
 
+#include <yt/yt/server/master/cell_master/public.h>
+
 #include <yt/yt/client/cypress_client/public.h>
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-namespace NYT::NSequoiaReconstructor {
+#include <library/cpp/yson/node/node.h>
 
-YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, SequoiaReconstructorLogger, "SequoiaReconstructor");
+namespace NYT::NSequoiaReconstructor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,10 +22,22 @@ struct TPathToNodeChangeRecord
     NCypressClient::TTransactionId TransactionId = NCypressClient::NullTransactionId;
     std::vector<NCypressClient::TTransactionId> TransactionAncestors;
 
+    TNode ToNode() const;
+
+    static TPathToNodeChangeRecord FromNode(const TNode& node);
+
     REGISTER_YSON_STRUCT_LITE(TPathToNodeChangeRecord);
 
     static void Register(TRegistrar registrar);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void RunWithBootstrap(
+    const std::string& masterConfigPath,
+    const std::string& snapshotPath,
+    const std::function<void(NCellMaster::TBootstrap*)>& callback,
+    bool abortProcessAfterFinish);
 
 ////////////////////////////////////////////////////////////////////////////////
 

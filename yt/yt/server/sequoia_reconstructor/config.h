@@ -1,61 +1,121 @@
 #pragma once
 
+#include "private.h"
+
+#include <yt/yt/client/object_client/public.h>
+
+#include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/yson_struct.h>
+
+#include <yt/cpp/mapreduce/interface/fwd.h>
 
 namespace NYT::NSequoiaReconstructor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TTableOutputConfig);
+DECLARE_REFCOUNTED_STRUCT(TFileOutputConfig);
 
-struct TTableOutputConfig
+struct TFileOutputConfig
     : public NYTree::TYsonStruct
 {
     std::string FileName;
     bool TextYsonOutputFormat;
-    // TODO(grphil): Add other output options.
 
-    REGISTER_YSON_STRUCT(TTableOutputConfig);
+    REGISTER_YSON_STRUCT(TFileOutputConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TTableOutputConfig);
+DEFINE_REFCOUNTED_TYPE(TFileOutputConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TSequoiaReconstructorConfig);
+DECLARE_REFCOUNTED_STRUCT(TSingleCellSequoiaReconstructorConfig);
 
-struct TSequoiaReconstructorConfig
+struct TSingleCellSequoiaReconstructorConfig
     : public NYTree::TYsonStruct
 {
-    bool SingleCellSingleRun;
+    std::string MasterConfigPath;
+    std::string SnapshotPath;
 
-    std::optional<TTableOutputConfigPtr> NodeIdToPathOutput;
-    std::optional<TTableOutputConfigPtr> NodeForksOutput;
-    std::optional<TTableOutputConfigPtr> NodeSnapshotsOutput;
+    THashMap<EOutputTableType, TFileOutputConfigPtr> TablesOutput;
 
-    std::optional<TTableOutputConfigPtr> ChildNodesOutput;
-    std::optional<TTableOutputConfigPtr> ChildForksOutput;
-
-    std::optional<TTableOutputConfigPtr> PathToNodeIdOutput;
-    std::optional<TTableOutputConfigPtr> PathForksOutput;
-
-    std::optional<TTableOutputConfigPtr> PathToNodeChangesOutput;
-
-    std::optional<TTableOutputConfigPtr> AclsOutput;
-
-    std::optional<TTableOutputConfigPtr> TransactionsOutput;
-    std::optional<TTableOutputConfigPtr> TransactionDescendantsOutput;
-    std::optional<TTableOutputConfigPtr> DependentTransactionsOutput;
-    std::optional<TTableOutputConfigPtr> TransactionReplicasOutput;
-
-    REGISTER_YSON_STRUCT(TSequoiaReconstructorConfig);
+    REGISTER_YSON_STRUCT(TSingleCellSequoiaReconstructorConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSequoiaReconstructorConfig);
+DEFINE_REFCOUNTED_TYPE(TSingleCellSequoiaReconstructorConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TCellConfig);
+
+struct TCellConfig
+    : public NYTree::TYsonStruct
+{
+    NObjectClient::TCellTag CellTag;
+
+    TYPath SnapshotYPath;
+    TYPath ConfigYPath;
+
+    REGISTER_YSON_STRUCT(TCellConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCellConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TMulticellMapReduceSequoiaReconstructorConfig);
+
+struct TMulticellMapReduceSequoiaReconstructorConfig
+    : public NYTree::TYsonStruct
+{
+    std::string ClusterName;
+    NYTree::INodePtr RpcConnectionConfig;
+    std::optional<std::string> Pool;
+
+    std::vector<TCellConfigPtr> Cells;
+
+    TYPath WorkdirYPath;
+    THashMap<EOutputTableType, TYPath> TablePaths;
+
+    int MapperJobCount;
+    double MapperCpuLimit;
+    TDuration MapperTimeLimit;
+    double MapperMemoryLimitGb;
+    int MaxFailedJobCount;
+
+    REGISTER_YSON_STRUCT(TMulticellMapReduceSequoiaReconstructorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMulticellMapReduceSequoiaReconstructorConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TYtMapJobConfig);
+
+struct TYtMapJobConfig
+    : public NYTree::TYsonStruct
+{
+    std::string MasterConfigFile;
+    std::string SnapshotFile;
+
+    int JobCount;
+    int JobIndex;
+
+    THashMap<EOutputTableType, int> TableIndexes;
+
+    REGISTER_YSON_STRUCT(TYtMapJobConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TYtMapJobConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

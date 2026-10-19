@@ -1,42 +1,88 @@
 #include "reducer.h"
 
+#include "helpers.h"
+#include "record_consumer.h"
+
 #include <yt/yt/ytlib/sequoia_client/public.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/path_forks.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
+
+#include <yt/cpp/mapreduce/interface/client.h>
 
 namespace NYT::NSequoiaReconstructor {
 
 using namespace NCypressClient;
 using namespace NSequoiaClient;
 
+////////////////////////////////////////////////////////////////////////////////
+
 constinit const auto Logger = SequoiaReconstructorLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+class TSequoiaReconstructorReducer
+    : public IReducer<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    Y_SAVELOAD_JOB(PathForksTableIndex_, PathToNodeIdTableIndex_);
+
+    TSequoiaReconstructorReducer() = default;
+
+    TSequoiaReconstructorReducer(std::optional<int> pathToNodeIdTableIndex, std::optional<int> pathForksTableIndex)
+        : PathToNodeIdTableIndex_(pathToNodeIdTableIndex)
+        , PathForksTableIndex_(pathForksTableIndex)
+    { }
+
+    void Do(TReader* reader, TWriter* writer) override
+    {
+        std::vector<TPathToNodeChangeRecord> pathToNodeChangeRecords;
+        for (auto& cursor : *reader) {
+            pathToNodeChangeRecords.push_back(TPathToNodeChangeRecord::FromNode(cursor.GetRow()));
+        }
+
+        auto consumer = CreateReducerRecordsConsumer(writer, PathToNodeIdTableIndex_, PathForksTableIndex_);
+
+        ExecutePathToNodeReduce(std::move(pathToNodeChangeRecords), &consumer);
+    }
+
+private:
+    std::optional<int> PathToNodeIdTableIndex_;
+    std::optional<int> PathForksTableIndex_;
+};
+
+REGISTER_REDUCER(TSequoiaReconstructorReducer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ExecutePathToNodeReduce(
-    const std::vector<TPathToNodeChangeRecord>& records,
+    std::vector<TPathToNodeChangeRecord> records,
     TRecordsConsumer* consumer)
 {
-    auto sortedRecords = records;
     SortBy(
-        sortedRecords,
+        records,
         [] (const auto& record) {
             return std::make_tuple(record.Path, record.TransactionAncestors.size());
         });
 
     // Do we have any group by function for this?
-    for (size_t recordIndex = 0; recordIndex < sortedRecords.size();) {
-        THashMap<TTransactionId, const TPathToNodeChangeRecord*> transactionRecords;
-        const auto& path = sortedRecords[recordIndex].Path;
+    for (int recordIndex = 0; recordIndex < std::ssize(records);) {
+        THashMap<NObjectClient::TTransactionId, const TPathToNodeChangeRecord*> transactionRecords;
+        const auto& path = records[recordIndex].Path;
 
         // We view iterate over all records for the same path.
         // For them we need to do three actions:
         // 1. For every transaction keep only single record (multiple records may happen if node was replaced in transaction).
         // 2. Remove all tombstone records that have no node creation in ancestor transactions.
         // 3. Set ProgenitorTransactionId to the oldest transaction that has node created.
-        for (; recordIndex < sortedRecords.size() && sortedRecords[recordIndex].Path == path; ++recordIndex) {
-            const auto& record = sortedRecords[recordIndex];
+        for (; recordIndex < std::ssize(records) && records[recordIndex].Path == path; ++recordIndex) {
+            const auto& record = records[recordIndex];
 
             if (auto existingRecordIt = transactionRecords.find(record.TransactionId); existingRecordIt != transactionRecords.end()) {
                 // If we have multiple records for single transaction, we should keep the non tombstone one if it exists.
@@ -100,6 +146,13 @@ void ExecutePathToNodeReduce(
             }
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+::TIntrusivePtr<IReducerBase> CreateYtReducer(std::optional<int> pathToNodeIdTableIndex, std::optional<int> pathForksTableIndex)
+{
+    return ::MakeIntrusive<TSequoiaReconstructorReducer>(pathToNodeIdTableIndex, pathForksTableIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

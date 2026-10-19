@@ -42,6 +42,7 @@ namespace NYT {
 
 constexpr auto CommandPrefix = TStringBuf("ytserver-");
 constexpr auto AllCommand = TStringBuf("ytserver-all");
+constexpr auto YTOperationBinaryName = TStringBuf("cppbinary");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -194,8 +195,9 @@ int main(int argc, const char** argv)
 
     // Shift arguments to handle "program-name" specified in the first argument.
     // Example: ./ytserver-all ytserver-master --help
+    const auto executable = TStringBuf(argv[0]);
     if (argc >= 2 &&
-        TStringBuf(argv[0]).EndsWith(AllCommand) &&
+        (executable.EndsWith(AllCommand) || executable.EndsWith(YTOperationBinaryName)) &&
         TStringBuf(argv[1]).StartsWith(CommandPrefix))
     {
         argc--;

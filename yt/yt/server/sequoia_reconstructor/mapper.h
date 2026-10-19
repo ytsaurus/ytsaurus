@@ -1,16 +1,24 @@
 #pragma once
 
-#include "record_consumer.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
+
+#include <yt/cpp/mapreduce/interface/operation.h>
 
 namespace NYT::NSequoiaReconstructor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExecuteSequoiaReconstructorMapStage(
+void ExecuteSequoiaReconstructorMap(
     NCellMaster::TBootstrap* bootstrap,
-    TRecordsConsumer* consumer);
+    TRecordsConsumer* consumer,
+    int jobCount,
+    int jobIndex);
+
+////////////////////////////////////////////////////////////////////////////////
+
+::TIntrusivePtr<IMapperBase> CreateYtMapper();
 
 ////////////////////////////////////////////////////////////////////////////////
 
