@@ -2,6 +2,7 @@ package tech.ytsaurus.flow.row.codec;
 
 import java.lang.reflect.Type;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.core.rows.YTreeSerializer;
 
 /**
@@ -50,6 +51,17 @@ public interface YsonCodec {
     );
 
     /**
+     * Decodes an immutable byte range; implementations may avoid a temporary byte array.
+     */
+    default Object decodeWithSerializer(
+            YTreeSerializer<?> serializer,
+            ByteString bytes,
+            Class<?> fieldType
+    ) {
+        return decodeWithSerializer(serializer, bytes.toByteArray(), fieldType);
+    }
+
+    /**
      * Encodes {@code value} to YSON.
      *
      * @param value value to encode
@@ -65,4 +77,11 @@ public interface YsonCodec {
      * @return decoded value
      */
     Object decode(byte[] bytes, Class<?> fieldType);
+
+    /**
+     * Decodes an immutable byte range. Existing codecs retain their byte-array behavior by default.
+     */
+    default Object decode(ByteString bytes, Class<?> fieldType) {
+        return decode(bytes.toByteArray(), fieldType);
+    }
 }
