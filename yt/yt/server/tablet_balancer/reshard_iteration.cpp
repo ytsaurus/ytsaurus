@@ -584,7 +584,7 @@ private:
             for (const auto& minorTablePath : minorTablePaths) {
                 auto it = BundleSnapshot_->AlienTablePaths.find(TBundleSnapshot::TAlienTableTag(cluster, minorTablePath));
                 THROW_ERROR_EXCEPTION_IF(it == BundleSnapshot_->AlienTablePaths.end(),
-                    "Not all tables was resolved. Table id for table %v was not found. Check that table path is correct",
+                    "Not all tables were resolved. Table id for table %v was not found. Check that table path is correct",
                     minorTablePath);
 
 
