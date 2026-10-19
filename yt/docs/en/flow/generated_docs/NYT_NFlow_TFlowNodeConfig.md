@@ -29,6 +29,7 @@ Source: [yt/yt/flow/library/cpp/runner/config.h]({{source-root}}/yt/yt/flow/libr
             "enable_host_field" = %false;
             "enable_native_tags" = %false;
             "enable_source_location" = %false;
+            "enable_span_id_field" = %false;
             "enable_system_fields" = %true;
             "format" = "plain_text";
             "type" = "stderr";
