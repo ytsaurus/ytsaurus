@@ -54,6 +54,42 @@ class RunnerTest {
         log.info("Test class checked: {}", testClass);
     }
 
+    @ParameterizedTest
+    @MethodSource("containerFailures")
+    void testContainerFailure(Class<?> testClass, TestResult expect, String error, String method) throws Exception {
+        List<String> output = runTest(testClass);
+        Assertions.assertEquals(expect, TestHelper.collectTestResult(output));
+        String comment = output.stream()
+                .filter(line -> !line.isEmpty())
+                .map(line -> GSON.fromJson(line, Map.class))
+                .filter(event -> "subtest-finished".equals(event.get("name")))
+                .map(event -> (Map<?, ?>) event.get("value"))
+                .filter(value -> "fail".equals(value.get("status")))
+                .map(value -> (String) value.get("comment"))
+                .findFirst()
+                .orElseThrow();
+        Assertions.assertTrue(comment.contains(error));
+        Assertions.assertTrue(comment.contains(method));
+    }
+
+    static Arguments[] containerFailures() {
+        return new Arguments[]{
+                Arguments.of(ParameterizedClassInitializationFailedTest.class,
+                        TestResult.failed(1,
+                                "ru.yandex.devtools.test.ParameterizedClassInitializationFailedTest::[initialization]")
+                                .withNotLaunched(0),
+                        "IllegalStateException: Unable to provide class parameters",
+                        "ParameterizedClassInitializationFailedTest.parameters"),
+                Arguments.of(NestedAfterAllFailedTest.class,
+                        new TestResult(2, 2, 0, 1, 0, Arrays.asList(
+                                "ru.yandex.devtools.test.NestedAfterAllFailedTest$Cases::test(int):[1] 1",
+                                "ru.yandex.devtools.test.NestedAfterAllFailedTest$Cases::test(int):[2] 2",
+                                "ru.yandex.devtools.test.NestedAfterAllFailedTest$Cases::[initialization]")),
+                        "IllegalStateException: Unable to clean up nested tests",
+                        "NestedAfterAllFailedTest$Cases.afterAll")
+        };
+    }
+
     @Test
     void testYaIgnoreReasonInComment() throws Exception {
         String comment = runTest(ClassMethodSingleYaIgnoredTest.class).stream()
