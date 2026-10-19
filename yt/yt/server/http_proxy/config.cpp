@@ -365,6 +365,7 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
 
     registrar.Preprocessor([] (TThis* config) {
         config->ClusterConnectionDynamicConfigPolicy = NApi::NNative::EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch;
+        config->DynamicConfigManager->IgnoreConfigAbsence = true;
     });
 
     registrar.Postprocessor([] (TThis* config) {
