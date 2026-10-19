@@ -1168,6 +1168,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PullRows)
                 protoReplicationRowIndex->set_row_index(rowIndex);
             }
 
+            ToProto(response->mutable_subrequest_errors(), result.SubrequestErrors);
+
             response->Attachments() = NApi::NRpcProxy::SerializeRowset(
                 *result.Rowset->GetSchema(),
                 result.Rowset->GetRows(),
