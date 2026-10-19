@@ -66,6 +66,7 @@ target_link_libraries(cpp-process_function-host.global PUBLIC
 )
 
 target_sources(cpp-process_function-host.global PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/host/graph.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/host/register.cpp
 )
 

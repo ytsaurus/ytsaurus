@@ -589,6 +589,9 @@ struct TComputationSpec
     std::optional<std::string> ProcessingFunction;
     NYTree::IMapNodePtr ProcessingFunctionParameters;
 
+    //! Process functions connected by stream IDs; replaced with the generated fields by #ResolveProcessFunctionGraphs().
+    TProcessFunctionGraphSpecPtr ProcessFunctionGraph;
+
     NTableClient::TTableSchemaPtr GroupBySchema;
     std::optional<bool> ExperimentalEnableNonUintKey;
     THashSet<TStreamId> InputStreamIds;
@@ -1479,6 +1482,9 @@ THashMap<TStreamId, std::vector<TStreamId>> BuildStreamGraph(const TPipelineSpec
 void ValidateIsDirectedAcyclicGraph(const THashMap<TStreamId, std::vector<TStreamId>>& streamGraph);
 void ValidatePipelineSpec(const TPipelineSpecPtr& spec);
 void ValidateDynamicPipelineSpec(const TDynamicPipelineSpecPtr& spec);
+
+//! Throws unless |id| is a valid ID of a user-defined entity of kind |entityKind|, such as a stream or a timer.
+void ValidateUserDefinedEntityId(TStringBuf entityKind, TStringBuf id);
 
 //! Shared quota-class invariants, used by both the pipeline spec and the
 //! distributed-throttler bucket config so the two cannot drift.

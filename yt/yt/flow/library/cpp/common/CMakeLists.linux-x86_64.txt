@@ -96,6 +96,7 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/payload_validation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/payload.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/process_function.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/process_function_graph.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/resource.cpp

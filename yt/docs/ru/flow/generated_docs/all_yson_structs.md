@@ -268,6 +268,10 @@
 
 {% include [_](./NYT_NFlow_TPivotFinderSpec.md) %}
 
+{% include [_](./NYT_NFlow_TProcessFunctionGraphNodeSpec.md) %}
+
+{% include [_](./NYT_NFlow_TProcessFunctionGraphSpec.md) %}
+
 {% include [_](./NYT_NFlow_TReadStatesArg.md) %}
 
 {% include [_](./NYT_NFlow_TReadStatesResponse.md) %}

@@ -42,6 +42,7 @@ target_link_libraries(cpp-process_function-testing PUBLIC
 target_sources(cpp-process_function-testing PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/testing/entity_builders.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/testing/in_memory_external_state_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/testing/process_function_graph_test_harness.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/testing/process_function_test_harness.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/testing/recording_output_collector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/testing/test_runtime_context.cpp

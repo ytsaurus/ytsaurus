@@ -35,6 +35,7 @@ SRCS(
     payload_validation.cpp
     payload.cpp
     process_function.cpp
+    process_function_graph.cpp
     public.cpp
     registry.cpp
     resource.cpp

@@ -184,6 +184,9 @@ DOCS_INCLUDE_SOURCES(
     yt/yt/flow/examples/python/word_count/test/test_wordcount.py
     yt/yt/flow/examples/python/word_count/test/ya.make
     yt/yt/flow/examples/python/word_count/word_count_mapper.py
+    yt/yt/flow/tests/process_function_graph/pipeline/main.cpp
+    yt/yt/flow/tests/process_function_graph/pipeline/pipeline.yson
+    yt/yt/flow/tests/process_function_graph/unittests/graph_ut.cpp
 
     # Spark examples
 )
