@@ -290,6 +290,8 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("reuse_compaction_invoker_for_writer_compression", &TThis::ReuseCompactionInvokerForWriterCompression)
         .Default(false);
+    registrar.Parameter("reuse_compaction_invoker_for_reader_decompression", &TThis::ReuseCompactionInvokerForReaderDecompression)
+        .Default(false);
 
     registrar.Parameter("starving_tables_tasks_ratio", &TThis::StarvingTablesTasksRatio)
         .InRange(0.0, 1.0)
