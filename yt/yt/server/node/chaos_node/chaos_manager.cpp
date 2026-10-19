@@ -1003,7 +1003,9 @@ private:
             if (collocation->GetState() != EReplicationCardCollocationState::Normal &&
                 collocation->GetState() != EReplicationCardCollocationState::Immigrating)
             {
-                THROW_ERROR_EXCEPTION("Replication card collocation is in %Qlv state",
+                THROW_ERROR_EXCEPTION(
+                    NChaosClient::EErrorCode::ReplicationCollocationIsMigrating,
+                    "Replication card collocation is in %Qlv state",
                     collocation->GetState())
                     << TErrorAttribute("replication_collocation_id", collocationId);
             }
@@ -2410,6 +2412,11 @@ private:
             case EReplicationCardState::RemoteCollocationAttachPrepared:
                 YT_VERIFY(replicationCard->GetState() == EReplicationCardState::Normal);
                 replicationCard->SetState(EReplicationCardState::RemoteCollocationAttachPrepared);
+                break;
+
+            case EReplicationCardState::Normal:
+                YT_VERIFY(replicationCard->GetState() == EReplicationCardState::RemoteCollocationAttachPrepared);
+                replicationCard->SetState(EReplicationCardState::Normal);
                 break;
 
             default:
