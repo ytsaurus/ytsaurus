@@ -10,6 +10,7 @@ import pytest
 from yt.wrapper.client import YtClient
 import yt.wrapper.transaction as transaction_module
 from yt.wrapper.transaction import PingTransaction
+from yt.testlib import authors
 
 
 def _wait_for_child(pid, timeout):
@@ -60,6 +61,7 @@ def pinger_factory(monkeypatch):
             assert not pinger.is_alive()
 
 
+@authors("denvr")  # @damirzain
 def test_stop_wakes_long_idle_wait(pinger_factory):
     make_pinger, ping = pinger_factory
     rpc_entered = threading.Event()
@@ -82,6 +84,7 @@ def test_stop_wakes_long_idle_wait(pinger_factory):
             stopper.join(timeout=4.0)
 
 
+@authors("denvr")  # @damirzain
 def test_ping_cadence_and_rpc_parameters_are_unchanged(pinger_factory, monkeypatch):
     make_pinger, ping = pinger_factory
     base_time = datetime(2020, 1, 1)
@@ -111,6 +114,7 @@ def test_ping_cadence_and_rpc_parameters_are_unchanged(pinger_factory, monkeypat
     assert calls[1][3] == pytest.approx(0.3)
 
 
+@authors("denvr")  # @damirzain
 def test_stop_does_not_interrupt_in_flight_rpc(pinger_factory):
     make_pinger, ping = pinger_factory
     rpc_entered = threading.Event()
@@ -140,6 +144,7 @@ def test_stop_does_not_interrupt_in_flight_rpc(pinger_factory):
             stopper.join(timeout=2.0)
 
 
+@authors("denvr")  # @damirzain
 def test_never_started_and_repeated_stop_are_safe(pinger_factory):
     make_pinger, _ = pinger_factory
     pinger = make_pinger()
@@ -152,6 +157,7 @@ def test_never_started_and_repeated_stop_are_safe(pinger_factory):
     assert not pinger._stop_event.is_set()
 
 
+@authors("denvr")  # @damirzain
 def test_stop_uses_independent_join_timeouts(pinger_factory):
     make_pinger, _ = pinger_factory
     first = make_pinger(ping_period=1000, ping_timeout=271)
@@ -173,6 +179,7 @@ def test_stop_uses_independent_join_timeouts(pinger_factory):
     second.join.assert_called_once_with(pytest.approx(0.183))
 
 
+@authors("denvr")  # @damirzain
 def test_callback_self_stop_keeps_existing_join_error(pinger_factory):
     make_pinger, ping = pinger_factory
     callback_errors = []
@@ -198,6 +205,7 @@ def test_callback_self_stop_keeps_existing_join_error(pinger_factory):
     assert "current thread" in str(callback_errors[0])
 
 
+@authors("denvr")  # @damirzain
 def test_partial_initialization_preserves_original_exception(pinger_factory):
     make_pinger, _ = pinger_factory
 
@@ -205,6 +213,7 @@ def test_partial_initialization_preserves_original_exception(pinger_factory):
         make_pinger({"ping_failed_mode": "invalid-mode"})
 
 
+@authors("denvr")  # @damirzain
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires os.fork")
 def test_fork_child_stop_skips_inherited_event_condition_lock(pinger_factory):
     make_pinger, ping = pinger_factory
