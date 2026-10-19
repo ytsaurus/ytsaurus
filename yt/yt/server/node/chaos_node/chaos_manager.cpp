@@ -2822,24 +2822,26 @@ private:
         auto newCells = std::vector(newCellsSet.begin(), newCellsSet.end());
         std::sort(newCells.begin(), newCells.end());
 
-        auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
-        const bool grantChaosLeaseShortcuts =
-            reign >= EChaosReign::GrantChaosLeaseShortcutsToNewCells ||
-            (reign >= EChaosReign::GrantChaosLeaseShortcutsToNewCells_26_1 && reign < EChaosReign::Start_26_2);
-
-        for (auto* chaosObject : GetSortedChaosObjects()) {
-            // COMPAT(shamteev)
-            const bool isReplicationCard = IsReplicationCardType(TypeFromId(chaosObject->GetId()));
-            if (!grantChaosLeaseShortcuts && !isReplicationCard) {
-                continue;
+        for (auto* replicationCard : GetValuesSortedByKey(ReplicationCardMap_)) {
+            if (replicationCard->IsNormalState()) {
+                GrantShortcuts(
+                    replicationCard,
+                    newCells,
+                    replicationCard->GetCurrentTimestamp(),
+                    /*strict*/ false);
             }
+        }
 
-            if (chaosObject->IsNormalState()) {
-                auto shortcutGrantingTimestamp = isReplicationCard
-                    ? static_cast<TReplicationCard*>(chaosObject)->GetCurrentTimestamp()
-                    : NullTimestamp;
-
-                GrantShortcuts(chaosObject, newCells, shortcutGrantingTimestamp, /*strict*/ false);
+        // COMPAT(shamteev)
+        auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+        if (reign >= EChaosReign::GrantChaosLeaseShortcutsToNewCells ||
+            (reign >= EChaosReign::GrantChaosLeaseShortcutsToNewCells_26_1 && reign < EChaosReign::Start_26_2))
+        {
+            const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+            for (auto* chaosLease : GetValuesSortedByKey(chaosLeaseManager->ChaosLeases())) {
+                if (chaosLease->IsNormalState()) {
+                    GrantShortcuts(chaosLease, newCells, NullTimestamp, /*strict*/ false);
+                }
             }
         }
 
