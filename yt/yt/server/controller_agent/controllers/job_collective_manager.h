@@ -96,7 +96,6 @@ private:
     //! Resolves collective for this joblet's scheduling epoch; nullopt if unknown cookie or stale epoch.
     std::optional<TCollectiveIterator> FindCollective(const TJobletPtr& joblet);
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_TYPE(TJobCollectiveManager, 0xccfb1994);
 };
 
