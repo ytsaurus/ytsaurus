@@ -1,5 +1,8 @@
 #include "mapper.h"
 
+#include "helpers.h"
+#include "record_consumer.h"
+
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
@@ -34,6 +37,8 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <yt/cpp/mapreduce/interface/client.h>
+
 namespace NYT::NSequoiaReconstructor {
 
 using namespace NCellMaster;
@@ -49,17 +54,18 @@ using namespace NYson;
 
 namespace {
 
-class TSequoiaReconstructorMapper
+class TSequoiaReconstructorMapProcessor
 {
 public:
-    TSequoiaReconstructorMapper(TBootstrap* bootstrap, TRecordsConsumer* consumer)
+    TSequoiaReconstructorMapProcessor(TBootstrap* bootstrap, TRecordsConsumer* consumer)
         : Bootstrap_(bootstrap)
         , Consumer_(consumer)
     { }
 
-    void ProcessNode(TCypressNode* node)
+    void ProcessNode(const TCypressNode* node)
     {
         YT_VERIFY(IsSequoiaId(node->GetId()));
+        YT_VERIFY(node->IsNative());
 
         if (node->IsTrunk()) {
             ProcessTrunkNode(node);
@@ -127,7 +133,7 @@ private:
             // We may need to write tombstone records for nodes that were removed from every transaction.
             // This will happen if the same path exists in some ancestor transactions (it will be checked during reduce stage).
             WritePathToNodeChange(branchedNode);
-        } else if (branchedNode->GetLockMode() == ELockMode::Snapshot) {
+        } else if (branchedNode->GetLockMode() == NCypressServer::ELockMode::Snapshot) {
             WriteNodeIdToPath(branchedNode, EForkKind::Snapshot);
             WriteSnapshotNodeRow(branchedNode);
         } else if (branchedNode->GetReachable()) {
@@ -396,7 +402,7 @@ private:
     {
         YT_VERIFY(transaction->IsNative());
 
-        std::vector<TTransactionId> ancestorIds;
+        std::vector<NObjectClient::TTransactionId> ancestorIds;
         auto ancestor = transaction->GetParent();
         while (ancestor) {
             WriteTransactionDescendant(ancestor, transaction);
@@ -407,7 +413,7 @@ private:
         // Transaction ancestor ids should be ordered from most oldest to newest parent.
         std::ranges::reverse(ancestorIds);
 
-        std::vector<TTransactionId> prerequisiteTransactionIds;
+        std::vector<NObjectClient::TTransactionId> prerequisiteTransactionIds;
         for (auto prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
             WriteDependentTransaction(prerequisiteTransaction, transaction);
 
@@ -445,8 +451,8 @@ private:
 
     void WriteTransaction(
         const TTransaction* transaction,
-        std::vector<TTransactionId>&& ancestorIds,
-        std::vector<TTransactionId>&& prerequisiteTransactionIds)
+        std::vector<NObjectClient::TTransactionId>&& ancestorIds,
+        std::vector<NObjectClient::TTransactionId>&& prerequisiteTransactionIds)
     {
         if (Consumer_->Transactions) {
             TAttributeSet::TAttributeMap attributes;
@@ -485,33 +491,71 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ReconstructNodeTables(TBootstrap* bootstrap, TSequoiaReconstructorMapper& mapper)
+template <class T>
+void ProcessObjects(
+    const T& objectsMap,
+    auto shouldProcessObject,
+    auto processObject,
+    auto getObjectKey,
+    i64 jobCount,
+    i64 jobIndex)
 {
-    // TODO(grphil): Make unified with snapshot exporter for non single run map.
+    std::vector<typename T::mapped_type> objectsToProcess;
 
-    const auto& cypressManager = bootstrap->GetCypressManager();
-    for (auto [nodeId, node] : cypressManager->Nodes()) {
-        if (!IsObjectAlive(node->GetTrunkNode())) {
-            continue;
+    for (auto [objectId, object] : objectsMap) {
+        if (shouldProcessObject(object)) {
+            if (jobCount == 1) {
+                processObject(object);
+            } else {
+                objectsToProcess.push_back(object);
+            }
         }
+    }
 
-        if (IsSequoiaId(nodeId.ObjectId)) {
-            mapper.ProcessNode(node);
-        }
+    SortBy(objectsToProcess, getObjectKey);
+
+    i64 startIndex = jobIndex * std::ssize(objectsToProcess) / jobCount;
+    i64 endIndex = (jobIndex + 1) * std::ssize(objectsToProcess) / jobCount;
+    for (i64 index = startIndex; index < endIndex; ++index) {
+        processObject(objectsToProcess[index]);
     }
 }
 
-void ReconstructTransactionTables(TBootstrap* bootstrap, TSequoiaReconstructorMapper& mapper)
+////////////////////////////////////////////////////////////////////////////////
+
+class TSequoiaReconstructorMapper
+    : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
-    const auto& cypressManager = bootstrap->GetTransactionManager();
-    for (auto [transactionId, transaction] : cypressManager->Transactions()) {
-        if (IsObjectAlive(transaction) &&
-            transaction->IsCypressTransaction())
-        {
-            mapper.ProcessTransaction(transaction);
-        }
+public:
+    void Do(TReader* reader, TWriter* writer) override
+    {
+        auto getJobConfig = [] (auto* rowReader) {
+            const auto& configNode = rowReader->GetRow()["config"];
+            return ConvertTo<TYtMapJobConfigPtr>(TYsonString(configNode.AsString()));
+        };
+
+        auto config = getJobConfig(reader);
+
+        auto consumer = CreateMapperRecordsConsumer(config, writer);
+
+        RunWithBootstrap(
+            config->MasterConfigFile,
+            config->SnapshotFile,
+            [&] (TBootstrap* bootstrap) {
+                for (auto& cursor : *reader) {
+                    auto jobConfig = getJobConfig(&cursor);
+                    ExecuteSequoiaReconstructorMap(
+                        bootstrap,
+                        &consumer,
+                        jobConfig->JobCount,
+                        jobConfig->JobIndex);
+                }
+            },
+            /*abortProcessAfterFinish*/ false);
     }
-}
+};
+
+REGISTER_MAPPER(TSequoiaReconstructorMapper);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -519,11 +563,13 @@ void ReconstructTransactionTables(TBootstrap* bootstrap, TSequoiaReconstructorMa
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExecuteSequoiaReconstructorMapStage(
-    TBootstrap *bootstrap,
-    TRecordsConsumer *consumer)
+void ExecuteSequoiaReconstructorMap(
+    TBootstrap* bootstrap,
+    TRecordsConsumer* consumer,
+    int jobCount,
+    int jobIndex)
 {
-    TSequoiaReconstructorMapper mapper(bootstrap, consumer);
+    TSequoiaReconstructorMapProcessor mapper(bootstrap, consumer);
 
     if (consumer->NodeForks ||
         consumer->NodeSnapshots ||
@@ -535,7 +581,19 @@ void ExecuteSequoiaReconstructorMapStage(
         consumer->PathToNodeChanges ||
         consumer->Acls)
     {
-        ReconstructNodeTables(bootstrap, mapper);
+        ProcessObjects(
+            bootstrap->GetCypressManager()->Nodes(),
+            /*shouldProcessObject*/ [] (const auto* node) {
+                return IsObjectAlive(node->GetTrunkNode()) && IsSequoiaId(node->GetId()) && node->IsNative();
+            },
+            /*processObject*/ [&mapper] (const auto* node) {
+                mapper.ProcessNode(node);
+            },
+            /*getObjectKey*/ [] (const auto* node) {
+                return std::make_tuple(node->GetId(), GetObjectId(node->GetTransaction()));
+            },
+            jobCount,
+            jobIndex);
     }
 
     if (consumer->Transactions ||
@@ -543,8 +601,27 @@ void ExecuteSequoiaReconstructorMapStage(
         consumer->DependentTransactions ||
         consumer->TransactionReplicas)
     {
-        ReconstructTransactionTables(bootstrap, mapper);
+        ProcessObjects(
+            bootstrap->GetTransactionManager()->Transactions(),
+            /*shouldProcessObject*/ [] (const auto* transaction) {
+                return IsObjectAlive(transaction) && transaction->IsCypressTransaction();
+            },
+            /*processObject*/ [&mapper] (const auto* transaction) {
+                mapper.ProcessTransaction(transaction);
+            },
+            /*getObjectKey*/ [] (const auto* transaction) {
+                return transaction->GetId();
+            },
+            jobCount,
+            jobIndex);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+::TIntrusivePtr<IMapperBase> CreateYtMapper()
+{
+    return ::MakeIntrusive<TSequoiaReconstructorMapper>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
