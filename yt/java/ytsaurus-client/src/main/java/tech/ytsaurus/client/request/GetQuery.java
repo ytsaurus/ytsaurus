@@ -25,12 +25,18 @@ public class GetQuery extends QueryTrackerReq<GetQuery.Builder, GetQuery>
     private final List<String> attributes;
     @Nullable
     private final YtTimestamp timestamp;
+    @Nullable
+    private final List<String> progressParts;
+    @Nullable
+    private final Long minProgressRevision;
 
     GetQuery(Builder builder) {
         super(builder);
         this.queryId = Objects.requireNonNull(builder.queryId);
         this.attributes = builder.attributes;
         this.timestamp = builder.timestamp;
+        this.progressParts = builder.progressParts == null ? null : List.copyOf(builder.progressParts);
+        this.minProgressRevision = builder.minProgressRevision;
     }
 
     /**
@@ -49,6 +55,8 @@ public class GetQuery extends QueryTrackerReq<GetQuery.Builder, GetQuery>
                 .setQueryId(queryId)
                 .setAttributes(attributes)
                 .setTimestamp(timestamp)
+                .setProgressParts(progressParts)
+                .setMinProgressRevision(minProgressRevision)
                 .setQueryTrackerStage(queryTrackerStage)
                 .setTimeout(timeout)
                 .setRequestId(requestId)
@@ -76,6 +84,12 @@ public class GetQuery extends QueryTrackerReq<GetQuery.Builder, GetQuery>
         if (timestamp != null) {
             builder.setTimestamp(timestamp.getValue());
         }
+        if (progressParts != null) {
+            builder.addAllProgressParts(progressParts);
+        }
+        if (minProgressRevision != null) {
+            builder.setMinProgressRevision(minProgressRevision.intValue());
+        }
     }
 
     /**
@@ -88,6 +102,10 @@ public class GetQuery extends QueryTrackerReq<GetQuery.Builder, GetQuery>
         private List<String> attributes;
         @Nullable
         private YtTimestamp timestamp;
+        @Nullable
+        private List<String> progressParts;
+        @Nullable
+        private Long minProgressRevision;
 
         private Builder() {
         }
@@ -120,6 +138,25 @@ public class GetQuery extends QueryTrackerReq<GetQuery.Builder, GetQuery>
          */
         public Builder setTimestamp(@Nullable YtTimestamp timestamp) {
             this.timestamp = timestamp;
+            return self();
+        }
+
+        /**
+         * Select query progress parts. An absent or empty list requests all parts.
+         */
+        public Builder setProgressParts(@Nullable List<String> progressParts) {
+            this.progressParts = progressParts;
+            return self();
+        }
+
+        /**
+         * Set the minimum progress revision, in the uint32 range.
+         */
+        public Builder setMinProgressRevision(@Nullable Long minProgressRevision) {
+            if (minProgressRevision != null && (minProgressRevision < 0 || minProgressRevision > 0xffff_ffffL)) {
+                throw new IllegalArgumentException("Minimum progress revision must fit uint32");
+            }
+            this.minProgressRevision = minProgressRevision;
             return self();
         }
 
