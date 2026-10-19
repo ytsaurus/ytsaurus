@@ -4,6 +4,8 @@
 
 #include <yt/yt/library/query/proto/query.pb.h>
 
+#include <yt/yt/library/web_assembly/engine/builtins.h>
+
 #include <yt/yt/client/table_client/pipe.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
@@ -15,7 +17,17 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TQueryEvaluateTest, NestedSubquery)
+class TQueryEvaluateScalarSubqueryTest
+    : public TQueryEvaluateTest
+    , public ::testing::WithParamInterface<int>
+{ };
+
+INSTANTIATE_TEST_SUITE_P(
+    SyntaxVersions,
+    TQueryEvaluateScalarSubqueryTest,
+    ::testing::Values(2, 3));
+
+TEST_P(TQueryEvaluateScalarSubqueryTest, NestedSubquery)
 {
     TSplitMap splits;
     std::vector<std::vector<std::string>> sources;
@@ -64,10 +76,10 @@ TEST_F(TQueryEvaluateTest, NestedSubquery)
         splits,
         sources,
         ResultMatcher(result, resultSplit.TableSchema),
-        {.SyntaxVersion = 2});
+        {.SyntaxVersion = GetParam()});
 }
 
-TEST_F(TQueryEvaluateTest, OutOfLineBoundValues)
+TEST_P(TQueryEvaluateScalarSubqueryTest, OutOfLineBoundValues)
 {
     std::string query = R"(
         (sum(SumCost)) AS SumCost_,
@@ -122,10 +134,10 @@ TEST_F(TQueryEvaluateTest, OutOfLineBoundValues)
         splits,
         sources,
         ResultMatcher(result, resultSplit.TableSchema),
-        {.SyntaxVersion = 2});
+        {.SyntaxVersion = GetParam()});
 }
 
-TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
+TEST_P(TQueryEvaluateScalarSubqueryTest, NestedSubqueryGroupBy)
 {
     TSplitMap splits;
     std::vector<std::vector<std::string>> sources;
@@ -160,7 +172,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
             "select t.k % 2 as a, (select ls, sum(t.s) as x, sum(li) as y, sum(1) as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) group by ls) as nested from `//t` as t group by a",
             splits,
             {},
-            TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion});
+            TPreparePlanFragmentOptions{.SyntaxVersion = GetParam(), .BuilderVersion = DefaultExpressionBuilderVersion});
 
         const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
 
@@ -174,7 +186,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
             "select t.k % 2 as a, (select li + sum(t.s) as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
             splits,
             {},
-            TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion});
+            TPreparePlanFragmentOptions{.SyntaxVersion = GetParam(), .BuilderVersion = DefaultExpressionBuilderVersion});
 
         const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
 
@@ -190,7 +202,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
             "select t.k % 2 as a, sum(2) as b, (select b, sum(1) as z from (array_agg(t.a, true) as li) group by li) as nested from `//t` as t group by a",
             splits,
             {},
-            TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion});
+            TPreparePlanFragmentOptions{.SyntaxVersion = GetParam(), .BuilderVersion = DefaultExpressionBuilderVersion});
 
         const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
 
@@ -206,7 +218,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
             "select t.k % 2 as a, sum(2) as b, (select li + b as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
             splits,
             {},
-            TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion});
+            TPreparePlanFragmentOptions{.SyntaxVersion = GetParam(), .BuilderVersion = DefaultExpressionBuilderVersion});
 
         const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
 
@@ -238,7 +250,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
             splits,
             sources,
             ResultMatcher(result, resultSplit.TableSchema),
-            {.SyntaxVersion = 2});
+            {.SyntaxVersion = GetParam()});
     }
 
     {
@@ -260,7 +272,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
             splits,
             sources,
             ResultMatcher(result, resultSplit.TableSchema),
-            {.SyntaxVersion = 2});
+            {.SyntaxVersion = GetParam()});
     }
 
     {
@@ -283,7 +295,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
             splits,
             sources,
             ResultMatcher(result, resultSplit.TableSchema),
-            {.SyntaxVersion = 2});
+            {.SyntaxVersion = GetParam()});
     }
 
     {
@@ -306,21 +318,403 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
             splits,
             sources,
             ResultMatcher(result, resultSplit.TableSchema),
-            {.SyntaxVersion = 2});
+            {.SyntaxVersion = GetParam()});
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TQueryEvaluateTest, NestedSubquerySyntaxVersion3IsNotImplemented)
+TEST_F(TQueryEvaluateTest, NestedSubquerySyntaxVersion3ProjectionIndices)
+{
+    auto split = MakeSplit({
+        {"numbers", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"labels", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+    });
+
+    for (bool useAliases : {false, true}) {
+        auto scoreName = useAliases ? "score" : "$projection_1";
+        auto textName = useAliases ? "text" : "label";
+        auto resultSplit = MakeSplit({
+            {"nested", ListLogicalType(StructLogicalType({
+                {scoreName, scoreName, OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+                {textName, textName, OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            }, /*removedFieldStableNames*/ {}))},
+        });
+
+        for (const auto& clauses : std::vector<std::string>{
+            "ORDER BY 1 DESC, 2 ASC OFFSET 1 LIMIT 2",
+            Format("ORDER BY 1 DESC, %v ASC OFFSET 1 LIMIT 2", textName),
+            Format("ORDER BY (1, -item) DESC, %v ASC OFFSET 1 LIMIT 2", textName),
+            "ORDER BY 0, 1 DESC, 2 ASC OFFSET 1 LIMIT 2",
+            "GROUP BY 1, label ORDER BY 1 DESC, 2 ASC OFFSET 1 LIMIT 2",
+        }) {
+            auto query = Format(
+                "SELECT (SELECT %v FROM (t.numbers AS item, t.labels AS label) %v) AS nested FROM `//t` AS t",
+                useAliases ? "item + 10 AS score, label AS text" : "item + 10, label",
+                clauses);
+            SCOPED_TRACE(query);
+            EvaluateOnlyViaNativeExecutionBackend(
+                query,
+                split,
+                {"numbers=[3;1;2;2];labels=[c;z;b;a]", "numbers=[];labels=[]"},
+                ResultMatcher(YsonToRows({"nested=[[12;a];[12;b]]", "nested=[]"}, resultSplit), resultSplit.TableSchema),
+                // COMPAT(dtorilov): Remove after 26.2.
+                {.SyntaxVersion = 3, .EnableScalarSubqueryOrderByAndLimit = true});
+        }
+    }
+}
+
+TEST_F(TQueryEvaluateTest, NestedSubquerySyntaxVersion3GroupByProjectionIndices)
+{
+    auto split = MakeSplit({
+        {"numbers", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"labels", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+    });
+
+    for (bool useAliases : {false, true}) {
+        auto parityName = useAliases ? "parity" : "$projection_1";
+        auto countName = useAliases ? "count" : "$projection_3";
+        auto resultSplit = MakeSplit({
+            {"nested", ListLogicalType(StructLogicalType({
+                {parityName, parityName, OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+                {"label", "label", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {countName, countName, OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            }, /*removedFieldStableNames*/ {}))},
+        });
+        auto query = Format(
+            "SELECT (SELECT %v FROM (t.numbers AS item, t.labels AS label) "
+            "GROUP BY 1, label ORDER BY 3 DESC, 1, 2 LIMIT 2) AS nested FROM `//t` AS t",
+            useAliases ? "item % 2 AS parity, label, sum(1) AS count" : "item % 2, label, sum(1)");
+        SCOPED_TRACE(query);
+        EvaluateOnlyViaNativeExecutionBackend(
+            query,
+            split,
+            {"numbers=[3;1;2;2;4];labels=[c;z;b;a;a]", "numbers=[];labels=[]"},
+            ResultMatcher(YsonToRows({"nested=[[0;a;2];[0;b;1]]", "nested=[]"}, resultSplit), resultSplit.TableSchema),
+            // COMPAT(dtorilov): Remove after 26.2.
+            {.SyntaxVersion = 3, .EnableScalarSubqueryOrderByAndLimit = true});
+    }
+}
+
+TEST_P(TQueryEvaluateScalarSubqueryTest, ProjectionIndicesDependOnSyntaxVersion)
+{
+    auto split = MakeSplit({
+        {"numbers", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"labels", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+    });
+    auto resultSplit = MakeSplit({
+        {"nested", ListLogicalType(StructLogicalType({
+            {"score", "score", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"label", "label", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+        }, /*removedFieldStableNames*/ {}))},
+    });
+    auto result = YsonToRows({GetParam() == 2 ? "nested=[[12;a];[12;b]]" : "nested=[[13;c];[12;a]]"}, resultSplit);
+    EvaluateOnlyViaNativeExecutionBackend(
+        "SELECT (SELECT item + 10 AS score, label FROM (t.numbers AS item, t.labels AS label) "
+        "ORDER BY 1 DESC, label ASC LIMIT 2) AS nested FROM `//t` AS t",
+        split,
+        {"numbers=[3;1;2;2];labels=[c;z;b;a]"},
+        ResultMatcher(result, resultSplit.TableSchema),
+        // COMPAT(dtorilov): Remove after 26.2.
+        {.SyntaxVersion = GetParam(), .EnableScalarSubqueryOrderByAndLimit = true});
+}
+
+TEST_F(TQueryEvaluateTest, NestedSubquerySyntaxVersion3NestedScopes)
+{
+    auto split = MakeSplit({
+        {"id", EValueType::Int64},
+        {"numbers", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+    auto resultSplit = MakeSplit({
+        {"id", EValueType::Int64},
+        {"nested", ListLogicalType(StructLogicalType({
+            {"row.value", "row.value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        }, /*removedFieldStableNames*/ {}))},
+    });
+    auto result = YsonToRows({"id=10;nested=[[12];[13]]", "id=1;nested=[[3];[4]]"}, resultSplit);
+    EvaluateOnlyViaNativeExecutionBackend(
+        R"(
+            SELECT t.id AS id, (
+                SELECT row.value
+                FROM ((
+                    SELECT item + t.id AS value
+                    FROM (t.numbers AS item)
+                    ORDER BY 1 DESC
+                    LIMIT 3
+                ) AS row)
+                ORDER BY 1 ASC
+                LIMIT 2
+            ) AS nested
+            FROM `//t` AS t
+            WHERE yson_length(nested) > 1
+            ORDER BY 1 DESC
+            LIMIT 2
+        )",
+        split,
+        {"id=1;numbers=[3;1;4;2]", "id=10;numbers=[3;1;4;2]", "id=100;numbers=[]"},
+        ResultMatcher(result, resultSplit.TableSchema),
+        // COMPAT(dtorilov): Remove after 26.2.
+        {.SyntaxVersion = 3, .EnableScalarSubqueryOrderByAndLimit = true});
+}
+
+TEST_F(TQueryEvaluateTest, NestedSubquerySyntaxVersion3ProjectionIndicesInNestedExpressions)
+{
+    auto split = MakeSplit({
+        {"numbers", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+    auto resultSplit = MakeSplit({{"value", EValueType::Int64}});
+
+    for (const auto& [query, expectedRows] : std::vector<std::pair<std::string, std::vector<std::string>>>{
+        {
+            "SELECT t.numbers[int64(yson_length(("
+            "SELECT item FROM (t.numbers AS item) GROUP BY 1 ORDER BY 1 DESC LIMIT 2)))] AS value FROM `//t` AS t",
+            {"value=2", "value=1", "value=#"},
+        },
+        {
+            "SELECT 1 AS value FROM `//t` AS t WHERE yson_length(("
+            "SELECT item FROM (t.numbers AS item) GROUP BY 1 ORDER BY 1 DESC LIMIT 2)) > 1",
+            {"value=1"},
+        },
+        {
+            "SELECT row.item AS value FROM `//t` AS t ARRAY JOIN ("
+            "SELECT item FROM (t.numbers AS item) GROUP BY 1 ORDER BY 1 DESC LIMIT 2) AS row",
+            {"value=3", "value=2", "value=1"},
+        },
+    }) {
+        SCOPED_TRACE(query);
+        EvaluateOnlyViaNativeExecutionBackend(
+            query,
+            split,
+            {"numbers=[3;1;2;2]", "numbers=[1;1]", "numbers=[]"},
+            ResultMatcher(YsonToRows(expectedRows, resultSplit), resultSplit.TableSchema),
+            // COMPAT(dtorilov): Remove after 26.2.
+            {.SyntaxVersion = 3, .EnableScalarSubqueryOrderByAndLimit = true});
+    }
+
+    EXPECT_NO_THROW(Prepare(
+        "SELECT nested FROM ("
+        "SELECT (SELECT item FROM (t.numbers AS item) GROUP BY 1 ORDER BY 1 DESC LIMIT 2) AS nested "
+        "FROM `//t` AS t)",
+        {{"//t", split}},
+        /*placeholderValues*/ {},
+        {
+            .SyntaxVersion = 3,
+            .BuilderVersion = DefaultExpressionBuilderVersion,
+            // COMPAT(dtorilov): Remove after 26.2.
+            .EnableScalarSubqueryOrderByAndLimit = true,
+        }));
+}
+
+TEST_F(TQueryEvaluateTest, NestedSubquerySyntaxVersion3FromSubqueryProjectionIndices)
+{
+    auto split = MakeSplit({{"a", EValueType::Int64}});
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(split)));
+
+    for (const auto& [query, columnName, expectedRows] : std::vector<std::tuple<std::string, std::string, TSource>>{
+        {
+            "SELECT x FROM (SELECT a + 10 AS x FROM `//t` ORDER BY 1 DESC LIMIT 2)",
+            "x",
+            {"x=14", "x=13"},
+        },
+        {
+            "SELECT x FROM (SELECT a + 10 AS x FROM `//t` GROUP BY 1 ORDER BY 1 DESC LIMIT 2)",
+            "x",
+            {"x=14", "x=13"},
+        },
+        {
+            "SELECT `$projection_1` FROM (SELECT a % 2 FROM `//t` GROUP BY 1 ORDER BY 1 DESC LIMIT 2)",
+            "$projection_1",
+            {"\"$projection_1\"=1", "\"$projection_1\"=0"},
+        },
+    }) {
+        SCOPED_TRACE(query);
+        auto resultSplit = MakeSplit({{columnName, EValueType::Int64}});
+        auto result = YsonToRows(expectedRows, resultSplit);
+        auto fragment = ParseAndPreparePlanFragment(
+            &PrepareMock_,
+            query,
+            /*placeholderValues*/ {},
+            {.SyntaxVersion = 3, .BuilderVersion = DefaultExpressionBuilderVersion});
+        ASSERT_TRUE(fragment->SubqueryFragment);
+
+        auto subqueryPipe = RunOnNodeThread(
+            fragment->SubqueryFragment->Query,
+            {"a=1", "a=4", "a=2", "a=2", "a=3"},
+            EExecutionBackend::Native);
+        auto pipe = CreateSchemafulPipe(GetDefaultMemoryChunkProvider());
+        Evaluator_->Run(
+            fragment->Query,
+            subqueryPipe->GetReader(),
+            pipe->GetWriter(),
+            /*joinProfilerRegistry*/ TJoinProfilerRegistry(
+                /*executePlan*/ {},
+                /*consumeSubqueryStatistics*/ {},
+                /*memoryChunkProvider*/ nullptr,
+                /*logger*/ {}),
+            FunctionProfilers_,
+            AggregateProfilers_,
+            NWebAssembly::GetBuiltinSdk(),
+            GetDefaultMemoryChunkProvider(),
+            TQueryOptions{{.ExecutionBackend = EExecutionBackend::Native}},
+            MostFreshFeatureFlags(),
+            MakeFuture(MostFreshFeatureFlags()));
+
+        auto reader = pipe->GetReader();
+        auto buffer = New<TRowBuffer>();
+        auto rows = std::vector<TRow>();
+        while (auto batch = reader->Read()) {
+            ASSERT_FALSE(batch->IsEmpty());
+            for (auto row : batch->MaterializeRows()) {
+                rows.push_back(buffer->CaptureRow(row));
+            }
+        }
+
+        ResultMatcher(result, resultSplit.TableSchema)(rows, *fragment->Query->GetTableSchema());
+    }
+}
+
+TEST_F(TQueryEvaluateTest, NestedSubquerySyntaxVersion3ProjectionAliasCollisions)
+{
+    auto split = MakeSplit({
+        {"numbers", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"$projection_1", EValueType::Int64},
+        {"$projection_2", EValueType::Int64},
+    });
+
+    for (const auto* clauses : {"ORDER BY 1 LIMIT 1", "GROUP BY 1 ORDER BY 1 LIMIT 1"}) {
+        for (const auto* outerExpression : {"100 AS `$projection_1`", "`$projection_1`"}) {
+            auto query = Format(
+                "SELECT %v, (SELECT item + 1, `$projection_1` AS outer_value "
+                "FROM (numbers AS item) %v) AS nested FROM `//t`",
+                outerExpression,
+                clauses);
+            SCOPED_TRACE(query);
+            auto resultSplit = MakeSplit({
+                {"$projection_1", EValueType::Int64},
+                {"nested", ListLogicalType(StructLogicalType({
+                    {"$projection_2", "$projection_2", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+                    {"outer_value", "outer_value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+                }, /*removedFieldStableNames*/ {}))},
+            });
+            EvaluateOnlyViaNativeExecutionBackend(
+                query,
+                split,
+                {"numbers=[3;1];\"$projection_1\"=100", "numbers=[];\"$projection_1\"=100"},
+                ResultMatcher(YsonToRows({
+                    "\"$projection_1\"=100;nested=[[2;100]]",
+                    "\"$projection_1\"=100;nested=[]",
+                }, resultSplit), resultSplit.TableSchema),
+                // COMPAT(dtorilov): Remove after 26.2.
+                {.SyntaxVersion = 3, .EnableScalarSubqueryOrderByAndLimit = true});
+        }
+    }
+
+    auto resultSplit = MakeSplit({
+        {"nested", ListLogicalType(StructLogicalType({
+            {"$projection_3", "$projection_3", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"outer_value", "outer_value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"other_value", "other_value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        }, /*removedFieldStableNames*/ {}))},
+    });
+    EvaluateOnlyViaNativeExecutionBackend(
+        "SELECT (SELECT item + 1, `$projection_1` AS outer_value, `$projection_2` AS other_value "
+        "FROM (numbers AS item) ORDER BY 1 LIMIT 1) AS nested FROM `//t`",
+        split,
+        {"numbers=[3];\"$projection_1\"=100;\"$projection_2\"=200"},
+        ResultMatcher(YsonToRows({"nested=[[4;100;200]]"}, resultSplit), resultSplit.TableSchema),
+        // COMPAT(dtorilov): Remove after 26.2.
+        {.SyntaxVersion = 3, .EnableScalarSubqueryOrderByAndLimit = true});
+}
+
+TEST_F(TQueryEvaluateTest, NestedSubquerySyntaxVersion3GeneratedProjectionAliasCollisions)
+{
+    auto split = MakeSplit({
+        {"numbers", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"$projection_1", EValueType::Int64},
+    });
+    auto resultSplit = MakeSplit({
+        {"nested", ListLogicalType(StructLogicalType({
+            {"$projection_2", "$projection_2", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"$projection_3", "$projection_3", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"outer_value", "outer_value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        }, /*removedFieldStableNames*/ {}))},
+    });
+
+    for (const auto& [clauses, expectedRow] : std::vector<std::pair<std::string, std::string>>{
+        {"ORDER BY 1 LIMIT 1", "nested=[[2;-1;100]]"},
+        {"ORDER BY 2 LIMIT 1", "nested=[[4;-3;100]]"},
+        {"GROUP BY 1, 2 ORDER BY 1 LIMIT 1", "nested=[[2;-1;100]]"},
+        {"GROUP BY 1, 2 ORDER BY 2 LIMIT 1", "nested=[[4;-3;100]]"},
+    }) {
+        auto query = Format(
+            "SELECT (SELECT item + 1, -item, `$projection_1` AS outer_value "
+            "FROM (numbers AS item) %v) AS nested FROM `//t`",
+            clauses);
+        SCOPED_TRACE(query);
+        EvaluateOnlyViaNativeExecutionBackend(
+            query,
+            split,
+            {"numbers=[3;1;3];\"$projection_1\"=100"},
+            ResultMatcher(YsonToRows({expectedRow}, resultSplit), resultSplit.TableSchema),
+            // COMPAT(dtorilov): Remove after 26.2.
+            {.SyntaxVersion = 3, .EnableScalarSubqueryOrderByAndLimit = true});
+    }
+}
+
+TEST_F(TQueryEvaluateTest, NestedSubquerySyntaxVersion3ProjectionAliasScopes)
+{
+    auto split = MakeSplit({
+        {"numbers", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"$projection_1", EValueType::Int64},
+    });
+    auto innerResultType = ListLogicalType(StructLogicalType({
+        {"outer_value", "outer_value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    }, /*removedFieldStableNames*/ {}));
+    auto resultSplit = MakeSplit({
+        {"nested", ListLogicalType(StructLogicalType({
+            {"$projection_2", "$projection_2", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"deeper", "deeper", innerResultType},
+        }, /*removedFieldStableNames*/ {}))},
+    });
+    EvaluateOnlyViaNativeExecutionBackend(
+        "SELECT (SELECT item + 1, (SELECT `$projection_1` AS outer_value "
+        "FROM (numbers AS inner_item) ORDER BY 1 LIMIT 1) AS deeper "
+        "FROM (numbers AS item) ORDER BY 1 LIMIT 1) AS nested FROM `//t`",
+        split,
+        {"numbers=[3;1];\"$projection_1\"=100", "numbers=[];\"$projection_1\"=100"},
+        ResultMatcher(YsonToRows({"nested=[[2;[[100]]]]", "nested=[]"}, resultSplit), resultSplit.TableSchema),
+        // COMPAT(dtorilov): Remove after 26.2.
+        {.SyntaxVersion = 3, .EnableScalarSubqueryOrderByAndLimit = true});
+
+    EXPECT_NO_THROW(Prepare(
+        "SELECT `$projection_1` FROM (SELECT 1 + 2 FROM `//t` ORDER BY 1 LIMIT 1)",
+        {{"//t", split}},
+        /*placeholderValues*/ {},
+        {
+            .SyntaxVersion = 3,
+            .BuilderVersion = DefaultExpressionBuilderVersion,
+        }));
+}
+
+TEST_F(TQueryEvaluateTest, NestedSubquerySyntaxVersion3InvalidProjectionIndices)
 {
     auto split = MakeSplit({
         {"numbers", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
     });
 
-    for (const auto& clauses : {"", "GROUP BY 1", "ORDER BY 1 DESC, item ASC LIMIT 1"}) {
+    for (const auto* clauses : {
+        "ORDER BY -1 LIMIT 1",
+        "ORDER BY 2 LIMIT 1",
+        "ORDER BY (1, -1) LIMIT 1",
+        "ORDER BY 1, 2, item LIMIT 1",
+        "GROUP BY -1",
+        "GROUP BY 1, 2, item",
+        "GROUP BY 1 ORDER BY 2 LIMIT 1",
+    }) {
         auto query = Format(
-            "SELECT (SELECT item FROM (t.numbers AS item) %v) AS nested FROM `//t` AS t",
+            "SELECT (SELECT item FROM (t.numbers AS item) %v) AS nested, t.numbers FROM `//t` AS t",
             clauses);
         SCOPED_TRACE(query);
         EXPECT_THROW_THAT(
@@ -334,11 +728,11 @@ TEST_F(TQueryEvaluateTest, NestedSubquerySyntaxVersion3IsNotImplemented)
                     // COMPAT(dtorilov): Remove after 26.2.
                     .EnableScalarSubqueryOrderByAndLimit = true,
                 }),
-            HasSubstr("Scalar subqueries are not implemented for syntax version 3"));
+            HasSubstr("Reference expression index is out of bounds"));
     }
 }
 
-TEST_F(TQueryEvaluateTest, HavingValidation)
+TEST_P(TQueryEvaluateScalarSubqueryTest, HavingValidation)
 {
     auto split = MakeSplit({
         {"item", EValueType::Int64},
@@ -367,7 +761,7 @@ TEST_F(TQueryEvaluateTest, HavingValidation)
                     {{"//t", split}},
                     /*placeholderValues*/ {},
                     {
-                        .SyntaxVersion = 2,
+                        .SyntaxVersion = GetParam(),
                         .BuilderVersion = DefaultExpressionBuilderVersion,
                         // COMPAT(dtorilov): Remove after 26.2.
                         .EnableScalarSubqueryOrderByAndLimit = true,
@@ -388,7 +782,7 @@ TEST_F(TQueryEvaluateTest, HavingValidation)
                 {{"//t", split}},
                 /*placeholderValues*/ {},
                 {
-                    .SyntaxVersion = 2,
+                    .SyntaxVersion = GetParam(),
                     .BuilderVersion = DefaultExpressionBuilderVersion,
                     // COMPAT(dtorilov): Remove after 26.2.
                     .EnableScalarSubqueryOrderByAndLimit = true,
@@ -402,7 +796,7 @@ TEST_F(TQueryEvaluateTest, HavingValidation)
             orderedQuery,
             {{"//t", split}},
             /*placeholderValues*/ {},
-            {.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion}));
+            {.SyntaxVersion = GetParam(), .BuilderVersion = DefaultExpressionBuilderVersion}));
 
     auto sortedSplit = MakeSplit({
         {"item", EValueType::Int64, ESortOrder::Ascending},
@@ -412,11 +806,11 @@ TEST_F(TQueryEvaluateTest, HavingValidation)
             orderedQuery,
             {{"//t", sortedSplit}},
             /*placeholderValues*/ {},
-            {.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion}),
+            {.SyntaxVersion = GetParam(), .BuilderVersion = DefaultExpressionBuilderVersion}),
         HasSubstr("HAVING with LIMIT is not allowed"));
 }
 
-TEST_F(TQueryEvaluateTest, OrderByOffsetAndLimit)
+TEST_P(TQueryEvaluateScalarSubqueryTest, OrderByOffsetAndLimit)
 {
     auto split = MakeSplit({
         {"item", EValueType::Int64},
@@ -429,7 +823,7 @@ TEST_F(TQueryEvaluateTest, OrderByOffsetAndLimit)
         }, /*removedFieldStableNames*/ {}))},
     });
     auto prepareOptions = TPreparePlanFragmentOptions{
-        .SyntaxVersion = 2,
+        .SyntaxVersion = GetParam(),
         .BuilderVersion = DefaultExpressionBuilderVersion,
         // COMPAT(dtorilov): Remove after 26.2.
         .EnableScalarSubqueryOrderByAndLimit = true,
@@ -459,7 +853,7 @@ TEST_F(TQueryEvaluateTest, OrderByOffsetAndLimit)
             {"numbers=[1;2;3;4;1;2;3;4];amounts=[2.25;3.0;0.5;4.0;5.75;5.0;0.5;5.0]", "numbers=[];amounts=[]"},
             ResultMatcher(result, resultSplit.TableSchema),
             // COMPAT(dtorilov): Remove after 26.2.
-            {.SyntaxVersion = 2, .EnableScalarSubqueryOrderByAndLimit = true});
+            {.SyntaxVersion = GetParam(), .EnableScalarSubqueryOrderByAndLimit = true});
     }
 
     for (const auto& [clauses, error] : std::vector<std::pair<std::string, std::string>>{
@@ -501,7 +895,7 @@ TEST_F(TQueryEvaluateTest, OrderByOffsetAndLimit)
     EXPECT_FALSE(query->IsPrefetching());
 }
 
-TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByAndLimitReusedAlias)
+TEST_P(TQueryEvaluateScalarSubqueryTest, NestedSubqueryOrderByAndLimitReusedAlias)
 {
     auto split = MakeSplit({
         {"numbers", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
@@ -518,7 +912,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByAndLimitReusedAlias)
         auto query = Format(
             "SELECT (SELECT item FROM (t.numbers AS item) %v) AS nested, yson_length(nested) AS count FROM `//t` AS t WHERE yson_length(nested) > 1",
             limited ? "LIMIT 2" : "");
-        auto options = TEvaluateOptions{.SyntaxVersion = 2, .EnableScalarSubqueryOrderByAndLimit = true};
+        auto options = TEvaluateOptions{.SyntaxVersion = GetParam(), .EnableScalarSubqueryOrderByAndLimit = true};
         auto result = YsonToRows({limited ? "nested=[[3];[1]];count=2" : "nested=[[3];[1];[2]];count=3"}, resultSplit);
         EvaluateOnlyViaNativeExecutionBackend(
             query,
@@ -530,7 +924,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByAndLimitReusedAlias)
 }
 
 // COMPAT(dtorilov): Remove after 26.2.
-TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByAndLimitDisabledInNestedExpressions)
+TEST_P(TQueryEvaluateScalarSubqueryTest, NestedSubqueryOrderByAndLimitDisabledInNestedExpressions)
 {
     auto splits = TSplitMap{{"//t", MakeSplit({
         {"numbers", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
@@ -548,12 +942,12 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByAndLimitDisabledInNestedExpressi
                 splits,
                 {{"numbers=[3;1;2]"}},
                 AnyMatcher,
-                {.SyntaxVersion = 2}),
+                {.SyntaxVersion = GetParam()}),
             testing::HasSubstr("ORDER BY, OFFSET and LIMIT are disabled in scalar subqueries"));
     }
 }
 
-TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByOffsetAndLimit)
+TEST_P(TQueryEvaluateScalarSubqueryTest, NestedSubqueryOrderByOffsetAndLimit)
 {
     auto split = MakeSplit({
         {"id", EValueType::Int64},
@@ -614,11 +1008,11 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByOffsetAndLimit)
             rows,
             ResultMatcher(result, resultSplit.TableSchema),
             // COMPAT(dtorilov): Remove after 26.2.
-            {.SyntaxVersion = 2, .EnableScalarSubqueryOrderByAndLimit = true});
+            {.SyntaxVersion = GetParam(), .EnableScalarSubqueryOrderByAndLimit = true});
     }
 }
 
-TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByOffsetSkipsProjection)
+TEST_P(TQueryEvaluateScalarSubqueryTest, NestedSubqueryOrderByOffsetSkipsProjection)
 {
     constexpr auto QueryTemplate = TStringBuf(R"(
         SELECT (
@@ -652,11 +1046,11 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByOffsetSkipsProjection)
             {"numbers=[0;1;2]", "numbers=[]"},
             ResultMatcher(result, resultSplit.TableSchema),
             // COMPAT(dtorilov): Remove after 26.2.
-            {.SyntaxVersion = 2, .EnableScalarSubqueryOrderByAndLimit = true});
+            {.SyntaxVersion = GetParam(), .EnableScalarSubqueryOrderByAndLimit = true});
     }
 }
 
-TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByTopRows)
+TEST_P(TQueryEvaluateScalarSubqueryTest, NestedSubqueryOrderByTopRows)
 {
     auto split = MakeSplit({
         {"numbers", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
@@ -708,10 +1102,10 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByTopRows)
         source,
         ResultMatcher(YsonToRows(expectedRows, resultSplit), resultSplit.TableSchema),
         // COMPAT(dtorilov): Remove after 26.2.
-        {.SyntaxVersion = 2, .EnableScalarSubqueryOrderByAndLimit = true});
+        {.SyntaxVersion = GetParam(), .EnableScalarSubqueryOrderByAndLimit = true});
 }
 
-TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByTopRowsCornerCases)
+TEST_P(TQueryEvaluateScalarSubqueryTest, NestedSubqueryOrderByTopRowsCornerCases)
 {
     constexpr auto QueryTemplate = TStringBuf(R"(
         SELECT (
@@ -753,11 +1147,11 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByTopRowsCornerCases)
             {Format("numbers=%v", numbers)},
             ResultMatcher(YsonToRows({Format("nested=%v", expected)}, resultSplit), resultSplit.TableSchema),
             // COMPAT(dtorilov): Remove after 26.2.
-            {.SyntaxVersion = 2, .EnableScalarSubqueryOrderByAndLimit = true});
+            {.SyntaxVersion = GetParam(), .EnableScalarSubqueryOrderByAndLimit = true});
     }
 }
 
-TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByTopRowsStress)
+TEST_P(TQueryEvaluateScalarSubqueryTest, NestedSubqueryOrderByTopRowsStress)
 {
     constexpr auto QueryTemplate = TStringBuf(R"(
         SELECT (
@@ -820,11 +1214,11 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByTopRowsStress)
             {Format("numbers=%v];labels=%v]", numbers, labels)},
             ResultMatcher(YsonToRows({expected}, resultSplit), resultSplit.TableSchema),
             // COMPAT(dtorilov): Remove after 26.2.
-            {.SyntaxVersion = 2, .EnableScalarSubqueryOrderByAndLimit = true});
+            {.SyntaxVersion = GetParam(), .EnableScalarSubqueryOrderByAndLimit = true});
     }
 }
 
-TEST_F(TQueryEvaluateTest, NestedSubqueryLegacyLimit)
+TEST_P(TQueryEvaluateScalarSubqueryTest, NestedSubqueryLegacyLimit)
 {
     auto splits = TSplitMap{{"//t", MakeSplit({
         {"numbers", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
@@ -840,7 +1234,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryLegacyLimit)
         )",
         splits,
         /*placeholderValues*/ {},
-        {.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion});
+        {.SyntaxVersion = GetParam(), .BuilderVersion = DefaultExpressionBuilderVersion});
     auto resultSplit = MakeSplit({
         {"nested", ListLogicalType(StructLogicalType({
             {"item", "item", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
@@ -912,7 +1306,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryLegacyLimit)
     }
 }
 
-TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByJoinGroups)
+TEST_P(TQueryEvaluateScalarSubqueryTest, NestedSubqueryOrderByJoinGroups)
 {
     auto splits = TSplitMap();
     splits["//t"] = MakeSplit({
@@ -961,7 +1355,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByJoinGroups)
             },
             ResultMatcher(result, resultSplit.TableSchema),
             // COMPAT(dtorilov): Remove after 26.2.
-            {.SyntaxVersion = 2, .EnableScalarSubqueryOrderByAndLimit = true});
+            {.SyntaxVersion = GetParam(), .EnableScalarSubqueryOrderByAndLimit = true});
         EXPECT_EQ(GetJoinGroups(query->JoinClauses, query->Schema.GetRenamedSchema()), expectedGroups);
 
         auto references = TColumnSet();
@@ -970,7 +1364,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByJoinGroups)
     }
 }
 
-TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByGroupByPushDown)
+TEST_P(TQueryEvaluateScalarSubqueryTest, NestedSubqueryOrderByGroupByPushDown)
 {
     auto splits = TSplitMap();
     splits["//t"] = MakeSplit({
@@ -1007,7 +1401,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByGroupByPushDown)
             },
             ResultMatcher(result, resultSplit.TableSchema),
             // COMPAT(dtorilov): Remove after 26.2.
-            {.SyntaxVersion = 2, .EnableScalarSubqueryOrderByAndLimit = true});
+            {.SyntaxVersion = GetParam(), .EnableScalarSubqueryOrderByAndLimit = true});
         const auto& join = query->JoinClauses[0];
         EXPECT_FALSE(join->GroupClause);
         EXPECT_EQ(join->ForeignJoinedColumns.contains("f.rank"), clauses.starts_with("ORDER BY"));
@@ -1015,7 +1409,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByGroupByPushDown)
     }
 }
 
-TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByOuterAggregate)
+TEST_P(TQueryEvaluateScalarSubqueryTest, NestedSubqueryOrderByOuterAggregate)
 {
     auto split = MakeSplit({
         {"id", EValueType::Int64},
@@ -1062,7 +1456,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryOrderByOuterAggregate)
              "id=7;value=#", "id=1;value=3", "id=2;value=-3", "id=3;value=0", "id=4;value=-1", "id=5;value=-2", "id=7;value=#"},
             ResultMatcher(YsonToRows(expectedRows, resultSplit), resultSplit.TableSchema),
             // COMPAT(dtorilov): Remove after 26.2.
-            {.SyntaxVersion = 2, .EnableScalarSubqueryOrderByAndLimit = true});
+            {.SyntaxVersion = GetParam(), .EnableScalarSubqueryOrderByAndLimit = true});
     }
 }
 

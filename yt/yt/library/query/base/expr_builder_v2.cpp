@@ -1248,12 +1248,6 @@ TGroupClausePtr BuildGroupClause(
 
 TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression* queryExpr)
 {
-    if (Context_.Options.SyntaxVersion >= 3) {
-        THROW_ERROR_EXCEPTION(
-            "Scalar subqueries are not implemented for syntax version %v",
-            Context_.Options.SyntaxVersion);
-    }
-
     // COMPAT(dtorilov): Remove after 26.2.
     if (!Context_.Options.EnableScalarSubqueryOrderByAndLimit &&
         (!queryExpr->Query.OrderExpressions.empty() || queryExpr->Query.Offset || queryExpr->Query.Limit))
