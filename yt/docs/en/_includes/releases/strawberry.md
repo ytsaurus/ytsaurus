@@ -13,13 +13,7 @@ Is released as a docker image.
 **Release date:** 2026-08-14
 
 
-**Release page:** [v0.0.18](https://github.com/ytsaurus/ytsaurus/releases/tag/yt/chyt/controller/v0.0.18)
-
-
-**Docker image:** [ghcr.io/ytsaurus/strawberry:0.0.18](https://github.com/orgs/ytsaurus/packages/container/strawberry/1133321328?tag=0.0.18)
-
-
-#### Features
+# Features
 
 - Stop retrying operation restarts indefinitely when broken-state signal errors occur. After a configurable number of consecutive failures, mark the oplet as `Broken` ([902c7bc](https://github.com/ytsaurus/ytsaurus/commit/902c7bc08453873f7557e79ce2623a39b55130f4)).
 - Check permissions for network projects ([ba5fad9](https://github.com/ytsaurus/ytsaurus/commit/ba5fad9864242ddb2dd58e0e74aa260d05fc1fa5)).
@@ -29,7 +23,7 @@ Is released as a docker image.
 - Add oplet-pass duration histograms ([ec124b9](https://github.com/ytsaurus/ytsaurus/commit/ec124b9a4f4bd8d2b7776b9b66cdef5fb3899a88)).
 - Add ODBC support for CHYT ([35e94c6](https://github.com/ytsaurus/ytsaurus/commit/35e94c6bc4296f8226bd0d60a35f5a538444cb82)).
 
-#### Fixes
+# Fixes
 
 - Resolve a deadlock between the operation collector and job checker ([83c0bf9](https://github.com/ytsaurus/ytsaurus/commit/83c0bf9d1529aec7caf70db902c6d1d204ce162f)).
 - Avoid panicking when discovery-client initialization fails ([659a609](https://github.com/ytsaurus/ytsaurus/commit/659a609095b0d303c556386462dfd3fd391ac8a2)).
@@ -44,13 +38,7 @@ Is released as a docker image.
 **Release date:** 2026-04-03
 
 
-**Release page:** [v0.0.17](https://github.com/ytsaurus/ytsaurus/releases/tag/yt/chyt/controller/v0.0.17)
-
-
-**Docker image:** [ghcr.io/ytsaurus/strawberry:0.0.17](https://github.com/orgs/ytsaurus/packages/container/strawberry/775184666?tag=0.0.17)
-
-
-#### General Updates
+### General Updates
 
 * Make discovery health check opt-in (Commit: 19a9ccd688af14ddf3cc7ab8cd3afdd195a02776)
 
@@ -63,13 +51,7 @@ Is released as a docker image.
 **Release date:** 2026-03-06
 
 
-**Release page:** [v0.0.16](https://github.com/ytsaurus/ytsaurus/releases/tag/yt/chyt/controller/v0.0.16)
-
-
-**Docker image:** [ghcr.io/ytsaurus/strawberry:0.0.16](https://github.com/orgs/ytsaurus/packages/container/strawberry/721097681?tag=0.0.16)
-
-
-#### General Updates
+### General Updates
 
 **Features:**
 
@@ -92,13 +74,7 @@ Is released as a docker image.
 **Release date:** 2025-09-18
 
 
-**Release page:** [v0.0.15](https://github.com/ytsaurus/ytsaurus/releases/tag/yt/chyt/controller/v0.0.15)
-
-
-**Docker image:** [ghcr.io/ytsaurus/strawberry:0.0.15](https://github.com/orgs/ytsaurus/packages/container/strawberry/524145257?tag=0.0.15)
-
-
-#### General Updates
+### General Updates
 
 **Features:**
 
@@ -113,13 +89,7 @@ Is released as a docker image.
 **Release date:** 2025-08-20
 
 
-**Release page:** [v0.0.14](https://github.com/ytsaurus/ytsaurus/releases/tag/yt/chyt/controller/v0.0.14)
-
-
-**Docker image:** [ghcr.io/ytsaurus/strawberry:0.0.14](https://github.com/orgs/ytsaurus/packages/container/strawberry/491844408?tag=0.0.14)
-
-
-#### General Updates
+### General Updates
 
 **Features:**
 
@@ -130,13 +100,13 @@ Is released as a docker image.
 - Fixed pool validation. (Commit: 68b574792e50e355c59fbe1f65edb9a1feee4210) @dmi-feo
 - Added family prefix to yt op alias to prevent alias collisions (Commit: 734958682f3a6a263c9d03574adc283267c40738) @dmi-feo
 
-#### CHYT
+### CHYT
 
 - Added options for mTLS (Commit: 642a88355b0972489ff4ff29b2cf7615c5b3f85f) @koct9i 
 - Allowed to set default CHYT resources in strawberry config (Commit: e4ba1a582b48151eeb61714b06e417d4e3e06bf1) @dmi-feo
 - Logging of http headers is enabled by default (Commit: b52dd26fb366eb388e124faa8eb950ab8c077226) @a-dyu
  
-#### Jupyter
+### Jupyter
 
 - Allowed to run jupyt operations on behalf of user (Commit: c9b02c7f24b0cbf18c2bf35af01143240ca4a792) @dmi-feo
 
@@ -148,13 +118,7 @@ Is released as a docker image.
 **Release date:** 2025-04-08
 
 
-**Release page:** [v0.0.13](https://github.com/ytsaurus/ytsaurus/releases/tag/yt/chyt/controller/v0.0.13)
-
-
-**Docker image:** [ghcr.io/ytsaurus/strawberry:0.0.13](https://github.com/orgs/ytsaurus/packages/container/strawberry/391211630?tag=0.0.13)
-
-
-#### General Updates
+### General Updates
 
 **Features:**
 
@@ -169,17 +133,17 @@ Is released as a docker image.
 
 - Fixed panic on initialization if the cluster is unavailable. (Commit: b567f1737aeadd3c1ee0eba0d7bc7b46ec66a789) 
 
-#### CHYT
+### CHYT
 
 - Added an option to disable the export of runtime data from CHYT operations and an explicit expiration timeout for exported data. (Commit: 58d91c249ee4aaf7d7be3070af58569f5f2ad1b9)
 - Changed the default `read_from` option in AttributeCache. (Commit: 33de404dcce77593968fa45d548bf9ebceb3204e)
 
-#### SPYT
+### SPYT
 
 - Added Squashfs support for Livy via strawberry. (Commit: 15c08cd668eacdf57312dc9bcb01452faa82ce7d)
 - Specified yt token for Livy operations. (Commit: c91680616715f65da1855669e082a914f9909973)
 
-#### Jupyter
+### Jupyter
 
 - Added GPU support in Jupyter operations. (Commit: 935e0a5a7c2ffd4a45d3e4260f9aea9d4534a8c0)
 - Added job scaler interface and used it to suspend inactive Jupyter operations. (Commit: e4b7df0c0213644f54af6411ed06b2bc34576059)

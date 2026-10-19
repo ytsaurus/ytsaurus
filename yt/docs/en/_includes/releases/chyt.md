@@ -13,13 +13,7 @@ Is released as a docker image.
 **Release date:** 2026-08-03
 
 
-**Release page:** [2.19.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.19.0)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:2.19.0](https://github.com/orgs/ytsaurus/packages/container/chyt/1133249434?tag=2.19.0)
-
-
-#### Features
+# Features
 
 - Update ClickHouse code to 25.3.13.19 ([8f32778](https://github.com/ytsaurus/ytsaurus/commit/8f327788b63da1c3b8fc35233aa96b40e575a3d6))
 - Enable the CHYT 2.18 feature set by default ([f9eab3d](https://github.com/ytsaurus/ytsaurus/commit/f9eab3d8770962f3d6723c58c2637f1ec9db6479)).
@@ -32,7 +26,7 @@ Is released as a docker image.
 - Unify table-attribute fetching and add profiling ([9a01e5b](https://github.com/ytsaurus/ytsaurus/commit/9a01e5bc1d2b0e2daa5a650f3b23c4795df6af77)).
 - Add `$cumulative_data_weight` and `$timestamp` virtual columns to exported system log tables ([56c0645](https://github.com/ytsaurus/ytsaurus/commit/56c06451c14264c57e00597a3b7eda133df9a6a4)).
 
-#### Fixes
+# Fixes
 
 - Improve common-type deduction when concatenating YT tables ([eda7986](https://github.com/ytsaurus/ytsaurus/commit/eda798616e76bb0ab253f43d8678c895457d5718)).
 - Fix `YSONExtract` handling and casts ([a9175db](https://github.com/ytsaurus/ytsaurus/commit/a9175db72cd25da6e68dc83264e4f393b72cbaff), [c5d4299](https://github.com/ytsaurus/ytsaurus/commit/c5d4299684cf83370afdf133275c4c4d1e53b614)).
@@ -40,7 +34,7 @@ Is released as a docker image.
 - Fix compatibility and initialization of user settings ([88b9531](https://github.com/ytsaurus/ytsaurus/commit/88b953175af96ec8b2f3b373fa3eb912a3c3daf0), [0ab4127](https://github.com/ytsaurus/ytsaurus/commit/0ab4127fd26e9b9e53b1b5a79dbf7a8279693bd0)).
 - Fix double-closing of writers ([cfa5254](https://github.com/ytsaurus/ytsaurus/commit/cfa5254e7d6c6b9845758f87681b1d9261f063c5)).
 
-#### Notes
+# Notes
 
 - Proper usage of the new release requires YTsaurus Server version 25.4 or newer.
 - Strawberry controller [0.0.18](https://github.com/ytsaurus/ytsaurus/releases/tag/yt%2Fchyt%2Fcontroller%2Fv0.0.18) or newer is required to use dictionary support in CHYT 2.19.
@@ -52,12 +46,6 @@ Is released as a docker image.
 {% cut "**2.18.6**" %}
 
 **Release date:** 2026-06-22
-
-
-**Release page:** [2.18.6](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.6)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:2.18.6](https://github.com/orgs/ytsaurus/packages/container/chyt/967753290?tag=2.18.6)
 
 
 **Fixes:**
@@ -76,12 +64,6 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 {% cut "**2.18.5**" %}
 
 **Release date:** 2026-06-09
-
-
-**Release page:** [2.18.5](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.5)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:2.18.5](https://github.com/orgs/ytsaurus/packages/container/chyt/939459874?tag=2.18.5)
 
 
 **Features:**
@@ -104,16 +86,10 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 **Release date:** 2026-05-15
 
 
-**Release page:** [2.18.4](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.4)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:2.18.4](https://github.com/orgs/ytsaurus/packages/container/chyt/873819001?tag=2.18.4)
-
-
 **Fixes:**
 
-* Add missing `extractKeyValuePairs` functions to CHYT target (a5206fe1757f4a57fdafa48c15e314a3245ad4f7)
-* Use FetcherInvoker for `TableAttributeCache` (bf1f96f4707ae86b977649d3ef7f143f67ce280f)
+* Add missing extractKeyValuePairs functions to CHYT target (a5206fe1757f4a57fdafa48c15e314a3245ad4f7)
+* Use FetcherInvoker for TableAttributeCache (bf1f96f4707ae86b977649d3ef7f143f67ce280f)
 
 
 {% endcut %}
@@ -122,12 +98,6 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 {% cut "**2.18.3**" %}
 
 **Release date:** 2026-04-02
-
-
-**Release page:** [2.18.3](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.3)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:stable-2.18.3](https://github.com/orgs/ytsaurus/packages/container/chyt/785932269?tag=stable-2.18.3)
 
 
 **Fixes:**
@@ -144,13 +114,7 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 **Release date:** 2026-03-23
 
 
-**Release page:** [2.18.2](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.2)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:stable-2.18.2](https://github.com/orgs/ytsaurus/packages/container/chyt/757077349?tag=stable-2.18.2)
-
-
-#### Fixes:
+## Fixes:
 * Fix distinct optimization reading not full block (056b99bd53dc92c2fdb2d59b8c0f30dafca9c80c)
 
 {% endcut %}
@@ -159,12 +123,6 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 {% cut "**2.18.1**" %}
 
 **Release date:** 2026-03-04
-
-
-**Release page:** [2.18.1](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.1)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:stable-2.18.1](https://github.com/orgs/ytsaurus/packages/container/chyt/721252481?tag=stable-2.18.1)
 
 
 **Fixes:**
@@ -180,10 +138,7 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 **Release date:** 2026-01-20
 
 
-**Release page:** [2.18.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.0)
-
-
-#### Features:
+# Features:
 - Support RLS in CHYT, [3fe297c](https://github.com/ytsaurus/ytsaurus/commit/3fe297cd8ffc38e019c0121126ceaf5f636166ef).
 - Add read range inference from perdicate, [3a9eb82](https://github.com/ytsaurus/ytsaurus/commit/3a9eb82c7ec5495632f13dc3e8884a158312de4d).
 - Add chyt\_query\_statistics for insert queries and failed queries, [974b2c2](https://github.com/ytsaurus/ytsaurus/commit/974b2c28d5dcf44316516e285596b9c13090ee71), [99a08a3](https://github.com/ytsaurus/ytsaurus/commit/99a08a3449806035c48dd74ee587486569b7a6e1).
@@ -192,10 +147,10 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 - Add optimization for better performance with min/max queries using columnar statistics from nodes, [d83cd46](https://github.com/ytsaurus/ytsaurus/commit/d83cd46c0b5830fbbcdd23c00106b387b439542b).
 - Add optimization for better performance with rle and dictionary encoding (using only distinct values without materialization), [c777591](https://github.com/ytsaurus/ytsaurus/commit/c77759151d82bbfc8720cc269a3c295555974bdf).
 - Add revision check to AttributeCache for more stable performance, [3f3be85](https://github.com/ytsaurus/ytsaurus/commit/3f3be8596e05dd30054e7ddc7bfb15421ffd9afc).
-- Add EnableComplexOptionalConversion to prevent conversion of arrays (can't be nullable in Clickhouse, will change default to false in future), [57a298a](https://github.com/ytsaurus/ytsaurus/commit/57a298ac4c98659fe014d43cea872925d9750424).
+- Add EnableComlexOptionalConversion to prevent conversion of arrays (can't be nullable in Clickhouse, will change default to false in future), [57a298a](https://github.com/ytsaurus/ytsaurus/commit/57a298ac4c98659fe014d43cea872925d9750424).
 - Add parallel insert-select support in storage\_distributor, [4632de8](https://github.com/ytsaurus/ytsaurus/commit/4632de8546d04ef8f3dedb9b9a26007a5384288b).
 
-#### Fixes:
+# Fixes:
 - Fix usage of master chunk spec fetcher for ordered dynamic tables. Applicable for CHYT over YT server versions up to 24.2, inclusive, [d3df92f](https://github.com/ytsaurus/ytsaurus/commit/d3df92fd4fa2756f397d329e79243be008512311).
 - Fix CTE errors in LEFT JOIN with IN condition, [b51e5db](https://github.com/ytsaurus/ytsaurus/commit/b51e5db56c9867a4b6615e24d791b59cef7becab).
 - Track total progress on coordinator, [0d5fc5c](https://github.com/ytsaurus/ytsaurus/commit/0d5fc5ce2b0f1c65922627f6d7dfb8bc7d215dd5).
@@ -209,17 +164,11 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 **Release date:** 2025-09-23
 
 
-**Release page:** [2.17.4](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.17.4)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:2.17.4](https://github.com/orgs/ytsaurus/packages/container/chyt/524445395?tag=2.17.4)
-
-
 - Backport YT-25206: Set up Cypress Transaction Service on Cypress Proxies (Commit: eb104f198aeb5bd30208e0214c03fd50f0535655)
 - Backport YT TLS support (Commit: fde3ac361bd81d5c8df21e3bcc13c9710cb446a8)
 - Fix usage of CTE in distributed queries (Commit: e275fa81599ff28fbb6a41de4c7c6c9fee0417fd)
-- Add aklomp-base64 support for `base64` functions (Commit: 5708583fcc58051627bfcd4f9849de6f7915afcf)
-- Add usage of new analyzer to `ytTables` function (Commit: 29a8f6cefa043b8365949e2f6e54aadf40434c6b)
+- Add aklomp-base64 support for base64 functions (Commit: 5708583fcc58051627bfcd4f9849de6f7915afcf)
+- Add usage of new analyzer to ytTables function (Commit: 29a8f6cefa043b8365949e2f6e54aadf40434c6b)
 
 {% endcut %}
 
@@ -227,12 +176,6 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 {% cut "**2.17.2**" %}
 
 **Release date:** 2025-07-04
-
-
-**Release page:** [2.17.2](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.17.2)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:2.17.2](https://github.com/orgs/ytsaurus/packages/container/chyt/454419671?tag=2.17.2)
 
 
 No description

@@ -400,6 +400,306 @@
 {% endcut %}
 
 
+{% cut "**2.11.2**" %}
+
+**Release date:** 2026-10-02
+
+
+Maintenance release with a bug fix
+
+- Fixed job submission to an inner standalone cluster: the master resolved job dependencies (jars, files, pyFiles, archives) with the YTsaurus credentials of the first submitter instead of the current one
+
+
+{% endcut %}
+
+
+{% cut "**2.11.1**" %}
+
+**Release date:** 2026-08-25
+
+
+Maintenance release with minor enhancements and bug fixes
+
+- Support for `schema_hint` methods in Spark Connect sessions
+- UDF support for python binaries submitted via Spark Connect
+- Extended UInt64 support for Spark Connect
+- Support for specifying pool for Spark Connect driver operation
+- Spark Connect endpoint availability check
+- Reuse Hadoop configuration across reader factories
+- Fixed reading columns with dots in their names from lookup tables
+- Other minor fixes and improvements
+
+{% endcut %}
+
+
+{% cut "**2.11.0**" %}
+
+**Release date:** 2026-07-31
+
+
+Major release that enables support for Spark 4.2.x and submitting jobs to an inner cluster without JVM.
+
+- Spark 4.2.x and Java 25 support
+- Java 21 support for Spark 4.0.x and above
+- Refactor submit to an inner standalone cluster to use pure Python implementation without JVM
+- Support for enabling YTsaurus shuffle service on per application basis for standalone clusters
+- Push based mode for the YTsaurus shuffle service, enabled with `spark.ytsaurus.shuffle.push.enabled`
+- Asynchronous read task creation for ytPartitioning, limited by the new `spark.ytsaurus.throttling.maxConcurrency` option 
+- `spark.ytsaurus.*` became the primary configuration prefix, `spark.yt.*` is kept as a fallback alias
+- Log export to Monium, enabled with `spark.ytsaurus.logs.export.enabled`
+- Spark Connect driver uses the temporary token of its vanilla operation, the `spark.ytsaurus.connect.token.refresh.period` option is removed
+- Fixed driver hangs for distributed writes in case of errors
+- Fixed duplicates of Spark configuration keys re-injected from the environment
+- Other minor fixes and improvements
+
+{% endcut %}
+
+
+{% cut "**2.9.3**" %}
+
+**Release date:** 2026-07-13
+
+
+Maintenance release with minor enhancements
+
+- Enable YTsaurus shuffle service per application instead of globally on standalone clusters
+- Fix operation_alias and enable_multi_operation_mode compatibility
+- Fix driver hangs for distributed writes in case of errors
+- Other minor fixes and improvements
+
+{% endcut %}
+
+
+{% cut "**2.10.0**" %}
+
+**Release date:** 2026-05-27
+
+
+Major release that enables support for Spark 4.0.x and 4.1.x.
+
+- Added Scala 2.13 support along with Scala 2.12
+- pyspark-client Python package support for writing client-side logic using Spark Connect protocol without JVM
+- Transactional Streaming
+- Drop Spark 3.2.x support
+- Drop Java 11 support, all JVM classes are compiled with Java 17
+- Drop Python 3.8, 3.9 and 3.10 support
+- Drop Livy support for Query Tracker integration
+
+{% endcut %}
+
+
+{% cut "**2.9.2**" %}
+
+**Release date:** 2026-05-22
+
+
+Maintenance release with minor enhancements
+
+- Support runtime filters functionality (dynamic partition pruning) for dataframe API
+- Fix stacktrace for disabled metrics
+- Move wait_for_spark_connect_endpoint method to spyt.connect
+- Propagate nullable in pushStructMetadata during column pruning
+- Fix writing nullable values of composite columns in dynamic tables
+- Other minor fixes and improvements
+
+
+{% endcut %}
+
+
+{% cut "**2.9.1**" %}
+
+**Release date:** 2026-05-08
+
+
+Maintenance release with minor enhancements
+
+- Boost multiple table locking under transactional reading by using asynchronous lock requests
+- Fixed pushdown filters application for Spark SQL API
+- Support for specifying custom attributes when creating table
+- Added ytPartitioning by YT table compressed size instead of data weight. May improve performance for lookup tables. Disabled by default; enable with `spark.yt.read.ytPartitioning.compressedSize.enable=true`.
+- Fixed writing nested unsigned types to dyn tables
+- Other minor fixes and improvements
+
+{% endcut %}
+
+
+{% cut "**2.9.0**" %}
+
+**Release date:** 2026-03-30
+
+
+- Support for Spark Connect in Spark Standalone inner cluster
+- Row and column level security (RLS/CLS) support
+- Updated read and write statistics
+- Perfomance and stability fixes
+
+{% endcut %}
+
+
+{% cut "**2.8.2**" %}
+
+**Release date:** 2025-12-23
+
+
+Maintenance release with minor enhancements
+
+- Improving stability of distributed write and read API support
+- Other minor fixes
+
+{% endcut %}
+
+
+{% cut "**2.8.0**" %}
+
+**Release date:** 2025-11-27
+
+
+- Dynamic allocation support in direct submit scenarios
+- YTsaurus distributed read and write API support
+- Driver auto-shutdown on executor failures
+- Spark connect integration improvements
+
+{% endcut %}
+
+
+{% cut "**2.7.5**" %}
+
+**Release date:** 2025-11-05
+
+
+Maintenance release with minor enhancements
+
+- Correct reading of unsigned types (uint8, uint16, uint32) in arrow and wire formats
+
+{% endcut %}
+
+
+{% cut "**2.7.4**" %}
+
+**Release date:** 2025-10-07
+
+
+Maintenance release with minor enhancements
+
+- More reliable processing of streaming offsets
+
+{% endcut %}
+
+
+{% cut "**2.7.3**" %}
+
+**Release date:** 2025-09-08
+
+
+Maintenance release with minor enhancements
+
+- Refactor shuffle data writing and reading
+- Metrics improvements
+
+{% endcut %}
+
+
+{% cut "**2.7.2**" %}
+
+**Release date:** 2025-09-01
+
+
+Maintenance release with minor enhancements
+
+- Improving YTsaurus shuffle service integration
+- Spark connect server wrapper for SPYT
+
+
+{% endcut %}
+
+
+{% cut "**2.7.1**" %}
+
+**Release date:** 2025-08-15
+
+
+Maintenance release with minor enhancements
+
+- Optimizing the number of requests to master in bulk reading scenarios
+- Hiding sensitive information from driver command line and passing it via secure vault
+- Fix executors hostname in network project
+- Showing executor operation id in driver operation description
+- Fix java properties escaping
+- Including parsing context in parsing exceptions
+- Fix joins by uint64 columns
+- Support for setting secure vault in direct submit scenarios
+
+
+{% endcut %}
+
+
+{% cut "**2.7.0**" %}
+
+**Release date:** 2025-07-24
+
+
+- YTsaurus shuffle service support
+- Metrics refactoring for inner cluster and direct submit modes
+- Dynamic table queries via SQL API doesn't require explicit timestamp
+- Bugs and stability fixes:
+- - Fix OutOfMemory errors for optimized-for scan sorted tables
+- - Fix casting types to uint64 in codegen
+- - Fix "Manually specified and authenticated users mismatch" YT error in direct submit
+- - Other minor fixes
+
+{% endcut %}
+
+
+{% cut "**2.6.5**" %}
+
+**Release date:** 2025-06-08
+
+
+Maintenance release with minor enhancements
+
+- Support for Spark 3.5.6
+- Minor improvements for Spark Streaming support in YTsaurus
+
+
+{% endcut %}
+
+
+{% cut "**2.6.4**" %}
+
+**Release date:** 2025-05-16
+
+
+Maintenance release with minor enhancements and bug fixes
+
+- Support for retrieving driver operation id in direct submit scenarios
+- Reducing YTsaurusClient threads by reusing client instances
+- Fix JSON layout for log4j2
+- Transaction titles for SPYT transactions
+- Fix prometeus metrics configuration
+- Fix dedicated driver mode for standalone cluster
+
+
+{% endcut %}
+
+
+{% cut "**2.6.0**" %}
+
+**Release date:** 2025-04-23
+
+
+- Java 17 support
+- Support for UUID and Json YTsaurus types
+- Support for RPC-job proxy in direct submit
+- Support for additional task parameters in YTsaurus operation specification via Spark config in direct submit
+- Support for taking snapshots locks at reading time
+- Explicit flag for truncated result of Query Tracker queries
+- Fix compatibility with Spark 3.5.4 and 3.5.5
+- Fix for date- and timestamp SQL-functions via Query Tracker
+- Many stability and other bug fixes
+
+{% endcut %}
+
+
 {% cut "**2.5.0**" %}
 
 **Дата релиза:** 2024-12-25

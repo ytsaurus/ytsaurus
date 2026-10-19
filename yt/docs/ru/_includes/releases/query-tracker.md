@@ -152,6 +152,142 @@ https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.23.1
 {% endcut %}
 
 
+{% cut "**0.4.1**" %}
+
+**Release date:** 2026-08-10
+
+
+YQL:
+- Added row-level security support for YT tables.
+- Extended `QLFilter` with Boolean, floating-point, string, and UTF-8 types, plus per-cluster activation.
+- Added partial CBO execution.
+- Improved descending-sort handling and compatibility with older tables under the yt.UseNativeDescSort pragma.
+- Supported dynamic-table writes by REPLACE INTO (https://ytsaurus.tech/docs/ru/yql/syntax/replace_into)
+- Fixed the behavior of the yt.FuseMapToMapReduce pragma with horizontal joins.
+- Supported YQL language version 2025.05 (https://ytsaurus.tech/docs/ru/yql/changelog/2025.05)
+
+СHYT:
+- Fixed chyt queries starts with fresh ytsaurus clients
+
+NB! Аvailable only with ytsaurus server version [25.4.0](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F25.4.0) and later.
+
+{% endcut %}
+
+
+{% cut "**0.1.2**" %}
+
+**Release date:** 2026-01-27
+
+
+**Features**
+- [experimental] Allow handling YQL queries in separate processes
+
+**Fixes**
+- Fixed lang version list in UI
+
+
+**NB!** Аvailable only with proxy version [25.2.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F25.2.2) and later, UI [3.3.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.3.1) and later.
+
+
+{% endcut %}
+
+
+{% cut "**0.1.1**" %}
+
+**Release date:** 2025-12-18
+
+
+This is an alpha release, please update to [0.1.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fquery-tracker%2F0.1.2) or later
+
+**Features**
+- Support YQL language versioning
+- Support Spark Connect (SPYT Connect)
+- New possibilities for processing partitioned tables in YQL 
+
+**Fixes**
+- Fix running big queries by compressing 'progress' column
+- Fix possible network socket stall (between QT and YQL agent) on YQL query abortion.
+
+**Known bugs**
+- Incorrect lang versions in UI
+
+**NB!** Аvailable only with proxy version [25.2.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F25.2.2) and later
+
+{% endcut %}
+
+
+{% cut "**0.0.11**" %}
+
+**Release date:** 2025-09-08
+
+
+**Features**
+- Added "sort_order" flag for list_queries API
+- Added the "assigned_engine" meta for YQL queries.
+- Made YQL queries timeout configurable
+- Supported YQL language versions in QT cli\sdk.
+https://ytsaurus.tech/docs/en/yql/changelog/#general-description-of-yql-versions
+- Supported returning AST of YQL queries in get_query cli\sdk 
+
+**Improvements**
+- Improved mechanics of additional secrets in YQL queries
+
+**Fixes**
+- Fixed read YQL results with yson fields by reference.
+
+**NB!** Most new features available only with proxy version 24.2\25.1 and later
+
+{% endcut %}
+
+
+{% cut "**0.0.10**" %}
+
+**Release date:** 2025-06-23
+
+
+**Features:**
+- Added clickhouse UDF.
+- Added the "assigned_tracker" meta for queries that are in the "finished" state.
+
+**Internal:**
+- Switched the internal YQL results format. It should not be visible to users.
+
+{% endcut %}
+
+
+{% cut "**0.0.9**" %}
+
+**Release date:** 2025-04-08
+
+
+**Features**
+- Added possibility to ban QT\YQLA
+- Added QT\YQLA custom metrics
+- Added YQLA dynamic configuration
+- Added possibility to specify extra credentials for YQL queries
+- Added possibility to configure YQL default cluster per query
+- Added full result table in YQL queries results (available from 25.1 proxies)
+- Supported unicode symbols in SPYT queries
+- Supported results truncation in SPYT queries
+
+**Improvements**
+- Optimized QT API calls
+- Limited max simultaneous queries per YQLA
+- Configured QT dyntables compaction
+
+**Fixes**
+- Fixed YQL queries abortion
+- Fixed completing of queries with results over 16MB
+- Fixed query completion after responsible qt crash
+- Fixed yqla deadlock
+
+**NB!** This release is only compatible with proxy version 24.1.0, operator version 0.23.1 and later
+https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F24.1.0
+https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.23.1
+
+{% endcut %}
+
+
 {% cut "**0.0.8**" %}
 
 **Дата релиза:** 2024-08-26

@@ -13,12 +13,6 @@ Is released as a docker image.
 **Release date:** 2026-08-10
 
 
-**Release page:** [0.4.1](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.4.1)
-
-
-**Docker image:** [ghcr.io/ytsaurus/query-tracker:stable-0.4.1](https://github.com/orgs/ytsaurus/packages/container/query-tracker/1123897735?tag=stable-0.4.1)
-
-
 YQL:
 - Added row-level security support for YT tables.
 - Extended `QLFilter` with Boolean, floating-point, string, and UTF-8 types, plus per-cluster activation.
@@ -41,12 +35,6 @@ NB! Аvailable only with ytsaurus server version [25.4.0](https://github.com/yts
 **Release date:** 2026-01-27
 
 
-**Release page:** [0.1.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.1.2)
-
-
-**Docker image:** [ghcr.io/ytsaurus/query-tracker:stable-0.1.2](https://github.com/orgs/ytsaurus/packages/container/query-tracker/659176566?tag=stable-0.1.2)
-
-
 **Features**
 - [experimental] Allow handling YQL queries in separate processes
 
@@ -63,12 +51,6 @@ NB! Аvailable only with ytsaurus server version [25.4.0](https://github.com/yts
 {% cut "**0.1.1**" %}
 
 **Release date:** 2025-12-18
-
-
-**Release page:** [0.1.1](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.1.1)
-
-
-**Docker image:** [ghcr.io/ytsaurus/query-tracker:0.1.1](https://github.com/orgs/ytsaurus/packages/container/query-tracker/617510568?tag=0.1.1)
 
 
 This is an alpha release, please update to [0.1.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fquery-tracker%2F0.1.2) or later
@@ -95,12 +77,6 @@ This is an alpha release, please update to [0.1.2](https://github.com/ytsaurus/y
 **Release date:** 2025-09-08
 
 
-**Release page:** [0.0.11](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.11)
-
-
-**Docker image:** [ghcr.io/ytsaurus/query-tracker:0.0.11](https://github.com/orgs/ytsaurus/packages/container/query-tracker/509269551?tag=0.0.11)
-
-
 **Features**
 - Added "sort_order" flag for list_queries API
 - Added the "assigned_engine" meta for YQL queries.
@@ -125,12 +101,6 @@ https://ytsaurus.tech/docs/en/yql/changelog/#general-description-of-yql-versions
 **Release date:** 2025-06-23
 
 
-**Release page:** [0.0.10](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.10)
-
-
-**Docker image:** [ghcr.io/ytsaurus/query-tracker:0.0.10](https://github.com/orgs/ytsaurus/packages/container/query-tracker/448865204?tag=0.0.10)
-
-
 **Features:**
 - Added clickhouse UDF.
 - Added the "assigned_tracker" meta for queries that are in the "finished" state.
@@ -144,12 +114,6 @@ https://ytsaurus.tech/docs/en/yql/changelog/#general-description-of-yql-versions
 {% cut "**0.0.9**" %}
 
 **Release date:** 2025-04-08
-
-
-**Release page:** [0.0.9](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.9)
-
-
-**Docker image:** [ghcr.io/ytsaurus/query-tracker:0.0.9](https://github.com/orgs/ytsaurus/packages/container/query-tracker/393209556?tag=0.0.9)
 
 
 **Features**
