@@ -8,6 +8,43 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TStateCacheNamespace::TStateCacheNamespace(TJobId jobId, std::string name)
+    : JobId(jobId)
+    , Name(std::move(name))
+    , Hash(CombineHashes(THash<TJobId>()(JobId), THash<std::string>()(Name)))
+{ }
+
+TStateCacheKey::TStateCacheKey()
+    : TStateCacheKey(TJobId(), std::nullopt, std::string())
+{ }
+
+TStateCacheKey::TStateCacheKey(TJobId jobId, std::optional<TKey> key, std::string name)
+    : TStateCacheKey(New<TStateCacheNamespace>(jobId, std::move(name)), std::move(key))
+{ }
+
+TStateCacheKey::TStateCacheKey(TStateCacheNamespacePtr cacheNamespace, std::optional<TKey> key)
+    : Namespace(std::move(cacheNamespace))
+    , Key(std::move(key))
+{
+    YT_VERIFY(Namespace);
+}
+
+bool TStateCacheKey::operator==(const TStateCacheKey& other) const
+{
+    // Independently created job wrappers must still address the same entries.
+    return (Namespace == other.Namespace ||
+        (Namespace && other.Namespace && Namespace->Hash == other.Namespace->Hash &&
+            Namespace->JobId == other.Namespace->JobId && Namespace->Name == other.Namespace->Name)) &&
+        Key == other.Key;
+}
+
+void FormatValue(TStringBuilderBase* builder, const TStateCacheKey& key, TStringBuf /*spec*/)
+{
+    Format(builder, "{%v, %v, %v}", key.Namespace->JobId, key.Key, key.Namespace->Name);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStateCache::TStateCache(TDynamicStateCacheSpecPtr dynamicSpec, NProfiling::TProfiler profiler)
     : NCache::TTwoLevelCache<TStateCacheKey, IStateCacheValue>(profiler)
 {
@@ -26,9 +63,8 @@ TJobStateCachePtr TStateCache::WithJob(TJobId jobId, NProfiling::TProfiler jobPr
 
 i64 TStateCache::GetKeyWeight(const TStateCacheKey& key) const
 {
-    const auto& [jobId, maybeKey, name] = key;
-    Y_UNUSED(jobId);
-    return sizeof(TJobId) + (maybeKey ? maybeKey->Underlying().GetSpaceUsed() : 0) + name.size();
+    // Keep the logical admission charge independent of the physical key layout.
+    return sizeof(TJobId) + (key.Key ? key.Key->Underlying().GetSpaceUsed() : 0) + key.Namespace->Name.size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,55 +75,43 @@ TJobStateCache::TMetrics::TMetrics(NProfiling::TProfiler profiler)
     , ExtractHitCounter(profiler.Counter("/extract_hit"))
     , ExtractHitBytesCounter(profiler.Counter("/extract_hit_bytes"))
     , ExtractMissCounter(profiler.Counter("/extract_miss"))
-    , CountGauge(profiler.Gauge("/count"))
-    , SizeGauge(profiler.Gauge("/size"))
     , TimeToCompress(profiler.WithSparse().Timer("/time_to_compress"))
     , TimeToExpire(profiler.WithSparse().Timer("/time_to_expire"))
-{ }
+{
+    profiler.AddFuncGauge("/count", MakeStrong(this), [this] {
+        return Count.load();
+    });
+    profiler.AddFuncGauge("/size", MakeStrong(this), [this] {
+        return Size.load();
+    });
+}
 
-TJobStateCache::TTrackedValue::TTrackedValue(TMetricsPtr metrics, i64 size, IStateCacheValuePtr value)
-    : Metrics_(std::move(metrics))
+TJobStateCache::TTrackedItem::TTrackedItem(TStateCacheKey key, TMetricsPtr metrics, i64 size, IStateCacheValuePtr value)
+    : TItem(std::move(key), std::move(value))
+    , Metrics_(std::move(metrics))
     , Size_(size)
-    , InsertTimestamp_(TInstant::Now())
-    , Value_(std::move(value))
-{ }
-
-void TJobStateCache::TTrackedValue::Compress()
 {
-    Value_->Compress();
-    if (Metrics_ && Value_ && InsertTimestamp_) {
-        Metrics_->TimeToCompress.Record(TInstant::Now() - *InsertTimestamp_);
-    }
+    Metrics_->Count.fetch_add(1);
+    Metrics_->Size.fetch_add(Size_);
 }
 
-void TJobStateCache::TTrackedValue::Decompress()
+void TJobStateCache::TTrackedItem::Compress()
 {
-    Value_->Decompress();
+    TItem::Compress();
+    Metrics_->TimeToCompress.Record(TInstant::Now() - InsertTimestamp);
 }
 
-i64 TJobStateCache::TTrackedValue::GetWeight()
+void TJobStateCache::TTrackedItem::MarkExtracted() noexcept
 {
-    return Value_->GetWeight();
+    Extracted_ = true;
 }
 
-IStateCacheValuePtr TJobStateCache::TTrackedValue::Get()
+TJobStateCache::TTrackedItem::~TTrackedItem()
 {
-    return Value_;
-}
-
-void TJobStateCache::TTrackedValue::MarkExtracted()
-{
-    InsertTimestamp_ = {};
-}
-
-TJobStateCache::TTrackedValue::~TTrackedValue()
-{
-    if (Metrics_ && Value_) {
-        Metrics_->CountGauge.Update(Metrics_->Count.fetch_sub(1));
-        Metrics_->SizeGauge.Update(Metrics_->Size.fetch_sub(Size_));
-        if (InsertTimestamp_) {
-            Metrics_->TimeToExpire.Record(TInstant::Now() - *InsertTimestamp_);
-        }
+    Metrics_->Count.fetch_sub(1);
+    Metrics_->Size.fetch_sub(Size_);
+    if (!Extracted_) {
+        Metrics_->TimeToExpire.Record(TInstant::Now() - InsertTimestamp);
     }
 }
 
@@ -99,26 +123,36 @@ TJobStateCache::TJobStateCache(TJobId jobId, TStateCachePtr stateCache, NProfili
 
 void TJobStateCache::Insert(const TJobStateCacheKey& key, IStateCacheValuePtr state)
 {
-    auto metrics = GetMetrics(key.second);
+    Insert(key.first, GetContext(key.second), std::move(state));
+}
+
+void TJobStateCache::Insert(const std::optional<TKey>& key, const TNamedContext& context, IStateCacheValuePtr state)
+{
+    const auto& metrics = context.Metrics;
     const i64 size = state->GetWeight();
     metrics->InsertCounter.Increment();
     metrics->InsertBytesCounter.Increment(size);
-    metrics->CountGauge.Update(metrics->Count.fetch_add(1));
-    metrics->SizeGauge.Update(metrics->Size.fetch_add(size));
-    StateCache_->Insert(TStateCacheKey(JobId_, key.first, key.second), New<TTrackedValue>(std::move(metrics), size, std::move(state)));
+    StateCache_->InsertItem(New<TTrackedItem>(
+        TStateCacheKey(context.Namespace, key),
+        metrics,
+        size,
+        std::move(state)));
 }
 
 IStateCacheValuePtr TJobStateCache::Extract(const TJobStateCacheKey& key)
 {
-    auto state = StateCache_->Extract(TStateCacheKey(JobId_, key.first, key.second));
-    auto metrics = GetMetrics(key.second);
-    if (state) {
+    return Extract(key.first, GetContext(key.second));
+}
+
+IStateCacheValuePtr TJobStateCache::Extract(const std::optional<TKey>& key, const TNamedContext& context)
+{
+    auto item = StateCache_->ExtractItem(TStateCacheKey(context.Namespace, key));
+    const auto& metrics = context.Metrics;
+    if (item) {
         metrics->ExtractHitCounter.Increment();
-        metrics->ExtractHitBytesCounter.Increment(state->GetWeight());
-        auto trackedState = DynamicPointerCast<TTrackedValue>(state);
-        YT_VERIFY(trackedState);
-        trackedState->MarkExtracted();
-        return trackedState->Get();
+        metrics->ExtractHitBytesCounter.Increment(item->Value->GetWeight());
+        item->MarkExtracted();
+        return item->Value;
     }
     metrics->ExtractMissCounter.Increment();
     return nullptr;
@@ -129,10 +163,13 @@ TJobNamedStateCachePtr TJobStateCache::WithName(const std::string& name)
     return New<TJobNamedStateCache>(MakeStrong(this), name);
 }
 
-TJobStateCache::TMetricsPtr TJobStateCache::GetMetrics(const std::string& name)
+const TJobStateCache::TNamedContext& TJobStateCache::GetContext(const std::string& name)
 {
-    return GetOrInsert(Metrics_, name, [&] {
-        return New<TMetrics>(Profiler_.WithTag("name", name));
+    return GetOrInsert(Contexts_, name, [&] {
+        return TNamedContext{
+            New<TStateCacheNamespace>(JobId_, name),
+            New<TMetrics>(Profiler_.WithTag("name", name)),
+        };
     });
 }
 
@@ -145,22 +182,22 @@ NProfiling::TProfiler TJobStateCache::GetProfiler() const
 
 TJobNamedStateCache::TJobNamedStateCache(TJobStateCachePtr jobStateCache, std::string name)
     : StateCache_(std::move(jobStateCache))
-    , Name_(std::move(name))
+    , Context_(StateCache_->GetContext(name))
 { }
 
 void TJobNamedStateCache::Insert(const std::optional<TKey>& key, IStateCacheValuePtr value)
 {
-    StateCache_->Insert({key, Name_}, std::move(value));
+    StateCache_->Insert(key, Context_, std::move(value));
 }
 
 IStateCacheValuePtr TJobNamedStateCache::Extract(const std::optional<TKey>& key)
 {
-    return StateCache_->Extract({key, Name_});
+    return StateCache_->Extract(key, Context_);
 }
 
 NProfiling::TProfiler TJobNamedStateCache::GetProfiler() const
 {
-    return StateCache_->GetProfiler().WithTag("name", Name_);
+    return StateCache_->GetProfiler().WithTag("name", Context_.Namespace->Name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

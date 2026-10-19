@@ -241,6 +241,83 @@ TEST(TStateCacheKeyWeightTest, EmptyKeyHasOnlyJobIdAndName)
     EXPECT_EQ(cache->GetKeyWeight(key), static_cast<i64>(sizeof(TJobId) + name.size()));
 }
 
+TEST(TStateCacheKeyTest, IndependentNamespacesHaveContentIdentity)
+{
+    const TJobId jobId(TGuid::Create());
+    const std::string name(200, 'x');
+    const TStateCacheKey first(jobId, MakeKey(ui64{1}), name);
+    const TStateCacheKey second(jobId, MakeKey(ui64{1}), name);
+    EXPECT_NE(first.Namespace, second.Namespace);
+    EXPECT_EQ(first, second);
+    EXPECT_EQ(THash<TStateCacheKey>()(first), THash<TStateCacheKey>()(second));
+    EXPECT_NE(first, (TStateCacheKey{jobId, std::nullopt, name}));
+    EXPECT_NE(first, (TStateCacheKey{jobId, first.Key, name + "y"}));
+    EXPECT_NE(first, (TStateCacheKey{TJobId(TGuid::Create()), first.Key, name}));
+}
+
+TEST(TStateCacheKeyTest, DefaultKeyHasEmptyNamespace)
+{
+    const TStateCacheKey key;
+    EXPECT_EQ(key, (TStateCacheKey{TJobId(), std::nullopt, ""}));
+    auto cache = MakeTestableCache(0, 1_MB);
+    auto value = New<TFixedWeightValue>(100);
+    cache->Insert(key, value);
+    EXPECT_EQ(cache->Extract(TStateCacheKey()), value);
+}
+
+TEST(TStateCacheKeyTest, NamespaceHashDoesNotShareRefcountCacheLine)
+{
+    std::vector<TStateCacheNamespacePtr> cacheNamespaces;
+    for (int index = 0; index < 64; ++index) {
+        cacheNamespaces.push_back(New<TStateCacheNamespace>(TJobId(TGuid(/*part0*/ 0, /*part1*/ 0, /*part2*/ 0, index)), "state"));
+    }
+    for (const auto& cacheNamespace : cacheNamespaces) {
+        const auto hashLine = reinterpret_cast<uintptr_t>(&cacheNamespace->Hash) / CacheLineSize;
+        for (const auto& other : cacheNamespaces) {
+            const auto counterAddress = reinterpret_cast<uintptr_t>(GetRefCounter(other.Get()));
+            const auto counterFirstLine = counterAddress / CacheLineSize;
+            const auto counterLastLine = (counterAddress + sizeof(TRefCounter) - 1) / CacheLineSize;
+            EXPECT_TRUE(hashLine < counterFirstLine || hashLine > counterLastLine);
+        }
+    }
+}
+
+TEST(TStateCacheKeyTest, PreservesTupleHashAndShardAssignment)
+{
+    using TOldKey = std::tuple<TJobId, std::optional<TKey>, std::string>;
+    for (int index = 0; index < 64; ++index) {
+        const TJobId jobId(TGuid(/*part0*/ 0, /*part1*/ 0, /*part2*/ 0, index));
+        const std::string name(index, 'x');
+        const auto cacheNamespace = New<TStateCacheNamespace>(jobId, name);
+        for (const auto& key : {std::optional<TKey>(), std::optional(MakeKey(static_cast<ui64>(index))), std::optional(MakeKey(name))}) {
+            EXPECT_EQ(THash<TStateCacheKey>()(TStateCacheKey(cacheNamespace, key)), THash<TOldKey>()(TOldKey(jobId, key, name)));
+        }
+    }
+}
+
+TEST(TStateCacheKeyTest, RecreatedJobWrappersAddressRetainedEntries)
+{
+    for (i64 hotCapacity : {0_MB, 1_MB}) {
+        auto cache = MakeTestableCache(hotCapacity, 1_MB);
+        const TJobId jobId(TGuid::Create());
+        const std::string name(200, 'x');
+        const auto key = MakeKey(ui64{1});
+        auto value = New<TFixedWeightValue>(100);
+        auto job = cache->WithJob(jobId, NProfiling::TProfiler{});
+        auto named = job->WithName(name);
+        named->Insert(key, value);
+        named.Reset();
+        job.Reset();
+
+        auto recreated = cache->WithJob(jobId, NProfiling::TProfiler{});
+        EXPECT_FALSE(recreated->WithName(name + "y")->Extract(key));
+        EXPECT_FALSE(cache->WithJob(TJobId(TGuid::Create()), NProfiling::TProfiler{})->WithName(name)->Extract(key));
+        EXPECT_EQ(recreated->WithName(name)->Extract(key), value);
+        recreated->Insert({std::nullopt, name}, value);
+        EXPECT_EQ(recreated->WithName(name)->Extract(std::nullopt), value);
+    }
+}
+
 TEST(TStateCacheKeyWeightTest, LargeKeyContributesToWeight)
 {
     auto cache = MakeTestableCache(1 << 20);
@@ -409,13 +486,14 @@ TEST(TStateCacheReclamationTest, ExtractWaitsForConcurrentCompression)
     TManualEvent extractionFinished;
     auto cache = MakeTestableCache(/*uncompressed*/ 1_MB, /*compressed*/ 1_MB);
     const TStateCacheKey key{TJobId(TGuid::Create()), MakeKey(ui64{0}), "state"};
+    auto namedCache = cache->WithJob(key.Namespace->JobId, NProfiling::TProfiler{})->WithName("state");
     auto value = New<TReclaimableValue>([] {
     },
         [&] {
             compressionStarted.Signal();
             resumeCompression.WaitI();
         });
-    cache->Insert(key, value);
+    namedCache->Insert(key.Key, value);
 
     std::thread producer([&] {
         cache->Reconfigure(/*capacity*/ 0, /*compressedCapacity*/ 1_MB);
@@ -435,7 +513,7 @@ TEST(TStateCacheReclamationTest, ExtractWaitsForConcurrentCompression)
     ASSERT_TRUE(compressionStarted.WaitT(TDuration::Seconds(5)));
     extractor = std::thread([&] {
         extractionStarted.Signal();
-        extracted = cache->Extract(key);
+        extracted = namedCache->Extract(key.Key);
         extractionFinished.Signal();
     });
     ASSERT_TRUE(extractionStarted.WaitT(TDuration::Seconds(5)));
@@ -447,7 +525,271 @@ TEST(TStateCacheReclamationTest, ExtractWaitsForConcurrentCompression)
     EXPECT_EQ(extracted.Get(), value.Get());
     EXPECT_EQ(value->CompressCount, 1);
     EXPECT_EQ(value->DecompressCount, 1);
-    EXPECT_FALSE(cache->Extract(key));
+    EXPECT_FALSE(namedCache->Extract(key.Key));
+}
+
+DECLARE_REFCOUNTED_CLASS(TCacheMetricsRegistry);
+
+class TCacheMetricsRegistry
+    : public NProfiling::TSolomonRegistry
+{
+public:
+    NProfiling::ITimerPtr RegisterTimerSummary(
+        TStringBuf name,
+        const NProfiling::TTagSet& tags,
+        NProfiling::TSensorOptions options) override
+    {
+        // Keep zero-duration events visible when asserting timer counts.
+        options.Sparse = false;
+        return TSolomonRegistry::RegisterTimerSummary(name, tags, options);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCacheMetricsRegistry);
+
+class TJobCacheMetricsTest
+    : public ::testing::Test
+{
+protected:
+    const TCacheMetricsRegistryPtr Registry_ = New<TCacheMetricsRegistry>();
+    const NProfiling::TProfiler Profiler_{Registry_, "/test/job_state_cache"};
+    const TIntrusivePtr<TTestableStateCache> Cache_ = MakeTestableCache(1_MB, 1_MB);
+    const TJobId JobId_{TGuid::Create()};
+    TJobStateCachePtr JobCache_ = Cache_->WithJob(JobId_, Profiler_);
+    TJobNamedStateCachePtr NamedCache_ = JobCache_->WithName("state");
+    const TKey Key_ = MakeKey(ui64{0});
+    NProfiling::NProto::TSensorDump Dump_;
+
+    void SetUp() override
+    {
+        Registry_->SetWindowSize(20);
+        // Register the lazily created job metrics before measuring insertions.
+        EXPECT_FALSE(NamedCache_->Extract(Key_));
+        Collect();
+    }
+
+    void Collect()
+    {
+        // Counters and timers in the dump describe the last collection interval.
+        Registry_->ProcessRegistrations();
+        Registry_->Collect();
+        Dump_ = Registry_->DumpSensors();
+    }
+
+    std::optional<double> ReadMetric(TStringBuf name) const
+    {
+        for (const auto& cube : Dump_.cubes()) {
+            if (cube.name() != name) {
+                continue;
+            }
+            for (const auto& projection : cube.projections()) {
+                bool matches = false;
+                for (i64 id : projection.tag_ids()) {
+                    const auto& tag = Dump_.tags(id);
+                    matches |= tag.key() == "name" && tag.value() == "state";
+                }
+                if (matches && projection.has_value()) {
+                    if (projection.has_gauge()) {
+                        return projection.gauge();
+                    }
+                    if (projection.has_counter()) {
+                        return projection.counter();
+                    }
+                    if (projection.has_timer()) {
+                        return projection.timer().count();
+                    }
+                }
+            }
+        }
+        return std::nullopt;
+    }
+
+    void ExpectOccupancy(i64 count, i64 size)
+    {
+        EXPECT_EQ(ReadMetric("yt/test/job_state_cache/count"), count);
+        EXPECT_EQ(ReadMetric("yt/test/job_state_cache/size"), size);
+    }
+
+    void ExpectExpirations(i64 count)
+    {
+        EXPECT_EQ(ReadMetric("yt/test/job_state_cache/time_to_expire").value_or(0), count);
+    }
+};
+
+TEST_F(TJobCacheMetricsTest, TracksOneEntryAcrossCompressionExtractionAndReinsertion)
+{
+    auto value = New<TReclaimableValue>([] {
+    });
+    NamedCache_->Insert(Key_, value);
+    Collect();
+    ExpectOccupancy(1, 1_KB);
+    EXPECT_EQ(ReadMetric("yt/test/job_state_cache/insert"), 1);
+    EXPECT_EQ(ReadMetric("yt/test/job_state_cache/insert_bytes"), 1_KB);
+
+    Cache_->Reconfigure(/*capacity*/ 0, /*compressedCapacity*/ 1_MB);
+    Collect();
+    // Job size retains the insertion weight, even after compression changes it.
+    ExpectOccupancy(1, 1_KB);
+    EXPECT_EQ(ReadMetric("yt/test/job_state_cache/time_to_compress"), 1);
+    ExpectExpirations(0);
+
+    EXPECT_EQ(NamedCache_->Extract(Key_), value);
+    Collect();
+    ExpectOccupancy(0, 0);
+    EXPECT_EQ(ReadMetric("yt/test/job_state_cache/extract_hit"), 1);
+    EXPECT_EQ(ReadMetric("yt/test/job_state_cache/extract_hit_bytes"), 1);
+    ExpectExpirations(0);
+
+    NamedCache_->Insert(Key_, value);
+    Collect();
+    ExpectOccupancy(1, 1);
+    EXPECT_EQ(ReadMetric("yt/test/job_state_cache/insert"), 1);
+    EXPECT_EQ(ReadMetric("yt/test/job_state_cache/insert_bytes"), 1);
+
+    Cache_->Reconfigure(/*capacity*/ 0, /*compressedCapacity*/ 0);
+    Collect();
+    ExpectOccupancy(0, 0);
+    ExpectExpirations(1);
+}
+
+TEST_F(TJobCacheMetricsTest, HotExtractionDoesNotExpireTheEntry)
+{
+    auto value = New<TFixedWeightValue>(17);
+    NamedCache_->Insert(Key_, value);
+    Collect();
+    ExpectOccupancy(1, 17);
+
+    EXPECT_EQ(NamedCache_->Extract(Key_), value);
+    Collect();
+    ExpectOccupancy(0, 0);
+    ExpectExpirations(0);
+    EXPECT_EQ(ReadMetric("yt/test/job_state_cache/extract_hit_bytes"), 17);
+    EXPECT_FALSE(NamedCache_->Extract(Key_));
+    Collect();
+    EXPECT_EQ(ReadMetric("yt/test/job_state_cache/extract_miss"), 1);
+}
+
+TEST_F(TJobCacheMetricsTest, DuplicateInsertionDoesNotReplaceOrDoubleCountTheEntry)
+{
+    for (i64 capacity : {i64{0}, i64{1_MB}}) {
+        SCOPED_TRACE(capacity);
+        Cache_->Reconfigure(capacity, 1_MB);
+        auto original = New<TFixedWeightValue>(64);
+        NamedCache_->Insert(Key_, original);
+        NamedCache_->Insert(Key_, New<TFixedWeightValue>(128));
+        Collect();
+        ExpectOccupancy(1, 64);
+        ExpectExpirations(1);
+
+        EXPECT_EQ(NamedCache_->Extract(Key_), original);
+        Collect();
+        ExpectOccupancy(0, 0);
+        ExpectExpirations(0);
+    }
+}
+
+TEST_F(TJobCacheMetricsTest, EntriesKeepMetricsAliveAfterJobWrappersAreDestroyed)
+{
+    Cache_->Reconfigure(/*capacity*/ 0, /*compressedCapacity*/ 1_MB);
+    auto otherKey = MakeKey(ui64{1});
+    auto value = New<TFixedWeightValue>(17);
+    NamedCache_->Insert(Key_, value);
+    NamedCache_->Insert(otherKey, value);
+    NamedCache_.Reset();
+    JobCache_.Reset();
+    Collect();
+    ExpectOccupancy(2, 34);
+
+    EXPECT_EQ(Cache_->Extract(TStateCacheKey{JobId_, Key_, "state"}), value);
+    Collect();
+    ExpectOccupancy(1, 17);
+    ExpectExpirations(0);
+    EXPECT_EQ(Cache_->Extract(TStateCacheKey{JobId_, otherKey, "state"}), value);
+}
+
+class TFailingDecompressionValue
+    : public TFixedWeightValue
+{
+public:
+    using TFixedWeightValue::TFixedWeightValue;
+
+    void Decompress() override
+    {
+        THROW_ERROR_EXCEPTION("Decompression failed");
+    }
+};
+
+TEST_F(TJobCacheMetricsTest, FailedDecompressionReleasesTrackingWithoutReportingAHit)
+{
+    Cache_->Reconfigure(/*capacity*/ 0, /*compressedCapacity*/ 1_MB);
+    NamedCache_->Insert(Key_, New<TFailingDecompressionValue>(17));
+    Collect();
+    ExpectOccupancy(1, 17);
+
+    EXPECT_THROW_WITH_SUBSTRING(NamedCache_->Extract(Key_), "Decompression failed");
+    Collect();
+    ExpectOccupancy(0, 0);
+    EXPECT_EQ(ReadMetric("yt/test/job_state_cache/extract_hit"), 0);
+    ExpectExpirations(1);
+    EXPECT_FALSE(NamedCache_->Extract(Key_));
+}
+
+class TFailingWeightValue
+    : public TFixedWeightValue
+{
+public:
+    using TFixedWeightValue::TFixedWeightValue;
+
+    bool FailWeight = false;
+
+    i64 GetWeight() override
+    {
+        THROW_ERROR_EXCEPTION_IF(FailWeight, "Weight read failed");
+        return TFixedWeightValue::GetWeight();
+    }
+};
+
+TEST_F(TJobCacheMetricsTest, FailedWeightReadDoesNotMarkExtracted)
+{
+    Cache_->Reconfigure(/*capacity*/ 0, /*compressedCapacity*/ 1_MB);
+    auto value = New<TFailingWeightValue>(17);
+    NamedCache_->Insert(Key_, value);
+    Collect();
+    ExpectOccupancy(1, 17);
+
+    value->FailWeight = true;
+    EXPECT_THROW_WITH_SUBSTRING(NamedCache_->Extract(Key_), "Weight read failed");
+    Collect();
+    ExpectOccupancy(0, 0);
+    ExpectExpirations(1);
+}
+
+TEST_F(TJobCacheMetricsTest, ExpiringWrapperPreservesTrackingAndCookie)
+{
+    auto queue = New<NConcurrency::TActionQueue>();
+    auto invoker = NConcurrency::CreateSerializedInvoker(queue->GetInvoker());
+    auto done = BIND([&] {
+        auto spec = New<TDynamicExpiringJobNamedStateCacheSpec>();
+        spec->Ttl = TDuration::Hours(1);
+        auto expiringCache = New<TExpiringJobNamedStateCache>(NamedCache_, spec);
+        auto cookie = TInstant::Now() + spec->Ttl;
+        auto value = New<TFixedWeightValue>(17);
+        expiringCache->Insert(Key_, value, cookie);
+        Cache_->Reconfigure(/*capacity*/ 0, /*compressedCapacity*/ 1_MB);
+        Collect();
+        ExpectOccupancy(1, 17);
+        ExpectExpirations(0);
+
+        auto extracted = expiringCache->Extract(Key_);
+        ASSERT_TRUE(extracted);
+        EXPECT_EQ(extracted->first, value);
+        EXPECT_EQ(extracted->second, cookie);
+        Collect();
+        ExpectOccupancy(0, 0);
+        ExpectExpirations(0);
+    }).AsyncVia(invoker)
+        .Run();
+    NConcurrency::WaitFor(done).ThrowOnError();
 }
 
 TEST(TStateCacheMetricsTest, CompressedWeightSizeAndRequestsKeepTheirNames)

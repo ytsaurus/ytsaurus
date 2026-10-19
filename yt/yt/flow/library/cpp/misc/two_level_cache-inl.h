@@ -26,6 +26,16 @@ TTwoLevelCache<TKey, TCompressibleValue>::TItem::TItem(TKey key, TCompressibleVa
 { }
 
 template <class TKey, class TCompressibleValue>
+void TTwoLevelCache<TKey, TCompressibleValue>::TItem::Compress()
+{
+    Value->Compress();
+}
+
+template <class TKey, class TCompressibleValue>
+void TTwoLevelCache<TKey, TCompressibleValue>::TItem::MarkExtracted() noexcept
+{ }
+
+template <class TKey, class TCompressibleValue>
 TTwoLevelCache<TKey, TCompressibleValue>::TCompressedCache::TCompressedCache(
     TSlruCacheConfigPtr config,
     TWeakPtr<TTwoLevelCache> owner,
@@ -133,7 +143,7 @@ void TTwoLevelCache<TKey, TCompressibleValue>::TCache::OnRemoved(const TItemPtr&
 {
     try {
         if (NextCache_ && item->AllowCompression.exchange(false) == true) {
-            item->Value->Compress();
+            item->Compress();
             NextCache_->Insert(item);
         }
         if (!NextCache_) {
@@ -178,35 +188,48 @@ template <class TKey, class TCompressibleValue>
 void TTwoLevelCache<TKey, TCompressibleValue>::Insert(const TKey& key, TCompressibleValuePtr value)
 {
     YT_VERIFY(value);
+    InsertItem(New<TItem>(key, std::move(value)));
+}
+
+template <class TKey, class TCompressibleValue>
+void TTwoLevelCache<TKey, TCompressibleValue>::InsertItem(const TItemPtr& item)
+{
+    YT_VERIFY(item && item->Value);
     TDestructionContextGuard guard;
-    auto cookie = Cache_->BeginInsert(key);
-    auto item = New<TItem>(key, std::move(value));
+    auto cookie = Cache_->BeginInsert(item->GetKey());
     cookie.EndInsert(item);
     Cache_->Touch(item);
 }
 
-// Removes value from cache and returns it.
-// Expects no concurrent access to one key.
 template <class TKey, class TCompressibleValue>
 TIntrusivePtr<TCompressibleValue> TTwoLevelCache<TKey, TCompressibleValue>::Extract(const TKey& key)
 {
+    auto item = ExtractItem(key);
+    if (!item) {
+        return nullptr;
+    }
+    item->MarkExtracted();
+    return item->Value;
+}
+
+template <class TKey, class TCompressibleValue>
+auto TTwoLevelCache<TKey, TCompressibleValue>::ExtractItem(const TKey& key) -> TItemPtr
+{
     TDestructionContextGuard guard;
     if (auto item = Cache_->Find(key)) {
-        auto value = item->Value;
         bool mayCompress = item->AllowCompression.exchange(false);
         Cache_->TryRemove(key);
         CompressedCache_->TryRemove(key);
         if (!mayCompress) {
-            value->Decompress();
+            item->Value->Decompress();
         }
-        return value;
+        return item;
     } else if (auto item = CompressedCache_->Find(key)) {
-        auto value = item->Value;
         bool mayCompress = item->AllowCompression.exchange(false);
         YT_VERIFY(!mayCompress);
         CompressedCache_->TryRemove(key);
-        value->Decompress();
-        return value;
+        item->Value->Decompress();
+        return item;
     }
     return nullptr;
 }
