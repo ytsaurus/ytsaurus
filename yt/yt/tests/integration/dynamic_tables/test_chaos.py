@@ -7092,6 +7092,38 @@ class TestChaosSingleCluster(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 0
     NUM_CHAOS_NODES = 1
 
+    @authors("dtorilov")
+    @pytest.mark.parametrize("ordered", [False, True])
+    @pytest.mark.parametrize("upper_timestamp", [0, 2])
+    def test_pull_rows_without_replication_progress(self, ordered, upper_timestamp):
+        sync_create_cells(1)
+        if ordered:
+            self._create_ordered_table("//tmp/t")
+        else:
+            self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        assert get(f"#{tablet_id}/orchid/upstream_replica_id") == "0-0-0-0"
+        assert isinstance(get(f"#{tablet_id}/orchid/replication_progress"), yson.YsonEntity)
+
+        rows = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", rows)
+
+        # Matching null replica IDs must not allow dereferencing missing tablet progress.
+        with raises_yt_error("replication progress is missing"):
+            pull_rows(
+                "//tmp/t",
+                upstream_replica_id="0-0-0-0",
+                replication_progress={
+                    "segments": [{"lower_key": [0], "timestamp": 1}],
+                    "upper_key": [1],
+                },
+                upper_timestamp=upper_timestamp,
+                timeout=10000)
+
+        assert select_rows("key, value from [//tmp/t]") == rows
+
     @authors("osidorkin")
     def test_multiple_chaos_slots_on_single_node(self):
         nodes = ls("//sys/chaos_nodes")
