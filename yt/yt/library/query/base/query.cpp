@@ -1,5 +1,4 @@
 #include "query.h"
-#include "query_helpers.h"
 #include "query_visitors.h"
 #include "helpers.h"
 
@@ -468,19 +467,7 @@ TQueryPtr THierarchicalJoinClause::GetJoinSubquery() const
         "Expected one join clause, but got %v",
         std::ssize(JoiningSubquery->JoinClauses));
 
-    auto whereClause = JoiningSubquery->JoinClauses[0]->Predicate;
-
-    if (IsLeft && JoiningSubquery->WhereClause) {
-        // WhereClause filter stays as correctness guard: it excludes rows for unmatched keys.
-        // Pushing this predicate into the fetch subplan is an optimization.
-        auto foreignRenamedSchema = GetForeignTableRenamedSchema();
-        auto [foreignFilter, _] = SplitPredicateByColumnSubset(JoiningSubquery->WhereClause, *foreignRenamedSchema);
-        if (!IsTrue(foreignFilter)) {
-            whereClause = MakeAndExpression(whereClause, foreignFilter);
-        }
-    }
-
-    joinSubplan->WhereClause = whereClause;
+    joinSubplan->WhereClause = JoiningSubquery->JoinClauses[0]->Predicate;
 
     auto projectClause = New<TProjectClause>();
     for (const auto& column : ForeignEquations) {
