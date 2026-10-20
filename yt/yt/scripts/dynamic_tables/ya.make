@@ -7,6 +7,7 @@ IF (NOT OPENSOURCE)
     RECURSE(
         add_table_replica
         bulk_compare_chaos_data_replicas
+        check_chaos_hive
         check_tablet_cell_snapshot_convergence
         compare_chaos_data_replicas
         i_want_to_dryrun_tamed_cell
