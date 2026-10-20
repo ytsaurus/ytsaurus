@@ -383,6 +383,27 @@ class TestQueriesMock(YTEnvSetup):
         assert "tokens" not in q.get()["settings"]
         assert "tokens" not in self._get_stored_finished_query_settings(q.id)
 
+    @authors("tinarsky")
+    def test_start_query_retry(self, query_tracker):
+        mutation_id = generate_uuid()
+        q = start_query("mock", "run_forever", mutation_id=mutation_id)
+
+        assert start_query("mock", "run_forever", mutation_id=mutation_id, retry=True).id == q.id
+        with raises_yt_error("Duplicate request is not marked as"):
+            start_query("mock", "run_forever", mutation_id=mutation_id)
+        assert start_query("mock", "run_forever").id != q.id
+
+    @authors("tinarsky")
+    def test_start_query_retry_by_another_user(self, query_tracker):
+        create_user("u1")
+        create_user("u2")
+        mutation_id = generate_uuid()
+        q1 = start_query("mock", "run_forever", mutation_id=mutation_id, authenticated_user="u1")
+        q2 = start_query("mock", "run_forever", mutation_id=mutation_id, authenticated_user="u2")
+
+        assert q1.id != q2.id
+        assert start_query("mock", "run_forever", mutation_id=mutation_id, retry=True, authenticated_user="u2").id == q2.id
+
 
 class TestQueryTrackerBan(YTEnvSetup):
     NUM_QUERY_TRACKER = 1
@@ -1587,7 +1608,10 @@ class TestSearch(YTEnvSetup):
 
 
 class TestTTL(YTEnvSetup):
-    QUERY_TRACKER_DYNAMIC_CONFIG = {"not_indexed_queries_ttl": 1000}
+    QUERY_TRACKER_DYNAMIC_CONFIG = {
+        "not_indexed_queries_ttl": 1000,
+        "proxy_config": {"queries_by_mutation_id_ttl": 1000},
+    }
 
     @authors("mpereskokova")
     def test_ttl(self, query_tracker):
@@ -1612,6 +1636,19 @@ class TestTTL(YTEnvSetup):
         q1.get()
         with raises_yt_error("Query .* is not found"):
             q0.get()
+
+    @authors("tinarsky")
+    def test_queries_by_mutation_id_ttl(self, query_tracker):
+        set("//sys/query_tracker/queries_by_user_and_mutation_id/@min_data_ttl", 1000)
+
+        mutation_id = generate_uuid()
+        q = start_query("mock", "run_forever", mutation_id=mutation_id)
+        assert start_query("mock", "run_forever", mutation_id=mutation_id, retry=True).id == q.id
+
+        time.sleep(3)  # > row TTL (1 second)
+        sync_compact_table("//sys/query_tracker/queries_by_user_and_mutation_id")
+
+        assert start_query("mock", "run_forever", mutation_id=mutation_id, retry=True).id != q.id
 
 
 ##################################################################

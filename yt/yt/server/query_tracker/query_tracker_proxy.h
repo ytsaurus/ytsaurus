@@ -26,7 +26,7 @@ public:
 
     void Reconfigure(const TQueryTrackerDynamicConfigPtr& config);
 
-    void StartQuery(
+    TQueryId StartQuery(
         const TQueryId queryId,
         const EQueryEngine engine,
         const std::string& query,

@@ -60,6 +60,10 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const std::string& query, co
         }
     }
 
+    if (options.MutationId) {
+        ToProto(rpcRequest->mutable_mutating_options(), options);
+    }
+
     for (const auto& sec : options.Secrets) {
         const auto secret = rpcRequest->add_secrets();
         secret->set_id(sec->Id);
