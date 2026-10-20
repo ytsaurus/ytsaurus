@@ -509,6 +509,8 @@ struct TClusterNodeDynamicConfig
 
     NProfiling::TSolomonExporterDynamicConfigPtr SolomonExporter;
 
+    std::optional<int> ConnectionThreadPoolSize;
+
     REGISTER_YSON_STRUCT(TClusterNodeDynamicConfig);
 
     static void Register(TRegistrar registrar);

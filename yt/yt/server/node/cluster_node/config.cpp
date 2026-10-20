@@ -562,6 +562,10 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("fair_share_hierarchical_scheduler", &TThis::FairShareHierarchicalScheduler)
         .DefaultNew();
 
+    registrar.Parameter("connection_thread_pool_size", &TThis::ConnectionThreadPoolSize)
+        .GreaterThan(0)
+        .Optional();
+
     registrar.Postprocessor([] (TThis* config) {
         if (!config->JobResourceManager->CheckUserJobsCategoryLimitOnResourceUpdate) {
             config->NodeMemoryTracker->CheckPerCategoryLimitOvercommit = false;
