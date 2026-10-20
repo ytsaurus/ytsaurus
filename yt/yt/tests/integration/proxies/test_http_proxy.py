@@ -1,6 +1,8 @@
 from .proxy_format_config import _TestProxyFormatConfigBase
 
-from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE, is_asan_build
+from yt_env_setup import (
+    YTEnvSetup, Restarter, HTTP_PROXIES_SERVICE, MASTERS_SERVICE, NODES_SERVICE, is_asan_build,
+)
 
 from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
 
@@ -2456,6 +2458,14 @@ class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
         wait(lambda: exists(f"{new_path}/{owner}"))
 
         static_keys = frozenset(ls(owner_path))
+        with Restarter(self.Env, HTTP_PROXIES_SERVICE):
+            pass
+
+        # Wait for a fresh rotation after restart, using the persisted dynamic config.
+        dynamic_keys = frozenset(ls(f"{new_path}/{owner}"))
+        wait(lambda: frozenset(ls(f"{new_path}/{owner}")) != dynamic_keys)
+        assert frozenset(ls(owner_path)) == static_keys
+
         set("//sys/http_proxies/@config", {})
         wait(lambda: frozenset(ls(owner_path)) != static_keys)
 

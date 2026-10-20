@@ -344,12 +344,6 @@ void TBootstrap::DoStart()
 
     QueryCorpusReporter_ = MakeQueryCorpusReporter(RootClient_);
 
-    // NB(pavook):
-    // We don't wait for key rotation completion anywhere in bootstrap, because proxy bootstrap
-    // should be possible even in master read-only mode.
-    // So, we just throw on all signature-requiring operations until the key rotation actually happens.
-    YT_UNUSED_FUTURE(SignatureComponents_->StartRotation());
-
     auto createApiService = [&] (const NAuth::IAuthenticationManagerPtr& authenticationManager) {
         return CreateApiService(
             Config_->ApiService,
@@ -411,6 +405,12 @@ void TBootstrap::DoStart()
     }
 
     YT_LOG_INFO("Dynamic config loaded");
+
+    // NB(pavook):
+    // We don't wait for key rotation completion anywhere in bootstrap, because proxy bootstrap
+    // should be possible even in master read-only mode.
+    // So, we just throw on all signature-requiring operations until the key rotation actually happens.
+    YT_UNUSED_FUTURE(SignatureComponents_->StartRotation());
 
     QueryCorpusReporter_->Reconfigure(DynamicConfigManager_->GetConfig()->Api->QueryCorpusReporter);
 

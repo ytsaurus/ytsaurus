@@ -503,11 +503,14 @@ void TBootstrap::DoStart()
         MonitoringHttpsServer_->Start();
     }
 
+    // Apply the first dynamic config before starting key rotation.
     // NB(pavook):
     // We don't wait for key rotation completion anywhere in bootstrap, because proxy bootstrap
     // should be possible even in master read-only mode.
     // So, we just throw on all signature-requiring operations until the key rotation actually happens.
-    YT_UNUSED_FUTURE(SignatureComponents_->StartRotation());
+    YT_UNUSED_FUTURE(DynamicConfigManager_->GetConfigLoadedFuture().Apply(
+        BIND(&TSignatureComponents::StartRotation, SignatureComponents_)
+            .AsyncVia(GetControlInvoker())));
 
     ApiHttpServer_->Start();
     if (ApiHttpsServer_) {

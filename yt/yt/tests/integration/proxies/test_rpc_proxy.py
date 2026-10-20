@@ -1694,5 +1694,14 @@ class TestRpcProxySignaturesKeyRotation(TestRpcProxySignaturesBase):
         wait(lambda: exists(f"{new_path}/{owner}"))
 
         static_keys = frozenset(ls(owner_path))
+        with Restarter(self.Env, RPC_PROXIES_SERVICE):
+            pass
+
+        # Wait for a fresh rotation after restart, using the persisted dynamic config.
+        wait(lambda: exists(owner_path), ignore_exceptions=True)
+        dynamic_keys = frozenset(ls(f"{new_path}/{owner}"))
+        wait(lambda: frozenset(ls(f"{new_path}/{owner}")) != dynamic_keys)
+        assert frozenset(ls(owner_path)) == static_keys
+
         set("//sys/rpc_proxies/@config", {})
         wait(lambda: frozenset(ls(owner_path)) != static_keys)
