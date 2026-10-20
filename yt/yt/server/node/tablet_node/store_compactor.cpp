@@ -2383,12 +2383,15 @@ private:
         const TTabletSnapshotPtr& tabletSnapshot,
         const std::vector<TSortedChunkStorePtr>& stores,
         const THashSet<TChunkId>& hunkChunkIds,
-        const TClientChunkReadOptions& chunkReadOptions,
+        TClientChunkReadOptions chunkReadOptions,
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp,
         IThroughputThrottlerPtr inboundThrottler,
         IMemoryUsageTrackerPtr rowMergerMemoryUsageTracker)
     {
+        chunkReadOptions.ReuseSessionInvokerForDecompression = Bootstrap_->GetTabletNodeDynamicConfig()
+            ->StoreCompactor->ReuseCompactionInvokerForReaderDecompression;
+
         return CreateHunkInliningVersionedReader(
             tablet->GetSettings().HunkReaderConfig,
             CreateCompactionTabletReader(
