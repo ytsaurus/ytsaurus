@@ -1005,6 +1005,115 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             sync_unmount_table("//tmp/t")
             sync_unmount_table("//tmp/h")
 
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("preserve_timestamps", [False, True])
+    @pytest.mark.parametrize("with_timestamp", [False, True])
+    @pytest.mark.parametrize("preserve_tablet_index", [False, True])
+    def test_async_replica_hunk_storage(self, preserve_timestamps, with_timestamp, preserve_tablet_index):
+        self._create_cells()
+        schema = deepcopy(self.SIMPLE_SCHEMA_ORDERED)
+        if with_timestamp:
+            schema.insert(0, {"name": "$timestamp", "type": "uint64"})
+        self._create_replicated_table(
+            "//tmp/t", schema=schema, tablet_count=2,
+            preserve_tablet_index=preserve_tablet_index)
+        replica_id = create_table_replica(
+            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r",
+            attributes={"mode": "async", "preserve_timestamps": preserve_timestamps})
+
+        replica_schema = deepcopy(schema)
+        for column in replica_schema:
+            if column["name"] == "value1":
+                column["max_inline_hunk_size"] = 8
+        self._create_replica_table("//tmp/r", replica_id, replica_schema, mount=False, tablet_count=2)
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "external_cell_tag": get("//tmp/r/@external_cell_tag", driver=self.replica_driver),
+        }, driver=self.replica_driver)
+        set("//tmp/r/@hunk_storage_id", hunk_storage_id, driver=self.replica_driver)
+        sync_mount_table("//tmp/h", driver=self.replica_driver)
+        sync_mount_table("//tmp/r", driver=self.replica_driver)
+
+        if with_timestamp:
+            # Read the source commit timestamps from a synchronous reference replica.
+            reference_id = create_table_replica(
+                "//tmp/t", "primary", "//tmp/reference", attributes={"mode": "sync"})
+            self._create_replica_table(
+                "//tmp/reference", reference_id, schema, replica_driver=self.primary_driver, tablet_count=2)
+            sync_enable_table_replica(reference_id)
+
+        values = ["", "short", "boundary", "large payload" * 20, yson.YsonEntity()]
+        rows = [{"key": i, "value1": value, "value2": i} for i, value in enumerate(values)]
+        for batch in [rows[:2], rows[2:]]:
+            insert_rows("//tmp/t", [dict(row, **{"$tablet_index": row["key"] % 2}) for row in batch],
+                        require_sync_replica=False)
+        if with_timestamp:
+            source_timestamps = select_rows("[$timestamp] from [//tmp/reference] order by key limit 100")
+            assert len(source_timestamps) == len(rows)
+        sync_enable_table_replica(replica_id)
+        query = "key, value1, value2 from [//tmp/r] order by key limit 100"
+        wait(lambda: select_rows(query, driver=self.replica_driver) == rows)
+        if preserve_tablet_index:
+            actual_rows = select_rows("key, [$tablet_index] from [//tmp/r]", driver=self.replica_driver)
+            assert all(row["$tablet_index"] == row["key"] % 2 for row in actual_rows)
+        if with_timestamp:
+            timestamps = select_rows("[$timestamp] from [//tmp/r] order by key limit 100", driver=self.replica_driver)
+            assert all(row["$timestamp"] > 0 for row in timestamps)
+            if preserve_timestamps:
+                assert timestamps == source_timestamps
+            else:
+                assert all(actual["$timestamp"] != original["$timestamp"]
+                           for actual, original in zip(timestamps, source_timestamps))
+
+        sync_unmount_table("//tmp/r", driver=self.replica_driver)
+        refs = [ref
+                for chunk_id in get("//tmp/r/@chunk_ids", driver=self.replica_driver)
+                if get(f"#{chunk_id}/@chunk_type", driver=self.replica_driver) == "table"
+                for ref in get(f"#{chunk_id}/@hunk_chunk_refs", driver=self.replica_driver)]
+        assert sum(ref["hunk_count"] for ref in refs) == 2
+        assert sum(ref["total_hunk_length"] for ref in refs) == len(values[2]) + len(values[3])
+        assert all(get("#{}/@chunk_type".format(ref["chunk_id"]), driver=self.replica_driver) == "journal" for ref in refs)
+
+        sync_mount_table("//tmp/r", driver=self.replica_driver)
+        assert select_rows(query, driver=self.replica_driver) == rows
+        if with_timestamp:
+            assert select_rows("[$timestamp] from [//tmp/r] order by key limit 100", driver=self.replica_driver) == timestamps
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("preserve_timestamps", [False, True])
+    def test_sorted_replication_ignores_hunk_storage(self, preserve_timestamps):
+        self._create_cells()
+        schema = self._get_hunk_table_schema(self.SIMPLE_SCHEMA_SORTED, 8)
+        self._create_replicated_table("//tmp/t", schema=schema, mount=False)
+        replica_id = create_table_replica(
+            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r",
+            attributes={"mode": "async", "preserve_timestamps": preserve_timestamps})
+        self._create_replica_table("//tmp/r", replica_id, schema, mount=False)
+
+        for path, driver in [("//tmp/t", self.primary_driver), ("//tmp/r", self.replica_driver)]:
+            attributes = {}
+            if get(f"{path}/@external", driver=driver):
+                attributes["external_cell_tag"] = get(f"{path}/@external_cell_tag", driver=driver)
+            hunk_storage_id = create("hunk_storage", "//tmp/h", attributes=attributes, driver=driver)
+            set(f"{path}/@hunk_storage_id", hunk_storage_id, driver=driver)
+            # Neither the logically sorted log nor its sorted replica should access this storage.
+            sync_mount_table(path, driver=driver)
+        sync_enable_table_replica(replica_id)
+
+        rows = [{"key": i, "value1": "large payload" * 20, "value2": i} for i in range(3)]
+        insert_rows("//tmp/t", rows, require_sync_replica=False)
+        wait(lambda: lookup_rows("//tmp/r", [{"key": i} for i in range(3)], driver=self.replica_driver) == rows)
+        delete_rows("//tmp/t", [{"key": 1}], require_sync_replica=False)
+        expected = [rows[0], rows[2]]
+        query = "* from [//tmp/r] order by key limit 100"
+        wait(lambda: select_rows(query, driver=self.replica_driver) == expected)
+
+        sync_unmount_table("//tmp/r", driver=self.replica_driver)
+        sync_mount_table("//tmp/r", driver=self.replica_driver)
+        assert select_rows(query, driver=self.replica_driver) == expected
+        for driver in [self.primary_driver, self.replica_driver]:
+            assert get("//tmp/h/@tablet_state", driver=driver) == "unmounted"
+            assert get("//tmp/h/@chunk_ids", driver=driver) == []
+
     @authors("aozeritsky")
     @pytest.mark.parametrize("mode", ["async", "sync"])
     def test_replication_preserve_tablet_index(self, mode):
