@@ -1012,6 +1012,74 @@ class TestChaos(ChaosTestBase):
         sync_rows = _pull_rows(2, True)
         assert async_rows == sync_rows
 
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("content_type", ["queue", "data"])
+    @pytest.mark.parametrize("mode", ["async", "sync"])
+    def test_ordered_replica_hunk_storage(self, content_type, mode):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": content_type, "mode": mode, "enabled": True, "replica_path": "//tmp/r"},
+            # Keep replication logs until their flushed hunk references have been checked.
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/disabled"},
+        ]
+        schema = [
+            {"name": "$timestamp", "type": "uint64"},
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type": "string", "max_inline_hunk_size": 8},
+            {"name": "extra_value", "type": "string", "max_inline_hunk_size": 8},
+        ]
+        card_id, _ = self._create_chaos_tables(
+            cell_id, replicas, ordered=True, schema=schema,
+            mount_tables=False, sync_replication_era=False)
+        for replica in replicas[:2]:
+            path = replica["replica_path"]
+            driver = get_driver(cluster=replica["cluster_name"])
+            hunk_storage_attributes = {}
+            if get(f"{path}/@external", driver=driver):
+                hunk_storage_attributes["external_cell_tag"] = get(f"{path}/@external_cell_tag", driver=driver)
+            hunk_storage_id = create("hunk_storage", "//tmp/h", attributes=hunk_storage_attributes, driver=driver)
+            set(f"{path}/@hunk_storage_id", hunk_storage_id, driver=driver)
+            sync_mount_table("//tmp/h", driver=driver)
+            sync_mount_table(path, driver=driver)
+        self._sync_replication_era(card_id, replicas[:2])
+
+        # Exercise rows with zero, one, and two external hunks, including the inline-size boundary.
+        values = [
+            ("", "short"),
+            ("short", ""),
+            ("boundary", "tiny"),
+            ("large payload" * 20, "extra payload" * 20),
+            ("tiny", "boundary"),
+        ]
+        rows = [{"key": i, "value": value, "extra_value": extra_value}
+                for i, (value, extra_value) in enumerate(values)]
+        for batch in [rows[:2], rows[2:]]:
+            self._insert_rows_with_hunk_storage("//tmp/t", [dict(row, **{"$tablet_index": 0}) for row in batch])
+
+        driver = get_driver(cluster="remote_0")
+
+        def check_rows():
+            return select_rows("key, value, extra_value from [//tmp/r]", driver=driver) == rows
+
+        wait(check_rows)
+        source_timestamps = select_rows("[$timestamp] from [//tmp/t]")
+        assert select_rows("[$timestamp] from [//tmp/r]", driver=driver) == source_timestamps
+
+        sync_unmount_table("//tmp/r", driver=driver)
+        refs = [ref
+                for chunk_id in get("//tmp/r/@chunk_ids", driver=driver)
+                if get(f"#{chunk_id}/@chunk_type", driver=driver) == "table"
+                for ref in get(f"#{chunk_id}/@hunk_chunk_refs", driver=driver)]
+        payloads = [value for row_values in values for value in row_values if len(value) >= 8]
+        assert sum(ref["hunk_count"] for ref in refs) == len(payloads)
+        assert sum(ref["total_hunk_length"] for ref in refs) == sum(len(value) for value in payloads)
+        assert all(get("#{}/@chunk_type".format(ref["chunk_id"]), driver=driver) == "journal" for ref in refs)
+        sync_mount_table("//tmp/r", driver=driver)
+        self._sync_replication_era(card_id, replicas[:2])
+        assert check_rows()
+        assert select_rows("[$timestamp] from [//tmp/r]", driver=driver) == source_timestamps
+
     @authors("savrus")
     @pytest.mark.parametrize("mode", ["sync", "async"])
     def test_queue_replica_enable_disable(self, mode):

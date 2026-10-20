@@ -965,27 +965,38 @@ private:
             ModificationsData_.resize(Modifications_.size());
             for (int modificationIndex = 0; modificationIndex < std::ssize(Modifications_); ++modificationIndex) {
                 const auto& modification = Modifications_[modificationIndex];
-                auto& modificationsData = ModificationsData_[modificationIndex];
+                auto& modificationData = ModificationsData_[modificationIndex];
 
-                if (std::holds_alternative<NRowModifications::TWriteRow>(modification) ||
-                    std::holds_alternative<NRowModifications::TDeleteRow>(modification) ||
-                    std::holds_alternative<NRowModifications::TWriteAndLockRow>(modification))
-                {
-                    modificationsData.CapturedRow = rowBuffer->CaptureAndPermuteRow(
+                auto isVersionedWrite = std::holds_alternative<NRowModifications::TVersionedWriteRow>(modification);
+                if (tableInfo->IsSorted() && isVersionedWrite) {
+                    auto capturedRow = rowBuffer->CaptureAndPermuteRow(
+                        TVersionedRow(GetTypeErasedRow(modification)),
+                        *primarySchema,
+                        primaryIdMapping,
+                        /*validateDuplicateAndRequiredValueColumns*/ true,
+                        Options_.AllowMissingKeyColumns);
+                    modificationData.CapturedRow = capturedRow.ToTypeErasedRow();
+                } else {
+                    // Ordered versioned writes also carry unversioned rows with timestamps.
+                    auto capturedRow = rowBuffer->CaptureAndPermuteRow(
                         TUnversionedRow(GetTypeErasedRow(modification)),
                         *modificationSchema,
                         modificationSchema->GetKeyColumnCount(),
                         modificationIdMapping,
-                        /*validateDuplicateAndRequiredValueColumns*/ std::holds_alternative<NRowModifications::TWriteRow>(modification));
+                        /*validateDuplicateAndRequiredValueColumns*/ isVersionedWrite ||
+                            std::holds_alternative<NRowModifications::TWriteRow>(modification));
+                    modificationData.CapturedRow = capturedRow.ToTypeErasedRow();
+                }
 
-                    if (tableInfo->HunkStorageId) {
-                        auto rowPayloads = ExtractHunks(modificationsData.CapturedRow, modificationSchema);
-                        modificationsData.HunkCount = std::ssize(rowPayloads);
-                        HunkPayloads_.insert(
-                            HunkPayloads_.end(),
-                            std::make_move_iterator(rowPayloads.begin()),
-                            std::make_move_iterator(rowPayloads.end()));
-                    }
+                if (tableInfo->IsUsingHunkStorage()) {
+                    auto rowPayloads = ExtractHunks(
+                        TUnversionedRow(modificationData.CapturedRow),
+                        modificationSchema);
+                    modificationData.HunkCount = std::ssize(rowPayloads);
+                    HunkPayloads_.insert(
+                        HunkPayloads_.end(),
+                        std::make_move_iterator(rowPayloads.begin()),
+                        std::make_move_iterator(rowPayloads.end()));
                 }
             }
         }
@@ -1112,7 +1123,7 @@ private:
                     std::holds_alternative<NRowModifications::TDeleteRow>(modification) ||
                     std::holds_alternative<NRowModifications::TWriteAndLockRow>(modification))
                 {
-                    auto capturedRow = std::move(modificationData.CapturedRow);
+                    auto capturedRow = TMutableUnversionedRow(modificationData.CapturedRow);
 
                     TTabletInfoPtr tabletInfo;
                     if (tableInfo->IsSorted()) {
@@ -1152,41 +1163,14 @@ private:
                     }
 
                     auto session = transaction->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
-                    if (modificationData.HunkCount > 0) {
-                        auto hunkTabletInfo = transaction->GetAssignedHunkTabletInfo(
-                            TableSession_->GetInfo()->TableId,
-                            TableSession_->GetHunkTableInfo(),
-                            /*createIfMissing*/ false);
-
-                        THunkChunksInfo hunkInfo{
-                            .CellId = hunkTabletInfo->CellId,
-                            .HunkTabletId = hunkTabletInfo->TabletId,
-                            .MountRevision = hunkTabletInfo->MountRevision
-                        };
-
-                        int lastHunkDescriptorIndex = currentHunkDescriptorIndex + modificationData.HunkCount;
-                        YT_VERIFY(lastHunkDescriptorIndex <= std::ssize(HunkDescriptors_));
-
-                        std::vector<THunkDescriptor> descriptors(
-                            HunkDescriptors_.begin() + currentHunkDescriptorIndex,
-                            HunkDescriptors_.begin() + lastHunkDescriptorIndex);
-
-                        for (const auto& descriptor : descriptors) {
-                            auto& ref = hunkInfo.HunkChunkRefs[descriptor.ChunkId];
-                            ref.ChunkId = descriptor.ChunkId;
-                            ++ref.HunkCount;
-                            ref.TotalHunkLength += descriptor.Length - sizeof(THunkPayloadHeader);
-                            ref.ErasureCodec = descriptor.ErasureCodec;
-                        }
-
-                        ReplaceHunks(
-                            capturedRow,
+                    if (modificationData.HunkCount != 0) {
+                        PrepareHunks(
+                            transaction.Get(),
+                            modificationData.CapturedRow,
                             modificationSchema,
-                            std::move(descriptors),
-                            HunkMemoryPool_);
-
-                        session->MemorizeHunkInfo(hunkInfo);
-                        currentHunkDescriptorIndex = lastHunkDescriptorIndex;
+                            modificationData.HunkCount,
+                            session,
+                            &currentHunkDescriptorIndex);
                     }
 
                     if (command == EWireProtocolCommand::WriteRow &&
@@ -1213,28 +1197,14 @@ private:
                     const auto* versionedWrite = std::get_if<NRowModifications::TVersionedWriteRow>(&modification);
                     YT_VERIFY(versionedWrite);
 
-                    TTypeErasedRow row;
                     TTabletInfoPtr tabletInfo;
                     if (tableInfo->IsSorted()) {
-                        auto capturedRow = rowBuffer->CaptureAndPermuteRow(
-                            TVersionedRow(versionedWrite->Row),
-                            *primarySchema,
-                            primaryIdMapping,
-                            /*validateDuplicateAndRequiredValueColumns*/ true,
-                            Options_.AllowMissingKeyColumns);
+                        auto capturedRow = TMutableVersionedRow(modificationData.CapturedRow);
                         if (evaluator) {
                             evaluator->EvaluateKeys(capturedRow, rowBuffer, /*preserveColumnsIds*/ false);
                         }
-                        row = capturedRow.ToTypeErasedRow();
                         tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow, true);
                     } else {
-                        auto capturedRow = rowBuffer->CaptureAndPermuteRow(
-                            TUnversionedRow(versionedWrite->Row),
-                            *primarySchema,
-                            primarySchema->GetKeyColumnCount(),
-                            primaryIdMapping,
-                            /*validateDuplicateAndRequiredValueColumns*/ true);
-                        row = capturedRow.ToTypeErasedRow();
                         tabletInfo = GetOrderedTabletForRow(
                             tableInfo,
                             RandomTabletInfo_,
@@ -1244,7 +1214,17 @@ private:
                     }
 
                     auto session = transaction->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
-                    session->SubmitVersionedRow(row);
+                    if (modificationData.HunkCount != 0) {
+                        PrepareHunks(
+                            transaction.Get(),
+                            modificationData.CapturedRow,
+                            modificationSchema,
+                            modificationData.HunkCount,
+                            session,
+                            &currentHunkDescriptorIndex);
+                    }
+
+                    session->SubmitVersionedRow(modificationData.CapturedRow);
                 }
             }
             YT_VERIFY(currentHunkDescriptorIndex == std::ssize(HunkDescriptors_));
@@ -1266,13 +1246,59 @@ private:
 
         struct TModificationData
         {
-            TMutableUnversionedRow CapturedRow;
-            int HunkCount;
+            TTypeErasedRow CapturedRow;
+            int HunkCount = 0;
         };
         std::vector<TModificationData> ModificationsData_;
 
         std::vector<TRef> HunkPayloads_;
         std::vector<THunkDescriptor> HunkDescriptors_;
+
+        void PrepareHunks(
+            TTransaction* transaction,
+            TTypeErasedRow capturedRow,
+            const TTableSchemaPtr& schema,
+            int hunkCount,
+            const ITabletCommitSessionPtr& session,
+            int* currentHunkDescriptorIndex)
+        {
+            YT_VERIFY(hunkCount != 0);
+
+            auto hunkTabletInfo = transaction->GetAssignedHunkTabletInfo(
+                TableSession_->GetInfo()->TableId,
+                TableSession_->GetHunkTableInfo(),
+                /*createIfMissing*/ false);
+
+            THunkChunksInfo hunkInfo{
+                .CellId = hunkTabletInfo->CellId,
+                .HunkTabletId = hunkTabletInfo->TabletId,
+                .MountRevision = hunkTabletInfo->MountRevision,
+            };
+
+            int lastHunkDescriptorIndex = *currentHunkDescriptorIndex + hunkCount;
+            YT_VERIFY(lastHunkDescriptorIndex <= std::ssize(HunkDescriptors_));
+
+            std::vector<THunkDescriptor> descriptors(
+                HunkDescriptors_.begin() + *currentHunkDescriptorIndex,
+                HunkDescriptors_.begin() + lastHunkDescriptorIndex);
+
+            for (const auto& descriptor : descriptors) {
+                auto& ref = hunkInfo.HunkChunkRefs[descriptor.ChunkId];
+                ref.ChunkId = descriptor.ChunkId;
+                ++ref.HunkCount;
+                ref.TotalHunkLength += descriptor.Length - sizeof(THunkPayloadHeader);
+                ref.ErasureCodec = descriptor.ErasureCodec;
+            }
+
+            ReplaceHunks(
+                TMutableUnversionedRow(capturedRow),
+                schema,
+                descriptors,
+                HunkMemoryPool_);
+
+            session->MemorizeHunkInfo(hunkInfo);
+            *currentHunkDescriptorIndex = lastHunkDescriptorIndex;
+        }
 
         static EWireProtocolCommand GetCommand(const TRowModification& modification)
         {
@@ -1446,7 +1472,7 @@ private:
         {
             YT_ASSERT_THREAD_AFFINITY_ANY();
 
-            if (!TableInfo_->HunkStorageId) {
+            if (!TableInfo_->IsUsingHunkStorage()) {
                 return OKFuture;
             }
 
