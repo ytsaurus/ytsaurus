@@ -521,7 +521,7 @@ namespace NYql::NDqs {
                 taskPreprocessors.push_back(factory());
             }
 
-            auto graphExecutionEventsActorId = ActorSystem.Register(NDqs::MakeGraphExecutionEventsActor(request->GetSession(), std::move(taskPreprocessors)));
+            auto graphExecutionEventsActorId = NDqs::RegisterGraphExecutionEventsActor(ActorSystem, request->GetSession(), std::move(taskPreprocessors));
 
             RunningRequests++;
             auto actor = MakeHolder<TExecuteGraphProxyActor>(ctx, Counters, request->GetSession(), session->GetUsername(), graphExecutionEventsActorId, WorkerManagerActorId);
