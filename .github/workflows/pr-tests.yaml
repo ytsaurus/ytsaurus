@@ -39,7 +39,7 @@ jobs:
       issues: write
     needs:
       - fast-test
-    if: ${{ needs.fast-test.result == 'success' }}
+    if: ${{ needs.fast-test.result == 'success' && github.event_name != 'push' }}
     steps:
       - name: Notify PR
         uses: actions/github-script@v7
@@ -68,7 +68,7 @@ jobs:
     needs:
       - notify-pr-tests-start
       - fast-test
-    if: ${{ needs.fast-test.result == 'success' }}
+    if: ${{ !cancelled() && needs.fast-test.result == 'success' && (github.event_name == 'push' || needs.notify-pr-tests-start.result == 'success') }}
     runs-on: ${{ inputs.runs-on-value }}
     permissions:
       contents: read
@@ -109,23 +109,20 @@ jobs:
 
       - name: Create CI context
         env:
-          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
-          AUTHOR: ${{ github.event.pull_request.user.login }}
+          AUTHOR: ${{ github.event.pull_request.user.login || github.actor }}
           CI_RUN_ID: ${{ github.run_id }}
           COMMIT_DATE: ${{ steps.commit-details.outputs.date }}
           COMMIT_HASH: ${{ steps.commit-details.outputs.sha }}
-          PULL_REQUEST_TITLE: ${{ github.event.pull_request.title }}
-          PULL_REQUEST_URL: ${{ github.event.pull_request.html_url }}
+          PULL_REQUEST_TITLE: ${{ github.event.pull_request.title || github.event.head_commit.message }}
+          PULL_REQUEST_URL: ${{ github.event.pull_request.html_url || format('{0}/{1}/commit/{2}', github.server_url, github.repository, steps.commit-details.outputs.sha) }}
           PULL_REQUEST_COMMENT_ID: ${{ inputs.comment-id }}
-          REPOSITORY: ${{ github.repository }}
-          TARGET_BRANCH: ${{ github.event.pull_request.base.ref }}
+          TARGET_BRANCH: ${{ github.event.pull_request.base.ref || github.ref_name }}
         run: |
           mkdir -p ci-viewer
           python3 << EOF
           import os
           import json
 
-          PULL_REQUEST_NUMBER = os.environ.get('PULL_REQUEST_NUMBER')
           AUTHOR = os.environ.get('AUTHOR')
           CI_RUN_ID = os.environ.get('CI_RUN_ID')
           COMMIT_DATE = os.environ.get('COMMIT_DATE')
@@ -148,7 +145,10 @@ jobs:
                       },
                       "message": PULL_REQUEST_TITLE,
                       "github_link": PULL_REQUEST_URL,
-                      "github_comment_link": PULL_REQUEST_URL + "#issuecomment-" + PULL_REQUEST_COMMENT_ID,
+                      "github_comment_link": (
+                          PULL_REQUEST_URL + "#issuecomment-" + PULL_REQUEST_COMMENT_ID
+                          if PULL_REQUEST_COMMENT_ID else ""
+                      ),
                       "repository": REPOSITORY,
                       "target_branch": TARGET_BRANCH
                   }
@@ -184,7 +184,7 @@ jobs:
       issues: write
     needs:
       - integration-test
-    if: always()
+    if: ${{ always() && github.event_name != 'push' }}
     steps:
       - name: Notify PR
         uses: actions/github-script@v7

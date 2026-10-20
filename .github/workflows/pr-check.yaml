@@ -1,5 +1,8 @@
 name: Check PR
 on:
+  push:
+    branches:
+      - members/ilyaibraev/YT-28839-ci-cleanup-check-20261020
   workflow_call:
     inputs:
       commit-sha:
@@ -36,6 +39,7 @@ jobs:
 
   notify-start:
     name: Notify PR start
+    if: ${{ github.event_name != 'push' }}
     runs-on: trampoline
     permissions:
       issues: write
@@ -99,7 +103,7 @@ jobs:
       - name: Checkout ytsaurus
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.commit-sha }}
+          ref: ${{ inputs.commit-sha || github.sha }}
           fetch-depth: 2
           path: ytsaurus
           allow-unsafe-pr-checkout: true
@@ -110,7 +114,7 @@ jobs:
       contents: read
     with:
       runs-on-value: ubuntu-latest
-      checkout-ref: ${{ inputs.commit-sha }}
+      checkout-ref: ${{ inputs.commit-sha || github.sha }}
     uses: ./.github/workflows/strawberry-action.yaml
 
   build-check-cmake:
@@ -120,7 +124,7 @@ jobs:
       - checkout
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-      build-chyt: ${{ github.ref_name == 'main' }}
+      build-chyt: ${{ github.ref_name == 'main' || github.event_name == 'push' }}
       build-types: '["relwithdebinfo"]'
       run-unittests: true
     secrets:
@@ -128,18 +132,54 @@ jobs:
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/cmake-action.yaml
 
+  cleanup-cmake:
+    name: Clean CMake build directories
+    needs:
+      - start-vm
+      - checkout
+      - build-check-cmake
+    if: ${{ !cancelled() && needs.checkout.result == 'success' }}
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 30
+    steps:
+      - name: Upload CMake unit test results
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmake-unittest-results-${{ github.run_attempt }}
+          path: ../build_cmake_relwithdebinfo/junit-*.xml
+          if-no-files-found: ignore
+
+      - name: Remove CMake build directories
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          df -h .
+          df -i .
+          for build_dir in ../build_cmake_relwithdebinfo ../build_yql_cmake_relwithdebinfo; do
+            if [ -d "$build_dir" ]; then
+              du -sh -- "$build_dir"
+            fi
+            rm -rf -- "$build_dir"
+          done
+          df -h .
+          df -i .
+
   build-ya-make:
     name: Build with ya-make
     needs:
       - start-vm
-      - checkout
+      - cleanup-cmake
+    if: ${{ !cancelled() && needs.cleanup-cmake.result == 'success' }}
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
       build-ytsaurus-tests: true
-      build-flow-tests: ${{ github.ref_name == 'main' }}
-      build-query-tracker: ${{ github.ref_name == 'main' }}
+      build-flow-tests: ${{ github.ref_name == 'main' || github.event_name == 'push' }}
+      build-query-tracker: ${{ github.ref_name == 'main' || github.event_name == 'push' }}
       build-python: true
       build-types: '["relwithdebinfo"]'
     secrets:
@@ -153,8 +193,7 @@ jobs:
       - start-vm
       - build-ya-make
       - notify-start
-      - checkout
-    if: ${{ needs.build-ya-make.result == 'success' }}
+    if: ${{ !cancelled() && needs.build-ya-make.result == 'success' && (github.event_name == 'push' || needs.notify-start.result == 'success') }}
     permissions:
       contents: read
       issues: write
@@ -176,12 +215,13 @@ jobs:
       - start-vm
       - build-ya-make
       - build-check-cmake
+      - cleanup-cmake
       - build-strawberry
     runs-on: trampoline
     permissions:
       issues: write
       pull-requests: write
-    if: ${{ always() }}
+    if: ${{ always() && github.event_name != 'push' }}
     steps:
       - name: Notify PR
         uses: actions/github-script@v7
@@ -213,6 +253,7 @@ jobs:
       - start-vm
       - build-ya-make
       - build-check-cmake
+      - cleanup-cmake
       - run-tests
       - notify-finish
     runs-on: trampoline
