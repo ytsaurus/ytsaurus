@@ -27,6 +27,7 @@ public class ReshardTable
     private final TableSchema schema;
     private final List<UnversionedRow> pivotKeys;
     private final List<List<?>> unconvertedPivotKeys;
+    private final List<Long> cumulativeDataWeights;
 
     public ReshardTable(BuilderBase<?> builder) {
         super(builder);
@@ -34,6 +35,7 @@ public class ReshardTable
         this.schema = builder.schema;
         this.pivotKeys = new ArrayList<>(builder.pivotKeys);
         this.unconvertedPivotKeys = new ArrayList<>(builder.unconvertedPivotKeys);
+        this.cumulativeDataWeights = new ArrayList<>(builder.cumulativeDataWeights);
     }
 
     public ReshardTable(YPath path) {
@@ -63,6 +65,7 @@ public class ReshardTable
         if (tabletCount != null) {
             builder.setTabletCount(tabletCount);
         }
+        builder.addAllCumulativeDataWeights(cumulativeDataWeights);
         if (!pivotKeys.isEmpty()) {
             serializeRowsetTo(requestBuilder.attachments());
         }
@@ -104,6 +107,7 @@ public class ReshardTable
                 .setSchema(schema)
                 .setPivotKeys(pivotKeys)
                 .setUnconvertedPivotKeys(unconvertedPivotKeys)
+                .setCumulativeDataWeights(cumulativeDataWeights)
                 .setMutatingOptions(mutatingOptions)
                 .setPath(path)
                 .setTabletRangeOptions(tabletRangeOptions)
@@ -130,6 +134,7 @@ public class ReshardTable
         private TableSchema schema;
         private final List<UnversionedRow> pivotKeys = new ArrayList<>();
         private final List<List<?>> unconvertedPivotKeys = new ArrayList<>();
+        private final List<Long> cumulativeDataWeights = new ArrayList<>();
 
         protected BuilderBase() {
         }
@@ -140,6 +145,7 @@ public class ReshardTable
             this.schema = builder.schema;
             this.pivotKeys.clear();
             this.pivotKeys.addAll(builder.pivotKeys);
+            this.cumulativeDataWeights.addAll(builder.cumulativeDataWeights);
         }
 
         public TBuilder setTabletCount(@Nullable Integer tabletCount) {
@@ -149,6 +155,15 @@ public class ReshardTable
 
         public TBuilder setSchema(@Nullable TableSchema schema) {
             this.schema = schema;
+            return self();
+        }
+
+        /**
+         * Set initial cumulative data weights for newly created tablets of an ordered table.
+         */
+        public TBuilder setCumulativeDataWeights(List<Long> cumulativeDataWeights) {
+            this.cumulativeDataWeights.clear();
+            this.cumulativeDataWeights.addAll(cumulativeDataWeights);
             return self();
         }
 
