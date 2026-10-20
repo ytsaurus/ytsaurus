@@ -3,6 +3,7 @@
 #include <yql/essentials/utils/log/log_component.h>
 
 #include <library/cpp/testing/unittest/registar.h>
+#include <util/system/tempfile.h>
 
 
 using namespace NYql;
@@ -67,6 +68,23 @@ Y_UNIT_TEST_SUITE(TConfigTest)
         const auto& g = config.Gateways;
 
         UNIT_ASSERT_STRINGS_EQUAL(g.GetYt().GetMrJobBin(), "");
+    }
+
+    Y_UNIT_TEST(WorkerAndResolverIdentitySurviveQtConfigParsing) {
+        TTempFileHandle file;
+        TMainConfig config(true);
+        const char* args[] = {"worker", "--cfg", file.Name().c_str(), "--role", "forker",
+            "w.User=yqlworker", "w.Group=yqlworker",
+            "w.Executor.UdfResolverUser=udfresolver",
+            "w.Executor.UdfResolverGroup=udfresolver", nullptr};
+        config.ParseFromCommandLineArgs(std::size(args) - 1, args);
+        for (int parse = 0; parse < 2; ++parse) {
+            UNIT_ASSERT_VALUES_EQUAL(config.Worker.GetUser(), "yqlworker");
+            UNIT_ASSERT_VALUES_EQUAL(config.Worker.GetGroup(), "yqlworker");
+            UNIT_ASSERT_VALUES_EQUAL(config.Worker.GetExecutor().GetUdfResolverUser(), "udfresolver");
+            UNIT_ASSERT_VALUES_EQUAL(config.Worker.GetExecutor().GetUdfResolverGroup(), "udfresolver");
+            config.ParseAgain();
+        }
     }
 
     Y_UNIT_TEST(Components) {
