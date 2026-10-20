@@ -174,6 +174,27 @@ TEST(TYsonSkiffConverterTest, TestSimpleTypes)
         CreateSimpleTypeSchema(EWireType::String32),
         "\"\\xF0\\xF1\\xF2\\xF3\\xF4\\xF5\\xF6\\xF7\\xF8\\xF9\\xFA\\xFB\\xFC\\xFD\\xFE\\xFF\"",
         "10000000f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        Yson(),
+        CreateSimpleTypeSchema(EWireType::Int64),
+        "-42",
+        "d6ffffff" "ffffffff");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        Date32(),
+        CreateSimpleTypeSchema(EWireType::Int8),
+        "-42",
+        "d6");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertYsonHex(Date32(), CreateSimpleTypeSchema(EWireType::String32), "-42"),
+        "Unexpected wire type: expected one of \"int8\", \"int16\", \"int32\", \"int64\", "
+        "\"yson32\", got \"string32\"");
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertHexToTextYson(Date32(), CreateSimpleTypeSchema(EWireType::String32), "00000000"),
+        "Unexpected wire type: expected one of \"int8\", \"int16\", \"int32\", \"int64\", "
+        "\"yson32\", got \"string32\"");
 }
 
 TEST(TYsonSkiffConverterTest, TestYson32)
@@ -195,6 +216,12 @@ TEST(TYsonSkiffConverterTest, TestYson32)
         CreateSimpleTypeSchema(EWireType::Yson32),
         "[1;2;[3;];]",
         "0e000000" "5b02023b02043b5b02063b5d3b5d");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        Int64(),
+        CreateSimpleTypeSchema(EWireType::Yson32),
+        "-42",
+        "02000000" "0253");
 }
 
 TEST(TYsonSkiffConverterTest, TestOptionalTypes)

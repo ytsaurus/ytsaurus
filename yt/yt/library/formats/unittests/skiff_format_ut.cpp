@@ -1269,9 +1269,9 @@ std::vector<TWriterCase> MakeCompositeWriterCases()
         .CaseName = "required_complex_field_for_missing_column",
         .SkiffSchema = CreateTupleSchema({listSchema}),
         .Expected = TExpectedError{
-            "Unexpected wire type: expected one of \"int8\", \"int16\", \"int32\", \"int64\", "
-            "\"uint8\", \"uint16\", \"uint32\", \"uint64\", \"string32\", \"boolean\", \"double\", "
-            "\"nothing\", \"yson32\", got \"repeated_variant8\""},
+            "Unexpected wire type: expected one of \"nothing\", \"boolean\", \"int8\", \"int16\", "
+            "\"int32\", \"int64\", \"uint8\", \"uint16\", \"uint32\", \"uint64\", \"double\", "
+            "\"string32\", \"yson32\", got \"repeated_variant8\""},
     });
 
     auto optionalListSchema = CreateTupleSchema({
@@ -1371,9 +1371,9 @@ std::vector<TWriterCase> MakeColumnWriterCases()
             CreateVariant8Schema({CreateOptionalSchema(EWireType::Yson32)})->SetName("opt_yson32"),
         }),
         .Expected = TExpectedError{
-            "Unexpected wire type: expected one of \"int8\", \"int16\", \"int32\", \"int64\", "
-            "\"uint8\", \"uint16\", \"uint32\", \"uint64\", \"string32\", \"boolean\", \"double\", "
-            "\"nothing\", \"yson32\", got \"variant8\""},
+            "Unexpected wire type: expected one of \"nothing\", \"boolean\", \"int8\", \"int16\", "
+            "\"int32\", \"int64\", \"uint8\", \"uint16\", \"uint32\", \"uint64\", \"double\", "
+            "\"string32\", \"yson32\", got \"variant8\""},
     });
 
     return result;
@@ -1931,9 +1931,9 @@ std::vector<TParserCase> MakeColumnParserCases()
             CreateVariant8Schema({CreateOptionalSchema(EWireType::Yson32)})->SetName("opt_yson32"),
         }),
         .Expected = TExpectedError{
-            "Unexpected wire type: expected one of \"int8\", \"int16\", \"int32\", \"int64\", "
-            "\"uint8\", \"uint16\", \"uint32\", \"uint64\", \"double\", \"boolean\", \"string32\", "
-            "\"nothing\", \"yson32\", got \"variant8\""},
+            "Unexpected wire type: expected one of \"nothing\", \"boolean\", \"int8\", \"int16\", "
+            "\"int32\", \"int64\", \"uint8\", \"uint16\", \"uint32\", \"uint64\", \"double\", "
+            "\"string32\", \"yson32\", got \"variant8\""},
     });
 
     return result;
