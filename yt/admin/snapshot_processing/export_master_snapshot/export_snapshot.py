@@ -3,7 +3,7 @@
 from yt.admin.snapshot_processing.helpers import (
     cypress_helpers,
     master_config_helpers,
-    portal_cell_helpers,
+    node_host_cell_helpers,
     client_helpers)
 
 import yt.logger as logger
@@ -385,8 +385,8 @@ def run():
         raise RuntimeError("Invalid cypress root path {}".format(args.cypress_root_path))
 
     primary_cell_id = str(yt_client.get("//sys/@primary_cell_tag"))
-    portal_cell_ids = portal_cell_helpers.get_portal_cell_ids(yt_client)
-    cell_ids = list(set([primary_cell_id] + portal_cell_ids))
+    node_host_cell_ids = node_host_cell_helpers.get_node_host_cell_ids(yt_client)
+    cell_ids = list(set([primary_cell_id] + node_host_cell_ids))
 
     snapshot_paths = {}
     validation_result_paths = {}
@@ -419,7 +419,7 @@ def run():
     master_configs[primary_cell_id] = master_config_helpers.get_patched_primary(yt_client)
     # FIXME wait another PR with specification of secondary cell tags
     secondary_master_configs = master_config_helpers.get_patched_secondary(yt_client)
-    for cell_id in portal_cell_ids:
+    for cell_id in node_host_cell_ids:
         if cell_id == primary_cell_id:
             continue
         master_configs[cell_id] = secondary_master_configs[cell_id]
