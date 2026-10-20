@@ -161,21 +161,11 @@ YT_PREVENT_TLS_CACHING void TIOEngineSensors::UpdateKernelStatistics()
 ////////////////////////////////////////////////////////////////////////////////
 
 TRequestStatsGuard::TRequestStatsGuard(TIOEngineSensors::TRequestSensors sensors)
-    : TRequestStatsGuard(std::move(sensors), false)
-{ }
-
-TRequestStatsGuard::TRequestStatsGuard(TIOEngineSensors::TRequestSensors sensors, bool usingHugePages)
     : Sensors_(std::move(sensors))
-    , UsingHugePages_(usingHugePages)
 {
     Sensors_.Counter.Increment();
     Sensors_.InflightCounter.Increment();
-
-    if (UsingHugePages_) {
-        Sensors_.HugePageInflightCounter.Increment();
-    }
 }
-
 
 TRequestStatsGuard::~TRequestStatsGuard()
 {
@@ -183,11 +173,6 @@ TRequestStatsGuard::~TRequestStatsGuard()
     Sensors_.ExecTimer.Record(duration);
     Sensors_.TotalTimeCounter.Add(duration);
     Sensors_.InflightCounter.Decrement();
-
-    if (UsingHugePages_) {
-        Sensors_.HugePageTimer.Record(duration);
-        Sensors_.HugePageInflightCounter.Decrement();
-    }
 }
 
 TDuration TRequestStatsGuard::GetElapsedTime() const
@@ -688,11 +673,9 @@ void TIOEngineBase::InitProfilerSensors()
     auto makeRequestSensors = [] (TProfiler profiler, TStringBuf execTimerName) {
         TIOEngineSensors::TRequestSensors sensors;
         sensors.ExecTimer = profiler.Timer(execTimerName);
-        sensors.HugePageTimer = profiler.Timer("/huge_page_time");
         sensors.TotalTimeCounter = profiler.TimeCounter("/total_time");
         sensors.Counter = profiler.Counter("/request_count");
         sensors.InflightCounter = TInflightCounter::Create(profiler, "/inflight_count");
-        sensors.HugePageInflightCounter = TInflightCounter::Create(profiler, "/huge_page_inflight_count");
         return sensors;
     };
 
