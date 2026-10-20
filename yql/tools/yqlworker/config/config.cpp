@@ -225,9 +225,9 @@ void TMainConfig::ParseAgain()
             QtRole = {};
             CoreBindAll = false;
             Daemonize = r.Has("daemonize");
-        }
-        if (!Daemonize) {
-            CleanUsernames();
+            if (!Daemonize) {
+                CleanUsernames();
+            }
         }
 
     } catch (...) {
