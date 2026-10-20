@@ -44,6 +44,11 @@ void TAccountStatistics::Persist(const NCellMaster::TPersistenceContext& context
     Persist(context, CommittedResourceUsage);
 }
 
+bool TAccountStatistics::IsPersistentlyEmpty() const
+{
+    return ResourceUsage.IsPersistentlyEmpty() && CommittedResourceUsage.IsPersistentlyEmpty();
+}
+
 void ToProto(NProto::TAccountStatistics* protoStatistics, const TAccountStatistics& statistics)
 {
     ToProto(protoStatistics->mutable_resource_usage(), statistics.ResourceUsage);
@@ -136,7 +141,6 @@ void SubtractFromAccountMulticellStatistics(
         lhs[cellTag] -= accountStatistics;
     }
 }
-
 
 TAccountMulticellStatistics AddAccountMulticellStatistics(
     const TAccountMulticellStatistics& lhs,

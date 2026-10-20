@@ -30,6 +30,8 @@ struct TAccountStatistics
 
     bool operator==(const TAccountStatistics&) const = default;
 
+    bool IsPersistentlyEmpty() const;
+
     static const TAccountStatistics Empty;
 };
 

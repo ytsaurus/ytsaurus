@@ -94,6 +94,8 @@ public:
     void Save(NCypressServer::TSerializeNodeContext& context) const;
     void Load(NCypressServer::TMaterializeNodeContext& context);
 
+    bool IsPersistentlyEmpty() const;
+
 private:
     //! Space occupied on data nodes in bytes per medium.
     /*!
