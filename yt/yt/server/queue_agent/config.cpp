@@ -209,6 +209,8 @@ void TQueueAgentBootstrapConfig::Register(TRegistrar registrar)
             .BeginMap()
             .EndMap()
         ->AsMap());
+    registrar.Parameter("group_id", &TThis::GroupId)
+        .Default("/queue_agents");
     registrar.Parameter("dynamic_state", &TThis::DynamicState)
         .DefaultNew();
     registrar.Parameter("cypress_synchronizer_election_manager", &TThis::CypressSynchronizerElectionManager)
