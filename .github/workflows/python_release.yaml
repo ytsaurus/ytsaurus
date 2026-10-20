@@ -3,8 +3,14 @@ name: Release python
 on:
   push:
     tags:
-      - 'python-test/ytsaurus-*/[0-9]+.[0-9]+.*'
-      - 'python/ytsaurus-*/[0-9]+.[0-9]+.*'
+      - 'python-test/ytsaurus-client/[0-9]+.[0-9]+.*'
+      - 'python-test/ytsaurus-local/[0-9]+.[0-9]+.*'
+      - 'python-test/ytsaurus-mcp/[0-9]+.[0-9]+.*'
+      - 'python-test/ytsaurus-yson/[0-9]+.[0-9]+.*'
+      - 'python/ytsaurus-client/[0-9]+.[0-9]+.*'
+      - 'python/ytsaurus-local/[0-9]+.[0-9]+.*'
+      - 'python/ytsaurus-mcp/[0-9]+.[0-9]+.*'
+      - 'python/ytsaurus-yson/[0-9]+.[0-9]+.*'
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -81,7 +87,7 @@ jobs:
           rm -rf *
 
       - name: Build bindings libraries
-        if: ${{ (steps.tag.outputs.PACKAGE_NAME == 'ytsaurus-yson') || (steps.tag.outputs.PACKAGE_NAME == 'ytsaurus-rpc-driver') }}
+        if: ${{ steps.tag.outputs.PACKAGE_NAME == 'ytsaurus-yson' }}
         run: |
           export SOURCE_ROOT="$(pwd)/ytsaurus"
           export BUILD_PATH=$(realpath $(pwd)/../build)

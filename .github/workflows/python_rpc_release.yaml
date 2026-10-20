@@ -1,0 +1,134 @@
+name: Release Python RPC bindings
+
+on:
+  push:
+    tags:
+      - 'python-test/ytsaurus-rpc-driver/[0-9]+.[0-9]+.*'
+      - 'python/ytsaurus-rpc-driver/[0-9]+.[0-9]+.*'
+
+jobs:
+  build:
+    name: Build RPC bindings (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            runner: ubuntu-24.04
+            manylinux-image: quay.io/pypa/manylinux2014_x86_64
+          - platform: linux-aarch64
+            runner: ubuntu-24.04-arm
+            manylinux-image: quay.io/pypa/manylinux2014_aarch64
+          - platform: macos-x86_64
+            runner: macos-15-intel
+          - platform: macos-arm64
+            runner: macos-15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set package version
+        run: echo "YTSAURUS_PACKAGE_VERSION=${GITHUB_REF_NAME##*/}" >> "$GITHUB_ENV"
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build Linux wheel
+        if: ${{ runner.os == 'Linux' }}
+        env:
+          MANYLINUX_IMAGE: ${{ matrix.manylinux-image }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/rpc-build"
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/ytsaurus" \
+            -v "$RUNNER_TEMP/rpc-build:/build" \
+            -e YTSAURUS_PACKAGE_VERSION \
+            "$MANYLINUX_IMAGE" \
+            bash -c 'export PATH="/opt/python/cp311-cp311/bin:$PATH"; bash /ytsaurus/yt/python/packages/build_rpc_bindings.sh /build'
+
+      - name: Build macOS wheel
+        if: ${{ runner.os == 'macOS' }}
+        env:
+          MACOSX_DEPLOYMENT_TARGET: '12.0'
+        run: bash yt/python/packages/build_rpc_bindings.sh "$RUNNER_TEMP/rpc-build"
+
+      - name: Check wheel and string request ID
+        timeout-minutes: 5
+        run: |
+          python3 -m pip install "$RUNNER_TEMP"/rpc-build/dist/*.whl
+          python3 - <<'PY'
+          from yt_driver_rpc_bindings import Driver, Request
+
+          from io import BytesIO
+
+          driver = Driver({
+              "connection_type": "rpc",
+              "cluster_url": "http://ytserver",
+              "api_version": 4,
+          })
+          try:
+              output = BytesIO()
+              response = driver.execute(Request(
+                  command_name="get_version",
+                  parameters={"output_format": "json"},
+                  output_stream=output,
+                  id="7530ff7b-89154628-2f2503c5-826d02a9",
+              ))
+              response.wait()
+              assert response.is_ok(), response.error()
+              assert output.getvalue()
+          finally:
+              driver.terminate()
+          PY
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpc-wheel-${{ matrix.platform }}
+          path: ${{ runner.temp }}/rpc-build/dist/*.whl
+          if-no-files-found: error
+
+  publish:
+    name: Publish RPC bindings
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      id-token: write
+    steps:
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: rpc-wheel-*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish package distributions to TestPyPI
+        if: ${{ startsWith(github.ref_name, 'python-test/') }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+      - name: Publish package distributions to PyPI
+        if: ${{ startsWith(github.ref_name, 'python/') }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  send-notifications:
+    name: Send notifications
+    needs: publish
+    if: ${{ failure() }}
+    uses: ./.github/workflows/send_telegram_notification.yaml
+    with:
+      notification_type: workflow_failure
+      runner: ubuntu-latest
+    secrets:
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
