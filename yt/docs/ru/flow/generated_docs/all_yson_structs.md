@@ -66,6 +66,10 @@
 
 {% include [_](./NYT_NFlow_EJobBalancerType.md) %}
 
+{% include [_](./NYT_NFlow_EKafkaDeliveryGuarantee.md) %}
+
+{% include [_](./NYT_NFlow_EMalformedKafkaMessagePolicy.md) %}
+
 {% include [_](./NYT_NFlow_EPipelineState.md) %}
 
 {% include [_](./NYT_NFlow_EProcessingMode.md) %}
@@ -208,9 +212,15 @@
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAtLeastOnceClickHouseSink.md) %}
 
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAtLeastOnceKafkaSink.md) %}
+
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAtMostOnceClickHouseSink.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TClickHouseBatchingSink.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TKafkaSink.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TKafkaSource.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TPassthroughComputation.md) %}
 
@@ -247,6 +257,8 @@
 {% include [_](./NYT_NFlow_TIdlePartitionsSpec.md) %}
 
 {% include [_](./NYT_NFlow_TInputOrderingSpec.md) %}
+
+{% include [_](./NYT_NFlow_TKafkaClientConfig.md) %}
 
 {% include [_](./NYT_NFlow_TKeyStateRow.md) %}
 
@@ -336,9 +348,15 @@
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAtLeastOnceClickHouseSink.md) %}
 
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAtLeastOnceKafkaSink.md) %}
+
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAtMostOnceClickHouseSink.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TClickHouseBatchingSink.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TKafkaSink.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TKafkaSource.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TPassthroughComputation.md) %}
 
