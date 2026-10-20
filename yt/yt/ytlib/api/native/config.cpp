@@ -115,6 +115,7 @@ void TSequoiaRetriesConfig::Register(TRegistrar registrar)
         config->StartBackoff = TDuration::MilliSeconds(150); // Average duration of Sequoia tx.
         config->MaxBackoff = TDuration::Seconds(10);
         config->BackoffMultiplier = 2;
+        config->BackoffJitter = 0.2;
         config->RetryCount = 15;
     });
 }
