@@ -6,6 +6,7 @@ import threading
 import pytest
 import yatest.common
 
+from yt.yt.flow.library.python.client.state_unpack import unpack_state
 from yt.common import wait
 from yt.yt.flow.library.python.integration_test_base.helpers import get_yson_config
 from yt.yt.flow.library.python.integration_test_base.yt_flow_base import FlowTestBase
@@ -165,7 +166,7 @@ class TestAsyncHttpSink(FlowTestBase):
                 name = name.decode()
             if computation_id != "writer" or name != "/$active_source/v0":
                 continue
-            state = row["state"]
+            state = unpack_state(row)
             persisted = state.get("persisted_offset_exclusive_v2", state.get(b"persisted_offset_exclusive_v2"))
             return int(persisted[0]) if persisted else 0
         return None

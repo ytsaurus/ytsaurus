@@ -2,6 +2,7 @@ PY3TEST()
 
 TEST_SRCS(
     test_final_diagnostics.py
+    test_internal_states.py
 )
 
 PEERDIR(

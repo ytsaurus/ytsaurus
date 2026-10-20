@@ -158,7 +158,10 @@ class Test(FlowTestCppCompanionBase):
             self.wait_pipeline_state("completed", timeout=240)
             logging.info("pipeline completed")
 
-            states = list(self.client.select_rows(f"key, name, state FROM [{self.pipeline_path}/states]"))
+            stored_states = list(self.client.select_rows(f"state, compressed FROM [{self.pipeline_path}/states]"))
+            assert stored_states
+            assert all(yson.get_bytes(row["compressed"]) and not row["state"] for row in stored_states)
+            states = self.read_internal_key_states("reader") + self.read_internal_key_states("counter")
 
             # Ordered-source state is keyed by source partition and drives every output row.
             source_counts = sorted(

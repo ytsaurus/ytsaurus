@@ -66,8 +66,8 @@ class Test(FlowTestGoBase):
 
     def get_counts(self):
         counts = {}
-        for state in self.client.select_rows(f"* from [{self.pipeline_path}/states]"):
-            payload = yson.loads(state["state"]["payload"].encode())
+        for state in self.read_internal_key_states("mapper"):
+            payload = yson.loads(yson.get_bytes(state["state"]["payload"]))
             counts[payload["word"]] = payload["count"]
         return counts
 

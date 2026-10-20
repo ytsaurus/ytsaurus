@@ -809,7 +809,7 @@ void TDynamicSinkSpec::Register(TRegistrar registrar)
 void TDynamicStateFormatSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("compress", &TThis::Compress)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("recode_probability", &TThis::RecodeProbability)
         .Default(0.1);
 }
