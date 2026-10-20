@@ -19,6 +19,7 @@ PEERDIR(
     yql/essentials/core/services/mounts
     yql/essentials/minikql/comp_nodes/llvm16
     yql/essentials/providers/common/comp_nodes
+    yql/essentials/providers/common/udf_resolve
     yql/essentials/public/udf/service/exception_policy
     yql/essentials/sql/pg
     yt/yql/providers/dq/local_gateway
@@ -27,6 +28,10 @@ PEERDIR(
     yt/yql/providers/yt/gateway/file
     yt/yql/providers/yt/lib/ut_common
     yt/yql/providers/yt/provider
+)
+
+DEPENDS(
+    yql/essentials/udfs/common/math
 )
 
 YQL_LAST_ABI_VERSION()

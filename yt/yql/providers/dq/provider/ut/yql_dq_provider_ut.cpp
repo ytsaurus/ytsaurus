@@ -14,6 +14,7 @@
 #include <yql/essentials/providers/common/comp_nodes/yql_factory.h>
 #include <yql/essentials/providers/common/proto/gateways_config.pb.h>
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
+#include <yql/essentials/providers/common/udf_resolve/yql_simple_udf_resolver.h>
 
 #include <contrib/ydb/library/yql/providers/dq/common/yql_dq_common.h>
 #include <contrib/ydb/library/yql/providers/dq/counters/counters.h>
@@ -32,6 +33,7 @@
 #include <yql/essentials/minikql/mkql_function_registry.h>
 #include <yql/essentials/utils/log/log.h>
 
+#include <library/cpp/testing/common/env.h>
 #include <util/stream/tee.h>
 #include <util/string/cast.h>
 
@@ -100,7 +102,10 @@ bool RunDqProgram(
     ui32 maxTasksPerOperation,
     const THashMap<TString, TString>& tableFiles,
     TString* errorsMessage = nullptr,
-    IDqGateway::TPtr dqGateway = {})
+    IDqGateway::TPtr dqGateway = {},
+    bool loadMathUdf = false,
+    bool enablePrecompute = false,
+    bool forceDq = true)
 {
     NLog::YqlLoggerScope logger("cerr", false);
 
@@ -123,14 +128,30 @@ bool RunDqProgram(
         };
         addSetting("EnableComputeActor", "1");
         addSetting("MaxTasksPerOperation", ToString(maxTasksPerOperation));
+        if (enablePrecompute) {
+            addSetting("AnalyzeQuery", "true");
+            addSetting("_EnablePrecompute", "1");
+        }
     }
 
     auto functionRegistry = NKikimr::NMiniKQL::CreateFunctionRegistry(
         NKikimr::NMiniKQL::CreateBuiltinRegistry())->Clone();
+    auto functionRegistryWithUdfs = functionRegistry->Clone();
+    if (loadMathUdf) {
+        // Keep Math out of the DQ registry so EvaluateExpr must use the gateway.
+#if defined(_darwin_)
+        const auto udfPath = BinaryPath("yql/essentials/udfs/common/math/libmath_udf.dylib");
+#else
+        const auto udfPath = BinaryPath("yql/essentials/udfs/common/math/libmath_udf.so");
+#endif
+        functionRegistryWithUdfs->LoadUdfs(udfPath, {});
+        UNIT_ASSERT(!functionRegistry->IsLoadedUdfModule("Math"));
+        UNIT_ASSERT(functionRegistryWithUdfs->IsLoadedUdfModule("Math"));
+    }
 
     TVector<TDataProviderInitializer> dataProvidersInit;
 
-    auto yqlNativeServices = NFile::TYtFileServices::Make(functionRegistry.Get(), tableFiles);
+    auto yqlNativeServices = NFile::TYtFileServices::Make(functionRegistryWithUdfs.Get(), tableFiles);
     auto ytGateway = CreateYtFileGateway(yqlNativeServices);
     dataProvidersInit.push_back(
         GetYtNativeDataProviderInitializer(ytGateway, MakeSimpleCBOOptimizerFactory(), {}));
@@ -160,6 +181,10 @@ bool RunDqProgram(
     TProgramFactory factory(true, functionRegistry.Get(), 0ULL, dataProvidersInit, "ut");
     factory.SetGatewaysConfig(&gatewaysConfig);
     factory.SetModules(moduleResolver);
+    if (loadMathUdf) {
+        factory.SetUdfResolver(NCommon::CreateSimpleUdfResolver(
+            functionRegistryWithUdfs.Get(), storage, /*useFakeMD5=*/true));
+    }
 
     auto program = factory.Create("program", code);
 
@@ -167,7 +192,9 @@ bool RunDqProgram(
     sqlSettings.SyntaxVersion = 1;
     sqlSettings.V0Behavior = NSQLTranslation::EV0Behavior::Disable;
     sqlSettings.Flags.insert("DqEngineEnable");
-    sqlSettings.Flags.insert("DqEngineForce");
+    if (forceDq) {
+        sqlSettings.Flags.insert("DqEngineForce");
+    }
     sqlSettings.ClusterMapping["plato"] = TString(YtProviderName);
 
     if (!program->ParseSql(sqlSettings)) {
@@ -438,5 +465,47 @@ Y_UNIT_TEST(EvaluateForReportsDqExecutionIssuesWhenFallbackIsForbidden) {
     UNIT_ASSERT_STRING_CONTAINS(errorMessage, "Gateway Error");
     UNIT_ASSERT_STRING_CONTAINS(errorMessage, "Fatal Error");
     UNIT_ASSERT_STRING_CONTAINS(errorMessage, "Execution timeout");
+}
+
+Y_UNIT_TEST(StaticNetworkProjectPreventsEvaluateExprDqOffload) {
+    const TString codeWithoutStaticNetworkProject = R"(
+USE plato;
+
+SELECT EvaluateExpr(Math::Sqrt(169.0));
+    )";
+
+    const TString codeWithStaticNetworkProject = TStringBuilder()
+        << "PRAGMA yt.StaticNetworkProject = 'soc_lookups';\n"
+        << codeWithoutStaticNetworkProject;
+
+    auto run = [](const TString& code, const IDqGateway::TPtr& dqGateway, TString* errorMessage) {
+        return RunDqProgram(
+            code,
+            /*maxTasksPerOperation=*/100,
+            /*tableFiles=*/{},
+            errorMessage,
+            dqGateway,
+            /*loadMathUdf=*/true,
+            /*enablePrecompute=*/true,
+            /*forceDq=*/false);
+    };
+
+    auto controlGateway = MakeIntrusive<TFallbackDqGateway>();
+    TString controlErrorMessage;
+    run(codeWithoutStaticNetworkProject, controlGateway, &controlErrorMessage);
+    UNIT_ASSERT_VALUES_EQUAL_C(
+        controlGateway->GetExecutePlanCalls(),
+        1,
+        "The control query must call DQ gateway exactly once: "
+            << controlErrorMessage);
+
+    auto staticNetworkGateway = MakeIntrusive<TFallbackDqGateway>();
+    TString staticNetworkErrorMessage;
+    const bool ok = run(codeWithStaticNetworkProject, staticNetworkGateway, &staticNetworkErrorMessage);
+    UNIT_ASSERT_C(ok, staticNetworkErrorMessage);
+    UNIT_ASSERT_VALUES_EQUAL_C(
+        staticNetworkGateway->GetExecutePlanCalls(),
+        0,
+        "EvaluateExpr with yt.StaticNetworkProject must fall back before DQ execution");
 }
 }
