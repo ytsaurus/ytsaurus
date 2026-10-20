@@ -1124,13 +1124,7 @@ private:
             TDuration startupBatchDelayWithJitter = ApplyJitter(
                 startupBatchDelay,
                 StartupBatchDelayJitter,
-                /*randomGenerator*/ [] {
-                    // NB(apachee): Used the same generator as in yt/yt/core/misc/backoff_strategy.cpp.
-
-                    // StdNormalRandom is unlikely to produce a value outside of [-Max, Max] range.
-                    constexpr double Max = 7.0;
-                    return std::clamp(StdNormalRandom<double>() / Max, -1.0, +1.0);
-                });
+                &DefaultJitterRandomGenerator);
 
             return BIND_NO_PROPAGATE([
                     this,
