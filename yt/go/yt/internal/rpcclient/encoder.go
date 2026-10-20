@@ -1146,12 +1146,13 @@ func (e *Encoder) ReshardTable(
 	}
 
 	req := &rpc_proxy.TReqReshardTable{
-		Path:               []byte(path.YPath().String()),
-		TabletCount:        intPtrToInt32Ptr(opts.TabletCount),
-		Uniform:            nil, // todo
-		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
-		TabletRangeOptions: convertTabletRangeOptions(opts.TabletRangeOptions),
-		RowsetDescriptor:   nil,
+		Path:                  []byte(path.YPath().String()),
+		TabletCount:           intPtrToInt32Ptr(opts.TabletCount),
+		Uniform:               nil, // todo
+		MutatingOptions:       convertMutatingOptions(opts.MutatingOptions),
+		TabletRangeOptions:    convertTabletRangeOptions(opts.TabletRangeOptions),
+		RowsetDescriptor:      nil,
+		CumulativeDataWeights: opts.CumulativeDataWeights,
 	}
 
 	call := e.newCall(MethodReshardTable, NewReshardTableRequest(req), attachments)

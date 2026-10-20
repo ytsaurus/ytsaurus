@@ -2100,6 +2100,10 @@ func writeReshardTableOptions(w *yson.Writer, o *yt.ReshardTableOptions) {
 		w.MapKeyString("tablet_count")
 		w.Any(o.TabletCount)
 	}
+	if o.CumulativeDataWeights != nil {
+		w.MapKeyString("cumulative_data_weights")
+		w.Any(o.CumulativeDataWeights)
+	}
 	writeTabletRangeOptions(w, o.TabletRangeOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
 }
@@ -2114,6 +2118,9 @@ func logReshardTableOptions(o *yt.ReshardTableOptions) []log.Field {
 	}
 	if o.TabletCount != nil {
 		fields = append(fields, log.Any("tablet_count", o.TabletCount))
+	}
+	if o.CumulativeDataWeights != nil {
+		fields = append(fields, log.Any("cumulative_data_weights", o.CumulativeDataWeights))
 	}
 	fields = append(fields, logTabletRangeOptions(o.TabletRangeOptions)...)
 	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)

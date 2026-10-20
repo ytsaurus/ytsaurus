@@ -314,6 +314,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReshardTable)
     if (request->has_slicing_accuracy()) {
         options.SlicingAccuracy = request->slicing_accuracy();
     }
+    FromProto(&options.CumulativeDataWeights, request->cumulative_data_weights());
 
     TFuture<void> result;
     if (request->has_tablet_count()) {

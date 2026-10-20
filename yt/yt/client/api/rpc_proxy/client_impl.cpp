@@ -487,6 +487,7 @@ TFuture<void> TClient::ReshardTable(
     writer->WriteRowset(TRange(keys));
     req->Attachments() = writer->Finish();
 
+    ToProto(req->mutable_cumulative_data_weights(), options.CumulativeDataWeights);
     ToProto(req->mutable_mutating_options(), options);
     ToProto(req->mutable_tablet_range_options(), options);
 
@@ -513,6 +514,7 @@ TFuture<void> TClient::ReshardTable(
         req->set_slicing_accuracy(*options.SlicingAccuracy);
     }
 
+    ToProto(req->mutable_cumulative_data_weights(), options.CumulativeDataWeights);
     ToProto(req->mutable_mutating_options(), options);
     ToProto(req->mutable_tablet_range_options(), options);
 
