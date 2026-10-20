@@ -261,16 +261,29 @@ TTableReplicaInfo* TTablet::GetReplicaInfo(const TTableReplica* replica)
     return replicaInfo;
 }
 
-TDuration TTablet::ComputeReplicationLagTime(TTimestamp latestTimestamp, const TTableReplicaInfo& replicaInfo) const
+TDuration TTablet::ComputeReplicationLagTime(
+    TTimestamp latestTimestamp,
+    const TTableReplicaInfo& replicaInfo,
+    TTimestamp startReplicationTimestamp) const
 {
     auto lastWriteTimestamp = FromProto<NTransactionClient::TTimestamp>(NodeStatistics_.last_write_timestamp());
     if (lastWriteTimestamp == NullTimestamp) {
         return TDuration::Zero();
     }
+
     auto replicationTimestamp = replicaInfo.GetCurrentReplicationTimestamp();
+    // NB: Newly initialized replica with yet no rows in it shall display zero lag.
+    if (replicationTimestamp == NullTimestamp &&
+        (startReplicationTimestamp >= lastWriteTimestamp ||
+         replicaInfo.GetCommittedReplicationRowIndex() >= NodeStatistics_.total_row_count()))
+    {
+        return TDuration::Zero();
+    }
+
     if (replicationTimestamp >= lastWriteTimestamp || replicationTimestamp >= latestTimestamp) {
         return TDuration::Zero();
     }
+
     return TimestampToInstant(latestTimestamp).second - TimestampToInstant(replicationTimestamp).first;
 }
 

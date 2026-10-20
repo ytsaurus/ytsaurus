@@ -147,7 +147,8 @@ public:
     TTableReplicaInfo* GetReplicaInfo(const TTableReplica* replica);
     TDuration ComputeReplicationLagTime(
         NTransactionClient::TTimestamp latestTimestamp,
-        const TTableReplicaInfo& replicaInfo) const;
+        const TTableReplicaInfo& replicaInfo,
+        NTransactionClient::TTimestamp startReplicationTimestamp) const;
 
     TTabletStatistics GetTabletStatistics(bool fromAuxiliaryCell = false) const override;
 
