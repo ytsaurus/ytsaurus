@@ -914,6 +914,14 @@ private:
             return Fallback();
         }
 
+        if (!State->TypeCtx->ForceDq) {
+            for (auto* integration : GetUniqueIntegrations(*State->TypeCtx)) {
+                if (!integration->AllowExecuteInDq(*input, ctx)) {
+                    return Fallback();
+                }
+            }
+        }
+
         TInstant startTime = TInstant::Now();
         ui64 executionTimeout = State->Settings->_LiteralTimeout.Get().GetOrElse(TDqSettings::TDefault::LiteralTimeout);
 
@@ -1736,7 +1744,7 @@ private:
     }
 
     IDqGateway::TDqProgressWriter MakeDqProgressWriter(const TPublicIds::TPtr& publicIds) const {
-        IDqGateway::TDqProgressWriter dqProgressWriter = [progressWriter = State->ProgressWriter, publicIds, current = std::make_shared<IDqGateway::TProgressWriterState>()](IDqGateway::TProgressWriterState state) 
+        IDqGateway::TDqProgressWriter dqProgressWriter = [progressWriter = State->ProgressWriter, publicIds, current = std::make_shared<IDqGateway::TProgressWriterState>()](IDqGateway::TProgressWriterState state)
         {
             if (*current != state) {
                 for (const auto& publicId : publicIds->AllPublicIds) {
