@@ -133,6 +133,9 @@ def run_with_spec(base_path, spec, args):
         run_compare_replicas(base_path, spec, attributes, args)
 
 def set_seed(seed):
+    if seed is None:
+        seed = random.randint(1, 10**9)
+    logger.info("Your seed is %s", seed)
     random.seed(seed)
 
     try:
@@ -140,6 +143,7 @@ def set_seed(seed):
         np_random.seed(seed)
     except ModuleNotFoundError:
         pass
+    return seed
 
 def run_test(spec, args):
     if args.random_name:
@@ -154,14 +158,15 @@ def run_test(spec, args):
         logger.generation = repeat
 
         seed = Spec(spec).seed
-        if seed is None:
-            seed = random.randint(1, 10**9)
-            logger.info("Your seed is %s", seed)
-        seed += repeat
+        if seed is not None:
+            seed += repeat
+        seed = set_seed(seed)
 
         modes = variate_modes(spec)
 
         for mode_index, (resulting_spec, description) in enumerate(modes):
+            resulting_spec = dict(resulting_spec, seed=seed)
+            set_seed(seed)
             print("Variated options:")
             for k, v in description:
                 print("   ", k, v)
