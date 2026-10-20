@@ -22,6 +22,7 @@ func ParseArgsAndRunServer() {
 	rootCmd.Flags().String("chyt-alias", "ch_yt_access_log_viewer", "CHYT alias to operate")
 	rootCmd.Flags().String("snapshot-root", "//sys/admin/yt-microservices/access_log_viewer", "Path to ACL dumps")
 	rootCmd.Flags().String("token-env-variable", "YT_ACCESS_LOG_VIEWER_TOKEN", "Environment variable that specifies the token used when accessing YT")
+	rootCmd.Flags().String("debug-login", "", "Use a static login instead of user authentication and listen on loopback only; intended for local integration tests")
 
 	ytmsvc.Must0(rootCmd.Execute())
 }
