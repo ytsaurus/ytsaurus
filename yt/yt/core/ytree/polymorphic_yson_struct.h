@@ -207,6 +207,9 @@ public:
     TBase* operator->();
     const TBase* operator->() const;
 
+    TBase* GetBase();
+    const TBase* GetBase() const;
+
     void MergeWith(const TPolymorphicYsonStruct& other);
 
     explicit operator bool() const;
@@ -239,6 +242,9 @@ void Serialize(const TPolymorphicYsonStruct<TMapping>& value, NYson::IYsonConsum
 
 template <CPolymorphicEnumMapping TMapping, CYsonStructSource TSource>
 void Deserialize(TPolymorphicYsonStruct<TMapping>& value, TSource source);
+
+template <CPolymorphicEnumMapping TMapping>
+bool operator==(const TPolymorphicYsonStruct<TMapping>& lhs, const TPolymorphicYsonStruct<TMapping>& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
