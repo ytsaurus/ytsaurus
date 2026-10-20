@@ -255,6 +255,7 @@ private:
         auto waitOnBlockedRowTimer = GetWaitOnBlockedRowTimer(tableProfiler, InitialQueryKind_);
 
         BarrierFuture_ = barrierFuture
+            .ToImmediatelyCancelable()
             .WithTimeout(Store_->Context_->GetTabletManagerConfig()->MaxBlockedRowWaitTime)
             .Apply(BIND([waitOnBlockedRowTimer, start] (const TError& error) {
                 if (error.GetCode() == NYT::EErrorCode::Timeout) {
