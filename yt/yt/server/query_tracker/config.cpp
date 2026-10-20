@@ -118,6 +118,8 @@ void TQueryTrackerProxyConfig::Register(TRegistrar registrar)
         .Default(1_KB);
     registrar.Parameter("max_query_file_content_size_bytes", &TThis::MaxQueryFileContentSizeBytes)
         .Default(2_KB);
+    registrar.Parameter("queries_by_mutation_id_ttl", &TThis::QueriesByMutationIdTtl)
+        .Default(TDuration::Hours(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,7 +157,7 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
 void TQueryTrackerBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("min_required_state_version", &TThis::MinRequiredStateVersion)
-        .Default(21);
+        .Default(23);
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
     registrar.Parameter("proxy_thread_pool_size", &TThis::ProxyThreadPoolSize)
