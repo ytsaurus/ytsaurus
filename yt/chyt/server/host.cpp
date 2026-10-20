@@ -178,7 +178,7 @@ private:
     const NNative::IConnectionPtr Connection_;
     const TPromise<TTableSchemaCachePtr> CachePromise_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     bool InitializationStarted_ = false;
     std::atomic<bool> InitializationFinished_ = false;
     std::atomic<ui64> LastAccessIndex_ = 0;
@@ -1220,7 +1220,7 @@ private:
     NTableClient::TTableColumnarStatisticsCachePtr TableColumnarStatisticsCache_;
     TTableSchemaCachePtr TableSchemaCache_;
     TChunkSpecCachePtr ChunkSpecCache_;
-    mutable YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RemoteTableSchemaCachesLock_);
+    mutable YT_DECLARE_SPIN_LOCK(TSpinLock, RemoteTableSchemaCachesLock_);
     mutable THashMap<const NNative::IConnection*, TRemoteTableSchemaCacheEntryPtr> RemoteTableSchemaCaches_;
     mutable std::atomic<ui64> RemoteTableSchemaCacheAccessIndex_ = 0;
 
