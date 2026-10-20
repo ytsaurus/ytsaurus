@@ -319,7 +319,7 @@ private:
             return {};
         }
 
-        const auto& streamInputsByLabel = joinInputsByLabelResult.StreamInputsByLabel;
+        auto& streamInputsByLabel = joinInputsByLabelResult.StreamInputsByLabel;
         const auto& lookupSourceInputsByLabel = joinInputsByLabelResult.LookupSourceInputsByLabel;
 
         if (streamInputsByLabel.size() != 1) {
@@ -394,6 +394,23 @@ private:
                     << "Flatten option for join is not supported"));
 
             return {};
+        }
+
+        auto& streamInput = streamInputsByLabel.begin()->second;
+        auto equiJoinInput = TCoEquiJoinInput(streamInput);
+        if (auto readWrap = equiJoinInput.List().Maybe<TYtflowReadWrap>()) {
+            auto sourceMapOutput = BuildPassthroughSourceMapOutput(
+                readWrap.Cast(),
+                node.Pos(),
+                ctx);
+            if (!sourceMapOutput) {
+                return {};
+            }
+
+            streamInput = Build<TCoEquiJoinInput>(ctx, equiJoinInput.Pos())
+                .InitFrom(equiJoinInput)
+                .List(std::move(sourceMapOutput))
+                .Done().Ptr();
         }
 
         auto joinResultNode = BuildJoinNodeFromEquiJoinTuple(
