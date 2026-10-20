@@ -1878,7 +1878,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     columnFilter,
                     readRange,
                     /*partitionTags*/ {},
-                    memoryManagerHolder);
+                    memoryManagerHolder,
+                    /*virtualRowIndex*/ std::nullopt,
+                    /*interruptDescriptorKeyLength*/ 0,
+                    chunkReadOptions.ReuseSessionInvokerForDecompression ? sessionInvoker : nullptr);
             };
             auto schemafulReaderFactory = [&] (const TTableSchemaPtr& schema, const TColumnFilter& columnFilter) {
                 return CreateSchemafulReaderAdapter(

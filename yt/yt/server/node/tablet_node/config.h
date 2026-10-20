@@ -296,6 +296,7 @@ struct TStoreCompactorDynamicConfig
     std::optional<std::string> PartitioningFairSharePool;
 
     bool ReuseCompactionInvokerForWriterCompression;
+    bool ReuseCompactionInvokerForReaderDecompression;
 
     bool ScheduleNewTasksAfterTaskCompletion;
 

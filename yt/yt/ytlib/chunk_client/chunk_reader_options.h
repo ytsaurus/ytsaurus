@@ -44,6 +44,9 @@ struct TClientChunkReadOptions
     //! Additional request data, e.g. NBD request id.
     std::optional<ui64> Cookie;
 
+    //! Reuse the session invoker for decompression in wrapped unversioned readers.
+    bool ReuseSessionInvokerForDecompression = false;
+
     void ResetStatistics();
     void AddStatisticsFrom(const TClientChunkReadOptions& from) const;
 };

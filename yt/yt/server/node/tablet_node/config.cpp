@@ -287,6 +287,8 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("reuse_compaction_invoker_for_writer_compression", &TThis::ReuseCompactionInvokerForWriterCompression)
         .Default(false);
+    registrar.Parameter("reuse_compaction_invoker_for_reader_decompression", &TThis::ReuseCompactionInvokerForReaderDecompression)
+        .Default(false);
 
     registrar.Parameter("schedule_new_tasks_after_task_completion", &TThis::ScheduleNewTasksAfterTaskCompletion)
         .Default(true);
