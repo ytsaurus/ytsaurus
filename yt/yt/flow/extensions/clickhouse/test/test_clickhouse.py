@@ -5,6 +5,7 @@ from unittest.mock import Mock
 import pytest
 
 import yatest.common
+from yt.yt.flow.library.python.client.state_unpack import unpack_state
 import yt.wrapper
 
 from yt.common import wait
@@ -521,10 +522,13 @@ class TestClickHouseSink(FlowTestBase):
         self.assert_no_rows(("a1",))
 
     def read_sink_states(self):
-        return self.client.select_rows(
-            f"* from [{self.pipeline_path}/states]",
-            format=yt.wrapper.format.YsonFormat(encoding=None),
-        )
+        return [
+            {**row, b"state": unpack_state(row, encoding=None)}
+            for row in self.client.select_rows(
+                f"* from [{self.pipeline_path}/states]",
+                format=yt.wrapper.format.YsonFormat(encoding=None),
+            )
+        ]
 
     def undelivered_batch_bounds(self):
         return [
@@ -716,7 +720,7 @@ class TestClickHouseSink(FlowTestBase):
                     format=yt.wrapper.format.YsonFormat(encoding=None),
                 )
                 return [
-                    row[b"state"]
+                    unpack_state(row, encoding=None)
                     for row in rows
                     if row[b"computation_id"] == b"reader" and row[b"name"] == b"/$active_source/v0"
                 ]

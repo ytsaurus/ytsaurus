@@ -18,4 +18,7 @@ SIZE(SMALL)
 
 END()
 
-RECURSE(mock)
+RECURSE(
+    mock
+    state_unpack
+)

@@ -12,7 +12,7 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || `delta` | **Type**: [NYT::NFlow::NDeltaCodecs::ECodec](./all_yson_structs#NYT_NFlow_NDeltaCodecs_ECodec)
  ||
 || `compress` | **Type**: `bool`
-**Default value**: `false`
+**Default value**: `true`
  ||
 || `recode_probability` | **Type**: `double`
 **Default value**: `0.1`

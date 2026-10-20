@@ -109,7 +109,7 @@ class TestArrivalOrderTableSink(FlowTestBase):
     def source_persisted_offset(self):
         total = 0
         found = False
-        for row in self.client.select_rows(f"* from [{self.pipeline_path}/states]"):
+        for row in self.read_internal_key_states("reader"):
             computation_id = row["computation_id"]
             name = row["name"]
             if isinstance(computation_id, bytes):

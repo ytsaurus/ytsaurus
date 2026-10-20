@@ -16,9 +16,7 @@ from .yt_sync import run_yt_sync
 
 ##################################################################
 
-PIPELINE_CONFIG_PATH = yatest.common.source_path(
-    "yt/yt/flow/examples/python/word_count/test/pipeline.yson"
-)
+PIPELINE_CONFIG_PATH = yatest.common.source_path("yt/yt/flow/examples/python/word_count/test/pipeline.yson")
 
 if yatest.common.context.sanitize is not None:
     TOTAL_EVENTS = 100
@@ -43,10 +41,8 @@ def generate_log(tablet_count):
 
 # [BEGIN test_setup]
 class Test(FlowTestPythonBase):
-    PYTHON_COMPANION_BINARY = yatest.common.binary_path(
-        "yt/yt/flow/examples/python/word_count/word_count"
-    )
-# [END test_setup]
+    PYTHON_COMPANION_BINARY = yatest.common.binary_path("yt/yt/flow/examples/python/word_count/word_count")
+    # [END test_setup]
 
     def prepare_environment(self, input_queue):
         tablet_count = 5
@@ -94,10 +90,8 @@ class Test(FlowTestPythonBase):
             self.wait_pipeline_state("completed")
             logging.info("pipeline completed")
             got_counts = {}
-            expr = f"* from [{self.pipeline_path}/states]"
-            key_states = list(self.client.select_rows(expr))
-            for state in key_states:
-                yson_payload = yson.loads(state['state']['payload'].encode())
+            for state in self.read_internal_key_states("mapper"):
+                yson_payload = yson.loads(yson.get_bytes(state["state"]["payload"]))
                 got_counts[yson_payload['word']] = yson_payload['count']
             logging.info("Got counts: %s", got_counts)
             logging.info("Expected counts: %s", self._expected_counts)
@@ -119,8 +113,7 @@ class Test(FlowTestPythonBase):
             # Vanilla startup is slow: heavy binary upload + cold flow_server boot.
             self.wait_pipeline_state("completed", timeout=600)
             got_counts = {}
-            expr = f"* from [{self.pipeline_path}/states]"
-            for state in self.client.select_rows(expr):
-                yson_payload = yson.loads(state['state']['payload'].encode())
+            for state in self.read_internal_key_states("mapper"):
+                yson_payload = yson.loads(yson.get_bytes(state["state"]["payload"]))
                 got_counts[yson_payload['word']] = yson_payload['count']
             assert self._expected_counts == got_counts
