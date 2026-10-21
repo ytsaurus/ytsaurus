@@ -164,11 +164,19 @@ Chunk Squashing::squash(std::vector<Chunk> && input_chunks, Chunk::ChunkInfoColl
 
     for (size_t i = 0; i != num_columns; ++i)
     {
+        /// Materialize ColumnConst before concatenation, because ColumnConst::insertRangeFrom
+        /// ignores the source value and just increments the row count.
+        if (isColumnConst(*mutable_columns[i]))
+        {
+            mutable_columns[i] = IColumn::mutate(mutable_columns[i]->convertToFullColumnIfConst());
+            for (auto & column : source_columns_list[i])
+                column = column->convertToFullColumnIfConst();
+        }
         if (!have_same_serialization[i])
         {
-            mutable_columns[i] = recursiveRemoveSparse(std::move(mutable_columns[i]))->assumeMutable();
+            mutable_columns[i] = IColumn::mutate(recursiveRemoveSparse(mutable_columns[i]->convertToFullColumnIfConst()));
             for (auto & column : source_columns_list[i])
-                column = recursiveRemoveSparse(column);
+                column = recursiveRemoveSparse(column->convertToFullColumnIfConst());
         }
 
         /// We know all the data we will insert in advance and can make all necessary pre-allocations.
