@@ -22,6 +22,10 @@
 
 namespace NYql::NYtflow {
 
+namespace NTest {
+class TComputationPatternTestAccess;
+} // namespace NTest
+
 enum class EComputationPatternUnsuitabilityReason {
     YtflowCallableDenied /* "ytflow_callable_denied" */,
     UnknownYtflowCallable /* "unknown_ytflow_callable" */,
@@ -50,6 +54,8 @@ public:
     size_t GetNodeCount() const;
 
 private:
+    friend class NTest::TComputationPatternTestAccess;
+
     friend TIntrusivePtr<TComputationPatternHolder> BuildComputationPatternHolder(
         TString lambdaFile,
         TIntrusivePtr<TFunctionRegistryHolder> functionRegistryHolder,
@@ -69,7 +75,8 @@ private:
         TIntrusivePtr<TFunctionRegistryHolder> functionRegistryHolder,
         TLangVersion langVersion,
         TString optLLVM,
-        TRuntimeSettings::TConstPtr runtimeSettings);
+        TRuntimeSettings::TConstPtr runtimeSettings,
+        NKikimr::NMiniKQL::IStatsRegistry* stats);
 
 private:
     TIntrusivePtr<TFunctionRegistryHolder> FunctionRegistryHolder_;

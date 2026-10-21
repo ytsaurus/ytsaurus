@@ -201,7 +201,7 @@ void AddComputationPatternResourceForLambda(
         NYT::NYTree::ConvertToNode(ctx.RunOptions.Types()->LangVer));
     computationPatternSpec->Parameters->AddChild(
         "opt_llvm",
-        NYT::NYTree::ConvertToNode(TString("OFF")));
+        NYT::NYTree::ConvertToNode(ctx.OptLLVM));
     computationPatternSpec->Parameters->AddChild(
         "runtime_settings",
         NYT::NYTree::ConvertToNode(SerializeRuntimeSettingsToString(
@@ -893,7 +893,7 @@ void ProcessOpBase(
 
     parameters->AddChild(
         "opt_llvm",
-        NYT::NYTree::ConvertToNode(TString("OFF")));
+        NYT::NYTree::ConvertToNode(ctx.OptLLVM));
 
     parameters->AddChild(
         "runtime_settings",
@@ -1269,6 +1269,7 @@ TBuildPipelineSpecContext::TBuildPipelineSpecContext(
     , SecureParams(secureParams)
     , EnableComputationPatternResources(
         prepareCtx.RunOptions.Config()->GetEnableComputationPatternResources())
+    , OptLLVM(prepareCtx.RunOptions.Types()->OptLLVM.GetOrElse(TString()))
 { }
 
 TBuildPipelineSpecResult BuildPipelineSpec(

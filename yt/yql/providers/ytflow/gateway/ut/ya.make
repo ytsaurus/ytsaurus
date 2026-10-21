@@ -8,7 +8,7 @@ PEERDIR(
     library/cpp/testing/common
     library/cpp/yt/memory
 
-    yql/essentials/minikql/computation/no_llvm
+    yql/essentials/minikql/computation/llvm16
     yql/essentials/providers/common/structured_token
     yql/essentials/public/udf/service/stub
     yql/essentials/sql/pg_dummy

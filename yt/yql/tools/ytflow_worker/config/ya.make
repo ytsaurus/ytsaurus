@@ -3,7 +3,7 @@ LIBRARY()
 PEERDIR(
     yt/yt/core
     yt/yt/flow/library/cpp/common
-    yt/yt/flow/library/cpp/runner
+    yt/yt/flow/library/cpp/runner/no_engine
 )
 
 SRCS(
