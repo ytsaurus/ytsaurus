@@ -1,7 +1,6 @@
 package tech.ytsaurus.flow.pipeline;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -19,12 +18,10 @@ import tech.ytsaurus.flow.config.EnvironmentReader;
 import tech.ytsaurus.flow.config.PipelineRunnerConfig;
 import tech.ytsaurus.flow.state.StateDescriptor;
 import tech.ytsaurus.flow.stream.FlowStream;
-import tech.ytsaurus.yson.ClosableYsonConsumer;
-import tech.ytsaurus.yson.YsonTextWriter;
 import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
-import tech.ytsaurus.ysontree.YTreeNodeUtils;
 
 /**
  * Java-side runner for the {@code --config --flow-bin} vanilla launch path.
@@ -89,6 +86,30 @@ public class FlowLauncher {
     }
 
     /**
+     * Enriches, validates and writes the full config in binary YSON without starting flow_server.
+     *
+     * <p>Uses the same standard enrichment, transformation and final validation as
+     * {@link #launch(String, String, UnaryOperator)}. Declares no registered streams or states;
+     * the config or transformation must supply their schemas and state descriptors.
+     *
+     * @param configPath path to the source config, which is left unchanged.
+     * @param outputPath destination for the completed config; must differ from the source file.
+     * @param configTransform returns a non-null full config containing a {@code spec} map.
+     */
+    public void writeConfig(
+            @Nullable String configPath,
+            Path outputPath,
+            UnaryOperator<YTreeNode> configTransform
+    ) throws IOException {
+        String inputPath = requireConfigPath(configPath);
+        if (isSameConfigFile(Path.of(inputPath), outputPath)) {
+            throw new IllegalArgumentException("Output config must differ from the source config");
+        }
+        var config = buildExtendedConfig(inputPath, Map.of(), List.of(), configTransform);
+        writePipelineConfig(config, outputPath);
+    }
+
+    /**
      * Enriches the pipeline config with the registered streams, runs flow_server on it, and
      * returns its exit code. Declares no states: a profile state must then carry its own
      * descriptor source in the spec.
@@ -143,9 +164,7 @@ public class FlowLauncher {
             List<String> flowServerFlags,
             UnaryOperator<YTreeNode> configTransform
     ) throws IOException, InterruptedException {
-        if (configPath == null || configPath.isEmpty()) {
-            throw new IllegalArgumentException("--config <pipeline.yson> is required to launch the pipeline");
-        }
+        String inputPath = requireConfigPath(configPath);
         String flowBinPath = flowBin == null || flowBin.isEmpty() ? envReader.getVar(ENV_VAR_YT_FLOW_BIN) : flowBin;
         if (flowBinPath == null || flowBinPath.isEmpty()) {
             throw new IllegalArgumentException("flow_server is not given: pass --flow-bin <path to flow_server> "
@@ -153,7 +172,7 @@ public class FlowLauncher {
         }
         String flowBinAbs = Paths.get(flowBinPath).toAbsolutePath().toString();
 
-        YTreeNode pipelineConfig = buildExtendedConfig(configPath, streams, states, configTransform);
+        YTreeNode pipelineConfig = buildExtendedConfig(inputPath, streams, states, configTransform);
         Path extendedConfig = writeExtendedConfig(pipelineConfig);
         try {
             List<String> command = new ArrayList<>(List.of(flowBinAbs, "--config", extendedConfig.toString()));
@@ -247,6 +266,25 @@ public class FlowLauncher {
                 .orElseThrow(() -> new IllegalArgumentException("Pipeline config has no \"spec\" map"));
     }
 
+    private static boolean isSameConfigFile(Path input, Path output) throws IOException {
+        var normalizedInput = input.toAbsolutePath().normalize();
+        var normalizedOutput = output.toAbsolutePath().normalize();
+        if (normalizedInput.equals(normalizedOutput)) {
+            return true;
+        }
+        if (!Files.exists(output)) {
+            return false;
+        }
+        return Files.isSameFile(input, output);
+    }
+
+    private static String requireConfigPath(@Nullable String configPath) {
+        if (configPath == null || configPath.isEmpty()) {
+            throw new IllegalArgumentException("--config <pipeline.yson> is required to prepare the pipeline");
+        }
+        return configPath;
+    }
+
     /**
      * Applies every vanilla-launch enrichment: ships the companion jars unless every companion
      * resource declares its classpath, applies the resolved job environment to the tasks, and
@@ -285,16 +323,19 @@ public class FlowLauncher {
     Path writeExtendedConfig(YTreeNode pipelineConfig) throws IOException {
         Path dir = Files.createTempDirectory("flow_runner_");
         Path path = dir.resolve("extended-pipeline.yson");
-        // YTreeTextSerializer decodes every string node through a Java String,
-        // which corrupts non-UTF-8 payloads (e.g. a serialized proto descriptor
-        // set in the spec); walking with stringAsBytes escapes the raw bytes
-        // instead, producing pure-ASCII text.
-        StringBuilder sb = new StringBuilder();
-        try (ClosableYsonConsumer consumer = new YsonTextWriter(sb)) {
-            YTreeNodeUtils.walk(pipelineConfig, consumer, /*stringAsBytes*/ true);
+        try {
+            writePipelineConfig(pipelineConfig, path);
+            return path;
+        } catch (IOException | RuntimeException e) {
+            deleteExtendedConfig(path);
+            throw e;
         }
-        Files.writeString(path, sb.toString(), StandardCharsets.UTF_8);
-        return path;
+    }
+
+    private static void writePipelineConfig(YTreeNode config, Path path) throws IOException {
+        try (var output = Files.newOutputStream(path)) {
+            YTreeBinarySerializer.serialize(config, output);
+        }
     }
 
     /**
