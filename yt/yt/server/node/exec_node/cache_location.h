@@ -4,6 +4,8 @@
 #include "private.h"
 #include "public.h"
 
+#include <yt/yt/core/concurrency/async_barrier.h>
+
 #include <yt/yt/server/node/data_node/blob_chunk.h>
 #include <yt/yt/server/node/data_node/public.h>
 
@@ -75,16 +77,31 @@ public:
 
     const std::string& GetMediumName() const;
 
+    void InitializePendingDownloadsTracker();
+    TPendingDownloadsTrackerPtr GetPendingDownloadsTracker() const;
+    i64 GetAvailableSpaceForDownloads() const;
+
+    void RemoveChunkFiles(NChunkClient::TChunkId chunkId, bool force) override;
+
+    using TTrackedChunkRemovalCookie = TFinallyGuard<TExtendedCallback<void()>>;
+    TTrackedChunkRemovalCookie PrepareTrackedChunkRemoval();
+    void RemoveChunkFilesTracked(const TTrackedChunkRemovalCookie& cookie, NChunkClient::TChunkId chunkId, bool force);
+    TFuture<void> GetTrackedChunkRemovalBarrierFuture();
+
 private:
     const NDataNode::TCacheLocationConfigPtr StaticConfig_;
+
     const NConcurrency::IReconfigurableThroughputThrottlerPtr InThrottler_;
     const TArtifactCachePtr ArtifactCache_;
+    const TPendingDownloadsTrackerPtr PendingDownloadsTracker_;
 
     const std::string MediumName_;
 
     NClusterNode::IBootstrapBase* const Bootstrap_;
 
     const NProfiling::TCounter EnospcRate_;
+
+    NConcurrency::TAsyncBarrier TrackedChunkRemovalBarrier_;
 
     TFuture<void> RemoveChunks();
 

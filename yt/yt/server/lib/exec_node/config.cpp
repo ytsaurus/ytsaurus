@@ -278,6 +278,17 @@ void TChunkCacheDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("test_disable_on_out_of_disk_space", &TThis::TestDisableOnOutOfDiskSpace)
         .Default(false);
+
+    registrar.Parameter("enable_pending_downloads_tracker", &TThis::EnablePendingDownloadsTracker)
+        .Default(true);
+
+    registrar.Parameter("enforce_cache_quota", &TThis::EnforceCacheQuota)
+        .Default(false);
+
+    registrar.Parameter("disk_space_gap_ratio", &TThis::DiskSpaceGapRatio)
+        .GreaterThanOrEqual(0.0)
+        .LessThanOrEqual(1.0)
+        .Default(0.02);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
