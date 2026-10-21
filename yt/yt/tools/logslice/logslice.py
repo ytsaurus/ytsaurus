@@ -1475,12 +1475,18 @@ def infer_host_component(host):
     if re.search(r"(?:^|-)master(?:-|$)", short) or \
             re.match(r"^m(?:c)?\d+(?:-|$)", short):
         return "master", "master"
+    location = re.match(r"^(?P<location>[a-z]{3}\d+-\d+)-node-", short)
+    if location:
+        return "node", "node-" + location.group("location")
     return None, None
 
 
 def _resolve_base(role, component, available):
     if component in available:
         return component
+    # Generic node hostnames identify an exact location, not a base prefix.
+    if role == "node":
+        return None
     if role == "master":
         matches = [
             candidate for candidate in available

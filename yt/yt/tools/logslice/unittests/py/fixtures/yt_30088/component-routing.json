@@ -1,0 +1,40 @@
+{
+  "host": "ext0-0004-node-poincare-beta.ext.yp-c.yandex.net",
+  "candidates": [
+    "node-ext0-0004"
+  ],
+  "expected_base": "node-ext0-0004",
+  "original_invocation": {
+    "skill_name": "logslice",
+    "script_path": "scripts/logslice.py",
+    "script_arguments": [
+      "ext0-0004-node-poincare-beta.ext.yp-c.yandex.net",
+      "--type",
+      "error",
+      "-t",
+      "2026-10-17 01:32:30",
+      "-e",
+      "2026-10-17 01:34:00",
+      "-x",
+      "grep -F -e 'Restarting Hydra instance' -e 'Leader lease' -e 'Socket read error' -e 'Connection timed out' | sed -n '1,20p'"
+    ]
+  },
+  "original_result": {
+    "skill": "logslice",
+    "script": "scripts/logslice.py",
+    "exit_code": 2,
+    "timed_out": false,
+    "timeout_seconds": 60,
+    "stdout": "",
+    "stderr": "cannot infer the YT component from host 'ext0-0004-node-poincare-beta.ext.yp-c.yandex.net'; discovered: node-ext0-0004; pass --component NAME\n{\"gaps\": null, \"log_read\": false, \"outcome\": \"failed\", \"requested_component\": null, \"result\": \"operational_failure\", \"selected_base\": null, \"selected_component\": null, \"selected_files\": []}\n",
+    "stdout_truncated": false,
+    "stderr_truncated": false,
+    "completion_record": {
+      "record_id": "record-d58086f2de312cf8a68459fd95112870",
+      "call_id": "call-ebd25aae0983480d3f7814ad36d75c17",
+      "result_id": "result-c26a67f04615fc7c3f6364649b20baf7",
+      "retention_status": "retained"
+    }
+  },
+  "working_override": "node-ext0-0004"
+}
