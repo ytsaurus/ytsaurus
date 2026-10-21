@@ -34,6 +34,7 @@ PEERDIR(
     yt/chyt/client
 
     yt/yt/client/arrow
+    yt/yt/client/driver
 
     yt/yt/library/dynamic_config
     yt/yt/library/clickhouse_discovery
