@@ -1871,6 +1871,79 @@ class ArchiveParsingTest(unittest.TestCase):
 
 
 class ComponentRoutingTest(unittest.TestCase):
+    def test_generic_node_retained_routing_fixture(self):
+        relative_path = (
+            "yt/yt/tools/logslice/unittests/py/fixtures/yt_30088/"
+            "component-routing.json")
+        try:
+            import yatest.common
+            path = yatest.common.source_path(relative_path)
+        except ImportError:
+            path = os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                "fixtures", "yt_30088", "component-routing.json")
+        with open(path) as stream:
+            fixture = json.load(stream)
+        for override in (None, fixture["working_override"]):
+            with self.subTest(override=override):
+                route = logslice.resolve_component_route(
+                    fixture["host"], override, fixture["candidates"])
+                self.assertEqual(route["base"], fixture["expected_base"])
+
+    def test_generic_node_selects_exact_location(self):
+        for location, suffix in (("ext0-0004", "ext"), ("klg1-0042", "klg")):
+            with self.subTest(location=location):
+                route = logslice.resolve_component_route(
+                    location + "-node-poincare-beta." + suffix + ".yp-c.yandex.net",
+                    None,
+                    ["push-client", "node-ext0-0000", "node", "node-" + location],
+                )
+                self.assertEqual(route["role"], "node")
+                self.assertEqual(route["component"], "node-" + location)
+                self.assertEqual(route["base"], "node-" + location)
+                self.assertEqual(route["source"], "hostname")
+
+    def test_generic_node_requires_exact_discovered_base(self):
+        for candidates in (
+            ["node-ext0-0000", "push-client"],
+            ["node"],
+            ["node-ext0-0004-sidecar"],
+            [],
+        ):
+            with self.subTest(candidates=candidates):
+                with self.assertRaisesRegex(ValueError, "that base was not found"):
+                    logslice.resolve_component_route(
+                        "ext0-0004-node-poincare-beta.ext.yp-c.yandex.net",
+                        None, candidates)
+
+    def test_generic_node_keeps_specific_role_precedence(self):
+        for marker, role in (
+            ("tab", "tablet-node"), ("dat", "data-node"), ("exec", "exec-node"),
+        ):
+            with self.subTest(marker=marker):
+                self.assertEqual(
+                    logslice.infer_host_component(
+                        "ext0-0004-node-" + marker + "-node-poincare-beta"),
+                    (role, "node"))
+
+    def test_generic_node_explicit_override_takes_precedence(self):
+        route = logslice.resolve_component_route(
+            "ext0-0004-node-poincare-beta.ext.yp-c.yandex.net",
+            "push-client", ["node-ext0-0004", "push-client"])
+        self.assertEqual(route["base"], "push-client")
+        self.assertEqual(route["source"], "--component")
+
+    def test_generic_node_rejects_unknown_location_or_role(self):
+        for host in (
+            "poincare-beta.ext.yp-c.yandex.net",
+            "ext0-0004-poincare-beta.ext.yp-c.yandex.net",
+            "prefix-ext0-0004-node-poincare-beta.ext.yp-c.yandex.net",
+            "ext-0004-node-poincare-beta.ext.yp-c.yandex.net",
+        ):
+            with self.subTest(host=host):
+                with self.assertRaisesRegex(ValueError, "cannot infer"):
+                    logslice.resolve_component_route(host, None, ["node-ext0-0004"])
+
     def test_legacy_tablet_node_hostname_maps_to_node_base(self):
         self.assertEqual(
             logslice.infer_host_component(
