@@ -397,7 +397,11 @@ struct TChunkCacheDynamicConfig
 {
     bool TestCacheLocationDisabling;
 
+    // TODO(dann239): Move these into exec node cache location config.
     bool TestDisableOnOutOfDiskSpace;
+    bool EnablePendingDownloadsTracker;
+    bool EnforceCacheQuota;
+    double DiskSpaceGapRatio;
 
     REGISTER_YSON_STRUCT(TChunkCacheDynamicConfig);
 

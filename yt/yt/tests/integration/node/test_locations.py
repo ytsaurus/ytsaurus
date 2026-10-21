@@ -543,6 +543,16 @@ class CacheLocationOverflowBase(YTEnvSetup):
     _BACKEND = None
     _EXPECTED_ERROR = None
 
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "chunk_cache": {
+                    "enable_pending_downloads_tracker": False,
+                },
+            },
+        },
+    }
+
     @classmethod
     def setup_class(cls):
         import porto
