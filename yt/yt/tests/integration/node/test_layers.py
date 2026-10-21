@@ -484,7 +484,7 @@ class TestLayers(TestPortoLayersBase):
             },
         )
 
-        job_id, = wait_breakpoint()
+        job_id, = wait_breakpoint(op)
         # The controller agent prepends the system layer independently of the operation spec.
         assert get_job_root_volume_layer_paths(job_id)[1:] == [ROOTFS_LAYER_PATH]
         release_breakpoint(job_id=job_id)
@@ -518,11 +518,11 @@ class TestLayers(TestPortoLayersBase):
             },
         )
 
-        mapper_job_id, = wait_breakpoint(breakpoint_name="mapper")
+        mapper_job_id, = wait_breakpoint(op, breakpoint_name="mapper")
         assert get_job_root_volume_layer_paths(mapper_job_id)[1:] == [ROOTFS_LAYER_PATH]
         release_breakpoint(breakpoint_name="mapper", job_id=mapper_job_id)
 
-        reducer_job_id, = wait_breakpoint(breakpoint_name="reducer")
+        reducer_job_id, = wait_breakpoint(op, breakpoint_name="reducer")
         assert get_job_root_volume_layer_paths(reducer_job_id)[1:] == ["//tmp/layer2", ROOTFS_LAYER_PATH]
         release_breakpoint(breakpoint_name="reducer", job_id=reducer_job_id)
 
@@ -618,7 +618,7 @@ class TestRootFS(TestLayersBase):
             with_breakpoint('set -e; test -d /home/yt_slot_0; touch /home/yt_slot_0/my_file; ls /slot/home >&2; BREAKPOINT'),
         )
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
         assert len(job_ids) == 1
 
         job_id = job_ids[0]
@@ -704,7 +704,7 @@ class TestPrivateDirectory(TestLayersBase):
             },
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         private_path = os.path.normpath(
             f'{op.get_job_node_orchid(job_id)["exec_attributes"]["job_proxy_socket_path"]}/../../private'
         )
@@ -756,7 +756,7 @@ class TestPrivateDirectory(TestLayersBase):
             spec={"max_failed_job_count": 1},
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         private_path = os.path.normpath(
             f'{op.get_job_node_orchid(job_id)["exec_attributes"]["job_proxy_socket_path"]}/../../private'
         )
@@ -1328,7 +1328,7 @@ class TestLayerCacheResurrection(TestLayerCacheBase):
             },
         )
 
-        job_id, = wait_breakpoint(job_count=1)
+        job_id, = wait_breakpoint(op1, job_count=1)
 
         logs = filter_layer_cache_logs(self._get_node_debug_logs("Layer added to cache"), "//tmp/layer1")
         assert len(logs) == 1
@@ -2175,7 +2175,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
             },
         )
 
-        job_id, = wait_breakpoint(job_count=1, breakpoint_name="first_operation")
+        job_id, = wait_breakpoint(op1, job_count=1, breakpoint_name="first_operation")
 
         print_debug(f"First operation job id is {job_id}")
 
@@ -2192,7 +2192,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
 
         cache_hit_count = cache_hit_counter.get_delta()
 
-        map(
+        op2 = map(
             track=False,
             in_="//tmp/t_in",
             out="<append=%true>//tmp/t_out",
@@ -2205,7 +2205,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
             },
         )
 
-        job_id, = wait_breakpoint(job_count=1, breakpoint_name="second_operation")
+        job_id, = wait_breakpoint(op2, job_count=1, breakpoint_name="second_operation")
         time.sleep(1)
         assert squashfs_volume_count.get() == 1
 
@@ -3769,7 +3769,7 @@ class TestVolumeReuseInGangOperation(TestPortoLayersBase):
             track=False,
         )
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
         first_job_id = job_ids[0]
 
         first_incarnation_reused_job_id = next(jid for jid in job_ids if jid != first_job_id)
@@ -3785,7 +3785,7 @@ class TestVolumeReuseInGangOperation(TestPortoLayersBase):
         for job_id in job_ids:
             release_breakpoint(job_id=job_id)
 
-        new_job_ids = wait_breakpoint(job_count=2)
+        new_job_ids = wait_breakpoint(op, job_count=2)
         release_breakpoint()
 
         op.track()
@@ -3887,7 +3887,7 @@ class TestVolumeReuseInGangOperation(TestPortoLayersBase):
 
         wait(lambda: get(op.get_orchid_path() + "/controller/operation_incarnation") != current_incarnation)
 
-        new_job_ids = wait_breakpoint(job_count=2)
+        new_job_ids = wait_breakpoint(op, job_count=2)
         release_breakpoint()
 
         op.track()
@@ -4047,10 +4047,10 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
             },
         )
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
 
         assert get_allocation_id_from_job_id(job_id1) == get_allocation_id_from_job_id(job_id2)
 
@@ -4117,10 +4117,10 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
             },
         )
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id2)
 
         op.track()
@@ -4167,7 +4167,7 @@ class TestLayerReuseInAllocationOfGangOperation(TestLayerReuseInAllocationBase):
             track=False,
         )
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
 
         first_job_id = job_ids[0]
 
@@ -4190,7 +4190,7 @@ class TestLayerReuseInAllocationOfGangOperation(TestLayerReuseInAllocationBase):
         for jid in job_ids:
             release_breakpoint(job_id=jid)
 
-        new_job_ids = wait_breakpoint(job_count=2)
+        new_job_ids = wait_breakpoint(op, job_count=2)
         release_breakpoint()
 
         op.track()

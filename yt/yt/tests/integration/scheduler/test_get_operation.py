@@ -111,7 +111,7 @@ class TestGetOperation(YTEnvSetup):
             command=with_breakpoint("cat ; BREAKPOINT"),
             spec={"mapper": {"input_format": "json", "output_format": "json"}},
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         wait(lambda: exists(op.get_path()))
 
@@ -199,7 +199,7 @@ class TestGetOperation(YTEnvSetup):
             out="//tmp/t2",
             command=with_breakpoint("cat ; BREAKPOINT"),
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         wait(lambda: _get_operation_from_archive(op.id))
 
@@ -228,7 +228,7 @@ class TestGetOperation(YTEnvSetup):
             command=with_breakpoint("cat ; BREAKPOINT"),
             spec={"mapper": {"input_format": "json", "output_format": "json"}},
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         id_hi, id_lo = uuid_to_parts(op.id)
         archive_table_path = "//sys/operations_archive/ordered_by_id"
@@ -291,7 +291,7 @@ class TestGetOperation(YTEnvSetup):
             command=with_breakpoint("cat ; BREAKPOINT"),
             spec={"mapper": {"input_format": "json", "output_format": "json"}, "annotations": annotations},
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         wait(lambda: _get_operation_from_archive(op.id))
         assert list(get_operation(op.id, attributes=["state"])) == ["state"]
@@ -422,7 +422,7 @@ class TestGetOperation(YTEnvSetup):
             command=with_breakpoint("cat ; BREAKPOINT"),
             spec={"mapper": {"input_format": "json", "output_format": "json"}},
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         wait(lambda: _get_operation_from_archive(op.id))
 
@@ -451,7 +451,7 @@ class TestGetOperation(YTEnvSetup):
             spec={"mapper": {"input_format": "json", "output_format": "json"}},
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         # Progress is still served from the orchid (include_runtime) even though the archive is down.
         wait(lambda: get_operation(op.id, include_runtime=True).get("brief_progress", {}).get("jobs", {}).get("running") == 1)
@@ -493,7 +493,7 @@ class TestGetOperation(YTEnvSetup):
 
         op = run_test_vanilla(command=with_breakpoint("BREAKPOINT"), track=False)
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         wait(lambda: _get_operation_from_cypress(op.id).get("brief_progress", {}).get("jobs", {}).get("running") == 1)
 
         res_api = get_operation(op.id)
@@ -544,7 +544,7 @@ class TestGetOperation(YTEnvSetup):
             command=with_breakpoint("cat ; BREAKPOINT"),
             spec={"mapper": {"input_format": "json", "output_format": "json"}},
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         wait(lambda: _get_operation_from_archive(op.id))
         assert get_operation(op.id)["scheduling_attributes_per_pool_tree"]["default"]["slot_index"] == 0

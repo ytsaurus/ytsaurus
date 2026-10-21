@@ -1143,7 +1143,7 @@ class TestDumpJobContextRpcProxy(TestRpcProxyBase):
             spec={"mapper": {"input_format": "json", "output_format": "json"}},
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         # Wait till job starts reading input
         wait(lambda: get(op.get_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress") >= 0.5)
 

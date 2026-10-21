@@ -116,7 +116,7 @@ class TestSchedulerCommon(YTEnvSetup):
             spec={"test_flag": yson.to_yson_type("value", attributes={"attr": 0})},
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         progress = get(op.get_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress")
         assert progress >= 0
 
@@ -141,7 +141,7 @@ class TestSchedulerCommon(YTEnvSetup):
             command=with_breakpoint("echo FOOBAR >&2 ; BREAKPOINT; cat"),
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
 
         def get_stderr_size():
             return get(op.get_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/stderr_size")
@@ -224,7 +224,7 @@ class TestSchedulerCommon(YTEnvSetup):
             spec={"mapper": {"input_format": "json", "output_format": "json"}},
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         # Wait till job starts reading input
         wait(lambda: get(op.get_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress") >= 0.5)
 
@@ -260,7 +260,7 @@ class TestSchedulerCommon(YTEnvSetup):
             authenticated_user="abc",
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         # Wait till job starts reading input
         wait(lambda: get(op.get_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress") >= 0.5)
 
@@ -721,7 +721,7 @@ class TestSchedulerCommon(YTEnvSetup):
                 "max_failed_job_count": 1,
             },
         )
-        jobs = wait_breakpoint(job_count=5)
+        jobs = wait_breakpoint(op, job_count=5)
 
         for job_id in jobs[:3]:
             release_breakpoint(job_id=job_id)
@@ -790,7 +790,7 @@ class TestSchedulerCommon(YTEnvSetup):
             out="//tmp/out",
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         input_transaction_ids = get(op.get_path() + "/@input_transaction_ids")
         assert len(input_transaction_ids) == 1
@@ -832,7 +832,7 @@ class TestSchedulerCommon(YTEnvSetup):
             out="//tmp/out",
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         input_transaction_ids = get(op.get_path() + "/@input_transaction_ids")
         assert len(input_transaction_ids) == 1
@@ -1108,7 +1108,7 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
             in_="//tmp/t_input",
             out="//tmp/t_output",
         )
-        wait_breakpoint(job_count=1)
+        wait_breakpoint(op, job_count=1)
         wait(lambda: exists(op.get_path() + "/@brief_progress"))
         wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["total"] > 0, ignore_exceptions=True)
         counters = get(op.get_path() + "/@brief_progress/jobs")
@@ -1216,7 +1216,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
             spec={"data_size_per_job": 1},
         )
 
-        jobs = wait_breakpoint(job_count=3)
+        jobs = wait_breakpoint(op, job_count=3)
 
         for job_id in jobs[:2]:
             release_breakpoint(job_id=job_id)
@@ -1475,7 +1475,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
             command=with_breakpoint("cat ; BREAKPOINT"),
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         running_jobs = op.get_running_jobs()
         job_id = next(iter(running_jobs.keys()))
 
@@ -1534,7 +1534,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
             command=with_breakpoint("cat ; BREAKPOINT"),
             spec={"data_size_per_job": 1})
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         running_jobs = op.get_running_jobs()
 
@@ -2115,7 +2115,7 @@ class TestAllocationGroupNameForwarding(YTEnvSetup, PrepareTables):
             command=with_breakpoint("BREAKPOINT"),
         )
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
         allocation_id = get_allocation_id_from_job_id(job_ids[0])
 
         orchid_path = \
@@ -2136,7 +2136,7 @@ class TestAllocationGroupNameForwarding(YTEnvSetup, PrepareTables):
             command=with_breakpoint("BREAKPOINT"),
         )
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
         allocation_id = get_allocation_id_from_job_id(job_ids[0])
 
         op.wait_for_fresh_snapshot()

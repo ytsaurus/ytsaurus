@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, wait_no_assert, events_on_fs,
+    authors, wait, wait_no_assert, events_on_fs, wait_breakpoint,
     get, set, get_job, run_test_vanilla,
     create_network_project, extract_statistic_v2)
 
@@ -57,7 +57,7 @@ class TestUserJobNetwork(YTEnvSetup):
             },
         )
 
-        job_id = events_on_fs().wait_breakpoint("command_started")[0]
+        job_id = wait_breakpoint(op, "command_started")[0]
 
         @wait_no_assert
         def check():

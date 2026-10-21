@@ -934,7 +934,7 @@ echo {v = 2} >&7
             spec={"reducer": {"collective_options": {"size": 2}, "close_stdout_if_unused": True}, "job_count": 1},
             track=False,
         )
-        wait_breakpoint(job_count=1)
+        wait_breakpoint(op, job_count=1)
         release_breakpoint()
         op.track()
 
@@ -1949,7 +1949,7 @@ echo {v = 2} >&7
             **kwargs
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         op.interrupt_job(jobs[0], interruption_timeout=2000000)
         release_breakpoint()
 

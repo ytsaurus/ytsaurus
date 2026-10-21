@@ -65,7 +65,7 @@ class TestJobProber(YTEnvSetup):
             spec={"data_size_per_job": 1},
         )
 
-        jobs = wait_breakpoint(job_count=5)
+        jobs = wait_breakpoint(op, job_count=5)
         abandon_job(jobs[0])
 
         release_breakpoint()
@@ -86,7 +86,7 @@ class TestJobProber(YTEnvSetup):
             command=with_breakpoint("cat ; BREAKPOINT"),
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         abandon_job(jobs[0])
 
         op.track()
@@ -149,7 +149,7 @@ class TestJobProber(YTEnvSetup):
             spec={"data_size_per_job": 1},
             authenticated_user="u1",
         )
-        jobs = wait_breakpoint(job_count=5)
+        jobs = wait_breakpoint(op, job_count=5)
 
         with raises_yt_error("Operation access denied"):
             abandon_job(jobs[0], authenticated_user="u2")
@@ -198,7 +198,7 @@ class TestJobProber(YTEnvSetup):
             out="//tmp/t2",
             command=with_breakpoint("BREAKPOINT ; cat"),
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(job_id, operation="spawn", term="dumb", height=50, width=132)
@@ -234,7 +234,7 @@ class TestJobProber(YTEnvSetup):
             out="//tmp/t2",
             command=with_breakpoint("cat ; BREAKPOINT"),
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(
@@ -260,7 +260,7 @@ class TestJobProber(YTEnvSetup):
     @authors("bystrovserg")
     def test_run_job_shell_command(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         output1 = run_job_shell_command(
@@ -295,7 +295,7 @@ class TestJobProber(YTEnvSetup):
             out="//tmp/t2",
             command=with_breakpoint("cat ; BREAKPOINT"),
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(
@@ -322,7 +322,7 @@ class TestJobProber(YTEnvSetup):
             out="//tmp/t2",
             command=with_breakpoint("cat ; BREAKPOINT"),
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(
@@ -360,7 +360,7 @@ class TestJobProber(YTEnvSetup):
             out="//tmp/t2",
             command=with_breakpoint("cat ; BREAKPOINT"),
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(
@@ -391,7 +391,7 @@ class TestJobProber(YTEnvSetup):
             authenticated_user="u1",
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         with raises_yt_error("Operation access denied"):
@@ -429,7 +429,7 @@ class TestJobProber(YTEnvSetup):
                 "enable_secure_vault_variables_in_job_shell": enable_secure_vault_variables_in_job_shell,
             },
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(
@@ -466,7 +466,7 @@ class TestJobProber(YTEnvSetup):
             spec={"data_size_per_job": 1},
         )
 
-        jobs = wait_breakpoint(job_count=5)
+        jobs = wait_breakpoint(op, job_count=5)
         abort_job(jobs[0])
 
         release_breakpoint()
@@ -508,7 +508,7 @@ class TestJobProber(YTEnvSetup):
     @authors("krasovav")
     def test_job_shell_try_change_yt_runtime(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(
@@ -525,7 +525,7 @@ class TestJobProber(YTEnvSetup):
     @authors("krasovav")
     def test_write_job_shell(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"enable_porto": "isolate"})
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(job_id, operation="spawn")
@@ -634,7 +634,7 @@ class TestJobShellInSubcontainer(TestJobProber):
             authenticated_user="taxi_dev",
         )
         try:
-            job_id = wait_breakpoint()[0]
+            job_id = wait_breakpoint(op)[0]
         except YtError:
             op.track()
             assert False
@@ -699,7 +699,7 @@ class TestJobShellInSubcontainer(TestJobProber):
             task_patch={"enable_porto": "isolate"},
         )
         try:
-            job_id = wait_breakpoint()[0]
+            job_id = wait_breakpoint(op)[0]
         except YtError:
             op.track()
             assert False
@@ -810,7 +810,7 @@ class TestJobShellInSubcontainer(TestJobProber):
             authenticated_user="taxi_dev",
         )
         try:
-            job_id = wait_breakpoint()[0]
+            job_id = wait_breakpoint(op)[0]
         except YtError:
             op.track()
             assert False

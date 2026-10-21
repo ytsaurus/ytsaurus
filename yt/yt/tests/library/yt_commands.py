@@ -1325,8 +1325,38 @@ def with_breakpoint(cmd, breakpoint_name="default"):
     return result
 
 
-def wait_breakpoint(*args, **kwargs):
-    return events_on_fs().wait_breakpoint(*args, **kwargs)
+def wait_breakpoint(
+    op,
+    breakpoint_name="default",
+    job_id=None,
+    job_count=None,
+    check_fn=None,
+    timeout=timedelta(seconds=60),
+):
+    """Wait for a breakpoint, failing early if all supplied operations finish."""
+    operations = [op] if isinstance(op, Operation) else list(op)
+    assert operations
+
+    def get_error():
+        states = {operation.id: operation.get_state(verbose=False) for operation in operations}
+        if any(state not in ("completed", "failed", "aborted") for state in states.values()):
+            return None
+
+        errors = [operation.get_error() for operation in operations]
+        return YtError(
+            f"All operations finished before reaching breakpoint '{breakpoint_name}'",
+            attributes={"operation_states": states},
+            inner_errors=[error for error in errors if error is not None],
+        )
+
+    return events_on_fs().wait_breakpoint(
+        breakpoint_name=breakpoint_name,
+        job_id=job_id,
+        job_count=job_count,
+        check_fn=check_fn,
+        timeout=timeout,
+        error_fn=get_error,
+    )
 
 
 def release_breakpoint(*args, **kwargs):

@@ -67,7 +67,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
             },
         )
 
-        jobs = wait_breakpoint(job_count=10)
+        jobs = wait_breakpoint(op, job_count=10)
         for id in jobs:
             release_breakpoint(job_id=id)
 
@@ -97,7 +97,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
             },
         )
 
-        jobs = wait_breakpoint(job_count=10)
+        jobs = wait_breakpoint(op, job_count=10)
         for id in jobs:
             release_breakpoint(job_id=id)
 
@@ -167,7 +167,7 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
 
         node = self._get_job_node(op)
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         scheduler_resource_limits = get(scheduler_orchid_node_path(node) + "/resource_limits")
         assert scheduler_resource_limits["cpu"] == 23.35
@@ -221,7 +221,7 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
             },
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         node = self._get_job_node(op)
 
@@ -720,12 +720,12 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
                 out="//tmp/t2",
                 spec={"data_size_per_job": 1},
             )
-            jobs = wait_breakpoint(tag, job_count=2)
+            jobs = wait_breakpoint(op, tag, job_count=2)
             release_breakpoint(breakpoint_name=tag, job_id=jobs[0])
             release_breakpoint(breakpoint_name=tag, job_id=jobs[1])
             time.sleep(5)
             wait(lambda: op.get_job_count("running") == 2)
-            wait_breakpoint(tag)
+            wait_breakpoint(op, tag)
             op.tag = tag
             return op
 

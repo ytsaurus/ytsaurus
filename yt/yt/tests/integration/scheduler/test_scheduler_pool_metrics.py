@@ -292,7 +292,7 @@ class TestPoolMetrics(YTEnvSetup):
             track=False,
         )
 
-        jobs = wait_breakpoint(job_count=2)
+        jobs = wait_breakpoint(op, job_count=2)
         assert len(jobs) == 2
 
         release_breakpoint(job_id=jobs[0])
@@ -449,7 +449,7 @@ class TestPoolMetrics(YTEnvSetup):
             track=False,
         )
 
-        jobs = wait_breakpoint(job_count=2)
+        jobs = wait_breakpoint(op, job_count=2)
         assert len(jobs) == 2
 
         release_breakpoint(job_id=jobs[0])
@@ -465,7 +465,7 @@ class TestPoolMetrics(YTEnvSetup):
         abort_job(job_to_abort)
 
         # Wait for restarted job to reach breakpoint.
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         assert len(jobs) == 1 and jobs[0] != job_to_abort
         release_breakpoint(job_id=jobs[0])
 
@@ -574,7 +574,7 @@ class TestPoolMetrics(YTEnvSetup):
             track=False,
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         assert len(jobs) == 1
 
         total_time_before_restart = total_time_counter.get_delta()
@@ -630,7 +630,7 @@ class TestPoolMetrics(YTEnvSetup):
         exec_time_counter = research_profiler.counter("scheduler/pools/metrics/exec_time")
         prepare_time_counter = research_profiler.counter("scheduler/pools/metrics/prepare_time")
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         job_ids = list(op.get_running_jobs())
         assert len(job_ids) == 1

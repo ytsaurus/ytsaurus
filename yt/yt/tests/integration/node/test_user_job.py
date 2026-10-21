@@ -201,7 +201,7 @@ class TestSandboxTmpfs(YTEnvSetup):
             track=False,
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         full_spec = get_operation(op.id, attributes=["full_spec"])["full_spec"]
         task_spec = full_spec["tasks"]["task"]
@@ -263,7 +263,7 @@ class TestSandboxTmpfs(YTEnvSetup):
             track=False,
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         @wait_no_assert
         def check():
@@ -1055,7 +1055,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
 
         op.ensure_running()
 
-        jobs = wait_breakpoint(timeout=datetime.timedelta(seconds=300))
+        jobs = wait_breakpoint(op, timeout=datetime.timedelta(seconds=300))
         assert len(jobs) == 1
         job = jobs[0]
 
@@ -1700,7 +1700,7 @@ class TestUserJobIsolation(YTEnvSetup):
             authenticated_user="u1",
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         network_project_id, hostname, _ = get_job_stderr(op.id, job_id).split(b"\n")
         assert network_project_id == str(int("0xDEADBEEF", base=16)).encode("ascii")
         hostname_prefix = b"slot_"
@@ -1724,7 +1724,7 @@ class TestUserJobIsolation(YTEnvSetup):
 
         # ip6tnl0 is some kind of technical interface used by porto.
         pattern = re.compile(b".: (lo|ip6tnl0)")
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         interfaces = get_job_stderr(op.id, job_id)
         for line in interfaces.split(b'\n'):
             if line:
@@ -1748,7 +1748,7 @@ class TestUserJobIsolation(YTEnvSetup):
             task_patch={"network_project": "n"},
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         assert b"dead:beef" in get_job_stderr(op.id, job_id)
 
         release_breakpoint()
@@ -1829,7 +1829,7 @@ class TestUserJobIsolation(YTEnvSetup):
             task_patch={"enable_porto": "isolate", "restrict_porto_place": restrict_porto_place},
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
 
         # Make sure that container fails to start.
         assert b"Cannot start container: LayerNotFound:(nonexistent_layer)" in get_job_stderr(op.id, job_id)
@@ -1846,7 +1846,7 @@ class TestUserJobIsolation(YTEnvSetup):
             task_patch={"enable_porto": "isolate", "restrict_porto_place": restrict_porto_place},
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
 
         if restrict_porto_place:
             assert b"Cannot start container: Permission:(Place /home/slot is not permitted)\n" in get_job_stderr(op.id, job_id)
@@ -1865,7 +1865,7 @@ class TestUserJobIsolation(YTEnvSetup):
             task_patch={"enable_porto": "isolate", "restrict_porto_place": restrict_porto_place},
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
 
         assert b"porto" in get_job_stderr(op.id, job_id)
         assert b"volume" in get_job_stderr(op.id, job_id)
@@ -1882,7 +1882,7 @@ class TestUserJobIsolation(YTEnvSetup):
             task_patch={"enable_porto": "isolate", "restrict_porto_place": restrict_porto_place},
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
 
         if restrict_porto_place:
             assert b"Can't create volume: Permission:(Place /home/slot is not permitted)\n" in get_job_stderr(op.id, job_id)
@@ -2005,7 +2005,7 @@ class TestFixedUser(YTEnvSetup):
                 "layer_paths": ["//tmp/base_layer", ROOTFS_LAYER_PATH],
             })
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
         assert len(job_ids) == 2
 
         for job_id in job_ids:
@@ -2054,8 +2054,8 @@ class TestJobProxyContainer(YTEnvSetup):
 
     @authors("ignat")
     def test_job_proxy_cpu_weight(self):
-        run_test_vanilla(command=with_breakpoint("BREAKPOINT"))
-        wait_breakpoint()
+        op = run_test_vanilla(command=with_breakpoint("BREAKPOINT"))
+        wait_breakpoint(op)
 
         assert self.get_job_proxy_container_property("cpu_weight") == "42"
 
@@ -2645,7 +2645,7 @@ class TestSecureVault(YTEnvSetup):
         cypress_info = str(op.get_path() + "/@")
         scheduler_info = str(get("//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)))
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         jobs = list(op.get_running_jobs())
         assert len(jobs) == 1
@@ -2676,7 +2676,7 @@ class TestSecureVault(YTEnvSetup):
     @authors("ignat")
     def test_secure_vault_with_revive(self):
         op = self.run_map_with_secure_vault()
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
@@ -2838,7 +2838,7 @@ class TestTemporaryTokens(YTEnvSetup):
         op = run_test_vanilla(spec={"max_failed_job_count": 1, "issue_temporary_token": True}, command=command, authenticated_user="alice")
         op_path = op.get_path()
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         token_node_id = get(op_path + "/@temporary_token_node_id")
         token_hash = get(f"#{token_node_id}/@key")
@@ -2913,7 +2913,7 @@ class TestTemporaryTokens(YTEnvSetup):
 
         op = run_test_vanilla(spec={"max_failed_job_count": 1, "issue_temporary_token": True}, command=command, authenticated_user="alice")
 
-        wait_breakpoint("first_breakpoint")
+        wait_breakpoint(op, "first_breakpoint")
 
         assert len(list_user_tokens("alice")) == 1
 
@@ -2921,7 +2921,7 @@ class TestTemporaryTokens(YTEnvSetup):
             time.sleep(2)
 
         release_breakpoint("first_breakpoint")
-        wait_breakpoint("second_breakpoint")
+        wait_breakpoint(op, "second_breakpoint")
 
         # No new token should be created, value should still be in secure vault.
         assert len(list_user_tokens("alice")) == 1
@@ -3067,7 +3067,7 @@ class TestUserJobMonitoring(YTEnvSetup):
                 "enable_gpu_layers": False,
             },
         )
-        job_id, = wait_breakpoint()
+        job_id, = wait_breakpoint(op)
         release_breakpoint()
 
         wait(lambda: "monitoring_descriptor" in get_job(op.id, job_id))
@@ -3125,7 +3125,7 @@ class TestUserJobMonitoring(YTEnvSetup):
             track=False,
             command=with_breakpoint("BREAKPOINT; for (( c=1; c>0; c++ )); do : ; done"),
         )
-        job_id, = wait_breakpoint()
+        job_id, = wait_breakpoint(op)
         release_breakpoint()
 
         wait(lambda: "monitoring_descriptor" in get_job(op.id, job_id))
@@ -3220,7 +3220,7 @@ class TestUserJobMonitoring(YTEnvSetup):
                     },
                 },
             )
-            wait_breakpoint(breakpoint_name=breakpoint_name, job_count=job_count)
+            wait_breakpoint(op, breakpoint_name=breakpoint_name, job_count=job_count)
             op.breakpoint_name = breakpoint_name
             return op
 
@@ -3275,7 +3275,7 @@ class TestUserJobMonitoring(YTEnvSetup):
 
         for job in list_jobs(next_op.id)["jobs"]:
             abort_job(job["id"])
-        wait_breakpoint(breakpoint_name=next_op.breakpoint_name, job_count=2)
+        wait_breakpoint(next_op, breakpoint_name=next_op.breakpoint_name, job_count=2)
 
         @wait_no_assert  # noqa: F811
         def no_alerts():  # noqa: F811
@@ -3334,7 +3334,7 @@ class TestUserJobMonitoring(YTEnvSetup):
             },
         )
 
-        job_id, = wait_breakpoint()
+        job_id, = wait_breakpoint(op)
 
         job_info = get_job(op.id, job_id)
         node = job_info["address"]
@@ -3355,7 +3355,7 @@ class TestUserJobMonitoring(YTEnvSetup):
                 },
             },
         )
-        job1_id, = wait_breakpoint()
+        job1_id, = wait_breakpoint(op)
 
         wait(lambda: "monitoring_descriptor" in get_job(op.id, job1_id))
 
@@ -3364,7 +3364,7 @@ class TestUserJobMonitoring(YTEnvSetup):
 
         abort_job(job1_id)
 
-        job1_id, = wait_breakpoint()
+        job1_id, = wait_breakpoint(op)
 
         wait(lambda: "monitoring_descriptor" in get_job(op.id, job1_id))
 
@@ -3388,7 +3388,7 @@ class TestUserJobMonitoring(YTEnvSetup):
             },
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
@@ -3413,7 +3413,7 @@ class TestUserJobMonitoring(YTEnvSetup):
             },
         )
 
-        job_id, = wait_breakpoint()
+        job_id, = wait_breakpoint(op)
 
         wait(lambda: "monitoring_descriptor" in get_job(op.id, job_id))
 
@@ -4088,7 +4088,7 @@ class TestIdleSlots(YTEnvSetup):
 
             all_operations_info += [(op, job_id, expected_cpu_policy)]
 
-            wait_breakpoint()
+            wait_breakpoint([info[0] for info in all_operations_info])
 
             wait(lambda: self._check_slot_count(node, common_used, idle_used))
 
@@ -4104,7 +4104,7 @@ class TestIdleSlots(YTEnvSetup):
         self._update_cpu_fraction(fraction=0.1)
         op = self._run_idle_operation(cpu_limit=1, breakpoint_id="1")
 
-        wait_breakpoint("1")
+        wait_breakpoint(op, "1")
         job_id, _ = self._get_job_info(op)
         release_breakpoint("1")
         op.track()
@@ -4112,7 +4112,7 @@ class TestIdleSlots(YTEnvSetup):
 
         self._update_cpu_fraction(fraction=0.04)
         op = self._run_idle_operation(cpu_limit=1, breakpoint_id="2")
-        wait_breakpoint("2")
+        wait_breakpoint(op, "2")
         job_id, _ = self._get_job_info(op)
         release_breakpoint("2")
         op.track()
@@ -4129,7 +4129,7 @@ class TestIdleSlots(YTEnvSetup):
 
         job_id, node = self._get_job_info(op)
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         self._check_slot_count(node, 1, 0)
 
@@ -4152,7 +4152,7 @@ class TestIdleSlots(YTEnvSetup):
         )
 
         job_id, node = self._get_job_info(op)
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         wait(lambda: self._check_slot_count(node, 0, 1))
 
@@ -4258,7 +4258,7 @@ class TestCpuSet(YTEnvSetup):
 
             all_operations_info += [(op, job_id, expected_cpu_set)]
 
-            wait_breakpoint()
+            wait_breakpoint([info[0] for info in all_operations_info])
             if numa_node_id is not None:
                 wait(lambda: self._get_numa_node_free_cpu_count(node, numa_node_id) == free_cpu_count_after)
 
@@ -4284,7 +4284,7 @@ class TestCpuSet(YTEnvSetup):
 
         job_id_with_numa_node, node_with_numa_node = self._get_job_info(op_with_numa_node)
 
-        wait_breakpoint("1")
+        wait_breakpoint(op_with_numa_node, "1")
         wait(lambda: self._get_numa_node_free_cpu_count(node_with_numa_node, 0) == 0.0)
         wait(lambda: self._get_numa_node_free_cpu_count(node_with_numa_node, 1) == 3.0)
 
@@ -4296,7 +4296,7 @@ class TestCpuSet(YTEnvSetup):
 
         job_id_without_numa_node, node_without_numa_node = self._get_job_info(op_without_numa_node)
 
-        wait_breakpoint("2")
+        wait_breakpoint(op_without_numa_node, "2")
 
         wait(lambda: self._get_numa_node_free_cpu_count(node_with_numa_node, 0) == 0.0)
         wait(lambda: self._get_numa_node_free_cpu_count(node_with_numa_node, 1) == 3.0)
@@ -4321,7 +4321,7 @@ class TestCpuSet(YTEnvSetup):
         )
 
         job_id_with_numa_node, node_with_numa_node = self._get_job_info(op_with_numa_node)
-        wait_breakpoint("3")
+        wait_breakpoint(op_with_numa_node, "3")
 
         wait(lambda: self._get_numa_node_free_cpu_count(node_with_numa_node, 0) == 0.0)
         wait(lambda: self._get_numa_node_free_cpu_count(node_with_numa_node, 1) == 3.0)
@@ -4340,7 +4340,7 @@ class TestCpuSet(YTEnvSetup):
         )
 
         job_id, node = self._get_job_info(op)
-        wait_breakpoint()
+        wait_breakpoint(op)
         release_breakpoint()
         op.track()
 
@@ -4757,7 +4757,7 @@ class TestPortoFuseDevice(YTEnvSetup):
             },
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
 
         assert b"FUSE_DEVICE_AVAILABLE" in get_job_stderr(op.id, job_id)
 
@@ -5217,12 +5217,12 @@ class TestUserJobDebugOptions(YTEnvSetup):
         command = with_breakpoint("BREAKPOINT; echo here are debug options:")
         task_patch = {"enable_debug_command_line_arguments": enable} if enable is not None else {}
 
-        run_test_vanilla(
+        op = run_test_vanilla(
             command=command,
             task_patch=task_patch
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         output = subprocess.check_output(["ps", "aux"]).decode("utf-8")
 
@@ -5292,7 +5292,7 @@ class TestStatisticsReportingPeriod(YTEnvSetup):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
         )
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
 
         wait(lambda: get_job_from_archive(op.id, job_id) is not None)
 
@@ -5334,7 +5334,7 @@ class TestStatisticsReportingPeriod(YTEnvSetup):
             with_breakpoint("BREAKPOINT"),
         )
 
-        (job_id,) = wait_breakpoint()
+        (job_id,) = wait_breakpoint(op)
         wait(lambda: get_job_from_archive(op.id, job_id) is not None)
         initial_job = get_job_from_archive(op.id, job_id)
         initial_statistics = initial_job.get("statistics")
@@ -5420,7 +5420,7 @@ class TestDeletingConfigFile(YTEnvSetup):
             command=with_breakpoint("echo \"$HOME\" >&2; BREAKPOINT"),
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         sandbox_path = op.read_stderr(job_id).decode("utf-8").strip()
         slot_path = os.path.dirname(sandbox_path)
         print_debug(f"Looking for config files in {slot_path}...")

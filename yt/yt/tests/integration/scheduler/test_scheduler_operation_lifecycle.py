@@ -379,7 +379,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             out="//tmp/out",
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         update_controller_agent_config("operation_time_limit", 100)
 
         wait(lambda: op.get_state() == "failed")
@@ -530,7 +530,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         op.wait_for_fresh_snapshot()
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         events = get(op.get_path() + "/@events")
         assert [
@@ -1779,7 +1779,7 @@ class TestSchedulerAttributes(YTEnvSetup):
         transaction_id = start_transaction(timeout=300 * 1000)
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), tx=transaction_id)
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         wait(lambda: exists(op.get_path() + "/@brief_spec"))
         assert get(op.get_path() + "/@brief_spec/user_transaction_id") == transaction_id
@@ -1827,7 +1827,7 @@ class TestAsyncControllerActions(YTEnvSetup):
     def test_fast_operation_flow_revive(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass

@@ -125,7 +125,7 @@ class TestOperationsArchiveTransformation(YTEnvSetup):
         )
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
-        (job_id, ) = wait_breakpoint()
+        (job_id, ) = wait_breakpoint(op)
 
         def check_commands(state):
             # Operations
@@ -217,7 +217,7 @@ class TestStderrTable(YTEnvSetup):
             },
         )
 
-        jobs = wait_breakpoint(job_count=2)
+        jobs = wait_breakpoint(op, job_count=2)
 
         release_breakpoint(job_id=jobs[0])
         wait(lambda: op.get_job_count("running") == 1)
@@ -245,7 +245,7 @@ class TestStderrTable(YTEnvSetup):
             },
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         debug_transaction_id = get(op.get_path() + "/@debug_transaction_id")
         assert debug_transaction_id == "0-0-0-0"
@@ -269,7 +269,7 @@ class TestStderrTable(YTEnvSetup):
             },
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         debug_transaction_id = get(op.get_path() + "/@debug_transaction_id")
         assert debug_transaction_id != "0-0-0-0"
@@ -620,7 +620,7 @@ class TestStderrTable(YTEnvSetup):
             spec=spec,
         )
 
-        jobs = wait_breakpoint(job_count=3)
+        jobs = wait_breakpoint(op, job_count=3)
         release_breakpoint(job_id=jobs[0])
 
         operation_path = op.get_path()
@@ -713,7 +713,7 @@ class TestStderrTable(YTEnvSetup):
             spec=spec,
         )
 
-        jobs = wait_breakpoint(job_count=1)
+        jobs = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=jobs[0])
 
         wait(lambda: op.get_job_count("completed") == 1)
@@ -896,7 +896,7 @@ class TestCoreTable(YTEnvSetup):
         )
 
         if get_job_id:
-            job_ids = wait_breakpoint(job_count=job_count)
+            job_ids = wait_breakpoint(op, job_count=job_count)
         else:
             job_ids = []
         return op, job_ids
@@ -1173,7 +1173,7 @@ class TestCoreTable(YTEnvSetup):
 
         # First running job is discarded with is core, so we repeat the process with
         # a newly scheduled job.
-        job_ids = wait_breakpoint(job_count=1)
+        job_ids = wait_breakpoint(op, job_count=1)
 
         q = Queue()
         ret_dict2 = {}
@@ -2013,7 +2013,7 @@ class TestJobTraceEvents(YTEnvSetup):
             .add_complete_trace(trace_id=trace_id, pid=2, count=2)
 
         op = self._start_vanilla_operation(should_sleep=True, command=command.build(), job_count=1)
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         time.sleep(5)
         release_breakpoint()
         wait(lambda: len(self._get_traces_by_id(op.id, job_id, trace_id)) == 4)
@@ -2033,7 +2033,7 @@ class TestJobTraceEvents(YTEnvSetup):
             .drop_trace(pid=2, trace_id=trace_id2)
 
         op = self._start_vanilla_operation(should_sleep=True, command=command.build(), job_count=1)
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         wait(lambda: len(self._get_trace_state(op.id, job_id, trace_id1)) == 1)
         wait(lambda: self._get_trace_state(op.id, job_id, trace_id1)[0] == "started")
         release_breakpoint()
@@ -2067,7 +2067,7 @@ class TestJobTraceEvents(YTEnvSetup):
             .breakpoint() \
 
         op = self._start_vanilla_operation(should_sleep=False, command=command.build(), job_count=1)
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
 
         wait(lambda: len(self._get_job_traces(op.id, job_id)) == 1)
         trace_id = self._get_job_traces(op.id, job_id)[0]
@@ -2096,7 +2096,7 @@ class TestJobTraceEvents(YTEnvSetup):
             .end_trace(pid=1, trace_id=trace_id3)
 
         op = self._start_vanilla_operation(should_sleep=True, command=command.build(), job_count=1)
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
 
         def check_traces(use_per_process):
             if use_per_process:

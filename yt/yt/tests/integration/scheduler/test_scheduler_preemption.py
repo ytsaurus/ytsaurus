@@ -215,7 +215,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         create_pool("test_pool", attributes={"strong_guarantee_resources": {"cpu": total_cpu_limit}})
 
         # Ensure that all three jobs have started.
-        events_on_fs().wait_breakpoint(timeout=datetime.timedelta(1000), job_count=3)
+        wait_breakpoint(op1, timeout=datetime.timedelta(1000), job_count=3)
         events_on_fs().release_breakpoint()
 
         op2 = map(
@@ -250,7 +250,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             },
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         update_op_parameters(op.id, parameters=get_scheduling_options(user_slots=0))
         wait(lambda: op.get_job_count("running") == 0)
@@ -269,7 +269,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             spec={"preemption_mode": "graceful"}
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         release_breakpoint()
         update_op_parameters(op.id, parameters=get_scheduling_options(user_slots=0))
         wait(lambda: op.get_job_count("aborted") == 1)
@@ -280,7 +280,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     def test_update_scheduling_tag_filter(self):
         update_pool_tree_config("default", {"node_reconnection_timeout": 0})
         op = run_test_vanilla(command=with_breakpoint("BREAKPOINT"), spec={"preemption_mode": "graceful"})
-        wait_breakpoint()
+        wait_breakpoint(op)
         update_op_parameters(op.id, parameters={"scheduling_tag_filter": "nonexistent_tag"})
         wait(lambda: op.get_job_count("aborted") == 1)
         assert op.get_job_count("total") == 1
@@ -312,7 +312,7 @@ class TestSchedulerPreemption(YTEnvSetup):
                 },
                 job_count=3,
             )
-            wait_breakpoint()
+            wait_breakpoint(op)
 
             # Wait until the operation is scheduled and reflected in a fair share update.
             wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/default/dominant_usage_share", 0.0) > 0.0)
@@ -425,7 +425,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             spec={"pool": "pool0", "job_count": 3},
         )
 
-        wait_breakpoint(breakpoint_name="b0", job_count=3)
+        wait_breakpoint(op0, breakpoint_name="b0", job_count=3)
         release_breakpoint(breakpoint_name="b0")
 
         op1 = map(
@@ -436,7 +436,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             spec={"pool": "pool1", "job_count": 1},
         )
 
-        preemptor_job_id = wait_breakpoint(breakpoint_name="b1")[0]
+        preemptor_job_id = wait_breakpoint(op1, breakpoint_name="b1")[0]
         release_breakpoint(breakpoint_name="b1")
 
         def check_events():
@@ -467,7 +467,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         command = """(trap "sleep 15; exit 0" SIGINT; BREAKPOINT)"""
 
-        run_test_vanilla(
+        op = run_test_vanilla(
             with_breakpoint(command),
             spec={
                 "pool": "pool2",
@@ -477,7 +477,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             },
             job_count=3,
         )
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
         assert len(job_ids) == 3
 
         op1 = run_test_vanilla(
@@ -509,7 +509,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         command = """(trap "sleep 10; exit 0" SIGINT; BREAKPOINT)"""
 
-        run_test_vanilla(
+        op = run_test_vanilla(
             with_breakpoint(command),
             spec={
                 "pool": "pool2",
@@ -519,7 +519,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             },
             job_count=3,
         )
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
         assert len(job_ids) == 3
 
         op1 = run_test_vanilla(
@@ -552,7 +552,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         command = """(trap "sleep 15; exit 0" SIGINT; BREAKPOINT)"""
 
-        run_test_vanilla(
+        op = run_test_vanilla(
             with_breakpoint(command),
             spec={
                 "pool": "pool2",
@@ -562,7 +562,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             },
             job_count=3,
         )
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
         assert len(job_ids) == 3
 
         op1 = run_test_vanilla(
@@ -598,7 +598,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         command = """(trap "sleep 115; exit 0" SIGINT; BREAKPOINT)"""
 
-        run_test_vanilla(
+        op = run_test_vanilla(
             with_breakpoint(command),
             spec={
                 "pool": "pool2",
@@ -608,7 +608,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             },
             job_count=total_cpu_limit,
         )
-        job_ids = wait_breakpoint(job_count=total_cpu_limit)
+        job_ids = wait_breakpoint(op, job_count=total_cpu_limit)
         assert len(job_ids) == total_cpu_limit
 
         run_test_vanilla(
@@ -631,7 +631,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         create_pool("prod", attributes={"strong_guarantee_resources": {"cpu": 3}})
 
         op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "research"})
-        job_id = wait_breakpoint(job_count=1)[0]
+        job_id = wait_breakpoint(op1, job_count=1)[0]
 
         op2 = run_sleeping_vanilla(spec={"pool": "prod"}, job_count=3)
 
@@ -958,8 +958,8 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
         os.chdir(self._work_dir)
         return super().teardown_method(method, wait_for_nodes)
 
-    def _wait_single_job_and_get_it_id(self, breakpoint_name):
-        job_ids = wait_breakpoint(breakpoint_name=breakpoint_name)
+    def _wait_single_job_and_get_it_id(self, op, breakpoint_name):
+        job_ids = wait_breakpoint(op, breakpoint_name=breakpoint_name)
         assert len(job_ids) == 1
         return job_ids[0]
 
@@ -1026,12 +1026,12 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
         for i in range(1, 4):
             update_nodes_dynamic_config({"resource_limits": {"overrides": {"cpu": i}}})
 
-            map_job_ids = wait_breakpoint(breakpoint_name="map", job_count=i)
+            map_job_ids = wait_breakpoint(map_op, breakpoint_name="map", job_count=i)
             assert len(map_job_ids) == i
 
             time.sleep(0.5)
 
-        map_job_ids_1 = wait_breakpoint(breakpoint_name="map", job_count=3)
+        map_job_ids_1 = wait_breakpoint(map_op, breakpoint_name="map", job_count=3)
 
         def get_allocation_info(job_id):
             allocation_id = get_allocation_id_from_job_id(job_id)
@@ -1060,7 +1060,7 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
 
             release_breakpoint(job_id=job_to_release, breakpoint_name="map")
 
-            map_job_ids_2 = wait_breakpoint(breakpoint_name="map", job_count=3)
+            map_job_ids_2 = wait_breakpoint(map_op, breakpoint_name="map", job_count=3)
 
             first_map_allocation_infos = {*[get_allocation_id_from_job_id(job_id) for job_id in map_job_ids_1]}
             second_map_allocation_infos = {*[get_allocation_id_from_job_id(job_id) for job_id in map_job_ids_2]}
@@ -1088,7 +1088,7 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
         wait(lambda: map_op.get_job_count("aborted") == 1)
         assert expected_preempted_allocation_id not in {get_allocation_id_from_job_id(job_id) for job_id in map_op.get_running_jobs()}
 
-        vanilla_jobs = wait_breakpoint(breakpoint_name="vanilla")
+        vanilla_jobs = wait_breakpoint(vanilla_op, breakpoint_name="vanilla")
         assert len(vanilla_jobs) == 1
 
         def get_non_running_allocations():
@@ -1537,10 +1537,10 @@ class TestSchedulingBugOfOperationWithGracefulPreemption(YTEnvSetup):
             }
         )
 
-        wait_breakpoint(breakpoint_name="graceful", job_count=1)
+        wait_breakpoint(op, breakpoint_name="graceful", job_count=1)
         release_breakpoint(breakpoint_name="placeholder")
 
-        wait_breakpoint(breakpoint_name="graceful", job_count=2)
+        wait_breakpoint(op, breakpoint_name="graceful", job_count=2)
         wait(lambda: op.get_job_count("running") == 2)
         release_breakpoint(breakpoint_name="graceful")
         op.track()
@@ -1606,7 +1606,7 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
             in_=["//tmp/t_in"],
             out="//tmp/t_out1",
         )
-        wait_breakpoint()
+        wait_breakpoint(op1)
 
         op2 = map(
             track=False,
@@ -1614,7 +1614,7 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
             in_=["//tmp/t_in"],
             out="//tmp/t_out2",
         )
-        wait_breakpoint()
+        wait_breakpoint([op1, op2])
 
         def get_cpu():
             common_path = "//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager".format(nodes[1])

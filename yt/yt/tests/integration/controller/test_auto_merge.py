@@ -1186,13 +1186,13 @@ class TestSchedulerAutoMergeCARestarts(TestSchedulerAutoMergeBase):
         def list_jobs(type):
             return builtins.set(op.list_jobs(type=type))
 
-        map_job_ids = wait_breakpoint("before_run", job_count=2)
+        map_job_ids = wait_breakpoint(op, "before_run", job_count=2)
         assert list_jobs("map") == builtins.set(map_job_ids)
 
         release_breakpoint("before_run", job_id=map_job_ids[0])
         release_breakpoint("before_run", job_id=map_job_ids[1])
 
-        auto_merge_job_id, = wait_breakpoint("before_run")
+        auto_merge_job_id, = wait_breakpoint(op, "before_run")
         assert list_jobs("unordered_merge") == {auto_merge_job_id}
 
         op.wait_for_fresh_snapshot()

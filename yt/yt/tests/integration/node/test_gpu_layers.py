@@ -1773,7 +1773,7 @@ class TestExtraGpuCheckFailure(YTEnvSetup, GpuCheckBase):
             track=False,
         )
 
-        wait_breakpoint(job_count=1)
+        wait_breakpoint(op, job_count=1)
         assert op.get_state() == "running"
 
         release_breakpoint()

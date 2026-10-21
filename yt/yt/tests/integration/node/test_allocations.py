@@ -68,7 +68,7 @@ class TestSeveralJobsInAllocation(YTEnvSetup):
             },
         )
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         print_debug(f"job_id1: {job_id1}")
 
         if with_job_revival:
@@ -79,7 +79,7 @@ class TestSeveralJobsInAllocation(YTEnvSetup):
 
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
         print_debug(f"job_id2: {job_id2}")
         release_breakpoint(job_id=job_id2)
 
@@ -107,10 +107,10 @@ class TestSeveralJobsInAllocation(YTEnvSetup):
                 "enable_multiple_jobs_in_allocation": True,
             },
         )
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id2)
 
         print_debug(f"job_id1: {job_id1}, job_id2: {job_id2}")
@@ -138,7 +138,7 @@ class TestSeveralJobsInAllocation(YTEnvSetup):
         allocation_id = None
 
         for i in range(job_count):
-            job_id, = wait_breakpoint(job_count=1)
+            job_id, = wait_breakpoint(op, job_count=1)
             release_breakpoint(job_id=job_id)
 
             if allocation_id is None:
@@ -217,7 +217,7 @@ class TestAllocationReuseWhenJobsDisabled(YTEnvSetup):
         node = nodes[0]
         node_user_slots_path = f"//sys/cluster_nodes/{node}/orchid/exec_node/job_resource_manager/resource_limits/user_slots"
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         allocation_id1 = get_allocation_id_from_job_id(job_id1)
 
         try:
@@ -250,7 +250,7 @@ class TestAllocationReuseWhenJobsDisabled(YTEnvSetup):
             enable_scheduler_jobs_on_node(node)
             wait(lambda: get(node_user_slots_path) > 0)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
         allocation_id2 = get_allocation_id_from_job_id(job_id2)
 
         assert job_id1 != job_id2
@@ -336,10 +336,10 @@ class TestNbdInAllocation(YTEnvSetup):
             },
         )
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
 
         assert get_allocation_id_from_job_id(job_id1) == get_allocation_id_from_job_id(job_id2)
 
@@ -447,10 +447,10 @@ class TestGpuLayersInAllocation(YTEnvSetup):
             },
         )
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
 
         assert get_allocation_id_from_job_id(job_id1) == get_allocation_id_from_job_id(job_id2)
 
@@ -553,10 +553,10 @@ class TestArtifactReuseInAllocation(TestArtifactReuseInAllocationBase):
             },
         )
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
 
         assert get_allocation_id_from_job_id(job_id1) == get_allocation_id_from_job_id(job_id2)
 
@@ -605,10 +605,10 @@ class TestArtifactReuseInAllocation(TestArtifactReuseInAllocationBase):
             },
         )
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id2)
 
         op.track()
@@ -643,10 +643,10 @@ class TestArtifactReuseInAllocation(TestArtifactReuseInAllocationBase):
             },
         )
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id1)
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id2)
 
         op.track()
@@ -694,7 +694,7 @@ class TestArtifactReuseInAllocationOfGangOperation(TestArtifactReuseInAllocation
             track=False,
         )
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
 
         first_job_id = job_ids[0]
 
@@ -725,7 +725,7 @@ class TestArtifactReuseInAllocationOfGangOperation(TestArtifactReuseInAllocation
         for job_id in job_ids:
             release_breakpoint(job_id=job_id)
 
-        new_job_ids = wait_breakpoint(job_count=2)
+        new_job_ids = wait_breakpoint(op, job_count=2)
         release_breakpoint()
 
         op.track()
@@ -805,7 +805,7 @@ class TestArtifactReuseInAllocationOfGangOperation(TestArtifactReuseInAllocation
 
         wait(lambda: get(op.get_orchid_path() + "/controller/operation_incarnation") != current_incarnation)
 
-        new_job_ids = wait_breakpoint(job_count=2)
+        new_job_ids = wait_breakpoint(op, job_count=2)
         release_breakpoint()
 
         op.track()
@@ -886,7 +886,7 @@ class TestSuspendedOperationDoesNotSettleJobs(YTEnvSetup):
 
         allocations_orchid_path, _ = self._get_orchid_paths()
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         allocation_id = get_allocation_id_from_job_id(job_id1)
 
         assert exists(allocations_orchid_path + f"/{allocation_id}")
@@ -902,7 +902,7 @@ class TestSuspendedOperationDoesNotSettleJobs(YTEnvSetup):
         op.resume()
         wait(lambda: not get(op.get_path() + "/@suspended"))
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id2)
 
         op.track()
@@ -926,7 +926,7 @@ class TestSuspendedOperationDoesNotSettleJobs(YTEnvSetup):
             },
         )
 
-        job_id1, = wait_breakpoint(job_count=1)
+        job_id1, = wait_breakpoint(op, job_count=1)
         allocation_id = get_allocation_id_from_job_id(job_id1)
 
         op.suspend()
@@ -951,7 +951,7 @@ class TestSuspendedOperationDoesNotSettleJobs(YTEnvSetup):
         op.resume()
         wait(lambda: not get(op.get_path() + "/@suspended"))
 
-        job_id2, = wait_breakpoint(job_count=1)
+        job_id2, = wait_breakpoint(op, job_count=1)
         release_breakpoint(job_id=job_id2)
 
         op.track()

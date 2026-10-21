@@ -131,7 +131,7 @@ done
             },
         )
 
-        wait_breakpoint(job_count=1)
+        wait_breakpoint(op, job_count=1)
         wait(lambda: op.get_job_count("completed") >= 4)
         release_breakpoint()
         op.track()

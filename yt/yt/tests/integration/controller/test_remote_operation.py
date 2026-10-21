@@ -350,7 +350,7 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
             track=False,
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         with Restarter(self.Env, [CONTROLLER_AGENTS_SERVICE]):
             pass
@@ -655,7 +655,7 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
             },
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         if revive:
             with Restarter(self.Env, [CONTROLLER_AGENTS_SERVICE]):
@@ -1229,7 +1229,7 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
         )
 
         # Wait for map jobs to reach the breakpoint.
-        wait_breakpoint(job_count=2, timeout=datetime.timedelta(seconds=30))
+        wait_breakpoint(op, job_count=2, timeout=datetime.timedelta(seconds=30))
 
         # Make bandwidth unavailable.
         config = self._create_default_cluster_throttlers_config()
@@ -1289,7 +1289,7 @@ class TestRemoteOperationWithHunks(TestSchedulerRemoteOperationCommandsBase):
             command=with_breakpoint("cat ; BREAKPOINT"),
             spec={"mapper": {"monitoring": {"enable": True}}},
             track=False)
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
 
         time.sleep(10)
         node = get_job(op.id, job_id)["address"]
