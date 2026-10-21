@@ -216,7 +216,7 @@ def wait_for_hunk_storage_unmounts(tablets_by_storage):
     )
 
 
-# Inline hunk threshold for the queue's value column. Values larger than this are
+# Inline hunk threshold for the queue's value column. Values at least this large are
 # stored in the linked hunk storage; smaller ones stay inline. Kept as a single
 # constant so every schema that should produce hunks agrees on the value.
 MAX_INLINE_HUNK_SIZE = 512
@@ -522,7 +522,7 @@ class TableBase:
 class Queue(TableBase):
     def __init__(
         self, base_path, name, tablet_count, history=None, replicas_plan=None,
-        cluster_name=None, replicated_table_hunks=False,
+        cluster_name=None, replicated_table_hunks=False, with_timestamp=False,
     ):
         super().__init__(base_path, name, history=history)
         self.hunk_storage_name = None
@@ -532,8 +532,10 @@ class Queue(TableBase):
         self.trimmed_row_counts = [0] * tablet_count
         self.pruned_data_row_counts = [0] * tablet_count
         self.cumulative_data_weights = [0] * tablet_count
+        assert not with_timestamp or replicas_plan is not None
+        self.with_timestamp = with_timestamp
 
-        # replicas_plan is None for plain queues, or a list of {"mode", "hunks"} plans.
+        # replicas_plan is None for plain queues, or a list of {"mode", "hunks", "preserve_timestamps"} plans.
         # For replicated queues, self.path is the replicated_table receiving writes;
         # self.replicas describes the ordered tables serving reads. The source and hunk
         # replicas own their storages independently of the shared hunk_storages registry.
@@ -572,7 +574,7 @@ class Queue(TableBase):
         return f"{self.base_path}/{self.name}.replica_{index}.hunk_storage"
 
     def _create_table_hunk_storage(self, table_path, hunk_storage_path, *, erasure):
-        attributes = {"tablet_count": 1}
+        attributes = {"tablet_count": random.randint(1, 5)}
         if erasure:
             attributes.update(HUNK_STORAGE_ERASURE_ATTRIBUTES)
         cell_tag = _get_external_cell_tag(table_path)
@@ -597,6 +599,8 @@ class Queue(TableBase):
             column for column in (QUEUE_SCHEMA if source["hunks"] else QUEUE_SCHEMA_NO_HUNKS)
             if column["name"] != "$cumulative_data_weight"
         ]
+        if self.with_timestamp:
+            source_schema.append({"name": "$timestamp", "type": "uint64"})
         replicated_table_attributes.update({
             "dynamic": True,
             "schema": source_schema,
@@ -639,14 +643,18 @@ class Queue(TableBase):
             "mode": plan["mode"],
             "enable_replicated_table_tracker": False,
             "start_replication_row_indexes": start_row_indexes,
+            "preserve_timestamps": plan.get("preserve_timestamps", True),
         })
 
         replica_attributes = copy.deepcopy(self.replica_attributes)
+        schema = copy.deepcopy(QUEUE_SCHEMA if plan["hunks"] else QUEUE_SCHEMA_NO_HUNKS)
+        if self.with_timestamp:
+            schema.append({"name": "$timestamp", "type": "uint64"})
         replica_attributes.update({
             "dynamic": True,
             "enable_dynamic_store_read": True,
             "upstream_replica_id": replica_id,
-            "schema": QUEUE_SCHEMA if plan["hunks"] else QUEUE_SCHEMA_NO_HUNKS,
+            "schema": schema,
             "tablet_count": self.tablet_count,
             "trimmed_row_counts": start_row_indexes,
             "cumulative_data_weights": cumulative_data_weights,
@@ -690,15 +698,34 @@ class Queue(TableBase):
     def _input_path(self):
         path = self.path
         if self.replicated:
-            # Operations read an ordered replica. Prefer sync replicas, whose rows are
-            # visible after write(); otherwise wait for an async replica. Random selection
-            # exercises both hunk and inline storage when the plan includes them.
-            sync_replicas = [r for r in self.replicas if r["mode"] == "sync"]
-            replica = random.choice(sync_replicas or self.replicas)
+            # Give async replicas the same operation coverage even in mixed plans.
+            replica = random.choice(self.replicas)
             path = replica["path"]
             if replica["mode"] == "async":
                 self._wait_for_written_rows(path, list(range(self.tablet_count)))
         return master_client.TablePath(path, columns=["key", "value"])
+
+    def set_replica_mode(self, replica, mode):
+        # Promotion must start from a caught-up replica. Its master attribute alone
+        # does not acknowledge that the source tablets have applied the new mode.
+        self._wait_for_written_rows(replica["path"], list(range(self.tablet_count)))
+        logger.info(f"Setting replica {replica['path']} mode={mode}")
+        master_client.alter_table_replica(replica["replica_id"], mode=mode)
+
+        def applied():
+            tablets = master_client.get(f"{self.path}/@tablets")
+            return all(
+                master_client.get(
+                    f"//sys/tablets/{tablet['tablet_id']}/orchid/replicas/{replica['replica_id']}/mode") == mode
+                for tablet in tablets
+            )
+
+        wait_for_tablet_condition(
+            applied,
+            error_message=f"Replica {replica['path']} did not switch to {mode}",
+            client=master_client,
+        )
+        replica["mode"] = mode
 
     def _get_trimmed_row_counts(self, path):
         for replica in self.replicas:
@@ -915,6 +942,9 @@ class Queue(TableBase):
 
         written_row_count = list(self.written_row_count)
         cumulative_data_weights = list(self.cumulative_data_weights)
+        has_hunk_storage = (
+            self.replication_source["hunks"] or any(replica.get("hunks", False) for replica in self.replicas)
+            if self.replicated else self.hunk_storage_name is not None)
         i = 0
         while i < len(tablet_plan):
             rows = []
@@ -923,9 +953,15 @@ class Queue(TableBase):
             while i < len(tablet_plan) and (not rows or chunk_bytes_used < chunk_bytes):
                 tablet_index = tablet_plan[i]
                 key = RSG.generate(2)
-                value = RSG.generate(random.randint(cfg.write_min_row_size, cfg.write_max_row_size))
+                value_size = random.randint(cfg.write_min_row_size, cfg.write_max_row_size)
+                # One large final row is enough for the table-wide hunk statistics.
+                if has_hunk_storage and i == len(tablet_plan) - 1:
+                    value_size = max(value_size, MAX_INLINE_HUNK_SIZE + 1)
+                value = RSG.generate(value_size)
                 rows.append({"key": key, "value": value, "$tablet_index": tablet_index})
                 cumulative_data_weights[tablet_index] += _get_row_data_weight(rows[-1])
+                if self.with_timestamp:
+                    cumulative_data_weights[tablet_index] += 8
                 data_rows.append({
                     "key": key,
                     "value": value,
@@ -958,6 +994,23 @@ class Queue(TableBase):
 
     def flush(self):
         logger.info(f"Flushing queue {self.path}")
+        if self.replicated:
+            tablet_indexes = list(range(self.tablet_count))
+            # Catch up all replicas before freezing their source or destinations.
+            for replica in self.replicas:
+                self._wait_for_written_rows(replica["path"], tablet_indexes)
+
+            paths = [self.path] + [replica["path"] for replica in self.replicas]
+            for command, state in (
+                (master_client.freeze_table, "frozen"),
+                (master_client.unfreeze_table, "mounted"),
+            ):
+                for path in paths:
+                    command(path, sync=False)
+                for path in paths:
+                    wait_for_tablet_state(path, tablet_indexes, state)
+            return
+
         if self.mount_state.has_mounted_tablet():
             wait_for_pending_mounts(self, tablet_index=None)
 
@@ -1119,6 +1172,32 @@ class Queue(TableBase):
             new_path, new_data_path, "alter_to_static result")
         return static_table
 
+    def _pull_queue(self, path, tablet_index, offset, max_data_weight):
+        rows = None
+
+        def read():
+            nonlocal rows
+            try:
+                rows = list(tablet_client.pull_queue(
+                    path,
+                    offset=offset,
+                    partition_index=tablet_index,
+                    max_data_weight=max_data_weight))
+                return True
+            except YtError as err:
+                if not (is_unmounted_error(err) or err.is_tablet_in_intermediate_state()):
+                    raise
+                return False
+
+        # A mount acknowledged by the master may still be absent from the proxy's
+        # cache. Retry this tablet; another tablet's state cannot excuse its failure.
+        wait_for_tablet_condition(
+            read,
+            error_message=f"Could not read mounted tablet {tablet_index} of {path} at offset {offset}",
+            client=tablet_client,
+        )
+        return rows
+
     def _read_table_and_check(self, path, spec):
         logger.info(f"Reading everything from {path}")
 
@@ -1139,9 +1218,12 @@ class Queue(TableBase):
             # Reading from zero also checks that the server skips the trimmed prefix.
             offset = 0
             while True:
-                actual_rows = list(tablet_client.pull_queue(
-                    path, offset=offset, partition_index=tablet_index,
-                    max_data_weight=cfg.read_page_max_data_weight))
+                actual_rows = self._pull_queue(
+                    path,
+                    tablet_index,
+                    offset,
+                    cfg.read_page_max_data_weight)
+
                 if len(actual_rows) == 0:
                     break
 
@@ -1441,7 +1523,7 @@ def write_queues_under_transaction(writes, spec, retry_count, expected_unmounted
             queue.cumulative_data_weights = data_weights
 
     def on_write_error(err):
-        # WriteHunks and tablet-state rejections happen before the native commit.
+        # Hunk writes and tablet/replica validation reject before committing rows.
         # A generic commit error may instead mean that its successful reply was lost;
         # replaying then appends duplicate queue rows and overwrites their shadow keys.
         rejected_before_commit = (
@@ -1449,7 +1531,14 @@ def write_queues_under_transaction(writes, spec, retry_count, expected_unmounted
                 error.message == "Failed to write hunks" or
                 (error.message.startswith(("Table ", "Hunk storage ")) and
                  error.message.endswith(" has no mounted tablets")))) is not None or
-            err.is_no_such_tablet() or err.is_tablet_not_mounted() or err.is_tablet_in_intermediate_state())
+            err.is_no_such_tablet() or err.is_tablet_not_mounted() or err.is_tablet_in_intermediate_state() or
+            any(err.contains_code(code) for code in (
+                1714,  # NoSyncReplicas
+                1722,  # SyncReplicaIsNotKnown
+                1723,  # SyncReplicaIsNotInSyncMode
+                1724,  # SyncReplicaIsNotWritten
+                1732,  # SyncReplicaNotInSync
+            )))
         if commit_started and not rejected_before_commit:
             raise UnknownWriteCommitOutcome(
                 "Write transaction commit outcome is unknown; refusing to replay writes", inner_errors=[err])
@@ -1468,9 +1557,75 @@ def write_queues_under_transaction(writes, spec, retry_count, expected_unmounted
     for queue, tablet_plan in writes:
         paths = [queue.path]
         if queue.replicated:
-            paths = [replica["path"] for replica in queue.replicas if replica["mode"] == "sync"]
+            paths = [
+                replica["path"] for replica in queue.replicas
+                if replica["mode"] == "sync"
+            ]
         for path in paths:
             queue._wait_for_written_rows(path, sorted(set(tablet_plan)))
+
+
+def unmount_queue_and_check_hunks(queues, hunk_storages, written_tablets):
+    def _check_hunk_statistics(path):
+        logger.info(f"Waiting for hunk statistics of {path}")
+
+        def has_hunks():
+            statistics = master_client.get(f"{path}/@hunk_statistics")
+            # Journal hunks enter hunk_chunk_count only after sealing. The table
+            # flush alone does not guarantee that statistics are already updated.
+            return statistics["hunk_chunk_count"] > 0 and statistics["referenced_hunk_count"] > 0
+
+        wait(
+            has_hunks,
+            error_message=f"Table {path} has no sealed hunks despite large values written to hunk storage",
+            timeout=(HUNK_CHUNK_SEAL_TIMEOUT + MASTER_RETRY_TIMEOUT) / 1000,
+            sleep_backoff=HUNK_CHUNK_SEAL_CHECK_PERIOD / 1000,
+        )
+
+    candidates = []
+    for queue, tablet_index in written_tablets.items():
+        if queues.get(queue.name) is not queue:
+            # This queue may have been converted to a static table after writing.
+            continue
+        tables = [queue.replication_source, *queue.replicas] if queue.replicated else [{
+            "path": queue.path,
+            "hunks": queue.hunk_storage_name is not None,
+            "trimmed_row_counts": queue.trimmed_row_counts,
+        }]
+        tables = [
+            table for table in tables
+            if table["hunks"] and (table is queue.replication_source or
+                                   table["trimmed_row_counts"][tablet_index] < queue.written_row_count[tablet_index])
+        ]
+        if tables:
+            candidates.append((queue, tables, tablet_index))
+    if not candidates:
+        return
+
+    queue, tables_to_check, tablet_index = random.choice(candidates)
+    logger.info(f"Unmounting queue {queue.path} and its hunk storages for the final statistics check")
+    # Let async replication finish before stopping either its source or destination.
+    for replica in queue.replicas:
+        queue._wait_for_written_rows(replica["path"], list(range(queue.tablet_count)))
+
+    queue.unmount()
+    if queue.replicated:
+        for replica in queue.replicas:
+            master_client.unmount_table(replica["path"], sync=True)
+        for table in [queue.replication_source, *queue.replicas]:
+            if table["hunk_storage_name"]:
+                master_client.unmount_table(f"{queue.base_path}/{table['hunk_storage_name']}", sync=True)
+    else:
+        # Shared storage already knows how to unmount other tablets holding its locks.
+        hunk_storages[queue.hunk_storage_name].unmount()
+
+    for table in tables_to_check:
+        if table is queue.replication_source:
+            # Replication logs can trim independently, including during unmount.
+            tablets = master_client.get(f"{queue.path}/@tablets")
+            if tablets[tablet_index]["trimmed_row_count"] >= queue.written_row_count[tablet_index]:
+                continue
+        _check_hunk_statistics(table["path"])
 
 
 def test_queue_and_hunk_storage(base_path, spec, attributes, args):
@@ -1516,7 +1671,11 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
         count = random.randint(cfg.replicated_min_replicas, cfg.replicated_max_replicas)
         modes = ["sync" if random.random() < cfg.replica_sync_probability else "async" for _ in range(count)]
         return [
-            {"mode": modes[i], "hunks": random.random() < cfg.replica_hunks_probability}
+            {
+                "mode": modes[i],
+                "hunks": random.random() < cfg.replica_hunks_probability,
+                "preserve_timestamps": random.choice([False, True]),
+            }
             for i in range(count)
         ]
 
@@ -1536,6 +1695,7 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
             replicas_plan=replicas_plan,
             cluster_name=cluster_name,
             replicated_table_hunks=replicated_table_hunks,
+            with_timestamp=replicas_plan is not None and random.random() < cfg.replica_timestamp_probability,
         )
         queue.create(attributes, erasure=random.choice([True, False]))
         queues[queue_name] = queue
@@ -1686,14 +1846,9 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
         else:
             raise err
 
-    def _check_read_error(queue, err):
-        if _has_unmount_issue(queue) and is_unmounted_error(err):
-            logger.info(f"Error was expected, queue or hunk_storage has unmounted tablet")
-        else:
-            raise err
-
     def _write():
         cfg = spec.queue_and_hunk_storage
+        written_tablets = {}
 
         def write_group(writes, expected_unmounted=False):
             # Skip retries only for an actual expected unmounted error; mount chaos
@@ -1706,6 +1861,10 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
                     expected_unmounted=expected_unmounted)
             except YtError as err:
                 _check_write_error(expected_unmounted, err)
+            else:
+                for queue, tablet_plan in writes:
+                    # Track the tablet whose final row is guaranteed to be large.
+                    written_tablets[queue] = tablet_plan[-1]
 
         pending = [queue for queue in queues.values() if random.random() < cfg.write_probability]
         # Shuffle queue references once rather than rescanning eligible partners.
@@ -1731,6 +1890,7 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
 
         if waiting:
             write_group(waiting)
+        return written_tablets
 
     def _read():
         for queue in queues.values():
@@ -1738,17 +1898,14 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
             if not need_to_read:
                 continue
 
-            try:
-                paths = (
-                    [replica["path"] for replica in queue.replicas]
-                    if queue.replicated else [queue.path]
-                )
-                for path in paths:
-                    if queue.replicated:
-                        queue._wait_for_written_rows(path, list(range(queue.tablet_count)))
-                    queue._read_table_and_check(path, spec)
-            except YtError as err:
-                _check_read_error(queue, err)
+            paths = (
+                [replica["path"] for replica in queue.replicas]
+                if queue.replicated else [queue.path]
+            )
+            for path in paths:
+                if queue.replicated:
+                    queue._wait_for_written_rows(path, list(range(queue.tablet_count)))
+                queue._read_table_and_check(path, spec)
 
     def _trim():
         for queue in queues.values():
@@ -1772,31 +1929,25 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
                     {
                         "mode": "sync" if random.random() < cfg.replica_sync_probability else "async",
                         "hunks": random.random() < cfg.replica_hunks_probability,
+                        "preserve_timestamps": random.choice([False, True]),
                     },
                 )
 
+    def _transition_replicas():
+        for queue in queues.values():
+            for replica in queue.replicas:
+                if random.random() < cfg.change_replica_mode_probability:
+                    queue.set_replica_mode(replica, "async" if replica["mode"] == "sync" else "sync")
+
     def _operations():
         for queue in list(queues.values()):
-            try:
-                for new_table in queue.run_operations(spec, max_results=_remaining_table_capacity()):
-                    tables[new_table.name] = new_table
-            except YtError as err:
-                _check_read_error(queue, err)
+            for new_table in queue.run_operations(spec, max_results=_remaining_table_capacity()):
+                tables[new_table.name] = new_table
 
     def _static_operations():
         for static_table in list(tables.values()):
             for new_table in static_table.run_operations(spec, max_results=_remaining_table_capacity()):
                 tables[new_table.name] = new_table
-
-    def _has_unmount_issue(table):
-        if not isinstance(table, Queue):
-            return False
-        if (table.mount_state.has_unmounted_tablet() or
-                table.mount_state.has_mounted_tablet(sync=False)):
-            return True
-        if table.hunk_storage_name and hunk_storages[table.hunk_storage_name].mount_state.has_unmounted_tablet():
-            return True
-        return False
 
     def _merge_two_tables():
         if _remaining_table_capacity() <= 0:
@@ -1809,14 +1960,8 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
             return
 
         t1, t2 = random.sample(all_tables, 2)
-        try:
-            new_table = t1.merge_with(t2)
-            tables[new_table.name] = new_table
-        except YtError as err:
-            if (_has_unmount_issue(t1) or _has_unmount_issue(t2)) and is_unmounted_error(err):
-                logger.info(f"Error was expected, queue or hunk_storage has unmounted tablet")
-            else:
-                raise err
+        new_table = t1.merge_with(t2)
+        tables[new_table.name] = new_table
 
     def _alter_to_queue():
         nonlocal removed_table_count
@@ -1860,8 +2005,6 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
 
     def _flush():
         for queue in queues.values():
-            if queue.replicated:
-                continue
             if random.random() < spec.queue_and_hunk_storage.flush_probability:
                 queue.flush()
 
@@ -1973,6 +2116,7 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
         for name in names_to_remove:
             del tables[name]
 
+    written_tablets = {}
     for iteration in range(spec.size.iterations):
         logger.iteration = iteration
 
@@ -1987,7 +2131,8 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
 
         for i in range(2):
             _add_replicas()
-            _write()
+            _transition_replicas()
+            written_tablets = _write()
             _flush()
             _operations()
             _static_operations()
@@ -1999,3 +2144,7 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
 
         for queue in queues.values():
             queue.prune_data_rows()
+
+    # Once at most, after all workload iterations; no mounts need restoring.
+    if random.random() < cfg.check_hunk_statistics_probability:
+        unmount_queue_and_check_hunks(queues, hunk_storages, written_tablets)

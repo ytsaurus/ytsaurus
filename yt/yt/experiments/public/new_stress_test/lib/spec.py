@@ -259,8 +259,9 @@ spec_template = {
         # Chance to create a replicated queue (replicated_table plus replica tables).
         # The source and each replica independently choose whether to use their own hunk
         # storage. Each replica also independently chooses sync/async mode.
-        # Replicated queues support trims, replica addition, operations and storage relinking;
-        # queue-level copy/move/alter and mount/flush chaos skip them.
+        # Replicated queues support trims, replica addition/transitions, operations,
+        # flushing and private storage relinking; queue-level copy/move/alter
+        # and queue mount chaos skip them.
         "create_replicated_probability": 0.3,
         "replicated_min_replicas": 1,
         # Also caps the replica count after additions during the run.
@@ -269,6 +270,8 @@ spec_template = {
         "replica_sync_probability": 0.5,
         "replica_hunks_probability": 0.5,
         "add_replica_probability": 0.1,
+        "change_replica_mode_probability": 0.1,
+        "replica_timestamp_probability": 0.5,
         "create_probability": 0.2,
         # Bound live queues and static tables together; shadows and replicas belong
         # to their queue. Moves and conversions do not consume additional slots.
@@ -277,6 +280,9 @@ spec_template = {
         "move_probability": 0.3,
         "remove_probability": 0.2,
         "flush_probability": 0.5,
+        # Applied once at the end: choose one queue retaining its final row from the last
+        # write phase, unmount it and its hunk storages, then check sealed-hunk statistics.
+        "check_hunk_statistics_probability": 1.0,
         "trim_probability": 0.1,
         "run_map_probability": 0.2,
         "run_sort_probability": 0.2,
@@ -294,6 +300,8 @@ spec_template = {
         "read_probability": 0.3,
         "write_min_batch_size": 1,
         "write_max_batch_size": 100,
+        # Hunk-enabled writes force the final value of each write above
+        # the inline threshold, even if the configured size range is smaller.
         "write_min_row_size": 0,
         "write_max_row_size": 2048,
         # Retry only brief transient write failures. When mount-chaos deliberately leaves a
