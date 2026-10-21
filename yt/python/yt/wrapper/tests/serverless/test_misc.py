@@ -1,6 +1,10 @@
 import yt.logger as yt_logger
 import yt.wrapper as yt
 
+from yt.wrapper import driver as yt_driver
+
+import logging
+
 from typing import get_type_hints
 from unittest import mock
 
@@ -75,3 +79,20 @@ def test_log_once():
         assert logger_mock.call_count == 5, "hit after clean"
         yt_logger.log_once(30, 'test1')
         assert logger_mock.call_count == 6, "miss after clean"
+
+
+@authors("papilov")
+def test_welcome_debug_info():
+    with mock.patch.object(yt_logger.LOGGER, "log") as logger_mock, \
+            mock.patch.object(yt_logger, "LOG_ONCE_BUFF", {}), \
+            mock.patch.object(yt_driver, "_welcome_debug_info_logged", False):
+        yt_driver._log_welcome_debug_info()
+        yt_driver._log_welcome_debug_info()
+        assert logger_mock.call_count == 1
+        level, template = logger_mock.call_args[0][0], logger_mock.call_args[0][1]
+        assert level == logging.DEBUG
+        message = template % logger_mock.call_args[0][2:]
+        assert "YT wrapper version: " in message
+        assert "python: " in message
+        assert "yson bindings: " in message
+        assert "rpc bindings: " in message
