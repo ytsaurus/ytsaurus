@@ -4536,6 +4536,46 @@ void SubqueryGroupOpHelper(
     }
 }
 
+void SubqueryAddOrderRow(
+    TNestedOrderByClosure* closure,
+    TPIValue* row)
+{
+    closure->AddRow(row);
+}
+
+void SubqueryOrderOpHelper(
+    TNestedExecutionContext* context,
+    TComparerFunction* comparerFunction,
+    void** collectRowsClosure,
+    void (*collectRowsFunction)(void** closure, TNestedOrderByClosure* orderByClosure),
+    void** consumeRowsClosure,
+    TRowsConsumer consumeRowsFunction,
+    int rowSize,
+    i64 offset,
+    i64 limit)
+{
+    YT_ASSERT(offset <= std::numeric_limits<i64>::max() - limit);
+
+    auto comparer = PrepareFunction(comparerFunction);
+    auto collectRows = PrepareFunction(collectRowsFunction);
+    auto consumeRows = PrepareFunction(consumeRowsFunction);
+
+    auto closure = TNestedOrderByClosure(
+        context->ExpressionContext,
+        comparer,
+        offset + limit,
+        rowSize);
+    collectRows(collectRowsClosure, &closure);
+
+    auto rows = closure.GetRows();
+    if (std::ssize(rows) <= offset) {
+        return;
+    }
+
+    auto castedRows = std::vector<const TPIValue*>(rows.begin() + offset, rows.end());
+    consumeRows(consumeRowsClosure, context->ExpressionContext, castedRows.data(), castedRows.size());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 int CompareYsonValuesHelper(const char* lhsOffset, ui32 lhsLength, const char* rhsOffset, ui32 rhsLength)
@@ -4820,6 +4860,8 @@ REGISTER_ROUTINE(SubqueryWriteRow);
 REGISTER_ROUTINE(SubqueryWriteHelper);
 REGISTER_ROUTINE(SubqueryInsertGroupRow);
 REGISTER_ROUTINE(SubqueryGroupOpHelper);
+REGISTER_ROUTINE(SubqueryAddOrderRow);
+REGISTER_ROUTINE(SubqueryOrderOpHelper);
 
 REGISTER_ROUTINE(memcmp);
 

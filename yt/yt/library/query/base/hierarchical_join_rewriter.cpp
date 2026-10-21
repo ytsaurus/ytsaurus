@@ -200,6 +200,9 @@ TSplitSubqueryResult SplitSubquery(const TConstSubqueryExpressionPtr& originalSu
         joiningSubquery->FromExpressions = originalSubquery->FromExpressions;
         joiningSubquery->GroupClause = originalSubquery->GroupClause;
         joiningSubquery->ProjectClause = originalSubquery->ProjectClause;
+        joiningSubquery->OrderClause = originalSubquery->OrderClause;
+        joiningSubquery->Offset = originalSubquery->Offset;
+        joiningSubquery->Limit = originalSubquery->Limit;
 
         auto joinClause = New<TJoinClause>(*originalJoinClause);
 

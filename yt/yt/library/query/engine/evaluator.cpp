@@ -275,10 +275,11 @@ private:
                 .With("limit", query->Limit);
         }
 
-        if (query->Offset + query->Limit < 0) {
-            THROW_ERROR_EXCEPTION("Negative OFFSET + LIMIT is forbidden")
-                .With("offset_limit_sum", query->Offset + query->Limit);
-        }
+        THROW_ERROR_EXCEPTION_IF(
+            query->Offset > std::numeric_limits<i64>::max() - query->Limit,
+            "Sum of offset %v and limit %v overflows i64",
+            query->Offset,
+            query->Limit);
     }
 };
 

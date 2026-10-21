@@ -17,6 +17,13 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr i64 UnorderedReadHint = std::numeric_limits<i64>::max();
+// TODO(sabdenovch): Deprecate this.
+constexpr i64 OrderedReadWithPrefetchHint = UnorderedReadHint - 1;
+constexpr i64 MaxQueryLimit = OrderedReadWithPrefetchHint - 1;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EScanOrder,
     ((Unordered) (0))
     ((Ordered)   (1))
@@ -281,6 +288,10 @@ struct TSubqueryExpression
     TConstExpressionPtr WhereClause;
     TConstGroupClausePtr GroupClause;
     TConstProjectClausePtr ProjectClause;
+    TConstOrderClausePtr OrderClause;
+
+    i64 Offset = 0;
+    i64 Limit = UnorderedReadHint;
 
     using TExpression::TExpression;
 };
@@ -481,10 +492,6 @@ DEFINE_REFCOUNTED_TYPE(TProjectClause)
 
 // Front Query is not Coordinatable
 // IsMerge is always true for front Query and false for Bottom Query
-
-constexpr i64 UnorderedReadHint = std::numeric_limits<i64>::max();
-// TODO(sabdenovch): Deprecate this.
-constexpr i64 OrderedReadWithPrefetchHint = std::numeric_limits<i64>::max() - 1;
 
 struct TBaseQuery
     : public TRefCounted

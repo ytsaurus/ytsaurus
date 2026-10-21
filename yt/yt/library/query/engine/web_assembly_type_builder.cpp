@@ -68,8 +68,10 @@ namespace NYT::NWebAssembly {
 
     XX(NQueryClient::TNestedExecutionContext*, EWebAssemblyValueType::UintPtr)
     XX(NQueryClient::TNestedGroupByClosure*, EWebAssemblyValueType::UintPtr)
+    XX(NQueryClient::TNestedOrderByClosure*, EWebAssemblyValueType::UintPtr)
 
     XX(void(*)(void**, NQueryClient::TNestedGroupByClosure*, NQueryClient::TExpressionContext*), EWebAssemblyValueType::UintPtr)
+    XX(void(*)(void**, NQueryClient::TNestedOrderByClosure*), EWebAssemblyValueType::UintPtr)
 
     XX(bool(*)(void**, NQueryClient::TExpressionContext*, const NQueryClient::TPositionIndependentValue**, long), EWebAssemblyValueType::UintPtr)
     XX(bool(*)(void**, NQueryClient::TExpressionContext*, NTableClient::TUnversionedValue const**, long), EWebAssemblyValueType::UintPtr)

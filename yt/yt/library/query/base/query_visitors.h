@@ -178,6 +178,12 @@ struct TVisitor
                 Visit(expression);
             }
         }
+
+        if (subqueryExpr->OrderClause) {
+            for (const auto& orderItem : subqueryExpr->OrderClause->OrderItems) {
+                Visit(orderItem.Expression);
+            }
+        }
     }
 };
 
@@ -822,6 +828,7 @@ struct TAbstractExpressionPrinter
     {
         auto inferNameOptions = TInferNameOptions{
             .OmitValues = Options.OmitValues,
+            .OmitOffsetAndLimit = Options.OmitOffsetAndLimit,
             .GroupClause = subqueryExpr->GroupClause,
         };
         auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
@@ -891,6 +898,23 @@ struct TAbstractExpressionPrinter
             if (subqueryExpr->GroupClause->TotalsMode == ETotalsMode::BeforeHaving) {
                 clauses.push_back("WITH TOTALS");
             }
+        }
+
+        if (subqueryExpr->OrderClause) {
+            inferNameOptions.GroupClause = subqueryExpr->GroupClause;
+            auto orderItemFormatter = [&] (TStringBuilderBase* builder, const TOrderItem& item) {
+                builder->AppendString(InferName(item.Expression, inferNameOptions));
+                builder->AppendString(item.Descending ? " DESC" : " ASC");
+            };
+            clauses.push_back("ORDER BY " + JoinToString(subqueryExpr->OrderClause->OrderItems, orderItemFormatter));
+        }
+
+        if (!Options.OmitOffsetAndLimit && subqueryExpr->Offset != 0) {
+            clauses.push_back(std::string("OFFSET ") + (Options.OmitValues ? "?" : ToString(subqueryExpr->Offset)));
+        }
+
+        if (!Options.OmitOffsetAndLimit && subqueryExpr->Limit < UnorderedReadHint) {
+            clauses.push_back(std::string("LIMIT ") + (Options.OmitValues ? "?" : ToString(subqueryExpr->Limit)));
         }
 
         Builder->AppendChar('(');

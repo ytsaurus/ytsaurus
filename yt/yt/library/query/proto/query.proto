@@ -162,6 +162,9 @@ message TSubqueryExpression
     optional TProjectClause project_clause = 6;
 
     repeated TJoinClause join_clauses = 7;
+    optional TOrderClause order_clause = 8;
+    optional int64 offset = 10;
+    optional int64 limit = 9;
 }
 
 message TNamedItem

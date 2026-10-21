@@ -1,9 +1,33 @@
 #include "push_down_group_by.h"
+#include "ast_visitors.h"
 #include "query_visitors.h"
 
 namespace NYT::NQueryClient {
 
 using namespace NLogging;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSubqueryDetector
+    : public NAst::TAstVisitor<TSubqueryDetector>
+{
+    bool Found = false;
+
+    void OnAlias(const NAst::TAliasExpressionPtr expression)
+    {
+        Visit(expression->Expression);
+    }
+
+    void OnReference(const NAst::TReferenceExpressionPtr expression)
+    {
+        Visit(expression->Reference.CompositeTypeAccessor.DictOrListItemAccessor);
+    }
+
+    void OnQuery(const NAst::TQueryExpressionPtr /*expression*/)
+    {
+        Found = true;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,6 +183,7 @@ std::pair<TJoinClausePtr, TGroupClausePtr> MakeGroupAndJoinClauses(
             foreignJoinedColumns.erase(reference->ColumnName);
         }
     }
+
     for (const auto& columnName : foreignJoinedColumns) {
         const auto& column = joinRenamedSchema.GetColumn(columnName);
         groupItems.push_back(TNamedItem(
@@ -294,6 +319,24 @@ void TryPushDownGroupBy(const TQueryPtr& query, const NAst::TQuery& ast, const T
 
     if (!query->GroupClause) {
         THROW_ERROR_EXCEPTION("Found \"push_down_group_by\" hint, but no group clause");
+    }
+
+    auto subqueryDetector = TSubqueryDetector();
+    subqueryDetector.Visit(ast.SelectExprs);
+    subqueryDetector.Visit(ast.WherePredicate);
+    subqueryDetector.Visit(ast.GroupExprs);
+    subqueryDetector.Visit(ast.HavingPredicate);
+    for (const auto& orderExpression : ast.OrderExpressions) {
+        subqueryDetector.Visit(orderExpression.Expressions);
+    }
+
+    const auto& tableJoin = std::get<NAst::TJoin>(ast.Joins[0]);
+    subqueryDetector.Visit(tableJoin.Lhs);
+    subqueryDetector.Visit(tableJoin.Rhs);
+    subqueryDetector.Visit(tableJoin.Predicate);
+    if (subqueryDetector.Found) {
+        YT_TLOG_DEBUG("\"push_down_group_by\" disabled for scalar subqueries");
+        return;
     }
 
     const auto& joinClause = query->JoinClauses[0];
