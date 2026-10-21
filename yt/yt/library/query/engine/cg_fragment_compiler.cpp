@@ -2379,71 +2379,65 @@ TCodegenExpression MakeCodegenTransformExpr(
 
 namespace NDetail {
 
-TCGValue MakeCodegenCaseExprRecursive(
+TCGValue CodegenCaseExpr(
     const std::function<TCGValue(TCGExprContext& builder, size_t condition)>& eqRelation,
     Value* optionalOperand,
-    std::optional<EValueType> optionalOperandType,
     TRange<std::pair<size_t, size_t>> whenThenExpressionIds,
     std::optional<size_t> defaultId,
     EValueType resultType,
     TCGExprContext& builder)
 {
-    if (whenThenExpressionIds.empty()) {
-        if (defaultId) {
-            auto result = CodegenFragment(builder, *defaultId);
-            YT_ASSERT(result.GetStaticType() == resultType);
-            return result;
+    auto* resultPtr = CodegenAllocateValues(builder, /*valueCount*/ 1);
+    auto* endBB = builder->CreateBBHere("endCase");
+
+    for (auto [conditionId, resultId] : whenThenExpressionIds) {
+        Value* canJump = nullptr;
+        if (optionalOperand) {
+            auto value = eqRelation(builder, conditionId);
+            canJump = builder->CreateAnd(
+                value.GetTypedData(builder),
+                builder->CreateNot(value.IsNull()));
+        } else {
+            auto condition = CodegenFragment(builder, conditionId);
+            YT_ASSERT(condition.GetStaticType() == EValueType::Boolean);
+
+            Value* predicateDataIsTrue = builder->CreateICmpEQ(
+                condition.GetTypedData(builder),
+                builder->getTrue());
+            canJump = builder->CreateAnd(
+                predicateDataIsTrue,
+                builder->CreateNot(condition.GetIsNull(builder)),
+                "canJump");
         }
-        return TCGValue::CreateNull(builder, resultType);
+
+        auto* thenBB = builder->CreateBBHere("then");
+        auto* elseBB = builder->CreateBBHere("else");
+        builder->CreateCondBr(canJump, thenBB, elseBB);
+
+        builder->SetInsertPoint(thenBB);
+        auto result = CodegenFragment(builder, resultId);
+        YT_ASSERT(result.GetStaticType() == resultType);
+        result.StoreToValue(builder, resultPtr);
+        builder->CreateBr(endBB);
+
+        builder->SetInsertPoint(elseBB);
     }
 
-    auto conditionId = whenThenExpressionIds.Front().first;
-    auto resultId = whenThenExpressionIds.Front().second;
+    auto result = defaultId
+        ? CodegenFragment(builder, *defaultId)
+        : TCGValue::CreateNull(builder, resultType);
+    YT_ASSERT(result.GetStaticType() == resultType);
+    result.StoreToValue(builder, resultPtr);
+    builder->CreateBr(endBB);
 
-    Value* canJump{};
-    if (optionalOperand) {
-        auto value = (eqRelation)(builder, conditionId);
-        canJump = builder->CreateAnd(
-            value.GetTypedData(builder),
-            builder->CreateNot(value.IsNull()));
-    } else {
-        auto condition = CodegenFragment(builder, conditionId);
-        YT_ASSERT(condition.GetStaticType() == EValueType::Boolean);
-
-        Value* predicateDataIsTrue = builder->CreateICmpEQ(
-            condition.GetTypedData(builder),
-            builder->getTrue());
-        canJump = builder->CreateAnd(
-            predicateDataIsTrue,
-            builder->CreateNot(condition.GetIsNull(builder)),
-            "canJump");
-    }
-
-    return CodegenIf<TCGExprContext, TCGValue>(
-        builder,
-        canJump,
-        [&] (TCGExprContext& builder) {
-            auto result = CodegenFragment(builder, resultId);
-            YT_ASSERT(result.GetStaticType() == resultType);
-            return result;
-        },
-        [&] (TCGExprContext& builder) {
-            return MakeCodegenCaseExprRecursive(
-                eqRelation,
-                optionalOperand,
-                optionalOperandType,
-                whenThenExpressionIds.Slice(1, whenThenExpressionIds.Size()),
-                defaultId,
-                resultType,
-                builder);
-        });
+    builder->SetInsertPoint(endBB);
+    return TCGValue::LoadFromRowValue(builder, resultPtr, resultType);
 }
 
 } // namespace NDetail
 
 TCodegenExpression MakeCodegenCaseExpr(
     std::optional<size_t> optionalOperandId,
-    std::optional<EValueType> optionalOperandType,
     std::vector<std::pair<size_t, size_t>> whenThenExpressionIds,
     std::optional<size_t> defaultId,
     EValueType resultType,
@@ -2480,10 +2474,9 @@ TCodegenExpression MakeCodegenCaseExpr(
                 .StoreToValue(builder, optionalOperand);
         }
 
-        return NDetail::MakeCodegenCaseExprRecursive(
+        return NDetail::CodegenCaseExpr(
             eqRelation,
             optionalOperand,
-            optionalOperandType,
             whenThenExpressionIds,
             defaultId,
             resultType,

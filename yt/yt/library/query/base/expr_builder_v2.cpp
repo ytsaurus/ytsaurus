@@ -1043,6 +1043,12 @@ TConstExpressionPtr TExpressionBuilderV2::OnTransformOp(
 
 TConstExpressionPtr TExpressionBuilderV2::OnCaseOp(const NAst::TCaseExpression* caseExpr)
 {
+    if (std::ssize(caseExpr->WhenThenExpressions) > MaxWhenThenExpressionCount) {
+        THROW_ERROR_EXCEPTION("Maximum WHEN/THEN expression count exceeded")
+            .With("when_then_expression_count", std::ssize(caseExpr->WhenThenExpressions))
+            .With("max_when_then_expression_count", MaxWhenThenExpressionCount);
+    }
+
     auto source = caseExpr->GetSource(Source_);
 
     TConstExpressionPtr typedOptionalOperand;
