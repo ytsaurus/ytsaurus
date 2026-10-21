@@ -573,6 +573,9 @@ struct TStrategyTreeConfig
 
     bool EnableDetailedLogsForSingleAllocationVanillaOperations;
 
+    //! Log operation_scheduling_started/finished events to the scheduler structured log.
+    bool EnableSchedulingStatusLogging;
+
     bool ConsiderSingleAllocationVanillaOperationsAsGang;
 
     bool UsePrecommitForPreemption;

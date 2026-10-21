@@ -2403,6 +2403,7 @@ class TestAllocatingGpuSchedulingPolicyMultiModulePreemption(AllocatingGpuSchedu
     @authors("severovv")
     def test_operation_timeline_events(self):
         update_pool_tree_config_option("gpu", "enable_step_function_for_gang_operations", True)
+        update_pool_tree_config_option("gpu", "enable_scheduling_status_logging", True)
 
         create_pool("timeline_gang", pool_tree="gpu")
         create_pool(
@@ -2421,7 +2422,7 @@ class TestAllocatingGpuSchedulingPolicyMultiModulePreemption(AllocatingGpuSchedu
         )
         wait(lambda: len(gang_op.get_running_jobs()) == 2)
 
-        run_sleeping_vanilla(
+        guaranteed_op = run_sleeping_vanilla(
             task_patch={"gpu_limit": 6, "enable_gpu_layers": False},
             job_count=5,
             spec={
@@ -2477,6 +2478,39 @@ class TestAllocatingGpuSchedulingPolicyMultiModulePreemption(AllocatingGpuSchedu
         assert "node_address" in first_allocation_scheduled
         assert lost_module_binding["module"] == bound_to_module["module"]
         assert lost_module_binding["reason"] == "operation_preemptible"
+
+        def get_scheduling_status_event_types(op, to_barrier=None):
+            events = read_structured_log(
+                scheduler_log_file,
+                from_barrier=from_barrier,
+                to_barrier=to_barrier,
+                row_filter=lambda e: e.get("operation_id") == op.id and e.get("event_type", "").startswith("operation_scheduling_"))
+            return [e["event_type"] for e in events]
+
+        # NB: Losing fair share emits nothing since usage stays above fair share.
+        assert get_scheduling_status_event_types(gang_op, to_barrier) == ["operation_scheduling_started", "operation_scheduling_finished"]
+        assert get_scheduling_status_event_types(guaranteed_op, to_barrier) == ["operation_scheduling_started"]
+
+        # Preempt the gang by a guaranteed operation, then return its fair share so that it is rescheduled.
+        # NB: Preemption itself emits nothing since the gang fair share is already zero.
+        preemptor_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=4,
+            spec={"pool": "timeline_guaranteed"},
+        )
+        guaranteed_op.abort()
+
+        wait(lambda: read_gpu_events(scheduler_log_file, from_barrier, event_type="allocation_preempted", op=gang_op))
+        wait(lambda: len(preemptor_op.get_running_jobs()) == 4)
+
+        preemptor_op.abort()
+
+        wait(lambda: get_scheduling_status_event_types(gang_op) == [
+            "operation_scheduling_started",
+            "operation_scheduling_finished",
+            "operation_scheduling_started",
+            "operation_scheduling_finished",
+        ])
 
     @authors("yaishenka")
     def test_full_host_op_evicted_from_module_after_timeout(self):

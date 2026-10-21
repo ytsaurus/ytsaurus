@@ -2193,10 +2193,27 @@ void TPoolTreeOperationElement::CheckForStarvation(TInstant now)
         fairShareAggressiveStarvationTimeout *= allocationCountRatio;
     }
 
+    bool wasBelowFairShare = PersistentAttributes_.BelowFairShareSince.has_value();
+
     TPoolTreeElement::CheckForStarvationImpl(
         fairShareStarvationTimeout,
         fairShareAggressiveStarvationTimeout,
         now);
+
+    bool isBelowFairShare = PersistentAttributes_.BelowFairShareSince.has_value();
+    if (TreeConfig_->EnableSchedulingStatusLogging && wasBelowFairShare != isBelowFairShare) {
+        // TODO(severovv): Meant to be valid only for gang operations for now; to fix, switch to BelowFairShareWithoutToleranceSince after YT-26987.
+        auto eventType = isBelowFairShare
+            ? ELogEventType::OperationSchedulingStarted
+            : ELogEventType::OperationSchedulingFinished;
+        NLogging::LogStructuredEventFluently(SchedulerStructuredLogger(), NLogging::ELogLevel::Info)
+            .Item("timestamp").Value(now)
+            .Item("event_type").Value(eventType)
+            .Item(EventLogPoolTreeKey).Value(TreeId_)
+            .Item("operation_id").Value(GetId())
+            .Item("current_fair_share").Value(Attributes_.FairShare.Total)
+            .Item("current_usage").Value(Attributes_.UsageShare);
+    }
 }
 
 std::optional<TInstant> TPoolTreeOperationElement::GetStarvingSince() const {
