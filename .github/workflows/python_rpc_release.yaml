@@ -19,10 +19,10 @@ jobs:
         include:
           - platform: linux-x86_64
             runner: ubuntu-24.04
-            manylinux-image: quay.io/pypa/manylinux2014_x86_64
+            arch: x86_64
           - platform: linux-aarch64
-            runner: ubuntu-24.04-arm
-            manylinux-image: quay.io/pypa/manylinux2014_aarch64
+            runner: ubuntu-24.04
+            arch: aarch64
           - platform: macos-x86_64
             runner: macos-15-intel
           - platform: macos-arm64
@@ -42,18 +42,27 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Extract ARM64 manylinux sysroot
+        if: ${{ matrix.platform == 'linux-aarch64' }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/rpc-build/sysroot"
+          container_id=$(docker create --platform linux/arm64 quay.io/pypa/manylinux2014_aarch64 /bin/true)
+          trap 'docker rm "$container_id"' EXIT
+          docker export "$container_id" | tar -x --no-same-owner -C "$RUNNER_TEMP/rpc-build/sysroot"
+
       - name: Build Linux wheel
         if: ${{ runner.os == 'Linux' }}
         env:
-          MANYLINUX_IMAGE: ${{ matrix.manylinux-image }}
+          TARGET_ARCH: ${{ matrix.arch }}
         run: |
           mkdir -p "$RUNNER_TEMP/rpc-build"
           docker run --rm \
             -v "$GITHUB_WORKSPACE:/ytsaurus" \
             -v "$RUNNER_TEMP/rpc-build:/build" \
             -e YTSAURUS_PACKAGE_VERSION \
-            "$MANYLINUX_IMAGE" \
-            bash -c 'export PATH="/opt/python/cp311-cp311/bin:$PATH"; bash /ytsaurus/yt/python/packages/build_rpc_bindings.sh /build'
+            -e TARGET_ARCH \
+            quay.io/pypa/manylinux2014_x86_64 \
+            bash -c 'export PATH="/opt/python/cp311-cp311/bin:$PATH"; bash /ytsaurus/yt/python/packages/build_rpc_bindings.sh /build "$TARGET_ARCH"'
 
       - name: Build macOS wheel
         if: ${{ runner.os == 'macOS' }}
@@ -61,11 +70,57 @@ jobs:
           MACOSX_DEPLOYMENT_TARGET: '12.0'
         run: bash yt/python/packages/build_rpc_bindings.sh "$RUNNER_TEMP/rpc-build"
 
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpc-wheel-${{ matrix.platform }}
+          path: ${{ runner.temp }}/rpc-build/dist/*.whl
+          if-no-files-found: error
+
+  check:
+    name: Check RPC bindings (${{ matrix.platform }})
+    needs: build
+    if: ${{ !cancelled() }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            runner: ubuntu-24.04
+            manylinux-image: quay.io/pypa/manylinux2014_x86_64
+          - platform: linux-aarch64
+            runner: ubuntu-24.04-arm
+            manylinux-image: quay.io/pypa/manylinux2014_aarch64
+          - platform: macos-x86_64
+            runner: macos-15-intel
+          - platform: macos-arm64
+            runner: macos-15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Download wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: rpc-wheel-${{ matrix.platform }}
+          path: ${{ runner.temp }}/rpc-build/dist
+
+      - name: Set up Python 3.11
+        if: ${{ runner.os == 'macOS' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Check wheel and string request ID
         timeout-minutes: 5
+        env:
+          MANYLINUX_IMAGE: ${{ matrix.manylinux-image }}
         run: |
-          python3 -m pip install "$RUNNER_TEMP"/rpc-build/dist/*.whl
-          python3 - <<'PY'
+          cat > "$RUNNER_TEMP/rpc-build/check_rpc.py" <<'PY'
           from yt_driver_rpc_bindings import Driver, Request
 
           from io import BytesIO
@@ -88,18 +143,21 @@ jobs:
               assert output.getvalue()
           finally:
               driver.terminate()
+          print("RPC get_version with string request ID passed")
           PY
-
-      - name: Upload wheel
-        uses: actions/upload-artifact@v4
-        with:
-          name: rpc-wheel-${{ matrix.platform }}
-          path: ${{ runner.temp }}/rpc-build/dist/*.whl
-          if-no-files-found: error
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            docker run --rm \
+              -v "$RUNNER_TEMP/rpc-build:/build:ro" \
+              "$MANYLINUX_IMAGE" \
+              bash -ec 'export PATH="/opt/python/cp311-cp311/bin:$PATH"; python3 -m pip install /build/dist/*.whl ytsaurus-client; python3 -I /build/check_rpc.py'
+          else
+            python3 -m pip install "$RUNNER_TEMP"/rpc-build/dist/*.whl ytsaurus-client
+            python3 -I "$RUNNER_TEMP/rpc-build/check_rpc.py"
+          fi
 
   publish:
     name: Publish RPC bindings
-    needs: build
+    needs: [build, check]
     runs-on: ubuntu-24.04
     permissions:
       id-token: write
