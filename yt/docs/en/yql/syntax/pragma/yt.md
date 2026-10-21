@@ -50,7 +50,6 @@ The _per‑cluster_ mode is available for all dynamic pragmas and for some stati
 
 By default, YT pragmas are written with the `yt` prefix — this means the setting applies to the current cluster where the query runs. To apply the same pragma to another cluster with a different value, replace `yt` with the cluster’s name. For example, let’s set different temporary directories for two clusters in a query:
 
-
 ```yql
 PRAGMA yt.TmpFolder = "//tmp/my_folder";            -- current cluster
 PRAGMA cluster_2.TmpFolder = "//tmp/other_folder";  -- cluster cluster_2
@@ -65,7 +64,7 @@ As a result, when the query runs, temporary files will be saved in `//tmp/my_fol
 
 You can’t use the `yt` prefix and a cluster name at the same time.
 
-Entries like `PRAGMA cluster_2.yt.TmpFolder` or `PRAGMA yt.cluster_2.TmpFolder` are invalid and will cause an error.
+Entries such as `PRAGMA cluster_2.yt.TmpFolder` or `PRAGMA yt.cluster_2.TmpFolder` are invalid and will result in an error.
 
 {% endnote %}
 
@@ -138,7 +137,7 @@ Set a separate path on the cluster where the query’s binary artifacts (UDF and
 | --- | --- | --- |
 | Number, not less than 1 | — | Dynamic |
 
-Limit the number of records that JobProxy can buffer.
+The maximum number of records that can be buffered by JobProxy.
 
 ## yt.ColumnGroupMode {#column-group-mode}
 
@@ -234,7 +233,7 @@ This sets the `locality_timeout` setting in the operation spec (the setting isn'
 | --- | --- | --- |
 | Positive floating-point number | — | Dynamic |
 
-This sets the approximate output-to-input ratio for the map stage in a combined MapReduce operation. See the [documentation]({{yt-docs-root}}/user-guide/data-processing/operations/mapreduce).
+See the [documentation]({{yt-docs-root}}/user-guide/data-processing/operations/mapreduce).
 
 ## yt.DefaultMaxJobFails {#default-max-job-fails}
 
@@ -242,7 +241,7 @@ This sets the approximate output-to-input ratio for the map stage in a combined 
 | --- | --- | --- |
 | Positive integer | 5 | Static |
 
-This is the number of failed MapReduce jobs. When this limit is reached, retry attempts for the query stop, and the query is considered unsuccessful.
+The number of failed MapReduce jobs at which query retries stop and the query is considered unsuccessful.
 
 ## yt.DefaultMemoryDigestLowerBound {#default-memory-digest-lower-bound}
 
@@ -258,7 +257,7 @@ This sets the `user_job_memory_digest_lower_bound` setting in the operation spec
 | --- | --- | --- |
 | Bytes | 512M | Dynamic |
 
-This sets the memory limit, in bytes, consumed by jobs. This limit is requested when you start MapReduce operations.
+The job memory limit, in bytes, requested when MapReduce operations are started.
 
 You can use the K, M, and G suffixes to specify values in kilobytes, megabytes, and gigabytes, respectively.
 
@@ -268,7 +267,7 @@ You can use the K, M, and G suffixes to specify values in kilobytes, megabytes, 
 | --- | --- | --- |
 | Floating-point number between 0.0 and 1.0, inclusive | — | Dynamic |
 
-This sets the memory reservation factor for jobs. See the [documentation]({{yt-docs-root}}/user-guide/data-processing/operations/operations-options#memory_reserve_factor).
+See the [documentation]({{yt-docs-root}}/user-guide/data-processing/operations/operations-options#memory_reserve_factor).
 
 ## yt.DefaultOperationWeight {#default-operation-weight}
 
@@ -277,7 +276,6 @@ This sets the memory reservation factor for jobs. See the [documentation]({{yt-d
 | Floating-point number | 1.0 | Dynamic |
 
 This sets the weight for all MapReduce operations you start within the selected compute pool.
-
 
 ## yt.Description {#description}
 
@@ -347,7 +345,7 @@ This lets you manage the [TTL for tables created by the operation]({{yt-docs-roo
 
 ## yt.ExternalTx {#external-tx}
 
-This pragma is used to specify an external [transaction](../../../user-guide/storage/transactions.md) in which context the query will run (for example, if the transaction was created via [CLI](../../../api/cli/commands.md#start-tx)). You might need this to perform multiple actions atomically—for example, two YQL queries or a YQL query and a table change.
+This pragma is used to specify an external [transaction](../../../user-guide/storage/transactions.md) in which context the query will run (for example, if the transaction was created via [CLI](../../../api/cli/commands.md#start-tx)). This may be required to perform multiple actions atomically—for example, two YQL queries, or a YQL query and table modifications. 
 
 This pragma also lets you read intermediate data in transactions (for example, in a long operation with temporary files).
 
@@ -415,7 +413,6 @@ This sets the maximum number of items in an inline list obtained as a result of 
 
 This sets the `"force_job_size_adjuster"` option in the operation settings.
 
-
 ## yt.HybridDqExecution {#hybrid-dq-execution}
 
 | Possible values | Default value | Type |
@@ -430,7 +427,7 @@ This enables hybrid query execution via DQ.
 | --- | --- | --- |
 | Flag | false | Static |
 
-When you read tables with a type_v3 schema, all fields with complex types will appear in the query as Yson fields. Complex types include all non-data types and data types with optionality greater than one level.
+ When tables with a type_v3 schema are read, all fields with complex types are exposed in the query as Yson fields. Complex types include all non-data types and data types with more than one level of optionality.
 
 ## yt.IgnoreWeakSchema {#ignore-weak-schema}
 
@@ -644,7 +641,7 @@ This explicitly controls the selection of the primary table in the Reduce operat
 | --- | --- | --- |
 | String with a list of paths to porto layers, separated by any of the following characters: comma, semicolon, space, or `\|` | — | Dynamic |
 
-This lets you specify a sequence of porto layers to form the environment in which user jobs will run.
+Allows you to specify a sequence of porto layers used to create the environment in which custom jobs will run.
 
 ## yt.LLVMMemSize {#llvm-mem-size}
 
@@ -694,7 +691,7 @@ If you set the value to 0, you can completely disable this strategy.
 | --- | --- | --- |
 | Number from 1 to 10 | 4 | Static |
 
-The Map-side JOIN strategy can run in a sharded mode: the smaller side splits into N shards (where N is less than or equal to the value of this PRAGMA), each of which joins with the larger side independently and in parallel. The JOIN result is then the concatenation of the JOINs with the shards.
+The map-side JOIN strategy can be executed in sharded mode: the smaller side is split into N shards (where N is less than or equal to the value of this PRAGMA), each of which is joined with the larger side independently and in parallel, and the concatenation of the JOIN results for all shards is considered the final JOIN result.
 
 ## yt.MapJoinShardMinRows {#map-join-shard-min-rows}
 
@@ -750,7 +747,7 @@ This limits the number of tables that you can pass as input to a sorted merge op
 | --- | --- | --- |
 | Positive integer | 16384 | Dynamic |
 
-This is the maximum number of jobs within a single {{product-name}} operation. It applies only to single-stage map, reduce, merge, and similar operations. If you specify both [`yt.DataSizePerJob`](#data-size-per-sort-job) and `yt.MaxJobCount`, job slicing runs with [`yt.DataSizePerJob`](#data-size-per-sort-job) taken into account. Even if the resulting value `N` exceeds `yt.MaxJobCount`, `N` jobs will run. `yt.MaxJobCount` only affects whether jobs split after their count reaches a certain threshold.
+The maximum number of jobs within a single {{product-name}} operation. Applies only to single-stage map, reduce, merge, and similar operations. If both [`yt.DataSizePerJob`](#data-size-per-sort-job) and `yt.MaxJobCount` are specified, jobs are partitioned based on [`yt.DataSizePerJob`](#data-size-per-sort-job). Even if the resulting value `N` exceeds `yt.MaxJobCount`, `N` jobs will be started, while `yt.MaxJobCount` will only determine whether jobs are split after their number reaches a certain threshold.
 
 ## yt.MaxKeyWeight {#max-key-weight}
 
@@ -790,7 +787,7 @@ Increase the limit on the maximum row length in a yt table.
 | --- | --- | --- |
 | Positive number | — | Dynamic |
 
-Set the number of speculative jobs in {{product-name}} operations. By default, the {{product-name}} cluster settings are used.
+Specifies the number of speculatively executed jobs in {{product-name}} operations. By default, the {{product-name}} cluster settings are used.
 
 ## yt.MinColumnGroupSize {#min-column-group-size}
 
@@ -834,11 +831,11 @@ Compatible comparisons from `WHERE` are passed to `input_query`. If the table st
 
 #### Notes and limitations {#use-ql-filter-limitations}
 
-- You can use numeric types, `Bool`, `String`, `Utf8`, and their `Optional` variants.
-- You can use comparisons `<`, `<=`, `>`, `>=`, `==`, `!=` between a column and a constant expression, as well as `AND`, `OR`, `NOT`, `EXISTS`, `COALESCE`.
-- The table must have a strict schema.
-- Dynamic tables are not supported.
-- The pragma does not apply to tables with a custom schema or columns defined via `WITH SCHEMA` or `WITH COLUMNS`.
+* You can use numeric types, `Bool`, `String`, `Utf8`, and their `Optional` variants.
+* You can use comparisons `<`, `<=`, `>`, `>=`, `==`, `!=` between a column and a constant expression, as well as `AND`, `OR`, `NOT`, `EXISTS`, `COALESCE`.
+* The table must have a strict schema.
+* Dynamic tables are not supported.
+* The pragma does not apply to tables with a custom schema or columns defined via `WITH SCHEMA` or `WITH COLUMNS`.
 
 ## yt.MinPublishedAvgChunkSize {#min-published-avg-chunk-size}
 
@@ -860,13 +857,11 @@ This setting works the same as `yt.MinPublishedAvgChunkSize`, but it applies to 
 
 ## yt.NetworkProject {#network-project}
 
-
 | Possible values | Default value | Type |
 | --- | --- | --- |
 | String | `yt.StaticNetworkProject` | Dynamic |
 
 Set the use of the specified network project in the jobs for regular operations in the request.
-
 
 ## yt.NightlyCompress {#nightly-compress}
 
@@ -874,12 +869,12 @@ Set the use of the specified network project in the jobs for regular operations 
 | --- | --- | --- |
 | Flag | - | Dynamic |
 
-Manage the process of background table compression so that the tables take up less space.
+Controls the background table compression process to reduce the amount of space occupied by tables.
 
-Setting the value to `true` sets the table's `@force_nightly_compress` attribute to `true`.  
+Setting the value to `true` sets the table's `@force_nightly_compress` attribute to `true`.
 Setting the value to `false` sets the table's `@nightly_compression_settings` attribute with the child value `enabled` to `false`.
 
-The setting applies only to tables that are newly created by a YQL request (and to tables that are overwritten using [INSERT INTO ... WITH TRUNCATE](insert_into)).  
+The setting applies only to tables that are newly created by a YQL request (and to tables that are overwritten using [INSERT INTO ... WITH TRUNCATE](insert_into)).
 The setting doesn't apply to temporary tables.
 
 ## yt.OmitInaccessibleRows {#omit-inaccessible-rows}
@@ -942,7 +937,6 @@ Allow you to grant access to manage [MapReduce operations](../../../user-guide/d
 | --- | --- | --- |
 | A string with a list of logins separated by any of the following characters: `,`, `;`, ` `, or `\|` | — | Dynamic |
 
-
 #### Example {#owners-example}
 
 ```yql
@@ -986,7 +980,7 @@ After you specify the `yt.StaticPool` pragma, the request will run in pool `<poo
 | --- | --- | --- |
 | A string with a list of tree names separated by any of the following characters: comma, semicolon, space, or ` | ` | Dynamic |
 
-Let you choose pool trees that are different from the default one.
+Enables selecting non-default pool trees.
 
 ## yt.PrimaryMedium {#primary-medium}
 
@@ -1012,7 +1006,7 @@ Published tables are the tables specified in [INSERT INTO](../insert_into.md); a
 | --- | --- | --- |
 | String, see the [documentation]({{yt-docs-root}}/user-guide/storage/replication#erasure) | none | Dynamic |
 
-Erasure coding is disabled by default. To enable it, we recommend using the `lrc_12_2_2` value.
+Erasure coding is always disabled by default. To enable it, use the recommended lrc_12_2_2 value.
 
 The difference between Published and Temporary is the same as for [CompressionCodec](#published-compression-codec).
 
@@ -1052,7 +1046,7 @@ Published tables are the tables specified in [INSERT INTO](../insert_into.md); a
 | --- | --- | --- |
 | A floating-point number, at least 1.0 | 4.0 | Dynamic |
 
-Set a multiplier for estimating the CPU consumption of [Python UDF](../../udf/python.md). This affects how MapReduce operations are split into jobs.
+A multiplier used to estimate CPU consumption by [Python UDFs](../../udf/python.md). It affects how MapReduce operations are split into jobs.
 
 ## yt.QueryCacheChunkLimit {#query-cache-chunk-limit}
 
@@ -1084,7 +1078,7 @@ The `concatenate` command — writing as‑is — runs faster than `merge`, whic
 
 Use this pragma to avoid flushing the cache when data in a table changes. This speeds up debugging complex queries on large, mutable tables when the query logic doesn’t depend on data changes.
 
-By default, when calculating the hash from the table metadata, the revision number — {{product-name}} revision — is taken into account along with other data. The revision is a non‑negative integer that increases each time the table changes. For more details about the `revision` attribute, see the [Metadata Tree]({{yt-docs-root}}/user-guide/storage/cypress#time_attributes) section.
+By default, the system computes a hash from table metadata based on several parameters, including the revision number: {{product-name}} `revision`. The revision is a non‑negative integer that increases each time the table changes. For more details about the `revision` attribute, see the [Metadata Tree]({{yt-docs-root}}/user-guide/storage/cypress#time_attributes) section.
 
 With this pragma, you can control cache flushing: you can include or exclude the revision number when calculating the hash from the table metadata.
 
@@ -1100,7 +1094,7 @@ PRAGMA yt.QueryCacheIgnoreTableRevision = 'true';
 
 #### Result { #query-cache-ignore-table-revision-result }
 
-If you set the flag to `true`, the {{product-name}} revision number is excluded when calculating the hash from the table metadata, and the Query Cache isn’t flushed when the content of the input tables changes.
+If you set the flag to `true`, the {{product-name}} revision number is excluded when calculating the hash from the table metadata, and the Query Cache isn’t flushed when the content of the input tables changes. In this case, the system will not invalidate the Query Cache when the contents of the input tables change.
 
 #### Notes and limitations { #query-cache-ignore-table-revision-constraint }
 
@@ -1112,7 +1106,7 @@ Don’t use this pragma in production. Use it only when debugging complex querie
 
 ## yt.QueryCacheMode {#query-cache-mode}
 
-Use the `yt.QueryCacheMode` pragma to control caching of MapReduce operation results in {{product-name}}.
+The pragma controls caching of MapReduce operation results in {{product-name}}.
 
 The cache stores results of previous operations: if the same operation has already run in a previous request, it won’t be launched again. Instead, {{product-name}} will take the ready result from the cache. This speeds up requests that contain computations identical to those in other requests.
 
@@ -1144,9 +1138,9 @@ In `normal` and `refresh` modes, the operation results are additionally saved at
 
 {% note info %}
 
-In `normal` mode, when you start a MapReduce operation, the system looks for the cache at the path `//<tmp_folder>/query_cache/<hash>`. If there’s no cache, {{product-name}} checks whether another operation that’s calculating the same cache is running in parallel. If such an operation exists but hasn’t written the result yet, the first operation waits for it to finish and then takes the ready cache.
+In `normal` mode, when you start a MapReduce operation, the system looks for the cache at the path `//<tmp_folder>/query_cache/<hash>`. If the result is not in the cache, {{product-name}} checks active operations from other queries. They may already include a similar operation that will produce the required result. If that operation has not yet written the result to the cache, the new query waits for it to complete. The system then retrieves the result from the cache.
 
-Keep in mind that the second request’s operation, which is calculating the cache, might be allocated fewer resources than the first request’s operation, which is waiting. So the first request will run slower than it would if it executed without reading from the cache.
+Keep in mind that reading from the cache can sometimes take longer than starting an operation from scratch. This can happen when the operation that computes the result and writes it to the cache has fewer resources than the operation that was started later and is waiting to read the result from the cache. In this case, the waiting query will run more slowly than if it were started from scratch.
 
 {% endnote %}
 
@@ -1210,14 +1204,13 @@ This pragma sets the `reduce_locality_timeout` setting in the operation specific
 
 | Possible values | Default | Type |
 | --- | --- | --- |
-| A string: `immediate` / `finish` / `never` | `immediate` | Static |
+| A string: `immediate` / `finish` / `never` | immediate | Static |
 
 Use this pragma to control when to delete temporary objects (for example, tables) that are created during query execution:
 
 - `immediate` — delete the objects as soon as they’re no longer needed.
 - `finish` — delete them at the end of the entire YQL query execution.
 - `never` — never delete them.
-
 
 ## yt.SamplingIoBlockSize {#sampling-io-block-size}
 
@@ -1227,14 +1220,13 @@ Use this pragma to control when to delete temporary objects (for example, tables
 
 Set the minimum block size for coarse-grained sampling.
 
-
 ## yt.ScriptCpu {#script-cpu}
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
 | Floating-point number, not less than 1.0 | 1.0 | Dynamic |
 
-This is a multiplier for estimating CPU consumption of script UDFs (including [Python UDF](../../udf/python.md)). It affects how MapReduce operations are split into jobs. You can override it with specialized pragmas `yt.PythonCpu` / `yt.JavascriptCpu` for a specific UDF type.
+Multiplier used to estimate CPU consumption by script UDFs (including [Python UDF](../../udf/python.md). It affects how MapReduce operations are split into jobs. You can override it with specialized pragmas `yt.PythonCpu` / `yt.JavascriptCpu` for a specific UDF type.
 
 ## yt.SortLocalityTimeout {#sort-locality-timeout}
 
@@ -1252,12 +1244,11 @@ Set the `sort_locality_timeout` setting in the operation specification (this set
 
 Set a map that describes the client through which the operation was started. See the [documentation]({{yt-docs-root}}/user-guide/data-processing/operations/operations-options).
 
-
 ## yt.StaticPool {#static-pool}
 
 Use this to override the compute pool, which by default is the current user's login.
 
-You can set only one new value for `yt.StaticPool`. If you specify the static pragma multiple times, its last value will be used. If you need to override the value for the next query, set it using the dynamic pragma `yt.Pool`.
+You can set only one new value for `yt.StaticPool`. If you need to override the value for the next query, set it using the dynamic pragma `yt.Pool`.
 
 | Value type | Default value | Type |
 | --- | --- | --- |
@@ -1276,6 +1267,7 @@ After you set the pragma, the query will run in the `<pool_1>` pool.
 #### Notes and limitations {#static-pool-limitations}
 
 - Specifying a non-existent pool will cause a query execution error.
+
 - If you specify `yt.StaticPool` multiple times, the last pragma value is used for all queries. For example, both queries written after the pragma with the `pool_1` value and queries after the pragma with `pool_2` will run in `pool_2`:
 
     ```yql
@@ -1289,7 +1281,7 @@ After you set the pragma, the query will run in the `<pool_1>` pool.
 | --- | --- | --- |
 | Flag | false | Dynamic |
 
-Suspend the operation if the "Account limit exceeded" error occurs in the jobs. See the [documentation]({{yt-docs-root}}/user-guide/data-processing/operations/operations-options#common_options).
+See the [documentation]({{yt-docs-root}}/user-guide/data-processing/operations/operations-options#common_options).
 
 ## yt.SwitchLimit {#switch-limit}
 
@@ -1305,7 +1297,7 @@ Set the memory buffer size for executing the Switch node.
 | --- | --- | --- |
 | Positive number, up to and including 11 | 8 | Dynamic |
 
-Configure the compression level for table content delivered via a file (when `yt.TableContentDeliveryMode="file"`).
+Configures the compression level for table content delivered via a file (when yt.TableContentDeliveryMode="file").
 
 ## yt.TableContentDeliveryMode {#table-content-delivery-mode}
 
@@ -1345,7 +1337,7 @@ Set the minimum average chunk size in a table for delivering it to jobs using th
 | --- | --- | --- |
 | Path on the cluster | — | Dynamic |
 
-Set the directory where temporary files for tables delivered via a file (when `yt.TableContentDeliveryMode="file"`) will be stored. If you don't set it, the standard {{product-name}} file cache is used.
+The directory where temporary files will be stored for tables delivered via a file (when yt.TableContentDeliveryMode="file"). If you don't set it, the standard {{product-name}} file cache is used.
 
 ## yt.TableContentUseSkiff {#table-content-use-skiff}
 
@@ -1359,7 +1351,7 @@ Enable the Skiff format for delivering the table to operation jobs.
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
-| String | `//tmp/yql/<login>` | Static, [per-cluster](*per-cluster) |
+| String | `//tmp/yql/<login>` | Static, [per-cluster](*per-cluster)|
 
 Set the directory for storing [temporary tables](../../faq/temp.md). This has priority over `yt.TmpFolder`.
 
@@ -1377,7 +1369,7 @@ Use this to manage the TTL for [temporary tables](../../faq/temp.md). It affects
 | --- | --- | --- |
 | String with a list of tree names separated by any of the following characters: comma, semicolon, space, or `\|` | — | Dynamic |
 
-You can cautiously distribute operations to pool trees that differ from the standard ones.
+Allows operations to be distributed cautiously across non-default pool trees.
 
 ## yt.TentativeTreeEligibilityMaxJobDurationRatio {#tentative-tree-eligibility-max-job-duration-ratio}
 
@@ -1385,7 +1377,7 @@ You can cautiously distribute operations to pool trees that differ from the stan
 | --- | --- | --- |
 | Floating-point number | — | Dynamic |
 
-This takes effect only if the `yt.TentativePoolTrees` pragma is present. It sets the acceptable job slowdown ratio in the alternative pool tree. 
+Takes effect only when the `yt.TentativePoolTrees` pragma is set. Specifies the acceptable job slowdown factor in the alternative pool tree.
 
 ## yt.TentativeTreeEligibilityMinJobDuration {#tentative-tree-eligibility-min-job-duration}
 
@@ -1393,7 +1385,7 @@ This takes effect only if the `yt.TentativePoolTrees` pragma is present. It sets
 | --- | --- | --- |
 | Milliseconds | — | Dynamic |
 
-This takes effect only if the `yt.TentativePoolTrees` pragma is present. It sets the minimum average job duration in the alternative pool tree.
+Takes effect only when the `yt.TentativePoolTrees` pragma is set. Specifies the minimum average job duration in the alternative pool tree.
 
 ## yt.TentativeTreeEligibilitySampleJobCount {#tentative-tree-eligibility-sample-job-count}
 
@@ -1401,7 +1393,7 @@ This takes effect only if the `yt.TentativePoolTrees` pragma is present. It sets
 | --- | --- | --- |
 | Positive number | — | Dynamic |
 
-This takes effect only if the `yt.TentativePoolTrees` pragma is present. It sets the number of jobs in the sample.
+Takes effect only when the `yt.TentativePoolTrees` pragma is set. Specifies the number of jobs in the sample.
 
 ## yt.TmpFolder {#tmp-folder}
 
@@ -1435,7 +1427,7 @@ This is the maximum LIMIT value used in combination with ORDER BY that triggers 
 | --- | --- | --- |
 | Number not less than 1 | 10 | Static |
 
-You set the expected number of records per job in a TopSort operation. The value is calculated as `LIMIT * yt.TopSortRowMultiplierPerJob`.
+The value is calculated as `LIMIT * yt.TopSortRowMultiplierPerJob`.
 
 ## yt.TopSortSizePerJob {#top-sort-size-per-job}
 
@@ -1469,8 +1461,7 @@ You set the value of the `use_default_tentative_pool_trees` option in the operat
 | --- | --- | --- |
 | Flag | true | Static |
 
-This enables writing values of complex types to tables using the native support for complex types in {{product-name}}.
-
+Enables writing complex-type values to tables using native support for complex types in {{product-name}}.
 
 ## yt.UserSlots {#user-slots}
 
