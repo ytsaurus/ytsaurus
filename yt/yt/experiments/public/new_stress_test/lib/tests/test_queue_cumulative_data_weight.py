@@ -245,6 +245,7 @@ def test_copy_and_move_preserve_weight_and_trim_state(client, monkeypatch, opera
 @pytest.mark.parametrize("failure", ["queue", "shadow", "commit"])
 def test_failed_write_does_not_advance_weight(client, monkeypatch, failure):
     queue = stress.Queue("//test", "queue", 1)
+    queue.hunk_storage_name = "hunks"
     queue.mount()
     queue.written_row_count = [1]
     queue.cumulative_data_weights = [100]
@@ -262,7 +263,7 @@ def test_failed_write_does_not_advance_weight(client, monkeypatch, failure):
     client.Transaction.side_effect = transaction
     client.insert_rows.side_effect = insert
     with pytest.raises(stress.YtError):
-        _write_rows(client, monkeypatch, queue, [(0, "a", "b"), (0, "c", "d")])
+        _write_rows(client, monkeypatch, queue, [(0, "a", "b" * 512), (0, "c", "d")])
     assert queue.written_row_count == [1]
     assert queue.cumulative_data_weights == [100]
 
@@ -308,6 +309,7 @@ def test_multi_queue_write_commits_and_retries_all_shadows(client, monkeypatch, 
         queue.written_row_count = [1, 2]
         queue.cumulative_data_weights = [10, 20]
     queues[1].replicated = True
+    queues[1].replication_source = {"hunks": False}
     queues[1].replicas = [
         {"path": "//test/second.replica_0", "mode": "sync"},
         {"path": "//test/second.replica_1", "mode": "async"},
@@ -432,6 +434,11 @@ def test_lost_commit_reply_does_not_duplicate_rows(client, monkeypatch):
     (stress.YtError("Tablet routing rejected", code=1701), True, True),
     (stress.YtError("Table //test/queue has no mounted tablets"), False, False),
     (stress.YtError("Hunk storage //test/hunks has no mounted tablets"), False, False),
+    (stress.YtError("No sync replicas", code=1714), False, False),
+    (stress.YtError("Sync replica is not known", code=1722), False, False),
+    (stress.YtError("Replica is not in sync mode", code=1723), False, False),
+    (stress.YtError("Sync replica is not written", code=1724), False, False),
+    (stress.YtError("Sync replica is not in-sync yet", code=1732), False, False),
     (stress.YtError("No such transaction", code=11000, inner_errors=[
         stress.YtError("Failed to write hunks", inner_errors=[stress.YtError("Unavailable", code=105)]),
     ]), True, False),
@@ -1047,7 +1054,8 @@ def test_stress_loop_distinguishes_commit_rejections_from_unknown_outcomes(clien
 
 @pytest.mark.parametrize("unmounted_index, unmounted_object", [(1, "queue"), (2, "hunk_storage")])
 def test_grouped_writes_isolate_expected_unmounts(client, monkeypatch, loop_spec, unmounted_index, unmounted_object):
-    loop_spec["queue_and_hunk_storage"].update({"write_probability": 1, "multi_queue_write_probability": 1})
+    loop_spec["queue_and_hunk_storage"].update({
+        "write_probability": 1, "multi_queue_write_probability": 1, "check_hunk_statistics_probability": 1})
     storage_indexes = iter(range(3))
     storages = {}
 
@@ -1097,16 +1105,25 @@ def test_grouped_writes_isolate_expected_unmounts(client, monkeypatch, loop_spec
         weights[tablet_plan[0]] += 11
         return counts, weights
 
+    def check_hunks(queues, storages, written_tablets):
+        assert pruning.call_count == 3
+        assert {queue.name for queue in written_tablets} == set(healthy_names)
+        for queue, tablet_index in written_tablets.items():
+            assert tablet_index == queue.tablet_count - 1
+
     def prune(queue):
         assert len(groups) == 4
 
     pruning = Mock(side_effect=prune)
+    final_check = Mock(side_effect=check_hunks)
     monkeypatch.setattr(stress, "write_queues_under_transaction", write_queues_under_transaction)
     monkeypatch.setattr(stress.Queue, "_write_batches", write_batches)
+    monkeypatch.setattr(stress, "unmount_queue_and_check_hunks", final_check)
     monkeypatch.setattr(stress.Queue, "prune_data_rows", lambda queue: pruning(queue))
     stress.test_queue_and_hunk_storage("//test", Spec(loop_spec), {}, args=None)
 
     assert groups.count(healthy_names) == 2
+    final_check.assert_called_once()
     assert attempts == {unmounted_name: 2, healthy_names[0]: 3, healthy_names[1]: 2}
     assert [call.args[0].name for call in pruning.call_args_list] == ["queue_0", "queue_1", "queue_2"]
     for queue in queues.values():
@@ -1248,3 +1265,37 @@ def test_table_limit_allows_conversions_and_reuses_removed_slots(client, monkeyp
     assert len(live) == 1
     assert any(isinstance(table, stress.Queue) for table in conversions)
     assert any(isinstance(table, stress.StaticTable) for table in conversions)
+
+
+@pytest.mark.parametrize("hunk_location", ["none", "plain", "source", "replica"])
+def test_writes_end_with_a_large_value_with_hunks(client, monkeypatch, hunk_location):
+    queue = stress.Queue(
+        "//test", "queue", 3,
+        replicas_plan=[] if hunk_location in ("source", "replica") else None,
+        replicated_table_hunks=hunk_location == "source",
+    )
+    if hunk_location == "plain":
+        queue.hunk_storage_name = "hunks"
+    if queue.replicated:
+        queue.replicas = [{"path": "//test/replica", "mode": "async", "hunks": hunk_location == "replica"}]
+    queue.mount_state.mount(None)
+    placements = iter([1, 0, 2, 0, 1])
+    monkeypatch.setattr(stress.random, "choice", lambda choices: next(placements))
+    monkeypatch.setattr(stress.RSG, "generate", lambda size: "v" * size)
+    client.get_tablet_infos.side_effect = lambda path, indexes: {
+        "tablets": [{"total_row_count": queue.written_row_count[i]} for i in indexes]}
+    spec = SimpleNamespace(queue_and_hunk_storage=SimpleNamespace(
+        write_min_batch_size=5, write_max_batch_size=5,
+        write_min_row_size=1, write_max_row_size=1, write_insert_chunk_bytes=1))
+    queue.write(True, spec, retry_count=1)
+    rows = _shadow_rows(client, queue)
+    assert all(len(row["value"]) == 1 for row in rows[:-1])
+    assert len(rows[-1]["value"]) == (1 if hunk_location == "none" else stress.MAX_INLINE_HUNK_SIZE + 1)
+
+
+def test_timestamp_column_is_included_in_replica_weights(client, monkeypatch):
+    queue = stress.Queue(
+        "//test", "queue", 1, replicas_plan=[], cluster_name="local-test", with_timestamp=True)
+    queue.mount_state.mount(None)
+    _write_rows(client, monkeypatch, queue, [(0, "k", "v")])
+    assert queue.cumulative_data_weights == [19]
