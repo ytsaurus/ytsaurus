@@ -1,6 +1,6 @@
 # Quick start with {{product-name}} Flow (Java)
 
-You implement Java and Kotlin computations in Flow through the companion mechanism. Java or Kotlin code runs in a separate gRPC process that interacts with the C++ worker.
+Java and Kotlin computation support in Flow is implemented through the [companion](../../../flow/concepts/glossary.md#companion) mechanism. Java or Kotlin code runs in a separate gRPC process that communicates with a C++ [worker](../../../flow/concepts/glossary.md#worker).
 
 [Java SDK source code for Flow]({{source-root}}/yt/java/flow)
 
@@ -26,7 +26,7 @@ The Java SDK for Flow (with Kotlin support) provides two approaches to configure
 
 ## Computation and SourceComputation
 
-To create a computation in Java, choose the appropriate builder that matches the Computation type in C++:
+To create a Java [computation](../../../flow/concepts/glossary.md#stream-and-computation), select the appropriate builder that corresponds to the [C++ computation type](../../../flow/concepts/companion.md#computation-types):
 
 - `Computation.builder()` — for `TTransformCompanionComputation` and `TSwiftMapCompanionComputation`.
 - `SourceComputation.builder()` — for `TSwiftOrderedSourceCompanionComputation` and `TTransformOrderedSourceCompanionComputation`.
@@ -66,14 +66,15 @@ To create a computation in Java, choose the appropriate builder that matches the
 {% endlist %}
 
 `Computation.builder()` requires two mandatory parameters:
-- **Computation id** — this maps requests between the worker and the companion.
+- **Computation id** — used to map requests between the [worker](../../../flow/concepts/glossary.md#worker) and the companion.
 - **Process function** — the function that contains the message-processing logic.
+
 
 ## Process Function
 
 There are two types of ProcessFunction:
 
-- `RowFunction` — receives messages and timers one at a time; it provides the `onMessage` and `onTimer` methods.
+- `RowFunction` — receives [messages](../../../flow/concepts/glossary.md#message) and [timers](../../../flow/concepts/glossary.md#timer) one at a time and provides the `onMessage` and `onTimer` methods.
 - `BatchFunction` — receives the entire batch of messages and timers; it provides the `onMessages` and `onTimers` methods.
 
 For more details, see the [Computation (Java)](../../../flow/java/computation.md) section.
@@ -138,7 +139,7 @@ Configure computations and streams in `main`, and add them to `PipelineContext`:
 
 {% endlist %}
 
-The runner needs `--config` for the pipeline config and `--flow-bin` for the `flow_server` binary:
+The runner requires `--config` with the pipeline config path and accepts `--flow-bin` with the `flow_server` binary path. If `--flow-bin` is omitted, it uses the path from the `YT_FLOW_BIN` environment variable.
 
 ```bash
 ./run.sh com.example.pipeline.PipelineMain --config pipeline.yson --flow-bin flow_server
@@ -152,7 +153,7 @@ If your functions need extra resources, such as a dictionary or cache, create th
 
 ### Spring Boot approach {#spring-boot-approach}
 
-With Spring Boot, annotate the `mapper` process-function class with `@FlowComputation`. The passthrough `reader` source stays in the pipeline spec and is not registered in the Java companion:
+When using Spring Boot, the `mapper` computation is registered by applying the `@FlowComputation` annotation directly to the process function class (the `reader` source is passthrough: it is declared in the pipeline spec and is not registered in the Java companion):
 
 {% list tabs group=lang %}
 
@@ -181,7 +182,7 @@ With Spring Boot, annotate the `mapper` process-function class with `@FlowComput
 
 {% endlist %}
 
-Declare typed streams on the message POJO with `@FlowMessage(streamIds = ...)`. The existing JPA `@Entity` annotation supplies the schema; Spring Boot discovers the class and registers its streams:
+Typed streams are declared by annotating the message POJO class with `@FlowMessage` and listing the stream identifiers it handles in `streamIds`. The existing JPA `@Entity` annotation supplies the schema. Spring Boot discovers these classes by scanning the application packages and registers their streams automatically:
 
 {% list tabs group=lang %}
 
