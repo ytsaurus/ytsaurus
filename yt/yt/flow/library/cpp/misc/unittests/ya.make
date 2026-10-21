@@ -8,6 +8,7 @@ SRCS(
     identifier_ut.cpp
     compact_unversioned_owning_row_ut.cpp
     cow_tree_ut.cpp
+    cpu_accounting_ut.cpp
     debug_build_warning_ut.cpp
     destruction_context_ut.cpp
     linear_system_ut.cpp

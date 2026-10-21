@@ -13,6 +13,7 @@ SRCS(
     identifier.cpp
     cow_tree.cpp
     crash_recorder.cpp
+    cpu_accounting.cpp
     GLOBAL error_backtrace_enricher.cpp
     indexed_yson_string.cpp
     lexicographically_serialize.cpp
