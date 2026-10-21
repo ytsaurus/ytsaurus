@@ -535,6 +535,16 @@ public:
             .Run();
     }
 
+    void SetOperationAlertSync(
+        TOperationId operationId,
+        EOperationAlertType alertType,
+        const TError& alert)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        DoSetOperationAlert(operationId, alertType, alert);
+    }
+
     void ValidatePoolPermission(
         const std::string& treeId,
         NObjectClient::TObjectId poolObjectId,
@@ -4738,6 +4748,14 @@ TFuture<void> TScheduler::SetOperationAlert(
         std::optional<TDuration> timeout)
 {
     return Impl_->SetOperationAlert(operationId, alertType, alert, timeout);
+}
+
+void TScheduler::SetOperationAlertSync(
+    TOperationId operationId,
+    EOperationAlertType alertType,
+    const TError& alert)
+{
+    Impl_->SetOperationAlertSync(operationId, alertType, alert);
 }
 
 TFuture<void> TScheduler::ValidateJobShellAccess(

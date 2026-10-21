@@ -172,6 +172,11 @@ public:
         const TError& alert,
         std::optional<TDuration> timeout = {});
 
+    void SetOperationAlertSync(
+        TOperationId operationId,
+        EOperationAlertType alertType,
+        const TError& alert);
+
     TFuture<void> ValidateJobShellAccess(
         const std::string& user,
         const std::string& jobShellName,
