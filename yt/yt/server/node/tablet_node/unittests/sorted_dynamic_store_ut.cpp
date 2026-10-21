@@ -4,9 +4,14 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
+#include <yt/yt/library/row_merger/row_merger.h>
+
 #include <yt/yt/client/transaction_client/ts_literal.h>
 
 #include <util/system/thread.h>
+
+#include <array>
+#include <bitset>
 
 namespace NYT::NTabletNode {
 namespace {
@@ -2030,6 +2035,950 @@ TEST_F(TMultiLockSortedDynamicStoreTest, SerializeSnapshot1)
 
     check();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Rows containing only nulls exist; pure locks never establish existence.
+class TSortedLockingTest
+    : public TSingleLockSortedDynamicStoreTest
+{
+public:
+    struct TLockHistoryCase
+    {
+        const char* Name = nullptr;
+        // nullptr: no committed write; "": all values null.
+        const char* Values = nullptr;
+        bool Delete = false;
+        bool Exists = false;
+    };
+
+    static constexpr TLockHistoryCase LockHistories[] = {
+        // Name     Initial values             Delete  Exists
+        {"Missing", nullptr,                   false,  false},
+        {"Live",    "a=1;b=3.14;c=old;peer=9", false,  true },
+        {"Nulls",   "",                        false,  true },
+        {"Deleted", "a=1;b=3.14;c=old;peer=9", true,   false},
+    };
+
+protected:
+    using TGroupMask = std::bitset<3>;
+    using TWriterMask = ui32;
+
+    enum class ELockMutation
+    {
+        Write,
+        Delete,
+        Lock,
+    };
+
+    struct TLockOperation
+    {
+        TGroupMask Groups;
+        std::string Values;
+        ELockType LockType = ELockType::Exclusive;
+        ELockMutation Kind = ELockMutation::Write;
+    };
+
+    struct TLockMutationCase
+    {
+        const char* Name = nullptr;
+        // Named T1, T2, ... in diagnostics.
+        std::vector<TLockOperation> Writers;
+    };
+
+    struct TLockProjectionCase
+    {
+        const char* Name = nullptr;
+        TColumnFilter Filter;
+    };
+
+    enum class EOwnerState
+    {
+        Active,
+        Prepared,
+        Committed,
+        Aborted,
+    };
+
+    // Owner acquired its locks first; requester is another transaction asking for
+    // locks on the same key, not a snapshot reader. Each timing case specifies the
+    // owner's state at that request and the requester's relative start timestamp.
+    struct TLockTimingCase
+    {
+        const char* Name = nullptr;
+        EOwnerState OwnerState = EOwnerState::Active;
+        int RequesterStart = 0;
+    };
+
+    enum class EMutationOutcome
+    {
+        Allowed,
+        Wait,
+        Conflict,
+    };
+
+    struct TPendingLockWait
+    {
+        TSortedDynamicRow Row;
+        TLockMask LockMask;
+        TTimestamp Timestamp;
+    };
+
+    struct TLockTransaction
+    {
+        TLockOperation Operation;
+        TLegacyOwningKey Key;
+        TUnversionedOwningRow Data;
+        TTimestamp Commit = NullTimestamp;
+        std::unique_ptr<TTestTransaction> Transaction;
+        TSortedDynamicRowWithLock Row = TSortedDynamicRow();
+        std::optional<TPendingLockWait> PendingWait;
+        bool Finished = false;
+    };
+
+    static constexpr int KeyColumnId = 0;
+    static constexpr int ColumnCount = 5;
+    static constexpr int ColumnGroups[] = {0, 1, 2, 0, 1}; // key, a, b, c, peer.
+    static constexpr TStringBuf GroupNames[] = {"primary", "a/peer", "b"};
+
+    inline static const TGroupMask PrimaryGroup{0b001};
+    inline static const TGroupMask GroupA{0b010};
+    inline static const TGroupMask GroupB{0b100};
+    inline static const TGroupMask AllGroups{0b111};
+
+    // Lock modes apply to groups; acquiring a lock alone does not change values.
+    // - Exclusive: write mode, incompatible with every other mode.
+    // - SharedWrite: write mode compatible with other SharedWrite owners.
+    // - SharedStrong: read-only mode compatible with other read locks; commit records
+    //   a read timestamp that conflicts with writers whose start timestamp is earlier.
+    // - SharedWeak: read-only mode with the same compatibility while pending,
+    //   but no conflict timestamp remains after commit.
+    static constexpr ELockType ConflictLockTypes[] = {
+        ELockType::Exclusive,
+        ELockType::SharedWrite,
+        ELockType::SharedStrong,
+        ELockType::SharedWeak,
+    };
+
+    // Owner is active or prepared and still holds its locks. True means a conflict
+    // on overlapping groups; rows and columns follow ConflictLockTypes.
+    static constexpr bool PendingTransactionLockConflict[4][4] = {
+        // Owner / requester: Exclusive  SharedWrite  SharedStrong  SharedWeak
+        /* Exclusive    */   {true,      true,        true,         true },
+        /* SharedWrite  */   {true,      false,       true,         true },
+        /* SharedStrong */   {true,      true,        false,        false},
+        /* SharedWeak   */   {true,      true,        false,        false},
+    };
+
+    // Owner has committed and released its locks. Recorded timestamps still cause
+    // conflicts if the owner's commit is after the requester's start timestamp.
+    static constexpr bool CommittedTransactionLockConflict[4][4] = {
+        // Owner / requester: Exclusive  SharedWrite  SharedStrong  SharedWeak
+        /* Exclusive    */   {true,      true,        true,         true },
+        /* SharedWrite  */   {true,      false,       true,         true },
+        /* SharedStrong */   {true,      true,        false,        false},
+        /* SharedWeak   */   {false,     false,       false,        false},
+    };
+
+    static constexpr int OwnerStart = 10;
+    static constexpr int OwnerPrepare = 20;
+    static constexpr int OwnerCommit = 30;
+    static constexpr int CaseTimestampStride = 100;
+
+    // Before/at/after compares the owner's event to the requester's start timestamp.
+    static constexpr TLockTimingCase LockTimings[] = {
+        // Name                   Owner state               Requester start
+        {"Active",                EOwnerState::Active,      OwnerCommit + 1},
+        {"PreparedBeforeStart",   EOwnerState::Prepared,    OwnerPrepare + 1},
+        {"PreparedAtStart",       EOwnerState::Prepared,    OwnerPrepare},
+        {"PreparedAfterStart",    EOwnerState::Prepared,    OwnerPrepare - 1},
+        {"CommittedBeforeStart",  EOwnerState::Committed,   OwnerCommit + 1},
+        {"CommittedAtStart",      EOwnerState::Committed,   OwnerCommit},
+        {"CommittedAfterStart",   EOwnerState::Committed,   OwnerCommit - 1},
+        {"Aborted",               EOwnerState::Aborted,     OwnerCommit + 1},
+    };
+
+    // Representative group relationships in both directions. All seven masks occur;
+    // deletes additionally exercise every owner/requester mask in the test below.
+    const std::vector<std::pair<TGroupMask, TGroupMask>> MutationGroupPairs_ = {
+        // Owner groups          Requester groups
+        {PrimaryGroup,           PrimaryGroup},
+        {GroupA,                 GroupA},
+        {GroupB,                 GroupB},
+        {GroupA,                 GroupB},
+        {GroupB,                 GroupA},
+        {PrimaryGroup,           GroupA},
+        {GroupA,                 PrimaryGroup},
+        {GroupA | GroupB,        GroupA},
+        {GroupA,                 GroupA | GroupB},
+        {GroupA | GroupB,        GroupA | GroupB},
+        {PrimaryGroup | GroupA,  GroupB},
+        {GroupB,                 PrimaryGroup | GroupA},
+        {PrimaryGroup | GroupB,  GroupA},
+        {GroupA,                 PrimaryGroup | GroupB},
+        {AllGroups,              GroupA | GroupB},
+        {GroupA | GroupB,        AllGroups},
+    };
+
+    const std::vector<TLockMutationCase> LockMutations_ = {
+        // Name                    Writers: {groups, values, lock type = Exclusive, kind = Write}
+        {"WriteA",                 {{GroupA, "a=2"}}},
+        {"WritePeer",              {{GroupA, "peer=8"}}},
+        {"WriteB",                 {{GroupB, "b=6.28"}}},
+        {"WritePrimary",           {{PrimaryGroup, "c=new"}}},
+        {"WriteBoth",              {{GroupA | GroupB, "a=2;b=6.28"}}},
+        {"WriteNull",              {{GroupA, "a=#"}}},
+        {"SharedWriteA",           {{GroupA, "a=2", ELockType::SharedWrite}}},
+        {"SharedWriteB",           {{GroupB, "b=6.28", ELockType::SharedWrite}}},
+        {"SharedWritePrimary",     {{PrimaryGroup, "c=new", ELockType::SharedWrite}}},
+        {"TwoSharedWrites", {
+            {GroupB, "b=6.28", ELockType::SharedWrite},
+            {GroupB, "b=6.28", ELockType::SharedWrite},
+        }},
+        {"IndependentWrites",      {{GroupA, "a=2"}, {GroupB, "b=6.28"}}},
+        {"IndependentNullWrite",   {{GroupA, "a=#"}, {GroupB, "b=6.28"}}},
+        {"Delete",                 {{PrimaryGroup, "", ELockType::Exclusive, ELockMutation::Delete}}},
+        {"WeakLock",               {{GroupA, "", ELockType::SharedWeak, ELockMutation::Lock}}},
+        {"StrongLock",             {{GroupA, "", ELockType::SharedStrong, ELockMutation::Lock}}},
+        {"ExclusiveLock",          {{GroupA, "", ELockType::Exclusive, ELockMutation::Lock}}},
+        {"SharedWriteLock",        {{GroupA, "", ELockType::SharedWrite, ELockMutation::Lock}}},
+    };
+
+    // All eight subsets of value groups, plus a same-group peer and a universal filter.
+    // Column IDs: key = 0, a = 1, b = 2, c = 3, peer = 4.
+    const std::vector<TLockProjectionCase> LockProjections_ = {
+        // Name        Columns
+        {"Keys",       TColumnFilter({0})},
+        {"A",          TColumnFilter({0, 1})},
+        {"B",          TColumnFilter({0, 2})},
+        {"Primary",    TColumnFilter({0, 3})},
+        {"AB",         TColumnFilter({0, 1, 2})},
+        {"APrimary",   TColumnFilter({0, 1, 3})},
+        {"BPrimary",   TColumnFilter({0, 2, 3})},
+        {"ABPrimary",  TColumnFilter({0, 1, 2, 3})},
+        {"Peer",       TColumnFilter({0, 4})},
+        {"Universal",  TColumnFilter::MakeUniversal()},
+    };
+
+    static bool IsWritingLock(ELockType lockType)
+    {
+        return lockType == ELockType::Exclusive || lockType == ELockType::SharedWrite;
+    }
+
+    static bool HaveOverlappingGroups(TGroupMask lhs, TGroupMask rhs)
+    {
+        // Primary locks cover the whole row, including groups absent from the mask.
+        return lhs.test(PrimaryLockIndex) || rhs.test(PrimaryLockIndex) || (lhs & rhs).any();
+    }
+
+    static TLockMask MakeLockMask(const TLockOperation& operation)
+    {
+        TLockMask lockMask;
+        for (int index = 0; index < std::ssize(GroupNames); ++index) {
+            if (operation.Groups.test(index)) {
+                lockMask.Set(index, operation.LockType);
+            }
+        }
+
+        return lockMask;
+    }
+
+    static std::vector<TStringBuf> DescribeGroups(TGroupMask groups)
+    {
+        std::vector<TStringBuf> names;
+        for (int index = 0; index < std::ssize(GroupNames); ++index) {
+            if (groups.test(index)) {
+                names.push_back(GroupNames[index]);
+            }
+        }
+
+        return names;
+    }
+
+    static TGroupMask ComputeProjectionGroups(const TColumnFilter& columnFilter)
+    {
+        // Always check primary for deletes; other groups follow the test schema.
+        auto groups = PrimaryGroup;
+        for (int column = KeyColumnId + 1; column < ColumnCount; ++column) {
+            if (columnFilter.ContainsIndex(column)) {
+                groups.set(ColumnGroups[column]);
+            }
+        }
+
+        return groups;
+    }
+
+    static EMutationOutcome ComputeExpectedMutationOutcome(
+        const TLockOperation& owner,
+        const TLockOperation& requester,
+        const TLockTimingCase& timing)
+    {
+        if (!HaveOverlappingGroups(owner.Groups, requester.Groups) || timing.OwnerState == EOwnerState::Aborted) {
+            return EMutationOutcome::Allowed;
+        }
+
+        auto lockIndex = [] (ELockType type) {
+            auto it = std::find(std::begin(ConflictLockTypes), std::end(ConflictLockTypes), type);
+            YT_VERIFY(it != std::end(ConflictLockTypes));
+
+            return it - std::begin(ConflictLockTypes);
+        };
+
+        auto ownerIndex = lockIndex(owner.LockType);
+        auto requesterIndex = lockIndex(requester.LockType);
+        bool conflict = timing.OwnerState == EOwnerState::Committed
+            ? timing.RequesterStart < OwnerCommit && CommittedTransactionLockConflict[ownerIndex][requesterIndex]
+            : PendingTransactionLockConflict[ownerIndex][requesterIndex];
+
+        if (!conflict) {
+            return EMutationOutcome::Allowed;
+        }
+
+        return timing.OwnerState == EOwnerState::Prepared && timing.RequesterStart > OwnerPrepare && IsWritingLock(owner.LockType)
+            ? EMutationOutcome::Wait
+            : EMutationOutcome::Conflict;
+    }
+
+    TTableSchemaPtr GetSchema() const override
+    {
+        return New<TTableSchema>(std::vector{
+            TColumnSchema("key", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("a", EValueType::Int64).SetLock("a"),
+            TColumnSchema("b", EValueType::Double).SetLock("b"),
+            TColumnSchema("c", EValueType::String),
+            TColumnSchema("peer", EValueType::Int64).SetLock("a"),
+        });
+    }
+
+    TLockTransaction StartLockTransaction(
+        int keyValue,
+        const TLockOperation& operation,
+        TTimestamp startTimestamp = NullTimestamp)
+    {
+        return {
+            .Operation = operation,
+            .Key = BuildKey(ToString(keyValue)),
+            .Data = BuildRow(Format("key=%v;%v", keyValue, operation.Values), /*treatMissingAsNull*/ false),
+            .Transaction = StartTransaction(startTimestamp),
+        };
+    }
+
+    // Set up an uncontended owner in the confirmed lock phase.
+    bool AcquireLocks(TLockTransaction* writer)
+    {
+        writer->Row = writer->Operation.Kind == ELockMutation::Delete
+            ? DeleteRow(writer->Transaction.get(), writer->Key, /*prelock*/ false)
+            : LockRow(writer->Transaction.get(), writer->Key, /*prelock*/ false, MakeLockMask(writer->Operation));
+
+        return static_cast<bool>(writer->Row);
+    }
+
+    void PrepareLocks(TLockTransaction* writer, TTimestamp timestamp)
+    {
+        PrepareTransaction(writer->Transaction.get(), timestamp);
+        PrepareRow(writer->Transaction.get(), writer->Row);
+    }
+
+    void AbortIfUnfinished(TLockTransaction* writer)
+    {
+        if (writer->Transaction && !writer->Finished) {
+            FinishLockTransaction(writer, /*commit*/ false);
+        }
+    }
+
+    void FinishLockTransaction(TLockTransaction* writer, bool commit)
+    {
+        YT_VERIFY(!writer->Finished);
+        auto* transaction = writer->Transaction.get();
+        if (commit) {
+            CommitTransaction(transaction, writer->Commit);
+            if (writer->Operation.Kind == ELockMutation::Delete) {
+                DeleteRow(transaction, writer->Row);
+            } else if (writer->Operation.Kind == ELockMutation::Write) {
+                WriteRow(transaction, writer->Row, writer->Data);
+            }
+
+            CommitRow(transaction, writer->Row, writer->Operation.Kind == ELockMutation::Lock);
+        } else {
+            AbortTransaction(transaction);
+            if (writer->Row) {
+                AbortRow(transaction, writer->Row);
+            }
+        }
+
+        writer->Finished = true;
+    }
+
+    EMutationOutcome RequestLocks(TLockTransaction* requester)
+    {
+        auto context = requester->Transaction->CreateWriteContext();
+        context.Phase = EWritePhase::Prelock;
+        auto lockMask = MakeLockMask(requester->Operation);
+        requester->Row = TSortedDynamicRowWithLock(
+            Store_->ModifyRow(requester->Key, lockMask, requester->Operation.Kind == ELockMutation::Delete, &context),
+            lockMask);
+        requester->PendingWait.reset();
+
+        auto outcome = requester->Row
+            ? EMutationOutcome::Allowed
+            : (context.BlockedStore ? EMutationOutcome::Wait : EMutationOutcome::Conflict);
+
+        EXPECT_EQ(outcome != EMutationOutcome::Conflict, context.Error.IsOK());
+
+        if (context.BlockedStore) {
+            EXPECT_EQ(Store_.Get(), context.BlockedStore);
+            requester->PendingWait = TPendingLockWait{
+                .Row = context.BlockedRow,
+                .LockMask = context.BlockedLockMask,
+                .Timestamp = context.BlockedTimestamp,
+            };
+        }
+
+        return outcome;
+    }
+
+    // Complete exactly one registered wait by aborting the owner transaction.
+    void CompleteWaitAndAbortOwnerTransaction(TLockTransaction* requester, TLockTransaction* owner)
+    {
+        ASSERT_TRUE(requester->PendingWait);
+        int waits = 0;
+        auto handlerGuard = Finally([&] {
+            Store_->ResetRowBlockedHandler();
+        });
+        Store_->SetRowBlockedHandler(BIND([&] (
+            TSortedDynamicRow /*row*/,
+            TSortedDynamicStore::TConflictInfo /*conflict*/,
+            TDuration /*timeout*/)
+        {
+            ++waits;
+            THROW_ERROR_EXCEPTION_IF(owner->Finished, "Wait continued after the owner transaction was aborted");
+
+            FinishLockTransaction(owner, /*commit*/ false);
+
+            return TSortedDynamicStore::TRowBlockedWaitingResult();
+        }));
+
+        const auto& pending = *requester->PendingWait;
+        Store_->WaitOnBlockedRow(pending.Row, pending.LockMask, pending.Timestamp);
+        requester->PendingWait.reset();
+        EXPECT_EQ(1, waits);
+    }
+
+    static TGroupMask FindUnrelatedGroup(const TLockOperation& owner, const TLockOperation& requester)
+    {
+        auto usedGroups = owner.Groups | requester.Groups;
+        if (usedGroups.test(PrimaryLockIndex)) {
+            return {};
+        }
+
+        auto freeGroups = (GroupA | GroupB) & ~usedGroups;
+        return (freeGroups & GroupA).any() ? GroupA : freeGroups & GroupB;
+    }
+
+    void RunMutationCase(
+        int keyValue,
+        const TLockOperation& owner,
+        const TLockOperation& requester,
+        const TLockTimingCase& timing)
+    {
+        SCOPED_TRACE(Format(
+            "Owner=%v groups=%v delete=%v Requester=%v groups=%v delete=%v Timing=%v",
+            owner.LockType,
+            DescribeGroups(owner.Groups),
+            owner.Kind == ELockMutation::Delete,
+            requester.LockType,
+            DescribeGroups(requester.Groups),
+            requester.Kind == ELockMutation::Delete,
+            timing.Name));
+
+        // Cases share one store. Give each a disjoint timestamp interval while
+        // preserving the relative start/prepare/commit boundaries from the table.
+        auto adjustTimestamp = [&] (int offset) {
+            return TTimestamp(CaseTimestampStride * keyValue + offset);
+        };
+
+        auto ownerTransaction = StartLockTransaction(keyValue, owner, adjustTimestamp(OwnerStart));
+        ownerTransaction.Commit = adjustTimestamp(OwnerCommit);
+        TLockTransaction requesterTransaction{.Operation = requester};
+        TLockTransaction unrelatedTransaction;
+
+        // Also covers the optional unrelated transaction assigned below.
+        auto transactionsGuard = Finally([&] {
+            for (auto* transaction : {&requesterTransaction, &unrelatedTransaction, &ownerTransaction}) {
+                AbortIfUnfinished(transaction);
+            }
+        });
+
+        // 1. The owner acquires locks, then reaches the state described by timing.
+        ASSERT_TRUE(AcquireLocks(&ownerTransaction));
+        if (timing.OwnerState != EOwnerState::Active) {
+            PrepareLocks(&ownerTransaction, adjustTimestamp(OwnerPrepare));
+        }
+
+        if (timing.OwnerState == EOwnerState::Committed || timing.OwnerState == EOwnerState::Aborted) {
+            FinishLockTransaction(&ownerTransaction, timing.OwnerState == EOwnerState::Committed);
+        }
+
+        // 2. An unrelated prepared lock must not block the request or its retry.
+        auto unrelatedGroup = FindUnrelatedGroup(owner, requester);
+        if (unrelatedGroup.any()) {
+            unrelatedTransaction = StartLockTransaction(
+                keyValue,
+                {.Groups = unrelatedGroup, .Kind = ELockMutation::Lock},
+                adjustTimestamp(OwnerStart));
+            ASSERT_TRUE(AcquireLocks(&unrelatedTransaction));
+            PrepareLocks(&unrelatedTransaction, adjustTimestamp(OwnerPrepare));
+        }
+
+        // 3. The requester asks for locks; compare the result with the independent model.
+        requesterTransaction = StartLockTransaction(keyValue, requester, adjustTimestamp(timing.RequesterStart));
+        auto expected = ComputeExpectedMutationOutcome(owner, requester, timing);
+        auto actual = RequestLocks(&requesterTransaction);
+        EXPECT_EQ(expected, actual);
+
+        // 4. A waiting request must succeed after its owner is aborted, even while
+        // the unrelated transaction remains prepared.
+        if (actual == EMutationOutcome::Wait) {
+            ASSERT_NO_THROW(CompleteWaitAndAbortOwnerTransaction(&requesterTransaction, &ownerTransaction));
+            EXPECT_EQ(EMutationOutcome::Allowed, RequestLocks(&requesterTransaction));
+        }
+    }
+};
+
+TEST_F(TSortedLockingTest, MutationCompatibility)
+{
+    std::vector<TLockOperation> operations;
+    for (auto lockType : ConflictLockTypes) {
+        for (ui32 bits = 1; bits <= AllGroups.to_ulong(); ++bits) {
+            TGroupMask groups(bits);
+            operations.push_back({
+                .Groups = groups,
+                .Values = Format(
+                    "%v%v%v",
+                    (groups & PrimaryGroup).any() ? "c=new;" : "",
+                    (groups & GroupA).any() ? "a=2;" : "",
+                    (groups & GroupB).any() ? "b=6.28;" : ""),
+                .LockType = lockType,
+                .Kind = IsWritingLock(lockType) ? ELockMutation::Write : ELockMutation::Lock,
+            });
+        }
+    }
+
+    operations.push_back({PrimaryGroup, "", ELockType::Exclusive, ELockMutation::Delete});
+    int cases = 0;
+    for (const auto& owner : operations) {
+        for (const auto& requester : operations) {
+            auto groupPair = std::pair(owner.Groups, requester.Groups);
+            if (owner.Kind != ELockMutation::Delete && requester.Kind != ELockMutation::Delete &&
+                std::ranges::find(MutationGroupPairs_, groupPair) == MutationGroupPairs_.end())
+            {
+                continue;
+            }
+
+            for (const auto& timing : LockTimings) {
+                RunMutationCase(++cases, owner, requester, timing);
+                EXPECT_EQ(0, Store_->GetLockCount());
+
+                if (HasFailure()) {
+                    return;
+                }
+            }
+        }
+    }
+
+    EXPECT_EQ(2504, cases);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLockingMatrixSortedDynamicStoreTest
+    : public TSortedLockingTest
+    , public ::testing::WithParamInterface<std::tuple<TSortedLockingTest::TLockHistoryCase, TStringBuf, TStringBuf>>
+{
+protected:
+    struct TReadCase
+    {
+        const TLockHistoryCase& History;
+        const TLockMutationCase& Mutation;
+        const TLockProjectionCase& Projection;
+        TStringBuf Reader;
+        TStringBuf Versions;
+        TStringBuf Clock;
+        TWriterMask CommitMask = 0;
+    };
+
+    struct TReadTimestamps
+    {
+        TTimestamp BeforePrepare;
+        TTimestamp Prepare;
+        TTimestamp AfterCommit;
+        TTimestamp Read;
+    };
+
+    struct TReadResult
+    {
+        TUnversionedOwningRow Row;
+        TWriterMask WaitedMask = 0;
+    };
+
+    // AtCommit is the first writer's commit; AfterCommit follows all writers' commits.
+    static constexpr TStringBuf Clocks[] = {
+        "BeforePrepare",
+        "AtPrepare",
+        "BeforeCommit",
+        "AtCommit",
+        "AfterCommit",
+        "SyncLatest",
+        "AsyncLatest",
+    };
+
+    static std::string DescribeReadCase(const TReadCase& testCase)
+    {
+        auto description = Format(
+            "History=%v Mutation=%v Projection=%v Reader=%v Versions=%v Clock=%v",
+            testCase.History.Name,
+            testCase.Mutation.Name,
+            testCase.Projection.Name,
+            testCase.Reader,
+            testCase.Versions,
+            testCase.Clock);
+        for (int index = 0; index < std::ssize(testCase.Mutation.Writers); ++index) {
+            const auto& writer = testCase.Mutation.Writers[index];
+            description += Format(
+                "\nT%v: %v groups=%v %v",
+                index + 1,
+                writer.LockType,
+                DescribeGroups(writer.Groups),
+                testCase.CommitMask & (1U << index) ? "Commit" : "Abort");
+        }
+
+        return description;
+    }
+
+    // The model uses scenario data and assigned timestamps, never store descriptors.
+    TWriterMask ComputeExpectedWaitMask(
+        const TReadCase& testCase,
+        const std::vector<TLockTransaction>& writers,
+        TTimestamp prepare,
+        TTimestamp timestamp) const
+    {
+        if (timestamp <= prepare || timestamp == AsyncLastCommittedTimestamp) {
+            return 0;
+        }
+
+        TWriterMask waitMask = 0;
+        bool rowExists = testCase.History.Exists;
+        auto checkedGroups = testCase.Versions == "AllVersions"
+            ? AllGroups
+            : ComputeProjectionGroups(testCase.Projection.Filter);
+
+        // First wait for writers touching the projection (including primary).
+        for (int index = 0; index < std::ssize(writers); ++index) {
+            const auto& writer = writers[index];
+            if (!IsWritingLock(writer.Operation.LockType) || !(writer.Operation.Groups & checkedGroups).any()) {
+                continue;
+            }
+
+            waitMask |= 1U << index;
+            // A visible commit establishes existence, even for null values; a pure lock does not.
+            rowExists |= writer.Operation.Kind == ELockMutation::Write &&
+                (testCase.CommitMask & (1U << index)) && writer.Commit <= timestamp;
+        }
+
+        // If existence is still unknown, an unselected writer may insert/resurrect
+        // the row. The reader then checks every group, so include all writing locks.
+        if (!rowExists) {
+            for (int index = 0; index < std::ssize(writers); ++index) {
+                if (IsWritingLock(writers[index].Operation.LockType)) {
+                    waitMask |= 1U << index;
+                }
+            }
+        }
+
+        return waitMask;
+    }
+
+    TUnversionedOwningRow ComputeExpectedRow(
+        const TReadCase& testCase,
+        TUnversionedRow initial,
+        const std::vector<TLockTransaction>& writers,
+        TWriterMask commitMask,
+        TTimestamp timestamp) const
+    {
+        bool exists = testCase.History.Exists;
+        std::array<TUnversionedValue, ColumnCount> values;
+        for (int index = 0; index < ColumnCount; ++index) {
+            values[index] = exists ? initial[index] : MakeUnversionedNullValue(index);
+        }
+
+        values[KeyColumnId] = initial[KeyColumnId];
+        for (int index = 0; index < std::ssize(writers); ++index) {
+            const auto& writer = writers[index];
+            if (!(commitMask & (1U << index)) || writer.Commit > timestamp ||
+                writer.Operation.Kind == ELockMutation::Lock)
+            {
+                continue;
+            }
+
+            if (writer.Operation.Kind == ELockMutation::Delete) {
+                exists = false;
+                continue;
+            }
+
+            exists = true;
+            for (const auto& value : writer.Data) {
+                values[value.Id] = value;
+            }
+        }
+
+        if (!exists) {
+            return {};
+        }
+
+        TUnversionedOwningRowBuilder builder;
+        for (int index = 0; index < ColumnCount; ++index) {
+            if (testCase.Projection.Filter.ContainsIndex(index)) {
+                builder.AddValue(values[index]);
+            }
+        }
+
+        return builder.FinishRow();
+    }
+
+    TUnversionedOwningRow ReadProjection(
+        const TReadCase& testCase,
+        const TTabletSnapshotPtr& snapshot,
+        const TLegacyOwningKey& key,
+        TTimestamp timestamp)
+    {
+        const auto& filter = testCase.Projection.Filter;
+        auto createReader = [&] (const auto& keysOrRanges) {
+            return Store_->CreateReader(
+                snapshot,
+                keysOrRanges,
+                timestamp,
+                testCase.Versions == "AllVersions",
+                filter,
+                ChunkReadOptions_,
+                /*workloadCategory*/ std::nullopt);
+        };
+
+        auto reader = testCase.Reader == "Range"
+            ? createReader(MakeSingletonRowRange(key, BuildKey(ToString(key[KeyColumnId].Data.Int64 + 1))))
+            : createReader(MakeSharedRange(std::vector<TLegacyKey>{key.Get()}, key));
+        WaitFor(reader->Open())
+            .ThrowOnError();
+
+        auto batch = reader->Read(TRowBatchReadOptions{.MaxRowsPerRead = 1});
+        if (!batch || batch->GetRowCount() == 0) {
+            return {};
+        }
+
+        // The merger also accepts a missing lookup row.
+        NRowMerger::TSchemafulRowMerger merger(
+            New<TRowBuffer>(),
+            ColumnCount,
+            /*keyColumnCount*/ 1,
+            filter,
+            snapshot->ColumnEvaluator);
+        merger.AddPartialRow(batch->MaterializeRows().Front(), MaxTimestamp);
+
+        return TUnversionedOwningRow(merger.BuildMergedRow());
+    }
+
+    TReadTimestamps AssignReadTimestamps(std::vector<TLockTransaction>* writers, TStringBuf clock)
+    {
+        TReadTimestamps timestamps{
+            .BeforePrepare = GenerateTimestamp(),
+            .Prepare = GenerateTimestamp(),
+        };
+        auto beforeCommit = GenerateTimestamp();
+        for (auto& writer : *writers) {
+            writer.Commit = GenerateTimestamp();
+        }
+
+        timestamps.AfterCommit = GenerateTimestamp();
+        const THashMap<TStringBuf, TTimestamp> readTimestamps = {
+            {"BeforePrepare", timestamps.BeforePrepare},
+            {"AtPrepare", timestamps.Prepare},
+            {"BeforeCommit", beforeCommit},
+            {"AtCommit", writers->front().Commit},
+            {"AfterCommit", timestamps.AfterCommit},
+            {"SyncLatest", SyncLastCommittedTimestamp},
+            {"AsyncLatest", AsyncLastCommittedTimestamp},
+        };
+
+        timestamps.Read = GetOrCrash(readTimestamps, clock);
+
+        return timestamps;
+    }
+
+    void FinishWriters(std::vector<TLockTransaction>* writers, TWriterMask commitMask)
+    {
+        for (int index = 0; index < std::ssize(*writers); ++index) {
+            auto& writer = (*writers)[index];
+            if (!writer.Finished) {
+                FinishLockTransaction(&writer, commitMask & (1U << index));
+            }
+        }
+    }
+
+    TWriterMask FinishBlockingWriter(std::vector<TLockTransaction>* writers, int lockIndex, TWriterMask commitMask)
+    {
+        for (int index = 0; index < std::ssize(*writers); ++index) {
+            auto& writer = (*writers)[index];
+            if (writer.Finished || !writer.Operation.Groups.test(lockIndex)) {
+                continue;
+            }
+
+            TWriterMask writerBit = 1U << index;
+            FinishLockTransaction(&writer, commitMask & writerBit);
+
+            return writerBit;
+        }
+
+        THROW_ERROR_EXCEPTION("No pending writer owns reported blocking group %v", lockIndex);
+    }
+
+    // Resolve only writers reported as blockers, applying their commit/abort outcomes.
+    // The caller checks both the resulting row and the identities of those writers.
+    TReadResult ReadResolvingWriters(
+        const TReadCase& testCase,
+        const TTabletSnapshotPtr& snapshot,
+        const TLegacyOwningKey& key,
+        TTimestamp timestamp,
+        std::vector<TLockTransaction>* writers)
+    {
+        TReadResult result;
+        auto handlerGuard = Finally([&] {
+            Store_->ResetRowBlockedHandler();
+        });
+        Store_->SetRowBlockedHandler(BIND([&] (
+            TSortedDynamicRow row,
+            TSortedDynamicStore::TConflictInfo conflict,
+            TDuration /*timeout*/)
+        {
+            EXPECT_EQ(static_cast<TSortedDynamicRow>(writers->front().Row), row);
+            result.WaitedMask |= FinishBlockingWriter(writers, conflict.LockIndex, testCase.CommitMask);
+
+            return TSortedDynamicStore::TRowBlockedWaitingResult();
+        }));
+
+        result.Row = ReadProjection(testCase, snapshot, key, timestamp);
+
+        return result;
+    }
+
+    void RunReadCase(const TTabletSnapshotPtr& snapshot, int keyValue, const TReadCase& testCase)
+    {
+        SCOPED_TRACE(DescribeReadCase(testCase));
+
+        // 1. Seed a fresh key, then acquire all writers' locks without preparing them.
+        const auto& history = testCase.History;
+        auto key = BuildKey(ToString(keyValue));
+        auto initial = BuildRow(Format("key=%v;%v", keyValue, history.Values ? history.Values : ""));
+        if (history.Values) {
+            WriteRow(initial);
+        }
+
+        if (history.Delete) {
+            DeleteRow(key);
+        }
+
+        std::vector<TLockTransaction> writers;
+        auto transactionsGuard = Finally([&] {
+            for (auto& writer : writers) {
+                AbortIfUnfinished(&writer);
+            }
+        });
+
+        for (const auto& operation : testCase.Mutation.Writers) {
+            writers.push_back(StartLockTransaction(keyValue, operation));
+            ASSERT_TRUE(AcquireLocks(&writers.back()));
+        }
+
+        auto timestamps = AssignReadTimestamps(&writers, testCase.Clock);
+        auto checkRow = [&] (TWriterMask commitMask, TTimestamp readTimestamp) {
+            EXPECT_EQ(
+                ComputeExpectedRow(testCase, initial, writers, commitMask, readTimestamp),
+                ReadProjection(testCase, snapshot, key, readTimestamp));
+        };
+
+        // 2. Active writers are invisible and do not block; then prepare them all.
+        checkRow(/*commitMask*/ 0, timestamps.BeforePrepare);
+        for (auto& writer : writers) {
+            PrepareLocks(&writer, timestamps.Prepare);
+        }
+
+        // 3. Predict the prepared read before executing it. AsyncLatest ignores
+        // pending writes; other reads may see writers committed while waiting.
+        auto visibleCommits = timestamps.Read == AsyncLastCommittedTimestamp ? 0 : testCase.CommitMask;
+        auto expectedRow = ComputeExpectedRow(testCase, initial, writers, visibleCommits, timestamps.Read);
+        auto expectedWaitMask = ComputeExpectedWaitMask(testCase, writers, timestamps.Prepare, timestamps.Read);
+        auto result = ReadResolvingWriters(testCase, snapshot, key, timestamps.Read, &writers);
+        EXPECT_EQ(expectedRow, result.Row);
+        EXPECT_EQ(expectedWaitMask, result.WaitedMask);
+
+        // 4. Finish the remaining writers and recheck the original and final snapshots.
+        FinishWriters(&writers, testCase.CommitMask);
+        checkRow(testCase.CommitMask, timestamps.Read);
+        checkRow(testCase.CommitMask, timestamps.AfterCommit);
+        EXPECT_EQ(0, Store_->GetLockCount());
+    }
+};
+
+TEST_P(TLockingMatrixSortedDynamicStoreTest, Matrix)
+{
+    const auto& [history, reader, versions] = GetParam();
+    auto snapshot = Tablet_->BuildSnapshot(/*slot*/ nullptr);
+    int cases = 0;
+    for (const auto& mutation : LockMutations_) {
+        for (const auto& projection : LockProjections_) {
+            // AllVersions checks all groups for any projection. Keep key-only, sparse
+            // payload and universal reads; SingleVersion covers every column subset.
+            if (versions == "AllVersions" && TStringBuf(projection.Name) != "Keys" &&
+                TStringBuf(projection.Name) != "Peer" && !projection.Filter.IsUniversal())
+            {
+                continue;
+            }
+
+            for (auto clock : Clocks) {
+                for (TWriterMask commitMask = 0; commitMask < (1U << mutation.Writers.size()); ++commitMask) {
+                    RunReadCase(
+                        snapshot,
+                        ++cases,
+                        TReadCase{
+                            .History = history,
+                            .Mutation = mutation,
+                            .Projection = projection,
+                            .Reader = reader,
+                            .Versions = versions,
+                            .Clock = clock,
+                            .CommitMask = commitMask,
+                        });
+
+                    if (HasFailure()) {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    EXPECT_EQ(versions == "AllVersions" ? 840 : 2800, cases);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Exhaustive,
+    TLockingMatrixSortedDynamicStoreTest,
+    ::testing::Combine(
+        ::testing::ValuesIn(TSortedLockingTest::LockHistories),
+        ::testing::Values(TStringBuf("Lookup"), TStringBuf("Range")),
+        ::testing::Values(TStringBuf("SingleVersion"), TStringBuf("AllVersions"))),
+    ([] (const auto& info) {
+        const auto& [history, readerKind, versionMode] = info.param;
+        return Format("%v_%v_%v", history.Name, readerKind, versionMode);
+    }));
 
 ////////////////////////////////////////////////////////////////////////////////
 

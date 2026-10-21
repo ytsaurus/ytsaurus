@@ -1315,6 +1315,7 @@ private:
     const IInvokerPtr Invoker_;
     const TTabletSnapshotPtr TabletSnapshot_;
     const TTimestamp Timestamp_;
+    const TTimestamp RetentionTimestamp_;
     const bool ProduceAllVersions_;
     const TClientChunkReadOptions SessionChunkReadOptions_;
     const TClientChunkReadOptions TabletChunkReadOptions_;
@@ -1926,6 +1927,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     , Invoker_(lookupSession->Invoker_)
     , TabletSnapshot_(std::move(tabletSnapshot))
     , Timestamp_(lookupSession->TimestampRange_.Timestamp)
+    , RetentionTimestamp_(lookupSession->TimestampRange_.RetentionTimestamp)
     , ProduceAllVersions_(produceAllVersions)
     , SessionChunkReadOptions_(lookupSession->ChunkReadOptions_)
     , TabletChunkReadOptions_(std::move(tabletChunkReadOptions))
@@ -1988,6 +1990,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     , Invoker_(std::move(invoker))
     , TabletSnapshot_(std::move(tabletSnapshot))
     , Timestamp_(readTimestampRange.Timestamp)
+    , RetentionTimestamp_(readTimestampRange.RetentionTimestamp)
     , ProduceAllVersions_(produceAllVersions)
     , SessionChunkReadOptions_(chunkReadOptions)
     , TabletChunkReadOptions_(SessionChunkReadOptions_)
@@ -2151,7 +2154,7 @@ TStoreSessionList TTabletLookupSession<TPipeline>::CreateStoreSessions(
             ProduceAllVersions_,
             ProduceAllVersions_
                 ? TColumnFilter::MakeUniversal()
-                : *ColumnMappingInfo_.GetPhysicalColumnFilter(),
+                : ColumnFilterOrUniversal(*ColumnMappingInfo_.GetPhysicalColumnFilter(), store, RetentionTimestamp_),
             TabletChunkReadOptions_,
             TabletChunkReadOptions_.WorkloadDescriptor.Category));
     }

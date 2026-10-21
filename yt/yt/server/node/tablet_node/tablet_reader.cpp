@@ -4,6 +4,7 @@
 #include "config.h"
 #include "failing_on_rotation_reader.h"
 #include "hedging_manager_registry.h"
+#include "helpers.h"
 #include "partition.h"
 #include "private.h"
 #include "sorted_chunk_store.h"
@@ -665,7 +666,7 @@ ISchemafulUnversionedReaderPtr DoCreateScanReader(
                     boundsPerStore[index],
                     timestamp,
                     /*produceAllVersions*/ false,
-                    enrichedColumnFilter,
+                    ColumnFilterOrUniversal(enrichedColumnFilter, stores[index], timestampRange.RetentionTimestamp),
                     chunkReadOptions,
                     workloadCategory);
             },
@@ -689,7 +690,7 @@ ISchemafulUnversionedReaderPtr DoCreateScanReader(
                 boundsPerStore[index],
                 timestamp,
                 /*produceAllVersions*/ false,
-                enrichedColumnFilter,
+                ColumnFilterOrUniversal(enrichedColumnFilter, stores[index], timestampRange.RetentionTimestamp),
                 chunkReadOptions,
                 workloadCategory);
             index++;
@@ -946,7 +947,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                     boundsPerStore[index],
                     timestamp,
                     /*produceAllVersions*/ false,
-                    enrichedColumnFilter,
+                    ColumnFilterOrUniversal(enrichedColumnFilter, stores[index], timestampRange.RetentionTimestamp),
                     chunkReadOptions,
                     workloadCategory);
             },
@@ -970,7 +971,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                 boundsPerStore[index],
                 timestamp,
                 /*produceAllVersions*/ false,
-                enrichedColumnFilter,
+                ColumnFilterOrUniversal(enrichedColumnFilter, stores[index], timestampRange.RetentionTimestamp),
                 chunkReadOptions,
                 workloadCategory);
             index++;

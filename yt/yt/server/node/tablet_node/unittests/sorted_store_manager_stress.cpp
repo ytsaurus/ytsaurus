@@ -59,6 +59,7 @@ public:
     void RunTest();
 
     std::mt19937 Rng;
+    int CommitSequence = 0;
 
     using TKey = int;
 
@@ -151,6 +152,7 @@ public:
         TValueFilter ValueFilter;
         TTimestamp Timestamp;
         TGuid RequestId;
+        int CommitSequenceAtStart = 0;
     };
 
     struct TLookupResult
@@ -320,6 +322,9 @@ public:
         //! Lock mask (for LockAndWrite command).
         TLockMask LockMask;
 
+        TStoreId LockStoreId;
+        TStoreId CommitStoreId;
+
         //! Returns true if locks were acquired.
         bool Apply(bool prelock = true)
         {
@@ -338,6 +343,10 @@ public:
             }
 
             Applied = static_cast<bool>(RowRef);
+            if (Applied) {
+                LockStoreId = RowRef.Store->GetId();
+            }
+
             return Applied;
         }
 
@@ -354,6 +363,7 @@ public:
 
         void Commit()
         {
+            CommitStoreId = Self->GetActiveStore()->GetId();
             switch (*Type) {
                 case ERowModificationType::Write: {
                     auto row = Row.ToRow();
@@ -446,6 +456,7 @@ public:
         bool Aborted = false;
         bool Committed = false;
         bool SignatureMismatch = false;
+        int CommitSequence = 0;
 
         void Start()
         {
@@ -544,6 +555,7 @@ public:
         void Commit()
         {
             YT_VERIFY(CanCommit());
+            CommitSequence = ++Self->CommitSequence;
             Self->CommitTransaction(Transaction.get(), *GeneratedCommitTimestamp);
             // Order should not be important.
             for (auto* action : GetShuffledModifications()) {
@@ -625,7 +637,36 @@ public:
     std::vector<std::unique_ptr<TTransactionState>> Transactions_;
     THashSet<TTransactionState*> RunningTransactions_;
 
-    // Naive implementations.
+    std::unique_ptr<TTransactionState> CreateWrite(TRow row)
+    {
+        auto holder = std::make_unique<TTransactionState>();
+        auto* transactionState = holder.get();
+        transactionState->Self = this;
+        transactionState->Transaction = StartTransaction();
+
+        auto modification = std::make_unique<TModification>();
+        modification->Self = this;
+        modification->Transaction = transactionState->Transaction.get();
+        modification->Type = ERowModificationType::WriteAndLock;
+        modification->Row = std::move(row);
+        transactionState->Modifications.push_back(std::move(modification));
+
+        return holder;
+    }
+
+    TTransactionState* PrepareWrite(TRow row)
+    {
+        auto holder = CreateWrite(std::move(row));
+        auto* transactionState = holder.get();
+        transactionState->Start();
+        YT_VERIFY(transactionState->Prelock());
+        transactionState->Lock();
+        transactionState->GeneratePrepareTimestamp();
+        YT_VERIFY(transactionState->Prepare());
+
+        Transactions_.push_back(std::move(holder));
+        return transactionState;
+    }
 
     struct TValueState
     {
@@ -648,92 +689,138 @@ public:
         }
     };
 
-    TLookupResult NaiveLookup(const TLookupRequest& request)
+    struct TExistenceState
     {
-        TLookupResult result;
+        bool Exists = false;
+        TTimestamp Timestamp = NullTimestamp;
 
-        std::array<TValueState, ValueCount> values;
-        for (int index = 0; index < ValueCount; ++index) {
-            values[index].Enabled = request.ValueFilter[index];
+        void TryUpdate(bool exists, TTimestamp timestamp)
+        {
+            if (timestamp > Timestamp) {
+                Exists = exists;
+                Timestamp = timestamp;
+            }
+        }
+    };
+
+    struct TLookupState
+    {
+        std::array<TValueState, ValueCount> Values;
+        TExistenceState RowExistence;
+        THashMap<TStoreId, TExistenceState> StoreExistence;
+        std::vector<TModification*> PendingModifications;
+    };
+
+    static void ApplyCommittedModification(
+        const TLookupRequest& request,
+        const TTransactionState& transaction,
+        const TModification& modification,
+        TLookupState* state)
+    {
+        auto commitTimestamp = *transaction.GetCommitTimestamp();
+        if (commitTimestamp > request.Timestamp) {
+            return;
         }
 
-        TValueState RowExistence;
-        RowExistence.Enabled = true;
+        bool isDelete = modification.Type == ERowModificationType::Delete;
+        bool isWrite = false;
+        auto row = modification.Row;
+        for (int index = 0; index < ValueCount; ++index) {
+            if (isDelete) {
+                state->Values[index].TryUpdate(/*value*/ std::nullopt, commitTimestamp);
+            } else if (auto value = row.GetValue(index)) {
+                state->Values[index].TryUpdate(value, commitTimestamp);
+                isWrite = true;
+            }
+        }
+
+        // Pure locks do not establish row existence.
+        if (!isDelete && !isWrite) {
+            return;
+        }
+
+        state->RowExistence.TryUpdate(!isDelete, commitTimestamp);
+
+        // A later write cannot narrow an existing wait; a delete can invalidate its proof.
+        if (transaction.CommitSequence > request.CommitSequenceAtStart && !isDelete) {
+            return;
+        }
+
+        // A rotated commit updates both the locked store and the active store.
+        for (const auto& storeId : {modification.LockStoreId, modification.CommitStoreId}) {
+            state->StoreExistence[storeId].TryUpdate(!isDelete, commitTimestamp);
+        }
+    }
+
+    TLookupState ComputeLookupState(const TLookupRequest& request) const
+    {
+        TLookupState state;
+        for (int index = 0; index < ValueCount; ++index) {
+            state.Values[index].Enabled = request.ValueFilter[index];
+        }
 
         for (const auto& transaction : Transactions_) {
-            if (transaction->Aborted) {
+            if (transaction->Aborted || !transaction->Prepared ||
+                transaction->Transaction->GetPrepareTimestamp() >= request.Timestamp)
+            {
                 continue;
             }
-            if (!transaction->Prepared) {
-                continue;
-            }
-            if (transaction->Transaction->GetPrepareTimestamp() >= request.Timestamp) {
-                continue;
-            }
+
             for (const auto& modification : transaction->Modifications) {
                 if (modification->GetKey() != request.Key) {
                     continue;
                 }
-                if (transaction->Committed) {
-                    auto commitTimestamp = *transaction->GetCommitTimestamp();
-                    if (commitTimestamp > request.Timestamp) {
-                        continue;
-                    }
-                    if (modification->Type == ERowModificationType::Delete) {
-                        for (int index = 0; index < ValueCount; ++index) {
-                            values[index].TryUpdate(/*value*/ std::nullopt, commitTimestamp);
-                        }
-                        RowExistence.TryUpdate(/*value*/ std::nullopt, commitTimestamp);
-                    } else {
-                        auto row = modification->Row;
 
-                        for (int index = 0; index < ValueCount; ++index) {
-                            if (auto value = row.GetValue(index)) {
-                                values[index].TryUpdate(value, commitTimestamp);
-                                RowExistence.TryUpdate(/*value*/ 1, commitTimestamp);
-                            }
-                            // TODO(gritukan): Exclusive lock ~ write.
-                            // NB(ponasenko-rs): However pure exclusive lock (lock without data) should not be accounted as write.
-                            if (modification->LockMask.Get(index) == ELockType::Exclusive &&
-                                row.ToRow().GetCount() != GetSchema()->GetKeyColumnCount())
-                            {
-                                RowExistence.TryUpdate(/*value*/ 1, commitTimestamp);
-                            }
-                        }
-                    }
+                if (transaction->Committed) {
+                    ApplyCommittedModification(request, *transaction, *modification, &state);
                 } else {
-                    auto lockMask = modification->GetLockMask();
-                    bool locked = false;
-                    if (lockMask.Get(0) == ELockType::Exclusive) {
-                        locked = true;
-                    }
-                    for (int index = 0; index < ValueCount; ++index) {
-                        // TODO(gritukan): Respect column filter when sorted store will be fixed.
-                        if (lockMask.Get(index) == ELockType::Exclusive) {
-                            locked = true;
-                        }
-                    }
-                    if (locked) {
-                        result.Locked = true;
-                        return result;
-                    }
+                    state.PendingModifications.push_back(modification.get());
                 }
             }
         }
 
-        if (!RowExistence.Value) {
+        return state;
+    }
+
+    static bool ShouldWaitForLookup(const TLookupRequest& request, const TLookupState& state)
+    {
+        for (auto* modification : state.PendingModifications) {
+            auto storeIt = state.StoreExistence.find(modification->LockStoreId);
+            bool existsInStore = storeIt != state.StoreExistence.end() && storeIt->second.Exists;
+            auto lockMask = modification->GetLockMask();
+            for (int index = 0; index < ValueCount; ++index) {
+                auto lockType = lockMask.Get(index);
+                if (lockType != ELockType::Exclusive && lockType != ELockType::SharedWrite) {
+                    continue;
+                }
+
+                // Existence in another store does not narrow this store's read lock mask.
+                if (!existsInStore || index == PrimaryLockIndex || request.ValueFilter[index]) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    TLookupResult ComputeExpectedLookup(const TLookupRequest& request) const
+    {
+        auto state = ComputeLookupState(request);
+        TLookupResult result{.Locked = ShouldWaitForLookup(request, state)};
+        if (result.Locked || !state.RowExistence.Exists) {
             return result;
         }
 
-        TRow row;
-        row.Key = request.Key;
-        for (int index = 0; index < 3; ++index) {
-            row.GetValue(index) = values[index].Value;
+        TRow row{.Key = request.Key};
+        for (int index = 0; index < ValueCount; ++index) {
+            row.GetValue(index) = state.Values[index].Value;
         }
+
         result.Row = row;
 
         return result;
-    };
+    }
 
     TLookupResult VeryNaiveLookup(const TLookupRequest& request)
     {
@@ -949,6 +1036,122 @@ public:
     }
 };
 
+TEST_F(TSortedStoreManagerStressTest, LookupExpectation)
+{
+    // Validates the stress test's lookup expectations across transaction stages.
+
+    constexpr TValueFilter xProjection{true, false, false};
+    constexpr TValueFilter yProjection{false, true, false};
+    constexpr TValueFilter zProjection{false, false, true};
+    constexpr TValueFilter keyProjection{};
+
+    auto transactionsGuard = Finally([&] {
+        for (const auto& transaction : Transactions_) {
+            if (!transaction->Committed && !transaction->Aborted) {
+                transaction->Abort();
+            }
+        }
+    });
+
+    auto makeRequest = [&] (TValueFilter valueFilter) {
+        return TLookupRequest{
+            .Key = 1,
+            .ValueFilter = valueFilter,
+            .Timestamp = GenerateTimestamp(),
+            .CommitSequenceAtStart = CommitSequence,
+        };
+    };
+
+    auto checkLookup = [&] (const TLookupRequest& request, const TLookupResult& expected) {
+        auto result = ComputeExpectedLookup(request);
+        EXPECT_EQ(result.Locked, expected.Locked);
+        EXPECT_EQ(result.Row, expected.Row);
+    };
+
+    const TLookupResult missing;
+    const TLookupResult locked{.Locked = true};
+    const TLookupResult keyOnly{.Row = TRow{.Key = 1}};
+    const TLookupResult xOnly{.Row = TRow{.Key = 1, .X = 10}};
+    const TLookupResult yOnly{.Row = TRow{.Key = 1, .Y = 30}};
+    checkLookup(makeRequest(xProjection), missing);
+
+    auto holder = CreateWrite(*xOnly.Row);
+    auto* seed = holder.get();
+    seed->Start();
+    Transactions_.push_back(std::move(holder));
+    checkLookup(makeRequest(xProjection), missing);
+
+    ASSERT_TRUE(seed->Prelock());
+    checkLookup(makeRequest(xProjection), missing);
+
+    seed->Lock();
+    checkLookup(makeRequest(xProjection), missing);
+
+    seed->GeneratePrepareTimestamp();
+    checkLookup(makeRequest(xProjection), missing);
+
+    ASSERT_TRUE(seed->Prepare());
+    auto atSeedPrepareRequest = makeRequest(xProjection);
+    atSeedPrepareRequest.Timestamp = seed->Transaction->GetPrepareTimestamp();
+    checkLookup(atSeedPrepareRequest, missing);
+    checkLookup(makeRequest(xProjection), locked);
+
+    seed->GenerateCommitTimestamp();
+    const auto beforeSeedCommitRequest = makeRequest(xProjection);
+    checkLookup(beforeSeedCommitRequest, locked);
+
+    seed->Commit();
+    checkLookup(beforeSeedCommitRequest, xOnly);
+    checkLookup(atSeedPrepareRequest, missing);
+
+    const auto beforeWriterPrepareRequest = makeRequest(yProjection);
+    checkLookup(beforeWriterPrepareRequest, keyOnly);
+
+    auto* writer = PrepareWrite({.Key = 1, .Y = 20});
+    const auto preparedWriterXRequest = makeRequest(xProjection);
+    const auto preparedWriterYRequest = makeRequest(yProjection);
+    checkLookup(beforeWriterPrepareRequest, keyOnly);
+    checkLookup(preparedWriterXRequest, xOnly);
+    checkLookup(preparedWriterYRequest, locked);
+
+    writer->Abort();
+    checkLookup(preparedWriterXRequest, xOnly);
+    checkLookup(preparedWriterYRequest, keyOnly);
+
+    RotateStores();
+    checkLookup(preparedWriterXRequest, xOnly);
+    checkLookup(preparedWriterYRequest, keyOnly);
+
+    auto* lateWriter = PrepareWrite(*yOnly.Row);
+    checkLookup(makeRequest(keyProjection), locked);
+
+    lateWriter->GenerateCommitTimestamp();
+    checkLookup(makeRequest(keyProjection), locked);
+
+    auto* remainingWriter = PrepareWrite({.Key = 1, .Z = 40});
+    const auto beforeLateCommitKeyRequest = makeRequest(keyProjection);
+    const auto beforeLateCommitXRequest = makeRequest(xProjection);
+    const auto beforeLateCommitZRequest = makeRequest(zProjection);
+    checkLookup(beforeLateCommitKeyRequest, locked);
+    checkLookup(beforeLateCommitXRequest, locked);
+    checkLookup(beforeLateCommitZRequest, locked);
+
+    // Late commits cannot prove existence for an already-started lookup.
+    lateWriter->Commit();
+    checkLookup(beforeLateCommitKeyRequest, locked);
+    checkLookup(beforeLateCommitXRequest, locked);
+    checkLookup(beforeLateCommitZRequest, locked);
+
+    checkLookup(makeRequest(keyProjection), keyOnly);
+    checkLookup(makeRequest(xProjection), xOnly);
+    checkLookup(makeRequest(yProjection), yOnly);
+
+    remainingWriter->Abort();
+    checkLookup(beforeLateCommitKeyRequest, keyOnly);
+    checkLookup(beforeLateCommitXRequest, xOnly);
+    checkLookup(beforeLateCommitZRequest, keyOnly);
+}
+
 TEST_P(TSortedStoreManagerStressTest, Test)
 {
     WaitFor(BIND(&TSortedStoreManagerStressTest::RunTest, Unretained(this))
@@ -963,6 +1166,7 @@ void TSortedStoreManagerStressTest::RunTest()
     ResetLookupInvoker();
     StoreManager_.Reset();
     DoSetUp();
+    CommitSequence = 0;
 
     auto randomElement = [&] (const THashSet<TTransactionState*>& set) {
         std::vector<TTransactionState*> elements(set.begin(), set.end());
@@ -1167,12 +1371,13 @@ void TSortedStoreManagerStressTest::RunTest()
                 .ValueFilter = {},
                 .Timestamp = TTimestamp(LastGeneratedTimestamp_.Underlying() - TsGap + Rng() % (TsGap + 1)),
                 .RequestId = GenerateId(),
+                .CommitSequenceAtStart = CommitSequence,
             };
             for (int index = 0; index < ValueCount; ++index) {
                 request.ValueFilter[index] = (Rng() % 2 == 0);
             }
 
-            auto expected = NaiveLookup(request);
+            auto expected = ComputeExpectedLookup(request);
 
             if (expected.Locked && std::ssize(lookupers) >= MaxConcurrentLookups) {
                 continue;
@@ -1197,7 +1402,7 @@ void TSortedStoreManagerStressTest::RunTest()
         {
             std::vector<TLookuperPtr> completedLookupers;
             for (const auto& lookuper : lookupers) {
-                auto expected = NaiveLookup(lookuper->GetRequest());
+                auto expected = ComputeExpectedLookup(lookuper->GetRequest());
 
                 if (expected.Locked) {
                     if (lookuper->IsCompleted()) {
