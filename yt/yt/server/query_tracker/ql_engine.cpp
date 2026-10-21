@@ -9,6 +9,13 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/client/api/rpc_proxy/config.h>
+#include <yt/yt/client/api/rpc_proxy/connection.h>
+
+#include <yt/yt/client/driver/proxy_discovery_cache.h>
+
+#include <yt/yt/core/misc/cache_config.h>
+
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/attributes.h>
 
@@ -105,8 +112,38 @@ public:
     {
         auto settings = ConvertToAttributes(activeQuery.Settings);
         auto cluster = settings->Find<std::string>("cluster").value_or(Config_->DefaultCluster);
+        auto proxyRole = settings->Find<std::string>("rpc_proxy_role").value_or(DefaultRpcProxyRole);
+        auto nativeConnection = ClusterDirectory_->GetConnectionOrThrow(cluster);
+        auto nativeClient = nativeConnection->CreateNativeClient(NNative::TClientOptions::FromUser(activeQuery.User));
+        auto nativeConfig = nativeConnection->GetConfig();
+
+        auto proxyDiscovery = NDriver::CreateProxyDiscoveryCache(New<TAsyncExpiringCacheConfig>(), nativeClient);
+        auto proxies = WaitFor(proxyDiscovery->Discover(NDriver::TProxyDiscoveryRequest{.Role = proxyRole}))
+            .ValueOrThrow();
+        if (proxies.Addresses.empty()) {
+            THROW_ERROR_EXCEPTION("No RPC proxies found for cluster %Qv and role %Qv", cluster, proxyRole);
+        }
+
+        auto tokenAttributes = CreateEphemeralAttributes();
+        tokenAttributes->Set("responsible", "query_tracker");
+        tokenAttributes->Set("query_id", activeQuery.Key.QueryId);
+        auto tokenOptions = TIssueTemporaryTokenOptions{
+            .ExpirationTimeout = nativeConfig->DefaultSelectRowsTimeout + TDuration::Minutes(1),
+        };
+        auto token = WaitFor(nativeClient->IssueTemporaryToken(activeQuery.User, tokenAttributes, tokenOptions))
+            .ValueOrThrow();
+
+        auto rpcConfig = New<NRpcProxy::TConnectionConfig>();
+        rpcConfig->ProxyAddresses = std::move(proxies.Addresses);
+        rpcConfig->EnableProxyDiscovery = false;
+        rpcConfig->DefaultSelectRowsTimeout = nativeConfig->DefaultSelectRowsTimeout;
+        rpcConfig->UdfRegistryPath = nativeConfig->UdfRegistryPath;
+        auto rpcConnection = NRpcProxy::CreateConnection(rpcConfig);
+        auto queryClient = rpcConnection->CreateClient(TClientOptions::FromToken(std::move(token.Token)));
+
         auto options = GetOptions(settings.Get());
-        auto queryClient = ClusterDirectory_->GetConnectionOrThrow(cluster)->CreateClient(TClientOptions::FromUser(activeQuery.User));
+        options.InputRowLimit = options.InputRowLimit.value_or(nativeConfig->DefaultInputRowLimit);
+        options.OutputRowLimit = options.OutputRowLimit.value_or(nativeConfig->DefaultOutputRowLimit);
         return New<TQLQueryHandler>(
             StateClient_,
             StateRoot_,

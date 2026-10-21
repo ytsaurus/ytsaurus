@@ -39,6 +39,7 @@ target_link_libraries(yt-server-query_tracker PUBLIC
   library-cpp-getopt
   yt-chyt-client
   yt-client-arrow
+  yt-client-driver
   yt-library-dynamic_config
   yt-library-clickhouse_discovery
   yt-library-coredumper
