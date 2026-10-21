@@ -174,8 +174,6 @@ You can retrieve the token from the following places (listed in priority order).
 1. From the `config["token"]`option that gets to the global configuration from the `YT_TOKEN` environment variable.
 2. From the file specified in `config["token_path"]`; the default value of this option is `~/.yt/token`. This option can also be overridden using the `YT_TOKEN_PATH` environment variable (the environment variable only applies to the global client configuration; for details, see the [ section](#configuration)).
 
-`YT_USER` is not a Python API or CLI configuration variable. With an HTTP proxy, the token determines the user. For the RPC and native drivers, set an explicit username with `config["driver_user_name"]`; with RPC, it must match the user associated with the token. For details, see [Selecting a username](../../../user-guide/storage/auth.md#user-selection).
-
 #### Setting up configuration retries { #configuration_retries }
 
 Commands in {{product-name}} are classified into light and heavy (to get the system's view on the list of commands, see [Commands](../../../api/commands.md)).
@@ -1087,33 +1085,33 @@ When running a `map_reduce` operation with multiple input tables, keep in mind 
 
 For the [run_map_reduce](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_map_reduce) function, all the options specific to a given job exist in three copies: for the mapper, reducer, and reduce_combiner. That is, the function has the options `map_local_files`, `reduce_local_files`, `reduce_combiner_local_files`, etc. For a full list of options, see [pydoc](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_map_reduce).
 
-### Working with operations and jobs { #operation_and_job_commands }
+## Commands { #commands }
 
-- [get_operation_state](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.get_operation_state): Returns the state of the current operation. The object returned is a class that has a single  `name` field and the `is_finished, is_running, is_unsuccessfully_finished` methods.
-- [abort_operation](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.abort_operation): Abort the operation without saving its result.
-- [suspend_operation](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.suspend_operation): Suspend the operation.
-- [resume_operation](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.resume_operation): Resume the suspended operation.
-- [complete_operation](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.complete_operation): Complete the operation with the current result.
+- [get_operation_state](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.get_operation_state) — returns the state of the current operation. The returned object is a class that has a single field `name` and methods `is_finished`, `is_running`, `is_unsuccessfully_finished`.
+- [abort_operation](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.abort_operation) — abort the operation without saving its result.
+- [suspend_operation](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.suspend_operation) — suspend the operation.
+- [resume_operation](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.resume_operation) — resume a suspended operation.
+- [complete_operation](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.complete_operation) — complete the operation with the current available result.
 
-When running an operation with the `sync=False` flag, it's more convenient to use the `abort, suspend, resume, complete` methods from the `Operation` class than the above methods (see the [Operation](#operation_class) section).
+When you run an operation with the `sync=False` flag, it’s more convenient to use the `abort`, `suspend`, `resume`, `complete` methods of the `Operation` class instead of the methods listed above. See the [Operation](#operation_class) section.
 
-
-- [run_job_shell](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_job_shell): Run a job-shell for the job. The easiest way to use this function is with its analogous command in [CLI](../../../api/cli/examples.md).
+- [run_job_shell](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_job_shell) — run a job-shell for a job. It’s easier to use this function via the equivalent command in the [CLI](../../../api/cli/examples.md).
 
 #### Getting information about jobs and operations { #operation_and_job_info_commands }
-This operation has a fairly non-trivial life cycle, and at certain points in time the information about the operation can be obtained from various sources:
 
-1. Cypress (contains information about the running operations that haven't been archived yet)
-2. The Orchid of the controller agent (includes all current information about the running operations)
-3. Operation archive (includes information about completed operations)
+An operation has a fairly non‑trivial lifecycle, and at different times you can get information about an operation from different sources:
 
-Because you can get information about an operation from different sources (and not only the list of sources can change, but also the structure of each source), there exist the following methods that can collect information about an operation from the listed sources anytime.
+- Cypress (contains information about operations that are running and not yet archived).
+- Orchid controller agent (contains all up‑to‑date information about running operations).
+- Operation archive (contains information about completed operations).
 
-- [get_operation](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_operation): Get information about the operation based on its ID. A `dict` is returned with fields similar to the fields in the [get_operation](../../../api/commands.md#get_operation) response.
-- [list_operations](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.list_operations): Get information about a set of operations based on filters. The meaning of the fields is similar to `get_operation`. For a list of filters, see [Commands](../../../api/commands.md#list_operations).
-- [iterate_operations](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.iterate_operations): Get an iterator for a set of operations. This function is similar to `list_operations`, but it doesn't set restrictions on the number of requested operations.
+Because you can get operation information from different sources (and those sources can change both in composition and internal structure), the following methods are available. They can collect operation information from the listed sources at any time.
 
-An example is to output the types of the three latest operations run by `username`:
+- [get_operation](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_operation) — get information about an operation by its ID. Returns a `dict` with fields similar to the response fields of [get_operation](../../../api/commands.md#get_operation).
+- [list_operations](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.list_operations) — get information about a set of operations based on filters. The meaning of the fields is similar to `get_operation`. See the list of filters in the [Commands](../../../api/commands.md#list_operations) section.
+- [iterate_operations](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.iterate_operations) — get an iterator for a set of operations. This function is similar to `list_operations`, but it has no limit on the number of operations you can request.
+
+Example: print the types of the three latest operations started by the user `username`:
 ```python
 from datetime import datetime
 import yt.wrapper as yt
@@ -1127,48 +1125,44 @@ print([op["type"] for op in result["operations"]])
 ## Output: ['sort', 'sort', 'sort']
 ```
 
-Another example is to find all the executing operations run in the user ephemeral pools:
+Another example: find all running operations started in user ephemeral pools:
 ```python
 for op in client.iterate_operations(state="running"):
     if "$" in op.get("pool"):
         print(op["id"], op["start_time"])
 ```
 
-The information about the operation's job is available in the scheduler and in the archive. The following methods enable you to get information about jobs.
-- [get_job](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_job): Get information about the job. A `dict` is returned with fields similar to the fields in the [get_job](../../../api/commands.md#get_job) response.
-- [list_jobs](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.list_jobs): Get information about the set of jobs for the operation. The meaning of fields in the response is similar to that in `get_job`. For a list of filters, see [Commands](../../../api/commands.md#list_jobs).
-- [get_job_stderr](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_job_stderr): Get the stderr of the job.
-- [get_job_input](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_job_input): Get the job's full input
-- [get_job_input_paths](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_job_input_paths): Get the list of input tables (with row ranges) for the job.
-- [get_job_spec](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.get_job_spec): Get the specification of the job.
+Information about a job’s operations is stored in the Scheduler and in the archive. The following methods let you get information about jobs:
 
+- [get_job](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_job) — get information about a job. Returns a `dict` with fields similar to the response fields of [get_job](../../../api/commands.md#get_job).
+- [list_jobs](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.list_jobs) — get information about a set of jobs for an operation. The meaning of the fields in the response is similar to `get_job`. See the list of filters in the [Commands](../../../api/commands.md#list_jobs) section.
+- [get_job_stderr](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_job_stderr) — get a job’s stderr.
+- [get_job_input](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_job_input) — get a job’s full input.
+- [get_job_input_paths](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_job_input_paths) — get the list of input tables (with row ranges) for a job.
+- [get_job_spec](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.get_job_spec) — get a job’s specification.
 
-{% note warning "Attention" %}
+{% note warning "Warning" %}
 
-When you call functions described in this section from inside themselves, they can access the master servers, the scheduler, and the cluster nodes (note that accesses to the master servers and to the scheduler aren't scalable), so you shouldn't use them too often.
+Calls to the functions in this section may internally access Master servers, the Scheduler, and cluster nodes. Because calls to Master servers and the Scheduler don’t scale, you shouldn’t use these functions too often.
 
 {% endnote %}
 
-For debugging of failed jobs, it's convenient to use the [job tool](../../../user-guide/problems/jobstatistics.md). This utility enables you to prepare the environment similar to the job environment and run it with the same input data.
+To debug failed jobs, it’s convenient to use the [job tool](../../../user-guide/problems/jobstatistics.md). This utility lets you set up an environment similar to a job’s environment and run it with the same input data.
 
 #### Operation { #operation_class }
 
-The object of this class is returned by the operation run commands (`run_*`). It provides a [small API](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.Operation) to work with the already running or completed operations.
+The commands that start operations (`run_*`) return an object of this class. It provides a [small API](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.Operation) for working with an already started (or completed) operation.
 
 #### OperationsTracker { #operations_tracker_class }
 
-To handle several operations CONVENIENTLY, you can use [OperationsTracker](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTracker). You can also use it for working with operations running on different clusters. OperationsTracker has the following interface:
+You can use [OperationsTracker](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTracker) to work conveniently with multiple operations. You can also use it to work with operations started on different clusters. OperationsTracker has the following interface:
 
-- [add](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTrackerBase.add): Add an `Operation` object to the set of tracked objects
-
-- [add_by_id](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTracker.add_by_id): Add the operation to the set of tracked operations using its ID
-
-- [wait_all](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTrackerBase.wait_all): Wait until all the operations are completed
-
-- [abort_all](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTrackerBase.abort_all): Abort all the tracked operations
+- [add](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTrackerBase.add) — add an `Operation` object to the set of tracked operations.
+- [add_by_id](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTracker.add_by_id) — add an operation by ID to the set of tracked operations.
+- [wait_all](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTrackerBase.wait_all) — wait for all operations to complete.
+- [abort_all](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTrackerBase.abort_all) — abort all tracked operations.
 
 Example:
-
 ```python
 with yt.OperationsTracker() as tracker:
     op1 = yt.run_map("sleep 10; cat", "//tmp/table1", "//tmp/table1_out", sync=False)
@@ -1178,23 +1172,24 @@ with yt.OperationsTracker() as tracker:
     tracker.abort_all()
     tracker.add(yt.run_map("true", table, TEST_DIR + "/out", sync=False))
 ```
-When exiting the `with` block, the tracker will wait until all the operations are completed. If an exception occurs, all the running operations are aborted.
+When you exit the `with` block, the tracker waits for all operations to complete. If an exception occurs, all started operations are aborted.
 
-{% note warning "Attention" %}
+{% note warning "Warning" %}
 
-Using the tracker without `with` is deprecated and we don't recommend it.
+Using the tracker without `with` is outdated and not recommended.
 
 {% endnote %}
 
-
 #### OperationsTrackerPool { #operations_tracker_pool_class }
 
-The [OperationsTrackerPool](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTrackerPool) class is similar to [OperationsTracker](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTracker), but it additionally guarantees that there won't be more than `pool_size` operations running in parallel. As the input, the methods of the class accept one or more spec builders (see the appropriate [section](#spec_builder)).
-This class creates a background thread that gradually runs all the operations from the queue, maintaining the guarantees for the number of concurrently running operations.
+The [OperationsTrackerPool](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTrackerPool) class is similar to [OperationsTracker](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTracker), but it also guarantees that no more than `pool_size` operations run at the same time. The class methods accept one or more spec builders as input (see the corresponding [section](#spec_builder)).
+
+This class creates a background thread that gradually starts all operations from the queue, ensuring that no more than the specified number of operations run simultaneously.
+
 Interface:
 
-- [add](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTrackerPool.add): Accepts a spec builder as the input and adds it to the run queue
-- [map](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTrackerPool.map): Accepts a list of all the spec builders as its input. The other parameters have the same meaning as the add method.
+- [add](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTrackerPool.add) — accepts a spec builder as input and adds it to the launch queue.
+- [map](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operations_tracker.OperationsTrackerPool.map) — accepts a list of spec builders as input. The other parameters have the same meaning as the `add` method.
 
 ### Working with access rights { #acl_commands }
 
@@ -1203,7 +1198,6 @@ Interface:
 - [remove_member](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.remove_member)
 
 Examples:
-
 ```python
 yt.create("user", attributes={"name": "tester"})
 yt.check_permission("tester", "read", "//sys")
@@ -1217,290 +1211,117 @@ yt.get_attribute("//sys/groups/testers", "members")
 ## Output: []
 ```
 
-
 ### Working with dynamic tables { #dyntables_commands }
 
-[Dynamic tables](../../../user-guide/dynamic-tables/overview.md) implement an interface both for point reads and for key-based data writes with transaction support and a native SQL dialect.
+[Dynamic tables](../../../user-guide/dynamic-tables/overview.md) implement an interface for point‑wise reading and writing data by key, support transactions, and provide their own SQL dialect.
 
-The list of commands to access the content of dynamic tables.
-- [insert_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.insert_rows): [Insert](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#insert_rows) rows to a dynamic table
-- [lookup_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.lookup_rows): [Select](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#chtenie-stroki) the rows with the specified keys
-- [delete_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.delete_rows): [Delete](../../../user-guide/dynamic-tables//sorted-dynamic-tables.md#udalenie-stroki) the rows with the specified keys.
-- [select_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.select_rows): [Select](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#vypolnenie-zaprosa) the rows that match the query written in the [SQL dialect](../../../user-guide/dynamic-tables/dyn-query-language.md)
-- [lock_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.lock_rows): [Lock](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#blokirovka-stroki) the rows with the given keys
-- [trim_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.trim_rows): [Delete](../../../user-guide/dynamic-tables/ordered-dynamic-tables#trim) the specified number of rows from the other table
+List of commands for working with the contents of dynamic tables:
 
-Commands related to [mounting](../../../user-guide/dynamic-tables/overview.md#mount_table) of tables.
-- [mount_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.mount_table): Mount a dynamic table
-- [unmount_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.unmount_table): Unmount a dynamic table
-- [remount_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.remount_table): Remount a dynamic table
+- [insert_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.insert_rows) — [insert](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#insert_rows) rows into a dynamic table.
+- [lookup_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.lookup_rows) — [select](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#chtenie-stroki) rows with specified keys.
+- [delete_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.delete_rows) — [delete](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#udalenie-stroki) rows with specified keys.
+- [select_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.select_rows) — [select](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#vypolnenie-zaprosa) rows that match a query in the [SQL dialect](../../../user-guide/dynamic-tables/dyn-query-language.md).
+- [lock_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.lock_rows) — [lock](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#blokirovka-stroki) rows with specified keys.
+- [trim_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.trim_rows) — [delete](../../../user-guide/dynamic-tables/ordered-dynamic-tables#trim) a specified number of rows from an ordered table.
 
-Commands related to [sharding](../../../user-guide/dynamic-tables/resharding.md).
-- [reshard_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.reshard_table): Reshard the table using the specified pivot keys.
-- [reshard_table_automatic](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.reshard_table_automatic): Reshard the mounted tablets based on the tablet balancer configuration.
+Commands related to [mounting](../../../user-guide/dynamic-tables/overview.md#mount_table) tables:
 
-Other commands.
-- [freeze_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.freeze_table): [Freeze](../../../user-guide/dynamic-tables/overview.md#zamorozka) the table
-- [unfreeze_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.unfreeze_table): [Unfreeze](../../../user-guide/dynamic-tables/overview.md#zamorozka) the table
-- [balance_tablet_cells](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.balance_tablet_cells): Spread the tablets evenly across [tablet cells](../../../user-guide/dynamic-tables/overview.md#tablet_cells)
-- [get_tablet_infos](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.get_tablet_infos): Get the [tablet](../../../user-guide/dynamic-tables/overview.md#tablets)'s attributes
-- [get_tablet_errors](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.get_tablet_errors): Get the errors that occurred on the [tablet](../../../user-guide/dynamic-tables/overview.md#tablets)
-- [alter_table_replica](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.alter_table_replica): [Change attributes](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md#nastrojki-replik) of a replica of the [replicated table](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md)
+- [mount_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.mount_table) — mount a dynamic table.
+- [unmount_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.unmount_table) — unmount a dynamic table.
+- [remount_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.remount_table) — remount a dynamic table.
+
+Commands related to [sharding](../../../user-guide/dynamic-tables/resharding.md):
+
+- [reshard_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.reshard_table) — reshard a table by the specified pivot keys.
+- [reshard_table_automatic](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.reshard_table_automatic) — shard mounted tablets according to the tablet balancer configuration.
+
+Other commands:
+
+- [freeze_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.freeze_table) — [freeze](../../../user-guide/dynamic-tables/overview.md#zamorozka) a table.
+- [unfreeze_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.unfreeze_table) — [unfreeze](../../../user-guide/dynamic-tables/overview.md#zamorozka) a table.
+- [balance_tablet_cells](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.balance_tablet_cells) — distribute tablets evenly across [tablet cells](../../../user-guide/dynamic-tables/overview.md#tablet_cells).
+- [get_tablet_infos](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.get_tablet_infos) — get the attributes of a [tablet](../../../user-guide/dynamic-tables/overview.md#tablets).
+- [get_tablet_errors](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.get_tablet_errors) — get the errors of a [tablet](../../../user-guide/dynamic-tables/overview.md#tablets).
+- [alter_table_replica](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.alter_table_replica) — [change the attributes](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md#nastrojki-replik) of a replica of a [replicated table](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md).
 
 ### Other commands { #etc_commands }
 
-#### Converting tables
+#### Table transformations
 
-**Transform.** Occasionally, you might need to transform your table to a new compression codec, erasure codec, or a [new chunk format](../../../user-guide/storage/chunks.md). Such tasks are solved by the [transform](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.transform) function.
+**Transform.** Sometimes you need to move a table to a new compression codec or erasure, or to a [new chunk format](../../../user-guide/storage/chunks.md). The [transform](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.transform) function helps with these tasks.
 
-This function starts the `merge` operation on the input table, compressing the data based on the specified parameters. If the `check_codecs` option is set to `True`, the function checks whether the data has already been compressed, and if yes, then the operation is not run. If the `optimize_for` option is specified, the operation always runs (the `check_codecs` option is ignored). This is because there is no option to check which format table chunks have.
+The function starts a `merge` operation on the input table, recompressing the data according to the specified parameters. If the `check_codecs` option is set to `True`, the function checks whether the data is already compressed; if it is, the operation doesn’t start. If you specify the `optimize_for` option, the operation always starts (the `check_codecs` option is ignored), because there’s no way to check what format the table’s chunks have.
 
-**Shuffle.** To randomly shuffle the table rows, use the [shuffle_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.shuffle_table) function.
-The function runs the `map_reduce` operation that sorts the table by the added column with a random number.
+**Shuffle.** To shuffle the rows of a table in random order, use the [shuffle_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.shuffle_table) function.
 
-## Python objects as operations { #python_operations }
+The function starts a `map_reduce` operation that sorts the table by an added column with a random number.
 
-### Overview { #python_operations_intro }
+## Typed operations { #python_operations }
 
-To run the operation, you need to define a special `yt.wrapper.TypedJob` subclass and pass the object of this class to the operation run [function](#run_operation_commands) (or specify it in the applicable field of the [SpecBuilder](#spec_builders)).
+### General information { #python_operations_intro }
 
-Make sure to define, in the job class, the `__call__(self, row)` method (for the mapper) or `__call__(self, rows)` method (for the reducer). As input, this method accepts table rows (in the case of a reducer, a single call (`__call__`) corresponds to a set of rows with the same key). It has to return (**by using `yield`**) the rows that need to be written to the output table. If there are multiple output tables, use the wrapper class `yt.wrapper.OutputRow`, whose constructor accepts the row written and the `table_index` as a named parameter (see the [example](../../../api/python/examples.md#table_switches) in the tutorial).
+To run an operation, you need to define a special subclass of `yt.wrapper.TypedJob` and pass an object of this class to the [operation run function](#run_operation_commands) (or specify it in the corresponding field of the [SpecBuilder](#spec_builders)).
 
-In addition, you can define the following methods:
-- `start(self)`: Called exactly once before processing the job records.
-- `finish(self)`: Called once after processing the job records.
+Your job class must define the `__call__(self, row)` method (for a mapper) or the `__call__(self, rows)` method (for a reducer). This method receives table rows as input (in the case of a reducer, one `__call__` invocation corresponds to a set of rows with the same key). It must return (using `yield`) the rows that need to be written to the output table. If there are multiple output tables, use the wrapper class `yt.wrapper.OutputRow`, whose constructor accepts the row to be written and `table_index` as a named parameter (see the [example](../../../api/python/examples.md#table_switches) in the tutorial).
 
-Just as `__call__`, these methods can generate new records using `yield`. This allows you to perform buffering or some data accumulation processes. These methods aren't called for operations that are labeled with `@yt.aggregator` and receive the entire input.
+You can also define the following methods:
+- `start(self)` — this runs exactly once before the job processes any records.
+- `finish(self)` — this runs once after the job processes all records.
 
-You can also define the [.prepare_operation(self, context, preparer)](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation) method. which is used to specify row types for input and output tables, as well as to modify the operation specification. For more information, see the [Preparing an operation from a job](#prepare_operation) section and check out the examples:
-- [{#T}](../../../api/python/examples.md#prepare_operation);
-- [{#T}](../../../api/python/examples.md#grep).
+These methods, like `__call__`, can generate new records using `yield`. This lets you implement buffering or data accumulation. These methods aren’t called for operations marked with `@yt.aggregator` that receive the entire input at once.
 
-### Preparing an operation from a job { #prepare_operation }
+You can also define the [.prepare_operation(self, context, preparer)](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation) method. It’s used to specify the row types for input and output tables and to modify the operation spec. For more details, see the [Prepare an operation from a job](#prepare_operation) section, and check out the examples:
+- [{#T}](../../../api/python/examples.md#prepare_operation)
+- [{#T}](../../../api/python/examples.md#grep)
 
-To specify the input and output string types in the job class, you can use the hint type: [one](../../../api/python/examples.md#simple_map), [two](../../../api/python/examples.md#multiple_input_reduce), [three](../../../api/python/examples.md#multiple_input_multiple_output_reduce), and [four](../../../api/python/examples.md#map_reduce_multiple_intermediate_streams)) or override the method [`.prepare_operation(self, context, preparer)`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation). The types are specified using the methods of the `preparer` object of the [`OperationPreparer`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer) type. Useful methods:
-   1. [`inputs`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer.inputs): Enables you to specify the input row type for multiple input tables (it must be a class with the decorator [`@yt.wrapper.yt_dataclass`](#dataclass)), a list of names for the columns that the job needs, as well as the renamings for the columns.
-   2. [`outputs`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer.outputs): Enables you to specify the output row type for multiple output tables (it must be a class with the decorator [`@yt.wrapper.yt_dataclass`](#dataclass)) and the schema that you want to output for these tables (by default, the schema is output from the data class).
-   3. `input` and `output` are the counterparts of corresponding methods that accept a single index.
 
-The [`context`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparationContext) object enables you to get information about the input and output streams: their number, schemas, and paths to tables.
+### Data type description { #prepare_operation }
 
-See the examples in the tutorial: [one](../../../api/python/examples.md#prepare_operation) and [two](../../../api/python/examples.md#grep).
+To specify input and output row types in the job class, you can use type hints (see examples in the tutorial: [one](../../../api/python/examples.md#simple_map), [two](../../../api/python/examples.md#multiple_input_reduce), [three](../../../api/python/examples.md#multiple_input_multiple_output_reduce), and [four](../../../api/python/examples.md#map_reduce_multiple_intermediate_streams)), or override the [.prepare_operation(self, context, preparer)](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation) method. You specify types via methods of the `preparer` object of type [`OperationPreparer`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer). Useful methods include:
+1. [`inputs`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer.inputs): lets you specify the input row type for multiple input tables (it must be a class with the [`@yt.wrapper.yt_dataclass`](#dataclass) decorator), the list of column names the job needs, and column renames.
+2. [`outputs`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer.outputs): lets you specify the output row type for multiple output tables (it must be a class with the [`@yt.wrapper.yt_dataclass`](#dataclass) decorator), and the schema you want to output for these tables (by default, the schema is derived from the dataclass).
+3. `input` and `output` — these are similar to the corresponding methods but accept a single index.
 
-If you run MapReduce with multiple intermediate streams, you also need to override the [.get_intermediate_stream_count(self)](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.get_intermediate_stream_count) method, returning the number of intermediate streams from it. See [example](../../../api/python/examples.md#map_reduce_multiple_intermediate_streams).
+The [`context`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparationContext) object lets you get information about input and output streams: their count, schemas, and table paths.
+
+Check the examples in the tutorial: [one](../../../api/python/examples.md#prepare_operation) and [two](../../../api/python/examples.md#grep).
+
+If you’re running a MapReduce with multiple intermediate streams, you also need to override the [.get_intermediate_stream_count(self)](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.get_intermediate_stream_count) method and return the number of intermediate streams from it. See the [example](../../../api/python/examples.md#map_reduce_multiple_intermediate_streams).
+
+
+## Working with operations { #python_operations_misc }
+
 
 ### Decorators { #python_decorators }
 
-You can mark functions or job classes with special decorators that change the expected interface of interaction with jobs.
+You can mark job functions or classes with special decorators that change the expected interaction interface with the jobs.
 
-- [aggregator](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.py_wrapper.aggregator) is a decorator that allows you to indicate that a given mapper is an aggregator, that is, it accepts a row iterator as input rather than a single row.
-- [raw](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.py_wrapper.raw) is a decorator that allows you to specify that the function accepts a stream of raw data as input rather than parsed records.
-- [raw_io](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.py_wrapper.raw_io) is a decorator that allows you to indicate that the function will take records (rows) from `stdin` and write them to `stdout`.
-- [reduce_aggregator](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.py_wrapper.reduce_aggregator) is a decorator that enables you to specify that the reducer is an aggregator that accepts a generator of pairs where each pair is (a key, and records with this key) as input, rather than an iterator of records with a single key.
-- [with_context](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.py_wrapper.with_context) is a decorator that enables you to request a context for the function. This context will include control attributes requested when running the operation.
+- [aggregator](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.py_wrapper.aggregator) — this decorator marks a mapper as an aggregator, meaning it accepts an iterator over rows as input instead of a single row.
+- [raw](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.py_wrapper.raw) — this decorator marks a function as accepting a raw data stream as input instead of parsed records.
+- [raw_io](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.py_wrapper.raw_io) — this decorator marks a function as reading records (rows) from `stdin` and writing to `stdout`.
+- [reduce_aggregator](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.py_wrapper.reduce_aggregator) — this decorator marks a reducer as an aggregator, meaning it accepts a generator of pairs as input, where each pair is (key, records with that key), instead of an iterator over records with a single key.
+- [with_context](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.py_wrapper.with_context) — this decorator lets you request a context for the function. This context will contain the control attributes requested when starting the operation.
 
-Keep in mind that the decorator is implemented by setting an attribute on a function. That's why, for example, you cannot declare a function with the decorator and then make `functools.partial` on it. If you want to pass certain parameters to a function directly at function call, it makes sense to create a class with a decorator (see the last example below).
+Note that decorators are implemented by setting an attribute on the function. So, for example, you can’t declare a function with a decorator and then wrap it with `functools.partial`. If you want to pass some parameters to the function directly at call time, create a class with the decorator (see the last example below).
 
 You can find examples in the [tutorial](../../../api/python/examples.md#job_decorators).
 
-### Pickling functions and environments { #pickling }
-
-#### Running Python workloads in open-source environments { #python_open_source_environment }
-
-In open-source {{product-name}} setups, if you want to ensure that your local Python operation and environment are pickled correctly and run successfully on the cluster, you need to keep the local environment and the remote job environment as similar as possible.
-
-We strongly recommend the following setup for Python operations:
-
-1. Always specify a Docker image for the user job.
-2. Always enable `ignore_system_modules` in the Python wrapper config:
-
-```python
-yt.config["pickling"]["ignore_system_modules"] = True
-```
-
-The `ignore_system_modules` option prevents the wrapper from packing Python modules that are treated as system modules on the client host. In open-source environments, relying on host system modules often causes hard-to-diagnose discrepancies between the local machine and the job environment.
-
-Example:
-
-```python
-spec_builder = yt.spec_builders.MapSpecBuilder() \
-    .begin_mapper() \
-        .command(MyMapper()) \
-        .docker_image("docker.io/library/python:3.11") \
-    .end_mapper() \
-    .input_table_paths(["//tmp/in"]) \
-    .output_table_paths(["//tmp/out"])
-
-yt.config["pickling"]["ignore_system_modules"] = True
-yt.run_operation(spec_builder)
-```
-
-The Python version in the Docker image and the local Python version must be the same. This is especially important for serialized Python code, imported modules, and native extensions.
-
-It is also strictly recommended to use the same operating system environment locally and in the Docker image. For example, if the Docker image is built on Ubuntu 24.04, using Ubuntu 24.04 locally is recommended as well. A different local environment may still work, but the probability of packaging or runtime discrepancies is higher.
-
-#### Running the local script inside Docker with `respawn_in_docker` { #respawn_in_docker }
-
-The wrapper provides the `respawn_in_docker` decorator that restarts the local entry script inside a Docker container before the operation is submitted.
-
-```python
-import yt.wrapper as yt
-
-@yt.respawn_in_docker("docker.io/library/python:3.11")
-def main():
-    yt.config["pickling"]["ignore_system_modules"] = True
-    yt.run_map(MyMapper(), "//tmp/in", "//tmp/out")
-
-if __name__ == "__main__":
-    main()
-```
-
-This approach helps eliminate discrepancies between the local launch environment and the remote job environment because:
-
-1. The script is re-executed inside the specified Docker image.
-2. Wrapper operations automatically inherit the same image through `YT_BASE_LAYER`.
-3. The script directory, current working directory, home directory, and Python library paths are mounted into the container.
-
-This approach still has important limitations:
-
-1. Docker is required on the local machine.
-2. By default, only environment variables with the `YT_` prefix are forwarded to the container. If your script depends on other environment variables, pass them explicitly via the `env` argument.
-3. The image must contain a compatible Python interpreter. By default, `respawn_in_docker` runs `python3` inside the container, but you can override this via the `python` argument.
-4. The mounted local paths must be accessible to Docker.
-5. The decorator aligns the local startup environment with the job image, but it does not remove every possible host-specific difference.
-
-Use `respawn_in_docker` when you want the strongest guarantee that the script used to submit the operation runs in the same Docker environment as the jobs themselves. This is the preferred approach when Docker is available locally.
-
-#### General structure { #pickling_description }
-
-Here is a sequence of actions that occur when you run an operation that is a Python function:
-
-1. The library uses the [dill](https://github.com/uqfoundation/dill) module to transform the executed object (class or function) into a stream of bytes
-2. The local runtime environment for the function is set up. This environment is transmitted into a job on the cluster and then used to start up your function properly.
-
-After that, a special code from the `_py_runner.py` module is executed on the cluster. Locally, it unpacks all the dependencies in each job, transforms the function from a set of bytes to a Python object, and starts it up properly, reading data from stdin.
-
-#### Link to the post with tips { #pickling_advises }
-
-{% cut "Examples of module filtering " %}
-
-Here's an example of how to filter out transmission of .so and .pyc files but continue to transmit the yt module (by the way, the same thing enables you to run scripts on Mac OS X):
-
-```python
-yt.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and \
-    not module.__file__.endswith(".so")
-yt.config["pickling"]["force_using_py_instead_of_pyc"] = True
-
-## When working in the client, you can specify it in the config:
-client = yt.wrapper.client.Yt(config={"pickling": {"module_filter": lambda ...}})
-```
-
-You can also write your dependency resolution function based on the [default implementation from here](http://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.py_wrapper.create_modules_archive_default):
-
-```python
-def my_create_modules_archive():
-    ...
-
-yt.config["pickling"]["create_modules_archive_function"] = my_create_modules_archive
-```
-
-If you are using binary modules that are dynamically linked with other libraries that are missing in the cluster, it makes sense to add them to the cluster manually (be sure to set the `LD_LIBRARY_PATH`) environment variable or build dynamic libraries for your Python modules automatically. At each build, an `ldd` is invoked for each `.so` and the found dependencies are packed.
-Here's how it's enabled:
-
-```python
-yt.config["pickling"]["dynamic_libraries"]["enable_auto_collection"] = True
-```
-
-You can also specify a filter if you do not need to add any libraries Example:
-
-```python
-yt.config["pickling"]["dynamic_libraries"]["library_filter"] = lambda lib: not lib.startswith("/lib")
-```
-
-By default, we recommend filtering out the libraries that are in the `/lib`, `/lib64` directories because these directories host various system libraries (for example, `libcgroup`) and using them on the cluster might result in some strange errors. To filter the libraries, you can use the function from the example above.
-
-Boilerplate filters for different cases:
-
-- If you see the error: `AttributeError: 'module' object has no attribute 'openssl_md_meth_names'`, filter out hashlib:`yt.config["pickling"]["module_filter"] = lambda module: "hashlib" not in getattr(module, "__name__", "") `
-
-- If you run Anaconda, you have to filter out hashlib (see the filter example above), as well as the .so libraries. To filter out .so libraries, you can use the following filter:
-
-  ```python
-  yt.config["pickling"]["module_filter"] = (
-      lambda module: hasattr(module, "__file__") and
-      not module.__file__.endswith(".so")
-  )
-  ```
-
-  {% note warning "Attention" %}
-
-  This filter also filters out YSON [bindings](#yson). If you use YSON, it makes sense to add the library to exceptions:
-
-  ```python
-  yt.config["pickling"]["module_filter"] = (
-      lambda module: hasattr(module, "__file__") and
-      (not module.__file__.endswith(".so") or module.__file__.endswith("yson_lib.so")
-  )
-  ```
-
-  {% endnote %}
-
-- You execute your program using updated python2.7 and get the following error: `ImportError: No module named urllib3` or `ImportError: cannot import name _compare_digest`, or you can't import the `hmac` module
-
-    To solve this problem, you need to filter out hmac from the modules that you take with you (it imports from the module the method missing from python2.7.3 installed on the cluster).
-
-    ```python
-    yt.config["pickling"]["module_filter"] = ... and getattr(module, "__name__", "") != "hmac"
-    ```
-
-Automatic filtering of the .pyc and .so files is also supported in cases when the Python version or the OS version differ between the cluster and the client. The option should be enabled in the config first:
-
-```python
-yt.config["pickling"]["enable_modules_compatibility_filter"] = True
-```
-
-When running a Python  function in a job, all the modules present in the dependencies are unpacked and imported, including those of your main module. That's why all the business logic needs to be hidden within `__main__`; a proper implementation should look like this:
-
-```python
-class Mapper(yt.TypedJob):
-    ...
-
-if __name__ == "__main__":
-    yt.run_map(mapper, ...)
-```
-
-{% endcut %}
-
-### Porto layers { #porto_layers }
-
-When running an operation, you can specify which [file system image](../../../user-guide/data-processing/layers/layer-paths.md) needs to be prepared before running your jobs.
-There is a certain set of [ready-to-use layers](../../../user-guide/data-processing/layers/layer-paths.md#gotovye-sloi-v-kiparise) available at `//porto_layers`.
-
-One way you can specify a path to the proper layer using the parameter `layer_paths` in the job spec is:
-```python
-spec_builder = ReduceSpecBuilder() \
-    .begin_reducer() \
-        .command(reducer) \
-        .layer_paths(["//porto_layers/ubuntu-precise-base.tar.xz"]) \
-    .end_reducer() \
-    ...
-yt.run_operation(spec_builder)
-```
 
 ### tmpfs in jobs { #tmpfs_in_jobs }
 
-Supporting tmpfs in jobs includes two parts:
+tmpfs support in jobs has two parts:
 
-1. For Python operations, tmpfs is enabled by default: it is mounted to a special tmpfs directory and the module archive is unpacked into it. Additional memory needed for tmpfs is added to the limit specified by the user. The behavior is regulated by the options: `pickling/enable_tmpfs_archive` and `pickling/add_tmpfs_archive_size_to_memory_limit`.
-2. There is an option to automatically enable tmpfs for all the job's files: this option is called `mount_sandbox_in_tmpfs/enable` and is disabled by default. If you enable this option, the specs for your operations will specify `tmpfs_path="."` and also set `tmpfs_size` equal to the total file size. tmpfs_size will also be added to `memory_limit`. Node that if you're using table files, the system can't find out the size of the disk after formatting, so you need to specify the size in the `disk_size` attribute of the path. You can also request additional tmpfs space if your job generates some files at runtime. For this, specify the appropriate number of bytes in the `mount_sandbox_in_tmpfs/additional_tmpfs_size` option.
+1. For Python operations, tmpfs is enabled by default. It’s allocated to a special tmpfs directory, and the module archive is unpacked there. The extra memory for tmpfs is added to the limit you specified. The behavior is controlled by the `pickling/enable_tmpfs_archive` and `pickling/add_tmpfs_archive_size_to_memory_limit` options.
+2. You can automatically request tmpfs for all job files. The option is called `mount_sandbox_in_tmpfs/enable` and is disabled by default. Enabling it means your operations will have `tmpfs_path="."` and `tmpfs_size` (equal to the total file size) specified in the spec. Also, `tmpfs_size` will be added to `memory_limit`. Note that if you’re using table files, the system can’t determine their size on disk after formatting, so you must specify the size in the path attributes using the `disk_size` attribute. You can also request extra space in tmpfs if your job generates some files during execution. Specify the required number of bytes via the `mount_sandbox_in_tmpfs/additional_tmpfs_size` option.
+
 
 ### Statistics in jobs { #python_jobs_statistics }
 
-As the job is running, the user can export their own statistics (for example, measure the execution time for certain steps in the job). The library provides the following functions:
+While a job runs, you can export your own statistics (for example, to track the runtime of individual stages within the job). The library provides the following function:
 
-- [write_statistics](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.user_statistics.write_statistics): Writes a dict with the collected statistics to an appropriate file descriptor. The function must be called from within the job.
+- [write_statistics](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.user_statistics.write_statistics) — writes a dictionary with collected statistics to the specified file descriptor. You must call this function only from within a job.
 
-The `Operation` class also has the [get_job_statistics](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.Operation.get_job_statistics) method for quick access to the operation statistics.
+The `Operation` class also has the [get_job_statistics](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.Operation.get_job_statistics) method for quick access to the operation’s statistics.
 
 Example:
 
@@ -1517,10 +1338,203 @@ print(op.get_job_statistics()["custom"])
 ## Output: {"row_count": {"$": {"completed": {"map": {"count": 1, "max": 1, "sum": 1, "min": 1}}}}}
 ```
 
+### Porto layers { #porto_layers }
+
+When you start an operation, you can specify which [filesystem image](../../../user-guide/data-processing/layers/layer-paths.md) to prepare before running the jobs. There’s a set of [prebuilt layers](../../../user-guide/data-processing/layers/layer-paths.md#gotovye-sloi-v-kiparise) located at `//porto_layers`.
+
+You can specify the path to the required layer via the `layer_paths` parameter in the job spec, for example:
+```python
+spec_builder = ReduceSpecBuilder() \
+    .begin_reducer() \
+        .command(reducer) \
+        .layer_paths(["//porto_layers/ubuntu-precise-base.tar.xz"]) \
+    .end_reducer() \
+    ...
+yt.run_operation(spec_builder)
+```
+
+
+### Configuring dependency collection (pickling) { #pickling }
+
+
+#### General structure { #pickling_description }
+
+When you start an operation that’s a Python function, the following happens:
+
+1. The library uses the [dill](https://github.com/uqfoundation/dill) module to convert the object being run (a class or function) into a byte stream.
+2. It collects the local environment where the function runs, passes it into the job on the cluster, and uses it there to correctly run your function.
+
+After that, a special code from the `_py_runner.py` module runs on the cluster. In each job, it locally unpacks all dependencies, converts the function from the byte stream into a Python object, and runs it correctly, reading data from stdin.
+
+#### Link to the post with tips { #pickling_advises }
+
+{% cut "Examples of module filtering" %}
+
+For example, here’s how to filter out the transfer of .so and .pyc files while keeping the yt module transfer (this also lets you run scripts on Mac OS X):
+
+```python
+yt.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and \
+    not module.__file__.endswith(".so")
+yt.config["pickling"]["force_using_py_instead_of_pyc"] = True
+
+## When working via a client, you can set this in its config:
+client = yt.wrapper.client.Yt(config={"pickling": {"module_filter": lambda ...}})
+```
+
+You can also write your own dependency collection function, using the [default implementation here](http://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.py_wrapper.create_modules_archive_default) as a base:
+
+```python
+def my_create_modules_archive():
+    ...
+
+yt.config["pickling"]["create_modules_archive_function"] = my_create_modules_archive
+```
+
+If you’re using binary modules that are dynamically linked to other libraries that aren’t present on the cluster, you should manually bring these libraries to the cluster (and remember to set the `LD_LIBRARY_PATH` environment variable), or use the automatic collection of dynamic libraries for Python modules. With automatic collection, `ldd` is called for each .so file, and the found dependencies are packaged. You enable it like this:
+
+```python
+yt.config["pickling"]["dynamic_libraries"]["enable_auto_collection"] = True
+```
+
+You can also specify a filter if you don’t need to include some libraries. Example:
+
+```python
+yt.config["pickling"]["dynamic_libraries"]["library_filter"] = lambda lib: not lib.startswith("/lib")
+```
+
+By default, it’s recommended to filter out libraries located in the `/lib` and `/lib64` directories, as they contain various system libraries (for example, `libcgroup`) and using them on the cluster can lead to strange errors. You can filter them out with the function from the example above.
+
+Recipes for filters for different cases:
+
+- If you get the error: `AttributeError: 'module' object has no attribute 'openssl_md_meth_names'`, filter out hashlib: `yt.config["pickling"]["module_filter"] = lambda module: "hashlib" not in getattr(module, "__name__", "") `
+
+- If you’re using Anaconda, filter out hashlib (see the filter example above) and .so libraries. To filter .so libraries, you can use the following filter:
+
+  ```python
+  yt.config["pickling"]["module_filter"] = (
+      lambda module: hasattr(module, "__file__") and
+      not module.__file__.endswith(".so")
+  )
+  ```
+
+  {% note warning "Attention" %}
+
+  This filter also filters out YSON [bindings](#yson). If you’re using YSON, add the library to the exceptions:
+
+  ```python
+  yt.config["pickling"]["module_filter"] = (
+      lambda module: hasattr(module, "__file__") and
+      (not module.__file__.endswith(".so") or module.__file__.endswith("yson_lib.so")
+  )
+  ```
+
+  {% endnote %}
+
+- You’re running a fresh Python 2.7 and getting an error like: `ImportError: No module named urllib3` or `ImportError: cannot import name _compare_digest`, or you can’t import the `hmac` module.
+
+  To fix this, filter out hmac from the modules you’re bringing with you (it imports a method from the operator module that isn’t available in the Python 2.7.3 installed on the cluster).
+
+  ```python
+  yt.config["pickling"]["module_filter"] = ... and getattr(module, "__name__", "") != "hmac"
+  ```
+
+Automatic filtering of .pyc and .so files is also supported if the Python version or operating system differs between the cluster and the client. You must first enable the option in the config:
+
+```python
+yt.config["pickling"]["enable_modules_compatibility_filter"] = True
+```
+
+When you run a Python function in a job, all modules in the dependencies, including your main module, are unpacked and imported. Because of this, all business logic should be wrapped under `__main__`. The correct way to do this is:
+
+```python
+class Mapper(yt.TypedJob):
+    ...
+
+if __name__ == "__main__":
+    yt.run_map(mapper, ...)
+```
+
+{% endcut %}
+
+## Running operations in different environments { #python_operations_environments }
+
+
+### Running a local script inside Docker with `yt devtools` { #python_open_source_environment_docker }
+
+{% include [Run operations with Docker](userdoc_run_operations.md) %}
+
+
+### Using Python in an open-source environment { #python_open_source_environment }
+
+In open-source installations of {{product-name}}, if you want to ensure that your local Python operation and local environment are correctly pickled and run successfully on the cluster, the local environment and the remote job environment should be as similar as possible.
+
+For Python operations, we strongly recommend the following configuration:
+
+- Always specify a Docker image for the user job.
+- Always enable `ignore_system_modules` in the Python wrapper config:
+
+```python
+yt.config["pickling"]["ignore_system_modules"] = True
+```
+
+The `ignore_system_modules` option prevents the wrapper from packaging Python modules that are considered system modules on the client machine. In open-source environments, relying on host system modules often leads to hard-to-diagnose discrepancies between the local machine and the job environment.
+
+Example:
+
+```python
+spec_builder = yt.spec_builders.MapSpecBuilder() \
+    .begin_mapper() \
+        .command(MyMapper()) \
+        .docker_image("docker.io/library/python:3.11") \
+    .end_mapper() \
+    .input_table_paths(["//tmp/in"]) \
+    .output_table_paths(["//tmp/out"])
+
+yt.config["pickling"]["ignore_system_modules"] = True
+yt.run_operation(spec_builder)
+```
+
+The Python version in the Docker image and the local Python version must match. This is especially important for serialized Python code, imported modules, and native extensions.
+
+We also strongly recommend using the same operating system environment locally and in the Docker image. For example, if the Docker image is built on Ubuntu 24.04, you should also use Ubuntu 24.04 locally. The setup might still work with a different local environment, but the likelihood of issues with packaging dependencies or execution increases.
+
+
+### Running a local script inside Docker with `respawn_in_docker` { #respawn_in_docker }
+
+The wrapper provides the `respawn_in_docker` decorator, which restarts the local entry script inside a Docker container before submitting the operation.
+
+```python
+import yt.wrapper as yt
+
+@yt.respawn_in_docker("docker.io/library/python:3.11")
+def main():
+    yt.config["pickling"]["ignore_system_modules"] = True
+    yt.run_map(MyMapper(), "//tmp/in", "//tmp/out")
+
+if __name__ == "__main__":
+    main()
+```
+
+This approach helps eliminate discrepancies between the local runtime environment and the remote job environment because:
+
+- The script is rerun inside the specified Docker image.
+- Wrapper operations automatically inherit the same image via `YT_BASE_LAYER`.
+- The container mounts the script directory, the current working directory, the home directory, and the paths to Python libraries.
+
+This approach has important limitations:
+
+- Docker must be available on the local machine.
+- By default, only environment variables with the `YT_` prefix are passed to the container. If your script depends on other environment variables, pass them explicitly via the `env` argument.
+- The image must contain a compatible Python interpreter. By default, `respawn_in_docker` runs `python3` inside the container, but you can override this via the `python` argument.
+- The local paths that are mounted into the container must be accessible to Docker.
+- The decorator aligns the local startup environment with the job image, but it doesn’t eliminate all possible host-specific differences.
+
+Use `respawn_in_docker` when you need maximum assurance that the script submitting the operation runs in the same Docker environment as the jobs themselves. This is the preferred approach when Docker is available locally.
+
+
 ## Untyped Python operations { #python_operations_untyped }
 
-Non-typed jobs are also supported aside from typed jobs.
-Instead of the `TypedJob` class, a Python function or any callable object is used as a custom job. The function accepts a record (in case of the mapper) and the key plus the record iterator (in case of the reducer). In the latter case, the key is a `dict`-like object where only key columns are populated. The function must be a generator that uses `yield` to generate records that will be written to the output table.
+In addition to typed jobs, untyped jobs are also supported. Instead of a `TypedJob` subclass, the user job is a Python function or any callable object. The function accepts a record as an argument (in the case of a mapper) or a key plus an iterator over records (in the case of a reducer). In the latter case, the key is a `dict`-like object where only the key columns are populated. The function itself must be a generator that yields records to be written to the output table.
 
 Example of a filtering mapper:
 
@@ -1530,7 +1544,7 @@ def mapper(row):
         yield row
 ```
 
-Example of a reducer summing across the value column:
+Example of a reducer that calculates the sum of the `value` column:
 
 ```python
 def reducer(key, rows):
@@ -1541,30 +1555,30 @@ def reducer(key, rows):
 
 ### Decorators { #python_decorators_untyped }
 
-In the non-typed API, the meaning of some decorators slightly changes compared to the [typed](#python_decorators) API.
+In the untyped API, the meaning of some decorators changes slightly compared to the [typed one](#python_decorators).
 
-- [reduce_aggregator](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.py_wrapper.reduce_aggregator): Instead of accepting a single pair (key, and records), the reducer will accept a pair iterator where each pair is (key, and records with this key).
+- [reduce_aggregator](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.py_wrapper.reduce_aggregator) — the reducer receives not a single (key, records) pair but an iterator of pairs, where each pair is (key, records with that key).
 
-Keep in mind that the decorator is implemented by setting an attribute on a function. That's why, for example, you cannot declare a function with the decorator and then make `functools.partial` on it. If you want to pass certain parameters to a function directly at function call, it makes sense to create a class with a decorator (see the last example below).
+Note that decorators are implemented by setting an attribute on the function. Therefore, for example, you can’t define a function with a decorator and then wrap it with `functools.partial`. If you want to pass some parameters to the function directly at call time, create a class with the decorator (see the last example below).
 
 You can find examples in the [tutorial](../../../api/python/examples.md#job_decorators_untyped).
 
 
 ### Formats { #python_formats }
 
-By default, you do not have to specify formats when running Python operations.
+By default, you don’t need to specify a format when working with Python operations.
 
-{{product-name}} stores structured data, and there's no predefined textual representation for this data: all the jobs run in streaming mode, and the user needs to explicitly specify the format in which its script expects to see the data in the input stream. By contrast, when accessing data from a Python function, you also get the data in the structured format. You can establish a mapping between the structured data format in {{product-name}} and in Python. In this case, the intermediate format used to transmit data to the job isn't as critical.
+{{product-name}} stores structured data; it has no predefined text representation. All jobs run in streaming mode, and you must explicitly specify the form in which your script expects to see data in the input stream. In contrast, when working with data in a Python function, you also get it in structured form. You can map the structured data representation in {{product-name}} to Python, and the intermediate format used to transfer data to the job becomes less important.
 
-Keep in mind that there is no perfect one-to-one correspondence between the structured data in {{product-name}} and dicts in Python. That's why, in this case, there are some peculiarities (see below).
+It’s important to understand that there’s no perfect one-to-one mapping between structured data in {{product-name}} and Python dicts, so there are various specifics that will be discussed below.
 
 #### Structured data representation { #structured_data }
 
-The following key peculiarities exist in representing structured data in Python:
+There are the following important specifics of representing structured data in Python:
 
-1. Objects in table records in {{product-name}} can have [attributes](../../../user-guide/storage/attributes.md) (this only applies to columns of the "any" type). To represent them, the library provides [special types](http://pydoc.ytsaurus.tech/yt.yson.html#module-yt.yson.yson_types) that are inherited from standard Python  types, but additionally they also have the `attributes` field. Because creating custom objects is an expensive procedure, by default, such an object is created only if it has attributes. To regulate this behavior, there is the option: `always_create_attributes`. YSON types are compared as follows: first the values of the elementary types, then the attributes. If the attributes aren't equal (for example, if one object has attributes, and another object doesn't), the objects are considered non-equal. This should be kept in mind when comparing with elementary types in Python: to avoid dependence on the presence of object attributes, you should explicitly convert the object to the elementary type.
+- Objects in table records in {{product-name}} can have [attributes](../../../user-guide/storage/attributes.md) (this applies only to columns of type any). To represent them, the library defines [special types](http://pydoc.ytsaurus.tech/yt.yson.html#module-yt.yson.yson_types) that inherit from standard Python types but also have an `attributes` field. Since creating custom objects is expensive, by default such an object is created only if it has attributes. To control this behavior, there’s the `always_create_attributes` option. YSON type comparison works as follows: first, the values of the base types are compared, then the attributes are compared. If the attributes aren’t equal (including cases where one object has attributes and the other doesn’t), the objects are considered unequal. Keep this in mind when comparing with base Python types: to avoid dependence on the object’s attributes, explicitly cast the object to the base type.
 
-   Explanatory example:
+  Illustrative example:
 
    ```python
    import yt.yson as yson
@@ -1582,74 +1596,74 @@ The following key peculiarities exist in representing structured data in Python:
    other_s == s # True
    ```
 
-2. The YSON format uses two integer types: [int64 and uint64](../../../user-guide/storage/yson.md). On the other hand, from the data model viewpoint, Python has a single data type with no limits imposed. For this reason, when reading data, a non-signed type is represented as YsonUint64, while a signed type is represented as a regular int type. When writing an int, the behavior is automatic: numbers in the range [-2^63, 2^63) are represented as signed, while numbers in the range [2^63, 2^64) are represented as non-signed. However, you can always specify the type explicitly by creating an explicit Yson object.
+- The YSON format has two integer types: [int64 and uint64](../../../user-guide/storage/yson.md). In Python, from a data model perspective, there’s only one type with no restrictions. Therefore, when reading data, the unsigned type is represented as `YsonUint64`, while the signed type is represented as a regular `int`. When writing ints, automation handles it: numbers in the range [-2^63, 2^63) are represented as signed, and numbers in the range [2^63, 2^64) as unsigned. But you can always explicitly specify the type by creating a YSON object directly.
 
-3. Unicode strings. As all the strings are byte strings in {{product-name}}, the Python's  Unicode strings are UTF-8-encoded as byte strings. When reading data in Python 3, an attempt is made to decode byte strings using a utf-8 decoder. If this doesn't work, a special [YsonStringProxy](https://pydoc.ytsaurus.tech/yt.yson.html#yt.yson.yson_types.YsonStringProxy) object is returned. For more information, see the appropriate[section](#python3_strings).
+- Unicode strings. Since all strings in {{product-name}} are byte strings, Python Unicode strings are by default encoded into UTF‑8 byte strings. When reading in Python 3, the system attempts to decode byte strings using the UTF‑8 decoder; if this fails, it returns a special [YsonStringProxy](https://pydoc.ytsaurus.tech/yt.yson.html#yt.yson.yson_types.YsonStringProxy) object. For more details, see the corresponding [section](#python3_strings).
 
-When writing data, YsonFormat correctly distinguishes between Python types and YSON types.
+When writing data, `YsonFormat` correctly distinguishes between elementary Python types and YSON types.
 
 #### Control attributes { #control_attributes }
 
-Apart from a stream of records, when reading data from a table (or from within a job), you can request various [control attributes](../../../user-guide/storage/io-configuration.md#control_attributes). Working with control attributes is format-dependent: for example, most control attributes can't be represented in formats different from Yamr, JSON, or YSON.
+In addition to the record stream, when reading from a table (or in a job), you can request various [control attributes](../../../user-guide/storage/io-configuration.md#control_attributes). Working with control attributes depends on the format; for example, in formats other than Yamr, JSON, and YSON, most control attributes aren’t representable.
 
-Yamr format in Python API correctly supports parsing of the row_index and table_index attributes that will be represented as the tableIndex and recordIndex fields and Record-type objects.
+In the Yamr format, the Python API correctly supports parsing the `row_index` and `table_index` attributes, which will be represented as the `tableIndex` and `recordIndex` fields of `Record` objects.
 
-In JSON format, the control attributes aren't processed in any special way. When requesting them, you have to process the control records within the stream.
+In the JSON format, no special processing of control attributes is performed, so if you request them, you’ll need to handle the control records in the stream yourself.
 
-YSON format has several modes for automated processing of control attributes. Selection of the mode is controlled by a `control_attributes_mode` option that can take on the following values **(important: for historical reasons, for the option to run correctly, you also need to set process_table_index=None when creating a format. By default, process_table_index is True, which enforces control_attributes_mode=row_fields)**:
+In the YSON format, there are several modes for automatic processing of control attributes. The mode is controlled by the `control_attributes_mode` option, which can take the following values (important: for historical reasons, for the option to work correctly, you must also specify `process_table_index=None` when creating the format; by default, `process_table_index` is `True`, which forces `control_attributes_mode=row_fields`):
 
-- `iterator`(default): When parsing the stream, the format will output a record iterator. To get the control attributes from a job, you need to use the context.
-- `row_fields`: The requested control attributes will be added as fields to each record. For example, if you request row _index, then each record will have the `@row_index` field with the ID of this record.
-- `none`: No special processing will be done for the control attributes: the client will get a stream of records where the entity-type records will have control attributes.
+- `iterator` (default) — when parsing the stream, the format returns an iterator over records; to get control attributes in the job, you’ll need to use the context.
+- `row_fields` — requested control attributes will be written as fields on each record. For example, if `row_index` is requested, each record will have an `@row_index` field containing that record’s number.
+- `none` — no special processing of control attributes will be performed, meaning the client will receive a record stream that includes entity records with control attributes.
 
-Examples of switching between output tables with `table_index` at `control_attributes_mode` equal to `iterator` and `row_fields`. [Here](../../../api/python/examples.md#table_switches_untyped) you can find an example of how to get an index of the current table in the reducer using `context`.
+You can find examples of switching between output tables with `table_index` when `control_attributes_mode` is set to `iterator` and `row_fields`, as well as an example of getting the current table row index in a reducer using `context`, [here](../../../api/python/examples.md#table_switches_untyped).
 
 #### Other formats { #other_formats }
 
-By default, the library serializes data into [YSON format](../../../user-guide/storage/formats.md#yson) because this format provides a proper and unambiguous representation for any data stored in {{product-name}} tables. To handle YSON format efficiently in Python, you need the [native library](#yson_bindings). If you don't add this library to the cluster, you will get a runtime error in your job (we didn't add a fallback to the Python's YSON library because it's very slow and inefficient). In this situation, you can switch over to the [JSON format](../../../user-guide/storage/formats.md#json).
+By default, the library performs serialization via the [YSON format](../../../user-guide/storage/formats.md#yson), as it provides a correct and unambiguous representation of any data stored in {{product-name}} tables. To work efficiently with the YSON format in Python, you need the [native library](#yson_bindings). If this library isn’t available on the cluster, you’ll get an error when running the job (there’s no fallback to the Python library for YSON because it’s very slow and inefficient). In this situation, you can switch to using the [JSON format](../../../user-guide/storage/formats.md#json).
 
-Most other formats are text-based (that is, numbers have the same format as strings), so you will lose data typing.
+Most other formats are text-based (meaning numbers aren’t distinguished from strings), so you’ll lose type information.
 
-If you use the formats different from YSON and Yamr, you will always get a `dict` of records. For example, there will be no automatic record conversion from JSON to YSON.
-
-
+When using formats other than YSON and Yamr, you’ll always receive `dict` as records. For example, no automatic conversion from the JSON representation of records to the YSON representation will occur.
 
 
 ## Other { #other }
 
 ### gRPC { #grpc }
 
-RPC proxy with gRPC transport isn't supported. If you can't install a binary package with RPC bindings, you can use gRPC on your own.
+There’s no support for RPC proxy using the gRPC transport. If you can’t install the binary package with RPC bindings, you can use the gRPC transport yourself.
 
-<!-- Подробное описание и пример есть на [отдельной странице](../../description/proxy/grpc.md). -->
+<!-- Detailed description and an example are on a [separate page](../../description/proxy/grpc.md). -->
 
 ### YSON { #yson }
 
-Together with the library to work with {{product-name}} clusters,  we also supply a library for [YSON format](../../../user-guide/storage/yson.md). The library is available in the `yt.yson` module and implements the standard `load`, `loads`, `dump`, and `dumps` functions. In addition, it provides access to [Yson types](#structured_data). The library also implements the following generally useful functions:
+Along with the library for working with {{product-name}} clusters, a library for working with the [YSON format](../../../user-guide/storage/yson.md) is also provided. The library is available in the `yt.yson` module and implements the standard `load`, `loads`, `dump`, and `dumps` functions. It also provides access to [YSON types](#structured_data). Additionally, the library implements the following useful functions:
 
-- [to_yson_type](https://pydoc.ytsaurus.tech/yt.yson.html#yt.yson.convert.to_yson_type): Creating a YSON type from a Python object.
-- [json_to_yson](https://pydoc.ytsaurus.tech/yt.yson.html#yt.yson.convert.json_to_yson): Recursively converts a Python object from the JSON representation to a YSON representation. Learn more about the nuances of structured data representation in {{product-name}} in [JSON format](../../../user-guide/storage/formats.md#json).
-- [yson_to_json](https://pydoc.ytsaurus.tech/yt.yson.html#yt.yson.convert.yson_to_json): Recursively converts a Python object from YSON to JSON.
+- [to_yson_type](https://pydoc.ytsaurus.tech/yt.yson.html#yt.yson.convert.to_yson_type) — creates a YSON type from a Python object.
+- [json_to_yson](https://pydoc.ytsaurus.tech/yt.yson.html#yt.yson.convert.json_to_yson) — recursively converts a Python object from its JSON representation (see the specifics of representing structured data in {{product-name}} in the [JSON format](../../../user-guide/storage/formats.md#json)) to its YSON representation.
+- [yson_to_json](https://pydoc.ytsaurus.tech/yt.yson.html#yt.yson.convert.yson_to_json) — recursively converts a Python object from its YSON representation to its JSON representation.
 
 #### YSON bindings { #yson_bindings }
 
-The yson library has two implementations: written in pure Python, and written as C++ bindings.
-The YSON's native parser and writer written in Python are very slow and can only be used with small amounts of data.
-**Important**: For example, you won't be able to run operations or read tables in YSON format
+The YSON library has two implementations: pure Python and C++ bindings.
 
-C++ bindings are delivered as Debian and pip packages.
+The native YSON parser and writer written in Python are very slow and are suitable only for working with small amounts of data.
 
-The packages are built as a universal .so library with libcxx compiled into it: that's why they should work in any Debian-based system.
+**Important**: in particular, you won’t be able to run operations or read tables in the YSON format.
+
+C++ bindings are provided as Debian and pip packages.
+
+The packages are built as a universal .so library that includes libcxx, so they should work on any Debian system.
 
 #### Cluster client config { #remote_client_config }
 
-Some client settings are received from the cluster during its initialization.
+Some client settings are delivered from the cluster at the moment of initialization.
 
-+ To see what exactly is received from the cluster: `yt show-default-config --proxy <proxy> --only-remote-patch`.
-+ You can completely disable the application of cluster settings via the environment variable: `YT_APPLY_REMOTE_PATCH_AT_START=none`.
+- To see what settings come from the cluster: `yt show-default-config --proxy <proxy> --only-remote-patch`.
+- To completely disable applying cluster settings, use the environment variable: `YT_APPLY_REMOTE_PATCH_AT_START=none`.
 
 How to add a config to the cluster:
 
-- create a `default` node of type **document** in the `//sys/client_config` directory (`//sys/client_config/default`)
-- add the necessary parameters to the document (see the ones supported in `default_config.py` — they are initialized via `RemotePatchable`)
-- you can check the application of the config in the client debug logs (`YT_LOG_LEVEL=DEBUG`) and via the CLI — `show-default-config`
+- Create a `default` node of type **document** in the `//sys/client_config` directory (`//sys/client_config/default`).
+- Add the required parameters to the document (see the parameters supported in `default_config.py` — they’re initialized via `RemotePatchable`).
+- You can verify that the config is applied in the client’s debug logs (`YT_LOG_LEVEL=DEBUG`) and via the CLI — `show-default-config`.
