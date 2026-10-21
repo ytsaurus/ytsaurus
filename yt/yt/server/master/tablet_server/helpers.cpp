@@ -182,7 +182,7 @@ std::vector<std::pair<TTabletBase*, TTabletCell*>> ComputeTabletAssignment(
     };
 
     std::vector<TCellKey> cellKeys;
-    for (auto* cellBase : GetValuesSortedByKey(table->TabletCellBundle()->Cells())) {
+    for (auto* cellBase : GetValuesSortedByKey(table->GetTabletCellBundle()->Cells())) {
         if (cellBase->GetType() != EObjectType::TabletCell) {
             continue;
         }
@@ -192,7 +192,7 @@ std::vector<std::pair<TTabletBase*, TTabletCell*>> ComputeTabletAssignment(
             continue;
         }
 
-        if (cell->CellBundle() == table->TabletCellBundle()) {
+        if (cell->CellBundle() == table->GetTabletCellBundle()) {
             cellKeys.push_back(TCellKey{getCellSize(cell), cell});
         }
     }

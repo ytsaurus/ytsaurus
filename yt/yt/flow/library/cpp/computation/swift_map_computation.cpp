@@ -128,7 +128,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
         auto generateReportTimeFuture = GetTimeProvider()->GetTimestamp(/*barrier*/ true);
         DoInit(StateManager_->CreateContext());
         const auto now = WaitFor(generateReportTimeFuture).ValueOrThrow();
-        isFinished = UpdateStatus(/*reportTime*/ now, GetInputSystemWatermark(), BuildInflights(context));
+        isFinished = UpdateStatus(/*reportTime*/ now, GetInputSystemWatermark(), BuildInflights(context, now));
         FinishRunIteration();
     }
 
@@ -320,7 +320,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
         Commit(context, tx);
 
         const auto now = WaitForFast(generateReportTimeFuture).ValueOrThrow().Timestamp;
-        isFinished = UpdateStatus(/*reportTime*/ now, GetInputSystemWatermark(), BuildInflights(context));
+        isFinished = UpdateStatus(/*reportTime*/ now, GetInputSystemWatermark(), BuildInflights(context, now));
         if (!emptyInput) {
             NoteNonEmptyRunIteration();
         }

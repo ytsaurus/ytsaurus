@@ -31,6 +31,17 @@ const TChaosReplicatedTableNode* TChaosReplicatedTableNode::GetTrunkNode() const
     return TCypressNode::GetTrunkNode()->As<TChaosReplicatedTableNode>();
 }
 
+TChaosCellBundleRawPtr TChaosReplicatedTableNode::GetChaosCellBundle() const
+{
+    return GetTrunkNode()->ChaosCellBundle_.Get();
+}
+
+void TChaosReplicatedTableNode::SetChaosCellBundle(TChaosCellBundle* cellBundle)
+{
+    YT_VERIFY(IsTrunk());
+    ChaosCellBundle_.Assign(cellBundle);
+}
+
 ENodeType TChaosReplicatedTableNode::GetNodeType() const
 {
     return ENodeType::Entity;

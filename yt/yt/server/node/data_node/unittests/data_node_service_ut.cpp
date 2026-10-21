@@ -3063,28 +3063,6 @@ TEST_F(TDataNodeTest, ProbePutBlocksCancelChunk)
 }
 
 
-TEST_F(TDataNodeTest, PutBlocksCancelChunk)
-{
-    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
-    WaitFor(StartChunk(sessionId, false, false, false))
-        .ThrowOnError();
-
-    TRandomGenerator generator{RandomNumber<ui64>()};
-
-    auto blocks = CreateBlocks(100, 1_KB, generator);
-    auto cummulativeBlockSize = CalculateCummulativeBlockSize(blocks);
-
-    auto putBlocksEnd = PutBlocks(sessionId, {blocks[0]}, 10, cummulativeBlockSize);
-    auto putBlocksBegin = PutBlocks(sessionId, {blocks[0]}, 0, cummulativeBlockSize);
-
-    WaitFor(CancelChunk(sessionId))
-        .ThrowOnError();
-
-    putBlocksEnd.Cancel(TError("Timeout"));
-
-    EXPECT_THROW_WITH_SUBSTRING(WaitFor(putBlocksBegin).ThrowOnError(), "Session is not active");
-}
-
 TEST_F(TDataNodeTest, ProbePutBlocksFinishChunk)
 {
     std::vector<TSessionId> sessionIds;

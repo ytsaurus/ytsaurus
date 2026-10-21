@@ -42,6 +42,8 @@ void TCypressSynchronizerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("chaos_replicated_table_queue_agent_stage", &TThis::ChaosReplicatedTableQueueAgentStage)
         .Default(NQueueClient::ProductionStage);
+    registrar.Parameter("ignored_object_list", &TThis::IgnoredObjectList)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -211,6 +213,8 @@ void TQueueAgentBootstrapConfig::Register(TRegistrar registrar)
             .BeginMap()
             .EndMap()
         ->AsMap());
+    registrar.Parameter("group_id", &TThis::GroupId)
+        .Default("/queue_agents");
     registrar.Parameter("dynamic_state", &TThis::DynamicState)
         .DefaultNew();
     registrar.Parameter("cypress_synchronizer_election_manager", &TThis::CypressSynchronizerElectionManager)

@@ -47,6 +47,40 @@ void TFormat::Register(TRegistrar registrar)
 
 namespace {
 
+TSharedRef Decompress(NCompression::ICodec* codec, const TSharedRef& value)
+{
+    return value.Empty() ? value : codec->Decompress(value);
+}
+
+struct TUnpackedState
+{
+    NDeltaCodecs::TState DeltaState;
+    TSharedRef Value;
+};
+
+TUnpackedState UnpackStateImpl(
+    const TSharedRef& compressed,
+    const TSharedRef& patch,
+    const TFormatPtr& format)
+{
+    auto* codec = NCompression::GetCodec(format->Compression);
+    auto* patchCodec = NCompression::GetCodec(format->PatchCompression);
+    auto deltaCodec = NDeltaCodecs::GetCodec(format->Delta);
+    if (compressed.Empty() && !patch.Empty()) {
+        THROW_ERROR_EXCEPTION("Cannot unpack a state patch without a base");
+    }
+
+    auto deltaState = NDeltaCodecs::TState{
+        .Base = Decompress(codec, compressed),
+        .Patch = Decompress(patchCodec, patch),
+    };
+    auto value = deltaCodec->ApplyPatch(deltaState.Base, deltaState.Patch);
+    return {
+        .DeltaState = std::move(deltaState),
+        .Value = std::move(value),
+    };
+}
+
 //! A null format column loads as a default #TFormat, so the default needs no cell.
 //! #TState::Format_ is always a canonical #TFormat, never a derived spec, which is what
 //! makes this yson-struct comparison meaningful.
@@ -57,6 +91,17 @@ bool IsDefaultFormat(const TFormatPtr& format)
 }
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef UnpackState(
+    const TSharedRef& compressed,
+    const TSharedRef& patch,
+    const TFormatPtr& format)
+{
+    static const auto DefaultFormat = New<TFormat>();
+    return UnpackStateImpl(compressed, patch, format ? format : DefaultFormat).Value;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -265,8 +310,6 @@ void TState::ParseTableRow()
     YT_VERIFY(TableRow_);
     YT_VERIFY(std::ssize(*TableRow_) == Schema_->TableSchema->GetColumnCount());
     auto* codec = NCompression::GetCodec(Format_->Compression);
-    auto* patchCodec = NCompression::GetCodec(Format_->PatchCompression);
-    auto deltaCodec = NDeltaCodecs::GetCodec(Format_->Delta);
     TUnversionedOwningRowBuilder builder;
     for (int index = 0; index < std::ssize(Schema_->YsonToTableMapping); ++index) {
         auto [tableIndex, tablePatchIndex] = Schema_->YsonToTableMapping[index];
@@ -306,12 +349,9 @@ void TState::ParseTableRow()
             const auto patch = extractString((*TableRow_)[tablePatchIndex]).value_or(TSharedRef::MakeEmpty());
 
             if (value) {
-                auto deltaState = NDeltaCodecs::TState{
-                    .Base = Decompress(codec, *value),
-                    .Patch = Decompress(patchCodec, patch)};
-                auto merged = deltaCodec->ApplyPatch(deltaState.Base, deltaState.Patch);
-                addValue(MakeUnversionedStringValue(merged.ToStringBuf()));
-                UncompressedPackableTableColumns_[index] = std::move(deltaState);
+                auto unpacked = UnpackStateImpl(*value, patch, Format_);
+                addValue(MakeUnversionedStringValue(unpacked.Value.ToStringBuf()));
+                UncompressedPackableTableColumns_[index] = std::move(unpacked.DeltaState);
             } else {
                 if (!patch.ToStringBuf().empty()) {
                     THROW_ERROR_EXCEPTION("Unexpected non-empty patch")
@@ -532,14 +572,6 @@ TSharedRef TState::Compress(NCompression::ICodec* codec, const TSharedRef& value
         return value;
     }
     return codec->Compress(value);
-}
-
-TSharedRef TState::Decompress(NCompression::ICodec* codec, const TSharedRef& value)
-{
-    if (value.ToStringBuf().empty()) {
-        return value;
-    }
-    return codec->Decompress(value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

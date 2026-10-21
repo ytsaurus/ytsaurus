@@ -13,6 +13,8 @@
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
 
+#include <utility>
+
 
 namespace NYql::NYtflow {
 
@@ -37,12 +39,17 @@ struct TFile
 
 struct TBuildPipelineSpecContext: public NPrepare::TContext
 {
+    using TStreamKey = std::pair<const TExprNode*, ui32>;
+
     THashMap<TStringBuf, ui32>& ComputationCounters;
     const NKikimr::NMiniKQL::IFunctionRegistry* FunctionRegistry;
     const TUserDataTable& UserDataBlocks;
     THashMap<TString, TString> SecureParams;
     bool EnableComputationPatternResources;
     TVector<TFile> Files;
+    THashMap<TString, ui32> StreamCounters;
+    // Intermediate streams use (operation, output index); persistent streams use (source/sink, 0).
+    THashMap<TStreamKey, TString> StreamNames;
 
 public:
     TBuildPipelineSpecContext(
@@ -66,6 +73,9 @@ TBuildPipelineSpecResult BuildPipelineSpec(
 namespace NPrivate {
 
 TVector<TString> BuildPipelineUdfPaths(const TUserDataTable& userDataBlocks);
+
+const TString& GetStreamName(
+    const TExprNode& node, TBuildPipelineSpecContext& ctx);
 
 void AddComputationPatternResource(
     const TString& computationName,

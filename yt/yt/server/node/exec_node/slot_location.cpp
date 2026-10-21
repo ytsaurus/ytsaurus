@@ -72,15 +72,19 @@ public:
         std::span<const i64> grid,
         TMaker&& makeGauge)
         : Grid_(grid.begin(), grid.end())
-    {
-        YT_VERIFY(!grid.empty() && grid[0] == 0);
-        YT_VERIFY(std::ranges::is_sorted(grid));
-        for (i64 bucket : grid) {
-            Gauges_.push_back(makeGauge(bucket));
-        }
-    }
+        , Gauges_(std::invoke([&] {
+            YT_VERIFY(!grid.empty() && grid[0] == 0);
+            YT_VERIFY(std::ranges::is_sorted(grid));
 
-    void Update(i64 bucketSelector, double value)
+            std::vector<TGauge> gauges;
+            for (i64 bucket : grid) {
+                gauges.push_back(makeGauge(bucket));
+            }
+            return gauges;
+        }))
+    { }
+
+    void Update(i64 bucketSelector, double value) const
     {
         auto bucketIndex = std::ranges::upper_bound(Grid_, bucketSelector) - Grid_.begin();
         // As long as bucketSelector is >= 0, we should never get 0 here.
@@ -90,7 +94,7 @@ public:
 
 private:
     const std::vector<i64> Grid_;
-    std::vector<NProfiling::TGauge> Gauges_;
+    const std::vector<TGauge> Gauges_;
 };
 
 static constexpr i64 CopyRateGaugeGrid[] = {0, 1_MB, 10_MB, 100_MB, 1000_MB};

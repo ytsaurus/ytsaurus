@@ -82,7 +82,7 @@ void TTransformOrderedSourceComputation::DoExecute(const IComputationRunContextP
         auto iterGuard = StartRunIteration(context);
         const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
         DoInit(StateManager_->CreateContext());
-        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, WatermarkGenerator_->Apply(BuildInflights(context), {*ActiveSourceStreamId_}));
+        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, WatermarkGenerator_->Apply(BuildInflights(context, now), {*ActiveSourceStreamId_}));
         FinishRunIteration();
     }
     initTraceContextGuard.Release();
@@ -205,7 +205,7 @@ void TTransformOrderedSourceComputation::DoExecute(const IComputationRunContextP
         }
         Commit(context, tx);
 
-        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, WatermarkGenerator_->Apply(BuildInflights(context), {*ActiveSourceStreamId_}));
+        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, WatermarkGenerator_->Apply(BuildInflights(context, now), {*ActiveSourceStreamId_}));
 
         if (!sourceMessageBatches.empty()) {
             NoteNonEmptyRunIteration();

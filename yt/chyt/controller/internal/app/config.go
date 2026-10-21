@@ -26,6 +26,8 @@ type Config struct {
 	// Strawberry contains strawberry-specific configuration.
 	Strawberry agent.Config `yson:"strawberry"`
 
+	LocationOverrides map[string]LocationOverrides `yson:"location_overrides"`
+
 	// LocationStrawberryOverrides contains overrides of Strawberry configuration
 	// for specified location from LocationProxies.
 	LocationStrawberryOverrides map[string]agent.ConfigOverrides `yson:"location_strawberry_overrides"`
@@ -55,6 +57,11 @@ type Config struct {
 	BaseACL []yt.ACE `yson:"base_acl"`
 
 	DisableAPIAuth bool `yson:"disable_api_auth"`
+}
+
+type LocationOverrides struct {
+	Agent       agent.ConfigOverrides    `yson:"agent"`
+	Controllers map[string]yson.RawValue `yson:"controllers"`
 }
 
 const (

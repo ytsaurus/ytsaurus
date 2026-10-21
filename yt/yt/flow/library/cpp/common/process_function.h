@@ -24,6 +24,7 @@ struct TProcessFunctionContext
     : public TRefCounted
 {
     IRuntimeInitContextPtr InitContext;
+    TComputationSpecPtr ComputationSpec;
 
     NClient::NCache::IClientsCachePtr ClientsCache;
     IInvokerPtr Invoker;

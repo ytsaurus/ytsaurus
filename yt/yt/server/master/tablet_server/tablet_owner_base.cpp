@@ -113,6 +113,17 @@ const TTabletOwnerBase* TTabletOwnerBase::GetTrunkNode() const
     return TChunkOwnerBase::GetTrunkNode()->As<TTabletOwnerBase>();
 }
 
+TTabletCellBundleRawPtr TTabletOwnerBase::GetTabletCellBundle() const
+{
+    return GetTrunkNode()->TabletCellBundle_.Get();
+}
+
+void TTabletOwnerBase::SetTabletCellBundle(TTabletCellBundle* cellBundle)
+{
+    YT_VERIFY(IsTrunk());
+    TabletCellBundle_.Assign(cellBundle);
+}
+
 TDetailedMasterMemory TTabletOwnerBase::GetDetailedMasterMemoryUsage() const
 {
     auto result = TChunkOwnerBase::GetDetailedMasterMemoryUsage();

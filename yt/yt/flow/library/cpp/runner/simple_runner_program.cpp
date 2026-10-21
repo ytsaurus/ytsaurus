@@ -6,6 +6,7 @@
 #include "root_clients_cache.h"
 
 #include <yt/yt/flow/library/cpp/common/internal_urls.h>
+#include <yt/yt/flow/library/cpp/common/process_function_graph.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/yson_message.h>
@@ -129,6 +130,11 @@ void TSimpleRunnerProgram::DoRun()
         WarnForUnrecognizedOptions(Logger(), config);
     }
 
+    if (PrepareSpecCallback_) {
+        PrepareSpecCallback_(config->Spec, config->DynamicSpec);
+    }
+    ResolveProcessFunctionGraphs(config->Spec);
+
     {
         auto specErrors = TRegistry::Get()->ValidatePipelineSpecParseability(ConvertTo<IMapNodePtr>(config->Spec));
         auto dynamicSpecErrors = TRegistry::Get()->ValidateDynamicPipelineSpecParseability(config->Spec, ConvertTo<IMapNodePtr>(config->DynamicSpec));
@@ -141,14 +147,11 @@ void TSimpleRunnerProgram::DoRun()
         }
     }
 
-    if (PrepareSpecCallback_) {
-        PrepareSpecCallback_(config->Spec, config->DynamicSpec);
-    }
-
     // Validate the full spec before any side effects (vanilla operation submission, prior-op
     // shutdown, pipeline spec update) so an invalid spec fails fast with nothing changed.
     ValidatePipelineSpec(config->Spec);
     ValidateDynamicPipelineSpec(config->DynamicSpec);
+    ValidateProcessFunctionGraphDynamicSpec(config->Spec, config->DynamicSpec);
 
     if (ValidateOnly_) {
         YT_TLOG_INFO("Pipeline spec is valid; exiting without side effects because run with --validate-only");

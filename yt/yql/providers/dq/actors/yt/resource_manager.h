@@ -94,6 +94,7 @@ namespace NYql {
 
     NActors::IActor* CreateResourceManager(const TResourceManagerOptions& options, const TIntrusivePtr<ICoordinationHelper>& coordinator);
 
+    // Clique-only clients can use CreateUploadCoordinationHelper.
     NActors::IActor* CreateResourceUploader(const TResourceManagerOptions& options, const TIntrusivePtr<ICoordinationHelper>& coordinator);
 
     NActors::IActor* CreateResourceDownloader(const TResourceManagerOptions& options, const TIntrusivePtr<ICoordinationHelper>& coordinator);

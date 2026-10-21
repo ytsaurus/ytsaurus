@@ -12,5 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(generate_internal_state_golden)
 add_subdirectory(reanimate_vanilla_operation)
 add_subdirectory(ui_test_controller)

@@ -33,6 +33,8 @@ private:
     std::array<TDuration, PartKinds_.size()> BaselineTimes_;
     std::array<TDuration, PartKinds_.size()> TotalTimes_;
     i64 Sequence_ = 0;
+    i64 NonemptyEpochCount_ = 0;
+    TDuration NonemptyEpochDuration_;
     bool EpochCommitted_ = false;
     i64 TotalCount_ = 0;
     i64 TotalBytes_ = 0;

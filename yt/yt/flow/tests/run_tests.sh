@@ -6,7 +6,7 @@
 #
 # Usage (the argument is forwarded from the dispatcher):
 #   run_tests.sh --ci                 the opensource CI scope (the lists below)
-#   run_tests.sh --all                every flow test shipped to opensource
+#   run_tests.sh --all                all Flow tests supported by standalone Python
 #   run_tests.sh <pytest targets...>  exactly the given paths/node ids/flags
 
 if [ -z "$PYTHONPATH" ]; then
@@ -84,7 +84,9 @@ case "$1" in
         INTEGRATION_ROOTS=$(
             {
                 echo "${FLOW_TESTS_DIR}"
-                find "${FLOW_SRC}/library" -type d \( -name "tests" -o -name "tests_*" -o -name "test" \)
+                # State unpack unit tests require the embedded Python binding and run via ya make.
+                find "${FLOW_SRC}/library" -path "${FLOW_SRC}/library/python/client/state_unpack/tests" -prune -o \
+                    -type d \( -name "tests" -o -name "tests_*" -o -name "test" \) -print
                 expand_paths "${FLOW_EXAMPLE_INTEGRATION_PATHS[@]}"
             } | sort -u
         )

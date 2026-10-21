@@ -655,14 +655,14 @@ void TJobProxy::DoRun()
         FindJobProxyEnvironment()->ShutdownSidecars();
     }
 
-    {
+    if (RpcServer_) {
         auto error = WaitFor(RpcServer_->Stop()
             .WithTimeout(RpcServerShutdownTimeout));
         YT_TLOG_ERROR_UNLESS(error.IsOK(), "Error stopping RPC server")
             .With(error);
     }
 
-    {
+    if (PrivateRpcServer_) {
         auto error = WaitFor(PrivateRpcServer_->Stop()
             .WithTimeout(RpcServerShutdownTimeout));
         YT_TLOG_ERROR_UNLESS(error.IsOK(), "Error stopping private RPC server")
@@ -680,6 +680,13 @@ void TJobProxy::DoRun()
         auto error = WaitFor(HttpServer_->Stop()
             .WithTimeout(RpcServerShutdownTimeout));
         YT_TLOG_ERROR_UNLESS(error.IsOK(), "Error stopping HTTP server")
+            .With(error);
+    }
+
+    if (PublicRpcServer_) {
+        auto error = WaitFor(PublicRpcServer_->Stop()
+            .WithTimeout(RpcServerShutdownTimeout));
+        YT_TLOG_ERROR_UNLESS(error.IsOK(), "Error stopping public RPC server")
             .With(error);
     }
 

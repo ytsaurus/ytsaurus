@@ -174,8 +174,7 @@ protected:
 };
 
 struct TYtflowConfiguration
-    : public TYtflowSettings
-    , public NCommon::TSettingDispatcher
+    : public NCommon::TDispatcherAndSettings<TYtflowSettings>
 {
 public:
     using TPtr = TIntrusivePtr<TYtflowConfiguration>;

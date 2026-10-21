@@ -19,12 +19,14 @@ Swift removes this limitation: if the function is deterministic, you don’t nee
 
 ## How exactly-once guarantees are maintained {#exactly-once}
 
-Even though output data isn’t written to {{product-name}}, the [exactly-once](../../../flow/concepts/glossary.md#exactly-once) guarantees are preserved thanks to determinism:
+Even though output data isn’t written to {{product-name}}, [exactly-once](../../../flow/concepts/glossary.md#exactly-once) delivery to another Flow computation is preserved thanks to determinism:
 
 - If a job fails before delivering the result, Flow restarts it and gets **the same output** from the same input data.
 - The [Message Distributor](../../../flow/concepts/glossary.md#message-distributor) keeps delivering the message until it receives an acknowledgment (`MarkPersisted`) from the receiver, which prevents data loss.
 
-So, exactly-once is ensured not by storing the output but by the **idempotency** of the computation.
+So, exactly-once is ensured not by storing the output but by the **idempotency** of the computation and deduplication at the recipient.
+
+`TSwiftMapComputation` does not support [Sink](../../../flow/concepts/glossary.md#sink). `TSwiftOrderedSourceComputation` supports direct delivery to an external sink. Deferred publications provide output-epoch finalization but do not by themselves upgrade at-least-once input to exactly-once.
 
 ## Determinism requirement {#determinism}
 
@@ -51,7 +53,7 @@ Flow implements two base Swift classes:
 A deterministic Map without materializing results in {{product-name}}.
 
 - **Load on {{product-name}}:** ~0 writes per epoch (only system background processes).
-- **Doesn’t support:** [Source](../../../flow/concepts/glossary.md#source), [Sink](../../../flow/concepts/glossary.md#sink).
+- **Doesn’t support:** [Source](../../../flow/concepts/glossary.md#source) or [Sink](../../../flow/concepts/glossary.md#sink).
 - **Supports:** [timers](../../../flow/concepts/glossary.md#timer) and [key-visitor streams](../../../flow/concepts/key_visitor.md) — only for working with [state](../../../flow/concepts/glossary.md#state), for example, for background cleanup (GC). Emitting output messages from timer or visit processing is **prohibited**: the output stream can’t depend on a timer or visit stream in `streams_dependency`. Since timer streams are added by default to the dependencies of each output, a spec with timers and outputs must explicitly define `streams_dependency`.
 - **Requires:** strict determinism and that each resulting message has exactly one parent — the input message.
 
@@ -66,7 +68,7 @@ A [Passthrough computation](../../../flow/concepts/glossary.md#passthrough) that
 The main class for reading ordered data from external sources.
 
 - **Load on {{product-name}}:** ~1–2 writes per epoch (metadata for recovery; the messages themselves aren’t stored).
-- **Supports:** `WatermarkStrategy` for evaluating [watermarks](../../../flow/concepts/glossary.md#timestamps-and-watermarks).
+- **Supports:** [Sink](../../../flow/concepts/glossary.md#sink) and `WatermarkStrategy` for evaluating [watermarks](../../../flow/concepts/glossary.md#timestamps-and-watermarks). Direct delivery to an external sink without deduplication is at-least-once.
 - **Requires:** exactly one [Source](../../../flow/concepts/glossary.md#source) that implements `IOrderedSource`.
 
 For more details, see the [Computation (C++)](../../../flow/cpp/computation.md#tswiftorderedsourcecomputation) section.

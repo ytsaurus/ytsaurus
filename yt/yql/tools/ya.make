@@ -16,6 +16,7 @@ IF (NOT OPENSOURCE)
         qt_stress
         query_replay
         query_replay_admin
+        s3_backup
         udf_admin
         ytfilerun
         ytfilerun/impl

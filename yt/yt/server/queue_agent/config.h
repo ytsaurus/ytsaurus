@@ -69,6 +69,9 @@ struct TCypressSynchronizerDynamicConfig
     //! stage for crt-objects in the dynamic config.
     std::string ChaosReplicatedTableQueueAgentStage;
 
+    //! List of objects to ignore in the cypress synchronizer.
+    std::vector<NYPath::TRichYPath> IgnoredObjectList;
+
     REGISTER_YSON_STRUCT(TCypressSynchronizerDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -308,6 +311,9 @@ struct TQueueAgentBootstrapConfig
     NQueueClient::TQueueAgentDynamicStateConfigPtr DynamicState;
 
     NYTree::IMapNodePtr CypressAnnotations;
+
+    //! Discovery group id used by queue agents to register and discover each other.
+    std::string GroupId;
 
     NCypressElection::TCypressElectionManagerConfigPtr CypressSynchronizerElectionManager;
 

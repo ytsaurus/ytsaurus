@@ -563,12 +563,7 @@ void TUserJobSizeConstraints::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(1, Spec_);
     PHOENIX_REGISTER_FIELD(2, Options_);
 
-    registrar
-        .template VirtualField<3>("SortedOperation_", [] (TThis* /*this_*/, auto& context) {
-            bool sortedOperation;
-            NYT::Load(context, sortedOperation);
-        })
-        .BeforeVersion(ESnapshotVersion::DropUnusedFieldInJobSizeConstraints)();
+    PHOENIX_REGISTER_DELETED_FIELD(3, bool, SortedOperation_, ESnapshotVersion::DropUnusedFieldInJobSizeConstraints);
 }
 
 PHOENIX_DEFINE_TYPE(TUserJobSizeConstraints);

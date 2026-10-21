@@ -1005,6 +1005,21 @@ public:
         }
 
         AttachChunksToTablet(tablet, hunkChunksToAttach);
+
+        // Hunk chunks may have been detached from the tablet concurrently (e.g. by bulk insert overwrite).
+        std::erase_if(hunkChunksToDetach, [&] (TChunkTreeRawPtr chunk) {
+            if (HasParent(chunk, GetTabletChildParent(tablet, chunk))) {
+                return false;
+            }
+            YT_LOG_ALERT("Hunk chunk to detach does not belong to tablet; skipped "
+                "(TableId: %v, TabletId: %v, ChunkId: %v, UpdateReason: %v)",
+                table->GetId(),
+                tablet->GetId(),
+                chunk->GetId(),
+                updateReason);
+            return true;
+        });
+
         DetachChunksFromTablet(
             tablet,
             hunkChunksToDetach,
@@ -1041,7 +1056,7 @@ public:
         counters->UpdateTabletStoresHunkChunkCount.Increment(hunkChunksToAttach.size() + hunkChunksToDetach.size());
 
         if (request->throttle_at_master() && IsLeader()) {
-            const auto& bundle = table->TabletCellBundle();
+            auto bundle = table->GetTabletCellBundle();
             BIND(&IStoresUpdateThrottler::Acquire, StoresUpdateThrottler_)
                 .Via(StoresUpdateThrottlerInvoker_)
                 .Run(
@@ -1551,7 +1566,7 @@ private:
         }
 
         auto* table = owner->As<TTableNode>();
-        const auto& cellBundle = table->TabletCellBundle();
+        auto cellBundle = table->GetTabletCellBundle();
         if (!cellBundle) {
             return &nullCounters;
         }

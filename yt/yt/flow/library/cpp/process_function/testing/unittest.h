@@ -5,6 +5,7 @@
 //! Include this instead of the individual harness headers.
 
 #include "entity_builders.h"
+#include "process_function_graph_test_harness.h"
 #include "process_function_test_harness.h"
 #include "recording_output_collector.h"
 #include "test_runtime_context.h"

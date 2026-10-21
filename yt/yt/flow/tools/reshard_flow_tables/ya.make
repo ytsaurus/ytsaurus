@@ -7,6 +7,7 @@ PY_SRCS(
 )
 
 PEERDIR(
+    yt/python/client_with_rpc
     yt/yt/flow/tools/reshard_flow_tables/lib
 )
 

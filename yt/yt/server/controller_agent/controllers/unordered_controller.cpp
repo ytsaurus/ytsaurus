@@ -521,7 +521,6 @@ protected:
         return TError();
     }
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TUnorderedControllerBase, 0xf95cf935);
 };
 

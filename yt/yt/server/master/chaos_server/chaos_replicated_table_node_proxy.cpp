@@ -186,9 +186,9 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosCellBundle)
             .SetWritable(true)
             .SetReplicated(true)
-            .SetPresent(IsObjectAlive(impl->ChaosCellBundle())));
+            .SetPresent(IsObjectAlive(impl->GetChaosCellBundle())));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosCellBundleId)
-            .SetPresent(IsObjectAlive(impl->ChaosCellBundle())));
+            .SetPresent(IsObjectAlive(impl->GetChaosCellBundle())));
         descriptors->push_back(EInternedAttributeKey::Dynamic);
         descriptors->push_back(EInternedAttributeKey::ReplicationCardId);
         descriptors->push_back(EInternedAttributeKey::OwnsReplicationCard);
@@ -245,11 +245,10 @@ private:
     {
         const auto* node = GetThisImpl();
         bool hasNonEmptySchema = node->HasNonEmptySchema();
-        const auto* trunkNode = node->GetTrunkNode();
 
         switch (key) {
             case EInternedAttributeKey::ChaosCellBundle:
-                if (const auto& bundle = trunkNode->ChaosCellBundle()) {
+                if (auto bundle = node->GetChaosCellBundle()) {
                     BuildYsonFluently(consumer)
                         .Value(bundle->GetName());
                     return true;
@@ -258,7 +257,7 @@ private:
                 }
 
             case EInternedAttributeKey::ChaosCellBundleId:
-                if (const auto& bundle = trunkNode->ChaosCellBundle()) {
+                if (auto bundle = node->GetChaosCellBundle()) {
                     BuildYsonFluently(consumer)
                         .Value(bundle->GetId());
                     return true;

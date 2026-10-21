@@ -11,6 +11,7 @@ from pydantic.fields import _Unset
 from typing import Annotated, Optional, Union, List, Dict, Any
 
 import yt.wrapper as yt
+from yt.wrapper.response_stream import EmptyResponseStream, ResponseStream
 
 import yt.mcp as yt_mcp
 
@@ -120,6 +121,8 @@ class YTToolRunnerMCP:
     def return_structured(self, data):
         if isinstance(data, yt.format.RowsIterator):
             data = list(data)
+        elif isinstance(data, (ResponseStream, EmptyResponseStream)):
+            data = data.read().decode("utf-8", errors="replace")
         return TextContent(type="text", text=json.dumps(self._simplify_structured(data)))
 
     def _add_tool_to_mcp(self, mcp: FastMCP, tool: "yt.mcp.lib.tools.helpers.YTToolBase"):

@@ -629,6 +629,12 @@ class TestRootFS(TestLayersBase):
 class TestPrivateDirectory(TestLayersBase):
     USE_PORTO = True
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "max_job_aborts_until_operation_failure": {"other": 1},
+        },
+    }
+
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "slot_manager": {
@@ -731,7 +737,7 @@ class TestPrivateDirectory(TestLayersBase):
             ])),
             task_patch={
                 "sidecars": {
-                    "check_private_directory": {
+                    "check": {
                         "command": " && ".join([
                             events_on_fs().wait_event_cmd("check_sidecar"),
                             "python3 script.py",

@@ -493,7 +493,7 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("oom_score_adj_on_exceeded_memory_reserve", &TThis::OomScoreAdjOnExceededMemoryReserve)
-        .Default()
+        .Default(800)
         .GreaterThanOrEqual(-1000)
         .LessThanOrEqual(1000);
 
@@ -512,9 +512,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_grpc_server", &TThis::EnableGrpcServer)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("enable_http_server", &TThis::EnableHttpServer)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("private_bus_server", &TThis::PrivateBusServer)
         .DefaultNew();
@@ -600,7 +600,7 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("oom_score_adj_on_exceeded_memory_reserve", &TThis::OomScoreAdjOnExceededMemoryReserve)
-        .Default()
+        .Default(800)
         .GreaterThanOrEqual(-1000)
         .LessThanOrEqual(1000);
 
@@ -626,9 +626,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_grpc_server", &TThis::EnableGrpcServer)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("enable_http_server", &TThis::EnableHttpServer)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("job_proxy_peak_memory_profiler", &TThis::JobProxyPeakMemoryProfiler)
         .DefaultNew();

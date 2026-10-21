@@ -319,7 +319,8 @@ TStreamTraverseDataPtr ApplyInflightTraverseData(
 }
 
 TInflightStreamTraverseDataPtr MergeInflightTraverseData(
-    const std::vector<TInflightStreamTraverseDataPtr>& inflights)
+    const std::vector<TInflightStreamTraverseDataPtr>& inflights,
+    bool allowPartial)
 {
     if (inflights.empty()) {
         return New<TInflightStreamTraverseData>();
@@ -347,7 +348,7 @@ TInflightStreamTraverseDataPtr MergeInflightTraverseData(
             }
         }
 
-        InPlaceMergeInflightMetrics(merged->InflightMetrics, part->InflightMetrics, EInflightMerge::Sum);
+        InPlaceMergeInflightMetrics(merged->InflightMetrics, part->InflightMetrics, EInflightMerge::Sum, allowPartial);
     }
 
     return merged;

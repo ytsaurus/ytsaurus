@@ -2671,19 +2671,19 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         for (auto [nodeId, node] : cypressManager->Nodes()) {
-            // Also, tablet cell bundles are referenced by tablet owners in them...
-            if (IsTabletOwnerType(node->GetType())) {
-                auto* table = node->As<TTableNode>();
-                if (table->TabletCellBundle()) {
-                    ++refCounters[table->TabletCellBundle().Get()];
+            // Also, tablet cell bundles are referenced by trunk tablet owners in them...
+            if (IsTabletOwnerType(node->GetType()) && node->IsTrunk()) {
+                auto* tabletOwner = node->As<NTabletServer::TTabletOwnerBase>();
+                if (auto* cellBundle = tabletOwner->GetTabletCellBundle().Get()) {
+                    ++refCounters[cellBundle];
                 }
             }
 
-            // ... and chaos cell bundles are referenced by replicated chaos tables in them.
-            if (node->GetType() == EObjectType::ChaosReplicatedTable) {
+            // ... and chaos cell bundles are referenced by trunk replicated chaos tables in them.
+            if (node->GetType() == EObjectType::ChaosReplicatedTable && node->IsTrunk()) {
                 auto* table = node->As<TChaosReplicatedTableNode>();
-                if (table->ChaosCellBundle()) {
-                    ++refCounters[table->ChaosCellBundle().Get()];
+                if (auto* cellBundle = table->GetChaosCellBundle().Get()) {
+                    ++refCounters[cellBundle];
                 }
             }
 

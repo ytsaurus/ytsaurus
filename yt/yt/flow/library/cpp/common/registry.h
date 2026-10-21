@@ -100,9 +100,22 @@ public:
     //! registration of |name|. |function| must be an instance created by CreateProcessFunction(|name|).
     ISyncProcessFunction* ViewProcessFunctionAsSync(const std::string& name, const IProcessFunctionBasePtr& function) const;
 
+    //! Returns whether the registered process function |name| implements #ISyncProcessFunction.
+    bool IsSyncProcessFunction(const std::string& name) const;
+
     //! Parses |spec|'s static `processing_function_parameters` into the type its processing
     //! function registered (an absent block parses as an empty map).
     NYTree::TYsonStructPtr ParseProcessFunctionParameters(const TComputationSpecPtr& spec) const;
+
+    //! Throws if |parameters| are not valid static parameters of the process function |name|, including unknown fields.
+    void ValidateStaticProcessFunctionParameters(
+        const std::string& name,
+        const NYTree::IMapNodePtr& parameters) const;
+
+    //! Validates per-node dynamic parameters of a resolved process function graph |spec|.
+    void ValidateProcessFunctionGraphDynamicParameters(
+        const TComputationSpecPtr& spec,
+        const NYTree::IMapNodePtr& parameters) const;
 
     //! Parses a dynamic `processing_function_parameters` node into the type |spec|'s processing
     //! function registered (a null |parameters| parses as an empty map).

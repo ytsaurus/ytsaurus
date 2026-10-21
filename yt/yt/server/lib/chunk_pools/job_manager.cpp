@@ -469,7 +469,6 @@ private:
 
     std::optional<int> Current_;
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_TYPE(TJobOrder, 0xe7c3d856);
 };
 

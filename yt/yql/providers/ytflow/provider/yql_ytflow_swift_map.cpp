@@ -24,8 +24,8 @@ bool HasSwiftIncompatibleExpressions(const TExprNode::TPtr& lambda)
 
 bool IsSwiftMapEligible(const TYtflowMapBase& map, bool hasNonDeterministicFunctions)
 {
-    // TYtflowExtend has non-empty sources and sinks after type annotation. Renaming
-    // it to a map implementation preserves these properties, while its pipeline-spec
+    // TYtflowExtend has non-empty sources after type annotation. Renaming it to a map
+    // implementation preserves this property, while its pipeline-spec
     // lowering cannot add timers, key visitors, a watermark generator or watermark
     // alignment. The remaining Swift-map requirements are checked explicitly below.
     const auto lambda = map.Lambda().Ptr();
@@ -39,10 +39,8 @@ bool IsSwiftMapEligible(const TYtflowMapBase& map, bool hasNonDeterministicFunct
         }
     }
 
-    for (auto sink : map.Sinks()) {
-        if (!sink.Maybe<TYtflowIntermediateSink>()) {
-            return false;
-        }
+    if (HasSetting(map.Settings().Ref(), HAS_PERSISTENT_SINK_SETTING)) {
+        return false;
     }
 
     return true;

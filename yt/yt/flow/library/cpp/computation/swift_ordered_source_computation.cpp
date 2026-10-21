@@ -22,6 +22,8 @@
 #include <library/cpp/containers/absl/flat_hash_map.h>
 #include <library/cpp/iterator/zip.h>
 
+#include <contrib/libs/pdqsort/pdqsort.h>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,7 +118,7 @@ void TSwiftOrderedSourceComputation::DoExecute(const IComputationRunContextPtr& 
         auto iterGuard = StartRunIteration(context);
         const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
         DoInit(StateManager_->CreateContext());
-        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, applyTimestampMemory(WatermarkGenerator_->Apply(BuildInflights(context), {*ActiveSourceStreamId_})));
+        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, applyTimestampMemory(WatermarkGenerator_->Apply(BuildInflights(context, now), {*ActiveSourceStreamId_})));
         FinishRunIteration();
     }
     initTraceContextGuard.Release();
@@ -172,7 +174,7 @@ void TSwiftOrderedSourceComputation::DoExecute(const IComputationRunContextPtr& 
         }
         Commit(context, tx);
 
-        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, applyTimestampMemory(WatermarkGenerator_->Apply(BuildInflights(context), {*ActiveSourceStreamId_})));
+        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, applyTimestampMemory(WatermarkGenerator_->Apply(BuildInflights(context, now), {*ActiveSourceStreamId_})));
         if (!publishResult.EmptyEpoch) {
             NoteNonEmptyRunIteration();
         }
@@ -363,6 +365,7 @@ TSwiftOrderedSourceComputation::TPublishResult TSwiftOrderedSourceComputation::C
 
     // Accumulate all output messages across all processed batches for a single RegisterOutputMessages call.
     std::vector<TOutputMessageConstPtr> allOutputMessages;
+    bool outputMessagesSorted = true;
     size_t publishableBatchCount = 0;
     {
         size_t estimate = 0;
@@ -416,12 +419,21 @@ TSwiftOrderedSourceComputation::TPublishResult TSwiftOrderedSourceComputation::C
 
             auto outputMessage = New<TSwiftOrderedSourceComputationOutputMessage>(std::move(message), GetContext()->StreamSpecStorage);
             outputMessage->OnDistributedCallback = batchTracker.AddDestination();
+            if (outputMessagesSorted && !allOutputMessages.empty()) {
+                outputMessagesSorted = allOutputMessages.back()->MessageId <= outputMessage->MessageId;
+            }
             allOutputMessages.push_back(std::move(outputMessage));
         }
 
         batchTracker.Activate();
     }
-    // Register all accumulated output messages in one batch.
+    // Custom suffixes need not follow emission order.
+    if (!outputMessagesSorted) {
+        pdqsort(allOutputMessages.begin(), allOutputMessages.end(), [] (const auto& lhs, const auto& rhs) {
+            return lhs->MessageId < rhs->MessageId;
+        });
+    }
+
     OutputStore_->TryRegisterKeyedBatch(allOutputMessages, *GetContext()->Partition->SourceKey, /*persist*/ false);
     RegisterOutputMessages(context, allOutputMessages, *GetContext()->Partition->SourceKey);
 

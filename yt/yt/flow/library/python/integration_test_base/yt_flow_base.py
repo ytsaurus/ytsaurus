@@ -604,6 +604,16 @@ class FlowTestBase:
         except Exception as e:
             log.error("Can't dump flow description", exc_info=e)
 
+    def read_internal_key_states(self, computation_id):
+        response = self.client.read_states(
+            self.pipeline_path, computation_id=computation_id, target="key_state", limit=10000
+        )
+        return [
+            {"computation_id": row["computation_id"], "key": row["key"], "name": name, "state": state}
+            for row in response["key_states"]
+            for name, state in row["states"].items()
+        ]
+
     def wait_pipeline_state(self, state, timeout=180):
         """Wait until the pipeline reaches the given state (or one of the given states).
 

@@ -399,7 +399,7 @@ void TJobFSSecretary::ConfigureNbdDeviceIds(TNonNullPtr<TJobFSDescription> descr
             EDataSourceType::File,
             description->Artifacts
                 | std::views::filter(&TArtifactDescription::AccessedViaVirtualSandbox)
-                | std::views::transform([] (const auto& artifact) { return artifact.Key.chunk_specs(); })
+                | std::views::transform([] (const auto& artifact) -> const auto& { return artifact.Key.chunk_specs(); })
                 | std::views::join
                 | RangeTo<std::vector<NChunkClient::NProto::TChunkSpec>>());
         virtualArtifactKey.set_access_method(ToProto(NControllerAgent::ELayerAccessMethod::Nbd));

@@ -28,6 +28,7 @@ struct TSinkContextBase
 {
     TSinkId SinkId;
     TSinkSpecPtr SinkSpec;
+    TUniqueSeqNo JobGeneration;
 };
 
 struct TSinkContext
@@ -88,15 +89,25 @@ public:
     virtual void Init(IInitContextPtr initContext) = 0;
 
     // Distribute the message asynchronously.
-    // |onDistributed| is called when the message has been successfully delivered.
+    // |onDistributed| allows the core to release its output copy. Any unfinished
+    // external finalization must remain visible through #BuildInflight().
     virtual void Distribute(const TOutputMessageConstPtr& message, TOnDistributedCallback onDistributed) = 0;
 
-    // Sync should enrich |transaction| with all sync distributing messages
-    // Repeat calls should do the same until Commit call.
+    // Completes external writes required before Sync and invokes their |onDistributed| callbacks.
+    // May wait for acknowledgements; completion need not make the messages externally visible.
+    // Called before any epoch Sync. Does nothing by default.
+    virtual void PreSyncFlush();
+
+    // Enriches |transaction| with synchronously distributed messages and prepares sink state for persistence.
     virtual void Sync(NApi::IDynamicTableTransactionPtr transaction) = 0;
 
-    // Async distribution should start only after Commit call.
+    // Finalizes the successful Sync. Regular async sinks start distribution here;
+    // sinks with prepared external distribution finalize it here.
     virtual void Commit() = 0;
+
+    // Reports externally staged messages that have already left the core output
+    // store but have not reached their terminal sink state yet.
+    virtual THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflight() const;
 
     // Delivers the epoch watermark snapshot; called on creation and before each run iteration.
     virtual void UpdateWatermarkState(TWatermarkStatePtr state);

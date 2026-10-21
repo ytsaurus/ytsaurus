@@ -250,7 +250,7 @@ protected:
     bool IsEmptyOnQueue(const TKeyVisitorPtr& visitor)
     {
         return WaitFor(BIND([visitor, this] {
-            auto inflight = visitor->BuildInflight();
+            auto inflight = visitor->BuildInflight(TSystemTimestamp());
             const auto it = inflight.find(StreamId);
             return it != inflight.end() && it->second->Empty;
         })
@@ -259,10 +259,12 @@ protected:
             .ValueOrThrow();
     }
 
-    TInflightMetricsPtr ReadMetricsOnQueue(const TKeyVisitorPtr& visitor)
+    TInflightMetricsPtr ReadMetricsOnQueue(
+        const TKeyVisitorPtr& visitor,
+        TSystemTimestamp now = TSystemTimestamp())
     {
-        return WaitFor(BIND([visitor, this] {
-            return visitor->BuildInflight().at(StreamId)->InflightMetrics;
+        return WaitFor(BIND([visitor, now, this] {
+            return visitor->BuildInflight(now).at(StreamId)->InflightMetrics;
         })
                 .AsyncVia(Queue_->GetInvoker())
                 .Run())
@@ -1062,6 +1064,53 @@ TEST_F(TKeyVisitorTest, OfferedTracksMatchingPopulationDespiteFullBuffer)
     EXPECT_EQ(metrics->ReadyCount, 2);
     EXPECT_DOUBLE_EQ(metrics->OfferedCountPerSec.value_or(-1), 500);
     EXPECT_EQ(metrics->NewCountPerSec, metrics->OfferedCountPerSec);
+    StopOnQueue(visitor);
+}
+
+TEST_F(TKeyVisitorTest, ReadyIncludesUnscannedWorkOnlyFromTheCurrentPass)
+{
+    std::vector<TKey> keys;
+    for (int keyIndex = 0; keyIndex < 10; ++keyIndex) {
+        keys.push_back(MakeKey(static_cast<ui64>(10 * keyIndex)));
+    }
+    SeedKeys(keys, "/state");
+    auto visitor = New<TKeyVisitor>(
+        MakeContext(MakeUintKeyRange(0, 100), /*names*/ std::nullopt, /*bucketCount*/ 1),
+        MakeDynamicContext(
+            /*period*/ TDuration::MilliSeconds(10),
+            /*bufferRowLimit*/ 1,
+            /*maxScanRowsPerIteration*/ 3));
+    WaitFor(visitor->Init(/*upstreamCompleted*/ true))
+        .ThrowOnError();
+    WaitForOffered(visitor, 2, 1000);
+
+    const auto metrics = ReadMetricsOnQueue(visitor, TSystemTimestamp(2));
+    EXPECT_EQ(metrics->ReadyCount, 10);
+    EXPECT_EQ(metrics->Count, 10);
+
+    ReconfigureOnQueue(visitor, MakeDynamicContext(
+        /*period*/ TDuration::Seconds(100),
+        /*bufferRowLimit*/ 1,
+        /*maxScanRowsPerIteration*/ 3));
+    EXPECT_EQ(ReadMetricsOnQueue(visitor, TSystemTimestamp(1))->ReadyCount, 2);
+    EXPECT_EQ(ReadMetricsOnQueue(visitor, TSystemTimestamp(11))->ReadyCount, 2);
+    EXPECT_EQ(ReadMetricsOnQueue(visitor, TSystemTimestamp(51))->ReadyCount, 5);
+    EXPECT_EQ(ReadMetricsOnQueue(visitor, TSystemTimestamp(101))->ReadyCount, 10);
+    EXPECT_EQ(ReadMetricsOnQueue(visitor, TSystemTimestamp(1000))->ReadyCount, 10);
+    EXPECT_DOUBLE_EQ(ReadMetricsOnQueue(visitor, TSystemTimestamp(1000))->OfferedCountPerSec.value_or(-1), 0.1);
+    ReconfigureOnQueue(visitor, MakeDynamicContext(
+        /*period*/ TDuration::MilliSeconds(10),
+        /*bufferRowLimit*/ 1,
+        /*maxScanRowsPerIteration*/ 3));
+
+    std::vector<TKey> drained;
+    EXPECT_EQ(DrainKeys(visitor, &drained, /*stopCount*/ 1, /*batchSize*/ 1), 1);
+    EXPECT_EQ(ReadMetricsOnQueue(visitor, TSystemTimestamp(1000))->ReadyCount, 9);
+
+    EXPECT_EQ(DrainKeys(visitor, &drained, /*stopCount*/ 9, /*batchSize*/ 1), 9);
+    EXPECT_EQ(ToSet(drained), ToSet(keys));
+    EXPECT_TRUE(IsEmptyOnQueue(visitor));
+    EXPECT_EQ(ReadMetricsOnQueue(visitor, TSystemTimestamp(1000))->ReadyCount, 0);
     StopOnQueue(visitor);
 }
 

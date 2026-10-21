@@ -10,6 +10,8 @@ try:
 except ImportError:
     import yaml
 
+T0_SETTINGS_PATH = "devtools/frontend_build_platform/nots/constants/src/tier0-settings.yaml"
+
 logger = logging.getLogger(__name__)
 _reported_ignored_fields = set()
 
@@ -142,6 +144,14 @@ def load_common_config(pj, sources_root, include_settings=False):
                         )
                     )
 
+    for name, spec in pj.data.get("peerDependencies", {}).items():
+        if spec.startswith("file:"):
+            raise ValueError(
+                "peerDependencies {}: file: не поддерживается; укажите semver, workspace: или catalog:".format(name)
+            )
+    validate_override_references(
+        join_pnpm_settings(settings, select_pnpm_settings(pj.data.get("pnpm"))), pj.data, pj.path
+    )
     for name, spec in pj.dependencies_iter():
         if isinstance(spec, str) and spec.startswith("catalog:"):
             group = spec[len("catalog:") :]
@@ -163,7 +173,8 @@ def load_tier0_settings():
     if content is None:
         policy_path = os.path.join(
             os.path.dirname(__file__),
-            "../../../../../devtools/frontend_build_platform/nots/constants/src/tier0-settings.yaml",
+            "../../../../../",
+            T0_SETTINGS_PATH,
         )
         with open(policy_path) as policy_file:
             return yaml.load(policy_file, Loader=yaml.CSafeLoader)
@@ -207,6 +218,12 @@ def validate_pnpm_settings(data):
         for name, value in entries.items():
             if not isinstance(name, str) or not name:
                 raise ValueError("invalid {} selector".format(key))
+            if PNPM_SETTING_TYPES[key] == "supported-architectures":
+                if name not in ("os", "cpu", "libc"):
+                    raise ValueError("invalid {} architecture {}".format(key, name))
+                if not isinstance(value, list) or any(not isinstance(v, str) for v in value):
+                    raise ValueError("{}.{} must be a list of strings".format(key, name))
+                continue
             if PNPM_SETTING_TYPES[key] == "peer-rules":
                 if name in ("ignoreMissing", "allowAny"):
                     if not isinstance(value, list) or any(not isinstance(v, str) for v in value):
@@ -249,10 +266,14 @@ def validate_pnpm_settings(data):
 
 def rebase_pnpm_settings(settings, source_dir, target_dir):
     result = copy.deepcopy(settings)
+    if os.path.abspath(source_dir) == os.path.abspath(target_dir):
+        return result
 
     def rebase(value, patch=False):
-        match = re.match(r"^(workspace:|file:|link:)(\.\.?/.*)$", value)
-        if not patch and not match:
+        match = re.match(r"^(workspace:|file:|link:)(.*)$", value)
+        if not patch and (
+            not match or os.path.isabs(match[2]) or (match[1] == "workspace:" and not re.match(r"^\.\.?/", match[2]))
+        ):
             return value
         relative = os.path.relpath(
             os.path.normpath(os.path.join(source_dir, value if patch else match[2])), target_dir
@@ -272,12 +293,37 @@ def rebase_pnpm_settings(settings, source_dir, target_dir):
     return result
 
 
+def validate_override_references(settings, manifest=None, owner=None):
+    """Reject effective workspace overrides, including references to direct dependencies."""
+    manifest = manifest or {}
+    dependencies = {}
+    for section in ("devDependencies", "dependencies", "optionalDependencies"):
+        dependencies.update(manifest.get(section, {}))
+    names = []
+    for name, value in settings.get("overrides", {}).items():
+        resolved = dependencies.get(value[1:]) if value.startswith("$") else value
+        if resolved and resolved.startswith("workspace:"):
+            names.append(name)
+    if names:
+        raise ValueError(
+            "{}: overrides {}: workspace: протокол не поддерживается; перейдите на file: протокол".format(
+                owner, ", ".join(names)
+            )
+        )
+
+
 def workspace_settings_paths(settings):
-    specs = list(settings.get("overrides", {}).values())
+    overrides = list(settings.get("overrides", {}).values())
+    specs = list(overrides)
     for extension in settings.get("packageExtensions", {}).values():
         for section in ("dependencies", "optionalDependencies", "peerDependencies"):
             specs.extend(extension.get(section, {}).values())
-    return [spec[len("workspace:") :] for spec in specs if re.match(r"^workspace:\.\.?/", spec)]
+    paths = [spec[len("workspace:") :] for spec in specs if re.match(r"^workspace:\.\.?/", spec)]
+    for spec in overrides:
+        if not spec.startswith("file:"):
+            continue
+        paths.append(spec[len("file:") :])
+    return paths
 
 
 def validate_config_paths(settings, directory, root):

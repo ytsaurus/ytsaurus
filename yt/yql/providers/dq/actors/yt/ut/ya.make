@@ -9,6 +9,7 @@ PEERDIR(
     contrib/ydb/library/yql/providers/dq/actors/events
     contrib/ydb/library/yql/providers/dq/common
     library/cpp/testing/gmock_in_unittest
+    yql/essentials/public/udf/service/stub
     yql/essentials/utils/log
     yql/essentials/utils/log/proto
     yt/cpp/mapreduce/interface

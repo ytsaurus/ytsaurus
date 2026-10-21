@@ -5,3 +5,5 @@ items:
     href: http.md
   - name: ClickHouse
     href: clickhouse.md
+  - name: Kafka
+    href: kafka.md

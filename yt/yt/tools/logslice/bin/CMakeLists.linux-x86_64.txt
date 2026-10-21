@@ -39,7 +39,7 @@ target_link_libraries(logslice PUBLIC
 
 target_allocator(logslice
   cpp-malloc-tcmalloc
-  libs-tcmalloc-default
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(logslice PRIVATE

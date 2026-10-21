@@ -77,6 +77,19 @@ func TestEncoder(t *testing.T) {
 	require.Equal(t, expectedOutput, buf.Bytes())
 }
 
+func TestEncoderRawRow(t *testing.T) {
+	var buf bytes.Buffer
+
+	e, err := NewEncoder(&buf, testSchema)
+	require.NoError(t, err)
+
+	require.NoError(t, e.Write(RawRow{0x01, 0x02, 0x03}))
+	require.NoError(t, e.Write(RawRow{}))
+	require.NoError(t, e.Flush())
+
+	require.Equal(t, []byte{0x00, 0x00, 0x01, 0x02, 0x03, 0x00, 0x00}, buf.Bytes())
+}
+
 func TestEncoderDecoder(t *testing.T) {
 	var buf bytes.Buffer
 

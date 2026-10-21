@@ -6,6 +6,7 @@
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
 #include <yt/yt/flow/library/cpp/computation/computation_base.h>
+#include <yt/yt/flow/library/cpp/computation/stores/output_store.h>
 
 #include <yt/yt/flow/library/cpp/connectors/common/sink_controller_base.h>
 
@@ -22,6 +23,8 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/misc/finally.h>
+
+#include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/yson/string.h>
 
@@ -44,6 +47,7 @@ using namespace testing;
 namespace {
 
 const TStreamId OutputStreamId("output");
+const TUniqueSeqNo JobGeneration(42);
 
 struct TSinkInitProbe
 {
@@ -54,7 +58,9 @@ struct TSinkInitProbe
         Prepare,
         Distribute,
         Watermark,
+        PreSyncFlush,
         Sync,
+        ContextCommit,
         Commit,
     };
 
@@ -64,15 +70,21 @@ struct TSinkInitProbe
         TSinkId SinkId;
         const ISink* Instance = nullptr;
         TDynamicSinkSpecPtr DynamicSinkSpec;
+        TUniqueSeqNo Generation;
     };
 
     std::vector<TEvent> Events;
     bool FailInit = false;
+    bool FailPreSyncFlush = false;
     bool MismatchedParentKey = false;
     bool DistributeOnPrepare = false;
     bool RunOneEpoch = false;
     bool CaptureProcessingStatus = false;
     std::vector<TComputationStatusPtr> ProcessingStatuses;
+    bool PersistOutputMessages = false;
+    bool AckOnDistribute = true;
+    bool AckInPreSyncFlush = false;
+    int OutputWriteCalls = 0;
 };
 
 std::atomic<TSinkInitProbe*>& GetActiveSinkInitProbe()
@@ -121,7 +133,26 @@ public:
         TOnDistributedCallback onDistributed) override
     {
         Record(TSinkInitProbe::EEventType::Distribute);
-        onDistributed();
+        if (Probe_->AckOnDistribute) {
+            onDistributed();
+        } else {
+            Callbacks_.push_back(std::move(onDistributed));
+        }
+    }
+
+    void PreSyncFlush() override
+    {
+        Record(TSinkInitProbe::EEventType::PreSyncFlush);
+        auto* traceContext = NTracing::TryGetCurrentTraceContext();
+        ASSERT_TRUE(traceContext);
+        EXPECT_THAT(traceContext->GetSpanName(), EndsWith(".PreSyncFlush"));
+        THROW_ERROR_EXCEPTION_IF(Probe_->FailPreSyncFlush, "Recording sink pre-sync flush failed");
+        if (Probe_->AckInPreSyncFlush) {
+            for (auto& callback : Callbacks_) {
+                callback();
+            }
+            Callbacks_.clear();
+        }
     }
 
     void Sync(IDynamicTableTransactionPtr /*transaction*/) override
@@ -157,10 +188,12 @@ private:
             .SinkId = Context_->SinkId,
             .Instance = this,
             .DynamicSinkSpec = DynamicSinkSpec_,
+            .Generation = Context_->JobGeneration,
         });
     }
 
 private:
+    std::vector<TOnDistributedCallback> Callbacks_;
     const TSinkContextPtr Context_;
     const TDynamicSinkSpecPtr DynamicSinkSpec_;
     TSinkInitProbe* const Probe_;
@@ -198,7 +231,11 @@ public:
     { }
 
     void Commit() override
-    { }
+    {
+        GetActiveSinkInitProbe().load()->Events.push_back({
+            .Type = TSinkInitProbe::EEventType::ContextCommit,
+        });
+    }
 
     TSystemTimestamp GetInputStabilizedEventTimestamp() const override
     {
@@ -241,6 +278,9 @@ private:
             std::vector<TOutputMessageConstPtr> messages{
                 New<TOutputMessage>(builder.Finish(), GetContext()->StreamSpecStorage),
             };
+            if (Probe_->PersistOutputMessages) {
+                OutputStore_->RegisterBatch(messages);
+            }
             RegisterOutputMessages(
                 context,
                 messages,
@@ -292,8 +332,12 @@ private:
 
     void ProcessDistributedMessages(
         const IComputationRunContextPtr& /*context*/,
-        std::deque<TOutputMessageConstPtr>&& /*messages*/) override
-    { }
+        std::deque<TOutputMessageConstPtr>&& messages) override
+    {
+        if (Probe_->PersistOutputMessages) {
+            OutputStore_->TryUnregisterBatch(messages);
+        }
+    }
 
 private:
     TSinkInitProbe* const Probe_;
@@ -373,11 +417,22 @@ TError RunProductionWiredComputation(
 {
     auto queue = New<TActionQueue>("SinkInitTest");
     auto timestampProvider = New<NiceMock<TMockTimestampProvider>>();
+    auto nextTimestamp = std::make_shared<ui64>(1ULL << 32);
+    ON_CALL(*timestampProvider, GenerateTimestamps(_, _))
+        .WillByDefault([nextTimestamp] (auto, auto) {
+            return MakeFuture(TTimestamp((*nextTimestamp)++));
+        });
 
     auto client = New<NiceMock<TMockClient>>();
     client->SetTimestampProvider(timestampProvider);
     auto transaction = New<NiceMock<TMockTransaction>>();
     transaction->StartTimestamp = TTimestamp(1);
+    ON_CALL(*transaction, ModifyRows(_, _, _, _))
+        .WillByDefault([probe] (const auto& path, auto, const auto&, auto) {
+            if (path == "//pipeline/compact_partition_output_messages" || path == "//pipeline/compact_output_messages") {
+                ++probe->OutputWriteCalls;
+            }
+        });
     ON_CALL(*transaction, Commit(_))
         .WillByDefault(Return(MakeFuture(TTransactionCommitResult{})));
     ON_CALL(*client, StartTransaction(_, _))
@@ -391,6 +446,7 @@ TError RunProductionWiredComputation(
 
     auto job = New<TJob>();
     job->JobId = TJobId(TGuid::Create());
+    job->Generation = JobGeneration;
     job->PartitionId = partition->PartitionId;
     job->LeaseId = TLeaseId(TGuid::Create());
 
@@ -517,14 +573,98 @@ TEST(TSinkInitTest, RunsPartitionSinkThroughFirstEpoch)
     for (const auto& event : probe.Events) {
         eventTypes.push_back(event.Type);
     }
-    EXPECT_THAT(eventTypes, ElementsAre(Construct, Watermark, Init, Prepare, Distribute, Watermark, Sync, Commit));
+    EXPECT_THAT(eventTypes, ElementsAre(Construct, Watermark, Init, Prepare, Distribute, Watermark, PreSyncFlush, Sync, ContextCommit, Commit));
     const auto constructions = GetEvents(probe, Construct);
     ASSERT_EQ(constructions.size(), 1u);
     for (const auto& event : probe.Events) {
         if (event.Instance) {
             EXPECT_EQ(event.Instance, constructions[0].Instance);
+            EXPECT_EQ(event.Generation, JobGeneration);
         }
     }
+}
+
+TEST(TSinkInitTest, PreSyncFlushAcknowledgedMessagesAreNotWrittenToOutputStore)
+{
+    TSinkInitProbe probe;
+    probe.PersistOutputMessages = true;
+    probe.AckOnDistribute = false;
+    probe.AckInPreSyncFlush = true;
+    auto error = RunProductionWiredComputation(
+        MakeSpec({{TSinkId("prepared"), true}}),
+        std::nullopt,
+        &probe,
+        /*distributeOnPrepare*/ true,
+        /*runOneEpoch*/ true);
+
+    EXPECT_EQ(error.GetMessage(), "Sink init test stopped after one epoch");
+    EXPECT_EQ(GetEvents(probe, TSinkInitProbe::EEventType::Distribute).size(), 1u);
+    EXPECT_EQ(GetEvents(probe, TSinkInitProbe::EEventType::Commit).size(), 1u);
+    EXPECT_EQ(probe.OutputWriteCalls, 0);
+}
+
+TEST(TSinkInitTest, PreSyncFlushUnacknowledgedMessagesAreWrittenToOutputStore)
+{
+    TSinkInitProbe probe;
+    probe.PersistOutputMessages = true;
+    probe.AckOnDistribute = false;
+    auto error = RunProductionWiredComputation(
+        MakeSpec({{TSinkId("prepared"), true}}),
+        std::nullopt,
+        &probe,
+        /*distributeOnPrepare*/ true,
+        /*runOneEpoch*/ true);
+
+    EXPECT_EQ(error.GetMessage(), "Sink init test stopped after one epoch");
+    EXPECT_EQ(GetEvents(probe, TSinkInitProbe::EEventType::Distribute).size(), 1u);
+    EXPECT_EQ(GetEvents(probe, TSinkInitProbe::EEventType::Commit).size(), 1u);
+    EXPECT_GT(probe.OutputWriteCalls, 0);
+}
+
+TEST(TSinkInitTest, FlushesAllSinksBeforeAnySync)
+{
+    using enum TSinkInitProbe::EEventType;
+
+    TSinkInitProbe probe;
+    auto error = RunProductionWiredComputation(
+        MakeSpec({{TSinkId("used"), true}, {TSinkId("unused"), false}}),
+        std::nullopt,
+        &probe,
+        /*distributeOnPrepare*/ true,
+        /*runOneEpoch*/ true);
+
+    EXPECT_EQ(error.GetMessage(), "Sink init test stopped after one epoch");
+    std::vector<TSinkInitProbe::EEventType> phases;
+    for (const auto& event : probe.Events) {
+        if (event.Type == PreSyncFlush || event.Type == Sync || event.Type == ContextCommit || event.Type == Commit) {
+            phases.push_back(event.Type);
+        }
+    }
+    EXPECT_THAT(phases, ElementsAre(PreSyncFlush, PreSyncFlush, Sync, Sync, ContextCommit, Commit, Commit));
+}
+
+TEST(TSinkInitTest, FailedPreSyncFlushPreventsSyncAndCommit)
+{
+    using enum TSinkInitProbe::EEventType;
+
+    TSinkInitProbe probe;
+    probe.FailPreSyncFlush = true;
+    probe.PersistOutputMessages = true;
+    probe.AckOnDistribute = false;
+    probe.AckInPreSyncFlush = true;
+    auto error = RunProductionWiredComputation(
+        MakeSpec({{TSinkId("prepared"), true}}),
+        std::nullopt,
+        &probe,
+        /*distributeOnPrepare*/ true,
+        /*runOneEpoch*/ true);
+
+    EXPECT_EQ(error.GetMessage(), "Recording sink pre-sync flush failed");
+    EXPECT_EQ(GetEvents(probe, PreSyncFlush).size(), 1u);
+    EXPECT_TRUE(GetEvents(probe, Sync).empty());
+    EXPECT_TRUE(GetEvents(probe, ContextCommit).empty());
+    EXPECT_TRUE(GetEvents(probe, Commit).empty());
+    EXPECT_EQ(probe.OutputWriteCalls, 0);
 }
 
 TEST(TSinkInitTest, AppliesPendingDynamicSpecBeforeSinkConstruction)
@@ -572,6 +712,9 @@ TEST(TSinkInitTest, InitializesEveryKeyedSinkBeforePrepareAndReusesMatchingSink)
     const auto syncs = GetEvents(probe, TSinkInitProbe::EEventType::Sync);
     const auto commits = GetEvents(probe, TSinkInitProbe::EEventType::Commit);
     ASSERT_EQ(constructions.size(), 2u);
+    for (const auto& construction : constructions) {
+        EXPECT_EQ(construction.Generation, JobGeneration);
+    }
     ASSERT_EQ(inits.size(), 2u);
     ASSERT_EQ(prepares.size(), 1u);
     ASSERT_EQ(distributions.size(), 1u);

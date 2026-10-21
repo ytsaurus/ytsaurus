@@ -1,24 +1,24 @@
 {
   "info": {
-    "created": "2026-10-09T23:28:37.196Z",
+    "created": "2026-10-20T07:43:28.883Z",
     "pr": {
-      "id": 16170614,
+      "id": 16567371,
       "author": "baymer",
-      "summary": "FBP-3463: NOTS: самостоятельные установки и общая конфигурация pnpm"
+      "summary": "FBP-3542: Передавать registry в окружение pnpm в Python builder"
     }
   },
   "by_platform": {
     "darwin": {
-      "uri": "sbr:14037746872"
+      "uri": "sbr:14089323870"
     },
     "darwin-arm64": {
-      "uri": "sbr:14037745701"
+      "uri": "sbr:14089322632"
     },
     "linux": {
-      "uri": "sbr:14037749168"
+      "uri": "sbr:14089326233"
     },
     "linux-aarch64": {
-      "uri": "sbr:14037748011"
+      "uri": "sbr:14089325094"
     }
   }
 }

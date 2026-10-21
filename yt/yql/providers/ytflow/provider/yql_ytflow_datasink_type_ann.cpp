@@ -13,8 +13,6 @@
 #include <yt/yql/providers/ytflow/expr_nodes/yql_ytflow_expr_nodes.h>
 #include <yt/yql/providers/ytflow/integration/interface/yql_ytflow_integration.h>
 
-#include <library/cpp/iterator/zip.h>
-
 #include <util/generic/hash_set.h>
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
@@ -42,7 +40,6 @@ public:
 
         ADD_HANDLER(TYtflowWriteWrap, HandleWriteWrap);
         ADD_HANDLER(TYtflowPublish, HandlePublish);
-        ADD_HANDLER(TYtflowIntermediateSink, HandleIntermediateSink);
         ADD_HANDLER(TYtflowPersistentSink, HandlePersistentSink);
         ADD_HANDLER(TYtflowOutput, HandleOutput);
         ADD_HANDLER(TYtflowSourceMap, HandleSourceMapBase);
@@ -99,53 +96,28 @@ private:
         return TStatus::Ok;
     }
 
-    TStatus HandleSinkBase(const TExprNode::TPtr& input, TExprContext& ctx) {
-        if (!EnsureMinArgsCount(*input, 2, ctx)) {
-            return TStatus::Error;
-        }
-
-        if (!EnsureAtom(*input->Child(TYtflowSinkBase::idx_Name), ctx)) {
-            return TStatus::Error;
-        }
-
-        if (!EnsureAtom(*input->Child(TYtflowSinkBase::idx_OutputIndex), ctx)) {
-            return TStatus::Error;
-        }
-
-        return TStatus::Ok;
-    }
-
-    TStatus HandleIntermediateSink(const TExprNode::TPtr& input, TExprContext& ctx) {
-        if (auto status = HandleSinkBase(input, ctx); status != TStatus::Ok) {
-            return status;
-        }
-
-        auto* rowType = input->Child(TYtflowIntermediateSink::idx_RowType);
-        if (!EnsureTypeWithStructType(*rowType, ctx)) {
-            return TStatus::Error;
-        }
-
-        auto* itemType = rowType->GetTypeAnn()->Cast<TTypeExprType>()->GetType();
-        input->SetTypeAnn(ctx.MakeType<TListExprType>(itemType));
-
-        return TStatus::Ok;
-    }
-
     TStatus HandlePersistentSink(const TExprNode::TPtr& input, TExprContext& ctx) {
-        if (auto status = HandleSinkBase(input, ctx); status != TStatus::Ok) {
-            return status;
-        }
-
         if (!EnsureArgsCount(*input, 3, ctx)) {
             return TStatus::Error;
         }
 
-        auto* inputChild = input->Child(TYtflowPersistentSink::idx_Input);
-        auto writeWrapInputChild = TYtflowWriteWrap(inputChild).Input();
-        auto* ytflowIntegration = GetYtflowIntegration(writeWrapInputChild.Ref(), *State_->Types);
+        auto* world = input->Child(TYtflowPersistentSink::idx_World);
+        if (!EnsureWorldType(*world, ctx)) {
+            return TStatus::Error;
+        }
+
+        auto sink = TYtflowPersistentSink(input);
+        auto output = sink.Output();
+        if (!EnsureListType(output.Ref(), ctx)) {
+            return TStatus::Error;
+        }
+
+        auto write = sink.Write();
+        auto providerWrite = write.Input();
+        auto* ytflowIntegration = GetYtflowIntegration(providerWrite.Ref(), *State_->Types);
         YQL_ENSURE(ytflowIntegration);
 
-        auto content = ytflowIntegration->GetWriteContent(writeWrapInputChild.Ref(), ctx);
+        auto content = ytflowIntegration->GetWriteContent(providerWrite.Ref(), ctx);
         if (!EnsureListType(*content, ctx)) {
             return TStatus::Error;
         }
@@ -155,7 +127,15 @@ private:
             return TStatus::Error;
         }
 
-        input->SetTypeAnn(content->GetTypeAnn());
+        if (output.Ref().GetTypeAnn() != content->GetTypeAnn()) {
+            ctx.AddError(TIssue(
+                ctx.GetPosition(input->Pos()),
+                TStringBuilder() << "Expected persistent sink output type "
+                    << *content->GetTypeAnn() << ", but got " << *output.Ref().GetTypeAnn()));
+            return TStatus::Error;
+        }
+
+        input->SetTypeAnn(world->GetTypeAnn());
 
         return TStatus::Ok;
     }
@@ -180,11 +160,8 @@ private:
             return TStatus::Error;
         }
 
-        auto operationSinks = operation->Child(TYtflowOpBase::idx_Sinks);
-
         ui32 outputIndex;
         if (!TryFromString<ui32>(outputIndexNode->Content(), outputIndex)
-            || outputIndex > operationSinks->ChildrenSize()
         ) {
             ctx.AddError(TIssue(
                 ctx.GetPosition(input->Pos()),
@@ -195,18 +172,47 @@ private:
             return TStatus::Error;
         }
 
-        input->SetTypeAnn(operationSinks->Child(outputIndex)->GetTypeAnn());
+        const auto operationType = operation->GetTypeAnn();
+        if (!EnsureTupleTypeSize(*operation, 2, ctx)) {
+            return TStatus::Error;
+        }
+
+        const auto* resultListType = operationType->Cast<TTupleExprType>()->GetItems()[1];
+        if (!EnsureListType(operation->Pos(), *resultListType, ctx)) {
+            return TStatus::Error;
+        }
+
+        const auto* resultType = resultListType->Cast<TListExprType>()->GetItemType();
+        if (!EnsureYtflowOutputItemType(input->Pos(), *resultType, ctx)) {
+            return TStatus::Error;
+        }
+
+        TTypeAnnotationNode::TListType outputItemTypes;
+        if (resultType->GetKind() == ETypeAnnotationKind::Variant) {
+            const auto* tupleType = resultType->Cast<TVariantExprType>()->GetUnderlyingType();
+            outputItemTypes = tupleType->Cast<TTupleExprType>()->GetItems();
+        } else {
+            outputItemTypes.push_back(resultType);
+        }
+
+        if (outputIndex >= outputItemTypes.size()) {
+            ctx.AddError(TIssue(
+                ctx.GetPosition(outputIndexNode->Pos()),
+                TStringBuilder() << "Bad " << TYtflowOutput::CallableName()
+                    << " index value: " << outputIndexNode->Content()));
+            return TStatus::Error;
+        }
+
+        input->SetTypeAnn(ctx.MakeType<TListExprType>(outputItemTypes[outputIndex]));
 
         return TStatus::Ok;
     }
 
     TStatus ValidateOpBase(
         const TExprNode::TPtr& input, TExprContext& ctx,
-        TVector<const TTypeAnnotationNode*>& sourceItemTypes,
-        TVector<const TTypeAnnotationNode*>& sinkItemTypes,
-        ui32& maxSinkOutputIndex
+        TVector<const TTypeAnnotationNode*>& sourceItemTypes
     ) {
-        if (!EnsureMinArgsCount(*input, 4, ctx)) {
+        if (!EnsureMinArgsCount(*input, 3, ctx)) {
             return TStatus::Error;
         }
 
@@ -222,87 +228,16 @@ private:
         bool hasSourceIssues = false;
 
         for (const auto& child: sourcesNode->Children()) {
-            if (!EnsureListType(child->Pos(), *child->GetTypeAnn(), ctx)) {
+            if (!EnsureListOfStructs(child->Pos(), *child->GetTypeAnn(), ctx)) {
                 hasSourceIssues = true;
                 continue;
             }
 
             auto* childItemType = child->GetTypeAnn()->Cast<TListExprType>()->GetItemType();
-
-            if (!EnsureStructType(child->Pos(), *childItemType, ctx)) {
-                hasSourceIssues = true;
-                continue;
-            }
-
             sourceItemTypes.push_back(childItemType);
         }
 
         if (hasSourceIssues) {
-            return TStatus::Error;
-        }
-
-        auto* sinksNode = input->Child(TYtflowOpBase::idx_Sinks);
-        if (!EnsureMinArgsCount(*sinksNode, 1, ctx)) {
-            return TStatus::Error;
-        }
-
-        bool hasSinkIssues = false;
-
-        maxSinkOutputIndex = 0;
-        THashMap<ui32, TVector<TExprNode::TPtr>> sinksByOutputIndex;
-        for (const auto& child: sinksNode->Children()) {
-            if (!EnsureListType(child->Pos(), *child->GetTypeAnn(), ctx)) {
-                hasSinkIssues = true;
-                continue;
-            }
-
-            auto* childItemType = child->GetTypeAnn()->Cast<TListExprType>()->GetItemType();
-
-            if (!EnsureStructType(child->Pos(), *childItemType, ctx)) {
-                hasSinkIssues = true;
-                continue;
-            }
-
-            ui32 index = 0;
-            auto outputIndexNode = child->Child(TYtflowSinkBase::idx_OutputIndex);
-            if (!TryFromString(outputIndexNode->Content(), index)) {
-                ctx.AddError(TIssue(ctx.GetPosition(outputIndexNode->Pos()), TStringBuilder()
-                    << "Unexpected sink output index value: " << outputIndexNode->Content()));
-                return TStatus::Error;
-            }
-
-            sinksByOutputIndex[index].push_back(child);
-
-            maxSinkOutputIndex = std::max(maxSinkOutputIndex, index);
-        }
-
-        sinkItemTypes.resize(maxSinkOutputIndex + 1);
-        for (const auto& [outputIndex, sinks] : sinksByOutputIndex) {
-            THashSet<const TTypeAnnotationNode*> sinkTypes;
-            for (const auto& sink : sinks) {
-                sinkTypes.insert(sink->GetTypeAnn()->Cast<TListExprType>()->GetItemType());
-            }
-
-            const TTypeAnnotationNode* resultSinkType = *sinkTypes.begin();
-            if (sinkTypes.size() != 1) {
-                auto formatTypes = [](const auto& sinkItemTypes) {
-                    TVector<TString> formattedTypes;
-                    for (const auto* type : sinkItemTypes) {
-                        formattedTypes.push_back(FormatType(type));
-                    }
-                    return formattedTypes;
-                };
-
-                ctx.AddError(TIssue(ctx.GetPosition(input->Pos()), TStringBuilder()
-                    << "Got unexpected unique types count: "
-                    << sinkTypes.size() << "(types: " << JoinSeq(", ", formatTypes(sinkTypes)) << ")"));
-                return TStatus::Error;
-            }
-
-            sinkItemTypes[outputIndex] = resultSinkType;
-        }
-
-        if (hasSinkIssues) {
             return TStatus::Error;
         }
 
@@ -334,15 +269,13 @@ private:
         const TExprNode::TPtr& input,
         TExprContext& ctx
     ) {
-        if (!EnsureMinArgsCount(*input, 5, ctx)) {
+        if (!EnsureMinArgsCount(*input, 4, ctx)) {
             return TStatus::Error;
         }
 
         TVector<const TTypeAnnotationNode*> sourceItemTypes;
-        TVector<const TTypeAnnotationNode*> sinkItemTypes;
-        ui32 maxSinkOutputIndex = 0;
 
-        if (auto status = ValidateOpBase(input, ctx, sourceItemTypes, sinkItemTypes, maxSinkOutputIndex);
+        if (auto status = ValidateOpBase(input, ctx, sourceItemTypes);
             status != TStatus::Ok
         ) {
             return status;
@@ -351,7 +284,12 @@ private:
         const bool supportsExtendSetting =
             TYtflowTransformMap::Match(input.Get()) || TYtflowSwiftMap::Match(input.Get());
 
-        THashSet<TStringBuf> supportedSettings = {INJECT_INPUT_MESSAGE_ID_SETTING};
+        THashSet<TStringBuf> supportedSettings = {
+            INJECT_INPUT_MESSAGE_ID_SETTING,
+            HAS_PERSISTENT_SINK_SETTING,
+            // For testing purposes only
+            SYNTHETIC_SETTING,
+        };
         if (supportsExtendSetting) {
             supportedSettings.insert(EXTEND_SETTING);
         }
@@ -418,58 +356,16 @@ private:
 
         auto* outputItemType =
             lambda->GetTypeAnn()->Cast<TStreamExprType>()->GetItemType();
+        if (!EnsureYtflowOutputItemType(lambda->Pos(), *outputItemType, ctx)) {
+            return TStatus::Error;
+        }
 
-        TVector<const TTypeAnnotationNode*> outputItemTypes;
+        TTypeAnnotationNode::TListType outputItemTypes;
         if (outputItemType->GetKind() == ETypeAnnotationKind::Variant) {
             auto* underlyingType = outputItemType->Cast<TVariantExprType>()->GetUnderlyingType();
-            if (!EnsureTupleType(lambda->Pos(), *underlyingType, ctx)) {
-                return TStatus::Error;
-            }
-
-            auto* tupleType = underlyingType->Cast<TTupleExprType>();
-            for (auto* type : tupleType->GetItems()) {
-                if (!EnsureStructType(lambda->Pos(), *type, ctx)) {
-                    return TStatus::Error;
-                }
-                outputItemTypes.push_back(type);
-            }
+            outputItemTypes = underlyingType->Cast<TTupleExprType>()->GetItems();
         } else {
             outputItemTypes.push_back(outputItemType);
-        }
-
-        for (auto* sinkItemType : sinkItemTypes) {
-            if (!EnsureStructType(lambda->Pos(), *sinkItemType, ctx)) {
-                return TStatus::Error;
-            }
-        }
-
-        if (outputItemTypes.size() != sinkItemTypes.size()) {
-            ctx.AddError(TIssue(
-                ctx.GetPosition(lambda->Pos()),
-                TStringBuilder()
-                    << "Expected " << sinkItemTypes.size()
-                    << " lambda output types, but got "
-                    << outputItemTypes.size()));
-            return TStatus::Error;
-        }
-
-        if (maxSinkOutputIndex >= outputItemTypes.size()) {
-            ctx.AddError(TIssue(ctx.GetPosition(lambda->Pos()), TStringBuilder()
-                << "Unexpected sink output index value: " << maxSinkOutputIndex));
-            return TStatus::Error;
-        }
-
-        const auto& sinksNode = input->Child(TYtflowOpBase::idx_Sinks);
-        for (auto [outputItemType, sinkItemType, sink] : Zip(outputItemTypes, sinkItemTypes, sinksNode->Children())) {
-            if (outputItemType != sinkItemType) {
-                ctx.AddError(TIssue(
-                    ctx.GetPosition(lambda->Pos()),
-                    TStringBuilder()
-                        << "Expected type: " << *sinkItemType
-                        << ", but got: " << *outputItemType));
-
-                return TStatus::Error;
-            }
         }
 
         auto* resultType = [&outputItemTypes, &ctx]() -> const TTypeAnnotationNode* {
@@ -498,7 +394,7 @@ private:
     }
 
     TStatus HandleSourceMapBase(const TExprNode::TPtr& input, TExprContext& ctx) {
-        if (!EnsureArgsCount(*input, 5, ctx)) {
+        if (!EnsureArgsCount(*input, 4, ctx)) {
             return TStatus::Error;
         }
 
@@ -538,7 +434,7 @@ private:
 
     template <typename TMap>
     TStatus ValidatePhysicalMap(const TExprNode::TPtr& input, TExprContext& ctx) {
-        if (!EnsureArgsCount(*input, 6, ctx)) {
+        if (!EnsureArgsCount(*input, 5, ctx)) {
             return TStatus::Error;
         }
 
@@ -563,7 +459,7 @@ private:
     }
 
     TStatus HandleExtend(const TExprNode::TPtr& input, TExprContext& ctx) {
-        if (!EnsureArgsCount(*input, 6, ctx)) {
+        if (!EnsureArgsCount(*input, 5, ctx)) {
             return TStatus::Error;
         }
 
@@ -634,7 +530,7 @@ private:
     }
 
     TStatus HandleMap(const TExprNode::TPtr& input, TExprContext& ctx) {
-        if (!EnsureArgsCount(*input, 5, ctx)) {
+        if (!EnsureArgsCount(*input, 4, ctx)) {
             return TStatus::Error;
         }
 
@@ -759,16 +655,13 @@ private:
     }
 
     TStatus HandleHoppingAggregate(const TExprNode::TPtr& input, TExprContext& ctx) {
-        if (!EnsureArgsCount(*input, 11, ctx)) {
+        if (!EnsureArgsCount(*input, 10, ctx)) {
             return TStatus::Error;
         }
 
         TVector<const TTypeAnnotationNode*> sourceItemTypes;
-        TVector<const TTypeAnnotationNode*> sinkItemTypes;
 
-        ui32 maxSinkOutputIndex;
-        if (auto status = ValidateOpBase(
-            input, ctx, sourceItemTypes, sinkItemTypes, maxSinkOutputIndex);
+        if (auto status = ValidateOpBase(input, ctx, sourceItemTypes);
 
             status != TStatus::Ok
         ) {
@@ -786,19 +679,6 @@ private:
         }
 
         auto* sourceStructType = sourceItemTypes[0]
-            ->Cast<TStructExprType>();
-
-        if (sinkItemTypes.size() != 1) {
-            ctx.AddError(TIssue(
-                ctx.GetPosition(input->Pos()),
-                TStringBuilder()
-                    << TYtflowHoppingAggregate::CallableName()
-                    << " doesn't support multiple outputs"));
-
-            return TStatus::Error;
-        }
-
-        auto* sinkStructType = sinkItemTypes[0]
             ->Cast<TStructExprType>();
 
         auto* keysNode = input->Child(TYtflowHoppingAggregate::idx_Keys);
@@ -1070,25 +950,9 @@ private:
             return TStatus::Error;
         }
 
-        auto* postprocessedFramesStructType = postprocessedFramesItemType
-            ->Cast<TStructExprType>();
-
-        const auto& sinksNode = input->Child(TYtflowOpBase::idx_Sinks);
-        auto sink = sinksNode->ChildPtr(0);
-
-        if (postprocessedFramesStructType != sinkStructType) {
-            ctx.AddError(TIssue(
-                ctx.GetPosition(input->Pos()),
-                TStringBuilder()
-                    << "Expected type: " << *static_cast<const TTypeAnnotationNode*>(sinkStructType)
-                    << ", but got: " << *static_cast<const TTypeAnnotationNode*>(postprocessedFramesItemType)));
-
-            return TStatus::Error;
-        }
-
         input->SetTypeAnn(ctx.MakeType<TTupleExprType>(TTypeAnnotationNode::TListType{
             input->Child(TYtflowOpBase::idx_World)->GetTypeAnn(),
-            ctx.MakeType<TListExprType>(sinkStructType)
+            ctx.MakeType<TListExprType>(postprocessedFramesItemType)
         }));
 
         // TODO(ngc224): find out why input requires this restriction.

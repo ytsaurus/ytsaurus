@@ -21,7 +21,7 @@ For a detailed description of SHS settings, please see the [Spark documentation]
 By default, the `spark.history.fs.cleaner.enabled` is set to `true`. The other parameters' default values are as per the Spark documentation. If the parameters are set to their defaults, SHS deletes all logs older than one week. You can change this age limit using the setting: `spark.history.fs.cleaner.maxAge` (`spark-launch-yt ... --params '{spark_conf={"spark.history.fs.cleaner.maxAge"="14d";...}}'`).
 
 
-## Worker logs {# worker-logs }
+## Worker logs {#worker-logs}
 
 When you start a cluster, you can configure [worker](../../../../user-guide/data-processing/spyt/cluster/cluster-desc.md#spark-standalone) logs to upload to {{product-name}} tables. Logs will be written to `{cluster_path}/logs/worker_log` with a separate table created for each date. To enable sending of logs when starting a cluster, you must use one of these options:
 * `--enable-worker-log-transfer`: Enables log forwarding.

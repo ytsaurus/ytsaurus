@@ -7,6 +7,12 @@ import logging
 import os
 import shutil
 
+from yt.environment.components.yql_agent.qtworker_configs import (
+    build_fs_conf,
+    build_gateways_conf,
+    build_worker_conf,
+)
+
 logger = logging.getLogger("YtLocal")
 
 
@@ -25,6 +31,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         self.env = None
         self.remote_envs = []
         self.enable_dq = False
+        self.enable_dq_worker = False
         self._qtworker_enabled = False
         self._qtworker_processes = []
         self._qtworker_binary = None
@@ -43,6 +50,17 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         self.env = env
         self.remote_envs = remote_envs
         self.enable_dq = config.get("enable_dq", False)
+        self.enable_dq_worker = config.get("enable_dq_worker", False)
+        if self.enable_dq and self.enable_dq_worker:
+            raise YtError("enable_dq and enable_dq_worker are mutually exclusive")
+        if self.enable_dq_worker and not self._is_qtworker_enabled(config):
+            raise YtError("enable_dq_worker requires enable_qtworker")
+        self.enable_qtworker = self._is_qtworker_enabled(config)
+
+        self._qtworker_dq_interconnect_port = None
+        self._qtworker_dq_grpc_port = None
+        if self.enable_dq_worker:
+            self._allocate_qtworker_dq_ports()
 
         if "artifacts_path" in config:
             self.artifacts_path = config["artifacts_path"]
@@ -75,55 +93,70 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         with open(self.token_path, "w") as file:
             file.write(yql_agent_token)
 
-        if self.config.get("enable_qtworker", False):
-            self._prepare_proto_dynamic_configs()
+        if self.enable_qtworker:
             self._prepare_qtworker()
 
         logger.info("Yql agent prepared")
 
     def render_gateways_conf(self, index=0):
-        gw_src = self.config.get("qtworker_gateways_conf")
-        if not gw_src:
-            raise YtError("qtworker_gateways_conf is not specified in config")
+        gateways_template = self.config.get("qtworker_gateways_conf")
+        if gateways_template and not self.enable_dq_worker:
+            with open(gateways_template) as gateways_file:
+                gateways_text = gateways_file.read()
 
-        with open(gw_src) as gw_file:
-            gw_text = gw_file.read()
-        gw_text = gw_text.replace("${cluster_name}", self.env.id)
-        gw_text = gw_text.replace("${cluster_address}", self.env.get_http_proxy_address())
-        gw_text = gw_text.replace("${mr_job_bin}", self._resolve_mrjob())
-        gw_text = gw_text.replace(
-            "${yt_debug_log_file}",
-            os.path.join(self.env.logs_path, "qtworker_{}_yt_debug.log".format(index)))
+            replacements = {
+                "${cluster_name}": self.env.id,
+                "${cluster_address}": self.env.get_http_proxy_address(),
+                "${mr_job_bin}": self._resolve_mrjob(),
+                "${yt_debug_log_file}": os.path.join(
+                    self.env.logs_path, "qtworker_{}_yt_debug.log".format(index)),
+                "${remote_cluster_mappings}": "\n\n    ".join(
+                    "\n".join([
+                        "ClusterMapping {",
+                        "        Name: \"{}\"".format(remote_env.id),
+                        "        Cluster: \"{}\"".format(remote_env.get_http_proxy_address()),
+                        "    }",
+                    ])
+                    for remote_env in self.remote_envs
+                ),
+            }
+            for placeholder, value in replacements.items():
+                gateways_text = gateways_text.replace(placeholder, value)
+            return gateways_text
 
-        remote_cluster_mappings = []
-        for remote_env in self.remote_envs:
-            remote_cluster_mappings.append("\n".join([
-                "ClusterMapping {",
-                "        Name: \"{}\"".format(remote_env.id),
-                "        Cluster: \"{}\"".format(remote_env.get_http_proxy_address()),
-                "    }",
-            ]))
-        gw_text = gw_text.replace("${remote_cluster_mappings}", "\n\n    ".join(remote_cluster_mappings))
+        return build_gateways_conf(
+            cluster_name=self.env.id,
+            cluster_address=self.env.get_http_proxy_address(),
+            mr_job_bin=self._resolve_mrjob(),
+            yt_debug_log_file=os.path.join(
+                self.env.logs_path, "qtworker_{}_yt_debug.log".format(index)),
+            enable_dq=self.enable_dq_worker,
+            remote_clusters=[
+                (remote_env.id, remote_env.get_http_proxy_address())
+                for remote_env in self.remote_envs
+            ],
+        )
 
-        return gw_text
+    @staticmethod
+    def _is_qtworker_enabled(config):
+        return config.get("enable_qtworker", False)
 
-    def _prepare_proto_dynamic_configs(self):
-        gw_text = self.render_gateways_conf()
+    def _allocate_qtworker_dq_ports(self):
+        self._qtworker_dq_interconnect_port = next(self.env._open_port_iterator)
+        self._qtworker_dq_grpc_port = next(self.env._open_port_iterator)
 
-        filename = "//sys/yql_agent/proto_gateways/default.conf"
-        self.client.create("file", filename, recursive=True, force=True)
-        self.client.write_file(filename, gw_text.encode('utf-8'))
+    @staticmethod
+    def _build_dq_gateway_config():
+        return {
+            "default_settings": [
+                {"name": "EnableComputeActor", "value": "1"},
+                {"name": "MemoryLimit", "value": "3G"},
+            ]
+        }
 
     def _prepare_qtworker_fs_conf(self, instance):
-        fs_src = self.config.get("qtworker_fs_conf")
-        if not fs_src:
-            raise YtError("qtworker_fs_conf is not specified in config")
-
-        with open(fs_src) as fs_file:
-            fs_text = fs_file.read()
-        fs_text = fs_text.replace("${filecache}", os.path.join(instance["instance_root"], "filecache"))
-
         fs_conf = os.path.join(self.env.configs_path, "qtworker_fs_{}.conf".format(instance["index"]))
+        fs_text = build_fs_conf(filecache_path=os.path.join(instance["instance_root"], "filecache"))
         with open(fs_conf, "w") as fs_out:
             fs_out.write(fs_text)
         instance["fs_conf"] = fs_conf
@@ -151,38 +184,57 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         stub = self.config.get("qtworker_udf_dep_stub_path")
         if not stub:
             raise YtError("qtworker_udf_dep_stub_path is not specified in config")
-        worker_template = self.config.get("qtworker_worker_conf")
-        if not worker_template:
-            raise YtError("qtworker_worker_conf is not specified in config")
-        with open(worker_template) as template_file:
-            worker_text = template_file.read()
+
         qtworker_log_file = os.path.join(self.env.logs_path, "qtworker_{}.log".format(instance["index"]))
 
-        yt_token_resolver_config = ""
-        if self.config.get("use_token_resolver", False):
-            yt_token_resolver_config = "\n".join([
-                "YtTokenResolver {",
-                "        YqlAgent {",
-                "            UnixSocketPath: \"{}\"".format(
-                    self._get_token_service_socket_path(instance["index"])),
-                "        }",
-                "    }",
-            ])
+        dq_params = None
+        if self.enable_dq_worker:
+            dq_params = {
+                "cluster_name": self.env.id,
+                "cluster_address": self.env.get_http_proxy_address(),
+                "token_path": self.token_path,
+                "user": self.USER_NAME,
+                "dq_vanilla_job": self._get_artifact_path("dq_vanilla_job"),
+                "dq_vanilla_job_lite": self._get_artifact_path("dq_vanilla_job.lite"),
+                "dq_yt_prefix": self.config.get("dq_yt_prefix", "//sys/yql_agent/dq/data/tmp"),
+                "dq_coordinator_prefix": self.config.get(
+                    "dq_coordinator_prefix", "//sys/yql_agent/dq_coord"),
+                "dq_port_start": self.config.get("qtworker_dq_port_start", 31401),
+                "dq_port_finish": self.config.get("qtworker_dq_port_finish", 31500),
+                "dq_worker_actor_start_port": self.config.get(
+                    "dq_worker_actor_start_port", 31302),
+                "dq_worker_same_actor_ports": self.config.get(
+                    "dq_worker_same_actor_ports", False),
+                "max_jobs": self.config.get("qtworker_dq_max_jobs", 1),
+                "jobs_per_operation": self.config.get("qtworker_dq_jobs_per_operation", 1),
+                "min_node_id": self.config.get("qtworker_dq_min_node_id", 512),
+                "memory_limit": self.config.get(
+                    "qtworker_dq_memory_limit", 8 * 1024 ** 3),
+                "cpu_limit": self.config.get("qtworker_dq_cpu_limit", 2),
+            }
 
-        for key, value in [
-            ("${instance_root}", instance_root),
-            ("${udfs_dir}", udfs_dir),
-            ("${udf_resolver_path}", udf_resolver),
-            ("${udf_dep_stub_path}", stub),
-            ("${yql_yt_token_path}", self.token_path),
-            ("${qtworker_log_file}", qtworker_log_file),
-            ("${qt_socket_dir}", socket_dir),
-            ("${inspector_port}", str(instance["inspector_port"])),
-            ("${core_port}", str(core_port)),
-            ("${core_task_port}", str(core_task_port)),
-            ("${yt_token_resolver_config}", yt_token_resolver_config),
-        ]:
-            worker_text = worker_text.replace(key, value)
+        worker_text = build_worker_conf(
+            instance_root=instance_root,
+            udfs_dir=udfs_dir,
+            udf_resolver_path=udf_resolver,
+            udf_dep_stub_path=stub,
+            token_path=self.token_path,
+            qtworker_log_file=qtworker_log_file,
+            qt_socket_dir=socket_dir,
+            inspector_port=instance["inspector_port"],
+            core_port=core_port,
+            core_task_port=core_task_port,
+            dq_interconnect_port=self._qtworker_dq_interconnect_port,
+            dq_grpc_port=self._qtworker_dq_grpc_port,
+            enable_dq=self.enable_dq_worker,
+            dq_params=dq_params,
+            log_level=self.config.get("qtworker_log_level", "DEBUG"),
+            token_resolver_socket_path=(
+                self._get_token_service_socket_path(instance["index"])
+                if self.config.get("use_token_resolver", False)
+                else None
+            ),
+        )
 
         worker_conf = os.path.join(self.env.configs_path, "qtworker_worker_{}.conf".format(instance["index"]))
         with open(worker_conf, "w") as worker_out:
@@ -191,7 +243,6 @@ class YqlAgent(YTServerComponentBase, YTComponent):
 
     def _prepare_qtworker_gateways_conf(self, instance):
         gw_text = self.render_gateways_conf(instance["index"])
-        gw_text = gw_text.replace("${instance_root}", instance["instance_root"])
 
         gw_conf = os.path.join(self.env.configs_path, "qtworker_gateways_{}.conf".format(instance["index"]))
         with open(gw_conf, "w") as gw_out:
@@ -200,6 +251,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
 
     def _prepare_qtworker(self):
         binary = self.config.get("qtworker_path")
+        if not binary:
+            raise YtError("qtworker_path is not specified in config")
 
         self._qtworker_enabled = True
         self._qtworker_binary = binary
@@ -268,6 +321,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
 
         self._run_qtworker_role(instance, "forker")
         self._run_qtworker_role(instance, "core")
+        if self.enable_dq_worker:
+            self._run_qtworker_role(instance, "dq")
 
     def start_qtworker(self, index):
         for instance in self._qtworker_instances:
@@ -345,7 +400,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
 
     def override_common_settings(self, config, instance_index: int):
         # TODO(mpereskokova): YQLOVERYT-333: Remove after rpc timeout set in dq
-        if self.enable_dq:
+        if self.enable_dq or self.enable_dq_worker:
             config["rpc_dispatcher"]["alert_on_unset_request_timeout"] = False
         return config
 
@@ -418,21 +473,17 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 "update_period": self.dynamic_config_update_period
             }
 
-        # Add DQ configuration if enabled
+        # DQ in yql-agent: full config with embedded GWM (enable_dq), or client-only
+        # config pointing at qtworker GWM (enable_dq_worker, no yt_backends).
         if self.enable_dq:
             dq_vanilla_job = self._get_artifact_path("dq_vanilla_job")
             dq_vanilla_job_lite = self._get_artifact_path("dq_vanilla_job.lite")
 
             config["yql_agent"]["enable_dq"] = True
-            config["yql_agent"]["dq_gateway_config"] = {
-                "default_settings": [
-                    {"name": "EnableComputeActor", "value": "1"},
-                    {"name": "MemoryLimit", "value": "3G"},
-                ]
-            }
-            config["yql_agent"]["dq_manager_config"] = {
-                "interconnect_port": 31002,
-                "grpc_port": 31001,
+            config["yql_agent"]["dq_gateway_config"] = self._build_dq_gateway_config()
+            dq_manager_config = {
+                "interconnect_port": self.config.get("dq_coordinator_interconnect_port", 31002),
+                "grpc_port": self.config.get("dq_coordinator_grpc_port", 31001),
                 "yt_backends": [
                     {
                         "cluster_name": self.env.id,
@@ -460,6 +511,40 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 },
             }
 
+            worker_actor_start_port = self.config.get("dq_worker_actor_start_port")
+            if worker_actor_start_port is not None:
+                for backend in dq_manager_config["yt_backends"]:
+                    backend["actor_start_port"] = worker_actor_start_port
+                    # Without porto, multiple local workers on one host need distinct ports.
+                    backend["same_actor_ports"] = self.config.get("dq_worker_same_actor_ports", False)
+
+            config["yql_agent"]["dq_manager_config"] = dq_manager_config
+        elif self.enable_dq_worker:
+            config["yql_agent"]["enable_dq"] = True
+            config["yql_agent"]["dq_gateway_config"] = self._build_dq_gateway_config()
+            dq_yt_prefix = self.config.get("dq_yt_prefix", "//sys/yql_agent/dq/data/tmp")
+            config["yql_agent"]["dq_manager_config"] = {
+                "interconnect_port": self._qtworker_dq_interconnect_port,
+                "grpc_port": self._qtworker_dq_grpc_port,
+                "yt_backends": [
+                    {
+                        "cluster_name": self.env.id,
+                        "proxy_address": self.env.get_http_proxy_address(),
+                        "token_file": self.token_path,
+                        "user": self.USER_NAME,
+                        "prefix": dq_yt_prefix,
+                        "max_jobs": 0,
+                    },
+                ],
+                "yt_coordinator": {
+                    "cluster_name": self.env.id,
+                    "proxy_address": self.env.get_http_proxy_address(),
+                    "prefix": self.config.get("dq_coordinator_prefix", "//sys/yql_agent/dq_coord"),
+                    "token_file": self.token_path,
+                    "user": self.USER_NAME,
+                },
+            }
+
         modify_yql_agent_config = self.config.get('modify_yql_agent_config')
         if modify_yql_agent_config is not None:
             modify_yql_agent_config(config)
@@ -473,7 +558,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         if self.allow_not_released_yql_versions is not None:
             config["yql_agent"]["allow_not_released_yql_versions"] = self.allow_not_released_yql_versions
 
-        if self.config.get("enable_qtworker", False):
+        if self.enable_qtworker:
             config["yql_agent"]["use_qtworker_yql_plugin"] = True
 
             inspector_port = next(self.env._open_port_iterator)

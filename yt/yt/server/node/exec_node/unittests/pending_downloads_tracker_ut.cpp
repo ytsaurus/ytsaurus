@@ -18,8 +18,8 @@ class TPendingDownloadsTrackerTest
     : public ::testing::Test
 {
 public:
-    TPendingDownloadsTrackerTest(i64 initialFreeSpace = 0)
-        : Tracker_(New<TPendingDownloadsTracker>([this] { return FreeSpacePromise_.Load().ToFuture(); }, initialFreeSpace))
+    TPendingDownloadsTrackerTest()
+        : Tracker_(New<TPendingDownloadsTracker>([this] { return FreeSpacePromise_.Load().ToFuture(); }))
     { }
 
 protected:
@@ -76,13 +76,74 @@ TEST_F(TPendingDownloadsTrackerTest, JustWorks)
     EXPECT_EQ(Tracker_->GetStats().RemainingSpaceEstimateHigh, 1);
 }
 
+TEST_F(TPendingDownloadsTrackerTest, GetFreeSpaceError)
+{
+    auto downloadFuture = Tracker_->TryBeginDownload(10);
+    FreeSpacePromise_.Load().Set(TError("oops"));
+    EXPECT_TRUE(downloadFuture.IsSet());
+    EXPECT_FALSE(downloadFuture.GetOrCrash().IsOK());
+
+    EXPECT_EQ(Tracker_->GetStats().ModificationsInProgress, 0);
+    EXPECT_EQ(Tracker_->GetStats().RemainingSpaceEstimateLow, 0);
+    EXPECT_EQ(Tracker_->GetStats().RemainingSpaceEstimateHigh, 0);
+
+    FreeSpacePromise_.Store(MakePromise<i64>(20));
+    downloadFuture = Tracker_->TryBeginDownload(10);
+    EXPECT_TRUE(downloadFuture.IsSet());
+    EXPECT_TRUE(downloadFuture.GetOrCrash().IsOK());
+
+    EXPECT_EQ(Tracker_->GetStats().ModificationsInProgress, 1);
+    EXPECT_EQ(Tracker_->GetStats().RemainingSpaceEstimateLow, 10);
+    EXPECT_EQ(Tracker_->GetStats().RemainingSpaceEstimateHigh, 20);
+}
+
+TEST_F(TPendingDownloadsTrackerTest, AdjustSizeDelta)
+{
+    auto downloadFuture = Tracker_->TryBeginDownload(10);
+    auto downloadFuture2 = Tracker_->TryBeginDownload(0);
+    auto downloadFuture3 = Tracker_->TryBeginDownload(5);
+    FreeSpacePromise_.Load().Set(30);
+
+    EXPECT_EQ(Tracker_->GetStats().ModificationsInProgress, 3);
+    EXPECT_EQ(Tracker_->GetStats().RemainingSpaceEstimateLow, 15);
+    EXPECT_EQ(Tracker_->GetStats().RemainingSpaceEstimateHigh, 30);
+
+    auto download = GetOrCrash(
+        downloadFuture
+            .AsUnique()
+            .GetOrCrash()
+            .ValueOrCrash());
+    auto download2 = GetOrCrash(
+        downloadFuture2
+            .AsUnique()
+            .GetOrCrash()
+            .ValueOrCrash());
+    auto download3 = GetOrCrash(
+        downloadFuture3
+            .AsUnique()
+            .GetOrCrash()
+            .ValueOrCrash());
+
+    std::move(download2).Finish(10);
+    EXPECT_EQ(Tracker_->GetStats().ModificationsInProgress, 2);
+    EXPECT_EQ(Tracker_->GetStats().RemainingSpaceEstimateLow, 5);
+    EXPECT_EQ(Tracker_->GetStats().RemainingSpaceEstimateHigh, 20);
+
+    std::move(download3).Finish(10);
+    EXPECT_EQ(Tracker_->GetStats().ModificationsInProgress, 1);
+    EXPECT_EQ(Tracker_->GetStats().RemainingSpaceEstimateLow, 0);
+    EXPECT_EQ(Tracker_->GetStats().RemainingSpaceEstimateHigh, 10);
+}
+
 class TPendingDownloadsTrackerStressTest
     : public TPendingDownloadsTrackerTest
 {
 public:
     TPendingDownloadsTrackerStressTest()
-        : TPendingDownloadsTrackerTest(InitialDiskSize_)
-    { }
+        : TPendingDownloadsTrackerTest()
+    {
+        Tracker_->InitializeStats(InitialDiskSize_);
+    }
 
 protected:
     struct TDownload

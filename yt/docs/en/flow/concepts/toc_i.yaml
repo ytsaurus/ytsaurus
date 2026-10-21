@@ -21,6 +21,8 @@ items:
     href: guarantees.md
   - name: Message ordering
     href: ordering.md
+  - name: Autoscaler
+    href: autoscaler.md
   - name: Lineage
     href: lineage.md
   - name: Companion

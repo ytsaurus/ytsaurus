@@ -859,7 +859,6 @@ private:
             Host_->BuildHighJobThreadCountAlert());
     }
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TAlertManager, 0xf4e8bb36);
 };
 

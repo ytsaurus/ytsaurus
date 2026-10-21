@@ -287,7 +287,7 @@ public:
 
 using TDqCliqueValidator = std::function<void(const TString& cliqueValue)>;
 
-struct TDqConfiguration: public TDqSettings, public NCommon::TSettingDispatcher {
+struct TDqConfiguration: public NCommon::TDispatcherAndSettings<TDqSettings> {
     using TPtr = TIntrusivePtr<TDqConfiguration>;
 
     TDqConfiguration();

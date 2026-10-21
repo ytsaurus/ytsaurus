@@ -554,13 +554,14 @@ public:
         ColumnResolver_.Finish();
     }
 
-    void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems) override
+    void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems, ETotalsMode totalsMode) override
     {
         YT_VERIFY(!GroupItems_ && !AggregateItems_);
 
         GroupItems_ = groupItems;
         AggregateItems_ = aggregateItems;
         AfterGroupBy_ = true;
+        TotalsMode_ = totalsMode;
     }
 
     std::string InferGroupItemName(
@@ -592,6 +593,7 @@ private:
     TAggregateItemList* AggregateItems_ = nullptr;
 
     bool AfterGroupBy_ = false;
+    ETotalsMode TotalsMode_ = ETotalsMode::None;
 
     ResolveNestedTypesResult ResolveNestedTypes(
         const TLogicalTypePtr& type,
@@ -921,6 +923,9 @@ TUntypedExpression TExpressionBuilderV1::OnReference(const NAst::TReference& ref
         }
 
         if (type) {
+            if (TotalsMode_ != ETotalsMode::None) {
+                type = MakeOptionalIfNot(type);
+            }
             return UnwrapCompositeMemberAccessor(reference, type);
         }
     }
@@ -1521,6 +1526,12 @@ TUntypedExpression TExpressionBuilderV1::OnTransformOp(
 
 TUntypedExpression TExpressionBuilderV1::OnCaseOp(const NAst::TCaseExpression* caseExpr)
 {
+    if (std::ssize(caseExpr->WhenThenExpressions) > MaxWhenThenExpressionCount) {
+        THROW_ERROR_EXCEPTION("Maximum WHEN/THEN expression count exceeded")
+            .With("when_then_expression_count", std::ssize(caseExpr->WhenThenExpressions))
+            .With("max_when_then_expression_count", MaxWhenThenExpressionCount);
+    }
+
     auto source = caseExpr->GetSource(Source_);
 
     TUntypedExpression untypedOperand;

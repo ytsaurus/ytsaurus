@@ -1519,9 +1519,6 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
 
     @authors("akozhikhov")
     def test_reshard_with_cumulative_data_weight(self):
-        if self.DRIVER_BACKEND == "rpc":
-            pytest.skip("No cumulative_data_weights in rpc proxy")
-
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", schema=self.CUMULATIVE_DATA_WEIGHT_SCHEMA)
         sync_mount_table("//tmp/t")
@@ -1535,7 +1532,16 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         with raises_yt_error("must be nonnegative"):
             sync_reshard_table("//tmp/t", 3, cumulative_data_weights=[-1, 5])
 
-        sync_reshard_table("//tmp/t", 3, cumulative_data_weights=[1000, 2000])
+        create_dynamic_table(
+            "//tmp/sorted",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ])
+        with raises_yt_error("Cannot reshard sorted table"):
+            sync_reshard_table("//tmp/sorted", [[], [1]], cumulative_data_weights=[1000])
+
+        sync_reshard_table("//tmp/t", 3, cumulative_data_weights=[1000, 1 << 40])
         self._verify_chunk_tree_statistics("//tmp/t")
 
         sync_mount_table("//tmp/t")
@@ -1543,7 +1549,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
             insert_rows("//tmp/t", [{"$tablet_index": tablet_index, "test": "aaa"}])
 
         # The zeroth tablet is preserved by the reshard and already holds a row of weight 12.
-        assert self._get_tablet_cumulative_data_weights("//tmp/t", 3) == [24, 1012, 2012]
+        assert self._get_tablet_cumulative_data_weights("//tmp/t", 3) == [24, 1012, (1 << 40) + 12]
 
         sync_unmount_table("//tmp/t")
         self._verify_chunk_tree_statistics("//tmp/t")

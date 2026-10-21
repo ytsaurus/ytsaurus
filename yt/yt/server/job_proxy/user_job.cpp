@@ -2157,7 +2157,7 @@ private:
                     OomScoreAdjs_.erase(newIt);
                 }
             } else {
-                bool success = Host_->UpdateOomScoreAdj(pid, nullptr, score);
+                bool success = Host_->UpdateOomScoreAdj(pid, /*mutableExpectedScoreAdj*/ nullptr, score);
                 if (success) {
                     OomScoreAdjs_.emplace(pid, score);
                 }

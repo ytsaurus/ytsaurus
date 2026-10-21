@@ -62,6 +62,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartQuery)
 
     auto req = proxy.StartQuery();
     FillQueryTrackerRequest(context, request, req);
+    if (context->RequestHeader().retry() && request->has_mutating_options()) {
+        req->mutable_rpc_proxy_request()->mutable_mutating_options()->set_retry(true);
+    }
 
     context->AnnotateRequest()
         .With("Stage", request->query_tracker_stage())

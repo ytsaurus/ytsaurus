@@ -5,6 +5,11 @@ Source: [yt/yt/flow/library/cpp/common/registry-inl.h]({{source-root}}/yt/yt/flo
 
 #|
 || **Parameter** | **Description** ||
+|| `throughput_warmup_period` | **Type**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
+Throughput measurement window for this Computation. When unset, uses the global warmup_period. Increase it for long batches or bursty input. ||
+|| `throughput_max_exploration_factor` | **Type**: `double`
+**Default value**: `8.0`
+Multiplier limiting Throughput growth without a confirmed increase in Processed. The limit is the multiplier times the original partition count times the ratio of best confirmed to original throughput. Increase it for computations requiring more partitions before useful workload subdivision. It does not override max_partition_count or independent legacy proposals. ||
 || `desired_partition_count` | **Type**: `std::optional<int>`
  ||
 || `min_partition_count` | **Type**: `std::optional<int>`

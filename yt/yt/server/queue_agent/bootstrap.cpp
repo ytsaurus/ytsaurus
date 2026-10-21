@@ -189,7 +189,7 @@ private:
             .With("User", Config_->User);
 
         AgentId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
-        GroupId_ = "/queue_agents";
+        GroupId_ = Config_->GroupId;
 
         NApi::NNative::TConnectionOptions connectionOptions;
         connectionOptions.RetryRequestQueueSizeLimitExceeded = true;

@@ -119,7 +119,8 @@ private:
             .SetPresent(node->GetHost())
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->push_back(EInternedAttributeKey::DataCenter);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DataCenter)
+            .SetPresent(node->GetRack() && node->GetRack()->GetDataCenter()));
         descriptors->push_back(EInternedAttributeKey::State);
         descriptors->push_back(EInternedAttributeKey::MulticellStates);
         descriptors->push_back(EInternedAttributeKey::MasterCellsReliabilities);

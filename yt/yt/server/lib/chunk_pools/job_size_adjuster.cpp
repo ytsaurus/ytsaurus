@@ -111,7 +111,6 @@ private:
     // COMPAT(coteeq): This field is not used, but I cannot simply drop it because of phoenix2's quirks.
     bool EnableJobShrinking_ = false;
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJobSizeAdjuster, 0xf8338721);
 };
 

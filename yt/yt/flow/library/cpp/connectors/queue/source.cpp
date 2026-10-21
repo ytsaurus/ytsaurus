@@ -185,6 +185,7 @@ void TQueueSourceImpl::DoTerminate()
         CurrentRequestFuture_.Cancel(TError("Source is terminated, so result of current request is useless"));
         CurrentRequestFuture_ = {};
     }
+    InitialCommittedOffset_.TrySet(TError(NYT::EErrorCode::Canceled, "Source is terminated"));
 }
 
 NObjectClient::EObjectType TQueueSourceImpl::GetQueueObjectType()
@@ -330,7 +331,7 @@ auto TQueueSourceImpl::DoReadNextBatch(
 
         CurrentRequestFuture_ = InitialCommittedOffset_
             .ToFuture()
-            .ToUncancelable()
+            .ToImmediatelyCancelable(/*propagateCancelation*/ false)
             .Apply(BIND([this, this_ = MakeStrong(this), offsetLimit, nextOffset, rowBatchReadOptions] (const i64& initialOffset) {
                 NApi::TPullQueueConsumerOptions options;
                 options.Timeout = GetDynamicParameters()->PullQueueTimeout;

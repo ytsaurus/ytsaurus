@@ -251,6 +251,10 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicStateJoinerSpec);
 DECLARE_REFCOUNTED_STRUCT(TPartitioningSpec);
 
 DECLARE_REFCOUNTED_STRUCT(TComputationSpec);
+DECLARE_REFCOUNTED_STRUCT(TProcessFunctionGraphNodeSpec);
+DECLARE_REFCOUNTED_STRUCT(TProcessFunctionGraphSpec);
+DECLARE_REFCOUNTED_STRUCT(TProcessFunctionGraphParameters);
+DECLARE_REFCOUNTED_STRUCT(TProcessFunctionGraphDynamicParameters);
 DECLARE_REFCOUNTED_STRUCT(TPipelineSpec);
 
 DECLARE_REFCOUNTED_STRUCT(TExtendedComputationSpec);
@@ -282,6 +286,8 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicMessageDistributorSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicJobTrackerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicControllerConnectorSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicStateCacheSpec);
+DECLARE_REFCOUNTED_STRUCT(TThroughputSpec);
+DECLARE_REFCOUNTED_STRUCT(TDynamicPartitioningSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicPipelineSpec);
 
 using TVersionedPipelineSpec = TVersionedValue<TPipelineSpecPtr>;
@@ -422,6 +428,7 @@ DECLARE_REFCOUNTED_STRUCT(TYsonMessage);
 template <class T>
 concept CYsonMessage = std::derived_from<T, TYsonMessage>;
 
+DECLARE_REFCOUNTED_STRUCT(TStateCacheNamespace);
 DECLARE_REFCOUNTED_CLASS(TStateCache);
 DECLARE_REFCOUNTED_CLASS(TJobStateCache);
 DECLARE_REFCOUNTED_CLASS(TJobNamedStateCache);

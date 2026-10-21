@@ -16,4 +16,6 @@
 Асинхронная отправка сообщений HTTP POST-запросами на внешний адрес ||
 || [ClickHouse](clickhouse.md) | &#65794; | &#10003; |
 Запись напрямую в [ClickHouse](https://clickhouse.com/docs) по нативному протоколу; детерминированный батчинг для exactly-once ||
+|| [Kafka](kafka.md) | &#10003; | &#10003; |
+Чтение топиков Apache Kafka и запись в них с доставкой at-least-once или exactly-once ||
 |#

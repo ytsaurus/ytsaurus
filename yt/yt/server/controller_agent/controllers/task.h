@@ -590,7 +590,6 @@ private:
         const std::optional<NTableClient::TRowsDigest>& rowsDigest,
         TJobId jobId);
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TTask, 0x81ab3cd3);
 };
 

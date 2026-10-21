@@ -40,7 +40,7 @@ Deprecated: the same as `spread` of the `cpu` entry of `rebalance_even_load_thre
 Deprecated: the same as `ratio` of the `cpu` entry of `rebalance_even_load_thresholds`. A value set explicitly in `rebalance_even_load_thresholds` takes precedence. ||
 || `balance_weights` | **Type**: `THashMap<`[NYT::NFlow::EBalanceResource](./all_yson_structs#NYT_NFlow_EBalanceResource)`, double>`
 **Default value**: `{'cpu': 1.0, 'memory': 0.0}`
-Relative importance of the resources for `cpu_aware` balancing, for example `{cpu = 80; memory = 20}`. The given keys are merged into the default `{cpu = 1; memory = 0}`; the weights are normalized, so only the proportions matter. A resource with a zero weight does not take part in balancing, so by default only CPU is balanced. The `rebalance_target_deviation` threshold applies to the normalized weighted sum: adding a second resource proportionally shrinks the contribution of the first one. ||
+Relative importance of the resources for `cpu_aware` balancing, for example `{cpu = 80; memory = 20}`. The given keys are merged into the default `{cpu = 1; memory = 0}`; the weights are normalized, so only the proportions matter. A resource with a zero weight does not take part in balancing, so by default only CPU is balanced. The `rebalance_target_deviation` threshold applies to the normalized weighted sum: adding a second resource proportionally shrinks the contribution of the first one. With a non-zero `memory` weight, partition memory includes the measured job memory and the input buffer bytes of its streams. Each input stream is charged the larger of its `demand`, as requested before the buffer pool scales it down, and its resident bytes. A stream without `demand`, for example one with an explicit limit override or on a worker without buffer manager v2, is charged its resident bytes. ||
 || `balancer_metrics_source` | **Type**: [NYT::NFlow::EBalancerMetricsSource](./all_yson_structs#NYT_NFlow_EBalancerMetricsSource)
 **Default value**: `job`
 Where the `cpu_aware` balancer takes a partition's CPU usage from. `partition`: the 10-minute rate of the running job, and until it exists the partition's persisted history (measured by the previous job, survives moves and restarts); 30-second and immediate rates are never used. `job`: the previous behaviour, only the running job's metrics with a fallback to the 30-second and immediate rates. Off by default while the change is rolled out pipeline by pipeline; temporary switch. ||
@@ -96,6 +96,9 @@ Window within which the exponentially decaying counter of connection losses betw
 || `faulty_address_attempts` | **Type**: `unsigned long`
 **Default value**: `5`
 See the description of the `faulty_address_window` parameter. ||
+|| `partitioning` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicPartitioningSpec](./all_yson_structs#NYT_NFlow_TDynamicPartitioningSpec)`>`
+**Default value**: `{}`
+Pipeline partitioning settings. ||
 || `worker_group_override` | **Type**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TWorkerGroupIdTag, NYT::TStrongTypedefOptions{true}>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicJobManagerGroupSpec](./all_yson_structs#NYT_NFlow_TDynamicJobManagerGroupSpec)`>>`
 **Default value**: `{}`
  ||

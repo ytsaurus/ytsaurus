@@ -10204,6 +10204,21 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::string BuildCaseQuery(int whenThenCount, bool withOperand, bool withDefault)
+{
+    TStringBuilder queryBuilder;
+    queryBuilder.AppendString(withOperand ? "select case a" : "select case");
+    for (int index = 0; index < whenThenCount; ++index) {
+        queryBuilder.AppendString(withOperand ? " when " : " when a = ");
+        queryBuilder.AppendFormat("%v then %v", index, index);
+    }
+    if (withDefault) {
+        queryBuilder.AppendString(" else -1");
+    }
+    queryBuilder.AppendString(" end as m from [//t]");
+    return queryBuilder.Flush();
+}
+
 class TQueryPrepareCaseTest
     : public TQueryPrepareTest
     , public ::testing::WithParamInterface<std::tuple<
@@ -10220,6 +10235,24 @@ TEST_P(TQueryPrepareCaseTest, Simple)
     ExpectPrepareThrowsWithDiagnostics(
         query,
         HasSubstr(errorMessage));
+}
+
+TEST_F(TQueryPrepareCaseTest, WhenThenCountLimit)
+{
+    constexpr int WhenThenCount = 20'001;
+
+    for (bool withOperand : {false, true}) {
+        for (bool withDefault : {false, true}) {
+            SCOPED_TRACE(Format("WithOperand: %v, WithDefault: %v", withOperand, withDefault));
+
+            EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+                .WillOnce(Return(MakeFuture(MakeSplit({{"a", EValueType::Int64}}))));
+
+            ExpectPrepareThrowsWithDiagnostics(
+                BuildCaseQuery(WhenThenCount, withOperand, withDefault),
+                HasSubstr("Maximum WHEN/THEN expression count exceeded"));
+        }
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -10335,6 +10368,102 @@ INSTANTIATE_TEST_SUITE_P(
             YsonToRows(
                 {"p=111", "p=111", "p=111", "p=111", "p=222", "p=333", "p=333", "p=333", "p=333",},
                 MakeSplit({{"p", EValueType::Int64},})))));
+
+TEST_F(TQueryEvaluateCaseTest, LongWhenThenList)
+{
+    constexpr int WhenThenCount = 20'000;
+
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+    });
+    auto source = TSource{
+        "a=0",
+        Format("a=%v", WhenThenCount / 2),
+        Format("a=%v", WhenThenCount - 1),
+        Format("a=%v", WhenThenCount),
+        "a=#",
+    };
+
+    for (bool withOperand : {false, true}) {
+        for (bool withDefault : {false, true}) {
+            SCOPED_TRACE(Format("WithOperand: %v, WithDefault: %v", withOperand, withDefault));
+
+            auto result = YsonToRows(TSource{
+                "m=0",
+                Format("m=%v", WhenThenCount / 2),
+                Format("m=%v", WhenThenCount - 1),
+                withDefault ? "m=-1" : "m=#",
+                withDefault ? "m=-1" : "m=#",
+            }, MakeSplit({{"m", EValueType::Int64}}));
+
+            EvaluateOnlyViaNativeExecutionBackend(
+                BuildCaseQuery(WhenThenCount, withOperand, withDefault),
+                split,
+                source,
+                ResultMatcher(result));
+        }
+    }
+}
+
+TEST_F(TQueryEvaluateCaseTest, ConstantConditions)
+{
+    auto split = MakeSplit({{"a", EValueType::Int64}});
+    auto source = TSource{"a=0", "a=1"};
+    auto resultSplit = MakeSplit({{"m", EValueType::Int64}});
+
+    Evaluate(R"(
+        select case
+            when false then 1 / a
+            when a = 0 then 10
+            when true then 20
+            when 1 / (a - a) = 0 then 30
+            else 1 / (a - a)
+        end as m from [//t]
+    )", split, source, ResultMatcher(YsonToRows(TSource{"m=10", "m=20"}, resultSplit)));
+
+    Evaluate(
+        "case when false then a end as m from [//t]",
+        split,
+        source,
+        ResultMatcher(YsonToRows(TSource{"m=#", "m=#"}, resultSplit)));
+}
+
+TEST_F(TQueryEvaluateCaseTest, ResultTypes)
+{
+    auto split = MakeSplit({
+        {"k", EValueType::Int64},
+        {"b", EValueType::Boolean},
+        {"d", EValueType::Double},
+        {"s", EValueType::String},
+        {"u", EValueType::Uint64},
+    });
+    auto source = TSource{
+        "k=0;b=%false;d=1.5;s=foo;u=10u",
+        "k=1;b=%false;d=2.5;s=bar;u=20u",
+        "k=2;b=%true;d=3.5;s=baz;u=30u",
+        "k=1;b=#;d=#;s=#;u=#",
+    };
+    auto result = YsonToRows(TSource{
+        "b=%true;d=1.25;s=literal;u=1u",
+        "b=%false;d=2.5;s=bar;u=20u",
+        "b=#;d=#;s=#;u=#",
+        "b=#;d=#;s=#;u=#",
+    }, MakeSplit({
+        {"b", EValueType::Boolean},
+        {"d", EValueType::Double},
+        {"s", EValueType::String},
+        {"u", EValueType::Uint64},
+    }));
+
+    Evaluate(R"(
+        select
+            case k when 0 then true when 1 then b end as b,
+            case k when 0 then 1.25 when 1 then d end as d,
+            case k when 0 then 'literal' when 1 then s end as s,
+            case k when 0 then 1u when 1 then u end as u
+        from [//t]
+    )", split, source, ResultMatcher(result));
+}
 
 TEST_F(TQueryEvaluateCaseTest, Lazy)
 {
@@ -12340,6 +12469,60 @@ TEST_F(TQueryEvaluateTest, ReverseScanOrderByDescOnFixedKeyPrefix)
     ResultMatcher(expectedRows)(result.Rows, *query->GetTableSchema());
 
     EXPECT_EQ(result.TabletsScanned, 1);
+}
+
+TEST_F(TQueryEvaluateTest, GroupByWithTotalsRequiredStringKey)
+{
+    auto split = MakeSplit({
+        TColumnSchema("wizard_name", EValueType::String).SetRequired(true),
+        TColumnSchema("time_bucket", EValueType::Int64),
+        TColumnSchema("value", EValueType::Int64),
+    });
+
+    auto source = TSource{
+        "wizard_name=\"\";time_bucket=100;value=10",
+        "wizard_name=\"\";time_bucket=200;value=20",
+        "wizard_name=\"\";time_bucket=100;value=30",
+        "wizard_name=\"\";time_bucket=200;value=40",
+    };
+
+    // Two grouped rows + one totals row (null keys, sum of all values).
+    auto expectedResult = YsonToRows({
+        "time_bucket=100;wizard_name=\"\";total=40",
+        "time_bucket=200;wizard_name=\"\";total=60",
+        "total=100",
+    }, MakeSplit({
+        {"time_bucket", EValueType::Int64},
+        {"wizard_name", EValueType::String},
+        {"total", EValueType::Int64},
+    }));
+
+    Evaluate(
+        "time_bucket, wizard_name, sum(value) as total"
+        " FROM [//t]"
+        " GROUP BY time_bucket, wizard_name WITH TOTALS",
+        split,
+        source,
+        ResultMatcher(expectedResult));
+
+    expectedResult = YsonToRows({
+        "time_bucket=100;wizard_name=\"\"",
+        "time_bucket=200;wizard_name=\"\"",
+        "",
+    }, MakeSplit({
+        {"time_bucket", EValueType::Int64},
+        {"wizard_name", EValueType::String},
+    }));
+
+    Evaluate(
+        "*"
+        " FROM [//t]"
+        " GROUP BY time_bucket, wizard_name WITH TOTALS",
+        split,
+        source,
+        ResultMatcher(expectedResult));
+
+    SUCCEED();
 }
 
 TEST_F(TQueryPrepareTest, ReverseScanNotAppliedWhenNonFixedSuffixIsAsc)

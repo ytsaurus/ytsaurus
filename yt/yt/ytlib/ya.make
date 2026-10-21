@@ -601,7 +601,6 @@ SRCS(
 
     yql_client/config.cpp
 
-    yql_client/proto/token_service.proto
     yql_client/proto/yql_service.proto
 
     yql_plugin/proto/yql_plugin.proto

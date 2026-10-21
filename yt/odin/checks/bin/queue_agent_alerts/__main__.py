@@ -47,7 +47,7 @@ def run_check(secrets, yt_client, logger, options, states):
         config["batch_requests_retries"] = {"count": 1, "enable": False}
         queue_agent_stage_client = YtClient(proxy=queue_agent_stage_proxy, config=config)
 
-        queue_agent_instances = run_method(lambda: queue_agent_stage_client.list("//sys/queue_agents/instances", attributes=[BANNED_ATTRIBUTE_NAME]),
+        queue_agent_instances = run_method(lambda: queue_agent_stage_client.list("//sys/queue_agents/instances", attributes=[BANNED_ATTRIBUTE_NAME, MAINTENANCE_ATTRIBUTE_NAME]),
                                            null_value=[])
 
         queue_agent_instances_count = len(queue_agent_instances)
@@ -119,8 +119,11 @@ def run_check(secrets, yt_client, logger, options, states):
         if queue_agent_stage_cluster == cluster_name:
             short_instances_info = f"(Failed: {failed_instance_count}, Banned: {banned_instance_count}, Maintenance: {maintenance_instance_count}, Total: {len(queue_agent_instances)})"
             unavailable_instance_count = banned_instance_count + maintenance_instance_count + failed_instance_count
-            if unavailable_instance_count * 2 > queue_agent_instances_count:
-                raise YtError(f"More than half of all queue agent instances are not available {short_instances_info}",
+            # if unavailable_instance_count * 2 > queue_agent_instances_count:
+            #     raise YtError(f"More than half of all queue agent instances are not available {short_instances_info}",
+            #                   inner_errors=instances_errors)
+            if unavailable_instance_count == queue_agent_instances_count:
+                raise YtError(f"All queue agent instances are not available {short_instances_info}",
                               inner_errors=instances_errors)
             elif has_non_transport_error:
                 raise YtError(f"There are {failed_instance_count} failed instances with some of them having non-transport error {short_instances_info}",

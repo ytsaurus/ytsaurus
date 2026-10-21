@@ -478,7 +478,7 @@ DB::Pipe TDistributedQueryExecutor::ExtractUnitedPipe()
     auto pipe = DB::Pipe::unitePipes(std::move(Pipes_));
     // This concat only makes sense for `ORDER BY ... LIMIT N` queries: since pipes are concatenated,
     // a step above the ReadFromYTRemote step will read one pipe after another and stop the ReadFromYTRemote step
-    // execution as soon as its output reaches N rows, allowing to fire less secondary nodes and read less data.
+    // execution as soon as its output reaches N rows, allowing to fire fewer secondary nodes and read less data.
     //
     // However, for `ORDER BY ...` queries without `LIMIT` this will prevent parallelization from happening and make
     // secondary queries work one by one instead of simultaneously.

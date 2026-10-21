@@ -1,6 +1,7 @@
 RECURSE(
     download_jfr
     flamegraph
+    generate_internal_state_golden
     job_investigation
     pipeline_chaos_monkey
     python_companion_package

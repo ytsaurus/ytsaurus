@@ -1,5 +1,6 @@
 #pragma once
 
+#include <util/generic/hash_set.h>
 #include <util/generic/strbuf.h>
 
 
@@ -18,5 +19,14 @@ inline constexpr TStringBuf DEFAULT_YT_PRODUCER_NAME = "default_producer";
 
 inline constexpr TStringBuf INJECT_INPUT_MESSAGE_ID_SETTING = "inject_input_message_id";
 inline constexpr TStringBuf EXTEND_SETTING = "extend";
+inline constexpr TStringBuf HAS_PERSISTENT_SINK_SETTING = "has_persistent_sink";
+
+// For testing purposes only
+inline constexpr TStringBuf SYNTHETIC_SETTING = "synthetic_setting";
+
+inline const THashSet<TStringBuf> SOURCE_MAP_FUSION_COMPATIBLE_SETTINGS = {
+    INJECT_INPUT_MESSAGE_ID_SETTING,
+    HAS_PERSISTENT_SINK_SETTING,
+};
 
 } // namespace NYql

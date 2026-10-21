@@ -1785,7 +1785,6 @@ protected:
             }
         }
 
-        PHOENIX_DECLARE_FRIEND();
         PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSortedMergeTask, 0x4ab19c75);
     };
 
@@ -3364,7 +3363,6 @@ protected:
 
     virtual TSortColumns GetSortedMergeSortColumns() const = 0;
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSortControllerBase, 0x4f7dcb2f);
 };
 

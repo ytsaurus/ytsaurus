@@ -35,6 +35,7 @@ SRCS(
 )
 
 PEERDIR(
+    contrib/libs/pdqsort
     library/cpp/containers/absl
     library/cpp/containers/insert_only_concurrent_cache
     library/cpp/iterator

@@ -30,30 +30,22 @@ public:
 void AssertFusedSourceMap(
     const TPhysicalFinalizingSetup& setup,
     const TExprNode::TPtr& root,
-    std::initializer_list<ui32> expectedSinkOutputIndices,
+    std::initializer_list<ui32> expectedOutputIndices,
     std::initializer_list<ui32> expectedSwitchInputIndices
 ) {
     ASSERT_EQ(1, setup.CountSourceMaps(root));
     ASSERT_EQ(0, setup.CountMaps(root));
 
     const auto sourceMap = setup.GetSourceMap(root);
-    const auto sinks = sourceMap.Sinks();
-    ASSERT_EQ(expectedSinkOutputIndices.size(), sinks.Size());
+    ASSERT_EQ(expectedOutputIndices.size(), root->ChildrenSize());
 
-    size_t sinkIndex = 0;
-    for (const auto expectedOutputIndex : expectedSinkOutputIndices) {
-        ASSERT_EQ(
-            expectedOutputIndex,
-            ::FromString<ui32>(sinks.Item(sinkIndex).Cast<NNodes::TYtflowSinkBase>().OutputIndex()));
-        ++sinkIndex;
-    }
-
-    ASSERT_EQ(expectedSinkOutputIndices.size(), root->ChildrenSize());
-    for (size_t outputIndex = 0; outputIndex < root->ChildrenSize(); ++outputIndex) {
-        ASSERT_TRUE(NNodes::TYtflowOutput::Match(root->Child(outputIndex)));
-        const auto output = NNodes::TYtflowOutput(root->Child(outputIndex));
+    size_t childIndex = 0;
+    for (const auto expectedOutputIndex : expectedOutputIndices) {
+        ASSERT_TRUE(NNodes::TYtflowPersistentSink::Match(root->Child(childIndex)));
+        const auto output = NNodes::TYtflowPersistentSink(root->Child(childIndex)).Output();
         ASSERT_EQ(sourceMap.Raw(), output.Operation().Raw());
-        ASSERT_EQ(outputIndex, ::FromString<ui32>(output.OutputIndex()));
+        ASSERT_EQ(expectedOutputIndex, ::FromString<ui32>(output.OutputIndex()));
+        ++childIndex;
     }
 
     const auto lambdaBody = sourceMap.Lambda().Body();
@@ -82,9 +74,11 @@ TEST(TYtflowPhysicalFinalizing, FusesCompatibleSourceMaps)
     TPhysicalFinalizingSetup setup;
     auto readWrap = setup.MakeReadWrap();
     auto worldInput = setup.NewWorld();
+    auto first = setup.MakeSourceMap(readWrap, setup.MakeSync({worldInput}), setup.MakeSettings());
+    auto second = setup.MakeSourceMap(readWrap, setup.MakeSync({worldInput}), setup.MakeSettings());
     auto root = setup.MakeRoot({
-        setup.MakeSourceMap(readWrap, setup.MakeSync({worldInput}), setup.MakeSettings()),
-        setup.MakeSourceMap(readWrap, setup.MakeSync({worldInput}), setup.MakeSettings())
+        setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(first)),
+        setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(second)),
     });
 
     setup.Transform(root);
@@ -94,35 +88,14 @@ TEST(TYtflowPhysicalFinalizing, FusesCompatibleSourceMaps)
 
 TEST(TYtflowPhysicalFinalizing, DoesNotFuseSourceMapsWithDifferentSettings)
 {
-    // inject_input_message_id is fusion-compatible by design, so use a synthetic
-    // setting to exercise the generic settings mismatch guard.
     TPhysicalFinalizingSetup setup;
     auto readWrap = setup.MakeReadWrap();
     auto world = setup.MakeSync({setup.NewWorld()});
+    auto first = setup.MakeSourceMap(readWrap, world, setup.MakeSettings(SYNTHETIC_SETTING, "first"));
+    auto second = setup.MakeSourceMap(readWrap, world, setup.MakeSettings(SYNTHETIC_SETTING, "second"));
     auto root = setup.MakeRoot({
-        setup.MakeSourceMap(
-            readWrap,
-            world,
-            setup.MakeSettings("synthetic_setting", "first")),
-        setup.MakeSourceMap(
-            readWrap,
-            world,
-            setup.MakeSettings("synthetic_setting", "second"))
-    });
-
-    setup.Transform(root);
-
-    ASSERT_EQ(2, setup.CountSourceMaps(root));
-}
-
-TEST(TYtflowPhysicalFinalizing, DoesNotFuseSourceMapsWithDifferentSourceNames)
-{
-    TPhysicalFinalizingSetup setup;
-    auto readWrap = setup.MakeReadWrap();
-    auto world = setup.MakeSync({setup.NewWorld()});
-    auto root = setup.MakeRoot({
-        setup.MakeSourceMap(readWrap, world, setup.MakeSettings(), "first"),
-        setup.MakeSourceMap(readWrap, world, setup.MakeSettings(), "second")
+        setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(first)),
+        setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(second)),
     });
 
     setup.Transform(root);
@@ -135,15 +108,13 @@ TEST(TYtflowPhysicalFinalizing, DoesNotFuseSourceMapsWithDifferentWorlds)
     TPhysicalFinalizingSetup setup;
     auto readWrap = setup.MakeReadWrap();
     auto commonWorld = setup.NewWorld();
+    auto first = setup.MakeSourceMap(
+        readWrap, setup.MakeSync({commonWorld, setup.NewWorld()}), setup.MakeSettings());
+    auto second = setup.MakeSourceMap(
+        readWrap, setup.MakeSync({commonWorld, setup.NewWorld()}), setup.MakeSettings());
     auto root = setup.MakeRoot({
-        setup.MakeSourceMap(
-            readWrap,
-            setup.MakeSync({commonWorld, setup.NewWorld()}),
-            setup.MakeSettings()),
-        setup.MakeSourceMap(
-            readWrap,
-            setup.MakeSync({commonWorld, setup.NewWorld()}),
-            setup.MakeSettings())
+        setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(first)),
+        setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(second)),
     });
 
     setup.Transform(root);
@@ -156,12 +127,11 @@ TEST(TYtflowPhysicalFinalizing, FusesAndPropagatesInjectInputMessageIdSetting)
     TPhysicalFinalizingSetup setup;
     auto readWrap = setup.MakeReadWrap();
     auto world = setup.MakeSync({setup.NewWorld()});
+    auto first = setup.MakeSourceMap(readWrap, world, setup.MakeSettings());
+    auto second = setup.MakeSourceMap(readWrap, world, setup.MakeSettings(INJECT_INPUT_MESSAGE_ID_SETTING));
     auto root = setup.MakeRoot({
-        setup.MakeSourceMap(readWrap, world, setup.MakeSettings()),
-        setup.MakeSourceMap(
-            readWrap,
-            world,
-            setup.MakeSettings(INJECT_INPUT_MESSAGE_ID_SETTING))
+        setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(first)),
+        setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(second)),
     });
 
     setup.Transform(root);
@@ -172,7 +142,27 @@ TEST(TYtflowPhysicalFinalizing, FusesAndPropagatesInjectInputMessageIdSetting)
         INJECT_INPUT_MESSAGE_ID_SETTING));
 }
 
-TEST(TYtflowPhysicalFinalizing, FusesMapsWithMultipleSinks)
+TEST(TYtflowPhysicalFinalizing, FusesSourceMapsWithFusionCompatibleSettings)
+{
+    for (const auto setting : SOURCE_MAP_FUSION_COMPATIBLE_SETTINGS) {
+        SCOPED_TRACE(TString(setting));
+        TPhysicalFinalizingSetup setup;
+        auto readWrap = setup.MakeReadWrap();
+        auto world = setup.MakeSync({setup.NewWorld()});
+        auto first = setup.MakeSourceMap(readWrap, world, setup.MakeSettings());
+        auto second = setup.MakeSourceMap(readWrap, world, setup.MakeSettings(setting));
+        auto root = setup.MakeRoot({
+            setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(first)),
+            setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(second)),
+        });
+
+        setup.Transform(root);
+
+        AssertFusedSourceMap(setup, root, {0, 1}, {0, 0});
+    }
+}
+
+TEST(TYtflowPhysicalFinalizing, FusesMapsWithMultipleOutputs)
 {
     TPhysicalFinalizingSetup setup;
     auto readWrap = setup.MakeReadWrap();
@@ -181,61 +171,31 @@ TEST(TYtflowPhysicalFinalizing, FusesMapsWithMultipleSinks)
         readWrap,
         world,
         setup.MakeSettings(),
-        "source",
-        {0, 1});
-    auto firstMap = setup.MakeMap(setup.MakeOutput(sourceMap, 0), world, {0, 1, 2});
-    auto secondMap = setup.MakeMap(setup.MakeOutput(sourceMap, 1), world, {0, 1});
+        /*outputCount=*/ 2);
+    auto firstMap = setup.MakeMap(setup.MakeOutput(sourceMap, 0), world, /*outputCount=*/ 3);
+    auto secondMap = setup.MakeMap(setup.MakeOutput(sourceMap, 1), world, /*outputCount=*/ 2);
 
     TExprNode::TListType outputs;
     outputs.reserve(5);
     for (ui32 outputIndex = 0; outputIndex < 3; ++outputIndex) {
-        outputs.push_back(setup.MakeOutput(firstMap, outputIndex));
+        outputs.push_back(setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(firstMap, outputIndex)));
     }
     for (ui32 outputIndex = 0; outputIndex < 2; ++outputIndex) {
-        outputs.push_back(setup.MakeOutput(secondMap, outputIndex));
+        outputs.push_back(setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(secondMap, outputIndex)));
     }
-    auto root = setup.MakeRootFromOutputs(std::move(outputs));
+    auto root = setup.MakeRoot(std::move(outputs));
 
     setup.Transform(root);
 
     AssertFusedSourceMap(setup, root, {0, 1, 2, 3, 4}, {0, 1});
 }
 
-TEST(TYtflowPhysicalFinalizing, FusesMapsWithUnorderedAndRepeatedSinkOutputIndices)
-{
-    TPhysicalFinalizingSetup setup;
-    auto readWrap = setup.MakeReadWrap();
-    auto world = setup.MakeSync({setup.NewWorld()});
-    auto sourceMap = setup.MakeSourceMap(
-        readWrap,
-        world,
-        setup.MakeSettings(),
-        "source",
-        {1, 0});
-    auto firstMap = setup.MakeMap(setup.MakeOutput(sourceMap, 0), world, {2, 0, 2, 1});
-    auto secondMap = setup.MakeMap(setup.MakeOutput(sourceMap, 1), world, {1, 0});
-
-    TExprNode::TListType outputs;
-    outputs.reserve(6);
-    for (ui32 outputIndex = 0; outputIndex < 4; ++outputIndex) {
-        outputs.push_back(setup.MakeOutput(firstMap, outputIndex));
-    }
-    for (ui32 outputIndex = 0; outputIndex < 2; ++outputIndex) {
-        outputs.push_back(setup.MakeOutput(secondMap, outputIndex));
-    }
-    auto root = setup.MakeRootFromOutputs(std::move(outputs));
-
-    setup.Transform(root);
-
-    AssertFusedSourceMap(setup, root, {2, 0, 2, 1, 4, 3}, {1, 0});
-}
-
 TEST(TYtflowPhysicalFinalizing, InjectsInputMessageIdSettingIntoEveryExtendInputOperation)
 {
     TPhysicalFinalizingSetup setup;
     auto world = setup.MakeSync({setup.NewWorld()});
-    auto root = setup.MakeRootFromOutputs({
-        setup.MakeOutput(setup.MakeExtend({
+    auto root = setup.MakeRoot({
+        setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(setup.MakeExtend({
             setup.MakeOutput(setup.MakeSourceMap(
                 setup.MakeReadWrap(),
                 world,
@@ -244,7 +204,7 @@ TEST(TYtflowPhysicalFinalizing, InjectsInputMessageIdSettingIntoEveryExtendInput
                 setup.MakeReadWrap(),
                 world,
                 setup.MakeSettings()))
-        }, world))
+        }, world))),
     });
 
     setup.Transform(root);
@@ -274,13 +234,14 @@ TEST(TYtflowPhysicalFinalizing, InjectsInputMessageIdForSelectedExtendImplementa
                     setup.MakeSettings()))
             }, world),
             hasNonDeterministicFunctions);
-        auto root = setup.MakeRootFromOutputs({
-            setup.MakeOutput(implementation)
+        auto root = setup.MakeRoot({
+            setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(implementation)),
         });
 
         setup.Transform(root);
 
-        auto transformedImplementation = TYtflowOutput(root->Child(0))
+        auto transformedImplementation = TYtflowPersistentSink(root->Child(0))
+            .Output()
             .Operation()
             .Cast<TYtflowMapBase>();
         ASSERT_EQ(
@@ -308,8 +269,8 @@ TEST(TYtflowPhysicalFinalizing, PreservesDirectExtendConsumerWhenFusingMap)
         setup.MakeSettings());
     auto producerOutput = setup.MakeOutput(producer);
     auto mapOutput = setup.MakeOutput(setup.MakeMap(producerOutput, world));
-    auto root = setup.MakeRootFromOutputs({
-        setup.MakeOutput(setup.MakeExtend({producerOutput, mapOutput}, world))
+    auto root = setup.MakeRoot({
+        setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(setup.MakeExtend({producerOutput, mapOutput}, world))),
     });
 
     setup.Transform(root);
@@ -317,10 +278,7 @@ TEST(TYtflowPhysicalFinalizing, PreservesDirectExtendConsumerWhenFusingMap)
     ASSERT_EQ(1, setup.CountSourceMaps(root));
     ASSERT_EQ(0, setup.CountMaps(root));
 
-    auto sourceMap = setup.GetSourceMap(root);
-    ASSERT_EQ(2, sourceMap.Sinks().Size());
-
-    auto maybeSwitch = sourceMap.Lambda().Body().Maybe<TCoSwitch>();
+    auto maybeSwitch = setup.GetSourceMap(root).Lambda().Body().Maybe<TCoSwitch>();
     ASSERT_TRUE(maybeSwitch);
     auto switchNode = maybeSwitch.Cast();
     ASSERT_EQ(6, switchNode.Ref().ChildrenSize());
@@ -346,12 +304,12 @@ TEST(TYtflowPhysicalFinalizing, FusesDuplicateExtendInputsIntoDistinctProducerBr
         setup.MakeSettings());
     auto producerOutput = setup.MakeOutput(producer);
     auto equivalentProducerOutput = setup.MakeOutput(producer);
-    auto root = setup.MakeRootFromOutputs({
-        setup.MakeOutput(setup.MakeExtend({
+    auto root = setup.MakeRoot({
+        setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(setup.MakeExtend({
             producerOutput,
             equivalentProducerOutput,
             producerOutput
-        }, world))
+        }, world))),
     });
 
     setup.Transform(root);
@@ -359,10 +317,7 @@ TEST(TYtflowPhysicalFinalizing, FusesDuplicateExtendInputsIntoDistinctProducerBr
     ASSERT_EQ(1, setup.CountSourceMaps(root));
     ASSERT_EQ(0, setup.CountMaps(root));
 
-    auto sourceMap = setup.GetSourceMap(root);
-    ASSERT_EQ(3, sourceMap.Sinks().Size());
-
-    auto maybeSwitch = sourceMap.Lambda().Body().Maybe<TCoSwitch>();
+    auto maybeSwitch = setup.GetSourceMap(root).Lambda().Body().Maybe<TCoSwitch>();
     ASSERT_TRUE(maybeSwitch);
     auto switchNode = maybeSwitch.Cast();
     ASSERT_EQ(8, switchNode.Ref().ChildrenSize());
@@ -398,13 +353,14 @@ TEST(TYtflowPhysicalFinalizing, FusesDuplicateSelectedExtendInputsIntoDistinctPr
             producerOutput
         }, world),
         true);
-    auto root = setup.MakeRootFromOutputs({
-        setup.MakeOutput(implementation)
+    auto root = setup.MakeRoot({
+        setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(implementation)),
     });
 
     setup.Transform(root);
 
-    auto transformedImplementation = TYtflowOutput(root->Child(0))
+    auto transformedImplementation = TYtflowPersistentSink(root->Child(0))
+        .Output()
         .Operation()
         .Cast<TYtflowMapBase>();
     ASSERT_TRUE(TYtflowTransformMap::Match(transformedImplementation.Raw()));
@@ -434,17 +390,14 @@ TEST(TYtflowPhysicalFinalizing, PreservesDirectExtendConsumerAcrossMapFusionIter
     auto producer = setup.MakeMap(setup.MakeOutput(sourceMap), world);
     auto producerOutput = setup.MakeOutput(producer);
     auto mapOutput = setup.MakeOutput(setup.MakeMap(producerOutput, world));
-    auto root = setup.MakeRootFromOutputs({
-        setup.MakeOutput(setup.MakeExtend({producerOutput, mapOutput}, world))
+    auto root = setup.MakeRoot({
+        setup.MakePersistentSink(setup.NewWorld(), setup.MakeOutput(setup.MakeExtend({producerOutput, mapOutput}, world))),
     });
 
     setup.Transform(root);
 
     ASSERT_EQ(1, setup.CountSourceMaps(root));
     ASSERT_EQ(0, setup.CountMaps(root));
-
-    auto fusedSourceMap = setup.GetSourceMap(root);
-    ASSERT_EQ(2, fusedSourceMap.Sinks().Size());
 
     auto extend = setup.GetExtend(root);
     ASSERT_EQ(2, extend.Sources().Size());

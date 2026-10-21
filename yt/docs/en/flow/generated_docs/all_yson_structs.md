@@ -66,6 +66,10 @@ This file contains descriptions of all specs and configs used for {{product-name
 
 {% include [_](./NYT_NFlow_EJobBalancerType.md) %}
 
+{% include [_](./NYT_NFlow_EKafkaDeliveryGuarantee.md) %}
+
+{% include [_](./NYT_NFlow_EMalformedKafkaMessagePolicy.md) %}
+
 {% include [_](./NYT_NFlow_EPipelineState.md) %}
 
 {% include [_](./NYT_NFlow_EProcessingMode.md) %}
@@ -148,6 +152,8 @@ This file contains descriptions of all specs and configs used for {{product-name
 
 {% include [_](./NYT_NFlow_TDynamicPartitionTracerSpec.md) %}
 
+{% include [_](./NYT_NFlow_TDynamicPartitioningSpec.md) %}
+
 {% include [_](./NYT_NFlow_TDynamicPipelineSpec.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicResourceSpec.md) %}
@@ -206,9 +212,15 @@ This file contains descriptions of all specs and configs used for {{product-name
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAtLeastOnceClickHouseSink.md) %}
 
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAtLeastOnceKafkaSink.md) %}
+
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAtMostOnceClickHouseSink.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TClickHouseBatchingSink.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TKafkaSink.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TKafkaSource.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TPassthroughComputation.md) %}
 
@@ -246,6 +258,8 @@ This file contains descriptions of all specs and configs used for {{product-name
 
 {% include [_](./NYT_NFlow_TInputOrderingSpec.md) %}
 
+{% include [_](./NYT_NFlow_TKafkaClientConfig.md) %}
+
 {% include [_](./NYT_NFlow_TKeyStateRow.md) %}
 
 {% include [_](./NYT_NFlow_TKeyVisitorStreamSpec.md) %}
@@ -265,6 +279,10 @@ This file contains descriptions of all specs and configs used for {{product-name
 {% include [_](./NYT_NFlow_TPipelineSpec.md) %}
 
 {% include [_](./NYT_NFlow_TPivotFinderSpec.md) %}
+
+{% include [_](./NYT_NFlow_TProcessFunctionGraphNodeSpec.md) %}
+
+{% include [_](./NYT_NFlow_TProcessFunctionGraphSpec.md) %}
 
 {% include [_](./NYT_NFlow_TReadStatesArg.md) %}
 
@@ -295,6 +313,8 @@ This file contains descriptions of all specs and configs used for {{product-name
 {% include [_](./NYT_NFlow_TTableFetcherSpec.md) %}
 
 {% include [_](./NYT_NFlow_TTableJoinerSpec.md) %}
+
+{% include [_](./NYT_NFlow_TThroughputSpec.md) %}
 
 {% include [_](./NYT_NFlow_TTimerSerializer.md) %}
 
@@ -328,9 +348,15 @@ This file contains descriptions of all specs and configs used for {{product-name
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAtLeastOnceClickHouseSink.md) %}
 
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAtLeastOnceKafkaSink.md) %}
+
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAtMostOnceClickHouseSink.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TClickHouseBatchingSink.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TKafkaSink.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TKafkaSource.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TPassthroughComputation.md) %}
 

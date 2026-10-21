@@ -1,9 +1,16 @@
 #include "yql_ytflow_physical_finalizing_setup.h"
 
 #include <yt/yql/providers/ytflow/provider/yql_ytflow_constants.h>
+#include <yt/yql/providers/ytflow/provider/yql_ytflow_provider.h>
+#include <yt/yql/providers/ytflow/provider/yql_ytflow_utils.h>
 
+#include <yql/essentials/core/yql_expr_csee.h>
 #include <yql/essentials/core/yql_expr_optimize.h>
+#include <yql/essentials/core/yql_expr_type_annotation.h>
+#include <yql/essentials/core/type_ann/type_ann_expr.h>
 #include <yql/essentials/utils/yql_panic.h>
+
+#include <utility>
 
 
 namespace NYql::NYtflow::NTest {
@@ -17,6 +24,9 @@ TPhysicalFinalizingSetup::TPhysicalFinalizingSetup()
     State_->Types = &Types_;
     State_->Configuration = MakeIntrusive<TYtflowConfiguration>();
     State_->Configuration->_SwitchComputationNodeBufferSizeBytes = 1;
+
+    Types_.AddDataSource(YtflowProviderName, CreateYtflowDataSource(State_));
+    Types_.AddDataSink(YtflowProviderName, CreateYtflowDataSink(State_));
 }
 
 TExprNode::TPtr TPhysicalFinalizingSetup::NewWorld() {
@@ -24,9 +34,16 @@ TExprNode::TPtr TPhysicalFinalizingSetup::NewWorld() {
 }
 
 TExprNode::TPtr TPhysicalFinalizingSetup::MakeReadWrap() {
+    auto input = Ctx_.NewCallable(Position_, "TestInput", {});
+    input->SetTypeAnn(Ctx_.MakeType<TTupleExprType>(TTypeAnnotationNode::TListType{
+        Ctx_.MakeType<TWorldExprType>(),
+        Ctx_.MakeType<TListExprType>(Ctx_.MakeType<TStructExprType>(
+            TVector<const TItemExprType*>{}))
+    }));
+    input->SetState(TExprNode::EState::TypeComplete);
+
     return Build<TYtflowReadWrap>(Ctx_, Position_)
-        .Input<TCoVoid>()
-            .Build()
+        .Input(TExprBase(std::move(input)))
         .Done().Ptr();
 }
 
@@ -63,13 +80,9 @@ TExprNode::TPtr TPhysicalFinalizingSetup::MakeSourceMap(
     TExprNode::TPtr readWrap,
     TExprNode::TPtr world,
     TCoNameValueTupleList settings,
-    TStringBuf sourceName,
-    std::initializer_list<ui32> sinkOutputIndices
+    ui32 outputCount
 ) {
     auto source = Build<TYtflowPersistentSource>(Ctx_, Position_)
-        .Name()
-            .Value(sourceName)
-            .Build()
         .Input(TExprBase(std::move(readWrap)))
         .Done();
 
@@ -78,11 +91,8 @@ TExprNode::TPtr TPhysicalFinalizingSetup::MakeSourceMap(
         .Sources()
             .Add(std::move(source))
             .Build()
-        .Sinks()
-            .Add(MakeIntermediateSinks(sinkOutputIndices))
-            .Build()
         .Settings(std::move(settings))
-        .Lambda(MakePassthroughLambda(sinkOutputIndices))
+        .Lambda(MakePassthroughLambda(outputCount))
         .Done().Ptr();
 }
 
@@ -98,22 +108,39 @@ TExprNode::TPtr TPhysicalFinalizingSetup::MakeOutput(
         .Done().Ptr();
 }
 
+TExprNode::TPtr TPhysicalFinalizingSetup::MakeLeft(TExprNode::TPtr operation)
+{
+    return Build<TCoLeft>(Ctx_, Position_)
+        .Input(std::move(operation))
+        .Done().Ptr();
+}
+
+TExprNode::TPtr TPhysicalFinalizingSetup::MakePersistentSink(
+    TExprNode::TPtr world,
+    TExprNode::TPtr output
+) {
+    return Build<TYtflowPersistentSink>(Ctx_, Position_)
+        .World(std::move(world))
+        .Output(std::move(output))
+        .Write<TYtflowWriteWrap>()
+            .Input(NewWorld())
+            .Build()
+        .Done().Ptr();
+}
+
 TExprNode::TPtr TPhysicalFinalizingSetup::MakeMap(
     TExprNode::TPtr source,
     TExprNode::TPtr world,
-    std::initializer_list<ui32> sinkOutputIndices
+    ui32 outputCount
 ) {
     return Build<TYtflowMap>(Ctx_, Position_)
         .World(std::move(world))
         .Sources()
             .Add(TExprBase(std::move(source)))
             .Build()
-        .Sinks()
-            .Add(MakeIntermediateSinks(sinkOutputIndices))
-            .Build()
         .Settings()
             .Build()
-        .Lambda(MakePassthroughLambda(sinkOutputIndices))
+        .Lambda(MakePassthroughLambda(outputCount))
         .Done().Ptr();
 }
 
@@ -132,12 +159,9 @@ TExprNode::TPtr TPhysicalFinalizingSetup::MakeExtend(
         .Sources()
             .Add(std::move(sourceNodes))
             .Build()
-        .Sinks()
-            .Add(MakeIntermediateSinks({0}))
-            .Build()
         .Settings()
             .Build()
-        .Lambda(MakePassthroughLambda({0}))
+        .Lambda(MakePassthroughLambda(/*outputCount=*/ 1))
         .GroupByColumns()
             .Add<TCoAtom>()
                 .Value(YTFLOW_INPUT_MESSAGE_ID_FIELD)
@@ -147,29 +171,74 @@ TExprNode::TPtr TPhysicalFinalizingSetup::MakeExtend(
 }
 
 TExprNode::TPtr TPhysicalFinalizingSetup::MakeRoot(
-    std::initializer_list<TExprNode::TPtr> sourceMaps
+    TExprNode::TListType children
 ) {
-    TExprNode::TListType outputs;
-    outputs.reserve(sourceMaps.size());
-    for (auto sourceMap : sourceMaps) {
-        outputs.push_back(MakeOutput(std::move(sourceMap)));
-    }
-
-    return MakeRootFromOutputs(std::move(outputs));
+    return Ctx_.NewCallable(Position_, "TestRoot", std::move(children));
 }
 
-TExprNode::TPtr TPhysicalFinalizingSetup::MakeRootFromOutputs(
-    TExprNode::TListType outputs
-) {
-    return Ctx_.NewCallable(Position_, "TestRoot", std::move(outputs));
+void TPhysicalFinalizingSetup::AnnotateTypes(TExprNode::TPtr& root)
+{
+    auto standardTransformer = CreateExtCallableTypeAnnotationTransformer(Types_, /*instantOnly*/ true);
+    auto callableTransformer = CreateFunctorTransformer(
+        [&] (const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) -> IGraphTransformer::TStatus {
+            output = input;
+            if (input->IsCallable("TestRoot")) {
+                TTypeAnnotationNode::TListType childTypes;
+                for (const auto& child : input->Children()) {
+                    childTypes.push_back(child->GetTypeAnn());
+                }
+                input->SetTypeAnn(ctx.MakeType<TTupleExprType>(childTypes));
+                return IGraphTransformer::TStatus::Ok;
+            }
+
+            if (auto maybeSink = TMaybeNode<TYtflowPersistentSink>(input)) {
+                if (!EnsureArgsCount(*input, 3, ctx)) {
+                    return IGraphTransformer::TStatus::Error;
+                }
+
+                auto sink = maybeSink.Cast();
+                YQL_ENSURE(sink.Write().Input().Ref().IsWorld(),
+                    "Expected World write input in test persistent sink");
+                if (!EnsureWorldType(sink.World().Ref(), ctx) ||
+                    !EnsureListOfStructs(sink.Output().Pos(), *sink.Output().Ref().GetTypeAnn(), ctx))
+                {
+                    return IGraphTransformer::TStatus::Error;
+                }
+
+                input->SetTypeAnn(sink.World().Ref().GetTypeAnn());
+                return IGraphTransformer::TStatus::Ok;
+            }
+
+            return standardTransformer->Transform(input, output, ctx);
+        });
+    auto transformer = CreateTypeAnnotationTransformer(callableTransformer, Types_);
+    YQL_ENSURE(SyncTransform(*transformer, root, Ctx_) == IGraphTransformer::TStatus::Ok,
+        "Type annotation failed: " << Ctx_.IssueManager.GetIssues().ToString());
 }
 
 void TPhysicalFinalizingSetup::Transform(TExprNode::TPtr& root) {
     auto transformer = CreateYtflowPhysicalFinalizingTransformer(State_);
-    const auto status = SyncTransform(*transformer, root, Ctx_);
-    YQL_ENSURE(
-        status == IGraphTransformer::TStatus::Ok,
-        "Physical finalizing transform failed: " << Ctx_.IssueManager.GetIssues().ToString());
+
+    for (ui32 iteration = 0; iteration < Ctx_.RepeatTransformLimit; ++iteration) {
+        AnnotateTypes(root);
+        YQL_ENSURE(UpdateCompletness(root, root, Ctx_) == IGraphTransformer::TStatus::Ok,
+            "Failed to update completeness before optimization");
+
+        TExprNode::TPtr output;
+        const auto status = transformer->Transform(root, output, Ctx_);
+        if (output) {
+            root = std::move(output);
+        }
+
+        if (status == IGraphTransformer::TStatus::Ok) {
+            return;
+        }
+
+        YQL_ENSURE(status == IGraphTransformer::TStatus::Repeat,
+            "Optimization transform failed: " << Ctx_.IssueManager.GetIssues().ToString());
+    }
+
+    YQL_ENSURE(false, "Optimization transform exceeded repeat limit");
 }
 
 size_t TPhysicalFinalizingSetup::CountSourceMaps(const TExprNode::TPtr& root) const {
@@ -224,34 +293,7 @@ TYtflowExtend TPhysicalFinalizingSetup::GetExtend(const TExprNode::TPtr& root) c
     return TYtflowExtend(extend);
 }
 
-TVector<TExprBase> TPhysicalFinalizingSetup::MakeIntermediateSinks(
-    std::initializer_list<ui32> outputIndices
-) {
-    TVector<TExprBase> sinks;
-    sinks.reserve(outputIndices.size());
-    for (const auto outputIndex : outputIndices) {
-        sinks.push_back(Build<TYtflowIntermediateSink>(Ctx_, Position_)
-            .Name()
-                .Value("")
-                .Build()
-            .OutputIndex()
-                .Value(outputIndex)
-                .Build()
-            .RowType<TCoVoid>()
-                .Build()
-            .Done());
-    }
-    return sinks;
-}
-
-TCoLambda TPhysicalFinalizingSetup::MakePassthroughLambda(
-    std::initializer_list<ui32> outputIndices
-) {
-    ui32 outputCount = 0;
-    for (const auto outputIndex : outputIndices) {
-        outputCount = Max(outputCount, outputIndex + 1);
-    }
-
+TCoLambda TPhysicalFinalizingSetup::MakePassthroughLambda(ui32 outputCount) {
     if (outputCount == 1) {
         return Build<TCoLambda>(Ctx_, Position_)
             .Args({"stream"})

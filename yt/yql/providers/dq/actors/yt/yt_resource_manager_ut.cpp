@@ -23,6 +23,26 @@
 using namespace NYql;
 using namespace NActors;
 
+Y_UNIT_TEST_SUITE(CliqueResourceUploaderTest) {
+    Y_UNIT_TEST(CanCreateWithoutCoordinatorConfigOrNodeId) {
+        TResourceManagerOptions options;
+        options.YtBackend.SetClusterName("local");
+        options.YtBackend.SetProxyAddress("localhost:10000");
+        options.YtBackend.SetUser("root");
+        options.YtBackend.SetToken("token");
+        options.YtBackend.SetPrefix("//tmp/dq-clique");
+        options.UploadPrefix = "//tmp/dq-clique/tmp/udfs";
+        options.Files.emplace_back().ObjectId = "udf-object-id";
+
+        auto coordinator = CreateUploadCoordinationHelper("localhost");
+        THolder<IActor> uploader(CreateResourceUploader(options, coordinator));
+        UNIT_ASSERT(uploader);
+        THolder<IActor> lock(coordinator->CreateLockOnCluster(
+            TActorId(1, 0, 1, 0), "//tmp/dq-clique", "udf-object-id", /*temporary*/ true));
+        UNIT_ASSERT(lock);
+    }
+}
+
 // ============================================================================
 // Actor-based tests for OnListOperations and deferred release
 // ============================================================================

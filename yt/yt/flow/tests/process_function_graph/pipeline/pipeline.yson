@@ -1,0 +1,94 @@
+{
+    "spec" = {
+        "computations" = {
+            "left_reader" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionSourceComputation";
+                "processing_function" = "NYT::NFlow::NProcessFunctionGraphTest::TQueueReaderFunction";
+                "output_stream_ids" = ["left"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "<cluster=primary>//path/to/left_queue";
+                            "consumer_path" = "<cluster=primary>//path/to/left_consumer";
+                            "finite" = %false;
+                        };
+                    };
+                };
+            };
+            "right_reader" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionSourceComputation";
+                "processing_function" = "NYT::NFlow::NProcessFunctionGraphTest::TQueueReaderFunction";
+                "output_stream_ids" = ["right"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "<cluster=primary>//path/to/right_queue";
+                            "consumer_path" = "<cluster=primary>//path/to/right_consumer";
+                            "finite" = %false;
+                        };
+                    };
+                };
+            };
+            "graph" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; "required" = %true;};
+                    {"name" = "key"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["left"; "right"];
+                "output_stream_ids" = ["result"];
+                "process_function_graph" = {
+                    "nodes" = {
+                        "left" = {
+                            "processing_function" = "NYT::NFlow::NProcessFunctionGraphTest::TStateAndTimerFunction";
+                            "processing_function_parameters" = {"increment" = 2;};
+                            "input_stream_ids" = ["left"];
+                            "output_stream_ids" = ["left_counts"];
+                            "timer_streams" = {"timer" = {"time_type" = "current_time";};};
+                        };
+                        "right" = {
+                            "processing_function" = "NYT::NFlow::NProcessFunctionGraphTest::TStateAndTimerFunction";
+                            "processing_function_parameters" = {"increment" = 3;};
+                            "input_stream_ids" = ["right"];
+                            "output_stream_ids" = ["right_counts"];
+                            "timer_streams" = {"timer" = {"time_type" = "current_time";};};
+                        };
+                        "merge" = {
+                            "processing_function" = "NYT::NFlow::NProcessFunctionGraphTest::TMergeFunction";
+                            "input_stream_ids" = ["left_counts"; "right_counts"];
+                            "output_stream_ids" = ["result"];
+                        };
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["result"];
+                        "parameters" = {
+                            "queue_path" = "//path/to/output_queue";
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "left_reader" = {
+                "batch_duration" = 100;
+                "parameters" = {"desired_partition_count" = 1;};
+            };
+            "right_reader" = {
+                "batch_duration" = 100;
+                "parameters" = {"desired_partition_count" = 1;};
+            };
+            "graph" = {
+                "batch_duration" = 100;
+                "parameters" = {"desired_partition_count" = 1;};
+            };
+        };
+        "job_tracker" = {"job_threads" = 4;};
+    };
+}

@@ -1203,16 +1203,16 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
         return;
     }
 
-    bool isSingleTable = (storage->GetTables().size() == 1);
+    bool isSingleTableWithoutRanges = (storage->GetTables().size() == 1)
+        && !storage->GetTables()[0]->Path.HasNontrivialRanges();
     int keyColumnCount = KeyColumnCount_;
 
     auto processAggregationKeyNode = [&] (const DB::QueryTreeNodePtr& keyNode) {
-        // SortedPool expects non-overlapping sorted chunks. In case of multiple
-        // tables (concatYtTablesRange), this condition is broken,
-        // so we cannot use SortedPool to optimize aggregation.
+        // Multiple tables and explicit ranges may produce overlapping or unordered slices.
+        // SortedPool requires monotonic bounds within each input stream.
         // TODO(dakovalkov): Theoretically, the optimization is still possible,
         // but we need to overthink SortedPool logic.
-        if (!isSingleTable) {
+        if (!isSingleTableWithoutRanges) {
             return false;
         }
 
@@ -1278,7 +1278,7 @@ void TQueryAnalyzer::InferReadInOrderModeAndSortDescription(bool assumeNoNullKey
     // Read in order is forbidden in JOINs and queries with aggregation.
     // It might be useful in some of these cases, but that is a question for another day.
     if (Join_ || queryNode->hasGroupBy() || queryNode->hasHaving() || queryNode->hasWindow() || queryNode->hasLimitBy()) {
-        // TODO(ivanzhukov): support joins (at least of two sorted YT tables) and other stuff if possible.
+        // TODO(ivanzhukov): Support joins (at least of two sorted YT tables) and other stuff if possible.
         return;
     }
 
@@ -1291,13 +1291,7 @@ void TQueryAnalyzer::InferReadInOrderModeAndSortDescription(bool assumeNoNullKey
     // Read in order makes no sense without any limits specified.
     // The whole table will probably be read anyway.
     if (!queryNode->hasLimit() && !getContext()->getSettingsRef()[DB::Setting::limit]) {
-        // TODO(ivanzhukov): optimize chunk readers so that reading data in order (even with no limit) has no drawbacks.
-        return;
-    }
-
-    if (NeedOnlyDistinct_) {
-        // With this optimization (UseDistinctReadOptimization) rows come out in dictionary/RLE value order with NULL last,
-        // not key order (see `ReduceFilterToDistinct`, `UnwrapSimpleDistinctColumn`).
+        // TODO(ivanzhukov): Optimize chunk readers so that reading data in order (even with no limit) has no drawbacks.
         return;
     }
 
@@ -1307,7 +1301,7 @@ void TQueryAnalyzer::InferReadInOrderModeAndSortDescription(bool assumeNoNullKey
     if (tables.size() > 1) {
         // If we have multiple sorted tables with the same schema, e.g. `SELECT * FROM concatYtTables(t1, t2) ORDER BY ...`,
         // then data from them could overlap.
-        // TODO(ivanzhukov): (CHYT-1470) if tables' chunks don't overlap (even if tables themselves overlap), we still could read in order.
+        // TODO(ivanzhukov): (CHYT-1470) If tables' chunks don't overlap (even if tables themselves overlap), we still could read in order.
         return;
     }
     const auto& table = tables[0];
@@ -1317,8 +1311,8 @@ void TQueryAnalyzer::InferReadInOrderModeAndSortDescription(bool assumeNoNullKey
         return;
     }
     if (table->Path.HasNontrivialRanges()) {
-        // Technically user-specified slices could overlap, e.g. `SELECT * FROM `//path/to/table[#1:10, #2:11, #3:12]`
-        // TODO(ivanzhukov): if row ranges don't actually overlap, still produce sort description and read-in-order mode.
+        // Technically user-specified slices could overlap, e.g. `SELECT * FROM "//path/to/table[#1:#10, #2:#11, #3:#12]"`
+        // TODO(ivanzhukov): If row ranges don't actually overlap, still produce sort description and read-in-order mode.
         return;
     }
 
@@ -1410,14 +1404,52 @@ void TQueryAnalyzer::InferReadInOrderModeAndSortDescription(bool assumeNoNullKey
     }
 
     ReadInOrderMode_ = commonDirection;
-    // TODO(ivanzhukov):
-    // Right now a secondary node performs full sort for data read backwards. However, it seems like in DESC case either
-    // the YT reader itself could reverse-sort all data while reading it or it could read a block, reverse-sort it in memory,
-    // and return to a client so that a client could just merge backward-sorted blocks. Then we'd be able to propagate
-    // sort description right to secondary nodes.
+    // Imagine a query such as
+    // ```
+    // SELECT a, d
+    // FROM t -- CREATE TABLE t (a UInt8, b UInt8, c UInt8, d UInt8) ENGINE=YtTable() ORDER BY (a, b, c)
+    // ORDER BY a, b, c
+    // ```
+    // This query will be executed on two different levels:
+    // - First on worker nodes, where data will be read from YT tables raw and all data transformations will be
+    //   performed by the CH's query engine. Therefore in order for CH to better optimize query execution (e.g. LIMIT)
+    //   we would, on worker nodes, return a sort description as verbose as possible. In this case {a, b, c}.
+    //   More than that, even though columns b and c are not physically read, data read on a particular host is still
+    //   physically sorted in that way, because it was stored as such by the YT storage layer. Therefore by returning
+    //   sort description {a, b, c} we're not technically lying.
     if (ReadInOrderMode_ == EReadInOrderMode::Forward) {
-        SortDescription_ = std::move(sortDescription);
+        // TODO(ivanzhukov):
+        // Right now a secondary node performs full sort for data read backwards. However, it seems like in DESC case either
+        // the YT reader itself could reverse-sort all data while reading it or it could read a block, reverse-sort it in memory,
+        // and return to a client so that a client could just merge backward-sorted blocks. Then we'd be able to propagate
+        // sort description right to secondary nodes.
+
+        // With this optimization (UseDistinctReadOptimization) rows come out in dictionary/RLE value order with NULL last,
+        // not key order (see `ReduceFilterToDistinct`, `UnwrapSimpleDistinctColumn`).
+        if (!NeedOnlyDistinct_) {
+            SubquerySortDescription_ = sortDescription;
+        }
     }
+    // - Then on a coordinator node, when all data is already transformed on worker nodes and CH only needs to
+    //   aggregate it from all remote hosts. However, since part of data is already 'lost' (columns b and c are not selected),
+    //   there's no way for a CH engine to merge sorted streams from remote hosts so that the resulting stream still
+    //   complies to {a, b, c} sorting, only to {a}. Therefore we drop {b, c} from the coordinator's sort description.
+    //   Simply put, we keep the longest prefix of sort columns that are selected:
+    const auto& selectColumns = queryNode->getProjectionColumns();
+    for (const auto& sortColumn : sortDescription) {
+        auto isSortColumn = [&] (const auto& selectColumn) { return selectColumn.name == sortColumn.column_name; };
+        if (std::ranges::none_of(selectColumns, isSortColumn)) {
+            break;
+        }
+        CoordinatorSortDescription_.push_back(sortColumn);
+    }
+    // NB: It's okay to have a coordinator sort description without a subquery sort description.
+    // Even if a subquery doesn't have a sort description its output data will be sorted by the CH query engine. Therefore:
+    // - output data within every subquery is sorted
+    // - subqueries process boundary-sorted non-overlapping sets of chunks
+    // - coordinator concats subqueries output in the order of subquery boundaries
+    // Which means that in the read-in-order case the resulting data stream [secondary_0_out; secondary_1_out; ...]
+    // will be sorted. Hence the coordinator will (almost) always have a sort description.
 }
 
 TQueryAnalysisResult TQueryAnalyzer::Analyze() const
@@ -1517,11 +1549,17 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
     }
 
     result.ReadInOrderMode = ReadInOrderMode_;
-    result.SortDescription = SortDescription_;
+    result.SubquerySortDescription = SubquerySortDescription_;
+    result.CoordinatorSortDescription = CoordinatorSortDescription_;
 
     if (ReadInOrderMode_ != EReadInOrderMode::None) {
         result.PoolKind = EPoolKind::Sorted;
-        result.KeyColumnCount = GetAscendingKeyPrefixLength(*Storages_[0]->GetSchema());
+        auto prefixLen = GetAscendingKeyPrefixLength(*Storages_[0]->GetSchema());
+        // For a read-in-order query such as `SELECT DISTINCT k1, value FROM t ORDER BY k1, k2, k3` we
+        // use min(len([k1]), len([k1, k2, k3])) — which is 1 — telling the sorted chunk pool to split
+        // chunks by a key that would produce correct results (if we split by (k1, k2, k3) then the same k1 value
+        // could be distributed across multiple secondary nodes thus producing an output with k1 duplicates)
+        result.KeyColumnCount = KeyColumnCount_ == 0 ? prefixLen : std::min(KeyColumnCount_, prefixLen);
     } else {
         result.PoolKind = (KeyColumnCount_ > 0 ? EPoolKind::Sorted : EPoolKind::Unordered);
         result.KeyColumnCount = KeyColumnCount_;

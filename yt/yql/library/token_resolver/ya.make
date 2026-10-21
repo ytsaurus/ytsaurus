@@ -15,11 +15,11 @@ IF (OS_LINUX)
     )
 
     PEERDIR(
+        yt/yql/library/token_service
         yql/essentials/core/credentials
         yql/essentials/utils
         yql/essentials/utils/log
         yt/yt/core
-        yt/yt/ytlib
     )
 ENDIF()
 

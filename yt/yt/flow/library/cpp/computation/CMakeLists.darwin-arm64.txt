@@ -30,6 +30,7 @@ target_compile_options(library-cpp-computation PRIVATE
 target_link_libraries(library-cpp-computation PUBLIC
   contrib-libs-cxxsupp
   yutil
+  contrib-libs-pdqsort
   cpp-containers-absl
   cpp-containers-insert_only_concurrent_cache
   library-cpp-iterator
@@ -95,6 +96,7 @@ target_compile_options(library-cpp-computation.global PRIVATE
 target_link_libraries(library-cpp-computation.global PUBLIC
   contrib-libs-cxxsupp
   yutil
+  contrib-libs-pdqsort
   cpp-containers-absl
   cpp-containers-insert_only_concurrent_cache
   library-cpp-iterator

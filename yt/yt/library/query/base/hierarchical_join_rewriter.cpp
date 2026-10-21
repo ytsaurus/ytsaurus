@@ -218,9 +218,9 @@ TSplitSubqueryResult SplitSubquery(const TConstSubqueryExpressionPtr& originalSu
             }
             joiningSubquery->WhereClause = IsTrue(nonForeignFilter) ? nullptr : nonForeignFilter;
         } else {
-            // Left join: foreign-only WHERE predicates must remain in WhereClause so they
-            // act as post-join filters on NULL rows produced for unmatched left-side keys.
-            // GetJoinSubquery() will still extract them for efficient foreign-table fetch.
+            // Left join: retain WHERE after the join. Pushing it into the foreign
+            // fetch can remove every real match and create a NULL-padded row
+            // that satisfies the predicate.
             joiningSubquery->WhereClause = originalSubquery->WhereClause;
         }
 

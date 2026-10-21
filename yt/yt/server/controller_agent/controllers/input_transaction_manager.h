@@ -56,7 +56,6 @@ public:
 private:
     std::optional<std::string> LocalClusterName_;
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_TYPE(TClusterResolver, 0xc4a8f2d5);
 };
 

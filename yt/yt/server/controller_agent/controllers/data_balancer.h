@@ -69,7 +69,6 @@ private:
 
     NLogging::TSerializableLogger Logger;
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_TYPE(TDataBalancer, 0x6f1d3e7b);
 
     TNode& GetOrRegisterNode(NNodeTrackerClient::TNodeId nodeId);

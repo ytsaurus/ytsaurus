@@ -17,6 +17,7 @@
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <set>
 
@@ -257,14 +258,13 @@ std::vector<TVisit> TKeyVisitor::GetNextBatch(i64 batchSize)
     return result;
 }
 
-THashMap<TStreamId, TInflightStreamTraverseDataPtr> TKeyVisitor::BuildInflight() const
+THashMap<TStreamId, TInflightStreamTraverseDataPtr> TKeyVisitor::BuildInflight(TSystemTimestamp now) const
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Context_->SerializedInvoker);
     auto inflight = New<TInflightStreamTraverseData>();
     inflight->Suspended = DynamicContext_->Draining;
     inflight->Empty =
         Store_->IsCurrentPassFinal() && Store_->IsAllCommitted() && Buffer_.empty();
-    inflight->InflightMetrics->Count = inflight->Empty ? 0 : BufferRowCount_;
     inflight->InflightMetrics->ReadyCount = BufferRowCount_;
     if (inflight->Empty) {
         inflight->InflightMetrics->NewCountPerSec = 0;
@@ -273,10 +273,23 @@ THashMap<TStreamId, TInflightStreamTraverseDataPtr> TKeyVisitor::BuildInflight()
         const auto keyRate = ScannedKeyRate_.GetLastRate().value_or(ScannedKeyRate_.GetTotal());
         const auto hashRate = ScannedHashRate_.GetLastRate().value_or(ScannedHashRate_.GetTotal());
         if (hashRate > 0) {
-            inflight->InflightMetrics->NewCountPerSec = keyRate / hashRate *
-                GetRangeHashSpan(Context_->PartitionRange) / DynamicContext_->DynamicSpec->Period.SecondsFloat();
+            double estimatedKeyCount = keyRate / hashRate * GetRangeHashSpan(Context_->PartitionRange);
+            double periodSeconds = DynamicContext_->DynamicSpec->Period.SecondsFloat();
+            inflight->InflightMetrics->NewCountPerSec = estimatedKeyCount / periodSeconds;
+            if (auto passStartedAt = Store_->GetMinPassStartedAt(); passStartedAt && now > *passStartedAt) {
+                double elapsedSeconds = now.Underlying() - passStartedAt->Underlying();
+                // Missed periods do not enqueue extra passes; scanned work already includes the buffer.
+                double overdueFraction = std::max(
+                    0.0,
+                    std::min(1.0, elapsedSeconds / periodSeconds) - Store_->GetScannedFraction());
+                double readyCount = BufferRowCount_ + std::ceil(estimatedKeyCount * overdueFraction);
+                inflight->InflightMetrics->ReadyCount = readyCount >= static_cast<double>(std::numeric_limits<i64>::max())
+                    ? std::numeric_limits<i64>::max()
+                    : static_cast<i64>(readyCount);
+            }
         }
     }
+    inflight->InflightMetrics->Count = *inflight->InflightMetrics->ReadyCount;
     inflight->InflightMetrics->OfferedCountPerSec = inflight->InflightMetrics->NewCountPerSec;
     inflight->InflightMetrics->ProcessedCountPerSec = ProcessedRate_.GetDecayedRate();
     if (!inflight->Empty && !Buffer_.empty() && !Buffer_.front().Visits.empty()) {

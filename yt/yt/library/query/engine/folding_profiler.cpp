@@ -1213,15 +1213,9 @@ size_t TExpressionProfiler::Profile(
     }
     fragments->DebugInfos.emplace_back(caseExpr, argIds, defaultExprId, optionalOperandId);
 
-    std::optional<EValueType> optionalOperandType;
-    if (caseExpr->OptionalOperand) {
-        optionalOperandType = caseExpr->OptionalOperand->GetWireType();
-    }
-
     fragments->Items.emplace_back(
         MakeCodegenCaseExpr(
             optionalOperandId,
-            optionalOperandType,
             std::move(whenThenExpressionIds),
             defaultExprId,
             caseExpr->GetWireType(),

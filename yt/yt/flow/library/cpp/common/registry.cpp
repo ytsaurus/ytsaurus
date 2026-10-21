@@ -4,6 +4,7 @@
 #include "computation_controller.h"
 #include "file_provider.h"
 #include "process_function.h"
+#include "process_function_graph.h"
 #include "resource.h"
 #include "resource_controller.h"
 #include "sink.h"
@@ -336,6 +337,9 @@ TPayloadMigrationFunction TRegistry::GetPayloadMigrationFunction(TStringBuf name
 
 void TRegistry::ValidateComputationSpec(const TComputationSpecPtr& spec) const
 {
+    THROW_ERROR_EXCEPTION_IF(spec->ProcessFunctionGraph,
+        "Computation with \"process_function_graph\" must be resolved first; the pipeline runner resolves it, "
+        "so start the pipeline binary instead of setting this spec directly");
     {
         const auto& typeName = spec->ComputationClassName;
         if (!TypeNameToComputationDescriptor_.contains(typeName)) {
@@ -558,6 +562,13 @@ ISyncProcessFunction* TRegistry::ViewProcessFunctionAsSync(const std::string& na
     return descriptor->SyncView(function.Get());
 }
 
+bool TRegistry::IsSyncProcessFunction(const std::string& name) const
+{
+    const auto* descriptor = FindProcessFunctionDescriptor(name);
+    THROW_ERROR_EXCEPTION_UNLESS(descriptor, "Unknown processing function %Qv", name);
+    return descriptor->OverridesSync;
+}
+
 NYTree::TYsonStructPtr TRegistry::ParseProcessFunctionParameters(const TComputationSpecPtr& spec) const
 {
     YT_VERIFY(spec->ProcessingFunction);
@@ -566,6 +577,45 @@ NYTree::TYsonStructPtr TRegistry::ParseProcessFunctionParameters(const TComputat
     auto parameters = descriptor->StaticParametersFactory();
     parameters->Load(ProcessingFunctionParametersNodeOrEmpty(spec->ProcessingFunctionParameters));
     return parameters;
+}
+
+void TRegistry::ValidateStaticProcessFunctionParameters(
+    const std::string& name,
+    const NYTree::IMapNodePtr& node) const
+{
+    const auto* descriptor = FindProcessFunctionDescriptor(name);
+    THROW_ERROR_EXCEPTION_UNLESS(descriptor, "Unknown processing function %Qv", name);
+    auto parameters = descriptor->StaticParametersFactory();
+    parameters->SetUnrecognizedStrategy(EUnrecognizedStrategy::ThrowRecursive);
+    parameters->Load(ProcessingFunctionParametersNodeOrEmpty(node));
+}
+
+void TRegistry::ValidateProcessFunctionGraphDynamicParameters(
+    const TComputationSpecPtr& spec,
+    const NYTree::IMapNodePtr& parameters) const
+{
+    auto graphParameters = ConvertTo<TProcessFunctionGraphParametersPtr>(spec->ProcessingFunctionParameters);
+    auto dynamicParameters = New<TProcessFunctionGraphDynamicParameters>();
+    dynamicParameters->SetUnrecognizedStrategy(EUnrecognizedStrategy::ThrowRecursive);
+    dynamicParameters->Load(ProcessingFunctionParametersNodeOrEmpty(parameters));
+    for (const auto& [nodeId, _] : dynamicParameters->Nodes) {
+        THROW_ERROR_EXCEPTION_UNLESS(graphParameters->Graph->Nodes.contains(nodeId),
+            "Unknown process function graph node %Qv in dynamic parameters",
+            nodeId);
+    }
+    for (const auto& [nodeId, node] : graphParameters->Graph->Nodes) {
+        try {
+            const auto* descriptor = FindProcessFunctionDescriptor(node->ProcessingFunction);
+            THROW_ERROR_EXCEPTION_UNLESS(descriptor, "Unknown processing function %Qv", node->ProcessingFunction);
+            auto typed = descriptor->DynamicParametersFactory();
+            typed->SetUnrecognizedStrategy(EUnrecognizedStrategy::ThrowRecursive);
+            auto it = dynamicParameters->Nodes.find(nodeId);
+            typed->Load(ProcessingFunctionParametersNodeOrEmpty(
+                it == dynamicParameters->Nodes.end() ? nullptr : it->second));
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Invalid dynamic parameters of process function graph node %Qv", nodeId).With(ex);
+        }
+    }
 }
 
 NYTree::TYsonStructPtr TRegistry::ParseDynamicProcessFunctionParameters(
@@ -645,6 +695,34 @@ std::vector<TError> TRegistry::ValidatePipelineSpecParseability(const NYTree::IM
                         ProcessingFunctionParametersNodeOrEmpty(computationSpec->ProcessingFunctionParameters),
                         &errors,
                         unrecognized);
+                    if (*computationSpec->ProcessingFunction == ProcessFunctionGraphFunctionName) {
+                        // The graph structure is validated by ValidatePipelineSpec(); node parameters are
+                        // checked here like parameters of any other processing function.
+                        auto parameters = DynamicPointerCast<TProcessFunctionGraphParameters>(
+                            ParseProcessFunctionParameters(computationSpec));
+                        YT_VERIFY(parameters);
+                        for (const auto& [nodeId, node] : parameters->Graph->Nodes) {
+                            const auto* nodeDescriptor = FindProcessFunctionDescriptor(node->ProcessingFunction);
+                            if (!nodeDescriptor) {
+                                errors.push_back(TError("Unknown processing function %Qv in process function graph node %Qv of computation %Qv",
+                                    node->ProcessingFunction,
+                                    nodeId,
+                                    computationName));
+                                continue;
+                            }
+                            // clang-format off
+                            ValidateParameters(
+                                "static_pipeline_spec",
+                                Format("/computations/%v/processing_function_parameters/graph/nodes/%v/processing_function_parameters",
+                                    computationName,
+                                    nodeId),
+                                nodeDescriptor->StaticParametersFactory,
+                                ProcessingFunctionParametersNodeOrEmpty(node->ProcessingFunctionParameters),
+                                &errors,
+                                unrecognized);
+                            // clang-format on
+                        }
+                    }
                     if (functionDescriptor->OverridesSync &&
                         !GetComputationDescriptor(computationSpec->ComputationClassName).InvokesProcessFunctionSync)
                     {
@@ -759,6 +837,11 @@ std::vector<TError> TRegistry::ValidateDynamicPipelineSpecParseability(const TPi
                         ProcessingFunctionParametersNodeOrEmpty(dynamicComputationSpec->ProcessingFunctionParameters),
                         &errors,
                         unrecognized);
+                    if (*computationSpec->ProcessingFunction == ProcessFunctionGraphFunctionName) {
+                        ValidateProcessFunctionGraphDynamicParameters(
+                            computationSpec,
+                            dynamicComputationSpec->ProcessingFunctionParameters);
+                    }
                 }
             }
 

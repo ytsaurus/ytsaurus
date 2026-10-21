@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 SRCS(
     entity_builders.cpp
     in_memory_external_state_manager.cpp
+    process_function_graph_test_harness.cpp
     process_function_test_harness.cpp
     recording_output_collector.cpp
     test_runtime_context.cpp

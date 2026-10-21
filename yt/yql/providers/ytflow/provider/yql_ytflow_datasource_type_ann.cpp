@@ -82,11 +82,7 @@ private:
     }
 
     TStatus HandlePersistentSource(const TExprNode::TPtr& input, TExprContext& ctx) {
-        if (!EnsureArgsCount(*input, 2, ctx)) {
-            return TStatus::Error;
-        }
-
-        if (!EnsureAtom(*input->Child(TYtflowPersistentSource::idx_Name), ctx)) {
+        if (!EnsureArgsCount(*input, 1, ctx)) {
             return TStatus::Error;
         }
 

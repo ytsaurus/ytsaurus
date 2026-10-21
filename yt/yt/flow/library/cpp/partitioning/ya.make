@@ -11,6 +11,7 @@ SRCS(
 PEERDIR(
     library/cpp/iterator
     yt/yt/flow/library/cpp/common
+    yt/yt/flow/library/cpp/throughput_autoscaler
 )
 
 END()

@@ -733,12 +733,12 @@ protected:
         return action;
     }
 
-    TFuture<void> InitBlockFetcher();
+    TFuture<void> InitBlockFetcher(IInvokerPtr sessionInvoker = nullptr);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> THorizontalSchemalessChunkReaderBase::InitBlockFetcher()
+TFuture<void> THorizontalSchemalessChunkReaderBase::InitBlockFetcher(IInvokerPtr sessionInvoker)
 {
     YT_TLOG_DEBUG("Reading blocks")
         .With("BlockCount", BlockIndexes_.size());
@@ -759,7 +759,7 @@ TFuture<void> THorizontalSchemalessChunkReaderBase::InitBlockFetcher()
         });
     }
 
-    return DoOpen(std::move(blocks), ChunkMeta_->Misc());
+    return DoOpen(std::move(blocks), ChunkMeta_->Misc(), std::move(sessionInvoker));
 }
 
 TDataStatistics THorizontalSchemalessChunkReaderBase::GetDataStatistics() const
@@ -795,7 +795,8 @@ public:
         std::optional<TPartitionTags> partitionTags,
         const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
         std::optional<i64> virtualRowIndex,
-        int interruptDescriptorKeyLength)
+        int interruptDescriptorKeyLength,
+        IInvokerPtr sessionInvoker)
         : THorizontalSchemalessChunkReaderBase(
             columnEvaluatorCache,
             chunkState,
@@ -816,6 +817,7 @@ public:
             virtualRowIndex)
         , ReadRange_(readRange)
         , InterruptDescriptorKeyLength_(interruptDescriptorKeyLength)
+        , SessionInvoker_(std::move(sessionInvoker))
     { }
 
     void InitializeRefCounted()
@@ -864,7 +866,7 @@ public:
         // RowIndex_ is set into proper value.
         // Must be called after the object is constructed and vtable initialized.
         SetReadyEvent(
-            InitBlockFetcher()
+            InitBlockFetcher(SessionInvoker_)
             .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
                 if (!error.IsOK()) {
                     THROW_ERROR_EXCEPTION("Failed to initialize chunk reader")
@@ -887,6 +889,7 @@ private:
     TReadRange ReadRange_;
 
     const int InterruptDescriptorKeyLength_;
+    const IInvokerPtr SessionInvoker_;
 
     void InitFirstBlock() override;
     void InitNextBlock() override;
@@ -1867,7 +1870,8 @@ public:
         const TReadRange& readRange,
         const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
         std::optional<i64> virtualRowIndex,
-        int interruptDescriptorKeyLength)
+        int interruptDescriptorKeyLength,
+        IInvokerPtr sessionInvoker)
         : TSchemalessChunkReaderBase(
             chunkState->ChunkSpec,
             config,
@@ -1936,7 +1940,7 @@ public:
 
         // We must continue initialization and set RowIndex_ before
         // ReadyEvent is set for the first time.
-        InitBlockFetcher();
+        InitBlockFetcher(std::move(sessionInvoker));
     }
 
     void InitializeRefCounted()
@@ -2785,7 +2789,8 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     std::optional<TPartitionTags> partitionTags,
     const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
     std::optional<i64> virtualRowIndex,
-    int interruptDescriptorKeyLength)
+    int interruptDescriptorKeyLength,
+    IInvokerPtr sessionInvoker)
 {
     YT_VERIFY(chunkState && chunkState->TableSchema);
     auto chunkSortColumns = chunkMeta->ChunkSchema()->GetSortColumns(
@@ -2834,7 +2839,8 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
                 std::move(partitionTags),
                 memoryManagerHolder,
                 virtualRowIndex,
-                interruptDescriptorKeyLength);
+                interruptDescriptorKeyLength,
+                std::move(sessionInvoker));
 
         case EChunkFormat::TableUnversionedColumnar:
             return New<TColumnarSchemalessRangeChunkReader>(
@@ -2855,7 +2861,8 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
                 readRange,
                 memoryManagerHolder,
                 virtualRowIndex,
-                interruptDescriptorKeyLength);
+                interruptDescriptorKeyLength,
+                std::move(sessionInvoker));
 
         default:
             YT_ABORT();

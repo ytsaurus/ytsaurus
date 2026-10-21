@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import spyt  # isort: skip  # Apply SPYT patches before importing pyspark.
+
 import logging
 import glob
 import getpass
@@ -13,8 +15,10 @@ import spyt.utils
 import sys
 
 from contextlib import contextmanager
-from yt.wrapper import YtClient
-from yt.wrapper.http_helpers import get_user_name
+
+
+FILE_FORMATS = ("text", "orc", "parquet", "csv", "json")
+WRITE_MODES = ("overwrite", "append")
 
 def error_exit(message):
     logging.critical(message)
@@ -33,7 +37,7 @@ def find_hive_jars():
 
 def _create_spark_conf(args):
     conf = pyspark.SparkConf()
-    conf.set("spark.app.name", "Data import")
+    conf.set("spark.app.name", "Data transfer")
     conf.set("spark.executor.instances", args.num_executors)
     conf.set("spark.executor.cores", args.cores_per_executor)
     conf.set("spark.executor.memory", args.executor_memory)
@@ -107,9 +111,25 @@ def split_by(inp, sep):
 
 def extract_fmt_path(input_path):
     fmt, path = split_by(input_path, ':')
-    if not fmt:
+    if not fmt or not path:
         error_exit("--input must be in <source>:<path> format")
     return fmt, path
+
+def extract_output(output_path):
+    """Parse [mode:][format:]path, defaulting legacy output paths to YT."""
+    prefix, path = split_by(output_path, ':')
+    mode = None
+    if prefix in WRITE_MODES:
+        mode = prefix
+        prefix, path = split_by(path, ':')
+
+    fmt = prefix if prefix is not None else "yt"
+    if fmt not in ("yt",) + FILE_FORMATS:
+        error_exit("Unsupported output format {}. Use [overwrite:|append:]<format>:<path> "
+                   "or [overwrite:|append:]<YT path>".format(fmt))
+    if not path:
+        error_exit("--output must provide a non-empty destination path")
+    return mode, fmt, path
 
 def validate_args(args, input_path, output_path):
     fmt, path = extract_fmt_path(input_path)
@@ -121,19 +141,19 @@ def validate_args(args, input_path, output_path):
     elif fmt == "jdbc" or fmt == "jdbc_sql":
         if not args.jdbc_server:
             error_exit("--jdbc_server must provide host:port for JDBC server")
-    elif fmt == "text" or fmt == "orc" or fmt == "parquet" or fmt == "local_parquet":
+    elif fmt in ("yt", "local_parquet") + FILE_FORMATS:
         pass
     else:
         error_exit("Unsupported input format {}".format(fmt))
 
-    mode, out = split_by(output_path, ':')
-    if mode and mode != "overwrite" and mode != "append":
-        error_exit("output write mode must be one of: overwrite, append")
+    extract_output(output_path)
 
 def read_input(args, spark, input_path):
     fmt, path = extract_fmt_path(input_path)
 
-    if fmt == "hive":
+    if fmt == "yt":
+        return spark.read.yt(path)
+    elif fmt == "hive":
         return spark.read.table(path)
     elif fmt == "hive_sql":
         db, sql = split_by(path, ':')
@@ -145,25 +165,38 @@ def read_input(args, spark, input_path):
     elif fmt == "jdbc_sql":
         db, sql = split_by(path, ':')
         return read_jdbc(args, spark, db).option('dbtable', '({}) as r'.format(sql)).load()
-    elif fmt == "text":
-        return spark.read.text(path)
-    elif fmt == "orc":
-        return spark.read.orc(path)
-    elif fmt == "parquet":
-        return spark.read.parquet(path)
+    elif fmt in FILE_FORMATS:
+        return spark.read.format(fmt).load(path)
     elif fmt == "local_parquet":
         import pandas as pd
         return spark.createDataFrame(pd.read_parquet(path, engine='pyarrow'))
 
+def cast_uint64_to_decimal(data):
+    """Convert top-level SPYT uint64 columns for Spark file writers."""
+    from pyspark.sql.functions import col
+    from spyt.types import UInt64Type
+
+    for field in data.schema.fields:
+        if isinstance(field.dataType, UInt64Type):
+            quoted = "`{}`".format(field.name.replace("`", "``"))
+            data = data.withColumn(field.name, col(quoted).cast("string").cast("decimal(20,0)"))
+    return data
+
 def write_output(data, output_path):
-    mode, out = split_by(output_path, ':')
+    mode, fmt, out = extract_output(output_path)
+
+    if fmt != "yt":
+        data = cast_uint64_to_decimal(data)
 
     data_write = data.write
 
     if mode:
         data_write = data_write.mode(mode)
 
-    data_write.yt(out)
+    if fmt == "yt":
+        data_write.yt(out)
+    else:
+        data_write.format(fmt).save(out)
 
 
 @contextmanager
@@ -210,10 +243,12 @@ def main():
                         help="Tmpfs limit for SPYT node, when starting a cluster")
 
     parser.add_argument("--input", action='append', default=[],
-                        help="Identifier for the imported object. " \
-                        "Refer to documentation in import.md on how to describe imported data.")
+                        help="Source in <format>:<path> form, e.g. yt://home/user/table or "
+                        "parquet:s3a://bucket/path. See import.md for all formats.")
     parser.add_argument("--output", action='append', default=[],
-                        help="Path in YT to store imported data")
+                        help="Destination in [overwrite:|append:]<format>:<path> form. "
+                        "Formats: yt, text, orc, parquet, csv, json. A path without a format "
+                        "is a YT destination for compatibility.")
 
     parser.add_argument("--jdbc", required=False, help="JDBC driver type")
     parser.add_argument("--jdbc-server", required=False)

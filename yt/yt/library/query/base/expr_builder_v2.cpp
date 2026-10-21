@@ -73,6 +73,7 @@ struct TAliasResolver
 
     bool AfterGroupBy = false;
     bool NeedSubstitute = false;
+    ETotalsMode TotalsMode = ETotalsMode::None;
 
     const TNamedItemList* GroupItems = nullptr;
     TAggregateItemList* AggregateItems = nullptr;
@@ -150,7 +151,7 @@ public:
         return InferColumnName(expressionsAst);
     }
 
-    void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems) override
+    void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems, ETotalsMode totalsMode) override
     {
         auto* aliasResolver = AliasResolvers_.back().get();
 
@@ -159,6 +160,7 @@ public:
         aliasResolver->GroupItems = groupItems;
         aliasResolver->AggregateItems = aggregateItems;
         aliasResolver->AfterGroupBy = true;
+        aliasResolver->TotalsMode = totalsMode;
     }
 
 private:
@@ -447,7 +449,11 @@ TConstExpressionPtr TExpressionBuilderV2::OnColumnReference(const NAst::TColumnR
             for (const auto& [expression, name] : *groupItems) {
                 // TODO(lukyan): InferColumnName(reference) instead of reference.ColumnName?
                 if (name == reference.ColumnName) {
-                    return New<TReferenceExpression>(expression->LogicalType, reference.ColumnName);
+                    auto type = expression->LogicalType;
+                    if (aliasResolver->TotalsMode != ETotalsMode::None) {
+                        type = MakeOptionalIfNot(type);
+                    }
+                    return New<TReferenceExpression>(type, reference.ColumnName);
                 }
             }
         }
@@ -1042,6 +1048,12 @@ TConstExpressionPtr TExpressionBuilderV2::OnTransformOp(
 
 TConstExpressionPtr TExpressionBuilderV2::OnCaseOp(const NAst::TCaseExpression* caseExpr)
 {
+    if (std::ssize(caseExpr->WhenThenExpressions) > MaxWhenThenExpressionCount) {
+        THROW_ERROR_EXCEPTION("Maximum WHEN/THEN expression count exceeded")
+            .With("when_then_expression_count", std::ssize(caseExpr->WhenThenExpressions))
+            .With("max_when_then_expression_count", MaxWhenThenExpressionCount);
+    }
+
     auto source = caseExpr->GetSource(Source_);
 
     TConstExpressionPtr typedOptionalOperand;
@@ -1228,19 +1240,14 @@ TGroupClausePtr BuildGroupClause(
 
     builder->SetGroupData(
         &groupClause->GroupItems,
-        &groupClause->AggregateItems);
+        &groupClause->AggregateItems,
+        totalsMode);
 
     return groupClause;
 }
 
 TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression* queryExpr)
 {
-    if (Context_.Options.SyntaxVersion >= 3) {
-        THROW_ERROR_EXCEPTION(
-            "Scalar subqueries are not implemented for syntax version %v",
-            Context_.Options.SyntaxVersion);
-    }
-
     // COMPAT(dtorilov): Remove after 26.2.
     if (!Context_.Options.EnableScalarSubqueryOrderByAndLimit &&
         (!queryExpr->Query.OrderExpressions.empty() || queryExpr->Query.Offset || queryExpr->Query.Limit))

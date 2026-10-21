@@ -19,6 +19,10 @@ type Encoder struct {
 	schema *Schema
 }
 
+// RawRow is a row already encoded in skiff according to the encoder schema, without the leading table index.
+// Decoder.Scan fills it with the current row without system columns.
+type RawRow []byte
+
 // NewEncoder creates encoder for writing rows into w.
 func NewEncoder(w io.Writer, schema Schema) (*Encoder, error) {
 	e := &Encoder{
@@ -373,6 +377,11 @@ func (e *Encoder) getTranscoder(typ reflect.Type) (ops []fieldOp, err error) {
 func (e *Encoder) Write(value any) error {
 	e.w.writeUint16(0) // variant tag
 	if e.w.err != nil {
+		return e.w.err
+	}
+
+	if raw, ok := value.(RawRow); ok {
+		_, e.w.err = e.w.w.Write(raw)
 		return e.w.err
 	}
 

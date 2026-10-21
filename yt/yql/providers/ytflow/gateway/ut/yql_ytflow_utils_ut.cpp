@@ -22,7 +22,7 @@ namespace {
         NCommon::ALL_CLUSTERS,
         name,
         TMaybe<TString>(std::move(value)),
-        NCommon::TSettingDispatcher::EStage::STATIC,
+        NCommon::ISettingDispatcher::EStage::STATIC,
         [&error](const TString& message, bool) {
             error = message;
             return false;

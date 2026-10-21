@@ -599,6 +599,41 @@ func (e *Encoder) WriteTableFragment(
 	return nil, xerrors.New("implement me")
 }
 
+var _ yt.DistributedWriteFileClient = (*client)(nil)
+
+func (e *Encoder) StartDistributedWriteFileSession(
+	ctx context.Context,
+	path ypath.YPath,
+	options *yt.StartDistributedWriteFileSessionOptions,
+) (result yt.DistributedWriteFileSessionWithCookies, err error) {
+	return yt.DistributedWriteFileSessionWithCookies{}, xerrors.New("implement me")
+}
+
+func (e *Encoder) PingDistributedWriteFileSession(
+	ctx context.Context,
+	session yt.DistributedWriteFileSession,
+	options *yt.PingDistributedWriteFileSessionOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+func (e *Encoder) FinishDistributedWriteFileSession(
+	ctx context.Context,
+	session yt.DistributedWriteFileSession,
+	results []yt.WriteFileFragmentResult,
+	options *yt.FinishDistributedWriteFileSessionOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+func (e *Encoder) WriteFileFragment(
+	ctx context.Context,
+	cookie yt.WriteFileFragmentCookie,
+	options *yt.FileFragmentWriterOptions,
+) (w yt.FileFragmentWriter, err error) {
+	return nil, xerrors.New("implement me")
+}
+
 var _ yt.TabletClient = (*client)(nil)
 
 func (e *Encoder) SelectRows(
@@ -1297,12 +1332,13 @@ func (e *Encoder) ReshardTable(
 	}
 
 	req := &rpc_proxy.TReqReshardTable{
-		Path:               []byte(path.YPath().String()),
-		TabletCount:        intPtrToInt32Ptr(opts.TabletCount),
-		Uniform:            nil, // todo
-		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
-		TabletRangeOptions: convertTabletRangeOptions(opts.TabletRangeOptions),
-		RowsetDescriptor:   nil,
+		Path:                  []byte(path.YPath().String()),
+		TabletCount:           intPtrToInt32Ptr(opts.TabletCount),
+		Uniform:               nil, // todo
+		MutatingOptions:       convertMutatingOptions(opts.MutatingOptions),
+		TabletRangeOptions:    convertTabletRangeOptions(opts.TabletRangeOptions),
+		RowsetDescriptor:      nil,
+		CumulativeDataWeights: opts.CumulativeDataWeights,
 	}
 
 	call := e.newCall(MethodReshardTable, NewReshardTableRequest(req), attachments)

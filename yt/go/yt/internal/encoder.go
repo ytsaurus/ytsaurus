@@ -755,6 +755,16 @@ func (e *Encoder) WriteTableFragment(
 	options *yt.TableFragmentWriterOptions,
 ) (w yt.TableFragmentWriter, err error) {
 	call := e.newCall(NewWriteTableFragmentParams(cookie, options))
+	if options != nil && options.Format != nil {
+		skiffFormat, ok := options.Format.(skiff.Format)
+		if !ok {
+			return nil, xerrors.Errorf("unexpected format: %+v", options.Format)
+		}
+		if _, err := skiff.SingleSchema(&skiffFormat); err != nil {
+			return nil, err
+		}
+		call.Format = options.Format
+	}
 	call.WriteRspChan = make(chan *CallResult, 1)
 
 	rowWriter, err := e.InvokeWriteRow(ctx, call)
@@ -785,6 +795,76 @@ func (w *tableFragmentWriter) Commit() error {
 }
 
 func (w *tableFragmentWriter) Result() yt.WriteFragmentResult {
+	return w.result
+}
+
+var _ yt.DistributedWriteFileClient = (*Encoder)(nil)
+
+func (e *Encoder) StartDistributedWriteFileSession(
+	ctx context.Context,
+	path ypath.YPath,
+	options *yt.StartDistributedWriteFileSessionOptions,
+) (result yt.DistributedWriteFileSessionWithCookies, err error) {
+	call := e.newCall(NewStartDistributedWriteFileSessionParams(path, options))
+	err = e.do(ctx, call, StartDistributedWriteFileSessionResultDecoder(&result))
+	return
+}
+
+func (e *Encoder) PingDistributedWriteFileSession(
+	ctx context.Context,
+	session yt.DistributedWriteFileSession,
+	options *yt.PingDistributedWriteFileSessionOptions,
+) (err error) {
+	call := e.newCall(NewPingDistributedWriteFileSessionParams(session, options))
+	return e.do(ctx, call, noopResultDecoder)
+}
+
+func (e *Encoder) FinishDistributedWriteFileSession(
+	ctx context.Context,
+	session yt.DistributedWriteFileSession,
+	results []yt.WriteFileFragmentResult,
+	options *yt.FinishDistributedWriteFileSessionOptions,
+) (err error) {
+	call := e.newCall(NewFinishDistributedWriteFileSessionParams(session, results, options))
+	return e.do(ctx, call, noopResultDecoder)
+}
+
+func (e *Encoder) WriteFileFragment(
+	ctx context.Context,
+	cookie yt.WriteFileFragmentCookie,
+	options *yt.FileFragmentWriterOptions,
+) (w yt.FileFragmentWriter, err error) {
+	call := e.newCall(NewWriteFileFragmentParams(cookie, options))
+	call.WriteRspChan = make(chan *CallResult, 1)
+
+	fileWriter, err := e.InvokeWrite(ctx, call)
+	if err != nil {
+		return nil, err
+	}
+	return &fileFragmentWriter{WriteCloser: fileWriter, rspChan: call.WriteRspChan}, nil
+}
+
+// fileFragmentWriter adapts a low-level file writer to yt.FileFragmentWriter,
+// capturing the signed fragment result returned by the server after Close.
+type fileFragmentWriter struct {
+	io.WriteCloser
+
+	rspChan chan *CallResult
+	result  yt.WriteFileFragmentResult
+}
+
+func (w *fileFragmentWriter) Close() error {
+	if err := w.WriteCloser.Close(); err != nil {
+		return err
+	}
+	res, ok := <-w.rspChan
+	if !ok || res == nil {
+		return xerrors.New("write_file_fragment: server did not return a fragment result")
+	}
+	return WriteFileFragmentResultDecoder(&w.result)(res)
+}
+
+func (w *fileFragmentWriter) Result() yt.WriteFileFragmentResult {
 	return w.result
 }
 

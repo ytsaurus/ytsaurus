@@ -283,6 +283,8 @@ private:
     const IChaosAgentPtr ChaosAgent_;
 
     TQueueReplicaSelector QueueReplicaSelector_;
+    TReplicaId PartialFailureReplicaId_;
+    int PartialFailureCount_ = 0;
     ui64 ReplicationRound_ = 0;
     TReplicationProgress LastReplicationProgressAdvance_;
     TPerFiberClusterClientCache ReplicatorClientCache_;
@@ -290,6 +292,47 @@ private:
 
     TPeriodicExecutorPtr ReplicationExecutor_;
     std::atomic<EPullerSkipReason> SkipReason_ = EPullerSkipReason::Unknown;
+
+    void ResetQueueReplicaSelectionState()
+    {
+        QueueReplicaSelector_.ResetLastPulledFromReplicaId();
+        PartialFailureReplicaId_ = NullObjectId;
+        PartialFailureCount_ = 0;
+    }
+
+    void ProcessPullRowsSubrequestErrors(
+        TReplicaId queueReplicaId,
+        const std::vector<TError>& subrequestErrors)
+    {
+        if (PartialFailureReplicaId_ != queueReplicaId) {
+            PartialFailureReplicaId_ = queueReplicaId;
+            PartialFailureCount_ = 0;
+        }
+
+        if (subrequestErrors.empty()) {
+            PartialFailureCount_ = 0;
+            return;
+        }
+
+        ++PartialFailureCount_;
+
+        YT_TLOG_DEBUG("Pull rows request partially failed")
+            .With("QueueReplicaId", queueReplicaId)
+            .WithFormat("PartialFailureCount", "%v/%v", PartialFailureCount_, MountConfig_->TablePullerMaxPartialFailures);
+
+        if (PartialFailureCount_ >= MountConfig_->TablePullerMaxPartialFailures) {
+            auto error = TError("Queue replica repeatedly returned partial pull rows results")
+                .With("partial_failure_count", PartialFailureCount_)
+                .With("max_partial_failures", MountConfig_->TablePullerMaxPartialFailures)
+                .With(subrequestErrors);
+
+            YT_TLOG_WARNING("Banning queue replica due to repeated partial pull rows failures")
+                .With("QueueReplicaId", queueReplicaId)
+                .With(error);
+            ResetQueueReplicaSelectionState();
+            QueueReplicaSelector_.GetBannedReplicaTracker().BanReplica(queueReplicaId, std::move(error));
+        }
+    }
 
     void UpdatePullerErrors(TTabletErrors& tabletErrors, TError currentPullError)
     {
@@ -475,7 +518,7 @@ private:
                 YT_TLOG_DEBUG("Will not pull rows since tablet write mode does not imply pulling")
                     .With("WriteMode", writeMode);
                 UpdatePullerErrors(tabletSnapshot->TabletRuntimeData->Errors, TError());
-                QueueReplicaSelector_.ResetLastPulledFromReplicaId();
+                ResetQueueReplicaSelectionState();
                 return;
             }
 
@@ -515,7 +558,7 @@ private:
                     LastReplicationProgressAdvance_ = std::move(*newProgress);
                 }
 
-                QueueReplicaSelector_.ResetLastPulledFromReplicaId();
+                ResetQueueReplicaSelectionState();
             } else {
                 QueueReplicaSelector_.GetBannedReplicaTracker().SyncReplicas(replicationCard);
                 DoPullRows(
@@ -532,7 +575,7 @@ private:
                 SkipReason_.store(EPullerSkipReason::Failed);
             }
 
-            QueueReplicaSelector_.ResetLastPulledFromReplicaId();
+            ResetQueueReplicaSelectionState();
             auto error = TError(ex);
             YT_TLOG_ERROR("Error pulling rows, backing off")
                 .With(error);
@@ -714,6 +757,8 @@ private:
                     .With("versioned_result", result.Versioned)
                     .With(HardErrorAttribute);
             }
+
+            ProcessPullRowsSubrequestErrors(queueReplicaId, result.SubrequestErrors);
 
             auto rowCount = result.RowCount;
             auto dataWeight = result.DataWeight;

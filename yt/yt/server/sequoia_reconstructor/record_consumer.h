@@ -1,9 +1,11 @@
 #pragma once
 
-#include "helpers.h"
 #include "config.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
+
+#include <yt/cpp/mapreduce/interface/fwd.h>
 
 namespace NYT::NSequoiaReconstructor {
 
@@ -21,8 +23,6 @@ struct IRecordConsumer
 
 struct TRecordsConsumer
 {
-    TRecordsConsumer(TSequoiaReconstructorConfigPtr config);
-
     // The records up to TransactionReplicas are written only in the map stage.
     std::unique_ptr<IRecordConsumer<NSequoiaClient::NRecords::TNodeIdToPath>> NodeIdToPath;
     std::unique_ptr<IRecordConsumer<NSequoiaClient::NRecords::TNodeFork>> NodeForks;
@@ -46,8 +46,23 @@ struct TRecordsConsumer
     // PathToNodeChanges are written in the map stage and are used for reduce stage.
     std::unique_ptr<IRecordConsumer<TPathToNodeChangeRecord>> PathToNodeChanges;
     // vector of PathToNodeChangeRecords is used for single cell single run, allowing to avoid additional reduce stage.
-    std::vector<TPathToNodeChangeRecord> PathToNodeChangeRecords;
+    std::shared_ptr<std::vector<TPathToNodeChangeRecord>> PathToNodeChangeRecords;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRecordsConsumer CreateSingleCellRecordsConsumer(TSingleCellSequoiaReconstructorConfigPtr config);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRecordsConsumer CreateMapperRecordsConsumer(TYtMapJobConfigPtr config, TTableWriter<TNode>* tableWriter);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRecordsConsumer CreateReducerRecordsConsumer(
+    TTableWriter<TNode>* tableWriter,
+    std::optional<int> pathToNodeIdTableIndex,
+    std::optional<int> pathForksTableIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

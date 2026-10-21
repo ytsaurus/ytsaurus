@@ -424,7 +424,8 @@ protected:
     TSystemTimestamp GetEpochWatermark(const TStreamId& streamId, ETimeType timeType) const;
 
     THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflights(
-        const IComputationRunContextPtr& context) const;
+        const IComputationRunContextPtr& context,
+        TSystemTimestamp now) const;
 
     struct TFilteredInputBatch
     {
@@ -523,11 +524,13 @@ protected:
 
     void InitOutputStoreDistribution(const IComputationRunContextPtr& context);
     void InitSinks();
+    bool HasSinkInflight() const;
 
     void Run(const IComputationRunContextPtr& context) final;
 
     virtual void DoPrepare(const IComputationRunContextPtr& context) = 0;
     virtual void DoExecute(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard) = 0;
+    void DrainOutputMessages(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard);
     void DoInterrupt(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard);
     void DoComplete(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard);
     void DoCleanup(const IComputationRunContextPtr& context, bool eraseOwnedState);

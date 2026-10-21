@@ -35,6 +35,9 @@ public class YaTestName extends CachedTestNames<String, TestIdentifier> {
 
     @Override
     protected String getClassNameImpl(TestIdentifier test) {
+        if (isClass(test)) {
+            return test.getLegacyReportingName();
+        }
         TestIdentifier parent = plan.getParent(test).orElseThrow(() -> new NoSuchElementException("No parent in test"));
         do {
             if (isClass(parent) || !plan.getParent(parent).isPresent()) {
@@ -47,6 +50,9 @@ public class YaTestName extends CachedTestNames<String, TestIdentifier> {
 
     @Override
     protected String getMethodNameImpl(TestIdentifier test) {
+        if (isClass(test)) {
+            return "[initialization]";
+        }
         String className = getClassName(test);
         String methodName = "";
         TestIdentifier parent = test;

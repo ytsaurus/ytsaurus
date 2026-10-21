@@ -13,6 +13,7 @@
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/payload_converter.h>
+#include <yt/yt/flow/library/cpp/common/process_function_graph.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/state.h>
 
@@ -38,6 +39,8 @@
 #include <yt/yt/library/query/engine_api/config.h>
 
 #include <yt/yt/client/api/transaction.h>
+
+#include <yt/yt/core/concurrency/async_rw_lock.h>
 
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/helpers.h>
@@ -492,6 +495,9 @@ private:
     const NTables::IPartitionStatesPtr PartitionStates_;
     const NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     const IInvokerPtr PoolInvoker_;
+    //! Serializes spec updates that validate the static and dynamic specs as a pair. Only the leader
+    //! persists specs (commits are fenced by its lease), so a lock in this process is enough.
+    TAsyncReaderWriterLock SpecUpdateLock_;
 
 private:
     TGetFlowViewResult GetFlowView(const TGetFlowViewArg& argument) override;
@@ -613,6 +619,8 @@ TSetPipelineDynamicSpecResult TLiveFlowExecutorRuntime::SetPipelineDynamicSpec(c
 
 TSetPipelineDynamicSpecResult TLiveFlowExecutorRuntime::DoSetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument)
 {
+    auto specUpdateGuard = WaitFor(TAsyncLockWriterGuard::Acquire(&SpecUpdateLock_))
+        .ValueOrThrow();
     auto versionedSpec = PersistedStateManager_->RecoverDynamicSpec();
     const auto originalVersion = versionedSpec->GetVersion();
     const auto expectedVersion = argument.ExpectedVersion.has_value() ? argument.ExpectedVersion.value() : originalVersion;
@@ -625,6 +633,7 @@ TSetPipelineDynamicSpecResult TLiveFlowExecutorRuntime::DoSetPipelineDynamicSpec
 
     auto newDynamicSpec = NYTree::ConvertTo<TDynamicPipelineSpecPtr>(specNode);
     ValidateDynamicPipelineSpec(newDynamicSpec);
+    ValidateProcessFunctionGraphDynamicSpec(PersistedStateManager_->RecoverSpec()->GetValue(), newDynamicSpec);
     versionedSpec->TrySetValue(newDynamicSpec, Controller_->GetVersionProvider());
 
     if (versionedSpec->GetVersion() != originalVersion) { // Persist only if there are changes.
@@ -731,6 +740,8 @@ TSetPipelineSpecsResult TLiveFlowExecutorRuntime::SetPipelineSpecs(const TSetPip
 
     for (int attempt = 0; attempt < Config_->SetSpecRetryCount; ++attempt) {
         try {
+            auto specUpdateGuard = WaitFor(TAsyncLockWriterGuard::Acquire(&SpecUpdateLock_))
+                .ValueOrThrow();
             auto spec = PersistedStateManager_->RecoverSpec();
             auto dynamicSpec = PersistedStateManager_->RecoverDynamicSpec();
             auto flowCoreTarget = PersistedStateManager_->RecoverFlowCoreTarget();
@@ -775,6 +786,9 @@ TSetPipelineSpecsResult TLiveFlowExecutorRuntime::SetPipelineSpecs(const TSetPip
                 // No version increment - no change.
                 break;
             }
+
+            // Node parameters of graphs are validated for the resulting pair of specs, regardless of strict validation.
+            ValidateProcessFunctionGraphDynamicSpec(spec->GetValue(), dynamicSpec->GetValue());
 
             CheckPipelineSafeForSpecUpdate(
                 keeper,

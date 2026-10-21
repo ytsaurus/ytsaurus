@@ -89,9 +89,8 @@ class Test(FlowTestPythonBase):
             self.wait_pipeline_state("completed")
             logging.info("pipeline completed")
             got_totals = {}
-            expr = f"* from [{self.pipeline_path}/states]"
-            for state in self.client.select_rows(expr):
-                yson_payload = yson.loads(state['state']['payload'].encode())
+            for state in self.read_internal_key_states("writer"):
+                yson_payload = yson.loads(yson.get_bytes(state["state"]["payload"]))
                 got_totals[yson_payload['word']] = yson_payload['count']
             logging.info("Got totals: %s", got_totals)
             logging.info("Expected totals: %s", self._expected_totals)

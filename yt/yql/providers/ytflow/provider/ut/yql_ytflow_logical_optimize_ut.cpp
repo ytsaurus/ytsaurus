@@ -4,6 +4,7 @@
 
 #include <yql/essentials/core/type_ann/type_ann_expr.h>
 #include <yql/essentials/core/yql_expr_optimize.h>
+#include <yql/essentials/core/yql_expr_type_annotation.h>
 #include <yql/essentials/core/yql_opt_utils.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
@@ -29,9 +30,9 @@ public:
         TExprNode::TPtr source,
         TExprNode::TPtr world,
         std::initializer_list<TStringBuf> groupByColumns,
-        std::initializer_list<ui32> outputIndices = {0})
+        ui32 outputCount = 1)
     {
-        auto map = MakeMap(std::move(source), std::move(world), outputIndices);
+        auto map = MakeMap(std::move(source), std::move(world), outputCount);
         auto children = map->ChildrenList();
         children.push_back(MakeAtomList(
             Position_,
@@ -56,20 +57,6 @@ public:
         auto children = root->ChildrenList();
         children.push_back(std::move(node));
         root = Ctx_.NewCallable(Position_, "TestRoot", std::move(children));
-    }
-
-    TExprNode::TPtr MakeIntermediateSink(ui32 outputIndex)
-    {
-        return Build<TYtflowIntermediateSink>(Ctx_, Position_)
-            .Name()
-                .Value("")
-                .Build()
-            .OutputIndex()
-                .Value(outputIndex)
-                .Build()
-            .RowType<TCoVoid>()
-                .Build()
-            .Done().Ptr();
     }
 
 protected:
@@ -115,7 +102,7 @@ public:
             NewWorld(),
             {YTFLOW_INPUT_MESSAGE_ID_FIELD});
 
-        graph.Root = MakeRoot({graph.TransformMap});
+        graph.Root = MakeRoot({MakeOutput(graph.TransformMap)});
 
         return graph;
     }
@@ -200,17 +187,12 @@ public:
         ReconnectTransformMap(graph);
     }
 
-    void UseMultipleSourceMapSinks(TTransformMapOverSourceMapGraph& graph)
+    void AddSourceMapConsumer(TTransformMapOverSourceMapGraph& graph)
     {
-        auto sinks = graph.SourceMap->Child(TYtflowMapBase::idx_Sinks)->ChildrenList();
-        sinks.push_back(MakeIntermediateSink(0));
+        auto consumer = MakeTransformMap(
+            graph.SourceOutput, NewWorld(), {YTFLOW_INPUT_MESSAGE_ID_FIELD});
 
-        SetChild(
-            graph.SourceMap,
-            TYtflowMapBase::idx_Sinks,
-            Ctx_.NewList(Position_, std::move(sinks)));
-
-        ReconnectSourceMap(graph);
+        AddRoot(graph.Root, MakeOutput(std::move(consumer)));
     }
 
     void UseSourceMapOutput(TTransformMapOverSourceMapGraph& graph, ui32 index)
@@ -244,26 +226,12 @@ public:
             TYtflowMapBase::idx_Sources,
             Ctx_.NewList(Position_, {graph.SourceOutput}));
 
-        graph.Root = MakeRoot({graph.TransformMap});
-    }
-
-    void UseReorderedTransformOutputs(TTransformMapOverSourceMapGraph& graph)
-    {
-        graph.TransformMap = MakeTransformMap(
-            graph.SourceOutput,
-            NewWorld(),
-            {YTFLOW_INPUT_MESSAGE_ID_FIELD},
-            {0, 1});
-
-        graph.Root = MakeRootFromOutputs({
-            MakeOutput(graph.TransformMap, 1),
-            MakeOutput(graph.TransformMap, 0),
-        });
+        graph.Root = MakeRoot({MakeOutput(graph.TransformMap)});
     }
 
     void AddSourceMapOutputUsage(TTransformMapOverSourceMapGraph& graph)
     {
-        AddRoot(graph.Root, graph.SourceOutput);
+        AddRoot(graph.Root, MakeOutput(MakeMap(graph.SourceOutput, NewWorld())));
     }
 
     void AddSourceMapWorldUsage(TTransformMapOverSourceMapGraph& graph)
@@ -327,7 +295,7 @@ private:
 
     void ReconnectTransformMap(TTransformMapOverSourceMapGraph& graph)
     {
-        graph.Root = MakeRoot({graph.TransformMap});
+        graph.Root = MakeRoot({MakeOutput(graph.TransformMap)});
     }
 };
 
@@ -365,18 +333,32 @@ TEST(TYtflowTransformSourceMapFusion, PreservesWorldDependencies)
 TEST(TYtflowTransformSourceMapFusion, PreservesOutputIndices)
 {
     TTransformMapOverSourceMapSetup setup;
-
     auto graph = setup.MakeTransformMapOverSourceMapGraph();
-    setup.UseReorderedTransformOutputs(graph);
+    graph.TransformMap = setup.MakeTransformMap(
+        graph.SourceOutput,
+        setup.NewWorld(),
+        {YTFLOW_INPUT_MESSAGE_ID_FIELD},
+        /*outputCount*/ 2);
+    graph.Root = setup.MakeRoot({
+        setup.MakeOutput(graph.TransformMap, 1),
+        setup.MakeOutput(graph.TransformMap, 0),
+    });
+    setup.AnnotateTypes(graph.Root);
 
-    auto fusedMap = setup.OptimizeAndGetFusedMap(graph);
+    setup.Optimize(graph.Root);
+    setup.AnnotateTypes(graph.Root);
 
-    EXPECT_EQ("1", TYtflowOutput(graph.Root->Child(0)).OutputIndex().Value());
-    EXPECT_EQ("0", TYtflowOutput(graph.Root->Child(1)).OutputIndex().Value());
-    EXPECT_EQ(fusedMap.Raw(), TYtflowOutput(graph.Root->Child(1)).Operation().Raw());
-    EXPECT_EQ(
-        graph.TransformMap->Child(TYtflowMapBase::idx_Sinks),
-        fusedMap.Sinks().Raw());
+    const auto first = TYtflowOutput(graph.Root->Child(0));
+    const auto second = TYtflowOutput(graph.Root->Child(1));
+    ASSERT_TRUE(first.Operation().Maybe<TYtflowTransformSourceMap>());
+    EXPECT_EQ(first.Operation().Raw(), second.Operation().Raw());
+    EXPECT_EQ(first.OutputIndex().Value(), "1");
+    EXPECT_EQ(second.OutputIndex().Value(), "0");
+    const auto fusedMap = first.Operation().Cast<TYtflowTransformSourceMap>();
+    const auto* itemType = fusedMap.Lambda().Ref().GetTypeAnn()
+        ->Cast<TStreamExprType>()->GetItemType();
+    ASSERT_EQ(itemType->GetKind(), ETypeAnnotationKind::Variant);
+    EXPECT_EQ(itemType->Cast<TVariantExprType>()->GetUnderlyingType()->Cast<TTupleExprType>()->GetSize(), 2);
 }
 
 TEST(TYtflowTransformSourceMapFusion, PreservesTransformInjection)
@@ -451,12 +433,12 @@ TEST(TYtflowTransformSourceMapFusion, RejectsMultipleTransformSources)
     setup.OptimizeAndExpectNotFused(graph);
 }
 
-TEST(TYtflowTransformSourceMapFusion, RejectsMultipleSourceMapSinks)
+TEST(TYtflowTransformSourceMapFusion, RejectsMultipleSourceMapConsumers)
 {
     TTransformMapOverSourceMapSetup setup;
 
     auto graph = setup.MakeTransformMapOverSourceMapGraph();
-    setup.UseMultipleSourceMapSinks(graph);
+    setup.AddSourceMapConsumer(graph);
 
     setup.OptimizeAndExpectNotFused(graph);
 }
@@ -477,6 +459,7 @@ TEST(TYtflowTransformSourceMapFusion, RejectsSharedSourceMapOutput)
 
     auto graph = setup.MakeTransformMapOverSourceMapGraph();
     setup.AddSourceMapOutputUsage(graph);
+    setup.AnnotateTypes(graph.Root);
 
     setup.OptimizeAndExpectNotFused(graph);
 }
@@ -501,5 +484,5 @@ TEST(TYtflowTransformSourceMapFusion, RejectsVariantSourceMapOutput)
     setup.OptimizeAndExpectNotFused(graph);
 }
 
-}
+} // anonymous namespace
 } // namespace NYql::NYtflow::NTest

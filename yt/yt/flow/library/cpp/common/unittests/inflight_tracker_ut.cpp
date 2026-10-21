@@ -503,18 +503,23 @@ TEST(TTestInflightStoreTest, Delay)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Naive reference implementation for stress testing.
+// Batch implementation used as an independent algorithm for stress testing.
 class TReferenceInflightStore
 {
 public:
-    explicit TReferenceInflightStore(double percentile, TDuration delay)
-        : Percentile_(percentile)
-        , Delay_(delay)
+    TReferenceInflightStore(
+        NTableClient::TTableSchemaPtr schema,
+        TWatermarkPercentileSpecPtr percentile)
+        : Schema_(std::move(schema))
+        , Percentile_(std::move(percentile))
     { }
 
     void Register(const std::string& id, ui64 systemTs, ui64 eventTs)
     {
-        YT_VERIFY(Messages_.emplace(id, std::make_pair(systemTs, eventTs)).second);
+        YT_VERIFY(Messages_.emplace(
+            id,
+            MakeOutputMessage(TStreamId("stream"), Schema_, id, systemTs, eventTs))
+                .second);
     }
 
     void Unregister(const std::string& id)
@@ -532,11 +537,7 @@ public:
         if (Messages_.empty()) {
             return std::nullopt;
         }
-        ui64 minTs = std::numeric_limits<ui64>::max();
-        for (const auto& [_, v] : Messages_) {
-            minTs = std::min(minTs, v.first);
-        }
-        return minTs;
+        return Build()->MinSystemTimestamp->Underlying();
     }
 
     std::optional<ui64> GetMinEventTimestamp() const
@@ -544,25 +545,8 @@ public:
         if (Messages_.empty()) {
             return std::nullopt;
         }
-        int n = std::ssize(Messages_);
-        // index = floor(N * (100 - percentile) / 100)
-        int index = n * (100.0 - Percentile_) / 100.0;
-        if (index >= n) {
-            return std::nullopt;
-        }
-        // Collect and sort event timestamps.
-        std::vector<ui64> eventTs;
-        eventTs.reserve(n);
-        for (const auto& [_, v] : Messages_) {
-            eventTs.push_back(v.second);
-        }
-        std::sort(eventTs.begin(), eventTs.end());
-        // Percentile element is at position index.
-        ui64 rawPercentileTs = eventTs[index];
-        ui64 delaySeconds = Delay_.Seconds();
-        ui64 percentileTs = std::max(rawPercentileTs, delaySeconds) - delaySeconds;
-        ui64 minEventTs = eventTs[0];
-        return std::max(minEventTs, percentileTs);
+        auto timestamp = Build()->MinEventTimestamp;
+        return timestamp ? std::optional(timestamp->Underlying()) : std::nullopt;
     }
 
     int GetCount() const
@@ -571,9 +555,19 @@ public:
     }
 
 private:
-    double Percentile_;
-    TDuration Delay_;
-    THashMap<std::string, std::pair<ui64, ui64>> Messages_;
+    TInflightStreamTraverseDataPtr Build() const
+    {
+        std::vector<TOutputMessageConstPtr> messages;
+        messages.reserve(Messages_.size());
+        for (const auto& [_, message] : Messages_) {
+            messages.push_back(message);
+        }
+        return BuildBatchInflights({TStreamId("stream")}, messages, Percentile_).at(TStreamId("stream"));
+    }
+
+    const NTableClient::TTableSchemaPtr Schema_;
+    const TWatermarkPercentileSpecPtr Percentile_;
+    THashMap<std::string, TOutputMessageConstPtr> Messages_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -721,6 +715,72 @@ TEST(TTestInflightStoreTest, IgnoreInflight)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TTestInflightStoreTest, BatchInflightsCoverStreamsPercentilesAndDelay)
+{
+    const auto schema = New<NTableClient::TTableSchema>(
+        std::vector{NTableClient::TColumnSchema("payload", NTableClient::EValueType::String)});
+    auto message = [&] (const char* stream, const char* id, ui64 systemTs, ui64 eventTs) {
+        return MakeOutputMessage(TStreamId(stream), schema, id, systemTs, eventTs);
+    };
+    const auto messages = std::vector<TOutputMessageConstPtr>{
+        message("a", "1", 8, 1),
+        message("a", "2", 9, 4),
+        message("a", "3", 10, 10),
+        message("b", "4", 20, 2),
+    };
+
+    auto spec = New<TWatermarkPercentileSpec>();
+    spec->Value = TWatermarkPercentile(50);
+    spec->Delay = TDuration::Seconds(3);
+    auto inflights = BuildBatchInflights(
+        {TStreamId("a"), TStreamId("b"), TStreamId("empty")},
+        messages,
+        spec);
+    EXPECT_EQ(inflights.at(TStreamId("a"))->MinSystemTimestamp, TSystemTimestamp(8));
+    EXPECT_EQ(inflights.at(TStreamId("a"))->MinEventTimestamp, TSystemTimestamp(1));
+    EXPECT_EQ(inflights.at(TStreamId("a"))->InflightMetrics->Count, 3);
+    EXPECT_EQ(
+        inflights.at(TStreamId("a"))->InflightMetrics->ByteSize,
+        messages[0]->ByteSize + messages[1]->ByteSize + messages[2]->ByteSize);
+    EXPECT_EQ(inflights.at(TStreamId("a"))->InflightMetrics->ReadyCount, 0);
+    EXPECT_FALSE(inflights.at(TStreamId("a"))->InflightMetrics->NewCountPerSec);
+    EXPECT_FALSE(inflights.at(TStreamId("a"))->Empty);
+    EXPECT_FALSE(inflights.at(TStreamId("a"))->Suspended);
+    EXPECT_EQ(inflights.at(TStreamId("b"))->MinSystemTimestamp, TSystemTimestamp(20));
+    EXPECT_EQ(inflights.at(TStreamId("b"))->MinEventTimestamp, TSystemTimestamp(2));
+    EXPECT_EQ(inflights.at(TStreamId("b"))->InflightMetrics->Count, 1);
+    EXPECT_EQ(inflights.at(TStreamId("b"))->InflightMetrics->ByteSize, messages[3]->ByteSize);
+    EXPECT_FALSE(inflights.at(TStreamId("b"))->Empty);
+    EXPECT_FALSE(inflights.at(TStreamId("b"))->Suspended);
+    EXPECT_TRUE(inflights.at(TStreamId("empty"))->Empty);
+    EXPECT_FALSE(inflights.at(TStreamId("empty"))->Suspended);
+    EXPECT_FALSE(inflights.at(TStreamId("empty"))->MinSystemTimestamp);
+    EXPECT_FALSE(inflights.at(TStreamId("empty"))->MinEventTimestamp);
+    EXPECT_EQ(inflights.at(TStreamId("empty"))->InflightMetrics->Count, 0);
+    EXPECT_EQ(inflights.at(TStreamId("empty"))->InflightMetrics->ByteSize, 0);
+
+    spec->Value = TWatermarkPercentile(62.5);
+    spec->Delay = TDuration::Zero();
+    EXPECT_EQ(BuildBatchInflights({TStreamId("a"), TStreamId("b")}, messages, spec)
+            .at(TStreamId("a"))
+            ->MinEventTimestamp,
+        TSystemTimestamp(4));
+
+    spec->Value = IgnoreInflightWatermarkPercentile;
+    EXPECT_FALSE(BuildBatchInflights({TStreamId("a"), TStreamId("b")}, messages, spec)
+            .at(TStreamId("a"))
+            ->MinEventTimestamp);
+
+    spec->Value = PreciseWatermarkPercentile;
+    spec->Delay = TDuration::Seconds(100);
+    EXPECT_EQ(BuildBatchInflights({TStreamId("a"), TStreamId("b")}, messages, spec)
+            .at(TStreamId("a"))
+            ->MinEventTimestamp,
+        TSystemTimestamp(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Stress test: compare TInflightTracker against TReferenceInflightStore
 // on random sequences of register/unregister operations.
 TEST(TTestInflightStoreTest, StressVsReference)
@@ -741,6 +801,7 @@ TEST(TTestInflightStoreTest, StressVsReference)
         {100.0, TDuration::Zero()},
         {80.0, TDuration::Zero()},
         {60.0, TDuration::Zero()},
+        {62.5, TDuration::Zero()},
         {50.0, TDuration::Zero()},
         {40.0, TDuration::Zero()},
         {20.0, TDuration::Zero()},
@@ -756,7 +817,7 @@ TEST(TTestInflightStoreTest, StressVsReference)
         spec->Value = TWatermarkPercentile(tc.Percentile);
         spec->Delay = tc.Delay;
         const auto store = New<TInflightTracker>(NProfiling::TProfiler{}, spec);
-        TReferenceInflightStore ref(tc.Percentile, tc.Delay);
+        TReferenceInflightStore ref(schema, spec);
 
         auto createMessage = [&] (const std::string& id, ui64 systemTs, ui64 eventTs) {
             return MakeOutputMessage(TStreamId("stream"), schema, id, systemTs, eventTs);
@@ -842,7 +903,7 @@ TEST(TTestInflightStoreTest, StressVsReference)
         spec->Value = TWatermarkPercentile(percentile);
         spec->Delay = TDuration::Zero();
         const auto store = New<TInflightTracker>(NProfiling::TProfiler{}, spec);
-        TReferenceInflightStore ref(percentile, TDuration::Zero());
+        TReferenceInflightStore ref(schema, spec);
 
         auto createMessage = [&] (const std::string& id, ui64 eventTs) {
             return MakeOutputMessage(TStreamId("stream"), schema, id, /*systemTs*/ 1000, eventTs);

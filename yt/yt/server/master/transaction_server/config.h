@@ -128,6 +128,9 @@ struct TDynamicTransactionManagerConfig
 
     bool EnforceActiveTransactionCountLimit;
 
+    // COMPAT(shakurov)
+    bool IgnoreMissingLeaseCellsOnForcedTransactionAbort;
+
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerConfig);
 
     static void Register(TRegistrar registrar);

@@ -35,16 +35,13 @@ target_link_libraries(logslice PUBLIC
 )
 
 target_allocator(logslice
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
+  system_allocator
 )
 
 target_link_options(logslice PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
-  -framework
-  CoreFoundation
 )
 
 target_sources(logslice PRIVATE

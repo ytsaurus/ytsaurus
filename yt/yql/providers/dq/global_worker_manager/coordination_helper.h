@@ -85,4 +85,8 @@ ICoordinationHelper::TPtr CreateCoordiantionHelper(
     const TString& ip,
     TGlobalWorkerManagerActorIdOptions actorIdOptions = {});
 
+// YT clients and upload locks only. No YtCoordinator config or worker node ID
+// is required; each request supplies the selected backend's credentials/prefix.
+ICoordinationHelper::TPtr CreateUploadCoordinationHelper(const TString& hostName);
+
 } // namespace NYql

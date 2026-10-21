@@ -16,4 +16,6 @@ Built-in connectors for {{product-name}} objects such as queues and tables are d
 Asynchronous delivery of messages as HTTP POST requests to an external endpoint ||
 || [ClickHouse](clickhouse.md) | &#65794; | &#10003; |
 Direct writes to [ClickHouse](https://clickhouse.com/docs) over the native protocol; deterministic batching for exactly-once ||
+|| [Kafka](kafka.md) | &#10003; | &#10003; |
+Reading Apache Kafka topics and writing to them with at-least-once or exactly-once delivery ||
 |#

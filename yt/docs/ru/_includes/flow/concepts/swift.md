@@ -19,12 +19,14 @@ Swift снимает это ограничение: если функция де
 
 ## Как сохраняются гарантии exactly-once {#exactly-once}
 
-Несмотря на отсутствие записи выходных данных в {{product-name}}, гарантии [exactly-once](../../../flow/concepts/glossary.md#exactly-once) сохраняются за счёт детерминированности:
+Несмотря на отсутствие записи выходных данных в {{product-name}}, гарантии [exactly-once](../../../flow/concepts/glossary.md#exactly-once) для доставки в другой компьютернейшен Flow сохраняются за счёт детерминированности:
 
 - Если джоб упал до доставки результата, Flow перезапускает его и получает **тот же вывод** из тех же входных данных.
 - [Message Distributor](../../../flow/concepts/glossary.md#message-distributor) продолжает доставлять сообщение до получения подтверждения (`MarkPersisted`) от получателя, что исключает потери.
 
-Таким образом, exactly-once обеспечивается не хранением вывода, а **идемпотентностью** вычисления.
+Таким образом, exactly-once обеспечивается не хранением вывода, а **идемпотентностью** вычисления и дедупликацией на стороне получателя.
+
+`TSwiftMapComputation` не поддерживает [Sink](../../../flow/concepts/glossary.md#sink). `TSwiftOrderedSourceComputation` поддерживает прямую доставку во внешний sink. Deferred publications обеспечивают фиксацию выходной эпохи, но сами по себе не повышают гарантию at-least-once входа до exactly-once.
 
 ## Требование детерминированности {#determinism}
 
@@ -52,7 +54,7 @@ Swift снимает это ограничение: если функция де
 Детерминированный Map без материализации результатов в {{product-name}}.
 
 - **Нагрузка на {{product-name}}:** ~0 записей за эпоху (только системные фоновые процессы).
-- **Не поддерживает:** [Source](../../../flow/concepts/glossary.md#source), [Sink](../../../flow/concepts/glossary.md#sink).
+- **Не поддерживает:** [Source](../../../flow/concepts/glossary.md#source) и [Sink](../../../flow/concepts/glossary.md#sink).
 - **Поддерживает:** [таймеры](../../../flow/concepts/glossary.md#timer) и [key-visitor-стримы](../../../flow/concepts/key_visitor.md) — только для работы со [стейтом](../../../flow/concepts/glossary.md#state), например для фонового клинапа (GC). Эмит выходных сообщений из обработки таймера или визита **запрещён**: output-стрим не может зависеть от таймер- или visit-стрима в `streams_dependency`. Так как таймер-стримы по умолчанию добавляются в зависимости каждого output-а, спека с таймерами и output-ами обязана задавать `streams_dependency` явно.
 - **Требует:** строгой детерминированности и того, чтобы у каждого результирующего сообщения был ровно один родитель — входное сообщение.
 
@@ -67,7 +69,7 @@ Swift снимает это ограничение: если функция де
 Основной класс для чтения упорядоченных данных из внешних источников.
 
 - **Нагрузка на {{product-name}}:** ~1–2 записи за эпоху (метаданные для восстановления; сами сообщения не сохраняются).
-- **Поддерживает:** `WatermarkStrategy` для оценки [вотермарков](../../../flow/concepts/glossary.md#timestamps-and-watermarks).
+- **Поддерживает:** [Sink](../../../flow/concepts/glossary.md#sink) и `WatermarkStrategy` для оценки [вотермарков](../../../flow/concepts/glossary.md#timestamps-and-watermarks). Для прямого внешнего sink-а без дедупликации доставка имеет гарантию at-least-once.
 - **Требует:** ровно одного [Source](../../../flow/concepts/glossary.md#source), реализующего `IOrderedSource`.
 
 Подробнее — в разделе [Computation (C++)](../../../flow/cpp/computation.md#tswiftorderedsourcecomputation).

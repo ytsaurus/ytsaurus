@@ -20,6 +20,7 @@ RECURSE(
     partitioning
     process_function
     tables
+    throughput_autoscaler
     vanilla
     worker
 )

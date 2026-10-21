@@ -224,7 +224,7 @@ public:
             freeze = state == ETabletState::Frozen;
         }
 
-        const auto& bundle = table->TabletCellBundle();
+        auto bundle = table->GetTabletCellBundle();
 
         for (auto cell : cells) {
             if (!IsCellActive(cell)) {
@@ -703,7 +703,7 @@ private:
         for (auto actionId : orphanedActionIds) {
             auto* action = FindTabletAction(actionId);
             if (IsObjectAlive(action) && action->GetState() == ETabletActionState::Orphaned) {
-                const auto& bundle = action->Tablets().front()->GetOwner()->TabletCellBundle();
+                auto bundle = action->Tablets().front()->GetOwner()->GetTabletCellBundle();
                 if (healthyBundles.contains(bundle.Get())) {
                     ChangeTabletActionState(action, ETabletActionState::Unmounted);
                 }
@@ -792,7 +792,7 @@ private:
         }
 
         auto* table = tablets.front()->GetOwner();
-        const auto& bundle = table->TabletCellBundle();
+        auto bundle = table->GetTabletCellBundle();
 
         action->SetKind(kind);
         action->SetState(state);
@@ -1098,7 +1098,7 @@ private:
 
                 std::vector<std::pair<TTabletBase*, TTabletCell*>> assignment;
                 if (action->TabletCells().empty()) {
-                    if (!CheckHasHealthyCells(table->TabletCellBundle().Get())) {
+                    if (!CheckHasHealthyCells(table->GetTabletCellBundle())) {
                         ChangeTabletActionState(action, ETabletActionState::Orphaned, false);
                         break;
                     }
