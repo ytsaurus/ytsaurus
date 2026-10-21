@@ -101,9 +101,17 @@ class JobEvents(object):
                    shared_file=shared_file,
                    cmd=cmd)
 
-    def wait_breakpoint(self, breakpoint_name="default", job_id=None, job_count=None, check_fn=None, timeout=datetime.timedelta(seconds=60)):
+    def wait_breakpoint(
+        self,
+        breakpoint_name="default",
+        job_id=None,
+        job_count=None,
+        check_fn=None,
+        timeout=datetime.timedelta(seconds=60),
+        error_fn=None,
+    ):
         """ Wait until some job reaches breakpoint.
-            Return list of all jobs that are currently waiting on this breakpoint """
+            Return list of all jobs that are currently waiting on this breakpoint. """
         self._verify_breakpoint_created(breakpoint_name)
 
         if job_id is not None and check_fn is None:
@@ -114,6 +122,7 @@ class JobEvents(object):
 
         deadline = datetime.datetime.now() + timeout
         breakpoint_prefix = "breakpoint_" + breakpoint_name + "_"
+        error = None
         while True:
             file_name_list = os.listdir(self._tmpdir)
             job_id_list = []
@@ -131,6 +140,14 @@ class JobEvents(object):
             else:
                 if check_fn(job_id_list):
                     return job_id_list
+
+            if error is not None:
+                raise error
+            if error_fn is not None:
+                error = error_fn()
+                if error is not None:
+                    # The breakpoint may have been reached while checking for an error.
+                    continue
 
             if datetime.datetime.now() > deadline:
                 raise TimeoutError(

@@ -25,7 +25,7 @@ class TestUserMemoryUsageTracker(YTEnvSetup):
                 tags={"category": "user_jobs"})
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         wait(lambda: user_jobs_used.get_delta() > 0)
 
@@ -44,7 +44,7 @@ class TestUserMemoryUsageTracker(YTEnvSetup):
                 tags={"category": "user_jobs"})
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-        (job_id, ) = wait_breakpoint()
+        (job_id, ) = wait_breakpoint(op)
 
         wait(lambda: user_jobs_used.get_delta() > 0)
 

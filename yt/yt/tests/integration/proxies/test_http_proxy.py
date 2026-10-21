@@ -1794,7 +1794,7 @@ class TestHttpProxyJobShellAudit(HttpProxyTestBase):
             in_="//tmp/t_in",
             command=with_breakpoint("cat > /dev/null; BREAKPOINT"))
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
 
         headers = {
             "X-YT-Parameters": yson.dumps({

@@ -187,7 +187,7 @@ class TestControllerFeatures(YTEnvSetup):
             },
         )
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         for job in op.get_running_jobs():
             abort_job(job)
@@ -275,7 +275,7 @@ class TestPendingTimeFeatures(YTEnvSetup):
             },
             track=False,
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
         op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):

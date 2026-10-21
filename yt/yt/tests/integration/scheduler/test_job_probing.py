@@ -19,7 +19,7 @@ class TestJobProbingDuringRevival(YTEnvSetup):
     def test_interruption_during_revival(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
 
-        (job_id, ) = wait_breakpoint()
+        (job_id, ) = wait_breakpoint(op)
 
         update_controller_agent_config("testing_options/delay_in_handshake", 5000)
 

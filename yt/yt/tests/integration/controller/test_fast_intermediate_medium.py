@@ -119,7 +119,7 @@ class TestFastIntermediateMedium(TestFastIntermediateMediumBase):
                 "resource_limits": {"user_slots": 1},
             })
 
-        job_id = wait_breakpoint(job_count=1)[0]
+        job_id = wait_breakpoint(op, job_count=1)[0]
         wait_usage_update()
         fast_intermediate_medium_usage = get_intermediate_usage(fast_medium)
         release_breakpoint(job_id=job_id)
@@ -128,7 +128,7 @@ class TestFastIntermediateMedium(TestFastIntermediateMediumBase):
         jobs_used_slow_medium = 0
 
         while op.get_job_count("completed") != op.get_job_count("total"):
-            job_id = wait_breakpoint(job_count=1, timeout=datetime.timedelta(seconds=300))[0]
+            job_id = wait_breakpoint(op, job_count=1, timeout=datetime.timedelta(seconds=300))[0]
             current_fast_intermediate_medium_usage = get_intermediate_usage(fast_medium)
             if fast_intermediate_medium_usage == current_fast_intermediate_medium_usage:
                 jobs_used_slow_medium += 1

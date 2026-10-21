@@ -87,7 +87,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
                 spec={"mapper": monitoring}),
         }[op_type]
         op = run_op(in_="//tmp/t_in", out="//tmp/t_out", track=False)
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
 
         time.sleep(10)
         assert self._get_master_locate_count(op, job_id) == 0
@@ -120,7 +120,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
             command=with_breakpoint("cat ; BREAKPOINT"),
             spec={"mapper": {"monitoring": {"enable": True}}},
             track=False)
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
 
         time.sleep(10)
         assert self._get_master_locate_count(op, job_id) == 0

@@ -24,7 +24,7 @@ class TestJobControllerOrchid(YTEnvSetup):
             spec={"job_testing_options": {"delay_in_cleanup": 100000}},
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
 
         node = ls("//sys/cluster_nodes")[0]
 
@@ -76,7 +76,7 @@ class TestJobControllerOrchid(YTEnvSetup):
             },
         )
 
-        (job_id, ) = wait_breakpoint()
+        (job_id, ) = wait_breakpoint(op)
 
         (node_id, ) = ls("//sys/cluster_nodes")
 
@@ -142,7 +142,7 @@ class TestJobControllerOrchid(YTEnvSetup):
             },
         )
 
-        (job_id, ) = wait_breakpoint()
+        (job_id, ) = wait_breakpoint(op)
 
         (node_id, ) = ls("//sys/cluster_nodes")
 
@@ -183,7 +183,7 @@ class TestJobResourceManagerOrchid(YTEnvSetup):
             job_count=2,
         )
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
 
         node = ls("//sys/cluster_nodes")[0]
 

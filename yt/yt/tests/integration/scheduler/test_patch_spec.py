@@ -107,7 +107,7 @@ class TestPatchSpecWithDiskSpace(YTEnvSetup):
             },
         )
 
-        wait_breakpoint(job_count=1)
+        wait_breakpoint(op, job_count=1)
 
         patch_op_spec(
             op.id,
@@ -119,7 +119,7 @@ class TestPatchSpecWithDiskSpace(YTEnvSetup):
             ],
         )
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         release_breakpoint()
         op.track()

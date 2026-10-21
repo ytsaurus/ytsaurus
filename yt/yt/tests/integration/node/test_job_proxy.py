@@ -176,7 +176,7 @@ class TestJobProxyBinary(JobProxyTestBase):
             with_breakpoint("echo $YT_JOB_PROXY_SOCKET_PATH >&2; BREAKPOINT"),
             task_patch=spec,
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         content = op.read_stderr(job_id).decode("ascii").strip()
 
         if expected_env_presence:
@@ -208,7 +208,7 @@ class TestJobProxyUserJobFlagRedirectStdoutToStderr(YTEnvSetup):
             task_patch=spec,
         )
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
         assert len(job_ids) == 1
         job_id = job_ids[0]
         content = op.read_stderr(job_id).decode("ascii").strip()
@@ -258,7 +258,7 @@ class TestJobProxyUserJobFlagRedirectStdoutToStderr(YTEnvSetup):
             "redirect_stdout_to_stderr": True
         })
 
-        job_ids = wait_breakpoint()
+        job_ids = wait_breakpoint(op)
 
         assert len(job_ids) == 1
         job_id = job_ids[0]
@@ -343,7 +343,7 @@ class TestRpcProxyInJobProxyBase(YTEnvSetup):
             with_breakpoint(f"echo ${env_variable} >&2; BREAKPOINT; sleep {time_limit}"),
             task_patch=task_patch
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         socket_file = op.read_stderr(job_id).decode("ascii").strip()
         release_breakpoint()
 
@@ -448,22 +448,22 @@ class TestRpcProxyInJobProxySingleClusterSeveralNodes(TestRpcProxyInJobProxyBase
 
         task_patch = {"enable_rpc_proxy_in_job_proxy": True, "monitoring": {"enable": True}}
 
-        run_test_vanilla(
+        op1 = run_test_vanilla(
             with_breakpoint("BREAKPOINT", breakpoint_name="op1"),
             job_count=5,
             task_patch=task_patch,
             authenticated_user="u1",
         )
-        job_ids1 = wait_breakpoint(breakpoint_name="op1", job_count=5)
+        job_ids1 = wait_breakpoint(op1, breakpoint_name="op1", job_count=5)
         assert len(job_ids1) == 5
 
-        run_test_vanilla(
+        op2 = run_test_vanilla(
             with_breakpoint("BREAKPOINT", breakpoint_name="op2"),
             job_count=3,
             task_patch=task_patch,
             authenticated_user="u2",
         )
-        job_ids2 = wait_breakpoint(breakpoint_name="op2", job_count=3)
+        job_ids2 = wait_breakpoint(op2, breakpoint_name="op2", job_count=3)
         assert len(job_ids2) == 3
 
         wait(lambda: rpc_proxy_in_job_proxy_gauges[0].get(tags={"user": "u1"}) is not None)
@@ -714,7 +714,7 @@ class TestJobProxyJobApi(YTEnvSetup):
             with_breakpoint(f"echo ${env_variable} >&2; BREAKPOINT; sleep {time_limit}"),
             task_patch={},
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         socket_file = op.read_stderr(job_id).decode("ascii").strip()
         release_breakpoint()
 

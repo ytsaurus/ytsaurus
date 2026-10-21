@@ -121,7 +121,7 @@ class TestSchedulerExperiments(YTEnvSetup):
                  command=with_breakpoint("BREAKPOINT"),
                  track=False,
                  spec={"experiment_overrides": ["exp_a1.treatment"]})
-        wait_breakpoint()
+        wait_breakpoint(op)
         info = get_operation(op.id, attributes=["experiment_assignments", "experiment_assignment_names", "spec", "provided_spec"])
         assert info["experiment_assignment_names"] == ["exp_a1.treatment"]
         assert info["experiment_assignments"] == [{
@@ -439,7 +439,7 @@ class TestSchedulerExperimentsArchivation(YTEnvSetup):
             return exists(op.get_path())
 
         wait(lambda: operation_present_in_cypress())
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         cypress_info = get_operation(
             op.id,

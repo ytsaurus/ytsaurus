@@ -327,7 +327,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             },
         )
         wait(lambda: len(op.get_running_jobs()) == 2)
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
         release_breakpoint(job_id=job_ids[0])
         op.wait_for_fresh_snapshot()
         # By this moment all 2 running jobs made it to snapshot, so operation will not fail on revival.
@@ -352,7 +352,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         )
         # 6 jobs may not be running simultaneously, so the snapshot will contain information about
         # at most 5 running jobs plus 1 completed job, leading to operation fail on revival.
-        job_ids = wait_breakpoint(job_count=5)
+        job_ids = wait_breakpoint(op, job_count=5)
         release_breakpoint(job_id=job_ids[0])
         wait(lambda: op.get_job_count("completed") == 1)
         op.wait_for_fresh_snapshot()
@@ -376,7 +376,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 "fail_on_job_restart": True,
             },
         )
-        job_id = wait_breakpoint()[0]
+        job_id = wait_breakpoint(op)[0]
         jobs = op.get_running_jobs()
         assert len(jobs) == 1
         abandon_job(job_id)
@@ -503,7 +503,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             with_breakpoint("echo YT_COLLECTIVE_MEMBER_RANK $YT_COLLECTIVE_MEMBER_RANK 1>&2; env 1>&2; BREAKPOINT"),
             task_patch={"collective_options": {"size": 2}}, job_count=1,
         )
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
         collective_id = list_jobs(op.id, attributes=["collective_id"])["jobs"][0]["collective_id"]
 
         jobs = [
@@ -616,7 +616,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     @authors("ignat")
     def test_get_job_context(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         jobs = list(op.get_running_jobs())
         assert len(jobs) == 1
@@ -1035,8 +1035,8 @@ class TestVanillaOperationRevival(YTEnvSetup):
             },
         )
 
-        wait_breakpoint(breakpoint_name="task_a")
-        wait_breakpoint(breakpoint_name="task_b")
+        wait_breakpoint(op, breakpoint_name="task_a")
+        wait_breakpoint(op, breakpoint_name="task_b")
 
         op.wait_for_fresh_snapshot()
 
@@ -1105,7 +1105,7 @@ class TestVanillaOperationRevival(YTEnvSetup):
             tags={"tree": "default", "job_type": "vanilla"},
         )
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
         release_breakpoint()
 
         op.track()
@@ -1147,7 +1147,7 @@ class TestVanillaOperationRevival(YTEnvSetup):
             tags={"tree": "default", "job_type": "vanilla"},
         )
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
         assert op.get_job_count("aborted") == 1
         release_breakpoint()
 
@@ -1202,7 +1202,7 @@ wait $child_pid
                 "max_failed_job_count": 1,
             },
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
         release_breakpoint()
 
         interrupted_job_id = self._interrupt(op)
@@ -1226,7 +1226,7 @@ wait $child_pid
                 "fail_on_job_restart": True,
             },
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
         jobs = list(op.get_running_jobs())
         assert len(jobs) == 1
         job_id = jobs[0]
@@ -1252,14 +1252,14 @@ wait $child_pid
                 },
             },
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         self._interrupt(op)
 
         wait(lambda: op.get_job_count("lost") == 1)
         wait(lambda: op.get_job_count("running") == 1)
 
-        wait_breakpoint()
+        wait_breakpoint(op)
         release_breakpoint()
 
         # Give time to execute second trap command.
@@ -1402,7 +1402,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {}},
         )
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
 
         assert len(job_ids) == 3
 
@@ -1424,7 +1424,7 @@ class TestGangOperations(YTEnvSetup):
         for job_orchid_address in job_orchid_addresses:
             wait(lambda: not exists(job_orchid_address))
 
-        new_job_ids = wait_breakpoint(job_count=3)
+        new_job_ids = wait_breakpoint(op, job_count=3)
 
         wait(lambda: incarnation_switch_counter.get_delta() == 1)
 
@@ -1469,7 +1469,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {}},
         )
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
 
         assert len(job_ids) == 3
 
@@ -1487,7 +1487,7 @@ class TestGangOperations(YTEnvSetup):
         for job_orchid_address in job_orchid_addresses:
             wait(lambda: not exists(job_orchid_address))
 
-        new_job_ids = wait_breakpoint(job_count=3)
+        new_job_ids = wait_breakpoint(op, job_count=3)
 
         assert len(set(job_ids) & set(new_job_ids)) == 0
 
@@ -1509,7 +1509,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {}},
         )
 
-        job_id_to_abandon, job_id_to_continue = wait_breakpoint(job_count=2)
+        job_id_to_abandon, job_id_to_continue = wait_breakpoint(op, job_count=2)
 
         print(f"Abandoning job {job_id_to_abandon}")
         abandon_job(job_id_to_abandon)
@@ -1559,8 +1559,8 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        (job_a, ) = wait_breakpoint(breakpoint_name="task_a")
-        (job_b, ) = wait_breakpoint(breakpoint_name="task_b")
+        (job_a, ) = wait_breakpoint(op, breakpoint_name="task_a")
+        (job_b, ) = wait_breakpoint(op, breakpoint_name="task_b")
 
         if task_to_abort_job_of == "task_a":
             job_to_abort = job_a
@@ -1568,10 +1568,10 @@ class TestGangOperations(YTEnvSetup):
             job_to_abort = job_b
 
         abort_job(job_to_abort)
-        jobs_a = wait_breakpoint(job_count=2, breakpoint_name="task_a")
+        jobs_a = wait_breakpoint(op, job_count=2, breakpoint_name="task_a")
 
         if task_to_abort_job_of == "task_b":
-            wait_breakpoint(job_count=2, breakpoint_name="task_b")
+            wait_breakpoint(op, job_count=2, breakpoint_name="task_b")
 
             assert get_allocation_id_from_job_id(jobs_a[0]) == get_allocation_id_from_job_id(jobs_a[1])
 
@@ -1616,7 +1616,7 @@ class TestGangOperations(YTEnvSetup):
         all_started_jobs = set()
         previous_operation_incarnations = set()
 
-        last_job_ids = wait_breakpoint(job_count=3)
+        last_job_ids = wait_breakpoint(op, job_count=3)
         all_started_jobs.update(last_job_ids)
 
         for iteration in range(incarnation_switch_count):
@@ -1646,7 +1646,7 @@ class TestGangOperations(YTEnvSetup):
 
             wait(lambda: incarnation_switch_counter.get_delta() == iteration + 1)
 
-            last_job_ids = wait_breakpoint(job_count=3)
+            last_job_ids = wait_breakpoint(op, job_count=3)
             assert len(set(last_job_ids) & all_started_jobs) == 0
 
             all_started_jobs.update(last_job_ids)
@@ -1678,7 +1678,7 @@ class TestGangOperations(YTEnvSetup):
             spec={"enable_multiple_jobs_in_allocation": True},
         )
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
 
         release_breakpoint()
 
@@ -1713,8 +1713,8 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        (job_a, ) = wait_breakpoint(breakpoint_name="task_a")
-        (job_b, ) = wait_breakpoint(breakpoint_name="task_b")
+        (job_a, ) = wait_breakpoint(op, breakpoint_name="task_a")
+        (job_b, ) = wait_breakpoint(op, breakpoint_name="task_b")
 
         op.wait_for_fresh_snapshot()
 
@@ -1774,7 +1774,7 @@ class TestGangOperations(YTEnvSetup):
 
         assert first_incarnation_id != second_incarnation_id
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
         release_breakpoint()
 
         op.track()
@@ -1805,8 +1805,8 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        job_id_a, = wait_breakpoint(job_count=1, breakpoint_name="task_a")
-        job_id_b, = wait_breakpoint(job_count=1, breakpoint_name="task_b")
+        job_id_a, = wait_breakpoint(op, job_count=1, breakpoint_name="task_a")
+        job_id_b, = wait_breakpoint(op, job_count=1, breakpoint_name="task_b")
 
         print_debug(f"Job ids are task_a: {job_id_a}, task_b: {job_id_b}")
 
@@ -1848,8 +1848,8 @@ class TestGangOperations(YTEnvSetup):
             # The pre-restart task_a job is aborted by the incarnation switch, but its
             # breakpoint file persists; release it so the wait below sees only the new job.
             release_breakpoint(job_id=job_id_a, breakpoint_name="task_a")
-            job_id_a, = wait_breakpoint(job_count=1, breakpoint_name="task_a")
-        job_id_b, = wait_breakpoint(job_count=1, breakpoint_name="task_b")
+            job_id_a, = wait_breakpoint(op, job_count=1, breakpoint_name="task_a")
+        job_id_b, = wait_breakpoint(op, job_count=1, breakpoint_name="task_b")
 
         second_incarnation_id = self._get_operation_incarnation(op)
 
@@ -1886,7 +1886,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {}},
         )
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
 
         print_debug("Running jobs {}; Completing {} and {}, restarting {}".format(job_ids, job_ids[0], job_ids[1], job_ids[2]))
 
@@ -1902,7 +1902,7 @@ class TestGangOperations(YTEnvSetup):
 
         wait(lambda: incarnation_switch_counter.get_delta() == 1)
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
         release_breakpoint()
         op.track()
 
@@ -1915,7 +1915,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {}},
         )
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
         assert len(job_ids) == 3
 
         if with_job_revival:
@@ -1956,7 +1956,7 @@ class TestGangOperations(YTEnvSetup):
         for job_orchid_address in job_orchid_addresses:
             wait(lambda: not exists(job_orchid_address))
 
-        new_job_ids = wait_breakpoint(job_count=3)
+        new_job_ids = wait_breakpoint(op, job_count=3)
 
         assert len(set(job_ids) & set(new_job_ids)) == 0
 
@@ -2006,7 +2006,7 @@ class TestGangOperations(YTEnvSetup):
                 expected_job_descriptor = "{}/{}".format(op.id, job_id_to_rank[job_id] << 1)
                 assert descriptor == expected_job_descriptor
 
-        first_job_ids = wait_breakpoint(job_count=3)
+        first_job_ids = wait_breakpoint(op, job_count=3)
         first_running_jobs = self._get_running_jobs(op, 3)
         self._verify_job_ids_equal(first_running_jobs, first_job_ids)
         assert len(first_job_ids) == 3
@@ -2053,7 +2053,7 @@ class TestGangOperations(YTEnvSetup):
 
         first_allocation_id_to_monitoring_descriptors.pop(get_allocation_id_from_job_id(first_job_id))
 
-        second_job_ids = wait_breakpoint(job_count=3)
+        second_job_ids = wait_breakpoint(op, job_count=3)
         second_running_jobs = self._get_running_jobs(op, 3)
         self._verify_job_ids_equal(second_running_jobs, second_job_ids)
 
@@ -2091,7 +2091,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {}},
         )
 
-        first_incarnation_job_ids = wait_breakpoint(job_count=2)
+        first_incarnation_job_ids = wait_breakpoint(op, job_count=2)
 
         assert len(first_incarnation_job_ids) == 2
 
@@ -2116,7 +2116,7 @@ class TestGangOperations(YTEnvSetup):
 
         first_incarnation_allocation_ids = get_allocation_ids(first_incarnation_job_ids)
 
-        second_incarnation_job_ids = wait_breakpoint(job_count=2)
+        second_incarnation_job_ids = wait_breakpoint(op, job_count=2)
         assert len(second_incarnation_job_ids) == 2
 
         second_incarnation_id = self._get_operation_incarnation(op)
@@ -2156,7 +2156,7 @@ class TestGangOperations(YTEnvSetup):
                 "gang_options": {},
             },
         )
-        first_job_ids = wait_breakpoint(job_count=3)
+        first_job_ids = wait_breakpoint(op, job_count=3)
         job_id_to_interrupt = first_job_ids[0]
 
         print_debug(f"First job ids are {first_job_ids}, interrupting job {job_id_to_interrupt}")
@@ -2173,7 +2173,7 @@ class TestGangOperations(YTEnvSetup):
 
         wait(lambda: incarnation_switch_counter.get_delta() == 1)
 
-        second_job_ids = wait_breakpoint(job_count=3)
+        second_job_ids = wait_breakpoint(op, job_count=3)
 
         print_debug(f"Second job ids are {second_job_ids}")
 
@@ -2220,7 +2220,7 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
         print_debug(f"Job ids are {job_ids}")
 
         wait(lambda: get(op.get_path() + "/@progress/state") == "failing")
@@ -2347,7 +2347,7 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        first_job_ids = wait_breakpoint(job_count=3)
+        first_job_ids = wait_breakpoint(op, job_count=3)
         assert len(first_job_ids) == 3
 
         first_job_id = first_job_ids[0]
@@ -2397,7 +2397,7 @@ class TestGangOperations(YTEnvSetup):
         release_breakpoint(job_id=first_job_ids[1])
         release_breakpoint(job_id=first_job_ids[2])
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
 
         release_breakpoint()
 
@@ -2420,7 +2420,7 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        first_job_ids = wait_breakpoint(job_count=2)
+        first_job_ids = wait_breakpoint(op, job_count=2)
         assert len(first_job_ids) == 2
 
         incarnation_switch_counter = _get_controller_profiler().counter(
@@ -2464,7 +2464,7 @@ class TestGangOperations(YTEnvSetup):
             }
         )
 
-        first_job_ids = wait_breakpoint(job_count=3)
+        first_job_ids = wait_breakpoint(op, job_count=3)
         assert len(first_job_ids) == 3
 
         wait(lambda: "user_job_monitoring_limited" in op.get_alerts())
@@ -2482,7 +2482,7 @@ class TestGangOperations(YTEnvSetup):
         for job_id in first_job_ids:
             release_breakpoint(job_id=job_id)
 
-        second_job_ids = wait_breakpoint(job_count=3)
+        second_job_ids = wait_breakpoint(op, job_count=3)
         assert len(set(first_job_ids) & set(second_job_ids)) == 0
         release_breakpoint()
 
@@ -2560,8 +2560,8 @@ class TestGangOperations(YTEnvSetup):
                 assert monitoring_descriptor not in all_descriptors
                 all_descriptors.add(monitoring_descriptor)
 
-        first_task_job_ids = wait_breakpoint(breakpoint_name="first", job_count=1)
-        second_task_job_ids = wait_breakpoint(breakpoint_name="second", job_count=2)
+        first_task_job_ids = wait_breakpoint(op, breakpoint_name="first", job_count=1)
+        second_task_job_ids = wait_breakpoint(op, breakpoint_name="second", job_count=2)
         first_job_ids = first_task_job_ids + second_task_job_ids
         assert len(first_job_ids) == 3
 
@@ -2574,8 +2574,8 @@ class TestGangOperations(YTEnvSetup):
         release_breakpoint(job_id=second_task_job_ids[0], breakpoint_name="second")
         release_breakpoint(job_id=second_task_job_ids[1], breakpoint_name="second")
 
-        first_task_job_ids = wait_breakpoint(breakpoint_name="first", job_count=1)
-        second_task_job_ids = wait_breakpoint(breakpoint_name="second", job_count=2)
+        first_task_job_ids = wait_breakpoint(op, breakpoint_name="first", job_count=1)
+        second_task_job_ids = wait_breakpoint(op, breakpoint_name="second", job_count=2)
         second_job_ids = first_task_job_ids + second_task_job_ids
         assert len(second_job_ids) == 3
 
@@ -2694,7 +2694,7 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        first_job_ids = wait_breakpoint(job_count=2)
+        first_job_ids = wait_breakpoint(op, job_count=2)
 
         op.wait_for_fresh_snapshot()
 
@@ -2740,7 +2740,7 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        first_job_ids = wait_breakpoint(job_count=2)
+        first_job_ids = wait_breakpoint(op, job_count=2)
 
         op.wait_for_fresh_snapshot()
 
@@ -2791,7 +2791,7 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
 
         running_jobs = self._get_running_jobs(op, 3)
 
@@ -2822,7 +2822,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {"size": 2}},
         )
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
 
         running_jobs = self._get_running_jobs(op, 3)
 
@@ -2854,7 +2854,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {"size": 2}},
         )
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
 
         running_jobs = self._get_running_jobs(op, 3)
 
@@ -2887,7 +2887,7 @@ class TestGangOperations(YTEnvSetup):
 
         initial_incarnation = self._get_operation_incarnation(op)
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
 
         running_jobs = self._get_running_jobs(op, 3)
 
@@ -2902,7 +2902,7 @@ class TestGangOperations(YTEnvSetup):
         abort_job(jobs_with_no_ranks[0])
         release_breakpoint(job_id=jobs_with_no_ranks[0])
 
-        new_job_ids = wait_breakpoint(job_count=3)
+        new_job_ids = wait_breakpoint(op, job_count=3)
         new_running_jobs = self._get_running_jobs(op, 3)
 
         self._verify_job_ids_equal(new_running_jobs, new_job_ids)
@@ -2948,7 +2948,7 @@ class TestGangOperations(YTEnvSetup):
 
         initial_incarnation = self._get_operation_incarnation(op)
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
 
         running_jobs = self._get_running_jobs(op, 3)
 
@@ -2964,7 +2964,7 @@ class TestGangOperations(YTEnvSetup):
 
         wait(lambda: failed_job_profiler.get_job_count_delta() == 1)
 
-        new_job_ids = wait_breakpoint(job_count=3)
+        new_job_ids = wait_breakpoint(op, job_count=3)
         new_running_jobs = self._get_running_jobs(op, 3)
 
         self._verify_job_ids_equal(new_running_jobs, new_job_ids)
@@ -3006,7 +3006,7 @@ class TestGangOperations(YTEnvSetup):
 
         initial_incarnation = self._get_operation_incarnation(op)
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
 
         running_jobs = self._get_running_jobs(op, 3)
 
@@ -3024,7 +3024,7 @@ class TestGangOperations(YTEnvSetup):
 
         release_breakpoint(job_id=jobs_with_no_ranks[0])
 
-        new_job_ids = wait_breakpoint(job_count=3)
+        new_job_ids = wait_breakpoint(op, job_count=3)
         new_running_jobs = self._get_running_jobs(op, 3)
 
         self._verify_job_ids_equal(new_running_jobs, new_job_ids)
@@ -3051,7 +3051,7 @@ class TestGangOperations(YTEnvSetup):
             task_patch={"gang_options": {"size": 2}},
         )
 
-        job_ids = wait_breakpoint(job_count=3)
+        job_ids = wait_breakpoint(op, job_count=3)
         running_jobs = self._get_running_jobs(op, 3)
         self._verify_job_ids_equal(running_jobs, job_ids)
 
@@ -3078,7 +3078,7 @@ class TestGangOperations(YTEnvSetup):
         for job_id in job_ids:
             release_breakpoint(job_id=job_id)
 
-        new_job_ids = wait_breakpoint(job_count=3)
+        new_job_ids = wait_breakpoint(op, job_count=3)
         new_running_jobs = self._get_running_jobs(op, 3)
 
         print_debug(f"New running jobs are {new_running_jobs}")
@@ -3116,7 +3116,7 @@ class TestGangOperations(YTEnvSetup):
             spec={"pool": "fake_pool"},
         )
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
 
         running_jobs = self._get_running_jobs(op, 2)
         self._verify_job_ids_equal(running_jobs, job_ids)
@@ -3151,7 +3151,7 @@ class TestGangOperations(YTEnvSetup):
 
         first_incarnation_id = self._get_operation_incarnation(op)
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         op.wait_for_fresh_snapshot()
 
@@ -3167,7 +3167,7 @@ class TestGangOperations(YTEnvSetup):
 
         assert first_incarnation_id == second_incarnation_id
 
-        wait_breakpoint(job_count=3)
+        wait_breakpoint(op, job_count=3)
         release_breakpoint()
 
         op.track()
@@ -3189,7 +3189,7 @@ class TestGangOperations(YTEnvSetup):
             },
         )
 
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
 
         op.suspend()
         wait(lambda: get(op.get_path() + "/@suspended"))
@@ -3211,7 +3211,7 @@ class TestGangOperations(YTEnvSetup):
         op.resume()
         wait(lambda: not get(op.get_path() + "/@suspended"))
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         release_breakpoint()
 
         op.track()
@@ -3313,11 +3313,11 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
     def test_increase_job_count(self):
         op = self._run_vanilla()
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         self._set_job_count(op, 4)
 
-        wait_breakpoint(job_count=4)
+        wait_breakpoint(op, job_count=4)
         release_breakpoint()
         op.track()
 
@@ -3327,7 +3327,7 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
     def test_decrease_job_count(self):
         op = self._run_vanilla()
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         self._set_job_count(op, 1)
 
@@ -3342,7 +3342,7 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
     def test_regenerate_jobs(self):
         op = self._run_vanilla()
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         self._set_job_count(op, 1)
         wait(lambda: len(op.get_running_jobs()) == 1)
@@ -3361,7 +3361,7 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
     def test_regenerate_jobs_and_restart_completed(self):
         op = self._run_vanilla(task_spec_template={"restart_completed_jobs": True})
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         self._set_job_count(op, 1)
         wait(lambda: len(op.get_running_jobs()) == 1)
@@ -3375,7 +3375,7 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
             wait(lambda: len(op.get_running_jobs()) == 2)
             old_jobs = op.get_running_jobs()
             for job_id in old_jobs:
-                wait_breakpoint(job_id=job_id)
+                wait_breakpoint(op, job_id=job_id)
             if release:
                 for job_id in old_jobs:
                     release_breakpoint(job_id=job_id)
@@ -3396,7 +3396,7 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
     def test_stress_pendulum(self):
         op = self._run_vanilla(tasks=["one", "two"])
 
-        wait_breakpoint(job_count=2 + 2)
+        wait_breakpoint(op, job_count=2 + 2)
 
         patch_op_spec(
             op.id,
@@ -3455,7 +3455,7 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
         time.sleep(2)
         self.assert_job_states(op, "task", running=1)
 
-        wait_breakpoint(job_count=1)
+        wait_breakpoint(op, job_count=1)
         self._set_job_count(op, 1)
 
         # Wait for anything bad to happen.
@@ -3489,7 +3489,7 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
     def test_operation_finishes_prematurely(self):
         op = self._run_vanilla()
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         second_job = [
             job_id
@@ -3533,7 +3533,7 @@ class TestPatchVanillaSpecRestarts(TestPatchVanillaSpecBase):
     def test_increase_job_count(self):
         op = self._run_vanilla(delay_in_apply="3s")
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         op.wait_for_fresh_snapshot()
 
         response = self._set_job_count(op, 4, sync=False)
@@ -3558,7 +3558,7 @@ class TestPatchVanillaSpecRestarts(TestPatchVanillaSpecBase):
     def test_decrease_job_count(self):
         op = self._run_vanilla(delay_in_apply="3s")
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         op.wait_for_fresh_snapshot()
 
         response = self._set_job_count(op, 1, sync=False)
@@ -3583,7 +3583,7 @@ class TestPatchVanillaSpecRestarts(TestPatchVanillaSpecBase):
         update_controller_agent_config("enable_snapshot_building", False)
         op = self._run_vanilla(delay_in_apply=0)
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
         self._set_job_count(op, 3)
         time.sleep(1)
@@ -3638,9 +3638,9 @@ class TestDontStartNewIncarnationAfterPreemptionIfJobNotStartedYet(YTEnvSetup):
             },
         )
 
-        wait_breakpoint(breakpoint_name="first", job_count=2)
+        wait_breakpoint(op1, breakpoint_name="first", job_count=2)
 
-        run_test_vanilla(
+        op2 = run_test_vanilla(
             with_breakpoint("BREAKPOINT", breakpoint_name="second"),
             job_count=2,
             spec={
@@ -3648,7 +3648,7 @@ class TestDontStartNewIncarnationAfterPreemptionIfJobNotStartedYet(YTEnvSetup):
             }
         )
 
-        wait_breakpoint(breakpoint_name="second", job_count=2)
+        wait_breakpoint(op2, breakpoint_name="second", job_count=2)
 
         wait(lambda: operation_incarnation_counter.get_delta() == 1)
         wait(lambda: op1.get_job_count("aborted") == 3)

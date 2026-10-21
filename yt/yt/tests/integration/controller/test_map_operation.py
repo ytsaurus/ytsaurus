@@ -745,7 +745,7 @@ print(row + table_index)
             out="//tmp/t2",
             spec={"data_size_per_job": 1},
         )
-        jobs = wait_breakpoint(job_count=2)
+        jobs = wait_breakpoint(op, job_count=2)
 
         operation_path = op.get_path()
         async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
@@ -788,7 +788,7 @@ print(row + table_index)
             spec={"data_size_per_job": 1},
         )
 
-        jobs = wait_breakpoint(job_count=2)
+        jobs = wait_breakpoint(op, job_count=2)
         operation_path = op.get_path()
         for job_id in jobs[:2]:
             release_breakpoint(job_id=job_id)
@@ -890,7 +890,7 @@ print(row + table_index)
             ordered=ordered,
             spec={"data_size_per_job": 1, "max_failed_job_count": 1},
         )
-        jobs = wait_breakpoint(job_count=5)
+        jobs = wait_breakpoint(op, job_count=5)
         assert len(jobs) == 5
 
         for job_id in jobs[:3]:
@@ -913,7 +913,7 @@ print(row + table_index)
             command=with_breakpoint("cat && BREAKPOINT"),
             spec={"data_size_per_job": 1, "max_failed_job_count": 1},
         )
-        wait_breakpoint(job_count=5)
+        wait_breakpoint(op, job_count=5)
 
         nodes_with_flavors = get("//sys/cluster_nodes", attributes=["flavors"])
 
@@ -954,7 +954,7 @@ print(row + table_index)
             spec={"data_size_per_job": 1, "max_failed_job_count": 1},
         )
 
-        jobs = wait_breakpoint(job_count=5)
+        jobs = wait_breakpoint(op, job_count=5)
         for job_id in jobs[:3]:
             release_breakpoint(job_id=job_id)
 
@@ -1444,7 +1444,7 @@ print(json.dumps(input))
         )
 
         try:
-            jobs = wait_breakpoint()
+            jobs = wait_breakpoint(op)
 
             op.interrupt_job(jobs[0])
 
@@ -1623,7 +1623,7 @@ print(json.dumps(input))
             },
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         op.interrupt_job(jobs[0])
 
         release_breakpoint()
@@ -1703,7 +1703,7 @@ print(json.dumps(input))
             },
         )
 
-        (job_id, ) = wait_breakpoint()
+        (job_id, ) = wait_breakpoint(op)
 
         buffer_row_count = -1
 
@@ -1755,7 +1755,7 @@ print(json.dumps(input))
             },
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         interrupt_job(jobs[0])
         release_breakpoint()
         op.track()
@@ -1784,7 +1784,7 @@ print(json.dumps(input))
             },
         )
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(op)
         interrupt_job(jobs[0])
         op.track()
 
@@ -1987,9 +1987,9 @@ print(json.dumps(input))
             command=with_breakpoint("""if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi; BREAKPOINT;"""),
             spec={"mapper": {"collective_options": {"size": 2}}},
         )
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
 
-        abort_job(get_job(op.id, wait_breakpoint(job_count=2)[0], attributes=["collective_id"])["collective_id"])
+        abort_job(get_job(op.id, wait_breakpoint(op, job_count=2)[0], attributes=["collective_id"])["collective_id"])
 
         wait(lambda: op.get_job_count("aborted") == 2)
         release_breakpoint()
@@ -2008,7 +2008,7 @@ print(json.dumps(input))
             command=with_breakpoint("""if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then read row; echo $row; fi; BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi"""),
             spec={"mapper": {"collective_options": {"size": 2}}},
         )
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
         print_debug("Fetched jobs: ", get_job(op.id, job_ids[0]))
         # collective_id equals master job id.
         collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
@@ -2033,12 +2033,12 @@ print(json.dumps(input))
             spec={"mapper": {"collective_options": {"size": 2}}, "max_failed_job_count": 2},
             track=False,
         )
-        first_incarnation = wait_breakpoint(job_count=2)
+        first_incarnation = wait_breakpoint(op, job_count=2)
         collective_id = get_job(op.id, first_incarnation[0], attributes=["collective_id"])["collective_id"]
         secondary_job_id, = {*first_incarnation} - {collective_id}
         release_breakpoint(job_id=secondary_job_id)
         wait(lambda: get_job(op.id, secondary_job_id)["state"] == "failed", ignore_exceptions=True)
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         release_breakpoint()
         op.track()
         assert read_table("//tmp/t2") == [{"a": "b"}]
@@ -2062,7 +2062,7 @@ print(json.dumps(input))
                 },
             },
         )
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
         collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
         secondary_job_id, = {*job_ids} - {collective_id}
 
@@ -2096,7 +2096,7 @@ print(json.dumps(input))
                 },
             },
         )
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
         collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
         secondary_job_id, = {*job_ids} - {collective_id}
 
@@ -2129,7 +2129,7 @@ print(json.dumps(input))
                 "max_failed_job_count": 2,
             },
         )
-        job_ids = wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(op, job_count=2)
         collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
         secondary_job_id, = {*job_ids} - {collective_id}
 
@@ -2161,7 +2161,7 @@ print(json.dumps(input))
                 },
             },
         )
-        first_incarnation = wait_breakpoint(job_count=2)
+        first_incarnation = wait_breakpoint(op, job_count=2)
         collective_id = get_job(op.id, first_incarnation[0], attributes=["collective_id"])["collective_id"]
         secondary_job_id, = {*first_incarnation} - {collective_id}
 
@@ -2171,7 +2171,7 @@ print(json.dumps(input))
         release_breakpoint(job_id=collective_id)
         release_breakpoint(job_id=secondary_job_id)
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         release_breakpoint()
         op.track()
 
@@ -2197,7 +2197,7 @@ print(json.dumps(input))
                 "max_failed_job_count": 2,
             },
         )
-        first_incarnation = wait_breakpoint(job_count=2)
+        first_incarnation = wait_breakpoint(op, job_count=2)
         collective_id = get_job(op.id, first_incarnation[0], attributes=["collective_id"])["collective_id"]
         secondary_job_id, = {*first_incarnation} - {collective_id}
 
@@ -2206,7 +2206,7 @@ print(json.dumps(input))
 
         release_breakpoint(job_id=collective_id)
 
-        wait_breakpoint(job_count=2)
+        wait_breakpoint(op, job_count=2)
         release_breakpoint()
         op.track()
 
@@ -2526,7 +2526,7 @@ print(json.dumps(input))
                 track=False,
             )
 
-            jobs = wait_breakpoint()
+            jobs = wait_breakpoint(op)
             interrupt_job(jobs[0])
             release_breakpoint()
             op.track()
@@ -2567,7 +2567,7 @@ print(json.dumps(input))
         op.resume()
 
         # orchid does not outlive operation, so we need to inspect it in the middle of the operation
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         assert get(
             op.get_path() + "/controller_orchid/progress/schedule_job_statistics/failed/not_enough_chunk_lists"
@@ -3021,7 +3021,7 @@ print(json.dumps(input))
             },
         )
 
-        jobs = wait_breakpoint(job_count=1)
+        jobs = wait_breakpoint(op, job_count=1)
 
         op.interrupt_job(jobs[0])
 
@@ -3067,7 +3067,7 @@ print(json.dumps(input))
             },
         )
 
-        job_id, = wait_breakpoint(job_count=1)
+        job_id, = wait_breakpoint(op, job_count=1)
         op.interrupt_job(job_id)
         release_breakpoint()
         op.track()
@@ -4007,7 +4007,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 "min_locality_input_data_weight": 0
             },
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         now = datetime.now()
         wait(lambda: get(op.get_path() + "/@progress/schedule_job_statistics/failed/task_delayed") > 0)
@@ -4027,7 +4027,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 "min_locality_input_data_weight": 0
             },
         )
-        wait_breakpoint()
+        wait_breakpoint(op)
         time.sleep(elapsed)
         wait(lambda: exists(op.get_path() + "/@progress/schedule_job_statistics/failed/task_delayed"))
         assert get(op.get_path() + "/@progress/schedule_job_statistics/failed/task_delayed") == 0

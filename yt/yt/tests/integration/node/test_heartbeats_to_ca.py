@@ -40,7 +40,7 @@ class TestNodeHeartbeatsToCA(YTEnvSetup):
     def test_delay_in_handshake(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
 
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
@@ -59,7 +59,7 @@ class TestJobStored(YTEnvSetup):
     def test_job_resend_backoff_start_time(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=2)
 
-        job_id1, job_id2 = wait_breakpoint(job_count=2)
+        job_id1, job_id2 = wait_breakpoint(op, job_count=2)
 
         job_orchid_path = op.get_job_node_orchid_path(job_id1) + f"/exec_node/job_controller/active_jobs/{job_id1}"
 
@@ -83,7 +83,7 @@ class TestJobStored(YTEnvSetup):
     def test_job_resend_backoff_start_time_after_ca_restart(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=2)
 
-        job_id1, job_id2 = wait_breakpoint(job_count=2)
+        job_id1, job_id2 = wait_breakpoint(op, job_count=2)
 
         job_orchid_path = op.get_job_node_orchid_path(job_id1) + f"/exec_node/job_controller/active_jobs/{job_id1}"
 
@@ -132,7 +132,7 @@ class TestOrphanedJob(YTEnvSetup):
     def test_orphaned_job(self, finished):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
 
-        job_id, = wait_breakpoint(job_count=1)
+        job_id, = wait_breakpoint(op, job_count=1)
 
         op.wait_for_fresh_snapshot()
 

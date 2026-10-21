@@ -193,7 +193,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         update_controller_agent_config("operations_update_period", 100)
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), track=False)
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         # While the operation runs, brief_progress and progress are served from the controller orchid
         # (include_runtime): they reflect the running jobs even though the archive (not Cypress) is the sink.
@@ -226,7 +226,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         update_controller_agent_config("operations_update_period", 100)
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), track=False)
-        wait_breakpoint()
+        wait_breakpoint(op)
 
         wait(lambda: get_operation(op.id, attributes=["brief_progress"], include_runtime=True)
              .get("brief_progress", {}).get("jobs", {}).get("running") == 1)
