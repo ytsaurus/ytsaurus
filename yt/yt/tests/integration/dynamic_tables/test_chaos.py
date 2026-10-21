@@ -5380,6 +5380,80 @@ class TestChaosNativeProxy(ChaosTestBase):
         assert response_parameters["replication_progress"]["segments"][0]["timestamp"] == 0
         assert response_parameters["replication_progress"]["segments"][1]["timestamp"] > 0
 
+    @authors("shamteev")
+    def test_partial_pull_rows_liveness(self):
+        metadata_cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", metadata_cell_id)
+
+        create_tablet_cell_bundle("b")
+        custom_bundle_id = get("//sys/tablet_cell_bundles/b/@id")
+        failed_area_ids = [
+            create_area("failed_area_0", cell_bundle_id=custom_bundle_id),
+            create_area("failed_area_1", cell_bundle_id=custom_bundle_id),
+        ]
+        create_area("healthy_area", cell_bundle_id=custom_bundle_id)
+
+        healthy_cell_ids = sync_create_cells(4, tablet_cell_bundle="b", area="healthy_area")
+        failed_cell_ids = [
+            sync_create_cells(1, tablet_cell_bundle="b", area="failed_area_0")[0],
+            sync_create_cells(1, tablet_cell_bundle="b", area="failed_area_1")[0],
+        ]
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/pds"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/pqs0"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/pqs1"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/pda"},
+        ]
+
+        card_id, replica_ids = self._create_chaos_tables(
+            metadata_cell_id,
+            replicas,
+            create_tablet_cells=False,
+            create_replica_tables=False,
+            sync_replication_era=False)
+
+        self._create_replica_tables([replicas[0]], [replica_ids[0]], create_tablet_cells=False, mount_tables=False, tablet_cell_bundle="b")
+        sync_mount_table("//tmp/pds", target_cell_ids=[healthy_cell_ids[0]])
+
+        self._create_replica_tables([replicas[1]], [replica_ids[1]], pivot_keys=[[], [1]], create_tablet_cells=False, mount_tables=False, tablet_cell_bundle="b")
+        sync_mount_table("//tmp/pqs0", target_cell_ids=[failed_cell_ids[0], healthy_cell_ids[1]])
+
+        self._create_replica_tables([replicas[2]], [replica_ids[2]], pivot_keys=[[], [1]], create_tablet_cells=False, mount_tables=False, tablet_cell_bundle="b")
+        sync_mount_table("//tmp/pqs1", target_cell_ids=[healthy_cell_ids[2], failed_cell_ids[1]])
+
+        self._create_replica_tables([replicas[3]], [replica_ids[3]], create_tablet_cells=False, mount_tables=False, tablet_cell_bundle="b")
+        set("//tmp/pda/@mount_config", {
+            "replication_tick_period": 100,
+            "table_puller_force_same_cluster_queue": True,
+            "table_puller_max_partial_failures": 2,
+        })
+        sync_mount_table("//tmp/pda", target_cell_ids=[healthy_cell_ids[3]])
+
+        self._sync_replication_era(card_id, replicas)
+
+        timestamp = generate_timestamp()
+        tablet_id = get("//tmp/pda/@tablets/0/tablet_id")
+
+        def _is_caught_up():
+            progress = get(f"#{tablet_id}/orchid/replication_progress")
+            return min(segment["timestamp"] for segment in progress["segments"]) >= timestamp
+
+        wait(_is_caught_up)
+        sync_unmount_table("//tmp/pda")
+
+        rows = [
+            {"key": 0, "value": "0"},
+            {"key": 2, "value": "2"},
+        ]
+        insert_rows("//tmp/pds", rows)
+        timestamp = generate_timestamp()
+
+        with self.CellsDisabled(clusters=["primary"], area_ids=failed_area_ids):
+            sync_mount_table("//tmp/pda", target_cell_ids=[healthy_cell_ids[3]])
+            wait(_is_caught_up)
+            assert_items_equal(lookup_rows("//tmp/pda", [{"key": 0}, {"key": 2}]), rows)
+
     @authors("osidorkin")
     def test_chaos_replica_reconfigure_on_remount(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()

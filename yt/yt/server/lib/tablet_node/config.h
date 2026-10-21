@@ -410,6 +410,7 @@ struct TCustomTableMountConfig
     TTestingTableMountConfig Testing;
 
     bool TablePullerForceSameClusterQueue;
+    int TablePullerMaxPartialFailures;
 
     REGISTER_YSON_STRUCT(TCustomTableMountConfig);
 
