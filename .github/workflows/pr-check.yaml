@@ -133,7 +133,7 @@ jobs:
     uses: ./.github/workflows/cmake-action.yaml
 
   cleanup-cmake:
-    name: Clean CMake build directories
+    name: Clean CMake build artifacts
     needs:
       - start-vm
       - checkout
@@ -142,27 +142,18 @@ jobs:
     runs-on: ${{ needs.start-vm.outputs.label }}
     timeout-minutes: 30
     steps:
-      - name: Upload CMake unit test results
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: cmake-unittest-results-${{ github.run_attempt }}
-          path: ../build_cmake_relwithdebinfo/junit-*.xml
-          if-no-files-found: ignore
-
-      - name: Remove CMake build directories
-        if: ${{ !cancelled() }}
+      - name: Remove CMake build artifacts
         shell: bash
         run: |
           set -euxo pipefail
 
           df -h .
           df -i .
-          for build_dir in ../build_cmake_relwithdebinfo ../build_yql_cmake_relwithdebinfo; do
-            if [ -d "$build_dir" ]; then
-              du -sh -- "$build_dir"
+          for cleanup_dir in ../build_cmake_relwithdebinfo ../build_yql_cmake_relwithdebinfo ../venv; do
+            if [ -d "$cleanup_dir" ]; then
+              du -sh -- "$cleanup_dir"
             fi
-            rm -rf -- "$build_dir"
+            rm -rf -- "$cleanup_dir"
           done
           df -h .
           df -i .
