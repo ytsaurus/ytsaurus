@@ -122,7 +122,7 @@ struct TPipelineComputationDescription
     // graphEntityId -> (limit_type -> aggregated stats across partitions)
     // For input streams: limit_type = "input_buffer_bytes", etc.
     THashMap<TGraphEntityId, THashMap<std::string, TStreamLimitStats>> InputLimitStats;
-    // For output streams: limit_type = "output_buffer_bytes", "output_store_bytes", etc.
+    // For output streams: limit_type = "output_buffer_bytes" or "controller".
     THashMap<TGraphEntityId, THashMap<std::string, TStreamLimitStats>> OutputLimitStats;
 
     // globalStreamId(blocker) -> delay.

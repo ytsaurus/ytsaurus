@@ -74,12 +74,6 @@
 || `timer_store_byte_size_limit` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Значение по умолчанию**: `100Mi`
  ||
-|| `output_store_count_limit` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
-**Значение по умолчанию**: `1G`
- ||
-|| `output_store_byte_size_limit` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
-**Значение по умолчанию**: `100Gi`
- ||
 || `blocked_time_window` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `10m`
 Окно усреднения для доли времени, которую джоба провела заблокированной на каждом из лимитов (`blocked_share` в диагностиках). Доля нормируется на время жизни джобы, поэтому джоба, заблокированная с самого старта, показывает `~1` независимо от своего возраста. ||

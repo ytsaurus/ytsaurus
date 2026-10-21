@@ -930,11 +930,6 @@ struct TDynamicComputationSpec
     NYTree::TSize TimerStoreCountLimit;
     NYTree::TSize TimerStoreByteSizeLimit;
 
-    // Limits for OutputStore.
-    // In case of too much data in memory - computation may suspend any processing.
-    NYTree::TSize OutputStoreCountLimit;
-    NYTree::TSize OutputStoreByteSizeLimit;
-
     //! Averaging window of the blocked-time shares reported in
     //! #TJobEntityLimitStatus::BlockedTimeShare.
     TDuration BlockedTimeWindow;

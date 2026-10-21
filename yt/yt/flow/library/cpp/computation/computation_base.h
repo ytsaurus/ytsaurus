@@ -386,7 +386,6 @@ public:
 
         // If AllowedInputStreams.empty() at least one of flags is true.
         bool OutputBufferOverflow = false;
-        bool OutputStoreOverflow = false;
         bool BlockedByController = false;
 
         // TODO: Highlight critical output stream (the one that is latest in stream DAG).

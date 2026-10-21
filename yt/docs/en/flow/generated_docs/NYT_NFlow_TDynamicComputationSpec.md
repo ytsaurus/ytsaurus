@@ -74,12 +74,6 @@ Dynamic parameters of all `Sinks`. ||
 || `timer_store_byte_size_limit` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Default value**: `100Mi`
  ||
-|| `output_store_count_limit` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
-**Default value**: `1G`
- ||
-|| `output_store_byte_size_limit` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
-**Default value**: `100Gi`
- ||
 || `blocked_time_window` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `10m`
 Averaging window for the share of time the job spent blocked on each limit (`blocked_share` in diagnostics). The share is normalized to the job lifetime, so a job blocked from the start shows `~1` regardless of its age. ||

@@ -861,21 +861,7 @@ bool TUniversalComputationBase::UpdateStatus(
 
     auto inputLimits = GetExtraInputLimits();
 
-    const auto outputStoreCountAndByteSize = OutputStore_->GetCountAndByteSizes();
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> outputLimits;
-    for (const auto& streamId : GetSpec()->OutputStreamIds) {
-        auto [count, byteSize] = GetOrCrash(outputStoreCountAndByteSize, streamId);
-        {
-            auto& entityLimitStatus = outputLimits[OutputStoreBytesLimitType][streamId];
-            entityLimitStatus.Limit = GetDynamicSpec()->OutputStoreByteSizeLimit;
-            entityLimitStatus.Used = byteSize;
-        }
-        {
-            auto& entityLimitStatus = outputLimits[OutputStoreCountLimitType][streamId];
-            entityLimitStatus.Limit = GetDynamicSpec()->OutputStoreCountLimit;
-            entityLimitStatus.Used = count;
-        }
-    }
     BlockedTimeAccountant_.FillShares(&outputLimits);
     {
         auto guard = Guard(LimitsLock_);
@@ -1672,7 +1658,6 @@ TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::C
 
     TCheckOutputLimitsResult result;
     THashSet<TStreamId> allowedOutputStreams(GetSpec()->OutputStreamIds.size());
-    const auto outputStoreCountAndByteSize = OutputStore_->GetCountAndByteSizes();
     const auto streamsAllowedByLimits = GetStreamsWithinLimits(GetContext()->PartitionBufferState->GetOutputStreamLimitUsageStates());
     for (const auto& streamId : GetSpec()->OutputStreamIds) {
         if (dynamicPartitionSpec && dynamicPartitionSpec->BlockedOutputStreams.contains(streamId)) {
@@ -1689,23 +1674,6 @@ TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::C
             blockedLimits.push_back({OutputBufferBytesLimitType, streamId});
             YT_TLOG_INFO("Output buffer is full for stream")
                 .With("StreamId", streamId);
-            continue;
-        }
-        auto [count, byteSize] = outputStoreCountAndByteSize.at(streamId);
-        if (count >= dynamicSpec->OutputStoreCountLimit ||
-            byteSize >= dynamicSpec->OutputStoreByteSizeLimit)
-        {
-            result.OutputStoreOverflow = true;
-            auto limitType = byteSize >= dynamicSpec->OutputStoreByteSizeLimit
-                ? OutputStoreBytesLimitType
-                : OutputStoreCountLimitType;
-            blockedLimits.push_back({limitType, streamId});
-            YT_TLOG_INFO("Output store is full for stream")
-                .With("StreamId", streamId)
-                .With("Count", count)
-                .With("CountLimit", dynamicSpec->OutputStoreCountLimit)
-                .With("ByteSize", byteSize)
-                .With("ByteSizeLimit", dynamicSpec->OutputStoreByteSizeLimit);
             continue;
         }
         allowedOutputStreams.insert(streamId);
@@ -1733,11 +1701,7 @@ void TUniversalComputationBase::WaitForBackoff(
     const TCheckOutputLimitsResult& outputLimitsCheckResult,
     bool emptyInput) const
 {
-    if (outputLimitsCheckResult.OutputStoreOverflow) {
-        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputStoreOverflow", EEpochPartKind::WaitingForOutput));
-        YT_TLOG_INFO("Output store overflow epoch");
-        TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
-    } else if (outputLimitsCheckResult.OutputBufferOverflow) {
+    if (outputLimitsCheckResult.OutputBufferOverflow) {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputBufferOverflow", EEpochPartKind::WaitingForOutput));
         YT_TLOG_INFO("Output buffer overflow epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);

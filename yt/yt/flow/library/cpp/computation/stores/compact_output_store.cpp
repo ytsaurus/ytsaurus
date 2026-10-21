@@ -403,11 +403,6 @@ public:
         return InflightStore_->BuildInflights();
     }
 
-    THashMap<TStreamId, std::pair<i64, i64>> GetCountAndByteSizes() override
-    {
-        return InflightStore_->GetCountAndByteSizes();
-    }
-
 private:
     void RegisterImpl(const TOutputMessageConstPtr& message, const std::optional<TKey>& key, bool persist, bool ensure)
     {
