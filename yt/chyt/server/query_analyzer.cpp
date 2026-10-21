@@ -1203,16 +1203,16 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
         return;
     }
 
-    bool isSingleTable = (storage->GetTables().size() == 1);
+    bool isSingleTableWithoutRanges = (storage->GetTables().size() == 1)
+        && !storage->GetTables()[0]->Path.HasNontrivialRanges();
     int keyColumnCount = KeyColumnCount_;
 
     auto processAggregationKeyNode = [&] (const DB::QueryTreeNodePtr& keyNode) {
-        // SortedPool expects non-overlapping sorted chunks. In case of multiple
-        // tables (concatYtTablesRange), this condition is broken,
-        // so we cannot use SortedPool to optimize aggregation.
+        // Multiple tables and explicit ranges may produce overlapping or unordered slices.
+        // SortedPool requires monotonic bounds within each input stream.
         // TODO(dakovalkov): Theoretically, the optimization is still possible,
         // but we need to overthink SortedPool logic.
-        if (!isSingleTable) {
+        if (!isSingleTableWithoutRanges) {
             return false;
         }
 

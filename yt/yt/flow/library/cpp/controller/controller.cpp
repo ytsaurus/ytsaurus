@@ -517,7 +517,7 @@ public:
             .With("Active", flowView->State->Workers.size());
     }
 
-    void DoIteration(const TFlowViewPtr& flowView)
+    void DoIteration(const TFlowViewPtr& flowView, const TFlowViewPtr& committedFlowView)
     {
         YT_ASSERT_INVOKER_AFFINITY(MainCycleInvoker_);
 
@@ -553,7 +553,7 @@ public:
                 if (pipelineState != EPipelineState::Paused && pipelineState != EPipelineState::Stopped && pipelineState != EPipelineState::Completed) {
                     flowState->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Pausing, VersionProvider_);
                 }
-                DoScheduling(flowView);
+                DoScheduling(flowView, committedFlowView);
             } catch (const std::exception& ex) {
                 JobManager_ = nullptr;
                 throw;
@@ -597,7 +597,7 @@ public:
                 }
             }
 
-            DoScheduling(flowView);
+            DoScheduling(flowView, committedFlowView);
 
             SyncJobManagerState(flowView);
 
@@ -959,9 +959,9 @@ private:
         TFlowEphemeralStatePtr EphemeralState_;
     };
 
-    void DoScheduling(const TFlowViewPtr& flowView)
+    void DoScheduling(const TFlowViewPtr& flowView, const TFlowViewPtr& committedFlowView)
     {
-        JobManager_->BeginIteration();
+        JobManager_->BeginIteration(committedFlowView);
 
         auto checkLeases = [&] {
             LeaseManager_->CheckLeases(flowView);
@@ -1226,9 +1226,9 @@ private:
     {
         YT_VERIFY(JobManager_);
         auto currentJobManagerState = JobManager_->GetState();
-        if (!AreNodesEqual(ConvertToNode(currentJobManagerState), ConvertToNode(flowView->State->JobManagerState))) {
+        if (currentJobManagerState->Computations != flowView->State->JobManagerState->Computations) {
             YT_TLOG_INFO("Updating job manager state in flow view")
-                .With("NewState", NYson::ConvertToYsonString(currentJobManagerState, EYsonFormat::Text));
+                .With("ComputationCount", currentJobManagerState->Computations.size());
             flowView->State->JobManagerState = currentJobManagerState;
         }
     }
@@ -1592,7 +1592,7 @@ private:
                                 leader->SyncWorkers(newFlowView, WorkerTracker_->GetWorkers());
                                 YT_TLOG_INFO("Iteration sync workers finished")
                                     .With("Version", newFlowView->State->ExecutionSpec->PipelineState->GetVersion());
-                                leader->DoIteration(newFlowView);
+                                leader->DoIteration(newFlowView, currentFlowView);
                                 YT_TLOG_INFO("Iteration finished")
                                     .With("Version", newFlowView->State->ExecutionSpec->PipelineState->GetVersion());
 

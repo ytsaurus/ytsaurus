@@ -29,6 +29,7 @@ Source: [yt/yt/flow/library/cpp/runner/simple_runner_program.h]({{source-root}}/
             "enable_host_field" = %false;
             "enable_native_tags" = %false;
             "enable_source_location" = %false;
+            "enable_span_id_field" = %false;
             "enable_system_fields" = %true;
             "format" = "plain_text";
             "type" = "stderr";

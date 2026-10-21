@@ -2100,6 +2100,10 @@ func writeReshardTableOptions(w *yson.Writer, o *yt.ReshardTableOptions) {
 		w.MapKeyString("tablet_count")
 		w.Any(o.TabletCount)
 	}
+	if o.CumulativeDataWeights != nil {
+		w.MapKeyString("cumulative_data_weights")
+		w.Any(o.CumulativeDataWeights)
+	}
 	writeTabletRangeOptions(w, o.TabletRangeOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
 }
@@ -2114,6 +2118,9 @@ func logReshardTableOptions(o *yt.ReshardTableOptions) []log.Field {
 	}
 	if o.TabletCount != nil {
 		fields = append(fields, log.Any("tablet_count", o.TabletCount))
+	}
+	if o.CumulativeDataWeights != nil {
+		fields = append(fields, log.Any("cumulative_data_weights", o.CumulativeDataWeights))
 	}
 	fields = append(fields, logTabletRangeOptions(o.TabletRangeOptions)...)
 	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
@@ -2801,6 +2808,7 @@ func writeStartQueryOptions(w *yson.Writer, o *yt.StartQueryOptions) {
 		w.Any(o.Secrets)
 	}
 	writeQueryTrackerOptions(w, o.QueryTrackerOptions)
+	writeMutatingOptions(w, o.MutatingOptions)
 }
 
 func logStartQueryOptions(o *yt.StartQueryOptions) []log.Field {
@@ -2827,6 +2835,7 @@ func logStartQueryOptions(o *yt.StartQueryOptions) []log.Field {
 		fields = append(fields, log.Any("secrets", o.Secrets))
 	}
 	fields = append(fields, logQueryTrackerOptions(o.QueryTrackerOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
 	return fields
 }
 
@@ -7144,6 +7153,10 @@ func (p *StartQueryParams) MarshalHTTP(w *yson.Writer) {
 
 func (p *StartQueryParams) QueryTrackerOptions() **yt.QueryTrackerOptions {
 	return &p.options.QueryTrackerOptions
+}
+
+func (p *StartQueryParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
 }
 
 type AbortQueryParams struct {

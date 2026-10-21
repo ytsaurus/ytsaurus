@@ -9,8 +9,10 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
+#include <array>
 #include <map>
 #include <set>
+#include <string_view>
 
 namespace NYT::NFlow::NDescribe {
 
@@ -517,17 +519,23 @@ THashMap<TComputationId, TComputationDescription> MakeComputationDescriptions(
         }
     }
 
-    static const std::string ComputationControllerPrefix = "/job_manager/computation_controllers/";
+    static const std::array<std::string_view, 2> ComputationComponentPrefixes = {
+        "/job_manager/computation_controllers/",
+        "/job_manager/partitioning/",
+    };
     THashMap<TComputationId, THashMap<std::string, TError>> computationControllerErrors;
     for (const auto& [component, error] : controllerErrors) {
-        if (!component.starts_with(ComputationControllerPrefix)) {
+        auto prefixIt = std::find_if(ComputationComponentPrefixes.begin(), ComputationComponentPrefixes.end(), [&] (std::string_view prefix) {
+            return component.starts_with(prefix);
+        });
+        if (prefixIt == ComputationComponentPrefixes.end()) {
             continue;
         }
 
-        auto computationIdEnd = component.find('/', ComputationControllerPrefix.size());
+        auto computationIdEnd = component.find('/', prefixIt->size());
         auto computationId = TComputationId(component.substr(
-            ComputationControllerPrefix.size(),
-            computationIdEnd - ComputationControllerPrefix.size()));
+            prefixIt->size(),
+            computationIdEnd - prefixIt->size()));
         if (computationId.Underlying().empty() || !computationDescriptions.contains(computationId)) {
             continue;
         }

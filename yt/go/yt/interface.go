@@ -1318,6 +1318,9 @@ type ReshardTableOptions struct {
 
 	PivotKeys   any  `http:"pivot_keys,omitnil"`
 	TabletCount *int `http:"tablet_count,omitnil"`
+
+	// Initial cumulative data weights for newly created tablets of an ordered table.
+	CumulativeDataWeights []int64 `http:"cumulative_data_weights,omitnil"`
 }
 
 type AlterTableOptions struct {
@@ -1839,6 +1842,7 @@ type StartQueryOptions struct {
 	Secrets []Secret `http:"secrets,omitnil"`
 
 	*QueryTrackerOptions
+	*MutatingOptions
 }
 
 type AbortQueryOptions struct {

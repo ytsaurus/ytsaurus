@@ -325,23 +325,16 @@ class Test(FlowTestBase):
             ), f"State double-apply/loss for profile {reduce_id}. Look into {diff_path}"
 
     def check_durable_state_matches_committed_offsets(self, computation_name, phase1_events):
-        rows = self.client.select_rows(
-            f"* from [{self.pipeline_path}/states]",
-            format=yt.wrapper.format.YsonFormat(encoding=None),
-        )
+        rows = self.read_internal_key_states(computation_name)
         offsets, states = {}, {}
         for row in rows:
-            if row[b"computation_id"].decode() != computation_name:
-                continue
-            name = row[b"name"].decode()
+            name = row["name"]
             if name == "/$active_source/v0":
-                tablet = int(row[b"key"][-1])
-                offsets[tablet] = offset_from_key_yson(row[b"state"].get(b"persisted_offset_exclusive_v2"))
+                tablet = int(row["key"][-1])
+                offsets[tablet] = offset_from_key_yson(row["state"].get("persisted_offset_exclusive_v2"))
             elif name == "/$state":
-                tablet = int(row[b"key"][-1])
-                states[tablet] = {
-                    int(profile.decode()): int(count) for profile, count in row[b"state"][b"counts"].items()
-                }
+                tablet = int(row["key"][-1])
+                states[tablet] = {int(profile): int(count) for profile, count in row["state"]["counts"].items()}
 
         assert sum(offsets.values()) > 0, "Sentinel fired but no partition has a committed offset"
         phase1_tablet_rows = tablet_rows(0, phase1_events)

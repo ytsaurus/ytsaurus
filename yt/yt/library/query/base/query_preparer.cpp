@@ -13,6 +13,7 @@
 #include "expr_builder_base.h"
 
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/finally.h>
 
 #include <library/cpp/yt/misc/variant.h>
 
@@ -1144,19 +1145,22 @@ void RewriteCardinalityIntoHyperLogLogWithPrecision(
     }
 }
 
-void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
-    NAst::TQuery& ast,
-    NAst::TAliasMap& aliasMap,
-    NAst::TAstHead& head)
+namespace {
+
+void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeededImpl(
+    NAst::TQuery* ast,
+    NAst::TAliasMap* aliasMap,
+    NAst::TAstHead* head,
+    const THashSet<std::string>& reservedNames)
 {
-    if (!ast.GroupExprs && ast.OrderExpressions.empty()) {
+    if (!ast->GroupExprs && ast->OrderExpressions.empty()) {
         return;
     }
 
     bool hasIndexReference = false;
 
-    auto& orderExpressionList = ast.OrderExpressions;
-    auto& projections = ast.SelectExprs;
+    auto& orderExpressionList = ast->OrderExpressions;
+    auto& projections = ast->SelectExprs;
     int projectionCount = projections ? std::ssize(*projections) : 0;
 
     auto isIndexReference = [&] (NAst::TExpressionPtr expr) {
@@ -1172,8 +1176,8 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
         return false;
     };
 
-    if (ast.GroupExprs) {
-        for (auto* expr : ast.GroupExprs.value()) {
+    if (ast->GroupExprs) {
+        for (auto* expr : ast->GroupExprs.value()) {
             hasIndexReference |= isIndexReference(expr);
         }
     }
@@ -1196,7 +1200,7 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
         return;
     }
 
-    THashMap<i64, std::string> indexToAlias;
+    THashMap<i64, NAst::TReference> indexToReference;
 
     for (i64 projectionIndex = 0; projectionIndex < std::ssize(*projections); ++projectionIndex) {
         auto& expr = (*projections)[projectionIndex];
@@ -1206,34 +1210,45 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
         i64 adjustedProjectionIndex = projectionIndex + 1;
 
         if (aliasExpressionAst) {
-            indexToAlias[adjustedProjectionIndex] = aliasExpressionAst->Name;
+            indexToReference.emplace(adjustedProjectionIndex, NAst::TReference(aliasExpressionAst->Name));
             continue;
         }
 
         auto referenceExpressionAst = expr->As<NAst::TReferenceExpression>();
         if (referenceExpressionAst) {
-            indexToAlias[adjustedProjectionIndex] = referenceExpressionAst->Reference.ColumnName;
+            indexToReference.emplace(adjustedProjectionIndex, referenceExpressionAst->Reference);
             continue;
         }
 
-        auto newAlias = MakeColumnNameByIndex(projectionIndex + 1);
-        indexToAlias[adjustedProjectionIndex] = newAlias;
-        aliasMap[newAlias] = expr;
+        std::string newAlias;
+        for (int index = projectionIndex + 1; ; ++index) {
+            newAlias = MakeColumnNameByIndex(index);
+            if (!reservedNames.contains(newAlias) && !aliasMap->contains(newAlias)) {
+                break;
+            }
+        }
+        indexToReference.emplace(adjustedProjectionIndex, NAst::TReference(newAlias));
+        aliasMap->emplace(newAlias, expr);
 
-        auto* newExpr = head.New<NAst::TAliasExpression>(expr->SourceLocation, expr, newAlias);
+        auto* newExpr = head->New<NAst::TAliasExpression>(expr->SourceLocation, expr, newAlias);
         (*projections)[projectionIndex] = newExpr;
     }
 
-    if (ast.GroupExprs) {
-        NAst::TExpressionList& groupExpressionList = *ast.GroupExprs;
+    if (ast->GroupExprs) {
+        NAst::TExpressionList& groupExpressionList = *ast->GroupExprs;
 
         for (i64 index = 0; index < std::ssize(groupExpressionList); ++index) {
             auto& expr = groupExpressionList[index];
             if (auto projectionIndex = TryGetProjectionIndex(expr)) {
-                auto& aliasName = indexToAlias[*projectionIndex];
-                auto* newExpr = head.New<NAst::TReferenceExpression>(
+                auto referenceIt = indexToReference.find(*projectionIndex);
+                if (referenceIt == indexToReference.end()) {
+                    THROW_ERROR_EXCEPTION("Reference expression index is out of bounds")
+                        .With("index", *projectionIndex);
+                }
+
+                auto* newExpr = head->New<NAst::TReferenceExpression>(
                     expr->SourceLocation,
-                    aliasName);
+                    referenceIt->second);
                 groupExpressionList[index] = newExpr;
             }
         }
@@ -1243,10 +1258,15 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
         for (i64 index = 0; index < std::ssize(orderExpr.Expressions); ++index) {
             auto& expr = orderExpr.Expressions[index];
             if (auto projectionIndex = TryGetProjectionIndex(expr)) {
-                auto& aliasName = indexToAlias[*projectionIndex];
-                auto* newExpr = head.New<NAst::TReferenceExpression>(
+                auto referenceIt = indexToReference.find(*projectionIndex);
+                if (referenceIt == indexToReference.end()) {
+                    THROW_ERROR_EXCEPTION("Reference expression index is out of bounds")
+                        .With("index", *projectionIndex);
+                }
+
+                auto* newExpr = head->New<NAst::TReferenceExpression>(
                     expr->SourceLocation,
-                    aliasName);
+                    referenceIt->second);
                 orderExpr.Expressions[index] = newExpr;
             }
         }
@@ -1255,7 +1275,119 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
     return;
 }
 
-namespace {
+using TReservedNamesByQuery = THashMap<const NAst::TQuery*, THashSet<std::string>>;
+
+class TProjectionIndicesRewriter
+    : public NAst::TAstVisitor<TProjectionIndicesRewriter>
+{
+public:
+    TProjectionIndicesRewriter(
+        NAst::TAstHead* head,
+        TReservedNamesByQuery* reservedNamesByQuery)
+        : Head_(head)
+        , ReservedNamesByQuery_(reservedNamesByQuery)
+    { }
+
+    void Rewrite(NAst::TQuery* query, NAst::TAliasMap* aliasMap)
+    {
+        CheckStackDepth();
+
+        if (ReservedNamesByQuery_->contains(query)) {
+            return;
+        }
+
+        THashSet<std::string> reservedNames;
+        auto* previousReservedNames = std::exchange(ReservedNames_, &reservedNames);
+        auto guard = Finally([&] {
+            ReservedNames_ = previousReservedNames;
+        });
+
+        NYT::Visit(
+            query->FromClause,
+            [] (const NAst::TTableDescriptor& /*table*/) { },
+            [&] (const NAst::TQueryAstHeadPtr& subquery) {
+                Rewrite(&subquery->Ast, &subquery->AliasMap);
+            },
+            [&] (const NAst::TExpressionList& expressions) {
+                Visit(expressions);
+            });
+
+        for (const auto& [name, expression] : *aliasMap) {
+            reservedNames.insert(name);
+            Visit(expression);
+        }
+
+        for (const auto& join : query->Joins) {
+            NYT::Visit(
+                join,
+                [&] (const NAst::TJoin& tableJoin) {
+                    Visit(tableJoin.Lhs);
+                    Visit(tableJoin.Rhs);
+                    Visit(tableJoin.Predicate);
+                },
+                [&] (const NAst::TArrayJoin& arrayJoin) {
+                    Visit(arrayJoin.Columns);
+                    Visit(arrayJoin.Predicate);
+                });
+        }
+
+        Visit(query->SelectExprs);
+        Visit(query->WherePredicate);
+        Visit(query->GroupExprs);
+        Visit(query->HavingPredicate);
+        for (const auto& orderExpression : query->OrderExpressions) {
+            Visit(orderExpression.Expressions);
+        }
+
+        RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeededImpl(query, aliasMap, Head_, reservedNames);
+
+        ReservedNamesByQuery_->emplace(query, std::move(reservedNames));
+    }
+
+    void OnQuery(NAst::TQueryExpressionPtr queryExpr)
+    {
+        Rewrite(&queryExpr->Query, &queryExpr->AliasMap);
+        auto it = ReservedNamesByQuery_->find(&queryExpr->Query);
+        if (it == ReservedNamesByQuery_->end()) {
+            THROW_ERROR_EXCEPTION("Reserved names are missing for subquery");
+        }
+
+        // A generated alias must not capture a correlated reference in a nested scalar query.
+        ReservedNames_->insert(it->second.begin(), it->second.end());
+    }
+
+    void OnAlias(NAst::TAliasExpressionPtr aliasExpr)
+    {
+        ReservedNames_->insert(aliasExpr->Name);
+        Visit(aliasExpr->Expression);
+    }
+
+    void OnReference(NAst::TReferenceExpressionPtr referenceExpr)
+    {
+        const auto& reference = referenceExpr->Reference;
+        ReservedNames_->insert(reference.ColumnName);
+        if (reference.TableName) {
+            ReservedNames_->insert(*reference.TableName);
+        }
+        Visit(reference.CompositeTypeAccessor.DictOrListItemAccessor);
+    }
+
+private:
+    NAst::TAstHead* const Head_;
+    TReservedNamesByQuery* const ReservedNamesByQuery_;
+
+    THashSet<std::string>* ReservedNames_ = nullptr;
+};
+
+void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
+    NAst::TQuery* query,
+    NAst::TAliasMap* aliasMap,
+    NAst::TAstHead* head)
+{
+    TReservedNamesByQuery reservedNamesByQuery;
+    auto rewriter = TProjectionIndicesRewriter(head, &reservedNamesByQuery);
+    rewriter.Rewrite(query, aliasMap);
+}
 
 // NB: This visitor does NOT traverse into subqueries in the FROM clause (e.g., `SELECT FROM (SELECT ...)`).
 // Such subqueries are handled separately via recursive calls to PreparePlanFragmentImpl.
@@ -1609,7 +1741,7 @@ void ApplyAstRewriters(
     const TPreparePlanFragmentOptions& options)
 {
     if (options.SyntaxVersion >= 3) {
-        RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(queryAst, aliasMap, astHead);
+        RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(&queryAst, &aliasMap, &astHead);
     }
 
     if (options.ShouldRewriteCardinalityIntoHyperLogLog) {

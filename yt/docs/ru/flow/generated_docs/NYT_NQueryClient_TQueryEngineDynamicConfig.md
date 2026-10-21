@@ -31,6 +31,8 @@
  ||
 || `allow_reverse_scan_for_order_by` | **Тип**: `std::optional<bool>`
  ||
+|| `enable_scalar_subquery_order_by_and_limit` | **Тип**: `std::optional<bool>`
+ ||
 || `allow_heavy_range_inference_in_joins` | **Тип**: `std::optional<bool>`
  ||
 || `prefetch_join_tables` | **Тип**: `std::optional<bool>`

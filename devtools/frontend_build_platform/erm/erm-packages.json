@@ -2460,7 +2460,7 @@
     "title": "@yatool/prebuilder",
     "description": "Сборщик нативных зависимостей, поставляющий на проект уже готовые, собранные под нужную платформу пакеты.",
     "type": "NPM_PACKAGE",
-    "default": "1.15.0",
+    "default": "1.15.1",
     "links": {
       "Home": "https://a.yandex-team.ru/arcadia/devtools/frontend_build_platform/prebuilder/cli",
       "Sources": "https://a.yandex-team.ru/arcadia/devtools/frontend_build_platform/prebuilder/cli",
@@ -2469,6 +2469,16 @@
     },
     "internal": true,
     "versions": {
+      "1.15.1": {
+        "add_date": "2026-10-16T22:35:24",
+        "resources": [
+          {
+            "id": 14074856757,
+            "platform": "any",
+            "arch": "any"
+          }
+        ]
+      },
       "1.15.0": {
         "add_date": "2026-09-22T12:46:13",
         "resources": [
@@ -5100,6 +5110,31 @@
           }
         ]
       },
+      "22.23.3": {
+        "add_date": "2026-10-20T05:33:10",
+        "resources": [
+          {
+            "id": 14088395515,
+            "platform": "linux",
+            "arch": "x64"
+          },
+          {
+            "id": 14088397776,
+            "platform": "linux",
+            "arch": "arm64"
+          },
+          {
+            "id": 14088399312,
+            "platform": "darwin",
+            "arch": "x64"
+          },
+          {
+            "id": 14088402833,
+            "platform": "darwin",
+            "arch": "arm64"
+          }
+        ]
+      },
       "22.23.2": {
         "add_date": "2026-08-11T05:31:52",
         "resources": [
@@ -6295,7 +6330,7 @@
     "title": "Prettier",
     "description": "Инструмент для форматирования файлов\n\nПоддерживает подавляющее большинство форматов файлов, использующихся в мире разработки фронтэнда.\n\nОчень opinionated, почти не настраивается, зато обеспечивает единое форматирование.\n\nИнтегрирован в `nots`: `ya tool nots fmt` (последний этап форматирования)\n\nВ перспективе будет использоваться в `ya style` для файлов типа `js`, `ts`, `css`, `scss`, `md?`\n\nМожет быть встроен в `eslint` плагином.",
     "type": "NPM_PACKAGE",
-    "default": "3.9.8",
+    "default": "3.9.10",
     "links": {
       "Home": "https://prettier.io/",
       "Sources": "https://github.com/prettier/prettier",
@@ -6304,6 +6339,16 @@
       "Linting in tier-0": "https://docs.yandex-team.ru/frontend-in-arcadia/index/quick-start#lint"
     },
     "versions": {
+      "3.9.10": {
+        "add_date": "2026-10-20T05:38:08",
+        "resources": [
+          {
+            "id": 14088406775,
+            "platform": "any",
+            "arch": "any"
+          }
+        ]
+      },
       "3.9.8": {
         "add_date": "2026-10-06T05:36:20",
         "resources": [

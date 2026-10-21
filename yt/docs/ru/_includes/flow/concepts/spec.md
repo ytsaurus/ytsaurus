@@ -242,6 +242,7 @@ Flow предоставляет простой вариант этого кон�
 
 ## См. также
 
+- [Автоскейлер](../../../flow/concepts/autoscaler.md)
 - [Computation](../../../flow/concepts/computation.md)
 - [Watermarks и Timers](../../../flow/concepts/watermarks.md)
 - [Коннекторы](../../../flow/connectors/about.md)

@@ -1,24 +1,24 @@
 {
   "info": {
-    "created": "2026-10-14T14:59:21Z",
+    "created": "2026-10-20T07:43:28.883Z",
     "pr": {
-      "id": 16468413,
+      "id": 16567371,
       "author": "baymer",
-      "summary": "TRIVIAL: add tier0-settings"
+      "summary": "FBP-3542: Передавать registry в окружение pnpm в Python builder"
     }
   },
   "by_platform": {
     "darwin": {
-      "uri": "sbr:14059979400"
+      "uri": "sbr:14089323870"
     },
     "darwin-arm64": {
-      "uri": "sbr:14059978014"
+      "uri": "sbr:14089322632"
     },
     "linux": {
-      "uri": "sbr:14059982184"
+      "uri": "sbr:14089326233"
     },
     "linux-aarch64": {
-      "uri": "sbr:14059980692"
+      "uri": "sbr:14089325094"
     }
   }
 }

@@ -752,20 +752,6 @@ class TestJobProxyJobApi(YTEnvSetup):
         assert datetime.datetime.fromisoformat(event["preemptible_progress_start_time"]) == self.try_get_last_save_time(job_id)
 
     @authors("dann239")
-    def test_grpc_disabled_by_default(self):
-        socket_file, _ = self.run_job_proxy(
-            env_variable="YT_JOB_PROXY_GRPC_SOCKET_PATH",
-        )
-        assert not os.path.exists(socket_file)
-
-    @authors("dann239")
-    def test_http_disabled_by_default(self):
-        socket_file, _ = self.run_job_proxy(
-            env_variable="YT_JOB_PROXY_HTTP_SOCKET_PATH",
-        )
-        assert not os.path.exists(socket_file)
-
-    @authors("dann239")
     def test_progress_saved_grpc(self):
         update_nodes_dynamic_config({
             "exec_node": {

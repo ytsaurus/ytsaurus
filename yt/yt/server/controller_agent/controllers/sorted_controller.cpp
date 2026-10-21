@@ -699,7 +699,6 @@ private:
         return fetcher;
     }
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSortedControllerBase, 0xfcd195bc);
 };
 

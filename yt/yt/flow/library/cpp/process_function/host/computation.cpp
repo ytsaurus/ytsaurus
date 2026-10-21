@@ -48,6 +48,7 @@ void TProcessFunctionComputationBase<TBase>::DoInit(IJobInitContextPtr initConte
     YT_VERIFY(!Function_);
 
     auto context = New<TProcessFunctionContext>();
+    context->ComputationSpec = this->GetSpec();
     context->InitContext = New<TRuntimeInitContext>(
         std::move(initContext),
         this->StateManager_,

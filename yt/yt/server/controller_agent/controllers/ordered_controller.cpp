@@ -476,7 +476,6 @@ protected:
         return TError();
     }
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOrderedControllerBase, 0xfefb7805);
 };
 

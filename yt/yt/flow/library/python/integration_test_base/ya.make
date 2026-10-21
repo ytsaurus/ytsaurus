@@ -22,6 +22,7 @@ IF (OPENSOURCE_PROJECT != "yt-cpp-sdk")
         library/python/testing/yatest_common
         yt/yt/flow/docker/monitoring
         yt/yt/flow/library/python/bullied_process
+        yt/yt/flow/library/python/client/state_unpack
         yt/recipe/basic/lib
         yt/python/yt/wrapper
         yt/python/yt/environment

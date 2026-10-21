@@ -11,6 +11,7 @@ import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.common.YTsaurusError;
 import tech.ytsaurus.rpcproxy.TQuery;
+import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ytree.TAttribute;
 
@@ -53,16 +54,22 @@ public class Query {
         this.files = query.hasFiles() ? RpcUtil.parseByteString(query.getFiles()) : null;
         this.startTime = query.hasStartTime() ? RpcUtil.instantFromMicros(query.getStartTime()) : null;
         this.finishTime = query.hasFinishTime() ? RpcUtil.instantFromMicros(query.getFinishTime()) : null;
-        this.settings = RpcUtil.parseByteString(query.getSettings());
+        this.settings = query.hasSettings()
+                ? RpcUtil.parseByteString(query.getSettings())
+                : YTree.mapBuilder().buildMap();
         this.user = query.hasUser() ? query.getUser() : null;
         this.accessControlObjects = query.hasAccessControlObjects()
                 ? RpcUtil.parseByteString(query.getAccessControlObjects())
                 : null;
         this.state = query.hasState() ? QueryState.fromProtoValue(query.getState()) : null;
         this.resultCount = query.hasResultCount() ? query.getResultCount() : null;
-        this.progress = RpcUtil.parseByteString(query.getProgress());
+        this.progress = query.hasProgress()
+                ? RpcUtil.parseByteString(query.getProgress())
+                : YTree.mapBuilder().buildMap();
         this.error = query.hasError() ? new YTsaurusError(query.getError()) : null;
-        this.annotations = RpcUtil.parseByteString(query.getAnnotations());
+        this.annotations = query.hasAnnotations()
+                ? RpcUtil.parseByteString(query.getAnnotations())
+                : YTree.mapBuilder().buildMap();
         this.otherAttributes = query.getOtherAttributes().getAttributesList().stream()
                 .collect(Collectors.toMap(
                         TAttribute::getKey,

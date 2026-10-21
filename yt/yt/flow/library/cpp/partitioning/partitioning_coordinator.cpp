@@ -4,6 +4,8 @@
 
 #include <yt/yt/flow/library/cpp/common/source_controller.h>
 
+#include <yt/yt/flow/library/cpp/misc/status_profiler.h>
+
 #include <yt/yt/client/table_client/logical_type.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -24,6 +26,10 @@ void TComputationPartitioningState::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("retiring_source_partitions", &TThis::RetiringSourcePartitions)
         .Default();
+    registrar.Parameter("throughput_autoscaler", &TThis::ThroughputAutoscaler)
+        .Default();
+    registrar.Parameter("throughput_demand_history", &TThis::ThroughputDemandHistory)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,9 +44,12 @@ void TPartitioningCoordinatorState::Register(TRegistrar registrar)
 
 TPartitioningCoordinator::TPartitioningCoordinator(
     const THashMap<TComputationId, IComputationControllerPtr>& computationControllers,
+    TPipelineSpecPtr pipelineSpec,
     IInitContextPtr initContext,
     NLogging::TLogger logger,
-    NLogging::TLogger publicLogger)
+    NLogging::TLogger publicLogger,
+    NProfiling::TProfiler profiler,
+    IStatusProfilerPtr statusProfiler)
     : Logger(std::move(logger))
     , PublicLogger(std::move(publicLogger))
 {
@@ -53,19 +62,33 @@ TPartitioningCoordinator::TPartitioningCoordinator(
     for (const auto& [computationId, controller] : computationControllers) {
         TComputationState state;
         state.Controller = controller;
+        state.Spec = GetOrCrash(pipelineSpec->Computations, computationId);
         state.Logger = Logger.WithTag("ComputationId", computationId);
         state.PublicLogger = PublicLogger.WithTag("ComputationId", computationId);
+        state.Profiler = profiler.WithTag("computation_id", computationId.Underlying());
+        state.ProposedPartitionCountGauge = state.Profiler.Gauge("/proposed_partition_count");
         auto [it, _] = PersistedState_->Computations.emplace(
             computationId,
             New<TComputationPartitioningState>());
         state.PersistedState = it->second;
+        ThroughputAutoscaler_.InitializeComputation(
+            computationId,
+            state.PersistedState->ThroughputAutoscaler,
+            state.PersistedState->ThroughputDemandHistory);
+        if (statusProfiler) {
+            state.ThroughputErrorState = statusProfiler->ErrorState(Format("/%v/throughput", computationId));
+        }
         EmplaceOrCrash(Computations_, computationId, std::move(state));
         ComputationOrder_.push_back(computationId);
     }
 }
 
-void TPartitioningCoordinator::BeginIteration()
+void TPartitioningCoordinator::BeginIteration(const TFlowViewPtr& committedFlowView)
 {
+    PendingPartitionChanges_.clear();
+    ThroughputStatusPrepared_ = false;
+    CommittedState_ = committedFlowView->State;
+    ThroughputAutoscaler_.BeginIteration();
     for (auto& [_, state] : Computations_) {
         if (state.PreviousRetiringSourcePartitions) {
             state.PersistedState->RetiringSourcePartitions =
@@ -139,8 +162,39 @@ bool TPartitioningCoordinator::IsFullCoverage(
         actualKeySet == *sourceTopology.ExpectedKeys;
 }
 
+void TPartitioningCoordinator::Sync()
+{
+    for (auto& [computationId, state] : Computations_) {
+        state.PersistedState->ThroughputAutoscaler = ThroughputAutoscaler_.GetFeedbackState(computationId);
+        state.PersistedState->ThroughputDemandHistory = ThroughputAutoscaler_.SaveDemandHistory(computationId);
+    }
+}
+
 void TPartitioningCoordinator::Commit()
 {
+    ThroughputAutoscaler_.Commit();
+    for (const auto& [computationId, state] : Computations_) {
+        if (ThroughputStatusPrepared_ && state.ThroughputErrorState) {
+            state.ThroughputErrorState->SetError(EnableThroughputAutoscaler_
+                    ? ThroughputAutoscaler_.CheckComputationStatus(computationId)
+                    : TError());
+        }
+    }
+    for (const auto& change : PendingPartitionChanges_) {
+        const auto logger = PublicLogger.WithTag("ComputationId", change.ComputationId);
+        YT_TLOG_EVENT(logger, NLogging::ELogLevel::Info, "Partitioning: applied partition count change")
+            .With("Initiator", change.Initiator)
+            .With("Reason", change.Reason)
+            .With("PreviousPartitionCount", change.PreviousPartitionCount)
+            .With("NewPartitionCount", change.NewPartitionCount);
+        auto& state = GetOrCrash(Computations_, change.ComputationId);
+        auto [it, inserted] = state.RepartitionCounters.try_emplace(change.Initiator);
+        if (inserted) {
+            it->second = state.Profiler.WithTag("initiator", change.Initiator).Counter("/repartition_count");
+        }
+        it->second.Increment();
+    }
+    PendingPartitionChanges_.clear();
     for (auto& [_, state] : Computations_) {
         state.PendingAppliedSinkTopologyVersion.reset();
         state.PreviousAppliedSinkTopologyVersion.reset();
@@ -150,6 +204,8 @@ void TPartitioningCoordinator::Commit()
 
 void TPartitioningCoordinator::DoPartitioning(const TFlowViewPtr& flowView)
 {
+    EnableThroughputAutoscaler_ = flowView->State->ExecutionSpec->DynamicPipelineSpec->GetValue()->JobManager->Partitioning->EnableThroughputAutoscaler;
+
     const auto& layout = flowView->State->ExecutionSpec->Layout;
 
     THashMap<TComputationId, std::vector<TPartitionId>> partitions;
@@ -169,26 +225,77 @@ void TPartitioningCoordinator::DoPartitioning(const TFlowViewPtr& flowView)
         }
     }
 
+    THashMap<TComputationId, TPreparedComputationPartitioning> prepared;
+    TThroughputAutoscaler::TComputations computations;
     for (const auto& computationId : ComputationOrder_) {
+        auto grouped = GroupPartitions(partitions[computationId], flowView);
+        auto& state = GetOrCrash(Computations_, computationId);
+        auto description = state.Controller->DescribePartitioning(
+            BuildPartitioningStatus(grouped, flowView));
+        if (EnableThroughputAutoscaler_) {
+            TThroughputAutoscaler::TComputation computation{
+                .Spec = state.Spec,
+            };
+            if (const auto* range = std::get_if<IComputationController::TPartitioningDescription::TRange>(
+                &description.Value))
+            {
+                computation.PartitioningSpec = range->PartitioningSpec;
+            }
+            EmplaceOrCrash(computations, computationId, std::move(computation));
+        }
+        EmplaceOrCrash(
+            prepared,
+            computationId,
+            TPreparedComputationPartitioning{
+                .Grouped = std::move(grouped),
+                .Description = std::move(description),
+            });
+    }
+
+    if (EnableThroughputAutoscaler_) {
+        YT_VERIFY(CommittedState_);
+        const auto& config = flowView->State->ExecutionSpec->DynamicPipelineSpec->GetValue()->JobManager->Partitioning->Throughput;
+        ThroughputAutoscaler_.Reconfigure(std::move(computations), config);
+        ThroughputAutoscaler_.Evaluate({
+            .Now = flowView->Feedback->UpdateTime,
+            .Config = config,
+            .Computations = ProcessingMeter_.Collect(
+                CommittedState_,
+                flowView,
+                config,
+                ThroughputAutoscaler_.ComputeMeasurementRequests()),
+        });
+    }
+
+    for (const auto& computationId : ComputationOrder_) {
+        auto& state = GetOrCrash(Computations_, computationId);
+        if (const auto telemetry = EnableThroughputAutoscaler_
+                ? ThroughputAutoscaler_.FindTelemetry(computationId)
+                : std::nullopt)
+        {
+            ProfileThroughput(state, *telemetry);
+        } else {
+            state.ThroughputSensors.reset();
+        }
         DoComputationPartitioning(
             computationId,
-            GetOrCrash(Computations_, computationId),
-            partitions[computationId],
+            state,
+            std::move(GetOrCrash(prepared, computationId)),
             flowView);
     }
+    ThroughputStatusPrepared_ = true;
 }
 
 void TPartitioningCoordinator::DoComputationPartitioning(
     const TComputationId& computationId,
     TComputationState& state,
-    const std::vector<TPartitionId>& computationPartitions,
+    TPreparedComputationPartitioning prepared,
     const TFlowViewPtr& flowView)
 {
-    const auto& controller = state.Controller;
     const auto& layout = flowView->State->ExecutionSpec->Layout;
     const auto& logger = state.Logger;
 
-    auto grouped = GroupPartitions(computationPartitions, flowView);
+    auto grouped = std::move(prepared.Grouped);
     auto blockedStreamComputer = New<TBlockedStreamComputer>(flowView, grouped.InterruptingPartitions, logger);
 
     for (const auto& partitionId : grouped.BadPartitions) {
@@ -213,7 +320,7 @@ void TPartitioningCoordinator::DoComputationPartitioning(
         }
     };
 
-    auto description = controller->DescribePartitioning(BuildPartitioningStatus(grouped, flowView));
+    auto description = std::move(prepared.Description);
     if (auto* rangeDescription = std::get_if<IComputationController::TPartitioningDescription::TRange>(
         &description.Value))
     {
@@ -291,10 +398,26 @@ void TPartitioningCoordinator::DoComputationPartitioning(
                 UniteRanges(context.NewRanges) == std::vector{UniversalKeyRange()};
             if (proposedRangesAreUsable) {
                 context.RecreateNow = true;
+                context.DecisionInitiator = "sink_topology";
+                context.DecisionReason = "sink_topology_version_changed";
             }
         }
 
+        if (EnableThroughputAutoscaler_ && ThroughputAutoscaler_.FindDecision(computationId)) {
+            ThroughputAutoscaler_.AcceptPartitionCount(
+                computationId,
+                std::ssize(grouped.RangePartitions),
+                context.RecreateNow ? std::ssize(context.NewRanges) : std::ssize(grouped.RangePartitions));
+        }
+
         if (context.RecreateNow) {
+            PendingPartitionChanges_.push_back({
+                .ComputationId = computationId,
+                .PreviousPartitionCount = std::ssize(grouped.RangePartitions),
+                .NewPartitionCount = std::ssize(context.NewRanges),
+                .Initiator = context.DecisionInitiator,
+                .Reason = context.DecisionReason,
+            });
             for (const auto& partitionId : GetKeys(grouped.RangePartitions)) {
                 blockedStreamComputer->AddInterruptingPartition(partitionId);
                 InterruptPartition(flowView, partitionId);
@@ -461,6 +584,7 @@ TPartitioningCoordinator::BuildRangePartitioningParameters(
     const TFlowViewPtr& flowView) const
 {
     TRangePartitioningParameters parameters;
+    parameters.ComputationId = computationId;
     parameters.PartitioningSpec = std::move(partitioningSpec);
 
     const auto& computationSpec = GetOrCrash(
@@ -581,6 +705,87 @@ void TPartitioningCoordinator::UpdateDynamicPartitionSpec(
     YT_TLOG_EVENT(logger, NLogging::ELogLevel::Info, "Update dynamic partition spec")
         .With("PartitionId", partitionId)
         .With("NewDynamicPartitionSpec", ConvertToYsonString(spec, EYsonFormat::Text));
+}
+
+TPartitioningCoordinator::TThroughputSensors::TThroughputSensors(const NProfiling::TProfiler& profiler)
+    : Demand(profiler.Gauge("/demand"))
+    , SteadyDemand(profiler.Gauge("/steady_demand"))
+    , PeakSteadyDemand(profiler.Gauge("/peak_steady_demand"))
+    , Processed(profiler.Gauge("/processed"))
+    , Capacity(profiler.Gauge("/capacity"))
+    , DemandKnown(profiler.Gauge("/demand_known"))
+    , SteadyDemandKnown(profiler.Gauge("/steady_demand_known"))
+    , ProcessedKnown(profiler.Gauge("/processed_known"))
+    , CapacityKnown(profiler.Gauge("/capacity_known"))
+    , TargetPartitionCount(profiler.Gauge("/target_partition_count"))
+    , TargetPartitionCountKnown(profiler.Gauge("/target_partition_count_known"))
+    , AnchorPartitionCount(profiler.Gauge("/anchor_partition_count"))
+    , AnchorCapacity(profiler.Gauge("/anchor_capacity"))
+    , AnchorKnown(profiler.Gauge("/anchor_known"))
+    , ExplorationOriginPartitionCount(profiler.Gauge("/exploration_origin_partition_count"))
+    , ExplorationOriginProcessed(profiler.Gauge("/exploration_origin_processed"))
+    , ExplorationBestProcessed(profiler.Gauge("/exploration_best_processed"))
+    , ExplorationPartitionCountLimit(profiler.Gauge("/exploration_partition_count_limit"))
+    , ExplorationKnown(profiler.Gauge("/exploration_known"))
+    , SearchPhase(profiler.Gauge("/search_phase"))
+    , CapacityDegraded(profiler.Gauge("/capacity_degraded"))
+    , RetryWarmupSeconds(profiler.Gauge("/retry_warmup_seconds"))
+    , WarmupReady(profiler.Gauge("/warmup_ready"))
+    , Repartitioning(profiler.Gauge("/repartitioning"))
+{ }
+
+TPartitioningCoordinator::TCriterionSensors::TCriterionSensors(const NProfiling::TProfiler& profiler)
+    : Average(profiler.Gauge("/criterion_average"))
+    , ProposedPartitionCount(profiler.Gauge("/criterion_proposed_partition_count"))
+    , DecisionCount(profiler.Counter("/decision_count"))
+{ }
+
+void TPartitioningCoordinator::ProfileThroughput(
+    TComputationState& state,
+    const TThroughputAutoscalerTelemetry& telemetry)
+{
+    if (!state.ThroughputSensors) {
+        state.ThroughputSensors.emplace(state.Profiler.WithPrefix("/throughput"));
+    }
+    auto& sensors = *state.ThroughputSensors;
+    if (telemetry.Demand) {
+        sensors.Demand.Update(*telemetry.Demand);
+    }
+    if (telemetry.SteadyDemand) {
+        sensors.SteadyDemand.Update(*telemetry.SteadyDemand);
+    }
+    if (telemetry.Processed) {
+        sensors.Processed.Update(*telemetry.Processed);
+    }
+    if (telemetry.Capacity) {
+        sensors.Capacity.Update(*telemetry.Capacity);
+    }
+    sensors.DemandKnown.Update(telemetry.Demand ? 1 : 0);
+    sensors.SteadyDemandKnown.Update(telemetry.SteadyDemand ? 1 : 0);
+    sensors.PeakSteadyDemand.Update(telemetry.PeakSteadyDemand);
+    sensors.ProcessedKnown.Update(telemetry.Processed ? 1 : 0);
+    sensors.CapacityKnown.Update(telemetry.Capacity ? 1 : 0);
+    if (telemetry.TargetPartitionCount) {
+        sensors.TargetPartitionCount.Update(*telemetry.TargetPartitionCount);
+    }
+    sensors.TargetPartitionCountKnown.Update(telemetry.TargetPartitionCount ? 1 : 0);
+    if (telemetry.Anchor) {
+        sensors.AnchorPartitionCount.Update(telemetry.Anchor->PartitionCount);
+        sensors.AnchorCapacity.Update(telemetry.Anchor->Capacity);
+    }
+    sensors.AnchorKnown.Update(telemetry.Anchor ? 1 : 0);
+    if (telemetry.Exploration) {
+        sensors.ExplorationOriginPartitionCount.Update(telemetry.Exploration->OriginPartitionCount);
+        sensors.ExplorationOriginProcessed.Update(telemetry.Exploration->OriginProcessed);
+        sensors.ExplorationBestProcessed.Update(telemetry.Exploration->BestProcessed);
+        sensors.ExplorationPartitionCountLimit.Update(*telemetry.ExplorationPartitionCountLimit);
+    }
+    sensors.ExplorationKnown.Update(telemetry.Exploration ? 1 : 0);
+    sensors.SearchPhase.Update(static_cast<int>(telemetry.Phase));
+    sensors.CapacityDegraded.Update(telemetry.CapacityDegraded ? 1 : 0);
+    sensors.RetryWarmupSeconds.Update(telemetry.RetryWarmupPeriod.SecondsFloat());
+    sensors.WarmupReady.Update(telemetry.WarmupReady ? 1 : 0);
+    sensors.Repartitioning.Update(telemetry.Repartitioning ? 1 : 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

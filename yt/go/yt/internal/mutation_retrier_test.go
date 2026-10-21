@@ -13,6 +13,8 @@ import (
 	"go.ytsaurus.tech/yt/go/yt"
 )
 
+var _ MutatingParams = (*StartQueryParams)(nil)
+
 func TestMutationRetrierIgnoresGet(t *testing.T) {
 	r := MutationRetrier{}
 

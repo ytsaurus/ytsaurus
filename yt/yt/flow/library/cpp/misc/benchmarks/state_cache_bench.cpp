@@ -9,6 +9,7 @@
 #include <library/cpp/yt/misc/enum.h>
 
 #include <atomic>
+#include <barrier>
 #include <thread>
 #include <vector>
 
@@ -22,6 +23,7 @@ DEFINE_ENUM(EStateCacheWorkload,
     (CompressedRoundTrip)
     (CompressedMiss)
     (HotRoundTrip)
+    (Mixed)
 );
 
 class TStateCacheBenchmarkValue
@@ -78,8 +80,9 @@ void RunStateCacheBenchmark(benchmark::State& state, EStateCacheWorkload workloa
     const int payloadSize = static_cast<int>(state.range(1));
     const int threadCount = static_cast<int>(state.range(2));
     const int entriesPerThread = entryCount / threadCount;
-    constexpr int PassCount = 4;
-    const i64 operationCount = static_cast<i64>(entryCount) * PassCount;
+    const int passCount = workload == EStateCacheWorkload::CompressedMiss ? 400 : workload == EStateCacheWorkload::Churn ? 4
+                                                                                                                         : 40;
+    const i64 operationCount = static_cast<i64>(entryCount) * passCount;
     YT_VERIFY(entryCount % threadCount == 0);
 
     for (auto _ : state) {
@@ -95,6 +98,10 @@ void RunStateCacheBenchmark(benchmark::State& state, EStateCacheWorkload workloa
             const i64 capacity = entryWeight * entryCount * (workload == EStateCacheWorkload::Churn ? 1 : 2);
             spec->UncompressedCacheWeight = NYTree::TSize(workload == EStateCacheWorkload::HotRoundTrip ? capacity : 0);
             spec->CompressedCacheWeight = NYTree::TSize(capacity);
+            if (workload == EStateCacheWorkload::Mixed) {
+                spec->UncompressedCacheWeight = NYTree::TSize(entryWeight * entryCount / 4);
+                spec->CompressedCacheWeight = NYTree::TSize(entryWeight * entryCount / 2);
+            }
             auto cache = New<TStateCache>(spec, NProfiling::TProfiler{});
             std::vector<TJobNamedStateCachePtr> jobCaches;
             std::vector<std::vector<TKey>> keys(threadCount);
@@ -116,25 +123,41 @@ void RunStateCacheBenchmark(benchmark::State& state, EStateCacheWorkload workloa
                 }
             });
 
-            state.ResumeTiming();
-            RunCacheThreads(threadCount, [&] (int threadIndex) {
-                for (int passIndex = 0; passIndex < PassCount; ++passIndex) {
-                    for (int keyIndex = 0; keyIndex < entriesPerThread; ++keyIndex) {
-                        if (workload == EStateCacheWorkload::Churn) {
-                            jobCaches[threadIndex]->Insert(
-                                MakeKey(static_cast<ui64>((passIndex + 1) * entriesPerThread + keyIndex)),
-                                New<TStateCacheBenchmarkValue>(payloadSize));
-                        } else if (workload == EStateCacheWorkload::CompressedMiss) {
-                            YT_VERIFY(!jobCaches[threadIndex]->Extract(keys[threadIndex][keyIndex]));
-                        } else {
-                            auto value = jobCaches[threadIndex]->Extract(keys[threadIndex][keyIndex]);
-                            YT_VERIFY(value);
-                            jobCaches[threadIndex]->Insert(keys[threadIndex][keyIndex], std::move(value));
+            // Create workers before timing; the barriers delimit cache operations.
+            std::barrier start(threadCount + 1);
+            std::barrier finish(threadCount + 1);
+            std::vector<std::thread> workers;
+            for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex) {
+                workers.emplace_back([&, threadIndex] {
+                    start.arrive_and_wait();
+                    for (int passIndex = 0; passIndex < passCount; ++passIndex) {
+                        for (int keyIndex = 0; keyIndex < entriesPerThread; ++keyIndex) {
+                            if (workload == EStateCacheWorkload::Churn) {
+                                jobCaches[threadIndex]->Insert(
+                                    MakeKey(static_cast<ui64>((passIndex + 1) * entriesPerThread + keyIndex)),
+                                    New<TStateCacheBenchmarkValue>(payloadSize));
+                            } else if (workload == EStateCacheWorkload::CompressedMiss) {
+                                YT_VERIFY(!jobCaches[threadIndex]->Extract(keys[threadIndex][keyIndex]));
+                            } else {
+                                auto value = jobCaches[threadIndex]->Extract(keys[threadIndex][keyIndex]);
+                                if (workload == EStateCacheWorkload::Mixed && !value) {
+                                    value = New<TStateCacheBenchmarkValue>(payloadSize);
+                                }
+                                YT_VERIFY(value);
+                                jobCaches[threadIndex]->Insert(keys[threadIndex][keyIndex], std::move(value));
+                            }
                         }
                     }
-                }
-            });
+                    finish.arrive_and_wait();
+                });
+            }
+            state.ResumeTiming();
+            start.arrive_and_wait();
+            finish.arrive_and_wait();
             state.PauseTiming();
+            for (auto& worker : workers) {
+                worker.join();
+            }
             const auto allocatedAfter = tcmalloc::MallocExtension::GetNumericProperty("generic.current_allocated_bytes");
             YT_VERIFY(allocatedAfter);
             const i64 liveCount = TStateCacheBenchmarkValue::LiveCount.load();
@@ -170,12 +193,27 @@ void BM_StateCacheHotRoundTrip(benchmark::State& state)
     RunStateCacheBenchmark(state, EStateCacheWorkload::HotRoundTrip);
 }
 
+void BM_StateCacheMixed(benchmark::State& state)
+{
+    RunStateCacheBenchmark(state, EStateCacheWorkload::Mixed);
+}
+
+BENCHMARK(BM_StateCacheMixed)
+    ->Args({20000, 1024, 1})
+    ->Args({20000, 1024, 8})
+    ->Args({20000, 1024, 40})
+    ->Iterations(1)
+    ->MeasureProcessCPUTime()
+    ->UseRealTime();
+
 BENCHMARK(BM_StateCacheChurn)
     ->Args({100000, 340, 1})
     ->Args({100000, 1024, 1})
     ->Args({100000, 4096, 1})
     ->Args({100000, 1024, 4})
     ->Args({100000, 1024, 8})
+    ->Args({100000, 1024, 40})
+    ->Args({400000, 1024, 1})
     ->Iterations(1)
     ->MeasureProcessCPUTime()
     ->UseRealTime();
@@ -184,6 +222,8 @@ BENCHMARK(BM_StateCacheCompressedRoundTrip)
     ->Args({20000, 1024, 1})
     ->Args({20000, 1024, 4})
     ->Args({20000, 1024, 8})
+    ->Args({20000, 1024, 16})
+    ->Args({20000, 1024, 40})
     ->Iterations(1)
     ->MeasureProcessCPUTime()
     ->UseRealTime();
@@ -192,6 +232,8 @@ BENCHMARK(BM_StateCacheCompressedMiss)
     ->Args({20000, 1024, 1})
     ->Args({20000, 1024, 4})
     ->Args({20000, 1024, 8})
+    ->Args({20000, 1024, 16})
+    ->Args({20000, 1024, 40})
     ->Iterations(1)
     ->MeasureProcessCPUTime()
     ->UseRealTime();
@@ -199,6 +241,8 @@ BENCHMARK(BM_StateCacheCompressedMiss)
 BENCHMARK(BM_StateCacheHotRoundTrip)
     ->Args({20000, 1024, 1})
     ->Args({20000, 1024, 8})
+    ->Args({20000, 1024, 16})
+    ->Args({20000, 1024, 40})
     ->Iterations(1)
     ->MeasureProcessCPUTime()
     ->UseRealTime();

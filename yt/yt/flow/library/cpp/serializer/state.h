@@ -52,6 +52,13 @@ DEFINE_REFCOUNTED_TYPE(TFormat);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSharedRef UnpackState(
+    const TSharedRef& compressed,
+    const TSharedRef& patch,
+    const TFormatPtr& format);
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NPrivate {
 
 TStateSchemaPtr BuildYsonStateSchema(std::function<NYTree::TYsonStructPtr()> ctor);
@@ -118,7 +125,6 @@ private:
     bool IsEmptyYsonRow();
 
     static TSharedRef Compress(NCompression::ICodec* codec, const TSharedRef& value);
-    static TSharedRef Decompress(NCompression::ICodec* codec, const TSharedRef& value);
 };
 
 DEFINE_REFCOUNTED_TYPE(TState);

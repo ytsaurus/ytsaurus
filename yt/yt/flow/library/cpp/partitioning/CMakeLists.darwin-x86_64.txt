@@ -32,6 +32,7 @@ target_link_libraries(library-cpp-partitioning PUBLIC
   yutil
   library-cpp-iterator
   library-cpp-common
+  library-cpp-throughput_autoscaler
 )
 
 target_sources(library-cpp-partitioning PRIVATE

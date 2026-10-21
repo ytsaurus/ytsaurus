@@ -293,7 +293,6 @@ private:
 
     void DoExtractCookie(IChunkPoolOutput::TCookie cookie);
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_TYPE(TJobManager, 0x7e42ef5b);
 };
 

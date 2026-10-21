@@ -10,8 +10,10 @@
 Имя встроенного класса Computation или адаптера process function.
 
 Для новой пользовательской логики на C++ выберите один из встроенных адаптеров `TProcessFunction*Computation`. Саму функцию зарегистрируйте через `YT_FLOW_DEFINE_PROCESS_FUNCTION` и укажите в `processing_function`. Пользовательские классы Computation создавать не следует. ||
+|| `process_function_graph` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TProcessFunctionGraphSpec](./all_yson_structs#NYT_NFlow_TProcessFunctionGraphSpec)`>`
+Несколько process function, связанных идентификаторами стримов и выполняемых в одном `TProcessFunctionComputation` или `TProcessFunctionSwiftMapComputation`. Можно объединять batch и per-message функции. ID внутренних сообщений выводятся из исходных родителей на границе графа, выходного стрима и suffix; timestamps и внешние ID назначаются по правилам host computation. Swift требует детерминированного replay; batch функции задают родителей каждого результата через `SetParents`. Объединение разных входных сообщений требует `parameters/allow_batching_with_relaxed_guarantees = %true` и даёт гарантию at-least-once. Раннер заменяет граф полями `processing_function`, `processing_function_parameters`, `timer_streams`, `streams_dependency` и `allow_timer_self_dependency`, поэтому не задавайте эти поля вместе с графом. ||
 || `processing_function` | **Тип**: `std::optional<std::string>`
-Полное имя process function, зарегистрированной через `YT_FLOW_DEFINE_PROCESS_FUNCTION`. Обязательно для адаптеров `TProcessFunction*Computation`. ||
+Полное имя process function, зарегистрированной через `YT_FLOW_DEFINE_PROCESS_FUNCTION`. Обязательно для адаптеров `TProcessFunction*Computation`, если не задан `process_function_graph`. ||
 || `processing_function_parameters` | **Тип**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 Статические параметры process function. Тип параметров задаётся при регистрации `YT_FLOW_DEFINE_PROCESS_FUNCTION`. ||
 || `group_by_schema` | **Тип**: `NYT::TIntrusivePtr<NYT::NTableClient::TTableSchema>`

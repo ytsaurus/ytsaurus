@@ -1,6 +1,6 @@
 from yt_commands import (
-    get_driver, get,
-    lookup_rows, select_rows, delete_rows, insert_rows)
+    create, exists, get_driver, get, map as run_map_operation,
+    lookup_rows, ls, remove, select_rows, delete_rows, insert_rows, write_file, write_table)
 
 from yt.yson import YsonMap
 from yt.yson.yson_token import TOKEN_SLASH, TOKEN_LITERAL, TOKEN_END_OF_STREAM
@@ -69,19 +69,55 @@ def select_rows_from_ground(query, **kwargs):
 
 def delete_rows_from_ground(descriptor: yt_sequoia.TableDescriptor, rows, **kwargs):
     _use_ground_driver(kwargs)
-    delete_rows(descriptor.get_default_path(), rows, **kwargs)
+    return delete_rows(descriptor.get_default_path(), rows, **kwargs)
 
 
 def insert_rows_to_ground(descriptor: yt_sequoia.TableDescriptor, rows, **kwargs):
     _use_ground_driver(kwargs)
-    insert_rows(descriptor.get_default_path(), rows, **kwargs)
+    return insert_rows(descriptor.get_default_path(), rows, **kwargs)
 
 
 def clear_table_in_ground(descriptor: yt_sequoia.TableDescriptor, **kwargs):
     _use_ground_driver(kwargs)
     keys = [c["name"] for c in descriptor.schema if "sort_order" in c and "expression" not in c]
     rows = select_rows_from_ground(", ".join(keys) + f" from [{descriptor.get_default_path()}]")
-    delete_rows(descriptor.get_default_path(), rows, **kwargs)
+    return delete_rows(descriptor.get_default_path(), rows, **kwargs)
+
+
+def exists_in_ground(path, **kwargs):
+    _use_ground_driver(kwargs)
+    return exists(path, **kwargs)
+
+
+def create_in_ground(object_type, path, **kwargs):
+    _use_ground_driver(kwargs)
+    return create(object_type, path, **kwargs)
+
+
+def remove_from_ground(path, **kwargs):
+    _use_ground_driver(kwargs)
+    return remove(path, **kwargs)
+
+
+def write_table_to_ground(path, value=None, is_raw=False, **kwargs):
+    _use_ground_driver(kwargs)
+    return write_table(path, value=value, is_raw=is_raw, **kwargs)
+
+
+def write_file_to_ground(path, stream, **kwargs):
+    _use_ground_driver(kwargs)
+    kwargs["input_stream"] = stream
+    return write_file(path, None, **kwargs)
+
+
+def ls_in_ground(path, **kwargs):
+    _use_ground_driver(kwargs)
+    return ls(path, **kwargs)
+
+
+def map_in_ground(**kwargs):
+    _use_ground_driver(kwargs)
+    return run_map_operation(**kwargs)
 
 
 ################################################################################

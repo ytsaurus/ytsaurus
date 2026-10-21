@@ -586,7 +586,6 @@ private:
             }
         }
 
-        PHOENIX_DECLARE_FRIEND();
         PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOutput, 0x2f5dc106);
     };
 
@@ -688,7 +687,6 @@ private:
         OutputsFinalized_.Fire();
     }
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TPushBasedShuffleChunkPool, 0x9a83b742);
 };
 

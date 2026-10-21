@@ -1174,13 +1174,18 @@ TSystemTimestamp TUniversalComputationBase::GetEpochWatermark(const TStreamId& s
 }
 
 THashMap<TStreamId, TInflightStreamTraverseDataPtr> TUniversalComputationBase::BuildInflights(
-    const IComputationRunContextPtr& context) const
+    const IComputationRunContextPtr& context,
+    TSystemTimestamp now) const
 {
     const auto emptyStream = New<TInflightStreamTraverseData>();
     emptyStream->Empty = true;
     emptyStream->Suspended = true;
     emptyStream->InflightMetrics->Count = 0;
     emptyStream->InflightMetrics->ByteSize = 0;
+    emptyStream->InflightMetrics->ReadyCount = 0;
+    emptyStream->InflightMetrics->ReadyByteSize = 0;
+    emptyStream->InflightMetrics->OfferedCountPerSec = 0;
+    emptyStream->InflightMetrics->OfferedBytesPerSec = 0;
 
     THashMap<TStreamId, TInflightStreamTraverseDataPtr> inflights;
     if (TimerStore_) {
@@ -1219,7 +1224,7 @@ THashMap<TStreamId, TInflightStreamTraverseDataPtr> TUniversalComputationBase::B
         }
     }
     for (const auto& [streamId, visitor] : KeyVisitors_) {
-        for (const auto& [innerStreamId, inflight] : visitor->BuildInflight()) {
+        for (const auto& [innerStreamId, inflight] : visitor->BuildInflight(now)) {
             inflights[innerStreamId] = inflight;
         }
     }
@@ -1944,7 +1949,7 @@ void TUniversalComputationBase::DrainOutputMessages(const IComputationRunContext
     {
         auto iterGuard = StartRunIteration(context);
         const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
-        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context));
+        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context, now));
         FinishRunIteration();
     }
 
@@ -1960,7 +1965,7 @@ void TUniversalComputationBase::DrainOutputMessages(const IComputationRunContext
         auto tx = PrepareTransaction(context);
         Commit(context, tx);
 
-        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context));
+        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context, now));
         FinishRunIteration();
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.DrainingPartitionOutputMessages", EEpochPartKind::Waiting));
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);

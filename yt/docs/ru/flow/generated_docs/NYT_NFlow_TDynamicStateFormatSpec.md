@@ -12,7 +12,7 @@
 || `delta` | **Тип**: [NYT::NFlow::NDeltaCodecs::ECodec](./all_yson_structs#NYT_NFlow_NDeltaCodecs_ECodec)
  ||
 || `compress` | **Тип**: `bool`
-**Значение по умолчанию**: `false`
+**Значение по умолчанию**: `true`
  ||
 || `recode_probability` | **Тип**: `double`
 **Значение по умолчанию**: `0.1`

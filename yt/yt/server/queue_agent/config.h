@@ -312,6 +312,9 @@ struct TQueueAgentBootstrapConfig
 
     NYTree::IMapNodePtr CypressAnnotations;
 
+    //! Discovery group id used by queue agents to register and discover each other.
+    std::string GroupId;
+
     NCypressElection::TCypressElectionManagerConfigPtr CypressSynchronizerElectionManager;
 
     NCypressElection::TCypressElectionManagerConfigPtr MultiConsumerNamesGarbageCollectorElectionManager;

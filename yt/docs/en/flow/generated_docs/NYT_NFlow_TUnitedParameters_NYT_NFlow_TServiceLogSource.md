@@ -7,7 +7,7 @@ Source: [yt/yt/flow/library/cpp/common/registry-inl.h]({{source-root}}/yt/yt/flo
 || **Parameter** | **Description** ||
 || `finite` | **Type**: `bool`
 **Default value**: `false`
-Treat the source as finite: remember the number of messages in it on startup and transition the stream to the completed state after all those messages are read. ||
+Treat the source as finite: transition the stream to the completed state after reading all available messages. How the end of the data is determined depends on the connector. ||
 || `table_joiner` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TTableJoinerSpec](./all_yson_structs#NYT_NFlow_TTableJoinerSpec)`>`
 **Default value**: `{}`
 Joiner spec. ||

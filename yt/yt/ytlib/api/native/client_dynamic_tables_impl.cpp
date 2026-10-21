@@ -4054,6 +4054,8 @@ TPullRowsResult TClient::DoPullRows(
         bool isSessionGood = !session->IsTrivial() && session->GetResultOrError().IsOK();
         if (isSessionGood) {
             success = true;
+        } else if (!session->GetResultOrError().IsOK()) {
+            combinedResult.SubrequestErrors.push_back(session->GetResultOrError());
         }
 
         const auto& rows = session->GetRows(maxTimestamp, outputRowBuffer);

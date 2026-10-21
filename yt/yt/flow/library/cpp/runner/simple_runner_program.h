@@ -61,6 +61,8 @@ class TSimpleRunnerProgram
     , public TProgramConfigMixin<TSimpleRunnerConfig>
 {
 public:
+    //! Prepares specs in memory before validation, including with --validate-only.
+    //! Must not cause external side effects.
     using TPrepareSpecCallback = std::function<void(const TPipelineSpecPtr& spec, const TDynamicPipelineSpecPtr& dynamicSpec)>;
 
     TSimpleRunnerProgram();

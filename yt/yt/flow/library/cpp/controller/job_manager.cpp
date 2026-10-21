@@ -134,9 +134,12 @@ public:
 
         PartitioningCoordinator_ = New<NPartitioning::TPartitioningCoordinator>(
             ComputationControllers_,
+            Spec_,
             StateManager_->CreatePartitioningContext(),
             Logger(),
-            PublicControllerLogger());
+            PublicControllerLogger(),
+            Profiler_.WithPrefix("/partitioning"),
+            Context_->StatusProfiler->WithPrefix("/partitioning"));
 
         for (const auto& [resourceId, resourceSpec] : Spec_->Resources) {
             auto resourceControllerContext = New<TResourceControllerContext>();
@@ -203,9 +206,9 @@ public:
         }
     }
 
-    void BeginIteration() override
+    void BeginIteration(const TFlowViewPtr& committedFlowView) override
     {
-        PartitioningCoordinator_->BeginIteration();
+        PartitioningCoordinator_->BeginIteration(committedFlowView);
     }
 
     void Reconfigure(TDynamicPipelineSpecPtr dynamicSpec) override
@@ -1120,8 +1123,12 @@ public:
         for (const auto& [computationId, controller] : ComputationControllers_) {
             controller->Sync();
         }
+        PartitioningCoordinator_->Sync();
         StateManager_->Sync();
-        return CloneYsonStruct(State_);
+        auto snapshot = New<TJobManagerState>();
+        // Immutable YSON payloads can be shared; only the mutable maps need a snapshot.
+        snapshot->Computations = State_->Computations;
+        return snapshot;
     }
 
     void Commit(const TFlowViewPtr& flowView) override

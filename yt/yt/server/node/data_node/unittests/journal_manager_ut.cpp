@@ -183,7 +183,10 @@ protected:
     void Start()
     {
         auto locationConfig = New<TStoreLocationConfig>();
-        locationConfig->Path = GetOutputPath() / ::testing::UnitTest::GetInstance()->current_test_info()->name() / "store";
+        locationConfig->Path = GetOutputPath() /
+            ::testing::UnitTest::GetInstance()->current_test_info()->name() /
+            ToString(TGuid::Create()) /
+            "store";
         locationConfig->Postprocess();
 
         Config_->StoreLocations.push_back(locationConfig);

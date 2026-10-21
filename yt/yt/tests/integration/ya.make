@@ -21,16 +21,18 @@ PEERDIR(
 
 END()
 
-RECURSE(
-    size_xl
-    size_l
-    size_m
-    size_s
-    s3
-    fake_blackbox
-    yt_cli
-    stress
-)
+IF (NOT SANITIZER_TYPE)
+    RECURSE(
+        size_xl
+        size_l
+        size_m
+        size_s
+        s3
+        fake_blackbox
+        yt_cli
+        stress
+    )
+ENDIF()
 
 IF (NOT OPENSOURCE)
     RECURSE(

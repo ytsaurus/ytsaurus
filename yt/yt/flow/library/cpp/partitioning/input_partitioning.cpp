@@ -22,9 +22,9 @@ namespace {
 template <class T>
 struct TAverage
 {
-    TAverage(double limit, const char* name)
+    TAverage(double limit, EPartitioningCriterion criterion)
         : Limit(limit)
-        , Name(name)
+        , Criterion(criterion)
     { }
 
     void Add(const TPartitionId& partitionId, const T& value)
@@ -40,7 +40,7 @@ struct TAverage
     }
 
     T Limit;
-    const char* Name;
+    EPartitioningCriterion Criterion;
     T Value = {};
     ssize_t Count = 0;
     THashMap<TPartitionId, T> Weights;
@@ -123,16 +123,7 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
     const auto& Logger = state.Logger;
     const auto& spec = parameters.PartitioningSpec;
 
-    i64 minInputPartitionCount = spec->MinPartitionCount.value_or(DefaultMinInputPartitionCount);
-    i64 maxInputPartitionCount = spec->MaxPartitionCount.value_or(DefaultMaxInputPartitionCount);
-    if (maxInputPartitionCount < minInputPartitionCount) {
-        if (spec->MinPartitionCount && !spec->MaxPartitionCount) {
-            maxInputPartitionCount = minInputPartitionCount;
-        } else {
-            YT_ASSERT(!spec->MinPartitionCount && spec->MaxPartitionCount);
-            minInputPartitionCount = maxInputPartitionCount;
-        }
-    }
+    const auto [minInputPartitionCount, maxInputPartitionCount] = spec->GetPartitionCountBounds();
     const i64 sinkChannelMultiplier =
         spec->SinkChannelMultiplier.value_or(DefaultSinkChannelMultiplier);
     const double desiredAveragePartitionCpuLoad =
@@ -160,16 +151,23 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
     struct TProposition
     {
         i64 Count;
-        std::string_view Criteria;
+        EPartitioningCriterion Criterion;
         THashMap<TPartitionId, double> Weights;
+
+        bool IsThroughput() const
+        {
+            return Criterion == EPartitioningCriterion::Throughput || Criterion == EPartitioningCriterion::ThroughputHold;
+        }
     };
 
     std::vector<TProposition> suggestions;
-
+    const auto throughputDecision = EnableThroughputAutoscaler_
+        ? ThroughputAutoscaler_.FindDecision(parameters.ComputationId)
+        : std::nullopt;
     if (context.MaxSinkChannelCount) {
         i64 count = *context.MaxSinkChannelCount * sinkChannelMultiplier;
         count = std::max(count, workerCount);
-        suggestions.emplace_back(count, "sink channels");
+        suggestions.emplace_back(count, EPartitioningCriterion::SinkChannels);
         YT_TLOG_INFO("Partitioning: collected sink channels")
             .With("ChannelCount", *context.MaxSinkChannelCount)
             .With("ProposedPartitionCount", count);
@@ -177,15 +175,15 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
 
     if (!context.PartitionRanges.empty()) {
         const auto& partitionStatuses = context.FlowView->Feedback->PartitionJobStatuses;
-        TAverage<double> averageCpuUsage(desiredAveragePartitionCpuLoad, "average CPU load");
-        TAverage<double> averageMemoryUsage(desiredAveragePartitionMemoryUsed, "average memory usage");
+        TAverage<double> averageCpuUsage(desiredAveragePartitionCpuLoad, EPartitioningCriterion::Cpu);
+        TAverage<double> averageMemoryUsage(desiredAveragePartitionMemoryUsed, EPartitioningCriterion::Memory);
         TAverage<double> averageMessagesPerSecond(
-            desiredAveragePartitionMessagesPerSecond,
-            "average messages per second");
+            EnableThroughputAutoscaler_ ? 0 : desiredAveragePartitionMessagesPerSecond,
+            EPartitioningCriterion::Messages);
         TAverage<double> averageBytesPerSecond(
-            desiredAveragePartitionBytesPerSecond,
-            "average bytes per second");
-        TAverage<double> averageTimerCount(desiredAveragePartitionTimerCount, "average timer count");
+            EnableThroughputAutoscaler_ ? 0 : desiredAveragePartitionBytesPerSecond,
+            EPartitioningCriterion::Bytes);
+        TAverage<double> averageTimerCount(desiredAveragePartitionTimerCount, EPartitioningCriterion::Timers);
         for (const auto& [partitionId, keyRange] : context.PartitionRanges) {
             auto it = partitionStatuses.find(partitionId);
             if (it == partitionStatuses.end() || !it->second->CurrentJobStatus) {
@@ -230,7 +228,7 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
 
         const ssize_t minStatusCount =
             static_cast<ssize_t>(currentPartitionCount / allowedPartitionCountDeviation);
-        const TInstant now = TInstant::Now();
+        const auto now = TInstant::Seconds(context.FlowView->State->CurrentTimestamp.Underlying());
         TStringBuilder smoothingReport;
         for (auto* averageMetric : {
                 &averageCpuUsage,
@@ -244,9 +242,15 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
             }
             const double ratio = averageMetric->Get() / averageMetric->Limit;
             const double proposedByCriterion = std::round(currentPartitionCount * ratio);
+            auto& sensors = state.CriterionSensors.try_emplace(
+                averageMetric->Criterion,
+                state.Profiler.WithTag("criterion", FormatEnum(averageMetric->Criterion)))
+                .first->second;
+            sensors.Average.Update(averageMetric->Get());
+            sensors.ProposedPartitionCount.Update(proposedByCriterion);
             // Peak-hold smoothing lets a criterion grow instantly but releases it only with the
             // configured half-delay, avoiding rapid shrinkage after a transient load dip.
-            const std::string criterion(averageMetric->Name);
+            const auto criterion = averageMetric->Criterion;
             auto [it, inserted] = state.CriterionProposedCountEma.emplace(
                 criterion,
                 TCriterionEmaState{proposedByCriterion, now});
@@ -268,7 +272,7 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
                 it->second.ProposedCount);
             suggestions.emplace_back(
                 static_cast<ssize_t>(std::llround(it->second.ProposedCount)),
-                averageMetric->Name,
+                averageMetric->Criterion,
                 std::move(averageMetric->Weights));
         }
         if (smoothingReport.GetLength() > 0) {
@@ -282,6 +286,16 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
                     std::ssize(context.PartitionRanges));
             }
         }
+    }
+
+    // The throughput target already includes its downscale reserve.
+    if (throughputDecision) {
+        suggestions.emplace_back(
+            throughputDecision->TargetPartitionCount,
+            EPartitioningCriterion::Throughput,
+            THashMap<TPartitionId, double>{});
+    } else if (EnableThroughputAutoscaler_ && !spec->DesiredPartitionCount && currentPartitionCount > 0) {
+        suggestions.emplace_back(currentPartitionCount, EPartitioningCriterion::ThroughputHold);
     }
 
     auto finalizeWeights = [&] {
@@ -300,15 +314,23 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
     auto strictResult = [&] (i64 proposedCount, THashMap<TPartitionId, double>&& weights) {
         context.ProposedCount = proposedCount;
         context.RecreateNow = proposedCount != currentPartitionCount;
+        context.DecisionInitiator = "manual";
+        context.DecisionReason = "desired_partition_count";
         context.Weights = std::move(weights);
         finalizeWeights();
     };
 
-    auto shouldRecreate = [&] (i64 proposedCount) {
+    auto shouldRecreate = [&] (i64 proposedCount, bool throughput = false) {
+        if (proposedCount == currentPartitionCount) {
+            return false;
+        }
         if (currentPartitionCount < minInputPartitionCount || currentPartitionCount > maxInputPartitionCount) {
             return true;
         }
+        // Throughput growth uses its own capacity tolerance instead of the legacy count deadband.
+        const bool throughputScaleUp = throughput && proposedCount > currentPartitionCount;
         if (
+            !throughputScaleUp &&
             proposedCount <= currentPartitionCount * allowedPartitionCountDeviation &&
             proposedCount >= currentPartitionCount / allowedPartitionCountDeviation)
         {
@@ -316,6 +338,9 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
         }
         if (!context.AllPartitionsHaveStatuses || context.NormalFlightDuration == TDuration::Zero()) {
             return false;
+        }
+        if (throughput) {
+            return true;
         }
 
         TDuration delay;
@@ -352,6 +377,8 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
             return strictResult(*spec->DesiredPartitionCount, {});
         }
         context.ProposedCount = std::clamp(workerCount, minInputPartitionCount, maxInputPartitionCount);
+        context.DecisionInitiator = "minimum";
+        context.DecisionReason = workerCount ? "worker_count" : "minimum_partition_count";
         context.RecreateNow = shouldRecreate(context.ProposedCount);
         finalizeWeights();
         YT_TLOG_INFO("Partitioning: no suggestions for optimal partition count, use reasonable minimum")
@@ -363,38 +390,78 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
         return;
     }
 
+    // A ready throughput proposal must not release a larger legacy proposal before its delay.
+    if (EnableThroughputAutoscaler_ && !spec->DesiredPartitionCount) {
+        for (auto& suggestion : suggestions) {
+            const i64 count = std::clamp(suggestion.Count, minInputPartitionCount, maxInputPartitionCount);
+            if (!suggestion.IsThroughput() && count > currentPartitionCount && !shouldRecreate(count)) {
+                suggestion.Count = currentPartitionCount;
+            }
+        }
+    }
+
     ssize_t maxSuggestionIndex = 0;
     for (ssize_t index = 1; index < std::ssize(suggestions); ++index) {
-        if (suggestions[index].Count > suggestions[maxSuggestionIndex].Count) {
+        if (suggestions[index].Count > suggestions[maxSuggestionIndex].Count ||
+            (suggestions[index].Count == suggestions[maxSuggestionIndex].Count && suggestions[index].IsThroughput()))
+        {
             maxSuggestionIndex = index;
+        }
+    }
+    ssize_t weightsSuggestionIndex = maxSuggestionIndex;
+    if (EnableThroughputAutoscaler_ && suggestions[weightsSuggestionIndex].Weights.empty()) {
+        for (ssize_t index = 0; index < std::ssize(suggestions); ++index) {
+            if (!suggestions[index].Weights.empty() &&
+                (suggestions[weightsSuggestionIndex].Weights.empty() ||
+                    suggestions[index].Count > suggestions[weightsSuggestionIndex].Count))
+            {
+                weightsSuggestionIndex = index;
+            }
         }
     }
     if (spec->DesiredPartitionCount) {
         return strictResult(
             *spec->DesiredPartitionCount,
-            std::move(suggestions[maxSuggestionIndex].Weights));
+            std::move(suggestions[weightsSuggestionIndex].Weights));
     }
 
     context.ProposedCount = std::clamp(
         suggestions[maxSuggestionIndex].Count,
         minInputPartitionCount,
         maxInputPartitionCount);
-    if (context.ProposedCount < currentPartitionCount / 2) {
+    context.DecisionInitiator = suggestions[maxSuggestionIndex].IsThroughput() ? "throughput" : "legacy";
+    context.DecisionReason = FormatEnum(suggestions[maxSuggestionIndex].Criterion);
+    const bool returningToWorkingPoint = throughputDecision &&
+        throughputDecision->Action == EThroughputPartitioningAction::ReturnToWorkingPoint;
+    if (!returningToWorkingPoint && context.ProposedCount < currentPartitionCount / 2) {
         context.ProposedCount = std::clamp(
             currentPartitionCount / 2,
             minInputPartitionCount,
             maxInputPartitionCount);
     }
-    context.RecreateNow = shouldRecreate(context.ProposedCount);
-    context.Weights = std::move(suggestions[maxSuggestionIndex].Weights);
+    const bool throughputShrink = throughputDecision &&
+        throughputDecision->TargetPartitionCount <= context.ProposedCount &&
+        context.ProposedCount < currentPartitionCount;
+    context.RecreateNow = shouldRecreate(
+        context.ProposedCount,
+        suggestions[maxSuggestionIndex].IsThroughput() || throughputShrink);
+    context.Weights = std::move(suggestions[weightsSuggestionIndex].Weights);
     finalizeWeights();
 
     YT_TLOG_INFO("Partitioning: calculated optimal partition count")
         .With("ProposedCount", context.ProposedCount)
         .With("RecreateNow", context.RecreateNow)
         .With("CurrentCount", currentPartitionCount)
-        .With("Criteria", suggestions[maxSuggestionIndex].Criteria)
+        .With("Criteria", suggestions[maxSuggestionIndex].Criterion)
+        .With("Initiator", context.DecisionInitiator)
+        .With("Reason", context.RecreateNow ? context.DecisionReason : "cooldown_or_deadband")
         .With("NormalFlightDuration", context.NormalFlightDuration.Seconds());
+
+    state.ProposedPartitionCountGauge.Update(context.ProposedCount);
+    state.CriterionSensors.try_emplace(
+        suggestions[maxSuggestionIndex].Criterion,
+        state.Profiler.WithTag("criterion", context.DecisionReason))
+        .first->second.DecisionCount.Increment();
 }
 
 void TPartitioningCoordinator::InputAutoPartitioningBuildRanges(
@@ -547,9 +614,13 @@ void TPartitioningCoordinator::InputAutoPartitioningTryRebalance(
                 partitionCountDoubleDelay);
             if (context.NormalFlightDuration > delay) {
                 context.RecreateNow = true;
+                context.DecisionInitiator = "rebalance";
+                context.DecisionReason = "weight_deviation";
                 YT_TLOG_INFO("Partitioning: decided to rebuild partitions to make more uniform distribution")
                     .With("OldDeviation", oldDeviation)
-                    .With("NewDeviation", newDeviation);
+                    .With("NewDeviation", newDeviation)
+                    .With("Initiator", "rebalance")
+                    .With("Reason", "weight_deviation");
             }
         }
     }

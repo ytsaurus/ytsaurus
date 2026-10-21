@@ -192,6 +192,14 @@ For more details, see [Static Table](../../../flow/connectors/static-table.md).
 
 For more details, see [HTTP extension](../../../flow/extensions/http.md).
 
+### Kafka {#kafka-guarantees}
+
+- **Source**: exactly-once — offsets are stored in the pipeline state and advance only after epoch commit.
+- **Asynchronous sink** (`TKafkaSink`): exactly-once by default — messages are stored in `output_messages` and written after epoch commit in Kafka transactions together with a progress marker, and a restarted sink skips the messages the marker covers. Consumers must read with `isolation.level = read_committed`. If the marker is lost while messages may already be committed, the sink stops instead of writing possible duplicates. With `delivery_guarantee = at_least_once`, the sink writes with an idempotent producer without transactions, and a restart may write again messages that are already in Kafka.
+- **Synchronous sink** (`TAtLeastOnceKafkaSink`): at-least-once — each epoch waits for Kafka to acknowledge its records. If the epoch does not commit after a successful write, the same records are written again on restart.
+
+For more details, see [Kafka extension](../../../flow/extensions/kafka.md#guarantees).
+
 {% if audience == "internal" %}
 
 ### Logbroker (YDB Topics) {#logbroker-guarantees}

@@ -10,8 +10,10 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 The built-in Computation or process-function adapter class name.
 
 For new C++ user logic, select one of the built-in `TProcessFunction*Computation` adapters. Register the function with `YT_FLOW_DEFINE_PROCESS_FUNCTION` and name it in `processing_function`. Don’t create custom Computation classes. ||
+|| `process_function_graph` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TProcessFunctionGraphSpec](./all_yson_structs#NYT_NFlow_TProcessFunctionGraphSpec)`>`
+Several process functions connected by stream IDs and run in one `TProcessFunctionComputation` or `TProcessFunctionSwiftMapComputation`. Batch and per-message functions can be combined. Internal message IDs are derived from their boundary parents, output stream, and suffix; timestamps and external IDs follow the host computation's policy. Swift requires deterministic replay; batch functions set each result's parents with `SetParents`. Merging different input messages requires `parameters/allow_batching_with_relaxed_guarantees = %true` and provides at-least-once delivery. The runner replaces the graph with `processing_function`, `processing_function_parameters`, `timer_streams`, `streams_dependency`, and `allow_timer_self_dependency`, so do not set these fields together with the graph. ||
 || `processing_function` | **Type**: `std::optional<std::string>`
-The fully qualified process-function name registered with `YT_FLOW_DEFINE_PROCESS_FUNCTION`. Required by `TProcessFunction*Computation` adapters. ||
+The fully qualified process-function name registered with `YT_FLOW_DEFINE_PROCESS_FUNCTION`. Required by `TProcessFunction*Computation` adapters unless `process_function_graph` is set. ||
 || `processing_function_parameters` | **Type**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 Static process-function parameters. Their type is declared in `YT_FLOW_DEFINE_PROCESS_FUNCTION` registration. ||
 || `group_by_schema` | **Type**: `NYT::TIntrusivePtr<NYT::NTableClient::TTableSchema>`

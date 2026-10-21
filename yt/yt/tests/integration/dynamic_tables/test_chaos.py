@@ -1004,6 +1004,74 @@ class TestChaos(ChaosTestBase):
         sync_rows = _pull_rows(2, True)
         assert async_rows == sync_rows
 
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("content_type", ["queue", "data"])
+    @pytest.mark.parametrize("mode", ["async", "sync"])
+    def test_ordered_replica_hunk_storage(self, content_type, mode):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": content_type, "mode": mode, "enabled": True, "replica_path": "//tmp/r"},
+            # Keep replication logs until their flushed hunk references have been checked.
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/disabled"},
+        ]
+        schema = [
+            {"name": "$timestamp", "type": "uint64"},
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type": "string", "max_inline_hunk_size": 8},
+            {"name": "extra_value", "type": "string", "max_inline_hunk_size": 8},
+        ]
+        card_id, _ = self._create_chaos_tables(
+            cell_id, replicas, ordered=True, schema=schema,
+            mount_tables=False, sync_replication_era=False)
+        for replica in replicas[:2]:
+            path = replica["replica_path"]
+            driver = get_driver(cluster=replica["cluster_name"])
+            hunk_storage_attributes = {}
+            if get(f"{path}/@external", driver=driver):
+                hunk_storage_attributes["external_cell_tag"] = get(f"{path}/@external_cell_tag", driver=driver)
+            hunk_storage_id = create("hunk_storage", "//tmp/h", attributes=hunk_storage_attributes, driver=driver)
+            set(f"{path}/@hunk_storage_id", hunk_storage_id, driver=driver)
+            sync_mount_table("//tmp/h", driver=driver)
+            sync_mount_table(path, driver=driver)
+        self._sync_replication_era(card_id, replicas[:2])
+
+        # Exercise rows with zero, one, and two external hunks, including the inline-size boundary.
+        values = [
+            ("", "short"),
+            ("short", ""),
+            ("boundary", "tiny"),
+            ("large payload" * 20, "extra payload" * 20),
+            ("tiny", "boundary"),
+        ]
+        rows = [{"key": i, "value": value, "extra_value": extra_value}
+                for i, (value, extra_value) in enumerate(values)]
+        for batch in [rows[:2], rows[2:]]:
+            self._insert_rows_with_hunk_storage("//tmp/t", [dict(row, **{"$tablet_index": 0}) for row in batch])
+
+        driver = get_driver(cluster="remote_0")
+
+        def check_rows():
+            return select_rows("key, value, extra_value from [//tmp/r]", driver=driver) == rows
+
+        wait(check_rows)
+        source_timestamps = select_rows("[$timestamp] from [//tmp/t]")
+        assert select_rows("[$timestamp] from [//tmp/r]", driver=driver) == source_timestamps
+
+        sync_unmount_table("//tmp/r", driver=driver)
+        refs = [ref
+                for chunk_id in get("//tmp/r/@chunk_ids", driver=driver)
+                if get(f"#{chunk_id}/@chunk_type", driver=driver) == "table"
+                for ref in get(f"#{chunk_id}/@hunk_chunk_refs", driver=driver)]
+        payloads = [value for row_values in values for value in row_values if len(value) >= 8]
+        assert sum(ref["hunk_count"] for ref in refs) == len(payloads)
+        assert sum(ref["total_hunk_length"] for ref in refs) == sum(len(value) for value in payloads)
+        assert all(get("#{}/@chunk_type".format(ref["chunk_id"]), driver=driver) == "journal" for ref in refs)
+        sync_mount_table("//tmp/r", driver=driver)
+        self._sync_replication_era(card_id, replicas[:2])
+        assert check_rows()
+        assert select_rows("[$timestamp] from [//tmp/r]", driver=driver) == source_timestamps
+
     @authors("savrus")
     @pytest.mark.parametrize("mode", ["sync", "async"])
     def test_queue_replica_enable_disable(self, mode):
@@ -5390,6 +5458,80 @@ class TestChaosNativeProxy(ChaosTestBase):
         assert response_parameters["replication_progress"]["segments"][0]["timestamp"] == 0
         assert response_parameters["replication_progress"]["segments"][1]["timestamp"] > 0
 
+    @authors("shamteev")
+    def test_partial_pull_rows_liveness(self):
+        metadata_cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", metadata_cell_id)
+
+        create_tablet_cell_bundle("b")
+        custom_bundle_id = get("//sys/tablet_cell_bundles/b/@id")
+        failed_area_ids = [
+            create_area("failed_area_0", cell_bundle_id=custom_bundle_id),
+            create_area("failed_area_1", cell_bundle_id=custom_bundle_id),
+        ]
+        create_area("healthy_area", cell_bundle_id=custom_bundle_id)
+
+        healthy_cell_ids = sync_create_cells(4, tablet_cell_bundle="b", area="healthy_area")
+        failed_cell_ids = [
+            sync_create_cells(1, tablet_cell_bundle="b", area="failed_area_0")[0],
+            sync_create_cells(1, tablet_cell_bundle="b", area="failed_area_1")[0],
+        ]
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/pds"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/pqs0"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/pqs1"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/pda"},
+        ]
+
+        card_id, replica_ids = self._create_chaos_tables(
+            metadata_cell_id,
+            replicas,
+            create_tablet_cells=False,
+            create_replica_tables=False,
+            sync_replication_era=False)
+
+        self._create_replica_tables([replicas[0]], [replica_ids[0]], create_tablet_cells=False, mount_tables=False, tablet_cell_bundle="b")
+        sync_mount_table("//tmp/pds", target_cell_ids=[healthy_cell_ids[0]])
+
+        self._create_replica_tables([replicas[1]], [replica_ids[1]], pivot_keys=[[], [1]], create_tablet_cells=False, mount_tables=False, tablet_cell_bundle="b")
+        sync_mount_table("//tmp/pqs0", target_cell_ids=[failed_cell_ids[0], healthy_cell_ids[1]])
+
+        self._create_replica_tables([replicas[2]], [replica_ids[2]], pivot_keys=[[], [1]], create_tablet_cells=False, mount_tables=False, tablet_cell_bundle="b")
+        sync_mount_table("//tmp/pqs1", target_cell_ids=[healthy_cell_ids[2], failed_cell_ids[1]])
+
+        self._create_replica_tables([replicas[3]], [replica_ids[3]], create_tablet_cells=False, mount_tables=False, tablet_cell_bundle="b")
+        set("//tmp/pda/@mount_config", {
+            "replication_tick_period": 100,
+            "table_puller_force_same_cluster_queue": True,
+            "table_puller_max_partial_failures": 2,
+        })
+        sync_mount_table("//tmp/pda", target_cell_ids=[healthy_cell_ids[3]])
+
+        self._sync_replication_era(card_id, replicas)
+
+        timestamp = generate_timestamp()
+        tablet_id = get("//tmp/pda/@tablets/0/tablet_id")
+
+        def _is_caught_up():
+            progress = get(f"#{tablet_id}/orchid/replication_progress")
+            return min(segment["timestamp"] for segment in progress["segments"]) >= timestamp
+
+        wait(_is_caught_up)
+        sync_unmount_table("//tmp/pda")
+
+        rows = [
+            {"key": 0, "value": "0"},
+            {"key": 2, "value": "2"},
+        ]
+        insert_rows("//tmp/pds", rows)
+        timestamp = generate_timestamp()
+
+        with self.CellsDisabled(clusters=["primary"], area_ids=failed_area_ids):
+            sync_mount_table("//tmp/pda", target_cell_ids=[healthy_cell_ids[3]])
+            wait(_is_caught_up)
+            assert_items_equal(lookup_rows("//tmp/pda", [{"key": 0}, {"key": 2}]), rows)
+
     @authors("osidorkin")
     def test_chaos_replica_reconfigure_on_remount(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
@@ -7091,6 +7233,38 @@ class TestChaosSingleCluster(ChaosTestBase):
 
     NUM_REMOTE_CLUSTERS = 0
     NUM_CHAOS_NODES = 1
+
+    @authors("dtorilov")
+    @pytest.mark.parametrize("ordered", [False, True])
+    @pytest.mark.parametrize("upper_timestamp", [0, 2])
+    def test_pull_rows_without_replication_progress(self, ordered, upper_timestamp):
+        sync_create_cells(1)
+        if ordered:
+            self._create_ordered_table("//tmp/t")
+        else:
+            self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        assert get(f"#{tablet_id}/orchid/upstream_replica_id") == "0-0-0-0"
+        assert isinstance(get(f"#{tablet_id}/orchid/replication_progress"), yson.YsonEntity)
+
+        rows = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", rows)
+
+        # Matching null replica IDs must not allow dereferencing missing tablet progress.
+        with raises_yt_error("replication progress is missing"):
+            pull_rows(
+                "//tmp/t",
+                upstream_replica_id="0-0-0-0",
+                replication_progress={
+                    "segments": [{"lower_key": [0], "timestamp": 1}],
+                    "upper_key": [1],
+                },
+                upper_timestamp=upper_timestamp,
+                timeout=10000)
+
+        assert select_rows("key, value from [//tmp/t]") == rows
 
     @authors("osidorkin")
     def test_multiple_chaos_slots_on_single_node(self):

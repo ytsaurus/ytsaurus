@@ -471,7 +471,6 @@ private:
             : SuccessJobPrepareDurationSum_ / SuccessJobCount_;
     }
 
-    PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJobSplitter, 0x1ddf34ff);
 };
 

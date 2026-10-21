@@ -144,6 +144,79 @@ def build_flow_layout_mutations(backend: str = "monitoring"):
     ).owner
 
 
+def build_partitioning_autoscaler():
+    """Decision telemetry for throughput and legacy partitioning policies."""
+    prefix = "yt.flow.controller.job_manager.partitioning"
+
+    def known_throughput_metric(name):
+        value = MonitoringExpr(FlowController(f"{prefix}.throughput.{name}"))
+        known = MonitoringExpr(FlowController(f"{prefix}.throughput.{name}_known")).drop_below(1)
+        return (value * known).all("computation_id")
+
+    description = dedent("""\
+        The partitioning coordinator evaluates all enabled policies on every controller pass.
+        `repartition_count` records committed count or range changes, including range rebalancing.
+        Moving a job between workers keeps the ranges intact; it is reported by the existing
+        `job_status.gracefully_moving` sensor.
+    """)
+    return (
+        Rowset()
+        .stack(False)
+        .row()
+        .cell(
+            "Partition count by state",
+            FlowController("yt.flow.controller.partition_count").all("computation_id").all("state").unit("UNIT_COUNT"),
+            description=description,
+        )
+        .cell(
+            "Proposed partition count",
+            FlowController(f"{prefix}.proposed_partition_count").all("computation_id").unit("UNIT_COUNT"),
+        )
+        .cell(
+            "Repartition decisions",
+            FlowController(f"{prefix}.repartition_count.rate")
+            .all("computation_id")
+            .all("initiator")
+            .unit("UNIT_COUNTS_PER_SECOND"),
+        )
+        .cell(
+            "Decision evaluations",
+            FlowController(f"{prefix}.decision_count.rate")
+            .all("computation_id")
+            .all("criterion")
+            .unit("UNIT_COUNTS_PER_SECOND"),
+        )
+        .row()
+        .cell(
+            "Throughput demand",
+            known_throughput_metric("demand").unit("UNIT_COUNTS_PER_SECOND"),
+        )
+        .cell(
+            "Throughput capacity",
+            known_throughput_metric("capacity").unit("UNIT_COUNTS_PER_SECOND"),
+        )
+        .cell(
+            "Throughput target partitions",
+            known_throughput_metric("target_partition_count").unit("UNIT_COUNT"),
+        )
+        .cell("Throughput warm-up", FlowController(f"{prefix}.throughput.warmup_ready").all("computation_id"))
+        .row()
+        .cell(
+            "Legacy criterion average",
+            FlowController(f"{prefix}.criterion_average").all("computation_id").all("criterion"),
+        )
+        .cell(
+            "Legacy criterion proposed partitions",
+            FlowController(f"{prefix}.criterion_proposed_partition_count")
+            .all("computation_id")
+            .all("criterion")
+            .unit("UNIT_COUNT"),
+        )
+        .cell("", EmptyCell())
+        .cell("", EmptyCell())
+    ).owner
+
+
 # Controller components running regular iterations; must match the activity
 # names registered in yt/yt/flow/library/cpp/controller/controller.cpp.
 CONTROLLER_REGULAR_ACTIVITIES = [
@@ -391,6 +464,7 @@ def build_flow_controller(backend="monitoring"):
         d.add(build_flow_layout())
         d.add(build_file_resources())
         d.add(build_flow_layout_mutations(backend))
+        d.add(build_partitioning_autoscaler())
         d.add(build_controller_iterations(backend))
         d.add(build_heartbeats())
         d.add(build_watermark_heuristics())

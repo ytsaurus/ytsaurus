@@ -93,10 +93,8 @@ class Test(FlowTestJavaBase):
             self.wait_pipeline_state("completed", timeout=180)
             logging.info("pipeline completed")
             got_counts = {}
-            expr = f"* from [{self.pipeline_path}/states]"
-            key_states = list(self.client.select_rows(expr))
-            for state in key_states:
-                yson_payload = yson.loads(state["state"]["payload"].encode())
+            for state in self.read_internal_key_states("mapper"):
+                yson_payload = yson.loads(yson.get_bytes(state["state"]["payload"]))
                 got_counts[yson_payload["word"]] = yson_payload["count"]
             logging.info("Got counts: %s", got_counts)
             logging.info("Expected counts: %s", self._expected_counts)

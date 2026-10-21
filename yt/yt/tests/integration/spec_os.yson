@@ -35,8 +35,8 @@
     };
     run_as_root=%true;
     enable_network=%false;
-    blob_ttl=302400000000000;
-    output_ttl=604800000000000;
+    blob_ttl=172800000000000;
+    output_ttl=302400000000000;
     enable_porto=%false;
     use_tmpfs=%false;
     disable_proxy_discovery=%true;

@@ -83,7 +83,7 @@ class TestReanimateVanillaJava(FlowTestJavaBase):
         # The states table also holds the reader's internal source bookkeeping (offsets, watermarks)
         # under "/$..." names; only the mapper's own state carries a user payload.
         rows = []
-        for state in self.client.select_rows(f"* from [{self.pipeline_path}/states]"):
+        for state in self.read_internal_key_states("mapper"):
             s = state.get("state")
             if not isinstance(s, dict) or "payload" not in s:
                 continue

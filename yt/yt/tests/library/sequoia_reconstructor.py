@@ -51,7 +51,7 @@ RETIRABLE_TABLES = [
 ##################################################################
 
 
-class SequoiaReconstructor(SnapshotBuilderBase):
+class SingleCellSequoiaReconstructor(SnapshotBuilderBase):
     def reconstructed_table_path(self, table_name: str) -> str:
         return os.path.join(self.output_dir, f"{table_name}.yson")
 
@@ -61,9 +61,13 @@ class SequoiaReconstructor(SnapshotBuilderBase):
             shutil.rmtree(self.output_dir)
         os.mkdir(self.output_dir)
 
-        config = {"single_cell_single_run": True}
+        config = {
+            "master_config_path": self.config_path,
+            "snapshot_path": self.snapshot_path,
+            "tables_output": dict(),
+        }
         for table_name in table_names:
-            config[f"{table_name}_output"] = {"file_name": self.reconstructed_table_path(table_name)}
+            config["tables_output"][table_name] = {"file_name": self.reconstructed_table_path(table_name)}
 
         return yson.dumps(yson.json_to_yson(config)).decode("utf-8")
 
@@ -75,15 +79,11 @@ class SequoiaReconstructor(SnapshotBuilderBase):
         reconstructor_config = self.create_reconstructor_config(table_names)
 
         return self._reconstruct_sequoia(
-            self.snapshot_path,
-            self.config_path,
             reconstructor_config,
             table_names)
 
     def _reconstruct_sequoia(
             self,
-            snapshot_path,
-            config_path,
             reconstructor_config,
             table_names):
         ytserver_binary = search_binary_path("ytserver-all")
@@ -91,9 +91,7 @@ class SequoiaReconstructor(SnapshotBuilderBase):
         command = [
             ytserver_binary,
             "ytserver-sequoia-reconstructor",
-            "--master-config", config_path,
-            "--snapshot-path", snapshot_path,
-            "--reconstructor-config", reconstructor_config,
+            "--single-cell", reconstructor_config,
         ]
 
         command = shlex.join(command)
@@ -114,6 +112,21 @@ class SequoiaReconstructor(SnapshotBuilderBase):
         return tables
 
 
+def _download_ground_table(table_name):
+    schema = get(f"{table_name}/@schema", driver=get_ground_driver())
+    result = select_rows_from_ground(f"* from [{table_name}]")
+    table = []
+
+    for row in result:
+        table_row = []
+        for column in schema:
+            if "expression" in column:
+                continue
+            table_row.append(row[column["name"]])
+        table.append(table_row)
+    return table
+
+
 def _check_all_items_in_list(list_to_check, expected_items):
     expected = expected_items.copy()
     for item in list_to_check:
@@ -129,31 +142,12 @@ def _check_all_items_in_list(list_to_check, expected_items):
     return True
 
 
-def check_sequoia_tables_reconstruction(yt_env, table_names=TABLE_NAMES):
-    reconstructor = SequoiaReconstructor(
-        os.path.join(yt_env.path_to_run, "primary"),
-        yt_env.bin_path)
-    tables = reconstructor.build_snapshot_and_reconstruct_sequoia(table_names)
-
+def _check_all_tables_are_same_and_exit_readonly(table_names, reconstructed_tables):
     descriptors = DESCRIPTORS.as_dict()
 
     def check_tables_are_same(table_name):
-        schema = get(f"{descriptors[table_name].get_default_path()}/@schema", driver=get_ground_driver())
-        ground_result = select_rows_from_ground(f"* from [{descriptors[table_name].get_default_path()}]")
-        ground_table = []
-
-        for row in ground_result:
-            table_row = []
-            for column in schema:
-                if "expression" in column:
-                    continue
-                table_row.append(row[column["name"]])
-            ground_table.append(table_row)
-
-        if table_name not in tables or tables[table_name] is None:
-            reconstructed_table = []
-        else:
-            reconstructed_table = [list(i) for i in tables[table_name]]
+        ground_table = _download_ground_table(descriptors[table_name].get_default_path())
+        reconstructed_table = reconstructed_tables[table_name]
 
         return _check_all_items_in_list(ground_table, reconstructed_table) and _check_all_items_in_list(reconstructed_table, ground_table)
 
@@ -166,3 +160,20 @@ def check_sequoia_tables_reconstruction(yt_env, table_names=TABLE_NAMES):
 
     for table_name in retriable_tables:
         wait(lambda: check_tables_are_same(table_name), ignore_exceptions=True)
+
+
+def check_single_cell_sequoia_reconstructor(yt_env, table_names=TABLE_NAMES):
+    reconstructor = SingleCellSequoiaReconstructor(
+        os.path.join(yt_env.path_to_run, "primary"),
+        yt_env.bin_path)
+    tables = reconstructor.build_snapshot_and_reconstruct_sequoia(table_names)
+
+    reconstructed_tables = {}
+
+    for table_name in table_names:
+        if table_name not in tables or tables[table_name] is None:
+            reconstructed_tables[table_name] = []
+        else:
+            reconstructed_tables[table_name] = [list(i) for i in tables[table_name]]
+
+    _check_all_tables_are_same_and_exit_readonly(table_names, reconstructed_tables)

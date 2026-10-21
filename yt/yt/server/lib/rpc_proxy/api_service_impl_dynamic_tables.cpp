@@ -314,6 +314,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, ReshardTable)
     if (request->has_slicing_accuracy()) {
         options.SlicingAccuracy = request->slicing_accuracy();
     }
+    FromProto(&options.CumulativeDataWeights, request->cumulative_data_weights());
 
     TFuture<void> result;
     if (request->has_tablet_count()) {
@@ -1167,6 +1168,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PullRows)
                 ToProto(protoReplicationRowIndex->mutable_tablet_id(), tabletId);
                 protoReplicationRowIndex->set_row_index(rowIndex);
             }
+
+            ToProto(response->mutable_subrequest_errors(), result.SubrequestErrors);
 
             response->Attachments() = NApi::NRpcProxy::SerializeRowset(
                 *result.Rowset->GetSchema(),

@@ -44,6 +44,10 @@ TProcessingObservationPtr TProcessingObservationAccumulator::Commit(
         TotalTimes_[index] += delta;
         TotalWallTime_ += delta;
     }
+    if (PendingCount_ > 0) {
+        ++NonemptyEpochCount_;
+        NonemptyEpochDuration_ += TotalWallTime_ - previousWallTime;
+    }
     EpochCommitted_ = true;
     TotalCount_ += PendingCount_;
     TotalBytes_ += PendingBytes_;
@@ -53,6 +57,8 @@ TProcessingObservationPtr TProcessingObservationAccumulator::Commit(
     observation->Sequence = ++Sequence_;
     observation->CapturedAt = now;
     observation->ObservationDuration = TotalWallTime_ - previousWallTime;
+    observation->NonemptyEpochCount = NonemptyEpochCount_;
+    observation->NonemptyEpochDuration = NonemptyEpochDuration_;
     observation->ProcessedCount = TotalCount_;
     observation->ProcessedByteSize = TotalBytes_;
     observation->ProcessingTime = TotalTimes_[0];

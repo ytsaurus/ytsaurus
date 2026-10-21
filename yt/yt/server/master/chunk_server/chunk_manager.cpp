@@ -5167,6 +5167,8 @@ private:
 
         auto* requisitionRegistry = GetChunkRequisitionRegistry();
 
+        auto recomputeHistoricallyNonVital = GetDynamicConfig()->RecomputeHistoricallyNonVitalOnRequisitionUpdate;
+
         auto setChunkRequisitionIndex = [&] (TChunk* chunk, TChunkRequisitionIndex requisitionIndex) {
             if (local) {
                 chunk->SetLocalRequisitionIndex(requisitionIndex, requisitionRegistry, objectManager);
@@ -5181,6 +5183,8 @@ private:
             auto aggregatedRequisitionIndex = chunk->GetAggregatedRequisitionIndex();
             if (!isDurabilityRequired(aggregatedRequisitionIndex, chunk)) {
                 chunk->SetHistoricallyNonVital(true);
+            } else if (recomputeHistoricallyNonVital) {
+                chunk->SetHistoricallyNonVital(false);
             }
         };
 
@@ -5205,6 +5209,14 @@ private:
             auto curRequisitionIndex = local ? chunk->GetLocalRequisitionIndex() : chunk->GetExternalRequisitionIndex(requestCellTag);
 
             if (newRequisitionIndex == curRequisitionIndex) {
+                if (recomputeHistoricallyNonVital &&
+                    chunk->GetHistoricallyNonVital() &&
+                    isDurabilityRequired(chunk->GetAggregatedRequisitionIndex(), chunk))
+                {
+                    chunk->SetHistoricallyNonVital(false);
+                    ScheduleChunkRefresh(chunk);
+                }
+
                 continue;
             }
 
