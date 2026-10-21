@@ -65,7 +65,6 @@ struct IOutputStore
     virtual void Commit() = 0;
 
     virtual THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflight() = 0;
-    virtual THashMap<TStreamId, std::pair<i64, i64>> GetCountAndByteSizes() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOutputStore);

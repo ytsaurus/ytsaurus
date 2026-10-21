@@ -33,7 +33,6 @@ EPOCH_PART_COLORS = {
     # Backpressure.
     "Distribute.Start": "#b266b2",
     "Distribute.OutputBufferOverflow": "#730073",
-    "Distribute.OutputStoreOverflow": "#993299",
 
     # CPU-bound work + user work.
     "Process": "#ffa500",
@@ -72,7 +71,6 @@ class ComputationCellGenerator:
                 **CheckDelayedMessages** - checking delayed messages (little CPU-bound work).
                 **Distribute.Start** - scheduling distributing (little CPU-bound work).
                 **Distribute.OutputBufferOverflow** - waiting because of output buffer overflow.
-                **Distribute.OutputStoreOverflow** - waiting because of output store overflow.
                 **Process** - executing user logic (and may be state loading logic if this is a stateful computation).
                 **Sync** - writing to opened transaction (CPU-bound work).
                 **Finish** - finishing job (little CPU-bound work).

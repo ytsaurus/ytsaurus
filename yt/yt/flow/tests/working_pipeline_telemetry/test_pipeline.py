@@ -267,8 +267,6 @@ class Test(FlowTestBase):
                 return {
                     "reader": {
                         ("output_buffer_bytes", "data"),
-                        ("output_store_bytes", "data"),
-                        ("output_store_count", "data"),
                     },
                     "processor": {("input_buffer_bytes", "data"), ("output_buffer_bytes", "processed_data")},
                     "consumer": {("input_buffer_bytes", "processed_data")},
@@ -291,8 +289,6 @@ class Test(FlowTestBase):
                 return checker
 
             wait(lambda: find_job_status("reader", get_output_limits_checker("output_buffer_bytes")), timeout=180)
-            wait(lambda: find_job_status("reader", get_output_limits_checker("output_store_bytes")), timeout=180)
-            wait(lambda: find_job_status("reader", get_output_limits_checker("output_store_count")), timeout=180)
 
             def get_cycle(job_status):
                 return job_status["from_partition_traverse_data"]["node"]["iteration_cycle"]
@@ -316,6 +312,7 @@ class Test(FlowTestBase):
                     timeout=180,
                 )
                 status = find_job_status(computation, check_processing_observation)
+                assert set(status.get("output_limits", {})) <= {"output_buffer_bytes", "controller"}
                 observation = status["processing_observation"]
                 assert observation["sequence"] > 0
                 assert observation["processed_count"] > 0

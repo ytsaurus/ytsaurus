@@ -951,11 +951,6 @@ void TDynamicComputationSpec::Register(TRegistrar registrar)
     registrar.Parameter("timer_store_byte_size_limit", &TThis::TimerStoreByteSizeLimit)
         .Default(NYTree::TSize(100_MB));
 
-    registrar.Parameter("output_store_count_limit", &TThis::OutputStoreCountLimit)
-        .Default(NYTree::TSize::FromString("1G"));
-    registrar.Parameter("output_store_byte_size_limit", &TThis::OutputStoreByteSizeLimit)
-        .Default(NYTree::TSize(100_GB));
-
     registrar.Parameter("blocked_time_window", &TThis::BlockedTimeWindow)
         .Default(TDuration::Minutes(10));
 

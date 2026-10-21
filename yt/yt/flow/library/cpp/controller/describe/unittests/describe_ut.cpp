@@ -1671,17 +1671,6 @@ TEST_F(TDescribeTest, BuildBuffersAndBackpressureMessage)
     outStats.MaxBlockedTimeShare = 0.6;
     outStats.MaxBlockedPartitionId = blockedPartition;
 
-    // Zero limit with usage: percentages are meaningless, bytes are printed.
-    auto& storeStats = comp.OutputLimitStats[out]["output_store_bytes"];
-    storeStats.Max.Used = 5_MB;
-    storeStats.Max.Limit = 0;
-    storeStats.MaxPartitionId = blockedPartition;
-
-    // Count limits are formatted as counts, not bytes.
-    auto& countStats = comp.OutputLimitStats[out]["output_store_count"];
-    countStats.Max.Used = 12000;
-    countStats.Max.Limit = 50000;
-
     THashMap<TGraphEntityId, TWriterBlockedShare> writerBlocked;
     writerBlocked[in] = {0.56, writerPartition};
 
@@ -1694,8 +1683,6 @@ TEST_F(TDescribeTest, BuildBuffersAndBackpressureMessage)
     EXPECT_THAT(markdown, HasSubstr(Format("input_buffer_bytes{limit=100B, used=**97%%**, pending=500%%, backpressured_partition=%v}", fillPartition)));
     EXPECT_THAT(markdown, HasSubstr(Format("writer{blocked_share=**0.56**, backpressured_partition=%v}", writerPartition)));
     EXPECT_THAT(markdown, HasSubstr(Format("output_buffer_bytes{blocked_share=**0.60**, limit=100B, used=20%%, backpressured_partition=%v}", blockedPartition)));
-    EXPECT_THAT(markdown, HasSubstr("output_store_bytes{limit=0B, used=**5.0MB**"));
-    EXPECT_THAT(markdown, HasSubstr("output_store_count{limit=50K, used=24%}"));
     // The calm stream is listed without bold or a partition.
     EXPECT_THAT(markdown, HasSubstr("input_buffer_bytes{limit=100B, used=10%}\n"));
 
