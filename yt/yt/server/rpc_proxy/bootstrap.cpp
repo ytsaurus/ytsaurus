@@ -74,6 +74,7 @@
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/dispatcher.h>
 #include <yt/yt/core/bus/tcp/server.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -606,6 +607,11 @@ void TBootstrap::OnDynamicConfigChanged(
     if (TvmOnlyAuthenticationManager_) {
         TvmOnlyAuthenticationManager_->Reconfigure(newConfig->Auth);
     }
+
+    NYT::NBus::NTcp::TDispatcher::Get()->GetXferPoller()->SetWorkerPool(
+        newConfig->UseWorkerPoolForBusXfer
+            ? WorkerPool_
+            : nullptr);
 }
 
 void TBootstrap::OnBundleDynamicConfigChanged(
