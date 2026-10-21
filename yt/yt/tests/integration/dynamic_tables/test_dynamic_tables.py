@@ -4468,6 +4468,10 @@ class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
 
     DELTA_RPC_PROXY_CONFIG = {"cluster_connection": {"use_uniform_prepare_signatures": True}}
 
+    DELTA_DYNAMIC_RPC_PROXY_CONFIG = {
+        "use_worker_pool_for_bus_xfer": True,
+    }
+
     @authors("gritukan")
     def test_suspend_tablet_cell(self):
         # Tablet cell suspension via RPC proxies is not supported.

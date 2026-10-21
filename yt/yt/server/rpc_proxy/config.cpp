@@ -216,6 +216,9 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Optional();
 
+    registrar.Parameter("use_worker_pool_for_bus_xfer", &TThis::UseWorkerPoolForBusXfer)
+        .Default(false);
+
     registrar.Parameter("memory_tracker", &TThis::MemoryTracker)
         .DefaultNew();
 
