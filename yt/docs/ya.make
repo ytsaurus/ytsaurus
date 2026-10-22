@@ -189,6 +189,9 @@ DOCS_INCLUDE_SOURCES(
     yt/yt/flow/tests/process_function_graph/unittests/graph_ut.cpp
 
     # Spark examples
+    yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/SmokeTest.java
+    yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/UdfExample.java
+    yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/GroupingExample.java
 )
 
 END()

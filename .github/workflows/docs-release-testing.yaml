@@ -16,14 +16,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Checkout SPYT examples
+        uses: actions/checkout@v4
+        with:
+          repository: ytsaurus/ytsaurus-spyt
+          ref: f3cc97cd1aa9acb5c2f98a54f11e0c53d5b90cf2
+          path: yt/spark/spark-over-yt
+          persist-credentials: false
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Install diplodoc
         run: |
-          npm install -g @diplodoc/cli
+          npm install -g @diplodoc/cli@stable
           npm install -g @diplodoc/algolia-extension
+        shell: bash
+
+      - name: Check docs sources
+        run: bash .github/scripts/check_docs_sources.sh "$GITHUB_WORKSPACE"
         shell: bash
 
       - name: Delete search index
@@ -34,18 +46,23 @@ jobs:
         env:
           index-name: "ytsaurus-docs"
         run: |
-          yfm -i ${{ env.src-root }} -o ${{ env.lint-root }} --extensions "$(npm root -g)/@diplodoc/algolia-extension" --index-name ${{ env.index-name }}-${{ env.revision }} --api-key ${{ secrets.ALGOLIA_API_KEY }} --app-id ${{ secrets.ALGOLIA_APP_ID }}  2>&1 | tee './build-html.log'
+          set -o pipefail
+          exitcode=0
+          yfm -i ${{ env.src-root }} -o ${{ env.lint-root }} --arcadia-root "$GITHUB_WORKSPACE" --extensions "$(npm root -g)/@diplodoc/algolia-extension" --index-name ${{ env.index-name }}-${{ env.revision }} --api-key ${{ secrets.ALGOLIA_API_KEY }} --app-id ${{ secrets.ALGOLIA_APP_ID }}  2>&1 | tee './build-html.log' || exitcode=$?
 
-          echo "exitcode=$?" >> $GITHUB_OUTPUT
+          echo "exitcode=$exitcode" >> "$GITHUB_OUTPUT"
         shell: bash
 
 
       - name: Build md2md
         id: build-md2md
         run: |
-          yfm -i ${{ env.src-root }} -o ${{ env.build-root }} --output-format md --add-map-file --allow-custom-resources 2>&1 | tee './build-md.log'
+          set -o pipefail
+          exitcode=0
+          yfm -i ${{ env.src-root }} -o ${{ env.build-root }} --arcadia-root "$GITHUB_WORKSPACE" --output-format md --add-map-file --allow-custom-resources 2>&1 | tee './build-md.log' || exitcode=$?
+          rm -rf "${{ env.build-root }}/.ya-make-input"
 
-          echo "exitcode=$?" >> $GITHUB_OUTPUT
+          echo "exitcode=$exitcode" >> "$GITHUB_OUTPUT"
         shell: bash
 
       - name: Save inputs
@@ -87,13 +104,14 @@ jobs:
 
       - name: Exit
         run: |
-          exitcode=${{ steps.build-md2html.outputs.exitcode }}
+          html_exitcode=${{ steps.build-md2html.outputs.exitcode }}
+          md_exitcode=${{ steps.build-md2md.outputs.exitcode }}
 
-          if [ "$exitcode" -eq 0 ]; then
+          if [ "$html_exitcode" -eq 0 ] && [ "$md_exitcode" -eq 0 ]; then
               echo "Build exited successfully."
           else
-            echo "Build exited with an error. Exit code: $exitcode"
-            exit $exitcode
+            echo "Build exited with an error. HTML exit code: $html_exitcode, MD exit code: $md_exitcode"
+            exit 1
           fi
         shell: bash
 
