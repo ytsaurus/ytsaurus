@@ -104,6 +104,7 @@ private:
 
     TFuture<std::vector<TRecord>> CurrentRequestFuture_;
     std::pair<TMessageBatcherSettingsPtr, i64> CurrentRequestParameters_;
+    NTableClient::TTableSchemaPtr RowsetSchema_;
 
     IStatusErrorStatePtr ReadErrorState_;
     IStatusErrorStatePtr UpdatePartitionInfoErrorState_;

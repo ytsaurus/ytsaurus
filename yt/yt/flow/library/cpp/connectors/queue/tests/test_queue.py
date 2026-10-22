@@ -1,5 +1,6 @@
 import pytest
 import collections
+from pathlib import Path
 
 import yatest.common
 
@@ -67,7 +68,6 @@ class TestQueueConnector(FlowTestBase):
         self.producer = self.work_yt_path + "/producer"
 
     def prepare_environment(self):
-
         run_yt_sync("primary", self.work_yt_path, TABLET_COUNT)
 
         batching_write_rows(INPUT_DATA, lambda batch: self.client.insert_rows(self.input_queue, batch), 100)
@@ -198,6 +198,13 @@ class TestQueueConnector(FlowTestBase):
                 for key, tablets in data_to_tablets.items():
                     assert len(tablets) == 1, (key, tablets)
                 assert len(tablets_used) > 1
+
+    @pytest.mark.authors(["alexbobkov"])
+    def test_source_schema_reuse(self):
+        pipeline_config_path = self.prepare_swift_pipeline_config(True)
+        self.check(pipeline_config_path, workers_count=1, controllers_count=1, problems=False)
+        errors = (Path(self.path_to_flow_logs) / "Worker_0_AllError.log").read_text()
+        assert "Queue source recreated an unchanged payload schema" not in errors
 
     @pytest.mark.authors(["mikari"])
     @pytest.mark.parametrize(

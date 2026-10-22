@@ -21,6 +21,7 @@
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -388,6 +389,11 @@ auto TQueueSourceImpl::ParseData(
         return {};
     }
 
+    const auto& schema = rowset->GetSchema();
+    if (!RowsetSchema_ || (RowsetSchema_ != schema && *RowsetSchema_ != *schema)) {
+        RowsetSchema_ = schema;
+    }
+
     const auto& nameTable = rowset->GetNameTable();
     const auto offsetColumnId = nameTable->GetIdOrThrow("$row_index");
     const auto timestampColumnId = nameTable->GetIdOrThrow("$timestamp");
@@ -408,7 +414,7 @@ auto TQueueSourceImpl::ParseData(
             continue;
         }
 
-        auto [payloads, payloadSchema] = UnpackRow(row, rowset->GetSchema());
+        auto [payloads, payloadSchema] = UnpackRow(row, RowsetSchema_);
 
         auto writeTime = TSystemTimestamp(
             NTransactionClient::UnixTimeFromTimestamp(FromUnversionedValue<NTransactionClient::TTimestamp>(row[timestampColumnId])));
