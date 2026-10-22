@@ -2,6 +2,17 @@
 
 This section explains how to deploy a pipeline, inspect its state, and investigate stalled processing. The commands assume cluster access and permissions on the pipeline node. Replace `//path/to/pipeline`, `<cluster>`, and `<operation-id>` with your own values. Flow can run in Linux environments when the runtime and configuration prerequisites are met and the environment has network access to the {{product-name}} clusters and other services used by the pipeline. In this documentation, Vanilla operations are the simplest example of an environment native to a {{product-name}} cluster.
 
+{% if audience == "internal" %}
+
+## Version compatibility {#version-compatibility}
+
+Flow's backward compatibility window is three months. It is based on the dates of the Flow source revisions used in each version, rather than the build or deployment dates.
+
+* When upgrading a pipeline, the Flow source revision dates of the current and new versions must be no more than three months apart. Beyond this window, compatibility is not guaranteed: new changes may be incompatible with the previous version's code.
+* Current versions of the Flow UI and tools may not work with pipelines using Flow code that is more than three months old.
+
+{% endif %}
+
 ## Deployment {#deployment}
 
 Follow [initial Vanilla deployment](vanilla/initial-deploy.md) to start the controller and workers as tasks of one operation. To launch from the released Flow images, see [Running in a docker environment](docker-environment.md): it covers vanilla jobs in docker images, the controller and the workers in Kubernetes, cluster-name resolution, and external proxy access. Flow creates and mounts its internal tables with the pipeline by default. If your pipeline uses user-managed external state, choose an [external state table type](state-tables-choice.md) before creating those tables based on availability and cost requirements.
