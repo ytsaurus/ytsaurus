@@ -657,8 +657,9 @@ void TTabletBalancer::OnBundleBalancingFinished(const TError& error, const std::
     }
 
     if (!AreBundlesHealthy(DynamicConfig_.Acquire()->MaxUnhealthyBundlesOnReplicaCluster)) {
-        YT_TLOG_INFO("Canceling pending actions for bundle because many unhealthy bundles have been found on a replica cluster")
-            .With("BundleName", bundleName);
+        YT_LOG_INFO("Canceling pending actions for bundle because many unhealthy bundles "
+            "have been found on a replica cluster (BundleName: %v)",
+            bundleName);
         ActionManager_->CancelPendingActions(bundleName);
         UpdateCancelledBundleIterationCounter(bundleName);
         return;
