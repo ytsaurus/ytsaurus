@@ -68,6 +68,10 @@ class TestChunkServer(YTEnvSetup):
                 refresh_queue_size += count
         return refresh_queue_size
 
+    @classmethod
+    def on_masters_started(cls):
+        create_domestic_medium("non_default")
+
     @authors("kvk1920")
     def test_invalid_medium_name(self):
         with raises_yt_error("Invalid object name: starts with #"):
@@ -542,6 +546,47 @@ class TestChunkServer(YTEnvSetup):
 
         wait(lambda: get("//sys/@lost_vital_chunk_count") == 0)
         wait(lambda: chunk_id not in get("//sys/lost_vital_chunks"))
+
+    @authors("kvk1920")
+    def test_cross_medium_historically_non_vital(self):
+        non_default_location = ls("//sys/chunk_locations")[0]
+        set(f"//sys/chunk_locations/{non_default_location}/@medium_override", "non_default")
+        wait(lambda: get(f"//sys/chunk_locations/{non_default_location}/@statistics/medium_name") == "non_default")
+
+        create("table", "//tmp/t", attributes={"replication_factor": 3})
+        write_table("//tmp/t", [{"key": "abc", "value": 42}])
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        def get_replication_factors():
+            rf = {}
+            for r in get(f"#{chunk_id}/@stored_replicas"):
+                medium = r.attributes["medium"]
+                rf[medium] = rf.get(medium, 0) + 1
+            return rf
+
+        wait(lambda: get_replication_factors() == {"default": 3})
+
+        set("//tmp/t/@media", {
+            "default": {
+                "replication_factor": 2,
+                "data_parts_only": False,
+            },
+            "non_default": {
+                "replication_factor": 1,
+                "data_parts_only": False,
+            },
+        })
+
+        wait(lambda: get_replication_factors() == {
+            "default": 2,
+            "non_default": 1,
+        })
+
+        assert not get(f"#{chunk_id}/@historically_non_vital")
+        assert get(f"#{chunk_id}/@vital")
+
+        set_nodes_banned(ls("//sys/data_nodes"), True)
+        wait(lambda: chunk_id in ls("//sys/lost_vital_chunks"))
 
     @authors("danilalexeev")
     def test_unexpected_overreplicated_chunks(self):

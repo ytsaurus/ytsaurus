@@ -2198,7 +2198,21 @@ class YTEnvSetup(object):
 
         yt_commands.execute_batch(requests, driver=driver)
 
+    def _reset_media(self, driver):
+        requests = [
+            yt_commands.make_batch_request(
+                "remove",
+                path=f"//sys/chunk_locations/{str(location)}/@medium_override",
+            )
+            for location in yt_commands.ls("//sys/chunk_locations", attributes=["medium_override"])
+            if "medium_override" in location.attributes
+        ]
+        for response in yt_commands.execute_batch(requests, driver=driver):
+            assert not yt_commands.get_batch_error(response)
+
     def _reset_nodes(self, wait_for_nodes=True, driver=None):
+        self._reset_media(driver)
+
         use_maintenance_requests = yt_commands.get(
             "//sys/@config/node_tracker/forbid_maintenance_attribute_writes",
             default=False,
