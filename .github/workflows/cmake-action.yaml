@@ -37,9 +37,9 @@ on:
         type: boolean
     secrets:
       BUILD_CACHE_BAZEL_USERNAME:
-        required: true
+        required: false
       BUILD_CACHE_BAZEL_PASSWORD:
-        required: true
+        required: false
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true

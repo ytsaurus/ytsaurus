@@ -21,10 +21,6 @@ on:
         required: false
       S3_SECRET_KEY:
         required: false
-      BUILD_CACHE_BAZEL_USERNAME:
-        required: false
-      BUILD_CACHE_BAZEL_PASSWORD:
-        required: false
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -123,9 +119,6 @@ jobs:
       build-chyt: ${{ github.ref_name == 'main' }}
       build-types: '["relwithdebinfo"]'
       run-unittests: true
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/cmake-action.yaml
 
   cleanup-cmake:
@@ -169,9 +162,6 @@ jobs:
       build-query-tracker: ${{ github.ref_name == 'main' }}
       build-python: true
       build-types: '["relwithdebinfo"]'
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
   run-tests:
