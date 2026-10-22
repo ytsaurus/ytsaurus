@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <library/cpp/streams/zstd/zstd.h>
+
 #include <library/cpp/yt/cpu_clock/clock.h>
 #include <library/cpp/yt/logging/logger.h>
 #include <library/cpp/yt/logging/structured_payload.h>
@@ -21,7 +23,9 @@
 
 #include <util/generic/size_literals.h>
 
+#include <util/stream/file.h>
 #include <util/stream/str.h>
+#include <util/stream/zlib.h>
 #include <util/string/split.h>
 #include <util/system/file.h>
 #include <util/system/tempfile.h>
@@ -196,6 +200,27 @@ protected:
         auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, fileName);
         TFile file(fileName, OpenExisting | RdOnly);
         return engine->GetTimeRange(file);
+    }
+
+    std::optional<TInstant> FindFirstTime(const TString& fileName)
+    {
+        auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, fileName);
+        TFile file(fileName, OpenExisting | RdOnly);
+        return engine->FindFirstTime(file);
+    }
+
+    static void CompressAsOneFrame(const TString& sourceFileName, const TString& fileName, ECompressionMethod method)
+    {
+        auto text = TUnbufferedFileInput(sourceFileName).ReadAll();
+        TUnbufferedFileOutput output(fileName);
+        std::unique_ptr<IOutputStream> compressor;
+        if (method == ECompressionMethod::Zstd) {
+            compressor = std::make_unique<TZstdCompress>(&output);
+        } else {
+            compressor = std::make_unique<TZLibCompress>(&output, ZLib::GZip);
+        }
+        compressor->Write(text);
+        compressor->Finish();
     }
 
     std::vector<std::pair<TInstant, TString>> MakeEvents(TInstant base)
@@ -498,6 +523,41 @@ TEST_F(TLogSliceTest, GetTimeRangeBrokenLastLine)
         EXPECT_EQ("msg-9", messages.back());
         EXPECT_EQ(10u, messages.size());
     }
+}
+
+TEST_F(TLogSliceTest, FindFirstTime)
+{
+    auto base = ParseQueryTime("2021-06-07T08:09:10.000000Z");
+    auto tolerance = TDuration::MilliSeconds(1);
+
+    TTempFile plainFile(GenerateRandomFileName("log") + ".log");
+    WriteLog(plainFile.Name(), /*compressionMethod*/ std::nullopt, MakeEvents(base));
+    TTempFile zstdFile(GenerateRandomFileName("log") + ".zst");
+    WriteLog(zstdFile.Name(), ECompressionMethod::Zstd, MakeEvents(base));
+    TTempFile gzipFile(GenerateRandomFileName("log") + ".gz");
+    WriteLog(gzipFile.Name(), ECompressionMethod::Gzip, MakeEvents(base));
+    TTempFile zstdFrameFile(GenerateRandomFileName("log") + ".zst");
+    CompressAsOneFrame(plainFile.Name(), zstdFrameFile.Name(), ECompressionMethod::Zstd);
+    TTempFile gzipMemberFile(GenerateRandomFileName("log") + ".gz");
+    CompressAsOneFrame(plainFile.Name(), gzipMemberFile.Name(), ECompressionMethod::Gzip);
+
+    for (const auto* logFile : {&plainFile, &zstdFile, &gzipFile, &zstdFrameFile, &gzipMemberFile}) {
+        auto firstTime = FindFirstTime(logFile->Name());
+        ASSERT_TRUE(firstTime.has_value()) << logFile->Name();
+        EXPECT_LT(*firstTime - base, tolerance) << logFile->Name();
+        EXPECT_LT(base - *firstTime, tolerance) << logFile->Name();
+    }
+}
+
+TEST_F(TLogSliceTest, FindFirstTimeWithoutTimestampedLines)
+{
+    TTempFile emptyFile(GenerateRandomFileName("log") + ".log");
+    TFile(emptyFile.Name(), CreateAlways | WrOnly).Close();
+    EXPECT_FALSE(FindFirstTime(emptyFile.Name()).has_value());
+
+    TTempFile untimedFile(GenerateRandomFileName("log") + ".log");
+    TUnbufferedFileOutput(untimedFile.Name()).Write("not a log line\nnor this one\n");
+    EXPECT_FALSE(FindFirstTime(untimedFile.Name()).has_value());
 }
 
 // Test wrapper: runs the streaming FilterWithGrep over an in-memory string and
