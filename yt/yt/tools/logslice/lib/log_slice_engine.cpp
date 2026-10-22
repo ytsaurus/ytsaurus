@@ -7,6 +7,7 @@
 #include <library/cpp/yt/assert/assert.h>
 #include <library/cpp/yt/error/error.h>
 
+#include <util/generic/size_literals.h>
 #include <util/generic/strbuf.h>
 #include <util/generic/string.h>
 #include <util/stream/file.h>
@@ -46,6 +47,9 @@ constexpr i64 ScanWindowSize = 1 << 20;
 
 //! Buffer size for the final decode pass.
 constexpr i64 DecodeChunkSize = 256 << 10;
+
+//! Sliced lines are cut to this length.
+constexpr i64 MaxLineLength = 16_MB;
 
 TString ReadFileRange(TFile& file, i64 offset, i64 size)
 {
@@ -390,6 +394,8 @@ private:
                 size_t read = 0;
                 try {
                     read = decoder->Read(buffer.data(), buffer.size());
+                } catch (const TFileError&) {
+                    throw;
                 } catch (const std::exception&) {
                     truncated = true;
                     break;
@@ -411,22 +417,28 @@ private:
         TFileRangeInput raw(file, startOffset, endOffset);
         std::unique_ptr<IInputStream> decoder = MakeDecoder(&raw);
         std::vector<char> buffer(DecodeChunkSize);
-        try {
-            i64 skipped = 0;
-            while (skipped < cleanBytes) {
-                i64 want = std::min<i64>(std::ssize(buffer), cleanBytes - skipped);
-                size_t read = decoder->Read(buffer.data(), want);
-                if (read == 0) {
-                    break;
-                }
-                skipped += static_cast<i64>(read);
+        auto tryRead = [&] (char* data, size_t size) -> size_t {
+            try {
+                return decoder->Read(data, size);
+            } catch (const TFileError&) {
+                throw;
+            } catch (const std::exception&) {
+                // Reached the premature end again: stop with what was recovered.
+                return 0;
             }
-            char byte;
-            while (decoder->Read(&byte, 1) != 0) {
-                sink(&byte, 1);
+        };
+        i64 skipped = 0;
+        while (skipped < cleanBytes) {
+            i64 want = std::min<i64>(std::ssize(buffer), cleanBytes - skipped);
+            size_t read = tryRead(buffer.data(), want);
+            if (read == 0) {
+                return;
             }
-        } catch (const std::exception&) {
-            // Reached the premature end again: stop with what was recovered.
+            skipped += static_cast<i64>(read);
+        }
+        char byte;
+        while (tryRead(&byte, 1) != 0) {
+            sink(&byte, 1);
         }
     }
 
@@ -440,18 +452,17 @@ private:
     {
         TString carry;
         DecodeRange(file, startOffset, endOffset, [&] (const char* data, size_t size) {
-            carry.append(data, size);
-            size_t lineStart = 0;
+            TStringBuf chunk(data, size);
             while (true) {
-                size_t newline = carry.find('\n', lineStart);
-                if (newline == TString::npos) {
+                size_t newline = chunk.find('\n');
+                auto room = static_cast<size_t>(MaxLineLength - std::ssize(carry));
+                carry.append(chunk.substr(0, std::min(newline, room)));
+                if (newline == TStringBuf::npos) {
                     break;
                 }
-                EmitIfInRange(TStringBuf(carry.data() + lineStart, newline - lineStart), from, to, output);
-                lineStart = newline + 1;
-            }
-            if (lineStart > 0) {
-                carry.remove(0, lineStart);
+                EmitIfInRange(TStringBuf(carry), from, to, output);
+                carry.clear();
+                chunk = chunk.substr(newline + 1);
             }
         });
 
