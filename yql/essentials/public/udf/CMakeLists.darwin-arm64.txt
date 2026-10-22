@@ -57,6 +57,7 @@ target_sources(essentials-public-udf PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_pg_type_description.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_ptr.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_registrator.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_static_library.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_static_registry.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_string.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_type_builder.h
