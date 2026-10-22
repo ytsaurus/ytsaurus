@@ -1,8 +1,11 @@
 from datetime import datetime
+from html.parser import HTMLParser
 import argparse
 import os
 import re
 import requests
+import time
+from urllib.parse import parse_qs, urljoin, urlsplit
 
 REPO_OWNER = "ytsaurus"
 OUTPUT_FILE = "release_notes.md"
@@ -63,6 +66,133 @@ Release notes for this component.
 
 repo_name_to_releases = {}
 package_page_to_html = {}
+package_to_versions = {}
+
+
+def get_url(url, **kwargs):
+    for attempt in range(3):
+        try:
+            response = requests.get(url, timeout=(10, 30), **kwargs)
+            if response.status_code not in {429, 500, 502, 503, 504} or attempt == 2:
+                response.raise_for_status()
+                return response
+        except (requests.ConnectionError, requests.Timeout):
+            if attempt == 2:
+                raise
+        time.sleep(0.5 * 2 ** attempt)
+
+
+class PackagePageParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.links = []
+        self.next_url = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag != "a":
+            return
+        attrs = dict(attrs)
+        href = attrs.get("href")
+        if not href:
+            return
+        self.links.append(href)
+        if attrs.get("aria-disabled") == "true":
+            return
+        if "next" in (attrs.get("rel") or "").split() or "next_page" in (attrs.get("class") or "").split():
+            self.next_url = href
+
+
+def html_block_end(line):
+    """Return the terminator of a raw HTML block starting on this line."""
+    if re.match(r"^ {0,3}<!--", line):
+        return re.compile(r"-->")
+    if re.match(r"^ {0,3}<\?", line):
+        return re.compile(r"\?>")
+    if re.match(r"^ {0,3}<!\[CDATA\[", line):
+        return re.compile(r"\]\]>")
+    if re.match(r"^ {0,3}<![A-Z]", line):
+        return re.compile(r">")
+    tag = re.match(r"^ {0,3}<(pre|script|style|textarea)(?=[ \t>]|$)", line, flags=re.IGNORECASE)
+    if tag:
+        return re.compile(r"</" + tag[1] + r"[ \t]*>", flags=re.IGNORECASE)
+    return None
+
+
+def prepare_description(body, labels):
+    """Extract complete metadata paragraphs in the introduction, preserving code and HTML."""
+    lines = (body or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    labels = {label.casefold(): label for label in labels}
+    metadata = {}
+    removed = set()
+    protected = set()
+    introduction = set()
+    atx_headings = set()
+    fence = None
+    html_end = None
+    in_introduction = True
+    field_pattern = re.compile(r"^\*\*([^*]+?)(?::\*\*|\*\*:)[ \t]*(.*?)[ \t]*$")
+
+    def field(line):
+        match = field_pattern.fullmatch(line)
+        if match and match[1].casefold() in labels:
+            return labels[match[1].casefold()], match[2]
+        return None
+
+    for index, line in enumerate(lines):
+        if html_end:
+            protected.add(index)
+            if html_end.search(line):
+                html_end = None
+            continue
+        marker = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line)
+        if fence:
+            protected.add(index)
+            if marker and marker[1][0] == fence[0] and len(marker[1]) >= len(fence) and not marker[2].strip():
+                fence = None
+            continue
+        if marker:
+            protected.add(index)
+            fence = marker[1]
+            continue
+        html_end = html_block_end(line)
+        if html_end:
+            protected.add(index)
+            if html_end.search(line):
+                html_end = None
+            continue
+        is_setext_heading = re.fullmatch(r" {0,3}(?:=+|-+)[ \t]*", line) and index > 0 and lines[index - 1].strip()
+        is_atx_heading = re.match(r"^ {0,3}#{1,6}(?:[ \t]+|$)", line)
+        if is_atx_heading:
+            atx_headings.add(index)
+        if is_atx_heading or is_setext_heading:
+            in_introduction = False
+        if in_introduction:
+            introduction.add(index)
+        if re.match(r"^####[ \t]+", line):
+            lines[index] = re.sub(r"^####[ \t]+", "##### ", line)
+        else:
+            lines[index] = re.sub(r"^#{1,3}[ \t]+(.*)", r"#### \1", line)
+
+    paragraph = []
+    for index in range(len(lines) + 1):
+        if index < len(lines) and lines[index].strip() and index not in atx_headings:
+            paragraph.append(index)
+            continue
+        if paragraph and all(i in introduction and i not in protected for i in paragraph):
+            fields = [field(lines[i]) for i in paragraph]
+            # A paragraph is metadata only if every line is a known field.
+            # Never extract only part of a paragraph adjoining ordinary text.
+            if all(fields):
+                for label, value in fields:
+                    if label in metadata and metadata[label] != value:
+                        raise ValueError(f"Conflicting values for release metadata field {label!r}")
+                    metadata[label] = value
+                removed.update(paragraph)
+                if index < len(lines) and not lines[index].strip():
+                    removed.add(index)
+        paragraph = []
+
+    return metadata, "\n".join(line for index, line in enumerate(lines) if index not in removed)
 
 
 class Artifact:
@@ -88,21 +218,15 @@ class DockerArtifact(Artifact):
         self.package_repo_name = package_repo_name or repo_name
 
     def get_info(self, component, version):
-        package_page_url = f"https://github.com/{REPO_OWNER}/{self.package_repo_name}/pkgs/container/{self.image_repo}"
-        package_versions_url = f"{package_page_url}/versions?filters%5Bversion_type%5D=tagged"
-        html = component._get_package_page_html(package_versions_url)
+        versions = component._get_package_versions("container", self.image_repo)
 
         for transformed_version in self.version_transform(version):
             for tag_template in self.tag_templates:
                 docker_tag = tag_template.format(version=transformed_version)
                 artifact_name = f"ghcr.io/{REPO_OWNER}/{self.image_repo}:{docker_tag}"
 
-                if html:
-                    pattern = rf'href="([^\"]*\?tag={re.escape(docker_tag)})"'
-                    match = re.search(pattern, html)
-                    if match:
-                        artifact_url = f"https://github.com{match.group(1)}"
-                        return artifact_name, artifact_url
+                if docker_tag in versions:
+                    return artifact_name, versions[docker_tag]
 
         return None
 
@@ -118,20 +242,14 @@ class GithubPackageArtifact(Artifact):
         self.display_name_template = display_name_template or "{version}"
 
     def get_info(self, component, version):
-        package_page_url = f"https://github.com/{REPO_OWNER}/{self.repo_name}/pkgs/{self.package_kind}/{self.package_name}"
-        package_versions_url = f"{package_page_url}/versions?filters%5Bversion_type%5D=tagged"
-        html = component._get_package_page_html(package_versions_url)
+        versions = component._get_package_versions(self.package_kind, self.package_name)
 
         for transformed_version in self.version_transform(version):
             for version_template in self.version_templates:
                 package_version = version_template.format(version=transformed_version)
-                if html:
-                    pattern = rf'href="([^\"]*{re.escape(self.package_name)}[^\"]*\?tag={re.escape(package_version)})"'
-                    match = re.search(pattern, html)
-                    if match:
-                        package_url = f"https://github.com{match.group(1)}"
-                        display_name = self.display_name_template.format(version=package_version, release_version=version)
-                        return display_name, package_url
+                if package_version in versions:
+                    display_name = self.display_name_template.format(version=package_version, release_version=version)
+                    return display_name, versions[package_version]
 
         return None
 
@@ -155,15 +273,11 @@ class Component:
         }
         headers = {}
 
-        response = requests.get(url, headers=headers, params=params)
-
-        if response.status_code == 200:
-            releases = response.json()
-            return releases
-        else:
-            print(f"Failed to fetch releases: {response.status_code}")
-            print(response.text)
-        return None
+        response = get_url(url, headers=headers, params=params)
+        releases = response.json()
+        if not isinstance(releases, list):
+            raise ValueError(f"Expected a list of releases from {url}")
+        return releases
 
     def _get_all_releases(self):
         if self.repo_name in repo_name_to_releases:
@@ -192,18 +306,52 @@ class Component:
         if package_page_url in package_page_to_html:
             return package_page_to_html[package_page_url]
 
-        response = requests.get(package_page_url)
-        if response.status_code == 200:
-            package_page_to_html[package_page_url] = response.text
-            return response.text
+        response = get_url(package_page_url)
+        package_page_to_html[package_page_url] = response.text
+        return response.text
 
-        return None
+    def _get_package_versions(self, package_kind, package_name):
+        key = package_kind, package_name
+        if key in package_to_versions:
+            return package_to_versions[key]
 
-    def _get_artifact_lines(self, version):
+        package_path = f"/{package_kind}/{package_name}/"
+        url = f"https://github.com/orgs/{REPO_OWNER}/packages{package_path}versions?filters%5Bversion_type%5D=tagged"
+        versions = {}
+        visited = set()
+        while url:
+            if url in visited:
+                raise ValueError(f"Cyclic package pagination at {url}")
+            visited.add(url)
+            parser = PackagePageParser()
+            parser.feed(self._get_package_page_html(url))
+            for href in parser.links:
+                version_url = urljoin(url, href)
+                parsed = urlsplit(version_url)
+                if parsed.scheme != "https" or parsed.netloc != "github.com":
+                    continue
+                if package_path not in parsed.path or not parsed.path.rsplit("/", 1)[-1].isdigit():
+                    continue
+                for tag in parse_qs(parsed.query).get("tag", []):
+                    versions.setdefault(tag, version_url)
+            url = urljoin(url, parser.next_url) if parser.next_url else None
+            if url:
+                parsed = urlsplit(url)
+                if parsed.scheme != "https" or parsed.netloc != "github.com" or not parsed.path.endswith(package_path + "versions"):
+                    raise ValueError(f"Unexpected package pagination URL: {url}")
+
+        package_to_versions[key] = versions
+        return versions
+
+    def _get_artifact_lines(self, version, metadata=None):
         lines = []
+        metadata = metadata or {}
 
         for artifact in self.artifacts:
-            if artifact.kind in {"docker", "github-package"}:
+            if artifact.label in metadata:
+                lines.append(f"**{artifact.label}:** {metadata[artifact.label]}")
+                lines.append("\n")
+            elif artifact.kind in {"docker", "github-package"}:
                 artifact_info = artifact.get_info(self, version)
                 if artifact_info:
                     artifact_name, artifact_url = artifact_info
@@ -228,32 +376,32 @@ class Component:
             releases = self.fallback_releases
 
         for release in releases:
+            labels = ["Release date", "Release page"] + [artifact.label for artifact in self.artifacts]
+            metadata, description = prepare_description(release.get("body"), labels)
             version = release["tag_name"].split(self.release_tag_splitter)[-1] if self.release_tag_splitter else release["tag_name"]
             lines.append(f"{{% cut \"**{version}**\" %}}\n")
 
             parsed_date = datetime.strptime(release["created_at"], "%Y-%m-%dT%H:%M:%SZ")
-            lines.append(f"**Release date:** {parsed_date.strftime("%Y-%m-%d")}")
+            lines.append(f"**Release date:** {parsed_date.strftime('%Y-%m-%d')}")
             lines.append("\n")
 
             release_url = release.get("html_url")
             if release_url:
                 lines.append(f"**Release page:** [{version}]({release_url})")
                 lines.append("\n")
+            elif "Release page" in metadata:
+                lines.append(f"**Release page:** {metadata['Release page']}")
+                lines.append("\n")
 
-            lines.extend(self._get_artifact_lines(version))
-
-            description = release["body"]
-            description = re.sub(r"^####\s+(.*)", r"##### \1", description, flags=re.MULTILINE)
-            description = re.sub(r"^#{1,3}\s+(.*)", r"#### \1", description, flags=re.MULTILINE)
-            description = description.replace("\r\n", "\n")
-            description = description.replace("\r", "\n")
+            lines.extend(self._get_artifact_lines(version, metadata))
 
             lines.append(description or "No description")
             lines.append("\n{% endcut %}\n\n")
         return "\n".join(lines)
 
-    def dump_release_notes(self, output_paths):
-        content = self._generate_markdown()
+    def dump_release_notes(self, output_paths, content=None):
+        if content is None:
+            content = self._generate_markdown()
         for output_path in output_paths:
             os.makedirs(output_path, exist_ok=True)
             with open(f"{output_path}/{self.filename}", "w", encoding="utf-8") as f:
@@ -327,6 +475,11 @@ COMPONENTS = [
                 kind="package",
                 page_url="https://pypi.org/project/ytsaurus-flow-companion/",
                 version_url_template="https://pypi.org/project/ytsaurus-flow-companion/{version}/",
+            ),
+            Artifact(
+                label="yt_sync_mini in PyPI",
+                kind="package",
+                version_url_template="https://pypi.org/project/ytsaurus-flow-yt-sync-mini/{version}/",
             ),
             Artifact(
                 label="Go SDK module",
@@ -464,7 +617,7 @@ COMPONENTS = [
 ]
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Generate release notes"
     )
@@ -472,16 +625,18 @@ def main():
     parser.add_argument(
         "-o", "--output-path",
         action="append",
+        required=True,
         help="Path to the output directory."
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     try:
-        for c in COMPONENTS:
-            c.dump_release_notes(args.output_path)
+        contents = [(c, c._generate_markdown()) for c in COMPONENTS]
+        for component, content in contents:
+            component.dump_release_notes(args.output_path, content)
     except Exception as e:
-        print(f"Error occured: {e}")
+        parser.exit(1, f"Error generating release notes: {e}\n")
 
 
 if __name__ == "__main__":
