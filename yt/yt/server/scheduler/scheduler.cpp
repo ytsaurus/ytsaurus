@@ -1784,6 +1784,7 @@ public:
 private:
     TSchedulerConfigPtr Config_;
     const TSchedulerConfigPtr InitialConfig_;
+    TYsonString LastConfigYson_;
     int ConfigRevision_ = 0;
 
     TBootstrap* const Bootstrap_;
@@ -2374,10 +2375,19 @@ private:
             THROW_ERROR(rspOrError.Wrap(NScheduler::EErrorCode::WatcherHandlerFailed, "Error getting scheduler configuration"));
         }
 
+        auto configYson = TYsonString(rspOrError.Value()->value());
+        if (LastConfigYson_ && configYson == LastConfigYson_) {
+            ++ConfigRevision_;
+            return;
+        }
+
+        // Applying a different config may fail after changing Config_.
+        // Do not skip reloading the previous config in that case.
+        LastConfigYson_ = {};
+
         auto newConfig = CloneYsonStruct(InitialConfig_);
         try {
-            const auto& rsp = rspOrError.Value();
-            auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
+            auto configFromCypress = ConvertToNode(configYson);
             try {
                 newConfig->Load(configFromCypress, /*postprocess*/ true, /*setDefaults*/ false);
             } catch (const std::exception& ex) {
@@ -2442,6 +2452,7 @@ private:
             ExperimentsAssigner_.UpdateExperimentConfigs(Config_->Experiments);
         }
 
+        LastConfigYson_ = std::move(configYson);
         ++ConfigRevision_;
     }
 
