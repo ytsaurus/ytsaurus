@@ -426,11 +426,11 @@ public:
             locations.push_back(std::move(location));
         }
 
-        auto errorOrResults = WaitFor(AllSet(initLocationResults));
-
-        if (!errorOrResults.IsOK()) {
-            YT_TLOG_WARNING("Proceeding with partially initialized layer locations")
-                .With(errorOrResults);
+        auto results = WaitFor(AllSet(initLocationResults))
+            .ValueOrCrash();
+        for (const auto& error : results) {
+            YT_TLOG_WARNING_UNLESS(error.IsOK(), "Proceeding with partially initialized layer locations")
+                .With(error);
         }
 
         auto tmpfsExecutor = CreatePortoExecutor(
