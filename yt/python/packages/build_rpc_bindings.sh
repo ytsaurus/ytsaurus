@@ -26,6 +26,8 @@ if [[ $(uname -s) == Linux ]]; then
         -DPROVIDE_GETRANDOM_GETENTROPY=yes
         -DUSER_CXXFLAGS=-UHAVE___CXA_THREAD_ATEXIT_IMPL
     )
+elif [[ $(uname -s) == Darwin ]]; then
+    wheel_flags+=(--plat-name "macosx_${MACOSX_DEPLOYMENT_TARGET//./_}_$target_arch")
 fi
 
 python3 -m pip install setuptools wheel abi3audit
