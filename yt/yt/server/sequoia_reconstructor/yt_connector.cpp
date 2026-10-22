@@ -45,7 +45,7 @@ constinit const auto Logger = SequoiaReconstructorLogger;
 
 namespace {
 
-constexpr auto CommandSuffix = " ytserver-sequoia-reconstructor";
+constexpr auto CommandSuffix = " --component ytserver-sequoia-reconstructor";
 
 IClientPtr CreateYtClient(TMulticellMapReduceSequoiaReconstructorConfigPtr config)
 {
