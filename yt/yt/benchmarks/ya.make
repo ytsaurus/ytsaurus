@@ -27,5 +27,6 @@ RECURSE(
 IF (NOT OPENSOURCE AND OS_LINUX)
     RECURSE(
         bus
+        tablet_transactions
     )
 ENDIF()
