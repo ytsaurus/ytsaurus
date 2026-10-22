@@ -19,10 +19,10 @@ jobs:
         include:
           - platform: linux-x86_64
             runner: ubuntu-24.04
-            arch: x86_64
+            manylinux-image: quay.io/pypa/manylinux_2_28_x86_64
           - platform: linux-aarch64
-            runner: ubuntu-24.04
-            arch: aarch64
+            runner: ubuntu-24.04-arm
+            manylinux-image: quay.io/pypa/manylinux_2_28_aarch64
           - platform: macos-x86_64
             runner: macos-15-intel
           - platform: macos-arm64
@@ -38,31 +38,23 @@ jobs:
         run: echo "YTSAURUS_PACKAGE_VERSION=${GITHUB_REF_NAME##*/}" >> "$GITHUB_ENV"
 
       - name: Set up Python 3.11
+        if: ${{ runner.os == 'macOS' }}
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Extract ARM64 manylinux sysroot
-        if: ${{ matrix.platform == 'linux-aarch64' }}
-        run: |
-          mkdir -p "$RUNNER_TEMP/rpc-build/sysroot"
-          container_id=$(docker create --platform linux/arm64 quay.io/pypa/manylinux2014_aarch64 /bin/true)
-          trap 'docker rm "$container_id"' EXIT
-          docker export "$container_id" | tar -x --no-same-owner -C "$RUNNER_TEMP/rpc-build/sysroot"
-
       - name: Build Linux wheel
         if: ${{ runner.os == 'Linux' }}
         env:
-          TARGET_ARCH: ${{ matrix.arch }}
+          MANYLINUX_IMAGE: ${{ matrix.manylinux-image }}
         run: |
           mkdir -p "$RUNNER_TEMP/rpc-build"
           docker run --rm \
             -v "$GITHUB_WORKSPACE:/ytsaurus" \
             -v "$RUNNER_TEMP/rpc-build:/build" \
             -e YTSAURUS_PACKAGE_VERSION \
-            -e TARGET_ARCH \
-            quay.io/pypa/manylinux2014_x86_64 \
-            bash -c 'export PATH="/opt/python/cp311-cp311/bin:$PATH"; bash /ytsaurus/yt/python/packages/build_rpc_bindings.sh /build "$TARGET_ARCH"'
+            "$MANYLINUX_IMAGE" \
+            bash -c 'export PATH="/opt/python/cp311-cp311/bin:$PATH"; bash /ytsaurus/yt/python/packages/build_rpc_bindings.sh /build'
 
       - name: Build macOS wheel
         if: ${{ runner.os == 'macOS' }}
@@ -91,10 +83,10 @@ jobs:
         include:
           - platform: linux-x86_64
             runner: ubuntu-24.04
-            manylinux-image: quay.io/pypa/manylinux2014_x86_64
+            manylinux-image: quay.io/pypa/manylinux_2_28_x86_64
           - platform: linux-aarch64
             runner: ubuntu-24.04-arm
-            manylinux-image: quay.io/pypa/manylinux2014_aarch64
+            manylinux-image: quay.io/pypa/manylinux_2_28_aarch64
           - platform: macos-x86_64
             runner: macos-15-intel
           - platform: macos-arm64
