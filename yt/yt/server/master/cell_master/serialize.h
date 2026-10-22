@@ -235,6 +235,7 @@ DEFINE_ENUM(EMasterReign,
     ((RecomputeAllTabletCellStatistics)                             (3360))  // sabdenovch
     ((ClearSequoiaLastSeenReplicasOnMaster)                         (3361))  // aleksandra-zh
     ((IgnoreMissingLeaseCellsOnForcedTransactionAbort)              (3362))  // shakurov
+    ((FixCrossMediumHistoricallyNonVital)                           (3363))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
