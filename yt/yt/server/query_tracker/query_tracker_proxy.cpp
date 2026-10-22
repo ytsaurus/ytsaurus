@@ -31,7 +31,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/rpc/response_keeper.h>
 #include <yt/yt/core/rpc/roaming_channel.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -294,38 +293,6 @@ std::optional<std::vector<std::string>> ValidateAccessControlObjects(
     return accessControlObjects;
 }
 
-TQueryId FindQueryStartedByMutation(
-    const IClientPtr& client,
-    const TYPath& root,
-    const std::string& user,
-    const TStartQueryOptions& options,
-    TTimestamp timestamp)
-{
-    auto rowBuffer = New<TRowBuffer>();
-    TLookupRowsOptions lookupOptions;
-    lookupOptions.Timestamp = timestamp;
-    lookupOptions.KeepMissingRows = true;
-    std::vector keys{
-        TQueryByUserAndMutationIdKey{.User = user, .MutationId = options.MutationId}.ToKey(rowBuffer),
-    };
-    auto asyncLookupResult = client->LookupRows(
-        root + "/queries_by_user_and_mutation_id",
-        TQueryByUserAndMutationIdDescriptor::Get()->GetNameTable(),
-        MakeSharedRange(std::move(keys), rowBuffer),
-        lookupOptions);
-    auto rowset = WaitFor(asyncLookupResult)
-        .ValueOrThrow()
-        .Rowset;
-    auto optionalRecords = ToOptionalRecords<TQueryByUserAndMutationId>(rowset);
-    YT_VERIFY(optionalRecords.size() == 1);
-    if (!optionalRecords[0]) {
-        return {};
-    }
-
-    NRpc::ValidateRetry(options.MutationId, options.Retry);
-    return optionalRecords[0]->QueryId;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
@@ -354,7 +321,7 @@ void TQueryTrackerProxy::Reconfigure(const TQueryTrackerDynamicConfigPtr& config
     DynamicConfig_ = config;
 }
 
-TQueryId TQueryTrackerProxy::StartQuery(
+void TQueryTrackerProxy::StartQuery(
     const TQueryId queryId,
     const EQueryEngine engine,
     const std::string& query,
@@ -389,35 +356,12 @@ TQueryId TQueryTrackerProxy::StartQuery(
 
     YT_TLOG_DEBUG("Starting query")
         .With("QueryId", queryId)
-        .With("MutationId", options.MutationId)
         .With("Draft", options.Draft)
         .With("IsIndexed", isIndexed);
 
     auto rowBuffer = New<TRowBuffer>();
     auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet, {}))
         .ValueOrThrow();
-
-    if (options.MutationId) {
-        if (auto startedQueryId = FindQueryStartedByMutation(StateClient_, StateRoot_, user, options, transaction->GetStartTimestamp())) {
-            YT_TLOG_DEBUG("Query is already started by this mutation")
-                .With("QueryId", startedQueryId)
-                .With("MutationId", options.MutationId);
-            return startedQueryId;
-        }
-
-        TQueryByUserAndMutationIdPartial mutationRecord{
-            .Key = {.User = user, .MutationId = options.MutationId},
-            .QueryId = queryId,
-            .Ttl = DynamicConfig_->ProxyConfig->QueriesByMutationIdTtl.MilliSeconds(),
-        };
-        std::vector mutationRows{
-            mutationRecord.ToUnversionedRow(rowBuffer, TQueryByUserAndMutationIdDescriptor::Get()->GetPartialIdMapping()),
-        };
-        transaction->WriteRows(
-            StateRoot_ + "/queries_by_user_and_mutation_id",
-            TQueryByUserAndMutationIdDescriptor::Get()->GetNameTable(),
-            MakeSharedRange(std::move(mutationRows), rowBuffer));
-    }
 
     auto accessControlObjects = ValidateAccessControlObjects(options.AccessControlObject, options.AccessControlObjects).value_or(std::vector<std::string>{});
     VerifyAllAccessControlObjectsExist(accessControlObjects, StateClient_);
@@ -532,15 +476,8 @@ TQueryId TQueryTrackerProxy::StartQuery(
         .Force2PC = true,
     };
 
-    auto commitError = WaitFor(transaction->Commit(commitOptions));
-    if (options.MutationId && commitError.FindMatching(NTabletClient::EErrorCode::TransactionLockConflict)) {
-        if (auto startedQueryId = FindQueryStartedByMutation(StateClient_, StateRoot_, user, options, SyncLastCommittedTimestamp)) {
-            return startedQueryId;
-        }
-    }
-    commitError.ThrowOnError();
-
-    return queryId;
+    WaitFor(transaction->Commit(commitOptions))
+        .ThrowOnError();
 }
 
 void TQueryTrackerProxy::AbortQuery(

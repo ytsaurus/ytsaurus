@@ -11,8 +11,6 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/yt/core/test_framework/framework.h>
-
 namespace NYT::NQueryTracker {
 namespace {
 
@@ -26,7 +24,6 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NConcurrency;
 
-using ::testing::AnyNumber;
 using ::testing::StrictMock;
 using ::testing::Return;
 using ::testing::_;
@@ -78,15 +75,6 @@ TUnversionedLookupRowsResult MakeEmptyLookupActiveRowsResult(int rows)
     return {
         .Rowset = CreateRowset(TActiveQueryDescriptor::Get()->GetSchema(), MakeSharedRange(
             std::vector<TUnversionedRow>(rows, TUnversionedRow{}),
-            New<TRowBuffer>())),
-    };
-}
-
-TUnversionedLookupRowsResult MakeEmptyLookupQueryByUserAndMutationIdRowsResult()
-{
-    return {
-        .Rowset = CreateRowset(TQueryByUserAndMutationIdDescriptor::Get()->GetSchema(), MakeSharedRange(
-            std::vector<TUnversionedRow>{TUnversionedRow{}},
             New<TRowBuffer>())),
     };
 }
@@ -164,78 +152,6 @@ TEST_F(TQueryTrackerProxyTest, StartDraftQuery)
             .AccessControlObjects = std::vector<std::string>{"aco1", "aco2"},
         },
         "user");
-}
-
-TEST_F(TQueryTrackerProxyTest, StartQueryWithMutationId)
-{
-    EXPECT_CALL(*MockClient, LookupRows(TYPath("//sys/query_tracker/queries_by_user_and_mutation_id"), _, _, _))
-        .WillOnce(Return(MakeFuture(MakeEmptyLookupQueryByUserAndMutationIdRowsResult())));
-    EXPECT_CALL(*MockTransaction, WriteRows(_, _, _, _, _))
-        .Times(AnyNumber());
-    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/queries_by_user_and_mutation_id"), _, _, _, _));
-    EXPECT_CALL(*MockTransaction, Commit(_)).WillOnce(Return(MakeFuture(TTransactionCommitResult{})));
-
-    TStartQueryOptions options{.Draft = true};
-    options.MutationId = TGuid::Create();
-
-    auto queryId = TQueryId::Create();
-    EXPECT_EQ(queryId, Proxy->StartQuery(queryId, EQueryEngine::Mock, "query", options, "user"));
-}
-
-TEST_F(TQueryTrackerProxyTest, RetryStartQueryWithMutationId)
-{
-    auto mutationId = TGuid::Create();
-    auto startedQueryId = TQueryId::Create();
-    std::vector<TQueryByUserAndMutationId> records{
-        {.Key = {.User = "user", .MutationId = mutationId}, .QueryId = startedQueryId},
-    };
-    EXPECT_CALL(*MockClient, LookupRows(TYPath("//sys/query_tracker/queries_by_user_and_mutation_id"), _, _, _))
-        .WillOnce(Return(MakeQueryResult<TUnversionedLookupRowsResult, TQueryByUserAndMutationIdDescriptor>(records)));
-
-    TStartQueryOptions options{.Draft = true};
-    options.MutationId = mutationId;
-    options.Retry = true;
-
-    EXPECT_EQ(startedQueryId, Proxy->StartQuery(TQueryId::Create(), EQueryEngine::Mock, "query", options, "user"));
-}
-
-TEST_F(TQueryTrackerProxyTest, DuplicateStartQueryWithMutationId)
-{
-    auto mutationId = TGuid::Create();
-    std::vector<TQueryByUserAndMutationId> records{
-        {.Key = {.User = "user", .MutationId = mutationId}, .QueryId = TQueryId::Create()},
-    };
-    EXPECT_CALL(*MockClient, LookupRows(TYPath("//sys/query_tracker/queries_by_user_and_mutation_id"), _, _, _))
-        .WillOnce(Return(MakeQueryResult<TUnversionedLookupRowsResult, TQueryByUserAndMutationIdDescriptor>(records)));
-
-    TStartQueryOptions options{.Draft = true};
-    options.MutationId = mutationId;
-
-    EXPECT_THROW_WITH_SUBSTRING(
-        Proxy->StartQuery(TQueryId::Create(), EQueryEngine::Mock, "query", options, "user"),
-        "Duplicate request is not marked as \"retry\"");
-}
-
-TEST_F(TQueryTrackerProxyTest, ConcurrentStartQueryWithMutationId)
-{
-    auto mutationId = TGuid::Create();
-    auto startedQueryId = TQueryId::Create();
-    std::vector<TQueryByUserAndMutationId> records{
-        {.Key = {.User = "user", .MutationId = mutationId}, .QueryId = startedQueryId},
-    };
-    EXPECT_CALL(*MockClient, LookupRows(TYPath("//sys/query_tracker/queries_by_user_and_mutation_id"), _, _, _))
-        .WillOnce(Return(MakeFuture(MakeEmptyLookupQueryByUserAndMutationIdRowsResult())))
-        .WillOnce(Return(MakeQueryResult<TUnversionedLookupRowsResult, TQueryByUserAndMutationIdDescriptor>(records)));
-    EXPECT_CALL(*MockTransaction, WriteRows(_, _, _, _, _))
-        .Times(AnyNumber());
-    EXPECT_CALL(*MockTransaction, Commit(_))
-        .WillOnce(Return(MakeFuture<TTransactionCommitResult>(TError(NTabletClient::EErrorCode::TransactionLockConflict, "Row lock conflict"))));
-
-    TStartQueryOptions options{.Draft = true};
-    options.MutationId = mutationId;
-    options.Retry = true;
-
-    EXPECT_EQ(startedQueryId, Proxy->StartQuery(TQueryId::Create(), EQueryEngine::Mock, "query", options, "user"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

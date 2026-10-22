@@ -62,13 +62,14 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, StartQuery)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqStartQuery::GetDescriptor()->field_count() == 11);
+        YT_VERIFY(NRpcProxy::NProto::TReqStartQuery::GetDescriptor()->field_count() == 10);
         YT_VERIFY(NRpcProxy::NProto::TRspStartQuery::GetDescriptor()->field_count() == 1);
 
         auto rpcRequest = request->rpc_proxy_request();
         auto* rpcResponse = response->mutable_rpc_proxy_response();
 
         auto queryId = TQueryId::Create();
+        ToProto(rpcResponse->mutable_query_id(), queryId);
 
         TStartQueryOptions options;
         if (rpcRequest.has_query_tracker_stage()) {
@@ -88,11 +89,6 @@ private:
             : std::nullopt;
 
         options.Draft = rpcRequest.draft();
-
-        if (rpcRequest.has_mutating_options()) {
-            options.MutationId = FromProto<TMutationId>(rpcRequest.mutating_options().mutation_id());
-            options.Retry = rpcRequest.mutating_options().retry();
-        }
 
         for (const auto& requestFile : rpcRequest.files()) {
             auto file = New<TQueryFile>();
@@ -117,9 +113,7 @@ private:
 
         context->SetRequestInfo();
 
-        // On a retry with the same mutation id, StartQuery returns the id of the already started query.
-        queryId = QueryTracker_->StartQuery(queryId, engine, query, options, user);
-        ToProto(rpcResponse->mutable_query_id(), queryId);
+        QueryTracker_->StartQuery(queryId, engine, query, options, user);
 
         context->SetResponseInfo("QueryId: %v", queryId);
         context->Reply();
