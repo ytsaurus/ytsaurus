@@ -12,7 +12,7 @@ all at the same version.
 
 {% cut "**0.3.0**" %}
 
-**Release date:** 2026-09-28
+**Release date:** 2026-09-26
 
 
 **Release page:** [0.3.0](https://github.com/ytsaurus/ytsaurus/releases/tag/flow/0.3.0)
