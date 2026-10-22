@@ -835,8 +835,11 @@ public:
         }
 
         try {
-            WaitFor(AllSet(std::move(futures)))
-                .ThrowOnError();
+            auto results = WaitFor(AllSet(std::move(futures)))
+                .ValueOrCrash();
+            for (const auto& result : results) {
+                result.ThrowOnError();
+            }
         } catch (const std::exception& ex) {
             ShutdownSidecars();
             throw;
@@ -853,7 +856,13 @@ public:
             }
         }
 
-        WaitFor(AllSet(std::move(futures))).ThrowOnError();
+        auto results = WaitFor(AllSet(std::move(futures)))
+            .ValueOrCrash();
+        for (const auto& result : results) {
+            YT_TLOG_ERROR_UNLESS(result.IsOK(), "Failed to shut down sidecar")
+                .With(result);
+        }
+
         RunningSidecars_.clear();
     }
 

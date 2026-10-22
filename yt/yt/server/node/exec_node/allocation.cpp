@@ -874,7 +874,7 @@ void TAllocation::OnJobFinished(TJobPtr job)
     }();
 
     if (settleNewJob) {
-        AllSet(std::vector{job->GetCleanupFinishedEvent(), job->GetStoredEvent()})
+        AllSucceeded(std::vector{job->GetCleanupFinishedEvent(), job->GetStoredEvent()})
             .AsUnique().Subscribe(BIND([
                 jobId = job->GetId(),
                 this,

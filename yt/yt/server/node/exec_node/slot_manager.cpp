@@ -1300,7 +1300,7 @@ void TSlotManager::AsyncInitialize()
     YT_TLOG_INFO("Waiting for all locations to initialize");
 
     {
-        auto error = WaitFor(AllSet(initLocationFutures));
+        auto error = WaitFor(AllSucceeded(initLocationFutures));
         YT_TLOG_FATAL_UNLESS(error.IsOK(), "Shutdown encountered")
             .With(error);
     }
