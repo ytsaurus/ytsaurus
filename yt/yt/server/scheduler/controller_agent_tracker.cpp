@@ -579,7 +579,7 @@ public:
                         EmplaceOrCrash(operationIdToOperationJobMetrics, operationId, std::move(operationInfo.JobMetrics));
 
                         for (const auto& [alertType, alert] : operationInfo.AlertMap) {
-                            YT_UNUSED_FUTURE(scheduler->SetOperationAlert(operationId, alertType, alert));
+                            scheduler->SetOperationAlertSync(operationId, alertType, alert);
                         }
 
                         if (operationInfo.SuspiciousJobsYson) {
@@ -589,12 +589,13 @@ public:
                         auto controllerRuntimeDataError = CheckControllerRuntimeData(operationInfo.ControllerRuntimeData);
                         if (controllerRuntimeDataError.IsOK()) {
                             operation->GetController()->SetControllerRuntimeData(operationInfo.ControllerRuntimeData);
-                            YT_UNUSED_FUTURE(scheduler->SetOperationAlert(operationId, EOperationAlertType::InvalidControllerRuntimeData, TError()));
+                            scheduler->SetOperationAlertSync(operationId, EOperationAlertType::InvalidControllerRuntimeData, TError());
                         } else {
                             auto error = TError("Controller agent reported invalid data for operation")
                                 << TErrorAttribute("operation_id", operation->GetId())
                                 << std::move(controllerRuntimeDataError);
-                            YT_UNUSED_FUTURE(scheduler->SetOperationAlert(operationId, EOperationAlertType::InvalidControllerRuntimeData, error));
+
+                            scheduler->SetOperationAlertSync(operationId, EOperationAlertType::InvalidControllerRuntimeData, error);
                         }
                     }
 
