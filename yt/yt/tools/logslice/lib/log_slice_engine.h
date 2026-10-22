@@ -51,6 +51,9 @@ struct ILogSliceEngine
     //! Returns the timestamps of the first and last timestamped log lines of [file],
     //! or null if the file is empty or contains no timestamped lines.
     virtual std::optional<std::pair<TInstant, TInstant>> GetTimeRange(TFile& file) = 0;
+
+    //! Returns the first timestamp of GetTimeRange; reads only up to the first timestamped block.
+    virtual std::optional<TInstant> FindFirstTime(TFile& file) = 0;
 };
 
 using ILogSliceEnginePtr = std::unique_ptr<ILogSliceEngine>;

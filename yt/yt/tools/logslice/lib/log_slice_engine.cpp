@@ -179,6 +179,17 @@ public:
         return std::make_pair(first->FirstTime, last.value_or(first->FirstTime));
     }
 
+    std::optional<TInstant> FindFirstTime(TFile& file) final
+    {
+        i64 fileSize = file.GetLength();
+        if (fileSize == 0) {
+            return std::nullopt;
+        }
+
+        auto first = FindBlockAtOrAfter(file, /*pos*/ 0, fileSize);
+        return first ? std::optional(first->FirstTime) : std::nullopt;
+    }
+
 protected:
     //! Offset of the next block/line boundary at or after [pos], or null if none.
     virtual std::optional<i64> FindCandidateAtOrAfter(TFile& file, i64 pos, i64 fileSize) = 0;
