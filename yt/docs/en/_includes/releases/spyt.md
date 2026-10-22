@@ -8,6 +8,25 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.11.2**" %}
+
+**Release date:** 2026-10-02
+
+
+**Release page:** [2.11.2](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.11.2)
+
+
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.11.2](https://github.com/orgs/ytsaurus/packages/container/spyt/1326099664?tag=2.11.2)
+
+
+Maintenance release with a bug fix
+
+- Fixed job submission to an inner standalone cluster: the master resolved job dependencies (jars, files, pyFiles, archives) with the YTsaurus credentials of the first submitter instead of the current one
+
+
+{% endcut %}
+
+
 {% cut "**2.11.1**" %}
 
 **Release date:** 2026-08-25
@@ -387,6 +406,9 @@ Maintenance release with minor enhancements and bug fixes
 **Release page:** [2.6.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.6.0)
 
 
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.6.0](https://github.com/orgs/ytsaurus/packages/container/spyt/401104738?tag=2.6.0)
+
+
 - Java 17 support
 - Support for UUID and Json YTsaurus types
 - Support for RPC-job proxy in direct submit
@@ -408,6 +430,9 @@ Maintenance release with minor enhancements and bug fixes
 **Release page:** [2.5.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.5.0)
 
 
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.5.0](https://github.com/orgs/ytsaurus/packages/container/spyt/327955403?tag=2.5.0)
+
+
 Major release that enables support for Spark 3.4.x and 3.5.x. 
 
 - Compile-time Spark version is changed from 3.2.2 to 3.5.4;
@@ -427,6 +452,9 @@ Major release that enables support for Spark 3.4.x and 3.5.x.
 **Release page:** [2.4.4](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.4.4)
 
 
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.4.4](https://github.com/orgs/ytsaurus/packages/container/spyt/326131908?tag=2.4.4)
+
+
 Maintenance release with bug fixes:
 
 - Providing network project for Livy via command line argument
@@ -443,6 +471,9 @@ Maintenance release with bug fixes:
 **Release page:** [2.4.3](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.4.3)
 
 
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.4.3](https://github.com/orgs/ytsaurus/packages/container/spyt/323538374?tag=2.4.3)
+
+
 Maintenance release with bug fixes:
 
 - Specifying network project for direct submit and setting it from Livy
@@ -457,6 +488,9 @@ Maintenance release with bug fixes:
 
 
 **Release page:** [2.4.2](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.4.2)
+
+
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.4.2](https://github.com/orgs/ytsaurus/packages/container/spyt/318012434?tag=2.4.2)
 
 
 Maintenance release with bug fixes:
@@ -480,6 +514,9 @@ Maintenance release with bug fixes:
 **Release page:** [2.4.1](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.4.1)
 
 
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.4.1](https://github.com/orgs/ytsaurus/packages/container/spyt/304087131?tag=2.4.1)
+
+
 Maintenance release with bug fixes:
 
 - Fix creating tables via Spark SQL without explicitly specifying ytTable schema
@@ -495,6 +532,9 @@ Maintenance release with bug fixes:
 
 
 **Release page:** [2.4.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.4.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.4.0](https://github.com/orgs/ytsaurus/packages/container/spyt/298422242?tag=2.4.0)
 
 
 * Support for running local files and their dependencies in direct submit mode by uploading it to YTsaurus cache
@@ -517,6 +557,9 @@ Maintenance release with bug fixes:
 **Release page:** [2.3.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.3.0)
 
 
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.3.0](https://github.com/orgs/ytsaurus/packages/container/spyt/271903094?tag=2.3.0)
+
+
 The major feature of SPYT 2.3.0 is support for Spark 3.3.x. Other notable features are:
 
 * Support for extended Datetime types such as Date32, Datetime32, Timestamp64, Interval64;
@@ -535,6 +578,9 @@ The major feature of SPYT 2.3.0 is support for Spark 3.3.x. Other notable featur
 
 
 **Release page:** [2.2.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.2.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.2.0](https://github.com/orgs/ytsaurus/packages/container/spyt/258131453?tag=2.2.0)
 
 
 - Support for reading from multiple YTsaurus clusters
@@ -556,6 +602,9 @@ The major feature of SPYT 2.3.0 is support for Spark 3.3.x. Other notable featur
 **Release page:** [2.1.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.1.0)
 
 
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.1.0](https://github.com/orgs/ytsaurus/packages/container/spyt/232972798?tag=2.1.0)
+
+
 * Support for running applications using GPU
 * Support for Spark versions 3.2.2-3.2.4
 * History server support for direct submit scenarios
@@ -572,6 +621,9 @@ The major feature of SPYT 2.3.0 is support for Spark 3.3.x. Other notable featur
 
 
 **Release page:** [2.0.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.0.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.0.0](https://github.com/orgs/ytsaurus/packages/container/spyt/223933452?tag=2.0.0)
 
 
 SPYT 2.0.0 is the first release under the new release scheme and in the separate ytsaurus-spyt repository. The main feature of this release is that we have finally switched from Apache Spark fork that was used in previous releases to original Apache Spark distributive. The 2.0.0 SPYT release is still using Apache Spark 3.2.2, but we plan to support all Apache Spark 3.x.x releases in the nearest future!

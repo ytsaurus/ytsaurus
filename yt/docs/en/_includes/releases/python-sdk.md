@@ -8,6 +8,61 @@ Available as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.55**" %}
+
+**Release date:** 2026-10-02
+
+
+**Release page:** [0.13.55](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.55)
+
+
+**PyPI package:** [0.13.55](https://pypi.org/project/ytsaurus-client/0.13.55/)
+
+
+#### Features
+- Add the `job_binary_local_path` and `job_binary_cypress_path` methods to `UserJobSpecBuilder` to run Python function and C++ jobs with the specified executable instead of the current one [7e2aa2780fffded19b274df1db787b5576c75fd3]
+
+#### Fixes
+- Retry `yt flow` commands when the flow controller has not built its flow view yet (error code `3302`) [c235cd45b50a94ef04adff99e0a4e3dd44ccc0a1]
+
+{% endcut %}
+
+
+{% cut "**0.13.54**" %}
+
+**Release date:** 2026-08-30
+
+
+**Release page:** [0.13.54](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.54)
+
+
+**PyPI package:** [0.13.54](https://pypi.org/project/ytsaurus-client/0.13.54/)
+
+
+#### Features
+- Add the `pickling/encryption_engine` config option and `YT_ENCRYPTION_ENGINE` environment variable to select the pickle file encryption engine: `cryptography_fernet` (default) or `native_chacha`, a ChaCha20 implementation that uses OpenSSL through `ctypes` with a pure Python fallback and does not require the `cryptography` package
+[4089571ffc63e4d51efd4d3d307ca4e6ca1ab697, 900a7412007038c7f8f8218241044b73d7252d7e]
+- Add experimental `yt admin bundle-controller` commands (`init`, `create-bundle`, `drop-allocations`, `set-bundle-resource-limits`) for initializing the Bundle controller configuration and managing bundles [0978827940a977bb6fa4ac0367cfe8e1894e7900]
+- Add `--max-points-per-series` to `yt admin metrics dump`; by default, a time range and `--step` combination that needs more than 11000 points per series is now rejected before any query is sent [1ff11ecf162b7c571eb92dd72995a7b138b7a01c]
+- Add `-q`/`--quiet` to `yt check-permission` to suppress output and report the result through the exit code: `0` if the permission is granted, `1` otherwise [f3b2a1cdbd46c8326c1b4e45893ab9be7e5611c4]
+- Add the `cumulative_data_weights` parameter to `reshard_table` and `--cumulative-data-weights` to `yt reshard-table` to set initial cumulative data weights for the new tablets of an ordered dynamic table [13d9311430e32d5a9fe93ab5212454dc6e29a8f9]
+- Add the `YT_PREFER_HTTPS` environment variable for the `proxy/prefer_https` config option [cd416bd9ba31dbbda519ece6760b252213892de1]
+- Add the `driver_enable_fork_detection` config option and `YT_DRIVER_ENABLE_FORK_DETECTION` environment variable to make the driver raise an error when it is used in a forked process [6ccfe4cff5fed6ddbdc8d8619da6042711400fb7]
+
+#### Fixes
+- Add `tornado` to the `recommended` extra: `yt run-job-shell` requires it, and the PyPI package does not bundle it [bf184950e2548cb940518f4830bdb449c8bfcb0c]
+- Improve the error message for an authentication token with leading or trailing whitespace [6eb002957aeeca372c94a3d67380d6c946705498]
+- Fix `yt flow` commands to retry transient errors using the standard client retry policy [2ef4e45a92a078f3f07691db0a7544bb30d8b6e5]
+- Update vendored `urllib3` to 1.26.16 to eliminate `ResourceWarning: unclosed socket` warnings [d0d51f13800cfcc6e806d8d27504d1a6176bfdf2]
+- Fix `TypeError` in `YtError.find_matching_error` when an inner error is not in the YTsaurus error format, for example in a `502` response from an intermediate gateway [83fb173150aea2e3e9ed253f417d0bb2a29cd63b]
+- Constrain `argcomplete` to versions below 3.7.1 for Python older than 3.10 [806a90e36e448eb42a6ec99592eb9bb962840e88]
+- Fix `yt admin metrics replay` for archives without dashboards, and fix `yt admin metrics dump` handling of escape sequences in label values, selectors with duplicate label matchers or empty-matching regular expressions, and an empty `defaults` section in the spec
+[15c6b5d4357a09422710b4db5ebf3957b71b65e1, e8a422599344201cc86617edbb1fb2c3a34e3b8f, 7e8307d8849770a5ad323d9ba40b2ece59c38921, c659950d81fe219c09352c090fa91aff5f153476]
+
+
+{% endcut %}
+
+
 {% cut "**0.13.53**" %}
 
 **Release date:** 2026-07-24
