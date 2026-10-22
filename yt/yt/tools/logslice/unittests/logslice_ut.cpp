@@ -44,6 +44,21 @@ const TLoggingCategory* GetTestCategory()
     return Logger.GetCategory();
 }
 
+class TOutputFailingOnce
+    : public IOutputStream
+{
+private:
+    bool Failed_ = false;
+
+    void DoWrite(const void* /*buffer*/, size_t /*length*/) override
+    {
+        if (!Failed_) {
+            Failed_ = true;
+            throw std::runtime_error("Output failed");
+        }
+    }
+};
+
 class TLogSliceTest
     : public ::testing::Test
     , public ILogWriterHost
@@ -558,6 +573,54 @@ TEST_F(TLogSliceTest, FindFirstTimeWithoutTimestampedLines)
     TTempFile untimedFile(GenerateRandomFileName("log") + ".log");
     TUnbufferedFileOutput(untimedFile.Name()).Write("not a log line\nnor this one\n");
     EXPECT_FALSE(FindFirstTime(untimedFile.Name()).has_value());
+}
+
+TEST_F(TLogSliceTest, SliceTruncatedFileKeepsOutputErrors)
+{
+    constexpr i64 ZstdBlockSize = 128_KB;
+    constexpr i64 DecodeChunkSize = 256_KB;
+
+    auto base = ParseQueryTime("2021-06-07T08:09:10.000000Z");
+    TTempFile plainFile(GenerateRandomFileName("log") + ".log");
+    {
+        TUnbufferedFileOutput output(plainFile.Name());
+        for (int index = 0; index < 10; ++index) {
+            output << FormatLogTime(base + TDuration::Seconds(index)) << "\tI\tTest\t" << std::string(20_KB, 'x') << "\n";
+        }
+    }
+    i64 decodedSize = TFile(plainFile.Name(), OpenExisting | RdOnly).GetLength();
+    ASSERT_LT(ZstdBlockSize, decodedSize);
+    ASSERT_LE(decodedSize, DecodeChunkSize);
+    TTempFile zstdFile(GenerateRandomFileName("log") + ".zst");
+    CompressAsOneFrame(plainFile.Name(), zstdFile.Name(), ECompressionMethod::Zstd);
+    {
+        TFile file(zstdFile.Name(), OpenExisting | RdWr);
+        file.Resize(file.GetLength() - 1);
+    }
+    EXPECT_FALSE(Slice(zstdFile.Name(), TInstant::Zero(), TInstant::Max()).empty());
+
+    auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, zstdFile.Name());
+    TFile file(zstdFile.Name(), OpenExisting | RdOnly);
+    TOutputFailingOnce output;
+    EXPECT_THROW(engine->Slice(file, TInstant::Zero(), TInstant::Max(), output), std::runtime_error);
+}
+
+TEST_F(TLogSliceTest, SliceCutsLongLines)
+{
+    auto base = ParseQueryTime("2021-06-07T08:09:10.000000Z");
+    TTempFile logFile(GenerateRandomFileName("log") + ".log");
+    {
+        TUnbufferedFileOutput output(logFile.Name());
+        for (int index = 0; index < 3; ++index) {
+            output << FormatLogTime(base + TDuration::Seconds(index)) << "\tI\tTest\t";
+            output << (index == 1 ? std::string(17_MB, 'x') : std::string("msg")) << "\n";
+        }
+    }
+
+    auto lines = Slice(logFile.Name(), TInstant::Zero(), TInstant::Max());
+    ASSERT_EQ(3u, lines.size());
+    EXPECT_EQ(16_MB, lines[1].size());
+    EXPECT_EQ("msg", MessageOf(lines[2]));
 }
 
 // Test wrapper: runs the streaming FilterWithGrep over an in-memory string and
