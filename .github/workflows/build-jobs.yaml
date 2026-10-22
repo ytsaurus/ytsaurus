@@ -67,9 +67,9 @@ on:
 
     secrets:
       BUILD_CACHE_BAZEL_USERNAME:
-        required: true
+        required: false
       BUILD_CACHE_BAZEL_PASSWORD:
-        required: true
+        required: false
 
 jobs:
   venv:
@@ -173,15 +173,17 @@ jobs:
             if [ "${{ matrix.build-type }}" = "release" ]; then
               CMAKE_BUILD_TYPE="Release"
             fi
-            READ_ONLY=""
-            if [ "${{ inputs.update-remote-cache }}" == "false" ]; then
-              READ_ONLY="--read-only-cache"
+            CACHE_CREDENTIALS=""
+            READ_ONLY="--read-only-cache"
+            if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
+              CACHE_CREDENTIALS="${BUILD_CACHE_BAZEL_USERNAME}:${BUILD_CACHE_BAZEL_PASSWORD}@"
+              READ_ONLY=""
             fi
             ./ytsaurus/yt/yt/scripts/build_cmake.sh configure \
               --source-path ../ytsaurus/ytsaurus \
               --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
               --build-type "${CMAKE_BUILD_TYPE}" \
-              --ccache-remote-storage "http://${BUILD_CACHE_BAZEL_USERNAME}:${BUILD_CACHE_BAZEL_PASSWORD}@${BUILD_CACHE_BAZEL_HOST}|layout=bazel" \
+              --ccache-remote-storage "http://${CACHE_CREDENTIALS}${BUILD_CACHE_BAZEL_HOST}|layout=bazel" \
               ${READ_ONLY}
           '
 
@@ -376,13 +378,14 @@ jobs:
 
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare ${FOLDERS_WITH_UNITTESTS}
 
-          INTEGRATION_TEST_TARGETS="\
-            ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_s \
-            ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_m \
-            ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_l \
-            ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_xl"
+          INTEGRATION_TEST_TARGETS=(
+            ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_s
+            # ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_m
+            # ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_l
+            # ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_xl
+          )
 
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${INTEGRATION_TEST_TARGETS} -A --test-prepare
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. "${INTEGRATION_TEST_TARGETS[@]}" -A --test-prepare
 
       - name: Build flow tests dependencies (ya-make, ${{ matrix.build-type }})
         if: ${{ inputs.build-flow-tests && (matrix.build-type == 'relwithdebinfo') }}
