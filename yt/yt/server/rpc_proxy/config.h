@@ -204,6 +204,7 @@ struct TProxyDynamicConfig
     THashMap<std::string, double> WorkerPoolWeightOverrides;
 
     bool UseWorkerPoolForBusXfer;
+    bool UseWorkerPoolForRpc;
 
     std::optional<int> WorkerThreadPoolSize;
 

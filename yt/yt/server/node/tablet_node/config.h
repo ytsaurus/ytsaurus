@@ -794,6 +794,9 @@ struct TTabletNodeDynamicConfig
 
     TSlruCacheDynamicConfigPtr ClientCache;
 
+    bool UseQueryPoolForBusXfer;
+    bool UseQueryPoolForRpc;
+
     TTestingTabletNodeDynamicConfig Testing;
 
     REGISTER_YSON_STRUCT(TTabletNodeDynamicConfig);

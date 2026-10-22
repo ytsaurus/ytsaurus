@@ -800,6 +800,11 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("client_cache", &TThis::ClientCache)
         .DefaultNew();
 
+    registrar.Parameter("use_query_pool_for_bus_xfer", &TThis::UseQueryPoolForBusXfer)
+        .Default(false);
+    registrar.Parameter("use_query_pool_for_rpc", &TThis::UseQueryPoolForRpc)
+        .Default(false);
+
     registrar.Postprocessor([] (TThis* config) {
         // Instantiate default distributed throttler configs.
         for (auto kind : TEnumTraits<ETabletDistributedThrottlerKind>::GetDomainValues()) {
