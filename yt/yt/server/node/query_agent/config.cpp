@@ -91,6 +91,8 @@ void TQueryAgentDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("table_row_fetch_thread_pool_size", &TThis::TableRowFetchThreadPoolSize)
         .GreaterThan(0)
         .Optional();
+    registrar.Parameter("query_pool_weight_overrides", &TThis::QueryPoolWeightOverrides)
+        .Optional();
     registrar.Parameter("reject_upon_throttler_overdraft", &TThis::RejectUponThrottlerOverdraft)
         .Optional();
     registrar.Parameter("reject_in_memory_requests_upon_throttler_overdraft", &TThis::RejectInMemoryRequestsUponThrottlerOverdraft)

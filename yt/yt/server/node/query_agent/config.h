@@ -57,6 +57,8 @@ struct TQueryAgentDynamicConfig
     std::optional<int> FetchThreadPoolSize;
     std::optional<int> TableRowFetchThreadPoolSize;
 
+    THashMap<std::string, double> QueryPoolWeightOverrides;
+
     std::optional<bool> RejectUponThrottlerOverdraft;
     bool RejectInMemoryRequestsUponThrottlerOverdraft;
 

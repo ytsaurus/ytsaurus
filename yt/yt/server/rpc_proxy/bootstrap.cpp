@@ -608,8 +608,13 @@ void TBootstrap::OnDynamicConfigChanged(
         TvmOnlyAuthenticationManager_->Reconfigure(newConfig->Auth);
     }
 
-    NYT::NBus::NTcp::TDispatcher::Get()->GetXferPoller()->SetWorkerPool(
+    NTcp::TDispatcher::Get()->GetXferPoller()->SetWorkerPool(
         newConfig->UseWorkerPoolForBusXfer
+            ? WorkerPool_
+            : nullptr);
+
+    NRpc::TDispatcher::Get()->SetWorkerPool(
+        newConfig->UseWorkerPoolForRpc
             ? WorkerPool_
             : nullptr);
 }

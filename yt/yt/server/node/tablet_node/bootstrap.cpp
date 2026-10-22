@@ -165,15 +165,17 @@ public:
 
         TableDynamicConfigManager_ = New<TTableDynamicConfigManager>(this);
 
+        QueryPoolWeightProvider_ = CreateCachingCypressPoolWeightProvider(
+            GetConfig()->QueryAgent->PoolWeightCache,
+            GetClient(),
+            GetControlInvoker(),
+            Logger());
+
         QueryThreadPool_ = CreateTwoLevelFairShareThreadPool(
             GetConfig()->QueryAgent->QueryThreadPoolSize,
             QueryThreadPoolName,
             {
-                .PoolWeightProvider=CreateCachingCypressPoolWeightProvider(
-                    GetConfig()->QueryAgent->PoolWeightCache,
-                    GetClient(),
-                    GetControlInvoker(),
-                    Logger())
+                .PoolWeightProvider=QueryPoolWeightProvider_
             });
 
         PullRowsThreadPool_ = CreateFairShareThreadPool(
@@ -659,6 +661,7 @@ private:
 
     TActionQueuePtr TabletStatisticsActionQueue_;
 
+    NApi::NNative::ICypressPoolWeightProviderPtr QueryPoolWeightProvider_;
     ITwoLevelFairShareThreadPoolPtr QueryThreadPool_;
     IFairShareThreadPoolPtr PullRowsThreadPool_;
 
@@ -785,6 +788,18 @@ private:
             PullRowsThreadPool_->SetThreadCount(
                 bundleConfig->CpuLimits->PullRowsThreadPoolSize.value_or(fallbackPullRowsThreadCount));
         }
+
+        QueryPoolWeightProvider_->SetOverrides(nodeConfig->QueryAgent->QueryPoolWeightOverrides);
+
+        NBus::NTcp::TDispatcher::Get()->GetXferPoller()->SetWorkerPool(
+            nodeConfig->TabletNode->UseQueryPoolForBusXfer
+                ? QueryThreadPool_
+                : nullptr);
+
+        NRpc::TDispatcher::Get()->SetWorkerPool(
+            nodeConfig->TabletNode->UseQueryPoolForRpc
+                ? QueryThreadPool_
+                : nullptr);
     }
 
     const NRpc::IOverloadControllerPtr& GetOverloadController() const override
