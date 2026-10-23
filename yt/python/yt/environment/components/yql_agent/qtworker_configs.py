@@ -182,8 +182,6 @@ def _configure_worker_dq(
     # (JobsPerOperation only groups them into YT operations).
     max_node_id = min_node_id + max_jobs
 
-    dq_config.User = user
-    dq_config.Group = user
     dq_config.EnableClique = True
     dq_config.PortStart = dq_port_start
     dq_config.PortFinish = dq_port_finish
@@ -248,10 +246,6 @@ def build_worker_conf(
     log_level = _normalize_log_level(log_level)
     config = worker_config_pb2.TWorkerConfig()
     config.ProcessMode = worker_config_pb2.MULTI_PROCESS
-    config.User = "yql"
-    config.Group = "yql"
-    config.CoreUser = "yql"
-    config.CoreGroup = "yql"
 
     qt_config = config.Qt
     qt_config.SocketDir = qt_socket_dir
