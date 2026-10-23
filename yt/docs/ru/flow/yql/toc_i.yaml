@@ -1,5 +1,9 @@
 items:
   - name: Быстрый старт
     href: getting-started.md
-  - name: Поддержанные конструкции
+  - name: Возможности
     href: features.md
+  - name: Справочник прагм
+    href: pragma-reference.md
+  - name: Аутентификация
+    href: authentication.md

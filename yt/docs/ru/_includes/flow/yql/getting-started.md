@@ -24,20 +24,7 @@ YQL over Flow позволяет описать [пайплайн](../../../flow
 
 ## Прагмы {#pragmas}
 
-Запрос YQL over Flow управляется через набор прагм:
-
-| Прагма | Описание |
-|---|---|
-| `PRAGMA Engine = "ytflow";` | Выбор движка Flow для выполнения запроса |
-| `PRAGMA Ytflow.Cluster = "...";` | Кластер для внутренних таблиц пайплайна |
-| `PRAGMA Ytflow.RuntimeCluster = "...";` | Кластер для запуска ванилла операции.{% if audience == "internal" %} Рекомендуется Vanga как cross-DC кластер с высокой доступностью{% endif %} |
-| `PRAGMA Ytflow.PipelineDirectory = "...";` | Путь к директории с пайплайнами в {{product-name}} |
-| `PRAGMA Ytflow.PipelineName = "...";` | Имя пайплайна. Полный путь: `{pipeline_directory}/{pipeline_name}` |
-| `PRAGMA Ytflow.PipelinePath = "...";` | Полный путь к пайплайну вместо пары `PipelineDirectory` и `PipelineName` |
-| `PRAGMA Ytflow.WorkerCount = "...";` | Количество воркер-джобов ванилла операции |
-| `PRAGMA Ytflow.EnableComputationPatternResources = "true";` | Включает переиспользование шаблонов вычислений между графами одного воркера. По умолчанию `false` |
-{% if audience == "internal" %}| `PRAGMA Ytflow.LogbrokerConsumerPath = "...";` | Путь к [Logbroker](../../../flow/extensions/logbroker.md) консьюмеру (только при чтении из Logbroker) |
-{% endif %}
+Запрос YQL over Flow управляется через набор прагм, полный список см. в разделе [Справочник прагм](../../../flow/yql/pragma-reference.md).
 
 ## Первый запрос {#first-query}
 
@@ -72,7 +59,7 @@ WHERE int64_field > 1;
 
 Запрос запускает пайплайн, который непрерывно обрабатывает сообщения из входной очереди и пишет результаты в выходную. Схемы выходных таблиц выводятся автоматически из запроса.
 
-Описание всех поддержанных конструкций YQL см. в разделе [Поддержанные конструкции](../../../flow/yql/features.md).
+Описание возможностей YQL см. в разделе [Возможности](../../../flow/yql/features.md).
 
 
 
@@ -124,6 +111,6 @@ client.run_query(
 
 ## См. также
 
-- [Поддержанные конструкции](../../../flow/yql/features.md)
+- [Возможности](../../../flow/yql/features.md)
 - [Основные понятия](../../../flow/concepts/glossary.md)
 - [Коннекторы](../../../flow/connectors/about.md)
