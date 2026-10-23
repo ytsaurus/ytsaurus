@@ -2931,7 +2931,7 @@ private:
         auto minLastDataHeartbeatTime = now - GetDynamicConfig()->NodeDataHeartbeatOutdateDuration;
         auto minLastJobHeartbeatTime = now - GetDynamicConfig()->NodeJobHeartbeatOutdateDuration;
         auto minLastIncompleteStateChangeTime = now - GetDynamicConfig()->MaxNodeIncompleteStateDuration;
-        auto minLastdisposeStateChangeTime = now - GetDynamicConfig()->MaxNodeDisposeStateDuration;
+        auto minLastDisposeStateChangeTime = now - GetDynamicConfig()->MaxNodeDisposeStateDuration;
 
         std::vector<TError> alerts;
 
@@ -2968,17 +2968,18 @@ private:
                 auto lastChangeTime = node->GetLastStateChangeTime();
                 auto beingDisposed = state == ENodeState::BeingDisposed;
                 if (state == ENodeState::Mixed) {
-                    for (auto& [_, descriptor] : node->MulticellDescriptors()) {
+                    for (const auto& [_, descriptor] : node->MulticellDescriptors()) {
                         if (descriptor.State == ENodeState::BeingDisposed) {
                             beingDisposed = true;
+                            break;
                         }
                     }
                 }
 
-                if (multicellManager->IsPrimaryMaster() && ((lastChangeTime < minLastIncompleteStateChangeTime) ||
-                    (beingDisposed && lastChangeTime < minLastdisposeStateChangeTime)))
+                if (multicellManager->IsPrimaryMaster() && (lastChangeTime < minLastIncompleteStateChangeTime ||
+                    (beingDisposed && lastChangeTime < minLastDisposeStateChangeTime)))
                 {
-                    noStateChangeAlert[node->GetAggregatedState()].Update(node->GetDefaultAddress(), lastChangeTime);
+                    noStateChangeAlert[state].Update(node->GetDefaultAddress(), lastChangeTime);
                 }
             }
         }
