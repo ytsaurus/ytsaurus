@@ -52,7 +52,7 @@ func NewClusterInitializer(config *ClusterInitializerConfig, familyToInitializer
 	return
 }
 
-func (initializer *ClusterInitializer) checkRobotPermissions(ctx context.Context) error {
+func (initializer *ClusterInitializer) setUpRobotPermissions(ctx context.Context) error {
 	if initializer.config.RobotUsername == "" {
 		return nil
 	}
@@ -65,17 +65,23 @@ func (initializer *ClusterInitializer) checkRobotPermissions(ctx context.Context
 		return yterrors.Err(fmt.Sprintf("user %v does not exist", initializer.config.RobotUsername))
 	}
 
-	paths := []ypath.Path{
-		initializer.config.StrawberryRoot,
-		ypath.Path("//sys/schemas/access_control_object"),
+	commonPermissions := []yt.Permission{yt.PermissionRead, yt.PermissionWrite}
+	pathToPermissions := map[ypath.Path][]yt.Permission{
+		initializer.config.StrawberryRoot:                 commonPermissions,
+		ypath.Path("//sys/schemas/access_control_object"): {yt.PermissionCreate},
+	}
+	for _, family := range initializer.config.Families {
+		pathToPermissions[initializer.config.StrawberryRoot.Child(family)] = []yt.Permission{
+			yt.PermissionRead, yt.PermissionWrite, yt.PermissionRemove, yt.PermissionAdminister,
+		}
 	}
 	for _, strawberryInitializer := range initializer.familyToInitializer {
-		paths = append(paths, ypath.Path("//sys/access_control_object_namespaces").Child(strawberryInitializer.ACONamespace()))
+		namespacePath := ypath.Path("//sys/access_control_object_namespaces").Child(strawberryInitializer.ACONamespace())
+		pathToPermissions[namespacePath] = append(pathToPermissions[namespacePath], commonPermissions...)
 	}
 
-	permissions := []yt.Permission{yt.PermissionCreate, yt.PermissionRead}
-
-	for _, path := range paths {
+	for path, permissions := range pathToPermissions {
+		var missingPermissions []yt.Permission
 		for _, permission := range permissions {
 			response, err := initializer.ytc.CheckPermission(
 				ctx,
@@ -87,8 +93,22 @@ func (initializer *ClusterInitializer) checkRobotPermissions(ctx context.Context
 				return err
 			}
 			if response.Action != yt.ActionAllow {
-				return yterrors.Err(fmt.Sprintf("robot has no permission to %v in %v", permission, path))
+				missingPermissions = append(missingPermissions, permission)
 			}
+		}
+		if len(missingPermissions) == 0 {
+			continue
+		}
+		initializer.l.Info("granting permissions to robot",
+			log.String("path", path.String()),
+			log.String("user", initializer.config.RobotUsername),
+			log.Any("permissions", missingPermissions))
+		if err := initializer.ytc.SetNode(ctx, path.Attr("acl").Child("end"), yt.ACE{
+			Action:      yt.ActionAllow,
+			Subjects:    []string{initializer.config.RobotUsername},
+			Permissions: missingPermissions,
+		}, nil); err != nil {
+			return err
 		}
 	}
 
@@ -147,7 +167,7 @@ func (initializer *ClusterInitializer) InitCluster() error {
 			return err
 		}
 	}
-	if err := initializer.checkRobotPermissions(ctx); err != nil {
+	if err := initializer.setUpRobotPermissions(ctx); err != nil {
 		return err
 	}
 	return nil
