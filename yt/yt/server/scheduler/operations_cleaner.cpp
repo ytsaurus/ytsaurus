@@ -1073,6 +1073,7 @@ private:
         RemoveBatcher_->Drop();
         ArchiveTimeToOperationIdMap_.clear();
         OperationMap_.clear();
+        StuckInRemovalOperations_.clear();
         OperationAlertEventQueue_.clear();
         LockedOperationQueue_.clear();
         ArchivePending_ = 0;
@@ -1081,6 +1082,7 @@ private:
         Submitted_ = 0;
         EnqueuedAlertEvents_ = 0;
 
+        SetSchedulerAlert(ESchedulerAlertType::OperationStuckInRemoval, TError());
         YT_LOG_INFO("Operations cleaner stopped");
     }
 
