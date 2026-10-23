@@ -57,9 +57,12 @@ def sudo_move(src_path, dst_path):
     subprocess.check_call(["sudo", "-n", "mv", src_path, dst_path])
 
 
-def get_default_package_dir():
+def get_default_package_dir(binary_root):
     if yatest_common is not None:
-        return "yt/yt/packages/tests_package"
+        if os.path.isdir(binary_root + "/yt/packages/latest"):
+            return "yt/packages/latest"
+        else:
+            return "yt/yt/packages/tests_package"
     else:
         return "yt/yt"
 
@@ -165,7 +168,7 @@ def prepare_yt_binaries(destination,
                         binary_root=None, package_dir=None, copy_ytserver_all=False, ytserver_all_suffix=None,
                         need_suid=False, component_whitelist=None):
     if package_dir is None:
-        package_dir = get_default_package_dir()
+        package_dir = get_default_package_dir(binary_root=binary_root)
 
     ytserver_all = search_binary_path("ytserver-all", binary_root=binary_root, build_path_dir=package_dir)
 
