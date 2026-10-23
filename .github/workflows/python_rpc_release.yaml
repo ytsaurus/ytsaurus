@@ -19,10 +19,10 @@ jobs:
         include:
           - platform: linux-x86_64
             runner: ubuntu-24.04
-            manylinux-image: quay.io/pypa/manylinux_2_28_x86_64
+            manylinux-image: quay.io/pypa/manylinux_2_28_x86_64:2026.04.08-5
           - platform: linux-aarch64
             runner: ubuntu-24.04-arm
-            manylinux-image: quay.io/pypa/manylinux_2_28_aarch64
+            manylinux-image: quay.io/pypa/manylinux_2_28_aarch64:2026.04.08-5
           - platform: macos-x86_64
             runner: macos-15-intel
           - platform: macos-arm64
@@ -37,11 +37,11 @@ jobs:
       - name: Set package version
         run: echo "YTSAURUS_PACKAGE_VERSION=${GITHUB_REF_NAME##*/}" >> "$GITHUB_ENV"
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.8
         if: ${{ runner.os == 'macOS' }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.8'
 
       - name: Build Linux wheel
         if: ${{ runner.os == 'Linux' }}
@@ -54,7 +54,7 @@ jobs:
             -v "$RUNNER_TEMP/rpc-build:/build" \
             -e YTSAURUS_PACKAGE_VERSION \
             "$MANYLINUX_IMAGE" \
-            bash -c 'export PATH="/opt/python/cp311-cp311/bin:$PATH"; bash /ytsaurus/yt/python/packages/build_rpc_bindings.sh /build'
+            bash -c 'export PATH="/opt/python/cp38-cp38/bin:$PATH"; bash /ytsaurus/yt/python/packages/build_rpc_bindings.sh /build'
 
       - name: Build macOS wheel
         if: ${{ runner.os == 'macOS' }}
@@ -83,10 +83,10 @@ jobs:
         include:
           - platform: linux-x86_64
             runner: ubuntu-24.04
-            manylinux-image: quay.io/pypa/manylinux_2_28_x86_64
+            manylinux-image: quay.io/pypa/manylinux_2_28_x86_64:2026.04.08-5
           - platform: linux-aarch64
             runner: ubuntu-24.04-arm
-            manylinux-image: quay.io/pypa/manylinux_2_28_aarch64
+            manylinux-image: quay.io/pypa/manylinux_2_28_aarch64:2026.04.08-5
           - platform: macos-x86_64
             runner: macos-15-intel
           - platform: macos-arm64
@@ -101,11 +101,11 @@ jobs:
           name: rpc-wheel-${{ matrix.platform }}
           path: ${{ runner.temp }}/rpc-build/dist
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.8
         if: ${{ runner.os == 'macOS' }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.8'
 
       - name: Check wheel and string request ID
         timeout-minutes: 5
@@ -128,7 +128,7 @@ jobs:
                   command_name="get_version",
                   parameters={"output_format": "json"},
                   output_stream=output,
-                  id="7530ff7b-89154628-2f2503c5-826d02a9",
+                  id="11111111-22222222-33333333-44444444",
               ))
               response.wait()
               assert response.is_ok(), response.error()
@@ -141,7 +141,7 @@ jobs:
             docker run --rm \
               -v "$RUNNER_TEMP/rpc-build:/build:ro" \
               "$MANYLINUX_IMAGE" \
-              bash -ec 'export PATH="/opt/python/cp311-cp311/bin:$PATH"; python3 -m pip install /build/dist/*.whl ytsaurus-client; python3 -I /build/check_rpc.py'
+              bash -ec 'export PATH="/opt/python/cp38-cp38/bin:$PATH"; python3 -m pip install /build/dist/*.whl ytsaurus-client; python3 -I /build/check_rpc.py'
           else
             python3 -m pip install "$RUNNER_TEMP"/rpc-build/dist/*.whl ytsaurus-client
             python3 -I "$RUNNER_TEMP/rpc-build/check_rpc.py"
