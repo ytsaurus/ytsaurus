@@ -9,7 +9,7 @@
 #include <util/generic/bitops.h>
 
 #include <yt/yt/core/profiling/timing.h>
-#include <library/cpp/yt/system/tscp.h>
+#include <library/cpp/yt/system/access_spreader.h>
 
 #include <library/cpp/histogram/hdr/histogram.h>
 
@@ -230,13 +230,13 @@ class TPerCpuWorkloadModel
 public:
     void RegisterRead(i64 requestSize, EWorkloadCategory category, TDuration requestTime)
     {
-        auto& shard = Shards_[TTscp::Get().ProcessorId].Holder;
+        auto& shard = Shards_[GetCurrentAccessStripe(ShardCount)].Holder;
         shard.RegisterRead(requestSize, category, requestTime);
     }
 
     void RegisterWrite(i64 requestSize, EWorkloadCategory category, TDuration requestTime)
     {
-        auto& shard = Shards_[TTscp::Get().ProcessorId].Holder;
+        auto& shard = Shards_[GetCurrentAccessStripe(ShardCount)].Holder;
         shard.RegisterWrite(requestSize, category, requestTime);
     }
 
@@ -265,12 +265,14 @@ public:
     }
 
 private:
+    static constexpr int ShardCount = 64;
+
     struct alignas(2 * CacheLineSize) TShard
     {
         TThreadSafeWorkloadModel Holder;
     };
 
-    std::array<TShard, TTscp::MaxProcessorId> Shards_;
+    std::array<TShard, ShardCount> Shards_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
