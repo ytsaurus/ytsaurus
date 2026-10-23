@@ -29,10 +29,11 @@ You control a YQL over Flow query with a set of pragmas:
 | Pragma | Description |
 |---|---|
 | `PRAGMA Engine = "ytflow";` | Selects the Flow engine to run the query |
-| `PRAGMA Ytflow.Cluster = "...";` | Cluster for the pipeline’s internal tables and output ordered queues |
+| `PRAGMA Ytflow.Cluster = "...";` | Cluster for pipeline's internal tables |
 | `PRAGMA Ytflow.RuntimeCluster = "...";` | Cluster to run the vanilla operation.{% if audience == "internal" %} Vanga is recommended as a cross-DC cluster with high availability{% endif %} |
 | `PRAGMA Ytflow.PipelineDirectory = "...";` | Path to the directory with pipelines in {{product-name}} |
 | `PRAGMA Ytflow.PipelineName = "...";` | Pipeline name. Full path: `{pipeline_directory}/{pipeline_name}` |
+| `PRAGMA Ytflow.PipelinePath = "...";` | Full pipeline path instead of the `PipelineDirectory` and `PipelineName` pair |
 | `PRAGMA Ytflow.WorkerCount = "...";` | Number of worker jobs for the vanilla operation |
 | `PRAGMA Ytflow.EnableComputationPatternResources = "true";` | Reuses computation patterns across graphs in one worker. Default is `false` |
 {% if audience == "internal" %}| `PRAGMA Ytflow.LogbrokerConsumerPath = "...";` | Path to the [Logbroker](../../../yandex-specific/flow/extensions/logbroker.md) consumer (only when reading from Logbroker) |
@@ -51,7 +52,7 @@ PRAGMA Ytflow.Cluster = "{{flow-data-cluster}}";
 -- cluster for the vanilla operation
 PRAGMA Ytflow.RuntimeCluster = "{{flow-runtime-cluster}}";
 -- directory with pipelines
-PRAGMA Ytflow.PipelineDirectory = "//home/my-project/pipelines";
+PRAGMA Ytflow.PipelineDirectory = "//home/my-project";
 -- pipeline name
 PRAGMA Ytflow.PipelineName = "my-pipeline";
 -- number of workers
@@ -59,13 +60,13 @@ PRAGMA Ytflow.WorkerCount = "1";
 
 -- read from the input queue, transform, write to the output queue
 INSERT INTO
-    {{flow-data-cluster}}.`//home/my-project/output_queues/sink_queue`
+    {{flow-data-cluster}}.`//home/my-project/sink_queue`
 SELECT
     string_field || "_processed" AS string_field,
     int64_field,
     EndsWith(string_field, "bar") AS predicate
 FROM
-    {{flow-data-cluster}}.`//home/my-project/input_queues/source_queue`
+    {{flow-data-cluster}}.`//home/my-project/source_queue`
 WHERE int64_field > 1;
 ```
 
@@ -115,7 +116,7 @@ To track the running pipeline, you can use:
 - **Dashboard** — **Flow → Monitoring** tab.
 - **Controller logs** (worker status, possible issues):
   ```bash
-  {{yt-cli}} --proxy <pipeline-cluster> flow show-logs //home/my-project/pipelines/my-pipeline
+   {{yt-cli}} --proxy <pipeline-cluster> flow show-logs //home/my-project/my-pipeline
   ```
 - **Job logs** — via the vanilla operation, which is available through the link from the `flowPublish` cube in the pipeline graph.
 
