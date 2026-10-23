@@ -29,8 +29,10 @@ REQUIREMENTS(
     ram_disk:4
 )
 
+SET(YT_RECIPE_BUILD_FROM_SOURCE NO)
+
 DEPENDS(
-    yt/yt/packages/tests_package
+    yt/packages/latest
 )
 
 PEERDIR(
