@@ -99,6 +99,15 @@ DEFINE_REFCOUNTED_TYPE(TDynamicHeapSizeLimitConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EMadvisePreference,
+    (Never)
+    (DontNeed)
+    (Free)
+    (FreeAndDontNeed)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTCMallocConfig
     : public NYTree::TYsonStruct
 {
@@ -123,6 +132,8 @@ struct TTCMallocConfig
     //! If true, an out-of-memory failure terminates the process without
     //! writing a coredump.
     bool FailFastOnOom;
+
+    std::optional<EMadvisePreference> MadvisePreference;
 
     THeapSizeLimitConfigPtr HeapSizeLimit;
 
@@ -153,6 +164,8 @@ struct TDynamicTCMallocConfig
     std::optional<i64> MaxPerCpuCacheSize;
     std::optional<i64> MaxTotalThreadCacheBytes;
     std::optional<i64> BackgroundReleaseRate;
+
+    std::optional<EMadvisePreference> MadvisePreference;
 
     TDynamicHeapSizeLimitConfigPtr HeapSizeLimit;
 
