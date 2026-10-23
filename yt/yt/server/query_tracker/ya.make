@@ -39,6 +39,7 @@ PEERDIR(
     yt/yt/library/dynamic_config
     yt/yt/library/clickhouse_discovery
     yt/yt/library/coredumper
+    yt/yt/library/monitoring
     yt/yt/library/server_program
 
     yt/yt/server/lib/admin
