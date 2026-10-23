@@ -45,9 +45,11 @@ struct ILogSliceEngine
     virtual ~ILogSliceEngine() = default;
 
     //! Writes every plain-text log line whose timestamp lies within the inclusive
-    //! window [from, to] to [output]. Lines are cut to 16 MiB; a line whose
-    //! timestamp falls past the cut (a long JSON record) is dropped.
-    virtual void Slice(TFile& file, TInstant from, TInstant to, IOutputStream& output) = 0;
+    //! window [from, to] to [output]. The file is searched and decoded from
+    //! [seekMargin] before [from] to [seekMargin] after [to], so lines written out
+    //! of order by up to [seekMargin] are found too. Lines are cut to 16 MiB; a line
+    //! whose timestamp falls past the cut (a long JSON record) is dropped.
+    virtual void Slice(TFile& file, TInstant from, TInstant to, TDuration seekMargin, IOutputStream& output) = 0;
 
     //! Returns the timestamps of the first and last timestamped log lines of [file],
     //! or null if the file is empty or contains no timestamped lines.

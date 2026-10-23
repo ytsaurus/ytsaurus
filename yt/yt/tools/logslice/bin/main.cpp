@@ -116,7 +116,7 @@ int main(int argc, char** argv)
         }
 
         if (grepArgs.empty()) {
-            engine->Slice(file, from, to, Cout);
+            engine->Slice(file, from, to, /*seekMargin*/ TDuration::Zero(), Cout);
         } else {
             // Stream the slice straight through grep instead of buffering it: a
             // multi-gigabyte log would otherwise exhaust memory and be killed
@@ -124,7 +124,7 @@ int main(int argc, char** argv)
             FilterWithGrep(
                 grepArgs,
                 [&] (IOutputStream& sink) {
-                    engine->Slice(file, from, to, sink);
+                    engine->Slice(file, from, to, /*seekMargin*/ TDuration::Zero(), sink);
                 },
                 Cout);
         }
