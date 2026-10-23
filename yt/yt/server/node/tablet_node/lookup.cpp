@@ -2154,7 +2154,7 @@ TStoreSessionList TTabletLookupSession<TPipeline>::CreateStoreSessions(
             ProduceAllVersions_,
             ProduceAllVersions_
                 ? TColumnFilter::MakeUniversal()
-                : ColumnFilterOrUniversal(*ColumnMappingInfo_.GetPhysicalColumnFilter(), store, RetentionTimestamp_),
+                : GetStoreReaderColumnFilter(*ColumnMappingInfo_.GetPhysicalColumnFilter(), store, RetentionTimestamp_),
             TabletChunkReadOptions_,
             TabletChunkReadOptions_.WorkloadDescriptor.Category));
     }

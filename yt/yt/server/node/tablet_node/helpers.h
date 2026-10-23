@@ -36,7 +36,7 @@ NYT::NDistributedThrottler::EDistributedThrottlerMode GetDistributedThrottledMod
 ////////////////////////////////////////////////////////////////////////////////
 
 // Use when creating store readers for projected reads with optional timestamp retention.
-const NTableClient::TColumnFilter& ColumnFilterOrUniversal(
+const NTableClient::TColumnFilter& GetStoreReaderColumnFilter(
     const NTableClient::TColumnFilter& columnFilter,
     const IStorePtr& store,
     TTimestamp retentionTimestamp);

@@ -666,7 +666,7 @@ ISchemafulUnversionedReaderPtr DoCreateScanReader(
                     boundsPerStore[index],
                     timestamp,
                     /*produceAllVersions*/ false,
-                    ColumnFilterOrUniversal(enrichedColumnFilter, stores[index], timestampRange.RetentionTimestamp),
+                    GetStoreReaderColumnFilter(enrichedColumnFilter, stores[index], timestampRange.RetentionTimestamp),
                     chunkReadOptions,
                     workloadCategory);
             },
@@ -690,7 +690,7 @@ ISchemafulUnversionedReaderPtr DoCreateScanReader(
                 boundsPerStore[index],
                 timestamp,
                 /*produceAllVersions*/ false,
-                ColumnFilterOrUniversal(enrichedColumnFilter, stores[index], timestampRange.RetentionTimestamp),
+                GetStoreReaderColumnFilter(enrichedColumnFilter, stores[index], timestampRange.RetentionTimestamp),
                 chunkReadOptions,
                 workloadCategory);
             index++;
@@ -947,7 +947,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                     boundsPerStore[index],
                     timestamp,
                     /*produceAllVersions*/ false,
-                    ColumnFilterOrUniversal(enrichedColumnFilter, stores[index], timestampRange.RetentionTimestamp),
+                    GetStoreReaderColumnFilter(enrichedColumnFilter, stores[index], timestampRange.RetentionTimestamp),
                     chunkReadOptions,
                     workloadCategory);
             },
@@ -971,7 +971,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                 boundsPerStore[index],
                 timestamp,
                 /*produceAllVersions*/ false,
-                ColumnFilterOrUniversal(enrichedColumnFilter, stores[index], timestampRange.RetentionTimestamp),
+                GetStoreReaderColumnFilter(enrichedColumnFilter, stores[index], timestampRange.RetentionTimestamp),
                 chunkReadOptions,
                 workloadCategory);
             index++;

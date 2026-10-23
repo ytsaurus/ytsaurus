@@ -848,7 +848,7 @@ protected:
         std::optional<int> store = std::nullopt) const
     {
         bool exists = false;
-        std::array<std::optional<i64>, ColumnCount> values{};
+        std::array<std::optional<i64>, ColumnCount> values;
         for (const auto* event : History_) {
             if (event->Row[KeyColumnId].Data.Int64 != key || event->Commit > read.Timestamp ||
                 event->Commit < read.Retention ||
@@ -919,7 +919,7 @@ protected:
             // - Versioned reads fetch all columns before applying projection.
             // - An empty projection requests all columns.
             // - Retention may discard the writes proving existence; the check stays
-            //   conservative even with retained writes (see ColumnFilterOrUniversal).
+            //   conservative even with retained writes (see GetStoreReaderColumnFilter).
             // - No committed existence in this store: an unselected write may insert
             //   or resurrect the row. Existence in another store does not narrow the check.
             bool allGroups = reader == "VersionedLookup" || reader == "VersionedRange" ||

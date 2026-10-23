@@ -43,7 +43,7 @@ EDistributedThrottlerMode GetDistributedThrottledMode(ETabletDistributedThrottle
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TColumnFilter& ColumnFilterOrUniversal(
+const TColumnFilter& GetStoreReaderColumnFilter(
     const TColumnFilter& columnFilter,
     const IStorePtr& store,
     TTimestamp retentionTimestamp)
