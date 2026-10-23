@@ -48,6 +48,7 @@ type Encoder struct {
 	InvokeInTx        CallInvoker
 	InvokeReadRow     ReadRowInvoker
 	InvokeMultiLookup MultiLookupInvoker
+	InvokeStream      StreamInvoker
 }
 
 func (e *Encoder) newCall(method Method, req Request, attachments [][]byte) *Call {
@@ -502,7 +503,29 @@ func (e *Encoder) WriteFile(
 	path ypath.YPath,
 	opts *yt.WriteFileOptions,
 ) (w io.WriteCloser, err error) {
-	return nil, xerrors.New("implement me")
+	if opts == nil {
+		opts = &yt.WriteFileOptions{}
+	}
+
+	req, err := buildWriteFileRequest(path, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	call := e.newCall(MethodWriteFile, NewWriteFileRequest(req), nil)
+
+	var rsp rpc_proxy.TRspWriteFile
+	stream, err := e.InvokeStream(ctx, call, &rsp,
+		bus.WithStreamingTimeouts(defaultStreamingStallTimeout, defaultStreamingStallTimeout))
+	if err != nil {
+		return nil, err
+	}
+
+	fw, err := newFileWriter(stream, filePacketSize)
+	if err != nil {
+		return nil, err
+	}
+	return fw, nil
 }
 
 func (e *Encoder) ReadFile(
@@ -510,7 +533,30 @@ func (e *Encoder) ReadFile(
 	path ypath.YPath,
 	opts *yt.ReadFileOptions,
 ) (r io.ReadCloser, err error) {
-	return nil, xerrors.New("implement me")
+	if opts == nil {
+		opts = &yt.ReadFileOptions{}
+	}
+
+	req, err := buildReadFileRequest(path, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	call := e.newCall(MethodReadFile, NewReadFileRequest(req), nil)
+
+	var rsp rpc_proxy.TRspReadFile
+	// NB: Reading a file is a heavy request, as in C++ rpc proxy client.
+	stream, err := e.InvokeStream(ctx, call, &rsp,
+		bus.WithStreamingTimeouts(defaultTotalStreamingTimeout, defaultTotalStreamingTimeout))
+	if err != nil {
+		return nil, err
+	}
+
+	fr, err := newFileReader(stream)
+	if err != nil {
+		return nil, err
+	}
+	return fr, nil
 }
 
 func (e *Encoder) PutFileToCache(
