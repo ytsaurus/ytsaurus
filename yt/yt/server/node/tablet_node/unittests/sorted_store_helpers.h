@@ -234,7 +234,7 @@ inline std::vector<TUnversionedOwningRow> LookupRowsImpl(
 }
 
 inline TVersionedOwningRow VersionedLookupRowImpl(
-    TTablet* tablet,
+    const TTabletSnapshotPtr& tabletSnapshot,
     const TLegacyOwningKey& key,
     int minDataVersions,
     TTimestamp timestamp,
@@ -260,7 +260,7 @@ inline TVersionedOwningRow VersionedLookupRowImpl(
         retentionConfig->MinDataVersions = minDataVersions;
         retentionConfig->MaxDataVersions = minDataVersions;
 
-        auto snapshotStore = CreateDummyTabletSnapshotStore(tablet->BuildSnapshot(nullptr));
+        auto snapshotStore = CreateDummyTabletSnapshotStore(tabletSnapshot);
 
         auto lookupSession = CreateLookupSession(
             EInMemoryMode::None,
@@ -292,7 +292,7 @@ inline TVersionedOwningRow VersionedLookupRowImpl(
 
     {
         auto reader = CreateWireProtocolReader(response);
-        auto schemaData = IWireProtocolReader::GetSchemaData(*tablet->GetPhysicalSchema(), TColumnFilter());
+        auto schemaData = IWireProtocolReader::GetSchemaData(*tabletSnapshot->PhysicalSchema, TColumnFilter());
         auto row = reader->ReadVersionedRow(schemaData, false);
         return TVersionedOwningRow(row);
     }

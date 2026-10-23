@@ -166,7 +166,7 @@ protected:
         TTimestamp timestamp = AsyncLastCommittedTimestamp)
     {
         return VersionedLookupRowImpl(
-            Tablet_.get(),
+            Tablet_->BuildSnapshot(/*slot*/ nullptr),
             key,
             minDataVersions,
             timestamp,
