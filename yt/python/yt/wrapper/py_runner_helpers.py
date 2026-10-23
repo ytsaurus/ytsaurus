@@ -268,6 +268,31 @@ def check_allowed_structured_skiff_attributes(params):
         raise YtError("@yt.wrapper.with_context decorator may be used only with mappers")
 
 
+def start_user_job_profiler():
+    raw_spec = os.environ.get("YT_JOB_PROFILER_SPEC")
+    output = os.environ.get("YT_CPU_PROFILER_PATH")
+    if not raw_spec or not output:
+        return
+    import yt.yson
+    spec = yt.yson._loads_from_native_str(raw_spec)
+    if spec.get("binary") != "user_job" or spec.get("type") != "cpu":
+        return
+    import subprocess
+    import signal
+    import atexit
+    try:
+        process = subprocess.Popen([
+            os.environ.get("YT_PY_SPY_BINARY", "py-spy"), "record",
+            "--pid", str(os.getpid()), "--output", output,
+            "--format", os.environ.get("YT_PYTHON_JOB_PROFILER_FORMAT", "speedscope"),
+            "--rate", str(spec.get("sampling_frequency", 100)), "--subprocesses"])
+    except OSError as error:
+        sys.stderr.write("Cannot start py-spy: {0}\n".format(error))
+        return
+    # py-spy flushes the profile when interrupted; do so however the job exits.
+    atexit.register(lambda: (process.send_signal(signal.SIGINT), process.wait()))
+
+
 def process_rows(operation_dump_filename, config_dump_filename, start_time):
     from itertools import chain, groupby, starmap
     import time
@@ -297,6 +322,8 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
         yt.wrapper.config.config = config_unpickler.load(f_config_dump)
 
     yt.wrapper.py_runner_helpers.check_job_environment_variables()
+
+    yt.wrapper.py_runner_helpers.start_user_job_profiler()
 
     unpickler_name = yt.wrapper.config.config["pickling"]["framework"]
     unpickler = Unpickler(unpickler_name)
