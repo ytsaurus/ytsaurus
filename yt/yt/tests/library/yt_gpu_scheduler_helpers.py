@@ -204,7 +204,7 @@ def wait_for_assignment_preempted_preliminary(scheduler_log_file, from_barrier, 
     holder = {}
 
     def predicate(event):
-        if event.get("reason") != reason:
+        if event.get("preemption_info", {}).get("reason") != reason:
             return False
         assignment = event.get("assignment", {}) or {}
         if assignment.get("operation_id") != (op.id if hasattr(op, "id") else op):
