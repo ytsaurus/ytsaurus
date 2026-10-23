@@ -29,10 +29,11 @@ YQL over Flow позволяет описать [пайплайн](../../../flow
 | Прагма | Описание |
 |---|---|
 | `PRAGMA Engine = "ytflow";` | Выбор движка Flow для выполнения запроса |
-| `PRAGMA Ytflow.Cluster = "...";` | Кластер для внутренних таблиц пайплайна и выходных упорядоченных очередей |
+| `PRAGMA Ytflow.Cluster = "...";` | Кластер для внутренних таблиц пайплайна |
 | `PRAGMA Ytflow.RuntimeCluster = "...";` | Кластер для запуска ванилла операции.{% if audience == "internal" %} Рекомендуется Vanga как cross-DC кластер с высокой доступностью{% endif %} |
 | `PRAGMA Ytflow.PipelineDirectory = "...";` | Путь к директории с пайплайнами в {{product-name}} |
 | `PRAGMA Ytflow.PipelineName = "...";` | Имя пайплайна. Полный путь: `{pipeline_directory}/{pipeline_name}` |
+| `PRAGMA Ytflow.PipelinePath = "...";` | Полный путь к пайплайну вместо пары `PipelineDirectory` и `PipelineName` |
 | `PRAGMA Ytflow.WorkerCount = "...";` | Количество воркер-джобов ванилла операции |
 | `PRAGMA Ytflow.EnableComputationPatternResources = "true";` | Включает переиспользование шаблонов вычислений между графами одного воркера. По умолчанию `false` |
 {% if audience == "internal" %}| `PRAGMA Ytflow.LogbrokerConsumerPath = "...";` | Путь к [Logbroker](../../../flow/extensions/logbroker.md) консьюмеру (только при чтении из Logbroker) |
@@ -51,7 +52,7 @@ PRAGMA Ytflow.Cluster = "{{flow-data-cluster}}";
 -- кластер для ванилла операции
 PRAGMA Ytflow.RuntimeCluster = "{{flow-runtime-cluster}}";
 -- директория с пайплайнами
-PRAGMA Ytflow.PipelineDirectory = "//home/my-project/pipelines";
+PRAGMA Ytflow.PipelineDirectory = "//home/my-project";
 -- имя пайплайна
 PRAGMA Ytflow.PipelineName = "my-pipeline";
 -- число воркеров
@@ -59,13 +60,13 @@ PRAGMA Ytflow.WorkerCount = "1";
 
 -- читать из входной очереди, трансформировать, писать в выходную
 INSERT INTO
-    {{flow-data-cluster}}.`//home/my-project/output_queues/sink_queue`
+    {{flow-data-cluster}}.`//home/my-project/sink_queue`
 SELECT
     string_field || "_processed" AS string_field,
     int64_field,
     EndsWith(string_field, "bar") AS predicate
 FROM
-    {{flow-data-cluster}}.`//home/my-project/input_queues/source_queue`
+    {{flow-data-cluster}}.`//home/my-project/source_queue`
 WHERE int64_field > 1;
 ```
 
@@ -117,7 +118,7 @@ client.run_query(
 - **Дашборд** — вкладка **Flow → Monitoring**.
 - **Логи контроллера** (состояние воркеров, возможные проблемы):
   ```bash
-  {{yt-cli}} --proxy <кластер-пайплайна> flow show-logs //home/my-project/pipelines/my-pipeline
+   {{yt-cli}} --proxy <кластер-пайплайна> flow show-logs //home/my-project/my-pipeline
   ```
 - **Логи джобов** — через ванилла операцию, доступную по ссылке из кубика `flowPublish` в графе пайплайна.
 
