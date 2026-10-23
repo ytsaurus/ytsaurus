@@ -1038,8 +1038,6 @@ public:
 
 TEST_F(TSortedStoreManagerStressTest, LookupExpectation)
 {
-    // Validates the stress test's lookup expectations across transaction stages.
-
     constexpr TValueFilter xProjection{true, false, false};
     constexpr TValueFilter yProjection{false, true, false};
     constexpr TValueFilter zProjection{false, false, true};
