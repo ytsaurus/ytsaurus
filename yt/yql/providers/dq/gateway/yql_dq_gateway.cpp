@@ -11,8 +11,6 @@
 #include <yql/essentials/public/issue/yql_issue_message.h>
 #include <yql/essentials/utils/log/log.h>
 
-#include <contrib/ydb/public/lib/yson_value/ydb_yson_value.h>
-
 #include <contrib/ydb/public/sdk/cpp/src/library/grpc/client/grpc_client_low.h>
 
 #include <library/cpp/yson/node/node_io.h>

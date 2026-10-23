@@ -6,8 +6,6 @@
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/minikql/mkql_function_registry.h>
 
-#include <contrib/ydb/public/lib/yson_value/ydb_yson_value.h>
-
 #include <contrib/ydb/public/sdk/cpp/src/library/grpc/client/grpc_client_low.h>
 
 #include <library/cpp/svnversion/svnversion.h>
