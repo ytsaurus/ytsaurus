@@ -36,7 +36,7 @@ struct TCellMoveDescriptor
 class TNodeHolder
 {
 public:
-    TNodeHolder(const NNodeTrackerServer::TNode* node, int totalSlots, const TCellSet& slots);
+    TNodeHolder(const NNodeTrackerServer::TNode* node, int totalSlots, TCellSet slots);
 
     const NNodeTrackerServer::TNode* GetNode() const;
     int GetTotalSlots() const;

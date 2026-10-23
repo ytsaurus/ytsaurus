@@ -24,7 +24,9 @@ struct ITamedCellManager
 {
     virtual void Initialize() = 0;
 
-    virtual const TCellSet* FindAssignedCells(const std::string& address) const = 0;
+    virtual TCellSet FindAssignedCells(
+        const std::string& address,
+        NCellarClient::ECellarType cellarType) const = 0;
 
     virtual const IBundleNodeTrackerPtr& GetBundleNodeTracker() = 0;
 
