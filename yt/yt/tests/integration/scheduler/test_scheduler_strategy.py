@@ -1769,6 +1769,57 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
 
         self._check_operation_counts(5, 2, 3, 3, 0, 3, check_root=False)
 
+    @authors("yaishenka")
+    @pytest.mark.parametrize("finish_action", ["abort", "complete"])
+    @pytest.mark.parametrize("default_parent", ["<Root>", "research"])
+    def test_remove_pool_with_running_lightweight_operation(self, finish_action, default_parent):
+        def check_counts(pool_name, total, running, lightweight):
+            def check():
+                info = get(scheduler_orchid_pool_path(pool_name))
+                assert (
+                    info["operation_count"],
+                    info["running_operation_count"],
+                    info["lightweight_running_operation_count"],
+                ) == (total, running, lightweight)
+
+            wait_no_assert(check)
+
+        self._create_pools()
+        if default_parent != "<Root>":
+            create_pool(default_parent, attributes={"max_running_operation_count": 0})
+        update_pool_tree_config("default", {"default_parent_pool": default_parent})
+
+        connection_time_path = scheduler_orchid_path() + "/scheduler/service/last_connection_time"
+        connection_time = get(connection_time_path)
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), pool="lightweight_pool")
+        self._wait_for_operation(op)
+        wait_breakpoint(op)
+        self._check_operation_counts(0, 0, 0, 1, 0, 1)
+        check_counts("<Root>", 1, 0, 1)
+
+        remove("//sys/pool_trees/default/root/lightweight_pool")
+
+        pool_path = scheduler_orchid_pool_path("lightweight_pool")
+        wait(lambda: get(pool_path + "/is_ephemeral"))
+        wait(lambda: not get(pool_path + "/effective_lightweight_operations_enabled"))
+        wait(lambda: get(pool_path + "/parent") == default_parent)
+        check_counts("lightweight_pool", 1, 1, 0)
+        check_counts("root", 0, 0, 0)
+        check_counts(default_parent, 1, 1, 0)
+        check_counts("<Root>", 1, 1, 0)
+
+        if finish_action == "abort":
+            op.abort()
+        else:
+            release_breakpoint()
+            op.track()
+
+        wait(lambda: not exists(pool_path))
+        for pool_name in ("root", default_parent, "<Root>"):
+            check_counts(pool_name, 0, 0, 0)
+        assert get(connection_time_path) == connection_time
+
     @authors("eshcherbin")
     def test_pending_operation_becomes_lightweight(self):
         self._create_pools()
