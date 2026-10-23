@@ -7,13 +7,13 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || **Parameter** | **Description** ||
 || `batch_duration` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `1s`
-Maximum time to collect an input batch. ||
+Maximum time to collect an input batch. For {{product-name}} queues, a non-full batch keeps collecting until this time passes since the previous batch; after a non-full queue response, the next request is also made no earlier than that moment. ||
 || `max_rows_per_batch` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Default value**: `1K`
-Maximum size of an input batch in rows. Calculated separately for `input_streams`, `timer_streams`, and for each of the `source_streams`. ||
+Maximum size of an input batch in rows. Calculated separately for `input_streams`, `timer_streams`, and for each of the `source_streams`. For {{product-name}} queues, unpacked Flow messages are counted; a batch may exceed the limit by one queue row. ||
 || `max_bytes_per_batch` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Default value**: `10Mi`
-Maximum size of an input batch in bytes. Calculated similarly to `max_rows_per_batch`. ||
+Maximum size of an input batch in bytes. Calculated similarly to `max_rows_per_batch`. For {{product-name}} queues, the size of unpacked messages is counted; the limit may be exceeded as for `max_rows_per_batch`. ||
 || `max_keys_per_batch` | **Type**: `std::optional<`[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>`
  ||
 || `draining` | **Type**: `bool`

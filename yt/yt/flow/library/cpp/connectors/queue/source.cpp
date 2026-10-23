@@ -1,6 +1,7 @@
 #include "source.h"
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
+#include <yt/yt/flow/library/cpp/common/message.h>
 #include <yt/yt/flow/library/cpp/common/schema.h>
 
 #include <yt/yt/flow/library/cpp/connectors/common/flow_queue_meta.h>
@@ -24,7 +25,11 @@
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
+#include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/node.h>
@@ -182,9 +187,10 @@ void TQueueSourceImpl::DoTerminate()
     if (PartitionInfoUpdater_) {
         YT_UNUSED_FUTURE(PartitionInfoUpdater_->Stop());
     }
-    if (CurrentRequestFuture_) {
-        CurrentRequestFuture_.Cancel(TError("Source is terminated, so result of current request is useless"));
-        CurrentRequestFuture_ = {};
+    Terminated_ = true;
+    if (ReadAhead_.PullFuture) {
+        ReadAhead_.PullFuture.Cancel(TError("Source is terminated, so result of current request is useless"));
+        ReadAhead_.PullFuture = {};
     }
     InitialCommittedOffset_.TrySet(TError(NYT::EErrorCode::Canceled, "Source is terminated"));
 }
@@ -307,88 +313,207 @@ void TQueueSourceImpl::DoReportPersistedOffset(TOffset offsetExclusive)
     }
 }
 
-auto TQueueSourceImpl::DoReadNextBatch(
-    const TMessageBatcherSettingsPtr& settings, TOffset nextOffsetAsKey, std::optional<TOffset> offsetLimitAsKey) -> TFuture<std::vector<TRecord>>
+void TQueueSourceImpl::ResetReadAhead(i64 nextOffset)
 {
-    auto nextOffset = OffsetToInt(nextOffsetAsKey);
-    auto offsetLimit = offsetLimitAsKey ? std::optional(OffsetToInt(*offsetLimitAsKey)) : std::nullopt;
-
-    const auto& [currentSettings, currentNextOffset] = CurrentRequestParameters_;
-    auto batcherSettingsChanged = [&] {
-        return settings != currentSettings &&
-            *ConvertTo<TMessageBatcherSettingsPtr>(settings) != *ConvertTo<TMessageBatcherSettingsPtr>(currentSettings);
+    if (ReadAhead_.PullFuture) {
+        ReadAhead_.PullFuture.Cancel(TError("Read offset has changed, so result of current request is useless"));
+    }
+    ReadAhead_ = {
+        .PullOffset = nextOffset,
+        .ReadOffset = nextOffset,
     };
-    if (CurrentRequestFuture_ && (nextOffset != currentNextOffset || batcherSettingsChanged())) {
-        CurrentRequestFuture_.Cancel(TError("Reading batch parameters have changed, so result of current request is useless"));
-        CurrentRequestFuture_ = {};
-    }
+}
 
-    if (!CurrentRequestFuture_) {
-        CurrentRequestParameters_ = std::pair(settings, nextOffset);
+void TQueueSourceImpl::StartPull(const TMessageBatcherSettingsPtr& settings)
+{
+    YT_VERIFY(!ReadAhead_.PullFuture);
 
-        NQueueClient::TQueueRowBatchReadOptions rowBatchReadOptions;
-        rowBatchReadOptions.MaxRowCount = settings->MaxRowsPerBatch;
-        rowBatchReadOptions.MaxDataWeight = settings->MaxBytesPerBatch;
+    NQueueClient::TQueueRowBatchReadOptions rowBatchReadOptions;
+    rowBatchReadOptions.MaxRowCount = settings->MaxRowsPerBatch;
+    rowBatchReadOptions.MaxDataWeight = settings->MaxBytesPerBatch;
 
-        CurrentRequestFuture_ = InitialCommittedOffset_
-            .ToFuture()
-            .ToImmediatelyCancelable(/*propagateCancelation*/ false)
-            .Apply(BIND([this, this_ = MakeStrong(this), offsetLimit, nextOffset, rowBatchReadOptions] (const i64& initialOffset) {
-                NApi::TPullQueueConsumerOptions options;
-                options.Timeout = GetDynamicParameters()->PullQueueTimeout;
-                // A no-op for a plain ordered table; for a replicated/chaos queue it forces reading a synchronous replica.
-                options.ReplicaConsistency = NApi::EReplicaConsistency::Sync;
+    ReadAhead_.PullFuture = InitialCommittedOffset_
+        .ToFuture()
+        .ToImmediatelyCancelable(/*propagateCancelation*/ false)
+        .Apply(BIND([this, this_ = MakeStrong(this), settings, pullOffset = ReadAhead_.PullOffset, rowBatchReadOptions] (const i64& initialOffset) {
+            NApi::TPullQueueConsumerOptions options;
+            options.Timeout = GetDynamicParameters()->PullQueueTimeout;
+            // A no-op for a plain ordered table; for a replicated/chaos queue it forces reading a synchronous replica.
+            options.ReplicaConsistency = NApi::EReplicaConsistency::Sync;
 
-                // Optimistically start reading from nextOffset (drop messages with offset less than initial later).
-                // TODO(mikari): consumer or queue client?
-                return ConsumerClient_->PullQueueConsumer(
-                    GetParameters()->ConsumerPath,
-                    GetParameters()->QueuePath,
-                    nextOffset,
-                    PartitionIndex_,
-                    rowBatchReadOptions,
-                    options)
-                    .Apply(BIND([this, this_ = MakeStrong(this), offsetLimit, initialOffset] (const NApi::TPullQueueResult& result) {
-                        return ParseData(result.Rowset, initialOffset, offsetLimit);
-                    })
-                            .AsyncVia(GetContext()->SerializedInvoker));
-            })
-                    .AsyncVia(GetContext()->SerializedInvoker));
-    }
-
-    return AnySet(
-        std::vector{CurrentRequestFuture_.AsVoid(), NConcurrency::TDelayedExecutor::MakeDelayed(settings->BatchDuration)},
-        TFutureCombinerOptions{.CancelInputOnShortcut = false})
-        .Apply(
-            BIND([this, this_ = MakeStrong(this)] (const TError&) {
-                if (CurrentRequestFuture_.IsSet()) {
-                    auto future = std::move(CurrentRequestFuture_);
-                    CurrentRequestFuture_ = {};
-                    if (future.GetOrCrash().IsOK()) {
-                        ReadErrorState_->ClearError();
-                        return future;
-                    } else {
-                        auto error = TError("Failed to read from partition").With(future.GetOrCrash());
-                        ReadErrorState_->SetError(error);
-                    }
-                }
-                return MakeFuture(std::vector<TQueueSourceImpl::TRecord>{});
-            })
+            // Optimistically start reading from pullOffset (drop messages with offset less than initial later).
+            // TODO(mikari): consumer or queue client?
+            return ConsumerClient_->PullQueueConsumer(
+                GetParameters()->ConsumerPath,
+                GetParameters()->QueuePath,
+                pullOffset,
+                PartitionIndex_,
+                rowBatchReadOptions,
+                options)
+                .Apply(BIND([this, this_ = MakeStrong(this), settings, initialOffset, pullOffset] (const NApi::TPullQueueResult& result) {
+                    return ParsePullResult(result.Rowset, settings, initialOffset, pullOffset);
+                })
+                        .AsyncVia(GetContext()->SerializedInvoker));
+        })
                 .AsyncVia(GetContext()->SerializedInvoker));
 }
 
-auto TQueueSourceImpl::ParseData(
-    const NQueueClient::IQueueRowsetPtr& rowset, i64 initialOffset, std::optional<i64> offsetLimit) -> std::vector<TRecord>
+bool TQueueSourceImpl::ConsumePullResult()
+{
+    auto resultOrError = std::exchange(ReadAhead_.PullFuture, {}).AsUnique().GetOrCrash();
+    UnpackFailed_ = false;
+    if (!resultOrError.IsOK()) {
+        ReadErrorState_->SetError(TError("Failed to read from partition").With(resultOrError));
+        return false;
+    }
+    ReadErrorState_->ClearError();
+
+    auto& result = resultOrError.Value();
+    ReadAhead_.LastPullFull = result.Full;
+    ReadAhead_.PullOffset = result.NextOffset;
+    for (auto& row : result.Rows) {
+        ReadAhead_.DataWeight += row.DataWeight;
+        ReadAhead_.Rows.push_back(std::move(row));
+    }
+    return true;
+}
+
+auto TQueueSourceImpl::DoReadNextBatch(
+    const TMessageBatcherSettingsPtr& settings, TOffset nextOffsetAsKey, std::optional<TOffset> offsetLimitAsKey) -> TFuture<std::vector<TRecord>>
 {
     YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
 
-    std::vector<TRecord> records;
-    records.reserve(rowset->GetRows().size());
+    auto nextOffset = OffsetToInt(nextOffsetAsKey);
+    auto offsetLimit = offsetLimitAsKey ? std::optional(OffsetToInt(*offsetLimitAsKey)) : std::nullopt;
 
-    if (rowset->GetRows().size() == 0) {
-        return {};
+    if (ReadAhead_.ReadOffset != nextOffset) {
+        ResetReadAhead(nextOffset);
     }
 
+    // Rows are unpacked only when taken, so unpacked data exceeds the batch limits by at most one row.
+    std::vector<TRecord> records;
+    i64 messageCount = 0;
+    i64 byteSize = 0;
+    auto isBatchFull = [&] {
+        return messageCount >= settings->MaxRowsPerBatch || byteSize >= settings->MaxBytesPerBatch;
+    };
+    auto isOffsetLimitReached = [&] {
+        i64 offset = ReadAhead_.Rows.empty() ? ReadAhead_.PullOffset : ReadAhead_.Rows.front().Offset;
+        return offsetLimit && offset >= *offsetLimit;
+    };
+    // Returns false if a row cannot be unpacked; the row is retried by the next call.
+    auto takeRows = [&] {
+        while (!ReadAhead_.Rows.empty() && !isBatchFull() && !isOffsetLimitReached()) {
+            const auto& packedRow = ReadAhead_.Rows.front();
+            try {
+                records.push_back(UnpackRecord(packedRow));
+            } catch (const std::exception& ex) {
+                ReadErrorState_->SetError(TError("Failed to unpack queue row")
+                        .With("offset", packedRow.Offset)
+                        .With(ex));
+                UnpackFailed_ = true;
+                return false;
+            }
+            // A row may unpack on retry, e.g. after a malformed message policy change.
+            if (std::exchange(UnpackFailed_, false)) {
+                ReadErrorState_->ClearError();
+            }
+            for (const auto& payload : records.back().Payloads) {
+                ++messageCount;
+                byteSize += sizeof(TMessage) + payload.Underlying().GetSpaceUsed();
+            }
+            ReadAhead_.ReadOffset = packedRow.Offset + 1;
+            ReadAhead_.DataWeight -= packedRow.DataWeight;
+            ReadAhead_.Rows.pop_front();
+        }
+        return true;
+    };
+
+    // A non-full batch keeps collecting until batch duration passes since the previous batch.
+    const TCpuInstant deadline = LastBatchInstant_.value_or(GetCpuInstant()) + DurationToCpuDuration(settings->BatchDuration);
+    bool finalPull = false;
+    bool failed = false;
+    while (!Terminated_) {
+        if (ReadAhead_.PullFuture && ReadAhead_.PullFuture.IsSet() && !ConsumePullResult()) {
+            failed = true;
+            break;
+        }
+        if (!takeRows()) {
+            failed = true;
+            break;
+        }
+        if (isBatchFull() || isOffsetLimitReached() || finalPull) {
+            break;
+        }
+
+        // With nothing collected, the pull is waited for up to batch duration to avoid an empty epoch.
+        auto waitDuration = settings->BatchDuration;
+        const TCpuInstant now = GetCpuInstant();
+        if (!ReadAhead_.PullFuture && !ReadAhead_.LastPullFull) {
+            // There is not much data, so do not pull repeatedly: wait out the batch duration and pull once more.
+            if (now < deadline) {
+                TDelayedExecutor::WaitForDuration(CpuDurationToDuration(deadline - now));
+                if (Terminated_) {
+                    break;
+                }
+            }
+            finalPull = true;
+        } else if (!records.empty()) {
+            if (now >= deadline) {
+                break;
+            }
+            waitDuration = CpuDurationToDuration(deadline - now);
+        }
+
+        if (!ReadAhead_.PullFuture) {
+            StartPull(settings);
+        }
+        WaitUntilSet(
+            AnySet(
+                std::vector{ReadAhead_.PullFuture.AsVoid(), TDelayedExecutor::MakeDelayed(waitDuration)},
+                TFutureCombinerOptions{.CancelInputOnShortcut = false}));
+        if (Terminated_ || !ReadAhead_.PullFuture.IsSet()) {
+            break;
+        }
+    }
+
+    // Read ahead while the batch is processed.
+    if (!Terminated_ &&
+        !failed &&
+        !ReadAhead_.PullFuture &&
+        ReadAhead_.LastPullFull &&
+        !isOffsetLimitReached() &&
+        std::ssize(ReadAhead_.Rows) < settings->MaxRowsPerBatch &&
+        ReadAhead_.DataWeight < settings->MaxBytesPerBatch)
+    {
+        StartPull(settings);
+    }
+
+    // Batch duration restarts after returning rows or waiting it out, not after a slow or failed pull.
+    if (!records.empty() || finalPull) {
+        LastBatchInstant_ = GetCpuInstant();
+    }
+    return MakeFuture(std::move(records));
+}
+
+auto TQueueSourceImpl::ParsePullResult(
+    const NQueueClient::IQueueRowsetPtr& rowset,
+    const TMessageBatcherSettingsPtr& settings,
+    i64 initialOffset,
+    i64 pullOffset) -> TPullResult
+{
+    YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
+
+    // The server may stop slightly below the requested limits, so a nearly full pull counts as full.
+    constexpr double FullPullFraction = 0.9;
+
+    TPullResult result{.NextOffset = pullOffset};
+    if (rowset->GetRows().empty()) {
+        return result;
+    }
+    result.Rows.reserve(rowset->GetRows().size());
+
+    // Payload converters are cached by schema pointer, so an unchanged schema is reused.
     const auto& schema = rowset->GetSchema();
     if (!RowsetSchema_ || (RowsetSchema_ != schema && *RowsetSchema_ != *schema)) {
         RowsetSchema_ = schema;
@@ -398,56 +523,69 @@ auto TQueueSourceImpl::ParseData(
     const auto offsetColumnId = nameTable->GetIdOrThrow("$row_index");
     const auto timestampColumnId = nameTable->GetIdOrThrow("$timestamp");
     const auto metaColumnId = nameTable->FindId(GetParameters()->FlowQueueMetaColumn);
-
+    i64 dataWeight = 0;
     for (auto row : rowset->GetRows()) {
         auto rowOffset = FromUnversionedValue<i64>(row[offsetColumnId]);
+        i64 rowDataWeight = static_cast<i64>(NTableClient::GetDataWeight(row));
+        dataWeight += rowDataWeight;
+        result.NextOffset = std::max(result.NextOffset, rowOffset + 1);
         if (rowOffset < initialOffset) {
             YT_TLOG_WARNING("Got offset less than initial committed, skipped. Probably it is a start of reading old queue with empty yt flow state")
                 .With("Offset", rowOffset)
                 .With("InitialOffset", initialOffset);
             continue;
         }
-        if (offsetLimit && rowOffset >= *offsetLimit) {
-            YT_TLOG_WARNING("Got offset bigger than limit, skipped")
-                .With("Offset", rowOffset)
-                .With("OffsetLimit", *offsetLimit);
-            continue;
-        }
+        result.Rows.push_back({
+            .Rowset = rowset,
+            .Schema = RowsetSchema_,
+            .Row = row,
+            .TimestampColumnId = timestampColumnId,
+            .MetaColumnId = metaColumnId,
+            .Offset = rowOffset,
+            .DataWeight = rowDataWeight,
+        });
+    }
+    result.Full = std::ssize(rowset->GetRows()) >= settings->MaxRowsPerBatch * FullPullFraction ||
+        dataWeight >= settings->MaxBytesPerBatch * FullPullFraction;
 
-        auto [payloads, payloadSchema] = UnpackRow(row, RowsetSchema_);
+    return result;
+}
 
-        auto writeTime = TSystemTimestamp(
-            NTransactionClient::UnixTimeFromTimestamp(FromUnversionedValue<NTransactionClient::TTimestamp>(row[timestampColumnId])));
+auto TQueueSourceImpl::UnpackRecord(const TPackedRow& packedRow) -> TRecord
+{
+    const auto& row = packedRow.Row;
+    auto [payloads, payloadSchema] = UnpackRow(row, packedRow.Schema);
 
-        std::optional<TFlowQueueMeta> meta;
-        if (metaColumnId && GetParameters()->TryParseFlowQueueMeta) {
-            const auto raw = FromUnversionedValue<std::optional<NYson::TYsonStringBuf>>(row[*metaColumnId]);
-            if (raw) {
-                try {
-                    meta = ConvertTo<TFlowQueueMeta>(*raw);
-                } catch (const std::exception& ex) {
-                    if (GetParameters()->IgnoreMalformedFlowQueueMeta) {
-                        YT_TLOG_WARNING("Failed to parse flow queue meta")
-                            .With("RawMeta", *raw)
-                            .With(ex);
-                    } else {
-                        THROW_ERROR_EXCEPTION("Failed to parse flow queue meta from %Qv", *raw)
-                            .With(ex);
-                    }
+    auto writeTime = TSystemTimestamp(
+        NTransactionClient::UnixTimeFromTimestamp(FromUnversionedValue<NTransactionClient::TTimestamp>(row[packedRow.TimestampColumnId])));
+
+    std::optional<TFlowQueueMeta> meta;
+    if (packedRow.MetaColumnId && GetParameters()->TryParseFlowQueueMeta) {
+        const auto raw = FromUnversionedValue<std::optional<NYson::TYsonStringBuf>>(row[*packedRow.MetaColumnId]);
+        if (raw) {
+            try {
+                meta = ConvertTo<TFlowQueueMeta>(*raw);
+            } catch (const std::exception& ex) {
+                if (GetParameters()->IgnoreMalformedFlowQueueMeta) {
+                    YT_TLOG_WARNING("Failed to parse flow queue meta")
+                        .With("RawMeta", *raw)
+                        .With(ex);
+                } else {
+                    THROW_ERROR_EXCEPTION("Failed to parse flow queue meta from %Qv", *raw)
+                        .With(ex);
                 }
             }
         }
-        TRecord record = {
-            .Offset = IntToOffset(rowOffset),
-            .WriteTimestamp = writeTime,
-            .CreateTimestamp = writeTime,
-            .Meta = meta,
-            .Payloads = payloads,
-            .PayloadSchema = payloadSchema};
-        records.push_back(std::move(record));
     }
 
-    return records;
+    return {
+        .Offset = IntToOffset(packedRow.Offset),
+        .WriteTimestamp = writeTime,
+        .CreateTimestamp = writeTime,
+        .Meta = meta,
+        .Payloads = std::move(payloads),
+        .PayloadSchema = payloadSchema,
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

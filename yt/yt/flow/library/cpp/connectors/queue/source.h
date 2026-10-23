@@ -20,6 +20,8 @@
 
 #include <yt/yt/core/ypath/public.h>
 
+#include <deque>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,7 +56,37 @@ private:
         TOffset nextOffset,
         std::optional<TOffset> offsetLimit) final;
 
-    std::vector<TRecord> ParseData(const NQueueClient::IQueueRowsetPtr& rowset, i64 initialOffset, std::optional<i64> offsetLimit);
+    //! A pulled queue row that stays packed until it is taken into a batch.
+    struct TPackedRow
+    {
+        NQueueClient::IQueueRowsetPtr Rowset;
+        NTableClient::TTableSchemaPtr Schema;
+        NTableClient::TUnversionedRow Row;
+        int TimestampColumnId = 0;
+        std::optional<int> MetaColumnId;
+        i64 Offset = 0;
+        i64 DataWeight = 0;
+    };
+
+    struct TPullResult
+    {
+        std::vector<TPackedRow> Rows;
+        //! Offset following the last pulled row, or the requested offset if no rows were pulled.
+        i64 NextOffset = 0;
+        bool Full = false;
+    };
+
+    void ResetReadAhead(i64 nextOffset);
+    void StartPull(const TMessageBatcherSettingsPtr& settings);
+    //! Returns false if the pull has failed.
+    bool ConsumePullResult();
+
+    TPullResult ParsePullResult(
+        const NQueueClient::IQueueRowsetPtr& rowset,
+        const TMessageBatcherSettingsPtr& settings,
+        i64 initialOffset,
+        i64 pullOffset);
+    TRecord UnpackRecord(const TPackedRow& packedRow);
     virtual std::pair<std::vector<TPayload>, NTableClient::TTableSchemaPtr> UnpackRow(const NTableClient::TUnversionedRow& row, const NTableClient::TTableSchemaPtr& schema) = 0;
 
     void DoReportPersistedOffset(TOffset offsetExclusive) final;
@@ -102,11 +134,27 @@ private:
     std::atomic<i64> CommittedOffsetExclusive_ = 0;
     std::atomic<i64> MaxOffsetExclusive_ = 0;
 
-    TFuture<std::vector<TRecord>> CurrentRequestFuture_;
-    std::pair<TMessageBatcherSettingsPtr, i64> CurrentRequestParameters_;
+    // Only accessed from the serialized invoker.
+    struct TReadAheadState
+    {
+        TFuture<TPullResult> PullFuture;
+        i64 PullOffset = 0;
+        //! Offset the next #DoReadNextBatch() call is expected to read from.
+        std::optional<i64> ReadOffset;
+        std::deque<TPackedRow> Rows;
+        i64 DataWeight = 0;
+        //! A full pull lets the next one start right away; otherwise it waits for batch duration.
+        bool LastPullFull = true;
+    };
+
+    TReadAheadState ReadAhead_;
     NTableClient::TTableSchemaPtr RowsetSchema_;
+    std::optional<TCpuInstant> LastBatchInstant_;
+    bool Terminated_ = false;
 
     IStatusErrorStatePtr ReadErrorState_;
+    //! Whether #ReadErrorState_ holds an unpack error rather than a pull error.
+    bool UnpackFailed_ = false;
     IStatusErrorStatePtr UpdatePartitionInfoErrorState_;
 
     TPromise<i64> InitialCommittedOffset_;
