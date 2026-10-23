@@ -109,6 +109,7 @@ public:
 
     void RegisterNode(TNodeId nodeId, const std::string& nodeAddress) override;
     void UnregisterNode(TNodeId nodeId) override;
+    std::vector<TExecNodeDescriptorPtr> GetNodeDescriptors() const override;
 
     TFuture<void> ProcessSchedulingHeartbeat(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
@@ -327,6 +328,7 @@ public:
 
     void RegisterNode(TNodeId nodeId, const std::string& nodeAddress) override;
     void UnregisterNode(TNodeId nodeId) override;
+    std::vector<TExecNodeDescriptorPtr> GetNodeDescriptors() const override;
 
     void RegisterOperation(const TPoolTreeOperationElement* element) override;
     void UnregisterOperation(const TPoolTreeOperationElement* element) override;

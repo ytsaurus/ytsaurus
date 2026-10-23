@@ -92,6 +92,8 @@ struct ISchedulingPolicy
     //! Thread affinity: Control.
     virtual void RegisterNode(NNodeTrackerClient::TNodeId nodeId, const std::string& nodeAddress) = 0;
     virtual void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
+    //! Returns descriptors of nodes that have sent a scheduling heartbeat.
+    virtual std::vector<TExecNodeDescriptorPtr> GetNodeDescriptors() const = 0;
 
     //! Scheduling.
     //! Thread affinity: Any.

@@ -347,6 +347,12 @@ public:
         SchedulingPolicy_->Initialize();
         DryRunGpuSchedulingPolicy_->Initialize();
 
+        MinNodeResourceLimitsCheckExecutor_ = New<TPeriodicExecutor>(
+            StrategyHost_->GetControlInvoker(EControlQueue::Strategy),
+            BIND(&TPoolTree::CheckMinNodeResourceLimits, MakeWeak(this)),
+            Config_->MinNodeResourceLimitsCheckPeriod);
+        MinNodeResourceLimitsCheckExecutor_->Start();
+
         YT_LOG_INFO("Pool tree created");
     }
 
@@ -405,6 +411,8 @@ public:
 
         SchedulingPolicy_->UpdateConfig(Config_);
         DryRunGpuSchedulingPolicy_->UpdateConfig(Config_);
+
+        MinNodeResourceLimitsCheckExecutor_->SetPeriod(Config_->MinNodeResourceLimitsCheckPeriod);
 
         auto pool = FindPool(Config_->DefaultParentPool);
         if (!pool && Config_->DefaultParentPool != RootPoolName) {
@@ -1383,6 +1391,9 @@ private:
 
     const std::vector<IInvokerPtr> FeasibleInvokers_;
 
+    TPeriodicExecutorPtr MinNodeResourceLimitsCheckExecutor_;
+    THashMap<std::string, TInstant> NodeToResourceLimitsViolationStartTime_;
+
 
     INodePtr LastPoolsNodeUpdate_;
     TError LastPoolsNodeUpdateError_;
@@ -1839,6 +1850,102 @@ private:
     mutable TResourceDistributionAccumulator AccumulatedPoolResourceUsageForMetering_;
     mutable TResourceDistributionAccumulator AccumulatedOperationsResourceDistributionForProfiling_;
     mutable TResourceDistributionAccumulator AccumulatedOperationsResourceDistributionForLogging_;
+
+    void CheckMinNodeResourceLimits()
+    {
+        YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::Strategy));
+
+        static const int MaxViolatingNodesInError = 10;
+
+        if (!Host_->IsConnected()) {
+            return;
+        }
+
+        auto now = TInstant::Now();
+        auto gracePeriod = Config_->MinNodeResourceLimitsViolationTimeout;
+        auto minResourceLimits = ToJobResources(Config_->MinNodeResourceLimits, TJobResources());
+        i64 minDiskSpace = Config_->MinNodeResourceLimits->DiskSpace.value_or(0);
+
+        THashMap<std::string, TError> currentlyViolatingNodes;
+        for (const auto& descriptor : SchedulingPolicy_->GetNodeDescriptors()) {
+            // Ignore nodes with disabled jobs.
+            if (descriptor->ResourceLimits.GetUserSlots() == 0) {
+                continue;
+            }
+
+            i64 maxDiskSpace = 0;
+            for (const auto& locationResources : descriptor->DiskResources.DiskLocationResources) {
+                maxDiskSpace = std::max(maxDiskSpace, locationResources.Limit);
+            }
+
+            std::vector<TError> resourceErrors;
+            auto checkResource = [&] (TStringBuf resource, const auto& actualLimit, const auto& minLimit) {
+                if (actualLimit < minLimit) {
+                    resourceErrors.push_back(
+                        TError("Node %Qv limit is below the configured minimum", resource)
+                            << TErrorAttribute("resource", resource)
+                            << TErrorAttribute("resource_limit", actualLimit)
+                            << TErrorAttribute("min_resource_limit", minLimit));
+                }
+            };
+
+            const auto& resourceLimits = descriptor->ResourceLimits;
+            checkResource("user_slots", resourceLimits.GetUserSlots(), minResourceLimits.GetUserSlots());
+            checkResource("cpu", resourceLimits.GetCpu(), minResourceLimits.GetCpu());
+            checkResource("gpu", resourceLimits.GetGpu(), minResourceLimits.GetGpu());
+            checkResource("memory", resourceLimits.GetMemory(), minResourceLimits.GetMemory());
+            checkResource("network", resourceLimits.GetNetwork(), minResourceLimits.GetNetwork());
+            checkResource("disk_space", maxDiskSpace, minDiskSpace);
+
+            if (!resourceErrors.empty()) {
+                const auto& address = descriptor->GetDefaultAddress();
+                currentlyViolatingNodes.emplace(
+                    address,
+                    TError("Node %Qv has insufficient resource limits", address)
+                        << TErrorAttribute("node_address", address)
+                        << std::move(resourceErrors));
+            }
+        }
+
+        std::vector<std::string> addressesToRemove;
+        for (const auto& [address, _] : NodeToResourceLimitsViolationStartTime_) {
+            if (!currentlyViolatingNodes.contains(address)) {
+                addressesToRemove.push_back(address);
+            }
+        }
+        for (const auto& address : addressesToRemove) {
+            NodeToResourceLimitsViolationStartTime_.erase(address);
+        }
+
+        for (const auto& [address, _] : currentlyViolatingNodes) {
+            NodeToResourceLimitsViolationStartTime_.emplace(address, now);
+        }
+
+        std::vector<std::string> violatingNodes;
+        for (const auto& [address, violationStartTime] : NodeToResourceLimitsViolationStartTime_) {
+            if (now >= violationStartTime + gracePeriod) {
+                violatingNodes.push_back(address);
+            }
+        }
+
+        TError error;
+        if (violatingNodes.size() > 0) {
+            error = TError("Found violating nodes in tree %Qv", TreeId_);
+            if (violatingNodes.size() > MaxViolatingNodesInError) {
+                violatingNodes.resize(MaxViolatingNodesInError);
+                error = error << TErrorAttribute("violating_nodes_truncated", true);
+            }
+            error = error << TErrorAttribute("violating_nodes", violatingNodes);
+
+            std::vector<TError> nodeErrors;
+            for (const auto& address : violatingNodes) {
+                nodeErrors.push_back(std::move(GetOrCrash(currentlyViolatingNodes, address)));
+            }
+            error = error << std::move(nodeErrors);
+        }
+
+        Host_->SetSchedulerTreeAlert(TreeId_, ESchedulerAlertType::NodesWithInsufficientResourceLimits, error);
+    }
 
     void ThrowOrchidIsNotReady() const
     {

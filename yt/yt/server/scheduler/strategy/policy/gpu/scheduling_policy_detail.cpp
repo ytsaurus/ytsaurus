@@ -190,6 +190,20 @@ void TSchedulingPolicy::UnregisterNode(TNodeId nodeId)
         nodeAddress);
 }
 
+std::vector<TExecNodeDescriptorPtr> TSchedulingPolicy::GetNodeDescriptors() const
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    std::vector<TExecNodeDescriptorPtr> descriptors;
+    descriptors.reserve(Nodes_.size());
+    for (const auto& [nodeId, node] : Nodes_) {
+        if (node->Descriptor()) {
+            descriptors.push_back(node->Descriptor());
+        }
+    }
+    return descriptors;
+}
+
 TFuture<void> TSchedulingPolicy::ProcessSchedulingHeartbeat(
     const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     const TPoolTreeSnapshotPtr& treeSnapshot,
@@ -2029,6 +2043,11 @@ void TNoopSchedulingPolicy::RegisterNode(TNodeId /*nodeId*/, const std::string& 
 
 void TNoopSchedulingPolicy::UnregisterNode(TNodeId /*nodeId*/)
 { }
+
+std::vector<TExecNodeDescriptorPtr> TNoopSchedulingPolicy::GetNodeDescriptors() const
+{
+    return {};
+}
 
 TFuture<void> TNoopSchedulingPolicy::ProcessSchedulingHeartbeat(
     const ISchedulingHeartbeatContextPtr& /*schedulingHeartbeatContext*/,

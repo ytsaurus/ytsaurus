@@ -556,6 +556,7 @@ public:
     //! Node management.
     void RegisterNode(NNodeTrackerClient::TNodeId nodeId, const std::string& nodeAddress) override;
     void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) override;
+    std::vector<TExecNodeDescriptorPtr> GetNodeDescriptors() const override;
 
     //! Scheduling.
     TFuture<void> ProcessSchedulingHeartbeat(
@@ -652,7 +653,6 @@ private:
     NProfiling::TProfiler Profiler_;
 
     NConcurrency::TPeriodicExecutorPtr SchedulingSegmentsManagementExecutor_;
-    NConcurrency::TPeriodicExecutorPtr MinNodeResourceLimitsCheckExecutor_;
 
     TEnumIndexedArray<EAllocationSchedulingStage, std::unique_ptr<TSchedulingStageProfilingCounters>> SchedulingStageProfilingCounters_;
 
@@ -694,8 +694,6 @@ private:
 
     TPersistentNodeSchedulingSegmentStateMap InitialPersistentSchedulingSegmentNodeStates_;
     TPersistentOperationSchedulingSegmentStateMap InitialPersistentSchedulingSegmentOperationStates_;
-
-    THashMap<std::string, TInstant> NodeToResourceLimitsViolationStartTime_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -812,8 +810,6 @@ private:
     void ApplyNodeSchedulingSegmentsChanges(const TSetNodeSchedulingSegmentOptionsList& movedNodes);
 
     void ManageSchedulingSegments();
-
-    void CheckMinNodeResourceLimits();
 
     bool IsGpuTree() const;
 };
