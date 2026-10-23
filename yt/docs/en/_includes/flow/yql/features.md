@@ -1,4 +1,4 @@
-# Supported YQL constructs in {{product-name}} Flow
+# YQL features in {{product-name}} Flow
 
 {% note info %}
 
@@ -186,8 +186,3 @@ SELECT
     value
 FROM source_cluster.`//home/my-project/source_queue`;
 ```
-
-## See also
-
-- [Computation (concept)](../../../flow/concepts/computation.md)
-- [Quick start (YQL)](../../../flow/yql/getting-started.md)

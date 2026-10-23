@@ -11,7 +11,7 @@ This feature is under active development, and not all planned functionality is a
 {% if audience == "internal" %}
 {% note info %}
 
-If you need to run a YQL `SELECT` in a separate node of a regular pipeline instead of describing the whole pipeline with a query, see [YQL computation in {{product-name}} Flow](../../../yandex-specific/flow/extensions/yql.md).
+If you need to run a YQL `SELECT` in a separate node of a regular pipeline instead of describing the whole pipeline with a query, see [YQL computation in {{product-name}} Flow (in Russian)](../../../../ru/flow/extensions/yql.md).
 
 {% endnote %}
 {% endif %}
@@ -24,20 +24,7 @@ If you need to run a YQL `SELECT` in a separate node of a regular pipeline inste
 
 ## Pragmas {#pragmas}
 
-You control a YQL over Flow query with a set of pragmas:
-
-| Pragma | Description |
-|---|---|
-| `PRAGMA Engine = "ytflow";` | Selects the Flow engine to run the query |
-| `PRAGMA Ytflow.Cluster = "...";` | Cluster for pipeline's internal tables |
-| `PRAGMA Ytflow.RuntimeCluster = "...";` | Cluster to run the vanilla operation.{% if audience == "internal" %} Vanga is recommended as a cross-DC cluster with high availability{% endif %} |
-| `PRAGMA Ytflow.PipelineDirectory = "...";` | Path to the directory with pipelines in {{product-name}} |
-| `PRAGMA Ytflow.PipelineName = "...";` | Pipeline name. Full path: `{pipeline_directory}/{pipeline_name}` |
-| `PRAGMA Ytflow.PipelinePath = "...";` | Full pipeline path instead of the `PipelineDirectory` and `PipelineName` pair |
-| `PRAGMA Ytflow.WorkerCount = "...";` | Number of worker jobs for the vanilla operation |
-| `PRAGMA Ytflow.EnableComputationPatternResources = "true";` | Reuses computation patterns across graphs in one worker. Default is `false` |
-{% if audience == "internal" %}| `PRAGMA Ytflow.LogbrokerConsumerPath = "...";` | Path to the [Logbroker](../../../yandex-specific/flow/extensions/logbroker.md) consumer (only when reading from Logbroker) |
-{% endif %}
+You control a YQL over Flow query with a set of pragmas. For the full list, see the [Pragma reference](../../../flow/yql/pragma-reference.md).
 
 ## First query {#first-query}
 
@@ -72,7 +59,7 @@ WHERE int64_field > 1;
 
 The query starts a pipeline that continuously processes messages from the input queue and writes the results to the output queue. The output table schemas are automatically inferred from the query.
 
-For a description of all supported YQL constructs, see the [Supported constructs](../../../flow/yql/features.md) section.
+For a description of YQL features, see the [Features](../../../flow/yql/features.md) section.
 
 ## How to run {#how-to-run}
 
@@ -112,7 +99,7 @@ After the query finishes, a pipeline starts on the cluster and runs continuously
 
 To track the running pipeline, you can use:
 
-{% if audience == "internal" %}- **Processing graph** with stream characteristics and resource consumption — the **Flow** tab for the pipeline in the {{product-name}} UI.{% endif %}
+{% if audience == "internal" %}- **Processing graph** with stream characteristics and resource consumption — the [**Flow** tab for the pipeline in the {{product-name}} UI (in Russian)](../../../../ru/flow/devops/deploy/diagnostics/ui.md).{% endif %}
 - **Dashboard** — **Flow → Monitoring** tab.
 - **Controller logs** (worker status, possible issues):
   ```bash
@@ -122,6 +109,6 @@ To track the running pipeline, you can use:
 
 ## See also
 
-- [Supported constructs](../../../flow/yql/features.md)
+- [Features](../../../flow/yql/features.md)
 - [Basic concepts](../../../flow/concepts/glossary.md)
 - [Connectors](../../../flow/connectors/about.md)
