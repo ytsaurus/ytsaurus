@@ -203,11 +203,10 @@ std::vector<TNodeHolder> TClusterStateProvider::GetNodes(NCellarClient::ECellarT
             continue;
         }
 
-        const auto* cells = FindAssignedCells(node->GetDefaultAddress());
         nodes.emplace_back(
             node.get(),
             node->GetCellarSize(cellarType),
-            cells ? *cells : TCellSet());
+            FindAssignedCells(node->GetDefaultAddress(), cellarType));
     }
 
     return nodes;
@@ -232,12 +231,17 @@ bool TClusterStateProvider::CheckIfNodeCanHostCells(const TNode* node) const
     return CellHostNodes_.contains(node);
 }
 
-const TCellSet* TClusterStateProvider::FindAssignedCells(const std::string& address) const
+TCellSet TClusterStateProvider::FindAssignedCells(const std::string& address, ECellarType cellarType) const
 {
-    auto it = AddressToCell_.find(address);
-    return it != AddressToCell_.end()
-        ? &it->second
-        : nullptr;
+    TCellSet assignedCells;
+    if (auto it = AddressToCell_.find(address); it != AddressToCell_.end()) {
+        for (const auto& [cell, peerId] : it->second) {
+            if (cell->GetCellarType() == cellarType) {
+                assignedCells.emplace_back(cell, peerId);
+            }
+        }
+    }
+    return assignedCells;
 }
 
 const THashSet<TCellBase*>& TClusterStateProvider::Cells(ECellarType cellarType)
