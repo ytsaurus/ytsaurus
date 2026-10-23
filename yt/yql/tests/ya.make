@@ -11,6 +11,7 @@ RECURSE_FOR_TESTS(
 
 IF (NOT OPENSOURCE)
     RECURSE_FOR_TESTS(
+        clique
         dq
     )
 ENDIF()
