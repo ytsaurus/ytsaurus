@@ -1,7 +1,9 @@
 ## Flow
 
 
-Один релиз покрывает все компоненты Flow: сервер docker-образами — обычным, с Java-рантаймом и с Python-рантаймом, Java SDK в Maven Central, Python SDK в PyPI и Go SDK go-модулем, все в одной версии.
+Один релиз включает все компоненты Flow: сервер в виде docker-образов — базового и со средой выполнения Java или
+Python, Java SDK в Maven Central, Python SDK в PyPI и Go SDK в виде Go-модуля,
+все одной версии.
 
 
 
@@ -37,7 +39,7 @@
 **Go SDK:** [0.3.0](https://pkg.go.dev/go.ytsaurus.tech/yt/go/flow@v0.3.0)
 
 
-{{product-name}} Flow — фреймворк для потоковой кросс-ДЦ обработки событий с гарантиями exactly-once в рамках экосистемы {{product-name}} с API для C++, Java и Kotlin, Python и Go. Ближайшие внешние аналоги — Google Cloud Dataflow и Apache Flink.
+YTsaurus Flow — фреймворк для потоковой кросс-ДЦ обработки событий с гарантиями exactly-once в рамках экосистемы YTsaurus и API для C++, Java и Kotlin, Python и Go. Ближайшие внешние аналоги — Google Cloud Dataflow и Apache Flink.
 
 Это первый релиз Flow с опубликованными артефактами. В него входят сервер, SDK и инструменты: все имеют версию 0.3.0 и собраны из одного коммита.
 
@@ -65,28 +67,29 @@ Python-пакеты в PyPI, версия `0.3.0`:
 
 Go-модуль: `go get go.ytsaurus.tech/yt/go/flow@v0.3.0`.
 
-#### Возможности
+#### Новые возможности
 
 - Обработка exactly-once
 - Корректный результат при сбоях
 - Состояние по ключу
-- Внешнее состояние в динамических таблицах {{product-name}}
+- Внешнее состояние в динамических таблицах YTsaurus
 - Водяные знаки и таймеры
 - Сложные графы
 - Автоматическая адаптация пайплайна под поток данных
-- Коннекторы для очередей, статических и динамических таблиц {{product-name}}
+- Коннекторы для очередей, статических и динамических таблиц YTsaurus
 - SDK для Java/Kotlin, Python и Go
-- Развёртывание как vanilla-операция {{product-name}}
+- Развёртывание в виде Vanilla-операции YTsaurus
 - Docker-образы для окружения джобов
 - Управление пайплайном через CLI
 
 #### Документация
 
-- [Что такое Flow](https://ytsaurus.tech/docs/ru/flow/about)
+- [Что такое Flow](https://ytsaurus.tech/docs/en/flow/about)
 - [Начало работы](https://ytsaurus.tech/docs/ru/flow/start) и [быстрый старт](https://ytsaurus.tech/docs/ru/flow/quickstart)
 - Руководства по языкам: [Java](https://ytsaurus.tech/docs/ru/flow/java/getting-started), [Python](https://ytsaurus.tech/docs/ru/flow/python/getting-started), [Go](https://ytsaurus.tech/docs/ru/flow/go/getting-started)
-- [Запуск в docker-окружении](https://ytsaurus.tech/docs/ru/flow/devops/docker-environment)
-- [CLI Flow](https://ytsaurus.tech/docs/ru/flow/tools/cli)
+- [Запуск в docker-окружении](https://ytsaurus.tech/docs/en/flow/devops/docker-environment)
+- [CLI Flow](https://ytsaurus.tech/docs/en/flow/tools/cli)
+
 
 {% endcut %}
 
