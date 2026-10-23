@@ -134,13 +134,17 @@ protected:
 
     //! Slices [fileName] using an auto-detected engine (so the file's extension
     //! also drives which engine is selected).
-    std::vector<std::string> Slice(const TString& fileName, TInstant from, TInstant to)
+    std::vector<std::string> Slice(
+        const TString& fileName,
+        TInstant from,
+        TInstant to,
+        TDuration seekMargin = TDuration::Zero())
     {
         auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, fileName);
 
         TFile file(fileName, OpenExisting | RdOnly);
         TStringStream output;
-        engine->Slice(file, from, to, output);
+        engine->Slice(file, from, to, seekMargin, output);
 
         std::vector<std::string> lines;
         for (TStringBuf line : StringSplitter(output.Str()).Split('\n').SkipEmpty()) {
@@ -412,6 +416,49 @@ TEST_F(TLogSliceTest, SlicePlainText)
     CheckSliceRanges(logFile.Name(), base);
 }
 
+TEST_F(TLogSliceTest, SliceSeekMarginFindsLinesOutOfOrder)
+{
+    auto base = ParseQueryTime("2021-06-07T08:09:10.000000Z");
+    auto half = TDuration::MilliSeconds(500);
+    std::vector<std::pair<TInstant, TString>> lateAtStartEvents{
+        {base, "msg-0"},
+        {base + TDuration::Seconds(1), "msg-1"},
+        {base + TDuration::Seconds(3), "msg-3"},
+        {base + TDuration::Seconds(2), "msg-2"},
+        {base + TDuration::Seconds(4), "msg-4"},
+    };
+    std::vector<std::pair<TInstant, TString>> lateAtEndEvents{
+        {base, "msg-0"},
+        {base + TDuration::Seconds(1), "msg-1"},
+        {base + TDuration::Seconds(2), "msg-2"},
+        {base + TDuration::Seconds(4), "msg-4"},
+        {base + TDuration::Seconds(3), "msg-3"},
+    };
+    for (const auto& [suffix, method] : std::vector<std::pair<TString, std::optional<ECompressionMethod>>>{
+        {".log", std::nullopt},
+        {".log.zst", ECompressionMethod::Zstd},
+        {".log.gz", ECompressionMethod::Gzip},
+    }) {
+        TTempFile lateAtStartFile(GenerateRandomFileName("log") + suffix);
+        WriteLog(lateAtStartFile.Name(), method, lateAtStartEvents);
+        auto start = MessagesOf(Slice(
+            lateAtStartFile.Name(),
+            base + TDuration::Seconds(2) + half,
+            base + TDuration::Seconds(4) + half,
+            /*seekMargin*/ TDuration::Seconds(1)));
+        EXPECT_EQ((std::vector<std::string>{"msg-3", "msg-4"}), start);
+
+        TTempFile lateAtEndFile(GenerateRandomFileName("log") + suffix);
+        WriteLog(lateAtEndFile.Name(), method, lateAtEndEvents);
+        auto end = MessagesOf(Slice(
+            lateAtEndFile.Name(),
+            base + half,
+            base + TDuration::Seconds(3) + half,
+            /*seekMargin*/ TDuration::Seconds(1)));
+        EXPECT_EQ((std::vector<std::string>{"msg-1", "msg-2", "msg-3"}), end);
+    }
+}
+
 TEST_F(TLogSliceTest, SliceYsonAndTimeRange)
 {
     auto base = ParseQueryTime("2026-08-19T11:20:00.123456Z");
@@ -602,7 +649,7 @@ TEST_F(TLogSliceTest, SliceTruncatedFileKeepsOutputErrors)
     auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, zstdFile.Name());
     TFile file(zstdFile.Name(), OpenExisting | RdOnly);
     TOutputFailingOnce output;
-    EXPECT_THROW(engine->Slice(file, TInstant::Zero(), TInstant::Max(), output), std::runtime_error);
+    EXPECT_THROW(engine->Slice(file, TInstant::Zero(), TInstant::Max(), /*seekMargin*/ TDuration::Zero(), output), std::runtime_error);
 }
 
 TEST_F(TLogSliceTest, SliceCutsLongLines)
