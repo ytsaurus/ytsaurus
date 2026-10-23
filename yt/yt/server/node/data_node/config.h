@@ -333,6 +333,13 @@ struct TLayerLocationConfig
 
     bool ResidesOnTmpfs;
 
+    //! Number of concurrent layer imports served by this location's dedicated Porto
+    //! executor; 1 means sequential imports.
+    //! The total across locations is additionally bounded by the node-wide dynamic
+    //! option "layer_import_concurrency"
+    //! (see #NExecNode::TLayerCacheDynamicConfig::LayerImportConcurrency).
+    int LayerImportLocationConcurrency;
+
     NServer::TDiskHealthCheckerConfigPtr DiskHealthChecker;
 
     REGISTER_YSON_STRUCT(TLayerLocationConfig);

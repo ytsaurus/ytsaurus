@@ -248,6 +248,7 @@ struct TLayerCacheDynamicConfig
     //! For testing.
     std::optional<TDuration> DelayAfterLayerImported;
 
+    //! Node-wide limit on layer imports running concurrently across all locations.
     int LayerImportConcurrency;
 
     bool EnableAsyncLayerRemoval;

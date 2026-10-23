@@ -398,6 +398,11 @@ void TLayerLocationConfig::Register(TRegistrar registrar)
     registrar.Parameter("resides_on_tmpfs", &TThis::ResidesOnTmpfs)
         .Default(false);
 
+    registrar.Parameter("layer_import_location_concurrency", &TThis::LayerImportLocationConcurrency)
+        .Default(1)
+        .GreaterThan(0)
+        .LessThanOrEqual(16);
+
     registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
         .DefaultNew();
 }

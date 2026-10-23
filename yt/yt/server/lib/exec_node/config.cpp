@@ -226,7 +226,7 @@ void TLayerCacheDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("layer_import_concurrency", &TThis::LayerImportConcurrency)
         .Default(2)
         .GreaterThan(0)
-        .LessThanOrEqual(10);
+        .LessThanOrEqual(64);
 
     registrar.Parameter("enable_async_layer_removal", &TThis::EnableAsyncLayerRemoval)
         .Default(true);

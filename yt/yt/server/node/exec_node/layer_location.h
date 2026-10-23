@@ -42,6 +42,7 @@ public:
         NContainers::IPortoExecutorPtr volumeExecutor,
         NContainers::IPortoExecutorPtr layerExecutor,
         NContainers::IPortoExecutorPtr fastLayerExecutor,
+        NContainers::IPortoExecutorPtr layerImportExecutor,
         const std::string& id);
 
     TFuture<void> Initialize();
@@ -107,7 +108,11 @@ public:
 
     bool IsFull();
 
-    bool IsLayerImportInProgress() const;
+    int GetLayerImportsInProgress() const;
+
+    //! Nominal layer import concurrency: the API thread count of the import executor
+    //! (1 for sequential imports).
+    int GetLayerImportConcurrency() const;
 
     void OnDynamicConfigChanged(
         const TLayerCacheDynamicConfigPtr& oldConfig,
@@ -159,7 +164,11 @@ private:
     const NContainers::IPortoExecutorPtr LayerExecutor_;
     const NContainers::IPortoExecutorPtr FastLayerExecutor_;
 
+    //! Porto executor serving layer imports; its API thread count is the per-location import concurrency.
+    const NContainers::IPortoExecutorPtr LayerImportExecutor_;
+
     const NConcurrency::TActionQueuePtr LocationQueue_;
+
     const std::string VolumesPath_;
     const std::string VolumesMetaPath_;
     const std::string LayersPath_;
