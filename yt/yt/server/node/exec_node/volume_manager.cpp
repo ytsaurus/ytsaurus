@@ -405,6 +405,41 @@ public:
         for (int index = 0; index < std::ssize(Config_->VolumeManager->LayerLocations); ++index) {
             const auto& locationConfig = Config_->VolumeManager->LayerLocations[index];
             auto id = Format("layer%v", index);
+
+            auto layerImportProfiler = ExecNodeProfiler()
+                .WithPrefix("/location_import_layers/porto")
+                .WithTag("location_id", id);
+            auto layerImportExecutor = CreatePortoExecutor(
+                dynamicConfig->LayerCache->LayerPortoExecutor,
+                Format("layer_import%v", index),
+                layerImportProfiler,
+                locationConfig->LayerImportLocationConcurrency);
+
+            auto layerExecutor = CreatePortoExecutor(
+                dynamicConfig->LayerCache->LayerPortoExecutor,
+                Format("layer%v", index),
+                ExecNodeProfiler().WithPrefix("/location_layers/porto").WithTag("location_id", id),
+                /*apiThreadCount*/ 1);
+
+            // Imports go through the import executor, removals through the layer one;
+            // the per-location gauge aggregates the surplus of both.
+            layerImportProfiler
+                .AddFuncGauge("/layer_surplus", MakeStrong(this), [layerExecutor, layerImportExecutor] {
+                    return layerExecutor->GetLayerSurplus() + layerImportExecutor->GetLayerSurplus();
+                });
+
+            auto fastLayerProfiler = ExecNodeProfiler()
+                .WithPrefix("/location_fast_layers/porto")
+                .WithTag("location_id", id);
+            auto fastLayerExecutor = CreatePortoExecutor(
+                dynamicConfig->LayerCache->LayerPortoExecutor,
+                Format("fast_layer%v", index),
+                fastLayerProfiler);
+            fastLayerProfiler
+                .AddFuncGauge("/layer_surplus", MakeStrong(this), [fastLayerExecutor] {
+                    return fastLayerExecutor->GetLayerSurplus();
+                });
+
             auto location = New<TLayerLocation>(
                 locationConfig,
                 DynamicConfigManager_,
@@ -413,14 +448,9 @@ public:
                     dynamicConfig->LayerCache->VolumePortoExecutor,
                     Format("volume%v", index),
                     ExecNodeProfiler().WithPrefix("/location_volumes/porto").WithTag("location_id", id)),
-                CreatePortoExecutor(
-                    dynamicConfig->LayerCache->LayerPortoExecutor,
-                    Format("layer%v", index),
-                    ExecNodeProfiler().WithPrefix("/location_layers/porto").WithTag("location_id", id)),
-                CreatePortoExecutor(
-                    dynamicConfig->LayerCache->LayerPortoExecutor,
-                    Format("fast_layer%v", index),
-                    ExecNodeProfiler().WithPrefix("/location_fast_layers/porto").WithTag("location_id", id)),
+                layerExecutor,
+                fastLayerExecutor,
+                std::move(layerImportExecutor),
                 id);
             initLocationResults.push_back(location->Initialize());
             locations.push_back(std::move(location));
@@ -433,10 +463,15 @@ public:
                 .With(error);
         }
 
+        auto tmpfsProfiler = ExecNodeProfiler().WithPrefix("/tmpfs_layers/porto");
         auto tmpfsExecutor = CreatePortoExecutor(
             dynamicConfig->LayerCache->TmpfsCache->PortoExecutor,
             "tmpfs_layer",
-            ExecNodeProfiler().WithPrefix("/tmpfs_layers/porto"));
+            tmpfsProfiler);
+        tmpfsProfiler
+            .AddFuncGauge("/layer_surplus", MakeStrong(this), [tmpfsExecutor] {
+                return tmpfsExecutor->GetLayerSurplus();
+            });
         LayerCache_ = New<TLayerCache>(
             Config_->VolumeManager,
             DynamicConfigManager_,

@@ -1061,32 +1061,29 @@ TLayerLocationPtr TLayerCache::PickVolumeLocation() const
 
 TLayerLocationPtr TLayerCache::PickRandomLocation() const
 {
-    // Separate locations into non-importing and importing.
-    std::vector<TLayerLocationPtr> nonImportingLocations;
-    std::vector<TLayerLocationPtr> importingLocations;
+    std::vector<TLayerLocationPtr> underloadedLocations;
+    std::vector<TLayerLocationPtr> saturatedLocations;
 
     for (const auto& location : LayerLocations_) {
         if (!location->IsEnabled() || location->IsFull()) {
             continue;
         }
 
-        if (location->IsLayerImportInProgress()) {
-            importingLocations.push_back(location);
+        if (location->GetLayerImportsInProgress() < location->GetLayerImportConcurrency()) {
+            underloadedLocations.push_back(location);
         } else {
-            nonImportingLocations.push_back(location);
+            saturatedLocations.push_back(location);
         }
     }
 
-    // Prefer non-importing locations, pick randomly from them.
-    if (!nonImportingLocations.empty()) {
-        auto index = RandomNumber<size_t>(nonImportingLocations.size());
-        return nonImportingLocations[index];
+    if (!underloadedLocations.empty()) {
+        auto index = RandomNumber<size_t>(underloadedLocations.size());
+        return underloadedLocations[index];
     }
 
-    // If all are importing, pick randomly from importing locations.
-    if (!importingLocations.empty()) {
-        auto index = RandomNumber<size_t>(importingLocations.size());
-        return importingLocations[index];
+    if (!saturatedLocations.empty()) {
+        auto index = RandomNumber<size_t>(saturatedLocations.size());
+        return saturatedLocations[index];
     }
 
     // For our purposes it is all right to return unavailable location.
@@ -1383,11 +1380,18 @@ TFuture<TLayerPtr> TLayerCache::DownloadAndImportLayer(
 TLayerLocationPtr TLayerCache::PickLayerLocation() const
 {
     return PickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
-        if (!candidate->IsLayerImportInProgress() && current->IsLayerImportInProgress()) {
-            // Always prefer candidate which is not doing import right now.
-            return true;
-        } else if (candidate->IsLayerImportInProgress() && !current->IsLayerImportInProgress()) {
-            return false;
+        // Prefer the location with the least relative import load:
+        //
+        //     imports(candidate)   imports(current)
+        //     ------------------ < -----------------
+        //     conc(candidate)      conc(current)
+        //
+        // The fractions are compared via cross-multiplication (valid for positive
+        // denominators), which is equivalent to division but stays in integer arithmetic.
+        auto candidateLoad = candidate->GetLayerImportsInProgress() * current->GetLayerImportConcurrency();
+        auto currentLoad = current->GetLayerImportsInProgress() * candidate->GetLayerImportConcurrency();
+        if (candidateLoad != currentLoad) {
+            return candidateLoad < currentLoad;
         }
 
         return candidate->GetAvailableSpace() > current->GetAvailableSpace();

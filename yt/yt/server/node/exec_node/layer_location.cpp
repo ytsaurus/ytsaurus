@@ -45,6 +45,14 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+constexpr TDuration LayerArchiveLockRetryInterval = TDuration::MilliSeconds(100);
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TLayerLocation::TLayerLocation(
     NDataNode::TLayerLocationConfigPtr locationConfig,
     NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
@@ -52,6 +60,7 @@ TLayerLocation::TLayerLocation(
     IPortoExecutorPtr volumeExecutor,
     IPortoExecutorPtr layerExecutor,
     IPortoExecutorPtr fastLayerExecutor,
+    IPortoExecutorPtr layerImportExecutor,
     const std::string& id)
     : TDiskLocation(locationConfig, id, ExecNodeLogger())
     , Config_(locationConfig)
@@ -59,6 +68,7 @@ TLayerLocation::TLayerLocation(
     , VolumeExecutor_(std::move(volumeExecutor))
     , LayerExecutor_(std::move(layerExecutor))
     , FastLayerExecutor_(std::move(fastLayerExecutor))
+    , LayerImportExecutor_(std::move(layerImportExecutor))
     , LocationQueue_(New<TActionQueue>(id))
     , VolumesPath_(NFS::CombinePaths(Config_->Path, VolumesName))
     , VolumesMetaPath_(NFS::CombinePaths(Config_->Path, VolumesMetaName))
@@ -106,9 +116,30 @@ TFuture<TLayerMeta> TLayerLocation::ImportLayer(
     TLayerId layerId,
     TGuid tag)
 {
-    return BIND(&TLayerLocation::DoImportLayer, MakeStrong(this), artifactKey, archivePath, container, layerId, tag)
+    // Counts import requests accepted by this location but not completed yet;
+    // used as a load factor when picking a location for a new import.
+    LayerImportsInProgress_.fetch_add(1);
+
+    // NB: concurrency is not limited here on purpose: the node-wide semaphore in
+    // TLayerCache::DownloadAndImportLayer bounds the total number of running imports,
+    // while the per-location porto executor thread pool bounds the actual API work;
+    // excess import fibers simply wait inside the executor invoker.
+    auto future = BIND(
+        &TLayerLocation::DoImportLayer,
+        MakeStrong(this),
+        artifactKey,
+        archivePath,
+        container,
+        layerId,
+        tag)
         .AsyncVia(LocationQueue_->GetInvoker())
         .Run();
+
+    future.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TLayerMeta>& /*result*/) {
+        LayerImportsInProgress_.fetch_add(-1);
+    }));
+
+    return future;
 }
 
 TFuture<void> TLayerLocation::RemoveLayer(const TLayerId& layerId)
@@ -411,9 +442,14 @@ bool TLayerLocation::IsFull()
     return GetAvailableSpace() < Config_->LowWatermark;
 }
 
-bool TLayerLocation::IsLayerImportInProgress() const
+int TLayerLocation::GetLayerImportsInProgress() const
 {
-    return LayerImportsInProgress_.load() > 0;
+    return LayerImportsInProgress_.load(std::memory_order::relaxed);
+}
+
+int TLayerLocation::GetLayerImportConcurrency() const
+{
+    return Config_->LayerImportLocationConcurrency;
 }
 
 i64 TLayerLocation::GetCapacity()
@@ -478,6 +514,7 @@ void TLayerLocation::OnDynamicConfigChanged(
     if (FastLayerExecutor_) {
         FastLayerExecutor_->OnDynamicConfigChanged(newConfig->LayerPortoExecutor);
     }
+    LayerImportExecutor_->OnDynamicConfigChanged(newConfig->LayerPortoExecutor);
 
     TDiskLocation::Reconfigure(std::invoke([&] {
         auto diskLocationConfig = CloneYsonStruct<TDiskLocationConfig>(Config_);
@@ -772,27 +809,43 @@ TLayerMeta TLayerLocation::DoImportLayer(const TArtifactKey& artifactKey, const 
         .WithTag("Tag", tag)
         .WithTag("LayerId", layerId);
 
-    LayerImportsInProgress_.fetch_add(1);
-
-    auto finally = Finally([&]{
-        LayerImportsInProgress_.fetch_add(-1);
-    });
     try {
         YT_TLOG_DEBUG("Ensure that cached layer archive is not in use")
             .With("ArchivePath", archivePath);
 
         {
-            // Take exclusive lock in blocking fashion to ensure that no
-            // forked process is holding an open descriptor to the source file.
+            // Take an exclusive lock to ensure that no forked process is holding
+            // an open descriptor to the source file. The lock is never held for
+            // long, but waiting for it must not block the location queue thread
+            // (which hosts all import fibers), hence the non-blocking retry loop.
             TFile file(archivePath, RdOnly | CloseOnExec);
-            file.Flock(LOCK_EX);
+            bool loggedWait = false;
+            while (true) {
+                try {
+                    file.Flock(LOCK_EX | LOCK_NB);
+                    break;
+                } catch (const TFileError& ex) {
+                    auto status = ex.Status();
+                    if (status != EWOULDBLOCK && status != EINTR) {
+                        throw;
+                    }
+
+                    if (!loggedWait) {
+                        YT_TLOG_DEBUG("Layer archive is locked by another process, waiting")
+                            .With("ArchivePath", archivePath);
+                        loggedWait = true;
+                    }
+
+                    TDelayedExecutor::WaitForDuration(LayerArchiveLockRetryInterval);
+                }
+            }
         }
 
         auto layerDirectory = GetLayerPath(layerId);
         i64 layerSize = 0;
         auto layerGuard = Finally([&] {
             try {
-                WaitFor(LayerExecutor_->RemoveLayer(ToString(layerId), PlacePath_, /*async*/ false))
+                WaitFor(LayerImportExecutor_->RemoveLayer(ToString(layerId), PlacePath_, /*async*/ false))
                     .ThrowOnError();
             } catch (const std::exception& cleanupEx) {
                 YT_TLOG_WARNING("Failed to clean up partially-imported layer")
@@ -823,7 +876,7 @@ TLayerMeta TLayerLocation::DoImportLayer(const TArtifactKey& artifactKey, const 
                 .With("Path", layerDirectory);
 
             TEventTimerGuard timer(PerformanceCounters_.ImportLayerTimer);
-            WaitFor(LayerExecutor_->ImportLayer(archivePath, ToString(layerId), PlacePath_, container))
+            WaitFor(LayerImportExecutor_->ImportLayer(archivePath, ToString(layerId), PlacePath_, container))
                 .ThrowOnError();
         } catch (const std::exception& ex) {
             YT_TLOG_ERROR("Layer unpacking failed")

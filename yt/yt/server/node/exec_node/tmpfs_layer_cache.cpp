@@ -154,6 +154,7 @@ TFuture<void> TTmpfsLayerCache::Initialize()
             PortoExecutor_,
             PortoExecutor_,
             nullptr,
+            PortoExecutor_,
             Format("%v_tmpfs_layer", CacheName_));
 
         WaitFor(TmpfsLocation_->Initialize())
