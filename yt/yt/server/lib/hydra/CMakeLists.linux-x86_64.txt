@@ -75,6 +75,7 @@ target_sources(server-lib-hydra PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/checkpointable_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/composite_automaton.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/config_wrapper.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/decorated_automaton.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/distributed_hydra_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/dry_run_hydra_manager.cpp

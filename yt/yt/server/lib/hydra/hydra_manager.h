@@ -84,7 +84,7 @@ struct ISimpleHydraManager
     /*!
      *  \note Thread affinity: AutomatonThread
      */
-    virtual TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr config) = 0;
+    virtual void Reconfigure(TDynamicDistributedHydraManagerConfigPtr config) = 0;
 
     //! Returns |true| if Hydra is entering read only move.
     /*!

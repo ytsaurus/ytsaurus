@@ -14,6 +14,7 @@ SRCS(
     checkpointable_stream.cpp
     composite_automaton.cpp
     config.cpp
+    config_wrapper.cpp
     decorated_automaton.cpp
     distributed_hydra_manager.cpp
     dry_run_hydra_manager.cpp
