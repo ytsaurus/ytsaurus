@@ -8,7 +8,7 @@ from yt_commands import (
     switch_leader, set_node_banned, add_maintenance, remove_maintenance, set_node_decommissioned, execute_command,
     is_active_primary_master_leader, is_active_primary_master_follower, get_active_primary_master_leader_address,
     get_active_primary_master_follower_address, create_tablet_cell_bundle, get_nodes, raises_yt_error,
-    create_domestic_medium,
+    create_domestic_medium, make_batch_request, execute_batch, get_batch_error
 )
 
 from yt_helpers import profiler_factory
@@ -71,6 +71,20 @@ class TestChunkServer(YTEnvSetup):
     @classmethod
     def on_masters_started(cls):
         create_domestic_medium("non_default")
+
+    def teardown_method(self, method):
+        requests = [
+            make_batch_request(
+                "remove",
+                path=f"//sys/chunk_locations/{str(location)}/@medium_override",
+            )
+            for location in ls("//sys/chunk_locations", attributes=["medium_override"])
+            if "medium_override" in location.attributes
+        ]
+        for response in execute_batch(requests):
+            assert not get_batch_error(response)
+
+        super().teardown_method(method)
 
     @authors("kvk1920")
     def test_invalid_medium_name(self):
