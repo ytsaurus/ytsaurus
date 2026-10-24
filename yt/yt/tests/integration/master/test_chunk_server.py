@@ -343,7 +343,11 @@ class TestChunkServer(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
 
-        master = ls("//sys/primary_masters")[0]
+        # The upload requisition is replaced by the committed one asynchronously.
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: all(entry["committed"] for entry in get(f"#{chunk_id}/@requisition")))
+
+        master = get_active_primary_master_leader_address(self)
         master_orchid_path = "//sys/primary_masters/{0}/orchid/chunk_manager/requisition_registry".format(master)
 
         known_requisition_indexes = frozenset(ls(master_orchid_path))
