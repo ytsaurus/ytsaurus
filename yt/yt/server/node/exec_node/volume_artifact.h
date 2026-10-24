@@ -5,6 +5,8 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,7 +28,8 @@ struct IVolumeArtifactCache
 {
     virtual TFuture<IVolumeArtifactPtr> DownloadArtifact(
         const TArtifactKey& key,
-        const TArtifactDownloadOptions& artifactDownloadOptions) = 0;
+        const TArtifactDownloadContext& artifactDownloadContext,
+        TNonNullPtr<ECacheEventType> cacheEventType) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

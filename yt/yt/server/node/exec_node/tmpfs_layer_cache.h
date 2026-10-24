@@ -40,7 +40,7 @@ class TTmpfsLayerCache
 public:
     using TAbsorbLayerCallback = TCallback<TFuture<TLayerPtr>(
         const TArtifactKey& artifactKey,
-        const TArtifactDownloadOptions& downloadOptions,
+        const TArtifactDownloadContext& downloadContext,
         TGuid tag,
         TLayerLocationPtr targetLocation)>;
 

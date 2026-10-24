@@ -5,6 +5,8 @@
 
 #include <yt/yt/core/actions/bind.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,9 +40,10 @@ public:
 
     TFuture<IVolumeArtifactPtr> DownloadArtifact(
         const TArtifactKey& key,
-        const TArtifactDownloadOptions& artifactDownloadOptions) override
+        const TArtifactDownloadContext& artifactDownloadContext,
+        TNonNullPtr<ECacheEventType> cacheEventType) override
     {
-        auto artifact = ArtifactCache_->DownloadArtifact(key, artifactDownloadOptions);
+        auto artifact = ArtifactCache_->DownloadArtifact(key, artifactDownloadContext, cacheEventType);
         return artifact.Apply(BIND([] (TArtifactPtr artifact) {
             return IVolumeArtifactPtr(New<TVolumeArtifactAdapter>(artifact));
         }));

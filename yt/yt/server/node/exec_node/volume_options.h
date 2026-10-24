@@ -83,7 +83,7 @@ struct TPrepareLayerOptions
 {
     TJobId JobId;
     TArtifactKey ArtifactKey;
-    TArtifactDownloadOptions ArtifactDownloadOptions;
+    TArtifactDownloadContext ArtifactDownloadContext;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,7 +92,7 @@ struct TPrepareSquashFSVolumeOptions
 {
     TJobId JobId;
     TArtifactKey ArtifactKey;
-    TArtifactDownloadOptions ArtifactDownloadOptions;
+    TArtifactDownloadContext ArtifactDownloadContext;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

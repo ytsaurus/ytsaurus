@@ -113,7 +113,7 @@ private:
 
     TFuture<TSquashFSVolumePtr> DownloadAndPrepareVolume(
         const TArtifactKey& artifactKey,
-        const TArtifactDownloadOptions& downloadOptions,
+        const TArtifactDownloadContext& downloadContext,
         TGuid tag);
 
     TSquashFSVolumePtr CreateSquashFSVolume(
@@ -274,8 +274,6 @@ public:
 
     TFuture<void> GetVolumeReleaseEvent();
 
-    bool IsLayerCached(const TArtifactKey& artifactKey);
-
     void Touch(const TLayerPtr& layer);
 
     void BuildOrchid(NYTree::TFluentAny fluent) const;
@@ -314,11 +312,11 @@ private:
 
     void ProfileLocation(const TLayerLocationPtr& location);
 
-    TLayerPtr FindLayerInTmpfs(const TArtifactKey& artifactKey, const TGuid& tag = TGuid());
+    TLayerPtr FindLayerInTmpfs(const TArtifactKey& artifactKey, const TGuid& tag);
 
     TFuture<TLayerPtr> DownloadAndImportLayer(
         const TArtifactKey& artifactKey,
-        const TArtifactDownloadOptions& downloadOptions,
+        const TArtifactDownloadContext& downloadContext,
         TGuid tag,
         TLayerLocationPtr location);
 

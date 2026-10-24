@@ -42,7 +42,7 @@ struct TJobWorkspaceBuildingContext
     TJobPtr Job;
     std::string CommandUser;
 
-    TArtifactDownloadOptions ArtifactDownloadOptions;
+    TArtifactDownloadContext ArtifactDownloadContext;
 
     TJobFSSecretaryPtr FSSecretary;
     std::vector<NContainers::TBind> Binds;
@@ -114,7 +114,6 @@ class TJobWorkspaceBuilder
 {
 public:
     DEFINE_SIGNAL(void(EJobPhase phase), UpdateBuilderPhase);
-    DEFINE_SIGNAL(void(i64 compressedDataSize, bool cacheHit, bool isLayer), UpdateArtifactStatistics);
     DEFINE_SIGNAL(void(TJobWorkspaceBuilderTimePoints), UpdateTimePoints);
 
 public:
@@ -173,11 +172,6 @@ protected:
     void ValidateJobPhase(EJobPhase expectedPhase) const;
 
     void SetJobPhase(EJobPhase phase);
-
-    void UpdateArtifactStatistics(
-        i64 compressedDataSize,
-        bool cacheHit,
-        bool isLayer);
 
     void MakeArtifactSymlinks();
 
