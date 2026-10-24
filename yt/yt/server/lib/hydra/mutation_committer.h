@@ -129,6 +129,8 @@ public:
         NLogging::TLogger logger,
         NProfiling::TProfiler profiler);
 
+    ~TLeaderCommitter();
+
     TVersion GetNextLoggedVersion() const;
     i64 GetLoggedSequenceNumber() const;
     i64 GetLastOffloadedSequenceNumber() const;
@@ -138,8 +140,6 @@ public:
     std::optional<TFuture<int>> GetLastSnapshotFuture(bool waitForCompletion, bool readOnly);
 
     TFuture<void> GetLastMutationFuture();
-
-    void Reconfigure();
 
     void Start();
     void Stop();
@@ -157,6 +157,8 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr FlushMutationsExecutor_;
     const NConcurrency::TPeriodicExecutorPtr CheckpointCheckExecutor_;
+
+    const TCallback<void(const TDistributedHydraManagerConfigPtr&)> ConfigChangedCallback_;
 
     bool Active_ = false;
 
@@ -206,6 +208,8 @@ private:
     NProfiling::TSummary BatchSizeSummary_;
     NProfiling::TSummary MutationQueueSizeSummary_;
     NProfiling::TSummary MutationQueueDataSizeSummary_;
+
+    void OnConfigChanged(const TDistributedHydraManagerConfigPtr& config);
 
     void FlushMutations();
     void OnMutationsAcceptedByFollower(

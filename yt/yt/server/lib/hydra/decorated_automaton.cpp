@@ -3,6 +3,7 @@
 #include "automaton.h"
 #include "changelog.h"
 #include "config.h"
+#include "config_wrapper.h"
 #include "helpers.h"
 #include "serialize.h"
 #include "snapshot.h"

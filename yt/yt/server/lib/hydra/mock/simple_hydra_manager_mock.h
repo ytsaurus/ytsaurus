@@ -44,7 +44,7 @@ public:
     TCancelableContextPtr GetAutomatonCancelableContext() const override;
     TEpochId GetAutomatonEpochId() const override;
     int GetAutomatonTerm() const override;
-    TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr config) override;
+    void Reconfigure(TDynamicDistributedHydraManagerConfigPtr config) override;
     NLogging::ELogLevel GetMutationHandlerFailureLogLevel(TStringBuf mutationType) const override;
     NLogging::ELogLevel GetUnknownAutomatonPartsLogLevel() const override;
     bool IsEnteringReadOnlyMode() const override;
