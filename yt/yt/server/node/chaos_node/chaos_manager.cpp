@@ -3771,7 +3771,6 @@ private:
         tagsList.emplace_back("replication_card_id", ToString(replicationCard.GetId()));
         tagsList.emplace_back("replica_cluster_name", replica.ClusterName);
         tagsList.emplace_back("replica_path", replica.ReplicaPath);
-        tagsList.emplace_back("chaos_cell_bundle", Slot_->GetCellBundleName());
         if (!replicationCard.GetTablePath().empty()) {
             tagsList.emplace_back("chaos_replicated_table_cluster", replicationCard.GetTableClusterName());
             tagsList.emplace_back("chaos_replicated_table_path", replicationCard.GetTablePath());
