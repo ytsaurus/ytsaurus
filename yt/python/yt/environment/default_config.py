@@ -739,6 +739,8 @@ def get_dynamic_node_config():
                     "job_common": {
                         "node_directory_prepare_backoff_time": 100,
                         "job_prepare_time_limit": 60000,
+                        # Nested in a YT job, slot-N.slot-M.<host> may exceed the 64-char host name limit.
+                        "job_host_name_prefix_pattern": "s$(SlotIndex)",
                     },
                     "unknown_operation_jobs_removal_delay": 5000,
                 },
