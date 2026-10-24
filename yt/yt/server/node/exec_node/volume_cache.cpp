@@ -72,6 +72,14 @@ static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 
 namespace {
 
+//! Checks whether the insertion cookie has already resolved to a value inserted by
+//! another insertion, i.e. the artifact is already in the cache.
+template <class TValue>
+bool IsAlreadyInCache(const TFuture<TValue>& value)
+{
+    return value.IsSet() && value.GetOrCrash().IsOK();
+}
+
 i64 GetCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
 {
     i64 result = 0;
@@ -79,6 +87,31 @@ i64 GetCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
         result += location->GetCapacity();
     }
     return result;
+}
+
+void ReportLayerFetch(
+    const TArtifactDownloadContext& downloadContext,
+    ECacheEventType cacheEventType,
+    TCpuDuration downloadCpuDuration,
+    const TArtifactKey& artifactKey)
+{
+    switch (cacheEventType) {
+        case ECacheEventType::Miss:
+            if (downloadContext.OnLayerDownloaded) {
+                downloadContext.OnLayerDownloaded(downloadCpuDuration, artifactKey.GetCompressedDataSize());
+            }
+            break;
+        case ECacheEventType::Hit:
+            if (downloadContext.OnChunkCacheHit) {
+                downloadContext.OnChunkCacheHit(artifactKey.GetCompressedDataSize());
+            }
+            break;
+        case ECacheEventType::AsyncHit:
+            if (downloadContext.OnChunkCacheAsyncHit) {
+                downloadContext.OnChunkCacheAsyncHit(downloadCpuDuration, artifactKey.GetCompressedDataSize());
+            }
+            break;
+    }
 }
 
 } // namespace anonymous
@@ -132,7 +165,7 @@ TFuture<IVolumePtr> TSquashFSVolumeCache::GetOrCreateVolume(
     TPrepareSquashFSVolumeOptions options)
 {
     const auto& artifactKey = options.ArtifactKey;
-    const auto& downloadOptions = options.ArtifactDownloadOptions;
+    const auto& downloadContext = options.ArtifactDownloadContext;
 
     YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
     YT_VERIFY(FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS);
@@ -145,7 +178,7 @@ TFuture<IVolumePtr> TSquashFSVolumeCache::GetOrCreateVolume(
     auto cookie = BeginInsert(artifactKey);
     auto value = cookie.GetValue();
     if (cookie.IsActive()) {
-        DownloadAndPrepareVolume(artifactKey, downloadOptions, tag)
+        DownloadAndPrepareVolume(artifactKey, downloadContext, tag)
             .Subscribe(BIND([=, cookie = std::move(cookie)] (const TErrorOr<TIntrusivePtr<TCachedVolume<TArtifactKey>>>& volumeOrError) mutable {
                 if (volumeOrError.IsOK()) {
                     YT_TLOG_DEBUG("Squashfs volume has been inserted into cache")
@@ -158,9 +191,24 @@ TFuture<IVolumePtr> TSquashFSVolumeCache::GetOrCreateVolume(
                 }
             })
             .Via(GetCurrentInvoker()));
+    } else if (IsAlreadyInCache(value)) {
+        YT_TLOG_DEBUG("Squashfs volume is already in the cache")
+            .With("VolumeId", value.GetOrCrash().Value()->GetId());
+        if (downloadContext.OnLayerCacheHit) {
+            downloadContext.OnLayerCacheHit(artifactKey.GetCompressedDataSize());
+        }
     } else {
-        YT_TLOG_DEBUG("Squashfs volume is either already in the cache or is being inserted")
-            .With("VolumeId", value.IsSet() && value.GetOrCrash().IsOK() ? ToString(value.GetOrCrash().Value()->GetId()) : "<importing>");
+        YT_TLOG_DEBUG("Squashfs volume is being inserted by another job");
+        auto waitCpuStart = GetCpuInstant();
+        return value.Apply(BIND([=] (
+            const TErrorOr<TIntrusivePtr<TCachedVolume<TArtifactKey>>>& volumeOrError)
+        {
+            if (volumeOrError.IsOK() && downloadContext.OnLayerCacheAsyncHit) {
+                downloadContext.OnLayerCacheAsyncHit(GetCpuInstant() - waitCpuStart, artifactKey.GetCompressedDataSize());
+            }
+            return volumeOrError;
+        }))
+            .As<IVolumePtr>();
     }
 
     return value.As<IVolumePtr>();
@@ -168,7 +216,7 @@ TFuture<IVolumePtr> TSquashFSVolumeCache::GetOrCreateVolume(
 
 TFuture<TSquashFSVolumePtr> TSquashFSVolumeCache::DownloadAndPrepareVolume(
     const TArtifactKey& artifactKey,
-    const TArtifactDownloadOptions& downloadOptions,
+    const TArtifactDownloadContext& downloadContext,
     TGuid tag)
 {
     YT_TLOG_DEBUG("Downloading and preparing squashfs volume")
@@ -176,13 +224,12 @@ TFuture<TSquashFSVolumePtr> TSquashFSVolumeCache::DownloadAndPrepareVolume(
         .With("CypressPath", artifactKey.data_source().path());
 
     auto downloadCpuStart = GetCpuInstant();
-    return ArtifactCache_->DownloadArtifact(artifactKey, downloadOptions)
+    auto cacheEventType = ECacheEventType::Miss;
+    return ArtifactCache_->DownloadArtifact(artifactKey, downloadContext, &cacheEventType)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifact) {
             auto downloadCpuDuration = GetCpuInstant() - downloadCpuStart;
 
-            if (downloadOptions.OnLayerDownloaded) {
-                downloadOptions.OnLayerDownloaded(downloadCpuDuration, /*importCpuDuration*/ 0, /*importSize*/ 0);
-            }
+            ReportLayerFetch(downloadContext, cacheEventType, downloadCpuDuration, artifactKey);
 
             auto tagSet = TVolumeProfilerCounters::MakeTagSet(
                 /*volume type*/ "squashfs",
@@ -977,12 +1024,12 @@ TLayerCache::TLayerCache(
     auto absorbLayer = BIND(
         [=, this, this_ = MakeWeak(this)] (
             const TArtifactKey& artifactKey,
-            const TArtifactDownloadOptions& downloadOptions,
+            const TArtifactDownloadContext& downloadContext,
             TGuid tag,
             TLayerLocationPtr location)
         {
             if (auto cache = this_.Lock()) {
-                return DownloadAndImportLayer(artifactKey, downloadOptions, tag, std::move(location));
+                return DownloadAndImportLayer(artifactKey, downloadContext, tag, std::move(location));
             } else {
                 THROW_ERROR_EXCEPTION("Layer cache has been destroyed");
             }
@@ -1150,7 +1197,7 @@ TFuture<TLayerPtr> TLayerCache::GetOrCreateLayer(
     ValidatePrepareLayerOptions(options);
 
     const auto& artifactKey = options.ArtifactKey;
-    const auto& downloadOptions = options.ArtifactDownloadOptions;
+    const auto& downloadContext = options.ArtifactDownloadContext;
 
     auto Logger = ExecNodeLogger()
         .WithTag("Tag", tag)
@@ -1162,13 +1209,16 @@ TFuture<TLayerPtr> TLayerCache::GetOrCreateLayer(
     auto layer = FindLayerInTmpfs(artifactKey, tag);
     if (layer) {
         YT_TLOG_DEBUG("Found layer in tmpfs cache");
+        if (downloadContext.OnLayerCacheHit) {
+            downloadContext.OnLayerCacheHit(artifactKey.GetCompressedDataSize());
+        }
         return MakeFuture(layer);
     }
 
     auto cookie = BeginInsert(artifactKey);
     auto value = cookie.GetValue();
     if (cookie.IsActive()) {
-        DownloadAndImportLayer(artifactKey, downloadOptions, tag, nullptr)
+        DownloadAndImportLayer(artifactKey, downloadContext, tag, nullptr)
             .Subscribe(BIND([=, cookie = std::move(cookie)] (const TErrorOr<TLayerPtr>& layerOrError) mutable {
                 if (layerOrError.IsOK()) {
                     YT_TLOG_DEBUG("Layer has been inserted into cache")
@@ -1181,9 +1231,21 @@ TFuture<TLayerPtr> TLayerCache::GetOrCreateLayer(
                 }
             })
             .Via(GetCurrentInvoker()));
+    } else if (IsAlreadyInCache(value)) {
+        YT_TLOG_DEBUG("Layer is already in the cache")
+            .With("LayerId", value.GetOrCrash().Value()->GetMeta().Id);
+        if (downloadContext.OnLayerCacheHit) {
+            downloadContext.OnLayerCacheHit(artifactKey.GetCompressedDataSize());
+        }
     } else {
-        YT_TLOG_DEBUG("Layer is either already in the cache or is being inserted")
-            .With("LayerId", value.IsSet() && value.GetOrCrash().IsOK() ? ToString(value.GetOrCrash().Value()->GetMeta().Id) : "<importing>");
+        YT_TLOG_DEBUG("Layer is being inserted by another job");
+        auto waitCpuStart = GetCpuInstant();
+        return value.Apply(BIND([=] (const TErrorOr<TLayerPtr>& layerOrError) {
+            if (layerOrError.IsOK() && downloadContext.OnLayerCacheAsyncHit) {
+                downloadContext.OnLayerCacheAsyncHit(GetCpuInstant() - waitCpuStart, artifactKey.GetCompressedDataSize());
+            }
+            return layerOrError;
+        }));
     }
 
     return value;
@@ -1199,16 +1261,6 @@ TFuture<void> TLayerCache::GetVolumeReleaseEvent()
     return AllSet(std::move(futures))
         .AsVoid()
         .ToUncancelable();
-}
-
-bool TLayerCache::IsLayerCached(const TArtifactKey& artifactKey)
-{
-    auto layer = FindLayerInTmpfs(artifactKey);
-    if (layer) {
-        return true;
-    }
-
-    return Find(artifactKey) != nullptr;
 }
 
 void TLayerCache::Touch(const TLayerPtr& layer)
@@ -1303,7 +1355,7 @@ TLayerPtr TLayerCache::FindLayerInTmpfs(const TArtifactKey& artifactKey, const T
     auto findLayer = [&] (TTmpfsLayerCachePtr& tmpfsCache, const std::string& cacheName) -> TLayerPtr {
         auto tmpfsLayer = tmpfsCache->FindLayer(artifactKey);
         if (tmpfsLayer) {
-            YT_TLOG_DEBUG_IF(tag, "Found layer in tmpfs cache")
+            YT_TLOG_DEBUG("Found layer in tmpfs cache")
                 .With("CacheName", cacheName)
                 .With("LayerId", tmpfsLayer->GetMeta().Id)
                 .With("ArtifactPath", artifactKey.data_source().path())
@@ -1321,7 +1373,7 @@ TLayerPtr TLayerCache::FindLayerInTmpfs(const TArtifactKey& artifactKey, const T
 
 TFuture<TLayerPtr> TLayerCache::DownloadAndImportLayer(
     const TArtifactKey& artifactKey,
-    const TArtifactDownloadOptions& downloadOptions,
+    const TArtifactDownloadContext& downloadContext,
     TGuid tag,
     TLayerLocationPtr location)
 {
@@ -1336,10 +1388,13 @@ TFuture<TLayerPtr> TLayerCache::DownloadAndImportLayer(
         .With("HasTargetLocation", static_cast<bool>(location));
 
     auto downloadCpuStart = GetCpuInstant();
-    return ArtifactCache_->DownloadArtifact(artifactKey, downloadOptions)
+    auto cacheEventType = ECacheEventType::Miss;
+    return ArtifactCache_->DownloadArtifact(artifactKey, downloadContext, &cacheEventType)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifactChunk) mutable {
             auto downloadCpuDuration = GetCpuInstant() - downloadCpuStart;
             YT_TLOG_DEBUG("Layer artifact loaded, starting import");
+
+            ReportLayerFetch(downloadContext, cacheEventType, downloadCpuDuration, artifactKey);
 
             // NB(psushin): we limit number of concurrently imported layers, since this is heavy operation
             // which may delay light operations performed in the same IO thread pool inside Porto daemon.
@@ -1366,8 +1421,8 @@ TFuture<TLayerPtr> TLayerCache::DownloadAndImportLayer(
                 .ValueOrThrow();
             auto importCpuDuration = GetCpuInstant() - importCpuStart;
 
-            if (downloadOptions.OnLayerDownloaded) {
-                downloadOptions.OnLayerDownloaded(downloadCpuDuration, importCpuDuration, artifactKey.GetCompressedDataSize());
+            if (downloadContext.OnLayerImported) {
+                downloadContext.OnLayerImported(importCpuDuration, artifactKey.GetCompressedDataSize());
             }
 
             return New<TLayer>(layerMeta, artifactKey, location);

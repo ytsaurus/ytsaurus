@@ -95,14 +95,12 @@ struct IUserSlot
         const std::function<void(IOutputStream*)>& producer,
         const TFile& destinationFile) = 0;
 
-    virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
-
     //! Prepare overlay layers for a set of artifact keys.
     //! Returns one future per layer (parallel index).
     virtual std::vector<TFuture<TOverlayData>> PrepareLayers(
         TJobId jobId,
         const std::vector<TOverlayLayerPreparationOptions>& layerOptions,
-        const TArtifactDownloadOptions& artifactDownloadOptions) = 0;
+        const TArtifactDownloadContext& artifactDownloadContext) = 0;
 
     virtual TFuture<IVolumePtr> PrepareRootVolume(
         std::vector<TOverlayData> overlayDataArray,

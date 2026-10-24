@@ -181,11 +181,6 @@ public:
         return OKFuture;
     }
 
-    bool IsLayerCached(const TArtifactKey&) const override
-    {
-        return false;
-    }
-
     void BuildOrchid(NYTree::TFluentAny fluent) const override
     {
         fluent
@@ -217,7 +212,7 @@ public:
     std::vector<TFuture<TOverlayData>> PrepareOverlayLayers(
         TJobId /*jobId*/,
         std::vector<TOverlayLayerPreparationOptions> /*layerOptions*/,
-        const TArtifactDownloadOptions& /*artifactDownloadOptions*/) override
+        const TArtifactDownloadContext& /*artifactDownloadContext*/) override
     {
         YT_UNIMPLEMENTED("PrepareOverlayLayers is not implemented for SimpleVolumeManager");
     }
@@ -520,7 +515,7 @@ public:
     std::vector<TFuture<TOverlayData>> PrepareOverlayLayers(
         TJobId jobId,
         std::vector<TOverlayLayerPreparationOptions> layerOptions,
-        const TArtifactDownloadOptions& artifactDownloadOptions) override
+        const TArtifactDownloadContext& artifactDownloadContext) override
     {
         auto tag = TGuid::Create();
 
@@ -558,7 +553,7 @@ public:
                     TPrepareSquashFSVolumeOptions{
                         .JobId = jobId,
                         .ArtifactKey = std::move(layerOption.ArtifactKey),
-                        .ArtifactDownloadOptions = artifactDownloadOptions,
+                        .ArtifactDownloadContext = artifactDownloadContext,
                     }));
             } else {
                 overlayDataFutures.push_back(GetOrCreateLayer(
@@ -566,7 +561,7 @@ public:
                     TPrepareLayerOptions{
                         .JobId = jobId,
                         .ArtifactKey = std::move(layerOption.ArtifactKey),
-                        .ArtifactDownloadOptions = artifactDownloadOptions,
+                        .ArtifactDownloadContext = artifactDownloadContext,
                     }));
             }
         }
@@ -748,11 +743,6 @@ public:
                 );
         }
         return future;
-    }
-
-    bool IsLayerCached(const TArtifactKey& artifactKey) const override
-    {
-        return LayerCache_->IsLayerCached(artifactKey);
     }
 
     void ClearCaches() const override

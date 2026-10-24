@@ -348,17 +348,10 @@ public:
             });
     }
 
-    bool IsLayerCached(const TArtifactKey& artifactKey) const override
-    {
-        VerifyEnabled();
-
-        return VolumeManager_->IsLayerCached(artifactKey);
-    }
-
     std::vector<TFuture<TOverlayData>> PrepareLayers(
         TJobId jobId,
         const std::vector<TOverlayLayerPreparationOptions>& layerOptions,
-        const TArtifactDownloadOptions& artifactDownloadOptions) override
+        const TArtifactDownloadContext& artifactDownloadContext) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -368,7 +361,7 @@ public:
             return {};
         }
 
-        return VolumeManager_->PrepareOverlayLayers(jobId, layerOptions, artifactDownloadOptions);
+        return VolumeManager_->PrepareOverlayLayers(jobId, layerOptions, artifactDownloadContext);
     }
 
     TFuture<IVolumePtr> PrepareRootVolume(

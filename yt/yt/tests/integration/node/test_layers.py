@@ -4084,6 +4084,19 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
         assert stats2["exec_agent"]["artifacts"]["layers_downloaded_total_duration"]["sum"] == 0
         assert stats2["exec_agent"]["artifacts"]["layers_import_total_duration"]["sum"] == 0
         assert stats2["exec_agent"]["artifacts"]["layers_imported_size"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["layers_layer_cache_hit_size"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["layers_chunk_cache_hit_size"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["layers_layer_cache_async_hit_size"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["layers_chunk_cache_async_hit_size"]["sum"] == 0
+
+        # For any job, layers_cached_size must be the sum of the four breakdown stats.
+        for job_stats in (stats1, stats2):
+            artifacts = job_stats["exec_agent"]["artifacts"]
+            assert artifacts["layers_cached_size"]["sum"] == (
+                artifacts["layers_layer_cache_hit_size"]["sum"]
+                + artifacts["layers_chunk_cache_hit_size"]["sum"]
+                + artifacts["layers_layer_cache_async_hit_size"]["sum"]
+                + artifacts["layers_chunk_cache_async_hit_size"]["sum"])
 
     @authors("pogorelov")
     def test_layer_evicted_when_allocation_not_reused(self):

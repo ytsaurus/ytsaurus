@@ -75,6 +75,7 @@
 #include <yt/yt/core/misc/serialize.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+#include <library/cpp/yt/memory/non_null_ptr.h>
 #include <library/cpp/yt/memory/ref.h>
 
 #include <util/generic/algorithm.h>
@@ -564,8 +565,8 @@ public:
 
     TFuture<TArtifactPtr> DownloadArtifact(
         const TArtifactKey& key,
-        const TArtifactDownloadOptions& artifactDownloadOptions,
-        bool* fetchedFromCache = nullptr)
+        const TArtifactDownloadContext& artifactDownloadContext,
+        TNonNullPtr<ECacheEventType> cacheEventType)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -577,7 +578,7 @@ public:
         traceContext->PackBaggage(std::move(baggage));
 
         auto chunkReadOptions = MakeClientChunkReadOptions(
-            artifactDownloadOptions,
+            artifactDownloadContext,
             /*bypassArtifactCache*/ false);
 
         auto Logger = ExecNodeLogger()
@@ -594,42 +595,42 @@ public:
 
         if (cookie.IsActive()) {
             auto future = ExtractRegisteredChunk(key);
-            if (fetchedFromCache) {
-                // NB: fetchedFromCache is set optimistically before validation completes.
-                // If DoValidateChunk finds corruption and falls back to DoDownloadArtifact,
-                // the artifact will be fetched over the network despite fetchedFromCache=true.
-                *fetchedFromCache = !future.IsSet() || future.GetOrCrash().ValueOrDefault(std::nullopt).has_value();
-            }
+            // NB: cacheEventType is set optimistically before validation completes.
+            // If DoValidateChunk finds corruption or a pending registration yields no chunk, we fall back
+            // to DoDownloadArtifact and the artifact is fetched over the network despite the Hit event type.
+            *cacheEventType = future.IsSet() && !future.GetOrCrash().ValueOrDefault(std::nullopt).has_value()
+                ? ECacheEventType::Miss
+                : ECacheEventType::Hit;
             return future.Apply(BIND([=, this, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<std::optional<TRegisteredChunkDescriptor>>& optionalDescriptor) mutable {
                 if (optionalDescriptor.IsOK() && optionalDescriptor.ValueOrCrash().has_value()) {
                     // Artifact is on disk but not in the in-memory SLRU index (e.g. after node restart).
-                    DoValidateArtifact(std::move(cookie), key, artifactDownloadOptions, chunkReadOptions, *optionalDescriptor.ValueOrCrash(), Logger);
+                    DoValidateArtifact(std::move(cookie), key, artifactDownloadContext, chunkReadOptions, *optionalDescriptor.ValueOrCrash(), Logger);
                 } else {
                     if (!optionalDescriptor.IsOK()) {
                         YT_TLOG_WARNING("Error extracting registered chunk")
                             .With(optionalDescriptor);
                     }
-                    DoDownloadArtifact(std::move(cookie), key, artifactDownloadOptions, chunkReadOptions, Logger);
+                    DoDownloadArtifact(std::move(cookie), key, artifactDownloadContext, chunkReadOptions, Logger);
                 }
                 return cookieValue.As<TArtifactPtr>();
             }));
         } else {
             YT_TLOG_INFO("Artifact is either found in cache or is being downloaded");
-            if (fetchedFromCache) {
-                *fetchedFromCache = true;
-            }
+            *cacheEventType = cookieValue.IsSet() && cookieValue.GetOrCrash().IsOK()
+                ? ECacheEventType::Hit
+                : ECacheEventType::AsyncHit;
         }
         return cookieValue.As<TArtifactPtr>();
     }
 
     std::function<void(IOutputStream*)> MakeArtifactDownloadProducer(
         const TArtifactKey& key,
-        const TArtifactDownloadOptions& artifactDownloadOptions)
+        const TArtifactDownloadContext& artifactDownloadContext)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto chunkReadOptions = MakeClientChunkReadOptions(
-            artifactDownloadOptions,
+            artifactDownloadContext,
             /*bypassArtifactCache*/ true);
 
         decltype(&TImpl::MakeTableProducer) producerBuilder;
@@ -647,7 +648,7 @@ public:
 
         return (this->*producerBuilder)(
             key,
-            artifactDownloadOptions.TrafficMeter,
+            artifactDownloadContext.TrafficMeter,
             chunkReadOptions,
             // TODO(babenko): throttle preparation
             GetUnlimitedThrottler());
@@ -846,7 +847,8 @@ private:
 
                     guard.Release();
 
-                    auto errorOrChunk = WaitFor(DownloadArtifact(artifactKey, /*artifactDownloadOptions*/ {}));
+                    auto cacheEventType = ECacheEventType::Miss;
+                    auto errorOrChunk = WaitFor(DownloadArtifact(artifactKey, /*artifactDownloadContext*/ {}, &cacheEventType));
                     if (!errorOrChunk.IsOK()) {
                         YT_TLOG_WARNING("Background artifact validation failed")
                             .With("ArtifactKey", artifactKey)
@@ -908,7 +910,7 @@ private:
     void DoDownloadArtifact(
         TInsertCookie cookie,
         const TArtifactKey& key,
-        const TArtifactDownloadOptions& artifactDownloadOptions,
+        const TArtifactDownloadContext& artifactDownloadContext,
         const TClientChunkReadOptions& chunkReadOptions,
         NLogging::TLogger Logger)
     {
@@ -974,7 +976,7 @@ private:
                     Passed(std::move(sessionCounterGuard)),
                     Passed(std::move(result.LockedChunkGuard)),
                     Passed(std::move(result.PendingModification)),
-                    artifactDownloadOptions,
+                    artifactDownloadContext,
                     chunkReadOptions,
                     Passed(std::move(cookie)),
                     Logger));
@@ -984,7 +986,7 @@ private:
     void DoValidateArtifact(
         TInsertCookie cookie,
         const TArtifactKey& key,
-        const TArtifactDownloadOptions& artifactDownloadOptions,
+        const TArtifactDownloadContext& artifactDownloadContext,
         const TClientChunkReadOptions& chunkReadOptions,
         const TRegisteredChunkDescriptor& descriptor,
         NLogging::TLogger Logger)
@@ -1011,7 +1013,7 @@ private:
             MakeStrong(this),
             Passed(std::move(cookie)),
             key,
-            artifactDownloadOptions,
+            artifactDownloadContext,
             chunkReadOptions,
             descriptor,
             Logger));
@@ -1020,7 +1022,7 @@ private:
     void DoValidateChunk(
         TInsertCookie cookie,
         const TArtifactKey& key,
-        const TArtifactDownloadOptions& artifactDownloadOptions,
+        const TArtifactDownloadContext& artifactDownloadContext,
         const TClientChunkReadOptions& chunkReadOptions,
         const TRegisteredChunkDescriptor& descriptor,
         const NLogging::TLogger& Logger)
@@ -1066,7 +1068,7 @@ private:
             DoDownloadArtifact(
                 std::move(cookie),
                 key,
-                artifactDownloadOptions,
+                artifactDownloadContext,
                 chunkReadOptions,
                 Logger);
         }
@@ -1523,14 +1525,14 @@ private:
     }
 
     TClientChunkReadOptions MakeClientChunkReadOptions(
-        TArtifactDownloadOptions artifactDownloadOptions,
+        TArtifactDownloadContext artifactDownloadContext,
         bool bypassArtifactCache)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto workloadDescriptor = GetArtifactCacheReaderConfig()->WorkloadDescriptor;
         auto& annotations = workloadDescriptor.Annotations;
-        annotations = artifactDownloadOptions.WorkloadDescriptorAnnotations;
+        annotations = artifactDownloadContext.WorkloadDescriptorAnnotations;
         annotations.push_back("Type: ArtifactCache");
         annotations.push_back(Format("BypassArtifactCache: %v", bypassArtifactCache));
 
@@ -1547,7 +1549,7 @@ private:
         TSessionCounterGuard /*sessionCounterGuard*/,
         TLockedChunkGuard lockedChunkGuard,
         std::optional<TPendingDownloadsTracker::TPendingModification> pendingModification,
-        const TArtifactDownloadOptions& artifactDownloadOptions,
+        const TArtifactDownloadContext& artifactDownloadContext,
         const TClientChunkReadOptions& chunkReadOptions,
         TInsertCookie cookie,
         const NLogging::TLogger& Logger)
@@ -1576,7 +1578,7 @@ private:
                 CreateBandwithThrottlerProvider(),
                 Bootstrap_->GetReadRpsOutThrottler(),
                 /*mediumThrottler*/ nullptr,
-                artifactDownloadOptions.TrafficMeter);
+                artifactDownloadContext.TrafficMeter);
 
             auto chunkReader = CreateReplicationReader(
                 artifactCacheReaderConfig,
@@ -1721,7 +1723,7 @@ private:
         TSessionCounterGuard /*sessionCounterGuard*/,
         TLockedChunkGuard lockedChunkGuard,
         std::optional<TPendingDownloadsTracker::TPendingModification> pendingModification,
-        const TArtifactDownloadOptions& artifactDownloadOptions,
+        const TArtifactDownloadContext& artifactDownloadContext,
         const TClientChunkReadOptions& chunkReadOptions,
         TInsertCookie cookie,
         const NLogging::TLogger& Logger)
@@ -1748,14 +1750,14 @@ private:
                     chunkId,
                     std::move(lockedChunkGuard),
                     std::move(pendingModification),
-                    artifactDownloadOptions,
+                    artifactDownloadContext,
                     chunkReadOptions,
                     *chunkLayout,
                     Logger);
             } else {
                 auto producer = MakeFileProducer(
                     key,
-                    artifactDownloadOptions.TrafficMeter,
+                    artifactDownloadContext.TrafficMeter,
                     chunkReadOptions,
                     location->GetInThrottler());
 
@@ -1786,7 +1788,7 @@ private:
         i64 offset,
         TFile dataFile,
         i64 expectedSize,
-        const TArtifactDownloadOptions& artifactDownloadOptions,
+        const TArtifactDownloadContext& artifactDownloadContext,
         const TClientChunkReadOptions& chunkReadOptions,
         const IMultiReaderMemoryManagerPtr& multiReaderMemoryManager,
         const std::function<void()>& cleanupTempFiles,
@@ -1815,7 +1817,7 @@ private:
 
         auto producer = MakeFileProducer(
             key,
-            artifactDownloadOptions.TrafficMeter,
+            artifactDownloadContext.TrafficMeter,
             chunkReadOptions,
             location->GetInThrottler(),
             std::vector<TChunkSpec>{chunkSpec},
@@ -1840,7 +1842,7 @@ private:
         TChunkId chunkId,
         TLockedChunkGuard lockedChunkGuard,
         std::optional<TPendingDownloadsTracker::TPendingModification> pendingModification,
-        const TArtifactDownloadOptions& artifactDownloadOptions,
+        const TArtifactDownloadContext& artifactDownloadContext,
         const TClientChunkReadOptions& chunkReadOptions,
         const TFileChunkLayout& chunkLayout,
         const NLogging::TLogger& Logger)
@@ -1874,7 +1876,7 @@ private:
                         chunkLayout.Offsets[index],
                         context.DataFile,
                         chunkLayout.Sizes[index],
-                        artifactDownloadOptions,
+                        artifactDownloadContext,
                         chunkReadOptions,
                         multiReaderMemoryManager,
                         context.CleanupTempFiles,
@@ -1982,7 +1984,7 @@ private:
         TSessionCounterGuard /*sessionCounterGuard*/,
         TLockedChunkGuard lockedChunkGuard,
         std::optional<TPendingDownloadsTracker::TPendingModification> pendingModification,
-        const TArtifactDownloadOptions& artifactDownloadOptions,
+        const TArtifactDownloadContext& artifactDownloadContext,
         const TClientChunkReadOptions& chunkReadOptions,
         TInsertCookie cookie,
         const NLogging::TLogger& Logger)
@@ -1992,7 +1994,7 @@ private:
         try {
             auto producer = MakeTableProducer(
                 key,
-                artifactDownloadOptions.TrafficMeter,
+                artifactDownloadContext.TrafficMeter,
                 chunkReadOptions,
                 location->GetInThrottler());
 
@@ -2319,7 +2321,7 @@ private:
                 dataFileName);
 
             auto options = MakeClientChunkReadOptions(
-                /*artifactDownloadOptions*/ {},
+                /*artifactDownloadContext*/ {},
                 /*bypassArtifactCache*/ false);
 
             auto metaOrError = WaitFor(chunkReader->GetMeta(options));
@@ -2473,21 +2475,21 @@ TFuture<void> TArtifactCache::RemoveArtifactsByLocation(const TCacheLocationPtr&
 
 TFuture<TArtifactPtr> TArtifactCache::DownloadArtifact(
     const TArtifactKey& key,
-    const TArtifactDownloadOptions& artifactDownloadOptions,
-    bool* fetchedFromCache)
+    const TArtifactDownloadContext& artifactDownloadContext,
+    TNonNullPtr<ECacheEventType> cacheEventType)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return Impl_->DownloadArtifact(key, artifactDownloadOptions, fetchedFromCache);
+    return Impl_->DownloadArtifact(key, artifactDownloadContext, cacheEventType);
 }
 
 std::function<void(IOutputStream*)> TArtifactCache::MakeArtifactDownloadProducer(
     const TArtifactKey& key,
-    const TArtifactDownloadOptions& artifactDownloadOptions)
+    const TArtifactDownloadContext& artifactDownloadContext)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return Impl_->MakeArtifactDownloadProducer(key, artifactDownloadOptions);
+    return Impl_->MakeArtifactDownloadProducer(key, artifactDownloadContext);
 }
 
 DELEGATE_BYREF_RO_PROPERTY(TArtifactCache, std::vector<TCacheLocationPtr>, Locations, *Impl_);
