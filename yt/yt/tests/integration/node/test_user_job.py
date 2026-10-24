@@ -1703,10 +1703,7 @@ class TestUserJobIsolation(YTEnvSetup):
         job_id = wait_breakpoint(op)[0]
         network_project_id, hostname, _ = get_job_stderr(op.id, job_id).split(b"\n")
         assert network_project_id == str(int("0xDEADBEEF", base=16)).encode("ascii")
-        hostname_prefix = b"slot_"
-        if self.Env.get_component_version("ytserver-job-proxy").abi > (25, 1):
-            hostname_prefix = b"slot-"
-        assert hostname.startswith(hostname_prefix)
+        assert re.match(rb"s\d+\.", hostname)
         release_breakpoint()
         op.track()
 

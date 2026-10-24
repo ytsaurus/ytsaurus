@@ -603,6 +603,9 @@ struct TJobCommonConfig
 
     std::optional<TDuration> JobPrepareTimeLimit;
 
+    //! Job container host name is <pattern>.<node address>; supports $(SlotIndex).
+    std::string JobHostNamePrefixPattern;
+
     //! This option is used for testing purposes only.
     //! Adds inner errors for failed jobs.
     bool TestJobErrorTruncation;
