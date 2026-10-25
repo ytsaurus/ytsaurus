@@ -1,0 +1,184 @@
+# Native Rust build with dependencies shared through contrib/crates.
+
+CRATE(_pydantic_core)
+
+CRATE_VERSION(2.41.5)
+CRATE_EDITION(2021)
+CRATE_ROOT(../src/lib.rs)
+CRATE_MANIFEST(../Cargo.toml)
+CRATE_MANIFEST_DIR(..)
+
+CRATE_SOURCES(
+    ../build.rs
+    ../src/argument_markers.rs
+    ../src/build_tools.rs
+    ../src/common/missing_sentinel.rs
+    ../src/common/mod.rs
+    ../src/common/prebuilt.rs
+    ../src/common/union.rs
+    ../src/definitions.rs
+    ../src/errors/line_error.rs
+    ../src/errors/location.rs
+    ../src/errors/mod.rs
+    ../src/errors/types.rs
+    ../src/errors/validation_exception.rs
+    ../src/errors/value_exception.rs
+    ../src/input/datetime.rs
+    ../src/input/input_abstract.rs
+    ../src/input/input_json.rs
+    ../src/input/input_python.rs
+    ../src/input/input_string.rs
+    ../src/input/mod.rs
+    ../src/input/return_enums.rs
+    ../src/input/shared.rs
+    ../src/lookup_key.rs
+    ../src/py_gc.rs
+    ../src/recursion_guard.rs
+    ../src/serializers/computed_fields.rs
+    ../src/serializers/config.rs
+    ../src/serializers/errors.rs
+    ../src/serializers/extra.rs
+    ../src/serializers/fields.rs
+    ../src/serializers/filter.rs
+    ../src/serializers/infer.rs
+    ../src/serializers/mod.rs
+    ../src/serializers/ob_type.rs
+    ../src/serializers/prebuilt.rs
+    ../src/serializers/ser.rs
+    ../src/serializers/shared.rs
+    ../src/serializers/type_serializers/any.rs
+    ../src/serializers/type_serializers/bytes.rs
+    ../src/serializers/type_serializers/complex.rs
+    ../src/serializers/type_serializers/dataclass.rs
+    ../src/serializers/type_serializers/datetime_etc.rs
+    ../src/serializers/type_serializers/decimal.rs
+    ../src/serializers/type_serializers/definitions.rs
+    ../src/serializers/type_serializers/dict.rs
+    ../src/serializers/type_serializers/enum_.rs
+    ../src/serializers/type_serializers/float.rs
+    ../src/serializers/type_serializers/format.rs
+    ../src/serializers/type_serializers/function.rs
+    ../src/serializers/type_serializers/generator.rs
+    ../src/serializers/type_serializers/json.rs
+    ../src/serializers/type_serializers/json_or_python.rs
+    ../src/serializers/type_serializers/list.rs
+    ../src/serializers/type_serializers/literal.rs
+    ../src/serializers/type_serializers/missing_sentinel.rs
+    ../src/serializers/type_serializers/mod.rs
+    ../src/serializers/type_serializers/model.rs
+    ../src/serializers/type_serializers/nullable.rs
+    ../src/serializers/type_serializers/other.rs
+    ../src/serializers/type_serializers/set_frozenset.rs
+    ../src/serializers/type_serializers/simple.rs
+    ../src/serializers/type_serializers/string.rs
+    ../src/serializers/type_serializers/timedelta.rs
+    ../src/serializers/type_serializers/tuple.rs
+    ../src/serializers/type_serializers/typed_dict.rs
+    ../src/serializers/type_serializers/union.rs
+    ../src/serializers/type_serializers/url.rs
+    ../src/serializers/type_serializers/uuid.rs
+    ../src/serializers/type_serializers/with_default.rs
+    ../src/tools.rs
+    ../src/url.rs
+    ../src/validators/any.rs
+    ../src/validators/arguments.rs
+    ../src/validators/arguments_v3.rs
+    ../src/validators/bool.rs
+    ../src/validators/bytes.rs
+    ../src/validators/call.rs
+    ../src/validators/callable.rs
+    ../src/validators/chain.rs
+    ../src/validators/complex.rs
+    ../src/validators/config.rs
+    ../src/validators/custom_error.rs
+    ../src/validators/dataclass.rs
+    ../src/validators/date.rs
+    ../src/validators/datetime.rs
+    ../src/validators/decimal.rs
+    ../src/validators/definitions.rs
+    ../src/validators/dict.rs
+    ../src/validators/enum_.rs
+    ../src/validators/float.rs
+    ../src/validators/frozenset.rs
+    ../src/validators/function.rs
+    ../src/validators/generator.rs
+    ../src/validators/int.rs
+    ../src/validators/is_instance.rs
+    ../src/validators/is_subclass.rs
+    ../src/validators/json.rs
+    ../src/validators/json_or_python.rs
+    ../src/validators/lax_or_strict.rs
+    ../src/validators/list.rs
+    ../src/validators/literal.rs
+    ../src/validators/missing_sentinel.rs
+    ../src/validators/mod.rs
+    ../src/validators/model.rs
+    ../src/validators/model_fields.rs
+    ../src/validators/none.rs
+    ../src/validators/nullable.rs
+    ../src/validators/prebuilt.rs
+    ../src/validators/set.rs
+    ../src/validators/string.rs
+    ../src/validators/time.rs
+    ../src/validators/timedelta.rs
+    ../src/validators/tuple.rs
+    ../src/validators/typed_dict.rs
+    ../src/validators/union.rs
+    ../src/validators/url.rs
+    ../src/validators/uuid.rs
+    ../src/validators/validation_state.rs
+    ../src/validators/with_default.rs
+)
+
+CRATE_INPUTS(
+    ../Cargo.lock
+    ../LICENSE
+    ../README.md
+    ../pyproject.toml
+    ../src/self_schema.py
+)
+
+CRATE_FLAGS(--cap-lints=allow)
+
+PEERDIR(
+    contrib/crates/ahash-0.8.12
+    contrib/crates/base64-0.22.1
+    contrib/crates/hex-0.4.3
+    contrib/crates/idna-1.1.0
+    contrib/crates/jiter-0.11.1
+    contrib/crates/num-bigint-0.4.8
+    contrib/crates/num-traits-0.2.19
+    contrib/crates/percent-encoding-2.3.2
+    contrib/crates/pyo3-0.26.0
+    contrib/crates/regex-1.13.1
+    contrib/crates/serde-1.0.229
+    contrib/crates/serde_json-1.0.154
+    contrib/crates/smallvec-1.16.4
+    contrib/crates/speedate-0.17.0
+    contrib/crates/strum-0.27.2
+    contrib/crates/url-2.5.8
+    contrib/crates/uuid-1.29.0
+)
+
+CRATE_BUILD_SCRIPT(contrib/python/pydantic-core/rust/build_script)
+
+LICENSE("MIT")
+VERSION(2.41.5)
+
+CRATE_PROC_MACROS(
+    contrib/crates/bytemuck_derive-1.12.1
+    contrib/crates/displaydoc-0.2.7
+    contrib/crates/enum_dispatch-0.3.13
+    contrib/crates/indoc-2.0.8
+    contrib/crates/pyo3-macros-0.26.0
+    contrib/crates/serde_derive-1.0.229
+    contrib/crates/strum_macros-0.27.2
+    contrib/crates/yoke-derive-0.8.4
+    contrib/crates/zerocopy-derive-0.8.63
+    contrib/crates/zerofrom-derive-0.1.8
+    contrib/crates/zerovec-derive-0.11.7
+)
+
+END()
+
+RECURSE(build_script)

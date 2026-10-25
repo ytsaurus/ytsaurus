@@ -12,22 +12,6 @@ PEERDIR(
 
 NO_LINT()
 
-IF (OS_DARWIN AND ARCH_ARM64)
-    COPY_FILE(a/aarch64-apple-darwin/release/lib_pydantic_core.a lib_pydantic_core.a)
-ELSEIF (OS_DARWIN AND ARCH_X86_64)
-    COPY_FILE(a/x86_64-apple-darwin/release/lib_pydantic_core.a lib_pydantic_core.a)
-ELSEIF (OS_LINUX AND ARCH_AARCH64)
-    COPY_FILE(a/aarch64-unknown-linux-gnu/release/lib_pydantic_core.a lib_pydantic_core.a)
-ELSEIF (OS_LINUX AND ARCH_X86_64 AND MUSL)
-    COPY_FILE(a/x86_64-unknown-linux-musl/release/lib_pydantic_core.a lib_pydantic_core.a)
-ELSEIF (OS_LINUX AND ARCH_X86_64 AND NOT MUSL)
-    COPY_FILE(a/x86_64-unknown-linux-gnu/release/lib_pydantic_core.a lib_pydantic_core.a)
-ELSEIF (OS_WINDOWS AND ARCH_X86_64)
-    COPY_FILE(a/x86_64-pc-windows-msvc/release/_pydantic_core.lib _pydantic_core.lib)
-# ELSE()
-#     MESSAGE(FATAL_ERROR "We don't have lib_pydantic_core for this platform")
-ENDIF()
-
 IF (OS_DARWIN)
     LDFLAGS(
         -framework CoreFoundation
@@ -56,8 +40,14 @@ RESOURCE_FILES(
     pydantic_core/py.typed
 )
 
+PEERDIR(contrib/python/pydantic-core/rust)
+
+SRCS(py_wrapper.cpp)
+
 END()
 
 RECURSE_FOR_TESTS(
     tests
 )
+
+RECURSE(rust)
