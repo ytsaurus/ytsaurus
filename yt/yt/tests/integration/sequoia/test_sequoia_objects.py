@@ -1012,7 +1012,7 @@ class TestSequoiaReplicas(YTEnvSetup):
         assert get_node_count("online") < self.NUM_NODES
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/sleep_duration_before_sequoia_replica_modifications", 0)
-        wait(lambda: get_node_count("online") == self.NUM_NODES)
+        self.Env.synchronize()
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/max_concurrent_sequoia_replica_modifications", 0)
         create("table", "//tmp/t2")
@@ -1048,7 +1048,7 @@ class TestSequoiaReplicas(YTEnvSetup):
         assert get_node_count("online") < self.NUM_NODES
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/sleep_duration_before_sequoia_replica_modifications", 0)
-        wait(lambda: get_node_count("online") == self.NUM_NODES)
+        self.Env.synchronize()
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/throttle_sequoia_replica_modifications", False)
 
