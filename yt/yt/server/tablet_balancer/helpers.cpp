@@ -223,10 +223,11 @@ bool AreReplicaClustersHealthy(
 {
     for (const auto& [cluster, bundles] : unhealthyBundles) {
         if (std::ssize(bundles) >= unhealthyBundleLimit) {
-            YT_TLOG_WARNING("Considering replica cluster unhealthy because too many bundles are unhealthy")
-                .With("Cluster", cluster)
-                .With("UnhealthyBundles", bundles)
-                .With("Limit", unhealthyBundleLimit);
+            YT_LOG_WARNING("Considering replica cluster unhealthy because too many bundles "
+                "are unhealthy (Cluster: %v, UnhealthyBundles: %v, Limit: %v)",
+                cluster,
+                bundles,
+                unhealthyBundleLimit);
             return false;
         }
     }
@@ -240,9 +241,10 @@ bool IsBundleHealthyOnReplicaClusters(
 {
     for (const auto& [cluster, bundles] : unhealthyBundles) {
         if (std::find(bundles.begin(), bundles.end(), bundleName) != bundles.end()) {
-            YT_TLOG_WARNING("Tablet cell bundle on another cluster is unhealthy")
-                .With("Cluster", cluster)
-                .With("BundleName", bundleName);
+            YT_LOG_WARNING("Tablet cell bundle on another cluster is unhealthy "
+                "(Cluster: %v, Bundle: %v)",
+                cluster,
+                bundleName);
             return false;
         }
     }

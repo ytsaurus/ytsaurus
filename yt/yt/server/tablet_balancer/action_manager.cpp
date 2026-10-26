@@ -341,8 +341,8 @@ std::optional<THashMap<std::string, std::vector<std::string>>> TActionManager::G
 
     auto unhealthyBundlesOrError = WaitFor(ClusterStateProvider_->GetUnhealthyBundles());
     if (!unhealthyBundlesOrError.IsOK()) {
-        YT_TLOG_WARNING("Failed to fetch unhealthy bundles, postponing creation of pending actions")
-            .With(unhealthyBundlesOrError);
+        YT_LOG_WARNING(unhealthyBundlesOrError,
+            "Failed to fetch unhealthy bundles, postponing creation of pending actions");
         UnhealthyBundlesFetchFailures_.Increment();
         return std::nullopt;
     }
@@ -861,9 +861,9 @@ void TActionManager::CancelFrontBundlePendingActions(const std::string& bundleNa
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     auto guard = WriterGuard(PendingActionsLock_);
-    YT_TLOG_INFO("Canceled pending actions of bundle")
-        .With("Bundle", bundleName)
-        .With("ActionCount", std::ssize(GetOrCrash(PendingActionDescriptors_, bundleName)));
+    YT_LOG_INFO("Canceled pending actions of bundle (Bundle: %v, ActionCount: %v)",
+        bundleName,
+        std::ssize(GetOrCrash(PendingActionDescriptors_, bundleName)));
 
     GetOrCreateProfilingCounters(bundleName).BundleIterationCancellations.Increment();
     CancelPendingCrossCellReshards(bundleName);
@@ -875,8 +875,8 @@ void TActionManager::CancelAllPendingActions()
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     auto guard = WriterGuard(PendingActionsLock_);
-    YT_TLOG_INFO("Canceled pending actions of all bundles")
-        .With("PendingBundleCount", std::ssize(BundlesWithPendingActions_));
+    YT_LOG_INFO("Canceled pending actions of all bundles (PendingBundleCount: %v)",
+        std::ssize(BundlesWithPendingActions_));
 
     CancelledIterationDueToUnhealthyState_.Increment();
 
