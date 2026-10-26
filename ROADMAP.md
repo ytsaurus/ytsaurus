@@ -91,12 +91,12 @@
 - [ ] Add federative queries in YQL (S3, HDFS)
 
 ## Flow
-- [ ] Flow to be released in Open Source in 2026
-- [ ] Exactly once stateful processing: Store both user-generated state and internal flow messages in dynamic tables to provide exactly-once guarantee for processing states in presence of worker failures.
-- [ ] Watermarks and timers: Add watermarks and timers to allow trigger-based logic.
-- [ ] Automatic load balancing: Automatically reshard and rebalance flow workers to smooth resource utilization and avoid bottlenecks.
-- [ ] Message congestion control: Schedule flow messages to avoid congestion and reduce processing lag.
-- [ ] Chaos-stored state: Store both internal flow messages and states in chaos replicated dynamic tables to provide strongest availability requirements if necessary.
+- [X] Flow to be released in Open Source in 2026
+- [X] Exactly once stateful processing: Store both user-generated state and internal flow messages in dynamic tables to provide exactly-once guarantee for processing states in presence of worker failures.
+- [X] Watermarks and timers: Add watermarks and timers to allow trigger-based logic.
+- [X] Automatic load balancing: Automatically reshard and rebalance flow workers to smooth resource utilization and avoid bottlenecks.
+- [X] Message congestion control: Schedule flow messages to avoid congestion and reduce processing lag.
+- [X] Chaos-stored state: Store both internal flow messages and states in chaos replicated dynamic tables to provide strongest availability requirements if necessary.
 
 ## CLI & APIs
 - [x] Support of https in python and CLI
