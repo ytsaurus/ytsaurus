@@ -68,7 +68,7 @@ def check_backtraces(actual_output):
     bar_count = 0
     async_stop_count = 0
     for line in actual_output.split("\n"):
-        if line.find("0x0000000000000000 in ?? ()") != -1:
+        if line.find("ContextTrampoLine ()") != -1:
             fiber_count += 1
         if line.find("Filtered out 1 running fiber(s)"):
             filtered_running_fibers = True
