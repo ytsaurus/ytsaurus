@@ -206,7 +206,7 @@ void TUnpackedWireString::FillFieldNumberToFieldMap(
                 stream.CheckpointIf(extractValuesFor(fieldNumber));
                 stream.Skip(size);
 
-                if (packedFieldWireType) {
+                if (packedFieldWireType && extractValuesFor(fieldNumber)) {
                     UnpackRepeatedField(map[fieldNumber], stream.Checkpoint(), *packedFieldWireType);
                     continue;
                 }
