@@ -829,7 +829,8 @@ class TestSuspendOperationDuringMasterDisconnect(YTEnvSetup):
 
     @authors("yaishenka")
     @pytest.mark.timeout(120)
-    def test_suspend_operation_during_master_disconnect(self):
+    @pytest.mark.parametrize("unregister_agent_first", [False, True])
+    def test_suspend_operation_during_master_disconnect(self, unregister_agent_first):
         op = run_sleeping_vanilla()
         op.wait_for_state("running")
         wait(lambda: len(op.get_running_jobs()) == 1)
@@ -865,6 +866,19 @@ class TestSuspendOperationDuringMasterDisconnect(YTEnvSetup):
             # command has reached its asynchronous delay.
             assert get(f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}/running")
 
+            if unregister_agent_first:
+                agent_address = op.get_controller_agent_address()
+                incarnation_id = get(
+                    f"//sys/controller_agents/instances/{agent_address}"
+                    "/orchid/controller_agent/incarnation_id"
+                )
+                abort_transaction(incarnation_id)
+                wait(response.is_set)
+                assert not response.is_ok()
+                assert YtResponseError(response.error()).contains_code(
+                    yt_error_codes.Scheduler.AgentUnregistered
+                )
+
             abort_transaction(scheduler_transaction)
             wait(lambda: get(f"#{blocking_lock}/@state") == "acquired")
             wait(lambda: not get("//sys/scheduler/orchid/scheduler/service/connected"))
@@ -874,8 +888,12 @@ class TestSuspendOperationDuringMasterDisconnect(YTEnvSetup):
             time.sleep(suspension_delay / 1000)
             response.wait()
             assert not response.is_ok()
-            assert YtResponseError(response.error()).contains_code(
-                yt_error_codes.MasterDisconnected
+            # The agent incarnation transaction is nested in the scheduler one, so
+            # agent unregistration may cancel the suspend request first.
+            error = YtResponseError(response.error())
+            assert (
+                error.contains_code(yt_error_codes.MasterDisconnected)
+                or error.contains_code(yt_error_codes.Scheduler.AgentUnregistered)
             )
             self.Env.check_liveness(
                 callback_func=lambda env, process, args: pytest.fail(
