@@ -37,7 +37,7 @@ struct IVolumeManager
     virtual std::vector<TFuture<TOverlayData>> PrepareOverlayLayers(
         TJobId jobId,
         std::vector<TOverlayLayerPreparationOptions> layerOptions,
-        const TArtifactDownloadOptions& artifactDownloadOptions) = 0;
+        const TArtifactDownloadContext& artifactDownloadContext) = 0;
 
     //! TODO(yuryalekeev): Remove this method after we get rid of rbind volume.
     virtual TFuture<IVolumePtr> RbindRootVolume(
@@ -58,8 +58,6 @@ struct IVolumeManager
 
     //! Remove layers planted at a given place.
     virtual TFuture<void> RemoveLayers(const std::string& place, TDuration timeout) = 0;
-
-    virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
 
     virtual void BuildOrchid(NYTree::TFluentAny fluent) const = 0;
 

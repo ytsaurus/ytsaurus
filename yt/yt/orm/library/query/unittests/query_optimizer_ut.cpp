@@ -239,6 +239,16 @@ TEST(TQueryOptimizerTest, OptimizeGroupBy)
             "i.[permalink_ids] < 42",
             references,
             tableName));
+    EXPECT_FALSE(
+        RunGroupByOptimization(
+            "(i.[permalink_ids], [some_other_ref]) and i.[permalink_ids] = 1",
+            references,
+            tableName));
+    EXPECT_FALSE(
+        RunGroupByOptimization(
+            "i.[permalink_ids] = 1 or (i.[permalink_ids], [some_other_ref])",
+            references,
+            tableName));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

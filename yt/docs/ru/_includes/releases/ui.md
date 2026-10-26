@@ -8,6 +8,110 @@
 
 **Релизы:**
 
+{% cut "**3.23.0**" %}
+
+**Дата релиза:** 2026-08-26
+
+
+**Страница релиза:** [3.23.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.23.0)
+
+
+**Docker-образ:** [ghcr.io/ytsaurus/ui:3.23.0](https://github.com/orgs/ytsaurus/packages/container/ui/1174308505?tag=3.23.0)
+
+
+#### [3.23.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.22.0...ui-v3.23.0) (2026-08-26)
+
+
+#### Новые возможности
+
+* **Планирование:** добавлен фильтр сортировки пулов [YTFRONT-5930] ([1896c53](https://github.com/ytsaurus/ytsaurus-ui/commit/1896c53e5fd17fe63da3bc3c1fb4dc97385d1cdc))
+* **Система:** добавлены новые значки статуса мастер-сервера [YTFRONT-5992] ([af32c83](https://github.com/ytsaurus/ytsaurus-ui/commit/af32c832db22c227ff5c1ad060041b79d0b7fc75))
+
+
+#### Исправления
+
+* **Навигация:** некорректный путь скачивания [YTFRONT-5990] ([e710716](https://github.com/ytsaurus/ytsaurus-ui/commit/e710716fd493e248621e4048b0f17f59c876f8b4))
+* **Операции:** статусы Vanilla-операций [YTFRONT-5967] ([f987558](https://github.com/ytsaurus/ytsaurus-ui/commit/f98755882c5a92ea1addf44ffe061a77281ee472))
+* **Операции:** прогресс может быть null [YTFRONT-5928] ([856f188](https://github.com/ytsaurus/ytsaurus-ui/commit/856f188b057909ef6630a2edb62027c6bdcbd903))
+* **Запросы:** двойная прокрутка [YTFRONT-5943] ([291e254](https://github.com/ytsaurus/ytsaurus-ui/commit/291e254580d8c6f500bdc70227afd7a55cb68c32))
+* **UI:** кнопки выбора диапазона дат [YTFRONT-5755] ([6c482c1](https://github.com/ytsaurus/ytsaurus-ui/commit/6c482c1ca7aee5935e719d3746d76c22e16a9668))
+
+{% endcut %}
+
+
+{% cut "**3.22.0**" %}
+
+**Дата релиза:** 2026-08-19
+
+
+**Страница релиза:** [3.22.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.22.0)
+
+
+**Docker-образ:** [ghcr.io/ytsaurus/ui:3.22.0](https://github.com/orgs/ytsaurus/packages/container/ui/1149494747?tag=3.22.0)
+
+
+#### [3.22.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.21.1...ui-v3.22.0) (2026-08-19)
+
+
+#### Новые возможности
+
+* **ACL:** «Полное чтение» скрыто в разделе «Дополнительные разрешения» [YTFRONT-5871] ([a5a2f36](https://github.com/ytsaurus/ytsaurus-ui/commit/a5a2f364c3d7e35ca0ee9e9335e3dba8c69b4d32))
+* **Навигация/Содержимое:** отображение URL блока Nirvana и исправления [YTFRONT-5942] ([5a2e917](https://github.com/ytsaurus/ytsaurus-ui/commit/5a2e9171fc7e4a04a65e0e0818e5f8a824d2dc1a))
+* **Навигация/Таблеты:** фильтрация по pivot-ключу [YTFRONT-5931] ([366ceba](https://github.com/ytsaurus/ytsaurus-ui/commit/366cebad9705cdea4b4e0ce280a5bfd8e38b43df))
+* **Запросы/Навигация:** добавлены столбцы внешней схемы [YTFRONT-5891] ([0fb198c](https://github.com/ytsaurus/ytsaurus-ui/commit/0fb198c185d7da4694939a11cacbfed1d1ded4da))
+
+
+#### Исправления
+
+* **Аккаунты:** последняя открытая вкладка [YTFRONT-5963] ([6d7330d](https://github.com/ytsaurus/ytsaurus-ui/commit/6d7330d5b9a968eabd231db1a905eb1792dc63ce))
+* **ACL:** разрешены TVM-приложения в качестве ответственных [YTFRONT-5933] ([5c9b25b](https://github.com/ytsaurus/ytsaurus-ui/commit/5c9b25b4ec011d39c9e3774d5eb37a8f8f9b14ac))
+* **ACL:** не отображать элемент RLS-meta для live_preview [YTFRONT-5889] ([1156e7e](https://github.com/ytsaurus/ytsaurus-ui/commit/1156e7e8d9b5523abb445325fd01796c6170e6d5))
+* **Flow/Worker:** использовать 'worker_groups' вместо 'groups' [YTFRONT-5944] ([a91f8c2](https://github.com/ytsaurus/ytsaurus-ui/commit/a91f8c2909e4545332bd617d7a1beaaaf07e104d))
+* некорректное удаление фавикона страницы [YTFRONT-5965] ([366c92b](https://github.com/ytsaurus/ytsaurus-ui/commit/366c92bf0bedc3bbcf87bf03e2aeaebfca171c02))
+* **makeDirectDownloadPath:** не игнорировать флаг `secure` для поля `proxy` [YTFRONT-5795] ([5d50d13](https://github.com/ytsaurus/ytsaurus-ui/commit/5d50d131956837771da59eb35c9ee3446db26adc))
+* **Операции/Сведения:** изменён заголовок модального окна редактирования атрибутов операции [YTFRONT-5902] ([32015e1](https://github.com/ytsaurus/ytsaurus-ui/commit/32015e1c6e5d00f8dd6c7d2b8dc87e89d72f3eda))
+* **Операции/Сведения:** изменён формат веса атрибутов операции [YTFRONT-5902] ([9d0aeeb](https://github.com/ytsaurus/ytsaurus-ui/commit/9d0aeeb55553cf36acae56770093d53ae07198de))
+* **Запросы:** неверная клика в общем запросе [YTFRONT-5924] ([066df2e](https://github.com/ytsaurus/ytsaurus-ui/commit/066df2e6c66dba892344f998be56df066d57488d))
+* **Планирование:** атрибуты операции [YTFRONT-5954] ([ff23973](https://github.com/ytsaurus/ytsaurus-ui/commit/ff23973eba977259dd10a31f1b5f04d61ffd1bb7))
+
+{% endcut %}
+
+
+{% cut "**3.19.0**" %}
+
+**Дата релиза:** 2026-07-13
+
+
+**Страница релиза:** [3.19.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.19.0)
+
+
+**Docker-образ:** [ghcr.io/ytsaurus/ui:3.19.0](https://github.com/orgs/ytsaurus/packages/container/ui/1025841168?tag=3.19.0)
+
+
+#### [3.19.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.18.1...ui-v3.19.0) (2026-07-13)
+
+
+#### Новые возможности
+
+* **Запросы:** унифицированное меню действий с путём [YTFRONT-4886] ([ce3f485](https://github.com/ytsaurus/ytsaurus-ui/commit/ce3f4850553caeeac6967374e9603dd26d74fa17))
+
+* **Аккаунт:** добавлена сортировка версионированных столбцов [YTFRONT-5361] ([e2ec066](https://github.com/ytsaurus/ytsaurus-ui/commit/e2ec066ab8bc6ff399eb34eb220c982a290e87ff))
+
+
+
+#### Исправления
+
+* **Запросы:** имя на кириллице в истории [YTFRONT-5881] ([ecc03cf](https://github.com/ytsaurus/ytsaurus-ui/commit/ecc03cfc5a5e64754fe32df1298c6359e36e0af6))
+
+* **Система/Чанки:** не выделять значения 'Lost' ([fd961cc](https://github.com/ytsaurus/ytsaurus-ui/commit/fd961cca387f0acd932b9035dbc4e59af8d6dbca))
+
+* **Операция/Джобы:** исправлен фильтр по состоянию [YTFRONT-5919] ([a90e810](https://github.com/ytsaurus/ytsaurus-ui/commit/a90e810c0351db26995e8aafb0e9a0371659bf45))
+
+* **PageHead:** использовать фавикон для темы кластера [YTFRONT-5918] ([cb6e981](https://github.com/ytsaurus/ytsaurus-ui/commit/cb6e9816fdb342a25f82dd90569285f8eafec764))
+
+{% endcut %}
+
+
 {% cut "**3.17.1**" %}
 
 **Дата релиза:** 2026-07-09
@@ -208,6 +312,7 @@
 
 
 {% endcut %}
+
 
 {% cut "**3.9.0**" %}
 
@@ -427,6 +532,7 @@
 * **Statistics:** улучшено форматирование значений для YTChartKitPie [YTFRONT-5304] ([a7ca6cf](https://github.com/ytsaurus/ytsaurus-ui/commit/a7ca6cfc5d93956cdbf33ba393f4f894622e6dcf))
 
 {% endcut %}
+
 
 {% cut "**3.3.1**" %}
 
@@ -1110,7 +1216,7 @@
 * **UIFactory:** defaultUIFactory вынесен в отдельный файл [YTFRONT-3814] ([dfc8930](https://github.com/ytsaurus/ytsaurus-ui/commit/dfc8930d7925f4a6389cd6600f1ce165f2fb2852))
 
 
-#### Исправления ошибок
+#### Исправления
 
 * **ACL:** права доступа должны быть отсортированы [YTFRONT-4432] ([881c08c](https://github.com/ytsaurus/ytsaurus-ui/commit/881c08c2c2883c6d0288682c12fbbf3e3dafd4d6))
 * **ClusterPage:** выравнивание текста "Загрузка &lt;имя кластера&gt;..." по центру страницы ([f367d5b](https://github.com/ytsaurus/ytsaurus-ui/commit/f367d5b3bc5b7b612b611a7aa0b70f00f909ebf5))
@@ -1152,9 +1258,9 @@
 * **Navigation/Queue:** добавлена секция alerts [YTFRONT-4144] ([8b0157c](https://github.com/ytsaurus/ytsaurus-ui/commit/8b0157c08dac8757a04a4129c83ea8de332f6861))
 * **System:** кнопка обслуживания [YTFRONT-4217] ([3c5d0d2](https://github.com/ytsaurus/ytsaurus-ui/commit/3c5d0d225d244204b87fde6dc182489130ad20e6))
 
-#### Исправления ошибок
+#### Исправления
 
-* **BFF** исправлено логирование ошибок axios в функции `sendAndLogError` ([b9239dc](https://github.com/ytsaurus/ytsaurus-ui/commit/b9239dc43feab214b4e3520b21e662755be4f33a))
+* **BFF** исправлено логирование ошибки axios в функции `sendAndLogError` ([b9239dc](https://github.com/ytsaurus/ytsaurus-ui/commit/b9239dc43feab214b4e3520b21e662755be4f33a))
 * **Navigation:** всплывающее окно выбора пула [YTFRONT-4380] ([f52eb90](https://github.com/ytsaurus/ytsaurus-ui/commit/f52eb90da82306d6bf191a0d1375f3c30eaa3aac))
 * **Navigation/Consumer,Navigation/Queue:** отображение ошибок [YTFRONT-4144] ([914a6a0](https://github.com/ytsaurus/ytsaurus-ui/commit/914a6a066ce30928673749bd8e2250c51a3e637b))
 * **Navigation/Table/CellPreview:** исправлено открытие предпросмотра для таблицы со смещением [[#778](https://github.com/ytsaurus/ytsaurus-ui/issues/778)] ([7347349](https://github.com/ytsaurus/ytsaurus-ui/commit/7347349c9adaedb1a8d7ea4a933a8316f2b296d2))
@@ -1206,7 +1312,7 @@
 * **YQLTable:** добавлена кнопка "просмотр" для усеченных ячеек [[#702](https://github.com/ytsaurus/ytsaurus-ui/issues/702)] ([ee776c1](https://github.com/ytsaurus/ytsaurus-ui/commit/ee776c1158eaaf21a53ae6226dbd5ba83427c646))
 * обновлены @gravity-ui/charkit, @gravity-ui/yagr [YTFRONT-4305] ([a65be74](https://github.com/ytsaurus/ytsaurus-ui/commit/a65be74a5d9017a5c0d8159f80982891e3afc8cc))
 
-#### Исправления ошибок
+#### Исправления
 
 * **Components/Nodes:** исправлена фильтрация по стойкам ([b58e8ba](https://github.com/ytsaurus/ytsaurus-ui/commit/b58e8ba8de094e635d2d697589d68e2418b5660b))
 * **Components/Node:** отображение десятичных CPU [[#675](https://github.com/ytsaurus/ytsaurus-ui/issues/675)] ([b42b0bb](https://github.com/ytsaurus/ytsaurus-ui/commit/b42b0bb147cc13abe05715e6a0fb453724d2ec50))
@@ -1270,7 +1376,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 #### [1.46.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.46.1...ui-v1.46.2) (2024-07-21)
 
 
-#### Исправления ошибок
+#### Исправления
 
 * **Operation/Specification/Input:** исправление для операций 'remote_copy' [YTFRONT-4265] ([b9ba7d9](https://github.com/ytsaurus/ytsaurus-ui/commit/b9ba7d901f38b49d75c10c072339dce9072d9f0e))
 
@@ -1341,7 +1447,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 * **Components/Nodes:** улучшена сортировка колонок прогресса [YTFRONT-3801] ([3502577](https://github.com/ytsaurus/ytsaurus-ui/commit/3502577afb59ee36a05d975e0e69b8647ece9d5d))
 * **DownloadManager/Excel:** добавлена опция «Number precision mode» [YTFRONT-4150] ([5a3a641](https://github.com/ytsaurus/ytsaurus-ui/commit/5a3a641a0427700df566d5b35f3a1c2581c9ff50))
 * **Navigation/CreateTableModal:** добавлена опция «Optimize for» [YTFRONT-4139] ([be84c6a](https://github.com/ytsaurus/ytsaurus-ui/commit/be84c6a288647b02775e9cbc288b865ffc11538b))
-* **Operation/Jobs:** добавлен фильтр `with_monitoring_descriptor` [YTFRONT-4078] ([aa575c9](https://github.com/ytsaurus/ytsaurus-ui/commit/aa575c9e3427c92f6f935fd5b25ef88887f2a911))
+* **Операция/Джобы:** добавлен фильтр 'with_monitoring_descriptor' [YTFRONT-4078] ([aa575c9](https://github.com/ytsaurus/ytsaurus-ui/commit/aa575c9e3427c92f6f935fd5b25ef88887f2a911))
 
 
 #### Исправления
@@ -1429,7 +1535,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 
 #### Исправления
 
-* **AccountsUsage:** исправление параметра `view` [YTFRONT-3737] ([7d31cda](https://github.com/ytsaurus/ytsaurus-ui/commit/7d31cdac26fafb4695a9893b8ad3e9e749bf9ba4))
+* **AccountsUsage:** исправлена ошибка с параметром 'view' [YTFRONT-3737] ([7d31cda](https://github.com/ytsaurus/ytsaurus-ui/commit/7d31cdac26fafb4695a9893b8ad3e9e749bf9ba4))
 * **AccountsUsage:** исправление выпадающих списков Select [YTFRONT-4155] ([63645e1](https://github.com/ytsaurus/ytsaurus-ui/commit/63645e1dda2d73155967ed0a47e8b523c46a13fa))
 * **BundleEditorDialog:** улучшено сообщение об ошибке [YTFRONT-4148] ([d233f9c](https://github.com/ytsaurus/ytsaurus-ui/commit/d233f9ca8b409626874b77519c5f2c72e1daa77a))
 
@@ -1568,6 +1674,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 
 {% endcut %}
 
+
 {% cut "**1.28.0**" %}
 
 **Дата релиза:** 2024-04-09
@@ -1585,7 +1692,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 * **QueryTracker:** новые колонки в списке запросов [[#267](https://github.com/ytsaurus/ytsaurus-ui/issues/267)] ([22d69a8](https://github.com/ytsaurus/ytsaurus-ui/commit/22d69a89cdcff82346649adcf64fb46f4cec1d66))
 
 
-#### Исправления ошибок
+#### Исправления
 
 * **configs:** добавлена обратная совместимость для YT_AUTH_CLUSTER_ID [[#349](https://github.com/ytsaurus/ytsaurus-ui/issues/349)] ([0deca57](https://github.com/ytsaurus/ytsaurus-ui/commit/0deca57a1a0ea3c32259ca8a83e340bd63514439))
 * **Scheduling/Overview:** фильтр по имени заменён на pool-selector [YTFRONT-4075] ([2865e09](https://github.com/ytsaurus/ytsaurus-ui/commit/2865e09cf3ffa91dcfc4378876b9dc881b20e2d8))
@@ -1612,7 +1719,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 * **Query:** редизайн заголовка страницы [YTFRONT-4041] ([b2d6696](https://github.com/ytsaurus/ytsaurus-ui/commit/b2d66969c46fae1bd68884298c92fda3be7183db))
 
 
-#### Исправления ошибок
+#### Исправления
 
 * **Bundles/Editor:** разрешено редактировать Memory/Reserved через 'Reset to default' [YTFRONT-4098] ([2b371fc](https://github.com/ytsaurus/ytsaurus-ui/commit/2b371fc64f137f5c18a9f839ede5a95131527269))
 * **Bundles:** исправлены параметры запроса [YTFRONT-4072] ([92fd224](https://github.com/ytsaurus/ytsaurus-ui/commit/92fd2245d1c02e9fa50e37d2b969312a98e0bad9))
@@ -1660,7 +1767,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 * **Query:** прогресс для движка spyt [YTFRONT-3981] ([14a59b0](https://github.com/ytsaurus/ytsaurus-ui/commit/14a59b01712146e99113a27dba6a556c10f8ca69))
 
 
-#### Исправления ошибок
+#### Исправления
 
 * **navigation:** исправлена форма изменения описания [YTFRONT-4083] ([93ee0d1](https://github.com/ytsaurus/ytsaurus-ui/commit/93ee0d16c088e3aaebf7e71f825864ee945ba4be))
 
@@ -1678,7 +1785,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 #### [1.24.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.24.0...ui-v1.24.1) (2024-03-26)
 
 
-#### Исправления ошибок
+#### Исправления
 
 * **Query:** подчёркивание в monaco [YTFRONT-4069] ([d2bc351](https://github.com/ytsaurus/ytsaurus-ui/commit/d2bc35179fd924a2150f28f4aa2d278213592d7b))
 
@@ -1714,7 +1821,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 #### [1.23.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.23.0...ui-v1.23.1) (2024-03-21)
 
 
-#### Исправления ошибок
+#### Исправления
 
 * **BundleEditorDialog:** кнопка подтверждения должна быть кликабельной [YTFRONT-4076] ([e8f10da](https://github.com/ytsaurus/ytsaurus-ui/commit/e8f10daba41fb088f2d505ab30054f51531c36b8))
 * запрос настроек выполняется без кластера ([5243dc5](https://github.com/ytsaurus/ytsaurus-ui/commit/5243dc533d14576901d1749e029633b497de981e))
@@ -1751,7 +1858,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 #### [1.22.3](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.22.2...ui-v1.22.3) (2024-03-18)
 
 
-#### Исправления ошибок
+#### Исправления
 
 * **CHYT:** не загружать пулы, пока defaultPoolTree пуст [YTFRONT-3863] ([0b2e823](https://github.com/ytsaurus/ytsaurus-ui/commit/0b2e823adcc8f794fc4ec11c3951b2d444d9fb68))
 
@@ -1769,7 +1876,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 #### [1.22.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.22.1...ui-v1.22.2) (2024-03-18)
 
 
-#### Исправления ошибок
+#### Исправления
 
 * **CHYT/CreateModal:** использование RangeInputPicker для поля 'Instances count' [YTFRONT-3863] ([efdf7a5](https://github.com/ytsaurus/ytsaurus-ui/commit/efdf7a5b883381d1081acf3dc8fce8a28c4a077b))
 * **CHYT:** дерево пулов по умолчанию должно загружаться корректно [YTFRONT-3683] ([4ef42f4](https://github.com/ytsaurus/ytsaurus-ui/commit/4ef42f4597961af707ddeecd73eb36f751270e88))
@@ -1791,7 +1898,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 #### [1.22.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v1.22.0...ui-v1.22.1) (2024-03-17)
 
 
-#### Исправления ошибок
+#### Исправления
 
 * добавлено описание миграции для ytAuthCluster -> allowPasswordAuth [[#349](https://github.com/ytsaurus/ytsaurus-ui/issues/349)] ([d1a9b2b](https://github.com/ytsaurus/ytsaurus-ui/commit/d1a9b2b3e011ba77df2ee48bc8959530e5186ed5))
 
@@ -1817,6 +1924,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 * **odin:** поддержка odin url для каждого кластера ([959cbb9](https://github.com/ytsaurus/ytsaurus-ui/commit/959cbb9fcc0c4685f36eaa80748895593da94022))
 
 {% endcut %}
+
 
 {% cut "**1.21.0**" %}
 
@@ -2054,6 +2162,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 
 {% endcut %}
 
+
 {% cut "**1.15.1**" %}
 
 **Дата релиза:** 2024-02-05
@@ -2092,7 +2201,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 
 * **Operations/Details:** мелкий css-фикс [YTFRONT-3518] ([91d9b01](https://github.com/ytsaurus/ytsaurus-ui/commit/91d9b0172dd8de0c1d610bc9eb1ca8d2117b1dd6))
 * **Scheduling/PoolEditor:** корректное значение для fifo_sort_parameters [YTFRONT-3957] ([34d5cdb](https://github.com/ytsaurus/ytsaurus-ui/commit/34d5cdb672b0eeadce80f10d1f828f1579e326ac))
-* **SupportForm:** переработан api функции `makeSupportContent` [YTFRONT-3994] ([a563179](https://github.com/ytsaurus/ytsaurus-ui/commit/a563179b6ce5d85e79e24a58a4aa425b5708b281))
+* **SupportForm:** переработан API `makeSupportContent` [YTFRONT-3994] ([a563179](https://github.com/ytsaurus/ytsaurus-ui/commit/a563179b6ce5d85e79e24a58a4aa425b5708b281))
 
 {% endcut %}
 
@@ -2290,6 +2399,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 * **CHYT:** не отображать CHYT-страницу, если chyt_controller_base_url пуст [YTFRONT-3863] ([cb66484](https://github.com/ytsaurus/ytsaurus-ui/commit/cb664842ffdd6ae56461afdc85340ba6c9fbd602))
 
 {% endcut %}
+
 
 {% cut "**1.11.1**" %}
 
@@ -2542,6 +2652,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 
 {% endcut %}
 
+
 {% cut "**1.4.0**" %}
 
 **Дата релиза:** 2023-11-17
@@ -2658,7 +2769,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 
 #### Исправления
 
-* **Navigation/ACL**: форма создания group columns доступна только для map_nodes [YTFRONT-3901] ([32a8bf0](https://github.com/ytsaurus/ytsaurus-ui/commit/32a8bf0b043881f574d60839c328bb65806c0a01))
+* **Навигация/ACL**: форма создания групп столбцов доступна только для map_nodes [YTFRONT-3901] ([32a8bf0](https://github.com/ytsaurus/ytsaurus-ui/commit/32a8bf0b043881f574d60839c328bb65806c0a01))
 * **GroupsPage:** убран updater со страницы GroupsPage [YTFRONT-3835] ([548798b](https://github.com/ytsaurus/ytsaurus-ui/commit/548798ba7fc413d7e767d54e20aa89f5c276406b))
 * **Users:** убран updater со страницы UsersPage [YTFRONT-3835] ([78cd8e8](https://github.com/ytsaurus/ytsaurus-ui/commit/78cd8e849907a6c8bab7b9e2714844e51c8861da))
 
@@ -2678,7 +2789,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 
 #### Исправления
 
-* форма создания group columns доступна только для map_nodes [YTFRONT-3901] ([bb3d183](https://github.com/ytsaurus/ytsaurus-ui/commit/bb3d1834ca8112d0afd7e5788372580e06a40b74))
+* форма создания групп столбцов доступна только для map_nodes [YTFRONT-3901] ([bb3d183](https://github.com/ytsaurus/ytsaurus-ui/commit/bb3d1834ca8112d0afd7e5788372580e06a40b74))
 * **GroupsPage:** убран updater со страницы GroupsPage [YTFRONT-3835] ([c68967c](https://github.com/ytsaurus/ytsaurus-ui/commit/c68967c4bb5fe7f0a75432ba1170ad041dac4a14))
 * **Users:** убран updater со страницы UsersPage [YTFRONT-3835] ([1e1e887](https://github.com/ytsaurus/ytsaurus-ui/commit/1e1e88788fedd9ce2b3ddd22f171c844210dedec))
 
@@ -2792,6 +2903,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 * **Components/Nodes:** добавлено модальное окно NodeMaintenanceModal [YTFRONT-3792] ([1b01b70](https://github.com/ytsaurus/ytsaurus-ui/commit/1b01b70dcafde2beee6fcadc60beec6555085d4b))
 
 {% endcut %}
+
 
 {% cut "**0.22.0**" %}
 
@@ -3036,6 +3148,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 
 {% endcut %}
 
+
 {% cut "**0.14.2**" %}
 
 **Дата релиза:** 2023-07-28
@@ -3198,7 +3311,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 
 #### Зависимости
 
-* Обновлены следующие зависимости рабочей области
+* Обновлены следующие зависимости workspace
   * dependencies
     * @ytsaurus/javascript-wrapper обновлён с ^0.2.1 до ^0.3.0
 
@@ -3266,6 +3379,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 * Небольшое исправление Changelog ([21ad9cf](https://github.com/ytsaurus/ytsaurus-ui/commit/21ad9cf5a4e4c9c8499eb54d5b9d2d1c8492e863))
 
 {% endcut %}
+
 
 {% cut "**0.9.0**" %}
 
@@ -3515,6 +3629,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 
 {% endcut %}
 
+
 {% cut "**0.4.0**" %}
 
 **Дата релиза:** 2023-04-27
@@ -3536,7 +3651,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 * **Таблицы:** добавлен флаг 'Combine chunks' в модальное окно Merge/Erase ([aeec0ca](https://github.com/ytsaurus/ytsaurus-ui/commit/aeec0cabd87d4ec896f54972240a7708cfa9f531))
 
 
-#### Исправления ошибок
+#### Исправления
 
 * размеры колонок сетки ACL ([e0bd03b](https://github.com/ytsaurus/ytsaurus-ui/commit/e0bd03bcab24913f6fac82c3438bdb6db39e893f))
 * многоточие в колонке субъекта ACL ([7a7fd4e](https://github.com/ytsaurus/ytsaurus-ui/commit/7a7fd4e2e91e0911100dc2c5c2070797c60783bc))
@@ -3558,7 +3673,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 #### [0.3.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.3.0...ui-v0.3.1) (2023-04-19)
 
 
-#### Исправления ошибок
+#### Исправления
 
 * **Таблицы/Схема:** небольшая правка ширины колонок [YTFRONT-3667] ([0abe89d](https://github.com/ytsaurus/ytsaurus-ui/commit/0abe89d7d570c662ae6646622b904f98f9297e7f))
 
@@ -3594,7 +3709,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 #### [0.2.3](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.2.2...ui-v0.2.3) (2023-04-17)
 
 
-#### Исправления ошибок
+#### Исправления
 
 * возвращена телеметрия ([b24d977](https://github.com/ytsaurus/ytsaurus-ui/commit/b24d977b78273105f8e3f49b1ad3d0946160320b))
 
@@ -3612,7 +3727,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 #### [0.2.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.2.1...ui-v0.2.2) (2023-04-14)
 
 
-#### Исправления ошибок
+#### Исправления
 
 * добавлено  для таблетов с 0 ячеек [YTFRONT-3696] ([63acb21](https://github.com/ytsaurus/ytsaurus-ui/commit/63acb214a5f25ad6458daddc8db9d5fa93eed91f))
 * переработан выбор шрифта [YTFRONT-3691] ([717fa89](https://github.com/ytsaurus/ytsaurus-ui/commit/717fa89ad5aceca74e6587d444b672d50ba2ed07))
@@ -3631,7 +3746,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 #### [0.2.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.2.0...ui-v0.2.1) (2023-04-07)
 
 
-#### Исправления ошибок
+#### Исправления
 
 * удалены ненужные файлы ([f4b51c2](https://github.com/ytsaurus/ytsaurus-ui/commit/f4b51c2a5a79705913adf3377e1590ad5368d1fb))
 
@@ -3654,7 +3769,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 * добавлен список обучающих материалов ([8241d3a](https://github.com/ytsaurus/ytsaurus-ui/commit/8241d3a933877113b4a1b3a452e84a46417bbebe))
 
 
-#### Исправления ошибок
+#### Исправления
 
 * исправлены опечатки и отсутствующая ссылка abc в форме редактирования бандла [YTFRONT-3676] ([aa617d3](https://github.com/ytsaurus/ytsaurus-ui/commit/aa617d3fad7ad1bfd14e0217d44599dd895bc24b))
 
@@ -3678,7 +3793,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 * добавлен QT proxy ([c624e5d](https://github.com/ytsaurus/ytsaurus-ui/commit/c624e5d847d96dbd9045bb38019811c367ea666c))
 
 
-#### Исправления ошибок
+#### Исправления
 
 * добавлена настройка queryTrackerCluster для ya-env. Сброс настройки экрана после закрытия QTWidget. ([215a72b](https://github.com/ytsaurus/ytsaurus-ui/commit/215a72b6c5ca023c97ded4208d4d50c8f1d8642a))
 * EditableAsText с элементами управления (используется в QT TopRowElement) ([574dbae](https://github.com/ytsaurus/ytsaurus-ui/commit/574dbae73de87f726152ffba809a03629c4a7d3a))
@@ -3701,7 +3816,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 #### [0.0.4](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.0.3...ui-v0.0.4) (2023-03-24)
 
 
-#### Исправления ошибок
+#### Исправления
 
 * **ui:** добавлено поле 'files' в package.json ([cb51d75](https://github.com/ytsaurus/ytsaurus-ui/commit/cb51d756af502f25fab413ff26c20b5e2ce90abf))
 
@@ -3719,7 +3834,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 #### [0.0.3](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.0.2...ui-v0.0.3) (2023-03-24)
 
 
-#### Исправления ошибок
+#### Исправления
 
 * исправлен docker-образ ytsaurus/ui для локального режима ([5033eb9](https://github.com/ytsaurus/ytsaurus-ui/commit/5033eb9c1c5ab4aaf8029c678847231eb7a6bd18))
 
@@ -3737,8 +3852,9 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 #### [0.0.2](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v0.0.1...ui-v0.0.2) (2023-03-24)
 
 
-#### Исправления ошибок
+#### Исправления
 
 * добавлен отсутствующий конфиг ([e391c59](https://github.com/ytsaurus/ytsaurus-ui/commit/e391c59fdf5c0ee72e8899daae0dfd3d4e34f4e7))
 
 {% endcut %}
+

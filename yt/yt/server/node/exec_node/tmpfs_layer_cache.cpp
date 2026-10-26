@@ -378,13 +378,13 @@ void TTmpfsLayerCache::UpdateLayers()
     std::vector<TFuture<TLayerPtr>> newLayerFutures;
     newLayerFutures.reserve(newArtifacts.size());
 
-    TArtifactDownloadOptions downloadOptions{
+    TArtifactDownloadContext downloadContext{
         .WorkloadDescriptorAnnotations = {"Type: TmpfsLayersUpdate"},
     };
     for (const auto& artifactKey : newArtifacts) {
         newLayerFutures.push_back(AbsorbLayer_(
             artifactKey,
-            downloadOptions,
+            downloadContext,
             tag,
             TmpfsLocation_));
     }

@@ -449,8 +449,9 @@ public:
     std::optional<int> OnBinary(TBinaryOpExpressionPtr binaryExpr)
     {
         if (IsLogicalBinaryOp(binaryExpr->Opcode)) {
-            YT_VERIFY(binaryExpr->Lhs.size() == 1);
-            YT_VERIFY(binaryExpr->Rhs.size() == 1);
+            if (binaryExpr->Lhs.size() != 1 || binaryExpr->Rhs.size() != 1) {
+                return std::nullopt;
+            }
             auto prefixRangesLeft = Visit(binaryExpr->Lhs[0]);
             auto prefixRangesRight = Visit(binaryExpr->Rhs[0]);
             if (!prefixRangesLeft || !prefixRangesRight) {

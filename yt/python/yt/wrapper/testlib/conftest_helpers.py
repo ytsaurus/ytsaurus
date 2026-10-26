@@ -439,6 +439,7 @@ def test_environment_with_porto(request):
                     "enforce_job_control": True,
                     "job_environment": {
                         "type": "porto",
+                        "use_short_container_names": True,
                     },
                 },
                 "job_proxy": {

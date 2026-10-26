@@ -75,6 +75,7 @@ ELSE()
     PY_SRCS(
         TOP_LEVEL
         yt_dashboards/common/settings.py
+        yt_dashboards/id_to_path_updater.py
         yt_dashboards/yandex_constants.py
     )
 ENDIF()

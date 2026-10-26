@@ -107,9 +107,6 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             replacements = {
                 "${cluster_name}": self.env.id,
                 "${cluster_address}": self.env.get_http_proxy_address(),
-                "${mr_job_bin}": self._resolve_mrjob(),
-                "${yt_debug_log_file}": os.path.join(
-                    self.env.logs_path, "qtworker_{}_yt_debug.log".format(index)),
                 "${remote_cluster_mappings}": "\n\n    ".join(
                     "\n".join([
                         "ClusterMapping {",
@@ -127,9 +124,6 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         return build_gateways_conf(
             cluster_name=self.env.id,
             cluster_address=self.env.get_http_proxy_address(),
-            mr_job_bin=self._resolve_mrjob(),
-            yt_debug_log_file=os.path.join(
-                self.env.logs_path, "qtworker_{}_yt_debug.log".format(index)),
             enable_dq=self.enable_dq_worker,
             remote_clusters=[
                 (remote_env.id, remote_env.get_http_proxy_address())
@@ -186,6 +180,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             raise YtError("qtworker_udf_dep_stub_path is not specified in config")
 
         qtworker_log_file = os.path.join(self.env.logs_path, "qtworker_{}.log".format(instance["index"]))
+        yt_debug_log_file = os.path.join(self.env.logs_path, "qtworker_{}_yt_debug.log".format(instance["index"]))
 
         dq_params = None
         if self.enable_dq_worker:
@@ -224,6 +219,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             inspector_port=instance["inspector_port"],
             core_port=core_port,
             core_task_port=core_task_port,
+            mr_job_bin=self._resolve_mrjob(),
+            yt_debug_log_file=yt_debug_log_file,
             dq_interconnect_port=self._qtworker_dq_interconnect_port,
             dq_grpc_port=self._qtworker_dq_grpc_port,
             enable_dq=self.enable_dq_worker,

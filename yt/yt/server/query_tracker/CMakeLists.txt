@@ -43,6 +43,7 @@ target_link_libraries(yt-server-query_tracker PUBLIC
   yt-library-dynamic_config
   yt-library-clickhouse_discovery
   yt-library-coredumper
+  yt-library-monitoring
   yt-library-server_program
   server-lib-admin
   server-lib-alert_manager

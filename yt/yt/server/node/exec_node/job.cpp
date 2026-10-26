@@ -102,6 +102,7 @@
 
 #include <yt/yt/core/net/address.h>
 
+#include <yt/yt/core/misc/pattern_formatter.h>
 #include <yt/yt/core/misc/statistics.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
@@ -201,6 +202,9 @@ static const std::string GpuRdmaTxBytesSensorName = "gpu/rdma/tx_bytes";
 static const std::string GpuTensorActivitySensorName = "gpu/tensor_activity";
 static const std::string GpuDramActivitySensorName = "gpu/dram_activity";
 static const std::string GpuSlowdownSensorName = "gpu/slowdown";
+
+// Matches HOST_NAME_MAX on Linux.
+constexpr int MaxHostNameLength = 64;
 
 const THashMap<std::string, TUserJobSensorPtr>& GetSupportedGpuMonitoringSensors()
 {
@@ -662,8 +666,8 @@ void TJob::PrepareArtifact(
                     .With("CompressedDataSize", artifact.Key.GetCompressedDataSize());
 
                 const auto& artifactCache = Bootstrap_->GetArtifactCache();
-                auto downloadOptions = MakeArtifactDownloadOptions();
-                auto producer = artifactCache->MakeArtifactDownloadProducer(artifact.Key, downloadOptions);
+                auto downloadContext = MakeArtifactDownloadContext();
+                auto producer = artifactCache->MakeArtifactDownloadProducer(artifact.Key, downloadContext);
 
                 auto bypassCpuStartTime = GetCpuInstant();
                 ArtifactPrepareFutures_.push_back(
@@ -2612,7 +2616,7 @@ void TJob::PrepareWorkspace()
         .Job = MakeStrong(this),
         .CommandUser = CommonConfig_->SetupCommandUser,
 
-        .ArtifactDownloadOptions = MakeArtifactDownloadOptions(),
+        .ArtifactDownloadContext = MakeArtifactDownloadContext(),
 
         .FSSecretary = FSSecretary_,
         .Binds = binds,
@@ -2629,9 +2633,6 @@ void TJob::PrepareWorkspace()
     auto workspaceBuilder = GetUserSlot()->CreateJobWorkspaceBuilder(
         Invoker_,
         std::move(context));
-
-    workspaceBuilder->SubscribeUpdateArtifactStatistics(
-        BIND_NO_PROPAGATE(&TJob::UpdateArtifactStatistics, MakeWeak(this)));
 
     // TODO(pogorelov): Refactor it. Phase should be changed in callback, not in signal handler.
     // We intentionally subscribe here without Via(Invoker_) to prevent data race.
@@ -3421,9 +3422,18 @@ TNetworkAttributes TJob::BuildNetworkAttributes(NControllerAgent::TNetworkProjec
         result.Addresses.push_back(std::move(networkAddress));
     }
 
-    result.HostName = Format("slot-%v.%v",
-        GetUserSlot()->GetSlotIndex(),
+    auto hostNamePrefix = TPatternFormatter()
+        .SetProperty("SlotIndex", ToString(GetUserSlot()->GetSlotIndex()))
+        .Format(CommonConfig_->JobHostNamePrefixPattern);
+    result.HostName = Format("%v.%v",
+        hostNamePrefix,
         Bootstrap_->GetConfig()->Addresses[0].second);
+
+    if (std::ssize(result.HostName) > MaxHostNameLength) {
+        THROW_ERROR_EXCEPTION("Job container host name %Qv is too long", result.HostName)
+            .With("length", std::ssize(result.HostName))
+            .With("max_length", MaxHostNameLength);
+    }
 
     return result;
 }
@@ -3773,7 +3783,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     return options;
 }
 
-TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions()
+TArtifactDownloadContext TJob::MakeArtifactDownloadContext()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -3783,20 +3793,52 @@ TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions()
         Format("AuthenticatedUser: %v", JobSpecExt_.authenticated_user()),
     };
 
-    auto options = TArtifactDownloadOptions{
+    auto context = TArtifactDownloadContext{
         .TrafficMeter = TrafficMeter_,
+        .OnLayerCacheHit = BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (i64 compressedDataSize) {
+            ArtifactStatistics_.CacheHitArtifactsSize += compressedDataSize;
+            ArtifactStatistics_.LayersCachedSize += compressedDataSize;
+            ArtifactStatistics_.LayersLayerCacheHitSize += compressedDataSize;
+        }).Via(Invoker_),
+        .OnChunkCacheHit = BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (i64 compressedDataSize) {
+            ArtifactStatistics_.CacheHitArtifactsSize += compressedDataSize;
+            ArtifactStatistics_.LayersCachedSize += compressedDataSize;
+            ArtifactStatistics_.LayersChunkCacheHitSize += compressedDataSize;
+        }).Via(Invoker_),
+        .OnLayerCacheAsyncHit = BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (
+            TCpuDuration asyncHitCpuDuration,
+            i64 compressedDataSize)
+        {
+            ArtifactStatistics_.LayersCachedSize += compressedDataSize;
+            ArtifactStatistics_.LayersLayerCacheAsyncHitSize += compressedDataSize;
+            ArtifactStatistics_.LayersLayerCacheAsyncHitCpuDuration += asyncHitCpuDuration;
+        }).Via(Invoker_),
+        .OnChunkCacheAsyncHit = BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (
+            TCpuDuration asyncHitCpuDuration,
+            i64 compressedDataSize)
+        {
+            ArtifactStatistics_.LayersCachedSize += compressedDataSize;
+            ArtifactStatistics_.LayersChunkCacheAsyncHitSize += compressedDataSize;
+            ArtifactStatistics_.LayersChunkCacheAsyncHitCpuDuration += asyncHitCpuDuration;
+        }).Via(Invoker_),
         .OnLayerDownloaded = BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (
             TCpuDuration downloadCpuDuration,
-            TCpuDuration importCpuDuration,
-            i64 importSize)
+            i64 downloadedSize)
         {
+            ArtifactStatistics_.CacheMissArtifactsSize += downloadedSize;
+            ArtifactStatistics_.LayersDownloadedSize += downloadedSize;
             ArtifactStatistics_.LayersDownloadCpuDuration += downloadCpuDuration;
+        }).Via(Invoker_),
+        .OnLayerImported = BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (
+            TCpuDuration importCpuDuration,
+            i64 importedSize)
+        {
             ArtifactStatistics_.LayersImportCpuDuration += importCpuDuration;
-            ArtifactStatistics_.LayersImportedSize += importSize;
+            ArtifactStatistics_.LayersImportedSize += importedSize;
         }).Via(Invoker_),
     };
 
-    return options;
+    return context;
 }
 
 // Start async artifacts download.
@@ -3823,17 +3865,18 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
             .With("SandboxKind", artifact.SandboxKind)
             .With("CompressedDataSize", artifact.Key.GetCompressedDataSize());
 
-        auto downloadOptions = MakeArtifactDownloadOptions();
-        bool fetchedFromCache = false;
+        auto downloadContext = MakeArtifactDownloadContext();
+        auto cacheEventType = ECacheEventType::Miss;
         auto downloadCpuStart = GetCpuInstant();
-        auto asyncArtifact = artifactCache->DownloadArtifact(artifact.Key, downloadOptions, &fetchedFromCache)
+        auto asyncArtifact = artifactCache->DownloadArtifact(artifact.Key, downloadContext, &cacheEventType)
             .Apply(BIND(
                 [
                     fileName = artifact.Name,
                     this,
                     this_ = MakeStrong(this),
                     downloadCpuStart,
-                    fetchedFromCache
+                    compressedDataSize = artifact.Key.GetCompressedDataSize(),
+                    cacheEventType
                 ] (const TErrorOr<TArtifactPtr>& chunkOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(
                         chunkOrError,
@@ -3846,12 +3889,21 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
                         .With("FileName", fileName)
                         .With("LocationId", chunk->GetLocation()->GetId())
                         .With("ChunkId", chunk->GetId());
-                    if (!fetchedFromCache) {
+                    if (cacheEventType == ECacheEventType::Miss) {
                         auto downloadCpuFinish = GetCpuInstant();
                         Invoker_->Invoke(BIND_NO_PROPAGATE(
                             [this, this_ = MakeStrong(this), downloadCpuStart, downloadCpuFinish] {
                                 ArtifactStatistics_.FilesDownloadCpuDuration +=
                                     downloadCpuFinish - downloadCpuStart;
+                            }));
+                    } else if (cacheEventType == ECacheEventType::AsyncHit) {
+                        auto downloadCpuFinish = GetCpuInstant();
+                        Invoker_->Invoke(BIND_NO_PROPAGATE(
+                            [this, this_ = MakeStrong(this), downloadCpuStart, downloadCpuFinish, compressedDataSize] {
+                                ArtifactStatistics_.FilesChunkCacheAsyncHitCpuDuration +=
+                                    downloadCpuFinish - downloadCpuStart;
+                                ArtifactStatistics_.FilesCachedSize += compressedDataSize;
+                                ArtifactStatistics_.FilesChunkCacheAsyncHitSize += compressedDataSize;
                             }));
                     }
                     return chunk;
@@ -3859,7 +3911,9 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
 
         asyncArtifacts.push_back(std::move(asyncArtifact));
 
-        UpdateArtifactStatistics(artifact.Key.GetCompressedDataSize(), fetchedFromCache, /*isLayer*/ false);
+        UpdateFileArtifactStatistics(
+            artifact.Key.GetCompressedDataSize(),
+            cacheEventType);
     }
 
     return AllSucceeded(std::move(asyncArtifacts))
@@ -4259,13 +4313,28 @@ void TJob::EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)
     statistics->AddSample("/exec_agent/artifacts/cache_miss_artifacts_size"_SP, ArtifactStatistics_.CacheMissArtifactsSize);
     statistics->AddSample("/exec_agent/artifacts/cache_bypassed_artifacts_size"_SP, ArtifactStatistics_.CacheBypassedArtifactsSize);
 
-    // Bytes served from cache (cache hit).
+    // Bytes served from cache (cache hit, including awaited files and layers).
     statistics->AddSample(
         "/exec_agent/artifacts/files_cached_size"_SP,
         ArtifactStatistics_.FilesCachedSize);
     statistics->AddSample(
+        "/exec_agent/artifacts/files_chunk_cache_async_hit_size"_SP,
+        ArtifactStatistics_.FilesChunkCacheAsyncHitSize);
+    statistics->AddSample(
         "/exec_agent/artifacts/layers_cached_size"_SP,
         ArtifactStatistics_.LayersCachedSize);
+    statistics->AddSample(
+        "/exec_agent/artifacts/layers_layer_cache_hit_size"_SP,
+        ArtifactStatistics_.LayersLayerCacheHitSize);
+    statistics->AddSample(
+        "/exec_agent/artifacts/layers_chunk_cache_hit_size"_SP,
+        ArtifactStatistics_.LayersChunkCacheHitSize);
+    statistics->AddSample(
+        "/exec_agent/artifacts/layers_layer_cache_async_hit_size"_SP,
+        ArtifactStatistics_.LayersLayerCacheAsyncHitSize);
+    statistics->AddSample(
+        "/exec_agent/artifacts/layers_chunk_cache_async_hit_size"_SP,
+        ArtifactStatistics_.LayersChunkCacheAsyncHitSize);
 
     // Bytes downloaded from data nodes (excludes cache hits).
     // Files: cache miss bytes + bypass bytes.
@@ -4276,7 +4345,7 @@ void TJob::EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)
     statistics->AddSample(
         "/exec_agent/artifacts/files_copied_size"_SP,
         ArtifactStatistics_.FilesCopiedSize);
-    // Layers: cache miss bytes.
+    // Layers: bytes fetched over the network.
     statistics->AddSample(
         "/exec_agent/artifacts/layers_downloaded_size"_SP,
         ArtifactStatistics_.LayersDownloadedSize);
@@ -4294,7 +4363,11 @@ void TJob::EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)
     statistics->AddSample(
         "/exec_agent/artifacts/files_copied_total_duration"_SP,
         CpuDurationToDuration(ArtifactStatistics_.FilesCopyCpuDuration).MilliSeconds());
-    // Layers: sum of per-layer network download durations (DownloadArtifact), excludes porto import.
+    // Files: sum of per-file durations of awaiting a concurrent fetch into the chunk cache.
+    statistics->AddSample(
+        "/exec_agent/artifacts/files_chunk_cache_async_hit_total_duration"_SP,
+        CpuDurationToDuration(ArtifactStatistics_.FilesChunkCacheAsyncHitCpuDuration).MilliSeconds());
+    // Layers: sum of per-layer network fetch durations; excludes cache hits and porto import.
     statistics->AddSample(
         "/exec_agent/artifacts/layers_downloaded_total_duration"_SP,
         CpuDurationToDuration(ArtifactStatistics_.LayersDownloadCpuDuration).MilliSeconds());
@@ -4302,6 +4375,14 @@ void TJob::EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)
     statistics->AddSample(
         "/exec_agent/artifacts/layers_import_total_duration"_SP,
         CpuDurationToDuration(ArtifactStatistics_.LayersImportCpuDuration).MilliSeconds());
+    // Layers: sum of per-layer durations of awaiting a concurrent insertion into the layer volume cache.
+    statistics->AddSample(
+        "/exec_agent/artifacts/layers_layer_cache_async_hit_total_duration"_SP,
+        CpuDurationToDuration(ArtifactStatistics_.LayersLayerCacheAsyncHitCpuDuration).MilliSeconds());
+    // Layers: sum of per-layer durations of awaiting a concurrent fetch into the chunk cache.
+    statistics->AddSample(
+        "/exec_agent/artifacts/layers_chunk_cache_async_hit_total_duration"_SP,
+        CpuDurationToDuration(ArtifactStatistics_.LayersChunkCacheAsyncHitCpuDuration).MilliSeconds());
 }
 
 void TJob::UpdateIOStatistics(const TStatistics& statistics)
@@ -4356,25 +4437,23 @@ void TJob::UpdateIOStatistics(const TStatistics& statistics)
     IORequestsWritten_ = newIORequestsWritten;
 }
 
-void TJob::UpdateArtifactStatistics(
+void TJob::UpdateFileArtifactStatistics(
     i64 compressedDataSize,
-    bool cacheHit,
-    bool isLayer)
+    ECacheEventType cacheEventType)
 {
-    if (cacheHit) {
-        ArtifactStatistics_.CacheHitArtifactsSize += compressedDataSize;
-        if (isLayer) {
-            ArtifactStatistics_.LayersCachedSize += compressedDataSize;
-        } else {
+    switch (cacheEventType) {
+        case ECacheEventType::Hit:
+            ArtifactStatistics_.CacheHitArtifactsSize += compressedDataSize;
             ArtifactStatistics_.FilesCachedSize += compressedDataSize;
-        }
-    } else {
-        ArtifactStatistics_.CacheMissArtifactsSize += compressedDataSize;
-        if (isLayer) {
-            ArtifactStatistics_.LayersDownloadedSize += compressedDataSize;
-        } else {
+            break;
+        case ECacheEventType::AsyncHit:
+            // NB: AsyncHit sizes are accounted for in the download continuation,
+            // success-only (a failed concurrent fetch must not count toward the async-hit bucket).
+            break;
+        case ECacheEventType::Miss:
+            ArtifactStatistics_.CacheMissArtifactsSize += compressedDataSize;
             ArtifactStatistics_.FilesDownloadedSize += compressedDataSize;
-        }
+            break;
     }
 }
 

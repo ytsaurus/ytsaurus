@@ -145,16 +145,16 @@ class TBlockSliceEngine
     : public ILogSliceEngine
 {
 public:
-    void Slice(TFile& file, TInstant from, TInstant to, IOutputStream& output) final
+    void Slice(TFile& file, TInstant from, TInstant to, TDuration seekMargin, IOutputStream& output) final
     {
         i64 fileSize = file.GetLength();
         if (fileSize == 0) {
             return;
         }
 
-        auto startBlock = FindStartBlock(file, fileSize, from);
+        auto startBlock = FindStartBlock(file, fileSize, from - seekMargin);
         i64 startOffset = startBlock ? startBlock->Offset : 0;
-        i64 endOffset = FindEndOffset(file, fileSize, to);
+        i64 endOffset = FindEndOffset(file, fileSize, to + seekMargin);
         if (endOffset <= startOffset) {
             return;
         }

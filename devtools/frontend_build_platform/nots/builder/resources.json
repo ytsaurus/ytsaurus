@@ -1,24 +1,24 @@
 {
   "info": {
-    "created": "2026-10-22T09:21:23.736Z",
+    "created": "2026-10-24T00:11:56Z",
     "pr": {
-      "id": 16621693,
-      "author": "zaverden",
-      "summary": "FBP-3460: Подготовить builder к prebuilder@2.0.0"
+      "id": 16669058,
+      "author": "baymer",
+      "summary": "FBP-3580: include generated proto lockfile in output.tar"
     }
   },
   "by_platform": {
     "darwin": {
-      "uri": "sbr:14105783294"
+      "uri": "sbr:14119238674"
     },
     "darwin-arm64": {
-      "uri": "sbr:14105781275"
+      "uri": "sbr:14119238106"
     },
     "linux": {
-      "uri": "sbr:14105787074"
+      "uri": "sbr:14119239760"
     },
     "linux-aarch64": {
-      "uri": "sbr:14105785219"
+      "uri": "sbr:14119239205"
     }
   }
 }

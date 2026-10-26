@@ -31,7 +31,6 @@ target_link_libraries(cpp-yt-rseq PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  cpp-yt-assert
   cpp-yt-misc
 )
 

@@ -19,7 +19,7 @@ from yt.sequoia_tools import DESCRIPTORS
 from yt_commands import (
     authors, commit_transaction, create, create_host, get, get_cell_tag, raises_yt_error,
     remove, get_singular_chunk_id, remove_host, write_table, read_table, wait, exists,
-    create_domestic_medium, ls, set, link, build_master_snapshots,
+    ls, set, link, build_master_snapshots,
     start_transaction, abort_transaction, sync_mount_table, sync_unmount_table,
     sync_compact_table, set_nodes_banned, set_node_banned,
     get_account_disk_space_limit, set_account_disk_space_limit,
@@ -61,6 +61,14 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     TABLE_MEDIUM_1 = "table_medium_1"
     TABLE_MEDIUM_2 = "table_medium_2"
+
+    MEDIUM_CONFIG = {
+        TABLE_MEDIUM_1: {"locations_per_node": {0: 1, 1: 1, 2: 1}},
+        TABLE_MEDIUM_2: {"locations_per_node": {3: 1, 4: 1, 5: 1}},
+        "default": {"locations_per_node": {6: 1, 7: 1, 8: 1}},
+    }
+
+    table_node_indexes = [0, 1, 2]
 
     DELTA_MASTER_CONFIG = {
         "chunk_manager": {
@@ -204,28 +212,6 @@ class TestSequoiaReplicas(YTEnvSetup):
         for cell_dir in cell_dirs:
             for master in ls(cell_dir):
                 wait(lambda: get(f"{cell_dir}/{master}/orchid/chunk_manager/sequoia_chunk_refresher_status/awaiting_refresh_location_count") == expected_size)
-
-    @classmethod
-    def setup_class(cls):
-        super(TestSequoiaReplicas, cls).setup_class()
-
-        create_domestic_medium(cls.TABLE_MEDIUM_1)
-        create_domestic_medium(cls.TABLE_MEDIUM_2)
-
-        mediums = [cls.TABLE_MEDIUM_1, cls.TABLE_MEDIUM_2, "default"]
-        iter_mediums = 0
-        cls.table_node_indexes = []
-        addresses_to_index = {cls.Env.get_node_address(index) : index for index in range(0, cls.NUM_NODES)}
-
-        for node_address in ls("//sys/cluster_nodes"):
-            location_uuids = list(get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).keys())
-            for location_uuid in location_uuids:
-                medium_override_path = "//sys/chunk_locations/{}/@medium_override".format(location_uuid)
-                set(medium_override_path, mediums[iter_mediums])
-                if mediums[iter_mediums] == cls.TABLE_MEDIUM_1:
-                    cls.table_node_indexes.append(addresses_to_index[node_address])
-                iter_mediums = (iter_mediums + 1) % len(mediums)
-        assert len(cls.table_node_indexes) == 3
 
     def teardown_method(self, method):
         wait(sequoia_tables_empty)
@@ -1026,7 +1012,7 @@ class TestSequoiaReplicas(YTEnvSetup):
         assert get_node_count("online") < self.NUM_NODES
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/sleep_duration_before_sequoia_replica_modifications", 0)
-        wait(lambda: get_node_count("online") == self.NUM_NODES)
+        self.Env.synchronize()
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/max_concurrent_sequoia_replica_modifications", 0)
         create("table", "//tmp/t2")
@@ -1062,7 +1048,7 @@ class TestSequoiaReplicas(YTEnvSetup):
         assert get_node_count("online") < self.NUM_NODES
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/sleep_duration_before_sequoia_replica_modifications", 0)
-        wait(lambda: get_node_count("online") == self.NUM_NODES)
+        self.Env.synchronize()
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/throttle_sequoia_replica_modifications", False)
 

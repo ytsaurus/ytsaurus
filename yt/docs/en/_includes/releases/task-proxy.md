@@ -69,14 +69,14 @@ fix build scripts
    - `stream_idle_timeout_seconds`
 - Documentation for the `task_proxy` annotation format and timeout overrides.
 
- ### Changed
+#### Changed
 
 - Improved logging and metrics for authorization and discovery infrastructure errors.
 - Added HTTP retries for YTsaurus requests.
 - Helm now supports an explicit `ytProxy` value; when omitted, it uses the HTTP proxy service in the release namespace.
 - Image tags are now optional in the Helm chart configuration.
 
- ### Migration notes
+#### Migration notes
 
 - For standalone binary deployments, `--namespace` has been replaced with the required `--yt-proxy` flag.
 - Helm deployments remain compatible: leave `ytProxy` empty to retain the automatically generated proxy address.

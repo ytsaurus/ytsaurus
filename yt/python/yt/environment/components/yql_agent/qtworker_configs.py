@@ -46,8 +46,6 @@ def build_gateways_conf(
     *,
     cluster_name,
     cluster_address,
-    mr_job_bin,
-    yt_debug_log_file,
     enable_dq=False,
     remote_clusters=(),
 ):
@@ -56,8 +54,6 @@ def build_gateways_conf(
     yt_config = config.Yt
     yt_config.GatewayThreads = 0
     yt_config.YtLogLevel = gateways_config_pb2.YL_INFO
-    yt_config.MrJobBin = mr_job_bin
-    yt_config.YtDebugLogFile = yt_debug_log_file
     _add_settings(yt_config.DefaultSettings, [
         ("DefaultMaxJobFails", "1"),
         ("LocalCalcLimit", "16"),
@@ -182,8 +178,6 @@ def _configure_worker_dq(
     # (JobsPerOperation only groups them into YT operations).
     max_node_id = min_node_id + max_jobs
 
-    dq_config.User = user
-    dq_config.Group = user
     dq_config.EnableClique = True
     dq_config.PortStart = dq_port_start
     dq_config.PortFinish = dq_port_finish
@@ -233,6 +227,8 @@ def build_worker_conf(
     inspector_port,
     core_port,
     core_task_port,
+    mr_job_bin,
+    yt_debug_log_file,
     dq_interconnect_port=None,
     dq_grpc_port=None,
     enable_dq=False,
@@ -248,10 +244,9 @@ def build_worker_conf(
     log_level = _normalize_log_level(log_level)
     config = worker_config_pb2.TWorkerConfig()
     config.ProcessMode = worker_config_pb2.MULTI_PROCESS
-    config.User = "yql"
-    config.Group = "yql"
-    config.CoreUser = "yql"
-    config.CoreGroup = "yql"
+
+    config.StaticGateways.Yt.MrJobBin = mr_job_bin
+    config.StaticGateways.Yt.YtDebugLogFile = yt_debug_log_file
 
     qt_config = config.Qt
     qt_config.SocketDir = qt_socket_dir

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"os"
+	"slices"
 	"time"
 
 	"go.uber.org/atomic"
@@ -100,6 +101,7 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 	var agentInfos []strawberry.AgentInfo
 	controllerConfigs := make(map[string]map[string]yson.RawValue)
 	healthCheckers := make(map[string]monitoring.HealthChecker)
+	var monitoredClusters []string
 	for _, proxy := range config.LocationProxies {
 		l.Debug("initializing location", log.String("location_proxy", proxy))
 		var err error
@@ -130,8 +132,17 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 		ctlDefaultSpeclet := config.LocationControllerDefaultSpeclet[proxy]
 		controllerConfigs[proxy] = make(map[string]yson.RawValue)
 
+		enabledFamilies := config.EnabledFamilies
+		if override := config.LocationOverrides[proxy].EnabledFamilies; override != nil {
+			enabledFamilies = override
+		}
+
 		loc.as = map[string]*agent.Agent{}
 		for family, cf := range cfs {
+			if enabledFamilies != nil && !slices.Contains(*enabledFamilies, family) {
+				continue
+			}
+
 			l := loc.l.WithName(family)
 			l.Debug("instantiating controller for location", log.String("location", proxy), log.String("family", family))
 
@@ -163,7 +174,10 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 		}
 
 		// TODO(max42): extend for generic controllers.
-		healthCheckers[proxy] = loc.as["chyt"]
+		if a, ok := loc.as["chyt"]; ok {
+			healthCheckers[proxy] = a
+			monitoredClusters = append(monitoredClusters, proxy)
+		}
 
 		app.locations = append(app.locations, loc)
 		for _, a := range loc.as {
@@ -195,7 +209,7 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 
 	if config.HTTPMonitoringEndpoint != nil {
 		var monitoringConfig = monitoring.HTTPMonitoringConfig{
-			Clusters: config.LocationProxies,
+			Clusters: monitoredClusters,
 			Endpoint: config.HTTPMonitoringEndpointOrDefault(),
 		}
 		app.HTTPMonitoringServer = monitoring.NewServer(monitoringConfig, l, &app, healthCheckers)

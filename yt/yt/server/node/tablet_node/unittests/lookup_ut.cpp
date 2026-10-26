@@ -171,120 +171,123 @@ public:
     }
 
     TUnversionedOwningRow DoLockProjection(
+        const TTabletSnapshotPtr& snapshot,
         TStringBuf readerKind,
         const TUnversionedOwningRow& key,
-        TTimestamp timestamp,
-        TTimestamp retentionTimestamp,
+        const TSharedRange<TRowRange>& bounds,
+        const TReadTimestampRange& timestampRange,
         const std::vector<int>& columns)
     {
         if (readerKind == "Lookup") {
-            return DoLookupRows({key}, timestamp, retentionTimestamp, columns)[0];
+            return LookupRowsImpl(
+                Tablet_.get(),
+                {key},
+                timestampRange,
+                columns,
+                snapshot,
+                TClientChunkReadOptions{.InitialQueryKind = EInitialQueryKind::LookupRows})[0];
         }
 
-        return WaitFor(BIND([=, this] {
-            auto snapshot = Tablet_->BuildSnapshot(/*slot*/ nullptr);
-            auto filter = columns.empty() ? TColumnFilter() : TColumnFilter(columns);
-            auto bounds = MakeSingletonRowRange(key, BuildKey(Format("%v", key[0].Data.Int64 + 1)));
-            TReadTimestampRange timestamps{.Timestamp = timestamp, .RetentionTimestamp = retentionTimestamp};
+        auto filter = columns.empty() ? TColumnFilter() : TColumnFilter(columns);
 
-            if (readerKind == "VersionedLookup" || readerKind == "VersionedRange") {
-                // Normalize versioned results only for value comparison; the underlying
-                // lookup/range readers still produce all versions and check all locks.
-                NRowMerger::TSchemafulRowMerger merger(
-                    New<TRowBuffer>(),
-                    snapshot->PhysicalSchema->GetColumnCount(),
-                    /*keyColumnCount*/ 1,
-                    filter,
-                    snapshot->ColumnEvaluator,
-                    retentionTimestamp);
+        if (readerKind == "VersionedLookup" || readerKind == "VersionedRange") {
+            // Normalize versioned results only for value comparison; the underlying
+            // lookup/range readers still produce all versions and check all locks.
+            NRowMerger::TSchemafulRowMerger merger(
+                New<TRowBuffer>(),
+                snapshot->PhysicalSchema->GetColumnCount(),
+                /*keyColumnCount*/ 1,
+                filter,
+                snapshot->ColumnEvaluator,
+                timestampRange.RetentionTimestamp);
 
-                if (readerKind == "VersionedLookup") {
-                    merger.AddPartialRow(
-                        VersionedLookupRowImpl(
-                            Tablet_.get(),
-                            key,
-                            /*minDataVersions*/ 100,
-                            timestamp,
-                            ChunkReadOptions_),
-                        /*upperTimestampLimit*/ MaxTimestamp);
-                } else {
-                    for (const auto& store : GetStoresAndBounds(snapshot, /*partitionIndex*/ 0, bounds).Stores) {
-                        auto reader = store->CreateReader(
-                            snapshot,
-                            bounds,
-                            timestamp,
-                            /*produceAllVersions*/ true,
-                            /*columnFilter*/ TColumnFilter(),
-                            ChunkReadOptions_,
-                            /*workloadCategory*/ std::nullopt);
-                        WaitFor(reader->Open())
-                            .ThrowOnError();
+            if (readerKind == "VersionedLookup") {
+                merger.AddPartialRow(
+                    VersionedLookupRowImpl(
+                        snapshot,
+                        key,
+                        /*minDataVersions*/ 100,
+                        timestampRange.Timestamp,
+                        ChunkReadOptions_),
+                    /*upperTimestampLimit*/ MaxTimestamp);
+            } else {
+                for (const auto& store : GetStoresAndBounds(snapshot, /*partitionIndex*/ 0, bounds).Stores) {
+                    auto reader = store->CreateReader(
+                        snapshot,
+                        bounds,
+                        timestampRange.Timestamp,
+                        /*produceAllVersions*/ true,
+                        /*columnFilter*/ TColumnFilter(),
+                        ChunkReadOptions_,
+                        /*workloadCategory*/ std::nullopt);
+                    WaitFor(reader->Open())
+                        .ThrowOnError();
 
-                        while (auto batch = reader->Read(TRowBatchReadOptions{})) {
-                            for (const auto& row : batch->MaterializeRows()) {
-                                merger.AddPartialRow(row, /*upperTimestampLimit*/ MaxTimestamp);
-                            }
-
-                            WaitFor(reader->GetReadyEvent())
-                                .ThrowOnError();
+                    while (auto batch = reader->Read(TRowBatchReadOptions{})) {
+                        for (const auto& row : batch->MaterializeRows()) {
+                            merger.AddPartialRow(row, /*upperTimestampLimit*/ MaxTimestamp);
                         }
+
+                        WaitFor(reader->GetReadyEvent())
+                            .ThrowOnError();
                     }
                 }
-
-                return TUnversionedOwningRow(merger.BuildMergedRow());
             }
 
-            YT_VERIFY(readerKind == "Range" || readerKind == "Scan");
+            return TUnversionedOwningRow(merger.BuildMergedRow());
+        }
 
-            auto reader = readerKind == "Range"
-                ? CreateSchemafulSortedTabletReader(
-                    snapshot,
-                    filter,
-                    bounds,
-                    timestamps,
-                    ChunkReadOptions_,
-                    /*tabletThrottlerKind*/ std::nullopt,
-                    /*workloadCategory*/ std::nullopt,
-                    /*timestampReadOptions*/ {})
-                : DoCreateScanReader(
-                    snapshot,
-                    filter,
-                    GetStoresAndBounds(snapshot, /*partitionIndex*/ 0, bounds),
-                    timestamps,
-                    ChunkReadOptions_,
-                    /*tabletThrottlerKind*/ std::nullopt,
-                    /*workloadCategory*/ std::nullopt,
-                    /*timestampReadOptions*/ {},
-                    /*mergeVersionedRows*/ true);
+        YT_VERIFY(readerKind == "Range" || readerKind == "Scan");
 
-            TUnversionedOwningRow result;
-            while (auto batch = reader->Read()) {
-                for (const auto& row : batch->MaterializeRows()) {
-                    EXPECT_FALSE(result);
-                    result = TUnversionedOwningRow(row);
-                }
+        auto reader = readerKind == "Range"
+            ? CreateSchemafulSortedTabletReader(
+                snapshot,
+                filter,
+                bounds,
+                timestampRange,
+                ChunkReadOptions_,
+                /*tabletThrottlerKind*/ std::nullopt,
+                /*workloadCategory*/ std::nullopt,
+                /*timestampReadOptions*/ {})
+            : DoCreateScanReader(
+                snapshot,
+                filter,
+                GetStoresAndBounds(snapshot, /*partitionIndex*/ 0, bounds),
+                timestampRange,
+                ChunkReadOptions_,
+                /*tabletThrottlerKind*/ std::nullopt,
+                /*workloadCategory*/ std::nullopt,
+                /*timestampReadOptions*/ {},
+                /*mergeVersionedRows*/ true);
 
-                WaitFor(reader->GetReadyEvent())
-                    .ThrowOnError();
+        TUnversionedOwningRow result;
+        while (auto batch = reader->Read()) {
+            for (const auto& row : batch->MaterializeRows()) {
+                EXPECT_FALSE(result);
+                result = TUnversionedOwningRow(row);
             }
 
-            return result;
-        })
-            .AsyncVia(LookupQueue_->GetInvoker())
-            .Run())
-            .ValueOrThrow();
+            WaitFor(reader->GetReadyEvent())
+                .ThrowOnError();
+        }
+
+        return result;
     }
 
     TVersionedOwningRow DoVersionedLookupRow(const TUnversionedOwningRow& key)
     {
-        return WaitFor(BIND(&VersionedLookupRowImpl,
-            Tablet_.get(),
-            key,
-            /*minDataVersions*/ 100,
-            AsyncLastCommittedTimestamp,
-            ChunkReadOptions_)
-            .AsyncVia(LookupQueue_->GetInvoker())
-            .Run())
+        return WaitFor(
+            BIND(
+                [this, key] {
+                    return VersionedLookupRowImpl(
+                        Tablet_->BuildSnapshot(/*slot*/ nullptr),
+                        key,
+                        /*minDataVersions*/ 100,
+                        AsyncLastCommittedTimestamp,
+                        ChunkReadOptions_);
+                })
+                .AsyncVia(LookupQueue_->GetInvoker())
+                .Run())
             .ValueOrThrow();
     }
 
@@ -1014,6 +1017,18 @@ protected:
 
     void RunCase(const TSequence& sequence)
     {
+        WaitFor(
+            BIND(
+                &TLockVisibilityBoundaryTest::DoRunCase,
+                Unretained(this),
+                sequence)
+                .AsyncVia(TestQueue_->GetInvoker())
+                .Run())
+            .ThrowOnError();
+    }
+
+    void DoRunCase(const TSequence& sequence)
+    {
         SCOPED_TRACE(Describe(sequence));
 
         // 1. Start from an empty tablet and reserve deterministic timestamps for all actions.
@@ -1033,19 +1048,19 @@ protected:
             }
         });
 
-        std::vector<TTimestamp> timestamps;
+        std::vector<TTimestamp> actionTimestamps;
         THashSet<i64> keys;
         auto before = GenerateTimestamp();
         auto seedTimestamp = before;
         for (const auto& action : sequence) {
-            timestamps.push_back(GenerateTimestamp());
+            actionTimestamps.push_back(GenerateTimestamp());
 
             if (!action.Row.empty()) {
                 keys.insert(DecodeRow(action)[KeyColumnId].Data.Int64);
             }
 
             if (action.Kind == "Commit" && action.Transaction == "Seed") {
-                seedTimestamp = timestamps.back();
+                seedTimestamp = actionTimestamps.back();
             }
         }
 
@@ -1056,13 +1071,13 @@ protected:
             SCOPED_TRACE(Format("Prefix=%v/%v", prefix, sequence.size()));
 
             if (prefix != 0) {
-                ASSERT_NO_THROW(Apply(sequence[prefix - 1], timestamps[prefix - 1]));
+                ASSERT_NO_THROW(Apply(sequence[prefix - 1], actionTimestamps[prefix - 1]));
             }
 
             const TRead reads[] = {
                 {.Name = "Snapshot", .Timestamp = horizon},
                 {.Name = "AsyncLatest", .Timestamp = AsyncLastCommittedTimestamp},
-                {.Name = "AtStep", .Timestamp = prefix == 0 ? before : timestamps[prefix - 1]},
+                {.Name = "AtStep", .Timestamp = prefix == 0 ? before : actionTimestamps[prefix - 1]},
                 {
                     .Name = "RetentionBeforeWrite",
                     .Timestamp = horizon,
@@ -1082,10 +1097,18 @@ protected:
 
             // 3. Record waiting but let reads finish immediately; restore all lock
             // timestamps before the next probe or action, including on exceptions.
-            for (i64 key : keys) {
-                for (auto reader : {"Lookup", "Range", "Scan", "VersionedLookup", "VersionedRange"}) {
-                    for (const auto& read : reads) {
-                        for (const auto& projection : Projections_) {
+            auto snapshot = Tablet_->BuildSnapshot(/*slot*/ nullptr);
+            for (const auto& key : keys) {
+                auto keyRow = BuildKey(ToString(key));
+                auto bounds = MakeSingletonRowRange(keyRow, BuildKey(ToString(key + 1)));
+                for (const auto& read : reads) {
+                    TReadTimestampRange timestampRange{
+                        .Timestamp = read.Timestamp,
+                        .RetentionTimestamp = read.Retention,
+                    };
+                    for (const auto& projection : Projections_) {
+                        auto expectedRow = ComputeExpectedRow(key, read, projection);
+                        for (const auto& reader : {"Lookup", "Range", "Scan", "VersionedLookup", "VersionedRange"}) {
                             SCOPED_TRACE(Format(
                                 "Key=%v Reader=%v Read=%v Projection=%v Timestamp=%v Retention=%v",
                                 key,
@@ -1105,14 +1128,16 @@ protected:
                             });
 
                             TUnversionedOwningRow row;
-                            ASSERT_NO_THROW(row = DoLockProjection(
-                                reader,
-                                BuildKey(ToString(key)),
-                                read.Timestamp,
-                                read.Retention,
-                                projection.Columns));
+                            ASSERT_NO_THROW(
+                                row = DoLockProjection(
+                                    snapshot,
+                                    reader,
+                                    keyRow,
+                                    bounds,
+                                    timestampRange,
+                                    projection.Columns));
                             EXPECT_EQ(shouldWait, !ProbeLocks_.empty());
-                            EXPECT_EQ(ComputeExpectedRow(key, read, projection), row);
+                            EXPECT_EQ(expectedRow, row);
 
                             if (HasFailure()) {
                                 return;

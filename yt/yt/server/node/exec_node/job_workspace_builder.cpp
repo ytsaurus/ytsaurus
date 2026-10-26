@@ -152,16 +152,6 @@ void TJobWorkspaceBuilder::SetJobPhase(EJobPhase phase)
     UpdateBuilderPhase_.Fire(phase);
 }
 
-void TJobWorkspaceBuilder::UpdateArtifactStatistics(
-    i64 compressedDataSize,
-    bool cacheHit,
-    bool isLayer)
-{
-    YT_ASSERT_THREAD_AFFINITY(JobThread);
-
-    UpdateArtifactStatistics_.Fire(compressedDataSize, cacheHit, isLayer);
-}
-
 TFuture<void> TJobWorkspaceBuilder::DoBuildSlotRootDirectory()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -645,10 +635,6 @@ private:
         std::vector<TOverlayLayerPreparationOptions> layerOptions;
         layerOptions.reserve(totalLayerCount);
         for (const auto& key : uniqueLayers) {
-            UpdateArtifactStatistics(
-                key.GetCompressedDataSize(),
-                slot->IsLayerCached(key),
-                /*isLayer*/ true);
             layerOptions.push_back(TOverlayLayerPreparationOptions{
                 .ArtifactKey = key,
             });
@@ -663,7 +649,7 @@ private:
         auto layerFutures = slot->PrepareLayers(
             Context_.Job->GetId(),
             layerOptions,
-            Context_.ArtifactDownloadOptions);
+            Context_.ArtifactDownloadContext);
         YT_VERIFY(layerFutures.size() == layerOptions.size());
 
         return AllSucceeded(std::move(layerFutures))
@@ -736,7 +722,7 @@ private:
 
             TVolumePreparationOptions options;
             options.JobId = Context_.Job->GetId();
-            options.ArtifactDownloadOptions = Context_.ArtifactDownloadOptions;
+            options.ArtifactDownloadContext = Context_.ArtifactDownloadContext;
             options.UserSandboxOptions = Context_.UserSandboxOptions;
 
             return slot->PrepareRootVolume(
@@ -839,7 +825,7 @@ private:
 
             TVolumePreparationOptions options;
             options.JobId = Context_.Job->GetId();
-            options.ArtifactDownloadOptions = Context_.ArtifactDownloadOptions;
+            options.ArtifactDownloadContext = Context_.ArtifactDownloadContext;
 
             return slot->PrepareGpuCheckVolume(
                 Context_.FSSecretary->GetPreparedGpuCheckVolumeOverlayData(),

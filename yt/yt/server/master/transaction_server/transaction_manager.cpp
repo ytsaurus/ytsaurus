@@ -3456,9 +3456,10 @@ private:
         auto* transaction = GetTransactionOrThrow(transactionId);
         auto& bulkInsertState = transaction->BulkInsertState();
 
+        THashSet<TTableId> tableIdsSet;
         for (const auto& [externalCellTag, tableIds] : lockableDynamicTablesToAdd) {
             for (auto tableId : tableIds) {
-                if (bulkInsertState.HasConflict(tableId)) {
+                if (bulkInsertState.HasConflict(tableId) || !tableIdsSet.insert(tableId).second) {
                     THROW_ERROR_EXCEPTION("Duplicate lockable dynamic table")
                         .With("transaction_id", transactionId)
                         .With("topmost_transaction_id", transaction->GetTopmostTransaction()->GetId())

@@ -1,0 +1,264 @@
+# Native Rust build with dependencies shared through contrib/crates.
+
+CRATE(bitvec)
+
+CRATE_VERSION(1.1.1)
+CRATE_EDITION(2021)
+CRATE_ROOT(src/lib.rs)
+CRATE_MANIFEST(Cargo.toml)
+
+CRATE_SOURCES(
+    src/access.rs
+    src/array.rs
+    src/array/api.rs
+    src/array/iter.rs
+    src/array/ops.rs
+    src/array/tests.rs
+    src/array/traits.rs
+    src/boxed.rs
+    src/boxed/api.rs
+    src/boxed/iter.rs
+    src/boxed/ops.rs
+    src/boxed/tests.rs
+    src/boxed/traits.rs
+    src/devel.rs
+    src/domain.rs
+    src/field.rs
+    src/field/io.rs
+    src/field/tests.rs
+    src/index.rs
+    src/macros.rs
+    src/macros/internal.rs
+    src/macros/tests.rs
+    src/mem.rs
+    src/order.rs
+    src/ptr.rs
+    src/ptr/addr.rs
+    src/ptr/proxy.rs
+    src/ptr/range.rs
+    src/ptr/single.rs
+    src/ptr/span.rs
+    src/ptr/tests.rs
+    src/serdes.rs
+    src/serdes/array.rs
+    src/serdes/slice.rs
+    src/serdes/utils.rs
+    src/slice.rs
+    src/slice/api.rs
+    src/slice/iter.rs
+    src/slice/ops.rs
+    src/slice/specialization.rs
+    src/slice/specialization/lsb0.rs
+    src/slice/specialization/msb0.rs
+    src/slice/tests.rs
+    src/slice/tests/api.rs
+    src/slice/tests/iter.rs
+    src/slice/tests/ops.rs
+    src/slice/tests/traits.rs
+    src/slice/traits.rs
+    src/store.rs
+    src/vec.rs
+    src/vec/api.rs
+    src/vec/iter.rs
+    src/vec/ops.rs
+    src/vec/tests.rs
+    src/vec/tests/api.rs
+    src/vec/tests/iter.rs
+    src/vec/tests/traits.rs
+    src/vec/traits.rs
+    src/view.rs
+)
+
+CRATE_INPUTS(
+    Cargo.lock
+    LICENSE.txt
+    README.md
+    doc/README.md
+    doc/access.md
+    doc/access/BitAccess.md
+    doc/access/BitSafe.md
+    doc/access/impl_BitSafe.md
+    doc/array.md
+    doc/array/BitArray.md
+    doc/array/IntoIter.md
+    doc/array/TryFromBitSliceError.md
+    doc/array/api.md
+    doc/array/iter.md
+    doc/boxed.md
+    doc/boxed/BitBox.md
+    doc/boxed/iter.md
+    doc/domain.md
+    doc/domain/BitDomain.md
+    doc/domain/Domain.md
+    doc/domain/PartialElement.md
+    doc/field.md
+    doc/field/BitField.md
+    doc/field/BitField_Lsb0.md
+    doc/field/BitField_Lsb0_load_be.md
+    doc/field/BitField_Lsb0_load_le.md
+    doc/field/BitField_Lsb0_store_be.md
+    doc/field/BitField_Lsb0_store_le.md
+    doc/field/BitField_Msb0.md
+    doc/field/BitField_Msb0_load_be.md
+    doc/field/BitField_Msb0_load_le.md
+    doc/field/BitField_Msb0_store_be.md
+    doc/field/BitField_Msb0_store_le.md
+    doc/field/BitField_load.md
+    doc/field/BitField_load_be.md
+    doc/field/BitField_load_le.md
+    doc/field/BitField_store.md
+    doc/field/BitField_store_be.md
+    doc/field/BitField_store_le.md
+    doc/field/get.md
+    doc/field/impl_BitArray.md
+    doc/field/io.md
+    doc/field/io/Read_BitSlice.md
+    doc/field/io/Read_BitVec.md
+    doc/field/io/Write_BitSlice.md
+    doc/field/io/Write_BitVec.md
+    doc/field/resize.md
+    doc/field/set.md
+    doc/field/sign.md
+    doc/index.md
+    doc/index/BitEnd.md
+    doc/index/BitIdx.md
+    doc/index/BitIdxError.md
+    doc/index/BitMask.md
+    doc/index/BitPos.md
+    doc/index/BitSel.md
+    doc/macros.md
+    doc/macros/BitArr_type.md
+    doc/macros/bitarr_value.md
+    doc/macros/bitbox.md
+    doc/macros/bits.md
+    doc/macros/bitvec.md
+    doc/macros/encode_bits.md
+    doc/macros/internal.md
+    doc/macros/make_elem.md
+    doc/mem.md
+    doc/mem/BitElement.md
+    doc/mem/BitRegister.md
+    doc/mem/elts.md
+    doc/order.md
+    doc/order/BitOrder.md
+    doc/order/LocalBits.md
+    doc/order/Lsb0.md
+    doc/order/Msb0.md
+    doc/order/verify.md
+    doc/order/verify_for_type.md
+    doc/prelude.md
+    doc/ptr.md
+    doc/ptr/BitPtr.md
+    doc/ptr/BitPtrRange.md
+    doc/ptr/BitRef.md
+    doc/ptr/BitSpan.md
+    doc/ptr/addr.md
+    doc/ptr/bitslice_from_raw_parts.md
+    doc/ptr/bitslice_from_raw_parts_mut.md
+    doc/ptr/copy.md
+    doc/ptr/copy_nonoverlapping.md
+    doc/ptr/drop_in_place.md
+    doc/ptr/eq.md
+    doc/ptr/hash.md
+    doc/ptr/null.md
+    doc/ptr/null_mut.md
+    doc/ptr/proxy.md
+    doc/ptr/range.md
+    doc/ptr/read.md
+    doc/ptr/read_unaligned.md
+    doc/ptr/read_volatile.md
+    doc/ptr/replace.md
+    doc/ptr/single.md
+    doc/ptr/slice_from_raw_parts.md
+    doc/ptr/slice_from_raw_parts_mut.md
+    doc/ptr/span.md
+    doc/ptr/swap.md
+    doc/ptr/swap_nonoverlapping.md
+    doc/ptr/write.md
+    doc/ptr/write_bits.md
+    doc/ptr/write_bytes.md
+    doc/ptr/write_unaligned.md
+    doc/ptr/write_volatile.md
+    doc/serdes.md
+    doc/serdes/array.md
+    doc/serdes/slice.md
+    doc/serdes/utils.md
+    doc/slice.md
+    doc/slice/BitSlice.md
+    doc/slice/BitSliceIndex.md
+    doc/slice/api.md
+    doc/slice/bitop_assign.md
+    doc/slice/format.md
+    doc/slice/from_raw_parts.md
+    doc/slice/from_raw_parts_mut.md
+    doc/slice/from_raw_parts_unchecked.md
+    doc/slice/from_raw_parts_unchecked_mut.md
+    doc/slice/iter.md
+    doc/slice/iter/Chunks.md
+    doc/slice/iter/ChunksExact.md
+    doc/slice/iter/ChunksExactMut.md
+    doc/slice/iter/ChunksMut.md
+    doc/slice/iter/Iter.md
+    doc/slice/iter/IterMut.md
+    doc/slice/iter/IterOnes.md
+    doc/slice/iter/IterZeros.md
+    doc/slice/iter/NoAlias.md
+    doc/slice/iter/RChunks.md
+    doc/slice/iter/RChunksExact.md
+    doc/slice/iter/RChunksExactMut.md
+    doc/slice/iter/RChunksMut.md
+    doc/slice/iter/RSplit.md
+    doc/slice/iter/RSplitMut.md
+    doc/slice/iter/RSplitN.md
+    doc/slice/iter/RSplitNMut.md
+    doc/slice/iter/Split.md
+    doc/slice/iter/SplitInclusive.md
+    doc/slice/iter/SplitInclusiveMut.md
+    doc/slice/iter/SplitMut.md
+    doc/slice/iter/SplitN.md
+    doc/slice/iter/SplitNMut.md
+    doc/slice/iter/Windows.md
+    doc/slice/ops.md
+    doc/slice/specialization.md
+    doc/slice/threadsafe.md
+    doc/slice/traits.md
+    doc/store.md
+    doc/store/BitStore.md
+    doc/vec.md
+    doc/vec/BitVec.md
+    doc/vec/iter.md
+    doc/vec/iter/Drain.md
+    doc/vec/iter/Extend_BitRef.md
+    doc/vec/iter/Extend_bool.md
+    doc/vec/iter/FillStatus.md
+    doc/vec/iter/FromIterator_BitRef.md
+    doc/vec/iter/FromIterator_bool.md
+    doc/vec/iter/IntoIterator.md
+    doc/vec/iter/Splice.md
+    doc/view.md
+    doc/view/AsBits.md
+    doc/view/AsMutBits.md
+    doc/view/BitView.md
+)
+
+CRATE_FLAGS(--cap-lints=allow)
+
+CRATE_FEATURES(
+    alloc
+    atomic
+    default
+    std
+)
+
+PEERDIR(
+    contrib/crates/funty-2.0.0
+    contrib/crates/radium-0.7.0
+    contrib/crates/tap-1.0.1
+    contrib/crates/wyz-0.5.1
+)
+
+LICENSE("MIT")
+VERSION(1.1.1)
+ORIGINAL_SOURCE(https://static.crates.io/crates/bitvec/bitvec-1.1.1.crate)
+
+END()

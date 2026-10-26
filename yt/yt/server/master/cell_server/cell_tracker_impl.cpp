@@ -96,11 +96,10 @@ public:
                 continue;
             }
 
-            const auto* cells = cellManager->FindAssignedCells(node->GetDefaultAddress());
             nodes.emplace_back(
                 node,
                 node->GetCellarSize(CellarType_),
-                cells ? *cells : TCellSet());
+                cellManager->FindAssignedCells(node->GetDefaultAddress(), CellarType_));
         }
 
         return nodes;
