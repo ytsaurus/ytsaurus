@@ -1,5 +1,6 @@
 #include "action_manager.h"
 #include "bootstrap.h"
+#include "cluster_state_provider.h"
 #include "config.h"
 #include "helpers.h"
 #include "private.h"
@@ -41,7 +42,9 @@ public:
         TActionManagerConfigPtr config,
         NApi::NNative::IClientPtr client,
         IBootstrap* bootstrap,
-        IMulticellThrottlerPtr throttler);
+        IMulticellThrottlerPtr throttler,
+        IClusterStateProviderPtr clusterStateProvider,
+        int maxUnhealthyBundlesOnReplicaCluster);
 
     void ScheduleActionCreation(const std::string& bundleName, const TActionDescriptor& descriptor) override;
     void CreateActions(const std::string& bundleName) override;
@@ -59,7 +62,7 @@ public:
     void Start(TTransactionId prerequisiteTransactionId, TDryRunConfigPtr dryRunConfig) override;
     void Stop() override;
 
-    void Reconfigure(const TActionManagerConfigPtr& config) override;
+    void Reconfigure(const TActionManagerConfigPtr& config, int maxUnhealthyBundlesOnReplicaCluster) override;
 
 private:
     struct TBundleProfilingCounters
@@ -69,13 +72,21 @@ private:
         NProfiling::TCounter StartedSmoothMovementActions;
         NProfiling::TCounter FailedAtStartSmoothMovementActions;
         NProfiling::TCounter FailedAtRuntimeSmoothMovementActions;
+        NProfiling::TCounter BundleIterationCancellations;
     };
 
     const NApi::NNative::IClientPtr Client_;
     const IInvokerPtr Invoker_;
     const IMulticellThrottlerPtr MasterRequestThrottler_;
+    const IClusterStateProviderPtr ClusterStateProvider_;
 
+    NProfiling::TCounter CancelledIterationDueToUnhealthyState_;
+    NProfiling::TCounter UnhealthyBundlesFetchFailures_;
+
+    // Only to use from Invoker.
     TActionManagerConfigPtr Config_;
+    int MaxUnhealthyBundlesOnReplicaCluster_;
+
     NConcurrency::TPeriodicExecutorPtr PollExecutor_;
     NConcurrency::TPeriodicExecutorPtr CreateActionExecutor_;
     TDryRunConfigPtr DryRunConfig_;
@@ -110,6 +121,8 @@ private:
     void CreatePendingActions();
     void TryCreatePendingActions();
 
+    std::optional<THashMap<std::string, std::vector<std::string>>> GetUnhealthyBundles() const;
+
     int GetRunningActionCount() const;
 
     bool AreAllActionsKnown(
@@ -130,6 +143,9 @@ private:
     const TBundleProfilingCounters& GetOrCreateProfilingCounters(const std::string& bundleName);
 
     void DropFrontBundleWithPendingActions(const std::string& bundleName);
+
+    void CancelFrontBundlePendingActions(const std::string& bundleName);
+    void CancelAllPendingActions();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,11 +154,23 @@ TActionManager::TActionManager(
     TActionManagerConfigPtr config,
     NApi::NNative::IClientPtr client,
     IBootstrap* bootstrap,
-    IMulticellThrottlerPtr throttler)
+    IMulticellThrottlerPtr throttler,
+    IClusterStateProviderPtr clusterStateProvider,
+    int maxUnhealthyBundlesOnReplicaCluster)
     : Client_(std::move(client))
     , Invoker_(bootstrap->GetControlInvoker())
-    , MasterRequestThrottler_(throttler)
+    , MasterRequestThrottler_(std::move(throttler))
+    , ClusterStateProvider_(std::move(clusterStateProvider))
+    , CancelledIterationDueToUnhealthyState_(TabletBalancerProfiler()
+        .WithSparse()
+        .WithPrefix("/action_manager")
+        .Counter("/iteration_cancellations"))
+    , UnhealthyBundlesFetchFailures_(TabletBalancerProfiler()
+        .WithSparse()
+        .WithPrefix("/action_manager")
+        .Counter("/unhealthy_bundles_fetch_failures"))
     , Config_(std::move(config))
+    , MaxUnhealthyBundlesOnReplicaCluster_(maxUnhealthyBundlesOnReplicaCluster)
     , PollExecutor_(New<TPeriodicExecutor>(
         Invoker_,
         BIND(&TActionManager::TryPoll, MakeWeak(this)),
@@ -249,6 +277,16 @@ void TActionManager::CreatePendingActions()
         return;
     }
 
+    auto unhealthyBundles = GetUnhealthyBundles();
+    if (!unhealthyBundles) {
+        return;
+    }
+
+    if (!AreReplicaClustersHealthy(*unhealthyBundles, MaxUnhealthyBundlesOnReplicaCluster_)) {
+        CancelAllPendingActions();
+        return;
+    }
+
     auto iterationStartTime = TInstant::Now();
 
     YT_LOG_DEBUG("Started creating pending actions (IterationStartTime: %v,"
@@ -273,6 +311,11 @@ void TActionManager::CreatePendingActions()
             continue;
         }
 
+        if (!IsBundleHealthyOnReplicaClusters(*unhealthyBundles, bundleName)) {
+            CancelFrontBundlePendingActions(bundleName);
+            continue;
+        }
+
         actionCount += CreatePendingBundleActions(bundleName, Config_->CreateActionBatchSizeLimit - actionCount);
 
         {
@@ -286,6 +329,25 @@ void TActionManager::CreatePendingActions()
     YT_LOG_DEBUG("Creating pending actions finished (ActionCount: %v, PendingBundleCount: %v)",
         actionCount,
         std::ssize(BundlesWithPendingActions_));
+}
+
+std::optional<THashMap<std::string, std::vector<std::string>>> TActionManager::GetUnhealthyBundles() const
+{
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+    if (DryRunConfig_->IsDryRun) {
+        return THashMap<std::string, std::vector<std::string>>{};
+    }
+
+    auto unhealthyBundlesOrError = WaitFor(ClusterStateProvider_->GetUnhealthyBundles());
+    if (!unhealthyBundlesOrError.IsOK()) {
+        YT_TLOG_WARNING("Failed to fetch unhealthy bundles, postponing creation of pending actions")
+            .With(unhealthyBundlesOrError);
+        UnhealthyBundlesFetchFailures_.Increment();
+        return std::nullopt;
+    }
+
+    return std::move(unhealthyBundlesOrError.Value());
 }
 
 int TActionManager::GetRunningActionCount() const
@@ -526,6 +588,8 @@ void TActionManager::Start(TTransactionId prerequisiteTransactionId, TDryRunConf
 
     RunningActions_.clear();
     PendingActionDescriptors_.clear();
+    BundlesWithPendingActions_.clear();
+    PendingActionsDeadline_.clear();
     PendingCrossCellReshards_.clear();
     TabletToPendingCrossCellReshard_.clear();
 
@@ -548,11 +612,12 @@ void TActionManager::Stop()
     YT_LOG_INFO("Tablet action manager stopped");
 }
 
-void TActionManager::Reconfigure(const TActionManagerConfigPtr& config)
+void TActionManager::Reconfigure(const TActionManagerConfigPtr& config, int maxUnhealthyBundlesOnReplicaCluster)
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     Config_ = config;
+    MaxUnhealthyBundlesOnReplicaCluster_ = maxUnhealthyBundlesOnReplicaCluster;
     PollExecutor_->SetPeriod(Config_->TabletActionPollingPeriod);
     CreateActionExecutor_->SetPeriod(Config_->TabletActionPollingPeriod);
 }
@@ -709,6 +774,9 @@ const TActionManager::TBundleProfilingCounters& TActionManager::GetOrCreateProfi
             .WithSparse()
             .WithTag("at_start", "false")
             .Counter("/failed_smooth_movement_actions"),
+        .BundleIterationCancellations = profiler
+            .WithSparse()
+            .Counter("/bundle_iteration_cancellations"),
     })->second;
 }
 
@@ -784,8 +852,40 @@ void TActionManager::DropFrontBundleWithPendingActions(const std::string& bundle
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     YT_VERIFY(BundlesWithPendingActions_.front() == bundleName);
-    BundlesWithPendingActions_.pop_front();
     EraseOrCrash(PendingActionDescriptors_, bundleName);
+    BundlesWithPendingActions_.pop_front();
+}
+
+void TActionManager::CancelFrontBundlePendingActions(const std::string& bundleName)
+{
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+    auto guard = WriterGuard(PendingActionsLock_);
+    YT_TLOG_INFO("Canceled pending actions of bundle")
+        .With("Bundle", bundleName)
+        .With("ActionCount", std::ssize(GetOrCrash(PendingActionDescriptors_, bundleName)));
+
+    GetOrCreateProfilingCounters(bundleName).BundleIterationCancellations.Increment();
+    CancelPendingCrossCellReshards(bundleName);
+    DropFrontBundleWithPendingActions(bundleName);
+}
+
+void TActionManager::CancelAllPendingActions()
+{
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+    auto guard = WriterGuard(PendingActionsLock_);
+    YT_TLOG_INFO("Canceled pending actions of all bundles")
+        .With("PendingBundleCount", std::ssize(BundlesWithPendingActions_));
+
+    CancelledIterationDueToUnhealthyState_.Increment();
+
+    while (!BundlesWithPendingActions_.empty()) {
+        const auto& bundleName = BundlesWithPendingActions_.front();
+        GetOrCreateProfilingCounters(bundleName).BundleIterationCancellations.Increment();
+        CancelPendingCrossCellReshards(bundleName);
+        DropFrontBundleWithPendingActions(bundleName);
+    }
 }
 
 void TActionManager::OnPreliminaryMoveFinished(const std::string& bundleName, const TTabletActionPtr& action)
@@ -862,13 +962,17 @@ IActionManagerPtr CreateActionManager(
     TActionManagerConfigPtr config,
     NApi::NNative::IClientPtr client,
     IBootstrap* bootstrap,
-    IMulticellThrottlerPtr throttler)
+    IMulticellThrottlerPtr throttler,
+    IClusterStateProviderPtr clusterStateProvider,
+    int maxUnhealthyBundlesOnReplicaCluster)
 {
     return New<TActionManager>(
         std::move(config),
         std::move(client),
         bootstrap,
-        throttler);
+        std::move(throttler),
+        std::move(clusterStateProvider),
+        maxUnhealthyBundlesOnReplicaCluster);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

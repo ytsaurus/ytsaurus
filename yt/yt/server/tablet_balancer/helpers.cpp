@@ -1,4 +1,7 @@
 #include "helpers.h"
+
+#include "config.h"
+#include "private.h"
 #include "public.h"
 
 #include <yt/yt/server/lib/tablet_balancer/table.h>
@@ -36,6 +39,10 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NYson;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = TabletBalancerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -206,6 +213,41 @@ std::tuple<TTablePerformanceCountersMap, TTableSchemaPtr> FetchPerformanceCounte
         tableToPerformanceCounters[tableId][tabletId] = TUnversionedOwningRow(row);
     }
     return {tableToPerformanceCounters, tableSchema};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool AreReplicaClustersHealthy(
+    const THashMap<std::string, std::vector<std::string>>& unhealthyBundles,
+    int unhealthyBundleLimit)
+{
+    for (const auto& [cluster, bundles] : unhealthyBundles) {
+        if (std::ssize(bundles) >= unhealthyBundleLimit) {
+            YT_TLOG_WARNING("Considering replica cluster unhealthy because too many bundles are unhealthy")
+                .With("Cluster", cluster)
+                .With("UnhealthyBundles", bundles)
+                .With("Limit", unhealthyBundleLimit);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool IsBundleHealthyOnReplicaClusters(
+    const THashMap<std::string, std::vector<std::string>>& unhealthyBundles,
+    const std::string& bundleName)
+{
+    for (const auto& [cluster, bundles] : unhealthyBundles) {
+        if (std::find(bundles.begin(), bundles.end(), bundleName) != bundles.end()) {
+            YT_TLOG_WARNING("Tablet cell bundle on another cluster is unhealthy")
+                .With("Cluster", cluster)
+                .With("BundleName", bundleName);
+            return false;
+        }
+    }
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
