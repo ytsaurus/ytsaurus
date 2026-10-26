@@ -483,15 +483,17 @@ TTabletBalancer::TTabletBalancer(
 {
     auto dynamicConfig = DynamicConfig_.Acquire();
     MasterRequestThrottler_ = New<TMulticellThrottler>(dynamicConfig->MasterRequestThrottler);
-    ActionManager_ = CreateActionManager(
-        dynamicConfig->ActionManager,
-        Bootstrap_->GetClient(),
-        Bootstrap_,
-        MasterRequestThrottler_);
     ClusterStateProvider_ = CreateClusterStateProvider(
         Bootstrap_,
         dynamicConfig->ClusterStateProvider,
         ControlInvoker_);
+    ActionManager_ = CreateActionManager(
+        dynamicConfig->ActionManager,
+        Bootstrap_->GetClient(),
+        Bootstrap_,
+        MasterRequestThrottler_,
+        ClusterStateProvider_,
+        dynamicConfig->MaxUnhealthyBundlesOnReplicaCluster);
 
     Bootstrap_->GetDynamicConfigManager()->SubscribeBeforeConfigChanged(DynamicConfigChangedCallback_);
 }
@@ -1272,7 +1274,7 @@ void TTabletBalancer::OnDynamicConfigChanged(
         PollExecutor_->SetPeriod(newPeriod);
     }
 
-    ActionManager_->Reconfigure(newConfig->ActionManager);
+    ActionManager_->Reconfigure(newConfig->ActionManager, newConfig->MaxUnhealthyBundlesOnReplicaCluster);
     ClusterStateProvider_->Reconfigure(newConfig->ClusterStateProvider);
     ParameterizedBalancingScheduler_.Reconfigure(
         newConfig->ParameterizedTimeoutOnStart.value_or(Config_->ParameterizedTimeoutOnStart),
@@ -1372,17 +1374,7 @@ bool TTabletBalancer::AreBundlesHealthy(int unhealthyBundleLimit) const
         return false;
     }
 
-    for (const auto& [cluster, bundles] : unhealthyBundlesOrError.Value()) {
-        if (std::ssize(bundles) >= unhealthyBundleLimit) {
-            YT_TLOG_WARNING("Considering replica cluster unhealthy because too many bundles are unhealthy")
-                .With("Cluster", cluster)
-                .With("UnhealtyBundles", bundles)
-                .With("Limit", unhealthyBundleLimit);
-            return false;
-        }
-    }
-
-    return true;
+    return AreReplicaClustersHealthy(unhealthyBundlesOrError.Value(), unhealthyBundleLimit);
 }
 
 bool TTabletBalancer::IsBundleHealthy(const std::string& bundleName) const
@@ -1396,16 +1388,7 @@ bool TTabletBalancer::IsBundleHealthy(const std::string& bundleName) const
         return false;
     }
 
-    for (const auto& [cluster, bundles] : unhealthyBundlesOrError.Value()) {
-        if (std::find(bundles.begin(), bundles.end(), bundleName) != bundles.end()) {
-            YT_TLOG_WARNING("Tablet cell bundle on another cluster is unhealthy")
-                .With("Cluster", cluster)
-                .With("BundleName", bundleName);
-            return false;
-        }
-    }
-
-    return true;
+    return IsBundleHealthyOnReplicaClusters(unhealthyBundlesOrError.Value(), bundleName);
 }
 
 std::vector<std::string> TTabletBalancer::UpdateBundleList()

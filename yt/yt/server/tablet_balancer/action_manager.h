@@ -46,7 +46,7 @@ struct IActionManager
     virtual void Stop() = 0;
 
     // Thread affinity: Control.
-    virtual void Reconfigure(const TActionManagerConfigPtr& config) = 0;
+    virtual void Reconfigure(const TActionManagerConfigPtr& config, int maxUnhealthyBundlesOnReplicaCluster) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IActionManager)
@@ -57,7 +57,9 @@ IActionManagerPtr CreateActionManager(
     TActionManagerConfigPtr config,
     NApi::NNative::IClientPtr client,
     IBootstrap* bootstrap,
-    IMulticellThrottlerPtr throttler);
+    IMulticellThrottlerPtr throttler,
+    IClusterStateProviderPtr clusterStateProvider,
+    int maxUnhealthyBundlesOnReplicaCluster);
 
 ////////////////////////////////////////////////////////////////////////////////
 
