@@ -9,6 +9,7 @@ SRCS(
     init_ut.cpp
     node_info_ut.cpp
     root_clients_cache_ut.cpp
+    job_proxy_client_ut.cpp
     vanilla_launcher_ut.cpp
 )
 

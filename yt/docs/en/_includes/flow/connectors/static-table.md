@@ -202,3 +202,4 @@ For an example of deployment and operation, see the Plutonium documentation link
 - [List of connectors](../../../flow/connectors/about.md)
 - [Sorted Dynamic Table](../../../flow/connectors/sorted-dynamic-table.md)
 - [Stateful computations](../../../flow/concepts/stateful.md)
+- [Reading through the job proxy in vanilla](../../../flow/devops/vanilla/initial-deploy.md#job-proxy-readers)

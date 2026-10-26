@@ -103,6 +103,79 @@
 
 Компаньонские раннеры на Go и Python устанавливают `worker.port_count` не меньше `3`, когда Vanilla включена, даже если поле не задано или явно равно `0`. Порты этих воркеров выделяются и при наличии сетевого проекта; для контроллера действуют правила выше.
 
+## Обращения к {{product-name}} через job proxy {#job-proxy-readers}
+
+Используйте job proxy для обращений Flow к кластеру, на котором запущена vanilla-операция. Настройка подходит для массового чтения статических таблиц, чтения очередей, загрузки и сохранения состояния, записи в динамические таблицы и коммитов транзакций.
+
+Запросы обходят общий RPC proxy: вместо сетевого перехода к нему используется локальный Unix socket. Это снижает нагрузку на общие RPC proxy и может уменьшить задержки и повысить пропускную способность, если ограничение было на их стороне. У vanilla-джоб должен оставаться запас CPU и памяти: обработка RPC-запросов и буферы переносятся в job proxy каждой джобы. Если скорость ограничена серверами хранения или пользовательскими вычислениями, смена маршрута сама по себе это ограничение не снимает.
+
+Добавьте в `vanilla.worker` настройку [`enable_rpc_proxy_in_job_proxy`](../../../../user-guide/data-processing/operations/operations-options.md#user_script_options):
+
+```yson
+enable_rpc_proxy_in_job_proxy = %true;
+```
+
+Путь данных:
+
+```text
+Flow → RPC-клиент → Unix socket → job proxy → native-клиент → серверы кластера
+```
+
+Job proxy — отдельный процесс на execution node {{product-name}}, который запускает пользовательский процесс джобы, контролирует его ресурсы и передаёт статистику узлу. В vanilla-операции пользовательским процессом служит воркер Flow. Job proxy существует и без этой настройки; флаг включает RPC API в этом процессе и передаёт путь к локальному сокету в `YT_JOB_PROXY_SOCKET_PATH`.
+
+{% if audience == "internal" %}
+Подробнее об устройстве джобы — в разделе [Анатомия джоба](../../../../user-guide/data-processing/operations/jobs.md#anatomiya-dzhoba-v-yt).
+{% endif %}
+
+Лаунчер Flow передаёт кластер выполнения в `YT_FLOW_JOB_PROXY_CLUSTER`. Все клиенты общего кеша Flow для этого кластера используют локальный сокет: чтение таблиц, состояние, запись и commit транзакций. Клиент аутентификатора также использует job proxy. Клиенты с одинаковыми настройками внутри одного кеша переиспользуют соединение, сохраняя свои параметры авторизации. Явно указанная роль прокси, например `my-cluster/my-proxy-role`, для кластера выполнения также заменяется локальным сокетом. Обращения к другим кластерам сохраняют обычный RPC proxy.
+
+Настройка несовместима с пользовательской фабрикой корневого кеша клиентов (`SetRootClientsCacheFactory`): при таком сочетании запуск завершается ошибкой, чтобы сохранить специальные гарантии клиента.
+
+### Разделение RPC по транспортным band'ам {#job-proxy-multiplexing}
+
+При большом числе партиций служебные RPC могут конкурировать с потоками данных (например, `ReadTable`) за обработку и передачу данных через job proxy. Настройка [`enable_control_multiplexing_band`](../../../../flow/generated_docs/all_yson_structs.md#NYT_NApi_NRpcProxy_TConnectionConfig) направляет поддерживающие её методы, в том числе `CommitTransaction`, `PingTransaction`, `AbortTransaction` и `DetachTransaction`, в band `control`. `ReadTable` остаётся в `default`. Band'ы используют отдельные транспортные соединения и очереди, но CPU, память и пропускная способность хоста остаются общими.
+
+Это настройки клиентской стороны Flow. Флаг `enable_control_multiplexing_band` задаётся для конкретной RPC connection и выбирает band для поддерживаемых методов; он действует как при обращении к job proxy, так и к обычному RPC proxy. Параметры `tcp_dispatcher.multiplexing_bands` задают параллелизм транспортных соединений для всего процесса Flow. Они не настраивают диспетчер в отдельном процессе job proxy.
+
+Разделение помогает, когда служебные запросы задерживаются в общей транспортной очереди за потоками данных. Дополнительные соединения расходуют ресурсы и не устраняют конкуренцию за CPU или перегрузку серверов хранения. Выбирайте параллелизм по задержкам служебных RPC, пропускной способности и потреблению ресурсов.
+
+Следующий фрагмент конфига включает job proxy для воркеров, выбор `control` для поддерживаемых RPC и задаёт параллелизм 4 в `default` и 1 в `control` для каждого транспортного канала. Эти значения — пример для настройки под нагрузку, а не новые значения по умолчанию.
+
+```yson
+{
+    vanilla = {
+        worker = {enable_rpc_proxy_in_job_proxy = %true;};
+        node_config = {
+            clients_cache = {
+                default_connection = {
+                    enable_control_multiplexing_band = %true;
+                };
+            };
+        };
+    };
+    dynamic_spec = {
+        singletons = {
+            tcp_dispatcher = {
+                multiplexing_bands = {
+                    default = {
+                        min_multiplexing_parallelism = 4;
+                        max_multiplexing_parallelism = 4;
+                    };
+                    control = {
+                        min_multiplexing_parallelism = 1;
+                        max_multiplexing_parallelism = 1;
+                    };
+                };
+            };
+        };
+    };
+}
+```
+
+Описание параметров `min_multiplexing_parallelism` и `max_multiplexing_parallelism` приведено в [справочнике транспортного band'а](../../../../flow/generated_docs/all_yson_structs.md#NYT_NBus_NTcp_TMultiplexingBandConfig).
+
+Если для кластера задан `clients_cache.per_cluster_connection`, настройку `enable_control_multiplexing_band` нужно задать в соответствующем соединении: оно не наследует `default_connection`.
+
 ## Запуск пайплайна {#run}
 
 {% list tabs %}

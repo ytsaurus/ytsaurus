@@ -82,6 +82,7 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/inflight_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/input_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/job_directory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/job_proxy_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/key.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/lag.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/message_batch.cpp

@@ -24,6 +24,7 @@ SRCS(
     inflight_tracker.cpp
     input_context.cpp
     job_directory.cpp
+    job_proxy_client.cpp
     key.cpp
     lag.cpp
     message_batch.cpp

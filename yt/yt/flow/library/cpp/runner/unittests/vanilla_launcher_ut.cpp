@@ -64,6 +64,14 @@ TEST(TVanillaConfigTest, AllowsPerTaskDockerImage)
     EXPECT_FALSE(config->Controller->DockerImage.has_value());
 }
 
+TEST(TVanillaConfigTest, ConfiguresWorkerJobProxy)
+{
+    auto config = ConvertTo<TVanillaConfigPtr>(TYsonStringBuf(
+        R"({pool=test;worker={count=1;enable_rpc_proxy_in_job_proxy=%true}})"));
+    EXPECT_TRUE(config->Worker->EnableRpcProxyInJobProxy);
+    EXPECT_FALSE(config->Controller->EnableRpcProxyInJobProxy);
+}
+
 // Without a network project the jobs share the exec node's network, where the fixed ports of
 // co-located flow jobs collide — the out-of-the-box launch must ask YT for ports instead.
 TEST(TVanillaConfigTest, DefaultsPortCountsWithoutNetworkProject)
