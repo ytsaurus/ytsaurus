@@ -2299,6 +2299,14 @@ class YTEnvSetup(object):
         except KeyError:
             return None
 
+    @classmethod
+    def add_cleanup_ignore_object_ids(cls, *object_ids):
+        """Preserve objects across per-method cleanup without modifying parent classes."""
+        cls._cleanup_ignore_object_ids = [
+            *getattr(cls, "_cleanup_ignore_object_ids", []),
+            *object_ids,
+        ]
+
     def _remove_objects(self, enable_secondary_cells_cleanup, driver=None):
         def list_multiple_action(list_kwargs):
             responses = yt_commands.execute_batch(
