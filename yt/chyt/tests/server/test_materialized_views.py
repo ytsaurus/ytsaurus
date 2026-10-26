@@ -589,6 +589,9 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             }
             assert read_table("//tmp/target") == []
 
+            wait(lambda: exists(clique.query_log_table_path))
+            wait(lambda: get(clique.query_log_table_path + "/@tablet_state") == "mounted")
+
             refresh_query_count = get_refresh_query_count()
             create("table", "//tmp/empty_part", attributes={"schema": self.SCHEMA})
             move("//tmp/empty_part", "//tmp/source_directory/empty_part")
