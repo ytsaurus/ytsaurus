@@ -40,7 +40,7 @@ IF (NOT OPENSOURCE)
     )
 ENDIF()
 
-IF (NOT YT_TEAMCITY)
+IF (NOT YT_TEAMCITY AND SANITIZER_TYPE != "address")
     RECURSE(
         yt_fibers_printer
     )
