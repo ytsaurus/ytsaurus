@@ -1454,6 +1454,38 @@ print(json.dumps(input))
 
         return op
 
+    @authors("pavook")
+    def test_map_job_interrupts_disabled_by_operation_spec(self):
+        rows = [{"key": index} for index in range(3)]
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", rows)
+        create("table", "//tmp/t_out")
+
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=with_breakpoint('read ROW; echo "$ROW"; BREAKPOINT; cat'),
+            spec={
+                "mapper": {"format": "json"},
+                "enable_job_interrupts": False,
+                "enable_job_splitting": False,
+                "job_io": {
+                    "buffer_row_count": 1,
+                },
+            },
+        )
+
+        job_id, = wait_breakpoint(op)
+        try:
+            with raises_yt_error("Error interrupting job"):
+                interrupt_job(job_id)
+        finally:
+            release_breakpoint()
+            op.track()
+
+        assert read_table("//tmp/t_out") == rows
+
     @authors("klyachin")
     @pytest.mark.parametrize("ordered", [False, True])
     def test_map_interrupt_job(self, ordered):

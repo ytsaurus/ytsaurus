@@ -1158,6 +1158,9 @@ struct TOperationSpecBase
     //! If set to true, any aborted/failed job will result in operation fail.
     bool FailOnJobRestart;
 
+    //! Whether jobs of this operation can be interrupted gracefully.
+    bool EnableJobInterrupts;
+
     // TODO(gritukan): Deprecate.
     bool EnableJobSplitting;
 

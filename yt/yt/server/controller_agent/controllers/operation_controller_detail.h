@@ -445,7 +445,7 @@ public:
     void AsyncAbortJob(TJobId jobId, EAbortReason abortReason) override;
     void AbortJob(TJobId jobId, EAbortReason abortReason) override;
 
-    bool CanInterruptJobs() const override;
+    bool CanInterruptJobs() const final;
     void InterruptJob(TJobId jobId, EInterruptionReason reason) override;
 
     void OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType) override;
