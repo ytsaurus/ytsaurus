@@ -10,6 +10,7 @@ import os
 def _strawberry_ctl_handler(family):
     def handler(**kwargs):
         address = kwargs.pop("address")
+        host_header = kwargs.pop("host_header")
         stage = kwargs.pop("stage")
         cluster_name = kwargs.pop("cluster_name")
         command_name = kwargs.pop("command_name")
@@ -31,6 +32,7 @@ def _strawberry_ctl_handler(family):
                     command_name=command_name,
                     params=params,
                     address=address,
+                    host_header=host_header,
                     family=family,
                     stage=stage,
                     cluster_name=cluster_name,
@@ -56,6 +58,9 @@ def add_strawberry_ctl_parser(add_parser, family):
 
     address_parser = ArgumentParser(add_help=False)
     address_parser.add_argument("--address", help="controller service address; may contain {stage}, {family} and {host_suffix} parameters; the default value is fetched from the remote client config")
+    address_parser.add_argument(
+        "--host-header",
+        help="HTTP Host header for manually routing requests to a specific controller family")
     address_parser.add_argument("--stage", help="controller stage", default="production")
     address_parser.add_argument("--cluster-name", help="cluster name under which the cluster is configured in the strawberry controller; the default value is fetched from the remote client config")
     # "help" option should not be handled before we fetch and register all available commands.
@@ -67,9 +72,9 @@ def add_strawberry_ctl_parser(add_parser, family):
     subparsers = parser.add_subparsers(metavar="command", **SUBPARSER_KWARGS)
     add_cmd_subparser = add_subparser(subparsers, params_argument=False)
 
-    def register_commands(address, stage):
+    def register_commands(address, stage, host_header):
         try:
-            api_structure = strawberry.describe_api(address, family, stage)
+            api_structure = strawberry.describe_api(address, family, stage, host_header=host_header)
         except Exception as e:
             msg = "failed to fetch available commands from controller service\n"
             msg += str(e)
@@ -156,7 +161,7 @@ def add_strawberry_ctl_parser(add_parser, family):
 
     def parse_known_args(args=None, namespace=None):
         namespace, unparsed = address_parser.parse_known_args(args=args, namespace=namespace)
-        register_commands(namespace.address, namespace.stage)
+        register_commands(namespace.address, namespace.stage, namespace.host_header)
         return do_parse_known_args(args=unparsed, namespace=namespace)
 
     parser.parse_known_args = parse_known_args
