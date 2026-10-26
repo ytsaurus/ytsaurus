@@ -39,7 +39,7 @@ def get_cluster_name(cluster_name):
     return cluster_name
 
 
-def describe_api(address, family, stage):
+def describe_api(address, family, stage, host_header=None):
     address = get_full_ctl_address(address, family, stage)
 
     url = address + "/describe"
@@ -47,12 +47,15 @@ def describe_api(address, family, stage):
         "User-Agent": get_user_agent(),
     }
 
+    if host_header is not None:
+        headers["Host"] = host_header
+
     logging_params = {
         "headers": headers,
     }
     logger.debug("Perform HTTP GET request %s (%s)", url, format_logging_params(logging_params))
 
-    response = requests.get(address + "/describe")
+    response = requests.get(url, headers=headers)
 
     logging_params = {
         "headers": dict(response.headers),
@@ -69,7 +72,8 @@ def describe_api(address, family, stage):
     return yson.loads(response.content)
 
 
-def make_request(command_name, params, address, family, stage, cluster_name, unparsed=False):
+def make_request(command_name, params, address, family, stage, cluster_name,
+                 unparsed=False, host_header=None):
     address = get_full_ctl_address(address, family, stage)
 
     url = "{}/{}/{}".format(address, cluster_name, command_name)
@@ -83,6 +87,9 @@ def make_request(command_name, params, address, family, stage, cluster_name, unp
     test_user = os.getenv("YT_TEST_USER")
     if test_user:
         headers["X-YT-TestUser"] = test_user
+
+    if host_header is not None:
+        headers["Host"] = host_header
 
     logging_params = {
         "headers": headers,
@@ -111,7 +118,8 @@ def make_request(command_name, params, address, family, stage, cluster_name, unp
     return yson.loads(response.content)
 
 
-def make_request_generator(command_name, params, address, family, stage, cluster_name, unparsed=False):
+def make_request_generator(command_name, params, address, family, stage, cluster_name,
+                           unparsed=False, host_header=None):
     while True:
         response = make_request(
             command_name=command_name,
@@ -120,7 +128,8 @@ def make_request_generator(command_name, params, address, family, stage, cluster
             family=family,
             stage=stage,
             cluster_name=cluster_name,
-            unparsed=unparsed)
+            unparsed=unparsed,
+            host_header=host_header)
 
         yield response
 
