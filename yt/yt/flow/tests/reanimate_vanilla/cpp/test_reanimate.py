@@ -73,7 +73,8 @@ class TestReanimateVanillaCpp(FlowTestBase):
         return rows[0]["secret"] if rows else None
 
     @pytest.mark.authors(["mikari"])
-    def test_reanimate(self):
+    @pytest.mark.parametrize("use_job_proxy", [False, True], ids=["rpc_proxy", "job_proxy"])
+    def test_reanimate(self, use_job_proxy):
         run_yt_sync(self.primary_cluster_name, self.work_yt_path)
         config_path = self.prepare_pipeline_config()
 
@@ -92,8 +93,10 @@ class TestReanimateVanillaCpp(FlowTestBase):
                     "cpu_limit": 1,
                     "port_count": self.VANILLA_WORKER_PORT_COUNT,
                     "set_container_cpu_limit": True,
+                    "enable_rpc_proxy_in_job_proxy": use_job_proxy,
                 },
             },
+            leader_wait_timeout=300,
         ):
             self.wait_pipeline_state("working", timeout=300)
 
@@ -120,10 +123,12 @@ class TestReanimateVanillaCpp(FlowTestBase):
             assert "secure_vault" not in spec
             assert spec["tasks"]["worker"]["set_container_cpu_limit"]
             assert "set_container_cpu_limit" not in spec["tasks"]["controller"]
+            assert spec["tasks"]["worker"].get("enable_rpc_proxy_in_job_proxy", False) == use_job_proxy
 
             operation_spec = self.client.get_operation(self._current_operation_id(), attributes=["spec"])["spec"]
             assert operation_spec["tasks"]["worker"]["set_container_cpu_limit"]
             assert "set_container_cpu_limit" not in operation_spec["tasks"]["controller"]
+            assert operation_spec["tasks"]["worker"].get("enable_rpc_proxy_in_job_proxy", False) == use_job_proxy
 
             # The pipeline must actually process messages and the secret must reach the job: the sink
             # writes a growing count and the secret value into the output table.
@@ -149,6 +154,7 @@ class TestReanimateVanillaCpp(FlowTestBase):
             operation_spec = self.client.get_operation(self._current_operation_id(), attributes=["spec"])["spec"]
             assert operation_spec["tasks"]["worker"]["set_container_cpu_limit"]
             assert "set_container_cpu_limit" not in operation_spec["tasks"]["controller"]
+            assert operation_spec["tasks"]["worker"].get("enable_rpc_proxy_in_job_proxy", False) == use_job_proxy
 
             # Processing resumes after reanimate (count keeps growing) and the secret is still
             # delivered to the reanimated operation.

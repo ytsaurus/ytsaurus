@@ -202,3 +202,4 @@
 - [Список коннекторов](../../../flow/connectors/about.md)
 - [Sorted Dynamic Table](../../../flow/connectors/sorted-dynamic-table.md)
 - [Стейтфул computations](../../../flow/concepts/stateful.md)
+- [Чтение через job proxy в vanilla](../../../flow/devops/vanilla/initial-deploy.md#job-proxy-readers)

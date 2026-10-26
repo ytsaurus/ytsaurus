@@ -9,6 +9,8 @@
 
 #include <library/cpp/yt/system/atomic_object.h>
 
+#include <util/system/env.h>
+
 namespace NYT::NFlow {
 
 using namespace NClient::NCache;
@@ -55,6 +57,7 @@ TClientsCacheConfigPtr ApplyProxyRole(const TRootClientsCacheOptions& options)
     return config;
 }
 
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,6 +79,9 @@ IClientsCachePtr CreateRootClientsCache(const TRootClientsCacheOptions& options)
             "the binary is not linked against an implementation calling SetRootClientsCacheFactory()");
         return CreateClientsCache(patchedOptions.ClientsCacheConfig, patchedOptions.ClientOptions);
     }
+
+    THROW_ERROR_EXCEPTION_IF(!GetEnv("YT_FLOW_JOB_PROXY_CLUSTER").empty(),
+        "Job proxy routing is not supported with a custom root clients cache factory");
 
     YT_TLOG_INFO("Creating the root clients cache with a custom factory")
         .With("Pipeline", patchedOptions.PipelinePath)

@@ -40,6 +40,7 @@ struct TVanillaTaskConfig
     std::optional<int> CpuLimit;
     //! Request a container CPU ceiling on execution backends that support it.
     bool SetContainerCpuLimit{};
+    bool EnableRpcProxyInJobProxy{};
 
     //! When positive, the task requests this many YT-allocated ports (exposed as YT_PORT_<i>),
     //! overriding the fixed ports from the node config. Needed on a shared-network host
@@ -180,6 +181,7 @@ struct TFlowVanillaTask
     std::optional<std::string> SystemLayerPath;
     std::optional<std::string> DockerImage;
     bool SetContainerCpuLimit = false;
+    bool EnableRpcProxyInJobProxy = false;
 };
 
 //! Options for launching a Flow federation as a vanilla operation directly, without the pipeline

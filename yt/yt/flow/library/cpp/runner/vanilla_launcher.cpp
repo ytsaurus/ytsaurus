@@ -265,6 +265,7 @@ TVanillaTaskSpec BuildTaskSpec(
     taskSpec.MemoryLimit = task.MemoryLimit;
     taskSpec.CpuLimit = task.CpuLimit;
     taskSpec.SetContainerCpuLimit = task.SetContainerCpuLimit;
+    taskSpec.EnableRpcProxyInJobProxy = task.EnableRpcProxyInJobProxy;
     taskSpec.PortCount = task.PortCount;
     taskSpec.Command = localBinaryPath
         ? Format("%v --config %v", *localBinaryPath, NodeConfigFileName)
@@ -312,6 +313,8 @@ void TVanillaTaskConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default();
     registrar.Parameter("set_container_cpu_limit", &TThis::SetContainerCpuLimit)
+        .Default(false);
+    registrar.Parameter("enable_rpc_proxy_in_job_proxy", &TThis::EnableRpcProxyInJobProxy)
         .Default(false);
     registrar.Parameter("port_count", &TThis::PortCount)
         .GreaterThanOrEqual(0)
@@ -521,6 +524,10 @@ TVanillaOperationHandle LaunchInVanillaJob(
         task.MemoryLimit = config->MemoryLimit.value_or(NYTree::TSize(DefaultMemoryLimit));
         task.CpuLimit = config->CpuLimit.value_or(DefaultCpuLimit);
         task.SetContainerCpuLimit = config->SetContainerCpuLimit;
+        task.EnableRpcProxyInJobProxy = config->EnableRpcProxyInJobProxy;
+        if (task.EnableRpcProxyInJobProxy) {
+            task.Environment["YT_FLOW_JOB_PROXY_CLUSTER"] = runtimeCluster;
+        }
         task.PortCount = config->PortCount.value_or(0);
         task.LocalFiles = config->LocalFiles;
         task.CypressFiles = config->CypressFiles;
@@ -693,6 +700,9 @@ std::string StartFlowVanillaOperation(const TFlowVanillaOptions& options)
         return it->second;
     };
     auto buildTask = [&] (const std::string& name, const std::string& flowMode, TFlowVanillaTask task) {
+        if (task.EnableRpcProxyInJobProxy) {
+            task.Environment["YT_FLOW_JOB_PROXY_CLUSTER"] = runtimeCluster;
+        }
         if (aliasingConfig) {
             task.Environment.emplace("YT_PROXY_URL_ALIASING_CONFIG", *aliasingConfig);
         }

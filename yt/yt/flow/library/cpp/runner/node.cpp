@@ -41,6 +41,7 @@
 #include <yt/yt/flow/library/cpp/common/column_evaluator_cache.h>
 #include <yt/yt/flow/library/cpp/common/internal_urls.h>
 #include <yt/yt/flow/library/cpp/common/job_directory.h>
+#include <yt/yt/flow/library/cpp/common/job_proxy_client.h>
 #include <yt/yt/flow/library/cpp/common/payload_converter.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
@@ -490,6 +491,7 @@ private:
             .ClientOptions = PipelineAuthenticator_->GetClientOptions(),
             .Parameters = Config_->ClientsCacheFactory,
         });
+        clientsCache = CreateJobProxyClientsCache(std::move(clientsCache));
         CommonYTConnector_ = CreateCommonYTConnector(clientsCache, PipelinePath_);
         SetQueueLogWriterClient(CommonYTConnector_->GetClient());
 

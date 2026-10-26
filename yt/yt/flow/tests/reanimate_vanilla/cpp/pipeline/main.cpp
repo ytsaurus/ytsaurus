@@ -8,6 +8,13 @@
 #include <yt/yt/flow/library/cpp/runner/init.h>
 #include <yt/yt/flow/library/cpp/runner/simple_runner_program.h>
 
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/connection.h>
+
+#include <yt/yt/client/api/rpc_proxy/config.h>
+
+#include <yt/yt/core/ytree/convert.h>
+
 #include <util/system/env.h>
 
 using namespace NYT;
@@ -28,6 +35,14 @@ public:
     void DoInit(IJobInitContextPtr initContext) override
     {
         initContext->InitExternalStateClient(StateClient_, "/state");
+
+        if (!GetEnv("YT_FLOW_JOB_PROXY_CLUSTER").empty()) {
+            auto socketPath = GetEnv("YT_JOB_PROXY_SOCKET_PATH");
+            auto connectionConfig = NYT::NYTree::ConvertTo<NYT::NApi::NRpcProxy::TConnectionConfigPtr>(
+                GetContext()->GetClient()->GetConnection()->GetConfigYson());
+            THROW_ERROR_EXCEPTION_UNLESS(!socketPath.empty() && connectionConfig->ProxyUnixDomainSocket == socketPath,
+                "Flow client is not using the job proxy socket");
+        }
     }
 
     void DoProcessMessage(

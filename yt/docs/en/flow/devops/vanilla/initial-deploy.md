@@ -92,6 +92,75 @@ On a shared-network host, fixed ports of neighboring jobs can collide. The launc
 
 The Go and Python companion launchers raise `worker.port_count` to at least `3` when Vanilla is enabled, including when the value is omitted or explicitly set to `0`. Their worker ports are allocated even with a network project; the controller follows the rules above.
 
+## Accessing {{product-name}} through job proxy {#job-proxy-readers}
+
+Use job proxy for Flow requests to the cluster running the vanilla operation. This option applies to bulk static table reads, queue reads, loading and saving state, dynamic table writes, and transaction commits.
+
+Requests bypass the shared RPC proxy: a local Unix socket replaces the network hop to that proxy. This reduces load on shared RPC proxies and can reduce latency and increase throughput when those proxies are the bottleneck. Vanilla jobs need spare CPU and memory: RPC request processing and buffers move to each job's job proxy. Changing the route does not by itself remove bottlenecks in storage servers or user computations.
+
+Add [`enable_rpc_proxy_in_job_proxy`](../../../user-guide/data-processing/operations/operations-options.md#user_script_options) to `vanilla.worker`:
+
+```yson
+enable_rpc_proxy_in_job_proxy = %true;
+```
+
+Data path:
+
+```text
+Flow → RPC client → Unix socket → job proxy → native client → cluster servers
+```
+
+Job proxy is a separate process on a {{product-name}} execution node. It starts the job's user process, monitors its resources, and reports statistics to the node. In a vanilla Flow operation, the user process is a Flow worker. Job proxy already exists without this option; the flag enables its RPC API and exports the local socket path in `YT_JOB_PROXY_SOCKET_PATH`.
+
+The Flow launcher passes the execution cluster in `YT_FLOW_JOB_PROXY_CLUSTER`. All clients from the shared Flow cache use the local socket for this cluster, including table reads, state access, writes, and transaction commits. The authenticator client also uses job proxy. Clients with identical settings within one cache share a connection while retaining their authentication options. An explicit proxy role such as `my-cluster/my-proxy-role` is also replaced by the local socket for the execution cluster. Requests to other clusters keep using their regular RPC proxies.
+
+This option is incompatible with a custom root clients cache factory (`SetRootClientsCacheFactory`). This combination fails at startup to preserve the custom client semantics.
+
+### Separating RPC traffic into transport bands {#job-proxy-multiplexing}
+
+With many partitions, service RPCs can compete with data streams, such as `ReadTable`, for processing and data transfer through job proxy. [`enable_control_multiplexing_band`](../../generated_docs/all_yson_structs.md#NYT_NApi_NRpcProxy_TConnectionConfig) routes methods that support it, including `CommitTransaction`, `PingTransaction`, `AbortTransaction`, and `DetachTransaction`, to the `control` band. `ReadTable` stays in `default`. Bands use separate transport connections and queues, but share the host's CPU, memory, and bandwidth.
+
+These are Flow client-side settings. The `enable_control_multiplexing_band` flag belongs to an individual RPC connection and selects the band for supported methods; it applies to both job proxy and regular RPC proxy connections. The `tcp_dispatcher.multiplexing_bands` settings control transport connection parallelism across the Flow process. They do not configure the dispatcher in the separate job proxy process.
+
+Separation helps when service requests wait behind data streams in a shared transport queue. Additional connections consume resources and do not eliminate CPU contention or storage-server overload. Choose parallelism based on service RPC latency, throughput, and resource use.
+
+The following config fragment enables job proxy for workers, selects `control` for supported RPCs, and sets parallelism to 4 in `default` and 1 in `control` for each transport channel. These values are an example to tune for your workload, not new defaults.
+
+```yson
+{
+    vanilla = {
+        worker = {enable_rpc_proxy_in_job_proxy = %true;};
+        node_config = {
+            clients_cache = {
+                default_connection = {
+                    enable_control_multiplexing_band = %true;
+                };
+            };
+        };
+    };
+    dynamic_spec = {
+        singletons = {
+            tcp_dispatcher = {
+                multiplexing_bands = {
+                    default = {
+                        min_multiplexing_parallelism = 4;
+                        max_multiplexing_parallelism = 4;
+                    };
+                    control = {
+                        min_multiplexing_parallelism = 1;
+                        max_multiplexing_parallelism = 1;
+                    };
+                };
+            };
+        };
+    };
+}
+```
+
+See the [transport band reference](../../generated_docs/all_yson_structs.md#NYT_NBus_NTcp_TMultiplexingBandConfig) for `min_multiplexing_parallelism` and `max_multiplexing_parallelism`.
+
+If the cluster has a `clients_cache.per_cluster_connection` entry, set `enable_control_multiplexing_band` in that connection too: it does not inherit `default_connection`.
+
 ## Run the pipeline {#run}
 
 {% list tabs %}
