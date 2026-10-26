@@ -203,13 +203,22 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
     getOptions.SuppressTransactionCoordinatorSync = Options_.SuppressTransactionCoordinatorSync;
     auto configOrError = NConcurrency::WaitFor(Client_->GetNode(Options_.ConfigPath, getOptions));
 
+    auto fetch = TConfigFetch{
+        .Config = configOrError.IsOK() ? configOrError.Value() : NYson::TYsonString(),
+        .InstanceTags = Options_.ConfigIsTagged ? GetInstanceTags() : std::vector<std::string>(),
+    };
+    // The applied config depends only on the fetched config and tags.
+    if (configOrError.IsOK() && LastProcessedFetch_ == fetch) {
+        return false;
+    }
+
     NYTree::IMapNodePtr matchedConfigNode;
     NYTree::IMapNodePtr configNode;
     if (configOrError.IsOK()) {
         configNode = NYTree::ConvertTo<NYTree::IMapNodePtr>(configOrError.Value());
 
         if (Options_.ConfigIsTagged) {
-            auto instanceTags = GetInstanceTags();
+            const auto& instanceTags = fetch.InstanceTags;
             if (instanceTags != InstanceTags_) {
                 YT_TLOG_INFO("Instance tags list has changed")
                     .With("OldTagList", InstanceTags_)
@@ -278,6 +287,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
 
     matchedConfigNode = PatchNode(BaseConfigNode_, matchedConfigNode)->AsMap();
     if (AreNodesEqual(matchedConfigNode, AppliedConfigNode_)) {
+        LastProcessedFetch_ = std::move(fetch);
         auto guard = Guard(SpinLock_);
         std::swap(LastAppliedConfigPatchNode_, configNode);
         return false;
@@ -324,6 +334,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         std::swap(LastAppliedConfigPatchNode_, configNode);
         LastConfigChangeTime_ = TInstant::Now();
     }
+    LastProcessedFetch_ = std::move(fetch);
 
     try {
         AfterConfigChanged_.Fire(newConfig);
