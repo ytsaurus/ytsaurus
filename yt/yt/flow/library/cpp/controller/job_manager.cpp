@@ -655,6 +655,9 @@ public:
             if (!currentJobStatus || !currentJobStatus->IsFinished || !layout->Jobs.contains(currentJobStatus->JobId)) {
                 continue;
             }
+            if (currentJobStatus->Error.FindMatching(EErrorCode::PartitionKeyLimitExceeded)) {
+                continue;
+            }
             if (!currentJobStatus->Error.IsOK()) {
                 if (currentJobStatus->Error.FindMatching(NFlow::EErrorCode::GracefulShutdown)) {
                     // A graceful-shutdown finish that CheckCompletedPartitions did not re-create
@@ -946,8 +949,36 @@ public:
             return StopAllJobs(flowView);
         }
 
+        THashMap<TComputationId, i64> keyCountCaps;
+        THashMap<TComputationId, i64> keyCountOwners;
+        THashSet<TComputationId> drainingKeyCountComputations;
+        for (const auto& [id, controller] : ComputationControllers_) {
+            const auto staticParameters = DynamicPointerCast<TPartitioningSpec>(controller->GetParametersBase());
+            if (staticParameters && staticParameters->KeyCountPartitioning->Enable) {
+                const auto parameters = DynamicPointerCast<TDynamicPartitioningSpec>(controller->GetDynamicParametersBase());
+                keyCountCaps[id] = parameters->GetPartitionCountBounds().second;
+                keyCountOwners[id] = 0;
+            }
+        }
+        for (const auto& [_, partition] : layout->Partitions) {
+            if (partition->State == EPartitionState::Interrupting && keyCountCaps.contains(partition->ComputationId)) {
+                drainingKeyCountComputations.insert(partition->ComputationId);
+            }
+        }
+
+        auto updateKeyCountOwners = [&] (const auto& partition, TJobId jobId, i64 delta) {
+            if (auto* count = keyCountOwners.FindPtr(partition->ComputationId)) {
+                const auto* feedback = flowView->Feedback->PartitionJobStatuses.FindPtr(partition->PartitionId);
+                const auto status = feedback ? (*feedback)->CurrentJobStatus : nullptr;
+                if (!status || status->JobId != jobId || !status->IsFinished) {
+                    *count += delta;
+                }
+            }
+        };
+
         ssize_t stopCount = 0;
         auto stopJob = [&] (const auto& partition) {
+            updateKeyCountOwners(partition, *partition->CurrentJobId, -1);
             stopCount++;
             NBalancer::RemoveJobKeepingMetrics(flowView, partition->CurrentJobId.value(), EJobFinishReason::Rebalanced);
 
@@ -971,6 +1002,19 @@ public:
         };
         ssize_t createCount = 0;
         auto createJob = [&] (const auto& partitionId, const auto& worker) {
+            if (flowView->EphemeralState->KeyCountPartitioningBlockedComputations.contains(
+                GetOrCrash(layout->Partitions, partitionId)->ComputationId))
+            {
+                return;
+            }
+            const auto& partition = GetOrCrash(layout->Partitions, partitionId);
+            if (const auto* cap = keyCountCaps.FindPtr(partition->ComputationId)) {
+                if (GetOrCrash(keyCountOwners, partition->ComputationId) >= *cap ||
+                    (partition->State != EPartitionState::Interrupting && drainingKeyCountComputations.contains(partition->ComputationId)))
+                {
+                    return;
+                }
+            }
             createCount++;
             // A partition without a dynamic partition spec never reaches the worker: the heartbeat
             // response omits its job, which then dies by the status timeout with a misleading
@@ -988,6 +1032,7 @@ public:
             job->WorkerIncarnationId = worker->IncarnationId;
             job->PartitionId = partitionId;
             layout->CreateJob(job);
+            updateKeyCountOwners(partition, job->JobId, +1);
         };
 
         for (const auto& [jobId, job] : layout->Jobs) {
@@ -1008,6 +1053,7 @@ public:
                     .With("worker_incarnation_id", job->WorkerIncarnationId)
                     .With("actual_worker_incarnation_id", worker->IncarnationId);
             }
+            updateKeyCountOwners(partition, jobId, +1);
         }
 
         const auto jobManagerSpec = DynamicSpec_->JobManager;

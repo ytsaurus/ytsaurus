@@ -3,7 +3,7 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
-    input_partitioning.cpp
+    key_count_partitioning.cpp
     partitioning_coordinator.cpp
     partitioning_helpers.cpp
 )

@@ -317,6 +317,7 @@ struct TJobStatus
 
     TFromPartitionTraverseDataPtr FromPartitionTraverseData;
     TProcessingObservationPtr ProcessingObservation;
+    std::optional<THashMap<TKey, TInstant>> ObservedKeys;
 
     TNodePerformanceMetricsPtr PerformanceMetrics;
     TNodeInputMetricsPtr InputMetrics;
@@ -924,6 +925,8 @@ struct TFlowEphemeralState
     TMessageTransferingInfoPtr MessageTransferingInfo;
     NYPath::TRichYPath PipelinePath;
     THashSet<TComputationId> TraverseUncoveredComputations;
+    THashSet<TComputationId> KeyCountPartitioningBlockedComputations;
+    THashMap<TComputationId, NYTree::IMapNodePtr> KeyCountPartitioning;
 
     TLineageRatios LineageRatios;
 

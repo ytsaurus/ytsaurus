@@ -47,6 +47,8 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <yt/yt/core/utilex/random.h>
+
 #include <yt/yt/library/heavy_hitters/misra_gries.h>
 
 #include <library/cpp/yt/string/guid.h>
@@ -408,9 +410,10 @@ public:
 
         status->Epoch = SpecGeneration_;
 
-        if (IsRunning_.load() && InitializePromise_.IsSet()) {
+        if (InitializePromise_.IsSet()) {
             try {
                 auto computationStatus = Computation_->GetStatus();
+                status->ObservedKeys = std::move(computationStatus->ObservedKeys);
                 RuntimeCounters_->NonEmptyIterationCount.store(computationStatus->NonEmptyIterationCount);
                 if (computationStatus->NodeTraverse) {
                     auto traverseData = New<TFromPartitionTraverseData>();

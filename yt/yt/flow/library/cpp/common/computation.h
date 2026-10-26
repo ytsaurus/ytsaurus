@@ -8,6 +8,7 @@
 #include "external_metrics_reporter.h"
 #include "flow_view.h"
 #include "job_lineage_tracker.h"
+#include "key.h"
 #include "partition_buffer_state.h"
 #include "spec_validation.h"
 #include "stream_inflight_limits.h"
@@ -147,6 +148,7 @@ DEFINE_REFCOUNTED_TYPE(IComputationRunContext);
 struct TComputationStatus
     : public NYTree::TYsonStruct
 {
+    std::optional<THashMap<TKey, TInstant>> ObservedKeys;
     TNodeTraverseDataPtr NodeTraverse;
     TProcessingObservationPtr ProcessingObservation;
     NYTree::IMapNodePtr PartitionStatus;

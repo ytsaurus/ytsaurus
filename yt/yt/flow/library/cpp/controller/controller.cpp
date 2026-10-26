@@ -1396,8 +1396,9 @@ public:
     void RegisterJobStatus(const TJobId& jobId, TJobStatusPtr jobStatus) override
     {
         EnsureIsLeader();
+
         auto guard = Guard(FreshStatusesLock_);
-        FreshJobStatuses_[jobId] = jobStatus;
+        FreshJobStatuses_[jobId] = std::move(jobStatus);
     }
 
     void RegisterWorkerStatus(TStringBuf workerAddress, TWorkerStatusPtr status) override

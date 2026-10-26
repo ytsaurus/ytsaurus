@@ -502,6 +502,9 @@ void TJobStatus::Register(TRegistrar registrar)
 
     registrar.Parameter("from_partition_traverse_data", &TThis::FromPartitionTraverseData)
         .Default();
+    registrar.Parameter("observed_keys", &TThis::ObservedKeys)
+        .Optional()
+        .DontSerializeDefault();
     registrar.Parameter("processing_observation", &TThis::ProcessingObservation)
         .DontSerializeDefault()
         .Default();
@@ -1440,6 +1443,10 @@ void TFlowEphemeralState::Register(TRegistrar registrar)
     registrar.Parameter("message_transfering_info", &TThis::MessageTransferingInfo)
         .DefaultNew();
     registrar.Parameter("pipeline_path", &TThis::PipelinePath)
+        .Default();
+    registrar.Parameter("key_count_partitioning_blocked_computations", &TThis::KeyCountPartitioningBlockedComputations)
+        .Default();
+    registrar.Parameter("key_count_partitioning", &TThis::KeyCountPartitioning)
         .Default();
     registrar.Parameter("traverse_uncovered_computations", &TThis::TraverseUncoveredComputations)
         .Default();

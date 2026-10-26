@@ -48,6 +48,7 @@ target_link_libraries(library-cpp-computation PUBLIC
 )
 
 target_sources(library-cpp-computation PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/key_count_observer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/computation_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/computation_tracer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/controller_base.cpp

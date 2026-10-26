@@ -54,6 +54,7 @@ target_link_options(yt-flow-library-cpp-partitioning-unittests PRIVATE
 )
 
 target_sources(yt-flow-library-cpp-partitioning-unittests PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/partitioning/unittests/key_count_partitioning_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/partitioning/unittests/partitioning_coordinator_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/partitioning/unittests/partitioning_helpers_ut.cpp
 )

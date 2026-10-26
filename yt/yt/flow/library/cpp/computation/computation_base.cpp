@@ -622,6 +622,9 @@ void TOutputCollector::AddTimer(TTimer&& timer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TUniversalComputationBase::TExtendedParameters::Register(TRegistrar /*registrar*/)
+{ }
+
 void TUniversalComputationBase::TExtendedDynamicParameters::Register(TRegistrar /*registrar*/)
 { }
 
@@ -752,6 +755,9 @@ TComputationStatusPtr TUniversalComputationBase::GetStatus()
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto status = New<TComputationStatus>();
+    if (GetParameters()->KeyCountPartitioning->Enable) {
+        status->ObservedKeys = KeyCountObserver_.GetKeys();
+    }
     status->NodeTraverse = GetNodeTraverse();
     status->ProcessingObservation = ProcessingObservation_.Acquire();
     status->NonEmptyIterationCount = NonEmptyRunIterations_.load();
@@ -870,6 +876,33 @@ bool TUniversalComputationBase::UpdateStatus(
     }
 
     return isFinished;
+}
+
+void TUniversalComputationBase::ObserveKeyCountInput(
+    const std::vector<TInputMessageConstPtr>& messages,
+    const std::vector<TInputTimerConstPtr>& timers,
+    const std::vector<TInputVisitConstPtr>& visits)
+{
+    const auto& config = GetParameters()->KeyCountPartitioning;
+    if (!config->Enable) {
+        return;
+    }
+    const auto now = TInstant::Now();
+    for (const auto& message : messages) {
+        KeyCountObserver_.ObserveKey(message->Key, now);
+    }
+    for (const auto& timer : timers) {
+        KeyCountObserver_.ObserveKey(timer->Key, now);
+    }
+    for (const auto& visit : visits) {
+        KeyCountObserver_.ObserveKey(visit->Key, now);
+    }
+    if (KeyCountObserver_.GetKeyCount() > config->MaxKeysPerPartition) {
+        THROW_ERROR_EXCEPTION(EErrorCode::PartitionKeyLimitExceeded,
+            "Partition encountered more keys than its configured limit")
+            .With("key_count", KeyCountObserver_.GetKeyCount())
+            .With("max_keys_per_partition", config->MaxKeysPerPartition);
+    }
 }
 
 THashMap<TStreamId, TKeyVisitorPtr> TUniversalComputationBase::CreateKeyVisitors() const

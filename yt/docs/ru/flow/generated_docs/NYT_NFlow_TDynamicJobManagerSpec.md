@@ -96,7 +96,7 @@
 || `faulty_address_attempts` | **Тип**: `unsigned long`
 **Значение по умолчанию**: `5`
 Смотрите описание параметра `faulty_address_window`. ||
-|| `partitioning` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicPartitioningSpec](./all_yson_structs#NYT_NFlow_TDynamicPartitioningSpec)`>`
+|| `partitioning` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicPartitioningCoordinatorSpec](./all_yson_structs#NYT_NFlow_TDynamicPartitioningCoordinatorSpec)`>`
 **Значение по умолчанию**: `{}`
 Настройки партиционирования пайплайна. ||
 || `worker_group_override` | **Тип**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TWorkerGroupIdTag, NYT::TStrongTypedefOptions{true}>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicJobManagerGroupSpec](./all_yson_structs#NYT_NFlow_TDynamicJobManagerGroupSpec)`>>`

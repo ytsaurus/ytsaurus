@@ -71,6 +71,8 @@ void IComputationRunContext::MarkDeduplicated(TMessageId messageId)
 
 void TComputationStatus::Register(TRegistrar registrar)
 {
+    registrar.Parameter("observed_keys", &TThis::ObservedKeys)
+        .Default();
     registrar.Parameter("node_traverse", &TThis::NodeTraverse)
         .Default();
     registrar.Parameter("processing_observation", &TThis::ProcessingObservation)

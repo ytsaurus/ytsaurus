@@ -5,6 +5,9 @@
 
 #|
 || **Параметр** | **Описание** ||
+|| `key_count_partitioning` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TKeyCountPartitioningSpec](./all_yson_structs#NYT_NFlow_TKeyCountPartitioningSpec)`>`
+**Значение по умолчанию**: `{}`
+Настройки разбиения по числу ключей в партиции. ||
 || `internal_states` | **Тип**: `std::optional<THashSet<std::string>>`
  ||
 |#

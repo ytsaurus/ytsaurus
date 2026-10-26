@@ -3,6 +3,7 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
+    key_count_observer.cpp
     computation_base.cpp
     computation_tracer.cpp
     controller_base.cpp

@@ -5,6 +5,9 @@ Source: [yt/yt/flow/library/cpp/common/registry-inl.h]({{source-root}}/yt/yt/flo
 
 #|
 || **Parameter** | **Description** ||
+|| `key_count_partitioning` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicKeyCountPartitioningSpec](./all_yson_structs#NYT_NFlow_TDynamicKeyCountPartitioningSpec)`>`
+**Default value**: `{}`
+Partitioning settings for the number of keys in a partition. ||
 || `throughput_warmup_period` | **Type**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
 Throughput measurement window for this Computation. When unset, uses the global warmup_period. Increase it for long batches or bursty input. ||
 || `throughput_max_exploration_factor` | **Type**: `double`

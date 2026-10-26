@@ -1,5 +1,6 @@
 #pragma once
 
+#include "key_count_partitioning.h"
 #include "public.h"
 
 #include <yt/yt/flow/library/cpp/common/computation_controller.h>
@@ -25,6 +26,7 @@ struct TComputationPartitioningState
     THashSet<TPartitionId> RetiringSourcePartitions;
     TThroughputFeedbackState ThroughputAutoscaler;
     NYson::TYsonString ThroughputDemandHistory;
+    TKeyCountPartitioningStatePtr KeyCountPartitioning;
 
     REGISTER_YSON_STRUCT(TComputationPartitioningState);
 
@@ -55,8 +57,8 @@ class TPartitioningCoordinator
     : public TRefCounted
 {
 public:
-    static constexpr int DefaultMinInputPartitionCount = TPartitioningSpec::DefaultMinPartitionCount;
-    static constexpr int DefaultMaxInputPartitionCount = TPartitioningSpec::DefaultMaxPartitionCount;
+    static constexpr int DefaultMinInputPartitionCount = TDynamicPartitioningSpec::DefaultMinPartitionCount;
+    static constexpr int DefaultMaxInputPartitionCount = TDynamicPartitioningSpec::DefaultMaxPartitionCount;
     static constexpr int DefaultSinkChannelMultiplier = 3;
     static constexpr double DefaultDesiredAveragePartitionCpuLoad = 0.1;
     static constexpr double DefaultDesiredAveragePartitionMemoryUsed = 300'000'000;
@@ -156,6 +158,7 @@ private:
     struct TComputationState
     {
         IComputationControllerPtr Controller;
+        std::unique_ptr<TKeyCountPartitioning> KeyCount;
         TComputationSpecPtr Spec;
         NLogging::TLogger Logger;
         NLogging::TLogger PublicLogger;
@@ -183,7 +186,7 @@ private:
     struct TRangePartitioningParameters
     {
         TComputationId ComputationId;
-        TPartitioningSpecPtr PartitioningSpec;
+        TDynamicPartitioningSpecPtr PartitioningSpec;
         THashSet<TStreamId> TimerStreamIds;
         bool FirstKeyIsUint = false;
         bool EnableNonUintKey = false;
@@ -206,6 +209,7 @@ private:
         THashMap<TPartitionId, double> Weights;
         std::optional<i64> MaxSinkChannelCount;
 
+        THashSet<TPartitionId> RetainedPartitions;
         std::vector<TKeyRange> NewRanges;
         std::vector<double> NewWeights;
 
@@ -238,7 +242,7 @@ private:
         const TFlowViewPtr& flowView) const;
 
     TRangePartitioningParameters BuildRangePartitioningParameters(
-        TPartitioningSpecPtr partitioningSpec,
+        TDynamicPartitioningSpecPtr partitioningSpec,
         const TComputationId& computationId,
         const TFlowViewPtr& flowView) const;
 

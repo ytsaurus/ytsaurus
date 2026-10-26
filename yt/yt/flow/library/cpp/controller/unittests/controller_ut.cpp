@@ -2,6 +2,9 @@
 #include <yt/yt/flow/library/cpp/controller/controller.h>
 #include <yt/yt/flow/library/cpp/controller/controller_service.h>
 #include <yt/yt/flow/library/cpp/controller/flow_executor.h>
+#include <yt/yt/flow/library/cpp/controller/state_manager.h>
+
+#include <yt/yt/flow/library/cpp/partitioning/partitioning_coordinator.h>
 
 #include <yt/yt/flow/library/cpp/controller/config.h>
 #include <yt/yt/flow/library/cpp/controller/unittests/mock/persisted_state_manager.h>
@@ -585,6 +588,167 @@ TEST_F(TControllerTest, FailedPersistenceRetriesSinkTopologyRecreation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TControllerTest, KeyCountLatestStatusSurvivesPersistenceRetry)
+{
+    ControllerConfig->WarmUpTime = TDuration::Zero();
+    ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
+    ControllerConfig->FeedbackPeriod = TDuration::MilliSeconds(10);
+    auto schema = New<NTableClient::TTableSchema>(std::vector{
+        NTableClient::TColumnSchema("hash", NTableClient::EValueType::Uint64).SetRequired(true),
+    });
+    auto spec = New<TPipelineSpec>();
+    auto computation = New<TComputationSpec>();
+    computation->ComputationClassName = "NYT::NFlow::TPassthroughComputation";
+    computation->GroupBySchema = schema;
+    computation->InputStreamIds.insert("input");
+    computation->OutputStreamIds.insert("output");
+    spec->Computations["computation"] = computation;
+    for (const auto& streamId : {TStreamId("input"), TStreamId("output")}) {
+        spec->Streams[streamId] = New<TStreamSpec>();
+        spec->Streams[streamId]->ClassName = "FakeClassName";
+        spec->Streams[streamId]->Schema = schema;
+    }
+    auto dynamic = New<TDynamicPipelineSpec>();
+    dynamic->TargetState = EPipelineState::Working;
+    dynamic->JobManager->AsyncBalancing = false;
+    dynamic->Computations["computation"] = New<TDynamicComputationSpec>();
+    computation->Parameters = ConvertTo<IMapNodePtr>(TYsonStringBuf("{key_count_partitioning={enable=%true;};}"));
+    const auto& local = PersistedStateManagerLocalState;
+    const auto& state = local->FlowView->State;
+    const auto versions = New<TFakeVersionProvider>(1);
+    state->AttachToControl(local->PersistedMasterControl);
+    local->PersistedMasterControl->Recover();
+    local->Spec->TrySetValue(spec, versions);
+    local->DynamicSpec->TrySetValue(dynamic, versions);
+    state->ExecutionSpec->PipelineSpec = CloneYsonStruct(local->Spec);
+    state->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(BuildExtendedPipelineSpec(spec), versions);
+    state->ExecutionSpec->DynamicPipelineSpec = CloneYsonStruct(local->DynamicSpec);
+    state->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, versions);
+    auto partition = New<TPartition>();
+    partition->PartitionId = TPartitionId(TGuid::Create());
+    partition->ComputationId = TComputationId("computation");
+    partition->State = EPartitionState::Executing;
+    partition->StateEpoch = 1;
+    partition->StateTimestamp = TInstant::Now();
+    partition->LowerKey = MinKey();
+    partition->UpperKey = MaxKey();
+    auto job = New<TJob>();
+    job->JobId = TJobId(TGuid::Create());
+    job->PartitionId = partition->PartitionId;
+    job->WorkerAddress = "worker";
+    job->WorkerIncarnationId = TIncarnationId(TGuid::Create());
+    state->StartMutation();
+    state->ExecutionSpec->Layout->CreatePartition(partition);
+    state->ExecutionSpec->Layout->CreateJob(job);
+    state->CommitMutation();
+    Prepare();
+    EXPECT_CALL(*YTConnector, GetLeadershipPublishTime())
+        .WillRepeatedly(Return(TInstant::Zero()));
+    EXPECT_CALL(*Transaction, GetId())
+        .WillRepeatedly(Return(TGuid::Create()));
+    auto aborted = std::make_shared<ITransaction::TAbortedHandler>();
+    EXPECT_CALL(*Transaction, SubscribeAborted(_))
+        .WillRepeatedly(SaveArg<0>(aborted.get()));
+    EXPECT_CALL(*Transaction, Abort(_))
+        .WillRepeatedly([aborted] (const TTransactionAbortOptions&) {
+            (*aborted)(TError("Lease aborted"));
+            return OKFuture;
+        });
+    auto failNext = std::make_shared<std::atomic<bool>>(false);
+    const auto failed = NewPromise<void>();
+    const auto retry = NewPromise<void>();
+    EXPECT_CALL(*PersistedStateManager, PersistFlowState(_, _))
+        .WillRepeatedly([local, failNext, failed, retry] (const TFlowStatePtr& flowState, const TPipelineImportantVersionsPtr& expected) {
+            if (failNext->exchange(false)) {
+                failed.Set();
+                WaitFor(retry.ToFuture()).ThrowOnError();
+                THROW_ERROR_EXCEPTION(NFlow::EErrorCode::SpecVersionMismatch, "Injected persistence failure");
+            }
+            auto guard = Guard(local->Lock);
+            flowState->CommitMutation();
+            local->CheckImportantVersions(expected);
+            local->FlowView->State = CloneYsonStruct(flowState);
+        });
+    ExecuteViaControlQueue([&] {
+        StartLeadingAndWaitReady();
+        auto stop = Finally([&] {
+            retry.TrySet();
+            StopLeading();
+        });
+        auto waitFor = [&] (auto predicate) {
+            const auto deadline = TInstant::Now() + TDuration::Seconds(10);
+            while (!predicate()) {
+                if (TInstant::Now() >= deadline) {
+                    return false;
+                }
+                TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
+            }
+            return true;
+        };
+        failNext->store(true);
+        ASSERT_TRUE(waitFor([&] {
+            return failed.IsSet();
+        }));
+        const auto observedAt = TInstant::Now();
+        const THashMap<TKey, TInstant> keys{{MakeKey(17u), observedAt}, {MakeKey(18u), observedAt}};
+        auto report = New<TJobStatus>();
+        report->JobId = job->JobId;
+        report->Epoch = 1;
+        report->UpdateTime = observedAt;
+        report->ObservedKeys = THashMap<TKey, TInstant>{{MakeKey(17u), observedAt}};
+        Controller->RegisterJobStatus(job->JobId, report);
+        auto heartbeat = CloneYsonStruct(report);
+        heartbeat->UpdateTime += TDuration::MicroSeconds(1);
+        Controller->RegisterJobStatus(job->JobId, heartbeat);
+        auto waitForHeartbeat = [&] {
+            return waitFor([&] {
+                auto view = Controller->GetFlowViewKeeper()->GetFlowView();
+                const auto* feedback = view->Feedback->PartitionJobStatuses.FindPtr(partition->PartitionId);
+                return feedback && (*feedback)->CurrentJobStatus &&
+                    (*feedback)->CurrentJobStatus->UpdateTime == heartbeat->UpdateTime &&
+                    (*feedback)->CurrentJobStatus->ObservedKeys == heartbeat->ObservedKeys;
+            });
+        };
+        ASSERT_TRUE(waitForHeartbeat());
+        heartbeat = CloneYsonStruct(heartbeat);
+        heartbeat->UpdateTime += TDuration::MicroSeconds(1);
+        Controller->RegisterJobStatus(job->JobId, heartbeat);
+        ASSERT_TRUE(waitForHeartbeat());
+
+        auto stale = New<TJobStatus>();
+        stale->JobId = TJobId(TGuid::Create());
+        stale->ObservedKeys = THashMap<TKey, TInstant>{{MakeKey(99u), observedAt}};
+        Controller->RegisterJobStatus(stale->JobId, stale);
+
+        auto terminal = New<TJobStatus>();
+        terminal->JobId = job->JobId;
+        terminal->IsFinished = true;
+        terminal->Epoch = 1;
+        terminal->UpdateTime = TInstant::Now();
+        terminal->ObservedKeys = keys;
+        Controller->RegisterJobStatus(job->JobId, terminal);
+        ASSERT_TRUE(waitFor([&] {
+            auto view = Controller->GetFlowViewKeeper()->GetFlowView();
+            const auto* feedback = view->Feedback->PartitionJobStatuses.FindPtr(partition->PartitionId);
+            return feedback && (*feedback)->CurrentJobStatus && (*feedback)->CurrentJobStatus->IsFinished;
+        }));
+        retry.Set();
+        ASSERT_TRUE(waitFor([&] {
+            auto guard = Guard(local->Lock);
+            const auto& persisted = local->FlowView->State;
+            const auto* states = persisted->JobManagerState->Computations.FindPtr(TComputationId(TStateManager::PartitioningStateComputationId));
+            const auto* value = states ? states->FindPtr("/v1") : nullptr;
+            auto view = Controller->GetFlowViewKeeper()->GetFlowView();
+            const auto* currentPartition = view->State->ExecutionSpec->Layout->Partitions.FindPtr(partition->PartitionId);
+            if (!value || !currentPartition || (*currentPartition)->CurrentJobId) {
+                return false;
+            }
+            const auto saved = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(*value);
+            return GetOrCrash(saved->Computations, TComputationId("computation"))->KeyCountPartitioning->ObservedKeys == keys;
+        }));
+    });
+}
+
 TEST_F(TControllerTest, StaleJobStatusIsIgnoredAfterReassignment)
 {
     ControllerConfig->WarmUpTime = TDuration::Hours(1);
@@ -650,6 +814,7 @@ TEST_F(TControllerTest, StaleJobStatusIsIgnoredAfterReassignment)
         auto staleStatus = New<TJobStatus>();
         staleStatus->JobId = oldJobId;
         staleStatus->IsFinished = true;
+        staleStatus->ObservedKeys = THashMap<TKey, TInstant>{{MakeKey(1u), TInstant::Now()}};
         staleStatus->Epoch = 100;
         staleStatus->UpdateTime = TInstant::Now();
         Controller->RegisterJobStatus(oldJobId, staleStatus);
