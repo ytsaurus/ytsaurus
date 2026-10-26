@@ -922,6 +922,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("fail_on_job_restart", &TThis::FailOnJobRestart)
         .Default(false);
 
+    registrar.Parameter("enable_job_interrupts", &TThis::EnableJobInterrupts)
+        .Default(true);
+
     registrar.Parameter("enable_job_splitting", &TThis::EnableJobSplitting)
         .Default(true);
 

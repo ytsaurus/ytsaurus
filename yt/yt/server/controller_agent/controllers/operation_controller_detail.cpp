@@ -4091,8 +4091,9 @@ void TOperationControllerBase::SafeInterruptJobByUserRequest(TJobId jobId, TDura
 
     if (!joblet->JobInterruptible) {
         THROW_ERROR_EXCEPTION(
-            "Cannot interrupt job %v of type %Qlv "
-            "because it does not support interruption or \"interruption_signal\" is not set",
+            "Cannot interrupt job %v of type %Qlv; possible causes include interruption being disabled "
+            "by the operation or controller configuration, the job type not supporting interruption, "
+            "or \"interruption_signal\" not being set for a vanilla job",
             jobId,
             joblet->JobType);
     }
@@ -11845,7 +11846,10 @@ void TOperationControllerBase::AbortJob(TJobId jobId, EAbortReason abortReason)
 
 bool TOperationControllerBase::CanInterruptJobs() const
 {
-    return Config_->EnableJobInterrupts && InputManager_->CanInterruptJobs();
+    return
+        Config_->EnableJobInterrupts &&
+        Spec_->EnableJobInterrupts &&
+        InputManager_->CanInterruptJobs();
 }
 
 void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptionReason reason)
