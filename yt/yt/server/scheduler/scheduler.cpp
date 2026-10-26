@@ -1010,7 +1010,7 @@ public:
 
         Strategy_->DisableOperation(operation.Get());
 
-        operation->Restart(TError("Agent unregistered"));
+        operation->Restart(TError(NScheduler::EErrorCode::AgentUnregistered, "Agent unregistered"));
         operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
         AdvanceEpoch(operation->ControllerEpoch());
 
