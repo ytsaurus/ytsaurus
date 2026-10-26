@@ -4440,9 +4440,6 @@ class TestSlotManagerResurrect(YTEnvSetup):
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
-                    "porto_executor": {
-                        "api_timeout": 1000
-                    },
                 },
             },
         },
@@ -4476,9 +4473,6 @@ class TestSlotManagerResurrect(YTEnvSetup):
             "enable_job_environment_resurrection": True,
             "job_environment": {
                 "type": "porto",
-                "porto_executor": {
-                    "api_timeout": 1000
-                },
             },
         }, path="exec_node/slot_manager")
 
