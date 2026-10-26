@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <limits>
 #include <ranges>
 
 namespace NYT::NOrm::NQuery {
@@ -56,9 +57,18 @@ std::optional<TLiteralValue> TryExtractSingleLiteralValue(const TExpressionList&
     }
     if (auto* literal = exprs[0]->As<TLiteralExpression>()) {
         return literal->Value;
-    } else {
-        return std::nullopt;
     }
+    if (auto* unary = exprs[0]->As<TUnaryOpExpression>(); unary && unary->Opcode == NQueryClient::EUnaryOp::Minus) {
+        if (auto literal = TryExtractSingleLiteralValue(unary->Operand)) {
+            if (auto* value = std::get_if<i64>(&*literal); value && *value != std::numeric_limits<i64>::min()) {
+                return -*value;
+            }
+            if (auto* value = std::get_if<double>(&*literal)) {
+                return -*value;
+            }
+        }
+    }
+    return std::nullopt;
 }
 
 std::vector<TReference> ExtractAllReferences(const TExpressionList& exprs)
