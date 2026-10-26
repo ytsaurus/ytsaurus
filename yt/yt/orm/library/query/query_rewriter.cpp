@@ -4,7 +4,6 @@
 
 #include <yt/yt/library/query/base/expr_builder_base.h>
 
-#include <limits>
 #include <utility>
 
 namespace NYT::NOrm::NQuery {
@@ -21,32 +20,6 @@ enum class EComparisonResult
     False,
     True,
 };
-
-std::optional<TLiteralValue> TryExtractComparisonLiteral(const TExpressionList& expressions)
-{
-    if (auto value = TryExtractSingleLiteralValue(expressions)) {
-        return value;
-    }
-    if (std::ssize(expressions) == 1) {
-        auto* unary = expressions[0]->As<TUnaryOpExpression>();
-        if (unary && unary->Opcode == NQueryClient::EUnaryOp::Minus) {
-            if (auto value = TryExtractSingleLiteralValue(unary->Operand)) {
-                return std::visit([] (const auto& literal) -> std::optional<TLiteralValue> {
-                    using T = std::decay_t<decltype(literal)>;
-                    if constexpr (std::is_same_v<T, i64>) {
-                        if (literal != std::numeric_limits<i64>::min()) {
-                            return -literal;
-                        }
-                    } else if constexpr (std::is_same_v<T, double>) {
-                        return -literal;
-                    }
-                    return std::nullopt;
-                }, *value);
-            }
-        }
-    }
-    return std::nullopt;
-}
 
 EComparisonResult CompareLiterals(
     const TLiteralValue& lhs,
@@ -96,8 +69,8 @@ TExpressionPtr TryRewriteNullAsDefaultComparison(
     if (!NQueryClient::IsRelationalBinaryOp(binary->Opcode)) {
         return nullptr;
     }
-    auto lhsLiteral = TryExtractComparisonLiteral(binary->Lhs);
-    auto rhsLiteral = TryExtractComparisonLiteral(binary->Rhs);
+    auto lhsLiteral = TryExtractSingleLiteralValue(binary->Lhs);
+    auto rhsLiteral = TryExtractSingleLiteralValue(binary->Rhs);
     auto reference = TryExtractReference(binary->Lhs);
     auto literal = rhsLiteral;
     auto opcode = binary->Opcode;
