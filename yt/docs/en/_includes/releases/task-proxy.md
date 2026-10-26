@@ -8,6 +8,41 @@ Release notes for this component.
 
 **Releases:**
 
+{% cut "**0.6.0**" %}
+
+**Release date:** 2026-10-13
+
+
+**Release page:** [0.6.0](https://github.com/ytsaurus/ytsaurus-task-proxy/releases/tag/release/0.6.0)
+
+
+**Helm chart:** [0.6.0](https://github.com/orgs/ytsaurus/packages/container/task-proxy-chart/1421845780?tag=0.6.0)
+
+
+#### YTsaurus Task Proxy 0.6.0
+
+This release improves service discovery resilience during transient YTsaurus API failures.
+
+#### What’s changed
+
+- Preserves the last successfully discovered routes for an operation when YTsaurus requests temporarily fail.
+- Prevents partial discovery results from reaching Envoy, authorization data, or the YTsaurus `services` table.
+- Continues refreshing healthy operations when discovery fails for another operation.
+- Correctly removes cached routes when an operation disappears, is disabled, becomes invalid, or has no active services.
+- Improves running-operation pagination by using the YTsaurus `Incomplete` marker and validating cursor progress.
+- Prevents a cancelled discovery pass from replacing the last complete state.
+
+#### Upgrade notes
+
+The release is backward-compatible and requires no configuration changes or migrations.
+
+**Full changelog:** [`release/0.5.0...release/0.6.0`](https://github.com/ytsaurus/ytsaurus-task-proxy/compare/release%2F0.5.0...release%2F0.6.0)
+
+**Related change:** [#15](https://github.com/ytsaurus/ytsaurus-task-proxy/pull/15)
+
+{% endcut %}
+
+
 {% cut "**0.5.0**" %}
 
 **Release date:** 2026-09-23
@@ -69,14 +104,14 @@ fix build scripts
    - `stream_idle_timeout_seconds`
 - Documentation for the `task_proxy` annotation format and timeout overrides.
 
-#### Changed
+ ### Changed
 
 - Improved logging and metrics for authorization and discovery infrastructure errors.
 - Added HTTP retries for YTsaurus requests.
 - Helm now supports an explicit `ytProxy` value; when omitted, it uses the HTTP proxy service in the release namespace.
 - Image tags are now optional in the Helm chart configuration.
 
-#### Migration notes
+ ### Migration notes
 
 - For standalone binary deployments, `--namespace` has been replaced with the required `--yt-proxy` flag.
 - Helm deployments remain compatible: leave `ytProxy` empty to retain the automatically generated proxy address.
