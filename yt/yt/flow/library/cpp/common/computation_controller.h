@@ -109,8 +109,8 @@ public:
     {
         struct TRange
         {
-            //! Dynamic policy used to calculate the desired count and key ranges.
             TPartitioningSpecPtr PartitioningSpec;
+            TDynamicPartitioningSpecPtr DynamicPartitioningSpec;
             //! Widest last-known channel count among currently configured sinks, or null when none is available.
             std::optional<i64> MaxSinkChannelCount;
             //! Version of the accumulated last-known per-sink channel counts; zero means none were observed.

@@ -545,11 +545,57 @@ DEFINE_REFCOUNTED_TYPE(TDynamicStateJoinerSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TKeyCountPartitioningSpec
+    : public NYTree::TYsonStruct
+{
+    bool Enable = false;
+    i64 MaxKeysPerPartition = 1;
+
+    REGISTER_YSON_STRUCT(TKeyCountPartitioningSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TKeyCountPartitioningSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TPartitioningSpec
+    : public virtual NYTree::TYsonStruct
+{
+    TKeyCountPartitioningSpecPtr KeyCountPartitioning;
+
+    REGISTER_YSON_STRUCT(TPartitioningSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPartitioningSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDynamicKeyCountPartitioningSpec
+    : public NYTree::TYsonStruct
+{
+    TDuration KeyRetentionPeriod;
+    TDuration RebalancePeriod;
+
+    REGISTER_YSON_STRUCT(TDynamicKeyCountPartitioningSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicKeyCountPartitioningSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDynamicPartitioningSpec
     : public virtual NYTree::TYsonStruct
 {
     static constexpr int DefaultMinPartitionCount = 3;
     static constexpr int DefaultMaxPartitionCount = 20'000;
+    TDynamicKeyCountPartitioningSpecPtr KeyCountPartitioning;
+
     std::optional<int> DesiredPartitionCount;
     std::optional<int> MinPartitionCount;
     std::optional<int> MaxPartitionCount;
@@ -567,12 +613,12 @@ struct TPartitioningSpec
 
     std::pair<i64, i64> GetPartitionCountBounds() const;
 
-    REGISTER_YSON_STRUCT(TPartitioningSpec);
+    REGISTER_YSON_STRUCT(TDynamicPartitioningSpec);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TPartitioningSpec);
+DEFINE_REFCOUNTED_TYPE(TDynamicPartitioningSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -617,6 +663,7 @@ struct TComputationSpec
 
     //! Read-only joiners over other computations' internal state, bound to client names.
     THashMap<std::string, TStateJoinerSpecPtr> StateJoiners;
+
 
     THeavyHittersSpec HeavyHitters;
     TPivotFinderSpec PivotFinder;
@@ -1231,17 +1278,17 @@ DEFINE_REFCOUNTED_TYPE(TThroughputSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDynamicPartitioningSpec
+struct TDynamicPartitioningCoordinatorSpec
     : public NYTree::TYsonStruct
 {
     bool EnableThroughputAutoscaler{};
     TThroughputSpecPtr Throughput;
 
-    REGISTER_YSON_STRUCT(TDynamicPartitioningSpec);
+    REGISTER_YSON_STRUCT(TDynamicPartitioningCoordinatorSpec);
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDynamicPartitioningSpec);
+DEFINE_REFCOUNTED_TYPE(TDynamicPartitioningCoordinatorSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1255,7 +1302,7 @@ struct TDynamicJobManagerSpec
     //! Most partition histories kept in the balancer state; the lightest one goes when it is full.
     i64 PartitionHistoryLimit{};
 
-    TDynamicPartitioningSpecPtr Partitioning;
+    TDynamicPartitioningCoordinatorSpecPtr Partitioning;
 
     REGISTER_YSON_STRUCT(TDynamicJobManagerSpec);
 

@@ -3816,6 +3816,33 @@ TEST_F(TJobBalancerTest, WorkerGroupAsync)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TJobBalancerTest, KeyCountFailureSnapshotSurvivesOrdinaryCleanup)
+{
+    Reset();
+    PrepareBalancerTest(1, {TComputationDescription{2, {}}}, 1, TDuration::MilliSeconds(50));
+    auto dynamic = CloneYsonStruct(FlowView->State->ExecutionSpec->DynamicPipelineSpec->GetValue());
+    const auto& id = FlowView->State->ExecutionSpec->PipelineSpec->GetValue()->Computations.begin()->first;
+    auto computation = New<TDynamicComputationSpec>();
+
+    dynamic->Computations[id] = computation;
+    JobManager->Reconfigure(dynamic);
+    DistributeJobs();
+    auto& layout = FlowView->State->ExecutionSpec->Layout;
+    const auto partition = layout->Partitions.begin()->second;
+    ASSERT_TRUE(partition->CurrentJobId);
+    const auto jobId = *partition->CurrentJobId;
+    SimulateJobFinished(FlowView, partition->PartitionId, TError(NFlow::EErrorCode::PartitionKeyLimitExceeded, "Key limit"));
+    auto& status = FlowView->Feedback->PartitionJobStatuses[partition->PartitionId]->CurrentJobStatus;
+    const auto key = *partition->LowerKey == MinKey() ? MakeKey(0u) : *partition->LowerKey;
+    status->ObservedKeys = THashMap<TKey, TInstant>{{key, TInstant::Now()}};
+    FlowView->State->StartMutation();
+    JobManager->BeginIteration(FlowView);
+    JobManager->RemoveFailedJobs(FlowView);
+    FlowView->State->CommitMutation();
+    EXPECT_TRUE(layout->Jobs.contains(jobId));
+    EXPECT_EQ(status->ObservedKeys->size(), 1u);
+}
+
 TEST_F(TJobBalancerTest, GracefulShutdownErrorJobCompletesOnTargetWorker)
 {
     // Same scenario as GracefulMoveJobCompletesOnTargetWorker, but the worker reports
@@ -4087,6 +4114,78 @@ TEST_F(TJobBalancerTest, InvalidGracefulRebalanceIsCancelledBeforeJobFinishes)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TJobBalancerTest, KeyCountCreationCountsNewJobsWithinPass)
+{
+    PrepareBalancerTest(2, {{.PartitionCount = 3}});
+    auto dynamic = CloneYsonStruct(FlowView->CurrentDynamicSpec->GetValue());
+    const auto& controller = GetOrCrash(JobManager->GetComputationControllers(), GetComputationId(0));
+    DynamicPointerCast<TPartitioningSpec>(controller->GetParametersBase())->KeyCountPartitioning->Enable = true;
+    GetOrCrash(dynamic->Computations, GetComputationId(0))->Parameters->AddChild("max_partition_count", NYTree::ConvertToNode(2));
+    JobManager->Reconfigure(dynamic);
+
+    const auto& layout = FlowView->State->ExecutionSpec->Layout;
+    FlowView->State->StartMutation();
+    JobManager->DistributeJobs(FlowView);
+    EXPECT_EQ(layout->Jobs.size(), 2u);
+    JobManager->DistributeJobs(FlowView);
+    EXPECT_EQ(layout->Jobs.size(), 2u);
+    FlowView->State->CommitMutation();
+}
+
+TEST_F(TJobBalancerTest, KeyCountImmediateMoveReusesReleasedCapacity)
+{
+    PrepareBalancerTest(2, {{.PartitionCount = 4}});
+    auto dynamic = CloneYsonStruct(FlowView->CurrentDynamicSpec->GetValue());
+    dynamic->JobManager->GracefulMove = false;
+    const auto& controller = GetOrCrash(JobManager->GetComputationControllers(), GetComputationId(0));
+    DynamicPointerCast<TPartitioningSpec>(controller->GetParametersBase())->KeyCountPartitioning->Enable = true;
+    GetOrCrash(dynamic->Computations, GetComputationId(0))->Parameters->AddChild("max_partition_count", NYTree::ConvertToNode(4));
+    JobManager->Reconfigure(dynamic);
+
+    const auto& layout = FlowView->State->ExecutionSpec->Layout;
+    FlowView->State->StartMutation();
+    for (const auto& [id, partition] : layout->Partitions) {
+        auto job = New<TJob>();
+        job->JobId = TJobId(TGuid::Create());
+        job->PartitionId = id;
+        job->WorkerAddress = GetWorkerAddress(0);
+        job->WorkerIncarnationId = GetOrCrash(FlowView->State->Workers, GetWorkerAddress(0))->IncarnationId;
+        layout->CreateJob(job);
+    }
+    FlowView->State->CommitMutation();
+    SetCpuLoadUniform();
+
+    FlowView->State->StartMutation();
+    JobManager->DistributeJobs(FlowView);
+    EXPECT_EQ(layout->Jobs.size(), 4u);
+    EXPECT_GT(GetJobCountOnWorker()[GetWorkerAddress(1)], 0);
+    FlowView->State->CommitMutation();
+}
+
+TEST_F(TJobBalancerTest, KeyCountCreationHonorsCapDuringInheritedHandoff)
+{
+    PrepareBalancerTest(2, {{.PartitionCount = 2}});
+    auto dynamic = CloneYsonStruct(FlowView->CurrentDynamicSpec->GetValue());
+    auto computation = GetOrCrash(dynamic->Computations, GetComputationId(0));
+    const auto& controller = GetOrCrash(JobManager->GetComputationControllers(), GetComputationId(0));
+    DynamicPointerCast<TPartitioningSpec>(controller->GetParametersBase())->KeyCountPartitioning->Enable = true;
+    computation->Parameters->AddChild("max_partition_count", NYTree::ConvertToNode(1));
+    JobManager->Reconfigure(dynamic);
+    FlowView->CurrentDynamicSpec->TrySetValue(dynamic, TestVersionProvider());
+    FlowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(dynamic, TestVersionProvider());
+    const auto ids = GetPartitionIds();
+    const auto& layout = FlowView->State->ExecutionSpec->Layout;
+    FlowView->State->StartMutation();
+    auto retiring = CloneYsonStruct(GetOrCrash(layout->Partitions, ids[0]));
+    retiring->State = EPartitionState::Interrupting;
+    layout->UpdatePartition(retiring);
+    JobManager->DistributeJobs(FlowView);
+    EXPECT_EQ(layout->Jobs.size(), 1u);
+    EXPECT_TRUE(GetOrCrash(layout->Partitions, ids[0])->CurrentJobId);
+    EXPECT_FALSE(GetOrCrash(layout->Partitions, ids[1])->CurrentJobId);
+    FlowView->State->CommitMutation();
+}
 
 TEST_F(TJobBalancerTest, GracefulMoveDisabledDoesImmediateStop)
 {

@@ -177,6 +177,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             .With("Timers", inputTimers.size())
             .With("Visits", inputVisits.size());
 
+        ObserveKeyCountInput(inputs, inputTimers, inputVisits);
         auto emptyInput = inputs.empty() && inputTimers.empty() && inputVisits.empty();
         auto filteredInputs = FilterInputBatch(context, std::move(inputs));
 

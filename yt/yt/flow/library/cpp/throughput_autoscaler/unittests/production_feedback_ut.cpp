@@ -17,7 +17,7 @@ protected:
     const TComputationId Id_{"work"};
     const TStreamId Input_{"input"};
     TThroughputAutoscaler Autoscaler_;
-    TPartitioningSpecPtr Partitioning_ = New<TPartitioningSpec>();
+    TDynamicPartitioningSpecPtr Partitioning_ = New<TDynamicPartitioningSpec>();
     TThroughputAutoscaler::TComputations Computations_;
     TThroughputSpecPtr Config_ = New<TThroughputSpec>();
     i64 Count_ = 4;

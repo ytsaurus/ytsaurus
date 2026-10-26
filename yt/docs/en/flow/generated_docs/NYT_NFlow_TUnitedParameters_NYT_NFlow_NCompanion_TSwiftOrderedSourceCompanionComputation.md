@@ -3,5 +3,10 @@
 <!-- Before using doc generation tool check readme: yt/yt/flow/yandex/tools/generate_yson_struct_doc/README.md -->
 Source: [yt/yt/flow/library/cpp/common/registry-inl.h]({{source-root}}/yt/yt/flow/library/cpp/common/registry-inl.h)
 
-**This structure has no main parameters.**
+#|
+|| **Parameter** | **Description** ||
+|| `key_count_partitioning` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TKeyCountPartitioningSpec](./all_yson_structs#NYT_NFlow_TKeyCountPartitioningSpec)`>`
+**Default value**: `{}`
+Partitioning settings for the number of keys in a partition. ||
+|#
 

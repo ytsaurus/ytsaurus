@@ -249,6 +249,8 @@ DECLARE_REFCOUNTED_STRUCT(TStateJoinerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicStateJoinerSpec);
 
 DECLARE_REFCOUNTED_STRUCT(TPartitioningSpec);
+DECLARE_REFCOUNTED_STRUCT(TDynamicPartitioningSpec);
+DECLARE_REFCOUNTED_STRUCT(TKeyCountPartitioningSpec);
 
 DECLARE_REFCOUNTED_STRUCT(TComputationSpec);
 DECLARE_REFCOUNTED_STRUCT(TProcessFunctionGraphNodeSpec);
@@ -272,6 +274,7 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicOutputStoreSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicRetryableClientSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicRetryableRequestSpec);
 DECLARE_REFCOUNTED_STRUCT(TMessageBatcherSettings);
+DECLARE_REFCOUNTED_STRUCT(TDynamicKeyCountPartitioningSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicComputationSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicPartitionTracerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicFileProviderSpec);
@@ -287,7 +290,7 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicJobTrackerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicControllerConnectorSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicStateCacheSpec);
 DECLARE_REFCOUNTED_STRUCT(TThroughputSpec);
-DECLARE_REFCOUNTED_STRUCT(TDynamicPartitioningSpec);
+DECLARE_REFCOUNTED_STRUCT(TDynamicPartitioningCoordinatorSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicPipelineSpec);
 
 using TVersionedPipelineSpec = TVersionedValue<TPipelineSpecPtr>;

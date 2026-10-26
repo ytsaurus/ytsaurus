@@ -144,6 +144,8 @@ This file contains descriptions of all specs and configs used for {{product-name
 
 {% include [_](./NYT_NFlow_TDynamicJobTrackerSpec.md) %}
 
+{% include [_](./NYT_NFlow_TDynamicKeyCountPartitioningSpec.md) %}
+
 {% include [_](./NYT_NFlow_TDynamicKeyVisitorStreamSpec.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicMessageDistributorSpec.md) %}
@@ -152,7 +154,7 @@ This file contains descriptions of all specs and configs used for {{product-name
 
 {% include [_](./NYT_NFlow_TDynamicPartitionTracerSpec.md) %}
 
-{% include [_](./NYT_NFlow_TDynamicPartitioningSpec.md) %}
+{% include [_](./NYT_NFlow_TDynamicPartitioningCoordinatorSpec.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicPipelineSpec.md) %}
 
@@ -259,6 +261,8 @@ This file contains descriptions of all specs and configs used for {{product-name
 {% include [_](./NYT_NFlow_TInputOrderingSpec.md) %}
 
 {% include [_](./NYT_NFlow_TKafkaClientConfig.md) %}
+
+{% include [_](./NYT_NFlow_TKeyCountPartitioningSpec.md) %}
 
 {% include [_](./NYT_NFlow_TKeyStateRow.md) %}
 

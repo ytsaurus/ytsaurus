@@ -5,6 +5,9 @@
 
 #|
 || **Параметр** | **Описание** ||
+|| `key_count_partitioning` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicKeyCountPartitioningSpec](./all_yson_structs#NYT_NFlow_TDynamicKeyCountPartitioningSpec)`>`
+**Значение по умолчанию**: `{}`
+Настройки разбиения по числу ключей в партиции. ||
 || `throughput_warmup_period` | **Тип**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
 Окно измерений Throughput для этого Computation. Если не задано, используется глобальный warmup_period. Увеличьте для длинных батчей или волнообразного потока. ||
 || `throughput_max_exploration_factor` | **Тип**: `double`

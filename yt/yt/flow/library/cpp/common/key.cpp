@@ -422,3 +422,21 @@ TKey ConvertKeyToSchema(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow
+
+namespace NYT::NYTree {
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::string TAssociativeContainerKeyHelper<NFlow::TKey>::Serialize(const NFlow::TKey& key)
+{
+    return NYson::ConvertToYsonString(key, NYson::EYsonFormat::Binary).ToString();
+}
+
+NFlow::TKey TAssociativeContainerKeyHelper<NFlow::TKey>::Deserialize(TStringBuf key)
+{
+    return ConvertTo<NFlow::TKey>(NYson::TYsonStringBuf(key));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NYTree

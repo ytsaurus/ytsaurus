@@ -414,6 +414,17 @@ void TDynamicStateJoinerSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TKeyCountPartitioningSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+    registrar.Parameter("max_keys_per_partition", &TThis::MaxKeysPerPartition)
+        .Default(1)
+        .GreaterThan(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TComputationSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("computation_class_name", &TThis::ComputationClassName);
@@ -602,7 +613,9 @@ bool ResolveUseCompactInputMessages(const TComputationSpecPtr& spec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<i64, i64> TPartitioningSpec::GetPartitionCountBounds() const
+////////////////////////////////////////////////////////////////////////////////
+
+std::pair<i64, i64> TDynamicPartitioningSpec::GetPartitionCountBounds() const
 {
     const int minimum = MinPartitionCount.value_or(DefaultMinPartitionCount);
     const int maximum = MaxPartitionCount.value_or(DefaultMaxPartitionCount);
@@ -615,6 +628,14 @@ std::pair<i64, i64> TPartitioningSpec::GetPartitionCountBounds() const
 
 void TPartitioningSpec::Register(TRegistrar registrar)
 {
+    registrar.Parameter("key_count_partitioning", &TThis::KeyCountPartitioning)
+        .DefaultNew();
+}
+
+void TDynamicPartitioningSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("key_count_partitioning", &TThis::KeyCountPartitioning)
+        .DefaultNew();
     registrar.Parameter("throughput_warmup_period", &TThis::ThroughputWarmupPeriod)
         .Default()
         .GreaterThan(TDuration::Zero());
@@ -892,6 +913,18 @@ void TDynamicRetryableRequestSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("lease_check_period", &TThis::LeaseCheckPeriod)
         .Default(TDuration::Seconds(60));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicKeyCountPartitioningSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("key_retention_period", &TThis::KeyRetentionPeriod)
+        .Default(TDuration::Days(1))
+        .GreaterThan(TDuration::Zero());
+    registrar.Parameter("rebalance_period", &TThis::RebalancePeriod)
+        .Default(TDuration::Hours(3))
+        .GreaterThan(TDuration::Zero());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1532,7 +1565,7 @@ void TThroughputSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDynamicPartitioningSpec::Register(TRegistrar registrar)
+void TDynamicPartitioningCoordinatorSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_throughput_autoscaler", &TThis::EnableThroughputAutoscaler)
         .Default(false);

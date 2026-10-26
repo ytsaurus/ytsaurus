@@ -67,6 +67,7 @@ class TUniversalComputationController
 private:
     struct TExtendedParameters
         : public virtual TComputationControllerBase::TParameters
+        , public virtual TPartitioningSpec
     {
         REGISTER_YSON_STRUCT(TExtendedParameters);
 
@@ -75,7 +76,7 @@ private:
 
     struct TExtendedDynamicParameters
         : public virtual TComputationControllerBase::TDynamicParameters
-        , public virtual TPartitioningSpec
+        , public virtual TDynamicPartitioningSpec
     {
         REGISTER_YSON_STRUCT(TExtendedDynamicParameters);
 

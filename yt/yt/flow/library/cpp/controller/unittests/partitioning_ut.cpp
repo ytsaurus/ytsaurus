@@ -644,7 +644,7 @@ TEST_F(TPartitioning, RangePartitioningErasesRetiringSourceMarker)
 TEST_F(TPartitioning, LegacyGrowthKeepsItsDelayDuringThroughputWarmup)
 {
     Prepare(10, /*withSink*/ false, /*withSecondSink*/ false, /*withSecondComputation*/ true);
-    DynamicSpec->JobManager->Partitioning = ConvertTo<TDynamicPartitioningSpecPtr>(
+    DynamicSpec->JobManager->Partitioning = ConvertTo<TDynamicPartitioningCoordinatorSpecPtr>(
         TYsonString(TStringBuf("{enable_throughput_autoscaler=%true;}")));
     JobManager->Reconfigure(DynamicSpec);
     DynamicSpec->Computations[ComputationId]->Parameters->AddChild(

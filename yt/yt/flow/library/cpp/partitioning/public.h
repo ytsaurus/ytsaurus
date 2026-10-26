@@ -17,6 +17,7 @@ DEFINE_ENUM(EPartitioningCriterion,
     (ThroughputHold)
 );
 
+DECLARE_REFCOUNTED_STRUCT(TKeyCountPartitioningState);
 DECLARE_REFCOUNTED_STRUCT(TComputationPartitioningState);
 DECLARE_REFCOUNTED_STRUCT(TPartitioningCoordinatorState);
 DECLARE_REFCOUNTED_CLASS(TPartitioningCoordinator);

@@ -134,6 +134,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
                 }
             }
         }
+        ObserveKeyCountInput(inputs, inputTimers, inputVisits);
         const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
         YT_TLOG_INFO("Got batch")
             .With("Inputs", inputs.size())

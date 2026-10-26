@@ -69,7 +69,7 @@ protected:
         THashSet<TStreamId> inputStreams,
         THashSet<TStreamId> outputStreams = {},
         THashMap<TStreamId, THashSet<TStreamId>> dependencies = {},
-        TPartitioningSpecPtr partitioningSpec = New<TPartitioningSpec>())
+        TDynamicPartitioningSpecPtr partitioningSpec = New<TDynamicPartitioningSpec>())
     {
         auto spec = New<TComputationSpec>();
         spec->InputStreamIds = std::move(inputStreams);
@@ -81,7 +81,7 @@ protected:
     void AddComputation(
         const TComputationId& computationId,
         TComputationSpecPtr spec,
-        TPartitioningSpecPtr partitioningSpec = New<TPartitioningSpec>())
+        TDynamicPartitioningSpecPtr partitioningSpec = New<TDynamicPartitioningSpec>())
     {
         Computations_[computationId] = {
             .Spec = std::move(spec),
@@ -526,7 +526,7 @@ TEST_F(TThroughputAutoscalerTest, ExplicitMinimumOverridesDefaultMaximum)
 {
     const TComputationId id("consumer");
     const TStreamId input("input");
-    auto partitioning = New<TPartitioningSpec>();
+    auto partitioning = New<TDynamicPartitioningSpec>();
     partitioning->MinPartitionCount = 25'000;
     AddComputation(id, {input}, {}, {}, partitioning);
     for (int seconds : {0, 180}) {
@@ -595,7 +595,7 @@ TEST_F(TThroughputAutoscalerTest, RepeatedRecoveryDoesNotSuppressLaterCapacityLo
 {
     const TComputationId id("consumer");
     const TStreamId input("input");
-    auto partitioning = New<TPartitioningSpec>();
+    auto partitioning = New<TDynamicPartitioningSpec>();
     partitioning->MinPartitionCount = 1;
     AddComputation(id, {input}, {}, {}, partitioning);
     TThroughputFeedbackState initial;
@@ -760,7 +760,7 @@ protected:
         Autoscaler_.InitializeComputation(ComputationId_, MakeInitialState());
         auto spec = New<TComputationSpec>();
         spec->InputStreamIds.insert(Input_);
-        auto partitioning = New<TPartitioningSpec>();
+        auto partitioning = New<TDynamicPartitioningSpec>();
         partitioning->PartitionCountDoubleDelay = TDuration::Seconds(1);
         Computations_.emplace(
             ComputationId_,
@@ -1284,7 +1284,7 @@ TEST(TThroughputSampleTest, CompletedSourcePartitionsDoNotInflateDemand)
     TProcessingMeter meter;
     TThroughputAutoscaler::TComputations computations{
         {sourceId, {.Spec = sourceSpec}},
-        {consumerId, {.Spec = consumerSpec, .PartitioningSpec = New<TPartitioningSpec>()}},
+        {consumerId, {.Spec = consumerSpec, .PartitioningSpec = New<TDynamicPartitioningSpec>()}},
     };
     auto flowView = New<TFlowView>();
     auto control = New<TPersistedStateControl<std::string>>(New<TNullStorageHandler<std::string>>());
