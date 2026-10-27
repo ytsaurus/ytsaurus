@@ -12,6 +12,7 @@ struct TFetchRowsFromOrderedStoreResult
 
     i64 RowCount = 0;
     i64 DataWeight = 0;
+    bool ResponseSizeLimitReached = false;
 };
 
 TFuture<TFetchRowsFromOrderedStoreResult> FetchRowsFromOrderedStore(

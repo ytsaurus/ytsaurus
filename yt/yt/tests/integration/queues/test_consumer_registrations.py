@@ -1317,6 +1317,38 @@ class TestDataApiSingleCluster(TestDataApiBase):
         assert get_offset("//tmp/q3") == 1543
         assert get_offset("//tmp/q4") == 1543
 
+    @authors("pechatnov")
+    @pytest.mark.parametrize("use_consumer", [False, True])
+    def test_response_size_limit_reached(self, use_consumer):
+        self._create_queue("//tmp/q", dynamic_store_auto_flush_period=YsonEntity())
+        insert_rows("//tmp/q", [{"data": "foo"}, {"data": "bar"}])
+
+        if use_consumer:
+            self._create_consumer("//tmp/c")
+            register_queue_consumer("//tmp/q", "//tmp/c", vital=False)
+
+        for offset, limits, expected_data, response_size_limit_reached in [
+            (0, {"max_row_count": 1}, ["foo"], True),
+            (0, {"max_data_weight": 1}, ["foo"], True),
+            (0, {}, ["foo", "bar"], False),
+            (2, {}, [], False),
+        ]:
+            response_parameters = {}
+            kwargs = {
+                "offset": offset,
+                "partition_index": 0,
+                "response_parameters": response_parameters,
+                **limits,
+            }
+            if use_consumer:
+                rows = pull_consumer("//tmp/c", "//tmp/q", **kwargs)
+            else:
+                rows = pull_queue("//tmp/q", **kwargs)
+
+            assert [row["data"] for row in rows] == expected_data
+            assert response_parameters["start_offset"] == offset
+            assert response_parameters["response_size_limit_reached"] == response_size_limit_reached
+
 
 class TestDataApiMultiCluster(TestDataApiBase):
     NUM_TEST_PARTITIONS = 2

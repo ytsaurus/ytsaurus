@@ -211,6 +211,7 @@ private:
     i64 ReadRowCount_ = 0;
     i64 LeftDataWeight_;
     i64 ReadDataWeight_ = 0;
+    bool ResponseSizeLimitReached_ = false;
 
     TRowBatchReadOptions ReadOptions_;
     ISchemafulUnversionedReaderPtr Reader_;
@@ -268,6 +269,7 @@ private:
                     LeftDataWeight_ <= 0 ||
                     ReadDataWeight_ >= MaxPullQueueResponseDataWeight_)
                 {
+                    ResponseSizeLimitReached_ = true;
                     break;
                 }
 
@@ -329,6 +331,7 @@ private:
             .Rowsets = std::move(resultOrError.Value()),
             .RowCount = ReadRowCount_,
             .DataWeight = ReadDataWeight_,
+            .ResponseSizeLimitReached = ResponseSizeLimitReached_,
         });
     }
 };

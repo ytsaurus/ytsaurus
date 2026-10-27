@@ -259,6 +259,7 @@ message TReqFetchTableRows
 message TRspFetchTableRows
 {
     // Attachment contains wire-encoded rows.
+    optional bool response_size_limit_reached = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

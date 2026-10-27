@@ -1698,6 +1698,7 @@ private:
 
         auto* response = &context->Response();
         response->Attachments() = std::move(result.Rowsets);
+        response->set_response_size_limit_reached(result.ResponseSizeLimitReached);
         throttler->Acquire(GetAttachmentBytes(response));
     }
 
