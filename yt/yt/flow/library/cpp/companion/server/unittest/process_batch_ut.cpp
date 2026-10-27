@@ -139,7 +139,7 @@ class TUnittestOffsetFunction
 public:
     void Init(const IRuntimeInitContextPtr& initContext) override
     {
-        Offset_ = initContext->GetParameters<TUnittestOffsetParameters>()->Offset;
+        Parameters_ = initContext->GetParameters<TUnittestOffsetParameters>();
     }
 
     void ProcessMessage(
@@ -151,12 +151,13 @@ public:
         builder.SetMessageId(TMessageId(Format("out-%v", message->MessageId)));
         builder.SetSystemTimestamp(message->SystemTimestamp);
         builder.SetAlignmentTimestamp(message->AlignmentTimestamp);
-        builder.Payload().Set(GetColumnValue<ui64>(*message, 0) + Offset_, "key");
+        EXPECT_EQ(context->GetParameters<TUnittestOffsetParameters>(), Parameters_);
+        builder.Payload().Set(GetColumnValue<ui64>(*message, 0) + context->GetParameters<TUnittestOffsetParameters>()->Offset, "key");
         output->AddMessage(builder.Finish());
     }
 
 private:
-    ui64 Offset_ = 0;
+    TIntrusivePtr<TUnittestOffsetParameters> Parameters_;
 };
 
 //! Registered without a parameters type but asks for a typed one; used to test the mismatch path.
@@ -726,7 +727,7 @@ TEST_F(TProcessBatchTest, SourceStreamOverride)
     }
     auto overrideSpecs = New<TStreamSpecs>(overrideMap);
 
-    auto req = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestPassthroughFunction");
+    auto req = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestOffsetFunction", "{offset = 40}");
     for (const auto& [streamId, specId, schema] : {
             std::tuple{TStreamId("input"), TStreamSpecId(11), overrideSchema},
             std::tuple{TStreamId("output"), TStreamSpecId(12), overrideOutputSchema}})
@@ -753,6 +754,8 @@ TEST_F(TProcessBatchTest, SourceStreamOverride)
     ASSERT_EQ(rsp->data().output_size(), 1);
     // The output message is encoded against the override specs.
     EXPECT_EQ(rsp->data().output(0).messages(0).stream_spec_id(), 12);
+    auto outputMessage = FromProto<TMessage>(rsp->data().output(0).messages(0), overrideSpecs);
+    EXPECT_EQ(GetColumnValue<ui64>(outputMessage, 0), ui64{45});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

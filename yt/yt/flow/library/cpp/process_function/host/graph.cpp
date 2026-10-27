@@ -624,10 +624,18 @@ void TGraphProcessFunction::Init(const IRuntimeInitContextPtr& initContext)
     for (auto& node : Nodes_) {
         try {
             auto view = BuildNodeView(node.Spec, computation);
+            node.Runtime = New<TGraphNodeRuntimeContext>(
+                view,
+                StreamSpecs_,
+                converterCache,
+                GetOrCrash(topology.Boundaries, node.Id),
+                GetOrCrash(topology.SystemBoundaries, node.Id),
+                initContext->GetComputationId(),
+                computation);
             auto childInit = New<TGraphInitContext>(
                 initContext->WithPrefix("functions")->WithPrefix(node.Id),
-                node.Spec->ProcessingFunctionParameters,
-                TRegistry::Get()->ParseProcessFunctionParameters(view),
+                node.Runtime->GetParametersNode(),
+                node.Runtime->GetParametersObject(),
                 Format("/functions/%v", node.Id));
 
             auto processContext = New<TProcessFunctionContext>();
@@ -644,14 +652,6 @@ void TGraphProcessFunction::Init(const IRuntimeInitContextPtr& initContext)
                 TRegistry::Get()->ViewProcessFunctionAsSync(node.Spec->ProcessingFunction, function),
                 "Sync process functions are not supported inside a process function graph");
             node.Function = WrapAsBatch(function);
-            node.Runtime = New<TGraphNodeRuntimeContext>(
-                std::move(view),
-                StreamSpecs_,
-                converterCache,
-                GetOrCrash(topology.Boundaries, node.Id),
-                GetOrCrash(topology.SystemBoundaries, node.Id),
-                childInit->GetComputationId(),
-                computation);
             function->Init(childInit);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Cannot initialize process function graph node %Qv", node.Id)

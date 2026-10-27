@@ -23,7 +23,8 @@ public:
         TComputationStreamSpecStoragePtr streamSpecs,
         NTableClient::TTableSchemaPtr keySchema,
         IPayloadConverterCachePtr converterCache,
-        NDistributedThrottler::IDistributedThrottlerFactoryPtr throttlerFactory);
+        NDistributedThrottler::IDistributedThrottlerFactoryPtr throttlerFactory,
+        NYTree::TYsonStructPtr parameters = nullptr);
 
     //! Installs the per-batch state: the watermark snapshot, the latest dynamic
     //! `function_parameters` node (empty if absent) and the epoch's sequence number
@@ -55,6 +56,9 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetThrottlerOrThrow(const TThrottlerId& throttlerId) override;
     NConcurrency::IThroughputThrottlerPtr TryGetThrottler(const TThrottlerId& throttlerId) override;
 
+    NYTree::IMapNodePtr GetParametersNode() const override;
+    NYTree::TYsonStructPtr GetParametersObject() const override;
+
     NYTree::IMapNodePtr GetDynamicParametersNode() const override;
     NYTree::TYsonStructPtr GetDynamicParametersObject() const override;
 
@@ -64,9 +68,11 @@ private:
     const NTableClient::TTableSchemaPtr KeySchema_;
     const IPayloadConverterCachePtr ConverterCache_;
     const NDistributedThrottler::IDistributedThrottlerFactoryPtr ThrottlerFactory_;
+    const NYTree::IMapNodePtr ParametersNode_;
     //! Stable empty map returned when a dispatch carries no dynamic parameters; the fixed pointer
     //! keeps the parameters node memoizable.
     const NYTree::IMapNodePtr EmptyDynamicParametersNode_;
+    mutable NYTree::TYsonStructPtr Parameters_;
     TWatermarkStatePtr WatermarkState_;
     NYTree::IMapNodePtr DynamicParametersNode_;
     //! The parsed dynamic parameters, reparsed only when DynamicParametersNode_ changes.
