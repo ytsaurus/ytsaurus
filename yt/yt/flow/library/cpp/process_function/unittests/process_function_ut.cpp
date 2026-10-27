@@ -316,10 +316,12 @@ public:
         const IOutputCollectorPtr& /*output*/,
         const IRuntimeContextPtr& context) override
     {
+        RuntimeStaticThreshold = context->GetParameters<TThresholdParameters>()->Threshold;
         DynamicThreshold = context->GetDynamicParameters<TThresholdParameters>()->Threshold;
     }
 
     i64 StaticThreshold = -1;
+    i64 RuntimeStaticThreshold = -1;
     i64 DynamicThreshold = -1;
 };
 
@@ -1353,16 +1355,21 @@ TEST(TProcessFunctionTest, FunctionParameters)
     function->Init(stateEnv.GetInitContext());
     EXPECT_EQ(function->StaticThreshold, 5);
 
-    // Dynamic parameters: read from the runtime context per message.
+    auto spec = New<TComputationSpec>();
+    spec->ProcessingFunctionParameters = NYTree::ConvertTo<NYTree::IMapNodePtr>(staticParameters);
+
+    // Static and dynamic parameters are available per message.
     auto dynamicParameters = New<TThresholdParameters>();
     dynamicParameters->Threshold = 9;
     auto context = TTestRuntimeContextBuilder()
         .SetProcessingFunction<TParameterReadingFunction>()
         .SetDynamicParameters(dynamicParameters)
+        .SetSpec(spec)
         .Build();
     auto output = New<TRecordingOutputCollector>();
     auto message = MakeTestMessage("input", MakeKey<ui64>(1), New<TTableSchema>());
     function->ProcessMessage(message, output, context);
+    EXPECT_EQ(function->RuntimeStaticThreshold, 5);
     EXPECT_EQ(function->DynamicThreshold, 9);
 }
 
@@ -1378,6 +1385,7 @@ TEST(TProcessFunctionTest, FunctionParametersDefaultWhenAbsent)
     auto output = New<TRecordingOutputCollector>();
     auto message = MakeTestMessage("input", MakeKey<ui64>(1), New<TTableSchema>());
     function->ProcessMessage(message, output, context);
+    EXPECT_EQ(function->RuntimeStaticThreshold, 0);
     EXPECT_EQ(function->DynamicThreshold, 0);
 }
 
@@ -1395,6 +1403,9 @@ TEST(TProcessFunctionTest, FunctionParametersTypeMismatchThrows)
         .SetProcessingFunction<TParameterReadingFunction>()
         .SetDynamicParameters(New<TThresholdParameters>())
         .Build();
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(context->GetParameters<TUnrelatedParameters>()),
+        "Static function parameters type mismatch");
     EXPECT_THROW_WITH_SUBSTRING(
         Y_UNUSED(context->GetDynamicParameters<TUnrelatedParameters>()),
         "Dynamic function parameters type mismatch");

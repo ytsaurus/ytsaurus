@@ -99,7 +99,7 @@ class TStateAndTimerFunction
 public:
     void Init(const IRuntimeInitContextPtr& context) override
     {
-        Increment_ = context->GetParameters<TCounterParameters>()->Increment;
+        Parameters_ = context->GetParameters<TCounterParameters>();
         context->InitClient<i64>(Count_, "count");
     }
 
@@ -109,7 +109,9 @@ public:
         const IRuntimeContextPtr& context) override
     {
         auto state = Count_.GetState(message->Key);
-        *state = *state + Increment_ * context->GetDynamicParameters<TCounterDynamicParameters>()->Multiplier;
+        auto parameters = context->GetParameters<TCounterParameters>();
+        YT_VERIFY(parameters == Parameters_);
+        *state = *state + parameters->Increment * context->GetDynamicParameters<TCounterDynamicParameters>()->Multiplier;
 
         auto result = New<TStageMessage>();
         result->Key = GetColumnValue<ui64>(message, "key");
@@ -136,7 +138,7 @@ public:
     }
 
 private:
-    i64 Increment_ = 1;
+    TIntrusivePtr<TCounterParameters> Parameters_;
     TMutableStateKeyClient<i64> Count_;
 };
 

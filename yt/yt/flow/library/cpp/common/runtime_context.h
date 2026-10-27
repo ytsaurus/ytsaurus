@@ -65,6 +65,17 @@ struct IRuntimeContext
     virtual NConcurrency::IThroughputThrottlerPtr GetThrottlerOrThrow(const TThrottlerId& throttlerId) = 0;
     virtual NConcurrency::IThroughputThrottlerPtr TryGetThrottler(const TThrottlerId& throttlerId) = 0;
 
+    //! Raw static ``function_parameters`` map (never null; empty when absent).
+    virtual NYTree::IMapNodePtr GetParametersNode() const = 0;
+
+    //! Static function parameters parsed into the registered YSON struct, with defaults applied.
+    //! Null if the spec names no processing function (possible only under the test builder).
+    virtual NYTree::TYsonStructPtr GetParametersObject() const = 0;
+
+    //! Static function parameters as the registered type |T|. Throws on a type mismatch.
+    template <class T>
+    TIntrusivePtr<T> GetParameters() const;
+
     //! Raw ``function_parameters`` map from the dynamic computation spec (never null; an empty
     //! map when the block is absent), reflecting the latest reconfiguration. Prefer the typed
     //! GetDynamicParameters<T>() helper.
