@@ -2,7 +2,9 @@
 
 #include <contrib/ydb/library/yql/dq/opt/dq_opt_join_cbo_factory.h>
 
+#include <yt/yql/providers/yt/fmr/coordinator/yt_coordinator_service/file/yql_yt_file_coordinator_service.h>
 #include <yt/yql/providers/yt/fmr/fmr_tool_lib/yql_yt_fmr_initializer.h>
+#include <yt/yql/providers/yt/fmr/job_preparer/impl/yql_yt_job_preparer_impl.h>
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
 #include <yt/yql/providers/yt/gateway/file/yql_yt_file.h>
 
