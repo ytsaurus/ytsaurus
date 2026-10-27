@@ -6,10 +6,10 @@ import yatest.common
 from yql_utils import execute, get_tables, get_files, get_http_files, \
     KSV_ATTR, yql_binary_path, is_xfail, is_canonize_peephole, is_peephole_use_blocks, is_canonize_lineage, \
     is_skip_forceblocks, get_param, normalize_source_code_path, \
-    do_custom_query_check, stable_result_file, stable_table_file, is_with_final_result_issues
+    do_custom_query_check, stable_result_file, stable_table_file, is_with_final_result_issues, pytest_get_current_part
 from yqlrun import YQLRun
 
-from test_utils import get_config, get_parameters_json
+from test_utils import collect_argvalues_for_run, get_config, get_parameters_json
 from test_file_common import run_file, run_file_no_cache, get_gateways_config
 
 from yt.yql.tests.common.test_framework.test_utils import infer_yt_schema
@@ -27,6 +27,37 @@ from yt.yql.tests.sql.runners.common import (
 
 ASTDIFF_PATH = yql_binary_path('yql/essentials/tools/astdiff/astdiff')
 YSONDIFF_PATH = yql_binary_path('yql/essentials/tools/ysondiff/ysondiff')
+
+
+def make_test_class(suite, case, cfg):
+    class TestCase:
+        @pytest.mark.parametrize('what', [
+            'Results',
+            'Plan',
+            'Debug',
+            'RunOnOpt',
+            'Peephole',
+            'Lineage',
+            'ForceBlocks',
+            'PartialTypeCheck',
+            # TODO(YQL-20436): Enable AutoYqlSelect when it is working well.
+        ])
+        def test(self, tmpdir, what, yql_http_file_server):
+            return run_test(suite, case, cfg, tmpdir, what, yql_http_file_server)
+
+    TestCase.__name__ = 'TestYtFile_{}-{}-{}'.format(suite, case, cfg)
+    return TestCase
+
+
+def collect_test_classes(test_file):
+    current_part, part_count = pytest_get_current_part(test_file)
+    classes = {}
+    for template in ('.sql', '.yql'):
+        for suite, case, cfg in collect_argvalues_for_run(template, None, current_part, part_count, DATA_PATH, None):
+            cls = make_test_class(suite, case, cfg)
+            assert cls.__name__ not in classes, 'Duplicate SQL case: {}'.format(cls.__name__)
+            classes[cls.__name__] = cls
+    return classes
 
 
 def file_diff(expected_file, actual_file):

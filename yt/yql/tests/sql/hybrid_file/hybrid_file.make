@@ -21,7 +21,7 @@ ELSE()
 ENDIF()
 
 FORK_TESTS()
-FORK_SUBTESTS()
+# No FORK_SUBTESTS() to keep all modes of a SQL case in one process so they share run_file.cache.
 SPLIT_FACTOR(10)
 
 DEPENDS(
