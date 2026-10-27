@@ -61,6 +61,7 @@ import decorator
 import functools
 import shutil
 import hashlib
+import math
 
 from time import sleep, time
 from threading import Thread
@@ -774,11 +775,22 @@ class YTEnvSetup(object):
         if cls.NUM_TEST_PARTITIONS == 1:
             return [items]
 
+        # Rendezvous hashing with bounded loads: no partition exceeds ceil(n / N) tests,
+        # and adding or removing a test moves only a couple of others.
+        # NB: Assignment depends on the whole set of collected items, so it must be the same
+        # when listing and when running tests.
+        def get_hash(key):
+            return hashlib.md5(key.encode("utf-8")).hexdigest()
+
+        capacity = math.ceil(len(items) / cls.NUM_TEST_PARTITIONS)
         partitions = [[] for _ in range(cls.NUM_TEST_PARTITIONS)]
-        for item in items:
-            nodeid = item.nodeid.encode("utf-8")
-            hexdigest = hashlib.md5(nodeid).hexdigest()
-            partitions[int(hexdigest, 16) % len(partitions)].append(item)
+        for item in sorted(items, key=lambda item: get_hash(item.nodeid)):
+            ranking = sorted(
+                range(cls.NUM_TEST_PARTITIONS),
+                key=lambda index: get_hash("{}#{}".format(item.nodeid, index)),
+                reverse=True)
+            index = next(index for index in ranking if len(partitions[index]) < capacity)
+            partitions[index].append(item)
         return partitions
 
     @classmethod
