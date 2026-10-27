@@ -12,8 +12,7 @@ namespace NYT::NFlow {
 
 DECLARE_REFCOUNTED_STRUCT(TFlowCoreBuildInfo)
 
-//! Source-control and build-environment metadata baked into the binary at
-//! build time.
+//! Source-control and build-environment metadata for the binary and its package.
 //!
 //! VCS fields work uniformly across arc, git: `ya-bin dump vcs-info`
 //! normalizes them into the same set of fields regardless of the
@@ -39,6 +38,9 @@ struct TFlowCoreBuildInfo
     //! Mirrors the sentinel used by build/scripts/vcs_info.py.
     int SvnRevision = -1;
 
+    //! Base trunk revision recorded in /app/meta.json by the package; -1 when absent.
+    int BaseSvnRevision = -1;
+
     // ---- Build environment ----
 
     //! Hostname of the machine that built this binary.
@@ -63,6 +65,9 @@ const TFlowCoreBuildInfoPtr& GetFlowCoreBuildInfo();
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
+
+//! Reads the package's base trunk revision; returns -1 when the file is absent.
+int ReadBaseSvnRevision(const std::string& path);
 
 //! Reads the value of a `<Key>:` field from SCM_DATA-formatted text.
 //! Fields are one per line, optionally indented. Returns an empty
