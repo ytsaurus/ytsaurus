@@ -115,6 +115,7 @@ protected:
     void Fold(int numeric);
     void Fold(size_t numeric);
     void Fold(const char* str);
+    void Fold(const std::string& str);
     void Fold(const llvm::FoldingSetNodeID& id);
 
     static void AddLogicalType(const TLogicalType& logicalType, llvm::FoldingSetNodeID* id);
@@ -178,6 +179,13 @@ void TSchemaProfiler::Fold(const char* str)
     }
 }
 
+void TSchemaProfiler::Fold(const std::string& str)
+{
+    if (Id_) {
+        Id_->AddString(ToStringRef(str));
+    }
+}
+
 void TSchemaProfiler::Fold(const llvm::FoldingSetNodeID& id)
 {
     if (Id_) {
@@ -210,6 +218,7 @@ void TSchemaProfiler::Profile(const TTableSchemaPtr& tableSchema)
             for (int referencedIndex = 0; referencedIndex < std::ssize(columns); ++referencedIndex) {
                 if (referencedColumns.contains(columns[referencedIndex].Name())) {
                     Fold(referencedIndex);
+                    Fold(columns[referencedIndex].Name());
                 }
             }
         }

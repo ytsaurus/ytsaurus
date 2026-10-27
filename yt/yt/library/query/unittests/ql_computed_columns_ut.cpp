@@ -7,6 +7,8 @@
 #include <yt/yt/library/query/engine_api/config.h>
 #include <yt/yt/library/query/engine_api/coordinator.h>
 
+#include <yt/yt/client/table_client/helpers.h>
+
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/convert.h>
 
@@ -1636,44 +1638,59 @@ TEST_F(TComputedColumnTest, Null)
 
 TEST_F(TComputedColumnTest, EvaluatedColumnCollision)
 {
-    auto columnEvaluatorCache = CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>());
+    for (const auto& expression : {"farm_hash(id0) % 100", "farm_hash(id0, id1) % 100"}) {
+        SCOPED_TRACE(expression);
+        auto columnEvaluatorCache = CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>());
 
-    {
-        auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("id_hash", EValueType::Uint64)
-                .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression("farm_hash(id0) % 100"),
-            TColumnSchema("id0", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending)
-                .SetRequired(true),
-            TColumnSchema("id1", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending)
-                .SetRequired(true),
-            TColumnSchema("value", EValueType::Int64),
-        });
+        {
+            auto schema = New<TTableSchema>(std::vector{
+                TColumnSchema("id_hash", EValueType::Uint64)
+                    .SetSortOrder(ESortOrder::Ascending)
+                    .SetExpression(expression),
+                TColumnSchema("id0", EValueType::Int64)
+                    .SetSortOrder(ESortOrder::Ascending)
+                    .SetRequired(true),
+                TColumnSchema("id1", EValueType::Int64)
+                    .SetSortOrder(ESortOrder::Ascending)
+                    .SetRequired(true),
+                TColumnSchema("value", EValueType::Int64),
+            });
 
-        columnEvaluatorCache->Find(schema);
+            columnEvaluatorCache->Find(schema);
 
-        EXPECT_EQ(1, columnEvaluatorCache->GetSize());
-    }
+            EXPECT_EQ(1, columnEvaluatorCache->GetSize());
+        }
 
-    {
-        auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("id_hash", EValueType::Uint64)
-                .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression("farm_hash(id0) % 100"),
-            TColumnSchema("id1", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending)
-                .SetRequired(true),
-            TColumnSchema("id0", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending)
-                .SetRequired(true),
-            TColumnSchema("value", EValueType::Int64),
-        });
+        {
+            auto schema = New<TTableSchema>(std::vector{
+                TColumnSchema("id_hash", EValueType::Uint64)
+                    .SetSortOrder(ESortOrder::Ascending)
+                    .SetExpression(expression),
+                TColumnSchema("id1", EValueType::Int64)
+                    .SetSortOrder(ESortOrder::Ascending)
+                    .SetRequired(true),
+                TColumnSchema("id0", EValueType::Int64)
+                    .SetSortOrder(ESortOrder::Ascending)
+                    .SetRequired(true),
+                TColumnSchema("value", EValueType::Int64),
+            });
 
-        columnEvaluatorCache->Find(schema);
+            auto cachedEvaluator = columnEvaluatorCache->Find(schema);
 
-        EXPECT_EQ(2, columnEvaluatorCache->GetSize());
+            EXPECT_EQ(2, columnEvaluatorCache->GetSize());
+
+            auto freshEvaluator = TColumnEvaluator::Create(
+                schema,
+                GetBuiltinTypeInferrers(),
+                GetBuiltinFunctionProfilers());
+            auto buffer = New<TRowBuffer>();
+            auto input = YsonToSchemafulRow("id0=7;id1=2", *schema, /*treatMissingAsNull*/ true);
+            auto cachedRow = buffer->CaptureRow(input);
+            auto freshRow = buffer->CaptureRow(input);
+            cachedEvaluator->EvaluateKey(cachedRow, buffer, /*index*/ 0, /*preserveColumnId*/ true);
+            freshEvaluator->EvaluateKey(freshRow, buffer, /*index*/ 0, /*preserveColumnId*/ true);
+            EXPECT_EQ(cachedRow[0], freshRow[0]);
+        }
     }
 }
 
