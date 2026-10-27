@@ -71,8 +71,8 @@ struct TChunkDynamicData
     //! This is used to check whether chunk state in replicator is actual.
     TIncumbencyEpoch LastRefreshIncumbencyEpoch = NullIncumbencyEpoch;
 
-    //! For each medium, contains a valid iterator for those chunks belonging to the repair queue
-    //! and null (default iterator value) for others.
+    //! Maps encoded (mediumIndex, priority) keys to valid iterators for the repair queues containing this chunk.
+    //! Queues that do not contain this chunk have no entry.
     TRepairQueueIteratorMap RepairQueueIterators;
 
     //! Set of jobs that are currently scheduled for this chunk.
@@ -214,7 +214,7 @@ public:
 
     TChunkRepairQueueIterator GetRepairQueueIterator(int mediumIndex, int priority) const;
     void SetRepairQueueIterator(int mediumIndex, int priority, TChunkRepairQueueIterator value);
-    const TChunkDynamicData::TRepairQueueIteratorMap& SelectRepairQueueIteratorMap() const;
+    const TChunkDynamicData::TRepairQueueIteratorMap& GetRepairQueueIterators() const;
 
     const TChunkDynamicData::TJobSet& GetJobs() const;
 

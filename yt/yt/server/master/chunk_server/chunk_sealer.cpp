@@ -190,7 +190,7 @@ public:
         , SuccessfulSealCounter_(ChunkServerProfiler().Counter("/chunk_sealer/successful_seals"))
         , UnsuccessfulSealCounter_(ChunkServerProfiler().Counter("/chunk_sealer/unsuccessful_seals"))
         , SuccessfulSealTime_(ChunkServerProfiler().TimeCounter("/chunk_sealer/successful_seal_time"))
-        , GlobalScanner_(std::make_unique<TGlobalChunkScanner>(/*isJournal*/ true))
+        , GlobalScanner_(std::make_unique<TGlobalChunkScanner>(/*journal*/ true))
     {
         for (auto priority : TEnumTraits<ESealPriority>::GetDomainValues()) {
             SealQueues_[priority].emplace(
@@ -271,7 +271,7 @@ public:
         buffer->AddGauge("/global_scan_queue_size", GlobalScanner_->GetQueueSize());
 
         for (auto priority : TEnumTraits<ESealPriority>::GetDomainValues()) {
-            TWithTagGuard tagGuard(buffer, "seal_priority", ToString(priority));
+            TWithTagGuard tagGuard(buffer, "seal_priority", FormatEnum(priority));
             buffer->AddGauge("/seal_queue_size", GetSealQueue(priority).GetQueueSize());
         }
     }
@@ -609,7 +609,7 @@ private:
         {
             auto* chunk = GlobalScanner_->DequeueChunk();
             if (chunk && IsSealNeeded(chunk)) {
-                EnqueueChunk(chunk, 0, GetCpuInstant());
+                EnqueueChunk(chunk, /*errorCount*/ 0, GetCpuInstant());
             }
         }
     }
@@ -639,8 +639,7 @@ private:
         bool concurrentSealLimitReached = false;
         for (auto priority : TEnumTraits<ESealPriority>::GetDomainValues()) {
             auto& queue = GetSealQueue(priority);
-            while (canPlanNewSeal() && queue.HasUnscannedChunk(GetCpuInstant()))
-            {
+            while (canPlanNewSeal() && queue.HasUnscannedChunk(GetCpuInstant())) {
                 auto guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_);
                 if (!guard) {
                     concurrentSealLimitReached = true;

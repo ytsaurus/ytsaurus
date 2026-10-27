@@ -440,7 +440,7 @@ struct TDistributedHydraManagerConfig
     bool EnableStateHashChecker;
 
     //! If set, stores all (sequenceNumber, stateHash) pairs in state hash checker
-    // and enables state hash reporting during recovery.
+    //! and enables state hash reporting during recovery.
     bool EnableStateHashCheckerDuringRecovery;
 
     //! Maximum number of entries stored in state hash checker.

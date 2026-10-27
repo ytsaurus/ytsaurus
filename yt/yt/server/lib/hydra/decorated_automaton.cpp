@@ -1540,8 +1540,7 @@ void TDecoratedAutomaton::DoApplyMutation(
     MutationSizeSinceLastSnapshot_ += mutationSize;
 
     if (Config_->Get()->EnableStateHashChecker) {
-        const auto& cellManager = GetEpochContext()->CellManager;
-        auto peerId = cellManager->GetSelfPeerId();
+        auto peerId = GetEpochContext()->CellManager->GetSelfPeerId();
         StateHashChecker_->Report(sequenceNumber, StateHash_, peerId);
     }
 

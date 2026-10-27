@@ -1377,7 +1377,7 @@ public:
                 .With("ChunkId", chunkId);
 
             auto schemaId = FromProto<TMasterTableSchemaId>(protoChunkInfo.schema_id());
-            auto requestId = FromProto<TGuid>(protoChunkInfo.request_id());
+            auto requestId = FromProto<NRpc::TRequestId>(protoChunkInfo.request_id());
             auto* chunk = FindChunk(chunkId);
             if (!IsObjectAlive(chunk)) {
                 // Chunk is dead, but we consider it a "success" here, so that we don't fail
