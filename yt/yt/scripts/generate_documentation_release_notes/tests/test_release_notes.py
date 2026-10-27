@@ -92,6 +92,116 @@ class ReleaseNotesTest(unittest.TestCase):
         self.assertNotIn("https://example.com/automatic/", text)
         self.assertIn("#### Changes\n\nFixed bug.", text)
 
+    def test_atx_heading_levels_with_allowed_indentation(self):
+        for original, expected in [("#", "####"), ("##", "####"), ("###", "####"), ("####", "#####"), ("#####", "#####"), ("######", "######")]:
+            for indent in ["", " ", "  ", "   "]:
+                for separator in [" ", "\t"]:
+                    with self.subTest(original=original, indent=indent, separator=separator):
+                        body = indent + original + separator + "Changes"
+                        metadata, remaining = notes.prepare_description(body, [])
+                        expected_body = expected + " Changes" if len(original) <= 4 else body
+                        self.assertEqual(metadata, {})
+                        self.assertEqual(remaining, expected_body)
+
+    def test_task_proxy_indented_release_headings(self):
+        body = "### Added\n\n- New metrics.\n\n ### Changed\n\n- HTTP retries.\n\n ### Migration notes\n\n- Set `ytProxy`."
+        expected = "#### Added\n\n- New metrics.\n\n#### Changed\n\n- HTTP retries.\n\n#### Migration notes\n\n- Set `ytProxy`."
+        for newline in ["\n", "\r\n", "\r"]:
+            with self.subTest(newline=newline):
+                metadata, remaining = notes.prepare_description(body.replace("\n", newline), [])
+                self.assertEqual(metadata, {})
+                self.assertEqual(remaining, expected)
+
+    def test_empty_atx_headings_do_not_consume_the_next_line(self):
+        for original, expected in [("#", "####"), ("##", "####"), ("###", "####"), ("####", "#####"), ("#####", "#####"), ("######", "######")]:
+            for indent in ["", " ", "  ", "   "]:
+                for separator in ["", " ", "\t"]:
+                    with self.subTest(original=original, indent=indent, separator=separator):
+                        heading = indent + original + separator
+                        metadata, remaining = notes.prepare_description(heading + "\nNext paragraph.\n", [])
+                        expected_heading = expected + (" " if separator else "") if len(original) <= 4 else heading
+                        self.assertEqual(metadata, {})
+                        self.assertEqual(remaining, expected_heading + "\nNext paragraph.\n")
+
+    def test_atx_heading_content_and_closing_hashes_are_preserved(self):
+        for content in ["Changes ###\t", "Changes ### text", "Changes#", "Changes \\### ", "###"]:
+            with self.subTest(content=content):
+                metadata, remaining = notes.prepare_description("  ### \t " + content, [])
+                self.assertEqual(metadata, {})
+                self.assertEqual(remaining, "#### " + content)
+
+    def test_non_atx_and_indented_code_lines_are_preserved(self):
+        examples = [
+            "    ### Code",
+            "\t### Code",
+            " \t### Code",
+            " ###Changed",
+            " ####### Too many hashes",
+            " \\### Escaped",
+            "\u00a0### Not an indentation space",
+            " ###\u00a0Not a separator",
+            "> ### Quoted heading",
+            "- ### List heading",
+        ]
+        for body in examples:
+            with self.subTest(body=body):
+                metadata, remaining = notes.prepare_description(body, [])
+                self.assertEqual(metadata, {})
+                self.assertEqual(remaining, body)
+
+    def test_indented_headings_inside_protected_blocks_are_preserved(self):
+        for opening, closing in [
+            ("```markdown", "```"),
+            ("   ~~~~", "   ~~~~"),
+            ("<pre>", "</pre>"),
+            ("<!--", "-->"),
+            ("<script>", "</script>"),
+            ("<textarea>", "</textarea>"),
+        ]:
+            with self.subTest(opening=opening):
+                block = opening + "\n ### Example\n #### Details\n\n**SDK:** example\n" + closing
+                metadata, remaining = notes.prepare_description(block + "\n\n ### Actual changes", ["SDK"])
+                self.assertEqual(metadata, {})
+                self.assertEqual(remaining, block + "\n\n#### Actual changes")
+
+    def test_indented_heading_separates_intro_metadata_from_section_content(self):
+        body = "**SDK:** intro-link\n ### Changes\n**SDK:** detailed explanation"
+        metadata, remaining = notes.prepare_description(body, ["SDK"])
+        self.assertEqual(metadata, {"SDK": "intro-link"})
+        self.assertEqual(remaining, "#### Changes\n**SDK:** detailed explanation")
+
+    def test_generation_normalizes_indented_headings_and_preserves_release_data(self):
+        artifact = notes.Artifact("SDK", "package", version_url_template="https://example.com/automatic/{version}")
+        c = component([artifact])
+        body = (
+            "**SDK:** [explicit](https://example.com/sdk)\n\n"
+            "### Added\n\n- New metrics.\n\n"
+            " ### Changed\n\n- HTTP retries.\n\n"
+            " ### Migration notes\n\n- Set `ytProxy`."
+        )
+        r = release(body)
+        with (
+            patch.object(c, "_get_releases", return_value=[r]),
+            patch.object(notes, "get_url", side_effect=AssertionError("Unexpected network request")) as fetch,
+        ):
+            first = c._generate_markdown()
+            second = c._generate_markdown()
+        fetch.assert_not_called()
+        self.assertEqual(first, second)
+        self.assertEqual(r["body"], body)
+        self.assertIn(
+            "#### Added\n\n- New metrics.\n\n"
+            "#### Changed\n\n- HTTP retries.\n\n"
+            "#### Migration notes\n\n- Set `ytProxy`.",
+            first,
+        )
+        for label in ["Release date", "Release page", "SDK"]:
+            self.assertEqual(first.count(f"**{label}:**"), 1)
+        self.assertIn("**Release date:** 2026-09-26", first)
+        self.assertIn("**Release page:** [0.3.0](https://github.com/ytsaurus/test/releases/tag/test/0.3.0)", first)
+        self.assertIn("**SDK:** [explicit](https://example.com/sdk)", first)
+        self.assertNotIn("https://example.com/automatic/", first)
+
     def test_empty_and_null_descriptions(self):
         for body in [None, ""]:
             with self.subTest(body=body):
