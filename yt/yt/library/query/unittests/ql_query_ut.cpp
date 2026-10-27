@@ -8801,6 +8801,32 @@ TEST_F(TQueryEvaluateTest, ArgMin)
     Evaluate("integer, argmin(any, double) as c from [//t] group by integer", split, source, ResultMatcher(result));
 }
 
+TEST_F(TQueryEvaluateTest, ArgMaxWithComposite)
+{
+    auto split = MakeSplit({
+        {"discount_id", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"version_num", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"parasite_key", EValueType::Int64},
+        {"utc_start_period_dttm", EValueType::String},
+        {"tag_code_list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+    });
+
+    auto source = TSource{
+        "discount_id=1;version_num=1;utc_start_period_dttm=\"abc\";tag_code_list=[\"x\";\"y\"]",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"discount_id", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"am", EValueType::Any},
+    });
+
+    auto result = YsonToRows({
+        "discount_id=1;am=[\"x\";\"y\"]",
+    }, resultSplit);
+
+    Evaluate("discount_id, argmax(tag_code_list, version_num) as am from [//t] group by discount_id limit 1", split, source, ResultMatcher(result));
+}
+
 TEST_F(TQueryEvaluateTest, CardinalityAggregate)
 {
     auto split = MakeSplit({
