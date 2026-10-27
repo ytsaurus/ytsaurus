@@ -132,6 +132,8 @@ message TDqConfig {
         optional string SchedulingTagFilter = 42;
         optional uint64 EnforceRegexpProbabilityFail = 43; // Same as _EnforceRegexpProbabilityFail.
         optional string ProxyAddress = 44; // full URL to YT proxy, e.g. https://my.com
+        optional bool UseLocalJobProxyForTableReads = 46 [default = false];
+        optional bool UseLocalJobProxyForResourceDownloads = 47 [default = false];
     }
 
     repeated TYtBackend YtBackends = 5;
