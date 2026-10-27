@@ -1,5 +1,5 @@
 from collections import defaultdict
-from .test_lookup import TestLookupCache
+from . import test_lookup
 
 from yt_env_setup import find_ut_file, skip_if_rpc_driver_backend
 
@@ -4382,7 +4382,7 @@ class TestQueryRpcProxy(TestQuery):
         ]
 
 
-class TestSelectWithRowCache(TestLookupCache):
+class TestSelectWithRowCache(test_lookup.TestLookupCache):
     ENABLE_MULTIDAEMON = True
     COUNTER_NAME = "select"
 
