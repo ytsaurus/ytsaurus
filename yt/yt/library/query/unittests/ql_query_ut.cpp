@@ -11818,7 +11818,8 @@ TEST_F(TQueryEvaluateTest, OrderByAny)
         "a=[2;4;5]",
     }, resultSplit);
 
-    Evaluate("a FROM [//t] order by a limit 4", split, source, ResultMatcher(result)),
+    Evaluate("a FROM [//t] order by a limit 4", split, source, ResultMatcher(result));
+
     SUCCEED();
 }
 
@@ -11849,7 +11850,8 @@ TEST_F(TQueryEvaluateTest, GroupByAny)
         "a=[2;4;5]",
     }, resultSplit);
 
-    Evaluate("a FROM [//t] group by a order by a limit 4", split, source, ResultMatcher(result)),
+    Evaluate("a FROM [//t] group by a order by a limit 4", split, source, ResultMatcher(result));
+
     SUCCEED();
 }
 
