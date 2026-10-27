@@ -638,26 +638,33 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         op = map(
             track=False,
-            command="sleep 1; cat",
+            command=with_breakpoint("BREAKPOINT; cat"),
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"data_size_per_job": 1},
+            spec={"job_count": 1},
         )
 
-        for i in range(5):
-            time.sleep(0.5)
+        for i in range(2):
+            job_id, = wait_breakpoint(op)
             op.suspend(abort_running_jobs=True)
-            time.sleep(0.5)
+            wait(lambda: op.get_job_count("aborted") == i + 1)
+            # NB: Aborted job's breakpoint file persists; drop it.
+            release_breakpoint(job_id=job_id)
             op.resume()
 
+        job_id, = wait_breakpoint(op)
         for i in range(5):
             op.suspend()
             op.resume()
+        assert job_id in op.get_running_jobs()
+        assert op.get_job_count("aborted") == 2
 
+        # Suspend right after resume to race with job scheduling.
         for i in range(5):
             op.suspend(abort_running_jobs=True)
             op.resume()
 
+        release_breakpoint()
         op.track()
 
         assert sorted_dicts(read_table("//tmp/t_out")) == [{"foo": i} for i in range(10)]
