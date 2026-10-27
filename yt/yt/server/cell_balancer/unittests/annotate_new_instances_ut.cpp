@@ -5,15 +5,103 @@
 #include <yt/yt/server/cell_balancer/cypress_bindings.h>
 #include <yt/yt/server/cell_balancer/input_state.h>
 #include <yt/yt/server/cell_balancer/mutations.h>
+#include <yt/yt/server/cell_balancer/orchid_bindings.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 
+#include <yt/yt/core/ytree/yson_struct.h>
+
 namespace NYT::NCellBalancer {
 namespace {
 
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAllocationYPClusterTest
+    : public ::testing::TestWithParam<std::tuple<bool, bool>>
+{ };
+
+TEST_P(TAllocationYPClusterTest, AllocationAndDeallocation)
+{
+    const auto [isProxy, hasActualCluster] = GetParam();
+    const std::string bundleName = "bigd";
+    const std::string dataCenterName = "default";
+    const std::string expectedCluster = hasActualCluster ? "sam" : "vla";
+    auto input = GenerateSimpleInputContext(isProxy ? 0 : 1, 0, isProxy ? 1 : 0);
+    input.Config->DecommissionReleasedNodes = false;
+
+    std::string instanceName;
+    TInstanceInfoBasePtr instance;
+    if (isProxy) {
+        instanceName = *GenerateProxiesForBundle(input, bundleName, 1).begin();
+        instance = input.RpcProxies.at(instanceName);
+        GenerateProxyAllocationsForBundle(input, bundleName, 1);
+    } else {
+        instanceName = *GenerateNodesForBundle(input, bundleName, 1).begin();
+        instance = input.TabletNodes.at(instanceName);
+        GenerateNodeAllocationsForBundle(input, bundleName, 1);
+    }
+    instance->BundleControllerAnnotations = New<TBundleControllerInstanceAnnotations>();
+
+    const auto allocationId = input.AllocationRequests.begin()->first;
+    auto request = input.AllocationRequests.at(allocationId);
+    request->Spec->YPCluster = "vla";
+    request->Status->YPCluster = hasActualCluster ? "sam" : "";
+    request->Status->PodId = GetPodIdForInstance(instanceName);
+    request->Status->State = "COMPLETED";
+    // BC deserializes the request updated by Hulk from Cypress.
+    input.AllocationRequests[allocationId] = CloneYsonStruct(request);
+
+    TSchedulerMutations allocationMutations;
+    ScheduleBundles(input, &allocationMutations);
+    CheckEmptyAlerts(allocationMutations);
+    const auto& changedAnnotations = isProxy
+        ? allocationMutations.ChangedProxyAnnotations
+        : allocationMutations.ChangedNodeAnnotations;
+    ASSERT_TRUE(changedAnnotations.contains(instanceName));
+    const auto& annotations = changedAnnotations.at(instanceName).Mutation;
+    EXPECT_EQ(expectedCluster, annotations->YPCluster);
+    EXPECT_EQ(dataCenterName, annotations->DataCenter);
+    EXPECT_EQ(request->Spec->NannyService, annotations->NannyService);
+    EXPECT_EQ("vla", request->Spec->YPCluster);
+
+    auto orchid = NOrchid::GetBundlesInfo(input, allocationMutations).at(bundleName);
+    const auto& allocatingInstances = isProxy ? orchid->AllocatingRpcProxies : orchid->AllocatingTabletNodes;
+    ASSERT_TRUE(allocatingInstances.contains(allocationId));
+    ASSERT_TRUE(allocatingInstances.at(allocationId)->InstanceInfo);
+    EXPECT_EQ(expectedCluster, allocatingInstances.at(allocationId)->InstanceInfo->YPCluster);
+
+    instance->BundleControllerAnnotations = annotations;
+    ApplyChangedStates(&input, allocationMutations);
+    auto& state = input.BundleStates.at(bundleName);
+    state->NodeAllocations.clear();
+    state->ProxyAllocations.clear();
+    input.AllocationRequests.clear();
+
+    auto deallocation = New<TDeallocationRequestState>();
+    deallocation->CreationTime = TInstant::Now();
+    deallocation->InstanceName = instanceName;
+    deallocation->DataCenter = dataCenterName;
+    deallocation->Strategy = DeallocationStrategyHulkRequest;
+    auto& deallocations = isProxy ? state->ProxyDeallocations : state->NodeDeallocations;
+    deallocations["deallocation"] = deallocation;
+
+    TSchedulerMutations deallocationMutations;
+    ScheduleBundles(input, &deallocationMutations);
+    CheckEmptyAlerts(deallocationMutations);
+    ASSERT_EQ(1u, deallocationMutations.NewDeallocations.size());
+    const auto& spec = deallocationMutations.NewDeallocations.at("deallocation")->Spec;
+    EXPECT_EQ(expectedCluster, spec->YPCluster);
+    EXPECT_EQ(request->Status->PodId, spec->PodId);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    InstanceTypesAndLegacyRequests,
+    TAllocationYPClusterTest,
+    ::testing::Combine(::testing::Bool(), ::testing::Bool()));
 
 ////////////////////////////////////////////////////////////////////////////////
 

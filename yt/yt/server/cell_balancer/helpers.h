@@ -12,6 +12,8 @@ int GetTargetCellCount(const TBundleInfoPtr& bundleInfo, const TZoneInfoPtr& zon
 
 int GetTargetDataCenterInstanceCount(int targetCount, const TZoneInfoPtr& zone);
 
+const std::string& GetAllocationYPCluster(const TAllocationRequestPtr& request);
+
 TBundleControllerInstanceAnnotationsPtr GetBundleControllerInstanceAnnotationsToSet(
     const std::string& bundleName,
     const std::string& dataCenterName,
