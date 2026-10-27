@@ -27,7 +27,7 @@ TEST_F(TPushDownGroupByTest, Prepare)
         }))));
 
     auto fmt = [] (const TNamedItemList& items) {
-        auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
+        auto namedItemFormatter = [] (TStringBuilderBase* builder, const TNamedItem& item) {
             builder->AppendString(InferName(item.Expression));
         };
         return JoinToString(items, namedItemFormatter);
