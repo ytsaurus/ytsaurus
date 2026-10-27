@@ -144,8 +144,7 @@ inline void TChunk::SetRepairQueueIterator(int mediumIndex, int priority, TChunk
     }
 }
 
-inline const TChunkDynamicData::TRepairQueueIteratorMap&
-TChunk::SelectRepairQueueIteratorMap() const
+inline const TChunkDynamicData::TRepairQueueIteratorMap& TChunk::GetRepairQueueIterators() const
 {
     return GetDynamicData()->RepairQueueIterators;
 }

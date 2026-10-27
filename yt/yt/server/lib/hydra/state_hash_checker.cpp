@@ -16,7 +16,7 @@ TStateHashChecker::TStateHashChecker(
     , Limit_(limit)
     , TotalPeerCount_(totalPeerCount)
 {
-    YT_TLOG_ALERT_IF(TotalPeerCount_ <= 0, "Total peer count must be a positive integer")
+    YT_TLOG_ALERT_IF(TotalPeerCount_ <= 0, "Non-positive total peer count in state hash checker")
         .With("TotalPeerCount", TotalPeerCount_);
 }
 
@@ -61,7 +61,7 @@ void TStateHashChecker::Report(i64 sequenceNumber, ui64 stateHash, int peerId)
         }
     }
 
-    // if all peers have reported the same state hash they are considered converged again
+    // If all peers have reported the same state hash they are considered converged again.
     if (FirstDivergedSequenceNumber_ && sequenceNumber > *FirstDivergedSequenceNumber_ &&
         std::ssize(it->second.ReportedPeerIds) >= TotalPeerCount_ &&
         !it->second.Diverged)

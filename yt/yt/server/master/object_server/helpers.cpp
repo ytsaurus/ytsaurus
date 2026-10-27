@@ -99,9 +99,9 @@ void ValidateObjectName(
             .With("max_length", maxNameLength);
     }
 
-    static NRe2::TRe2Ptr regex = New<NRe2::TRe2>("[A-Za-z0-9-_]+");
-    if (!NRe2::TRe2::FullMatch(re2::StringPiece(name), *regex)) {
-        THROW_ERROR_EXCEPTION("Name must match regular expression %Qv", regex->pattern());
+    static const NRe2::TRe2Ptr Regex = New<NRe2::TRe2>("[A-Za-z0-9-_]+");
+    if (!NRe2::TRe2::FullMatch(re2::StringPiece(name), *Regex)) {
+        THROW_ERROR_EXCEPTION("Name must match regular expression %Qv", Regex->pattern());
     }
 }
 

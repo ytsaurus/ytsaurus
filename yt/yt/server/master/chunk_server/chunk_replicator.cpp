@@ -3103,7 +3103,7 @@ void TChunkReplicator::RemoveFromChunkRepairQueues(TChunk* chunk)
     // before the subsequent refresh. Which means that the requisition and
     // replication/repair/etc. queues may be inconsistent. Do not rely on the
     // requisition when dealing with replicator queues!
-    auto queueIterators = chunk->SelectRepairQueueIteratorMap();
+    auto queueIterators = chunk->GetRepairQueueIterators();
     for (auto [encodedKey, repairIt] : queueIterators) {
         auto [mediumIndex, priority] = DecodeRepairQueueKey(encodedKey);
 
@@ -3122,7 +3122,7 @@ void TChunkReplicator::TouchChunkInRepairQueues(TChunk* chunk)
 
     // NB: See RemoveFromChunkRepairQueues for the comment on why the chunk's
     // requisition should not be used here.
-    for (auto [encodedKey, repairIt] : chunk->SelectRepairQueueIteratorMap()) {
+    for (auto [encodedKey, repairIt] : chunk->GetRepairQueueIterators()) {
         auto [mediumIndex, priority] = DecodeRepairQueueKey(encodedKey);
 
         auto& repairQueue = ChunkRepairQueue(mediumIndex, priority);
