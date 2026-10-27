@@ -3108,9 +3108,9 @@ TPullQueueResult TClient::DoPullQueueImplOnce(
     auto adjustedRowBatchReadOptions = rowBatchReadOptions;
     adjustedRowBatchReadOptions.MaxRowCount = ComputeRowsToRead(rowBatchReadOptions);
 
-    IUnversionedRowsetPtr rowset;
+    TPullQueueRowsetResult result;
     if (options.UseNativeTabletNodeApi) {
-        rowset = DoPullQueueViaTabletNodeApi(
+        result = DoPullQueueViaTabletNodeApi(
             queuePath,
             offset,
             partitionIndex,
@@ -3118,7 +3118,7 @@ TPullQueueResult TClient::DoPullQueueImplOnce(
             options,
             checkPermissions);
     } else {
-        rowset = DoPullQueueViaSelectRows(
+        result = DoPullQueueViaSelectRows(
             queuePath,
             offset,
             partitionIndex,
@@ -3127,12 +3127,13 @@ TPullQueueResult TClient::DoPullQueueImplOnce(
     }
 
     auto startOffset = offset;
-    if (!rowset->GetRows().Empty()) {
-        startOffset = GetStartOffset(rowset);
+    if (!result.Rowset->GetRows().Empty()) {
+        startOffset = GetStartOffset(result.Rowset);
     }
 
     return TPullQueueResult{
-        .Rowset = CreateQueueRowset(std::move(rowset), startOffset),
+        .Rowset = CreateQueueRowset(std::move(result.Rowset), startOffset),
+        .ResponseSizeLimitReached = result.ResponseSizeLimitReached,
     };
 }
 
@@ -3168,7 +3169,7 @@ TPullQueueResult TClient::DoPullQueueUnauthenticated(
         /*checkPermissions*/ false);
 }
 
-IUnversionedRowsetPtr TClient::DoPullQueueViaSelectRows(
+TClient::TPullQueueRowsetResult TClient::DoPullQueueViaSelectRows(
     const NYPath::TRichYPath& queuePath,
     i64 offset,
     int partitionIndex,
@@ -3197,10 +3198,12 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaSelectRows(
             options);
     }
 
-    return readResult.Rowset;
+    return TPullQueueRowsetResult{
+        .Rowset = std::move(readResult.Rowset),
+    };
 }
 
-IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
+TClient::TPullQueueRowsetResult TClient::DoPullQueueViaTabletNodeApi(
     const NYPath::TRichYPath& queuePath,
     i64 offset,
     int partitionIndex,
@@ -3254,9 +3257,12 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
         rows.insert(rows.end(), batch.begin(), batch.end());
     }
 
-    return CreateRowset(
-        tableInfo->Schemas[ETableSchemaKind::Query],
-        MakeSharedRange(rows, reader->GetRowBuffer()));
+    return TPullQueueRowsetResult{
+        .Rowset = CreateRowset(
+            tableInfo->Schemas[ETableSchemaKind::Query],
+            MakeSharedRange(rows, reader->GetRowBuffer())),
+        .ResponseSizeLimitReached = YT_OPTIONAL_FROM_PROTO(*rsp, response_size_limit_reached),
+    };
 }
 
 TPullQueueResult TClient::DoPullQueueConsumer(
