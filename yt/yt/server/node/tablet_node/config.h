@@ -250,6 +250,8 @@ struct TStoreFlusherDynamicConfig
     std::optional<int> MaxConcurrentFlushes;
     std::optional<i64> MinForcedFlushDataSize;
 
+    bool UseQueryPool;
+
     TStoreBackgroundActivityOrchidConfigPtr Orchid;
 
     REGISTER_YSON_STRUCT(TStoreFlusherDynamicConfig);

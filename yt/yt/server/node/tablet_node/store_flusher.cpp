@@ -555,8 +555,12 @@ private:
 
             auto throttler = Bootstrap_->GetOutThrottler(EWorkloadCategory::SystemTabletStoreFlush);
 
+            auto flushInvoker = Bootstrap_->GetTabletNodeDynamicConfig()->StoreFlusher->UseQueryPool
+                ? Bootstrap_->GetQueryPoolInvoker("$store_flush", ToString(task->Info->TaskId))
+                : ThreadPool_->GetInvoker();
+
             auto asyncFlushResult = BIND(flushCallback)
-                .AsyncVia(ThreadPool_->GetInvoker())
+                .AsyncVia(std::move(flushInvoker))
                 .Run(transaction, std::move(throttler), currentTimestamp, writerProfiler, task->Info);
 
             auto flushResult = WaitFor(asyncFlushResult)
