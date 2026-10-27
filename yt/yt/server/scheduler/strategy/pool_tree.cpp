@@ -912,7 +912,11 @@ public:
                     if (pool->IsEmpty()) {
                         UnregisterPool(pool);
                     } else {
+                        bool lightweightOperationsEnabledBefore = pool->GetEffectiveLightweightOperationsEnabled();
                         pool->SetDefaultConfig();
+                        if (lightweightOperationsEnabledBefore != pool->GetEffectiveLightweightOperationsEnabled()) {
+                            ReaccountLightweightRunningOperationsInPool(pool);
+                        }
 
                         auto defaultParent = GetDefaultParentPoolForUser(updatePoolAction.Name);
                         if (pool->GetId() == defaultParent->GetId()) {  // Someone is deleting default pool.
