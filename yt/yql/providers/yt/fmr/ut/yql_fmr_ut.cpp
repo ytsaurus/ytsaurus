@@ -1,5 +1,7 @@
 #include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
+#include <yt/yql/providers/yt/fmr/coordinator/yt_coordinator_service/file/yql_yt_file_coordinator_service.h>
 #include <yt/yql/providers/yt/fmr/fmr_tool_lib/yql_yt_fmr_initializer.h>
+#include <yt/yql/providers/yt/fmr/job_preparer/impl/yql_yt_job_preparer_impl.h>
 #include <yt/yql/providers/yt/fmr/test_tools/table_data_service/yql_yt_table_data_service_helpers.h>
 #include <yt/yql/providers/yt/provider/yql_yt_provider.h>
 #include <yt/yql/providers/yt/gateway/file/yql_yt_file.h>
