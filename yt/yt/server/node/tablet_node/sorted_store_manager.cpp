@@ -53,6 +53,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/concurrency/periodic_yielder.h>
+
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/finally.h>
 
@@ -1195,7 +1197,11 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             .MaxRowsPerRead = MaxRowsPerFlushRead
         };
 
+        auto periodicYielder = CreatePeriodicYielder(TDuration::MilliSeconds(30));
+
         while (true) {
+            periodicYielder.TryYield();
+
             // NB: Memory store reader is always synchronous.
             auto batch = reader->Read(readOptions);
             if (!batch || batch->IsEmpty()) {

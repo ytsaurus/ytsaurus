@@ -232,6 +232,8 @@ void TStoreFlusherDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_forced_flush_data_size", &TThis::MinForcedFlushDataSize)
         .GreaterThan(0)
         .Optional();
+    registrar.Parameter("use_query_pool", &TThis::UseQueryPool)
+        .Default(false);
     registrar.Parameter("orchid", &TThis::Orchid)
         .DefaultNew();
 }

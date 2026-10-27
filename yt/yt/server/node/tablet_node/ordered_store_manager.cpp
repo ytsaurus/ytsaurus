@@ -42,6 +42,7 @@
 
 #include <yt/yt/client/api/transaction.h>
 
+#include <yt/yt/core/concurrency/periodic_yielder.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/misc/finally.h>
@@ -419,7 +420,11 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         YT_TLOG_DEBUG("Ordered store flush started")
             .With("StoreId", store->GetId());
 
+        auto periodicYielder = CreatePeriodicYielder(TDuration::MilliSeconds(30));
+
         while (auto batch = reader->Read()) {
+            periodicYielder.TryYield();
+
             auto rows = batch->MaterializeRows();
             if (rows.Empty()) {
                 // NB: Memory store reader is always synchronous.
