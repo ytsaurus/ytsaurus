@@ -56,11 +56,11 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
             create_table_collocation(table_ids=[])
         with raises_yt_error("Cannot specify both"):
             create_table_collocation(table_ids=[], table_paths=[])
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             create_table_collocation(table_paths=["//tmp/no_such_table"])
         with raises_yt_error("Duplicate table"):
             create_table_collocation(table_ids=[id0, id0])
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             corrupted_id = list(id0)
             corrupted_id[0] = '2'
             corrupted_id = "".join(corrupted_id)

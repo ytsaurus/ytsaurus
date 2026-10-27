@@ -321,7 +321,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         commit_transaction(tx1)
         commit_transaction(tx2)
 
-        with raises_yt_error(yt_error_codes.TransactionLockConflict):
+        with raises_yt_error(code=yt_error_codes.TransactionLockConflict):
             commit_transaction(tx3)
 
         assert lookup_rows("//tmp/t", [{"key": 2}], column_names=["key", "a", "b"]) == [{"key": 2, "a": 1, "b": 2}]
@@ -334,7 +334,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         commit_transaction(tx2)
 
-        with raises_yt_error(yt_error_codes.TransactionLockConflict):
+        with raises_yt_error(code=yt_error_codes.TransactionLockConflict):
             commit_transaction(tx1)
 
         tx1 = start_transaction(type="tablet")
@@ -345,7 +345,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         commit_transaction(tx1)
 
-        with raises_yt_error(yt_error_codes.TransactionLockConflict):
+        with raises_yt_error(code=yt_error_codes.TransactionLockConflict):
             commit_transaction(tx2)
 
     @authors("ponasenko-rs")
@@ -373,7 +373,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         insert_rows("//tmp/t", [{"key": 0, "value": 0}], tx=tx_to_conflict)
         if check_conflict_horizon:
-            with raises_yt_error(yt_error_codes.CannotCheckConflictsAgainstChunkStore):
+            with raises_yt_error(code=yt_error_codes.CannotCheckConflictsAgainstChunkStore):
                 commit_transaction(tx_to_conflict)
         else:
             commit_transaction(tx_to_conflict)
@@ -400,7 +400,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         commit_transaction(lock_tx)
 
         insert_rows("//tmp/t", [{"key": 0, "value": 0xb}], tx=tx_to_conflict_before_recovery)
-        with raises_yt_error(yt_error_codes.TransactionLockConflict):
+        with raises_yt_error(code=yt_error_codes.TransactionLockConflict):
             commit_transaction(tx_to_conflict_before_recovery)
 
         build_snapshot(cell_id=cell_id)
@@ -411,7 +411,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             pass
 
         insert_rows("//tmp/t", [{"key": 0, "value": 0xa}], tx=tx_to_conflict_after_recovery)
-        with raises_yt_error(yt_error_codes.TransactionLockConflict):
+        with raises_yt_error(code=yt_error_codes.TransactionLockConflict):
             commit_transaction(tx_to_conflict_after_recovery)
 
     @authors("kvk1920")
@@ -474,7 +474,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 2, "a": 3}], update=True, lock_type="shared_write", tx=tx3)
 
         commit_transaction(tx1)
-        with raises_yt_error(yt_error_codes.TransactionLockConflict):
+        with raises_yt_error(code=yt_error_codes.TransactionLockConflict):
             commit_transaction(tx2)
         commit_transaction(tx3)
 
@@ -490,7 +490,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 3, "a": 3}], update=True, lock_type="shared_write", tx=tx3)
 
         commit_transaction(tx1)
-        with raises_yt_error(yt_error_codes.TransactionLockConflict):
+        with raises_yt_error(code=yt_error_codes.TransactionLockConflict):
             commit_transaction(tx2)
         commit_transaction(tx3)
 
@@ -568,9 +568,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
 
-        with raises_yt_error(yt_error_codes.InvalidTabletState):
+        with raises_yt_error(code=yt_error_codes.InvalidTabletState):
             set("//tmp/t/@serialization_type", "per_row")
-        with raises_yt_error(yt_error_codes.InvalidTabletState):
+        with raises_yt_error(code=yt_error_codes.InvalidTabletState):
             set("//tmp/t/@serialization_type", "coarse")
 
         sync_unmount_table("//tmp/t")
@@ -632,7 +632,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         assert_items_equal(read_table("//tmp/t"), [value2, value1])
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             wrong_value = {"key": [3, {}], "value": "wrong"}
             insert_rows("//tmp/t", [wrong_value])
 
@@ -673,11 +673,11 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert_items_equal(read_table("//tmp/t1"), [value2, value1])
         assert_items_equal(read_table("//tmp/t2"), [value4, value3])
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             wrong_value = {"key": [3, []], "value": "wrong"}
             insert_rows("//tmp/t1", [wrong_value])
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             wrong_value = {"key": [3, "a"], "value": "wrong"}
             insert_rows("//tmp/t2", [wrong_value])
 
@@ -3061,7 +3061,7 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
                     break
 
         insert_rows("//tmp/t2", [next(_get_row)])
-        with raises_yt_error(yt_error_codes.AllWritesDisabled):
+        with raises_yt_error(code=yt_error_codes.AllWritesDisabled):
             insert_rows("//tmp/t1", [next(_get_row)])
 
         remove("//tmp/t2")

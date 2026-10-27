@@ -3239,7 +3239,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         sync_alter_table_replica_mode(replica_id, "sync")
 
-        with raises_yt_error(yt_error_codes.SyncReplicaNotInSync):
+        with raises_yt_error(code=yt_error_codes.SyncReplicaNotInSync):
             insert_rows("//tmp/t", rows)
 
     @authors("akozhikhov")
@@ -3360,7 +3360,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         # Even empty table cannot be altered.
         bad_schema = deepcopy(schema)
         bad_schema[0]["type"] = "string"
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             alter_table("//tmp/t", schema=bad_schema)
 
         sync_mount_table("//tmp/t")
@@ -3369,7 +3369,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         bad_schema = deepcopy(schema)
         bad_schema[1]["sort_order"] = "ascending"
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             alter_table("//tmp/t", schema=bad_schema)
 
         with raises_yt_error():

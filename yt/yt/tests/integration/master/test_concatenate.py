@@ -519,7 +519,7 @@ class TestConcatenate(YTEnvSetup):
             attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": sort_order}])},
         )
 
-        with raises_yt_error(yt_error_codes.SortOrderViolation):
+        with raises_yt_error(code=yt_error_codes.SortOrderViolation):
             concatenate(["//tmp/in1", "//tmp/in2"], "//tmp/out")
 
     @authors("gritukan")
@@ -592,7 +592,7 @@ class TestConcatenate(YTEnvSetup):
             },
         )
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             concatenate(["//tmp/in1"], "//tmp/out2")
 
         create(
@@ -642,7 +642,7 @@ class TestConcatenate(YTEnvSetup):
         )
         write_table("//tmp/out1", make_rows([3, 4]))
 
-        with raises_yt_error(yt_error_codes.SortOrderViolation):
+        with raises_yt_error(code=yt_error_codes.SortOrderViolation):
             concatenate(["//tmp/in1"], "<append=true>//tmp/out1")
 
         concatenate(["//tmp/in2"], "<append=true>//tmp/out1")
@@ -679,7 +679,7 @@ class TestConcatenate(YTEnvSetup):
             },
         )
         write_table("//tmp/in4", make_rows([2]))
-        with raises_yt_error(yt_error_codes.UniqueKeyViolation):
+        with raises_yt_error(code=yt_error_codes.UniqueKeyViolation):
             concatenate(["//tmp/in4", "//tmp/in4"], "<append=true>//tmp/in4")
 
     @authors("gritukan")
@@ -710,11 +710,11 @@ class TestConcatenate(YTEnvSetup):
         create("table", "//tmp/out", attributes={"schema": unique_keys_schema})
 
         # No. Keys are not unique.
-        with raises_yt_error(yt_error_codes.UniqueKeyViolation):
+        with raises_yt_error(code=yt_error_codes.UniqueKeyViolation):
             concatenate(["//tmp/in1", "//tmp/in2"], "//tmp/out")
 
         # No. Schema is too weak.
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             concatenate(["//tmp/in1", "//tmp/in3"], "//tmp/out")
 
     @authors("gritukan")
@@ -761,7 +761,7 @@ class TestConcatenate(YTEnvSetup):
         write_table("//tmp/t3", {"a_new": 3})
 
         # Mismatched stable names.
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             concatenate(["//tmp/t1", "//tmp/t3"], "//tmp/union")
 
         schema4 = make_schema([{"name": "a", "type": "int64"}])
@@ -769,7 +769,7 @@ class TestConcatenate(YTEnvSetup):
         write_table("//tmp/t4", {"a": 3})
 
         # Mismatched names.
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             concatenate(["//tmp/t1", "//tmp/t4"], "//tmp/union")
 
     @authors("gritukan")

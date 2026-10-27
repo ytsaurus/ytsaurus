@@ -719,7 +719,7 @@ class TestOperationControllerLimit(YTEnvSetup):
                 "allocation_release_delay": 1000 ** 2,
             },
         })
-        with raises_yt_error(yt_error_codes.ControllerMemoryLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.ControllerMemoryLimitExceeded):
             op.track()
 
 
@@ -805,7 +805,7 @@ class TestTotalControllerMemoryLimit(YTEnvSetup):
 
         time.sleep(1)
 
-        with raises_yt_error(yt_error_codes.ControllerMemoryLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.ControllerMemoryLimitExceeded):
             op.track()
 
 
@@ -946,7 +946,7 @@ class TestControllerAgentMemoryAlert(YTEnvSetup):
         release_breakpoint()
         op1.track()
         op2.track()
-        with raises_yt_error(yt_error_codes.ControllerMemoryLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.ControllerMemoryLimitExceeded):
             op3.track()
 
 

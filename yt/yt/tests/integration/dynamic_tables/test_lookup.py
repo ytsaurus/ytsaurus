@@ -816,7 +816,7 @@ class TestLookup(TestSortedDynamicTablesBase):
             }
         }
         self._update_specific_nodes_dynamic_config([str(replicas[0])], node_dyn_config)
-        with raises_yt_error(yt_error_codes.Timeout):
+        with raises_yt_error(code=yt_error_codes.Timeout):
             assert lookup_rows("//tmp/t", [{"key": 1}], timeout=5000) == row
 
         set("//tmp/t/@chunk_reader/partial_peer_probing_timeouts", [(2, 1000)])
@@ -832,7 +832,7 @@ class TestLookup(TestSortedDynamicTablesBase):
             }
         }
         self._update_specific_nodes_dynamic_config([str(replicas[0]), str(replicas[1])], node_dyn_config)
-        with raises_yt_error(yt_error_codes.Timeout):
+        with raises_yt_error(code=yt_error_codes.Timeout):
             assert lookup_rows("//tmp/t", [{"key": 1}], timeout=5000) == row
 
         set("//tmp/t/@chunk_reader/partial_peer_probing_timeouts", [(2, 1000), (1, 1100)])

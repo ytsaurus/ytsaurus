@@ -541,9 +541,9 @@ class TestAccessControl(YTEnvSetup):
         q_u2 = start_query("mock", "u2", authenticated_user="u2")
         q_u1.get(authenticated_user="u1")
         q_u2.get(authenticated_user="u2")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.get(authenticated_user="u2")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u2.get(authenticated_user="u1")
 
     @authors("krock21")
@@ -561,7 +561,7 @@ class TestAccessControl(YTEnvSetup):
                 ]
             })
         q_u1 = start_query("mock", "run_forever", authenticated_user="u1", access_control_object="aco1")
-        with raises_yt_error(ResolveErrorCode):
+        with raises_yt_error(code=ResolveErrorCode):
             start_query("mock", "run_forever", authenticated_user="u2", access_control_object="aco2")
         q_u1.get(authenticated_user="u2")
 
@@ -604,7 +604,7 @@ class TestAccessControl(YTEnvSetup):
             })
         q_u1 = start_query("mock", "run_forever", authenticated_user="u1", access_control_object="aco_get")
         q_u1.get(authenticated_user="u2")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.get(authenticated_user="u3")
 
     @authors("krock21")
@@ -652,7 +652,7 @@ class TestAccessControl(YTEnvSetup):
             })
         q_u1 = start_query("mock", "run_forever", authenticated_user="u1", access_control_object="aco_abort")
         wait(lambda: q_u1.get_state() == "running")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.abort(authenticated_user="u3")
         q_u1.abort(authenticated_user="u2")
 
@@ -680,7 +680,7 @@ class TestAccessControl(YTEnvSetup):
         })
         q_u1.track()
         q_u1.get_result(0, authenticated_user="u2")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.get_result(0, authenticated_user="u3")
 
     @authors("krock21")
@@ -707,7 +707,7 @@ class TestAccessControl(YTEnvSetup):
         })
         q_u1.track()
         q_u1.read_result(0, authenticated_user="u2")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.read_result(0, authenticated_user="u3")
 
     @authors("krock21")
@@ -728,7 +728,7 @@ class TestAccessControl(YTEnvSetup):
             })
         q_u1 = start_query("mock", "run_forever", authenticated_user="u1", access_control_object="aco_alter")
         q_u1.alter(authenticated_user="u2", annotations={"qwe": "asd"})
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.alter(authenticated_user="u3", annotations={"qwe2": "asd3"})
 
     @authors("krock21", "mpereskokova")
@@ -765,23 +765,23 @@ class TestAccessControl(YTEnvSetup):
         q_u1.alter(authenticated_user="u1", access_control_object="aco_alter_aco")
 
         q_u1.alter(authenticated_user="u2", annotations={"qwe": "asd"}, access_control_object="nobody")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.alter(authenticated_user="u2", annotations={"qwe": "asd"}, access_control_object="aco_alter_aco")
 
         q_u1.alter(authenticated_user="u1", access_control_object="aco_alter_aco")
 
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.alter(authenticated_user="u3", access_control_object="nobody")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.alter(authenticated_user="u3", access_control_object="aco_alter_aco")
 
         q_u1.alter(authenticated_user="u1", access_control_object="aco_alter_aco_u3")
 
         q_u1.alter(authenticated_user="u3", access_control_object="aco_alter_aco")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.alter(authenticated_user="u3", access_control_object="aco_alter_aco_u3")
 
-        with raises_yt_error(ResolveErrorCode):
+        with raises_yt_error(code=ResolveErrorCode):
             q_u1.alter(authenticated_user="u1", access_control_object="nonexistent_aco")
 
     @authors("mpereskokova")
@@ -1040,17 +1040,17 @@ class TestMultipleAccessControl(YTEnvSetup):
             })
 
         q = start_query("mock", "run_forever", authenticated_user="u2", access_control_object="nobody")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q.get(authenticated_user="u1")
 
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q.alter(authenticated_user="u1", access_control_objects=["aco", "nobody"])
         q.alter(authenticated_user="u2", access_control_objects=["aco", "nobody"])
 
         q.get(authenticated_user="u1")
 
         q.alter(authenticated_user="u2", access_control_objects=[])
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q.get(authenticated_user="u1")
 
     @authors("mpereskokova")

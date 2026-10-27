@@ -643,7 +643,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                             on a.a = b.a
                         {}'''.format(filter)
 
-                with raises_yt_error(QueryFailedError):
+                with raises_yt_error(code=QueryFailedError):
                     clique.make_query(
                         query,
                         settings={"chyt.execution.join_policy": "local"},
@@ -672,7 +672,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                     left join (select 0 as a) b
                         on a.a = b.a'''
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query(
                     query,
                     settings={"chyt.execution.join_policy": "local"},
@@ -791,7 +791,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             settings = {"chyt.execution.join_policy": "local"}
             assert clique.make_query(query, settings=settings) == [{"a": 1, "b.a": 1}]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 assert clique.make_query(query)
 
     @authors("dakovalkov")

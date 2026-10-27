@@ -3169,7 +3169,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         hunk_chunk_id = hunk_chunk_ids[0]
         assert not get("#{}/@sealed".format(hunk_chunk_id))
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             get("#{}/@compressed_data_size".format(hunk_chunk_id))
         assert get("#{}/@uncompressed_data_size".format(hunk_chunk_id)) == 340
         assert get("#{}/@data_weight".format(hunk_chunk_id)) == 260

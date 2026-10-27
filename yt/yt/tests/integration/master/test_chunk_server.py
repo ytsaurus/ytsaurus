@@ -673,7 +673,7 @@ class TestMaxWriteSessionLimit(YTEnvSetup):
         wait(lambda: trivial(counter), ignore_exceptions=True)
 
     @authors("koloshmet")
-    @flaky(max_runs=3)
+    @pytest.mark.skip(reason="Flaky in 26.1; fixed in trunk by r19729814 which needs master changes")
     def test_dynamic_limits(self):
         set("//sys/@config/chunk_manager/enable_node_write_session_limit_on_write_target_allocation", True)
         set("//sys/@config/chunk_manager/enable_node_write_session_limit_for_user_on_write_target_allocation", True)

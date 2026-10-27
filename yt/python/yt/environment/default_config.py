@@ -762,6 +762,8 @@ def get_dynamic_node_config():
                     "job_common": {
                         "node_directory_prepare_backoff_time": 100,
                         "job_prepare_time_limit": 60000,
+                        # Nested in a YT job, slot-N.slot-M.<host> may exceed the 64-char host name limit.
+                        "job_host_name_prefix_pattern": "s$(SlotIndex)",
                     },
                     "unknown_operation_jobs_removal_delay": 5000,
                 },
@@ -865,6 +867,15 @@ def get_proxy_config():
         "api": {
             "cors": {
                 "disable_cors_check": True,
+            },
+            "user_access_validator": {
+                "ban_cache": {
+                    "expire_after_successful_update_time": 0,
+                    "refresh_time": 0,
+                    "expiration_period": 0,
+                    "expire_after_failed_update_time": 0,
+                    "expire_after_access_time": 0,
+                },
             },
         },
         "auth": {

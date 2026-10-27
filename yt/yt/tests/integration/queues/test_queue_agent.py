@@ -135,7 +135,7 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         self._drop_tables()
 
         orchid.wait_fresh_pass()
-        assert_yt_error(orchid.get_pass_error(), yt_error_codes.ResolveErrorCode)
+        assert_yt_error(orchid.get_pass_error(), code=yt_error_codes.ResolveErrorCode)
 
         wrong_schema = copy.deepcopy(init_queue_agent_state.QUEUE_TABLE_SCHEMA)
         for i in range(len(wrong_schema)):
@@ -2245,7 +2245,7 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
 
         sync_unmount_table("//sys/queue_agents/queues")
         orchid.wait_fresh_pass()
-        assert_yt_error(orchid.get_pass_error(), yt_error_codes.TabletNotMounted)
+        assert_yt_error(orchid.get_pass_error(), code=yt_error_codes.TabletNotMounted)
 
         sync_mount_table("//sys/queue_agents/queues")
 
@@ -2315,10 +2315,10 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
         orchid.wait_fresh_pass()
 
         queues = self._get_queues_and_check_invariants(expected_count=1, expected_synchronization_errors={
-            q1: lambda error: assert_yt_error(error, yt_error_codes.ResolveErrorCode),
+            q1: lambda error: assert_yt_error(error, code=yt_error_codes.ResolveErrorCode),
         })
         consumers = self._get_consumers_and_check_invariants(expected_count=1, expected_synchronization_errors={
-            c1: lambda error: assert_yt_error(error, yt_error_codes.ResolveErrorCode),
+            c1: lambda error: assert_yt_error(error, code=yt_error_codes.ResolveErrorCode),
         })
 
         for queue in queues:
@@ -2407,7 +2407,7 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
 
         sync_unmount_table("//sys/queue_agents/queues")
         orchid.wait_fresh_pass()
-        assert_yt_error(orchid.get_pass_error(), yt_error_codes.TabletNotMounted)
+        assert_yt_error(orchid.get_pass_error(), code=yt_error_codes.TabletNotMounted)
 
         sync_mount_table("//sys/queue_agents/queues")
         set(c2 + "/@queue_agent_stage", "bar")

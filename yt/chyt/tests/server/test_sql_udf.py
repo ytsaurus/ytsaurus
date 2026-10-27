@@ -34,7 +34,7 @@ class TestSqlUdf(ClickHouseTestBase):
     @authors("gudqeit")
     def test_simple_udf(self):
         with Clique(1, alias="*clique") as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select number, linear_equation(number, 2, 1) from numbers(3)")
 
             clique.make_query("create function linear_equation as (x, k, b) -> k*x + b")
@@ -62,13 +62,13 @@ class TestSqlUdf(ClickHouseTestBase):
             clique.make_query("drop function linear_equation")
 
             for instance in instances:
-                with raises_yt_error(QueryFailedError):
+                with raises_yt_error(code=QueryFailedError):
                     clique.make_direct_query(instance, "select number, linear_equation(number, 2, 1) from numbers(3)")
 
     @authors("gudqeit")
     def test_drop_udf(self):
         with Clique(1, alias="*clique") as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("drop function linear_equation")
 
             clique.make_query("drop function if exists linear_equation")
@@ -80,7 +80,7 @@ class TestSqlUdf(ClickHouseTestBase):
 
             clique.make_query("drop function linear_equation")
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select number, linear_equation(number, 2, 1) from numbers(3)")
 
     @authors("gudqeit")
@@ -102,10 +102,10 @@ class TestSqlUdf(ClickHouseTestBase):
     @authors("gudqeit")
     def test_bad_udf_name(self):
         with Clique(1, alias="*clique") as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('create function "@acl" as (x, k) -> k*x')
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('create function "some/path" as (x, k) -> k*x')
 
     @authors("gudqeit")

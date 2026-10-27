@@ -1988,7 +1988,7 @@ class TestMaxTotalSliceCount(YTEnvSetup):
         )
 
         create("table", "//tmp/t_out")
-        with raises_yt_error(yt_error_codes.DataSliceLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.DataSliceLimitExceeded):
             join_reduce(
                 in_=["//tmp/t_primary", "<foreign=true>//tmp/t_foreign"],
                 out="//tmp/t_out",

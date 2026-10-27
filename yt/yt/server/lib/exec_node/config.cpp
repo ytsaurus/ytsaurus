@@ -710,6 +710,10 @@ void TJobCommonConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_prepare_time_limit", &TThis::JobPrepareTimeLimit)
         .Default();
 
+    registrar.Parameter("job_host_name_prefix_pattern", &TThis::JobHostNamePrefixPattern)
+        .Default("slot-$(SlotIndex)")
+        .NonEmpty();
+
     registrar.Parameter("test_job_error_truncation", &TThis::TestJobErrorTruncation)
         .Default(false);
 

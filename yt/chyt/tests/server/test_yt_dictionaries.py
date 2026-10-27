@@ -221,7 +221,7 @@ class TestYtDictionaries(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_dict_does_not_exist(self):
         with Clique(1) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select dictGetString('this_dict_does_not_exist', 'value', 1)")
 
     @authors("denmogilevec")
@@ -255,7 +255,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             create("table", table_path, attributes={"schema": schema})
 
             # Test different resolve modes.
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query(f"select * from `{name}`")
 
             assert clique.make_query(f"select * from `{name}` settings chyt.storage_conflict_resolve_mode='yt'") == []
@@ -270,7 +270,7 @@ class TestYtDictionaries(ClickHouseTestBase):
                 assert clique.make_direct_query(inst, f"exists dictionary `{name}`") == [{"result": 1}]
             assert not exists(table_path)
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 # drop TABLE on the remaining DICTIONARY should raises.
                 clique.make_query(f"DROP TABLE `{name}`")
             for inst in instances:
@@ -369,7 +369,7 @@ class TestYtDictionaries(ClickHouseTestBase):
 
             clique.make_direct_query(instances[0], "DROP DICTIONARY t_dict")
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_direct_query(instances[1], test_query)
 
     @authors("denmogilevec")
@@ -393,7 +393,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             assert clique.make_direct_query(instances[1], test_query_1) == [{"value": 2}]
 
             clique.make_direct_query(instances[1], "DROP DICTIONARY t_dict")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_direct_query(instances[0], test_query_1)
 
             clique.make_direct_query(instances[1], "CREATE DICTIONARY t_dict (`a` Int64, `b` String) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t2')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600);")
@@ -403,7 +403,7 @@ class TestYtDictionaries(ClickHouseTestBase):
     @authors("denmogilevec")
     def test_drop_not_existing_dictionary(self):
         with Clique(1) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("DROP DICTIONARY this_dict_does_not_exist")
 
     @authors("denmogilevec")

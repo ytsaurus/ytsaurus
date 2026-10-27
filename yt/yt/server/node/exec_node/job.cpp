@@ -102,6 +102,7 @@
 
 #include <yt/yt/core/net/address.h>
 
+#include <yt/yt/core/misc/pattern_formatter.h>
 #include <yt/yt/core/misc/statistics.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
@@ -201,6 +202,9 @@ static const TString GpuRdmaTxBytesSensorName = "gpu/rdma/tx_bytes";
 static const TString GpuTensorActivitySensorName = "gpu/tensor_activity";
 static const TString GpuDramActivitySensorName = "gpu/dram_activity";
 static const TString GpuSlowdownSensorName = "gpu/slowdown";
+
+// Matches HOST_NAME_MAX on Linux.
+constexpr int MaxHostNameLength = 64;
 
 const THashMap<TString, TUserJobSensorPtr>& GetSupportedGpuMonitoringSensors()
 {
@@ -3313,9 +3317,18 @@ TNetworkAttributes TJob::BuildNetworkAttributes(NControllerAgent::TNetworkProjec
         result.Addresses.push_back(std::move(networkAddress));
     }
 
-    result.HostName = Format("slot-%v.%v",
-        GetUserSlot()->GetSlotIndex(),
+    auto hostNamePrefix = TPatternFormatter()
+        .SetProperty("SlotIndex", ToString(GetUserSlot()->GetSlotIndex()))
+        .Format(CommonConfig_->JobHostNamePrefixPattern);
+    result.HostName = Format("%v.%v",
+        hostNamePrefix,
         Bootstrap_->GetConfig()->Addresses[0].second);
+
+    if (std::ssize(result.HostName) > MaxHostNameLength) {
+        THROW_ERROR_EXCEPTION("Job container host name %Qv is too long", result.HostName)
+            << TErrorAttribute("length", std::ssize(result.HostName))
+            << TErrorAttribute("max_length", MaxHostNameLength);
+    }
 
     return result;
 }

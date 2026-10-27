@@ -199,7 +199,7 @@ class TestGetOperation(YTEnvSetup):
         op.track()
 
         remove(op.get_path(), force=True)
-        with raises_yt_error(yt_error_codes.NoSuchOperation):
+        with raises_yt_error(code=yt_error_codes.NoSuchOperation):
             get_operation(op.id)
 
     @authors("ilpauzner")
@@ -309,7 +309,7 @@ class TestGetOperation(YTEnvSetup):
             if "alerts" in res_get_operation and "alerts" in res_cypress:
                 assert res_get_operation["alerts"] == res_cypress["alerts"]
 
-        with raises_yt_error(yt_error_codes.NoSuchAttribute):
+        with raises_yt_error(code=yt_error_codes.NoSuchAttribute):
             get_operation(op.id, attributes=["nonexistent-attribute-ZZZ"])
 
         assert get_operation(op.id, attributes=["runtime_parameters"])["runtime_parameters"]["annotations"] == annotations
@@ -339,7 +339,7 @@ class TestGetOperation(YTEnvSetup):
         assert res_get_operations_archive["slot_index_per_pool_tree"]["default"] == 0
         assert res_get_operations_archive["scheduling_attributes_per_pool_tree"]["default"]["slot_index"] == 0
 
-        with raises_yt_error(yt_error_codes.NoSuchAttribute):
+        with raises_yt_error(code=yt_error_codes.NoSuchAttribute):
             get_operation(op.id, attributes=["nonexistent-attribute-ZZZ"])
 
     @authors("gritukan")
@@ -397,7 +397,7 @@ class TestGetOperation(YTEnvSetup):
 
     @authors("kiselyovp", "ilpauzner")
     def test_not_existing_operation(self):
-        with raises_yt_error(yt_error_codes.NoSuchOperation):
+        with raises_yt_error(code=yt_error_codes.NoSuchOperation):
             get_operation("00000000-00000000-0000000-00000001")
 
     @authors("omgronny")
@@ -451,7 +451,7 @@ class TestGetOperation(YTEnvSetup):
 
         # The operation is in Cypress, but its Cypress progress is forced stale (maximum_cypress_progress_age=0)
         # while the archive is unavailable, so get_operation must surface a retriable archive error.
-        with raises_yt_error(yt_error_codes.RetriableArchiveError):
+        with raises_yt_error(code=yt_error_codes.RetriableArchiveError):
             get_operation(op.id, maximum_cypress_progress_age=0)
 
         if self.ENABLE_RPC_PROXY:
@@ -462,7 +462,7 @@ class TestGetOperation(YTEnvSetup):
             get_operation_from_archive_timeout_counter = profiler.counter("native_client/get_operation_from_archive_timeout_count")
             get_operation_from_archive_failure_counter = profiler.counter("native_client/get_operation_from_archive_failure_count")
 
-            with raises_yt_error(yt_error_codes.RetriableArchiveError):
+            with raises_yt_error(code=yt_error_codes.RetriableArchiveError):
                 get_operation(op.id, maximum_cypress_progress_age=0)
 
             assert get_operation_from_archive_success_counter.get_delta() == 0

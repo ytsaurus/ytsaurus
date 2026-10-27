@@ -1816,7 +1816,7 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesB
 
         # Chunk crosses tablet boundaries and is under nontrivial chunk view.
         sync_reshard_table("//tmp/t1", [[], [1]], driver=self.remote_driver)
-        with raises_yt_error(yt_error_codes.InvalidInputChunk):
+        with raises_yt_error(code=yt_error_codes.InvalidInputChunk):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -1830,7 +1830,7 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesB
         sync_freeze_table("//tmp/t3")
         merge(in_="//tmp/t3", out="//tmp/t3", mode="ordered")
         sync_unmount_table("//tmp/t3")
-        with raises_yt_error(yt_error_codes.InvalidInputChunk):
+        with raises_yt_error(code=yt_error_codes.InvalidInputChunk):
             remote_copy(
                 in_="//tmp/t3",
                 out="//tmp/t2",

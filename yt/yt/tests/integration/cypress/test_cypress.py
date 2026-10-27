@@ -1810,7 +1810,7 @@ class TestCypress(YTEnvSetup):
     def test_map_node_key_length_limits(self):
         set("//sys/@config/cypress_manager/max_map_node_key_length", 300)
         set("//tmp/" + "a" * 300, 0)
-        with raises_yt_error(yt_error_codes.MaxKeyLengthViolation):
+        with raises_yt_error(code=yt_error_codes.MaxKeyLengthViolation):
             set("//tmp/" + "a" * 301, 0)
 
     @authors("babenko")

@@ -271,7 +271,7 @@ class TestUsers(YTEnvSetup):
         assert get("//sys/groups/devs/@members") == ["max"]
         assert get("//sys/groups/devs/@members") == ["max"]
 
-        with raises_yt_error(yt_error_codes.IsAlreadyPresentInGroup):
+        with raises_yt_error(code=yt_error_codes.IsAlreadyPresentInGroup):
             add_member("max", "devs")
 
     @authors("asaitgalin", "babenko", "ignat")

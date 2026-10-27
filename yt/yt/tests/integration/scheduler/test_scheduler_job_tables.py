@@ -1138,7 +1138,7 @@ class TestCoreTable(YTEnvSetup):
         release_breakpoint()
 
         if fail_job_on_core_dump:
-            with raises_yt_error(yt_error_codes.UserJobProducedCoreFiles):
+            with raises_yt_error(code=yt_error_codes.UserJobProducedCoreFiles):
                 op.track()
         else:
             op.track()

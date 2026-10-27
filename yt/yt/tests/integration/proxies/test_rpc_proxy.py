@@ -338,7 +338,7 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
 
         query = "* from [//path/to/table]"
         user_tag = "example_user"
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             select_rows(query, user_tag=user_tag)
 
         b2 = self._write_log_barrier()
@@ -365,7 +365,7 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
         })
         time.sleep(0.5)
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             select_rows(query)
 
         b2 = self._write_log_barrier()
@@ -378,7 +378,7 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
         })
         time.sleep(0.5)
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             select_rows(query)
 
         b3 = self._write_log_barrier()
@@ -448,7 +448,7 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
         query = "* from [//path/to/some/table]"
         b0 = self._write_log_barrier()
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             select_rows(query)
 
         b1 = self._write_log_barrier()
@@ -459,7 +459,7 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
             })
             time.sleep(0.5)
 
-            with raises_yt_error(yt_error_codes.ResolveErrorCode):
+            with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
                 select_rows(query)
         finally:
             set("//sys/rpc_proxies/@config", {})

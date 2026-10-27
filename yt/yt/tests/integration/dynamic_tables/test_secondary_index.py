@@ -332,7 +332,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         if self.NUM_REMOTE_CLUSTERS:
             create_table_collocation(table_paths=["//tmp/table", "//tmp/secondary"])
         id = create_secondary_index("//tmp/table", "//tmp/secondary", "full_sync", authenticated_user="index_user")
-        with raises_yt_error(yt_error_codes.AuthorizationErrorCode):
+        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
             set(f"#{id}/@table_to_index_correspondence", "bijective", authenticated_user="index_user")
         set("//tmp/table/@acl", [make_ace("allow", "index_user", ["write"])])
         set(f"#{id}/@table_to_index_correspondence", "bijective", authenticated_user="index_user")
@@ -1189,7 +1189,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         )
 
         # Conflict within write itself.
-        with raises_yt_error(yt_error_codes.UniqueIndexConflict):
+        with raises_yt_error(code=yt_error_codes.UniqueIndexConflict):
             self._insert_rows([
                 {"keyA": 1, "keyB": "yyy", "valueB": True},
                 {"keyA": 2, "keyB": "yyy", "valueB": True},
@@ -1206,7 +1206,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             {"valueB": True, "keyA": 0, "keyB": "xxx"},
         ])
         # Existing True has different key - conflict.
-        with raises_yt_error(yt_error_codes.UniqueIndexConflict):
+        with raises_yt_error(code=yt_error_codes.UniqueIndexConflict):
             self._insert_rows([
                 {"keyA": 2, "keyB": "yyy", "valueB": True},
             ])
@@ -1251,7 +1251,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             {"valueA": 222, "keyB": "yyy", "keyA": 0},
         ])
         # Conflict with existing row.
-        with raises_yt_error(yt_error_codes.UniqueIndexConflict):
+        with raises_yt_error(code=yt_error_codes.UniqueIndexConflict):
             self._insert_rows([
                 {"keyA": 3, "keyB": "yyy", "valueA": 111},
             ])
@@ -1309,7 +1309,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         )
 
         # Both rows satisfy predicate, but there is a conflict.
-        with raises_yt_error(yt_error_codes.UniqueIndexConflict):
+        with raises_yt_error(code=yt_error_codes.UniqueIndexConflict):
             self._insert_rows([
                 {"keyA": 1, "valueA": 200, "valueB": True},
                 {"keyA": 2, "valueA": 200, "valueB": True},
@@ -1560,7 +1560,7 @@ class TestSecondaryIndexReplicatedSelect(TestSecondaryIndexReplicatedBase, TestS
 
         remove("//tmp/index_table", driver=self.REPLICA_DRIVER)
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             select_rows("* from [//tmp/table] with index [//tmp/index_table] I")
 
 

@@ -240,7 +240,7 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
     @authors("nadya73")
     def test_cpu_to_vcpu_factor_no_enough_cpu(self):
         self._init_dynamic_config()
-        with raises_yt_error(yt_error_codes.NoOnlineNodeToScheduleJob):
+        with raises_yt_error(code=yt_error_codes.NoOnlineNodeToScheduleJob):
             run_test_vanilla(
                 "sleep 1",
                 task_patch={"cpu_limit": 24},
@@ -263,7 +263,7 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
             }
         })
 
-        with raises_yt_error(yt_error_codes.NoOnlineNodeToScheduleJob):
+        with raises_yt_error(code=yt_error_codes.NoOnlineNodeToScheduleJob):
             run_test_vanilla(
                 "sleep 1",
                 task_patch={"cpu_limit": 24},
@@ -301,7 +301,7 @@ class TestVCpuDisableByDefault(YTEnvSetup):
             },
         })
 
-        with raises_yt_error(yt_error_codes.NoOnlineNodeToScheduleJob):
+        with raises_yt_error(code=yt_error_codes.NoOnlineNodeToScheduleJob):
             run_test_vanilla(
                 "sleep 1",
                 task_patch={"cpu_limit": 23},

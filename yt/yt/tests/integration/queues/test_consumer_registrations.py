@@ -1175,7 +1175,7 @@ class TestDataApiSingleCluster(TestDataApiBase):
             assert meta['cumulative_data_weight'] == 60
             assert 'offset_timestamp' in meta
 
-        with raises_yt_error(yt_error_codes.ConsumerOffsetConflict):
+        with raises_yt_error(code=yt_error_codes.ConsumerOffsetConflict):
             advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=4, new_offset=5, client_side=False)
 
         advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=3, new_offset=5, client_side=False)

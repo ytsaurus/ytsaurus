@@ -4783,7 +4783,7 @@ class TestChaos(ChaosTestBase):
             select_rows(f"* from [{left_path}] {hint} join [{right_path}] {hint} using key, value")
 
             if left_mode == "async" or right_mode == "async":
-                with raises_yt_error(yt_error_codes.NoInSyncReplicas):
+                with raises_yt_error(code=yt_error_codes.NoInSyncReplicas):
                     select_rows(f"* from [{left_path}] join [{right_path}] using key, value")
 
         map_in_parallel(select_and_check, product(("sync", "async"), ("sync", "async"), ("chaos", "regular"), ("chaos", "regular")))
@@ -5837,6 +5837,7 @@ class TestChaosMetaCluster(ChaosTestBase):
     ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 3
     NUM_CHAOS_NODES = 2
+    NUM_TEST_PARTITIONS = 3
 
     DELTA_CHAOS_NODE_CONFIG = {
         "chaos_node": {
@@ -6174,13 +6175,13 @@ class TestChaosMetaCluster(ChaosTestBase):
         def corrupt_id(original_id):
             return original_id[:-1] + "a" if original_id[-1] != "a" else original_id[:-1] + "b"
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             create_chaos_lease(alpha_cell, attributes={"parent_id": corrupt_id(lease_id)})
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             ping_chaos_lease(corrupt_id(lease_id))
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             remove(f"#{corrupt_id(lease_id)}")
 
     @authors("gryzlov-ad")

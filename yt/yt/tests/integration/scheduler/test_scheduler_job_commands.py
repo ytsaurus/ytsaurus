@@ -650,9 +650,9 @@ class TestJobShellInSubcontainer(TestJobProber):
         assert get_subcontainer_name(None) == ""
         assert get_subcontainer_name("nirvana") == "N"
 
-        with raises_yt_error(yt_error_codes.ContainerDoesNotExist):
+        with raises_yt_error(code=yt_error_codes.ContainerDoesNotExist):
             poll_shell("non_existent", "echo $PORTO_NAME", job_id, authenticated_user="root")
-        with raises_yt_error(yt_error_codes.NoSuchJobShell):
+        with raises_yt_error(code=yt_error_codes.NoSuchJobShell):
             poll_shell("brrr", "echo hi", job_id, authenticated_user="root")
 
         # Check job shell permissions.
@@ -661,7 +661,7 @@ class TestJobShellInSubcontainer(TestJobProber):
                 output = poll_shell(shell_name, "echo hi", job_id, user)
                 assert output == "hi\r\n"
             else:
-                with raises_yt_error(yt_error_codes.AuthorizationErrorCode):
+                with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
                     poll_shell(shell_name, "echo hi", job_id, user)
 
         check_job_shell_permission("default", "nirvana_boss", allowed=True)
@@ -846,7 +846,7 @@ class TestJobShellInSubcontainer(TestJobProber):
                 output = self._poll_until_shell_exited(job_id, r["shell_id"])
                 assert output == "hi\r\n"
             else:
-                with raises_yt_error(yt_error_codes.AuthorizationErrorCode):
+                with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
                     poll_job_shell(
                         job_id,
                         shell_name=shell_name,

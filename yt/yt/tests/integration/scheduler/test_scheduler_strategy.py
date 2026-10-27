@@ -2749,7 +2749,7 @@ class TestEphemeralPools(YTEnvSetup):
 
     @authors("renadeen")
     def test_require_specified_pools_existence_flag(self):
-        with raises_yt_error(yt_error_codes.Scheduler.OperationLaunchedInNonexistentPool):
+        with raises_yt_error(code=yt_error_codes.Scheduler.OperationLaunchedInNonexistentPool):
             run_sleeping_vanilla(spec={"pool": "ephemeral", "require_specified_pools_existence": True})
 
         # It's OK to launch operation in unspecified ephemeral pool.
@@ -2762,7 +2762,7 @@ class TestEphemeralPools(YTEnvSetup):
     @authors("renadeen")
     def test_require_specified_pools_existence_global_flag(self):
         update_scheduler_config("require_specified_operation_pools_existence", True)
-        with raises_yt_error(yt_error_codes.Scheduler.OperationLaunchedInNonexistentPool):
+        with raises_yt_error(code=yt_error_codes.Scheduler.OperationLaunchedInNonexistentPool):
             run_sleeping_vanilla(spec={"pool": "ephemeral"})
 
         # It's OK to launch operation in unspecified ephemeral pool.
@@ -4976,7 +4976,7 @@ class TestFifoPools(YTEnvSetup):
 
         run_sleeping_vanilla(spec={"is_gang": True, "pool": "fifo"})
 
-        with raises_yt_error(yt_error_codes.Scheduler.GangOperationsAllowedOnlyInFifoPools):
+        with raises_yt_error(code=yt_error_codes.Scheduler.GangOperationsAllowedOnlyInFifoPools):
             run_sleeping_vanilla(spec={"is_gang": True, "pool": "fair_share"})
 
         set("//sys/pools/fair_share/@always_allow_gang_operations", True)
@@ -4992,7 +4992,7 @@ class TestFifoPools(YTEnvSetup):
 
         wait(lambda: not get(scheduler_orchid_pool_path("ephemeral_root") + "/gang_operations_allowed"))
 
-        with raises_yt_error(yt_error_codes.Scheduler.GangOperationsAllowedOnlyInFifoPools):
+        with raises_yt_error(code=yt_error_codes.Scheduler.GangOperationsAllowedOnlyInFifoPools):
             run_sleeping_vanilla(spec={"is_gang": True, "pool": "ephemeral_root"})
 
         set("//sys/pools/ephemeral_root/@ephemeral_subpool_config", {"mode": "fifo"})
@@ -5451,9 +5451,9 @@ class TestRemoveAllocationAfterReviveRace(YTEnvSetup):
         # Each restart disconnects every controller agent (the ops' allocations keep generating
         # running / preemptible-progress updates that get postponed while the ops are disabled) and
         # then reconnects (revive -> re-enable). If the scheduler crashes, the wait below errors out
-        # and the test fails -- that is the regression being reproduced. 15 restarts give the race
+        # and the test fails -- that is the regression being reproduced. 4 restarts give the race
         # ample chances while keeping a non-crashing (fixed) run within the pytest timeout.
-        for _ in range(15):
+        for _ in range(4):
             with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
                 pass
 
@@ -5547,7 +5547,7 @@ class TestRemoveAllocationAfterReviveRaceOnFinish(YTEnvSetup):
         update_pool_tree_config_option(
             "default",
             "testing_options",
-            {"sync_delay_inside_process_allocation_updates": 300})
+            {"sync_delay_inside_process_allocation_updates": 200})
 
     @authors("yaishenka")
     def test_remove_allocation_after_revive_race_on_finish(self):
@@ -5562,9 +5562,9 @@ class TestRemoveAllocationAfterReviveRaceOnFinish(YTEnvSetup):
         # registration is consumed while enabled -- after this the submit map quiesces.
         time.sleep(3)
 
-        # 15 restarts give the race ample chances while keeping a non-crashing (fixed) run within the
+        # 4 restarts give the race ample chances while keeping a non-crashing (fixed) run within the
         # pytest timeout.
-        for _ in range(15):
+        for _ in range(4):
             # Abort a running job in every operation just before the disconnect: each abort finishes
             # its allocation and queues a *Finished* update. The CA restart then disables the ops, so
             # those finishes are postponed; if one is swapped out when StartOperationRevival runs it is

@@ -505,7 +505,7 @@ class TestHunkStorage(DynamicTablesBase):
         self._create_hunk_storage("//tmp/h")
         self._create_ordered_table("//tmp/t")
 
-        with raises_yt_error(ResolveErrorCode):
+        with raises_yt_error(code=ResolveErrorCode):
             set("//tmp/t/@hunk_storage_id", "1-2-3-4")
 
         file_id = create("file", "//tmp/f")

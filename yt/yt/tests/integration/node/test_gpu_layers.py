@@ -1597,7 +1597,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
             },
         )
 
-        with raises_yt_error(yt_error_codes.UserJobProducedCoreFiles):
+        with raises_yt_error(code=yt_error_codes.UserJobProducedCoreFiles):
             op.track()
 
         print_debug(_get_core_infos(op))

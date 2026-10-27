@@ -1262,7 +1262,7 @@ class TestFilesInSandbox(YTEnvSetup):
         write_table("//tmp/t", [{"x": 42}])
         write_table("//tmp/t_in", [{"a": "b"}])
 
-        with raises_yt_error(yt_error_codes.OperationFailedToPrepare):
+        with raises_yt_error(code=yt_error_codes.OperationFailedToPrepare):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -1724,10 +1724,7 @@ class TestUserJobIsolation(YTEnvSetup):
         job_id = wait_breakpoint()[0]
         network_project_id, hostname, _ = get_job_stderr(op.id, job_id).split(b"\n")
         assert network_project_id == str(int("0xDEADBEEF", base=16)).encode("ascii")
-        hostname_prefix = b"slot_"
-        if self.Env.get_component_version("ytserver-job-proxy").abi > (25, 1):
-            hostname_prefix = b"slot-"
-        assert hostname.startswith(hostname_prefix)
+        assert re.match(rb"s\d+\.", hostname)
         release_breakpoint()
         op.track()
 
@@ -3830,14 +3827,14 @@ class TestArtifactInvalidFormat(YTEnvSetup):
         }
     }
 >skiff"""
-        with raises_yt_error(yt_error_codes.InvalidFormat):
+        with raises_yt_error(code=yt_error_codes.InvalidFormat):
             self._run_map_with_format(bad_skiff_format)
 
     @authors("gepardo")
     def test_bad_protobuf(self):
         self._prepare_tables()
         bad_protobuf_format = "protobuf"
-        with raises_yt_error(yt_error_codes.InvalidFormat):
+        with raises_yt_error(code=yt_error_codes.InvalidFormat):
             self._run_map_with_format(bad_protobuf_format)
 
     @authors("gepardo")
@@ -3850,28 +3847,28 @@ class TestArtifactInvalidFormat(YTEnvSetup):
     def test_bad_dsv(self):
         self._prepare_tables()
         bad_dsv_format = "<key_value_separator = %true>dsv"
-        with raises_yt_error(yt_error_codes.InvalidFormat):
+        with raises_yt_error(code=yt_error_codes.InvalidFormat):
             self._run_map_with_format(bad_dsv_format)
 
     @authors("gepardo")
     def test_bad_yamred_dsv(self):
         self._prepare_tables()
         bad_dsv_format = '<enable_escaping = "some_long_string">yamred_dsv'
-        with raises_yt_error(yt_error_codes.InvalidFormat):
+        with raises_yt_error(code=yt_error_codes.InvalidFormat):
             self._run_map_with_format(bad_dsv_format)
 
     @authors("gepardo")
     def test_bad_schemaful_dsv(self):
         self._prepare_tables()
         bad_dsv_format = '<enable_escaping = "some_long_string">schemaful_dsv'
-        with raises_yt_error(yt_error_codes.InvalidFormat):
+        with raises_yt_error(code=yt_error_codes.InvalidFormat):
             self._run_map_with_format(bad_dsv_format)
 
     @authors("gepardo")
     def test_bad_web_json(self):
         self._prepare_tables()
         bad_web_json_format = '<field_weight_limit = -42>web_json'
-        with raises_yt_error(yt_error_codes.InvalidFormat):
+        with raises_yt_error(code=yt_error_codes.InvalidFormat):
             self._run_map_with_format(bad_web_json_format)
 
 
@@ -4013,7 +4010,7 @@ class TestConsecutiveJobAbortsPorto(YTEnvSetup):
             },
         )
 
-        with raises_yt_error(yt_error_codes.MaxFailedJobsLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.MaxFailedJobsLimitExceeded):
             op.track()
 
         wait(lambda: get("//sys/cluster_nodes/{}/@alerts".format(node)))

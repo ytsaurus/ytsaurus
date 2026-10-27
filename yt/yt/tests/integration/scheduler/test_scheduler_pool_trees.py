@@ -1843,7 +1843,7 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
         create_pool_tree("other", config={"node_tag_filter": "other"})
         create_pool("pool", pool_tree="other", attributes={"max_running_operation_count": 0, "max_operation_count": 0})
 
-        with raises_yt_error(yt_error_codes.TooManyOperations):
+        with raises_yt_error(code=yt_error_codes.TooManyOperations):
             run_sleeping_vanilla(spec={"pool": "pool", "pool_trees": ["default", "other"]})
 
         op = run_sleeping_vanilla(spec={
@@ -1854,7 +1854,7 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
         wait(lambda: get(op.get_path() + "/@runtime_parameters/erased_trees", default=None) == ["other"])
         wait(lambda: ls(op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree") == ["default"])
 
-        with raises_yt_error(yt_error_codes.TooManyOperations) as errors:
+        with raises_yt_error(code=yt_error_codes.TooManyOperations) as errors:
             run_sleeping_vanilla(spec={
                 "pool": "pool",
                 "pool_trees": ["other"],
@@ -1914,7 +1914,7 @@ class TestOperationJobResourceLimitsRestrictions(YTEnvSetup):
         run_test_vanilla("echo OK >&2", track=True)
 
         def check_op(task_patch):
-            with raises_yt_error(yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
+            with raises_yt_error(code=yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
                 run_test_vanilla("echo FAIL >&2", task_patch=task_patch, track=True)
 
             op = run_sleeping_vanilla(spec={"pool_trees": ["default", "other"]}, task_patch=task_patch)
@@ -1956,7 +1956,7 @@ class TestOperationJobResourceLimitsRestrictions(YTEnvSetup):
 
         wait(lambda: not get(op2.get_path() + "/@runtime_parameters/erased_trees", []))
 
-        with raises_yt_error(yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
+        with raises_yt_error(code=yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
             run_test_vanilla("echo FAIL >&2", track=True)
 
 

@@ -883,7 +883,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         user_tx = start_transaction(timeout=5000)
 
-        with raises_yt_error(yt_error_codes.TooManyOperations):
+        with raises_yt_error(code=yt_error_codes.TooManyOperations):
             run_sleeping_vanilla(pool="test_pool", tx=user_tx)
 
         abort_transaction(user_tx)

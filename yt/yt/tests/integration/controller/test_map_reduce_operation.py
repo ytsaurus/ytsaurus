@@ -3772,7 +3772,7 @@ while True:
         ]
         write_table("//tmp/t_in", gen_data(wrong_values))
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
