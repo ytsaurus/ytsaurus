@@ -3,10 +3,13 @@
 #include <yt/yt/flow/library/cpp/controller/controller_service.h>
 #include <yt/yt/flow/library/cpp/controller/flow_executor.h>
 #include <yt/yt/flow/library/cpp/controller/state_manager.h>
+#include <yt/yt/flow/library/cpp/controller/worker_tracker_service.h>
 
 #include <yt/yt/flow/library/cpp/partitioning/partitioning_coordinator.h>
 
 #include <yt/yt/flow/library/cpp/controller/config.h>
+
+#include <yt/yt/flow/library/cpp/controller/unittests/mock/controller.h>
 #include <yt/yt/flow/library/cpp/controller/unittests/mock/persisted_state_manager.h>
 #include <yt/yt/flow/library/cpp/controller/unittests/mock/worker_tracker.h>
 #include <yt/yt/flow/library/cpp/controller/unittests/mock/yt_connector.h>
@@ -30,14 +33,25 @@
 
 #include <yt/yt/flow/library/cpp/client/controller/controller_service_proxy.h>
 
+#include <yt/yt/flow/library/cpp/common/controller/worker_tracker_service_proxy.h>
+
 #include <yt/yt/core/actions/invoker_util.h>
+
+#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <yt/yt/core/rpc/local_channel.h>
 #include <yt/yt/core/rpc/local_server.h>
 #include <yt/yt/core/rpc/server.h>
 #include <yt/yt/core/rpc/service.h>
 #include <yt/yt/core/test_framework/framework.h>
+
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
 
 #include <util/system/type_name.h>
 
@@ -1408,7 +1422,7 @@ TEST_F(TControllerTest, WorkerIncarnationsJobsSurviveLateWorkerRegistration)
     dynamicSpec->JobManager->AsyncBalancing = false;
     dynamicSpec->Computations["computation"] = New<TDynamicComputationSpec>();
 
-    auto versionProvider = New<TFakeVersionProvider>(1);
+    auto versionProvider = New<TFakeVersionProvider>(/*unixTime*/ 1);
     const auto& state = PersistedStateManagerLocalState;
     state->FlowView->State->AttachToControl(state->PersistedMasterControl);
     state->PersistedMasterControl->Recover();
@@ -1469,11 +1483,12 @@ TEST_F(TControllerTest, WorkerIncarnationsJobsSurviveLateWorkerRegistration)
     EXPECT_CALL(*Transaction, Abort(_))
         .WillRepeatedly(Return(OKFuture));
 
-    std::atomic<bool> lateWorkerRegistered = false;
+    // The scheduler retains this action until #TearDown() joins its threads.
+    auto lateWorkerRegistered = std::make_shared<std::atomic<bool>>(false);
     EXPECT_CALL(*WorkerTracker, GetWorkers())
-        .WillRepeatedly([&] {
+        .WillRepeatedly([earlyWorker, lateWorker, lateWorkerRegistered] {
             std::vector<TWorkerInfo> workers{earlyWorker};
-            if (lateWorkerRegistered.load()) {
+            if (lateWorkerRegistered->load()) {
                 workers.push_back(lateWorker);
             }
             return workers;
@@ -1512,7 +1527,7 @@ TEST_F(TControllerTest, WorkerIncarnationsJobsSurviveLateWorkerRegistration)
         }
         expectIndexMatchesLayout();
 
-        lateWorkerRegistered = true;
+        lateWorkerRegistered->store(true);
         if (!waitForRegisteredWorkers(2)) {
             StopLeading();
             FAIL() << "The late worker was not registered";
@@ -1521,6 +1536,111 @@ TEST_F(TControllerTest, WorkerIncarnationsJobsSurviveLateWorkerRegistration)
 
         StopLeading();
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TWorkerTrackerServiceTest, HeartbeatDeliversDynamicSpecsOfLateWorkerJobs)
+{
+    using NYT::FromProto;
+    using NYT::ToProto;
+
+    auto localState = New<TPersistedStateManagerLocalState>();
+    const auto& state = localState->FlowView->State;
+    state->AttachToControl(localState->PersistedMasterControl);
+    localState->PersistedMasterControl->Recover();
+
+    auto registerWorker = [&] (const std::string& address) {
+        auto worker = New<NFlow::TWorker>();
+        worker->RpcAddress = address;
+        worker->IncarnationId = TIncarnationId(TGuid::Create());
+        state->Workers[address] = worker;
+        return worker;
+    };
+    auto earlyWorker = registerWorker("early-worker.net:81");
+    auto lateWorker = registerWorker("late-worker.net:81");
+
+    auto ephemeralState = New<TFlowEphemeralState>();
+    auto createJob = [&] (const NFlow::TWorkerPtr& worker) {
+        auto partition = New<TPartition>();
+        partition->PartitionId = TPartitionId(TGuid::Create());
+        partition->ComputationId = TComputationId("computation");
+        partition->State = EPartitionState::Executing;
+        partition->StateTimestamp = TInstant::Now();
+        state->ExecutionSpec->Layout->CreatePartition(partition);
+
+        auto job = New<TJob>();
+        job->JobId = TJobId(TGuid::Create());
+        job->PartitionId = partition->PartitionId;
+        job->WorkerAddress = worker->RpcAddress;
+        job->WorkerIncarnationId = worker->IncarnationId;
+        state->ExecutionSpec->Layout->CreateJob(job);
+
+        ephemeralState->WorkerIncarnationsJobs[worker->IncarnationId].insert(job->JobId);
+        const auto& dynamicPartitionSpec = ephemeralState->GetPartitionState(partition->PartitionId)->DynamicPartitionSpec;
+        dynamicPartitionSpec->FinishAfterCurrentEpoch = worker == lateWorker;
+        dynamicPartitionSpec->ComputationPartitionSpec = GetEphemeralNodeFactory()->CreateMap();
+        dynamicPartitionSpec->ComputationPartitionSpec->AddChild("worker_address", ConvertToNode(worker->RpcAddress));
+        return job->JobId;
+    };
+    state->StartMutation();
+    createJob(earlyWorker);
+    const auto lateJobId = createJob(lateWorker);
+    state->CommitMutation();
+
+    auto flowViewKeeper = New<TFlowViewKeeper>();
+    flowViewKeeper->Init(state, ephemeralState, localState->Spec, localState->DynamicSpec);
+
+    auto controller = New<StrictMock<TMockController>>();
+    EXPECT_CALL(*controller, GetFlowViewKeeper())
+        .WillRepeatedly(Return(flowViewKeeper));
+    EXPECT_CALL(*controller, RegisterWorkerStatus(_, _))
+        .Times(AnyNumber());
+
+    TWorkerInfo lateWorkerInfo;
+    static_cast<TNodeInfoBase&>(lateWorkerInfo) = static_cast<const TNodeInfoBase&>(*lateWorker);
+    lateWorkerInfo.State = EWorkerState::Registered;
+    auto workerTracker = New<StrictMock<TMockWorkerTracker>>();
+    EXPECT_CALL(*workerTracker, HandleWorkerHeartbeat(lateWorker->RpcAddress, _, _))
+        .WillOnce(Return(lateWorkerInfo));
+
+    auto authenticator = New<StrictMock<TMockPipelineAuthenticator>>();
+    EXPECT_CALL(*authenticator, CreateSelfRpcAuthenticator())
+        .WillOnce(Return(nullptr));
+    EXPECT_CALL(*authenticator, CreateSelfCredentialsInjectingChannelFactory(_))
+        .WillOnce(Return(nullptr));
+
+    auto actionQueue = New<TActionQueue>("HeartbeatTest");
+    auto server = NRpc::CreateLocalServer();
+    server->RegisterService(CreateWorkerTrackerService(
+        controller,
+        workerTracker,
+        actionQueue->GetInvoker(),
+        /*channelFactory*/ nullptr,
+        authenticator));
+    server->Start();
+
+    TWorkerTrackerServiceProxy proxy(NRpc::CreateLocalChannel(server));
+    auto request = proxy.Heartbeat();
+    request->set_worker_rpc_address(lateWorker->RpcAddress);
+    ToProto(request->mutable_connection_incarnation_id(), NWorker::TIncarnationId(TGuid::Create()));
+    request->set_heartbeat_seq_no(1);
+    request->set_execution_spec_versions(ToProto(ConvertToYsonString(New<TExecutionSpecVersions>())));
+    request->set_worker_status(ToProto(ConvertToYsonString(New<TWorkerStatus>())));
+    auto response = WaitFor(request->Invoke())
+        .ValueOrThrow();
+
+    ASSERT_EQ(response->jobs_dynamic_computation_partition_specs_size(), 1);
+    const auto& jobSpec = response->jobs_dynamic_computation_partition_specs(0);
+    EXPECT_EQ(FromProto<TJobId>(jobSpec.job_id()), lateJobId);
+    auto deliveredSpec = ConvertTo<TDynamicPartitionSpecPtr>(TYsonStringBuf(jobSpec.spec()));
+    EXPECT_TRUE(deliveredSpec->FinishAfterCurrentEpoch);
+    ASSERT_TRUE(deliveredSpec->ComputationPartitionSpec);
+    EXPECT_EQ(
+        deliveredSpec->ComputationPartitionSpec->GetChildValueOrThrow<std::string>("worker_address"),
+        lateWorker->RpcAddress);
+
+    YT_UNUSED_FUTURE(server->Stop());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
