@@ -4,9 +4,9 @@ import re
 import yatest.common
 
 from yql_utils import get_supported_providers, is_xfail, is_skip_forceblocks, \
-    do_custom_query_check, is_with_final_result_issues, yql_binary_path, get_param
+    do_custom_query_check, is_with_final_result_issues, yql_binary_path, get_param, pytest_get_current_part
 
-from test_utils import get_config
+from test_utils import collect_argvalues_for_run, get_config
 from test_file_common import run_file, run_file_no_cache
 
 from yt.yql.tests.sql.runners.common import (
@@ -21,6 +21,27 @@ from yt.yql.tests.sql.runners.compare import compare_file_run_with_reference
 
 DQRUN_PATH = yql_binary_path('yt/yql/tools/dqrun_light/dqrun_light')
 YTFILERUN_PATH = yql_binary_path('yt/yql/tools/ytfilerun/impl/ytfilerun')
+
+
+def make_test_class(suite, case, cfg):
+    class TestCase:
+        @pytest.mark.parametrize('what', ['Results', 'ForceBlocks', 'Plan'])
+        def test(self, tmpdir, what, yql_http_file_server):
+            return run_test(suite, case, cfg, tmpdir, what, yql_http_file_server)
+
+    TestCase.__name__ = 'TestDqFile_{}-{}-{}'.format(suite, case, cfg)
+    return TestCase
+
+
+def collect_test_classes(test_file):
+    current_part, part_count = pytest_get_current_part(test_file)
+    classes = {}
+    for template in ('.sql', '.yql'):
+        for suite, case, cfg in collect_argvalues_for_run(template, None, current_part, part_count, DATA_PATH, None):
+            cls = make_test_class(suite, case, cfg)
+            assert cls.__name__ not in classes, 'Duplicate SQL case: {}'.format(cls.__name__)
+            classes[cls.__name__] = cls
+    return classes
 
 
 def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
