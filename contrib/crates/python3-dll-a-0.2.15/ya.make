@@ -32,6 +32,13 @@ CRATE_INPUTS(
 
 CRATE_FLAGS(--cap-lints=allow)
 
+IF (OS_WINDOWS AND ARCH_X86_64)
+    PEERDIR(
+    contrib/crates/cc-1.10.0
+)
+
+ENDIF()
+
 LICENSE("MIT")
 VERSION(0.2.15)
 ORIGINAL_SOURCE(https://static.crates.io/crates/python3-dll-a/python3-dll-a-0.2.15.crate)
