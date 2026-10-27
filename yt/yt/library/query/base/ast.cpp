@@ -252,6 +252,43 @@ bool operator==(const TJoin& lhs, const TJoin& rhs)
         std::tie(rhs.IsLeft, rhs.Table, rhs.Fields, rhs.Lhs, rhs.Rhs, rhs.Predicate);
 }
 
+bool TQuery::operator==(const TQuery& other) const
+{
+    if (FromClause.index() != other.FromClause.index()) {
+        return false;
+    }
+
+    auto fromClauseEqual = Visit(FromClause,
+        [&] (const TTableDescriptor& table) {
+            return table == std::get<TTableDescriptor>(other.FromClause);
+        },
+        [&] (TQueryAstHeadPtr subquery) {
+            auto* otherSubquery = std::get<TQueryAstHeadPtr>(other.FromClause);
+            if (!subquery || !otherSubquery) {
+                return subquery == otherSubquery;
+            }
+            return
+                subquery->Ast == otherSubquery->Ast &&
+                subquery->Alias == otherSubquery->Alias;
+        },
+        [&] (const TExpressionList& expressions) {
+            return expressions == std::get<TExpressionList>(other.FromClause);
+        });
+
+    return
+        fromClauseEqual &&
+        WithIndex == other.WithIndex &&
+        Joins == other.Joins &&
+        SelectExprs == other.SelectExprs &&
+        WherePredicate == other.WherePredicate &&
+        GroupExprs == other.GroupExprs &&
+        TotalsMode == other.TotalsMode &&
+        HavingPredicate == other.HavingPredicate &&
+        OrderExpressions == other.OrderExpressions &&
+        Offset == other.Offset &&
+        Limit == other.Limit;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFormatOptions
@@ -720,8 +757,9 @@ void FormatJoin(TStringBuilderBase* builder, const TJoin& join, const TFormatOpt
             formatter);
     }
     if (join.Predicate) {
-        builder->AppendString(" AND ");
+        builder->AppendString(" AND (");
         FormatExpression(builder, *join.Predicate, /*depth*/ 0, options);
+        builder->AppendChar(')');
     }
 }
 
@@ -756,8 +794,9 @@ void FormatArrayJoin(TStringBuilderBase* builder, const TArrayJoin& join, const 
             formatter);
     }
     if (join.Predicate) {
-        builder->AppendString(" AND ");
+        builder->AppendString(" AND (");
         FormatExpression(builder, *join.Predicate, /*depth*/ 0, options);
+        builder->AppendChar(')');
     }
 }
 

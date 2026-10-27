@@ -532,7 +532,7 @@ struct TQuery
     std::optional<i64> Offset;
     std::optional<i64> Limit;
 
-    bool operator==(const TQuery& other) const = default;
+    bool operator==(const TQuery& other) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
