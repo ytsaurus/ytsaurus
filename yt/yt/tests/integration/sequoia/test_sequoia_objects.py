@@ -726,6 +726,7 @@ class TestSequoiaReplicas(YTEnvSetup):
             return True
 
         wait(check_up, ignore_exceptions=True)
+        self.Env.synchronize()
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_period", 100)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
