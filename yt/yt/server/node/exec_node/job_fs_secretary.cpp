@@ -381,16 +381,24 @@ void TJobFSSecretary::ConfigureUdfArtifacts(TNonNullPtr<TJobFSDescription> descr
 void TJobFSSecretary::ConfigureNbdDeviceIds(TNonNullPtr<TJobFSDescription> description)
 {
     int nbdDeviceCount = 0;
-    if (description->RootVolumeParams) {
+    auto configureLayerDeviceIds = [&] (const TBaseVolumeParamsPtr& params) {
+        if (!params) {
+            return;
+        }
         // Mark NBD layers with NBD device ids.
-        for (auto& layer : description->RootVolumeParams->LayerArtifactKeys.GetAll()) {
+        for (auto& layer : params->LayerArtifactKeys.GetAll()) {
             if (NYT::FromProto<ELayerAccessMethod>(layer.access_method()) == ELayerAccessMethod::Nbd) {
                 auto deviceId = GetOrCreateNbdDeviceId(layer);
-                EmplaceOrCrash(NbdDeviceIds_, deviceId);
+                // The same layer may be used by multiple volumes.
+                NbdDeviceIds_.insert(deviceId);
                 layer.set_nbd_device_id(deviceId);
                 ++nbdDeviceCount;
             }
         }
+    };
+    configureLayerDeviceIds(description->RootVolumeParams);
+    for (const auto& params : description->NonRootVolumeParams) {
+        configureLayerDeviceIds(params);
     }
 
     // Mark artifacts that will be accessed via virtual layer and create virtual artifact key.

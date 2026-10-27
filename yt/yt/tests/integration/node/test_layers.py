@@ -2618,6 +2618,71 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         assert cache_hit_sync_counter.get_delta() + cache_hit_async_counter.get_delta() == self.NUM_USER_SLOTS - 1
 
 
+class TestNbdNonRootLayer(YTEnvSetup):
+    USE_PORTO = True
+    ENABLE_MULTIDAEMON = False
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {"volume_manager": {"enable_disk_quota": False}},
+        "job_resource_manager": {"resource_limits": {"cpu": 2, "user_slots": 1}},
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "nbd": {
+                    "enabled": True,
+                    "client": {"io_timeout": 30000},
+                    "server": {"unix_domain_socket": {"path": _make_random_uds_path()}},
+                },
+            },
+        },
+    }
+
+    @authors("krasovav")
+    @pytest.mark.parametrize("share_with_root", [False, True])
+    def test_nbd_layer_in_non_root_volume(self, share_with_root):
+        layer_path = "//tmp/non_root_only_squashfs_{}.img".format(make_random_string(16))
+        create("file", layer_path, attributes={"replication_factor": 1})
+        with open("layers/squashfs.img", "rb") as image:
+            write_file(layer_path, image.read(), file_writer={"upload_replication_factor": 1})
+        set(layer_path + "/@access_method", "nbd")
+        set(layer_path + "/@filesystem", "squashfs")
+
+        vanilla(spec={
+            "max_failed_job_count": 1,
+            "tasks": {
+                "master": {
+                    "job_count": 1,
+                    "command": " ; ".join([
+                        "set -eu",
+                        "ls /dir | grep -q squash_file" if share_with_root else "test ! -e /dir",
+                        "ls /data/dir | grep -q squash_file",
+                        "echo writable > /data/written",
+                        'test "$(cat /data/written)" = writable',
+                    ]),
+                    "volumes": {
+                        "root": {
+                            "disk_request": {"type": "local_disk", "disk_space": 10 * 1024 * 1024},
+                            "layers": rootfs_layers(layer_path) if share_with_root else rootfs_layers(),
+                        },
+                        "data": {
+                            "disk_request": {"type": "local_disk", "disk_space": 4 * 1024 * 1024},
+                            "layers": [{"path": layer_path}],
+                        },
+                    },
+                    "job_volume_mounts": [
+                        {"volume_id": "root", "mount_path": "/"},
+                        {"volume_id": "data", "mount_path": "/data"},
+                    ],
+                },
+            },
+        })
+
+
 @authors("yuryalekseev")
 class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
     NUM_SCHEDULERS = 1
