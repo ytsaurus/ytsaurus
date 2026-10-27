@@ -1153,7 +1153,8 @@ class YTEnvSetup(object):
         cls.remote_envs = []
 
         if test_name is None:
-            test_name = cls.__name__
+            # Classes in different modules may share a name; their working directories must not.
+            test_name = f"{cls.__module__.rsplit('.', 1)[-1]}.{cls.__name__}"
         cls.test_name = test_name
 
         cls.liveness_checkers = []
