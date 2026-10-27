@@ -92,6 +92,7 @@ def with_ytflow_default_settings(**new_values):
 
 
 class TestYtflowBase(TestQueueAgentBase):
+    CLASS_TEST_LIMIT = 1000
     ENABLE_MULTIDAEMON = True
 
     NUM_MASTERS = 1
