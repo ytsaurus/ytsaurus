@@ -38,7 +38,10 @@
 
 #include <yt/yt/core/rpc/bus/server.h>
 
+#include <yt/yt/core/ytree/attributes.h>
+#include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/ypath_service.h>
 
 #include <contrib/clickhouse/src/Common/Exception.h>
 
@@ -192,6 +195,18 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/queries",
         CreateVirtualNode(Host_->GetQueryRegistry()->GetOrchidService()));
+
+    SetNodeByYPath(
+        orchidRoot,
+        "/clique_discovery",
+        CreateVirtualNode(IYPathService::FromProducer(BIND([host = Host_] (NYson::IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .DoFor(host->GetDiscoveryNodes(), [] (TFluentMap fluent, const auto& member) {
+                        fluent.Item(member.first).Value(member.second->ToMap());
+                    })
+                .EndMap();
+        }))));
 
     YT_TLOG_INFO("Monitoring HTTP server set up")
         .With("Port", Config_->MonitoringPort);

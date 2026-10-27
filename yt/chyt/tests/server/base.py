@@ -453,24 +453,8 @@ class Clique(object):
         print_debug("Waiting for all instances to know about each other")
 
         def check_all_instance_pairs():
-            clique_size_per_instance = []
-            for instance in self.get_active_instances():
-                try:
-                    clique_size = self.make_direct_query(instance, "select count(*) from system.clique", verbose=False)[0][
-                        "count()"
-                    ]
-                except YtError as err:
-                    if not err.contains_code(InstanceUnavailableCode):
-                        raise
-                    # The discovery group is shared between incarnations of a clique with
-                    # the same alias, so it may contain a stale member of a dead instance
-                    # until its lease expires.
-                    return False
-                clique_size_per_instance.append(clique_size)
-            # print_debug("Clique sizes over all instances: {}".format(clique_size_per_instance))
-            if not clique_size_per_instance:
-                return False
-            return min(clique_size_per_instance) == self.instance_count
+            instances = self.get_active_instances()
+            return len(instances) == self.instance_count and self._check_discovery_sync(instances)
 
         wait(check_all_instance_pairs)
 
@@ -804,23 +788,38 @@ class Clique(object):
     def get_clique_id(self):
         return self.op.id
 
+    def _check_discovery_sync(self, instances):
+        if not instances:
+            return False
+        job_ids = {str(instance) for instance in instances}
+        for instance in instances:
+            try:
+                response = requests.get(
+                    "http://{}:{}/orchid/clique_discovery".format(
+                        instance.attributes["host"], instance.attributes["monitoring_port"]
+                    ),
+                    timeout=5,
+                )
+                response.raise_for_status()
+                members = response.json()
+            except (requests.ConnectionError, requests.Timeout):
+                return False
+            if set(members) != job_ids:
+                return False
+        return True
+
     def wait_instance_count(self, instance_count, unwanted_jobs=[], wait_discovery_sync=False):
         unwanted_jobs = [str(job) for job in unwanted_jobs]
 
         def check():
             instances = sorted(self.get_active_instances())
-            job_ids = [str(instance) for instance in instances]
             if len(instances) != instance_count:
                 return False
             for instance in instances:
                 if str(instance) in unwanted_jobs:
                     return False
             if wait_discovery_sync:
-                for instance in instances:
-                    result = self.make_direct_query(instance, "select job_id from system.clique order by job_id")
-                    result = [instance["job_id"] for instance in result]
-                    if result != job_ids:
-                        return False
+                return self._check_discovery_sync(instances)
             return True
 
         wait(check)
