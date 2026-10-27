@@ -406,6 +406,7 @@ struct TAllocationRequestStatus
     : public NYTree::TYsonStruct
 {
     std::string State;
+    std::string YPCluster;
     std::string NodeId;
     std::string PodId;
 

@@ -309,6 +309,8 @@ void TAllocationRequestStatus::Register(TRegistrar registrar)
 {
     registrar.Parameter("state", &TThis::State)
         .Default();
+    registrar.Parameter("yp_cluster", &TThis::YPCluster)
+        .Default();
     registrar.Parameter("node_id", &TThis::NodeId)
         .Default();
     registrar.Parameter("pod_id", &TThis::PodId)

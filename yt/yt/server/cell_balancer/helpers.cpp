@@ -45,6 +45,13 @@ int GetTargetDataCenterInstanceCount(
 }
 
 
+const std::string& GetAllocationYPCluster(const TAllocationRequestPtr& request)
+{
+    return request->Status->YPCluster.empty()
+        ? request->Spec->YPCluster
+        : request->Status->YPCluster;
+}
+
 TBundleControllerInstanceAnnotationsPtr GetBundleControllerInstanceAnnotationsToSet(
     const std::string& bundleName,
     const std::string& dataCenterName,
@@ -55,7 +62,7 @@ TBundleControllerInstanceAnnotationsPtr GetBundleControllerInstanceAnnotationsTo
         return {};
     }
     auto result = NYTree::CloneYsonStruct(bundleControllerAnnotations);
-    result->YPCluster = allocationInfo->Spec->YPCluster;
+    result->YPCluster = GetAllocationYPCluster(allocationInfo);
     result->NannyService = allocationInfo->Spec->NannyService;
     result->AllocatedForBundle = bundleName;
     result->DataCenter = dataCenterName;
