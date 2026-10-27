@@ -34,7 +34,7 @@
 || `allowed_partition_count_deviation` | **Тип**: `std::optional<double>`
  ||
 || `partition_count_double_delay` | **Тип**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
- ||
+Опорная задержка удвоения числа партиций. Перенарезка по весам может менять границы без изменения числа партиций. Её задержка делится на min(1 + CV, 10). CV — отношение стандартного отклонения текущих весов партиций к их среднему. Чем сильнее перекос, тем меньше ожидание. Перемещение границ не перезапускает задержку изменения числа партиций. ||
 || `partition_count_half_delay` | **Тип**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
  ||
 || `weight_multiplier` | **Тип**: `double`

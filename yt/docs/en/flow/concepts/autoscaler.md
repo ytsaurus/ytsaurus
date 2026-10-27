@@ -31,3 +31,13 @@ The Throughput algorithm is disabled by default. Enable it with `dynamic_spec.jo
 ## Timer memory {#timers}
 
 The timer criterion increases the partition count when the average number of timers per partition exceeds `desired_average_partition_timer_count`. This limits timer accumulation and memory use. A similar criterion tracks average job memory usage through `desired_average_partition_memory_used`.
+
+## Weighted boundaries {#weighted-boundaries}
+
+With `experimental_enable_non_uint_key`, the controller can move partition boundaries using sampled keys (pivots). This works with both legacy count criteria and Throughput, including a fixed `desired_partition_count`. Key-count partitioning uses its own policy.
+
+With Throughput enabled, partition weights are their current input message rates (RPS). This also applies during warm-up and with a fixed partition count. With Throughput disabled, boundary selection uses the highest current average-to-target ratio among enabled criteria with partition weights. For example, CPU can determine the boundaries even when memory usage remains uneven. A retained historical count peak does not select the criterion.
+
+A partition without pivots remains indivisible. Its pivots are optional when its input message rate is below `0.5 * total_input_rate / current_partition_count`. A zero-flow partition needs no pivots. The denominator is the current count, including when planning growth. Missing status or input metrics defer weighted rebalancing.
+
+When preserving the partition count, the controller moves boundaries only if the candidate reduces estimated weight imbalance. The delay decreases with the current imbalance, from `partition_count_double_delay` down to one tenth of that value. Boundary moves do not restart the count-change cooldown. If growth lacks enough pivots, the controller can still rebalance at the current count.

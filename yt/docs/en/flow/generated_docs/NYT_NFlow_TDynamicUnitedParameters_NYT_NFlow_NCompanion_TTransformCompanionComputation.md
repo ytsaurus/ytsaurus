@@ -34,7 +34,7 @@ Multiplier limiting Throughput growth without a confirmed increase in Processed.
 || `allowed_partition_count_deviation` | **Type**: `std::optional<double>`
  ||
 || `partition_count_double_delay` | **Type**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
- ||
+Reference delay for doubling the partition count. Weighted rebalancing can move boundaries while preserving the count. Its delay is divided by min(1 + CV, 10). CV is the standard deviation of current partition weights divided by their mean. Greater imbalance reduces the wait. Moving boundaries does not restart the partition-count cooldown. ||
 || `partition_count_half_delay` | **Type**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
  ||
 || `weight_multiplier` | **Type**: `double`

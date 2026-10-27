@@ -733,6 +733,417 @@ TEST_F(TPartitioningTransactionTest, KeyCountOrdinaryFailureDoesNotRepartition)
     EXPECT_EQ(partition->UpperKey, MaxKey());
 }
 
+class TPivotRebalanceTest
+    : public TPartitioningTransactionTest
+{
+protected:
+    void SetUp() override
+    {
+        TPartitioningTransactionTest::SetUp();
+        const auto& computationSpec = GetOrCrash(Spec_->Computations, ComputationId_);
+        computationSpec->ExperimentalEnableNonUintKey = true;
+        computationSpec->PivotFinder.PartCount = 2;
+        FlowView_->State->ExecutionSpec->DynamicPipelineSpec->GetValue()
+            ->JobManager->Partitioning->EnableThroughputAutoscaler = false;
+        auto& spec = Controller_->PartitioningSpec;
+        spec->DesiredPartitionCount = 2;
+        spec->MaxPartitionCount = 16;
+        spec->PartitionCountDoubleDelay = TDuration::Zero();
+        spec->PartitionCountHalfDelay = TDuration::Zero();
+        Job_->InputMetrics->Global.Pivots = {MakeKey(ui64(50))};
+        RunIteration();
+        ASSERT_EQ(GetPartitions().size(), 2u);
+        ASSERT_EQ(GetBoundary(), MakeKey(ui64(50)));
+    }
+
+    std::vector<TPartitionPtr> GetPartitions() const
+    {
+        std::vector<TPartitionPtr> result;
+        for (const auto& [_, partition] : FlowView_->State->ExecutionSpec->Layout->Partitions) {
+            if (partition->State == EPartitionState::Executing) {
+                result.push_back(partition);
+            }
+        }
+        std::ranges::sort(result, /*comp*/ {}, [] (const auto& partition) {
+            return *partition->LowerKey;
+        });
+        return result;
+    }
+
+    TKey GetBoundary() const
+    {
+        return *GetPartitions().front()->UpperKey;
+    }
+
+    void SetFeedback(double lowCpu, double highCpu, ui64 lowPivot, ui64 highPivot)
+    {
+        const auto partitions = GetPartitions();
+        ASSERT_EQ(partitions.size(), 2u);
+        for (int index = 0; index < 2; ++index) {
+            auto status = New<TPartitionJobStatus>();
+            auto job = New<TJobStatus>();
+            job->PerformanceMetrics->CpuUsage10m = index == 0 ? lowCpu : highCpu;
+            job->PerformanceMetrics->MemoryUsage10m = 0;
+            job->InputMetrics->Global.MessagesPerSecond = index == 0 ? 100 : 0.01;
+            job->InputMetrics->Global.Pivots = {MakeKey(index == 0 ? lowPivot : highPivot)};
+            status->CurrentJobStatus = job;
+            FlowView_->Feedback->PartitionJobStatuses[partitions[index]->PartitionId] = status;
+        }
+    }
+
+    TJobStatusPtr GetFeedback(int index)
+    {
+        return GetOrCrash(FlowView_->Feedback->PartitionJobStatuses, GetPartitions()[index]->PartitionId)->CurrentJobStatus;
+    }
+
+    void RunIteration(TDuration elapsed = TDuration::Hours(1))
+    {
+        Now_ += elapsed;
+        Coordinator_->BeginIteration(FlowView_);
+        RunPass();
+        Coordinator_->Commit();
+    }
+};
+
+TEST_F(TPivotRebalanceTest, MovesBoundaryRepeatedlyWithFixedCount)
+{
+    SetFeedback(/*lowCpu*/ 0.09, /*highCpu*/ 0.01, /*lowPivot*/ 25, /*highPivot*/ 75);
+    RunIteration();
+    EXPECT_EQ(GetPartitions().size(), 2u);
+    EXPECT_EQ(GetBoundary(), MakeKey(ui64(25)));
+    SetFeedback(/*lowCpu*/ 0.01, /*highCpu*/ 0.09, /*lowPivot*/ 12, /*highPivot*/ 60);
+    RunIteration();
+    EXPECT_EQ(GetPartitions().size(), 2u);
+    EXPECT_EQ(GetBoundary(), MakeKey(ui64(60)));
+}
+
+TEST_F(TPivotRebalanceTest, MovesBoundaryWithThroughputAutoscalerAndFixedCount)
+{
+    FlowView_->State->ExecutionSpec->DynamicPipelineSpec->GetValue()
+        ->JobManager->Partitioning->EnableThroughputAutoscaler = true;
+    SetFeedback(/*lowCpu*/ 0.01, /*highCpu*/ 0.09, /*lowPivot*/ 25, /*highPivot*/ 75);
+    RunIteration();
+    EXPECT_EQ(GetPartitions().size(), 2u);
+    EXPECT_EQ(GetBoundary(), MakeKey(ui64(25)));
+    SetFeedback(/*lowCpu*/ 0.09, /*highCpu*/ 0.01, /*lowPivot*/ 12, /*highPivot*/ 60);
+    GetFeedback(0)->InputMetrics->Global.MessagesPerSecond = 0.01;
+    GetFeedback(1)->InputMetrics->Global.MessagesPerSecond = 100;
+    RunIteration();
+    EXPECT_EQ(GetPartitions().size(), 2u);
+    EXPECT_EQ(GetBoundary(), MakeKey(ui64(60)));
+}
+
+TEST_F(TPivotRebalanceTest, ThroughputUniformRatesDoNotFollowCpuSkew)
+{
+    FlowView_->State->ExecutionSpec->DynamicPipelineSpec->GetValue()
+        ->JobManager->Partitioning->EnableThroughputAutoscaler = true;
+    for (double rate : {100.0, 0.0}) {
+        SetFeedback(/*lowCpu*/ 0.09, /*highCpu*/ 0.01, /*lowPivot*/ 25, /*highPivot*/ 75);
+        GetFeedback(0)->InputMetrics->Global.MessagesPerSecond = rate;
+        GetFeedback(1)->InputMetrics->Global.MessagesPerSecond = rate;
+        const auto before = GetPartitions();
+        RunIteration();
+        EXPECT_EQ(GetPartitions(), before);
+    }
+}
+
+TEST_F(TPivotRebalanceTest, ThroughputUsesRatesWithoutResourceCriteria)
+{
+    FlowView_->State->ExecutionSpec->DynamicPipelineSpec->GetValue()
+        ->JobManager->Partitioning->EnableThroughputAutoscaler = true;
+    auto& spec = Controller_->PartitioningSpec;
+    spec->DesiredAveragePartitionCpuLoad = 0;
+    spec->DesiredAveragePartitionMemoryUsed = 0;
+    spec->DesiredAveragePartitionTimerCount = 0;
+    spec->DesiredAveragePartitionMessagesPerSecond = 1;
+    spec->DesiredAveragePartitionBytesPerSecond = 1;
+    SetFeedback(/*lowCpu*/ 0.01, /*highCpu*/ 0.09, /*lowPivot*/ 25, /*highPivot*/ 75);
+    RunIteration();
+    ASSERT_EQ(GetPartitions().size(), 2u);
+    EXPECT_EQ(GetBoundary(), MakeKey(ui64(25)));
+
+    spec->DesiredPartitionCount.reset();
+    SetFeedback(/*lowCpu*/ 0.09, /*highCpu*/ 0.01, /*lowPivot*/ 12, /*highPivot*/ 60);
+    GetFeedback(0)->InputMetrics->Global.MessagesPerSecond = 0.01;
+    GetFeedback(1)->InputMetrics->Global.MessagesPerSecond = 100;
+    RunIteration();
+    EXPECT_EQ(GetPartitions().size(), 2u);
+    EXPECT_EQ(GetBoundary(), MakeKey(ui64(60)));
+}
+
+TEST_F(TPivotRebalanceTest, ThroughputGrowthUsesRates)
+{
+    FlowView_->State->ExecutionSpec->DynamicPipelineSpec->GetValue()
+        ->JobManager->Partitioning->EnableThroughputAutoscaler = true;
+    Controller_->PartitioningSpec->DesiredPartitionCount = 3;
+    SetFeedback(/*lowCpu*/ 0.01, /*highCpu*/ 0.09, /*lowPivot*/ 25, /*highPivot*/ 75);
+    RunIteration();
+    const auto partitions = GetPartitions();
+    ASSERT_EQ(partitions.size(), 3u);
+    EXPECT_EQ(*partitions[0]->UpperKey, MakeKey(ui64(25)));
+    EXPECT_EQ(*partitions[1]->UpperKey, MakeKey(ui64(50)));
+}
+
+TEST_F(TPivotRebalanceTest, ReservesSubrangesForRemainingPartitions)
+{
+    Controller_->PartitioningSpec->DesiredPartitionCount = 3;
+    SetFeedback(/*lowCpu*/ 0.09, /*highCpu*/ 0.01, /*lowPivot*/ 25, /*highPivot*/ 75);
+    RunIteration();
+    auto partitions = GetPartitions();
+    ASSERT_EQ(partitions.size(), 3u);
+    ASSERT_EQ(*partitions[0]->UpperKey, MakeKey(ui64(25)));
+    ASSERT_EQ(*partitions[1]->UpperKey, MakeKey(ui64(50)));
+
+    const std::vector<ui64> pivots = {12, 37, 75};
+    for (int index = 0; index < 3; ++index) {
+        auto status = New<TPartitionJobStatus>();
+        auto job = New<TJobStatus>();
+        job->PerformanceMetrics->CpuUsage10m = index == 2 ? 1.0 : 1.0 / 64;
+        job->PerformanceMetrics->MemoryUsage10m = 0;
+        job->InputMetrics->Global.MessagesPerSecond = 100;
+        job->InputMetrics->Global.Pivots = {MakeKey(pivots[index])};
+        status->CurrentJobStatus = job;
+        FlowView_->Feedback->PartitionJobStatuses[partitions[index]->PartitionId] = status;
+    }
+
+    RunIteration();
+    partitions = GetPartitions();
+    ASSERT_EQ(partitions.size(), 3u);
+    EXPECT_EQ(*partitions[0]->UpperKey, MakeKey(ui64(50)));
+    EXPECT_EQ(*partitions[1]->UpperKey, MakeKey(ui64(75)));
+}
+
+TEST_F(TPivotRebalanceTest, ColdPartitionDoesNotRequirePivots)
+{
+    SetFeedback(/*lowCpu*/ 0.875, /*highCpu*/ 0.125, /*lowPivot*/ 25, /*highPivot*/ 75);
+    GetFeedback(1)->InputMetrics->Global.Pivots.clear();
+    RunIteration();
+    EXPECT_EQ(GetPartitions().size(), 2u);
+    EXPECT_EQ(GetBoundary(), MakeKey(ui64(25)));
+}
+
+TEST_F(TPivotRebalanceTest, ColdPartitionDoesNotRequirePivotsWithThroughputAutoscaler)
+{
+    FlowView_->State->ExecutionSpec->DynamicPipelineSpec->GetValue()
+        ->JobManager->Partitioning->EnableThroughputAutoscaler = true;
+    SetFeedback(/*lowCpu*/ 0.875, /*highCpu*/ 0.125, /*lowPivot*/ 25, /*highPivot*/ 75);
+    GetFeedback(1)->InputMetrics->Global.Pivots.clear();
+    RunIteration();
+    EXPECT_EQ(GetBoundary(), MakeKey(ui64(25)));
+}
+
+TEST_F(TPivotRebalanceTest, HotPartitionStillRequiresPivots)
+{
+    SetFeedback(/*lowCpu*/ 0.125, /*highCpu*/ 0.875, /*lowPivot*/ 25, /*highPivot*/ 75);
+    GetFeedback(0)->InputMetrics->Global.Pivots.clear();
+    auto before = GetPartitions();
+    RunIteration();
+    EXPECT_EQ(GetPartitions(), before);
+}
+
+TEST_F(TPivotRebalanceTest, RequiresPivotsAtHalfTheCurrentAverage)
+{
+    SetFeedback(/*lowCpu*/ 0.875, /*highCpu*/ 0.125, /*lowPivot*/ 25, /*highPivot*/ 75);
+    GetFeedback(0)->InputMetrics->Global.MessagesPerSecond = 75;
+    GetFeedback(1)->InputMetrics->Global.MessagesPerSecond = 25;
+    GetFeedback(1)->InputMetrics->Global.Pivots.clear();
+    auto before = GetPartitions();
+    RunIteration();
+    EXPECT_EQ(GetPartitions(), before);
+}
+
+TEST_F(TPivotRebalanceTest, MissingStatusDoesNotCountAsCold)
+{
+    Controller_->PartitioningSpec->DesiredPartitionCount = 3;
+    SetFeedback(/*lowCpu*/ 0.875, /*highCpu*/ 0.125, /*lowPivot*/ 25, /*highPivot*/ 75);
+    RunIteration();
+    const auto before = GetPartitions();
+    ASSERT_EQ(before.size(), 3u);
+    FlowView_->Feedback->PartitionJobStatuses.clear();
+    for (int index = 0; index < 2; ++index) {
+        auto status = New<TPartitionJobStatus>();
+        auto job = New<TJobStatus>();
+        job->PerformanceMetrics->CpuUsage10m = index == 0 ? 0.875 : 0.125;
+        job->PerformanceMetrics->MemoryUsage10m = 0;
+        job->InputMetrics->Global.MessagesPerSecond = 100;
+        job->InputMetrics->Global.Pivots = {MakeKey(ui64(index == 0 ? 12 : 40))};
+        status->CurrentJobStatus = job;
+        FlowView_->Feedback->PartitionJobStatuses[before[index]->PartitionId] = status;
+    }
+    RunIteration();
+    EXPECT_EQ(GetPartitions(), before);
+}
+
+TEST_F(TPivotRebalanceTest, MissingInputMetricsDoesNotCountAsCold)
+{
+    SetFeedback(/*lowCpu*/ 0.875, /*highCpu*/ 0.125, /*lowPivot*/ 25, /*highPivot*/ 75);
+    auto before = GetPartitions();
+    GetFeedback(1)->InputMetrics.Reset();
+    RunIteration();
+    EXPECT_EQ(GetPartitions(), before);
+}
+
+TEST_F(TPivotRebalanceTest, ZeroFlowDoesNotRequirePivotsDespiteResidualCpu)
+{
+    SetFeedback(/*lowCpu*/ 0.7, /*highCpu*/ 0.3, /*lowPivot*/ 25, /*highPivot*/ 75);
+    GetFeedback(1)->InputMetrics->Global.MessagesPerSecond = 0;
+    GetFeedback(1)->InputMetrics->Global.Pivots.clear();
+    RunIteration();
+    EXPECT_EQ(GetBoundary(), MakeKey(ui64(25)));
+}
+
+TEST_F(TPivotRebalanceTest, PivotThresholdUsesCurrentCountDuringGrowth)
+{
+    Controller_->PartitioningSpec->DesiredPartitionCount = 4;
+    SetFeedback(/*lowCpu*/ 0.875, /*highCpu*/ 0.125, /*lowPivot*/ 25, /*highPivot*/ 75);
+    GetFeedback(0)->InputMetrics->Global.Pivots = {MakeKey(ui64(10)), MakeKey(ui64(20)), MakeKey(ui64(30))};
+    GetFeedback(0)->InputMetrics->Global.MessagesPerSecond = 87.5;
+    GetFeedback(1)->InputMetrics->Global.MessagesPerSecond = 12.5;
+    GetFeedback(1)->InputMetrics->Global.Pivots.clear();
+    RunIteration();
+    auto partitions = GetPartitions();
+    ASSERT_EQ(partitions.size(), 4u);
+    EXPECT_EQ(*partitions[0]->UpperKey, MakeKey(ui64(10)));
+    EXPECT_EQ(*partitions[1]->UpperKey, MakeKey(ui64(20)));
+    EXPECT_EQ(*partitions[2]->UpperKey, MakeKey(ui64(30)));
+}
+
+TEST_F(TPivotRebalanceTest, RepeatedPivotsDoNotCreateEmptyPartitions)
+{
+    Controller_->PartitioningSpec->DesiredPartitionCount = 4;
+    SetFeedback(/*lowCpu*/ 0.9, /*highCpu*/ 0.1, /*lowPivot*/ 25, /*highPivot*/ 75);
+    GetFeedback(0)->InputMetrics->Global.Pivots = {MakeKey(ui64(25)), MakeKey(ui64(25)), MakeKey(ui64(25))};
+    RunIteration();
+    auto partitions = GetPartitions();
+    ASSERT_EQ(partitions.size(), 4u);
+    EXPECT_EQ(*partitions[0]->UpperKey, MakeKey(ui64(25)));
+    EXPECT_EQ(*partitions[1]->UpperKey, MakeKey(ui64(50)));
+    EXPECT_EQ(*partitions[2]->UpperKey, MakeKey(ui64(75)));
+    for (const auto& partition : partitions) {
+        EXPECT_LT(*partition->LowerKey, *partition->UpperKey);
+    }
+}
+
+TEST_F(TPivotRebalanceTest, ChoosesCurrentBottleneckDespiteOldMemoryPeak)
+{
+    Controller_->PartitioningSpec->DesiredAveragePartitionMemoryUsed = 1;
+    Controller_->PartitioningSpec->PartitionCountHalfDelay = TDuration::Hours(100);
+    SetFeedback(/*lowCpu*/ 0.01, /*highCpu*/ 0.01, /*lowPivot*/ 25, /*highPivot*/ 75);
+    GetFeedback(0)->PerformanceMetrics->MemoryUsage10m = 10;
+    GetFeedback(1)->PerformanceMetrics->MemoryUsage10m = 10;
+    RunIteration();
+    ASSERT_EQ(GetBoundary(), MakeKey(ui64(50)));
+    SetFeedback(/*lowCpu*/ 0.09, /*highCpu*/ 0.01, /*lowPivot*/ 25, /*highPivot*/ 75);
+    RunIteration();
+    EXPECT_EQ(GetBoundary(), MakeKey(ui64(25)));
+}
+
+TEST_F(TPivotRebalanceTest, SevereSkewRebalancesSooner)
+{
+    Controller_->PartitioningSpec->PartitionCountDoubleDelay = TDuration::Minutes(20);
+    SetFeedback(/*lowCpu*/ 0.09, /*highCpu*/ 0.01, /*lowPivot*/ 25, /*highPivot*/ 75);
+    RunIteration(TDuration::Minutes(5));
+    EXPECT_EQ(GetBoundary(), MakeKey(ui64(50)));
+    RunIteration(TDuration::Minutes(8));
+    EXPECT_EQ(GetBoundary(), MakeKey(ui64(25)));
+}
+
+TEST_F(TPivotRebalanceTest, MildSkewWaitsLonger)
+{
+    Controller_->PartitioningSpec->PartitionCountDoubleDelay = TDuration::Minutes(20);
+    SetFeedback(/*lowCpu*/ 0.07, /*highCpu*/ 0.03, /*lowPivot*/ 25, /*highPivot*/ 75);
+    RunIteration(TDuration::Minutes(13));
+    EXPECT_EQ(GetBoundary(), MakeKey(ui64(50)));
+    RunIteration(TDuration::Minutes(2));
+    EXPECT_EQ(GetBoundary(), MakeKey(ui64(25)));
+}
+
+TEST_F(TPivotRebalanceTest, RebalancesWhileCountChangeIsCoolingDown)
+{
+    auto& spec = Controller_->PartitioningSpec;
+    spec->DesiredPartitionCount.reset();
+    spec->PartitionCountDoubleDelay = TDuration::Hours(2);
+    spec->DesiredAveragePartitionCpuLoad = 0.1 / 3;
+    SetFeedback(/*lowCpu*/ 0.09, /*highCpu*/ 0.01, /*lowPivot*/ 25, /*highPivot*/ 75);
+    RunIteration(TDuration::Minutes(90));
+    EXPECT_EQ(GetPartitions().size(), 2u);
+    EXPECT_EQ(GetBoundary(), MakeKey(ui64(25)));
+}
+
+TEST_F(TPivotRebalanceTest, RepeatedRebalancesDoNotPostponeCountGrowth)
+{
+    auto& spec = Controller_->PartitioningSpec;
+    spec->DesiredPartitionCount.reset();
+    spec->PartitionCountDoubleDelay = TDuration::Hours(2);
+    spec->DesiredAveragePartitionCpuLoad = 0.1 / 3;
+    SetFeedback(/*lowCpu*/ 0.09, /*highCpu*/ 0.01, /*lowPivot*/ 25, /*highPivot*/ 75);
+    RunIteration(TDuration::Minutes(90));
+    ASSERT_EQ(GetPartitions().size(), 2u);
+    EXPECT_EQ(GetBoundary(), MakeKey(ui64(25)));
+    SetFeedback(/*lowCpu*/ 0.01, /*highCpu*/ 0.09, /*lowPivot*/ 12, /*highPivot*/ 60);
+    RunIteration(TDuration::Minutes(90));
+    ASSERT_EQ(GetPartitions().size(), 2u);
+    EXPECT_EQ(GetBoundary(), MakeKey(ui64(60)));
+    SetFeedback(/*lowCpu*/ 0.09, /*highCpu*/ 0.01, /*lowPivot*/ 30, /*highPivot*/ 80);
+    RunIteration(TDuration::Minutes(90));
+    EXPECT_EQ(GetPartitions().size(), 3u);
+}
+
+TEST_F(TPartitioningTransactionTest, RebalancesNonUintRangesWhenGrowthLacksPivots)
+{
+    const auto& computationSpec = GetOrCrash(Spec_->Computations, ComputationId_);
+    computationSpec->ExperimentalEnableNonUintKey = true;
+    computationSpec->GroupBySchema = New<NTableClient::TTableSchema>(
+        std::vector{
+            NTableClient::TColumnSchema("key", NTableClient::EValueType::String)
+                .SetRequired(true)
+                .SetSortOrder(NTableClient::ESortOrder::Ascending),
+        });
+    FlowView_->State->ExecutionSpec->DynamicPipelineSpec->GetValue()
+        ->JobManager->Partitioning->EnableThroughputAutoscaler = false;
+    Controller_->PartitioningSpec->DesiredPartitionCount = 2;
+    Controller_->PartitioningSpec->MaxPartitionCount = 16;
+    Controller_->PartitioningSpec->PartitionCountDoubleDelay = TDuration::Zero();
+    Job_->InputMetrics->Global.Pivots = {MakeKey(TStringBuf("m"))};
+    auto runIteration = [&] {
+        Now_ += TDuration::Hours(1);
+        Coordinator_->BeginIteration(FlowView_);
+        RunPass();
+        Coordinator_->Commit();
+    };
+    auto getPartitions = [&] {
+        std::vector<TPartitionPtr> partitions;
+        for (const auto& [_, partition] : FlowView_->State->ExecutionSpec->Layout->Partitions) {
+            if (partition->State == EPartitionState::Executing) {
+                partitions.push_back(partition);
+            }
+        }
+        std::ranges::sort(partitions, /*comp*/ {}, [] (const auto& partition) {
+            return *partition->LowerKey;
+        });
+        return partitions;
+    };
+    runIteration();
+    auto before = getPartitions();
+    ASSERT_EQ(before.size(), 2u);
+    ASSERT_EQ(*before[0]->UpperKey, MakeKey(TStringBuf("m")));
+    Controller_->PartitioningSpec->DesiredPartitionCount = 5;
+    for (int index = 0; index < 2; ++index) {
+        auto status = New<TPartitionJobStatus>();
+        auto job = New<TJobStatus>();
+        job->PerformanceMetrics->CpuUsage10m = index == 0 ? 0.9 : 0.1;
+        job->PerformanceMetrics->MemoryUsage10m = 0;
+        job->InputMetrics->Global.MessagesPerSecond = 100;
+        job->InputMetrics->Global.Pivots = {MakeKey(TStringBuf(index == 0 ? "g" : "t"))};
+        status->CurrentJobStatus = job;
+        FlowView_->Feedback->PartitionJobStatuses[before[index]->PartitionId] = status;
+    }
+    runIteration();
+    auto after = getPartitions();
+    ASSERT_EQ(after.size(), 2u);
+    EXPECT_EQ(*after[0]->UpperKey, MakeKey(TStringBuf("g")));
+}
+
 TEST_F(TPartitioningTransactionTest, CommittedDemandPeakSurvivesCoordinatorRestart)
 {
     const auto saved = ReadState();

@@ -7,7 +7,7 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || **Parameter** | **Description** ||
 || `enable_throughput_autoscaler` | **Type**: `bool`
 **Default value**: `false`
-Enables pipeline-wide Throughput autoscaling. Disabled by default; otherwise the existing partitioning criteria and cooldowns are used. ||
+Enables pipeline-wide Throughput autoscaling. Disabled by default; otherwise the existing partitioning criteria and cooldowns are used. When enabled, weighted partitioning with `experimental_enable_non_uint_key` uses current input RPS as partition weights. This also applies during warm-up and with a fixed `desired_partition_count`. ||
 || `throughput` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TThroughputSpec](./all_yson_structs#NYT_NFlow_TThroughputSpec)`>`
 **Default value**: `{}`
 Throughput autoscaling parameters. ||
