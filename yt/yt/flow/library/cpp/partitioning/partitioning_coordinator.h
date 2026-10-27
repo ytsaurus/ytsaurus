@@ -170,6 +170,7 @@ private:
         THashMap<std::string, NProfiling::TCounter> RepartitionCounters;
 
         TInstant LastRepartitionTime = TInstant::Zero();
+        TInstant LastPartitionCountChangeTime = TInstant::Zero();
         TInstant LastObservedCommonRepartitioningInstant = TInstant::Zero();
         THashMap<EPartitioningCriterion, TCriterionEmaState> CriterionProposedCountEma;
         TComputationPartitioningStatePtr PersistedState;
@@ -198,9 +199,10 @@ private:
         const THashMap<TPartitionId, TKeyRange>& PartitionRanges;
 
         bool AllPartitionsHaveStatuses = false;
-        bool AllPartitionsHavePivots = false;
+        bool HasRequiredPivots = false;
         bool AnotherComputationRecentlyRepartitioned = false;
         TDuration NormalFlightDuration;
+        TDuration RebalanceFlightDuration;
 
         i64 ProposedCount = 0;
         bool RecreateNow = false;

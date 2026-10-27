@@ -388,7 +388,16 @@ void TPartitioningCoordinator::DoComputationPartitioning(
         // A new leader starts its cooldown before using fresh job samples.
         if (state.LastRepartitionTime == TInstant::Zero()) {
             state.LastRepartitionTime = TInstant::Seconds(flowView->State->CurrentTimestamp.Underlying());
+            state.LastPartitionCountChangeTime = state.LastRepartitionTime;
         }
+
+        const bool hasSinkTopologyVersion =
+            rangeDescription->SinkTopologyVersion != TVersion(0);
+        const bool sinkTopologyChanged =
+            hasSinkTopologyVersion &&
+            state.PersistedState->LastAppliedSinkTopologyVersion &&
+            *state.PersistedState->LastAppliedSinkTopologyVersion !=
+                rangeDescription->SinkTopologyVersion;
 
         TInputAutoPartitioningContext context(flowView, grouped.RangePartitions);
         context.MaxSinkChannelCount = rangeDescription->MaxSinkChannelCount;
@@ -417,18 +426,18 @@ void TPartitioningCoordinator::DoComputationPartitioning(
         } else {
             InputAutoPartitioningCollectData(state, context);
             InputAutoPartitioningCalculateOptimalCount(state, parameters, context);
+            if (!context.RecreateNow && !sinkTopologyChanged && !context.PartitionRanges.empty()) {
+                context.ProposedCount = std::ssize(context.PartitionRanges);
+            }
             InputAutoPartitioningBuildRanges(state, parameters, context);
+            if (!context.RecreateNow && !sinkTopologyChanged && context.ProposedCount != std::ssize(context.PartitionRanges)) {
+                context.ProposedCount = std::ssize(context.PartitionRanges);
+                InputAutoPartitioningBuildRanges(state, parameters, context);
+            }
             InputAutoPartitioningTryRebalance(state, parameters, context);
         }
         state.LastObservedCommonRepartitioningInstant = LastRepartitioningInstant_;
 
-        const bool hasSinkTopologyVersion =
-            rangeDescription->SinkTopologyVersion != TVersion(0);
-        const bool sinkTopologyChanged =
-            hasSinkTopologyVersion &&
-            state.PersistedState->LastAppliedSinkTopologyVersion &&
-            *state.PersistedState->LastAppliedSinkTopologyVersion !=
-                rangeDescription->SinkTopologyVersion;
         const bool initializeSinkTopologyVersion =
             hasSinkTopologyVersion &&
             !state.PersistedState->LastAppliedSinkTopologyVersion &&
@@ -496,6 +505,9 @@ void TPartitioningCoordinator::DoComputationPartitioning(
                     logger);
             }
             state.LastRepartitionTime = TInstant::Seconds(flowView->State->CurrentTimestamp.Underlying());
+            if (context.NewRanges.size() != context.PartitionRanges.size()) {
+                state.LastPartitionCountChangeTime = state.LastRepartitionTime;
+            }
             LastRepartitioningInstant_ = state.LastRepartitionTime;
             state.LastObservedCommonRepartitioningInstant = state.LastRepartitionTime;
         } else {
@@ -903,41 +915,40 @@ void TPartitioningCoordinator::InputAutoPartitioningCollectData(
     const auto& Logger = state.Logger;
 
     context.AllPartitionsHaveStatuses = true;
-    context.AllPartitionsHavePivots = true;
     const auto& partitionStatuses = context.FlowView->Feedback->PartitionJobStatuses;
     for (const auto& [partitionId, keyRange] : context.PartitionRanges) {
         auto it = partitionStatuses.find(partitionId);
         if (it == partitionStatuses.end() || !it->second->CurrentJobStatus) {
             context.AllPartitionsHaveStatuses = false;
-            context.AllPartitionsHavePivots = false;
             break;
-        }
-        const auto& globalInputMetrics = it->second->CurrentJobStatus->InputMetrics->Global;
-        // Idle partitions never accumulate pivots, so requiring them would deadlock rebalancing;
-        // an idle partition must not veto redistribution of the partitions that do have load.
-        if (globalInputMetrics.MessagesPerSecond > 0 && globalInputMetrics.Pivots.empty()) {
-            context.AllPartitionsHavePivots = false;
         }
     }
 
     const auto& pipelineState = context.FlowView->State->ExecutionSpec->PipelineState;
     if (pipelineState->GetValue() != EPipelineState::Working) {
         context.NormalFlightDuration = TDuration::Zero();
+        context.RebalanceFlightDuration = TDuration::Zero();
         YT_TLOG_INFO("Partitioning: wait for working state")
             .With("PipelineState", pipelineState->GetValue())
             .With("LastRepartitionTime", state.LastRepartitionTime)
             .With("PipelineStateUpdate", pipelineState->GetLastUpdate())
             .With("NormalFlightDuration", context.NormalFlightDuration);
     } else {
-        TInstant baseInstant = std::max(state.LastRepartitionTime, pipelineState->GetLastUpdate());
+        TInstant baseInstant = std::max(state.LastPartitionCountChangeTime, pipelineState->GetLastUpdate());
+        TInstant rebalanceBaseInstant = std::max(state.LastRepartitionTime, pipelineState->GetLastUpdate());
         context.AnotherComputationRecentlyRepartitioned =
             LastRepartitioningInstant_ > state.LastObservedCommonRepartitioningInstant;
         if (!context.AnotherComputationRecentlyRepartitioned) {
-            baseInstant = std::max(baseInstant, LastRepartitioningInstant_);
+            rebalanceBaseInstant = std::max(rebalanceBaseInstant, LastRepartitioningInstant_);
+            // Moving our own boundaries must not restart the count-change cooldown.
+            if (LastRepartitioningInstant_ != state.LastRepartitionTime) {
+                baseInstant = std::max(baseInstant, LastRepartitioningInstant_);
+            }
         }
         // Both operands use the cluster clock; node-clock skew would corrupt the cooldown.
-        context.NormalFlightDuration =
-            TInstant::Seconds(context.FlowView->State->CurrentTimestamp.Underlying()) - baseInstant;
+        const auto now = TInstant::Seconds(context.FlowView->State->CurrentTimestamp.Underlying());
+        context.NormalFlightDuration = now - baseInstant;
+        context.RebalanceFlightDuration = now - rebalanceBaseInstant;
         YT_TLOG_INFO("Partitioning: calculating normal flight duration")
             .With("PipelineState", pipelineState->GetValue())
             .With("LastRepartitionTime", state.LastRepartitionTime)
@@ -999,6 +1010,7 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
         i64 Count;
         EPartitioningCriterion Criterion;
         THashMap<TPartitionId, double> Weights;
+        double ResourcePressure = 0;
 
         bool IsThroughput() const
         {
@@ -1007,6 +1019,7 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
     };
 
     std::vector<TProposition> suggestions;
+    THashMap<TPartitionId, double> throughputWeights;
     const auto throughputDecision = EnableThroughputAutoscaler_
         ? ThroughputAutoscaler_.FindDecision(parameters.ComputationId)
         : std::nullopt;
@@ -1119,7 +1132,8 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
             suggestions.emplace_back(
                 static_cast<ssize_t>(std::llround(it->second.ProposedCount)),
                 averageMetric->Criterion,
-                std::move(averageMetric->Weights));
+                std::move(averageMetric->Weights),
+                ratio);
         }
         if (smoothingReport.GetLength() > 0) {
             YT_TLOG_INFO("Partitioning: peak-hold smoothed criterion proposals")
@@ -1131,6 +1145,9 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
                     suggestion.Count * 3,
                     std::ssize(context.PartitionRanges));
             }
+        }
+        if (EnableThroughputAutoscaler_) {
+            throughputWeights = std::move(averageMessagesPerSecond.Weights);
         }
     }
 
@@ -1145,6 +1162,9 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
     }
 
     auto finalizeWeights = [&] {
+        if (EnableThroughputAutoscaler_) {
+            context.Weights = std::move(throughputWeights);
+        }
         double sum = 0.0;
         for (const auto& [partitionId, weight] : context.Weights) {
             sum += weight;
@@ -1255,14 +1275,12 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
         }
     }
     ssize_t weightsSuggestionIndex = maxSuggestionIndex;
-    if (EnableThroughputAutoscaler_ && suggestions[weightsSuggestionIndex].Weights.empty()) {
-        for (ssize_t index = 0; index < std::ssize(suggestions); ++index) {
-            if (!suggestions[index].Weights.empty() &&
-                (suggestions[weightsSuggestionIndex].Weights.empty() ||
-                    suggestions[index].Count > suggestions[weightsSuggestionIndex].Count))
-            {
-                weightsSuggestionIndex = index;
-            }
+    for (ssize_t index = 0; index < std::ssize(suggestions); ++index) {
+        if (!suggestions[index].Weights.empty() &&
+            (suggestions[weightsSuggestionIndex].Weights.empty() ||
+                suggestions[index].ResourcePressure > suggestions[weightsSuggestionIndex].ResourcePressure))
+        {
+            weightsSuggestionIndex = index;
         }
     }
     if (spec->DesiredPartitionCount) {
@@ -1315,6 +1333,9 @@ void TPartitioningCoordinator::InputAutoPartitioningBuildRanges(
     const TRangePartitioningParameters& parameters,
     TInputAutoPartitioningContext& context) const
 {
+    context.NewRanges.clear();
+    context.NewWeights.clear();
+    context.HasRequiredPivots = context.AllPartitionsHaveStatuses;
     if (context.ProposedCount == 0) {
         return;
     }
@@ -1339,11 +1360,22 @@ void TPartitioningCoordinator::InputAutoPartitioningBuildRanges(
     struct TWeightedRange
         : TKeyRange
     {
-        double Weight;
+        double Weight = 0;
     };
 
+    const double totalWeight = Accumulate(context.Weights | std::views::elements<1>, 0.0);
     std::vector<TWeightedRange> splitRanges;
     const auto& partitionStatuses = context.FlowView->Feedback->PartitionJobStatuses;
+    double totalMessagesPerSecond = 0;
+    for (const auto& [partitionId, range] : oldSortedRanges) {
+        auto it = partitionStatuses.find(partitionId);
+        if (it != partitionStatuses.end() && it->second->CurrentJobStatus && it->second->CurrentJobStatus->InputMetrics) {
+            totalMessagesPerSecond += it->second->CurrentJobStatus->InputMetrics->Global.MessagesPerSecond;
+        } else {
+            context.HasRequiredPivots = false;
+        }
+    }
+    const double pivotRateThreshold = 0.5 * totalMessagesPerSecond / std::ssize(context.PartitionRanges);
     for (const auto& [partitionId, range] : oldSortedRanges) {
         double weight = context.Weights.at(partitionId);
         auto it = partitionStatuses.find(partitionId);
@@ -1353,6 +1385,12 @@ void TPartitioningCoordinator::InputAutoPartitioningBuildRanges(
             !it->second->CurrentJobStatus->InputMetrics ||
             it->second->CurrentJobStatus->InputMetrics->Global.Pivots.empty())
         {
+            if (it != partitionStatuses.end() && it->second->CurrentJobStatus && it->second->CurrentJobStatus->InputMetrics) {
+                const double rate = it->second->CurrentJobStatus->InputMetrics->Global.MessagesPerSecond;
+                if (rate > 0 && rate >= pivotRateThreshold) {
+                    context.HasRequiredPivots = false;
+                }
+            }
             splitRanges.push_back({range, weight});
             continue;
         }
@@ -1367,23 +1405,36 @@ void TPartitioningCoordinator::InputAutoPartitioningBuildRanges(
         splitRanges.push_back({{splitters.back(), range.Upper}, weight});
     }
 
+    ssize_t nonEmptyCount = 0;
+    double pendingWeight = 0;
+    for (const auto& range : splitRanges) {
+        pendingWeight += range.Weight;
+        if (range.Lower < range.Upper) {
+            splitRanges[nonEmptyCount++] = {{range.Lower, range.Upper}, pendingWeight};
+            pendingWeight = 0;
+        }
+    }
+    splitRanges.resize(nonEmptyCount);
+    splitRanges.back().Weight += pendingWeight;
+
     context.NewRanges.reserve(context.ProposedCount);
     context.NewWeights.reserve(context.ProposedCount);
-    double remainingWeight = Accumulate(context.Weights | std::views::elements<1>, 0.0);
+    double remainingWeight = totalWeight;
     auto remainingCount = context.ProposedCount;
     ssize_t index = 0;
     while (remainingCount > 0 && index < std::ssize(splitRanges)) {
         const double requiredWeight = remainingWeight / remainingCount;
         double consumedWeight = splitRanges[index].Weight;
         ssize_t endIndex = index + 1;
-        while (consumedWeight < requiredWeight && endIndex < std::ssize(splitRanges)) {
+        const ssize_t maxEndIndex = std::ssize(splitRanges) - (remainingCount - 1);
+        while (consumedWeight < requiredWeight && endIndex < maxEndIndex) {
             consumedWeight += splitRanges[endIndex].Weight;
             ++endIndex;
         }
         if (consumedWeight > requiredWeight && endIndex > index + 1) {
             if (
                 consumedWeight - requiredWeight >
-                requiredWeight - consumedWeight - splitRanges[endIndex - 1].Weight)
+                requiredWeight - (consumedWeight - splitRanges[endIndex - 1].Weight))
             {
                 --endIndex;
                 consumedWeight -= splitRanges[endIndex].Weight;
@@ -1400,19 +1451,19 @@ void TPartitioningCoordinator::InputAutoPartitioningBuildRanges(
         index = endIndex;
     }
     context.NewRanges.back().Upper = splitRanges.back().Upper;
-    if (std::ssize(context.NewRanges) != context.ProposedCount || !context.AllPartitionsHavePivots) {
+    if (std::ssize(context.NewRanges) != context.ProposedCount || !context.HasRequiredPivots) {
         if (parameters.FirstKeyIsUint) {
             YT_TLOG_INFO("Partitioning: fall back to uniform uint split")
                 .With("ResultSize", std::ssize(context.NewRanges))
                 .With("PartitionCount", context.ProposedCount)
-                .With("AllPartitionsHaveSplitters", context.AllPartitionsHavePivots)
+                .With("HasRequiredPivots", context.HasRequiredPivots)
                 .With("SubrangeCount", std::ssize(splitRanges));
             context.NewRanges = SplitUintKeyRange(UniversalKeyRange(), context.ProposedCount);
         } else {
             YT_TLOG_INFO("Partitioning: cannot recreate now, must wait for partition pivots")
                 .With("ResultSize", std::ssize(context.NewRanges))
                 .With("PartitionCount", context.ProposedCount)
-                .With("AllPartitionsHaveSplitters", context.AllPartitionsHavePivots)
+                .With("HasRequiredPivots", context.HasRequiredPivots)
                 .With("SubrangeCount", std::ssize(splitRanges));
             context.RecreateNow = false;
         }
@@ -1434,13 +1485,17 @@ void TPartitioningCoordinator::InputAutoPartitioningTryRebalance(
         DefaultAllowedPartitionCountDeviation);
     if (
         !context.RecreateNow &&
-        context.AllPartitionsHavePivots &&
+        context.HasRequiredPivots &&
         !context.NewWeights.empty() &&
         !context.PartitionRanges.empty() &&
-        context.NormalFlightDuration != TDuration::Zero() &&
+        context.RebalanceFlightDuration != TDuration::Zero() &&
         context.ProposedCount <= std::ssize(context.PartitionRanges) * allowedPartitionCountDeviation &&
         context.ProposedCount >= std::ssize(context.PartitionRanges) / allowedPartitionCountDeviation)
     {
+        auto oldRanges = GetSortedPartitionRanges(context.PartitionRanges);
+        if (std::ranges::equal(oldRanges | std::views::values, context.NewRanges)) {
+            return;
+        }
         auto getDeviation = [] (const auto& weights) {
             const double average = Accumulate(weights, 0.0) / std::ssize(weights);
             double deviation = Accumulate(weights, 0.0, [&] (double sum, double weight) {
@@ -1449,22 +1504,24 @@ void TPartitioningCoordinator::InputAutoPartitioningTryRebalance(
             return std::sqrt(deviation / std::ssize(weights));
         };
         const double oldDeviation = getDeviation(context.Weights | std::views::elements<1>);
-        const double newDeviation = getDeviation(context.NewWeights) + 1e-5;
-        if (newDeviation < oldDeviation) {
-            const double multiple = oldDeviation / newDeviation;
+        const double newDeviation = getDeviation(context.NewWeights);
+        const double averageWeight = Accumulate(context.Weights | std::views::elements<1>, 0.0) /
+            std::ssize(context.PartitionRanges);
+        if (averageWeight > 0 && newDeviation + 1e-5 < oldDeviation) {
+            const double relativeDeviation = oldDeviation / averageWeight;
             const auto partitionCountDoubleDelay =
                 spec->PartitionCountDoubleDelay.value_or(
                 DefaultPartitionCountDoubleDelay);
-            const auto delay = std::max(
-                partitionCountDoubleDelay / log(multiple) * log(2),
-                partitionCountDoubleDelay);
-            if (context.NormalFlightDuration > delay) {
+            const auto delay = partitionCountDoubleDelay / std::min(1.0 + relativeDeviation, 10.0);
+            if (context.RebalanceFlightDuration > delay) {
                 context.RecreateNow = true;
                 context.DecisionInitiator = "rebalance";
                 context.DecisionReason = "weight_deviation";
                 YT_TLOG_INFO("Partitioning: decided to rebuild partitions to make more uniform distribution")
                     .With("OldDeviation", oldDeviation)
                     .With("NewDeviation", newDeviation)
+                    .With("RelativeDeviation", relativeDeviation)
+                    .With("Delay", delay)
                     .With("Initiator", "rebalance")
                     .With("Reason", "weight_deviation");
             }
