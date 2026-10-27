@@ -2054,6 +2054,58 @@ TEST_W(TDescribeTest, DescribePipelineUsesProvidedControllerBuildInfo)
     EXPECT_TRUE(MessagesContain(description.Messages, "* Built at: `1970-01-12T13:46:40Z`"));
 }
 
+TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreRevision)
+{
+    Prepare();
+    FlowView->State->ExecutionSpec->FlowCoreTarget->TrySetValue(TFlowCoreTarget(GetBinaryChecksum()), TestVersionProvider());
+
+    auto buildInfo = New<TFlowCoreBuildInfo>();
+    buildInfo->SvnRevision = 123;
+    buildInfo->BaseSvnRevision = 456;
+    auto describe = [&] {
+        return DescribePipeline({
+            .FlowView = FlowView,
+            .Logger = TLogger("test"),
+            .StatusOnly = true,
+            .ControllerFlowCoreVersion = GetBinaryChecksum(),
+            .ControllerBuildInfo = buildInfo,
+        });
+    };
+    auto expectedMarkdown = [] (int revision) {
+        auto revisionLink = NInternalUrls::VcsRevisionUrlPrefix.empty()
+            ? Format("`r%v`", revision)
+            : Format("[r%v](https://a.yandex-team.ru/arcadia?rev=r%v)", revision, revision);
+        return revisionLink + " -- the base trunk revision of the FlowCore library, excluding commits from the user's branch.";
+    };
+
+    auto description = describe();
+    bool found = false;
+    for (int index = 1; index < std::ssize(description.Messages); ++index) {
+        const auto& message = description.Messages[index];
+        if (message.Text == "FlowCore library revision") {
+            found = true;
+            EXPECT_EQ(message.Level, ELogLevel::Info);
+            EXPECT_EQ(description.Messages[index - 1].Text, "Flow binaries matching");
+            EXPECT_THAT(message.MarkdownText, testing::Optional(testing::StrEq(expectedMarkdown(456))));
+        }
+    }
+    EXPECT_TRUE(found);
+
+    buildInfo->BaseSvnRevision = -1;
+    description = describe();
+    found = false;
+    for (const auto& message : description.Messages) {
+        if (message.Text == "FlowCore library revision") {
+            found = true;
+            EXPECT_THAT(message.MarkdownText, testing::Optional(testing::StrEq(expectedMarkdown(123))));
+        }
+    }
+    EXPECT_TRUE(found);
+
+    buildInfo->SvnRevision = -1;
+    EXPECT_FALSE(MessagesContain(describe().Messages, "FlowCore library revision"));
+}
+
 TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreTargetMismatch)
 {
     Prepare();

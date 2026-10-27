@@ -2,6 +2,10 @@
 
 #include <yt/yt/flow/library/cpp/common/flow_core_build_info.h>
 
+#include <util/stream/file.h>
+
+#include <util/system/tempfile.h>
+
 namespace NYT::NFlow {
 namespace {
 
@@ -40,6 +44,35 @@ TEST(TFlowCoreBuildInfoTest, NonEmptyBuildHostIsNotEmpty)
     auto info = New<TFlowCoreBuildInfo>();
     info->BuildHost = "build-host.example.com";
     EXPECT_FALSE(info->IsEmpty());
+}
+
+TEST(TFlowCoreBuildInfoTest, PackageRevisionIsNotEmpty)
+{
+    auto info = New<TFlowCoreBuildInfo>();
+    info->BaseSvnRevision = 123456;
+    EXPECT_FALSE(info->IsEmpty());
+}
+
+TEST(TFlowCoreBuildInfoTest, ReadsPackageRevision)
+{
+    TTempFileHandle file;
+    TFileOutput(file.Name()).Write(R"({"base_svn_revision": 123456})");
+    EXPECT_EQ(NDetail::ReadBaseSvnRevision(file.Name()), 123456);
+}
+
+TEST(TFlowCoreBuildInfoTest, MissingPackageMetadata)
+{
+    TTempFileHandle file;
+    EXPECT_EQ(NDetail::ReadBaseSvnRevision(file.Name() + ".missing"), -1);
+}
+
+TEST(TFlowCoreBuildInfoTest, RejectsInvalidPackageMetadata)
+{
+    for (const auto& contents : {"not json", "{}", R"({"base_svn_revision": -1})", R"({"base_svn_revision": "bad"})"}) {
+        TTempFileHandle file;
+        TFileOutput(file.Name()).Write(contents);
+        EXPECT_THROW(NDetail::ReadBaseSvnRevision(file.Name()), std::exception);
+    }
 }
 
 TEST(TFlowCoreBuildInfoTest, NonZeroBuildTimestampIsNotEmpty)

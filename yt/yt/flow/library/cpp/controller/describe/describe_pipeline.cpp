@@ -746,6 +746,20 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
         *arguments.ControllerBuildInfo,
         pipeline.Messages);
 
+    const auto& buildInfo = *arguments.ControllerBuildInfo;
+    int revision = buildInfo.BaseSvnRevision > 0 ? buildInfo.BaseSvnRevision : buildInfo.SvnRevision;
+    if (revision > 0) {
+        auto& message = pipeline.Messages.emplace_back();
+        message.Text = "FlowCore library revision";
+        auto url = VcsRevisionUrlPrefix.empty()
+            ? TString{}
+            : Format("%v%v", VcsRevisionUrlPrefix, revision);
+        TStringBuilder markdownText;
+        markdownText.AppendString(FormatMaybeLink(Format("r%v", revision), url));
+        markdownText.AppendString(" -- the base trunk revision of the FlowCore library, excluding commits from the user's branch.");
+        message.MarkdownText = markdownText.Flush();
+    }
+
     auto intermediateDescriptions = GetComputationPartitionIntermediateDescriptions(flowView);
     auto computationBaseDescriptions = MakeComputationDescriptions(
         flowView,
