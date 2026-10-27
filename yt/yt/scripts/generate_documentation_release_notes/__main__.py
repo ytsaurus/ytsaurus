@@ -161,17 +161,17 @@ def prepare_description(body, labels):
                 html_end = None
             continue
         is_setext_heading = re.fullmatch(r" {0,3}(?:=+|-+)[ \t]*", line) and index > 0 and lines[index - 1].strip()
-        is_atx_heading = re.match(r"^ {0,3}#{1,6}(?:[ \t]+|$)", line)
-        if is_atx_heading:
+        atx_heading = re.match(r"^ {0,3}(#{1,6})(?:[ \t]+|$)", line)
+        if atx_heading:
             atx_headings.add(index)
-        if is_atx_heading or is_setext_heading:
+        if atx_heading or is_setext_heading:
             in_introduction = False
         if in_introduction:
             introduction.add(index)
-        if re.match(r"^####[ \t]+", line):
-            lines[index] = re.sub(r"^####[ \t]+", "##### ", line)
-        else:
-            lines[index] = re.sub(r"^#{1,3}[ \t]+(.*)", r"#### \1", line)
+        if atx_heading and len(atx_heading[1]) <= 4:
+            level = 5 if len(atx_heading[1]) == 4 else 4
+            suffix = line[atx_heading.end(1):]
+            lines[index] = "#" * level + re.sub(r"^[ \t]+", " ", suffix)
 
     paragraph = []
     for index in range(len(lines) + 1):
