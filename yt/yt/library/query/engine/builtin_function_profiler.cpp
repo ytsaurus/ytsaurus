@@ -1280,6 +1280,10 @@ public:
     {
         if (id) {
             id->AddString(ToStringRef(Function_ + "_aggregate"));
+            id->AddInteger(std::ssize(logicalArgumentTypes));
+            for (const auto& logicalType : logicalArgumentTypes) {
+                id->AddInteger(static_cast<ui8>(GetWireType(logicalType)));
+            }
         }
 
         std::vector<EValueType> argumentTypes;
