@@ -84,7 +84,7 @@ public:
                 hedgingManagerWithSensors.SecondaryRequestCount.Increment(statistics.SecondaryRequestCount);
                 hedgingManagerWithSensors.QueuedRequestCount.Increment(statistics.QueuedRequestCount);
                 hedgingManagerWithSensors.MaxQueueSize.Update(statistics.MaxQueueSize);
-                hedgingManagerWithSensors.HedgingDelayUs.Update(statistics.HedgingDelay * 1000);
+                hedgingManagerWithSensors.HedgingDelayUs.Update(statistics.HedgingDelay.MicroSeconds());
             }
         }
     }
@@ -98,7 +98,7 @@ private:
         NProfiling::TCounter SecondaryRequestCount;
         NProfiling::TCounter QueuedRequestCount;
         NProfiling::TGauge MaxQueueSize;
-        NProfiling::TTimeGauge HedgingDelayUs;
+        NProfiling::TGauge HedgingDelayUs;
     };
 
     const TAdaptiveHedgingManagerConfigPtr StoreChunkConfig_;
@@ -136,7 +136,7 @@ private:
             .SecondaryRequestCount = customizedProfiler.Counter("/secondary_request_count"),
             .QueuedRequestCount = customizedProfiler.Counter("/queued_request_count"),
             .MaxQueueSize = customizedProfiler.Gauge("/max_queue_size"),
-            .HedgingDelayUs = customizedProfiler.TimeGauge("/hedging_delay_us"),
+            .HedgingDelayUs = customizedProfiler.Gauge("/hedging_delay_us"),
         };
     }
 };
