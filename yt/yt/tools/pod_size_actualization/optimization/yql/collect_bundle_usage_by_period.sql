@@ -136,10 +136,12 @@ $confidence_reason = ($valid_periods, $spec_bad, $usage_bad) -> {
     )), ","), "");
 };
 
+-- В разных витринах cluster бывает String или Utf8. На входе приводим его
+-- к Utf8, чтобы JOIN и обе записи в @usage_max использовали один тип.
 -- Гарантии и отпечатки конфигурации по дням: нужны и шагу 1, и шагу 3.
 $spec_by_day = (
     SELECT
-        TableName() AS day, cluster AS cluster, bundle_name AS bundle,
+        TableName() AS day, CAST(cluster AS Utf8) AS cluster, bundle_name AS bundle,
         abc_service_slug,
         abc_service_path,
         value_stream_slug,
@@ -187,7 +189,7 @@ $node_containers = (
         -- В Meta DWH колонка называется host, но содержит FQDN контейнера,
         -- а не имя физического хоста. За границей внешней схемы используем
         -- однозначное имя container.
-        SELECT TableName() AS day, cluster AS cluster, bundle AS bundle, host AS container,
+        SELECT TableName() AS day, CAST(cluster AS Utf8) AS cluster, bundle AS bundle, host AS container,
                tablet_node_vcpu AS vcpu, tablet_node_memory AS memory,
                tablet_node_net_bytes AS net
         FROM RANGE($nodes_spec, $start_s, $end_s)
@@ -207,7 +209,7 @@ $proxy_containers = (
     SELECT c.day AS day, c.cluster AS cluster, c.bundle AS bundle, c.container AS container
     FROM (
         -- bundle в спек-логе проксей — String, а дальше по конвейеру всё Utf8.
-        SELECT TableName() AS day, cluster AS cluster, CAST(bundle AS Utf8) AS bundle,
+        SELECT TableName() AS day, CAST(cluster AS Utf8) AS cluster, CAST(bundle AS Utf8) AS bundle,
                host AS container, rpc_proxy_vcpu AS vcpu, rpc_proxy_memory AS memory,
                rpc_proxy_net_bytes AS net
         FROM RANGE($proxies_spec, $start_s, $end_s)
