@@ -128,6 +128,7 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 		// COMPAT(buyval01): Remove after migrating agent settings to location_overrides.
 		aCfg := config.Strawberry.ApplyOverrides(config.LocationStrawberryOverrides[proxy])
 		aCfg = aCfg.ApplyOverrides(config.LocationOverrides[proxy].Agent)
+		aCfg.BaseACL = config.BaseACL
 
 		ctlDefaultSpeclet := config.LocationControllerDefaultSpeclet[proxy]
 		controllerConfigs[proxy] = make(map[string]yson.RawValue)
