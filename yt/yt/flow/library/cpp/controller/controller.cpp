@@ -7,6 +7,7 @@
 #include "lease_manager.h"
 #include "lineage_aggregator.h"
 #include "persisted_state_manager.h"
+#include "stream_metrics.h"
 #include "throttler_host.h"
 #include "worker.h"
 #include "worker_tracker.h"
@@ -71,42 +72,6 @@ static constexpr auto LeadershipWarmupExtraTime = TDuration::Seconds(5);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// FuncGauge-based lag gauge: computes lag as (Now() - LastWatermark) at read time.
-// Unlike TGauge, continues growing even if Update() stops being called (e.g. controller is stuck).
-// Returns -1 if no watermark has been set yet.
-class TLagGauge
-    : public TRefCounted
-{
-public:
-    static TIntrusivePtr<TLagGauge> Create(
-        const TProfiler& profiler,
-        const std::string& name)
-    {
-        auto gauge = New<TLagGauge>();
-        profiler.AddFuncGauge(name, gauge, [gauge = gauge.Get()] () -> double {
-            auto watermark = TSystemTimestamp(gauge->Watermark_.load(std::memory_order::relaxed));
-            if (watermark == ZeroSystemTimestamp) {
-                return -1.0;
-            }
-            auto now = static_cast<i64>(TInstant::Now().Seconds());
-            return static_cast<double>(std::max<i64>(0, now - static_cast<i64>(watermark.Underlying())));
-        });
-        return gauge;
-    }
-
-    void Update(TSystemTimestamp watermark)
-    {
-        Watermark_.store(watermark.Underlying(), std::memory_order::relaxed);
-    }
-
-private:
-    std::atomic<ui64> Watermark_{ZeroSystemTimestamp.Underlying()};
-};
-
-using TLagGaugePtr = TIntrusivePtr<TLagGauge>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TFlowEphemeralStatePtr ComputeInitialEphemeralState(
     const TFlowStatePtr& state,
     const TVersionedDynamicPipelineSpecPtr& dynamicPipelineSpec,
@@ -148,50 +113,6 @@ class TControllerLeader
     : public TRefCounted
 {
 public:
-    class TStreamMetrics
-    {
-    public:
-        TStreamMetrics(const TStreamId& streamId, const TProfiler& profiler)
-            : Profiler_(profiler
-                    .WithPrefix("/streams")
-                    .WithRequiredTag("stream_id", streamId.Underlying()))
-            , TimeLagGauge_(TLagGauge::Create(Profiler_, "/time_lag"))
-            , EventTimeLagGauge_(TLagGauge::Create(Profiler_, "/event_time_lag"))
-            , LagGauge_(Profiler_.Gauge("/count_lag"))
-            , ByteSizeLagGauge_()
-        { }
-
-        void Apply(const TSystemTimestamp /*now*/, const TStreamTraverseDataPtr& stream)
-        {
-            TimeLagGauge_->Update(stream->SystemWatermark);
-            EventTimeLagGauge_->Update(stream->EventWatermark);
-
-            const auto& metrics = stream->InflightMetrics;
-            LagGauge_.Update(metrics->Count);
-
-            auto update = [&] (auto& gauge, const std::string& name, auto value) {
-                if (value) {
-                    if (!gauge) {
-                        gauge = Profiler_.Gauge(name);
-                    }
-                    gauge->Update(*value);
-                } else {
-                    gauge = {};
-                }
-            };
-
-            update(ByteSizeLagGauge_, "/byte_size_lag", metrics->ByteSize);
-        }
-
-    private:
-        TProfiler Profiler_;
-
-        TLagGaugePtr TimeLagGauge_;
-        TLagGaugePtr EventTimeLagGauge_;
-        TGauge LagGauge_;
-        std::optional<TGauge> ByteSizeLagGauge_;
-    };
-
     struct TAggregatedStreamTraverseData
     {
         int Count = 0;
@@ -657,36 +578,12 @@ public:
             auto now = WaitFor(TimeProvider_->GetTimestamp(/*barrier*/ false))
                 .ValueOrThrow();
 
-            auto registerStream = [&] (const auto& streamId, const auto& stream) {
-                auto& metrics = StreamMetrics_
-                    .emplace(streamId, TStreamMetrics(streamId, Profiler_))
-                    .first->second;
-                metrics.Apply(now, stream);
-            };
-
-            for (const auto& [streamId, stream] : traverseData->Streams) {
-                registerStream(streamId, stream);
-            }
-            static const TStreamId unitedStreamId = TStreamId("__united__");
-            registerStream(unitedStreamId, traverseData->UnitedStream);
-            static const TStreamId unitedSourceStreamId = TStreamId("__united_source__");
-            registerStream(unitedSourceStreamId, traverseData->UnitedSourceStream);
-            static const TStreamId unitedTimerStreamId = TStreamId("__united_timer__");
-            registerStream(unitedTimerStreamId, traverseData->UnitedTimerStream);
-            static const TStreamId unitedKeyVisitorStreamId = TStreamId("__united_key_visitor__");
-            registerStream(unitedKeyVisitorStreamId, traverseData->UnitedKeyVisitorStream);
-            static const TStreamId unitedOutputStreamId = TStreamId("__united_output__");
-            registerStream(unitedOutputStreamId, traverseData->UnitedOutputStream);
-
-            auto streamIds = ConcatVectors(
-                GetKeys(traverseData->Streams),
-                std::vector<TStreamId>{
-                    unitedStreamId,
-                    unitedSourceStreamId,
-                    unitedTimerStreamId,
-                    unitedKeyVisitorStreamId,
-                    unitedOutputStreamId});
-            DropMissingKeys(StreamMetrics_, THashSet<TStreamId>(streamIds.begin(), streamIds.end()));
+            UpdateStreamMetrics(
+                StreamMetrics_,
+                now,
+                traverseData,
+                executionSpec->DynamicPipelineSpec->GetValue()->EnableUnitedStreamMetrics,
+                Profiler_);
         }
 
         const auto minJobStatusUpdateTime = TInstant::Now() -

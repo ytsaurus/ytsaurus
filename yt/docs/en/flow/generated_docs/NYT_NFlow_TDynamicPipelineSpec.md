@@ -35,6 +35,9 @@ A set of named distributed throttlers common to all `Computation` pipeline nodes
 || `enable_mermaid_graph_describe` | **Type**: `bool`
 **Default value**: `false`
  ||
+|| `enable_united_stream_metrics` | **Type**: `bool`
+**Default value**: `true`
+Enables export of metrics for aggregated streams to Monitoring (`true` by default). Setting this option to `false` stops these exports, so dependent alerts, dashboards, and reports no longer receive the data. The option affects metric export only; metrics for individual streams continue to be exported. ||
 || `flow_view_cache_codec` | **Type**: [NYT::NCompression::ECodec](./all_yson_structs#NYT_NCompression_ECodec)
 **Default value**: `zstd_2`
  ||

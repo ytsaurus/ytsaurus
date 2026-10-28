@@ -1609,6 +1609,9 @@ void TDynamicPipelineSpec::Register(TRegistrar registrar)
     registrar.Parameter("enable_mermaid_graph_describe", &TThis::EnableMermaidGraphDescribe)
         .Default(false);
 
+    registrar.Parameter("enable_united_stream_metrics", &TThis::EnableUnitedStreamMetrics)
+        .Default(true);
+
     registrar.Parameter("flow_view_cache_codec", &TThis::FlowViewCacheCodec)
         .Default(NCompression::ECodec::Zstd_2);
 
