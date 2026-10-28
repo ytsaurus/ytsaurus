@@ -1,11 +1,13 @@
 name: CMake CI
 
 on:
+  schedule:
+    - cron: '0 0 * * *'
   workflow_dispatch:
-  push:
-    branches:
-      - main
-      - stable/*
+  # push:
+  #   branches:
+  #     - main
+  #     - stable/*
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
