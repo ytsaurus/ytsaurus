@@ -36,6 +36,7 @@ type AgentInfo struct {
 	ServiceToken       string // TODO: move me somewhere
 	Family             string
 	OperationNamespace string
+	BaseACL            []yt.ACE
 	// RobotUsername is needed for a temporary workaround to add the robot to the operation acl.
 	//
 	// TODO(dakovalkov): remove after YT-17557
@@ -1113,6 +1114,21 @@ func (oplet *Oplet) getOpACL() (acl []yt.ACE) {
 				Subjects:    []string{oplet.agentInfo.RobotUsername},
 				Permissions: []yt.Permission{yt.PermissionRead, yt.PermissionManage},
 			},
+		}
+	}
+	for _, ace := range oplet.agentInfo.BaseACL {
+		var permissions []yt.Permission
+		for _, permission := range ace.Permissions {
+			if permission == yt.PermissionRead || permission == yt.PermissionManage {
+				permissions = append(permissions, permission)
+			}
+		}
+		if len(permissions) > 0 {
+			acl = append(acl, yt.ACE{
+				Action:      ace.Action,
+				Subjects:    ace.Subjects,
+				Permissions: permissions,
+			})
 		}
 	}
 	readACL := toOperationACL(oplet.acl)
