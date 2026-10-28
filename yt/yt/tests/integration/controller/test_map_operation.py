@@ -1456,6 +1456,8 @@ print(json.dumps(input))
 
     @authors("pavook")
     def test_map_job_interrupts_disabled_by_operation_spec(self):
+        skip_if_component_old(self.Env, (26, 2), "controller-agent")
+
         rows = [{"key": index} for index in range(3)]
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", rows)
