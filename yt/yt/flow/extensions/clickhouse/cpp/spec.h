@@ -5,7 +5,6 @@
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/flow/library/cpp/common/sink.h>
-#include <yt/yt/flow/library/cpp/connectors/common/delegating_async_sink_base.h>
 #include <yt/yt/flow/library/cpp/connectors/common/ordered_batching_async_sink_base.h>
 #include <yt/yt/flow/library/cpp/connectors/common/sync_sink_base.h>
 
@@ -181,32 +180,6 @@ struct TDynamicAtLeastOnceClickHouseSinkParameters
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicAtLeastOnceClickHouseSinkParameters);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TAtMostOnceClickHouseSinkParameters
-    : public TDelegatingAsyncSinkParameters
-    , public virtual TCommonClickHouseSinkParameters
-{
-    REGISTER_YSON_STRUCT(TAtMostOnceClickHouseSinkParameters);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TAtMostOnceClickHouseSinkParameters);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TDynamicAtMostOnceClickHouseSinkParameters
-    : public TDelegatingAsyncSinkDynamicParameters
-    , public virtual TDynamicCommonClickHouseSinkParameters
-{
-    REGISTER_YSON_STRUCT(TDynamicAtMostOnceClickHouseSinkParameters);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TDynamicAtMostOnceClickHouseSinkParameters);
 
 ////////////////////////////////////////////////////////////////////////////////
 

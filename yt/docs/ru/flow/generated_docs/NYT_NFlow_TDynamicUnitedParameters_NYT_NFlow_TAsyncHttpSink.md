@@ -5,9 +5,6 @@
 
 #|
 || **Параметр** | **Описание** ||
-|| `at_most_once_strategy` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TAtMostOnceStrategyDynamicParameters](./all_yson_structs#NYT_NFlow_TAtMostOnceStrategyDynamicParameters)`>`
-**Значение по умолчанию**: `{}`
-Динамические параметры `at_most_once_strategy`. Поддержка зависит от коннектора; перед настройкой проверьте документацию выбранного коннектора. ||
 || `request_timeout` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `1m`
 Общий дедлайн доставки одного сообщения, включая все HTTP-попытки и паузы между ними. Его исчерпание окончательно останавливает синк на время текущей джобы. ||

@@ -71,7 +71,7 @@ The updated dynamic parameters are used by subsequent retry decisions, including
 
 ### Static spec
 
-The HTTP sink supports only at-least-once delivery. The shared sink schema contributes `at_most_once_strategy`, but enabling it makes spec loading fail.
+The HTTP sink supports at-least-once delivery.
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TUnitedParameters_NYT_NFlow_TAsyncHttpSink.md) %}
 

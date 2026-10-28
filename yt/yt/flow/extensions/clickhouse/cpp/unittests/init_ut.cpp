@@ -9,14 +9,8 @@
 
 #include <yt/yt/client/table_client/schema.h>
 
-#include <yt/yt/core/concurrency/action_queue.h>
-
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/convert.h>
-
-#include <atomic>
-#include <chrono>
-#include <thread>
 
 namespace NYT::NFlow {
 namespace {
@@ -37,7 +31,6 @@ struct TTestSinkEnvironment
 
 template <class TSink>
 TTestSinkEnvironment<TSink> CreateTestSink(
-    bool enableAtMostOnce = false,
     TStringBuf hostParameters = R"(host="127.0.0.1";)")
 {
     const TStreamId streamId("input");
@@ -50,14 +43,10 @@ TTestSinkEnvironment<TSink> CreateTestSink(
     streamSpecs[streamId][TStreamSpecId(1)] = streamSpec;
 
     auto context = New<TSinkContext>();
-    auto atMostOnceStrategy = enableAtMostOnce
-        ? "at_most_once_strategy={enabled=%true};"
-        : "";
-    auto specYson = Format("{sink_class_name=%Qv;input_stream_ids=[input];parameters={%vport=1;table=%Qv;%v};}",
+    auto specYson = Format("{sink_class_name=%Qv;input_stream_ids=[input];parameters={%vport=1;table=%Qv;};}",
         TypeName<TSink>(),
         hostParameters,
-        "output",
-        atMostOnceStrategy);
+        "output");
     context->SinkSpec = ConvertTo<TSinkSpecPtr>(TYsonStringBuf(specYson));
     context->StreamSpecStorage = New<TComputationStreamSpecStorage>(
         New<TStreamSpecs>(std::move(streamSpecs)),
@@ -86,9 +75,9 @@ TTestSinkEnvironment<TSink> CreateTestSink(
 }
 
 template <class TSink>
-void CheckInitDoesNotConnect(bool enableAtMostOnce = false)
+void CheckInitDoesNotConnect()
 {
-    auto environment = CreateTestSink<TSink>(enableAtMostOnce);
+    auto environment = CreateTestSink<TSink>();
     auto stateManager = New<TStateManagerMock>();
     EXPECT_NO_THROW(environment.Sink->Init(stateManager->CreateContext()));
 }
@@ -104,19 +93,14 @@ void CheckInitializationError(const IStatusProfilerPtr& statusProfiler)
 
 TEST(TClickHouseSinkInitTest, MissingShardingKeyColumnFailsSinkConstruction)
 {
-    // The at-most-once sink retries session startup forever, so a spec typo caught only at
-    // session startup would never surface as a failure there.
     constexpr TStringBuf BadShardingKey =
         R"(shard_hosts={a=["h1"];b=["h2"]};sharding_key_columns=["missing"];)";
 
     EXPECT_THROW(
-        CreateTestSink<TShardedClickHouseBatchingSink>(/*enableAtMostOnce*/ false, BadShardingKey),
+        CreateTestSink<TShardedClickHouseBatchingSink>(BadShardingKey),
         TErrorException);
     EXPECT_THROW(
-        CreateTestSink<TAtLeastOnceClickHouseSink>(/*enableAtMostOnce*/ false, BadShardingKey),
-        TErrorException);
-    EXPECT_THROW(
-        CreateTestSink<TAtMostOnceClickHouseSink>(/*enableAtMostOnce*/ true, BadShardingKey),
+        CreateTestSink<TAtLeastOnceClickHouseSink>(BadShardingKey),
         TErrorException);
 }
 
@@ -128,7 +112,6 @@ TEST(TClickHouseSinkInitTest, BatchingDoesNotConnect)
 TEST(TClickHouseSinkInitTest, ShardedBatchingDoesNotConnect)
 {
     auto environment = CreateTestSink<TShardedClickHouseBatchingSink>(
-        /*enableAtMostOnce*/ false,
         R"(shard_hosts={a=[h]};)");
     auto stateManager = New<TStateManagerMock>();
     EXPECT_NO_THROW(environment.Sink->Init(stateManager->CreateContext()));
@@ -137,11 +120,6 @@ TEST(TClickHouseSinkInitTest, ShardedBatchingDoesNotConnect)
 TEST(TClickHouseSinkInitTest, AtLeastOnceDoesNotConnect)
 {
     CheckInitDoesNotConnect<TAtLeastOnceClickHouseSink>();
-}
-
-TEST(TClickHouseSinkInitTest, AtMostOnceDoesNotConnect)
-{
-    CheckInitDoesNotConnect<TAtMostOnceClickHouseSink>(/*enableAtMostOnce*/ true);
 }
 
 TEST(TClickHouseSinkInitTest, BatchingConnectsBeforeAck)
@@ -161,62 +139,6 @@ TEST(TClickHouseSinkInitTest, BatchingConnectsBeforeAck)
     EXPECT_FALSE(acked);
     CheckInitializationError(environment.StatusProfiler);
     EXPECT_NO_THROW(environment.Sink->Commit());
-}
-
-TEST(TClickHouseSinkInitTest, AtMostOnceWaitsForFirstConnectionBeforeAck)
-{
-    auto environment = CreateTestSink<TAtMostOnceClickHouseSink>(/*enableAtMostOnce*/ true);
-    auto stateManager = New<TStateManagerMock>();
-    ASSERT_NO_THROW(environment.Sink->Init(stateManager->CreateContext()));
-
-    auto acked = std::make_shared<std::atomic<bool>>(false);
-    auto actionQueue = New<NConcurrency::TActionQueue>("ClickHouseSinkInitTest");
-    auto distributeFuture = BIND([sink = environment.Sink, message = environment.Message, acked] {
-        sink->Distribute(
-            message,
-            TOnDistributedCallback::FromCallback([acked] {
-                acked->store(true);
-            }));
-    })
-        .AsyncVia(actionQueue->GetInvoker())
-        .Run();
-
-    bool observedResult = false;
-    for (int iteration = 0; iteration < 3000 && !observedResult; ++iteration) {
-        observedResult = acked->load() || environment.StatusProfiler->GetStatus().Errors.contains("/writing");
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-    ASSERT_TRUE(observedResult);
-
-    EXPECT_FALSE(acked->load());
-    CheckInitializationError(environment.StatusProfiler);
-
-    distributeFuture.Cancel(TError("Stop connection retry test"));
-    auto cancellationError = NConcurrency::WaitFor(distributeFuture);
-    EXPECT_FALSE(cancellationError.IsOK());
-    EXPECT_THAT(ToString(cancellationError), ::testing::HasSubstr("Stop connection retry test"));
-    EXPECT_FALSE(acked->load());
-    EXPECT_NO_THROW(environment.Sink->Commit());
-}
-
-TEST(TClickHouseSinkInitTest, AtMostOnceOrderedFallbackConnectsBeforeAck)
-{
-    auto environment = CreateTestSink<TAtMostOnceClickHouseSink>();
-    auto stateManager = New<TStateManagerMock>();
-    ASSERT_NO_THROW(environment.Sink->Init(stateManager->CreateContext()));
-
-    bool acked = false;
-    EXPECT_THROW(
-        environment.Sink->Distribute(
-            environment.Message,
-            TOnDistributedCallback::FromCallback([&] {
-                acked = true;
-            })),
-        std::exception);
-    EXPECT_FALSE(acked);
-    CheckInitializationError(environment.StatusProfiler);
-    EXPECT_NO_THROW(environment.Sink->Commit());
-    EXPECT_FALSE(acked);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

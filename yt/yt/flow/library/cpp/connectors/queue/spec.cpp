@@ -6,6 +6,24 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateSingleCluster(const TAsyncQueueWriterParametersBase& parameters)
+{
+    THROW_ERROR_EXCEPTION_IF(!parameters.QueuePath.GetCluster(), "QueuePath should have cluster");
+    THROW_ERROR_EXCEPTION_IF(!parameters.ProducerPath.GetCluster(), "ProducerPath should have cluster");
+    THROW_ERROR_EXCEPTION_IF(parameters.QueuePath.GetCluster() != parameters.ProducerPath.GetCluster(),
+        "ProducerPath and QueuePath should have the same cluster");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TQueueInfoSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("queue_path", &TThis::QueuePath)
@@ -142,48 +160,7 @@ void TAsyncQueueWriterParametersBase::Register(TRegistrar registrar)
 void TAsyncQueueWriterParameters::Register(TRegistrar registrar)
 {
     registrar.Postprocessor([] (TAsyncQueueWriterParameters* parameters) {
-        THROW_ERROR_EXCEPTION_IF(!parameters->QueuePath.GetCluster().has_value(), "QueuePath should have cluster");
-        THROW_ERROR_EXCEPTION_IF(!parameters->ProducerPath.GetCluster().has_value(), "ProducerPath should have cluster");
-        THROW_ERROR_EXCEPTION_IF(parameters->QueuePath.GetCluster() != parameters->ProducerPath.GetCluster(),
-            "ProducerPath and QueuePath should have the same cluster");
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TAsyncMultiClusterQueueWriterParameters::Register(TRegistrar registrar)
-{
-    // Force manual use clusters until merge TAsyncQueueSink with TAsyncMultiClusterQueueSink.
-    registrar.Parameter("use_clusters", &TThis::UseClusters)
-        .Default(false);
-
-    registrar.Postprocessor([] (TAsyncMultiClusterQueueWriterParameters* parameters) {
-        if (parameters->UseClusters) {
-            THashSet<std::string> queueClusters;
-            THashSet<std::string> producerClusters;
-            if (parameters->QueuePath.GetCluster().has_value()) {
-                queueClusters.insert(*parameters->QueuePath.GetCluster());
-            }
-            if (parameters->QueuePath.GetClusters().has_value()) {
-                auto clusters = parameters->QueuePath.GetClusters();
-                queueClusters.insert(std::make_move_iterator(clusters->begin()), std::make_move_iterator(clusters->end()));
-            }
-            if (parameters->ProducerPath.GetCluster().has_value()) {
-                producerClusters.insert(*parameters->ProducerPath.GetCluster());
-            }
-            if (parameters->ProducerPath.GetClusters().has_value()) {
-                auto clusters = parameters->ProducerPath.GetClusters();
-                producerClusters.insert(std::make_move_iterator(clusters->begin()), std::make_move_iterator(clusters->end()));
-            }
-            THROW_ERROR_EXCEPTION_IF(queueClusters.empty(), "QueuePath should have cluster or clusters");
-            THROW_ERROR_EXCEPTION_IF(producerClusters.empty(), "ProducerPath should have cluster or clusters");
-            THROW_ERROR_EXCEPTION_IF(queueClusters != producerClusters, "QueuePath and ProducerPath should have same set of clusters");
-        } else {
-            THROW_ERROR_EXCEPTION_IF(!parameters->QueuePath.GetCluster().has_value(), "QueuePath should have cluster");
-            THROW_ERROR_EXCEPTION_IF(!parameters->ProducerPath.GetCluster().has_value(), "ProducerPath should have cluster");
-            THROW_ERROR_EXCEPTION_IF(parameters->QueuePath.GetCluster() != parameters->ProducerPath.GetCluster(),
-                "ProducerPath and QueuePath should have the same cluster");
-        }
+        ValidateSingleCluster(*parameters);
     });
 }
 
@@ -198,7 +175,8 @@ void TDynamicAsyncQueueWriterParameters::Register(TRegistrar registrar)
     registrar.Parameter("max_bytes_per_write", &TThis::MaxBytesPerWrite)
         .Default(1_MB);
     registrar.Parameter("backoff_duration", &TThis::BackoffDuration)
-        .Default(TDuration::Seconds(1));
+        .Default(TDuration::Seconds(1))
+        .GreaterThan(TDuration::Zero());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -212,30 +190,87 @@ void ValidateAsyncSinkTabletRoutingUnsupported(const TQueueSinkTabletRoutingPara
         "use a sync queue sink");
 }
 
-void TAsyncQueueSinkParametersBase::Register(TRegistrar registrar)
+void TAtMostOnceStrategyParameters::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TAtMostOnceStrategyDynamicParameters::Register(TRegistrar registrar)
+{
+    registrar.Parameter("suspend_destruction_duration", &TThis::SuspendDestructionDuration)
+        .Default(TDuration::Seconds(10));
+    registrar.Parameter("total_queue_bytes_limit", &TThis::TotalQueueBytesLimit)
+        .Default(NYTree::TSize(100_MB));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TAsyncQueueSinkParameters::Register(TRegistrar registrar)
 {
     registrar.Parameter("column_filter", &TThis::ColumnFilter)
         .Default();
+    registrar.Parameter("at_most_once_strategy", &TThis::AtMostOnceStrategy)
+        .Optional();
 
     registrar.Postprocessor([] (TThis* parameters) {
         ValidateAsyncSinkTabletRoutingUnsupported(*parameters);
+        parameters->ValidateClusters();
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAsyncQueueSinkParameters::Register(TRegistrar /*registrar*/)
-{ }
+void TAsyncQueueSinkParameters::ValidateClusters() const
+{
+    ValidateSingleCluster(*this);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAsyncMultiClusterQueueSinkParameters::Register(TRegistrar /*registrar*/)
-{ }
+void TAsyncMultiClusterQueueSinkParameters::Register(TRegistrar registrar)
+{
+    registrar.Parameter("use_clusters", &TThis::UseClusters)
+        .Default(false);
+}
+
+void TAsyncMultiClusterQueueSinkParameters::ValidateClusters() const
+{
+    auto getClusters = [] (const NYPath::TRichYPath& path) {
+        THashSet<std::string> result;
+        if (auto cluster = path.GetCluster()) {
+            result.insert(*cluster);
+        }
+        if (auto clusters = path.GetClusters()) {
+            for (const auto& cluster : *clusters) {
+                THROW_ERROR_EXCEPTION_UNLESS(result.insert(cluster).second,
+                    "Duplicate cluster %Qv in path %v",
+                    cluster,
+                    path);
+            }
+        }
+        return result;
+    };
+    auto queueClusters = getClusters(QueuePath);
+    auto producerClusters = getClusters(ProducerPath);
+    if (UseClusters) {
+        THROW_ERROR_EXCEPTION_IF(queueClusters.empty(), "QueuePath should have cluster or clusters");
+        THROW_ERROR_EXCEPTION_IF(producerClusters.empty(), "ProducerPath should have cluster or clusters");
+        THROW_ERROR_EXCEPTION_IF(queueClusters != producerClusters, "QueuePath and ProducerPath should have same set of clusters");
+    } else {
+        ValidateSingleCluster(*this);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDynamicAsyncQueueSinkParameters::Register(TRegistrar /*registrar*/)
-{ }
+void TDynamicAsyncQueueSinkParameters::Register(TRegistrar registrar)
+{
+    registrar.Parameter("at_most_once_strategy", &TThis::AtMostOnceStrategy)
+        .DefaultNew();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

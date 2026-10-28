@@ -18,7 +18,6 @@ TEST(TClickHouseRegistryTest, SinksAreRegistered)
     EXPECT_THAT(typeNames, testing::Contains("NYT::NFlow::TClickHouseBatchingSink"));
     EXPECT_THAT(typeNames, testing::Contains("NYT::NFlow::TShardedClickHouseBatchingSink"));
     EXPECT_THAT(typeNames, testing::Contains("NYT::NFlow::TAtLeastOnceClickHouseSink"));
-    EXPECT_THAT(typeNames, testing::Contains("NYT::NFlow::TAtMostOnceClickHouseSink"));
 }
 
 TEST(TClickHouseRegistryTest, LegacyBatchingRejectsShardHosts)

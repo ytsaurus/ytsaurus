@@ -12,16 +12,10 @@ DECLARE_REFCOUNTED_STRUCT(IOrderedSource);
 DECLARE_REFCOUNTED_STRUCT(TOrderedSourcePartitionState);
 
 DECLARE_REFCOUNTED_STRUCT(TSyncSinkState);
-DECLARE_REFCOUNTED_STRUCT(TAsyncAtMostOnceSinkState);
 
 DECLARE_REFCOUNTED_STRUCT(TOrderedAsyncSinkState);
 
 DECLARE_REFCOUNTED_STRUCT(TOrderedBatchingAsyncSinkState);
-
-DECLARE_REFCOUNTED_STRUCT(TDelegatingAsyncSinkParameters);
-DECLARE_REFCOUNTED_STRUCT(TDelegatingAsyncSinkDynamicParameters);
-DECLARE_REFCOUNTED_STRUCT(TAtMostOnceStrategyParameters);
-DECLARE_REFCOUNTED_STRUCT(TAtMostOnceStrategyDynamicParameters);
 
 ////////////////////////////////////////////////////////////////////////////////
 

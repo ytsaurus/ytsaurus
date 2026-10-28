@@ -16,7 +16,7 @@ Pause between insert retries. ||
 Maximum number of insert attempts for errors that cannot be reliably classified as transient (server errors, for example); once exhausted, the write fails. Known transient errors (network, protocol) are retried without a limit, and unrecoverable ones (validation) are not retried. ||
 || `async_insert` | **Type**: `bool`
 **Default value**: `false`
-Enables server-side asynchronous inserts. All sink classes emit `async_insert=1` and `wait_for_async_insert=1`. The batching exactly-once sinks additionally provide their deduplication token and emit `async_insert_deduplicate=1`; the at-least-once and at-most-once sinks intentionally omit the deduplication token and the `async_insert_deduplicate` setting. ||
+Enables server-side asynchronous inserts. All sink classes emit `async_insert=1` and `wait_for_async_insert=1`. The batching exactly-once sinks additionally provide their deduplication token and emit `async_insert_deduplicate=1`; the at-least-once sink intentionally omits the deduplication token and the `async_insert_deduplicate` setting. ||
 || `replay_horizon` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `1d`
 Upper bound on replay lag, used to check the deduplication window. When the writer session starts before the first insert, it is compared with the server-side `replicated_deduplication_window_seconds`, or `replicated_deduplication_window_seconds_for_async_inserts` when `async_insert` is enabled. If the selected window is shorter, a warning is written to the worker log. ||

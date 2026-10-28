@@ -5,8 +5,6 @@
 
 #|
 || **Параметр** | **Описание** ||
-|| `at_most_once_strategy` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TAtMostOnceStrategyParameters](./all_yson_structs#NYT_NFlow_TAtMostOnceStrategyParameters)`>`
-Необязательная стратегия доставки at-most-once. Поддержка зависит от коннектора; перед включением проверьте документацию выбранного коннектора. ||
 || `url` | **Тип**: `std::string`
 **Обязательный параметр**
 Целевой HTTP- или HTTPS-адрес. URL должен содержать имя хоста. ||

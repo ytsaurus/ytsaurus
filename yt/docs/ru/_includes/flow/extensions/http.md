@@ -71,7 +71,7 @@ HTTP-расширение предоставляет асинхронный си
 
 ### Статическая спека
 
-HTTP-синк поддерживает только доставку at-least-once. Общая схема синков добавляет `at_most_once_strategy`, но при включении этой стратегии загрузка спеки завершается ошибкой.
+HTTP-синк поддерживает доставку at-least-once.
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TUnitedParameters_NYT_NFlow_TAsyncHttpSink.md) %}
 

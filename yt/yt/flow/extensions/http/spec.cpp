@@ -4,8 +4,6 @@
 
 #include <yt/yt/core/misc/error.h>
 
-#include <yt/yt/core/ytree/convert.h>
-
 #include <algorithm>
 
 namespace NYT::NFlow {
@@ -63,10 +61,6 @@ void TAsyncHttpSinkParameters::Register(TRegistrar registrar)
         .Default(8)
         .GreaterThanOrEqual(0);
     registrar.Postprocessor([] (TThis* parameters) {
-        if (parameters->AtMostOnceStrategy && parameters->AtMostOnceStrategy->Enabled) {
-            THROW_ERROR_EXCEPTION("Async HTTP sink does not support at_most_once_strategy");
-        }
-
         auto parsedUrl = NHttp::ParseUrl(parameters->Url);
         if ((parsedUrl.Protocol != "http" && parsedUrl.Protocol != "https") || parsedUrl.Host.empty()) {
             THROW_ERROR_EXCEPTION("Async HTTP sink URL must use http or https and contain a host");
@@ -109,12 +103,6 @@ void TAsyncHttpSinkParameters::Register(TRegistrar registrar)
 
 void TDynamicAsyncHttpSinkParameters::Register(TRegistrar registrar)
 {
-    registrar.Preprocessor([] (TThis* parameters) {
-        if (parameters->AtMostOnceStrategy) {
-            parameters->AtMostOnceStrategy->SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::Keep);
-        }
-    });
-
     registrar.Parameter("request_timeout", &TThis::RequestTimeout)
         .Default(TDuration::Minutes(1))
         .GreaterThan(TDuration::Zero());
@@ -140,14 +128,6 @@ void TDynamicAsyncHttpSinkParameters::Register(TRegistrar registrar)
         .Default(5)
         .InRange(1, 100);
     registrar.Postprocessor([] (TThis* parameters) {
-        if (parameters->AtMostOnceStrategy) {
-            const auto& unrecognized = parameters->AtMostOnceStrategy->GetLocalUnrecognized();
-            const auto& enabled = unrecognized ? unrecognized->FindChild("enabled") : nullptr;
-            if (enabled && NYTree::ConvertTo<bool>(enabled)) {
-                THROW_ERROR_EXCEPTION("Async HTTP sink does not support at_most_once_strategy");
-            }
-        }
-
         if (parameters->AttemptTimeout > parameters->RequestTimeout) {
             THROW_ERROR_EXCEPTION("attempt_timeout must not exceed request_timeout");
         }

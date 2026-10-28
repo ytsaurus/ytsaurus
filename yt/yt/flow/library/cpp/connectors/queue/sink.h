@@ -5,18 +5,23 @@
 #include "queue_info.h"
 #include "spec.h"
 
-#include <yt/yt/flow/library/cpp/connectors/common/delegating_async_sink_base.h>
+#include <yt/yt/flow/library/cpp/connectors/common/sink_base.h>
 #include <yt/yt/flow/library/cpp/connectors/common/sink_controller_base.h>
 #include <yt/yt/flow/library/cpp/connectors/common/sync_sink_base.h>
+
+#include <yt/yt/flow/library/cpp/common/state_client.h>
+
+#include <yt/yt/client/api/queue_client.h>
 
 #include <yt/yt/client/queue_client/public.h>
 #include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/client/queue_client/public.h>
-
 #include <yt/yt/core/ytree/yson_struct.h>
+
+#include <yt/yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/nonblocking_batcher.h>
 
 #include <yt/yt/core/ypath/public.h>
 
@@ -58,25 +63,32 @@ DEFINE_REFCOUNTED_TYPE(TSyncQueueSink);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IAsyncQueueWriter
-    : public TRefCounted
+struct TMessageIdQueueSinkState
+    : public NYTree::TYsonStruct
 {
-public:
-    ~IAsyncQueueWriter() override = default;
-    virtual void InitSession(const std::string& producerId) = 0;
-    virtual TFuture<void> Write(const NTableClient::TUnversionedOwningRow& row) = 0;
-    virtual void Reconfigure(TDynamicAsyncQueueWriterParametersPtr dynamicParameters) = 0;
+    std::string ProducerId;
+
+    REGISTER_YSON_STRUCT(TMessageIdQueueSinkState);
+
+    static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(IAsyncQueueWriter);
+DEFINE_REFCOUNTED_TYPE(TMessageIdQueueSinkState);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAsyncQueueWriterBase
-    : public IAsyncQueueWriter
+class TAsyncQueueWriter
+    : public TRefCounted
 {
 public:
-    using TRequest = std::tuple<NTableClient::TUnversionedOwningRow, TPromise<void>>;
+    using TSessionResult = NApi::TCreateQueueProducerSessionResult;
+
+    struct TRequest
+    {
+        NTableClient::TUnversionedOwningRow Row;
+        TClosure OnWritten;
+        TMessageId MessageId;
+    };
 
     class TRequestLimiter
     {
@@ -94,172 +106,141 @@ public:
     };
 
 public:
-    TAsyncQueueWriterBase(
+    TAsyncQueueWriter(
         TSinkContextPtr context,
+        TAsyncQueueWriterParametersBasePtr parameters,
+        std::vector<std::string> clusters,
         TDynamicAsyncQueueWriterParametersPtr dynamicParameters,
         NTableClient::TNameTablePtr nameTable,
         IStatusErrorStatePtr errorState,
         NLogging::TLogger logger);
 
-    void InitSession(const std::string& producerId) override;
-    TFuture<void> Write(const NTableClient::TUnversionedOwningRow& row) override;
-    void Reconfigure(TDynamicAsyncQueueWriterParametersPtr dynamicParameters) override;
+    void Init(IInitContextPtr initContext, bool atMostOnce);
+    void Terminate();
+    //! Calls |onWritten| inline on the serialized invoker on success; it must not throw.
+    void Write(
+        NTableClient::TUnversionedOwningRow row,
+        TMessageId messageId,
+        TClosure onWritten);
+    TFuture<TMessageId> GetInitialMessageId() const;
+    void Reconfigure(TDynamicAsyncQueueWriterParametersPtr dynamicParameters);
+    void ThrowIfFatalError() const;
 
 protected:
-    const TSinkContextPtr Context_;
-    TAtomicIntrusivePtr<TDynamicAsyncQueueWriterParameters> DynamicParameters_;
-
     const NLogging::TLogger Logger;
 
+private:
+    struct TClusterData
+    {
+        std::string Name;
+        NApi::IClientPtr Client;
+        TFuture<TSessionResult> SessionFuture;
+        std::optional<TSessionResult> Session;
+        NApi::TCreateQueueProducerSessionOptions SessionOptions;
+        NQueueClient::TQueueProducerSequenceNumber PhysicalSequenceNumber;
+        TMessageId LastMessageId;
+    };
+
+    const TSinkContextPtr Context_;
+    const TAsyncQueueWriterParametersBasePtr Parameters_;
     const NTableClient::TNameTablePtr NameTable_;
     const IStatusErrorStatePtr ErrorState_;
 
+    TAtomicIntrusivePtr<TDynamicAsyncQueueWriterParameters> DynamicParameters_;
+    TMutableStateClient<TMessageIdQueueSinkState> State_;
+    std::vector<TClusterData> Clusters_;
+    ssize_t CurrentClusterIndex_ = 0;
+    bool AtMostOnce_ = false;
     TIntrusivePtr<NConcurrency::TNonblockingBatcher<TRequest, TRequestLimiter>> Requests_;
-
     TFuture<void> Executor_;
-
-protected:
-    virtual bool TryExecuteIteration(const std::string& producerId, const std::vector<TRequest>& requests) = 0;
+    std::optional<TError> FatalError_;
 
 private:
-    static void Execute(TWeakPtr<TAsyncQueueWriterBase> weakThis, std::string producerId);
-};
-
-DEFINE_REFCOUNTED_TYPE(TAsyncQueueWriterBase);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TAsyncQueueWriter
-    : public TAsyncQueueWriterBase
-{
-public:
-    TAsyncQueueWriter(
-        TSinkContextPtr context,
-        TAsyncQueueWriterParametersPtr parameters,
-        TDynamicAsyncQueueWriterParametersPtr dynamicParameters,
-        NTableClient::TNameTablePtr nameTable,
-        IStatusErrorStatePtr errorState,
-        NLogging::TLogger logger);
-
-protected:
-    bool TryExecuteIteration(const std::string& producerId, const std::vector<TRequest>& requests) override;
-
-private:
-    const TAsyncQueueWriterParametersPtr Parameters_;
-
-    const NApi::IClientPtr Client_;
-    const NQueueClient::IProducerClientPtr ProducerClient_;
-
-    NQueueClient::IProducerSessionPtr Session_;
-
-private:
-    void ResetSession();
-    NQueueClient::IProducerSessionPtr GetSession(const std::string& producerId);
+    void InitSession(const std::string& producerId);
+    void StartSession(TClusterData* cluster, const std::string& producerId);
+    const TSessionResult& GetSession(TClusterData* cluster, const std::string& producerId);
+    bool TryExecuteIteration(const std::string& producerId, std::vector<TRequest>* requests);
+    static void Execute(TWeakPtr<TAsyncQueueWriter> weakThis, std::string producerId);
+    static TSessionResult CreateSessionWithRetries(
+        TWeakPtr<TAsyncQueueWriter> weakThis,
+        ssize_t clusterIndex,
+        NQueueClient::TQueueProducerSessionId sessionId,
+        NApi::TCreateQueueProducerSessionOptions options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAsyncQueueWriter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAsyncMultiClusterQueueWriter
-    : public TAsyncQueueWriterBase
-{
-public:
-    struct TClusterData
-    {
-        const NApi::IClientPtr Client;
-        const NQueueClient::IProducerClientPtr ProducerClient;
-        NQueueClient::IProducerSessionPtr Session;
-    };
-
-    using TClusterDataMap = THashMap<std::string, TClusterData>;
-
-    TAsyncMultiClusterQueueWriter(
-        TSinkContextPtr context,
-        TAsyncMultiClusterQueueWriterParametersPtr parameters,
-        TDynamicAsyncQueueWriterParametersPtr dynamicParameters,
-        NTableClient::TNameTablePtr nameTable,
-        IStatusErrorStatePtr errorState,
-        NLogging::TLogger logger);
-
-protected:
-    bool TryExecuteIteration(const std::string& producerId, const std::vector<TRequest>& requests) override;
-
-private:
-    const TAsyncMultiClusterQueueWriterParametersPtr Parameters_;
-
-    TClusterDataMap DataByCluster_;
-    std::ptrdiff_t CurrentClusterIndex_;
-
-private:
-    void ConstructByCluster(const std::string& cluster);
-    TError TryExecuteIterationOnCluster(
-        const std::string& producerId,
-        const std::vector<TRequest>& requests,
-        TClusterDataMap::iterator& it);
-    NQueueClient::IProducerSessionPtr GetSession(const std::string& producerId, TClusterData& clusterData);
-};
-
-DEFINE_REFCOUNTED_TYPE(TAsyncMultiClusterQueueWriter);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TAsyncQueueSinkImpl
-    : public TDelegatingAsyncSinkBase
-{
-public:
-    YT_FLOW_EXTEND_PARAMETERS(TAsyncQueueSinkParametersBase);
-    YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TDynamicAsyncQueueSinkParameters);
-
-    TAsyncQueueSinkImpl(
-        TSinkContextPtr context,
-        TDynamicSinkContextPtr dynamicContext);
-
-    ~TAsyncQueueSinkImpl() override;
-
-protected:
-    virtual IAsyncQueueWriterPtr CreateWriter() = 0;
-    const NTableClient::TNameTablePtr NameTable_;
-
-private:
-    const int SeqNoColumn_;
-    const std::optional<int> FlowMetaColumn_;
-    IAsyncQueueWriterPtr Writer_;
-
-private:
-    void DoInit(const std::string& producerId) override;
-    NTableClient::TUnversionedOwningRow BuildRow(const TOutputMessageConstPtr& message, i64 seqNo) const;
-    std::pair<TFuture<void>, ui64> DoDistribute(const TOutputMessageConstPtr& message, i64 seqNo) override;
-    NTableClient::TNameTablePtr GenerateNameTable() const;
-};
-
 class TAsyncQueueSink
-    : public TAsyncQueueSinkImpl
+    : public TSinkBase
 {
 public:
     YT_FLOW_EXTEND_PARAMETERS(TAsyncQueueSinkParameters);
+    YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TDynamicAsyncQueueSinkParameters);
 
-    using TAsyncQueueSinkImpl::TAsyncQueueSinkImpl;
     using TSinkController = TQueueSinkController;
 
+    TAsyncQueueSink(
+        TSinkContextPtr context,
+        TDynamicSinkContextPtr dynamicContext);
+    ~TAsyncQueueSink() override;
+
+    void Init(IInitContextPtr initContext) override;
+    void Distribute(const TOutputMessageConstPtr& message, TOnDistributedCallback onDistributed) override;
+    void Sync(NApi::IDynamicTableTransactionPtr transaction) override;
+    void Commit() override;
+
 protected:
-    IAsyncQueueWriterPtr CreateWriter() override;
+    struct TPendingMessage
+    {
+        TOutputMessageConstPtr Message;
+        TOnDistributedCallback OnDistributed;
+    };
+
+    NTableClient::TNameTablePtr NameTable_;
+    std::optional<int> FlowMetaColumn_;
+    TAsyncQueueWriterPtr Writer_;
+    TMessageId LastSeenMessageId_;
+
+    virtual NTableClient::TNameTablePtr GenerateNameTable() const;
+    virtual void WriteMessages(std::vector<TPendingMessage> pending);
+    virtual TAsyncQueueWriterPtr CreateWriter() const;
+
+    bool TryAdmitMessage(
+        TPendingMessage& item,
+        const std::optional<TMessageId>& initialMessageId = std::nullopt);
+
+    TAsyncQueueWriterParametersBasePtr GetWriterParameters() const;
+    TDynamicAsyncQueueWriterParametersPtr GetDynamicWriterParameters() const;
+
+    void DoTerminate() override;
+
+private:
+    const bool AtMostOnce_;
+    const NConcurrency::TAsyncSemaphorePtr QueueSizeSemaphore_;
+
+    TMutableStateClient<TMessageId> AtMostOnceWatermark_;
+    std::vector<TPendingMessage> CurrentEpoch_;
+
+    NTableClient::TUnversionedOwningRow BuildRow(const TOutputMessageConstPtr& message) const;
+    void ReconfigureAtMostOnce();
+    void TerminateWriter();
 };
 
 class TAsyncMultiClusterQueueSink
-    : public TAsyncQueueSinkImpl
+    : public TAsyncQueueSink
 {
 public:
     YT_FLOW_EXTEND_PARAMETERS(TAsyncMultiClusterQueueSinkParameters);
 
-    using TAsyncQueueSinkImpl::TAsyncQueueSinkImpl;
+    using TAsyncQueueSink::TAsyncQueueSink;
     using TSinkController = TMultiClusterQueueSinkController;
 
 protected:
-    IAsyncQueueWriterPtr CreateWriter() override;
+    TAsyncQueueWriterPtr CreateWriter() const override;
 };
 
-DEFINE_REFCOUNTED_TYPE(TAsyncQueueSinkImpl);
 DEFINE_REFCOUNTED_TYPE(TAsyncQueueSink);
 DEFINE_REFCOUNTED_TYPE(TAsyncMultiClusterQueueSink);
 

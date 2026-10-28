@@ -218,8 +218,6 @@ class TestClickHouseSink(FlowTestBase):
             sink["parameters"]["hosts"] = hosts
         else:
             sink["parameters"]["host"] = self.ch_host
-        if sink_class_name == "NYT::NFlow::TAtMostOnceClickHouseSink":
-            sink["parameters"]["at_most_once_strategy"] = {"enabled": True}
         for name, (extra_class_name, extra_table) in (extra_sinks or {}).items():
             computation["sinks"][name] = {
                 "sink_class_name": extra_class_name,
@@ -232,12 +230,6 @@ class TestClickHouseSink(FlowTestBase):
                 },
             }
         sink_dynamic_parameters = dict(sink_dynamic_parameters or {})
-        if sink_class_name == "NYT::NFlow::TAtMostOnceClickHouseSink":
-            at_most_once_dynamic_parameters = dict(sink_dynamic_parameters.get("at_most_once_strategy", {}))
-            # Sanitizers and sandboxing can make serial inserts outlive the 10s product drain default;
-            # keep the test drain longer than the 120s delivery wait.
-            at_most_once_dynamic_parameters["suspend_destruction_duration"] = "300s"
-            sink_dynamic_parameters["at_most_once_strategy"] = at_most_once_dynamic_parameters
         if sink_dynamic_parameters:
             dynamic_computation = pipeline_config["dynamic_spec"]["computations"]["reader"]
             dynamic_computation.setdefault("sinks", {})["clickhouse"] = {"parameters": sink_dynamic_parameters}
@@ -302,24 +294,6 @@ class TestClickHouseSink(FlowTestBase):
         )
         ids = self.read_back_ids()
         assert len(set(ids)) == EXPECTED_COUNT
-
-    @pytest.mark.authors(["blinkov"])
-    @pytest.mark.parametrize("flow_problems", [False, True], ids=["stable", "unstable"])
-    @pytest.mark.parametrize("sharded", [False, True], ids=["single_shard", "two_shards"])
-    def test_at_most_once(self, sharded, flow_problems):
-        wait_for_delivery = None if flow_problems else lambda: len(set(self.read_back_ids())) == EXPECTED_COUNT
-        self.run_pipeline(
-            "NYT::NFlow::TAtMostOnceClickHouseSink",
-            problems=flow_problems,
-            wait_for_delivery=wait_for_delivery,
-            **self.shard_parameters(sharded),
-        )
-        ids = self.read_back_ids()
-        assert len(ids) == len(set(ids))
-        if flow_problems:
-            assert 0 < len(ids) <= EXPECTED_COUNT
-        else:
-            assert len(ids) == EXPECTED_COUNT
 
     @pytest.mark.authors(["blinkov"])
     @pytest.mark.parametrize("problems", [False, True], ids=["stable", "unstable"])
@@ -493,9 +467,8 @@ class TestClickHouseSink(FlowTestBase):
         [
             "NYT::NFlow::TClickHouseBatchingSink",
             "NYT::NFlow::TAtLeastOnceClickHouseSink",
-            "NYT::NFlow::TAtMostOnceClickHouseSink",
         ],
-        ids=["exactly_once", "at_least_once", "at_most_once"],
+        ids=["exactly_once", "at_least_once"],
     )
     def test_failover_rejects_plain_tables_for_all_guarantees(self, sink_class_name):
         run_yt_sync("primary", self.work_yt_path)
@@ -694,97 +667,6 @@ class TestClickHouseSink(FlowTestBase):
         assert old_categories & new_categories
         assert set(drained_ids).issubset(set(all_ids))
         assert len(all_ids) == len(set(all_ids))
-
-    @pytest.mark.authors(["blinkov"])
-    def test_at_most_once_initialization_failure_stalls_source(self):
-        run_yt_sync("primary", self.work_yt_path)
-        self.ch.execute(f"DROP TABLE IF EXISTS {DATABASE}.{TABLE} SYNC")
-        pipeline_config_path = self.prepare_pipeline_config(
-            "NYT::NFlow::TAtMostOnceClickHouseSink",
-            sink_dynamic_parameters={"retry_backoff": 100},
-            partition_count=1,
-            partition_message_count=1,
-            message_count_mean=0,
-        )
-
-        with self.start_flow_process_federation(
-            pipeline_binary_args={"--config": pipeline_config_path},
-            workers_count=1,
-            controllers_count=1,
-            problems=False,
-        ):
-
-            def read_source_states():
-                rows = self.client.select_rows(
-                    f"* from [{self.pipeline_path}/states]",
-                    format=yt.wrapper.format.YsonFormat(encoding=None),
-                )
-                return [
-                    unpack_state(row, encoding=None)
-                    for row in rows
-                    if row[b"computation_id"] == b"reader" and row[b"name"] == b"/$active_source/v0"
-                ]
-
-            wait(lambda: bool(read_source_states()), timeout=120)
-            dynamic_spec = self.client.get_pipeline_dynamic_spec(self.pipeline_path)["spec"]
-            dynamic_spec["computations"]["reader"]["source_streams"]["random"]["parameters"][
-                "message_count_mean"
-            ] = 1_000_000
-            self.client.set_pipeline_dynamic_spec(self.pipeline_path, dynamic_spec)
-
-            self.wait_for_pipeline_error("Failed to initialize ClickHouse writer", timeout=120)
-            assert self.client.get_pipeline_state(self.pipeline_path) != "completed"
-
-            source_states = read_source_states()
-            assert source_states
-            source_offsets = []
-            for state in source_states:
-                assert b"persisted_offset_exclusive_v2" in state
-                offset = state[b"persisted_offset_exclusive_v2"]
-                source_offsets.append(0 if not offset else int(offset[0]))
-            assert sum(source_offsets) == 0
-
-            self.create_target_table()
-            self.wait_pipeline_state("completed", timeout=300)
-            wait(lambda: len(set(self.read_back_ids())) == 1, timeout=120)
-
-        ids = self.read_back_ids()
-        assert len(ids) == 1
-        assert len(set(ids)) == 1
-
-    @pytest.mark.authors(["blinkov"])
-    def test_at_most_once_uninsertable(self):
-        run_yt_sync("primary", self.work_yt_path)
-        self.create_constrained_target_table()
-        self.create_truth_table()
-        pipeline_config_path = self.prepare_pipeline_config(
-            "NYT::NFlow::TAtMostOnceClickHouseSink",
-            extra_sinks={"truth": ("NYT::NFlow::TClickHouseBatchingSink", self.TRUTH_TABLE)},
-        )
-
-        with self.start_flow_process_federation(
-            pipeline_binary_args={"--config": pipeline_config_path},
-            workers_count=1,
-            controllers_count=1,
-            problems=False,
-        ):
-            self.wait_pipeline_state("completed", timeout=300)
-
-            truth = self.ch.execute(f"SELECT id, flag FROM {DATABASE}.{self.TRUTH_TABLE}")
-            assert len(truth) == EXPECTED_COUNT
-            assert len({row[0] for row in truth}) == EXPECTED_COUNT
-            expected_ids = {row[0] for row in truth if not row[1]}
-            assert expected_ids
-
-            def all_valid_rows_arrived():
-                ids = self.read_back_ids()
-                return len(ids) == len(expected_ids) and set(ids) == expected_ids
-
-            wait(all_valid_rows_arrived, timeout=120)
-
-        sink_ids = self.read_back_ids()
-        assert len(sink_ids) == len(set(sink_ids))
-        assert set(sink_ids) == expected_ids
 
     @pytest.mark.authors(["blinkov"])
     @pytest.mark.parametrize(
