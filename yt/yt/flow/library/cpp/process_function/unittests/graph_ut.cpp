@@ -871,6 +871,17 @@ TEST(TProcessFunctionGraphSpecTest, MapsTimerWatchedStreamsToBoundaries)
         *computation->TimerStreams.at(MakeProcessFunctionGraphTimerId("c", "timer"))->Streams,
         THashSet<TStreamId>({"left", upstreamTimer}));
 
+    // Current-time timers ignore watched streams, so an empty list is accepted.
+    auto currentTimePipeline = MakeCountersPipeline();
+    currentTimePipeline->Computations.at("graph")->ProcessFunctionGraph->Nodes.at("c")->TimerStreams["timer"] =
+        ConvertTo<TTimerSpecPtr>(NYson::TYsonStringBuf("{time_type = current_time; streams = [];}"));
+    ResolveProcessFunctionGraphs(currentTimePipeline);
+    EXPECT_TRUE(currentTimePipeline->Computations.at("graph")->TimerStreams.at(MakeProcessFunctionGraphTimerId("c", "timer"))->Streams->empty());
+    auto eventTimePipeline = MakeCountersPipeline();
+    eventTimePipeline->Computations.at("graph")->ProcessFunctionGraph->Nodes.at("c")->TimerStreams["timer"] =
+        ConvertTo<TTimerSpecPtr>(NYson::TYsonStringBuf("{streams = [];}"));
+    EXPECT_THROW_WITH_SUBSTRING(ResolveProcessFunctionGraphs(eventTimePipeline), "watches no streams");
+
     // Delays of inputs that derive from one boundary stream merge to the largest one.
     auto delayed = MakePipeline(TComputationId("graph"), R"({
         computation_class_name = "NYT::NFlow::TProcessFunctionComputation";
