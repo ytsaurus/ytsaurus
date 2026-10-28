@@ -231,6 +231,28 @@ class TestQueueConnector(FlowTestBase):
         self.check(pipeline_config_path, workers_count, controllers_count, problems)
 
     @pytest.mark.authors(["pechatnov"])
+    def test_async_at_most_once_mode(self):
+        pipeline_config_path = self.prepare_swift_pipeline_config(
+            False,
+            extra_sink_params={"at_most_once_strategy": {"enabled": True}},
+        )
+        self.prepare_environment()
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+        ):
+            self.wait_pipeline_state("working")
+
+            def get_output():
+                rows = self.client.select_rows(f"data, flow_queue_meta from [{self.output_queue}]")
+                return collections.Counter(
+                    row["data"] for row in rows if not row.get("flow_queue_meta", {}).get("pure_heartbeat", False)
+                )
+
+            wait(lambda: get_output() == EXPECTED_DATA, timeout=90)
+
+    @pytest.mark.authors(["pechatnov"])
     def test_async_sink_live_reconfigure(self):
         run_yt_sync("primary", self.work_yt_path, TABLET_COUNT)
         pipeline_config_path = self.prepare_swift_pipeline_config(

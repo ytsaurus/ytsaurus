@@ -6,12 +6,11 @@
 
 ## Семейство синков {#sink-family}
 
-Уровень гарантий задаётся классом синка. `TAtMostOnceClickHouseSink` сохраняет гарантию at-most-once в обоих режимах стратегии; стратегия выбирает между упорядоченной доставкой с сохранением сообщений и ограниченной очередью с потерями:
+Уровень гарантий задаётся классом синка:
 
 - `NYT::NFlow::TClickHouseBatchingSink` &mdash; **рекомендуемый вариант**, exactly-once с детерминированным батчингом (один `INSERT` на батч). Repartition-safe (см. [Гарантии обработки](../../../flow/concepts/guarantees.md#clickhouse-guarantees)).
 - `NYT::NFlow::TShardedClickHouseBatchingSink` &mdash; exactly-once с тем же батчингом для многошардовой формы `shard_hosts`.
 - `NYT::NFlow::TAtLeastOnceClickHouseSink` &mdash; at-least-once: батч эпохи пишется синхронно в ходе обработки без промежуточного хранения и без токена дедупликации. Ниже задержка и нагрузка на {{product-name}}. При ошибке записи эпоха не коммитится, поэтому сообщения не теряются, но при сбое возможны дубликаты. Известные временные ошибки повторяются без ограничения числа попыток, а для неклассифицированных ошибок выполняется не более `max_insert_attempts` попыток вставки всего (по умолчанию 10). Постоянные ошибки сразу приводят к отказу. Подходит для идемпотентных витрин (`ReplacingMergeTree`, `argMax`-роллапы).
-- `NYT::NFlow::TAtMostOnceClickHouseSink` &mdash; at-most-once в обоих режимах. При статическом значении по умолчанию `at_most_once_strategy.enabled = false` ожидающие сообщения остаются в `output_messages` и доставляются по порядку, поэтому ошибку подключения или запуска сессии до начала `INSERT` можно повторить. Значение `true` включает независимую отправку каждого сообщения через ограниченную очередь в памяти без ожидания доставки. Её динамический лимит задаёт `at_most_once_strategy.total_queue_bytes_limit`; при отбрасывании сообщений из-за переполнения синк пишет предупреждение. В обоих режимах после начала `INSERT` синк подтверждает сообщение с ошибкой вместо повторной вставки, поэтому оно не блокирует последующие сообщения.
 
 В обоих exactly-once классах постоянная ошибка вставки или исчерпание попыток для неклассифицированной ошибки приводит к ошибке `Giving up insert into ClickHouse`. После неё этот экземпляр синка отклоняет все последующие записи, и обработка останавливается. Исправьте целевую таблицу или конфигурацию, затем приостановите и снова запустите пайплайн, чтобы создать новый экземпляр синка.
 
@@ -46,7 +45,7 @@ Exactly-once опирается на блочную дедупликацию Cli
 - **Нешардированная форма с несколькими хостами**: `hosts` — плоский список хостов одной таблицы, все с общим `port`.
 - **Многошардовая форма**: `shard_hosts` — словарь «имя шарда → список его хостов». `port`, `database` и `table` общие для всех шардов.
 
-Формы взаимоисключающи: задавать нужно ровно одну из `host`, `hosts` и `shard_hosts`. Для exactly-once нешардированный `TClickHouseBatchingSink` принимает только `host` или `hosts`, а `TShardedClickHouseBatchingSink` требует `shard_hosts`. At-least-once и at-most-once синки принимают любую из трёх форм. Список `hosts` из одного элемента отвергается при валидации спеки — в этом случае используйте `host`.
+Формы взаимоисключающи: задавать нужно ровно одну из `host`, `hosts` и `shard_hosts`. Для exactly-once нешардированный `TClickHouseBatchingSink` принимает только `host` или `hosts`, а `TShardedClickHouseBatchingSink` требует `shard_hosts`. At-least-once синк принимает любую из трёх форм. Список `hosts` из одного элемента отвергается при валидации спеки — в этом случае используйте `host`.
 
 ```yson
 "shard_hosts" = {
@@ -109,7 +108,7 @@ Refusing to start the ClickHouse sink: the shard topology changed while 3 batch(
 
 Полный слив защищает недоставленные данные, но не переносит уже записанные строки и не сохраняет историческую ко-локацию ключей. После изменения набора шардов отдельно перераспределите сохранённые данные между шардами, если запросам нужна единая раскладка старых и новых строк.
 
-At-least-once и at-most-once синки не несут токена дедупликации, поэтому описанная защита от смены топологии к ним не применяется.
+At-least-once синк не несёт токена дедупликации, поэтому описанная защита от смены топологии к нему не применяется.
 
 ## Маппинг типов {#type-mapping}
 
@@ -168,19 +167,9 @@ At-least-once и at-most-once синки не несут токена дедуп
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAtLeastOnceClickHouseSink.md) %}
 
-Параметры статической спеки `TAtMostOnceClickHouseSink`:
-
-{% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TUnitedParameters_NYT_NFlow_TAtMostOnceClickHouseSink.md) %}
-
-Параметры динамической спеки `TAtMostOnceClickHouseSink`:
-
-{% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAtMostOnceClickHouseSink.md) %}
-
-Чтобы включить ограниченную очередь at-most-once, задайте `at_most_once_strategy.enabled = true` в статической спеке. Лимит очереди в байтах настраивается динамически вложенным параметром `at_most_once_strategy.total_queue_bytes_limit`.
-
 ### Опция async_insert {#async-insert}
 
-`async_insert` — динамический параметр. При включении все классы синка передают `async_insert=1` и `wait_for_async_insert=1`. Batching-синки с гарантией exactly-once дополнительно передают токен дедупликации и параметр `async_insert_deduplicate=1`; at-least-once- и at-most-once-синки намеренно не передают токен дедупликации и не задают `async_insert_deduplicate`.
+`async_insert` — динамический параметр. При включении все классы синка передают `async_insert=1` и `wait_for_async_insert=1`. Batching-синки с гарантией exactly-once дополнительно передают токен дедупликации и параметр `async_insert_deduplicate=1`; at-least-once-синк не передаёт токен дедупликации и не задаёт `async_insert_deduplicate`.
 
 - `async_insert_deduplicate=1` обязателен для exactly-once (по умолчанию `0` дедупликации нет).
 - `wait_for_async_insert=1` позволяет синку узнать об ошибке вставки до продвижения outbox.

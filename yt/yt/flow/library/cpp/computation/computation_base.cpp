@@ -1827,6 +1827,7 @@ void TUniversalComputationBase::InitSinks()
         auto dynamicSinkContext = New<TDynamicSinkContext>();
         dynamicSinkContext->DynamicSinkSpec = GetOrDefault(dynamicSpec->Sinks, sinkId, New<TDynamicSinkSpec>());
         auto sink = TRegistry::Get()->CreateSink(context, dynamicSinkContext);
+        EmplaceOrCrash(Sinks_, sinkId, sink);
         sink->UpdateWatermarkState(GetWatermarkState());
 
         const auto stateName = Format("sinks/%v", sinkId);
@@ -1836,7 +1837,6 @@ void TUniversalComputationBase::InitSinks()
         } else {
             sink->Init(initContext->AsPartition()->WithPrefix(stateName));
         }
-        EmplaceOrCrash(Sinks_, sinkId, std::move(sink));
     }
 }
 
@@ -1917,6 +1917,10 @@ void TUniversalComputationBase::RefreshBufferWarmupState()
 void TUniversalComputationBase::Run(const IComputationRunContextPtr& context)
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
+
+    auto clearStateOwnersGuard = Finally([this] {
+        ClearStateOwners();
+    });
 
     YT_TLOG_INFO("Starting execution");
     auto initTraceContextGuard = TTraceContextGuard(Tracer_->CreateInitTraceContext());
@@ -2065,6 +2069,9 @@ void TUniversalComputationBase::DoCleanup(const IComputationRunContextPtr& conte
 
 void TUniversalComputationBase::ClearStateOwners()
 {
+    for (const auto& [_, sink] : Sinks_) {
+        sink->Terminate();
+    }
     Sinks_.clear();
     BufferWarmupState_.Reset();
     StateManager_->Clear();

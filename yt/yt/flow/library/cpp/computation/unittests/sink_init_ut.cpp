@@ -62,6 +62,7 @@ struct TSinkInitProbe
         Sync,
         ContextCommit,
         Commit,
+        Terminate,
     };
 
     struct TEvent
@@ -85,6 +86,10 @@ struct TSinkInitProbe
     bool AckOnDistribute = true;
     bool AckInPreSyncFlush = false;
     int OutputWriteCalls = 0;
+    bool CancelDuringPrepare = false;
+    TPromise<void> PrepareStarted = NewPromise<void>();
+    TPromise<void> PrepareBlocked = NewPromise<void>();
+    ssize_t TerminationsBeforeDestruction = 0;
 };
 
 std::atomic<TSinkInitProbe*>& GetActiveSinkInitProbe()
@@ -163,6 +168,11 @@ public:
     void Commit() override
     {
         Record(TSinkInitProbe::EEventType::Commit);
+    }
+
+    void Terminate() override
+    {
+        Record(TSinkInitProbe::EEventType::Terminate);
     }
 
     void UpdateWatermarkState(TWatermarkStatePtr /*state*/) override
@@ -267,6 +277,12 @@ private:
         Probe_->Events.push_back({
             .Type = TSinkInitProbe::EEventType::Prepare,
         });
+
+        if (Probe_->CancelDuringPrepare) {
+            Probe_->PrepareStarted.Set();
+            WaitFor(Probe_->PrepareBlocked.ToFuture())
+                .ThrowOnError();
+        }
 
         if (Probe_->DistributeOnPrepare) {
             const auto& schema = GetContext()->StreamSpecStorage->GetSchema(OutputStreamId);
@@ -482,13 +498,15 @@ TError RunProductionWiredComputation(
     auto resetProbe = Finally([] {
         GetActiveSinkInitProbe().store(nullptr);
     });
-    return WaitFor(BIND([
+    TIntrusivePtr<TProductionWiredSinkInitComputation> computation;
+    auto execution = BIND([
+        &computation,
         context = std::move(context),
         dynamicContext = std::move(dynamicContext),
         runContext = std::move(runContext),
         reconfigureBeforeRun = std::move(reconfigureBeforeRun)
     ] {
-        auto computation = New<TProductionWiredSinkInitComputation>(
+        computation = New<TProductionWiredSinkInitComputation>(
             context,
             dynamicContext);
         computation->UpdateWatermarkState(New<TWatermarkState>());
@@ -498,8 +516,18 @@ TError RunProductionWiredComputation(
         }
         computation->RunForTest(runContext);
     })
-            .AsyncVia(queue->GetInvoker())
-            .Run());
+        .AsyncVia(queue->GetInvoker())
+        .Run();
+    if (probe->CancelDuringPrepare) {
+        EXPECT_TRUE(WaitFor(probe->PrepareStarted.ToFuture().WithTimeout(TDuration::Seconds(5))).IsOK());
+        execution.Cancel(TError(NYT::EErrorCode::Canceled, "Cancel retained computation"));
+    }
+    auto result = WaitFor(execution);
+    probe->TerminationsBeforeDestruction = std::count_if(probe->Events.begin(), probe->Events.end(), [] (const auto& event) {
+        return event.Type == TSinkInitProbe::EEventType::Terminate;
+    });
+    computation.Reset();
+    return result;
 }
 
 std::vector<TSinkInitProbe::TEvent> GetEvents(
@@ -573,7 +601,8 @@ TEST(TSinkInitTest, RunsPartitionSinkThroughFirstEpoch)
     for (const auto& event : probe.Events) {
         eventTypes.push_back(event.Type);
     }
-    EXPECT_THAT(eventTypes, ElementsAre(Construct, Watermark, Init, Prepare, Distribute, Watermark, PreSyncFlush, Sync, ContextCommit, Commit));
+    EXPECT_THAT(eventTypes, ElementsAre(Construct, Watermark, Init, Prepare, Distribute, Watermark, PreSyncFlush, Sync, ContextCommit, Commit, Terminate));
+    EXPECT_EQ(probe.TerminationsBeforeDestruction, 1);
     const auto constructions = GetEvents(probe, Construct);
     ASSERT_EQ(constructions.size(), 1u);
     for (const auto& event : probe.Events) {
@@ -720,6 +749,16 @@ TEST(TSinkInitTest, InitializesEveryKeyedSinkBeforePrepareAndReusesMatchingSink)
     ASSERT_EQ(distributions.size(), 1u);
     ASSERT_EQ(syncs.size(), 2u);
     ASSERT_EQ(commits.size(), 2u);
+    const auto terminations = GetEvents(probe, TSinkInitProbe::EEventType::Terminate);
+    ASSERT_EQ(terminations.size(), 2u);
+    for (const auto& construction : constructions) {
+        EXPECT_EQ(
+            std::count_if(terminations.begin(), terminations.end(), [&] (const auto& termination) {
+                return termination.Instance == construction.Instance;
+            }),
+            1);
+    }
+    EXPECT_EQ(probe.TerminationsBeforeDestruction, 2);
 
     auto prepare = std::find_if(probe.Events.begin(), probe.Events.end(), [] (const auto& event) {
         return event.Type == TSinkInitProbe::EEventType::Prepare;
@@ -749,7 +788,24 @@ TEST(TSinkInitTest, InitFailurePreventsPrepare)
 
     EXPECT_EQ(error.GetMessage(), "Recording sink init failed");
     EXPECT_EQ(GetEvents(probe, TSinkInitProbe::EEventType::Init).size(), 1u);
+    EXPECT_EQ(GetEvents(probe, TSinkInitProbe::EEventType::Terminate).size(), 1u);
+    EXPECT_EQ(probe.TerminationsBeforeDestruction, 1);
     EXPECT_TRUE(GetEvents(probe, TSinkInitProbe::EEventType::Prepare).empty());
+}
+
+TEST(TSinkInitTest, TerminatesSinksWhenCanceledComputationRemainsOwned)
+{
+    TSinkInitProbe probe;
+    probe.CancelDuringPrepare = true;
+    auto error = RunProductionWiredComputation(
+        MakeSpec({{TSinkId("ordinary"), true}}),
+        std::nullopt,
+        &probe,
+        /*distributeOnPrepare*/ false);
+
+    EXPECT_TRUE(error.FindMatching(NYT::EErrorCode::Canceled));
+    EXPECT_EQ(probe.TerminationsBeforeDestruction, 1);
+    EXPECT_EQ(GetEvents(probe, TSinkInitProbe::EEventType::Terminate).size(), 1u);
 }
 
 TEST(TSinkInitTest, RejectsMismatchingParentKeyBeforeDistribution)

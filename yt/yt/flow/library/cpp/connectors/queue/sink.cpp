@@ -15,19 +15,64 @@
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
 
-#include <yt/yt/client/queue_client/producer_client.h>
-
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <util/generic/xrange.h>
+#include <yt/yt/core/misc/backoff_strategy.h>
+
+#include <yt/yt/core/ytree/convert.h>
+
+#include <algorithm>
+#include <limits>
+#include <optional>
 
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+struct TQueueProducerUserMeta
+    : public NYTree::TYsonStruct
+{
+    std::string LastMessageId;
+
+    REGISTER_YSON_STRUCT(TQueueProducerUserMeta);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("last_message_id", &TThis::LastMessageId);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueueProducerUserMeta);
+
+TMessageId GetLastMessageIdFromUserMeta(const NYTree::INodePtr& userMeta)
+{
+    if (!userMeta) {
+        return {};
+    }
+    return TMessageId(NYTree::ConvertTo<TIntrusivePtr<TQueueProducerUserMeta>>(userMeta)->LastMessageId);
+}
+
+void WaitBackoff(std::optional<TBackoffStrategy>* backoffStrategy, TDuration minBackoff)
+{
+    auto backoffOptions = TExponentialBackoffOptions{
+        .InvocationCount = std::numeric_limits<int>::max(),
+        .MinBackoff = minBackoff,
+        .MaxBackoff = std::max(minBackoff, TDuration::Minutes(1)),
+    };
+    auto& strategy = *backoffStrategy;
+    if (!strategy) {
+        strategy.emplace(backoffOptions);
+    } else if (strategy->GetOptions() != backoffOptions) {
+        strategy->UpdateOptions(backoffOptions);
+        strategy->Restart();
+    }
+    strategy->Next();
+    NConcurrency::TDelayedExecutor::WaitForDuration(strategy->GetBackoff());
+}
 
 // Writes payload rows directly (base queue layout). With |router| set, the tablet index is
 // computed per message and written to |tabletIndexColumn| (single pass, no grouping).
@@ -153,57 +198,109 @@ TTabletRouterPtr TSyncQueueSink::CreateTabletRouter() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAsyncQueueWriterBase::TRequestLimiter::TRequestLimiter(i64 maxCount, i64 maxSize)
+TAsyncQueueWriter::TRequestLimiter::TRequestLimiter(i64 maxCount, i64 maxSize)
     : MaxCount_(maxCount)
     , MaxSize_(maxSize)
 { }
 
-void TAsyncQueueWriterBase::TRequestLimiter::Add(const TRequest& request)
+void TAsyncQueueWriter::TRequestLimiter::Add(const TRequest& request)
 {
-    Count_ += 1;
-    Size_ += std::get<NTableClient::TUnversionedOwningRow>(request).GetSpaceUsed();
+    ++Count_;
+    Size_ += request.Row.GetSpaceUsed();
 }
 
-bool TAsyncQueueWriterBase::TRequestLimiter::IsFull() const
+bool TAsyncQueueWriter::TRequestLimiter::IsFull() const
 {
     return Count_ >= MaxCount_ || Size_ >= MaxSize_;
 }
 
-TAsyncQueueWriterBase::TAsyncQueueWriterBase(
+TAsyncQueueWriter::TAsyncQueueWriter(
     TSinkContextPtr context,
+    TAsyncQueueWriterParametersBasePtr parameters,
+    std::vector<std::string> clusters,
     TDynamicAsyncQueueWriterParametersPtr dynamicParameters,
     NTableClient::TNameTablePtr nameTable,
     IStatusErrorStatePtr errorState,
     NLogging::TLogger logger)
-    : Context_(std::move(context))
-    , DynamicParameters_(std::move(dynamicParameters))
-    , Logger(std::move(logger))
+    : Logger(std::move(logger)
+            .WithTag("QueuePath", parameters->QueuePath)
+            .WithTag("ProducerPath", parameters->ProducerPath))
+    , Context_(std::move(context))
+    , Parameters_(std::move(parameters))
     , NameTable_(std::move(nameTable))
     , ErrorState_(std::move(errorState))
+    , DynamicParameters_(std::move(dynamicParameters))
     , Requests_(New<NConcurrency::TNonblockingBatcher<TRequest, TRequestLimiter>>(
         TRequestLimiter(DynamicParameters_.Acquire()->MaxRowsPerWrite, DynamicParameters_.Acquire()->MaxBytesPerWrite),
         DynamicParameters_.Acquire()->WritePeriod,
         true))
-{ }
+{
+    YT_VERIFY(!clusters.empty());
+    Clusters_.reserve(clusters.size());
+    for (const auto& cluster : clusters) {
+        Clusters_.push_back(TClusterData{
+            .Name = cluster,
+            .Client = Context_->ClientsCache->GetClient(cluster),
+        });
+    }
+}
 
-void TAsyncQueueWriterBase::InitSession(const std::string& producerId)
+void TAsyncQueueWriter::Init(IInitContextPtr initContext, bool atMostOnce)
+{
+    AtMostOnce_ = atMostOnce;
+    if (atMostOnce) {
+        // Fresh IDs create extra producer rows, but a persistent ID would fence
+        // the previous writer during its termination grace period.
+        InitSession(ToString(TGuid::Create()));
+        return;
+    }
+
+    initContext->InitClient(State_, "v1");
+    auto& producerId = State_->ProducerId;
+    if (producerId.empty()) {
+        producerId = ToString(TGuid::Create());
+    }
+    InitSession(producerId);
+}
+
+void TAsyncQueueWriter::InitSession(const std::string& producerId)
 {
     YT_TLOG_INFO("Initializing async queue writer")
         .With("ProducerId", producerId);
-    Executor_ = BIND(&TAsyncQueueWriterBase::Execute, MakeWeak(this), producerId)
+    StartSession(&Clusters_.front(), producerId);
+    Executor_ = BIND(&TAsyncQueueWriter::Execute, MakeWeak(this), producerId)
         .AsyncVia(Context_->SerializedInvoker)
         .Run();
 }
 
-TFuture<void> TAsyncQueueWriterBase::Write(const NTableClient::TUnversionedOwningRow& row)
+void TAsyncQueueWriter::Terminate()
 {
-    auto promise = NewPromise<void>();
-    auto request = TRequest{row, promise};
-    Requests_->Enqueue(std::move(request));
-    return promise.ToFuture();
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Context_->SerializedInvoker);
+    auto error = TError(NYT::EErrorCode::Canceled, "Async queue writer terminated");
+    if (Executor_) {
+        Executor_.Cancel(error);
+    }
+    for (const auto& cluster : Clusters_) {
+        if (cluster.SessionFuture) {
+            cluster.SessionFuture.Cancel(error);
+        }
+    }
+    Requests_->Drain();
 }
 
-void TAsyncQueueWriterBase::Reconfigure(TDynamicAsyncQueueWriterParametersPtr dynamicParameters)
+void TAsyncQueueWriter::Write(
+    NTableClient::TUnversionedOwningRow row,
+    TMessageId messageId,
+    TClosure onWritten)
+{
+    Requests_->Enqueue(TRequest{
+        .Row = std::move(row),
+        .OnWritten = std::move(onWritten),
+        .MessageId = std::move(messageId),
+    });
+}
+
+void TAsyncQueueWriter::Reconfigure(TDynamicAsyncQueueWriterParametersPtr dynamicParameters)
 {
     DynamicParameters_ = dynamicParameters;
     Requests_->UpdateSettings(
@@ -212,7 +309,15 @@ void TAsyncQueueWriterBase::Reconfigure(TDynamicAsyncQueueWriterParametersPtr dy
         true);
 }
 
-void TAsyncQueueWriterBase::Execute(TWeakPtr<TAsyncQueueWriterBase> weakThis, std::string producerId)
+void TAsyncQueueWriter::ThrowIfFatalError() const
+{
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Context_->SerializedInvoker);
+    if (FatalError_) {
+        FatalError_->ThrowOnError();
+    }
+}
+
+void TAsyncQueueWriter::Execute(TWeakPtr<TAsyncQueueWriter> weakThis, std::string producerId)
 {
     while (true) {
         TFuture<std::vector<TRequest>> requestsFuture;
@@ -222,243 +327,408 @@ void TAsyncQueueWriterBase::Execute(TWeakPtr<TAsyncQueueWriterBase> weakThis, st
             break;
         }
 
-        auto requests = NConcurrency::WaitFor(requestsFuture).ValueOrThrow();
+        auto requestsResult = NConcurrency::WaitFor(requestsFuture);
+        if (!requestsResult.IsOK()) {
+            break;
+        }
+        auto requests = std::move(requestsResult).Value();
+        requestsFuture = {};
         if (requests.empty()) {
             continue;
         }
 
+        std::optional<TBackoffStrategy> backoffStrategy;
         while (auto strongThis = weakThis.Lock()) {
-            if (strongThis->TryExecuteIteration(producerId, requests)) {
+            if (strongThis->TryExecuteIteration(producerId, &requests)) {
                 break;
             }
-        }
-    }
-}
 
-////////////////////////////////////////////////////////////////////////////////
-
-TAsyncQueueWriter::TAsyncQueueWriter(
-    TSinkContextPtr context,
-    TAsyncQueueWriterParametersPtr parameters,
-    TDynamicAsyncQueueWriterParametersPtr dynamicParameters,
-    NTableClient::TNameTablePtr nameTable,
-    IStatusErrorStatePtr errorState,
-    NLogging::TLogger logger)
-    : TAsyncQueueWriterBase(
-        std::move(context),
-        std::move(dynamicParameters),
-        std::move(nameTable),
-        std::move(errorState),
-        logger
-            .WithTag("QueuePath", parameters->QueuePath)
-            .WithTag("ProducerPath", parameters->ProducerPath))
-    , Parameters_(std::move(parameters))
-    , Client_(Context_->ClientsCache->GetClient(*Parameters_->QueuePath.GetCluster()))
-    , ProducerClient_(NQueueClient::CreateProducerClient(Client_, Parameters_->ProducerPath))
-    , Session_(nullptr)
-{ }
-
-bool TAsyncQueueWriter::TryExecuteIteration(const std::string& producerId, const std::vector<TRequest>& requests)
-{
-    try {
-        auto buffer = New<NTableClient::TRowBuffer>();
-        std::vector<NTableClient::TUnversionedRow> rows;
-        for (auto& request : requests) {
-            rows.push_back(buffer->CaptureRow(std::get<NTableClient::TUnversionedOwningRow>(request)));
-        }
-        auto session = GetSession(producerId);
-        Y_UNUSED(session->Write(MakeSharedRange(std::move(rows), std::move(buffer))));
-        NConcurrency::WaitFor(session->Flush()).ThrowOnError();
-        for (auto& request : requests) {
-            std::get<TPromise<void>>(request).TrySet();
-        }
-        YT_TLOG_INFO("Asynchronously wrote messages to the queue")
-            .With("Count", std::ssize(requests));
-        ErrorState_->ClearError();
-        return true;
-    } catch (const std::exception& ex) {
-        ErrorState_->SetError(TError("Failed to write to the queue").With(ex));
-        ResetSession();
-        NConcurrency::TDelayedExecutor::WaitForDuration(DynamicParameters_.Acquire()->BackoffDuration);
-        return false;
-    }
-}
-
-void TAsyncQueueWriter::ResetSession()
-{
-    Session_ = {};
-}
-
-NQueueClient::IProducerSessionPtr TAsyncQueueWriter::GetSession(const std::string& producerId)
-{
-    if (Session_) {
-        return Session_;
-    }
-
-    auto sessionId = NQueueClient::TQueueProducerSessionId(TString(producerId));
-    NQueueClient::TProducerSessionOptions options;
-    options.BatchOptions.RowCount = std::numeric_limits<i64>::max();
-    options.BatchOptions.ByteSize = std::numeric_limits<i64>::max();
-    options.RequireSyncReplica = Parameters_->RequireSyncReplica;
-    Session_ = NConcurrency::WaitFor(ProducerClient_->CreateSession(
-        Parameters_->QueuePath,
-        NameTable_,
-        sessionId,
-        options))
-        .ValueOrThrow();
-    return Session_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TAsyncMultiClusterQueueWriter::TAsyncMultiClusterQueueWriter(
-    TSinkContextPtr context,
-    TAsyncMultiClusterQueueWriterParametersPtr parameters,
-    TDynamicAsyncQueueWriterParametersPtr dynamicParameters,
-    NTableClient::TNameTablePtr nameTable,
-    IStatusErrorStatePtr errorState,
-    NLogging::TLogger logger)
-    : TAsyncQueueWriterBase(
-        std::move(context),
-        std::move(dynamicParameters),
-        std::move(nameTable),
-        std::move(errorState),
-        logger
-            .WithTag("QueuePath", parameters->QueuePath)
-            .WithTag("ProducerPath", parameters->ProducerPath))
-    , Parameters_(std::move(parameters))
-    , DataByCluster_()
-    , CurrentClusterIndex_(0)
-{
-    if (auto cluster = Parameters_->QueuePath.GetCluster()) {
-        ConstructByCluster(*cluster);
-    } else if (auto clusters = Parameters_->QueuePath.GetClusters()) {
-        for (const auto& cluster : *clusters) {
-            ConstructByCluster(cluster);
-        }
-    }
-}
-
-void TAsyncMultiClusterQueueWriter::ConstructByCluster(const std::string& cluster)
-{
-    auto client = Context_->ClientsCache->GetClient(cluster);
-    DataByCluster_.emplace(cluster,
-        TClusterData{
-            .Client = client,
-            .ProducerClient = NQueueClient::CreateProducerClient(client, Parameters_->ProducerPath),
-            .Session = nullptr,
-        });
-}
-
-bool TAsyncMultiClusterQueueWriter::TryExecuteIteration(const std::string& producerId, const std::vector<TRequest>& requests)
-{
-    auto error = TError("Failed to write to the queue on all clusters!");
-    for (auto _ : xrange(DataByCluster_.size())) {
-        auto it = DataByCluster_.begin();
-        std::advance(it, CurrentClusterIndex_);
-        if (auto internalError = TryExecuteIterationOnCluster(producerId, requests, it); !internalError.IsOK()) {
-            CurrentClusterIndex_ = (CurrentClusterIndex_ + 1) % DataByCluster_.size();
-            if (!internalError.IsOK()) {
-                error.Add(internalError);
+            auto minBackoff = strongThis->DynamicParameters_.Acquire()->BackoffDuration;
+            strongThis.Reset();
+            if (weakThis.IsExpired()) {
+                break;
             }
-        } else {
-            ErrorState_->ClearError();
-            return true;
+
+            WaitBackoff(&backoffStrategy, minBackoff);
         }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<TMessageId> TAsyncQueueWriter::GetInitialMessageId() const
+{
+    YT_VERIFY(std::ssize(Clusters_) == 1);
+    return Clusters_.front().SessionFuture.Apply(BIND([] (const TSessionResult& result) {
+        return GetLastMessageIdFromUserMeta(result.UserMeta);
+    }));
+}
+
+bool TAsyncQueueWriter::TryExecuteIteration(const std::string& producerId, std::vector<TRequest>* requests)
+{
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Context_->SerializedInvoker);
+    if (FatalError_) {
+        requests->clear();
+        return true;
+    }
+
+    auto error = TError("Failed to write to the queue");
+    bool written = false;
+    for (ssize_t attempt = 0; attempt < std::ssize(Clusters_); ++attempt) {
+        auto& cluster = Clusters_[CurrentClusterIndex_];
+        bool commitStarted = false;
+        try {
+            const auto& session = GetSession(&cluster, producerId);
+            ssize_t firstRowIndex = 0;
+            while (firstRowIndex < std::ssize(*requests) && (*requests)[firstRowIndex].MessageId <= cluster.LastMessageId) {
+                ++firstRowIndex;
+            }
+
+            if (firstRowIndex < std::ssize(*requests)) {
+                auto buffer = New<NTableClient::TRowBuffer>();
+                std::vector<NTableClient::TUnversionedRow> rows;
+                rows.reserve(std::ssize(*requests) - firstRowIndex);
+                for (ssize_t index = firstRowIndex; index < std::ssize(*requests); ++index) {
+                    rows.push_back(buffer->CaptureRow((*requests)[index].Row));
+                }
+                auto transaction = NConcurrency::WaitFor(cluster.Client->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+                    .ValueOrThrow();
+                NApi::TPushQueueProducerOptions options;
+                options.RequireSyncReplica = Parameters_->RequireSyncReplica;
+                options.SequenceNumber = NQueueClient::TQueueProducerSequenceNumber(cluster.PhysicalSequenceNumber.Underlying() + 1);
+                auto userMeta = New<TQueueProducerUserMeta>();
+                userMeta->LastMessageId = std::string(requests->back().MessageId.Underlying());
+                options.UserMeta = NYTree::ConvertToNode(userMeta);
+                auto pushResult = NConcurrency::WaitFor(transaction->PushQueueProducer(
+                    Parameters_->ProducerPath,
+                    Parameters_->QueuePath,
+                    NQueueClient::TQueueProducerSessionId(producerId),
+                    session.Epoch,
+                    NameTable_,
+                    MakeSharedRange(std::move(rows), std::move(buffer)),
+                    options))
+                    .ValueOrThrow();
+                commitStarted = true;
+                NConcurrency::WaitFor(transaction->Commit())
+                    .ThrowOnError();
+                cluster.PhysicalSequenceNumber = pushResult.LastSequenceNumber;
+                cluster.LastMessageId = requests->back().MessageId;
+            }
+
+            YT_TLOG_INFO("Asynchronously wrote messages to the queue")
+                .With("Cluster", cluster.Name)
+                .With("RequestCount", std::ssize(*requests))
+                .With("SkippedPrefixCount", firstRowIndex);
+            ErrorState_->ClearError();
+            written = true;
+            break;
+        } catch (const std::exception& ex) {
+            auto clusterError = TError("Failed to write to the queue on cluster %Qv", cluster.Name).With(ex);
+            YT_TLOG_WARNING("Failed to write to the queue on cluster")
+                .With(clusterError);
+            error.Add(clusterError);
+            if (clusterError.FindMatching(NQueueClient::EErrorCode::ZombieEpoch) ||
+                clusterError.FindMatching(NQueueClient::EErrorCode::InvalidEpoch))
+            {
+                FatalError_ = clusterError;
+                ErrorState_->SetError(clusterError);
+                requests->clear();
+                return true;
+            }
+
+            if (std::ssize(Clusters_) > 1) {
+                if (cluster.Session) {
+                    cluster.Session.reset();
+                    cluster.SessionFuture = {};
+                    cluster.SessionOptions = {};
+                } else {
+                    cluster.SessionFuture = {};
+                    cluster.SessionOptions.Retry = true;
+                }
+                CurrentClusterIndex_ = (CurrentClusterIndex_ + 1) % std::ssize(Clusters_);
+                if (AtMostOnce_ && commitStarted) {
+                    ErrorState_->SetError(clusterError);
+                    YT_TLOG_WARNING("Dropping messages with unknown commit outcome before switching clusters")
+                        .With("RequestCount", std::ssize(*requests));
+                    requests->clear();
+                    return true;
+                }
+            } else {
+                cluster.Session.reset();
+                cluster.SessionFuture = {};
+                cluster.SessionOptions.Retry = true;
+            }
+        }
+    }
+    if (written) {
+        for (auto& request : *requests) {
+            auto onWritten = std::move(request.OnWritten);
+            onWritten();
+        }
+        requests->clear();
+        return true;
     }
     ErrorState_->SetError(error);
-    NConcurrency::TDelayedExecutor::WaitForDuration(DynamicParameters_.Acquire()->BackoffDuration);
     return false;
 }
 
-TError TAsyncMultiClusterQueueWriter::TryExecuteIterationOnCluster(
-    const std::string& producerId,
-    const std::vector<TRequest>& requests,
-    TClusterDataMap::iterator& it)
+void TAsyncQueueWriter::StartSession(TClusterData* cluster, const std::string& producerId)
 {
-    auto& clusterData = it->second;
-    try {
-        auto buffer = New<NTableClient::TRowBuffer>();
-        std::vector<NTableClient::TUnversionedRow> rows;
-        for (auto& request : requests) {
-            rows.push_back(buffer->CaptureRow(std::get<NTableClient::TUnversionedOwningRow>(request)));
-        }
-        auto session = GetSession(producerId, clusterData);
-        Y_UNUSED(session->Write(MakeSharedRange(std::move(rows), std::move(buffer))));
-        NConcurrency::WaitFor(session->Flush()).ThrowOnError();
-        for (auto& request : requests) {
-            std::get<TPromise<void>>(request).TrySet();
-        }
-        YT_TLOG_INFO("Asynchronously wrote messages to the queue")
-            .With("Count", std::ssize(requests));
-        return TError();
-    } catch (const std::exception& ex) {
-        YT_TLOG_WARNING("Failed to write to the queue on cluster, reinit session")
-            .With("Cluster", it->first)
-            .With(ex);
-        clusterData.Session = {};
-        return TError(ex);
+    cluster->SessionOptions.MutationId = cluster->SessionOptions.GetOrGenerateMutationId();
+    auto sessionId = NQueueClient::TQueueProducerSessionId(producerId);
+    if (std::ssize(Clusters_) == 1) {
+        cluster->SessionFuture = BIND(
+            &TAsyncQueueWriter::CreateSessionWithRetries,
+            MakeWeak(this),
+            CurrentClusterIndex_,
+            sessionId,
+            cluster->SessionOptions)
+            .AsyncVia(Context_->PoolInvoker)
+            .Run();
+    } else {
+        cluster->SessionFuture = cluster->Client->CreateQueueProducerSession(
+            Parameters_->ProducerPath,
+            Parameters_->QueuePath,
+            sessionId,
+            cluster->SessionOptions);
     }
 }
 
-NQueueClient::IProducerSessionPtr TAsyncMultiClusterQueueWriter::GetSession(const std::string& producerId, TClusterData& clusterData)
+const TAsyncQueueWriter::TSessionResult& TAsyncQueueWriter::GetSession(
+    TClusterData* cluster,
+    const std::string& producerId)
 {
-    auto& session = clusterData.Session;
-    if (session) {
-        return session;
+    if (!cluster->Session) {
+        if (!cluster->SessionFuture) {
+            StartSession(cluster, producerId);
+        }
+        cluster->Session = NConcurrency::WaitFor(cluster->SessionFuture)
+            .ValueOrThrow();
+        cluster->PhysicalSequenceNumber = cluster->Session->SequenceNumber;
+        cluster->LastMessageId = GetLastMessageIdFromUserMeta(cluster->Session->UserMeta);
     }
+    return *cluster->Session;
+}
 
-    auto sessionId = NQueueClient::TQueueProducerSessionId(TString(producerId));
-    NQueueClient::TProducerSessionOptions options;
-    options.BatchOptions.RowCount = std::numeric_limits<i64>::max();
-    options.BatchOptions.ByteSize = std::numeric_limits<i64>::max();
-    options.RequireSyncReplica = Parameters_->RequireSyncReplica;
+TAsyncQueueWriter::TSessionResult TAsyncQueueWriter::CreateSessionWithRetries(
+    TWeakPtr<TAsyncQueueWriter> weakThis,
+    ssize_t clusterIndex,
+    NQueueClient::TQueueProducerSessionId sessionId,
+    NApi::TCreateQueueProducerSessionOptions options)
+{
+    std::optional<TBackoffStrategy> backoffStrategy;
+    while (true) {
+        auto strongThis = weakThis.Lock();
+        if (!strongThis) {
+            THROW_ERROR_EXCEPTION("Async queue writer was destroyed while creating producer session");
+        }
 
-    session = NConcurrency::WaitFor(clusterData.ProducerClient->CreateSession(
-        Parameters_->QueuePath,
-        NameTable_,
-        sessionId,
-        options))
-        .ValueOrThrow();
-    return session;
+        auto result = NConcurrency::WaitFor(strongThis->Clusters_[clusterIndex].Client->CreateQueueProducerSession(
+            strongThis->Parameters_->ProducerPath,
+            strongThis->Parameters_->QueuePath,
+            sessionId,
+            options));
+        if (result.IsOK()) {
+            strongThis->ErrorState_->ClearError();
+            return result.Value();
+        }
+
+        strongThis->ErrorState_->SetError(TError("Failed to create queue producer session").With(result));
+        auto minBackoff = strongThis->DynamicParameters_.Acquire()->BackoffDuration;
+        strongThis.Reset();
+
+        WaitBackoff(&backoffStrategy, minBackoff);
+        options.Retry = true;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAsyncQueueSinkImpl::TAsyncQueueSinkImpl(
+void TMessageIdQueueSinkState::Register(TRegistrar registrar)
+{
+    registrar.Parameter("producer_id", &TThis::ProducerId)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAsyncQueueSink::TAsyncQueueSink(
     TSinkContextPtr context,
     TDynamicSinkContextPtr dynamicContext)
-    : TDelegatingAsyncSinkBase(std::move(context), std::move(dynamicContext))
-    , NameTable_(GenerateNameTable())
-    , SeqNoColumn_(NameTable_->GetIdOrThrow(NTableClient::SequenceNumberColumnName))
-    , FlowMetaColumn_(
-        GetParameters()->WriteFlowQueueMeta
-            ? NameTable_->FindId(GetParameters()->FlowQueueMetaColumn)
-            : std::nullopt)
+    : TSinkBase(std::move(context), std::move(dynamicContext))
+    , AtMostOnce_(GetParameters() && GetParameters()->AtMostOnceStrategy && GetParameters()->AtMostOnceStrategy->Enabled)
+    , QueueSizeSemaphore_(AtMostOnce_
+            ? New<NConcurrency::TAsyncSemaphore>(/*totalSlots*/ 0, /*enableOverdraft*/ true)
+            : nullptr)
 {
+    if (AtMostOnce_) {
+        ReconfigureAtMostOnce();
+    }
     SubscribeReconfigured(BIND([this] (const TDynamicSinkContextPtr& /*dynamicContext*/) {
         if (Writer_) {
-            Writer_->Reconfigure(GetDynamicParameters());
+            Writer_->Reconfigure(GetDynamicWriterParameters());
+        }
+        if (AtMostOnce_) {
+            ReconfigureAtMostOnce();
         }
     }));
 }
 
-TAsyncQueueSinkImpl::~TAsyncQueueSinkImpl()
+TAsyncQueueSink::~TAsyncQueueSink()
 {
-    std::vector<TIntrusivePtr<TRefCounted>> prevent;
-    if (Writer_) {
-        prevent.push_back(Writer_);
+    TerminateWriter();
+}
+
+void TAsyncQueueSink::DoTerminate()
+{
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
+    CurrentEpoch_.clear();
+    TerminateWriter();
+    NameTable_.Reset();
+}
+
+void TAsyncQueueSink::Init(IInitContextPtr initContext)
+{
+    if (GetSpec()->InputStreamIds.size() != 1) {
+        THROW_ERROR_EXCEPTION("Expected exactly one input stream id, but got %v",
+            GetSpec()->InputStreamIds.size());
     }
-    SuspendDestructionGuarded(std::move(prevent));
-}
-
-void TAsyncQueueSinkImpl::DoInit(const std::string& producerId)
-{
+    NameTable_ = GenerateNameTable();
+    auto parameters = GetWriterParameters();
+    FlowMetaColumn_ = parameters->WriteFlowQueueMeta
+        ? NameTable_->FindId(parameters->FlowQueueMetaColumn)
+        : std::nullopt;
+    if (AtMostOnce_) {
+        initContext->InitClient(AtMostOnceWatermark_, "v1/at_most_once_watermark");
+    }
     Writer_ = CreateWriter();
-    Writer_->InitSession(producerId);
+    Writer_->Init(initContext, AtMostOnce_);
 }
 
-NTableClient::TUnversionedOwningRow TAsyncQueueSinkImpl::BuildRow(const TOutputMessageConstPtr& message, i64 seqNo) const
+void TAsyncQueueSink::Distribute(
+    const TOutputMessageConstPtr& message,
+    TOnDistributedCallback onDistributed)
+{
+    if (AtMostOnce_) {
+        ObserveEventLag(message->StreamId, message->EventTimestamp);
+        onDistributed();
+        if (message->MessageId > *AtMostOnceWatermark_) {
+            CurrentEpoch_.push_back({message, {}});
+        }
+    } else {
+        CurrentEpoch_.push_back({message, std::move(onDistributed)});
+    }
+}
+
+void TAsyncQueueSink::Sync(NApi::IDynamicTableTransactionPtr /*transaction*/)
+{
+    Writer_->ThrowIfFatalError();
+    if (AtMostOnce_ && !CurrentEpoch_.empty()) {
+        *AtMostOnceWatermark_ = CurrentEpoch_.back().Message->MessageId;
+    }
+}
+
+void TAsyncQueueSink::Commit()
+{
+    Writer_->ThrowIfFatalError();
+
+    auto pending = std::exchange(CurrentEpoch_, {});
+    if (pending.empty()) {
+        return;
+    }
+    if (AtMostOnce_ && !QueueSizeSemaphore_->IsReady()) {
+        YT_TLOG_WARNING("Async sink queue is full; dropping messages")
+            .With("MessageCount", std::ssize(pending))
+            .With("UsedBytes", QueueSizeSemaphore_->GetUsed())
+            .With("TotalBytes", QueueSizeSemaphore_->GetTotal());
+        return;
+    }
+
+    WriteMessages(std::move(pending));
+}
+
+void TAsyncQueueSink::WriteMessages(std::vector<TPendingMessage> pending)
+{
+    ssize_t sentCount = 0;
+    for (auto& item : pending) {
+        if (!TryAdmitMessage(item)) {
+            continue;
+        }
+        auto row = BuildRow(item.Message);
+        ++sentCount;
+        if (AtMostOnce_) {
+            auto guard = NConcurrency::TAsyncSemaphoreGuard::Acquire(QueueSizeSemaphore_, item.Message->ByteSize);
+            bool withinLimit = QueueSizeSemaphore_->GetFree() >= 0;
+            auto onWritten = BIND([guard = std::move(guard)] () mutable {
+                guard.Release();
+            });
+            Writer_->Write(std::move(row), item.Message->MessageId, std::move(onWritten));
+            if (!withinLimit) {
+                break;
+            }
+            continue;
+        }
+        auto messageId = item.Message->MessageId;
+        auto onWritten = BIND([weakThis = MakeWeak(this), item = std::move(item)] () mutable {
+            if (auto strongThis = weakThis.Lock()) {
+                YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(strongThis->GetContext()->SerializedInvoker);
+                strongThis->ObserveEventLag(item.Message->StreamId, item.Message->EventTimestamp);
+                item.OnDistributed();
+            }
+        });
+        Writer_->Write(std::move(row), std::move(messageId), std::move(onWritten));
+    }
+    if (AtMostOnce_ && sentCount < std::ssize(pending)) {
+        YT_TLOG_WARNING("Async sink queue size limit exceeded; dropping some messages")
+            .With("DroppedMessageCount", std::ssize(pending) - sentCount)
+            .With("TotalMessageCount", std::ssize(pending))
+            .With("UsedBytes", QueueSizeSemaphore_->GetUsed())
+            .With("TotalBytes", QueueSizeSemaphore_->GetTotal());
+    }
+}
+
+bool TAsyncQueueSink::TryAdmitMessage(
+    TPendingMessage& item,
+    const std::optional<TMessageId>& initialMessageId)
+{
+    if (AtMostOnce_) {
+        return true;
+    }
+    if (initialMessageId && item.Message->MessageId <= *initialMessageId) {
+        item.OnDistributed();
+        return false;
+    }
+    if (item.Message->MessageId <= LastSeenMessageId_) {
+        THROW_ERROR_EXCEPTION("Message IDs written to the async queue sink must strictly increase")
+            .With("message_id", item.Message->MessageId)
+            .With("last_message_id", LastSeenMessageId_);
+    }
+    LastSeenMessageId_ = item.Message->MessageId;
+    return true;
+}
+
+NTableClient::TNameTablePtr TAsyncQueueSink::GenerateNameTable() const
+{
+    auto schema = GetContext()->StreamSpecStorage->GetSchema(*GetSpec()->InputStreamIds.begin());
+    NTableClient::TNameTablePtr nameTable;
+    if (GetParameters()->ColumnFilter) {
+        nameTable = New<NTableClient::TNameTable>();
+        for (const auto& field : *GetParameters()->ColumnFilter) {
+            if (!schema->FindColumn(field)) {
+                THROW_ERROR_EXCEPTION("Column %v not found in schema", field);
+            }
+            nameTable->RegisterNameOrThrow(field);
+        }
+    } else {
+        nameTable = NTableClient::TNameTable::FromSchema(*schema);
+    }
+    if (GetParameters()->WriteFlowQueueMeta) {
+        nameTable->RegisterNameOrThrow(GetParameters()->FlowQueueMetaColumn);
+    }
+    return nameTable;
+}
+
+NTableClient::TUnversionedOwningRow TAsyncQueueSink::BuildRow(const TOutputMessageConstPtr& message) const
 {
     NTableClient::TUnversionedOwningRowBuilder builder;
     for (int i = 0; i < message->Payload.Underlying().GetCount(); ++i) {
@@ -469,7 +739,6 @@ NTableClient::TUnversionedOwningRow TAsyncQueueSinkImpl::BuildRow(const TOutputM
             builder.AddValue(value);
         }
     }
-    builder.AddValue(NTableClient::MakeUnversionedInt64Value(seqNo, SeqNoColumn_));
     if (FlowMetaColumn_) {
         const auto meta = BuildFlowQueueMeta(*message);
         const auto serializedMeta = NYson::ConvertToYsonString(meta, NYson::EYsonFormat::Binary);
@@ -478,61 +747,104 @@ NTableClient::TUnversionedOwningRow TAsyncQueueSinkImpl::BuildRow(const TOutputM
     return builder.FinishRow();
 }
 
-std::pair<TFuture<void>, ui64> TAsyncQueueSinkImpl::DoDistribute(const TOutputMessageConstPtr& message, i64 seqNo)
+TAsyncQueueWriterParametersBasePtr TAsyncQueueSink::GetWriterParameters() const
 {
-    auto row = BuildRow(message, seqNo);
-    return {Writer_->Write(row), message->ByteSize};
+    return DynamicPointerCast<TAsyncQueueWriterParametersBase>(GetParametersBase());
 }
 
-NTableClient::TNameTablePtr TAsyncQueueSinkImpl::GenerateNameTable() const
+TDynamicAsyncQueueWriterParametersPtr TAsyncQueueSink::GetDynamicWriterParameters() const
 {
-    if (GetSpec()->InputStreamIds.size() != 1) {
-        THROW_ERROR_EXCEPTION("Expected exactly one input stream id, but got %v",
-            GetSpec()->InputStreamIds.size());
-    }
-    auto streamId = *GetSpec()->InputStreamIds.begin();
-    auto schema = GetContext()->StreamSpecStorage->GetSchema(streamId);
-
-    NTableClient::TNameTablePtr nameTable;
-    if (GetParameters()->ColumnFilter) {
-        nameTable = New<NTableClient::TNameTable>();
-        for (const auto& field : *GetParameters()->ColumnFilter) {
-            if (schema->FindColumn(field) == nullptr) {
-                THROW_ERROR_EXCEPTION("Column %v not found in schema",
-                    field);
-            }
-            nameTable->RegisterNameOrThrow(field);
-        }
-    } else {
-        nameTable = NTableClient::TNameTable::FromSchema(*schema);
-    }
-    nameTable->RegisterNameOrThrow(NTableClient::SequenceNumberColumnName);
-    if (GetParameters()->WriteFlowQueueMeta) {
-        nameTable->RegisterNameOrThrow(GetParameters()->FlowQueueMetaColumn);
-    }
-    return nameTable;
+    return DynamicPointerCast<TDynamicAsyncQueueWriterParameters>(GetDynamicParametersBase());
 }
 
-IAsyncQueueWriterPtr TAsyncQueueSink::CreateWriter()
+TAsyncQueueWriterPtr TAsyncQueueSink::CreateWriter() const
 {
+    auto parameters = GetWriterParameters();
+    return New<TAsyncQueueWriter>(
+        GetContext(),
+        parameters,
+        std::vector<std::string>{*parameters->QueuePath.GetCluster()},
+        GetDynamicWriterParameters(),
+        NameTable_,
+        GetContext()->StatusProfiler->ErrorState("/async_queue_writer"),
+        Logger);
+}
+
+TAsyncQueueWriterPtr TAsyncMultiClusterQueueSink::CreateWriter() const
+{
+    std::vector<std::string> clusters;
+    if (auto cluster = GetParameters()->QueuePath.GetCluster()) {
+        clusters.push_back(*cluster);
+    } else if (GetParameters()->UseClusters && GetParameters()->QueuePath.GetClusters()) {
+        clusters = *GetParameters()->QueuePath.GetClusters();
+    }
     return New<TAsyncQueueWriter>(
         GetContext(),
         GetParameters(),
-        GetDynamicParameters(),
-        NameTable_,
-        GetContext()->StatusProfiler->ErrorState("/async_queue_writer"),
-        TDelegatingAsyncSinkBase::Logger);
-}
-
-IAsyncQueueWriterPtr TAsyncMultiClusterQueueSink::CreateWriter()
-{
-    return New<TAsyncMultiClusterQueueWriter>(
-        GetContext(),
-        GetParameters(),
+        std::move(clusters),
         GetDynamicParameters(),
         NameTable_,
         GetContext()->StatusProfiler->ErrorState("/async_multi_cluster_queue_writer"),
-        TDelegatingAsyncSinkBase::Logger);
+        Logger);
+}
+
+void TAsyncQueueSink::ReconfigureAtMostOnce()
+{
+    auto parameters = GetDynamicParameters()->AtMostOnceStrategy;
+    THROW_ERROR_EXCEPTION_UNLESS(parameters, "AtMostOnceStrategy is required with at most once strategy");
+    QueueSizeSemaphore_->SetTotal(parameters->TotalQueueBytesLimit);
+}
+
+void TAsyncQueueSink::TerminateWriter()
+{
+    if (!Writer_) {
+        return;
+    }
+    auto duration = AtMostOnce_
+        ? GetDynamicParameters()->AtMostOnceStrategy->SuspendDestructionDuration
+        : TDuration::Zero();
+    BIND([
+        writer = std::exchange(Writer_, {}),
+        semaphore = QueueSizeSemaphore_,
+        duration,
+        invoker = GetContext()->SerializedInvoker,
+        Logger = Logger] {
+        if (duration == TDuration::Zero() || semaphore->IsFree()) {
+            writer->Terminate();
+            return;
+        }
+
+        YT_TLOG_INFO("Waiting for in-flight async queue writes during termination")
+            .With("SuspendDurationMs", duration.MilliSeconds())
+            .With("UsedBytes", semaphore->GetUsed());
+        auto acquireFuture = semaphore->AsyncAcquire(semaphore->GetTotal());
+        auto timeoutFuture = NConcurrency::TDelayedExecutor::MakeDelayed(duration);
+        AnySucceeded(
+            std::vector<TFuture<void>>{acquireFuture.AsVoid(), timeoutFuture},
+            TFutureCombinerOptions{
+                .PropagateCancelationToInput = false,
+                .CancelInputOnShortcut = false,
+            })
+            .Subscribe(BIND([
+                Logger = Logger,
+                acquireFuture,
+                timeoutFuture,
+                writer] (const TError& error) {
+                if (!error.IsOK()) {
+                    YT_TLOG_WARNING("Error while waiting for async queue writes during termination")
+                        .With(error);
+                }
+                if (!acquireFuture.IsSet()) {
+                    YT_TLOG_WARNING("Termination timeout expired with async queue writes still in flight");
+                }
+                auto cancelError = TError(NYT::EErrorCode::Canceled, "Async queue writer terminated");
+                acquireFuture.Cancel(cancelError);
+                timeoutFuture.Cancel(cancelError);
+                writer->Terminate();
+            }).Via(invoker));
+    })
+        .Via(GetContext()->SerializedInvoker)
+        .Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

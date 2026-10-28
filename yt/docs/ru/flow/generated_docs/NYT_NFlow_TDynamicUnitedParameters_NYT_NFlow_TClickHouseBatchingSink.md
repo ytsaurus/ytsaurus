@@ -16,7 +16,7 @@
 Максимум попыток вставки для ошибок, которые нельзя надёжно классифицировать как временные (например, серверные ошибки); после исчерпания запись завершается ошибкой. Известные временные ошибки (сеть, протокол) ретраятся без ограничения, невосстановимые (валидация) не ретраятся. ||
 || `async_insert` | **Тип**: `bool`
 **Значение по умолчанию**: `false`
-Включает серверные [асинхронные вставки](../extensions/clickhouse.md#async-insert). Все классы синка эмитят `async_insert=1` и `wait_for_async_insert=1`. Batching-синки с гарантией exactly-once дополнительно передают токен дедупликации и эмитят `async_insert_deduplicate=1`; at-least-once- и at-most-once-синки намеренно не передают токен дедупликации и не задают `async_insert_deduplicate`. ||
+Включает серверные [асинхронные вставки](../extensions/clickhouse.md#async-insert). Все классы синка эмитят `async_insert=1` и `wait_for_async_insert=1`. Batching-синки с гарантией exactly-once дополнительно передают токен дедупликации и эмитят `async_insert_deduplicate=1`; at-least-once-синк намеренно не передаёт токен дедупликации и не задаёт `async_insert_deduplicate`. ||
 || `replay_horizon` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `1d`
 Верхняя граница лага реплея для проверки [окна дедупликации](../extensions/clickhouse.md#dedup-window). При запуске сессии записи перед первой вставкой сравнивается с серверным `replicated_deduplication_window_seconds` либо с `replicated_deduplication_window_seconds_for_async_inserts`, если включён `async_insert`. Если выбранное окно короче, в лог воркера пишется предупреждение. ||

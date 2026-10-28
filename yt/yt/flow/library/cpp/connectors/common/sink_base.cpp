@@ -44,6 +44,18 @@ TDynamicSinkSpecPtr TSinkBase::GetDynamicSpec() const
     return GetDynamicContext()->DynamicSinkSpec;
 }
 
+void TSinkBase::Terminate()
+{
+    BIND([this, this_ = MakeStrong(this)] {
+        DoTerminate();
+    })
+        .Via(GetContext()->SerializedInvoker)
+        .Run();
+}
+
+void TSinkBase::DoTerminate()
+{ }
+
 ISink::TParametersPtr TSinkBase::GetParametersBase() const
 {
     return Parameters_;

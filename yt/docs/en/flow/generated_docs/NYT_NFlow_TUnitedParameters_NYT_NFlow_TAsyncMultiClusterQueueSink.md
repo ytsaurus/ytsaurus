@@ -28,13 +28,13 @@ Hash routing mode. A QL expression (builtins only, e.g. `farm_hash`) yielding a 
 The policy for reducing the `tablet_index_routing_hash_expression` hash to a tablet index. Required together with it. `range` &mdash; contiguous equal-width hash ranges (rangeSize = 2^64 / tablet_count), recommended: a consumer range-partitioned by the same key reads only its own tablet. `modulo` &mdash; `hash % tablet_count`; discouraged: Flow computations are range-partitioned by key, so a modulo-partitioned queue forces every reader to read every tablet (a full mesh on read). ||
 || `tablet_count` | **Type**: `std::optional<long>`
 The number of tablets used to reduce `tablet_index_routing_hash_expression` to a tablet index. Optional. When unset, the sink periodically re-reads the target queue's `@tablet_count` (from the master cache) and follows a reshard without a restart. When set explicitly, the value is fixed (no queue read) and a reshard is reflected only by changing the config. ||
-|| `at_most_once_strategy` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TAtMostOnceStrategyParameters](./all_yson_structs#NYT_NFlow_TAtMostOnceStrategyParameters)`>`
-Optional at-most-once delivery strategy. Connector support varies; check the connector documentation before enabling it. ||
 || `column_filter` | **Type**: `std::optional<THashSet<std::string>>`
 Which columns from the message to write to the queue (default &mdash; all). ||
+|| `at_most_once_strategy` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TAtMostOnceStrategyParameters](./all_yson_structs#NYT_NFlow_TAtMostOnceStrategyParameters)`>`
+At-most-once delivery: acknowledge before writing and drop messages when the local write queue is full. ||
 || `use_clusters` | **Type**: `bool`
 **Default value**: `false`
-Whether to use `<clusters=[...]>` instead of `<cluster=...>` from the rich path in producer and queue ||
+Whether to use `<clusters=[...]>` instead of `<cluster=...>` from the rich path in producer and queue. ||
 |#
 
 

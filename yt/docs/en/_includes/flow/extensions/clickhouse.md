@@ -6,12 +6,11 @@ The extension is built on the native C++ client [contrib/libs/clickhouse-cpp]({{
 
 ## Sink family {#sink-family}
 
-The sink class selects the guarantee level. `TAtMostOnceClickHouseSink` remains at-most-once in both strategy modes; the strategy selects whether delivery is ordered and persisted or uses a bounded lossy queue:
+The sink class selects the guarantee level:
 
 - `NYT::NFlow::TClickHouseBatchingSink` &mdash; **the recommended option**, exactly-once with deterministic batching (one `INSERT` per batch). Repartition-safe (see [Processing guarantees](../../../flow/concepts/guarantees.md#clickhouse-guarantees)).
 - `NYT::NFlow::TShardedClickHouseBatchingSink` &mdash; exactly-once with the same batching for the multi-shard `shard_hosts` form.
 - `NYT::NFlow::TAtLeastOnceClickHouseSink` &mdash; at-least-once: the epoch batch is written synchronously during processing, without intermediate storage and without a deduplication token. Latency and load on {{product-name}} are lower. A failed write prevents the epoch from committing, so messages are not lost, but duplicates are possible on failure. Known transient errors are retried without a limit; unclassified errors are attempted at most `max_insert_attempts` times in total (10 by default), and permanent errors fail immediately. Suitable for idempotent data marts (`ReplacingMergeTree`, `argMax` rollups).
-- `NYT::NFlow::TAtMostOnceClickHouseSink` &mdash; at-most-once in both modes. With the default static setting `at_most_once_strategy.enabled = false`, pending messages stay in `output_messages` and use ordered delivery; a connection or session failure before `INSERT` starts may therefore be retried. Set the option to `true` to send each message independently through a bounded in-memory queue without waiting for delivery. Its dynamic limit is `at_most_once_strategy.total_queue_bytes_limit`, and the sink logs a warning when it drops messages on overflow. In either mode, once `INSERT` has started, a failed insert is acknowledged instead of retried, so it does not block subsequent messages.
 
 For either exactly-once class, a permanent insert error or exhausted unclassified insert attempts produces the `Giving up insert into ClickHouse` error. Every later write handled by the same sink instance then fails, so the pipeline stops making progress. Correct the target table or configuration, then pause and start the pipeline to create a new sink instance.
 
@@ -46,7 +45,7 @@ A single sink can write to several independent shards. A shard is a set of repli
 - **Unsharded form with multiple hosts**: `hosts` — a flat list of hosts of one table, all sharing `port`.
 - **Multi-shard form**: `shard_hosts` — a mapping from a shard name to the list of its hosts. `port`, `database`, and `table` are shared by all shards.
 
-The forms are mutually exclusive: exactly one of `host`, `hosts`, and `shard_hosts` must be set. For exactly-once, the unsharded `TClickHouseBatchingSink` accepts only `host` or `hosts`, while `TShardedClickHouseBatchingSink` requires `shard_hosts`. The at-least-once and at-most-once sinks accept any of the three forms. A single-entry `hosts` list is rejected during spec validation — use `host` in that case.
+The forms are mutually exclusive: exactly one of `host`, `hosts`, and `shard_hosts` must be set. For exactly-once, the unsharded `TClickHouseBatchingSink` accepts only `host` or `hosts`, while `TShardedClickHouseBatchingSink` requires `shard_hosts`. The at-least-once sink accepts any of the three forms. A single-entry `hosts` list is rejected during spec validation — use `host` in that case.
 
 ```yson
 "shard_hosts" = {
@@ -109,7 +108,7 @@ The check is performed **per partition**: a partition that still has undelivered
 
 A full drain protects undelivered data, but it does not move rows that have already been written and does not preserve the historical co-location of keys. After changing the set of shards, separately redistribute the stored data between shards if queries need a uniform layout of old and new rows.
 
-The at-least-once and at-most-once sinks carry no deduplication token, so the topology change guard described above does not apply to them.
+The at-least-once sink carries no deduplication token, so the topology change guard described above does not apply to it.
 
 ## Type mapping {#type-mapping}
 
@@ -168,19 +167,9 @@ Dynamic spec parameters of `TAtLeastOnceClickHouseSink`:
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAtLeastOnceClickHouseSink.md) %}
 
-Static spec parameters of `TAtMostOnceClickHouseSink`:
-
-{% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TUnitedParameters_NYT_NFlow_TAtMostOnceClickHouseSink.md) %}
-
-Dynamic spec parameters of `TAtMostOnceClickHouseSink`:
-
-{% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAtMostOnceClickHouseSink.md) %}
-
-To enable the bounded at-most-once queue, set `at_most_once_strategy.enabled = true` in the static spec. Configure its byte limit dynamically with the nested parameter `at_most_once_strategy.total_queue_bytes_limit`.
-
 ### The async_insert option {#async-insert}
 
-`async_insert` is a dynamic parameter. When it is enabled, all sink classes emit `async_insert=1` and `wait_for_async_insert=1`. The batching sinks with the exactly-once guarantee additionally pass the deduplication token and emit `async_insert_deduplicate=1`; the at-least-once and at-most-once sinks intentionally do not pass a deduplication token and do not set `async_insert_deduplicate`.
+`async_insert` is a dynamic parameter. When it is enabled, all sink classes emit `async_insert=1` and `wait_for_async_insert=1`. The batching sinks with the exactly-once guarantee additionally pass the deduplication token and emit `async_insert_deduplicate=1`; the at-least-once sink does not pass a deduplication token and does not set `async_insert_deduplicate`.
 
 - `async_insert_deduplicate=1` is required for exactly-once (with the default `0` there is no deduplication).
 - `wait_for_async_insert=1` lets the sink learn about an insert error before the outbox advances.

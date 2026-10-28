@@ -28,10 +28,10 @@ Hash-режим маршрутизации. QL-выражение (только 
 Политика сведения хеша `tablet_index_routing_hash_expression` к индексу таблета. Обязателен вместе с ним. `range` &mdash; непрерывные равноширокие диапазоны хеша (rangeSize = 2^64 / tablet_count), рекомендуется: потребитель, партиционированный по тому же ключу диапазонами, читает только свой таблет. `modulo` &mdash; `hash % tablet_count`; не рекомендуется: `Computation`-ы Flow партиционированы по ключу диапазонами, поэтому очередь, шардированная по модулю, вынуждает каждого читателя читать все таблеты (full mesh на чтении). ||
 || `tablet_count` | **Тип**: `std::optional<long>`
 Число таблетов для сведения `tablet_index_routing_hash_expression` к индексу таблета. Необязателен. Если не задан, синк периодически перечитывает `@tablet_count` целевой очереди (из кэша мастера) и подхватывает решардирование без рестарта. Если задан явно &mdash; значение фиксировано, запросов в очередь нет, а решардирование учитывается только при изменении конфигурации. ||
-|| `at_most_once_strategy` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TAtMostOnceStrategyParameters](./all_yson_structs#NYT_NFlow_TAtMostOnceStrategyParameters)`>`
-Необязательная стратегия доставки at-most-once. Поддержка зависит от коннектора; перед включением проверьте документацию выбранного коннектора. ||
 || `column_filter` | **Тип**: `std::optional<THashSet<std::string>>`
 Какие колонки из сообщения писать в очередь (по умолчанию &mdash; все). ||
+|| `at_most_once_strategy` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TAtMostOnceStrategyParameters](./all_yson_structs#NYT_NFlow_TAtMostOnceStrategyParameters)`>`
+Доставка at-most-once: подтверждать сообщения до записи и отбрасывать их при заполнении локальной очереди записи. ||
 |#
 
 

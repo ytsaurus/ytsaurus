@@ -3,7 +3,7 @@
 #include "public.h"
 #include "spec.h"
 
-#include <yt/yt/flow/library/cpp/connectors/common/delegating_async_sink_base.h>
+#include <yt/yt/flow/library/cpp/connectors/common/ordered_async_sink_base.h>
 #include <yt/yt/flow/library/cpp/connectors/common/sink_controller_base.h>
 
 #include <yt/yt/flow/library/cpp/misc/public.h>
@@ -120,7 +120,7 @@ public:
 };
 
 class TAsyncHttpSink
-    : public TDelegatingAsyncSinkBase
+    : public TOrderedAsyncSinkBase
 {
 public:
     YT_FLOW_EXTEND_PARAMETERS(TAsyncHttpSinkParameters);
@@ -132,7 +132,7 @@ public:
 
 private:
     void DoInit(const std::string& producerId) override;
-    std::pair<TFuture<void>, ui64> DoDistribute(
+    TFuture<void> DoDistribute(
         const TOutputMessageConstPtr& message,
         i64 seqNo) override;
 
