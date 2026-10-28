@@ -6465,7 +6465,7 @@ private:
             if (auto hunkChunkRefsExt = chunk->ChunkMeta()->FindExtension<NTableClient::NProto::THunkChunkRefsExt>()) {
                 TChunkTreeStatistics statisticsDelta;
 
-                TEnumIndexedArray<NErasure::ECodec, int> codecToDataSize;
+                TEnumIndexedArray<NErasure::ECodec, i64> codecToDataSize;
                 for (const auto& protoRef : hunkChunkRefsExt->refs()) {
                     auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
                     auto* hunkChunk = FindChunk(hunkChunkId);
@@ -6565,7 +6565,7 @@ private:
             if (auto hunkChunkRefsExt = chunk->ChunkMeta()->FindExtension<NTableClient::NProto::THunkChunkRefsExt>()) {
                 TChunkTreeStatistics statisticsDelta;
 
-                TEnumIndexedArray<NErasure::ECodec, int> codecToDataSize;
+                TEnumIndexedArray<NErasure::ECodec, i64> codecToDataSize;
                 for (const auto& protoRef : hunkChunkRefsExt->refs()) {
                     auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
                     auto* hunkChunk = FindChunk(hunkChunkId);
