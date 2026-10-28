@@ -402,10 +402,15 @@ private:
         for (auto& [timerStreamId, timers] : SortedTimers_) {
             const auto& condition = GetOrCrash(TriggerConditions_, timerStreamId);
             TSystemTimestamp watermark = InfinitySystemTimestamp;
-            for (const auto& [streamId, delay] : condition.StreamsWithDelays) {
-                auto streamWatermark = WatermarkState_->GetWatermark(streamId, condition.TimeType);
-                auto delayedWatermark = TSystemTimestamp(std::max(streamWatermark.Underlying(), delay.Seconds()) - delay.Seconds());
-                watermark = std::min(watermark, delayedWatermark);
+            if (condition.TimeType == ETimeType::CurrentTime) {
+                // Watched streams and their delays are stream-time coordinates and do not apply to current time.
+                watermark = WatermarkState_->GetCurrentTimestamp();
+            } else {
+                for (const auto& [streamId, delay] : condition.StreamsWithDelays) {
+                    auto streamWatermark = WatermarkState_->GetWatermark(streamId, condition.TimeType);
+                    auto delayedWatermark = TSystemTimestamp(std::max(streamWatermark.Underlying(), delay.Seconds()) - delay.Seconds());
+                    watermark = std::min(watermark, delayedWatermark);
+                }
             }
 
             auto& triggeredTimers = TriggeredTimers_[timerStreamId];

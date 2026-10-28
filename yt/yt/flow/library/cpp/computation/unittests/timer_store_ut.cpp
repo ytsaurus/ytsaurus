@@ -102,6 +102,14 @@ protected:
         store->UpdateWatermarkState(watermarkState);
     }
 
+    // Advances only the current timestamp; stream watermarks stay at zero.
+    void SetCurrentTimestamp(const ITimerStorePtr& store, ui64 timestamp)
+    {
+        auto watermarkState = New<TWatermarkState>();
+        watermarkState->CurrentTimestamp = TSystemTimestamp(timestamp);
+        store->UpdateWatermarkState(watermarkState);
+    }
+
     i64 ReadCounter(const NProfiling::TSolomonRegistryPtr& registry, TStringBuf name)
     {
         registry->ProcessRegistrations();
@@ -540,6 +548,40 @@ TEST_F(TTimerStoreTest, EventTimeTypeTriggersOnEventWatermark)
     auto batchTriggered = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1 << 20);
     ASSERT_EQ(std::ssize(batchTriggered), 1);
     EXPECT_EQ(batchTriggered[0]->MessageId, TMessageId("timer-1"));
+}
+
+TEST_F(TTimerStoreTest, CurrentTimeIgnoresStreamDelays)
+{
+    auto context = MakeContext(/*table*/ nullptr, ETimeType::CurrentTime);
+    context->TimerSpecs[TimerStreamId]->StreamsWithDelays = {{InputStreamId, TDuration::Seconds(30)}};
+    auto store = CreateTimerStore(context, MakeDynamicContext());
+    WaitFor(store->Init()).ThrowOnError();
+    store->Register({MakeTimer("timer-1", /*triggerTimestamp*/ 50)});
+
+    SetCurrentTimestamp(store, /*timestamp*/ 49);
+    EXPECT_TRUE(store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB).empty());
+
+    SetCurrentTimestamp(store, /*timestamp*/ 50);
+    auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB);
+    ASSERT_EQ(std::ssize(batch), 1);
+    EXPECT_EQ(batch[0]->MessageId, TMessageId("timer-1"));
+}
+
+TEST_F(TTimerStoreTest, CurrentTimeWithoutStreamsWaitsForTriggerTimestamp)
+{
+    auto context = MakeContext(/*table*/ nullptr, ETimeType::CurrentTime);
+    context->TimerSpecs[TimerStreamId]->Streams.emplace();
+    auto store = CreateTimerStore(context, MakeDynamicContext());
+    WaitFor(store->Init()).ThrowOnError();
+    store->Register({MakeTimer("timer-1", /*triggerTimestamp*/ 50)});
+
+    SetCurrentTimestamp(store, /*timestamp*/ 49);
+    EXPECT_TRUE(store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB).empty());
+
+    SetCurrentTimestamp(store, /*timestamp*/ 50);
+    auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB);
+    ASSERT_EQ(std::ssize(batch), 1);
+    EXPECT_EQ(batch[0]->MessageId, TMessageId("timer-1"));
 }
 
 // When multiple timers have the same TriggerTimestamp, GetNextBatch returns them

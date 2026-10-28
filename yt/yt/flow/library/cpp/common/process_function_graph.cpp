@@ -263,7 +263,8 @@ TGeneratedComputationFields BuildGeneratedComputationFields(
                 physicalSpec->Streams = std::move(watched);
             }
             THROW_ERROR_EXCEPTION_IF(
-                (!physicalSpec->Streams || physicalSpec->Streams->empty()) &&
+                timerSpec->TimeType != ETimeType::CurrentTime &&
+                    (!physicalSpec->Streams || physicalSpec->Streams->empty()) &&
                     (!physicalSpec->StreamsWithDelays || physicalSpec->StreamsWithDelays->empty()),
                 "Timer stream %Qv of process function graph node %Qv watches no streams",
                 timerId,

@@ -51,7 +51,7 @@ Explanations:
   - `system_time` — compared with `SystemWatermark`.
   - `real_time` — compared with real astronomical time.
 
-- `streams` / `streams_with_delays` — let you limit which input streams contribute to the watermark calculation for this timer. `streams_with_delays` also lets you set an individual delay for each stream.
+- `streams` / `streams_with_delays` — let you limit which input streams contribute to the watermark calculation for this timer. `streams_with_delays` also lets you set an individual delay for each stream. These parameters apply only to `event_time` and `system_time` timers. A `current_time` timer triggers when the current time reaches `TriggerTimestamp`; `streams` and `streams_with_delays` are ignored for it.
 
 - `deduplicate_equal_timestamps` — merges timers in the same stream with the same key and `TriggerTimestamp`, keeping the smallest `EventTimestamp`. Deduplication is not guaranteed: duplicates are possible. Enabled by default.
 
@@ -59,7 +59,7 @@ Explanations:
 
 Within one timer stream, timers for the same key are processed in `TriggerTimestamp` order.
 
-Processing order across timer streams is not guaranteed. To make timer A fire after timer B, add stream B to the `streams` field in timer A's spec. Timer A will then wait for stream B's watermark to advance.
+Processing order across timer streams is not guaranteed. For `event_time` and `system_time` timers, to make timer A fire after timer B, add stream B to the `streams` field in timer A's spec. Timer A will then wait for stream B's watermark to advance.
 
 ## Blocking related timer streams {#timer-stream-blocking}
 
