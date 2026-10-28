@@ -198,7 +198,8 @@ class Clique(object):
 
         self.sql_udf_path = "//sys/strawberry/chyt/{}/user_defined_sql_functions".format(self.alias)
         ace = make_ace("allow", "chyt-sql-objects", ["read", "write", "remove"])
-        create("map_node", self.sql_udf_path, recursive=True, attributes={
+        # A prior test may have died before __exit__ and left this node behind.
+        create("map_node", self.sql_udf_path, recursive=True, force=True, attributes={
             "acl": [ace],
         })
         config["yt"]["user_defined_sql_objects_storage"]["path"] = self.sql_udf_path
