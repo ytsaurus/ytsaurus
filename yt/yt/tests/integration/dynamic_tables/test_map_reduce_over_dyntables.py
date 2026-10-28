@@ -1209,6 +1209,8 @@ class TestMapOnDynamicTablesPortal(TestMapOnDynamicTablesMulticell):
 
 
 class TestMapOnDynamicTablesSequoia(TestMapOnDynamicTablesMulticell):
+    NUM_TEST_PARTITIONS = 11
+
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
