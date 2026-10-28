@@ -397,7 +397,7 @@ public:
         TMasterReadOptions masterReadOptions,
         TCypressObjectRepository::TMaterializedView view,
         TTransactionId leadershipTransactionId,
-        TMaterializedViewProgressPtr persistedProgress)
+        TMaterializedViewProgressPtr currentProgress)
         : Host_(host)
         , ChannelFactory_(std::move(channelFactory))
         , Config_(std::move(config))
@@ -405,7 +405,7 @@ public:
         , MasterReadOptions_(std::move(masterReadOptions))
         , View_(std::move(view))
         , LeadershipTransactionId_(leadershipTransactionId)
-        , PersistedProgress_(std::move(persistedProgress))
+        , CurrentProgress_(std::move(currentProgress))
     { }
 
     TError Execute()
@@ -418,9 +418,9 @@ public:
         }
     }
 
-    TMaterializedViewProgressPtr GetPersistedProgress() const
+    TMaterializedViewProgressPtr GetCurrentProgress() const
     {
-        return PersistedProgress_;
+        return CurrentProgress_;
     }
 
     TError Commit()
@@ -436,12 +436,12 @@ public:
         }
 
         if (!error.IsOK()) {
-            PersistedProgress_.Reset();
+            CurrentProgress_.Reset();
             return error;
         }
         Transaction_.Reset();
         if (NeedCommit_) {
-            PersistedProgress_ = std::move(CurrentProgress_);
+            CurrentProgress_ = std::move(NextProgress_);
         }
 
         if (!Refreshed_) {
@@ -508,8 +508,8 @@ private:
 
     NNative::IClientPtr Client_;
     NApi::ITransactionPtr Transaction_;
-    TMaterializedViewProgressPtr PersistedProgress_;
     TMaterializedViewProgressPtr CurrentProgress_;
+    TMaterializedViewProgressPtr NextProgress_;
     NQueueClient::ISubConsumerClientPtr SubConsumerClient_;
     std::vector<TRefreshResult> RefreshResults_;
     bool NeedCommit_ = false;
@@ -544,10 +544,10 @@ private:
                 Client_,
                 View_.ObjectId,
                 View_.SourcePath,
-                PersistedProgress_->QueueConsumerInitialized,
+                CurrentProgress_->QueueConsumerInitialized,
                 Config_->TableMountTimeout);
 
-            NeedProgressFlush_ = !PersistedProgress_->QueueConsumerInitialized;
+            NeedProgressFlush_ = !CurrentProgress_->QueueConsumerInitialized;
         }
 
         auto partitionInfos = FetchPartitionInfos(
@@ -557,14 +557,14 @@ private:
             FromObjectId(sourceObjectId),
             MasterReadOptions_);
 
-        CurrentProgress_ = BuildCurrentProgress(PersistedProgress_, partitionInfos);
+        NextProgress_ = BuildNextProgress(CurrentProgress_, partitionInfos);
 
         if (View_.SourceType == EMaterializedViewSourceType::Queue) {
-            CurrentProgress_->QueueConsumerInitialized = true;
-            RecoverConsumerOffsetsIfNeeded(CurrentProgress_);
+            NextProgress_->QueueConsumerInitialized = true;
+            RecoverConsumerOffsetsIfNeeded(NextProgress_);
         }
 
-        auto tasks = BuildTasks(CurrentProgress_);
+        auto tasks = BuildTasks(NextProgress_);
 
         if (View_.SourceType == EMaterializedViewSourceType::TableRange) {
             std::vector<TFuture<TLockNodeResult>> lockFutures;
@@ -584,13 +584,13 @@ private:
                 "Testing exception after materialized view refresh query");
         }
 
-        UpdateProgress(CurrentProgress_, results);
+        UpdateProgress(NextProgress_, results);
 
         if (NeedProgressFlush_) {
             ProgressStore_->SetProgress(
                 Transaction_,
                 View_.ObjectId,
-                CurrentProgress_);
+                NextProgress_);
             NeedCommit_ = true;
             RefreshResults_ = std::move(results);
         }
@@ -615,24 +615,24 @@ private:
         }
     }
 
-    TMaterializedViewProgressPtr BuildCurrentProgress(
-        const TMaterializedViewProgressPtr& persistedProgress,
+    TMaterializedViewProgressPtr BuildNextProgress(
+        const TMaterializedViewProgressPtr& currentProgress,
         const std::vector<TPartitionInfo>& partitionInfos)
     {
         auto progress = New<TMaterializedViewProgress>();
-        progress->LastError = persistedProgress->LastError;
-        progress->QueueConsumerInitialized = persistedProgress->QueueConsumerInitialized;
-        progress->NextPartitionIndex = persistedProgress->NextPartitionIndex;
+        progress->LastError = currentProgress->LastError;
+        progress->QueueConsumerInitialized = currentProgress->QueueConsumerInitialized;
+        progress->NextPartitionIndex = currentProgress->NextPartitionIndex;
         progress->Partitions.reserve(partitionInfos.size());
 
         THashMap<std::pair<TObjectId, std::optional<int>>, TMaterializedViewPartitionProgressPtr> partitionProgresses;
-        for (const auto& partition : persistedProgress->Partitions) {
+        for (const auto& partition : currentProgress->Partitions) {
             partitionProgresses.emplace(
                 std::pair(partition->ObjectId, partition->PartitionIndex),
                 partition);
         }
 
-        bool changed = persistedProgress->Partitions.size() != partitionInfos.size();
+        bool changed = currentProgress->Partitions.size() != partitionInfos.size();
         for (const auto& info : partitionInfos) {
             TMaterializedViewPartitionProgressPtr partition;
             auto key = std::pair(info.ObjectId, info.PartitionIndex);
@@ -662,22 +662,22 @@ private:
         return progress;
     }
 
-    std::vector<TRefreshTask> BuildTasks(const TMaterializedViewProgressPtr& currentProgress) const
+    std::vector<TRefreshTask> BuildTasks(const TMaterializedViewProgressPtr& nextProgress) const
     {
         std::vector<TRefreshTask> tasks;
-        int partitionCount = std::ssize(currentProgress->Partitions);
+        int partitionCount = std::ssize(nextProgress->Partitions);
         int maxTaskCount = Config_->MaxPartitionsPerRefresh > 0
             ? std::min(partitionCount, Config_->MaxPartitionsPerRefresh)
             : partitionCount;
         tasks.reserve(maxTaskCount);
-        int startIndex = currentProgress->NextPartitionIndex;
+        int startIndex = nextProgress->NextPartitionIndex;
         for (int offset = 0; offset < partitionCount && std::ssize(tasks) < maxTaskCount; ++offset) {
             int index = (startIndex + offset) % partitionCount;
-            const auto& progress = currentProgress->Partitions[index];
+            const auto& progress = nextProgress->Partitions[index];
             if (progress->NextRowIndex == progress->TotalRowCount) {
                 continue;
             }
-            currentProgress->NextPartitionIndex = (index + 1) % partitionCount;
+            nextProgress->NextPartitionIndex = (index + 1) % partitionCount;
 
             auto lowerRowIndex = progress->NextRowIndex;
             auto upperRowIndex = progress->TotalRowCount;
@@ -1098,7 +1098,7 @@ private:
             if (!error.IsOK()) {
                 context.Abort();
             }
-            progress = context.GetPersistedProgress();
+            progress = context.GetCurrentProgress();
         } else {
             context.Abort();
             auto setError = ProgressStore_->SetError(
