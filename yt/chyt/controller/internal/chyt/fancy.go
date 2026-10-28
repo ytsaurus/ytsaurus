@@ -2,6 +2,7 @@ package chyt
 
 import (
 	"context"
+	"net/url"
 
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -22,15 +23,17 @@ func appendArtifactDescription(ctx context.Context, description *map[string]yson
 func buildDescription(cluster string, alias string, enableYandexSpecificLinks bool) map[string]any {
 	if enableYandexSpecificLinks {
 		return map[string]any{
+			"clique_url": strawberry.ToYsonURL(
+				"https://yt.yandex-team.ru/" + cluster + "/chyt/" + url.PathEscape(alias)),
 			"yql_url": strawberry.ToYsonURL(
 				"https://yql.yandex-team.ru/?query=use%20chyt." + cluster + "/" + alias +
 					"%3B%0A%0Aselect%201%3B&query_type=CLICKHOUSE"),
-			"solomon_root_url": strawberry.ToYsonURL(
-				"https://solomon.yandex-team.ru/?project=yt&cluster=" + cluster + "&service=clickhouse&operation_alias=" +
-					alias),
-			"solomon_dashboard_url": strawberry.ToYsonURL(
-				"https://solomon.yandex-team.ru/?project=yt&cluster=" + cluster + "&service=clickhouse&cookie=Aggr" +
-					"&dashboard=chyt_v2&l.operation_alias=" + alias),
+			"monium_root_url": strawberry.ToYsonURL(
+				"https://m.yandex-team.ru/projects/yt/explorer/queries?q.0.text=" +
+					url.QueryEscape("{project=yt,cluster="+cluster+",service=clickhouse,operation_alias="+alias+"}")),
+			"monium_dashboard_url": strawberry.ToYsonURL(
+				"https://m.yandex-team.ru/projects/yt/dashboards/chyt_v2" +
+					"?p[service]=clickhouse&p[cluster]=" + cluster + "&p[operation_alias]=" + url.QueryEscape(alias)),
 		}
 	} else {
 		return map[string]any{}
