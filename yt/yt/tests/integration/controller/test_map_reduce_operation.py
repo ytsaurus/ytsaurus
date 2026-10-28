@@ -5121,7 +5121,8 @@ for line in sys.stdin:
     @pytest.mark.parametrize("enable_final_partitions_merging", [False, True])
     def test_many_empty_partitions_on_multiple_levels(self, enable_final_partitions_merging):
         create("table", "//tmp/t_in")
-        rows = [{"x": i} for i in range(100)]
+        # 10 rows of 9 bytes make 1 + 90 = 91 final partitions: a 3-level tree with max_partition_factor 5.
+        rows = [{"x": i} for i in range(10)]
         write_table("<append=%true>//tmp/t_in", rows)
         op = map_reduce(
             in_="//tmp/t_in",
@@ -5130,11 +5131,11 @@ for line in sys.stdin:
             reducer_command="cat",
             spec={
                 "partition_data_weight": 1,
-                "max_partition_factor": 20,
+                "max_partition_factor": 5,
                 "enable_final_partitions_merging": enable_final_partitions_merging,
                 # COMPAT(apollo1321)
                 "use_new_partitions_heuristic": self.Env.get_component_version("ytserver-controller-agent").abi < (25, 3)
-            } | ({"partition_data_weight_for_merging": 80} if enable_final_partitions_merging else {}),
+            } | ({"partition_data_weight_for_merging": 20} if enable_final_partitions_merging else {}),
         )
         tasks = get_operation(op.id, attributes=["progress"])["progress"]["tasks"]
         assert len(tasks) == 4
