@@ -2365,6 +2365,7 @@ void TQueryProfiler::Profile(
         for (int index = 0; index < orderItemCount; ++index) {
             const auto& item = orderClause->OrderItems[index];
             orderExprIds[index] = TExpressionProfiler::Profile(item.Expression, schema, &orderExprFragments);
+            Fold(orderExprIds[index]);
             Fold(item.Descending);
             isDesc[index] = item.Descending;
             orderColumnTypes[index] = item.Expression->GetWireType();
