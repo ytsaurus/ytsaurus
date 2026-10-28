@@ -624,10 +624,11 @@ def upstream_sync_sleep():
 
 
 def wait_for_sys_config_sync():
-    config = get("//sys/@config")
+    print_debug("Waiting fot //sys/@config sync")
+    config = get("//sys/@config", verbose=False)
     drivers = get_cluster_drivers()
     wait(
-        lambda: all(get("//sys/@config", driver=driver) == config for driver in drivers)
+        lambda: all(get("//sys/@config", driver=driver, verbose=False) == config for driver in drivers)
     )
 
 

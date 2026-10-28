@@ -2722,6 +2722,13 @@ public:
         return DynamicStoreMap_;
     }
 
+    bool IsCorrectCrossMediumDurabilityCalculationEnabled() override
+    {
+        VerifyPersistentStateRead();
+
+        return GetDynamicConfig()->EnableCorrectCrossMediumDurabilityCalculation;
+    }
+
 private:
     template <class T>
     class TEntityMapTypeTraits

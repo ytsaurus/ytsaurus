@@ -413,6 +413,9 @@ struct IChunkManager
     virtual TFuture<THashMap<TChunkId, ECrossMediumChunkStatus>> GetChunksReplicationStatuses(
         const std::vector<TChunkRawPtr>& chunks) = 0;
 
+    // COMPAT(kvk1920)
+    virtual bool IsCorrectCrossMediumDurabilityCalculationEnabled() = 0;
+
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, LastSequoiaReplicasCommitTimestamp, NTransactionClient::NullTimestamp);
 
 private:

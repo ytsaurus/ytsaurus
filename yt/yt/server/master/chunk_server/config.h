@@ -937,6 +937,9 @@ struct TDynamicChunkManagerConfig
     // Reset HNV on requisition update once the chunk requires durability again.
     bool RecomputeHistoricallyNonVitalOnRequisitionUpdate;
 
+    // COMPAT(kvk1920)
+    bool EnableCorrectCrossMediumDurabilityCalculation;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);

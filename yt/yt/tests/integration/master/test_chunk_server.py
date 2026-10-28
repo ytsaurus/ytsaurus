@@ -8,7 +8,7 @@ from yt_commands import (
     switch_leader, set_node_banned, add_maintenance, remove_maintenance, set_node_decommissioned, execute_command,
     is_active_primary_master_leader, is_active_primary_master_follower, get_active_primary_master_leader_address,
     get_active_primary_master_follower_address, create_tablet_cell_bundle, get_nodes, raises_yt_error,
-    create_domestic_medium,
+    create_domestic_medium, make_batch_request, execute_batch, get_batch_error
 )
 
 from yt_helpers import profiler_factory
@@ -67,6 +67,24 @@ class TestChunkServer(YTEnvSetup):
                     return None
                 refresh_queue_size += count
         return refresh_queue_size
+
+    @classmethod
+    def on_masters_started(cls):
+        create_domestic_medium("non_default")
+
+    def teardown_method(self, method):
+        requests = [
+            make_batch_request(
+                "remove",
+                path=f"//sys/chunk_locations/{str(location)}/@medium_override",
+            )
+            for location in ls("//sys/chunk_locations", attributes=["medium_override"])
+            if "medium_override" in location.attributes
+        ]
+        for response in execute_batch(requests):
+            assert not get_batch_error(response)
+
+        super().teardown_method(method)
 
     @authors("kvk1920")
     def test_invalid_medium_name(self):
@@ -360,7 +378,7 @@ class TestChunkServer(YTEnvSetup):
         write_table("//tmp/a", {"a": 2, "b": 3})
         wait(lambda: {req["account"] for req in get(f"#{chunk}/@requisition")} == {"b"})
 
-    @authors("gritukan")
+    @authors("kvk1920")
     @pytest.mark.parametrize("replication_factor", [1, 2])
     def test_historically_non_vital_simple(self, replication_factor):
         create("table", "//tmp/t")
@@ -373,8 +391,9 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: get(f"#{chunk_id}/@historically_non_vital"))
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == replication_factor)
 
-        for node in get(f"#{chunk_id}/@stored_replicas"):
-            set_node_banned(node, True)
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
+        set_nodes_banned(get(f"#{chunk_id}/@stored_replicas"), True)
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", True)
 
         wait(lambda: chunk_id in get("//sys/lost_chunks"))
         assert get("//sys/@lost_vital_chunk_count") == 0
@@ -468,6 +487,49 @@ class TestChunkServer(YTEnvSetup):
 
         wait(lambda: get("//sys/@lost_vital_chunk_count") == 0)
         wait(lambda: chunk_id not in get("//sys/lost_vital_chunks"))
+
+    @authors("kvk1920")
+    def test_cross_medium_historically_non_vital(self):
+        set("//sys/@config/chunk_manager/enable_correct_cross_medium_durability_calculation", True)
+
+        non_default_location = ls("//sys/chunk_locations")[0]
+        set(f"//sys/chunk_locations/{non_default_location}/@medium_override", "non_default")
+        wait(lambda: get(f"//sys/chunk_locations/{non_default_location}/@statistics/medium_name") == "non_default")
+
+        create("table", "//tmp/t", attributes={"replication_factor": 3})
+        write_table("//tmp/t", [{"key": "abc", "value": 42}])
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        def get_replication_factors():
+            rf = {}
+            for r in get(f"#{chunk_id}/@stored_replicas"):
+                medium = r.attributes["medium"]
+                rf[medium] = rf.get(medium, 0) + 1
+            return rf
+
+        wait(lambda: get_replication_factors() == {"default": 3})
+
+        set("//tmp/t/@media", {
+            "default": {
+                "replication_factor": 2,
+                "data_parts_only": False,
+            },
+            "non_default": {
+                "replication_factor": 1,
+                "data_parts_only": False,
+            },
+        })
+
+        wait(lambda: get_replication_factors() == {
+            "default": 2,
+            "non_default": 1,
+        })
+
+        assert not get(f"#{chunk_id}/@historically_non_vital")
+        assert get(f"#{chunk_id}/@vital")
+
+        set_nodes_banned(ls("//sys/data_nodes"), True)
+        wait(lambda: chunk_id in ls("//sys/lost_vital_chunks"))
 
     @authors("danilalexeev")
     def test_unexpected_overreplicated_chunks(self):
