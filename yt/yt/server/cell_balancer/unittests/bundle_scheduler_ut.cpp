@@ -4313,6 +4313,50 @@ TEST_P(TNodeTagsFilterManager, TestSpareNodesAreReleasedProperly)
     EXPECT_EQ(1, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeReleasements));
 }
 
+TEST_P(TNodeTagsFilterManager, SpareNodeOperationsForRemovedBundle)
+{
+    for (bool releasing : {false, true}) {
+        auto input = GenerateInputContext(DefaultNodeCount);
+        auto dataCenters = GetDataCenters(input);
+        input.Zones["default-zone"]->SpareTargetConfig->TabletNodeCount = GetDataCenterCount();
+        auto nodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
+        auto bundleState = New<TBundleControllerState>();
+        input.BundleStates["bigd"] = bundleState;
+        auto& operations = releasing
+            ? bundleState->SpareNodeReleasements
+            : bundleState->SpareNodeAssignments;
+
+        for (const auto& dataCenter : dataCenters) {
+            auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, /*nodeCount*/ 1, {.DC = dataCenter});
+            const auto& nodeName = *spareNodes.begin();
+            input.TabletNodes[nodeName]->UserTags.insert(nodeTagFilter);
+            operations[nodeName] = New<TNodeTagFilterOperationState>();
+        }
+
+        EraseOrCrash(input.Bundles, "bigd");
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+
+        ASSERT_EQ(1, std::ssize(mutations.AlertsToFire));
+        EXPECT_EQ("spare_node_operations_for_missing_bundle", mutations.AlertsToFire.front().Id);
+        EXPECT_EQ("bigd", mutations.AlertsToFire.front().BundleName);
+
+        for (const auto& dataCenter : dataCenters) {
+            const auto& spareNodes = input.ZoneToSpareNodes.at("default-zone").at(dataCenter);
+            EXPECT_EQ(1, std::ssize(spareNodes.FreeNodes));
+            EXPECT_TRUE(spareNodes.UsedByBundle.empty());
+            EXPECT_TRUE(spareNodes.ReleasingByBundle.empty());
+        }
+
+        operations.clear();
+        mutations = {};
+        ScheduleBundles(input, &mutations);
+
+        CheckEmptyAlerts(mutations);
+    }
+}
+
 TEST_P(TNodeTagsFilterManager, TestSpareNodesAreNotAssignedDuringWriteThreadPoolSizeChange)
 {
     const auto nodeCountPerDc = 7;
