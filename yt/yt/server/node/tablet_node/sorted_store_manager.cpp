@@ -1075,6 +1075,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 .HunkChunkReaderStatistics = CreateHunkChunkReaderStatistics(
                     tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
                     tabletSnapshot->PhysicalSchema),
+                .MemoryUsageTracker = memoryUsageTracker,
             });
 
         if (mountConfig->InsertMetaUponStoreUpdate) {
