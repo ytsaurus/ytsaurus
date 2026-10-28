@@ -747,7 +747,7 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
         pipeline.Messages);
 
     const auto& buildInfo = *arguments.ControllerBuildInfo;
-    int revision = buildInfo.BaseSvnRevision > 0 ? buildInfo.BaseSvnRevision : buildInfo.SvnRevision;
+    int revision = buildInfo.BaseSvnRevision;
     if (revision > 0) {
         auto& message = pipeline.Messages.emplace_back();
         message.Text = "FlowCore library revision";

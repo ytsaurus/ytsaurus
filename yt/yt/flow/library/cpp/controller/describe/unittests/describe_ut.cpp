@@ -2092,17 +2092,9 @@ TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreRevision)
     EXPECT_TRUE(found);
 
     buildInfo->BaseSvnRevision = -1;
-    description = describe();
-    found = false;
-    for (const auto& message : description.Messages) {
-        if (message.Text == "FlowCore library revision") {
-            found = true;
-            EXPECT_THAT(message.MarkdownText, testing::Optional(testing::StrEq(expectedMarkdown(123))));
-        }
-    }
-    EXPECT_TRUE(found);
+    EXPECT_FALSE(MessagesContain(describe().Messages, "FlowCore library revision"));
 
-    buildInfo->SvnRevision = -1;
+    buildInfo->BaseSvnRevision = 0;
     EXPECT_FALSE(MessagesContain(describe().Messages, "FlowCore library revision"));
 }
 
