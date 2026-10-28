@@ -1502,6 +1502,8 @@ struct TDynamicPipelineSpec
     //! Experimental: enable the describe-pipeline mermaid diagnostic graph.
     bool EnableMermaidGraphDescribe = false;
 
+    bool EnableUnitedStreamMetrics = true;
+
     //! Codec for the compressed flow view served by the get-flow-view-v2 command.
     NCompression::ECodec FlowViewCacheCodec{};
 

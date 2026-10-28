@@ -20,6 +20,7 @@ SRCS(
     private.cpp
     state_access.cpp
     state_manager.cpp
+    stream_metrics.cpp
     throttler_host.cpp
     worker_coef_estimator.cpp
     worker_tracker_service.cpp
