@@ -776,7 +776,7 @@ class YTEnvSetup(object):
             return [items]
 
         # Rendezvous hashing with bounded loads: no partition exceeds ceil(n / N) tests,
-        # and adding or removing a test moves only a couple of others.
+        # and adding or removing a test moves only a few others unless ceil(n / N) changes.
         # NB: Assignment depends on the whole set of collected items, so it must be the same
         # when listing and when running tests.
         def get_hash(key):
@@ -785,11 +785,9 @@ class YTEnvSetup(object):
         capacity = math.ceil(len(items) / cls.NUM_TEST_PARTITIONS)
         partitions = [[] for _ in range(cls.NUM_TEST_PARTITIONS)]
         for item in sorted(items, key=lambda item: get_hash(item.nodeid)):
-            ranking = sorted(
-                range(cls.NUM_TEST_PARTITIONS),
-                key=lambda index: get_hash("{}#{}".format(item.nodeid, index)),
-                reverse=True)
-            index = next(index for index in ranking if len(partitions[index]) < capacity)
+            index = max(
+                (index for index, partition in enumerate(partitions) if len(partition) < capacity),
+                key=lambda index: get_hash(f"{item.nodeid}#{index}"))
             partitions[index].append(item)
         return partitions
 
