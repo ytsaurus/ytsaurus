@@ -28,7 +28,7 @@
 -- значения вместо DECLARE.
 
 PRAGMA AnsiInForEmptyOrNullableItemsCollections;
-USE hahn;
+USE kolmogorov;
 
 -- ==================== параметры ====================
 DECLARE $end_date    AS String;   -- последний день окна, YYYY-MM-DD; "" = вчера (UTC)

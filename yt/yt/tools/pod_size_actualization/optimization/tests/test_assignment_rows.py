@@ -12,6 +12,7 @@ import contextlib
 import io
 
 from yt.yt.tools.pod_size_actualization.optimization import data, simple
+from yt.yt.tools.pod_size_actualization.optimization.scripts import shared as cfg
 from yt.yt.tools.pod_size_actualization.optimization.scripts.shared import (
     BundleInstances,
     ContainerType,
@@ -76,7 +77,8 @@ def test_usage_goes_into_the_row_as_is():
     assert (row["UsageCPU"], row["UsageMemory"], row["UsageNetwork"]) == (3.5, 7.0, 12.0)
 
 
-def test_bundles_solved_together_share_a_group_id():
+def test_bundles_solved_together_share_a_group_id(monkeypatch):
+    monkeypatch.setattr(cfg, "CLUSTER_GROUPS", {"test_group": ["seneca-sas", "seneca-vla"]})
     rows = assign([node(cluster="seneca-sas"), node(cluster="seneca-vla")])
     assert rows["GroupID"].nunique() == 1
 
@@ -94,4 +96,9 @@ def test_node_and_proxy_of_one_bundle_are_different_groups():
         node_type=MEDIUM.name,
     )
     rows = assign([node(), proxy])
+    assert rows["GroupID"].nunique() == 2
+
+
+def test_production_seneca_clusters_have_separate_group_ids():
+    rows = assign([node(cluster="seneca-vla"), node(cluster="seneca-klg", cpu=6.0)])
     assert rows["GroupID"].nunique() == 2
