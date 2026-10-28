@@ -1603,7 +1603,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         address = get_tablet_leader_address(tablet_id)
 
-        assert _has_backing_store(address, tablet_id)
+        wait(lambda: _has_backing_store(address, tablet_id))
         wait(lambda: not _has_backing_store(address, tablet_id))
 
         set("//tmp/t/@backing_store_retention_time", 1000000000)
@@ -1611,7 +1611,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": i} for i in range(5)])
         wait(lambda: len(get("//tmp/t/@chunk_ids")) == 2)
 
-        assert _has_backing_store(address, tablet_id)
+        wait(lambda: _has_backing_store(address, tablet_id))
         set("//sys/tablet_cell_bundles/default/@dynamic_options/max_backing_store_memory_ratio", 0.00000001)
         wait(lambda: not _has_backing_store(address, tablet_id))
 
