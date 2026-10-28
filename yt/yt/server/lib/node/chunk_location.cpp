@@ -758,6 +758,16 @@ void TChunkLocationBase::CreateDisableLockFile(const TError& reason)
 
     auto briefConfig = GetBriefConfigCallback_();
 
+    if (reason.FindMatching(NChunkClient::EErrorCode::LockFileIsFound).has_value() &&
+        NFS::Exists(lockFilePath))
+    {
+        YT_TLOG_FATAL_IF(
+            briefConfig.AbortOnLocationDisabled,
+            "Location is disabled; lock file already exists")
+            .With(reason);
+        return;
+    }
+
     try {
         TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
         TUnbufferedFileOutput fileOutput(file);
