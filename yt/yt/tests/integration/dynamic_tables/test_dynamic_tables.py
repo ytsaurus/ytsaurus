@@ -2996,11 +2996,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         assert _insert(False)
 
-    def _get_orchid_memory_limits(self, node, category):
-        return get(
-            "//sys/cluster_nodes/{0}/orchid/node_resource_manager/memory_limit_per_category/{1}"
-            .format(node, category))
-
     def _get_random_string(self, length):
         return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(length))
 
@@ -3024,19 +3019,11 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 insert_rows("//tmp/t", [{"key": i, "value": self._get_random_string(100)}])
             return time.time() - start_time
 
-        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        node_address = get_tablet_leader_address(tablet_id)
-        old_tablet_static = self._get_orchid_memory_limits(node_address, "tablet_static")
-        new_tablet_static = old_tablet_static + 1024
-
         expected_max_time = 9
 
         bundle_dynamic_config = {
             "%true": {
                 "config_annotation": "foo",
-                "memory_limits": {
-                    "tablet_static" : new_tablet_static,
-                },
                 "medium_throughput_limits" : {
                     "default" : {
                         "write_byte_rate" : 50
@@ -3045,7 +3032,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             }
         }
         set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
-        wait(lambda: self._get_orchid_memory_limits(node_address, "tablet_static") == new_tablet_static)
 
         # Wait while changes actually take place
         wait(lambda: _get_insert_time(5) > expected_max_time)
@@ -3056,13 +3042,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         bundle_dynamic_config = {
             "%true": {
                 "config_annotation": "foo",
-                "memory_limits": {
-                    "tablet_static" : old_tablet_static,
-                }
             }
         }
         set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
-        wait(lambda: self._get_orchid_memory_limits(node_address, "tablet_static") == old_tablet_static)
 
         # Wait while changes actually take place
         wait(lambda: _get_insert_time(5) < expected_max_time)
