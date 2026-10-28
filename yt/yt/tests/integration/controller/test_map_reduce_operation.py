@@ -5453,17 +5453,19 @@ for line in sys.stdin:
 
         assert read_table("//tmp/t_out") == sorted(rows, key=lambda row : row["x"])
 
-        wait(lambda: list_jobs(op.id)["jobs"])
+        checked_jobs = []
 
-        jobs = list_jobs(op.id)["jobs"]
-        assert len(jobs) > 0
-        for job in jobs:
-            if job["type"] in ("sorted_merge", "sorted_reduce", "partition"):
-                continue
-            wait(lambda: op.get_job_statistics(job["id"]).get("data"))
-            statistics = op.get_job_statistics(job["id"])
+        def fetch_jobs():
+            nonlocal checked_jobs
+            jobs = list_jobs(op.id, attributes=["type", "statistics"])["jobs"]
+            checked_jobs = [job for job in jobs if job["type"] not in ("sorted_merge", "sorted_reduce", "partition")]
+            return jobs and all("data" in job.get("statistics", {}) for job in checked_jobs)
+
+        wait(fetch_jobs)
+        for job in checked_jobs:
+            statistics = job["statistics"]
             assert statistics["data"]["input"]["chunk_count"]["sum"] == 1 or \
-                statistics["data"]["input"]["data_weight"]["sum"] <= data_weight_per_sort_job
+                statistics["data"]["input"]["data_weight"]["sum"] <= data_weight_per_sort_job, job["id"]
 
 
 ##################################################################
