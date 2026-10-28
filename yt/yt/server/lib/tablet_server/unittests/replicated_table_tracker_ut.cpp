@@ -1159,6 +1159,108 @@ TEST_F(TReplicatedTableTrackerTest, TableCollocationWithBadReplicaTable)
     Host_->ValidateReplicaModeChanged(replica22, ETableReplicaMode::Async);
 }
 
+TEST_F(TReplicatedTableTrackerTest, TableCollocationPrefersClustersWithMoreGoodSyncReplicas)
+{
+    const std::array clusters = {Cluster1, Cluster2, Cluster3};
+    for (const auto& cluster : clusters) {
+        MockGoodReplicaCluster(Host_->GetMockClient(cluster));
+    }
+
+    struct TTableReplicas
+    {
+        std::vector<TTableReplicaId> Data;
+        std::vector<TTableReplicaId> Queue;
+    };
+
+    std::vector<TTableId> tableIds;
+    std::vector<TTableReplicas> tableReplicas;
+    for (int tableIndex = 0; tableIndex < 3; ++tableIndex) {
+        auto tableId = Host_->CreateReplicatedTable();
+        tableIds.push_back(tableId);
+        auto& replicas = tableReplicas.emplace_back();
+
+        auto options = Host_->GetTableOptions(tableId);
+        options->MinSyncQueueReplicaCount = 1;
+        options->MaxSyncQueueReplicaCount = 2;
+        Host_->SetTableOptions(tableId, std::move(options));
+
+        for (auto contentType : {ETableReplicaContentType::Data, ETableReplicaContentType::Queue}) {
+            auto tablePath = Format("//tmp/table_%v_%lv", tableIndex, contentType);
+
+            bool isData = contentType == ETableReplicaContentType::Data;
+            int syncClusterIndex = isData ? (tableIndex == 2) : (tableIndex != 2);
+            auto& replicaIds = isData ? replicas.Data : replicas.Queue;
+
+            int replicaCount = isData ? 2 : 3;
+            for (int clusterIndex = 0; clusterIndex < replicaCount; ++clusterIndex) {
+                auto client = Host_->GetMockClient(clusters[clusterIndex]);
+                MockGoodBundle(client, tablePath);
+                MockGoodTable(client, tablePath);
+                replicaIds.push_back(Host_->CreateTableReplica(
+                    tableId,
+                    ETableReplicaMode::Async,
+                    /*enabled*/ clusterIndex == syncClusterIndex || clusterIndex == 2,
+                    clusters[clusterIndex],
+                    tablePath,
+                    /*replicaLagTime*/ TDuration::Zero(),
+                    EObjectType::ChaosTableReplica,
+                    contentType));
+            }
+        }
+    }
+
+    WaitForTrackerWarmUp();
+    for (const auto& replicas : tableReplicas) {
+        for (auto replicaId : replicas.Data) {
+            Host_->UpdateReplicaEnablement(replicaId, /*enabled*/ true);
+        }
+        for (auto replicaId : replicas.Queue) {
+            Host_->UpdateReplicaEnablement(replicaId, /*enabled*/ true);
+        }
+    }
+
+    WaitForTrackerWarmUp();
+    Host_->ResetReplicaModeCommandCounts();
+
+    auto collocationId = Host_->CreateReplicationCollocation(tableIds);
+    WaitForUpdatesFromTracker();
+
+    for (int tableIndex = 0; tableIndex < std::ssize(tableReplicas); ++tableIndex) {
+        const auto& replicas = tableReplicas[tableIndex];
+        EXPECT_EQ(Host_->GetReplicaMode(replicas.Data[0]), ETableReplicaMode::Sync);
+        EXPECT_EQ(Host_->GetReplicaMode(replicas.Data[1]), ETableReplicaMode::Async);
+        EXPECT_EQ(Host_->GetReplicaMode(replicas.Queue[0]), ETableReplicaMode::Async);
+        EXPECT_EQ(Host_->GetReplicaMode(replicas.Queue[1]), ETableReplicaMode::Sync);
+        EXPECT_EQ(Host_->GetReplicaMode(replicas.Queue[2]), ETableReplicaMode::Sync);
+        Host_->ValidateReplicaModeRemained(replicas.Queue[2]);
+        if (tableIndex == 2) {
+            Host_->ValidateReplicaModeChanged(replicas.Data[0], ETableReplicaMode::Sync);
+            Host_->ValidateReplicaModeChanged(replicas.Data[1], ETableReplicaMode::Async);
+            Host_->ValidateReplicaModeChanged(replicas.Queue[0], ETableReplicaMode::Async);
+            Host_->ValidateReplicaModeChanged(replicas.Queue[1], ETableReplicaMode::Sync);
+        } else {
+            for (auto replicaId : replicas.Data) {
+                Host_->ValidateReplicaModeRemained(replicaId);
+            }
+            for (auto replicaId : replicas.Queue) {
+                Host_->ValidateReplicaModeRemained(replicaId);
+            }
+        }
+    }
+
+    Host_->UpdateReplicationCollocationOptions(collocationId, std::vector<std::string>{Cluster1});
+    WaitForUpdatesFromTracker();
+
+    for (const auto& replicas : tableReplicas) {
+        for (auto replicaId : replicas.Data) {
+            Host_->ValidateReplicaModeRemained(replicaId);
+        }
+        Host_->ValidateReplicaModeChanged(replicas.Queue[0], ETableReplicaMode::Sync);
+        Host_->ValidateReplicaModeChanged(replicas.Queue[1], ETableReplicaMode::Async);
+        Host_->ValidateReplicaModeRemained(replicas.Queue[2]);
+    }
+}
+
 TEST_F(TReplicatedTableTrackerTest, TableCollocationWithPreferredReplicaClusters)
 {
     auto [table1, replica11, replica12, table2, replica21, replica22] = CreateTablesForCollocation();
