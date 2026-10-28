@@ -40,6 +40,8 @@
 
 #include <yt/yt/core/logging/serializable_logger.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <expected>
@@ -343,6 +345,7 @@ protected:
         NNodeTrackerClient::TNodeDirectoryBuilder* directoryBuilder,
         NControllerAgent::NProto::TTableInputSpec* inputSpec,
         NChunkPools::TChunkStripePtr stripe,
+        TNonNullPtr<THashSet<NChunkClient::TChunkId>> seenHunkChunks,
         NTableClient::TComparator comparator = NTableClient::TComparator());
 
     void AddOutputTableSpecs(NControllerAgent::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
