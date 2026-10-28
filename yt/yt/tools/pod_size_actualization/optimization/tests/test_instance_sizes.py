@@ -150,7 +150,8 @@ def test_deprecated_must_be_boolean_when_present():
         )
 
 
-def test_collect_single_cluster_group_reads_only_its_cluster():
+@pytest.mark.parametrize("cluster", ["hahn", "seneca-vla", "seneca-klg"])
+def test_collect_single_cluster_group_reads_only_its_cluster(cluster):
     requested = []
 
     class Client:
@@ -163,12 +164,12 @@ def test_collect_single_cluster_group_reads_only_its_cluster():
                 return {"tiny": size(4000, 20, 10)}
             return {"medium": size(8000, 20, 130)}
 
-    rows = collect_group_instance_sizes("hahn", Client)
+    rows = collect_group_instance_sizes(cluster, Client)
 
     assert [row["InstanceType"] for row in rows] == ["node", "proxy"]
     assert requested == [
-        ("hahn", "//sys/bundle_controller/controller/zones/zone_default/@tablet_node_sizes"),
-        ("hahn", "//sys/bundle_controller/controller/zones/zone_default/@rpc_proxy_sizes"),
+        (cluster, "//sys/bundle_controller/controller/zones/zone_default/@tablet_node_sizes"),
+        (cluster, "//sys/bundle_controller/controller/zones/zone_default/@rpc_proxy_sizes"),
     ]
 
 

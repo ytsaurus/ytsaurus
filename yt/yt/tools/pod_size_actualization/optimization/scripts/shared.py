@@ -81,7 +81,9 @@ INFRA_MEM_ABS_TAX = 0.0
 # To let more clusters share sizes, just add an entry, e.g.
 #   "mr": ["hahn", "arnold", "kolmogorov"],
 CLUSTER_GROUPS: dict = {
-    "senecas": ["seneca-sas", "seneca-vla", "seneca-klg"],
+    "seneca-sas": ["seneca-sas"],
+    "seneca-vla": ["seneca-vla"],
+    "seneca-klg": ["seneca-klg"],
     "hahn": ["hahn"],
     "arnold": ["arnold"],
     "freud": ["freud"],
@@ -94,6 +96,11 @@ CLUSTER_GROUPS: dict = {
 }
 
 
+# Кластеры, для которых production-граф сейчас считает рекомендации.
+# CLUSTER_GROUPS также описывает неактивные кластеры.
+ACTIVE_CLUSTERS = {"seneca-vla", "seneca-klg", "markov", "kolmogorov", "pythia", "vanga"}
+
+
 # --- Цены ресурсов ---
 # Чем дороже ресурс, тем охотнее солвер экономит именно его. a — за CPU_STEP,
 # b — за MEM_STEP, c — за NET_STEP; нормированы так, что максимум равен 1.
@@ -104,7 +111,9 @@ CLUSTER_GROUPS: dict = {
 SENECA_RESOURCE_COEFFICIENTS: dict = {"a": 0.329465, "b": 1.0, "c": 0.21267}
 
 RESOURCE_COEFFICIENTS: dict = {
-    "senecas": SENECA_RESOURCE_COEFFICIENTS,
+    "seneca-sas": SENECA_RESOURCE_COEFFICIENTS,
+    "seneca-vla": SENECA_RESOURCE_COEFFICIENTS,
+    "seneca-klg": SENECA_RESOURCE_COEFFICIENTS,
     "hahn": SENECA_RESOURCE_COEFFICIENTS,
     "arnold": SENECA_RESOURCE_COEFFICIENTS,
     "freud": SENECA_RESOURCE_COEFFICIENTS,
