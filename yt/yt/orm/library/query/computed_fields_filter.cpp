@@ -1,5 +1,7 @@
 #include "computed_fields_filter.h"
 
+#include "misc.h"
+
 #include <yt/yt/library/query/base/ast_visitors.h>
 #include <yt/yt/library/query/base/query_common.h>
 #include <yt/yt/library/query/base/ast.h>
@@ -115,15 +117,9 @@ private:
 
     bool Visit(const TExpressionList& exprList)
     {
-        if (exprList.size() == 1) {
-            return Visit(exprList[0]);
-        }
-        return false;
-    }
-
-    bool Visit(TNullableExpressionList& list)
-    {
-        return list ? Visit(*list) : false;
+        CheckScalarLogicalOperand(exprList)
+            .ThrowOnError();
+        return Visit(exprList[0]);
     }
 
     void OnBinaryPart(const TExpressionList& expression)

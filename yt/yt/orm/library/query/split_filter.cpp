@@ -1,8 +1,11 @@
 #include "split_filter.h"
 
+#include "misc.h"
+
 #include <yt/yt/library/query/base/ast_visitors.h>
 #include <yt/yt/library/query/base/ast.h>
 #include <yt/yt/library/query/base/functions.h>
+#include <yt/yt/library/query/base/query_common.h>
 #include <yt/yt/library/query/misc/objects_holder.h>
 
 #include <yt/yt/orm/client/misc/error.h>
@@ -105,6 +108,10 @@ public:
 
     TFilterType OnUnary(const TUnaryOpExpressionPtr unaryExpr)
     {
+        if (unaryExpr->Opcode == NQueryClient::EUnaryOp::Not) {
+            ValidateScalarLogicalOperand(unaryExpr->Operand);
+        }
+
         auto guard = MakeDepthGuard();
         auto type = Visit(unaryExpr->Operand);
         if (type.Place == EFilterPlace::Heterogenous) {
@@ -149,6 +156,11 @@ public:
 
     TFilterType OnBinary(const TBinaryOpExpressionPtr binaryExpr)
     {
+        if (NQueryClient::IsLogicalBinaryOp(binaryExpr->Opcode)) {
+            ValidateScalarLogicalOperand(binaryExpr->Lhs);
+            ValidateScalarLogicalOperand(binaryExpr->Rhs);
+        }
+
         if (binaryExpr->Opcode == NQueryClient::EBinaryOp::And) {
             return OnBinaryAnd(binaryExpr);
         } else {
@@ -390,6 +402,13 @@ private:
             "Cannot split query filter")
                 .With(std::move(error))
                 .With("filter", FormatExpression(*FilterExpression_));
+    }
+
+    void ValidateScalarLogicalOperand(const TExpressionList& operand)
+    {
+        if (auto error = CheckScalarLogicalOperand(operand); !error.IsOK()) {
+            ThrowSplitError(std::move(error));
+        }
     }
 
     class TDepthGuard

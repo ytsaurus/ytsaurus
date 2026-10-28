@@ -1,5 +1,7 @@
 #include <yt/yt/orm/library/query/computed_fields_filter.h>
 
+#include <yt/yt/orm/client/misc/error.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/library/query/base/query_preparer.h>
@@ -117,6 +119,26 @@ TEST(TFilterSplitterTest, Function)
             subTrees[i],
             /*bound*/ 1,
             /*isComputed*/ i % 2);
+    }
+}
+
+TEST(TFilterSplitterTest, TupleOperandIsRejected)
+{
+    for (TStringBuf filterQuery : {
+        "([c], [nc]) AND [nc] = 10",
+        "NOT ([c], [nc])",
+        "NOT (([c], [nc]) OR [nc] = 10)",
+    }) {
+        SCOPED_TRACE(filterQuery);
+        auto parsedQuery = ParseSource(filterQuery, NQueryClient::EParseMode::Expression);
+        auto* queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
+
+        EXPECT_THROW_WITH_ERROR_CODE(
+            SplitIntoSubTrees(&parsedQuery->AstHead, queryExpression),
+            NClient::EErrorCode::InvalidRequestArguments);
+        EXPECT_THROW_WITH_SUBSTRING(
+            SplitIntoSubTrees(&parsedQuery->AstHead, queryExpression),
+            "scalar operands");
     }
 }
 

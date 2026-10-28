@@ -68,6 +68,10 @@ std::vector<NQueryClient::NAst::TReference> ExtractAllReferences(const NQueryCli
 
 std::optional<NQueryClient::NAst::TReference> TryExtractReference(const NQueryClient::NAst::TExpressionList& exprs);
 
+bool HasScalarOperands(const NQueryClient::NAst::TBinaryOpExpression& binaryExpr);
+
+TError CheckScalarLogicalOperand(const NQueryClient::NAst::TExpressionList& operand);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NQuery

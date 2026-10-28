@@ -449,7 +449,7 @@ public:
     std::optional<int> OnBinary(TBinaryOpExpressionPtr binaryExpr)
     {
         if (IsLogicalBinaryOp(binaryExpr->Opcode)) {
-            if (binaryExpr->Lhs.size() != 1 || binaryExpr->Rhs.size() != 1) {
+            if (!HasScalarOperands(*binaryExpr)) {
                 return std::nullopt;
             }
             auto prefixRangesLeft = Visit(binaryExpr->Lhs[0]);
