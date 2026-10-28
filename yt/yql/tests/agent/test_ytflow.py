@@ -143,6 +143,7 @@ class TestYtflowBase(TestQueueAgentBase):
                 # Controller timings (ms) patched into the controller job config.
                 dict(name='_ControllerConfig',
                      value='{warm_up_time=1000;scheduler_period=500;publish_retry_period=1000;'
+                           'publish_request_timeout=10000;'
                            'controller_service={set_spec_retry_period=1000};}'),
                 # Balancer timings (ms) merged into the dynamic pipeline spec's job_manager.
                 dict(name='_JobManagerConfig', value='{rebalance_sync_period=500;}'),
