@@ -77,7 +77,7 @@ func (initializer *ClusterInitializer) setUpRobotPermissions(ctx context.Context
 	}
 	for _, strawberryInitializer := range initializer.familyToInitializer {
 		namespacePath := ypath.Path("//sys/access_control_object_namespaces").Child(strawberryInitializer.ACONamespace())
-		pathToPermissions[namespacePath] = append(pathToPermissions[namespacePath], commonPermissions...)
+		pathToPermissions[namespacePath] = append(pathToPermissions[namespacePath], yt.PermissionRead, yt.PermissionWrite, yt.PermissionRemove)
 	}
 
 	for path, permissions := range pathToPermissions {
