@@ -2813,6 +2813,7 @@ void TQueryProfiler::Profile(
             const auto& joinClause = query->JoinClauses[joinIndex];
 
             int equationCount = joinClause->SelfEquations.size();
+            Fold(equationCount);
 
             std::vector<size_t> selfKeys(equationCount);
             std::vector<EValueType> lookupKeyTypes(equationCount);
@@ -2821,6 +2822,7 @@ void TQueryProfiler::Profile(
                     joinClause->SelfEquations[index],
                     schema,
                     &equationFragments);
+                Fold(selfKeys[index]);
                 lookupKeyTypes[index] = joinClause->SelfEquations[index]->GetWireType();
             }
 
