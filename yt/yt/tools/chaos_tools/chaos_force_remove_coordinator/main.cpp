@@ -15,8 +15,13 @@ using namespace NYT;
 using namespace NChaosClient;
 using namespace NConcurrency;
 
-int main(int /*argc*/, char* argv[])
+int main(int argc, char* argv[])
 {
+    if (argc < 4) {
+        Cerr << "Usage: " << argv[0] << " <addr> <cell_id> <coordinator_id>" << Endl;
+        return 1;
+    }
+
     try {
         auto addr = std::string(argv[1]);
         auto cellId = TGuid::FromString(std::string(argv[2]));
@@ -26,13 +31,12 @@ int main(int /*argc*/, char* argv[])
             NRpc::NBus::CreateTcpBusChannelFactory(New<NBus::NTcp::TBusConfig>())->CreateChannel(addr),
             cellId);
 
-
         auto proxy = TChaosNodeServiceProxy(channel);
         auto req = proxy.ForsakeCoordinator();
         ToProto(req->mutable_coordinator_cell_id(), coordinatorId);
 
         WaitFor(req->Invoke()).ValueOrThrow();
-    } catch (std::exception& e) {
+    } catch (const std::exception& e) {
         Cerr << ToString(TError(e)) << Endl;
     }
 
