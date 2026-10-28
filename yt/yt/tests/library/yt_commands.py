@@ -1553,16 +1553,16 @@ class Operation(object):
 
     def get_job_statistics(self, job_id):
         # It works only for tests with job archive.
-        def get_job_info_with_statistics():
-            return get_job(self.id, job_id, attributes=["statistics"], verbose=False)
+        statistics = None
 
-        def has_statistics(job_info):
-            if not job_info:
-                return False
-            return "statistics" in job_info
+        def fetch_statistics():
+            nonlocal statistics
+            job_info = get_job(self.id, job_id, attributes=["statistics"], verbose=False)
+            statistics = (job_info or {}).get("statistics")
+            return statistics is not None
 
-        wait(lambda: has_statistics(get_job_info_with_statistics()))
-        return get_job_info_with_statistics()["statistics"]
+        wait(fetch_statistics)
+        return statistics
 
     def wait_for_state(self, state, **kwargs):
         wait(lambda: self.get_state(**kwargs) == state)
