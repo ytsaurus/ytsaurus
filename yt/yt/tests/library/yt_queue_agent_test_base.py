@@ -1341,8 +1341,10 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
         return make_batch_request("create", type="table", path=path, attributes=attributes)
 
     @staticmethod
-    def _create_consumer(path, mount=True, without_meta=False, driver=None, multi_consumer=False, **kwargs):
-        if mount:
+    def _create_consumer(path, mount=True, without_meta=False, driver=None, multi_consumer=False, hash_expression=None, without_hash_column=False, **kwargs):
+        assert (hash_expression is None and not without_hash_column) or multi_consumer
+        assert hash_expression is None or not without_hash_column
+        if mount and hash_expression is None and not without_hash_column:
             if multi_consumer:
                 assert not without_meta
                 create("queue_multi_consumer", path, driver=driver, attributes=kwargs)
@@ -1354,6 +1356,10 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
 
         if multi_consumer:
             schema = init_queue_agent_state.MULTI_CONSUMER_OBJECT_TABLE_SCHEMA
+            if hash_expression is not None:
+                schema = [{**schema[0], "expression": hash_expression}] + schema[1:]
+            elif without_hash_column:
+                schema = schema[1:]
         elif without_meta:
             schema = init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META
         else:

@@ -44,10 +44,22 @@ class TestMultiConsumerController(TestQueueAgentBase):
         instances = ls("//sys/queue_agents/instances")
         return QueueAgentOrchid(agent_id=instances[0])
 
+    @pytest.mark.parametrize("hash_expression, without_hash_column", [
+        (None, False),
+        (None, True),
+        ("farm_hash(queue_consumer_name, queue_path)", False),
+        ("farm_hash(queue_cluster, queue_path) % 3", False),
+        ("farm_hash(queue_consumer_name, partition_index) % 4", False),
+    ])
     @authors("panesher")
-    def test_select_consumer_names_pagination(self):
+    def test_select_consumer_names_pagination(self, hash_expression, without_hash_column):
         path = self.create_consumer_path("multi_consumer_pagination")
-        self._create_consumer(path, multi_consumer=True, queue_agent_stage="production")
+        self._create_consumer(
+            path,
+            multi_consumer=True,
+            hash_expression=hash_expression,
+            without_hash_column=without_hash_column,
+            queue_agent_stage="production")
 
         self._wait_for_component_passes()
 

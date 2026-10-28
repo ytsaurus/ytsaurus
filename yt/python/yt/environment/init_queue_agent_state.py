@@ -567,6 +567,13 @@ CONSUMER_OBJECT_TABLE_SCHEMA = CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META + [
 ]
 
 MULTI_CONSUMER_OBJECT_TABLE_SCHEMA = [
+    {
+        "name": "hash",
+        "type": "uint64",
+        "sort_order": "ascending",
+        "expression": "farm_hash(queue_consumer_name, queue_cluster, queue_path)",
+        "required": False,
+    },
     {"name": "queue_consumer_name", "type": "string", "sort_order": "ascending", "required": True},
     {"name": "queue_cluster", "type": "string", "sort_order": "ascending", "required": True},
     {"name": "queue_path", "type": "string", "sort_order": "ascending", "required": True},
