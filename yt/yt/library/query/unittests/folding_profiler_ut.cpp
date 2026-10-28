@@ -19,6 +19,12 @@ using NCodegen::EExecutionBackend;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueryTestCase
+{
+    std::string Query;
+    TSource ExpectedRows;
+};
+
 class TCodegenCacheTest
     : public TQueryEvaluateTest
     , public ::testing::WithParamInterface<EExecutionBackend>
@@ -39,6 +45,31 @@ protected:
         TQueryEvaluateTest::TearDown();
     }
 
+    TQueryPtr PrepareQuery(const std::string& query, const TSplitMap& splits)
+    {
+        return Prepare(
+            query,
+            splits,
+            /*placeholderValues*/ {},
+            {.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion});
+    }
+
+    llvm::FoldingSetNodeID ProfileQuery(const TQueryPtr& query)
+    {
+        auto registry = TJoinProfilerRegistry(
+            /*executePlan*/ {},
+            /*consumeSubqueryStatistics*/ {},
+            /*memoryChunkProvider*/ nullptr,
+            /*logger*/ {});
+        for (int index = 0; index < std::ssize(query->JoinClauses); ++index) {
+            registry.InsertJoinProfilerOrThrow(index, MakeNullJoinSubqueryProfiler());
+        }
+        llvm::FoldingSetNodeID id;
+        TCGVariables variables;
+        Profile(query, &id, &variables, registry, {.ExecutionBackend = GetParam()});
+        return id;
+    }
+
     template <class TFirstCheck, class TSecondCheck>
     void CheckCacheReuse(const TFirstCheck& checkFirst, const TSecondCheck& checkSecond)
     {
@@ -52,6 +83,52 @@ protected:
         TCodegenCacheSingleton::TearDownForTests();
         checkSecond();
         checkFirst();
+    }
+
+    void CheckResult(
+        const TQueryTestCase& testCase,
+        const TQueryPtr& query,
+        const TSplitMap& splits,
+        const std::vector<TSource>& sources)
+    {
+        auto expected = YsonToRows(testCase.ExpectedRows, MakeSplit(query->GetTableSchema()->Columns()));
+        EvaluateWithQueryStatistics(
+            testCase.Query,
+            splits,
+            sources,
+            ResultMatcher(expected),
+            {.SyntaxVersion = 2, .ExecutionBackend = GetParam()});
+    }
+
+    void CheckCacheReuse(
+        const TQueryTestCase& first,
+        const TQueryTestCase& second,
+        const TSplitMap& splits,
+        const std::vector<TSource>& sources,
+        bool sameKey = false)
+    {
+        SCOPED_TRACE(Format("%v -> %v", first.Query, second.Query));
+        auto firstQuery = PrepareQuery(first.Query, splits);
+        auto secondQuery = PrepareQuery(second.Query, splits);
+        EXPECT_EQ(ProfileQuery(firstQuery) == ProfileQuery(secondQuery), sameKey);
+
+        CheckCacheReuse(
+            [&] {
+                CheckResult(first, firstQuery, splits, sources);
+            },
+            [&] {
+                CheckResult(second, secondQuery, splits, sources);
+            });
+    }
+
+    void CheckCacheReuse(
+        const TQueryTestCase& first,
+        const TQueryTestCase& second,
+        const TDataSplit& split,
+        const TSource& source,
+        bool sameKey = false)
+    {
+        CheckCacheReuse(first, second, {{"//t", split}}, {source}, sameKey);
     }
 };
 
@@ -389,12 +466,6 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJoinTestCase
-{
-    std::string Query;
-    TSource ExpectedRows;
-};
-
 class TJoinCacheTest
     : public TCodegenCacheTest
 {
@@ -410,66 +481,6 @@ protected:
                 {"v", EValueType::Int64},
             })},
         };
-    }
-
-    TQueryPtr PrepareJoin(const std::string& query, const TSplitMap& splits)
-    {
-        return Prepare(
-            query,
-            splits,
-            /*placeholderValues*/ {},
-            {.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion});
-    }
-
-    llvm::FoldingSetNodeID ProfileQuery(const TQueryPtr& query)
-    {
-        auto registry = TJoinProfilerRegistry(
-            /*executePlan*/ {},
-            /*consumeSubqueryStatistics*/ {},
-            /*memoryChunkProvider*/ nullptr,
-            /*logger*/ {});
-        for (int index = 0; index < std::ssize(query->JoinClauses); ++index) {
-            registry.InsertJoinProfilerOrThrow(index, MakeNullJoinSubqueryProfiler());
-        }
-        llvm::FoldingSetNodeID id;
-        TCGVariables variables;
-        Profile(query, &id, &variables, registry, {.ExecutionBackend = GetParam()});
-        return id;
-    }
-
-    void CheckResult(
-        const TJoinTestCase& testCase,
-        const TSplitMap& splits,
-        const std::vector<TSource>& sources)
-    {
-        auto expected = YsonToRows(testCase.ExpectedRows, MakeSplit({{"r", EValueType::Int64}}));
-        EvaluateWithQueryStatistics(
-            testCase.Query,
-            splits,
-            sources,
-            ResultMatcher(expected),
-            {.SyntaxVersion = 2, .ExecutionBackend = GetParam()});
-    }
-
-    void CheckCacheReuse(
-        const TJoinTestCase& first,
-        const TJoinTestCase& second,
-        const TSplitMap& splits,
-        const std::vector<TSource>& sources,
-        bool sameKey = false)
-    {
-        SCOPED_TRACE(Format("%v -> %v", first.Query, second.Query));
-        auto firstQuery = PrepareJoin(first.Query, splits);
-        auto secondQuery = PrepareJoin(second.Query, splits);
-        EXPECT_EQ(ProfileQuery(firstQuery) == ProfileQuery(secondQuery), sameKey);
-
-        TCodegenCacheTest::CheckCacheReuse(
-            [&] {
-                CheckResult(first, splits, sources);
-            },
-            [&] {
-                CheckResult(second, splits, sources);
-            });
     }
 };
 
@@ -555,8 +566,8 @@ TEST_P(TJoinCacheTest, ReusedRootAcrossJoinGroup)
 TEST_P(TJoinCacheTest, EquationArity)
 {
     auto splits = MakeSplits();
-    auto first = PrepareJoin("r.v as r from `//left` l join `//right` r on l.a = r.k", splits);
-    auto second = PrepareJoin("r.v as r from `//left` l join `//right` r on (l.a, l.a) = (r.k, r.l)", splits);
+    auto first = PrepareQuery("r.v as r from `//left` l join `//right` r on l.a = r.k", splits);
+    auto second = PrepareQuery("r.v as r from `//left` l join `//right` r on (l.a, l.a) = (r.k, r.l)", splits);
     ASSERT_EQ(std::ssize(first->JoinClauses), 1);
     ASSERT_EQ(std::ssize(second->JoinClauses), 1);
     EXPECT_EQ(std::ssize(first->JoinClauses[0]->SelfEquations), 1);
@@ -572,11 +583,11 @@ TEST_P(TJoinCacheTest, EquationCountBoundaries)
         {"l", EValueType::Int64},
         {"v", EValueType::Int64},
     });
-    auto first = PrepareJoin(
+    auto first = PrepareQuery(
         "r.v+r2.v as r from `//left` l join `//right` r on (l.a, l.a) = (r.k, r.l) "
         "join `//right2` r2 on l.a = r2.k",
         splits);
-    auto second = PrepareJoin(
+    auto second = PrepareQuery(
         "r.v+r2.v as r from `//left` l join `//right` r on l.a = r.k "
         "join `//right2` r2 on (l.a, l.a) = (r2.k, r2.l)",
         splits);
@@ -627,6 +638,174 @@ TEST_P(TJoinCacheTest, DifferentExpressions)
 INSTANTIATE_TEST_SUITE_P(
     Backends,
     TJoinCacheTest,
+    ::testing::Values(EExecutionBackend::Native, EExecutionBackend::WebAssembly));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOrderByCacheTest
+    : public TCodegenCacheTest
+{
+protected:
+    TDataSplit MakeInputSplit(EValueType type = EValueType::Int64)
+    {
+        return MakeSplit({{"a", type}, {"b", type}});
+    }
+};
+
+TEST_P(TOrderByCacheTest, ReusedExpressionRoot)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` order by a+b, a limit 1",
+            .ExpectedRows = {"a=1;b=2"},
+        },
+        {
+            .Query = "a, b from `//t` order by a+b, b limit 1",
+            .ExpectedRows = {"a=2;b=1"},
+        },
+        MakeInputSplit(),
+        {"a=1;b=2", "a=2;b=1"});
+}
+
+TEST_P(TOrderByCacheTest, ExpressionRootOrder)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` order by a+b, a, b limit 2",
+            .ExpectedRows = {"a=1;b=2", "a=2;b=1"},
+        },
+        {
+            .Query = "a, b from `//t` order by a+b, b, a limit 2",
+            .ExpectedRows = {"a=2;b=1", "a=1;b=2"},
+        },
+        MakeInputSplit(),
+        {"a=1;b=2", "a=2;b=1"});
+}
+
+TEST_P(TOrderByCacheTest, DescendingReusedExpressionRoot)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` order by a+b desc, a desc limit 1",
+            .ExpectedRows = {"a=2;b=1"},
+        },
+        {
+            .Query = "a, b from `//t` order by a+b desc, b desc limit 1",
+            .ExpectedRows = {"a=1;b=2"},
+        },
+        MakeInputSplit(),
+        {"a=1;b=2", "a=2;b=1"});
+}
+
+TEST_P(TOrderByCacheTest, Offset)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` order by a+b, a offset 1 limit 1",
+            .ExpectedRows = {"a=2;b=1"},
+        },
+        {
+            .Query = "a, b from `//t` order by a+b, b offset 1 limit 1",
+            .ExpectedRows = {"a=1;b=2"},
+        },
+        MakeInputSplit(),
+        {"a=1;b=2", "a=2;b=1"});
+}
+
+TEST_P(TOrderByCacheTest, StringExpressionRoot)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` order by concat(a,b), a limit 1",
+            .ExpectedRows = {"a=a;b=aa"},
+        },
+        {
+            .Query = "a, b from `//t` order by concat(a,b), b limit 1",
+            .ExpectedRows = {"a=aa;b=a"},
+        },
+        MakeInputSplit(EValueType::String),
+        {"a=a;b=aa", "a=aa;b=a"});
+}
+
+TEST_P(TOrderByCacheTest, NullableExpressionRoot)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` order by a+b, a limit 1",
+            .ExpectedRows = {"a=#;b=1"},
+        },
+        {
+            .Query = "a, b from `//t` order by a+b, b limit 1",
+            .ExpectedRows = {"a=2;b=#"},
+        },
+        MakeInputSplit(),
+        {"a=#;b=1", "a=2;b=#"});
+}
+
+TEST_P(TOrderByCacheTest, ReusedCompoundExpressionRoot)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` order by (a+b)*(a-b), a+b limit 1",
+            .ExpectedRows = {"a=3;b=-1"},
+        },
+        {
+            .Query = "a, b from `//t` order by (a+b)*(a-b), a-b limit 1",
+            .ExpectedRows = {"a=3;b=1"},
+        },
+        MakeInputSplit(),
+        {"a=3;b=1", "a=3;b=-1"});
+}
+
+TEST_P(TOrderByCacheTest, DifferentDirections)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` order by a+b, a limit 1",
+            .ExpectedRows = {"a=1;b=2"},
+        },
+        {
+            .Query = "a, b from `//t` order by a+b, a desc limit 1",
+            .ExpectedRows = {"a=2;b=1"},
+        },
+        MakeInputSplit(),
+        {"a=1;b=2", "a=2;b=1"});
+}
+
+TEST_P(TOrderByCacheTest, LiteralValues)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` order by abs(a-1), b limit 1",
+            .ExpectedRows = {"a=1;b=2"},
+        },
+        {
+            .Query = "a, b from `//t` order by abs(a-2), b limit 1",
+            .ExpectedRows = {"a=2;b=1"},
+        },
+        MakeInputSplit(),
+        {"a=1;b=2", "a=2;b=1"},
+        /*sameKey*/ true);
+}
+
+TEST_P(TOrderByCacheTest, OrderItemCount)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` order by a+b, a limit 2",
+            .ExpectedRows = {"a=1;b=2", "a=2;b=1"},
+        },
+        {
+            .Query = "a, b from `//t` order by a+b, a, b limit 2",
+            .ExpectedRows = {"a=1;b=2", "a=2;b=1"},
+        },
+        MakeInputSplit(),
+        {"a=1;b=2", "a=2;b=1"});
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Backends,
+    TOrderByCacheTest,
     ::testing::Values(EExecutionBackend::Native, EExecutionBackend::WebAssembly));
 
 ////////////////////////////////////////////////////////////////////////////////
