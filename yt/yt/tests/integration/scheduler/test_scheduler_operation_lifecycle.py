@@ -436,9 +436,10 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         for i in range(op_count):
             self._create_table("//tmp/in" + str(i))
             self._create_table("//tmp/out" + str(i))
+            # 7/4/1 jobs: counts differ by 3, so a job scheduled out of order does not flip the FIFO order.
             write_table(
                 "//tmp/in" + str(i),
-                [{"foo": j} for j in range(op_count * (op_count - i))],
+                [{"foo": j} for j in range(3 * (op_count - i) - 2)],
             )
 
         create_pool("fifo_pool", ignore_existing=True, attributes=dict(mode="fifo", fifo_sort_parameters=["pending_job_count"]))
@@ -453,7 +454,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             ops.append(
                 map(
                     track=False,
-                    command="sleep 1.0; cat >/dev/null",
+                    command="cat >/dev/null",
                     in_=["//tmp/in" + str(i)],
                     out="//tmp/out" + str(i),
                     spec={"pool": "fifo_pool", "data_size_per_job": 1},
