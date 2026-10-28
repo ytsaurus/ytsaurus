@@ -12,58 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (WIN32 AND CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" AND NOT HAVE_CUDA)
+  include(CMakeLists.windows-x86_64.txt)
+endif()
 
-add_library(base-poco-JSON)
-
-
-target_compile_options(base-poco-JSON PUBLIC
-  -DOS_LINUX
-)
-
-target_compile_options(base-poco-JSON PRIVATE
-  -DPOCO_ENABLE_CPP11
-  -DPOCO_OS_FAMILY_UNIX
-  -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
-  -D_LIBUNWIND_IS_NATIVE_ONLY
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(base-poco-JSON PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/include
-)
-
-target_include_directories(base-poco-JSON PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Foundation/include
-)
-
-target_link_libraries(base-poco-JSON PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  base-poco-Foundation
-)
-
-target_sources(base-poco-JSON PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/src/Array.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/src/Handler.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/src/JSONException.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/src/Object.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/src/ParseHandler.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/src/Parser.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/src/ParserImpl.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/src/PrintHandler.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/src/Query.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/src/Stringifier.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/src/Template.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/src/TemplateCache.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/src/pdjson.c
-)
-
-
-set_property(
-  SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/src/pdjson.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)

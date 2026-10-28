@@ -12,31 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(clickhouse-base-widechar_width)
-
-
-target_compile_options(clickhouse-base-widechar_width PUBLIC
-  -DOS_LINUX
-)
-
-target_compile_options(clickhouse-base-widechar_width PRIVATE
-  -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
-  -D_LIBUNWIND_IS_NATIVE_ONLY
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(clickhouse-base-widechar_width PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/widechar_width
-)
-
-target_link_libraries(clickhouse-base-widechar_width PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-)
-
-target_sources(clickhouse-base-widechar_width PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/widechar_width/widechar_width.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (WIN32 AND CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" AND NOT HAVE_CUDA)
+  include(CMakeLists.windows-x86_64.txt)
+endif()
 

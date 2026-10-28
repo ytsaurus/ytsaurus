@@ -12,31 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(contrib-libs-simdjson)
-
-
-target_compile_options(contrib-libs-simdjson PRIVATE
-  -DSIMDJSON_AVX512_ALLOWED=1
-  -DSIMDJSON_UTF8VALIDATION=1
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(contrib-libs-simdjson PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/simdjson/include
-)
-
-target_include_directories(contrib-libs-simdjson PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/simdjson/src
-)
-
-target_link_libraries(contrib-libs-simdjson PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-)
-
-target_sources(contrib-libs-simdjson PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/simdjson/src/simdjson.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (WIN32 AND CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" AND NOT HAVE_CUDA)
+  include(CMakeLists.windows-x86_64.txt)
+endif()
 

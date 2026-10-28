@@ -12,24 +12,9 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(fastops-fastops-core)
-
-
-target_include_directories(fastops-fastops-core PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops
-)
-
-target_link_libraries(fastops-fastops-core PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-)
-
-target_sources(fastops-fastops-core PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/core/avx_id.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/core/FastIntrinsics.h
-  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/core/SIMDFunctions.h
-  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/core/avx_id.h
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (WIN32 AND CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" AND NOT HAVE_CUDA)
+  include(CMakeLists.windows-x86_64.txt)
+endif()
 

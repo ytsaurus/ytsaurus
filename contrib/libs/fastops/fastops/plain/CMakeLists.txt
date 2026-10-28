@@ -12,19 +12,9 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(fastops-fastops-plain)
-
-
-target_link_libraries(fastops-fastops-plain PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  contrib-libs-fmath
-)
-
-target_sources(fastops-fastops-plain PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/plain/ops_plain.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/plain/ops_plain.h
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (WIN32 AND CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" AND NOT HAVE_CUDA)
+  include(CMakeLists.windows-x86_64.txt)
+endif()
 

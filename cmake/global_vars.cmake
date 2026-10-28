@@ -35,5 +35,13 @@ elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "
   set(FBS_CPP_FLAGS --no-warnings --cpp --keep-prefix --gen-mutable --schema -b  --gen-object-api --filename-suffix .fbs)
   set(YASM_FLAGS -f elf64 -D UNIX -D _x86_64_ -D _YASM_  -g dwarf2)
   set(BISON_FLAGS -v -Wcounterexamples)
+elseif (WIN32 AND CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" AND NOT HAVE_CUDA)
+  set(RAGEL_FLAGS -L -I ${PROJECT_SOURCE_DIR}/)
+  set(COMMON_PROTOC_FLAGS )
+  set(YASM_FLAGS -f win64 -D WIN64 -D _x86_64_ -D _YASM_  )
+  set(BISON_FLAGS -v -Wcounterexamples)
+  set(FBS_CPP_FLAGS --no-warnings --cpp --keep-prefix --gen-mutable --schema -b  --gen-object-api --filename-suffix .fbs)
+  set(ENV{PYTHONIOENCODING} utf-8)
+  set(ENV{PYTHONUTF8} 1)
 endif()
 

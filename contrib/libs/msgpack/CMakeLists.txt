@@ -12,70 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (WIN32 AND CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" AND NOT HAVE_CUDA)
+  include(CMakeLists.windows-x86_64.txt)
+endif()
 
-add_library(contrib-libs-msgpack)
-
-
-target_compile_options(contrib-libs-msgpack PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(contrib-libs-msgpack PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/include
-)
-
-target_link_libraries(contrib-libs-msgpack PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  contrib-libs-libc_compat
-)
-
-target_sources(contrib-libs-msgpack PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/src/objectc.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/src/unpack.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/src/version.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/src/vrefbuffer.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/src/zone.c
-)
-
-
-set_property(
-  SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/src/objectc.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/src/unpack.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/src/version.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/src/vrefbuffer.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/src/zone.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
