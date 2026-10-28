@@ -629,7 +629,7 @@ class CacheLocationOverflowBase(YTEnvSetup):
 
         node = ls("//sys/cluster_nodes")[0]
 
-        assert get(f"//sys/cluster_nodes/{node}/@resource_limits/user_slots") == 1
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/@resource_limits/user_slots") == 1)
         assert not os.path.exists(f"{self.cache_volume_path}/disabled")
 
         op = run_test_vanilla(
