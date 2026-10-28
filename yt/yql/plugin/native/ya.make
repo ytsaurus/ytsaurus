@@ -83,7 +83,7 @@ PEERDIR(
     yt/yql/providers/yt/comp_nodes/llvm16
     yt/yql/providers/ytflow/gateway
     yt/yql/providers/ytflow/provider
-    contrib/ydb/library/yql/providers/yt/dq_task_preprocessor
+    yt/yql/providers/yt/dq_task_preprocessor
 
     yt/yql/plugin
     yt/yql/plugin/lib

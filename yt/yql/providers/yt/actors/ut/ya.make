@@ -1,4 +1,4 @@
-UNITTEST_FOR(contrib/ydb/library/yql/providers/yt/actors)
+UNITTEST_FOR(yt/yql/providers/yt/actors)
 
 PEERDIR(
     yt/yql/providers/yt/codec/codegen/llvm16
