@@ -5743,7 +5743,7 @@ class TestQueueStaticExportPortalsOldImpl(TestQueueStaticExportOldImpl, TestQueu
 
 
 class TestQueueStaticExportSequoia(QueueStaticExportCrossCellBase):
-    NUM_TEST_PARTITIONS = 5
+    NUM_TEST_PARTITIONS = 8
 
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
