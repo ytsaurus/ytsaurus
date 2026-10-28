@@ -2474,6 +2474,38 @@ TEST_P(TBundleSchedulerTest, CheckBundleShortName)
 }
 
 
+TEST_P(TBundleSchedulerTest, CheckCollidingBundleShortNames)
+{
+    const std::string bundleName = "my_b";
+    const std::string baseShortName = "my-b";
+
+    for (int suffix : {1, 10}) {
+        SCOPED_TRACE(suffix);
+
+        auto input = GenerateSimpleInputContext(/*nodeCount*/ 0);
+        SetBundleInfo(input, baseShortName, /*nodeCount*/ 0)->ShortName = baseShortName;
+        for (int index = 1; index < suffix; ++index) {
+            auto shortName = Format("%v%v", baseShortName, index);
+            SetBundleInfo(input, shortName, /*nodeCount*/ 0)->ShortName = shortName;
+        }
+        SetBundleInfo(input, bundleName, /*nodeCount*/ 1);
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+
+        auto expectedShortName = Format("%v%v", baseShortName, suffix);
+        EXPECT_EQ(expectedShortName, GetOrCrash(input.BundleToShortName, bundleName));
+        EXPECT_EQ(1, std::ssize(mutations.ChangedBundleShortName));
+        EXPECT_EQ(expectedShortName, GetOrCrash(mutations.ChangedBundleShortName, bundleName));
+        EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+
+        ASSERT_EQ(1, std::ssize(mutations.NewAllocations));
+        EXPECT_EQ(
+            GetInstancePodIdTemplate(input.Config->Cluster, expectedShortName, "tab", /*index*/ 1),
+            mutations.NewAllocations.begin()->second->Spec->PodIdTemplate);
+    }
+}
+
 TEST_P(TBundleSchedulerTest, CheckBundleAutoShorteningName)
 {
     const std::string LongBundleName = "m_looooooong_bundle-name";
