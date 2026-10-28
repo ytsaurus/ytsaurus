@@ -84,11 +84,11 @@ Go-модуль: `go get go.ytsaurus.tech/yt/go/flow@v0.3.0`.
 
 #### Документация
 
-- [Что такое Flow](https://ytsaurus.tech/docs/en/flow/about)
+- [Что такое Flow](https://ytsaurus.tech/docs/ru/flow/about)
 - [Начало работы](https://ytsaurus.tech/docs/ru/flow/start) и [быстрый старт](https://ytsaurus.tech/docs/ru/flow/quickstart)
 - Руководства по языкам: [Java](https://ytsaurus.tech/docs/ru/flow/java/getting-started), [Python](https://ytsaurus.tech/docs/ru/flow/python/getting-started), [Go](https://ytsaurus.tech/docs/ru/flow/go/getting-started)
-- [Запуск в docker-окружении](https://ytsaurus.tech/docs/en/flow/devops/docker-environment)
-- [CLI Flow](https://ytsaurus.tech/docs/en/flow/tools/cli)
+- [Запуск в docker-окружении](https://ytsaurus.tech/docs/ru/flow/devops/docker-environment)
+- [CLI Flow](https://ytsaurus.tech/docs/ru/flow/tools/cli)
 
 
 {% endcut %}
