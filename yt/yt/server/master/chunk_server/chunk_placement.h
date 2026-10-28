@@ -15,6 +15,7 @@
 
 #include <yt/yt/core/misc/fenwick_tree.h>
 
+#include <array>
 #include <optional>
 
 namespace NYT::NChunkServer {
@@ -50,8 +51,9 @@ public:
     void OnNodeDisposed(TNode* node);
 
     void OnDataCenterChanged(NNodeTrackerServer::TDataCenter* dataCenter);
+    void OnMediumChanged();
 
-    bool IsDataCenterFeasible(const NNodeTrackerServer::TDataCenter* dataCenter) const;
+    bool IsDataCenterFeasible(const NNodeTrackerServer::TDataCenter* dataCenter, int mediumIndex) const;
     bool IsDataCenterTemporarilyUnavailable(const NNodeTrackerServer::TDataCenter* dataCenter) const;
 
     THashSet<std::string> GetFaultyStorageDataCenterNames() const;
@@ -220,7 +222,7 @@ private:
     THashSet<const NNodeTrackerServer::TDataCenter*> BannedStorageDataCenters_;
     THashSet<const NNodeTrackerServer::TDataCenter*> TemporarilyUnavailableStorageDataCenters_;
     THashSet<const NNodeTrackerServer::TDataCenter*> FaultyStorageDataCenters_;
-    THashSet<const NNodeTrackerServer::TDataCenter*> AliveStorageDataCenters_;
+    std::array<THashSet<const NNodeTrackerServer::TDataCenter*>, NChunkClient::MaxMediumCount> PerMediumAliveStorageDataCenters_;
     std::vector<TError> DataCenterSetErrors_;
     std::vector<TError> DataCenterFaultErrors_;
 
@@ -268,12 +270,18 @@ private:
     template <typename TGenericChunk>
     bool IsValidWriteTargetToAllocate(
         TNode* node,
+        const TDomesticMedium* medium,
         TTargetCollector<TGenericChunk>* collector,
         bool enableRackAwareness,
         bool enableDataCenterAwareness,
         bool enableNodeWriteSessionLimit,
         bool enableHostAwareness);
-    bool IsValidWriteTargetCore(TNode* node);
+    bool IsValidWriteTargetCore(TNode* node, const TDomesticMedium* medium);
+
+    const THashSet<std::string>& GetStorageDataCenterNames(int mediumIndex) const;
+    const THashSet<std::string>& GetBannedStorageDataCenterNames(int mediumIndex) const;
+    THashSet<std::string> GetAllStorageDataCenterNames() const;
+
     // Preferred nodes are special: they don't come from load-factor maps and
     // thus may not have been vetted by #IsValidWriteTargetToInsert. Thus,
     // additional checking of their media is required.
