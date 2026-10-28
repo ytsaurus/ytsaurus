@@ -1,5 +1,7 @@
 #include "misc.h"
 
+#include <yt/yt/orm/client/misc/error.h>
+
 #include <algorithm>
 #include <functional>
 #include <limits>
@@ -102,6 +104,22 @@ bool IsAnyExprATargetReference(const TExpressionList& exprs, const NQueryClient:
         auto* refExpr = expr->template As<TReferenceExpression>();
         return refExpr && refExpr->Reference == reference;
     });
+}
+
+bool HasScalarOperands(const TBinaryOpExpression& binaryExpr)
+{
+    return binaryExpr.Lhs.size() == 1 && binaryExpr.Rhs.size() == 1;
+}
+
+TError CheckScalarLogicalOperand(const TExpressionList& operand)
+{
+    if (operand.size() == 1) {
+        return {};
+    }
+    return TError(
+        NClient::EErrorCode::InvalidRequestArguments,
+        "Expecting scalar operands of AND, OR and NOT, got %Qv",
+        FormatExpression(operand));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
