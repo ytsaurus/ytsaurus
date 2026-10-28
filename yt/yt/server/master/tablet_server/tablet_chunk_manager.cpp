@@ -1088,9 +1088,9 @@ public:
             auto* chunk = chunkManager->FindChunk(chunkId);
             if (!IsObjectAlive(chunk)) {
                 YT_TLOG_ALERT("Requested to attach dead chunk to hunk tablet; ignored")
-                    .With("ChunkId", chunk->GetId())
-                    .With("HunkStorageId", tablet->GetId())
-                    .With("TableId", tablet->GetOwner()->GetId());
+                    .With("ChunkId", chunkId)
+                    .With("TabletId", tablet->GetId())
+                    .With("HunkStorageId", tablet->GetOwner()->GetId());
                 continue;
             }
 
@@ -1106,7 +1106,7 @@ public:
             auto* chunk = chunkManager->FindChunk(chunkId);
             if (!IsObjectAlive(chunk)) {
                 YT_TLOG_ALERT("Requested to detach dead chunk from hunk tablet; ignored")
-                    .With("ChunkId", chunk->GetId())
+                    .With("ChunkId", chunkId)
                     .With("TabletId", tablet->GetId())
                     .With("HunkStorageId", tablet->GetOwner()->GetId());
                 continue;
@@ -1120,10 +1120,10 @@ public:
         std::vector<TChunk*> chunksToMarkSealable;
         for (const auto& chunkToMarkSealable : request->stores_to_mark_sealable()) {
             auto chunkId = FromProto<TChunkId>(chunkToMarkSealable.store_id());
-            auto* chunk = chunkManager->GetChunk(chunkId);
+            auto* chunk = chunkManager->FindChunk(chunkId);
             if (!IsObjectAlive(chunk)) {
                 YT_TLOG_ALERT("Requested to mark dead chunk as sealable; ignored")
-                    .With("ChunkId", chunk->GetId())
+                    .With("ChunkId", chunkId)
                     .With("TabletId", tablet->GetId())
                     .With("HunkStorageId", tablet->GetOwner()->GetId());
                 continue;

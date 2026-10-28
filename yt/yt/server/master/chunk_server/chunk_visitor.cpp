@@ -110,6 +110,8 @@ void TChunkIdsAttributeVisitor::OnSuccess()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: This visitor is used for obsolete statistics and counts shared hunk chunks once per occurrence in the chunk tree.
+// It is recommended to access hunk_reference_statistics attribute instead.
 class THunkStatisticsVisitor
     : public TChunkVisitorBase<NYson::TYsonString>
 {
