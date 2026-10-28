@@ -2605,7 +2605,8 @@ void TJobResourcesConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0);
     registrar.BaseClassParameter("cpu", &TJobResourcesConfig::Cpu)
         .Default()
-        .GreaterThanOrEqual(0);
+        .GreaterThanOrEqual(0)
+        .LessThan(static_cast<double>(std::numeric_limits<TCpuResource>::max()));
     registrar.BaseClassParameter("network", &TJobResourcesConfig::Network)
         .Default()
         .GreaterThanOrEqual(0);
