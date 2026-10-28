@@ -12,6 +12,7 @@ RECURSE(
     scheduler
     service
     stats_collector
+    testlib
 )
 
 IF (NOT OPENSOURCE AND NOT OS_WINDOWS)

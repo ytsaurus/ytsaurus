@@ -170,7 +170,7 @@ void TWorkersStorage::CheckZombie(ui32 nodeId, TGUID workerId, Yql::DqsProto::Re
 
 void TWorkersStorage::CleanUp(TInstant now, TDuration duration) {
     TVector<TGUID> deadWorkers;
-    THashMap<TString, TWorkerInfo::TFileResource> downloadList;
+    TWorkerInfo::TDownloadList downloadList;
     for (const auto& [k, v] : Workers) {
         if (now - v->LastPingTime > duration) {
             RemoveWorkerFromFileIndex(FileToWorkers, v);
@@ -668,7 +668,12 @@ TVector<TWorkerInfo::TPtr> TWorkersStorage::TryAllocate(const NDq::IScheduler::T
                 continue;
             }
             filter.Visit([&](const auto& file) {
-                if (workerInfo->AddToDownloadList(file.GetObjectId(), file)) {
+                TWorkerInfo::TDownloadResource resource{
+                    .File = file,
+                    .UploadPrefix = request.GetUploadPrefix(),
+                    .UploadClusterAddress = request.GetUploadClusterAddress(),
+                };
+                if (workerInfo->AddToDownloadList(resource)) {
                     YQL_CLOG(TRACE, ProviderDq) << "Added " << file.GetName() << "|" << file.GetObjectId() << " to worker's " << GetGuidAsString(workerInfo->WorkerId) << " download list" ;
                     TStringBuilder resourceDownloadName;
                     resourceDownloadName << "ResourceDownload";
@@ -725,11 +730,11 @@ void TWorkersStorage::ClusterStatus(Yql::DqsProto::ClusterStatusResponse* r) con
         }
 
         for (const auto& [k, _] : workerInfo->GetDownloadList()) {
-            node->AddDownloadList()->SetObjectId(k);
+            node->AddDownloadList()->SetObjectId(k.ObjectId);
         }
 
         for (const auto& [k, _] : workerInfo->GetActiveDownloads()) {
-            node->AddActiveDownload()->SetObjectId(k);
+            node->AddActiveDownload()->SetObjectId(k.ObjectId);
         }
         for (const auto& op : workerInfo->Operations){
             node->AddOperation(op);
