@@ -812,6 +812,30 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
+        return BIND(&TImpl::DoSuspendOperationByUserRequest, MakeStrong(this), operation, user, abortRunningAllocations, reason)
+            .AsyncVia(operation->GetCancelableControlInvoker())
+            .Run();
+    }
+
+    TFuture<void> ResumeOperation(
+        const TOperationPtr& operation,
+        const std::string& user)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        return BIND(&TImpl::DoResumeOperation, MakeStrong(this), operation, user)
+            .AsyncVia(operation->GetCancelableControlInvoker())
+            .Run();
+    }
+
+    void DoSuspendOperationByUserRequest(
+        const TOperationPtr& operation,
+        const std::string& user,
+        bool abortRunningAllocations,
+        const std::optional<std::string>& reason)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
         auto codicilGuard = operation->MakeCodicilGuard();
 
         if (operation->GetState() == EOperationState::None) {
@@ -821,9 +845,9 @@ public:
         ValidateOperationManagementAccess(user, operation, EPermissionSet(EPermission::Manage), EOperationManagementAction::Suspend);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
-            return MakeFuture(TError(NScheduler::EErrorCode::InvalidOperationState,
+            THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::InvalidOperationState,
                 "Cannot suspend operation in %Qlv state",
-                operation->GetState()));
+                operation->GetState());
         }
 
         auto error = TError("Suspend operation by user request");
@@ -836,10 +860,11 @@ public:
             abortRunningAllocations,
             /*setAlert*/ reason.has_value());
 
-        return MasterConnector_->FlushOperationNode(operation);
+        WaitFor(MasterConnector_->FlushOperationNode(operation))
+            .ThrowOnError();
     }
 
-    TFuture<void> ResumeOperation(
+    void DoResumeOperation(
         const TOperationPtr& operation,
         const std::string& user)
     {
@@ -854,9 +879,9 @@ public:
         ValidateOperationManagementAccess(user, operation, EPermissionSet(EPermission::Manage), EOperationManagementAction::Resume);
 
         if (!operation->GetSuspended()) {
-            return MakeFuture(TError(NScheduler::EErrorCode::InvalidOperationState,
+            THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::InvalidOperationState,
                 "Operation is in %Qlv state",
-                operation->GetState()));
+                operation->GetState());
         }
 
         NodeManager_->ResumeOperationScheduling(operation->GetId());
@@ -871,7 +896,8 @@ public:
         YT_LOG_INFO("Operation resumed (OperationId: %v)",
             operation->GetId());
 
-        return MasterConnector_->FlushOperationNode(operation);
+        WaitFor(MasterConnector_->FlushOperationNode(operation))
+            .ThrowOnError();
     }
 
     TFuture<void> CompleteOperation(
@@ -976,7 +1002,7 @@ public:
 
         Strategy_->DisableOperation(operation.Get());
 
-        operation->Restart(TError("Agent unregistered"));
+        operation->Restart(TError(NScheduler::EErrorCode::AgentUnregistered, "Agent unregistered"));
         operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
         AdvanceEpoch(operation->ControllerEpoch());
 

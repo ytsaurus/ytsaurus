@@ -8,6 +8,7 @@ TooManyOperations = 202
 MaxFailedJobsLimitExceeded = 215
 OperationFailedToPrepare = 216
 WatcherHandlerFailed = 217
+MasterDisconnected = 218
 NoSuchJobShell = 219
 SortOrderViolation = 301
 UniqueKeyViolation = 306
@@ -89,5 +90,6 @@ class Scheduler(object):
     CannotUseBothAclAndAco = 221
     GangOperationsAllowedOnlyInFifoPools = 222
     OperationLaunchedInNonexistentPool = 223
+    AgentUnregistered = 225
     PoolTreeGuaranteesOvercommit = 29000
     PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor = 29002
