@@ -4,7 +4,7 @@ import re
 import yatest.common
 
 from yql_utils import get_supported_providers, is_xfail, is_skip_forceblocks, \
-    do_custom_query_check, is_with_final_result_issues, yql_binary_path, get_param, pytest_get_current_part
+    do_custom_query_check, is_with_final_result_issues, yql_binary_path, get_param, pytest_get_current_part, get_udfs
 
 from test_utils import collect_argvalues_for_run, get_config
 from test_file_common import run_file, run_file_no_cache
@@ -78,7 +78,7 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
     (res, tables_res) = run_file(
         'dq', suite, case, cfg, config, yql_http_file_server, DQRUN_PATH,
         extra_args=extra_args, data_path=DATA_PATH,
-        cfg_postprocess=cfg_postprocess, langver=langver, patch_cfg_file=patch_cfg_file_path,
+        cfg_postprocess=cfg_postprocess, langver=langver, patch_cfg_file=patch_cfg_file_path, udfs=get_udfs(config),
     )
 
     if what == 'Plan':
@@ -90,13 +90,13 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
                 yqlrun_res, yqlrun_tables_res = run_file_no_cache(
                     'dq', suite, case, cfg, config, yql_http_file_server, DQRUN_PATH,
                     extra_args=["--emulate-yt"], force_blocks=True, data_path=DATA_PATH,
-                    cfg_postprocess=cfg_postprocess, langver=langver, patch_cfg_file=patch_cfg_file_path,
+                    cfg_postprocess=cfg_postprocess, langver=langver, patch_cfg_file=patch_cfg_file_path, udfs=get_udfs(config),
                 )
                 primary_name = 'Scalar'
                 reference_name = 'Block'
             else:
                 yqlrun_res, yqlrun_tables_res = run_file_no_cache('yt', suite, case, cfg, config, yql_http_file_server, yqlrun_binary=YTFILERUN_PATH, data_path=DATA_PATH,
-                                                                  cfg_postprocess=cfg_postprocess, langver=langver, patch_cfg_file=patch_cfg_file_path)
+                                                                  cfg_postprocess=cfg_postprocess, langver=langver, patch_cfg_file=patch_cfg_file_path, udfs=get_udfs(config))
                 primary_name = 'DQFILE'
                 reference_name = 'YQLRUN'
 

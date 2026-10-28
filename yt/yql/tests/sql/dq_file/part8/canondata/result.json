@@ -139,13 +139,6 @@
             "uri": "https://{canondata_backend}/1781765/8477be1eb117ece848c04fa203acc79810ef3db8/resource.tar.gz#test.test_dq-dq_extended_plan--Plan_/plan.txt"
         }
     ],
-    "test.TestDqFile_dq-dq_replicate_ok-default.txt.test[Plan]": [
-        {
-            "checksum": "99bfb5ff288c52a8d6550352eb804ac0",
-            "size": 4432,
-            "uri": "https://{canondata_backend}/1781765/8477be1eb117ece848c04fa203acc79810ef3db8/resource.tar.gz#test.test_dq-dq_replicate_ok-default.txt-Plan_/plan.txt"
-        }
-    ],
     "test.TestDqFile_hor_join-empty_out_hor_join-default.txt.test[Plan]": [
         {
             "checksum": "b318f38f43353527b0da4f0f9e2ab5fd",

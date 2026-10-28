@@ -6,7 +6,7 @@ import yatest.common
 from yql_utils import execute, get_tables, get_files, get_http_files, \
     KSV_ATTR, yql_binary_path, is_xfail, is_canonize_peephole, is_peephole_use_blocks, is_canonize_lineage, \
     is_skip_forceblocks, get_param, normalize_source_code_path, \
-    do_custom_query_check, stable_result_file, stable_table_file, is_with_final_result_issues, pytest_get_current_part
+    do_custom_query_check, stable_result_file, stable_table_file, is_with_final_result_issues, pytest_get_current_part, get_udfs
 from yqlrun import YQLRun
 
 from test_utils import collect_argvalues_for_run, get_config, get_parameters_json
@@ -129,7 +129,7 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
         force_blocks = is_peephole_use_blocks(config)
         (res, tables_res) = run_file_no_cache('yt', suite, case, cfg, config, yql_http_file_server, yqlrun_binary=ytfilerun_binary, force_blocks=force_blocks,
                                               extra_args=['--peephole'], data_path=DATA_PATH, cfg_postprocess=cfg_postprocess, langver=langver, attr_postprocess=infer_yt_schema,
-                                              patch_cfg_file=patch_cfg_file_path)
+                                              patch_cfg_file=patch_cfg_file_path, udfs=get_udfs(config))
         return [yatest.common.canonical_file(res.opt_file, diff_tool=ASTDIFF_PATH)]
 
     if what == 'Lineage':
@@ -139,7 +139,7 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
 
         (res, tables_res) = run_file_no_cache('yt', suite, case, cfg, config, yql_http_file_server, yqlrun_binary=ytfilerun_binary,
                                               extra_args=['--lineage'], data_path=DATA_PATH, cfg_postprocess=cfg_postprocess, langver=langver, attr_postprocess=infer_yt_schema,
-                                              patch_cfg_file=patch_cfg_file_path)
+                                              patch_cfg_file=patch_cfg_file_path, udfs=get_udfs(config))
         return [yatest.common.canonical_file(res.results_file)]
 
     if what == 'PartialTypeCheck':
@@ -150,7 +150,7 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
             'yt', suite, case, cfg, config, yql_http_file_server, yqlrun_binary=ytfilerun_binary,
             extra_args=["--compile-only", "--test-partial-typecheck"],
             data_path=DATA_PATH, cfg_postprocess=cfg_postprocess, langver=langver,
-            attr_postprocess=infer_yt_schema, patch_cfg_file=patch_cfg_file_path,
+            attr_postprocess=infer_yt_schema, patch_cfg_file=patch_cfg_file_path, udfs=get_udfs(config),
         )
         return None
 
@@ -159,7 +159,7 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
         extra_final_args += ['--with-final-issues']
     (res, tables_res) = run_file('yt', suite, case, cfg, config, yql_http_file_server, yqlrun_binary=ytfilerun_binary,
                                  extra_args=extra_final_args, data_path=DATA_PATH, cfg_postprocess=cfg_postprocess, langver=langver, attr_postprocess=infer_yt_schema,
-                                 patch_cfg_file=patch_cfg_file_path)
+                                 patch_cfg_file=patch_cfg_file_path, udfs=get_udfs(config))
 
     to_canonize = []
 
@@ -204,6 +204,7 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
             udfs_dir=yql_binary_path('yql/essentials/tests/common/test_framework/udfs_deps'),
             langver=langver,
             patch_cfg_file=patch_cfg_file_path,
+            udfs=get_udfs(config),
         )
 
         opt_res, opt_tables_res = execute(
@@ -244,7 +245,7 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
 
         blocks_res, blocks_tables_res = run_file_no_cache('yt', suite, case, cfg, config, yql_http_file_server, yqlrun_binary=ytfilerun_binary,
                                                           force_blocks=True, data_path=DATA_PATH, cfg_postprocess=cfg_postprocess, langver=langver,
-                                                          attr_postprocess=infer_yt_schema, patch_cfg_file=patch_cfg_file_path)
+                                                          attr_postprocess=infer_yt_schema, patch_cfg_file=patch_cfg_file_path, udfs=get_udfs(config))
 
         check_result(sql_query, expected=(res, tables_res), actual=(blocks_res, blocks_tables_res))
         return None
@@ -253,7 +254,7 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
         yql_select_res, yql_select_tables_res = run_file_no_cache('yt', suite, case, cfg, config, yql_http_file_server, yqlrun_binary=ytfilerun_binary,
                                                                   force_blocks=True, data_path=DATA_PATH, cfg_postprocess=cfg_postprocess, langver=langver,
                                                                   attr_postprocess=infer_yt_schema, is_yql_select=True,
-                                                                  patch_cfg_file=patch_cfg_file_path)
+                                                                  patch_cfg_file=patch_cfg_file_path, udfs=get_udfs(config))
 
         check_result(sql_query, expected=(res, tables_res), actual=(yql_select_res, yql_select_tables_res))
         return None

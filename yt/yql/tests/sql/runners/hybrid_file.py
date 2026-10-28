@@ -1,6 +1,6 @@
 import pytest
 
-from yql_utils import is_xfail, yql_binary_path, pytest_get_current_part
+from yql_utils import is_xfail, yql_binary_path, pytest_get_current_part, get_udfs
 
 from test_utils import collect_argvalues_for_run, get_config
 from test_file_common import run_file, run_file_no_cache
@@ -61,6 +61,7 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
         cfg_postprocess=cfg_postprocess,
         langver=langver,
         patch_cfg_file=patch_cfg_file_path,
+        udfs=get_udfs(config),
     )
 
     if what == 'Results':
@@ -77,6 +78,7 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
                 cfg_postprocess=cfg_postprocess,
                 langver=langver,
                 patch_cfg_file=patch_cfg_file_path,
+                udfs=get_udfs(config),
             )
 
             compare_file_run_with_reference(
