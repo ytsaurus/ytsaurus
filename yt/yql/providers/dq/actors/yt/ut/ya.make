@@ -14,6 +14,8 @@ PEERDIR(
     yql/essentials/utils/log/proto
     yt/cpp/mapreduce/interface
     yt/yql/providers/dq/global_worker_manager
+    yt/yql/providers/dq/runtime
+    yt/yql/providers/dq/testlib
     yt/yt/client/unittests/mock
 )
 
@@ -21,6 +23,7 @@ SRCS(
     lock_ut.cpp
     node_id_allocator_ut.cpp
     nodeid_cleaner_ut.cpp
+    resource_downloader_ut.cpp
     yt_resource_manager_ut.cpp
     yt_wrapper_ut.cpp
 )

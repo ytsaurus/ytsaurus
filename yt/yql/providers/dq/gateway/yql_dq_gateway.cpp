@@ -395,6 +395,8 @@ public:
             }
         }
         queryPB.SetExecutionTimeout(executionTimeout);
+        queryPB.SetUploadPrefix(plan.UploadPrefix);
+        queryPB.SetUploadClusterAddress(plan.UploadClusterAddress);
         queryPB.SetSession(SessionId);
         queryPB.SetResultType(plan.ResultType);
         queryPB.SetSourceId(plan.SourceID.NodeId()-1);

@@ -759,7 +759,7 @@ namespace NYql::NDqs {
                         << " role=" << reqRole
                         << " responseEpoch=" << response.GetEpoch()
                         << " nodes=" << response.GetNodes().size()
-                        << " downloadList=" << response.GetDownloadList().size();
+                        << " downloadGroups=" << response.GetDownloadGroups().size();
                     auto* result = google::protobuf::Arena::CreateMessage<Yql::DqsProto::RegisterNodeResponse>(ctx->GetArena());
                     result->MergeFrom(response);
                     ctx->Reply(result, Ydb::StatusIds::SUCCESS);

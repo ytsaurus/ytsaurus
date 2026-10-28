@@ -120,11 +120,23 @@ void TFileCache::AddFile(const TString& path, const TString& objectId)
 
     {
         TGuard<TMutex> guard(Mutex);
+        auto existing = Files.find(objectId);
+        if (existing != Files.end() && existing->second.Position != LRU.end()) {
+            // Concurrent downloads from different sources share one cached object.
+            guard.Release();
+            if (path != newName) {
+                NFs::Remove(path);
+            }
+            return;
+        }
+
+        if (existing != Files.end()) {
+            file.UseCount = existing->second.UseCount;
+            UsedSize -= existing->second.Size;
+        }
+        UsedSize += file.Size;
         LRU.push_back(objectId);
         file.Position = --LRU.end();
-        if (!Files.contains(objectId)) {
-            UsedSize += file.Size;
-        }
         Files[objectId] = file;
     }
 

@@ -104,7 +104,7 @@ TCollectedFiles CollectFilesFromPlan(const NDqs::TPlan& plan) {
     return result;
 }
 
-// Remote GWM CheckFiles rejects client-side LocalPath; keep objectId/name only.
+// Remote GWM CheckFiles rejects client-side LocalPath.
 void ClearLocalPathsFromPlan(NDqs::TPlan& plan) {
     for (auto& task : plan.Tasks) {
         Yql::DqsProto::TTaskMeta taskMeta;
@@ -183,6 +183,8 @@ public:
         } catch (...) {
             return NThreading::MakeErrorFuture<TResult>(std::current_exception());
         }
+        plan.UploadPrefix = uploadOpts.UploadPrefix;
+        plan.UploadClusterAddress = uploadOpts.YtBackend.GetProxyAddress();
 
         if (collected.UdfFiles.empty() && collected.ExeFiles.empty()) {
             YQL_CLOG(DEBUG, ProviderDq) << "TDqGatewayWithUploader: no files to upload, forwarding ExecutePlan";

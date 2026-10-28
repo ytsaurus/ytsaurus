@@ -149,5 +149,28 @@ Y_UNIT_TEST(AddAfterRemoveAcquired) {
     UNIT_ASSERT(!fc.Contains("2"));
 }
 
+Y_UNIT_TEST(DuplicateDownloadPreservesCacheEntryAndAcquisition) {
+    NFs::RemoveRecursive("duplicate_download");
+    TFileCache fc("duplicate_download", 20);
+    fc.AddFile(GetFile(20), "shared");
+    const auto cached = fc.AcquireFile("shared");
+    UNIT_ASSERT(cached);
+    const auto duplicate = GetFile(20);
+    fc.AddFile(duplicate, "shared");
+    UNIT_ASSERT(!NFs::Exists(duplicate));
+    UNIT_ASSERT_VALUES_EQUAL(fc.UsedDiskSize(), 20);
+    TVector<TString> ids;
+    fc.Walk([&] (const TString& id) { ids.push_back(id); });
+    UNIT_ASSERT_VALUES_EQUAL(ids.size(), 1);
+    UNIT_ASSERT_VALUES_EQUAL(ids.front(), "shared");
+
+    fc.AddFile(GetFile(15), "second");
+    fc.AddFile(GetFile(15), "third");
+    UNIT_ASSERT(!fc.Contains("shared"));
+    UNIT_ASSERT_VALUES_EQUAL(fc.UsedDiskSize(), 50);
+    fc.ReleaseFile("shared");
+    UNIT_ASSERT_VALUES_EQUAL(fc.UsedDiskSize(), 30);
+}
+
 } // Y_UNIT_TEST_SUITE(TestFileCache) {
 
