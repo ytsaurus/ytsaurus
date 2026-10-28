@@ -533,7 +533,9 @@ class TestQueriesChyt(ClickHouseTestBase):
             wait(lambda: len([r for r in read_table(clique.query_log_table_path) if match(r)]) > 0)
             rows = [r for r in read_table(clique.query_log_table_path) if match(r)]
             print(rows)
-            assert all(row["type"] == "ExceptionWhileProcessing" for row in rows)
+            for row in rows:
+                assert row["type"] in ("ExceptionBeforeStart", "ExceptionWhileProcessing")
+                assert row["exception_code"] == 394
 
 
 class TestQueriesChytWithRowLimit(ClickHouseTestBase):
