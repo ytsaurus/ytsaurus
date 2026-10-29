@@ -1397,18 +1397,15 @@ private:
                             };
                         }
                     }
-                    return {
-                        .Location = nullptr,
-                        .LockedChunkGuard = TLockedChunkGuard(),
-                        .PendingModification = std::nullopt,
-                    };
+                    return {};
                 };
 
                 if (auto result = attempt(/*reclaim*/ false); result.Location) {
                     return result;
                 }
 
-                YT_TLOG_INFO("Failed to acquire chunk location; will try again after reclaiming space");
+                YT_TLOG_INFO("Failed to acquire chunk location; will try again after reclaiming space")
+                    .With("ChunkId", chunkId);
 
                 return attempt(/*reclaim*/ true);
             })
@@ -1422,16 +1419,11 @@ private:
                 return MakeFuture(TCacheLocationWithGuards{
                     .Location = location,
                     .LockedChunkGuard = std::move(guard),
-                    .PendingModification = std::nullopt,
                 });
             }
         }
 
-        return MakeFuture(TCacheLocationWithGuards{
-            .Location = nullptr,
-            .LockedChunkGuard = TLockedChunkGuard(),
-            .PendingModification = std::nullopt,
-        });
+        return MakeFuture(TCacheLocationWithGuards{});
     }
 
     static TChunkId GetOrCreateArtifactId(const TArtifactKey& key, bool canPrepareSingleChunk)
