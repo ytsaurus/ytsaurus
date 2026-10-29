@@ -1075,6 +1075,11 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(100)
         .DontSerializeDefault();
 
+    registrar.Parameter("max_lost_chunks_to_report_in_detailed_replication_statistics", &TThis::MaxLostChunksToReportInDetailedReplicationStatistics)
+        .Default(500)
+        .GreaterThan(0)
+        .DontSerializeDefault();
+
     registrar.Parameter("always_fetch_non_online_replicas", &TThis::AlwaysFetchNonOnlineReplicas)
         .Default(true)
         .DontSerializeDefault();
