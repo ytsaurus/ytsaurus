@@ -311,7 +311,7 @@ Dynamic spec (set the cache TTL via the `cache` section):
 
 `TStaticTableKeyVisitorJoiner` is an external state joiner over a **static** sorted table. It works only with the [key-visitor stream](../../../flow/concepts/key_visitor.md#static-table-joiner). Unlike `TSimpleExternalStateJoiner`, it doesn’t perform random reads. The background visitor scan reads the table sequentially using the same key ranges as the internal state, and the table row becomes available in `ProcessVisit` as a read-only state for the visit key. If a key isn’t in the table, it returns an empty state (`IsEmpty() == true`).
 
-You bind the joiner to a visit stream by listing its name in the `external_names` field of the `key_visitor_streams` section (see [static spec parameters](../../../flow/concepts/key_visitor.md#static-params)). You can bind one joiner to no more than one visit stream (the system checks this when you submit the spec). `join_on/key_schema_override` isn’t supported; the key is always the joiner’s own `group_by_schema`.
+You bind the joiner to a visit stream by listing its name in the `external_names` field (table keys take part in the scan) or the `weak_external_names` field (they don’t: a left join against the state’s own keys) of the `key_visitor_streams` section (see [static spec parameters](../../../flow/concepts/key_visitor.md#static-params)). You can bind one joiner to no more than one visit stream (the system checks this when you submit the spec). `join_on/key_schema_override` isn’t supported; the key is always the joiner’s own `group_by_schema`.
 
 Requirements for the source table:
 

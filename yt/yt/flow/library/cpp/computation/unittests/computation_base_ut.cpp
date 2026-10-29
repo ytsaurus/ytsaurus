@@ -32,6 +32,13 @@ TKeyVisitorStreamSpecPtr MakeStream(std::optional<THashSet<std::string>> externa
     return spec;
 }
 
+TKeyVisitorStreamSpecPtr MakeWeakStream(THashSet<std::string> weakExternalNames)
+{
+    auto spec = New<TKeyVisitorStreamSpec>();
+    spec->WeakExternalNames = std::move(weakExternalNames);
+    return spec;
+}
+
 TExternalStateJoinerSpecPtr MakeJoiner(TStringBuf className)
 {
     auto spec = New<TExternalStateJoinerSpec>();
@@ -126,6 +133,26 @@ TEST(TKeyVisitorJoinerBindingsTest, IgnoresScanAllStreams)
         },
         {{"joiner", MakeJoiner(VisitorDrivenClass)}});
     EXPECT_NO_THROW(ValidateKeyVisitorJoinerBindings(*spec));
+}
+
+TEST(TKeyVisitorJoinerBindingsTest, AcceptsWeakJoinerInSingleStream)
+{
+    auto spec = MakeSpec(
+        {{TStreamId("s1"), MakeWeakStream({"joiner"})}},
+        {{"joiner", MakeJoiner(VisitorDrivenClass)}});
+    EXPECT_NO_THROW(ValidateKeyVisitorJoinerBindings(*spec));
+}
+
+// A weak binding holds the joiner's single sweep cursor just like a key-contributing one.
+TEST(TKeyVisitorJoinerBindingsTest, RejectsWeakAndStrongBindingsOfOneJoinerInTwoStreams)
+{
+    auto spec = MakeSpec(
+        {
+            {TStreamId("s1"), MakeStream(THashSet<std::string>{"joiner"})},
+            {TStreamId("s2"), MakeWeakStream({"joiner"})},
+        },
+        {{"joiner", MakeJoiner(VisitorDrivenClass)}});
+    EXPECT_THROW(ValidateKeyVisitorJoinerBindings(*spec), std::exception);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

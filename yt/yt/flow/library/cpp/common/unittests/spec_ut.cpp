@@ -608,6 +608,21 @@ struct TReadingExternalStateJoiner
 
 YT_FLOW_DEFINE_EXTERNAL_STATE_JOINER(TReadingExternalStateJoiner);
 
+struct TVisitorDrivenReadingExternalStateJoiner
+    : public TReadingExternalStateJoiner
+{
+    static constexpr bool VisitorDriven = true;
+
+    using TReadingExternalStateJoiner::TReadingExternalStateJoiner;
+
+    bool IsVisitorDriven() const override
+    {
+        return true;
+    }
+};
+
+YT_FLOW_DEFINE_EXTERNAL_STATE_JOINER(TVisitorDrivenReadingExternalStateJoiner);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -2774,6 +2789,77 @@ TEST(TSpecTest, KeyVisitorStreamSweepingOverrideJoinerRejected)
     EXPECT_THROW_WITH_SUBSTRING(
         { ValidatePipelineSpec(spec); },
         "would feed it group-by keys");
+}
+
+TPipelineSpecPtr MakeWeakJoinerSpec(TStringBuf visitStreamBody, TStringBuf joinerClass)
+{
+    auto specYson = Format(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [
+                        {name = hash; expression = "farm_hash(key)"; type = uint64; required = %%true; sort_order = ascending};
+                        {name = key; type = string; sort_order = ascending};
+                    ];
+                    source_streams = {};
+                    key_visitor_streams = {visit_iter = {%v}};
+                    external_state_joiners = {
+                        "/j" = {
+                            external_state_joiner_class_name = "%v";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                        };
+                    };
+                };
+            };
+        }
+    )"""",
+        visitStreamBody,
+        joinerClass);
+    return ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+}
+
+TEST(TSpecTest, KeyVisitorWeakExternalNamesAcceptVisitorDrivenJoiner)
+{
+    auto spec = MakeWeakJoinerSpec(
+        R"(names = ["/state"]; weak_external_names = ["/j"])",
+        "NYT::NFlow::TVisitorDrivenReadingExternalStateJoiner");
+    ValidatePipelineSpec(spec);
+    const auto& computationSpec = GetOrCrash(spec->Computations, TComputationId("c"));
+    const auto& streamSpec = GetOrCrash(computationSpec->KeyVisitorStreams, TStreamId("visit_iter"));
+    ASSERT_TRUE(streamSpec->WeakExternalNames);
+    EXPECT_TRUE(streamSpec->WeakExternalNames->contains("/j"));
+}
+
+// A lookup joiner is fed per visit and has nothing to list in step with the sweep.
+TEST(TSpecTest, KeyVisitorWeakExternalNamesRejectLookupJoiner)
+{
+    auto spec = MakeWeakJoinerSpec(
+        R"(names = ["/state"]; weak_external_names = ["/j"])",
+        "NYT::NFlow::TReadingExternalStateJoiner");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "not a registered visitor-driven joiner class");
+}
+
+TEST(TSpecTest, KeyVisitorWeakExternalNamesRejectUnknownJoiner)
+{
+    auto spec = MakeWeakJoinerSpec(
+        R"(names = ["/state"]; weak_external_names = ["/missing"])",
+        "NYT::NFlow::TVisitorDrivenReadingExternalStateJoiner");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "references unknown external state joiner");
+}
+
+TEST(TSpecTest, KeyVisitorWeakExternalNamesRejectJoinerListedAsStrongToo)
+{
+    auto spec = MakeWeakJoinerSpec(
+        R"(external_names = ["/j"]; weak_external_names = ["/j"])",
+        "NYT::NFlow::TVisitorDrivenReadingExternalStateJoiner");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "both external_names and weak_external_names");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,6 +16,7 @@
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <deque>
+#include <unordered_map>
 
 namespace NYT::NFlow {
 
@@ -102,6 +103,10 @@ public:
 
     TFuture<TListResult> List(TFilter filter, i64 limit, std::optional<TKey> offsetExclusive) final;
 
+    //! A listed row stays cached until a visit consumes it. Swept as a weak source, the joiner
+    //! lists keys the visitor does not visit, so their rows are dropped here instead.
+    void RetainListed(const TKeyRange& range, const std::set<TKey>& visitKeys) final;
+
 protected:
     //! Result of one sequential range read: row i is Keys[i] with payload Payloads[i], both
     //! described by StateSchema.
@@ -112,22 +117,25 @@ protected:
         std::vector<TPayload> Payloads;
     };
 
-    //! Sequential read of ``[filter.LowerKey, filter.UpperKey)`` returning key and payload
-    //! columns in key order, stopping after |limit| rows. Overridable so tests can script
-    //! the read without a real YT client.
-    virtual TFuture<TListedStates> DoListStates(TFilter filter, i64 limit);
-
     struct TListedRow
     {
         TPayload Payload;
         TStateSchemaPtr Schema;
     };
 
+    //! Node-based so that #RetainListed can take whole entries out and free them past #Lock_.
+    using TListedRows = std::unordered_map<TKey, TListedRow, THash<TKey>>;
+
     YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
-    THashMap<TKey, TListedRow> Listed_;
+    TListedRows Listed_;
     THashMap<TKey, TStateHolderPtr> States_;
     std::vector<TKeyRange> ListedRanges_;
+
+    //! Sequential read of ``[filter.LowerKey, filter.UpperKey)`` returning key and payload
+    //! columns in key order, stopping after |limit| rows. Overridable so tests can script
+    //! the read without a real YT client.
+    virtual TFuture<TListedStates> DoListStates(TFilter filter, i64 limit);
 
 private:
     const EUnavailableSourcePolicy UnavailableSourcePolicy_;

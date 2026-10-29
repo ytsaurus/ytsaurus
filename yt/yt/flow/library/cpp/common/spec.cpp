@@ -262,6 +262,8 @@ void TKeyVisitorStreamSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("external_names", &TThis::ExternalNames)
         .Default();
+    registrar.Parameter("weak_external_names", &TThis::WeakExternalNames)
+        .Default();
     registrar.Parameter("upstream_streams", &TThis::UpstreamStreams)
         .Default();
     registrar.Parameter("bucket_count", &TThis::BucketCount)
@@ -1925,6 +1927,43 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
                                 THROW_ERROR_EXCEPTION(
                                     "key_visitor_streams[%Qv].external_names references "
                                     "unknown external state manager or joiner %Qv",
+                                    streamId,
+                                    name);
+                            }
+                        }
+                    }
+                    if (streamSpec->WeakExternalNames) {
+                        for (const auto& name : *streamSpec->WeakExternalNames) {
+                            try {
+                                ValidateStateName(name);
+                            } catch (const std::exception& ex) {
+                                THROW_ERROR_EXCEPTION(ex)
+                                    .With("key_visitor_stream", streamId);
+                            }
+                            auto joinerIt = computationSpec->ExternalStateJoiners.find(name);
+                            if (joinerIt == computationSpec->ExternalStateJoiners.end()) {
+                                THROW_ERROR_EXCEPTION(
+                                    "key_visitor_streams[%Qv].weak_external_names references "
+                                    "unknown external state joiner %Qv",
+                                    streamId,
+                                    name);
+                            }
+                            // Only a sequential (visitor-driven) joiner is read in step with the
+                            // sweep; a lookup joiner is fed per visit and has nothing to list.
+                            const auto& className = joinerIt->second->ExternalStateJoinerClassName;
+                            if (!TRegistry::Get()->IsExternalStateJoinerVisitorDriven(className)) {
+                                THROW_ERROR_EXCEPTION(
+                                    "key_visitor_streams[%Qv].weak_external_names references "
+                                    "joiner %Qv of class %Qv, which is not a registered "
+                                    "visitor-driven joiner class",
+                                    streamId,
+                                    name,
+                                    className);
+                            }
+                            if (streamSpec->ExternalNames && streamSpec->ExternalNames->contains(name)) {
+                                THROW_ERROR_EXCEPTION(
+                                    "key_visitor_streams[%Qv] lists joiner %Qv in both "
+                                    "external_names and weak_external_names",
                                     streamId,
                                     name);
                             }

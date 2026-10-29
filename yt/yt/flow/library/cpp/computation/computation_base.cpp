@@ -2095,6 +2095,29 @@ ISinkPtr TUniversalComputationBase::GetSink(const TSinkId& sinkId) const
     return GetOrCrash(Sinks_, sinkId);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> GetSweptJoinerNames(const TKeyVisitorStreamSpec& streamSpec)
+{
+    std::vector<std::string> names;
+    for (const auto* list : {&streamSpec.ExternalNames, &streamSpec.WeakExternalNames}) {
+        if (*list) {
+            names.insert(names.end(), (*list)->begin(), (*list)->end());
+        }
+    }
+    return names;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 THashMap<std::string, THashSet<TKey>> TUniversalComputationBase::CollectVisitorDrivenJoinerKeys(
     const IInputContextPtr& inputContext) const
 {
@@ -2104,10 +2127,7 @@ THashMap<std::string, THashSet<TKey>> TUniversalComputationBase::CollectVisitorD
     const auto& joiners = StateManager_->GetExternalStateJoiners();
     THashMap<TStreamId, std::vector<std::string>> boundJoinersByStream;
     for (const auto& [streamId, streamSpec] : GetSpec()->KeyVisitorStreams) {
-        if (!streamSpec->ExternalNames) {
-            continue;
-        }
-        for (const auto& name : *streamSpec->ExternalNames) {
+        for (const auto& name : GetSweptJoinerNames(*streamSpec)) {
             auto it = joiners.find(name);
             if (it != joiners.end() && it->second->IsVisitorDriven()) {
                 boundJoinersByStream[streamId].push_back(name);
@@ -2134,10 +2154,7 @@ bool TUniversalComputationBase::ComputeHasVisitorDrivenJoiners() const
 {
     const auto& joiners = StateManager_->GetExternalStateJoiners();
     for (const auto& [streamId, streamSpec] : GetSpec()->KeyVisitorStreams) {
-        if (!streamSpec->ExternalNames) {
-            continue;
-        }
-        for (const auto& name : *streamSpec->ExternalNames) {
+        for (const auto& name : GetSweptJoinerNames(*streamSpec)) {
             auto it = joiners.find(name);
             if (it != joiners.end() && it->second->IsVisitorDriven()) {
                 return true;
@@ -2151,10 +2168,7 @@ void ValidateKeyVisitorJoinerBindings(const TComputationSpec& spec)
 {
     THashMap<std::string, TStreamId> bindingStream;
     for (const auto& [streamId, streamSpec] : spec.KeyVisitorStreams) {
-        if (!streamSpec->ExternalNames) {
-            continue;
-        }
-        for (const auto& name : *streamSpec->ExternalNames) {
+        for (const auto& name : GetSweptJoinerNames(*streamSpec)) {
             auto it = spec.ExternalStateJoiners.find(name);
             if (it == spec.ExternalStateJoiners.end()) {
                 continue;
