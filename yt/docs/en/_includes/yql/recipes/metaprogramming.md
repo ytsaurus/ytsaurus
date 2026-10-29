@@ -35,9 +35,9 @@ Links to documentation:
 * [FILTER](../../../yql/syntax/select/index.md)
 
 ### Processing tables with a cached sliding window
-Imagine that every day you need to calculate some aggregate of values for the previous week (like in the previous example). By their very nature, most log tables don't change beginning from the night of the next day. Hence, nearly 6/7 of computing resources every day are wasted to repeat calculations from the previous day. YQL offers a mechanism for [automatic caching of intermediate computing results](../../../yql/syntax/pragma/yt#querycachemode). However, as it wholly runs at the MapReduce level, the previous query would have zero cache hit: every day will produce a different set  of input tables for the first Map operation (and this set is used to calculate a key in the cache).
+Imagine that every day you need to calculate some aggregate of values for the previous week (like in the previous example). By their very nature, most log tables don't change beginning from the night of the next day. Hence, nearly 6/7 of computing resources every day are wasted to repeat calculations from the previous day. YQL offers a mechanism for [automatic caching of intermediate computing results](../../../yql/syntax/pragma/yt.md#querycachemode). However, as it wholly runs at the MapReduce level, the previous query would have zero cache hit: every day will produce a different set  of input tables for the first Map operation (and this set is used to calculate a key in the cache).
 
-To give the automatic caching mechanism a chance to succeed (or even guarantee success, if you override [PRAGMA yt.TmpFolder](../../../yql/syntax/pragma/yt#tmpfolder) to your custom directory/quota instead of `//tmp`), you need to calculate an aggregate for each day separately and then combine the aggregates into a single resulting value (fortunately, most aggregate functions support this).
+To give the automatic caching mechanism a chance to succeed (or even guarantee success, if you override [PRAGMA yt.TmpFolder](../../../yql/syntax/pragma/yt.md#tmpfolder) to your custom directory/quota instead of `//tmp`), you need to calculate an aggregate for each day separately and then combine the aggregates into a single resulting value (fortunately, most aggregate functions support this).
 
 ```yql
 USE {{production-cluster}};

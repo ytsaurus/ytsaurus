@@ -32,7 +32,7 @@ revision_client.move("//tmp/transformed_table", "//tmp/my_table")
 
 ## Data source for reading { #data-source }
 
-In [non-mutating](../../api/commands.md#concepts) queries to [Cypress](../../user-guide/storage/cypress.md), you can specify a data source for reading, using the `read_from`  parameter.
+In [non-mutating](../../api/commands.md#structure) queries to [Cypress](../../user-guide/storage/cypress.md), you can specify a data source for reading, using the `read_from`  parameter.
 
 
 

@@ -127,7 +127,7 @@ https://www.youtube.com/live/XPth7B-rivg?t=4853s
 - **Speaker:** Maxim Babenko
 - **Language:** English
 
-### 2019: Year-long Map-Reduce operation
+### 2019: Year-long Map-Reduce operation { #2019-year-long-map-reduce-operation }
 - **Event:** HighLoad++ 2019
 - **Materials:** [YouTube](https://www.youtube.com/watch?v=l9AEVamDuWA), [Habr](https://habr.com/ru/company/yandex/blog/530304/), [slides](https://drive.google.com/file/d/133yc42WDUB2Vs6dyWsUyQ8YfWy2RYuxi/view)
 - **Speaker:** Maxim Akhmedov

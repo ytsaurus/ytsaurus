@@ -2,7 +2,7 @@
 
 This section describes ways of sharding dynamic tables. A description of the automatic sharding algorithm is given.
 
-Dynamic tables are divided into [tablets](../../../user-guide/dynamic-tables/overview.md#tablets) (shards), which are the unit of concurrency.
+Dynamic tables are divided into [tablets](../../../user-guide/dynamic-tables/concepts.md#tablets) (shards), which are the unit of concurrency.
 
 #### Sorted tables
 
@@ -19,7 +19,7 @@ Each tablet of an [ordered table](../../../user-guide/dynamic-tables/ordered-dyn
 #### Replicated tables
 Physically, each tablet of a [replicated table](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md) is a queue and stores the replication log. Despite this, the sharding logic is the same as for regular tables.
 - Each tablet of a sorted replicated table is responsible for a particular key range and stores the replication log of keys from that range.
-- Each tablet of an ordered replicated table is an independent queue. For the tablets of a replicated table and the replicas to match, use the [preserve_tablet_index](../../../user-guide/dynamic-tables/replicated-dynamic-tables#sohranenie-indeksa-tableta-pri-replikacii-uporyadochennoj-tablicy) attribute.
+- Each tablet of an ordered replicated table is an independent queue. For the tablets of a replicated table and the replicas to match, use the [preserve_tablet_index](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md#preserve_tablet_index) attribute.
 
 The sharding of a sorted replicated table doesn't have to match the sharding of replicas. Different replicas of the same table can also be sharded in different ways.
 

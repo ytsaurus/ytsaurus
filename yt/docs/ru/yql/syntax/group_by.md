@@ -133,7 +133,7 @@ GROUP BY user, SessionWindow(ts, $init, $update, $calculate) AS session_start
 
 `SessionWindow` может использоваться в `GROUP BY` только один раз.
 
-## ROLLUP, CUBE и GROUPING SETS {#rollup}
+## ROLLUP, CUBE и GROUPING SETS {#rollup} {#rollup-cube-group-sets}
 
 Результаты вычисления агрегатной функции в виде промежуточных итогов для групп и общих итогов для отдельных столбцов или всей таблицы.
 
@@ -326,7 +326,7 @@ GROUP BY
 
   ## HAVING {#having}
 
-Фильтрация выборки `SELECT STREAM` по результатам вычисления [агрегатных функций](../builtins/aggregation.md). Синтаксис аналогичен [WHERE](select/index.md#select_stream_where).
+Фильтрация выборки `SELECT STREAM` по результатам вычисления [агрегатных функций](../builtins/aggregation.md). Синтаксис аналогичен [WHERE](select/where.md).
 
 ### Примеры
 

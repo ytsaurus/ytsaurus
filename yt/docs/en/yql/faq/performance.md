@@ -27,7 +27,7 @@ A plan can change for several reasons:
 
 ### Does the query use a pool with dedicated guarantees?
 
-The query must specify the [yt.StaticPool](../syntax/pragma/yt.md#ytstaticpool) pragma to apply the pool. If the pragma is missing, the query execution time isn't guaranteed in any way. Neighboring queries and seasonal cluster load fluctuations can affect execution. You should also make sure that the pool is set by the [yt.StaticPool](../syntax/pragma/yt.md#ytstaticpool) pragma, not [yt.Pool](../syntax/pragma/yt.md#ytpool). The latter is a dynamic pragma applied at runtime. Because of this, service operations launched at the optimization stage don't use its value and are launched in the pool by default, which may result in their significant slowdown. The [yt.StaticPool](../syntax/pragma/yt.md#ytstaticpool) pragma applies to all operations, including service ones.
+The query must specify the [yt.StaticPool](../syntax/pragma/yt.md#static-pool) pragma to apply the pool. If the pragma is missing, the query execution time isn't guaranteed in any way. Neighboring queries and seasonal cluster load fluctuations can affect execution. You should also make sure that the pool is set by the [yt.StaticPool](../syntax/pragma/yt.md#static-pool) pragma, not [yt.Pool](../syntax/pragma/yt.md#ytpool). The latter is a dynamic pragma applied at runtime. Because of this, service operations launched at the optimization stage don't use its value and are launched in the pool by default, which may result in their significant slowdown. The [yt.StaticPool](../syntax/pragma/yt.md#static-pool) pragma applies to all operations, including service ones.
 
 ### Checking summary statistics for a query
 

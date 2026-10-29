@@ -3134,7 +3134,7 @@ OUTPUT {
 | `pool_tree`                  | `string`          | Название [дерева пулов](../../user-guide/data-processing/scheduler/scheduler-and-pools.md), в котором был запущен джоб. |
 | `progress`                   | `float in [0,1]`  | Оценка доли работы, выполненной джобом к текущему моменту. |
 | `stderr_size`                | `int`             | Размер сохранённого stderr джоба (сам stderr можно получить с помощью команды [`get_job_stderr`](#get_job_stderr)). |
-| `fail_context_size`          | `int`             | Размер сохранённого fail_context джоба (сам fail_context можно получить с помощью команды [`get_fail_context`](#get_fail_context)). |
+| `fail_context_size`          | `int`             | Размер сохранённого fail_context джоба (сам fail_context можно получить с помощью команды [`get_fail_context`](#get_job_fail_context)). |
 | `error`                      | `map`             | Ошибка, с которой завершился джоб. |
 | `statistics`                 | `map`             | Статистики джоба. |
 | `brief_statistics`           | `map`             | Краткие статистики джоба. |

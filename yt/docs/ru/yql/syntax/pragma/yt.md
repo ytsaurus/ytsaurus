@@ -121,7 +121,7 @@ PRAGMA yt.Annotations = '{
 
 `yt.PublishedAutoMerge` действует только для merge внутри YtPublish узла (если он там запускается). `yt.AutoMerge` задаёт значение этой настройки одновременно для всех {{product-name}} операций запроса.
 
-## yt.BatchListFolderConcurrency {#batch-list-folder-concurrency}
+## yt.BatchListFolderConcurrency {#batch-list-folder-concurrency} {#ytbatchlistfolderconcurrency}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -169,7 +169,7 @@ PRAGMA yt.Annotations = '{
 
 Задаёт размер буфера памяти для выполнения CombineCore узла.
 
-## yt.CommonJoinCoreLimit {#common-join-core-limit}
+## yt.CommonJoinCoreLimit {#common-join-core-limit} {#ytcommonjoincorelimit}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -358,7 +358,7 @@ SELECT 1 + 2;
 
 Отключает заданные оптимизаторы.
 
-## yt.DockerImage {#docker-image}
+## yt.DockerImage {#docker-image} {#ytdockerimage}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -384,7 +384,7 @@ SELECT 1 + 2;
 
 Множитель для оценки потребления процессора для обработки таблиц, пожатых erasure кодеком. Влияет на разбиение MapReduce-операций на джобы.
 
-## yt.EvaluationTableSizeLimit {#evaluation-table-size-limit}
+## yt.EvaluationTableSizeLimit {#evaluation-table-size-limit} {#ytevaluationtablesizelimit}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -490,7 +490,7 @@ PRAGMA yt.ExternalTx = 'a3d149bd-674dfa1-fa68f314-2c22562';   -- ID транза
 
 Включает гибридное исполнение запросов через DQ
 
-## yt.IgnoreTypeV3 {#ignore-type-v}
+## yt.IgnoreTypeV3 {#ignore-type-v} {#ignoretypev3}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -516,7 +516,7 @@ PRAGMA yt.ExternalTx = 'a3d149bd-674dfa1-fa68f314-2c22562';   -- ID транза
 
 Игнорировать `_format=yamred_dsv`, если он указан в метаданных входной таблицы.
 
-## yt.InferSchema / yt.ForceInferSchema {#infer-schema}
+## yt.InferSchema / yt.ForceInferSchema {#infer-schema} {#inferschema}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -662,7 +662,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Управляет режимом запроса поколоночных статистик для точной оценки входов JOIN-ов от {{product-name}}. Режим from_nodes обеспечивает точную оценку, но может не укладываться в таймауты для больших таблиц. Режим from_master работает очень быстро, но дает огрубленную статистику. Режим fallback работает как комбинация предыдущих двух.
 
-## yt.JoinMergeForce {#join-merge-force}
+## yt.JoinMergeForce {#join-merge-force} {#ytjoinmergeforce}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -678,7 +678,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Максимально допустимый размер Reduce джобы при выборе маленькой таблицы в качестве primary при Ordered JOIN стратегии. Если получившийся размер превышает указанное значение, то операция Reduce повторяется с большей таблицей в качестве primary.
 
-## yt.JoinMergeTablesLimit {#join-merge-tables-limit}
+## yt.JoinMergeTablesLimit {#join-merge-tables-limit} {#ytjoinmergetableslimit}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -688,7 +688,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Указав в значении 0 можно совсем отключить данную стратегию.
 
-## yt.JoinMergeUnsortedFactor {#join-merge-unsorted-factor}
+## yt.JoinMergeUnsortedFactor {#join-merge-unsorted-factor} {#ytjoinmergeunsortedfactor}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -696,7 +696,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Минимальное соотношение размера несортированной стороны JOIN к сортированной для её дополнительной сортировки и выбора Ordered стратегии JOIN.
 
-## yt.JoinMergeUseSmallAsPrimary {#join-merge-use-small-as-primary}
+## yt.JoinMergeUseSmallAsPrimary {#join-merge-use-small-as-primary} {#ytjoinmergeusesmallasprimary}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -704,7 +704,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Явное управление выбором primary таблицы в операции Reduce при Ordered JOIN стратегии. Если установлен в true, то в качестве primary таблички всегда будет выбираться меньшая сторона. Если значение флага равно false, то будет выбираться большая сторона за исключением случая уникальных ключей на большей стороне. Выбор большей таблицы в качестве primary безопасен даже при наличии в ней ключей-монстров, но работает медленнее. Если данная прагма не установлена, то выбор primary происходит автоматически исходя из максимального размера получающихся джобов (см. yt.JoinMergeReduceJobMaxSize).
 
-## yt.LayerPaths {#layer-paths}
+## yt.LayerPaths {#layer-paths} {#ytlayerpaths}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -728,7 +728,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Задаёт размер памяти на каждый узел графа вычислений, необходимый при компиляции LLVM-кода в джобах
 
-## yt.LookupJoinLimit {#lookup-join-limit}
+## yt.LookupJoinLimit {#lookup-join-limit} {#ytlookupjoinlimit}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -736,7 +736,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Таблица может быть использована в качестве словаря в Lookup JOIN стратегии, если её размер не превышает минимума из `yt.LookupJoinLimit` и `yt.EvaluationTableSizeLimit`.
 
-## yt.LookupJoinMaxRows {#lookup-join-max-rows}
+## yt.LookupJoinMaxRows {#lookup-join-max-rows} {#ytlookupjoinmaxrows}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -744,7 +744,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Максимальное число строк в таблице, при котором она может выступать в качестве словаря в Lookup JOIN стратегии.
 
-## yt.MapJoinLimit {#map-join-limit}
+## yt.MapJoinLimit {#map-join-limit} {#ytmapjoinlimit}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -754,7 +754,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Указав в значении 0 можно совсем отключить данную стратегию.
 
-## yt.MapJoinShardCount {#map-join-shard-count}
+## yt.MapJoinShardCount {#map-join-shard-count} {#ytmapjoinshardcount}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -762,7 +762,7 @@ PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
 
 Map-side стратегия JOIN может выполняться в шардированном варианте: меньшая сторона разбивается на N шардов (где N — меньше или равно значению данной PRAGMA), каждый из которых независимо и параллельно объединяется с большей стороной, а затем результатом JOIN считается конкатенация JOIN с шардами.
 
-## yt.MapJoinShardMinRows {#map-join-shard-min-rows}
+## yt.MapJoinShardMinRows {#map-join-shard-min-rows} {#ytmapjoinshardminrows}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |
@@ -1061,7 +1061,7 @@ PRAGMA yt.Owners = 'ivanov petrov';    -- логины пользователе�
 
 Задаёт максимальное число одновременно запускаемых {{product-name}}-операций в пределах запроса.
 
-## yt.Pool {#pool}
+## yt.Pool {#pool} {#ytpool}
 
 Используется для переопределения вычислительного пула, который по умолчанию является логином текущего пользователя или был задан прагмой `yt.StaticPool`.
 
@@ -1210,7 +1210,7 @@ PRAGMA yt.QueryCacheIgnoreTableRevision = 'true';
 
 {% endnote %}
 
-## yt.QueryCacheMode {#query-cache-mode}
+## yt.QueryCacheMode {#query-cache-mode} {#yt.querycachemode} {#querycachemode}
 
 Прагма управляет кешированием результатов MapReduce-операций в {{product-name}}.
 
@@ -1621,7 +1621,7 @@ PRAGMA yt.StaticPool = '<pool_1>';
 
 Имеет эффект только при наличии прагмы `yt.TentativePoolTrees`. Задаёт количество джобов в семпле.{% if audience == "internal" %} Подробнее в [документации]({{yql.pages.syntax.pragma.pooltrees}}).{% endif %}
 
-## yt.TmpFolder {#tmp-folder}
+## yt.TmpFolder {#tmp-folder} {#yt.tmpfolder} {#tmpfolder}
 
 Используется для указания директории хранения временных таблиц и файлов. Подробнее читайте в разделе [Временные данные](../../faq/temp.md).
 
@@ -1681,7 +1681,7 @@ PRAGMA yt.TmpFolder = '//tmp/yql/ivanov/folder';
 
 Задаёт значение опции `use_default_tentative_pool_trees` в спецификации операции.
 
-## yt.UseNativeYtTypes {#use-native-yt-types}
+## yt.UseNativeYtTypes {#use-native-yt-types} {#yt-usenativeyttypes}
 
 | Возможные значения | Значение по умолчанию | Вид |
 | --- | --- | --- |

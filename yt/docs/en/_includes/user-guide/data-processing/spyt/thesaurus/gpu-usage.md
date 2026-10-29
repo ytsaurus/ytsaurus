@@ -1,6 +1,6 @@
 # GPU usage
 
-In task execution, some computations can be performed on GPU devices. You can read about GPU resource scheduling in {{product-name}} [here](../../../../../user-guide/data-processing/overview#podderzhka-gpu).
+In task execution, some computations can be performed on GPU devices. You can read about GPU resource scheduling in {{product-name}} [here](../../../../../user-guide/data-processing/overview.md#gpu-support).
 
 GPU-based task execution relies on the [RAPIDS Accelerator](https://docs.nvidia.com/spark-rapids/user-guide/23.08/getting-started/on-premise.html) plugin. It takes some of the operations for which conversions are described and transfers them to the GPU. The main parameters are described in the plugin documentation.
 
@@ -37,7 +37,7 @@ python python-examples/gpu_example/main.py <cluster-name> gpu_pool gpu_tree
 
 ### Starting a cluster
 
-At [cluster startup](../../../../../user-guide/data-processing/spyt/launch#standalone), each worker will be allocated an integer number of GPUs specified in the `--worker-gpu-limit` option:
+At [cluster startup](../../../../../user-guide/data-processing/spyt/launch.md#standalone), each worker will be allocated an integer number of GPUs specified in the `--worker-gpu-limit` option:
 
 ```
 spark-launch-yt ... --pool gpu_pool --params '{operation_spec={pool_trees=[gpu_tree]}}' --worker-gpu-limit 2

@@ -3,7 +3,7 @@
 Thanks to multiple outside contributors for the active participation in {{product-name}} development.
 
 
-## {{product-name}} Server
+## {{product-name}} Server {#server} {#ytsaurus-server} {#yt-server}
 
 {% include notitle [YT server](../_includes/releases/yt-server.md) %}
 
@@ -15,7 +15,7 @@ Thanks to multiple outside contributors for the active participation in {{produc
 
 {% include notitle [Strawberry](../_includes/releases/strawberry.md) %}
 
-## CHYT
+## CHYT {#chyt} {#chyt-releases}
 
 {% include notitle [CHYT](../_includes/releases/chyt.md) %}
 

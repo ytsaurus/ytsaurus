@@ -128,14 +128,14 @@ with spark_session() as spark:
 
    Для каждой партиции:
    - Если lowerIndex < upperIndex:
-     - Выполняется метод [advanceConsumer](../../../../../user-guide/dynamic-tables/queues.md#rabota-s-konsyumerom) для фиксации оффсетов батча `#N-1` в консьюмере.
+     - Выполняется метод [advanceConsumer](../../../../../user-guide/dynamic-tables/queues.md#work-consumer) для фиксации оффсетов батча `#N-1` в консьюмере.
      - Формирует таски для экзекьюторов.
    - Иначе: пропускает обработку (пустой батч).
 
 3. **Исполнение на экзекьюторах**
 
    Каждый экзекьютор для своей партиции:
-   - Читает данные, используя метод [pullConsumer](../../../../../user-guide/dynamic-tables/queues.md#chtenie-dannyh).
+   - Читает данные, используя метод [pullConsumer](../../../../../user-guide/dynamic-tables/queues.md#reading-data).
    - Применяет трансформации (если есть).
    - Пишет данные в выходную таблицу.
 

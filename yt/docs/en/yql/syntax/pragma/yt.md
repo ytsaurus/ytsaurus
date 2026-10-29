@@ -107,7 +107,7 @@ Manage the {{product-name}} setting [with the same name]({{yt-docs-root}}/user-g
 
 `yt.PublishedAutoMerge` applies only to merge inside a YtPublish node (if it runs there). `yt.AutoMerge` sets this setting’s value simultaneously for all {{product-name}} operations in the query.
 
-## yt.BatchListFolderConcurrency {#batch-list-folder-concurrency}
+## yt.BatchListFolderConcurrency {#batch-list-folder-concurrency} {#ytbatchlistfolderconcurrency}
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
@@ -155,7 +155,7 @@ Set the mode for computing column groups for the query’s intermediate tables. 
 
 Set the memory buffer size for running a CombineCore node.
 
-## yt.CommonJoinCoreLimit {#common-join-core-limit}
+## yt.CommonJoinCoreLimit {#common-join-core-limit} {#ytcommonjoincorelimit}
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
@@ -301,7 +301,7 @@ Use this to prevent the {{product-name}} Scheduler from adaptively splitting lon
 
 This disables the specified optimizers.
 
-## yt.DockerImage {#docker-image}
+## yt.DockerImage {#docker-image} {#ytdockerimage}
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
@@ -327,7 +327,7 @@ Forced transformation is applied to input tables if they're used to write to out
 
 This is a multiplier for estimating CPU consumption when processing tables compressed with an erasure codec. It affects how MapReduce operations are split into jobs.
 
-## yt.EvaluationTableSizeLimit {#evaluation-table-size-limit}
+## yt.EvaluationTableSizeLimit {#evaluation-table-size-limit} {#ytevaluationtablesizelimit}
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
@@ -421,7 +421,7 @@ This sets the `"force_job_size_adjuster"` option in the operation settings.
 
 This enables hybrid query execution via DQ.
 
-## yt.IgnoreTypeV3 {#ignore-type-v}
+## yt.IgnoreTypeV3 {#ignore-type-v} {#ignoretypev3}
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
@@ -447,7 +447,7 @@ Together with `yt.InferSchema`, this lets you infer the schema from the data for
 
 This ignores `_format=yamred_dsv` if it’s specified in the input table’s metadata.
 
-## yt.InferSchema / yt.ForceInferSchema {#infer-schema}
+## yt.InferSchema / yt.ForceInferSchema {#infer-schema} {#inferschema}
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
@@ -593,7 +593,7 @@ This controls the use of column-wise statistics for accurate estimation of JOIN 
 
 This controls the mode for requesting column-wise statistics for accurate estimation of JOIN inputs from {{product-name}}. The from_nodes mode provides an accurate estimate but may not meet timeouts for large tables. The from_master mode works very fast but gives coarse statistics. The fallback mode works as a combination of the previous two.
 
-## yt.JoinMergeForce {#join-merge-force}
+## yt.JoinMergeForce {#join-merge-force} {#ytjoinmergeforce}
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
@@ -609,7 +609,7 @@ This forces the selection of the Ordered JOIN strategy. If the flag is set to Tr
 
 This is the maximum allowed size of the Reduce job when a small table is selected as the primary in the Ordered JOIN strategy. If the resulting size exceeds the specified value, the Reduce operation is repeated with the larger table as the primary.
 
-## yt.JoinMergeTablesLimit {#join-merge-tables-limit}
+## yt.JoinMergeTablesLimit {#join-merge-tables-limit} {#ytjoinmergetableslimit}
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
@@ -619,7 +619,7 @@ This is the total allowed number of tables on the left and right to enable the O
 
 Setting the value to 0 disables this strategy completely.
 
-## yt.JoinMergeUnsortedFactor {#join-merge-unsorted-factor}
+## yt.JoinMergeUnsortedFactor {#join-merge-unsorted-factor} {#ytjoinmergeunsortedfactor}
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
@@ -627,7 +627,7 @@ Setting the value to 0 disables this strategy completely.
 
 This is the minimum ratio of the size of the unsorted side of the JOIN to the sorted side for its additional sorting and selection of the Ordered JOIN strategy.
 
-## yt.JoinMergeUseSmallAsPrimary {#join-merge-use-small-as-primary}
+## yt.JoinMergeUseSmallAsPrimary {#join-merge-use-small-as-primary} {#ytjoinmergeusesmallasprimary}
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
@@ -635,7 +635,7 @@ This is the minimum ratio of the size of the unsorted side of the JOIN to the so
 
 This explicitly controls the selection of the primary table in the Reduce operation for the Ordered JOIN strategy. If set to true, the smaller side is always selected as the primary table. If the flag value is false, the larger side is selected, except in the case of unique keys on the larger side. Selecting the larger table as the primary is safe even if it contains monster keys, but it works slower. If this pragma isn’t set, the primary is selected automatically based on the maximum size of the resulting jobs (see yt.JoinMergeReduceJobMaxSize).
 
-## yt.LayerPaths {#layer-paths}
+## yt.LayerPaths {#layer-paths} {#ytlayerpaths}
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
@@ -659,7 +659,7 @@ Set the fixed memory size required for LLVM code compilation in jobs.
 
 Set the memory size per computation graph node required for LLVM code compilation in jobs.
 
-## yt.LookupJoinLimit {#lookup-join-limit}
+## yt.LookupJoinLimit {#lookup-join-limit} {#ytlookupjoinlimit}
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
@@ -667,7 +667,7 @@ Set the memory size per computation graph node required for LLVM code compilatio
 
 You can use a table as a Map in the Lookup JOIN strategy if its size does not exceed the minimum of `yt.LookupJoinLimit` and `yt.EvaluationTableSizeLimit`.
 
-## yt.LookupJoinMaxRows {#lookup-join-max-rows}
+## yt.LookupJoinMaxRows {#lookup-join-max-rows} {#ytlookupjoinmaxrows}
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
@@ -675,7 +675,7 @@ You can use a table as a Map in the Lookup JOIN strategy if its size does not ex
 
 This is the maximum number of rows in a table that can act as a Map in the Lookup JOIN strategy.
 
-## yt.MapJoinLimit {#map-join-limit}
+## yt.MapJoinLimit {#map-join-limit} {#ytmapjoinlimit}
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
@@ -685,7 +685,7 @@ This sets the size limit for the smaller table in a JOIN that triggers the Map-s
 
 If you set the value to 0, you can completely disable this strategy.
 
-## yt.MapJoinShardCount {#map-join-shard-count}
+## yt.MapJoinShardCount {#map-join-shard-count} {#ytmapjoinshardcount}
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
@@ -693,7 +693,7 @@ If you set the value to 0, you can completely disable this strategy.
 
 The map-side JOIN strategy can be executed in sharded mode: the smaller side is split into N shards (where N is less than or equal to the value of this PRAGMA), each of which is joined with the larger side independently and in parallel, and the concatenation of the JOIN results for all shards is considered the final JOIN result.
 
-## yt.MapJoinShardMinRows {#map-join-shard-min-rows}
+## yt.MapJoinShardMinRows {#map-join-shard-min-rows} {#ytmapjoinshardminrows}
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
@@ -955,7 +955,7 @@ The specified users will be able to manage the MapReduce operations.
 
 Set the maximum number of {{product-name}} operations that can run simultaneously within a request.
 
-## yt.Pool {#pool}
+## yt.Pool {#pool} {#ytpool}
 
 Use this to override the compute pool, which by default is the current user's login or was set by the `yt.StaticPool` pragma.
 
@@ -1104,7 +1104,7 @@ Don’t use this pragma in production. Use it only when debugging complex querie
 
 {% endnote %}
 
-## yt.QueryCacheMode {#query-cache-mode}
+## yt.QueryCacheMode {#query-cache-mode} {#ytquerycachemode} {#querycachemode}
 
 The pragma controls caching of MapReduce operation results in {{product-name}}.
 
@@ -1395,7 +1395,7 @@ Takes effect only when the `yt.TentativePoolTrees` pragma is set. Specifies the 
 
 Takes effect only when the `yt.TentativePoolTrees` pragma is set. Specifies the number of jobs in the sample.
 
-## yt.TmpFolder {#tmp-folder}
+## yt.TmpFolder {#tmp-folder} {#tmpfolder}
 
 This pragma is used to specify a directory for storing temporary tables and files. For more details, see the [Temporary data](../../faq/temp.md) section.
 

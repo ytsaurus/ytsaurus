@@ -227,7 +227,7 @@ SELECT * FROM test;
 
 `CheckedOps` является [scoped](#pragmascope) настройкой.
 
-## UnicodeLiterals
+## UnicodeLiterals {#unicodeliterals} {#UnicodeLiterals}
 
 `UnicodeLiterals`/`DisableUnicodeLiterals`
 

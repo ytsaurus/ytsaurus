@@ -10,7 +10,7 @@ Odin - сервис, осуществляющий качественный мо�
 
 * Helm 3.x;
 * запущенный кластер {{product-name}} и внутренний адрес HTTP прокси;
-* специальный пользователь-робот `robot-odin` с выписанным для него токеном (см. раздел [Управление токенами](../../user-guide/storage/auth.md#token-management)):
+* специальный пользователь-робот `robot-odin` с выписанным для него токеном (см. раздел [Управление токенами](../../user-guide/storage/auth.md#{% if audience == "internal" %}getting_token_for_robot{% else %}token-management{% endif %})):
 
   ```
   yt create user --attr "{name=robot-odin}"

@@ -130,7 +130,7 @@ yt get //sys/precarious_chunks 42
 yt get //sys/precarious_vital_chunks 0
 ```
 
-## Attributes
+## Attributes { #attributes }
 
 A medium object has the following attributes:
 
