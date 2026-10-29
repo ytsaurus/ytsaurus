@@ -5,6 +5,11 @@ TEST_SRCS(
     yt_sync.py
 )
 
+IF (NOT OPENSOURCE)
+    TEST_SRCS(test_telemetry.py)
+    PEERDIR(yt/yt/flow/tests/test_telemetry/common)
+ENDIF()
+
 SET(YT_CLUSTER_NAMES primary,remote_0,remote_1)
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/library/python/integration_test_base/recipe.inc)

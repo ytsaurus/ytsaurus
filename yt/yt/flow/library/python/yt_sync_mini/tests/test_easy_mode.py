@@ -324,11 +324,19 @@ class TestEnsureOnLocalYt:
         assert yt_client.get(f"{path}/@pipeline_format_version") == 1
         table_definitions, queue_definitions = _get_pipeline_table_definitions()
         definitions = {**table_definitions, **queue_definitions}
-        for name in list(PIPELINE_TABLES) + list(PIPELINE_QUEUES):
-            assert yt_client.get(f"{path}/{name}/@tablet_state") == "mounted", name
+        assert not yt_client.exists(f"{path}/@yt_logs_format_version")
+        logs_directory_path = f"{path}/logs"
+        assert yt_client.get(f"{logs_directory_path}/@type") == "map_node"
+        assert yt_client.get(f"{logs_directory_path}/@yt_logs_format_version") == 1
+        assert not yt_client.exists(f"{path}/logs_meta")
+        assert not yt_client.exists(f"{path}/sources_meta")
+
+        table_paths = list(PIPELINE_TABLES) + list(PIPELINE_QUEUES)
+        for table_path in table_paths:
+            assert yt_client.get(f"{path}/{table_path}/@tablet_state") == "mounted", table_path
             # Erasure needs six data nodes per chunk write; the bootstrap
             # helper must never enable it on small clusters.
-            assert yt_client.get(f"{path}/{name}/@erasure_codec") == "none", name
+            assert yt_client.get(f"{path}/{table_path}/@erasure_codec") == "none", table_path
 
         states_schema = yt_client.get(f"{path}/states/@schema")
         assert states_schema.attributes == definitions["states"]["schema"].attributes
@@ -337,6 +345,30 @@ class TestEnsureOnLocalYt:
             input_mount_config["row_merger_type"]
             == definitions["input_messages"]["attributes"]["mount_config"]["row_merger_type"]
         )
+
+    def test_jobtruck_schemas_and_retention_are_canonical(self, yt_client):
+        pipeline_path = f"{self.FOLDER}/pipeline"
+        compared_column_keys = ("name", "type_v3", "sort_order", "expression")
+        for table_name, max_data_ttl in (
+            ("logs/sources_meta", 172_800_000),
+            ("logs/logs_meta", 172_800_000),
+            ("logs/logs", 86_400_000),
+        ):
+            table_path = f"{pipeline_path}/{table_name}"
+            actual_schema = yt_client.get(f"{table_path}/@schema")
+            actual_columns = [
+                {key: column[key] for key in compared_column_keys if key in column} for column in actual_schema
+            ]
+            expected_columns = [
+                {key: column[key] for key in compared_column_keys if key in column}
+                for column in PIPELINE_TABLES[table_name]["schema"]
+            ]
+            assert actual_columns == expected_columns
+            assert actual_schema.attributes["strict"]
+            assert actual_schema.attributes["unique_keys"]
+            assert yt_client.get(f"{table_path}/@mount_config/min_data_versions") == 0
+            assert yt_client.get(f"{table_path}/@mount_config/min_data_ttl") == 0
+            assert yt_client.get(f"{table_path}/@mount_config/max_data_ttl") == max_data_ttl
 
     def test_rerun_is_idempotent(self, yt_client):
         exit_code = run_yt_sync_easy_mode(
@@ -348,3 +380,8 @@ class TestEnsureOnLocalYt:
         )
         assert exit_code == 0
         assert yt_client.get(f"{self.FOLDER}/input_queue/@tablet_state") == "mounted"
+        pipeline_path = f"{self.FOLDER}/pipeline"
+        assert yt_client.get(f"{pipeline_path}/logs/@type") == "map_node"
+        assert yt_client.get(f"{pipeline_path}/logs/@yt_logs_format_version") == 1
+        for table_path in list(PIPELINE_TABLES) + list(PIPELINE_QUEUES):
+            assert yt_client.get(f"{pipeline_path}/{table_path}/@tablet_state") == "mounted"

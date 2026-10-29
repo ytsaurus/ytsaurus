@@ -1,12 +1,14 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/flow/library/cpp/common/yt_connector.h>
+#include <yt/yt/flow/library/cpp/pipeline_tables/public.h>
 
 namespace NYT::NFlow {
 namespace {
 
 using namespace NDetail;
 using NObjectClient::EObjectType;
+using NYPath::TYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,6 +123,41 @@ TEST(TIsChaosTableLayoutTest, NoTablesThrow)
     EXPECT_THROW_WITH_SUBSTRING(
         IsChaosTableLayout({}),
         "No internal flow tables found to determine the type");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TInternalFlowTablePathsTest, ResolvesCanonicalRelativePaths)
+{
+    const auto& definitions = GetPipelineTableDefinitions();
+    std::vector<TYPath> paths;
+    auto addPaths = [&] (const auto& section) {
+        for (const auto& [name, _] : section) {
+            paths.push_back(BuildPipelineTablePath("//tmp/pipeline", name));
+        }
+    };
+    addPaths(definitions.Tables);
+    addPaths(definitions.Queues);
+
+    EXPECT_THAT(paths, ::testing::Contains("//tmp/pipeline/logs/logs"));
+    EXPECT_THAT(paths, ::testing::Contains("//tmp/pipeline/logs/logs_meta"));
+    EXPECT_THAT(paths, ::testing::Contains("//tmp/pipeline/logs/sources_meta"));
+    EXPECT_THAT(paths, ::testing::Contains("//tmp/pipeline/controller_logs"));
+    EXPECT_THAT(paths, ::testing::Not(::testing::Contains("//tmp/pipeline/logs")));
+
+    for (const auto& path : paths) {
+        EXPECT_EQ(path.find("logs\\/"), TYPath::npos) << path;
+    }
+}
+
+TEST(TInternalFlowTablePathsTest, BundleDiscoveryExcludesJobtruckTables)
+{
+    auto paths = GetFlowStateTablePaths("//tmp/pipeline");
+    EXPECT_THAT(paths, ::testing::Contains("//tmp/pipeline/flow_control"));
+    EXPECT_THAT(paths, ::testing::Contains("//tmp/pipeline/controller_logs"));
+    EXPECT_THAT(paths, ::testing::Not(::testing::Contains("//tmp/pipeline/logs/logs")));
+    EXPECT_THAT(paths, ::testing::Not(::testing::Contains("//tmp/pipeline/logs/logs_meta")));
+    EXPECT_THAT(paths, ::testing::Not(::testing::Contains("//tmp/pipeline/logs/sources_meta")));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

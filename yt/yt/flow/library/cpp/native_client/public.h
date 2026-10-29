@@ -38,6 +38,10 @@ inline constexpr TStringBuf PartitionStatesTableName = "partition_states";
 inline constexpr TStringBuf KeyVisitorStatesTableName = "key_visitor_states";
 inline constexpr TStringBuf TimersTableName = "timers";
 inline constexpr TStringBuf ControllerLogsTableName = "controller_logs";
+inline constexpr TStringBuf LogsDirectoryName = "logs";
+inline constexpr TStringBuf LogsTableName = "logs";
+inline constexpr TStringBuf LogsMetaTableName = "logs_meta";
+inline constexpr TStringBuf SourcesMetaTableName = "sources_meta";
 inline constexpr TStringBuf FlowStateTableName = "flow_state";
 inline constexpr TStringBuf FlowStateObsoleteTableName = "flow_state_obsolete";
 inline constexpr TStringBuf FlowControlTableName = "flow_control";
@@ -46,23 +50,6 @@ inline constexpr TStringBuf LeasesTableName = "leases";
 //! Holds one row per election group for the chaos election backend (see NChaosElection). Empty
 //! under the Cypress backend, which locks a Cypress node instead.
 inline constexpr TStringBuf LeaderElectionLockTableName = "leader_election_lock";
-
-inline const std::vector InternalFlowTables{
-    InputMessagesTableName,
-    CompactInputMessagesTableName,
-    CompactPartitionOutputMessagesTableName,
-    CompactOutputMessagesTableName,
-    StatesTableName,
-    PartitionStatesTableName,
-    KeyVisitorStatesTableName,
-    TimersTableName,
-    ControllerLogsTableName,
-    FlowStateTableName,
-    FlowStateObsoleteTableName,
-    FlowControlTableName,
-    PartitionTransactionsTableName,
-    LeasesTableName,
-    LeaderElectionLockTableName};
 
 ////////////////////////////////////////////////////////////////////////////////
 

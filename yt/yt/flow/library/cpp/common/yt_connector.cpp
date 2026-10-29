@@ -12,6 +12,7 @@
 
 #include <yt/yt/flow/library/cpp/client/public.h>
 #include <yt/yt/flow/library/cpp/native_client/public.h>
+#include <yt/yt/flow/library/cpp/pipeline_tables/public.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -42,6 +43,25 @@ DEFINE_REFCOUNTED_TYPE(ICommonYTConnector);
 namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TYPath> GetFlowStateTablePaths(TYPathBuf pipelinePath)
+{
+    const auto& definitions = GetPipelineTableDefinitions();
+    std::vector<TYPath> paths;
+    paths.reserve(definitions.Tables.size() + definitions.Queues.size());
+    auto logsPrefix = Format("%v/", LogsDirectoryName);
+    auto addPaths = [&] (const auto& section) {
+        for (const auto& [name, _] : section) {
+            if (name.starts_with(logsPrefix)) {
+                continue;
+            }
+            paths.push_back(BuildPipelineTablePath(pipelinePath, name));
+        }
+    };
+    addPaths(definitions.Tables);
+    addPaths(definitions.Queues);
+    return paths;
+}
 
 void EnsureSameTabletCellBundle(const std::vector<TInternalTableInfo>& tables)
 {
@@ -141,10 +161,10 @@ public:
 
         // Some tables may be absent on pipelines whose layout predates them; such tables are
         // skipped, mirroring GetFlowTablesCellTag in node.cpp.
+        auto tablePaths = NDetail::GetFlowStateTablePaths(PipelinePath_.GetPath());
         std::vector<TFuture<TYsonString>> tableFutures;
-        tableFutures.reserve(InternalFlowTables.size());
-        for (const auto& tableName : InternalFlowTables) {
-            auto tablePath = YPathJoin(PipelinePath_.GetPath(), tableName);
+        tableFutures.reserve(tablePaths.size());
+        for (const auto& tablePath : tablePaths) {
             tableFutures.push_back(Client_->GetNode(tablePath, {.Attributes = {"type", "tablet_cell_bundle"}}));
         }
 

@@ -38,6 +38,7 @@ target_link_libraries(library-cpp-common PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-client
+  library-cpp-pipeline_tables
   library-cpp-serializer
   cpp-common-proto
   common-controller-proto

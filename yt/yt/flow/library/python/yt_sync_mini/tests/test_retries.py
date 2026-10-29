@@ -161,8 +161,62 @@ def test_create_pipeline_uses_pipeline_node_without_native_tables():
             "initialize_tables": False,
         },
     )
-    assert all(call.args[0] == "table" for call in client.create.call_args_list[1:])
-    assert client.mount_table.call_count == client.create.call_count - 1
+    assert client.create.call_args_list[1] == mock.call(
+        "map_node",
+        "//tmp/pipeline/logs",
+        ignore_existing=True,
+        attributes={"yt_logs_format_version": 1},
+    )
+    assert all(call.args[0] == "table" for call in client.create.call_args_list[2:])
+    assert client.mount_table.call_count == client.create.call_count - 2
+
+
+def test_create_pipeline_creates_nested_table_and_queue_directories(monkeypatch):
+    descriptor = {"schema": [], "attributes": {}}
+    monkeypatch.setattr(
+        yt_sync_mini,
+        "PIPELINE_NODES",
+        {
+            "nodes/deep": {"type": "map_node", "attributes": {"custom_attribute": "value"}},
+            "nodes/document": {"type": "document", "attributes": {"leaf_attribute": "leaf_value"}},
+        },
+    )
+    monkeypatch.setattr(
+        yt_sync_mini,
+        "_get_pipeline_table_definitions",
+        lambda: (
+            {"shared/deep/table": descriptor, "shared/other": descriptor},
+            {"queues/deep/queue": descriptor, "shared/deep/queue": descriptor},
+        ),
+    )
+    client = mock.MagicMock()
+
+    yt_sync_mini.create_pipeline(client, "//tmp/pipeline")
+
+    created_directories = set()
+    created_leaf = False
+    for call in client.create.call_args_list[1:]:
+        node_type, path = call.args
+        if node_type == "map_node":
+            assert call.kwargs["attributes"] == ({"custom_attribute": "value"} if path.endswith("/nodes/deep") else {})
+            assert path not in created_directories
+            created_directories.add(path)
+        else:
+            assert path.rsplit("/", 1)[0] in created_directories
+            if path == "//tmp/pipeline/nodes/document":
+                assert node_type == "document"
+                assert call.kwargs["attributes"] == {"leaf_attribute": "leaf_value"}
+                created_leaf = True
+    assert created_directories == {
+        "//tmp/pipeline/nodes",
+        "//tmp/pipeline/nodes/deep",
+        "//tmp/pipeline/queues",
+        "//tmp/pipeline/queues/deep",
+        "//tmp/pipeline/shared",
+        "//tmp/pipeline/shared/deep",
+    }
+    assert created_leaf
+    assert client.mount_table.call_count == 4
 
 
 def test_register_consumer_retries(sleeps):

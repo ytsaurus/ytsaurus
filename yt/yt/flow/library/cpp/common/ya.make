@@ -67,6 +67,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/flow/library/cpp/client
+    yt/yt/flow/library/cpp/pipeline_tables
     yt/yt/flow/library/cpp/serializer
     yt/yt/flow/library/cpp/common/proto
     yt/yt/flow/library/cpp/common/controller/proto

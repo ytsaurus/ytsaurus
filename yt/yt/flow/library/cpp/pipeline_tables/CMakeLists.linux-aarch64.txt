@@ -21,6 +21,8 @@ get_built_tool_path(
   rescompiler
 )
 
+add_subdirectory(unittests)
+
 add_library(library-cpp-pipeline_tables)
 
 

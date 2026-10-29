@@ -564,6 +564,19 @@ private:
     TVector<TOutputTable> OutputTables;
 };
 
+TVector<std::pair<TString, NYT::NFlow::TPipelineNodeDefinition>> BuildYqlPipelineNodeDefinitions()
+{
+    TVector<std::pair<TString, NYT::NFlow::TPipelineNodeDefinition>> result;
+    const auto& definitions = NYT::NFlow::GetPipelineTableDefinitions();
+    for (const auto& [name, definition] : NYT::NFlow::BuildPipelineNodeDefinitions(definitions)) {
+        result.emplace_back(TString(name), NYT::NFlow::TPipelineNodeDefinition{
+            .Type = definition.Type,
+            .Attributes = definition.Attributes->Clone(),
+        });
+    }
+    return result;
+}
+
 TVector<std::pair<TString, NYT::NYTree::IAttributeDictionaryPtr>> BuildYqlPipelineTableAttributes(
     bool createWorkerLogsTable)
 {
@@ -646,6 +659,38 @@ public:
             .Run();
 
         return future
+            .Apply(BIND([
+                =,
+                this,
+                this_ = NYT::MakeStrong(this),
+                path = GetPipelinePath(),
+                cluster = GetCluster(),
+                config = GetConfig()
+            ] {
+                auto future = NYT::OKFuture;
+                for (auto& [name, definition] : BuildYqlPipelineNodeDefinitions()) {
+                    future = future.Apply(BIND([
+                        =,
+                        this,
+                        this_ = NYT::MakeStrong(this),
+                        nodePath = Join('/', path, name),
+                        type = definition.Type,
+                        attributes = std::move(definition.Attributes)
+                    ]() mutable {
+                        return CreateYtNode(
+                            type,
+                            std::move(nodePath),
+                            NYT::NYTree::CreateEphemeralAttributes(),
+                            std::move(attributes),
+                            cluster,
+                            *config,
+                            /*force*/ false,
+                            logCtx,
+                            invoker);
+                    }).AsyncVia(invoker));
+                }
+                return future;
+            }).AsyncVia(invoker))
             .Apply(BIND([
                 =,
                 this,

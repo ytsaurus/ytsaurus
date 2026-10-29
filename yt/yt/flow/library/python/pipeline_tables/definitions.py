@@ -47,5 +47,6 @@ def _get_pipeline_table_definitions():
 _DEFINITIONS = _load_definitions()
 
 PIPELINE_FILES = []
+PIPELINE_NODES = {str(name): deepcopy(descriptor) for name, descriptor in _DEFINITIONS["nodes"].items()}
 PIPELINE_TABLES = _schemas_only(_DEFINITIONS["tables"])
 PIPELINE_QUEUES = _schemas_only(_DEFINITIONS["queues"])

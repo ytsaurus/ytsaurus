@@ -51,6 +51,8 @@ struct TInternalTableInfo
     std::string TabletCellBundle;
 };
 
+std::vector<NYPath::TYPath> GetFlowStateTablePaths(NYPath::TYPathBuf pipelinePath);
+
 //! Throws unless the pipeline has internal tables and all of them share one tablet cell bundle.
 void EnsureSameTabletCellBundle(const std::vector<TInternalTableInfo>& tables);
 
