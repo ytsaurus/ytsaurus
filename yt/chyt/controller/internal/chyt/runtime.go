@@ -26,8 +26,8 @@ func (c *Controller) prepareBlobTable(ctx context.Context, kind string, root ypa
 	return
 }
 
-func (c *Controller) prepareRuntime(ctx context.Context, spec runtimeDataSpec, alias string, incarnationIndex int) (paths runtimePaths, err error) {
-	root := spec.RuntimeDataPath.Child(alias)
+func (c *Controller) prepareRuntime(ctx context.Context, spec runtimeDataSpec, incarnationIndex int) (paths runtimePaths, err error) {
+	root := spec.RuntimeDataPath
 	paths.StderrTable, err = c.prepareBlobTable(ctx, "stderrs", root, incarnationIndex, spec.RuntimeDataExpirationTimeout)
 	if err != nil {
 		return
