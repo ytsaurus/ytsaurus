@@ -5,6 +5,7 @@
 #include "yt_path_option.h"
 
 #include <yt/yt/flow/library/cpp/misc/retryable_client_spec.h>
+#include <yt/yt/flow/library/cpp/source_read_delay/public.h>
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/core/concurrency/public.h>
@@ -946,6 +947,8 @@ struct TDynamicComputationSpec
     : public TMessageBatcherSettings
 {
     bool Draining{};
+
+    TSourceReadDelayEstimatorSpecPtr SourceReadDelayEstimator;
 
     // TODO(mikari): revise parameters
 

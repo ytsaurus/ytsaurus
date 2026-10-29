@@ -302,6 +302,8 @@ This file contains descriptions of all specs and configs used for {{product-name
 
 {% include [_](./NYT_NFlow_TSinkSpec.md) %}
 
+{% include [_](./NYT_NFlow_TSourceReadDelayEstimatorSpec.md) %}
+
 {% include [_](./NYT_NFlow_TSourceSpec.md) %}
 
 {% include [_](./NYT_NFlow_TStateJoinSpec.md) %}

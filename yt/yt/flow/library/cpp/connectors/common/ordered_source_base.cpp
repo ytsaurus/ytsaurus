@@ -928,6 +928,7 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
             parsedMessages.push_back(ISource::TMessageBatch{
                 .Cookie = TSourceMessageBatchCookie(std::any(TMessageCookieData{.OffsetInfoIt = offsetInfoIt})),
                 .Messages = std::move(messages),
+                .OriginalStatistics = TBatchStatistics{.Count = offsetInfoIt->Count, .ByteSize = offsetInfoIt->ByteSize},
             });
         }
         TryCollapseOffsetInfo(std::prev(InflightOffsets_.end()));

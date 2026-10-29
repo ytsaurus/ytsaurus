@@ -1,5 +1,7 @@
 #include "ordered_source_computation_base.h"
 
+#include "read_delay.h"
+
 #include <yt/yt/flow/library/cpp/connectors/common/ordered_source.h>
 
 #include <algorithm>
@@ -88,14 +90,11 @@ void TOrderedSourceComputationBase::ValidateOrderedSourceSpec(const TComputation
 
 TSystemTimestamp TOrderedSourceComputationBase::GetReadDelayThreshold()
 {
-    auto threshold = InfinitySystemTimestamp;
-    if (GetSpec()->WatermarkStrategy->WatermarkAlignment && GetSpec()->WatermarkStrategy->WatermarkAlignment->ReadDelays) {
-        for (const auto& [streamId, delay] : *GetSpec()->WatermarkStrategy->WatermarkAlignment->ReadDelays) {
-            auto watermark = GetEpochEventWatermark(streamId);
-            threshold = std::min(threshold, TSystemTimestamp(std::max(watermark.Underlying(), delay.Seconds()) - delay.Seconds()));
-        }
-    }
-    return threshold;
+    return NFlow::GetReadDelayThreshold(
+        GetSpec()->WatermarkStrategy->WatermarkAlignment,
+        BIND([this] (const TStreamId& streamId) {
+            return GetEpochEventWatermark(streamId);
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

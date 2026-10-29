@@ -9,6 +9,7 @@
 
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 #include <yt/yt/flow/library/cpp/misc/retryable_client_spec.h>
+#include <yt/yt/flow/library/cpp/source_read_delay/estimator.h>
 
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -933,6 +934,9 @@ void TDynamicKeyCountPartitioningSpec::Register(TRegistrar registrar)
 
 void TDynamicComputationSpec::Register(TRegistrar registrar)
 {
+    registrar.Parameter("source_read_delay_estimator", &TThis::SourceReadDelayEstimator)
+        .DefaultNew();
+
     registrar.Parameter("draining", &TThis::Draining)
         .Default(false);
 

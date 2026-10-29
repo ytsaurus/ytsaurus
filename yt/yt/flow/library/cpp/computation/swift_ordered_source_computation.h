@@ -3,9 +3,12 @@
 #include "public.h"
 
 #include "ordered_source_computation_base.h"
+#include "read_delay.h"
 
 #include <yt/yt/flow/library/cpp/common/schema.h>
 #include <yt/yt/flow/library/cpp/common/state.h>
+#include <yt/yt/flow/library/cpp/common/state_client.h>
+#include <yt/yt/flow/library/cpp/source_read_delay/estimator.h>
 
 #include <yt/yt/flow/library/cpp/misc/ordered_memory.h>
 
@@ -20,6 +23,8 @@ inline constexpr TStringBuf TimestampMemoryStateName = "$timestamp_memory";
 struct TSwiftOrderedSourceTimestampMemory
     : public TOrderedMemory<TMessageId, TSystemTimestamp>
 {
+    TSourceReadDelayEstimator ReadDelayEstimator;
+
     REGISTER_YSON_STRUCT(TSwiftOrderedSourceTimestampMemory);
 
     static void Register(TRegistrar registrar);
@@ -61,33 +66,28 @@ public:
 
     using TOrderedSourceComputationBase::TOrderedSourceComputationBase;
 
-private:
-    std::optional<TKey> SourceKey_;
+    TComputationStatusPtr GetStatus() override;
 
-    struct TProcessedBatch
-    {
-        TMessageId FirstMessageId;
-        TSourceMessageBatchCookie BatchCookie;
-        std::vector<TMessage> CandidateOutputMessages;
-        std::vector<bool> IsOutput;
-        TSystemTimestamp Timestamp;
-        TWatermarkGeneratorCookie WatermarkGeneratorCookie;
-    };
+private:
+    TMutableStateClient<TSwiftOrderedSourceTimestampMemory> TimestampMemory_;
+
+    bool HasReadDelays() const;
+    TInflightStreamTraverseDataPtr BuildReadDelayInflight(const TInflightStreamTraverseDataPtr& inflight, TInstant now);
 
     struct TPublishResult
     {
         bool EmptyEpoch = false;
     };
 
-    std::deque<TProcessedBatch> DelayedMessages_;
+    TReadDelayQueue ReadDelayQueue_;
+    TAtomicIntrusivePtr<TReadDelayStatus> ReadDelayStatus_;
+    IStatusErrorStatePtr ReadDelayEstimateError_;
 
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> GetExtraInputLimits() override;
 
     void DoExecute(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard) override;
 
-    TSystemTimestamp GetTriggerTimestamp(const std::vector<TMessage>& batch);
-
-    void ProcessSourceBatches(std::vector<ISource::TMessageBatch>&& sourceMessageBatches);
+    std::vector<TReadDelayInput> ProcessSourceBatches(std::vector<ISource::TMessageBatch>&& sourceMessageBatches);
     TPublishResult CheckDelayedMessages(
         IComputationRunContextPtr context,
         NTracing::TTraceContextPtr epochTraceContext,
