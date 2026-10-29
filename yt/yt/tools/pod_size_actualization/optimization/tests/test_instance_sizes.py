@@ -6,8 +6,9 @@ from yt.yson import YsonBoolean
 
 from yt.yt.tools.pod_size_actualization.optimization.instance_sizes import (
     build_cluster_instance_sizes,
+    build_data_center_rows,
     collect_group_instance_sizes,
-    collect_group_instance_sizes_with_fallback,
+    collect_group_bc_info_with_fallback,
     ensure_cluster_instance_sizes_match,
 )
 
@@ -199,15 +200,22 @@ class CacheClient:
         return io.BytesIO(self.payload)
 
 
-def test_successful_group_read_updates_cache_with_loaded_at():
+@pytest.mark.parametrize("centers", [None, {"klg": {}, "ext": {}}])
+def test_successful_group_read_updates_cache_with_loaded_at(centers):
     class Client:
+        def exists(self, path):
+            return centers is not None
+
         def get(self, path):
+            if path.endswith("/@data_centers"):
+                assert centers is not None
+                return centers
             if path.endswith("/@tablet_node_sizes"):
                 return {"tiny": size(4000, 20, 10)}
             return {"medium": size(8000, 20, 130)}
 
     cache = CacheClient()
-    payload = collect_group_instance_sizes_with_fallback(
+    payload = collect_group_bc_info_with_fallback(
         "hahn",
         lambda cluster: Client(),
         cache,
@@ -216,6 +224,7 @@ def test_successful_group_read_updates_cache_with_loaded_at():
     )
 
     assert payload["cluster_group_catalog_loaded_at"] == "2026-08-13T10:00:00+00:00"
+    assert payload["data_centers"] == {"hahn": ["default"] if centers is None else ["ext", "klg"]}
     assert json.loads(cache.payload) == payload
     assert cache.created == [
         (
@@ -232,8 +241,10 @@ def test_successful_group_read_updates_cache_with_loaded_at():
     assert cache.read_count == 0
 
 
-def test_failed_get_uses_cached_group_catalog():
+@pytest.mark.parametrize("topology", [{}, {"data_centers": {"hahn": ["klg", "ext"]}}])
+def test_failed_get_uses_cached_group_catalog(topology):
     cached = {
+        **topology,
         "sizes": [{"InstanceType": "node", "ConfigName": "cached"}],
         "cluster_group_catalog_loaded_at": "2026-08-12T10:00:00+00:00",
     }
@@ -244,7 +255,7 @@ def test_failed_get_uses_cached_group_catalog():
 
     cache = CacheClient(cached)
     assert (
-        collect_group_instance_sizes_with_fallback(
+        collect_group_bc_info_with_fallback(
             "hahn",
             lambda cluster: Client(),
             cache,
@@ -268,7 +279,7 @@ def test_force_cluster_read_does_not_use_cache_after_failed_get():
         }
     )
     with pytest.raises(RuntimeError, match="cluster unavailable"):
-        collect_group_instance_sizes_with_fallback(
+        collect_group_bc_info_with_fallback(
             "hahn",
             lambda cluster: Client(),
             cache,
@@ -280,6 +291,9 @@ def test_force_cluster_read_does_not_use_cache_after_failed_get():
 
 def test_catalog_validation_error_is_not_hidden_by_cache():
     class Client:
+        def exists(self, path):
+            return False
+
         def get(self, path):
             if path.endswith("/@tablet_node_sizes"):
                 return {"broken": {}}
@@ -292,10 +306,74 @@ def test_catalog_validation_error_is_not_hidden_by_cache():
         }
     )
     with pytest.raises(ValueError, match="has no resource_guarantee map"):
-        collect_group_instance_sizes_with_fallback(
+        collect_group_bc_info_with_fallback(
             "hahn",
             lambda cluster: Client(),
             cache,
             "//tmp/instance_sizes/hahn.json",
         )
     assert cache.read_count == 0
+
+
+def test_failed_topology_read_falls_back_to_the_whole_snapshot():
+    cached = {
+        "sizes": [{"InstanceType": "node", "ConfigName": "cached"}],
+        "data_centers": {"vanga": ["ext", "klg"]},
+        "cluster_group_catalog_loaded_at": "2026-10-28T16:00:00+00:00",
+    }
+
+    class Client:
+        def exists(self, path):
+            return True
+
+        def get(self, path):
+            if path.endswith("/@data_centers"):
+                raise RuntimeError("topology unavailable")
+            return {"new_size": size(4000, 20, 10)}
+
+    cache = CacheClient(cached)
+    payload = collect_group_bc_info_with_fallback("vanga", lambda cluster: Client(), cache, "//tmp/vanga.json")
+    assert payload == cached
+    assert cache.created == []
+    assert cache.read_count == 1
+
+
+def test_empty_live_topology_is_not_hidden_by_cache():
+    class Client:
+        def exists(self, path):
+            return True
+
+        def get(self, path):
+            if path.endswith("/@data_centers"):
+                return {}
+            return {"tiny": size(4000, 20, 10)}
+
+    cache = CacheClient()
+    with pytest.raises(ValueError, match="data_centers must be a non-empty map"):
+        collect_group_bc_info_with_fallback("vanga", lambda cluster: Client(), cache, "//tmp/vanga.json")
+    assert cache.read_count == 0
+    assert cache.created == []
+
+
+def test_data_center_rows_preserve_per_cluster_topology():
+    assert build_data_center_rows(
+        [
+            {"data_centers": {"vanga": ["klg", "ext"]}},
+            {"data_centers": {"pythia": ["klg"], "seneca-vla": ["default"]}},
+        ]
+    ) == [
+        {"cluster": "pythia", "data_center": "klg"},
+        {"cluster": "seneca-vla", "data_center": "default"},
+        {"cluster": "vanga", "data_center": "ext"},
+        {"cluster": "vanga", "data_center": "klg"},
+    ]
+
+
+def test_data_center_rows_reject_overlapping_group_snapshots():
+    with pytest.raises(ValueError, match="duplicate cluster"):
+        build_data_center_rows(
+            [
+                {"data_centers": {"vanga": ["klg", "ext"]}},
+                {"data_centers": {"vanga": ["sas", "vla"]}},
+            ]
+        )

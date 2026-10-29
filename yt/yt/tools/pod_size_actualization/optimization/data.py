@@ -376,7 +376,7 @@ def _load_bundle_data_single_method(
         for _, row in data.iterrows():
             if str(row['bundle']) in cfg.BUNDLES_TO_SKIP:
                 continue
-            # Зоны считает кубик окон по карте хостов бандл-контроллера; в старых
+            # Число зон берётся из конфигурации bundle controller; в старых
             # выгрузках столбца нет — там кластер однозонный.
             zones = int(row.get('availability_zones') or 1)
 
