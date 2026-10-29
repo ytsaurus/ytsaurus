@@ -7,6 +7,8 @@
 #include <yt/yt/library/query/base/ast_visitors.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 
+#include <algorithm>
+
 namespace NYT::NOrm::NQuery {
 
 using namespace NQueryClient::NAst;
@@ -108,8 +110,26 @@ public:
         return TOptionalLiteralValueWrapper{};
     }
 
-    TOptionalLiteralValueWrapper OnIn(const TInExpressionPtr /*inExpr*/)
+    TOptionalLiteralValueWrapper OnIn(const TInExpressionPtr inExpr)
     {
+        for (int index = 0; index < std::ssize(inExpr->Expr); ++index) {
+            if (!IsAttributeReference({inExpr->Expr[index]}, AttributePath_) || inExpr->Values.empty()) {
+                continue;
+            }
+            bool hasMissingValue = std::ranges::any_of(inExpr->Values, [&] (const auto& tuple) {
+                return index >= std::ssize(tuple);
+            });
+            if (hasMissingValue) {
+                continue;
+            }
+            const auto& value = inExpr->Values.front()[index];
+            bool hasSingleValue = std::ranges::all_of(inExpr->Values, [&] (const auto& tuple) {
+                return tuple[index] == value;
+            });
+            if (hasSingleValue) {
+                return TOptionalLiteralValueWrapper(value);
+            }
+        }
         return TOptionalLiteralValueWrapper{};
     }
 
@@ -495,8 +515,18 @@ TOptionalLiteralValueWrapper IntrospectFilterForDefinedAttributeValue(
     }
     auto parsedQuery = ParseSource(filterQuery, NQueryClient::EParseMode::Expression);
     auto* queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
+    return IntrospectFilterForDefinedAttributeValue(queryExpression, attributePath);
+}
+
+TOptionalLiteralValueWrapper IntrospectFilterForDefinedAttributeValue(
+    const TExpressionPtr filterExpression,
+    const TYPath& attributePath)
+{
+    if (!filterExpression) {
+        return {};
+    }
     return TQueryVisitorForDefinedAttributeValue(attributePath)
-        .Run(queryExpression);
+        .Run(filterExpression);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
