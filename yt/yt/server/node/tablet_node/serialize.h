@@ -131,6 +131,7 @@ public:
 
     NTableClient::TSchemaData CurrentTabletWriteManagerSchemaData;
     bool CurrentTabletVersionedWriteIsUnversioned;
+    INodeMemoryTrackerPtr NodeMemoryUsageTracker;
 
     ETabletReign GetVersion() const;
 };

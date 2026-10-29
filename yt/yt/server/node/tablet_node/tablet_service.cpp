@@ -22,6 +22,8 @@
 
 #include <yt/yt/server/lib/security_server/resource_limits_manager.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/ytlib/tablet_client/config.h>
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 
@@ -339,7 +341,15 @@ private:
         struct TWriteBufferTag { };
         auto reader = TWireWriteCommandsBatchingReader(
             requestData,
-            CreateWireProtocolReader(requestData, New<TRowBuffer>(TWriteBufferTag())),
+            CreateWireProtocolReader(
+                requestData,
+                New<TRowBuffer>(
+                    TWriteBufferTag(),
+                    TChunkedMemoryPool::DefaultStartChunkSize,
+                    Bootstrap_
+                        ->GetNodeMemoryUsageTracker()
+                        ->WithCategory(EMemoryCategory::TabletDynamic),
+                    /*allowMemoryOvercommit*/ true)),
             // NB: Non-atomic yet mount revision should ensure correctness.
             tabletSnapshot->TableSchemaData);
 
