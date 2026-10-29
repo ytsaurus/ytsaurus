@@ -6150,6 +6150,7 @@ private:
 
         Save(context, SequoiaChunkPurgatory_);
         Save(context, VerboselyLoggedChunks_);
+        Save(context, LastSequoiaReplicasCommitTimestamp_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -6231,6 +6232,10 @@ private:
 
         if (context.GetVersion() >= EMasterReign::VerboseChunkLogging) {
             Load(context, VerboselyLoggedChunks_);
+        }
+
+        if (context.GetVersion() >= EMasterReign::PersistLastSequoiaReplicasCommitTimestamp) {
+            Load(context, LastSequoiaReplicasCommitTimestamp_);
         }
 
         RecomputeHistoricallyNonVital_ = context.GetVersion() < EMasterReign::IncreaseVitalReplicationFactor;
