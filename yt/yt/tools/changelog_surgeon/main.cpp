@@ -52,6 +52,7 @@ std::pair<i64, i64> GetSequenceNumberRange(const TVector<std::string>& changelog
             ioEngine,
             /*memoryUsageTracker*/ nullptr,
             fileName,
+            TWorkloadDescriptor(EWorkloadCategory::UserBatch),
             config);
         currentChangelog->Open();
 
@@ -182,6 +183,7 @@ void PerformSurgery(const TSurgeonParams& params)
             ioEngine,
             /*memoryUsageTracker*/ nullptr,
             fileName,
+            TWorkloadDescriptor(EWorkloadCategory::UserBatch),
             config);
         currentChangelog->Open();
         auto guard = Finally([=] {
@@ -255,6 +257,7 @@ void PerformSurgery(const TSurgeonParams& params)
         ioEngine,
         /*memoryUsageTracker*/ nullptr,
         resultingChangelogName,
+        TWorkloadDescriptor(EWorkloadCategory::UserBatch),
         config);
     resultingChangelog->Create(/*meta*/ {});
     resultingChangelog->Append(0, resultingRecords);
