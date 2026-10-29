@@ -36,6 +36,7 @@
 
 #include <yt/yt/client/table_client/pipe.h>
 #include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/unordered_schemaful_reader.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/versioned_io_options.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
@@ -485,6 +486,70 @@ public:
                 requestFeatureFlags);
 
             queryStatistics.AddInnerStatistics(std::move(subqueryStatistics));
+
+            return queryStatistics;
+        }
+
+        if (planFragment.UnionAllQuery) {
+            const auto& unionAllQuery = planFragment.UnionAllQuery;
+
+            int subqueryCount = std::ssize(unionAllQuery->SubqueryFragments);
+
+            std::vector<ISchemafulPipePtr> pipes(subqueryCount);
+            for (int index = 0; index < subqueryCount; ++index) {
+                pipes[index] = CreateSchemafulPipe(MemoryChunkProvider_);
+            }
+
+            std::vector<TFuture<TQueryStatistics>> subqueryStatisticsFutures(subqueryCount);
+            for (int index = 0; index < subqueryCount; ++index) {
+                const auto& subFragment = *unionAllQuery->SubqueryFragments[index];
+                subqueryStatisticsFutures[index] = BIND(
+                    &IExecutor::Execute,
+                    MakeStrong(this),
+                    subFragment,
+                    externalCGInfo,
+                    pipes[index]->GetWriter(),
+                    options,
+                    requestFeatureFlags)
+                    .AsyncVia(GetCurrentInvoker())
+                    .Run()
+                    .AsUnique()
+                    .Apply(BIND([subqueryPipe = pipes[index]] (TErrorOr<TQueryStatistics>&& statisticsOrError) {
+                        if (!statisticsOrError.IsOK()) {
+                            subqueryPipe->Fail(statisticsOrError);
+                        }
+                        return statisticsOrError.ValueOrThrow();
+                    }));
+            }
+
+            auto getNextReader = [pipes = std::move(pipes), readerIndex = 0] () mutable {
+                if (readerIndex >= std::ssize(pipes)) {
+                    return ISchemafulUnversionedReaderPtr();
+                }
+                return pipes[readerIndex++]->GetReader();
+            };
+
+            auto unionReader = CreateUnorderedSchemafulReader(std::move(getNextReader), subqueryCount);
+
+            auto subqueryStatisticsFuture = AllSucceeded(std::move(subqueryStatisticsFutures));
+            auto cancelGuard = Finally([&] {
+                subqueryStatisticsFuture.Cancel(TError("Outer query finished"));
+            });
+
+            auto queryStatistics = Execute(
+                planFragment.Query,
+                externalCGInfo,
+                std::move(unionReader),
+                writer,
+                options,
+                requestFeatureFlags);
+
+            auto subqueryStatistics = WaitForFast(subqueryStatisticsFuture)
+                .ValueOrThrow();
+
+            for (auto& statistics : subqueryStatistics) {
+                queryStatistics.AddInnerStatistics(std::move(statistics));
+            }
 
             return queryStatistics;
         }

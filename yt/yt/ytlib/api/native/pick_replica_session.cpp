@@ -45,6 +45,11 @@ void TraverseQueryTables(NAst::TQuery* query, TCallback onTableDescriptor)
         },
         [] (const NAst::TExpressionList& /*expression*/) {
             THROW_ERROR_EXCEPTION("Unexpected expression in from clause");
+        },
+        [&] (NAst::TUnionAllClause& unionAll) {
+            for (const auto& subquery : unionAll.Subqueries) {
+                TraverseQueryTables(&subquery->Ast, onTableDescriptor);
+            }
         });
 
     for (auto& join : query->Joins) {

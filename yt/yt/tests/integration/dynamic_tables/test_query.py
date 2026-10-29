@@ -2071,6 +2071,68 @@ class TestQuery(DynamicTablesBase):
             select_rows("a from [//tmp/t] where b != 0 limit 3", use_canonical_null_relations=True),
             [{"a": 1}])
 
+    @authors("sabdenovch")
+    def test_union_all(self):
+        sync_create_cells(1)
+
+        self._create_table(
+            "//tmp/t1",
+            [
+                {"name": "o", "type": "int64", "sort_order": "ascending"},
+                {"name": "x", "type": "string"},
+                {"name": "y", "type": "int64"},
+            ],
+            [
+                {"o": 1, "x": "alpha", "y": 100},
+                {"o": 2, "x": "beta",  "y": 200},
+                {"o": 3, "x": "gamma", "y": 300},
+            ])
+
+        self._create_table(
+            "//tmp/t2",
+            [
+                {"name": "r", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "string"},
+                {"name": "a", "type": "int64"},
+            ],
+            [
+                {"r": 1, "b": "delta",   "a": 400},
+                {"r": 2, "b": "epsilon", "a": 500},
+            ])
+
+        # Both subqueries project to (name string, value int64) — schemas match.
+        expected = [
+            {"name": "alpha", "value": 100},
+            {"name": "beta",  "value": 200},
+            {"name": "gamma", "value": 300},
+            {"name": "delta",   "value": 400},
+            {"name": "epsilon", "value": 500},
+        ]
+        actual = select_rows(
+            "name, value from ("
+            "  select x as name, y as value from [//tmp/t1] order by o desc limit 100"
+            "  union all"
+            "  select b as name, a as value from [//tmp/t2]"
+            ")")
+        assert_items_equal(actual, expected)
+
+        with raises_yt_error("UNION ALL subqueries name column"):
+            select_rows(
+                "v from ("
+                "  select x as v from [//tmp/t1]"
+                "  union all"
+                "  select a as w from [//tmp/t2]"
+                ")")
+
+        with raises_yt_error("UNION ALL subqueries have incompatible types"):
+            select_rows(
+                "v from ("
+                "  select x as v from [//tmp/t1]"
+                "  union all"
+                "  select a as v from [//tmp/t2]"
+                ")",
+            )
+
     @authors("lukyan")
     def test_read_without_merge_agg(self):
         sync_create_cells(1)
