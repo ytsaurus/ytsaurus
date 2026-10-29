@@ -15,9 +15,11 @@ RECURSE(
     file_providers
     file_storage
     misc
+    jobtruck
     multiplexer
     parsers
     partitioning
+    pipeline_tables
     process_function
     tables
     throughput_autoscaler

@@ -10,6 +10,12 @@ from yt.common import wait
 
 from yt.yt.flow.library.python.integration_test_base.yt_flow_base import FlowTestBase
 from yt.yt.flow.library.python.integration_test_base.helpers import get_yson_config
+from yt.yt.flow.tests.test_telemetry.common.jobtruck import (
+    JOBTRUCK_TABLE_NAMES,
+    assert_jobtruck_tables,
+    check_jobtruck_logs,
+    read_jobtruck_logs,
+)
 
 from yt.yt.flow.library.python.integration_test_base.yt_sync_preset import run_yt_sync
 
@@ -152,9 +158,157 @@ class Test(FlowTestBase):
             assert output_bytes == 0
 
     @pytest.mark.authors(["pechatnov"])
+    def test_controller_logs_without_jobtruck_tables(self):
+        run_yt_sync(
+            self.primary_cluster_name,
+            self.work_yt_path,
+            tablet_cell_bundle=self.tablet_cell_bundle,
+            primary_medium=self.primary_medium,
+        )
+        for table in JOBTRUCK_TABLE_NAMES:
+            self.client.unmount_table(f"{self.pipeline_path}/{table}", sync=True)
+        self.client.remove(f"{self.pipeline_path}/logs", recursive=True)
+        assert not list(self.client.select_rows(f"* from [{self.pipeline_path}/controller_logs] limit 1"))
+        pipeline_config_path = self.prepare_pipeline_config()
+
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False, "logging": {"flush_period": "100ms"}},
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+            self.wait_pipeline_state("working")
+
+            def has_fresh_jobs_status():
+                for row in self.client.select_rows(f"* from [{self.pipeline_path}/controller_logs] limit 100"):
+                    fields = row["data"].split("\t", 3)
+                    if (
+                        len(fields) == 4
+                        and fields[1:3] == ["I", "PublicFlowController"]
+                        and fields[3].startswith("Jobs status")
+                    ):
+                        return True
+                return False
+
+            wait(has_fresh_jobs_status, timeout=180, ignore_exceptions=True)
+
+            def jobtruck_errors():
+                description = self.client.flow_execute(self.pipeline_path, "describe-pipeline")
+                return [
+                    message
+                    for message in description["messages"]
+                    if "/jobtruck_log_writer" in str(message.get("text", ""))
+                ]
+
+            wait(jobtruck_errors, timeout=180, ignore_exceptions=True)
+            assert not self.client.exists(f"{self.pipeline_path}/logs")
+            run_yt_sync(
+                self.primary_cluster_name,
+                self.work_yt_path,
+                tablet_cell_bundle=self.tablet_cell_bundle,
+                primary_medium=self.primary_medium,
+            )
+            assert_jobtruck_tables(self.client, self.pipeline_path, "table")
+            check_jobtruck_logs(self.client, self.pipeline_path)
+            wait(lambda: not jobtruck_errors(), timeout=180, ignore_exceptions=True)
+
+    @pytest.mark.authors(["pechatnov"])
+    def test_controller_logs_on_leader_change(self):
+        run_yt_sync(
+            self.primary_cluster_name,
+            self.work_yt_path,
+            tablet_cell_bundle=self.tablet_cell_bundle,
+            primary_medium=self.primary_medium,
+        )
+        assert_jobtruck_tables(self.client, self.pipeline_path, "table")
+        pipeline_config_path = self.prepare_pipeline_config()
+
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False, "logging": {"flush_period": "100ms"}},
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=2,
+            problems=False,
+        ) as federation:
+            self.wait_pipeline_state("working")
+
+            def capture_published_leader(result, expected_controller=None):
+                flow_control_rows = list(
+                    self.client.select_rows(
+                        f'* from [{self.pipeline_path}/flow_control] where key = "leader_controller"'
+                    )
+                )
+                if len(flow_control_rows) != 1:
+                    return False
+                leader_info = flow_control_rows[0]["value"]
+                leader_address = self.client.get(f"{self.pipeline_path}/@leader_controller_address")
+                if leader_info["rpc_address"] != leader_address:
+                    return False
+                leader_port = int(leader_address.rsplit(":", 1)[1])
+                matching_controllers = [
+                    controller for controller in federation.controllers if controller.rpc_port == leader_port
+                ]
+                if len(matching_controllers) != 1:
+                    return False
+                controller = matching_controllers[0]
+                if expected_controller is not None and controller is not expected_controller:
+                    return False
+                result.clear()
+                result.update(
+                    controller=controller,
+                    incarnation_id=str(leader_info["incarnation_id"]),
+                    node_info=leader_info,
+                )
+                return True
+
+            first_leader = {}
+            wait(
+                lambda: all(controller.is_running() for controller in federation.controllers)
+                and capture_published_leader(first_leader),
+                timeout=180,
+                ignore_exceptions=True,
+            )
+            leader_controller = first_leader["controller"]
+            follower_controller = next(
+                controller for controller in federation.controllers if controller is not leader_controller
+            )
+            leader_controller.ensure_running()
+            follower_controller.ensure_running()
+            check_jobtruck_logs(self.client, self.pipeline_path, [first_leader["node_info"]])
+            confirmed_leader = {}
+            wait(
+                lambda: all(controller.is_running() for controller in federation.controllers)
+                and capture_published_leader(confirmed_leader, leader_controller)
+                and confirmed_leader["incarnation_id"] == first_leader["incarnation_id"],
+                timeout=180,
+                ignore_exceptions=True,
+            )
+            leader_controller.stop()
+            follower_controller.ensure_running()
+
+            second_leader = {}
+            wait(
+                lambda: capture_published_leader(second_leader, follower_controller),
+                timeout=180,
+                ignore_exceptions=True,
+            )
+            assert second_leader["incarnation_id"] != first_leader["incarnation_id"]
+            check_jobtruck_logs(
+                self.client,
+                self.pipeline_path,
+                [first_leader["node_info"], second_leader["node_info"]],
+                check_progress=False,
+            )
+
+    @pytest.mark.authors(["pechatnov"])
     @pytest.mark.parametrize("consumer_class", ["TConsumer", "TSwiftConsumer"])
     def test_telemetry(self, consumer_class):
         run_yt_sync("primary", self.work_yt_path)
+        assert self.client.get(f"{self.pipeline_path}/logs/@yt_logs_format_version") == 1
+        logs_meta_schema = self.client.get(f"{self.pipeline_path}/logs/logs_meta/@schema")
+        creation_time_column = next(column for column in logs_meta_schema if column["name"] == "creation_time")
+        assert creation_time_column["type_v3"] == "timestamp64"
         commit_gate_ready_path = os.path.join(self.path_to_flow_logs, "lineage_commit_gate_ready")
         commit_gate_release_path = os.path.join(self.path_to_flow_logs, "lineage_commit_gate_release")
         pipeline_config_path = self.prepare_pipeline_config(
@@ -179,6 +333,62 @@ class Test(FlowTestBase):
             self.wait_pipeline_state("working")
 
             selected_partitions = {}
+            job_status_log_rows = []
+            source_id = "itflow_v0:controller_leader"
+
+            def find_job_status_log():
+                jobtruck_rows = read_jobtruck_logs(self.client, self.pipeline_path, log_limit=100)
+                source_meta_by_instance = {
+                    (row["source_id"], row["instance_id"]): row["meta"] for row in jobtruck_rows["sources_meta"]
+                }
+                log_descriptors = {
+                    (row["source_id"], row["instance_id"], row["log_name"], row["file_path"]): (
+                        row["creation_time"],
+                        row["log_config"],
+                    )
+                    for row in jobtruck_rows["logs_meta"]
+                }
+                rows = jobtruck_rows["logs"]
+                for row in rows:
+                    fields = row["line"].split("\t", 3)
+                    instance = (row["source_id"], row["instance_id"])
+                    source_meta = source_meta_by_instance.get(instance, {})
+                    node_info = source_meta.get("node_info", {})
+                    descriptor = (row["source_id"], row["instance_id"], row["log_name"], row["file_path"])
+                    creation_time, log_config = log_descriptors.get(descriptor, (None, None))
+                    if (
+                        row["source_id"] == source_id
+                        and creation_time is not None
+                        and log_config == {"log_level": "INFO"}
+                        and row["log_name"] == "controller"
+                        and row["file_path"] == "/logs/controller.log"
+                        and source_meta.get("kind") == "yt_flow_controller"
+                        and source_meta.get("display_name") == "Flow controller leader"
+                        and "creation_time" not in source_meta
+                        and str(node_info.get("incarnation_id")) == row["instance_id"]
+                        and node_info.get("name")
+                        and node_info.get("build_version")
+                        and len(fields) == 4
+                        and fields[1] == "I"
+                        and fields[2] == "PublicFlowController"
+                        and fields[3].startswith("Jobs status")
+                    ):
+                        job_status_log_rows.append((row, creation_time, log_config, source_meta))
+                        return True
+                return False
+
+            wait(find_job_status_log, timeout=180, ignore_exceptions=True)
+            assert len(job_status_log_rows) == 1
+            job_status_log_row, creation_time, log_config, source_meta = job_status_log_rows[0]
+            assert 0 < creation_time < 2**63
+            assert log_config == {"log_level": "INFO"}
+            assert job_status_log_row["source_id"] == source_id
+            assert job_status_log_row["instance_id"] == str(source_meta["node_info"]["incarnation_id"])
+            assert job_status_log_row["log_name"] == "controller"
+            assert job_status_log_row["file_path"] == "/logs/controller.log"
+            job_status_log_fields = job_status_log_row["line"].split("\t", 3)
+            assert job_status_log_fields[1:3] == ["I", "PublicFlowController"]
+            assert job_status_log_fields[3].startswith("Jobs status")
 
             def find_job_status(computation_id, filter_func):
                 flow_view = self.client.get_flow_view(self.pipeline_path, cache=False)

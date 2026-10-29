@@ -50,6 +50,7 @@ RECURSE(
     test_distributed_throttler/pipeline
     test_resource_control_channel
     test_resource_control_channel/pipeline
+    test_telemetry/common
     transform_ordered_source
     transform_ordered_source/pipeline
     word_count_sync

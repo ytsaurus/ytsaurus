@@ -11,6 +11,7 @@ from yt.yt.flow.library.python.yt_sync_mini.yt_sync_mini import (
 from yt.yt.flow.library.python.pipeline_tables import (
     PIPELINE_QUEUES_PRESET,
     PIPELINE_SORTED_TABLE_PRESET,
+    PIPELINE_TABLES,
     PIPELINE_TABLES_PRESET,
 )
 from yt.yt.flow.library.python.pipeline_tables.definitions import _get_pipeline_table_definitions
@@ -261,6 +262,10 @@ def _resolved(table_name):
     return _resolve_attributes(PIPELINE_TABLES_PRESET[table_name], LOCAL_PRESETS)
 
 
+def test_pipeline_table_presets_match_catalogue():
+    assert set(PIPELINE_TABLES_PRESET) == set(PIPELINE_TABLES)
+
+
 def test_real_preset_timers_inherits_sorted_base():
     """``timers`` should carry the base sorted-table preset attributes
     (compression/erasure/optimize_for/mount_config) plus its own
@@ -340,6 +345,17 @@ def test_pipeline_definitions_merge_into_create_attributes():
                     assert attributes[key][nested_key] == nested_expected
             else:
                 assert attributes[key] == expected
+
+
+@pytest.mark.parametrize(
+    "name,max_data_ttl",
+    [("logs/sources_meta", 172_800_000), ("logs/logs_meta", 172_800_000), ("logs/logs", 86_400_000)],
+)
+def test_jobtruck_tables_have_expected_retention(name, max_data_ttl):
+    attrs = _resolved(name)
+    assert attrs["mount_config"]["min_data_versions"] == 0
+    assert attrs["mount_config"]["min_data_ttl"] == 0
+    assert attrs["mount_config"]["max_data_ttl"] == max_data_ttl
 
 
 @pytest.mark.parametrize("name", sorted({**PIPELINE_TABLES_PRESET, **PIPELINE_QUEUES_PRESET}))

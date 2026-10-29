@@ -8,6 +8,27 @@ The shape of every dict follows yt_sync's spec language:
 * ``clusters``: per-cluster overlays.
 """
 
+from copy import deepcopy
+
+from .definitions import PIPELINE_NODES
+from .definitions import _get_pipeline_table_definitions
+
+_PIPELINE_TABLE_DEFINITIONS, _ = _get_pipeline_table_definitions()
+
+PIPELINE_NODES_PRESET = {
+    name: {
+        "$merge_presets": ["builtin:storage_preset"],
+        "type": descriptor["type"],
+        "clusters": {
+            "_all_clusters": {
+                "attributes": deepcopy(descriptor["attributes"]),
+                "propagated_attributes": set(),
+            },
+        },
+    }
+    for name, descriptor in PIPELINE_NODES.items()
+}
+
 PIPELINE_SORTED_TABLE_PRESET = {
     "$merge_presets": ["builtin:table_preset"],
     # Base attributes for all clusters.
@@ -53,6 +74,30 @@ PIPELINE_FILE_PRESET = {
 }
 
 PIPELINE_TABLES_PRESET = {
+    "logs/sources_meta": {
+        "$merge_presets": ["builtin:pipeline_sorted_table_preset"],
+        "clusters": {
+            "_all_data_clusters": {
+                "attributes": deepcopy(_PIPELINE_TABLE_DEFINITIONS["logs/sources_meta"]["attributes"]),
+            },
+        },
+    },
+    "logs/logs_meta": {
+        "$merge_presets": ["builtin:pipeline_sorted_table_preset"],
+        "clusters": {
+            "_all_data_clusters": {
+                "attributes": deepcopy(_PIPELINE_TABLE_DEFINITIONS["logs/logs_meta"]["attributes"]),
+            },
+        },
+    },
+    "logs/logs": {
+        "$merge_presets": ["builtin:pipeline_sorted_table_preset"],
+        "clusters": {
+            "_all_data_clusters": {
+                "attributes": deepcopy(_PIPELINE_TABLE_DEFINITIONS["logs/logs"]["attributes"]),
+            },
+        },
+    },
     "timers": {
         "$merge_presets": ["builtin:pipeline_sorted_table_preset"],
         "clusters": {

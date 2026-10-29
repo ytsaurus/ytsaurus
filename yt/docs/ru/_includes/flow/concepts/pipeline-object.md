@@ -22,6 +22,10 @@
 | `partition_states`                  | Стейты сохраняемые по партиции                                                                                                                                                                                                                                                                                    |
 | `timers`                            | [Таймеры](../../../flow/concepts/glossary.md#timer) пользовательского кода                                                                                                                                                                                                                                                               |
 | `controller_logs`                   | Логи событий [Controller](../../../flow/concepts/glossary.md#controller) в категории PublicFlowController                                                                                                                                                                                                                                |
+| `logs/` | Каталог логов Controller. |
+| `logs/sources_meta` | Сведения об источниках логов. |
+| `logs/logs_meta` | Сведения о файлах логов. |
+| `logs/logs` | Строки логов. |
 | `flow_state`                        | Текущее состояние Flow                                                                                                                                                                                                                                                                                            |
 | `flow_state_obsolete`               | KV-хранилище Flow для именнованных объектов (spec, dynamic_spec...)                                                                                                                                                                                                                                               |
 | `flow_control` | Опубликованный адрес ведущего Controller; для Dyntable-бэкенда выборов также аренда лидерства |
@@ -30,7 +34,7 @@
 | `leases` | Для Dyntable-бэкенда выборов: владельцы аренд партиций и общий для пайплайна срок действия аренд, защищающий от записи устаревшими воркерами |
 | `leader_election_lock` | Блокировка выборов Controller при использовании Chaos-бэкенда |
 
-После создания пайплайна они появляются под путём `<pipeline_path>/<table_name>` и автоматически монтируются.
+После создания пайплайна внутренние таблицы появляются под путём `<pipeline_path>/<table_name>` и автоматически монтируются.
 
 Состав таблиц, их схемы и базовые атрибуты для `create pipeline` заданы в [`definitions.yson`]({{source-root}}/yt/yt/flow/library/pipeline_tables/definitions.yson).
 

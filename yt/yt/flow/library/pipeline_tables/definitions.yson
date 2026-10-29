@@ -1,5 +1,83 @@
 {
+    "nodes" = {
+        "logs" = {"type" = "map_node"; "attributes" = {"yt_logs_format_version" = 1;};};
+    };
     "tables" = {
+        "logs/sources_meta" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {
+                    "name" = "hash";
+                    "expression" = "farm_hash(source_id)";
+                    "type_v3" = {"type_name"="optional";"item"="uint64";};
+                    "sort_order" = "ascending";
+                    "group" = "default";
+                };
+                {"name"="source_id";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="instance_id";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="meta";"type_v3"={"type_name"="optional";"item"="yson";};"group"="default";};
+                {"name"="$ttl";"type_v3"={"type_name"="optional";"item"="uint64";};"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+                "mount_config" = {
+                    "min_data_versions" = 0;
+                    "min_data_ttl" = 0;
+                    "max_data_ttl" = 172800000;
+                };
+            };
+        };
+        "logs/logs_meta" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {
+                    "name" = "hash";
+                    "expression" = "farm_hash(source_id, instance_id)";
+                    "type_v3" = {"type_name"="optional";"item"="uint64";};
+                    "sort_order" = "ascending";
+                    "group" = "default";
+                };
+                {"name"="source_id";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="instance_id";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="log_name";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="file_path";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="log_config";"type_v3"={"type_name"="optional";"item"="yson";};"group"="default";};
+                {"name"="creation_time";"type_v3"="timestamp64";"group"="default";};
+                {"name"="$ttl";"type_v3"={"type_name"="optional";"item"="uint64";};"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+                "mount_config" = {
+                    "min_data_versions" = 0;
+                    "min_data_ttl" = 0;
+                    "max_data_ttl" = 172800000;
+                };
+            };
+        };
+        "logs/logs" = {
+            "schema" = <"strict"=%true;"unique_keys"=%true;>[
+                {
+                    "name" = "hash";
+                    "expression" = "farm_hash(source_id, instance_id)";
+                    "type_v3" = {"type_name"="optional";"item"="uint64";};
+                    "sort_order" = "ascending";
+                    "group" = "default";
+                };
+                {"name"="source_id";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="instance_id";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="log_name";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="file_path";"type_v3"="string";"sort_order"="ascending";"group"="default";};
+                {"name"="ts";"type_v3"="uint64";"sort_order"="ascending";"group"="default";};
+                {"name"="line";"type_v3"="string";"group"="default";};
+                {"name"="$ttl";"type_v3"={"type_name"="optional";"item"="uint64";};"group"="default";};
+            ];
+            "attributes" = {
+                "dynamic" = %true;
+                "mount_config" = {
+                    "min_data_versions" = 0;
+                    "min_data_ttl" = 0;
+                    "max_data_ttl" = 86400000;
+                };
+            };
+        };
         "timers" = {
             "schema" = <"strict"=%true;"unique_keys"=%true;>[
                 {

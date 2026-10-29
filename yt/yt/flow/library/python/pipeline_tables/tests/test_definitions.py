@@ -2,12 +2,14 @@ from library.python import resource
 import yt.yson as yson
 
 from yt.yt.flow.library.python.pipeline_tables import PIPELINE_FILES
+from yt.yt.flow.library.python.pipeline_tables import PIPELINE_NODES
 from yt.yt.flow.library.python.pipeline_tables import PIPELINE_QUEUES
 from yt.yt.flow.library.python.pipeline_tables import PIPELINE_TABLES
 from yt.yt.flow.library.python.pipeline_tables import definitions as definitions_module
 from yt.yt.flow.library.python.pipeline_tables.definitions import _DEFINITIONS
 from yt.yt.flow.library.python.pipeline_tables.definitions import _get_pipeline_table_definitions
 from yt.yt.flow.library.python.pipeline_tables.definitions import _RESOURCE_KEY
+from yt.yt.flow.library.python.pipeline_tables.presets import PIPELINE_NODES_PRESET
 
 
 def test_source_tree_fallback_matches_resource(monkeypatch, tmp_path):
@@ -27,6 +29,16 @@ def test_resource_builds_independent_full_and_legacy_views():
     table_definitions, queue_definitions = _get_pipeline_table_definitions()
 
     assert PIPELINE_FILES == []
+    assert PIPELINE_NODES == definitions["nodes"]
+    assert PIPELINE_NODES["logs"]["type"] == "map_node"
+    assert PIPELINE_NODES["logs"]["attributes"]["yt_logs_format_version"] == 1
+    for name, descriptor in PIPELINE_NODES.items():
+        preset = PIPELINE_NODES_PRESET[name]
+        preset_attributes = preset["clusters"]["_all_clusters"]["attributes"]
+        assert preset["type"] == descriptor["type"]
+        assert preset_attributes == descriptor["attributes"]
+        assert preset_attributes is not descriptor["attributes"]
+        assert descriptor["attributes"] is not _DEFINITIONS["nodes"][name]["attributes"]
     for section_name, exported, full_definitions in (
         ("tables", PIPELINE_TABLES, table_definitions),
         ("queues", PIPELINE_QUEUES, queue_definitions),
