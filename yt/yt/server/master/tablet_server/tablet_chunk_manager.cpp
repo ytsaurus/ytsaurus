@@ -1062,7 +1062,7 @@ public:
                 .Run(
                     bundle ? bundle->GetName() : "",
                     updateReason,
-                    ssize(chunksToAttach));
+                    ssize(chunksToAttach) + ssize(hunkChunksToAttach));
         }
 
         return NLogging::TLoggingTagList()
