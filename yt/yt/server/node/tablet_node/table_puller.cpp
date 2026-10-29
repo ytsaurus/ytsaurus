@@ -681,7 +681,7 @@ private:
             tabletSnapshot->UpstreamReplicaId,
             replicationCard,
             *replicationProgress,
-            GetSameDcQueueReplicasClusters(replicationCard, selfReplica->ClusterName),
+            ComputeSameDCQueueClusters(replicationCard, selfReplica->ClusterName),
             now);
 
         if (!queueReplicaOrError.IsOK()) {
@@ -1060,21 +1060,22 @@ private:
         TDelayedExecutor::WaitForDuration(Config_->ReplicatorHardBackoffTime);
     }
 
-    THashSet<std::string> GetSameDcQueueReplicasClusters(
+    THashSet<std::string> ComputeSameDCQueueClusters(
         const TReplicationCardPtr& replicationCard,
         const std::string& selfClusterName)
     {
         THashSet<std::string> otherSameDcQueueClusters;
-        for (const auto& replica : replicationCard->Replicas) {
-            if (replica.second.ContentType != ETableReplicaContentType::Queue ||
-                !IsReplicaEnabled(replica.second.State) ||
-                replica.second.ClusterName == selfClusterName)
+        for (const auto& [_, replicaInfo] : replicationCard->Replicas) {
+            const auto& replicaClusterName = replicaInfo.ClusterName;
+            if (replicaInfo.ContentType != ETableReplicaContentType::Queue ||
+                !IsReplicaEnabled(replicaInfo.State) ||
+                replicaClusterName == selfClusterName)
             {
                 continue;
             }
 
-            if (ReplicatorClientCache_.IsSameDatacenter(replica.second.ClusterName)) {
-                otherSameDcQueueClusters.insert(replica.second.ClusterName);
+            if (ReplicatorClientCache_.IsSameDatacenter(replicaClusterName)) {
+                otherSameDcQueueClusters.insert(replicaClusterName);
             }
         }
 

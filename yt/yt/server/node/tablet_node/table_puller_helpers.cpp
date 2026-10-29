@@ -155,6 +155,7 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
         std::optional<std::tuple<TReplicaId, TReplicaInfo*>> lastFetchedCandidate;
 
         bool isSelfReplicaInLastEra = oldestTimestamp >= selfReplica->History.back().Timestamp;
+        bool isLastFetchedCandidateInSameDC = false;
 
         for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
             if (BannedReplicaTracker_.IsReplicaBanned(replicaId)) {
@@ -168,18 +169,23 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
                 continue;
             }
 
+            bool isSameDCReplica = false;
             if (selfReplica->ContentType == ETableReplicaContentType::Data) {
                 if (ForceSameClusterQueue_ && isSelfReplicaInLastEra) {
                     if (selfReplica->ClusterName == replicaInfo.ClusterName) {
                         return {replicaId, &replicaInfo};
                     } else if (extraSameDcQueueClusters.contains(replicaInfo.ClusterName)) {
                         sameDcCandidates.emplace_back(replicaId, &replicaInfo);
+                        isSameDCReplica = true;
                     }
                 }
 
                 if (!IsReplicationProgressGreaterOrEqual(replicationProgress, replicaInfo.ReplicationProgress)) {
                     if (replicaId == LastPulledFromReplicaId_) {
                         lastFetchedCandidate = {replicaId, &replicaInfo};
+                        if (isSameDCReplica) {
+                            isLastFetchedCandidateInSameDC = true;
+                        }
                     } else if (!lastFetchedCandidate) {
                         candidates.emplace_back(replicaId, &replicaInfo);
                     }
@@ -198,6 +204,10 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
                     candidates.emplace_back(replicaId, &replicaInfo);
                 }
             }
+        }
+
+        if (isLastFetchedCandidateInSameDC) {
+            return *lastFetchedCandidate;
         }
 
         if (!sameDcCandidates.empty()) {
