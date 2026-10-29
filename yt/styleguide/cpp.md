@@ -4,7 +4,7 @@
 
 ## Scope
 
-This document summarizes the coding conventions used in the most part of our C++ code base. The rules described here apply at least to the following top-level directories:
+This document summarizes the coding conventions used in most of our C++ code base. The rules described here apply at least to the following top-level directories:
 
 * `yt/yt` — the root directory for YT server code, native client code, public RPC API and core libraries
 * `yt/chyt` — the root directory for CHYT, which serves as an integration between ClickHouse engine and YT acting as storage and execution layer
@@ -27,7 +27,7 @@ We use C\+\+20. As soon as the most of our toolchains support C\+\+23, we aim to
 
 As of today, we do not provide clang-format/clang-tidy configuration due to significant complications while trying to express our coding style in terms of these tools. Still, it may happen in the future; there is an issue #75 for that.
 
-Most part of the code follows the rules from this document, but some older parts may not. If you are working on such a part, you may refactor it to follow the rules from this document, but it is not required. Having a PR which introduces 3 new lines and changes whitespaces around 300 lines is not very convenient, try to separate such changes into separate PRs.
+Most of the code follows the rules from this document, but some older parts may not. If you are working on such a part, you may refactor it to follow the rules from this document, but it is not required. Having a PR that introduces 3 new lines and changes whitespace around 300 lines is not very convenient; try to separate such changes into separate PRs.
 
 <!--================================================================================-->
 
@@ -48,7 +48,7 @@ Base classes (i.e. reusable bases for other classes) are often suffixed with `Ba
 class TOperationControllerBase;
 ```
 
-Classes are used for the most part of the code, structs are used for PODs and similar types. Structs must not contain private fields or methods.
+Classes are used for most of the code; structs are used for PODs and similar types. Structs must not contain private fields or methods.
 
 Interfaces are structs prefixed with capital `I`. Their virtual methods must be pure virtual; non-virtual helpers expressed in terms of those methods are also allowed.
 
@@ -156,7 +156,7 @@ public:
 
 ### Functions
 
-Function names are always in PascalCase independent of whether they are free functions or methods.
+Function names are always in PascalCase regardless of whether they are free functions or methods.
 
 ```cpp
 
@@ -211,7 +211,7 @@ void DoSomething(const TFooBar& fooBar)
 
 Namespaces are always in PascalCase and are prepended with capital `N`.
 
-Nested namespaces are a common practice. Topmost namespace is usually `NYT`, but may be different for some libraries.
+Nested namespaces are a common practice. The topmost namespace is usually `NYT`, but may be different for some libraries.
 
 The last line of the namespace repeats the namespace name to make it easier to find the end of the namespace.
 
@@ -232,9 +232,9 @@ We use separator lines to separate logical blocks of code. The separator line is
 Separator lines are used in two situations:
 
 - Between a namespace boundary and its content. Every opening and closing of a namespace is wrapped in separator lines. `using` directives that immediately follow the namespace opening are not separated from it.
-- Between groups of top-level declarations within a namespace: between classes, structs, enums, groups of free functions, etc. Use separator line only if a file could be split into different files across a separator line.
+- Between groups of top-level declarations within a namespace: between classes, structs, enums, groups of free functions, etc. Use a separator line only if a file could be split into different files across a separator line.
 
-As a consecuence of the second rule - separator lines are never placed within a class, struct, or function.
+As a consequence of the second rule, separator lines are never placed within a class, struct, or function.
 
 ```cpp
 namespace NYT::NChunkPools {
@@ -258,7 +258,7 @@ class TBar
 } // namespace NYT::NChunkPools
 ```
 
-When a separator section contains both type definitions and free functions that operate on them. Types come first, functions after.
+When a separator section contains both type definitions and free functions that operate on them, types come first and functions after.
 
 ```cpp
 // OK.
@@ -317,13 +317,13 @@ We use `#pragma once` for include guards in `.h` files.
 
 ### Include Directives
 
-We use a quote-style include directives for the headers located in the same directory as the including file. We use angle-bracket-style include directives for the rest of included headers, including system ones.
+We use quote-style include directives for the headers located in the same directory as the including file. We use angle-bracket-style include directives for the rest of included headers, including system ones.
 
 Included headers are grouped by the base directory they are located in. Groups are separated by a blank line. Within a group, headers are sorted alphabetically.
 
-We order groups from the most specific to the most general. Motivation is that we would like to reduce the number of situations when the latter included header already includes the former one as it may hide some dependency issues.
+We order groups from the most specific to the most general. The motivation is that we would like to reduce the number of situations where a later-included header already includes an earlier one, as it may hide dependency issues.
 
-We do not care about including everything which is used by the current file.
+We do not care about including everything that is used by the current file.
 
 For .cpp files, the corresponding header is always the first included header and is separated by a blank line.
 
@@ -371,7 +371,7 @@ Very common standard includes (like `<vector>` or `<util/string.h>`) are collect
 
 When a template is declared in a .h file, its implementation is usually placed in a corresponding -inl.h file. The -inl.h file is included at the end of the .h file.
 
-Another occasion to use -inl.h files is when you want to force inline a function declared in the header.
+Another occasion to use -inl.h files is when you want to force-inline a function declared in the header.
 
 The -inl.h itself must be protected from erroneous inclusion by a boilerplate include guard.
 
@@ -413,15 +413,15 @@ Y_FORCE_INLINE TTraceContext* GetCurrentTraceContext()
 
 ### Integer types
 
-We use `int` when we do not care about the exact size of the integer and for the most loop variables.
+We use `int` when we do not care about the exact size of the integer and for most loop variables.
 
-When arity of the integer is important, we use `i8`, `i16`, `i32`, `i64` and `ui8`, `ui16`, `ui32`, `ui64` for signed and unsigned integers respectively.
+When the arity of the integer is important, we use `i8`, `i16`, `i32`, `i64` and `ui8`, `ui16`, `ui32`, `ui64` for signed and unsigned integers respectively.
 
-We sometimes use `size_t` and `ssize_t` when interoperability with standard library requires them, but in general we try not to use them for local variables or loop variables.
+We sometimes use `size_t` and `ssize_t` when interoperability with the standard library requires them, but in general we try not to use them for local variables or loop variables.
 
-We do not use `long`, `long long` or `short` types, as well as C++11 fixed width types like `int8_t` or `uint32_t` or non-standard extensions like `__int64` or `unsigned __int64`.
+We do not use `long`, `long long` or `short` types, as well as C++11 fixed-width types like `int8_t` or `uint32_t` or non-standard extensions like `__int64` or `unsigned __int64`.
 
-We favor signed types instead of unsigned types. We acknowledge this being a controversial topic, but we believe that the benefits of signed types outweigh the benefits of unsigned types. We do not use unsigned types for loop variables. In general, we use unsigned types only for bit manipulations, wire protocols and other cases where unsignedness is justified by the nature of manipulations.
+We favor signed types instead of unsigned types. We acknowledge that this is a controversial topic, but we believe that the benefits of signed types outweigh the benefits of unsigned types. We do not use unsigned types for loop variables. In general, we use unsigned types only for bit manipulations, wire protocols and other cases where unsignedness is justified by the nature of manipulations.
 <details>
 <summary>Some reasoning behind this decision by maxim.babenko</summary>
 <blockquote>
@@ -466,13 +466,13 @@ for (auto&& table : InputTables_) {
 
 ### `auto` vs Explicit Types
 
-We tend to use `auto` for local variables, but not for fields, function parameters or return types. Using `auto` for latter cases is allowed, but must be justified by the code readability or the template nature of the code.
+We tend to use `auto` for local variables, but not for fields, function parameters or return types. Using `auto` for the latter cases is allowed, but must be justified by the code readability or the template nature of the code.
 
 Prefer explicit types for primitive values such as `int`, `i64`, `char`, and `bool`, but `auto` is also allowed.
 
 Use `std::string` for strings. Use `TString` only when interoperability with existing code requires it.
 
-We encourage using structured binding with auto whenever possible.
+We encourage using structured bindings with auto whenever possible.
 
 ```c++
 // Not OK.
@@ -556,13 +556,13 @@ DECLARE_REFCOUNTED_CLASS(TBar);
 
 ### Raw/Intrusive/Weak/Unique/Shared Ptrs
 
-The most common pointer type used across our code base is `TIntrusivePtr<T>`. Semantically it is very close to `std::shared_ptr<T>`, but it has a slightly different memory layout, and it is tightly integrated with our reference counting mechanism and asynchronous framework. In typical case we prefer `TIntrusivePtr<T>` over `std::shared_ptr<T>`. 
+The most common pointer type used across our code base is `TIntrusivePtr<T>`. Semantically it is very close to `std::shared_ptr<T>`, but it has a slightly different memory layout, and it is tightly integrated with our reference counting mechanism and asynchronous framework. In a typical case, we prefer `TIntrusivePtr<T>` over `std::shared_ptr<T>`.
 
-Intrusive pointer requires the class to be either derived from `TRefCounted`, or be a final class.
+An intrusive pointer requires the class to be either derived from `TRefCounted` or to be a final class.
 
-After a full definition of such class, a `DEFINE_REFCOUNTED_TYPE` macro must be used to provide implementations of reference counting methods.
+After a full definition of such a class, the `DEFINE_REFCOUNTED_TYPE` macro must be used to provide implementations of reference counting methods.
 
-The forward declaration of a class itself and a fully defined alias `TPtr = TIntrusivePtr<T>` are provided by `DECLARE_REFCOUNTED_CLASS`/`DECLARE_REFCOUNTED_STRUCT` macros and are usually placed in `public.h`/`private.h` file.
+The forward declaration of a class itself and a fully defined alias `TPtr = TIntrusivePtr<T>` are provided by `DECLARE_REFCOUNTED_CLASS`/`DECLARE_REFCOUNTED_STRUCT` macros and are usually placed in a `public.h`/`private.h` file.
 
 ```cpp
 // something.h
@@ -593,7 +593,7 @@ void DoSomething(TSomethingPtr something)
 
 Weak pointers (`TWeakPtr<T>`) accompany intrusive pointers in asynchronous contexts to mitigate lifetime issues. Their use outside of asynchronous code is usually not justified.
 
-Unique pointers (`std::unique_ptr<T>`) are frequently used with non-refcounted or standard classes. Shared pointers are somewhat rare, but may occur when interoperability with standard library is required, or the ownership promotion from the unique pointer is used.
+Unique pointers (`std::unique_ptr<T>`) are frequently used with non-refcounted or standard classes. Shared pointers are somewhat rare, but may occur when interoperability with the standard library is required, or the ownership promotion from the unique pointer is used.
 
 Raw pointers are quite often used when the ownership is guaranteed to be somewhere else, and the pointer is used as a non-owning mutable reference. Other usages of raw pointers are not encouraged. In particular, raw pointers are never used for memory allocation (except deep inside some low-level libraries).
 
@@ -603,7 +603,7 @@ Raw pointers are quite often used when the ownership is guaranteed to be somewhe
 
 #### TRefCounted base
 
-`TRefCounted` is the base class for every object managed by `TIntrusivePtr`. Inherit from it when an object has shared ownership — i.e. when it will be held by more than one pointer at a time, or when lifetime must extend beyond the creating scope.
+`TRefCounted` is the base class for every object managed by `TIntrusivePtr`. Inherit from it when an object has shared ownership — i.e. when it will be held by more than one pointer at a time, or when the lifetime must extend beyond the creating scope.
 
 ```cpp
 class TTabletManager
@@ -615,7 +615,7 @@ class TTabletManager
 DEFINE_REFCOUNTED_TYPE(TTabletManager)
 ```
 
-Do not inherit from `TRefCounted` for stack-allocated objects, or objects with a single clear owner — prefer `std::unique_ptr` or a plain value in those cases. It is also possible for a final class (e.g. defined with `final` keyword) not to inherit from `TRefCounted` and still use it with `TIntrusivePtr`.
+Do not inherit from `TRefCounted` for stack-allocated objects or objects with a single clear owner — prefer `std::unique_ptr` or a plain value in those cases. It is also possible for a final class (e.g. one defined with the `final` keyword) not to inherit from `TRefCounted` and still be used with `TIntrusivePtr`.
 
 ```cpp
 struct TFinalClass final
@@ -626,9 +626,9 @@ struct TFinalClass final
 DEFINE_REFCOUNTED_TYPE(TFinalClass)
 ```
 
-Use `virtual TRefCounted` on interfaces so that a class implementing multiple interfaces (e.g. `class TFoo : public IBar, public IBaz`) has a single shared ref-count rather than two. Use plain (non-virtual) `TRefCounted` only when a class directly inherits it and is not part of a diamond hierarchy.
+Use `virtual TRefCounted` on interfaces so that a class implementing multiple interfaces (e.g. `class TFoo : public IBar, public IBaz`) has a single shared ref-count rather than two. Use plain (non-virtual) `TRefCounted` only when a class directly inherits from it and is not part of a diamond hierarchy.
 
-Because `TRefCounted` deletes the copy and move constructors, any class that inherits it is automatically non-copyable and non-movable. There is no need to additionally inherit from `TNonCopyable`.
+Because `TRefCounted` deletes the copy and move constructors, any class that inherits from it is automatically non-copyable and non-movable. There is no need to additionally inherit from `TNonCopyable`.
 
 #### TNonCopyable base
 
@@ -642,7 +642,7 @@ class TDiskWriteQueue
 };
 ```
 
-It is acceptable to delete copy constructor explicitly instead of inheriting from `TNonCopyable`.
+It is acceptable to delete the copy constructor explicitly instead of inheriting from `TNonCopyable`.
 
 Do not use `TNonCopyable` together with `TRefCounted` — the latter already implies non-copyability.
 
@@ -663,7 +663,7 @@ private:
 };
 ```
 
-Similar to `TNonCopyable` it is acceptable to delete move constructor explicitly.
+Similar to `TNonCopyable`, it is acceptable to delete the move constructor explicitly.
 
 <!------------------------------------------------------------------------------------>
 
@@ -671,7 +671,7 @@ Similar to `TNonCopyable` it is acceptable to delete move constructor explicitly
 
 We discourage heavy class declarations in header files, preferring to hide the implementation details by either using (most common) interfaces or [pimpl](https://en.cppreference.com/w/cpp/language/pimpl) idiom.
 
-In case of interface with a single implementation, the factory method to construct the instance of the interface (called `Create...`) is usually placed in the same header file as the interface itself, and returns either the intrusive pointer, unique pointer or shared pointer to the class. The implementation is put into the corresponding .cpp file.
+In the case of an interface with a single implementation, the factory method to construct the instance of the interface (called `Create...`) is usually placed in the same header file as the interface itself, and returns either an intrusive pointer, unique pointer or shared pointer to the class. The implementation is put into the corresponding .cpp file.
 
 ```cpp
 
@@ -714,21 +714,21 @@ ITreeTraverserPtr CreateTreeTraverser(TTreeTraverserOptions options)
 }
 ```
 
-Pimpl is currently considered a legacy idiom, but may be used sometimes. A notable case is when the CoW-semantics is involved, or the pointer implementation may be changed due to other reasons.
+Pimpl is currently considered a legacy idiom, but may be used sometimes. A notable case is when CoW semantics are involved, or the pointer implementation may be changed for other reasons.
 
 <!------------------------------------------------------------------------------------>
 
 ### Passing Arguments
 
-When passing arguments we pick the most performant way whenever possible. In general the following rules apply:
+When passing arguments we pick the most performant way whenever possible. In general, the following rules apply:
 - We pass objects of basic types and small classes (such as `TGuid`) by value.
-- We pass shared pointers (e.g. `TIntrusivePtr` derivaties) by reference to avoid doing atomic increment for reference counter.
-- We use const references when we are sure that there is no context switch in callee (e.g. `WaitFor`).
+- We pass shared pointers (e.g. `TIntrusivePtr` derivatives) by reference to avoid doing atomic increment for reference counter.
+- We use const references when we are sure that there is no context switch in the callee (e.g. `WaitFor`).
 - In other cases we pass objects by shared/unique pointers.
 
 Below are some special cases.
 
-#### Pass large objects (vectors, etc) by value in class constructor
+#### Pass large objects (vectors, etc) by value in a class constructor
 
 Take an argument by value when you intend to `std::move` it into a class field. This lets the caller choose to copy (pass an lvalue) or move (pass an rvalue) without requiring separate overloads.
 
@@ -769,7 +769,7 @@ if (TryInvalidateAndRetry(connection, error, &retryCount)) {
 
 Do not use non-const references for output parameters; they hide the mutation at the call site.
 
-If possible, use return values instead of modifying mutable arguments. It is preferrable to use tuples and specific structs to pass complex values instead of mutable arguments.
+If possible, use return values instead of modifying mutable arguments. It is preferable to use tuples and specific structs to pass complex values instead of mutable arguments.
 
 #### Guards
 
@@ -844,7 +844,7 @@ Do not use `explicit` on constructors that take zero non-default arguments, two 
 
 ### `std::optional`
 
-We use `std::optional<T>` for types that may be absent and do not have well-typed sentinel values in our codebase. In particular we prefer `std::nullopt` over zero integer or an empty string - this makes code less error-prone. We use `std::optional<T>` for structs which are passed by value. We don't use `std::optional<T>` for smart pointers.
+We use `std::optional<T>` for types that may be absent and do not have well-typed sentinel values in our codebase. In particular, we prefer `std::nullopt` over a zero integer or an empty string — this makes the code less error-prone. We use `std::optional<T>` for structs which are passed by value. We don't use `std::optional<T>` for smart pointers.
 
 Prefer the contextual bool conversion and `*opt` over `opt.has_value()` and `opt.value()`. Use `has_value()` when an explicit presence check is clearer, and `value_or()` for defaults. For `std::optional<bool>`, both the bool conversion and `has_value()` test presence, not the contained boolean value.
 
@@ -872,7 +872,7 @@ auto enginesInfo = rpcResponse.has_engines_info()
 auto enginesInfo = YT_OPTIONAL_FROM_PROTO(rpcResponse, engines_info);
 ```
 
-Do not wrap types that already carry a null state. In particular types like `TGuid`, `TTransactionId`, `TIntrusivePtr`, `TTimestamp`. Use that null value directly (e.g. `NullTransactionId`, `nullptr`, and `NullTimestamp`) instead of `std::optional`.
+Do not wrap types that already carry a null state, in particular types like `TGuid`, `TTransactionId`, `TIntrusivePtr` and `TTimestamp`. Use that null value directly (e.g. `NullTransactionId`, `nullptr`, and `NullTimestamp`) instead of `std::optional`.
 
 ```cpp
 // Not OK.
@@ -881,7 +881,7 @@ std::optional<TIntrusivePtr<TTablet>> tablet;
 
 // OK.
 TTransactionId transactionId = NullTransactionId;
-if (transactionId != NullTransactionId) { 
+if (transactionId != NullTransactionId) {
     ...
 }
 
@@ -916,7 +916,7 @@ bool IsInitialized() const
 
 ### The `static` keyword
 
-Use `static` only for class members (static methods and static data members) and fields. Never use `static` on free functions— put them in an anonymous namespace instead.
+Use `static` only for class members (static methods and static data members) and fields. Never use `static` on free functions — put them in an anonymous namespace instead.
 
 ```cpp
 // OK — file-scope helper in anonymous namespace.
@@ -950,7 +950,7 @@ private:
 };
 ```
 
-File-scope `static const` and `constexpr` variables outside of classes are allowed when they annotate a single translation unit's constant just after includes and global using section. It is preferrable to use `constexpr` whenever possible. It is preferrable to use anonymous namespace for translation-unit scoped constants.
+File-scope `static const` and `constexpr` variables outside of classes are allowed when they annotate a single translation unit's constant just after the includes and the global using section. It is preferable to use `constexpr` whenever possible. It is preferable to use an anonymous namespace for translation-unit scoped constants.
 
 ```cpp
 
@@ -983,7 +983,7 @@ if (it != ReplicaClients_.end()) {
 // 'it' is not used after the block
 ```
 
-The same pattern applies to `for` loops that need a one-time setup expression with scope limited to the loop.
+The same pattern applies to `for` loops that need a one-time setup expression with a scope limited to the loop.
 
 <!------------------------------------------------------------------------------------>
 
@@ -1028,7 +1028,7 @@ Other helpers worth knowing:
 
 ### Logging
 
-Log messages follow quite strict rules. This results in an extreme convenience for debugging and searching for relevant log messages whenever you get used to it.
+Log messages follow quite strict rules. This results in extreme convenience for debugging and searching for relevant log messages once you get used to it.
 
 Use `YT_TLOG_*` macros for logging. Keep the message fixed and put variable values in tags using `.With("Key", value)`. Place each `.With(...)` call on a separate line, indented by 4 spaces. Tag keys use PascalCase. This keeps messages searchable and tags machine-readable. The older `YT_LOG_*` macros are legacy syntax.
 
@@ -1088,17 +1088,17 @@ YT_LOG_DEBUG("Tables fetched (tableCount: %v)",
    tableCount);
 ```
 
-There are several severity categories for logging which correspond to different actions. Most common is `YT_TLOG_DEBUG` but other categories should be used whenever appropriate.
+There are several severity categories for logging which correspond to different actions. The most common is `YT_TLOG_DEBUG`, but other categories should be used whenever appropriate.
 
 | Severity | Description |
 |:-------: | :-----------|
-|`YT_TLOG_DEBUG` | Most common category for saving debugging information. Logs used for debugging if code behaves in unexpected way.|
-|`YT_TLOG_INFO` | Same as above but of limited size. Only very general logs, for example system initialization or state transition, should be placed here.|
-|`YT_TLOG_TRACE` | Used for heavy debugging. Typically logs of this type are disabled but may be turned on if necessary.|
+|`YT_TLOG_DEBUG` | Most common category for saving debugging information. Used for debugging when code behaves in an unexpected way.|
+|`YT_TLOG_INFO` | The same as above, but of limited size. Only very general logs, for example system initialization or state transition, should be placed here.|
+|`YT_TLOG_TRACE` | Used for heavy debugging. Typically logs of this type are disabled, but may be turned on if necessary.|
 |`YT_TLOG_WARNING` | A recoverable problem that deserves attention but does not prevent the operation from continuing.|
-|`YT_TLOG_ERROR` | Non-critical errors which are usually self-healed. Everything works according to design, but user experience is disrupted and sometimes requires investigation by administrator.|
-|`YT_TLOG_ALERT` | Encountered error doesn't damage system integrity overall but is unexpected and calls for investigation.|
-|`YT_TLOG_FATAL` | Unexpected failure occurred and system can't continue. Print everything useful for debugging and crash.|
+|`YT_TLOG_ERROR` | Non-critical errors that are usually self-healed. Everything works according to design, but user experience is disrupted and sometimes requires investigation by administrator.|
+|`YT_TLOG_ALERT` | An encountered error doesn't damage overall system integrity but is unexpected and calls for investigation.|
+|`YT_TLOG_FATAL` | An unexpected failure occurred and the system can't continue. Print everything useful for debugging and crash.|
 
 For conditional logging, use the `_IF` or `_UNLESS` variant. In the debug examples below, tag expressions are evaluated only when the event is enabled and the condition allows logging.
 
@@ -1119,11 +1119,11 @@ if (!fetched) {
 
 ### Errors
 
-All error and exception text must be written as if they were dedicated to an end user. They must also be written in a grammatically correct English; typically they also do not contain dots, having semicolons instead.
+All error and exception texts must be written as if they were addressed to an end user. They must also be written in grammatically correct English; typically they also do not contain dots, using semicolons instead.
 
 #### Message arguments and attributes
 
-Include values needed to understand an error directly in its message. Both `TError` and `THROW_ERROR_EXCEPTION` accept a format string followed by its arguments; these arguments are substituted into the message. In general, we assume that the end user will read the error text and will not read the attributes of an error.
+Include values needed to understand an error directly in its message. Both `TError` and `THROW_ERROR_EXCEPTION` accept a format string followed by its arguments; these arguments are substituted into the message. In general, we assume that the end user will read the error text and will not read the attributes of the error.
 
 Add additional details with `.With("attribute_name", value)`, using snake_case keys and one call per line. This applies to both `TError` and `THROW_ERROR_EXCEPTION`. Attributes can help diagnose the error, for example by including the faulty key range, GUIDs, or surrounding text.
 
@@ -1216,11 +1216,11 @@ THROW_ERROR_EXCEPTION("Invalid number of subresponses: expected %v, actual %v",
 ## Persistence
 
 Some server components (master, tablet node, chaos node, etc.) use the Hydra consensus
-framework, which encapsulates data manipulation into concept of specific *mutations*
+framework, which encapsulates data manipulation into the concept of specific *mutations*
 (logged operations). Hydra periodically takes a *snapshot* of all in-memory state and
 replays logged mutations on top of it after a restart. Code that participates in this
 machinery is called *persistent code* and requires special discipline: any structural
-change must be paired with a snapshot version bump and backward-compatibility handling. 
+change must be paired with a snapshot version bump and backward-compatibility handling.
 
 <!------------------------------------------------------------------------------------>
 
@@ -1239,7 +1239,7 @@ The snapshot format version is called the *Reign*. Each component defines its ow
 - chaos node: `yt/server/node/chaos_node/serialize.h`
 
 The enum follows a strict convention — one entry per logical change, with the author's login
-appended as a comment. Special entry denotes a new major version:
+appended as a comment. A special entry denotes a new major version:
 
 ```cpp
 DEFINE_ENUM(ETabletReign,
@@ -1255,8 +1255,8 @@ DEFINE_ENUM(ETabletReign,
 Every structural change to persistent state or mutation handler logic must add a new reign
 entry. Use the existing numeric pattern (100-unit increments between releases, 1-unit increments
 per change). Entries must remain monotonically increasing inside a single major version.
-Typically new entries are added to the newest major version. In case persistent state should be
-modified in previous versions new entries are added to each major version up to the latest.
+Typically, new entries are added to the newest major version. In case the persistent state should be
+modified in previous versions, new entries are added to each major version up to the latest.
 
 <!------------------------------------------------------------------------------------>
 
@@ -1496,7 +1496,7 @@ Place the assertion on the first line of a function body, before any logic.
 
 <!------------------------------------------------------------------------------------>
 
-### Spinlocks and Reader-Writer Locks 
+### Spinlocks and Reader-Writer Locks
 
 `TSpinLock` provides simple mutual exclusion. Use it for short critical sections protecting mutable state that has no read-heavy workload. `TReaderWriterSpinLock` allows concurrent readers and an exclusive writer. Use it when reads dominate.
 
@@ -1576,8 +1576,8 @@ FiberFuture_.Reset();
 ```
 
 To block the current fiber until a future is ready, use `WaitFor()`.
-The calling code must be running in an interruptible context (typically code runs in interruptible fibers in thread pool invoker but there are some exceptions). Use `WaitForFast()` when the future is likely already set and you want to avoid a fiber switch.
-When future is set use `.ThrowOnError()` to validate success for `void` futures or `.ValueOrThrow()` to validate and get value.
+The calling code must be running in an interruptible context (typically code runs in interruptible fibers in the thread pool invoker, but there are some exceptions). Use `WaitForFast()` when the future is likely already set and you want to avoid a fiber switch.
+When the future is set, use `.ThrowOnError()` to validate success for `void` futures or `.ValueOrThrow()` to validate and get the value.
 
 ```cpp
 // Blocking wait — suspends the fiber.
@@ -1648,7 +1648,7 @@ Pass futures by `std::move` into combinators to avoid extra reference-count over
 
 ### BIND and Invokers
 
-Use `BIND(&TClass::Method, MakeWeak(this))` to schedule a method on an invoker. `MakeWeak` prevents the object from being kept alive by the callback if it is destroyed before the callback fires (in this case callback is not executed).
+Use `BIND(&TClass::Method, MakeWeak(this))` to schedule a method on an invoker. `MakeWeak` prevents the object from being kept alive by the callback if it is destroyed before the callback fires (in this case the callback is not executed).
 
 ```cpp
 FiberFuture_ = BIND(&TChaosAgent::FiberMain, MakeWeak(this), period)
@@ -1686,7 +1686,7 @@ BIND(&TClass::TMethod, MakeWeak(this))
     .Run();
 ```
 
-Use `.AsyncVia(invoker)` followed by `.Run()` to dispatch work to an invoker and wait for competion.
+Use `.AsyncVia(invoker)` followed by `.Run()` to dispatch work to an invoker and wait for completion.
 
 ```cpp
 // Dispatch to invoker and wait for completion.
@@ -1706,7 +1706,7 @@ Rules in this section define the fancy stuff not affecting the code behavior. Th
 
 ### Naming Conventions
 
-We discourage the use of abbreviations in names and one-letter/two-letter names. Somewhat commonly recognized exceptions from the previous rule are using `it` for iterators, `Impl` as a suffix for implementation.
+We discourage the use of abbreviations in names and one-letter/two-letter names. Somewhat commonly recognized exceptions to the previous rule are `it` for iterators and `Impl` as a suffix for implementations.
 
 ```cpp
 
@@ -1727,7 +1727,7 @@ for (int tableIndex = 0; tableIndex < tableCount; ++tableIndex) {
 
 Well-known acronyms are OK (e.g. TCP, IP, IO, MPSC, CH for ClickHouse). YT is not an acronym, but works like a two-letter acronym.
 
- Two-letter acronyms are treated as acronyms (e.g. both letters are capitalized or not capitalized simultaneously), three-and-more-letter acronyms are treated as words (e.g. only the first letter is capitalized).
+ Two-letter acronyms are treated as acronyms (e.g. both letters are capitalized or not capitalized simultaneously), while acronyms with three or more letters are treated as words (e.g. only the first letter is capitalized).
 
 ```cpp
 namespace NYT;
@@ -1749,7 +1749,7 @@ using TChunkList = std::vector<TChunkPtr>;
 using TJobMap = THashMap<TJobId, TJobPtr>;
 ```
 
-Types denoting function signature are named with suffix `Signature`. Typed specialization for `std::function` or `TCallback` are usually suffixed with `Callback` or `Handler`, but other variants are possible.
+Types denoting function signatures are named with the suffix `Signature`. Typed specializations of `std::function` or `TCallback` are usually suffixed with `Callback` or `Handler`, but other variants are possible.
 
 ```cpp
 // OK.
@@ -1759,17 +1759,17 @@ using TFooCallback = TCallback<TFooSignature>;
 using TFooHandler = std::function<TFooSignature>;
 ```
 
-Template type parameters follow single-letter and short-word convention: `T`, `U`, `TKey`, `TValue`.
+Template type parameters follow the single-letter and short-word convention: `T`, `U`, `TKey`, `TValue`.
 
 #### Variable naming for common concepts
 
 When a variable represents a specific well-known concept, qualify it with the domain name rather than using a bare or abbreviated identifier.
 
 - Object identifiers must be qualified: `tabletId`, `chunkId`, not bare `id`.
-- Loop counters and indices must be descriptive: `tableIndex`, `chunkIndex`, not `i`. For small loops or when counter correspond to different object types, use `index`.
+- Loop counters and indices must be descriptive: `tableIndex`, `chunkIndex`, not `i`. For small loops, or when the counter corresponds to different object types, use `index`.
 - `ref` as an abbreviation for reference is not allowed; use the full descriptive name.
 
-Short names accepted by convention: `ex` in catch clauses, `it` for iterators when the iterated collection is evident from context.
+Short names are accepted by convention: `ex` in catch clauses, `it` for iterators when the iterated collection is evident from context.
 
 ```cpp
 // Not OK.
@@ -1875,9 +1875,9 @@ void DoSomething(const IConnectionPtr& connection)
 
 Several naming prefixes communicate the behavioral contract of a function.
 
-Functions which mimics for [properties](#properties) (but do more than just poperties macro):
+Functions which mimic [properties](#properties) (but do more than just property macros):
 
-- `Get*` - returns a property. May return `nullptr` or default value if the property is absent. It is a good practice to have additional `const`-qualified implementation which returns `const&`, not a copy of the property.
+- `Get*` — returns a property. May return `nullptr` or a default value if the property is absent. It is a good practice to have an additional `const`-qualified implementation which returns a `const&`, not a copy of the property.
 - `Set*` - sets a property.
 
 Retrieval functions are named according to what they do when the result is absent:
@@ -1892,13 +1892,13 @@ TTablet* FindTablet(TTabletId tabletId);          // Returns nullptr if absent.
 TTabletPtr GetTabletOrThrow(TTabletId tabletId);  // Throws if absent.
 ```
 
-Boolean predicates are prefixed with `Is`. Validation functions are prefixed with `Check` (if function returns `bool`, `TError` or custom `TSmthResult`) or `Validate` (when function asserts or throws an exception). 
+Boolean predicates are prefixed with `Is`. Validation functions are prefixed with `Check` (if the function returns `bool`, `TError` or a custom `TSmthResult`) or `Validate` (when the function asserts or throws an exception).
 
 ```cpp
 bool IsOK() const;
 bool IsTabletMounted(TTabletId tabletId) const;
-bool CheckPermission(const TUser& user, EPermission permission); // returns false if condition is not passed
-void ValidateNodeType(ENodeType nodeType);                       // throws excetion if condition is not passed
+bool CheckPermission(const TUser& user, EPermission permission); // returns false if the condition is not passed
+void ValidateNodeType(ENodeType nodeType);                       // throws an exception if the condition is not passed
 ```
 
 Event handler methods are prefixed with `On`.
@@ -1969,7 +1969,7 @@ if (condition) {
 }
 ```
 
-The only exception for the latter rule is when the control block statement is too long to fit into a single line.
+The only exception to the latter rule is when the control block statement is too long to fit on a single line.
 
 ```cpp
 for (int tableIndex = 0;
@@ -2003,7 +2003,7 @@ if (condition) {
 
 ### Whitespace
 
-Only a single space is used between tokens. No double spaces are allowed, except for alignment inside indentation or for tabular-looking code formatting: enums, macroses and (very rare) struct fields initialization.
+Only a single space is used between tokens. No double spaces are allowed, except for alignment inside indentation or for tabular-looking code formatting: enums, macros and (very rarely) struct field initialization.
 
 Pointer and reference declarators are attached to the type, not to the variable name.
 
@@ -2089,7 +2089,7 @@ We use 4 spaces for indents. We do not use tabs.
 
 The body of the namespace is not indented.
 
-List of class bases is indented by 4 spaces; each entry starts on a new line either with a comma or a colon.
+The list of class bases is indented by 4 spaces; each entry starts on a new line either with a comma or a colon.
 
 ```cpp
 class TSomething
@@ -2100,7 +2100,7 @@ class TSomething
 };
 ```
 
-List of designators in a constructor initializer list is indented by 4 spaces; each entry starts on a new line either with a comma or a colon.
+The list of designators in a constructor initializer list is indented by 4 spaces; each entry starts on a new line either with a comma or a colon.
 
 ```cpp
 // Inside class definition.
@@ -2121,7 +2121,7 @@ TSomething::TSomething(TSomeArg arg, TAnotherArg anotherArg)
 { ... }
 ```
 
-If the argument list of a function signature or call is too long to fit into a single line, we split it into multiple lines, each argument occupying a separate line. The whole argument list is indented by 4 spaces.
+If the argument list of a function signature or call is too long to fit on a single line, we split it into multiple lines, each argument occupying a separate line. The whole argument list is indented by 4 spaces.
 
 ```cpp
 // OK.
@@ -2164,7 +2164,7 @@ THROW_ERROR_EXCEPTION("Unknown medium %Qv for table %v",
 
 ```
 
-In case of chained function calls, we split the chain into multiple lines, each call occupying a separate line. The whole chain is indented by 4 spaces. 
+For chained function calls, we split the chain into multiple lines, each call occupying a separate line. The whole chain is indented by 4 spaces.
 
 ```cpp
 BIND(&TSomeClass::DoSomething, MakeStrong(this))
@@ -2172,7 +2172,7 @@ BIND(&TSomeClass::DoSomething, MakeStrong(this))
     .Run();
 ```
 
-There is no single strict rule for chained invocation splitting. Chained `.ThrowOnError()`, `.ValueOrThrow()` should always appear on the next line. Chained `.Via()`, `.AsyncVia()`, `.Run()` could appear on the same line, in particular if they chain lambda. Chained `.WithTag()` or `.WithTags()` usually appear on the same line.
+There is no single strict rule for chained invocation splitting. Chained `.ThrowOnError()`, `.ValueOrThrow()` should always appear on the next line. Chained `.Via()`, `.AsyncVia()`, `.Run()` could appear on the same line, in particular if they chain a lambda. Chained `.WithTag()` or `.WithTags()` usually appear on the same line.
 
 ```cpp
 
@@ -2208,7 +2208,7 @@ auto profiler = Profiler_.WithTag("bucket", name);
 
 ```
 
-If arithmetic or boolean expression is too long, we split it right after the operator and ident the whole chain by 4 spaces.
+If an arithmetic or boolean expression is too long, we split it right after the operator and indent the whole chain by 4 spaces.
 
 ```cpp
 // OK.
@@ -2232,7 +2232,7 @@ if ((someLooseCondition1 && conditionForLooseCondition1)
 { ... }
 ```
 
-Trenary operator is different: in case it is too long to fit a single line, `?` and `:` should be placed at new lines and idented by 4 spaces.
+The ternary operator is different: in case it is too long to fit on a single line, `?` and `:` should be placed on new lines and indented by 4 spaces.
 ```cpp
 // OK.
 auto option = request.has_option() ? std::make_optional(request.option()) : std::nullopt;
@@ -2251,7 +2251,7 @@ auto optionalLongOption = request.has_long_option() ?
     nullopt;
 ```
 
-If lambda capture list is too long, it should be split. Each captured parameter appear on the new line and indented 4 spaces. Closing `]` should appear on the new line, without indentation, followed by lambda argument list. Lambda frgument list follow the same rules as functions. Since lambdas have both capture list, argument list and function body one should be careful with indentation.
+If a lambda capture list is too long, it should be split. Each captured parameter appears on a new line and is indented by 4 spaces. The closing `]` should appear on a new line, without indentation, followed by the lambda argument list. The lambda argument list follows the same rules as functions. Since lambdas have both a capture list, an argument list and a function body, one should be careful with indentation.
 
 ```cpp
 
@@ -2266,7 +2266,7 @@ auto lambda = [
 };
 
 // Not OK.
-auto lambda = [ 
+auto lambda = [
     &, this,
     this_ = MakeStrong(this), captured = std::move(captured)
 ] {
@@ -2293,8 +2293,8 @@ auto lambda = [
 };
 
 // Not OK.
-auto lambda = 
-    [ 
+auto lambda =
+    [
         this,
     ] {
         // lambda body.
@@ -2331,9 +2331,9 @@ auto lambda = [
 
 ### Empty Lines
 
-We use empty lines to split code in comprehendable parts. In general only a single line should be empty, but there are a few cases when two-line breaks are possible. We never place three and more empty lines in a row.
+We use empty lines to split code into comprehensible parts. In general, only a single line should be empty, but there are a few cases when two-line breaks are possible. We never place three or more empty lines in a row.
 
-In include section empty lines split different include directories (cf [Include Directives](#include-directives)). Header with the same name as .cpp should also be separated by empty line if placed at the beginning of include section.
+In the include section, empty lines split different include directories (cf. [Include Directives](#include-directives)). A header with the same name as the .cpp should also be separated by an empty line if placed at the beginning of the include section.
 
 ```cpp
 // OK.
@@ -2352,7 +2352,7 @@ In include section empty lines split different include directories (cf [Include 
 #include <yt/yt/server/misc/something_more.h>
 ```
 
-We place an empty line before and after `//////`-separator. 
+We place an empty line before and after the `//////` separator.
 ```cpp
 // OK.
 namespace NYT::NChunkPools {
@@ -2368,7 +2368,7 @@ namespace NYT::NChunkPools {
 struct IFoo;
 ```
 
-We always separate all definitions with body (classes, structs, and functions) by an empty line. 
+We always separate all definitions with a body (classes, structs, and functions) by an empty line.
 
 ```cpp
 // OK.
@@ -2393,7 +2393,7 @@ struct TKey
 };
 ```
 
-Similar empty line separation applies to other blocks of code in curly braces which are on the same identity level. As a rule of thumb: `}` is followed by an empty line, if and only if the next code line is on the same identity level.
+Similar empty line separation applies to other blocks of code in curly braces which are on the same indentation level. As a rule of thumb: `}` is followed by an empty line if and only if the next code line is on the same indentation level.
 
 ```cpp
 // OK.
@@ -2431,7 +2431,7 @@ if (condition1) {
 }
 ```
 
-In general, code preceding `if`, `for` and `while` statements should be separated by an empty line. However initialisation of variables used inside code blocks could be glued to the `if`, `for` or `while` statement. 
+In general, code preceding `if`, `for` and `while` statements should be separated by an empty line. However, the initialisation of variables used inside code blocks could be glued to the `if`, `for` or `while` statement.
 
 ```cpp
 // OK.
@@ -2451,11 +2451,11 @@ if (condition) {
 auto variable1 = ...;
 auto variable2 = ...;
 if (condition) {
-    // Some code that uses variable1 and variable2. 
+    // Some code that uses variable1 and variable2.
 }
 ```
 
-We separate cases in `switch` statements by an empty line. Sometimes we embrace a case inside curly braces - to limit scope of declaration of a new variable to this case - then closing `}` should appear on a new line followed by an empty line. If case doesn't have a body (e.g. code falls to the next case) the emtpy line is omitted.
+We separate cases in `switch` statements by an empty line. Sometimes we embrace a case inside curly braces — to limit the scope of a new variable declaration to this case — then the closing `}` should appear on a new line followed by an empty line. If a case doesn't have a body (e.g. code falls through to the next case), the empty line is omitted.
 
 ```cpp
 
@@ -2474,7 +2474,7 @@ switch (expression) {
     case 4:
         ...
         break;
-        
+
     default:
         ...
 }
@@ -2491,14 +2491,14 @@ switch (expression) {
     case 3:
 
     case 4:
-        ...    
+        ...
     default:
         ...
 }
 
 ```
 
-Declarations could be separated by an empty line if they group into logical blocks.
+Declarations may be separated by an empty line if they group into logical blocks.
 
 ```cpp
 // OK.
@@ -2526,7 +2526,7 @@ virtual TTabletBase* GetTabletOrThrow(TTabletId tabletId) = 0;
 virtual TTabletCell* GetTabletCellOrThrow(TTabletCellId tabletId) = 0;
 ```
 
-Class member definitons could be arranged in groups separated by a single empty line. In particular const and mutable members should be separated by an empty line.
+Class member definitions may be arranged in groups separated by a single empty line. In particular, const and mutable members should be separated by an empty line.
 
 ```cpp
 // OK.
@@ -2553,7 +2553,7 @@ private:
 };
 ```
 
-Sometimes two emtpy lines are used to separate class fields from class methods. In rare cases groups of class method definitions are separated by two empty lines - but only when the groups are large and clearly separated between each other by code semantics. These are the only cases when two empy lines are allowed.
+Sometimes two empty lines are used to separate class fields from class methods. In rare cases, groups of class method definitions are separated by two empty lines — but only when the groups are large and clearly separated from each other by code semantics. These are the only cases when two empty lines are allowed.
 
 ```cpp
 // OK.
@@ -2572,26 +2572,26 @@ private:
 };
 ```
 
-Macro invocations - `YT_TLOG_*`, legacy `YT_LOG_*`, `THROW_ERROR_EXCEPTION`, `YT_VERIFY` should be separated by an empty line from the other code at the same indentation level, both above and below the macro invocation. A macro and its `.With(...)` chain form one statement; do not insert blank lines inside the chain.
+Macro invocations — `YT_TLOG_*`, legacy `YT_LOG_*`, `THROW_ERROR_EXCEPTION`, `YT_VERIFY` — should be separated by an empty line from the other code at the same indentation level, both above and below the macro invocation. A macro and its `.With(...)` chain form one statement; do not insert blank lines inside the chain.
 
 ```cpp
 // OK.
 YT_TLOG_DEBUG("Doing something");
 
-DoSometing();
+DoSomething();
 
 YT_TLOG_DEBUG("Did something");
 
 // Not OK.
 YT_TLOG_DEBUG("Doing something");
-DoSometing();
+DoSomething();
 YT_TLOG_DEBUG("Did something");
 
 // OK.
 if (condition) {
     YT_TLOG_DEBUG("Doing something");
 
-    DoSometing();
+    DoSomething();
 
     YT_TLOG_DEBUG("Did something");
 }
@@ -2619,7 +2619,7 @@ DoSomething();
 
 ### Comments
 
-For code commenting we use `//` comments. We do not use `/* */` comments. Comment should be comprised of full English sentences; capital letters and dots are mandatory.
+For code commenting we use `//` comments. We do not use `/* */` comments. Comments should be comprised of full English sentences; capital letters and dots are mandatory.
 ```cpp
 // OK.
 
@@ -2631,7 +2631,7 @@ for (int chunkIndex = 0; chunkIndex < chunkCount - 1; ++chunkIndex) {
 int lockBalance = 0; // The number of locks acquired minus the number of locks released.
 ```
 
-We often use doxygen-style comments for documenting classes, methods and functions. We almost do not use doxygen-style comments for documenting variables. We use `|parameter|` to refer to a parameter in the text. We use `#Function()`, `#TClass`, etc., following the doxygen style.
+We often use doxygen-style comments for documenting classes, methods and functions. We almost never use doxygen-style comments for documenting variables. We use `|parameter|` to refer to a parameter in the text. We use `#Function()`, `#TClass`, etc., following the doxygen style.
 
 ```cpp
 // Some real-life examples.
@@ -2676,7 +2676,7 @@ struct IThroughputThrottler
 };
 ```
 
-We use special types of comments to denote some work in progress: COMPAT, TODO, XXX, and NB. We **do not** use FIXME, HACK, and other common types of comment marks. COMPAT, TODO and XXX should be followed by author username in parentheses. 
+We use special types of comments to denote some work in progress: COMPAT, TODO, XXX, and NB. We **do not** use FIXME, HACK, and other common types of comment marks. COMPAT, TODO and XXX should be followed by the author's username in parentheses.
 
 ```cpp
 // OK.
@@ -2705,16 +2705,16 @@ DEFINE_ENUM(EDictionaryCompressionPolicy,
 
 | Type | Description |
 |:---: | :---------- |
-| TODO | Message that something should be done in the future, however system is fine as it is. |
-| XXX  | Similar to above, but the author is not happy with the code and calls for urgent rewrite. We do not favor this kind of mark on code review. |
-| NB   | Nota bene - remark that calls for attention. Something one should know about the code, but it is not clear from the context. |
-| COMPAT | Marks code which exists solely for backward compatibility and should be removed in future. |
+| TODO | A message that something should be done in the future; however, the system is fine as it is. |
+| XXX  | Similar to the above, but the author is not happy with the code and calls for an urgent rewrite. We do not favor this kind of mark in code review. |
+| NB   | Nota bene — a remark that calls for attention. Something one should know about the code, but that is not clear from the context. |
+| COMPAT | Marks code that exists solely for backward compatibility and should be removed in the future. |
 
 <!------------------------------------------------------------------------------------>
 
 ### Functions
 
-Recall that function declaration and invocation follow strict indentation rule: either it fits into single line or each argument should be on a separate line.
+Recall that function declaration and invocation follow a strict indentation rule: either it fits on a single line or each argument should be on a separate line.
 
 ```cpp
 // OK.
@@ -2762,7 +2762,7 @@ void DoNothing()
 {}
 ```
 
-In general lambdas are treated similar to functions. Exceptions are: lambdas without arguments and immediate invocation. In the former case `()` is ommitted. In the latter case `()` follows `}` at the same line separated by single space.
+In general, lambdas are treated similarly to functions. The exceptions are lambdas without arguments and immediate invocation. In the former case, `()` is omitted. In the latter case, `()` follows `}` on the same line, separated by a single space.
 
 ```cpp
 
@@ -2806,7 +2806,7 @@ int b = 1;
 
 ## TODO
 
-Here go yet uncovered topics.
+Here go topics that are not yet covered.
 
 ### Fluents
 
