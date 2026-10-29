@@ -281,6 +281,9 @@ public:
             },
             [&] (const TExpressionList& /*expression*/) -> bool {
                 THROW_ERROR_EXCEPTION("Unexpected expression");
+            },
+            [&] (const TUnionAllClause& /*unionAll*/) -> bool {
+                THROW_ERROR_EXCEPTION("Subqueries are not supported yet");
             });
     }
 

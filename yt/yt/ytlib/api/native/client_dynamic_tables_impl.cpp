@@ -1722,6 +1722,10 @@ TDuration TClient::CheckPermissionsForQuery(
     std::function<void(const TPlanFragment&)> grabTablesFromQueryForPermissionCheck = [&] (const TPlanFragment& fragment) {
         if (fragment.SubqueryFragment) {
             grabTablesFromQueryForPermissionCheck(*fragment.SubqueryFragment);
+        } else if (fragment.UnionAllQuery) {
+            for (const auto& fragment : fragment.UnionAllQuery->SubqueryFragments) {
+                grabTablesFromQueryForPermissionCheck(*fragment);
+            }
         } else {
             addTableForPermissionCheck(fragment.DataSource.ObjectId, fragment.Query->Schema);
         }

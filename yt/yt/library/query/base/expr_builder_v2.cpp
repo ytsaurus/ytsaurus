@@ -1266,6 +1266,9 @@ TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression
         },
         [&] (const NAst::TExpressionList& expressions) {
             fromExpressions = expressions;
+        },
+        [&] (const NAst::TUnionAllClause& /*unionAll*/) {
+            THROW_ERROR_EXCEPTION("UNION ALL in scalar subquery expression is not supported");
         });
 
     if (queryExpr->Query.WithIndex) {

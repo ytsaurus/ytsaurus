@@ -167,6 +167,15 @@ std::vector<std::string> ExtractFunctionNames(
         },
         [&] (const NAst::TExpressionList& expressions) {
             ExtractFunctionNames(expressions, &functions);
+        },
+        [&] (const NAst::TUnionAllClause& unionAll) {
+            for (const auto* subquery : unionAll.Subqueries) {
+                auto extracted = ExtractFunctionNames(subquery->Ast, subquery->AliasMap);
+                functions.insert(
+                    functions.end(),
+                    std::make_move_iterator(extracted.begin()),
+                    std::make_move_iterator(extracted.end()));
+            }
         });
 
 
@@ -1114,6 +1123,16 @@ void RewriteCardinalityIntoHyperLogLogWithPrecision(
             hyperLogLogPrecision);
     }
 
+    if (auto* unionAll = std::get_if<NAst::TUnionAllClause>(&ast->FromClause); unionAll) {
+        for (auto* subquery : unionAll->Subqueries) {
+            RewriteCardinalityIntoHyperLogLogWithPrecision(
+                &subquery->Ast,
+                &subquery->AliasMap,
+                holder,
+                hyperLogLogPrecision);
+        }
+    }
+
     if (auto* expressions = std::get_if<NAst::TExpressionList>(&ast->FromClause); expressions) {
         for (auto& item : *expressions) {
             item = rewriter.Visit(item);
@@ -1310,6 +1329,11 @@ public:
             },
             [&] (const NAst::TExpressionList& expressions) {
                 Visit(expressions);
+            },
+            [&] (const NAst::TUnionAllClause& unionAllClause) {
+                for (const auto& subquery : unionAllClause.Subqueries) {
+                    Rewrite(&subquery->Ast, &subquery->AliasMap);
+                }
             });
 
         for (const auto& [name, expression] : *aliasMap) {
@@ -1590,6 +1614,57 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
         [&] (const NAst::TTableDescriptor&) { },
         [&] (const NAst::TExpressionList&) {
             THROW_ERROR_EXCEPTION("Unexpected expression in from clause");
+        },
+        [&] (const NAst::TUnionAllClause& unionAll) {
+            auto unionAllQuery = New<TUnionAllQuery>();
+            // TODO(sabdenovch): Consider type extension to largest accommodating type per column.
+            TTableSchemaPtr commonSchema;
+
+            for (const auto* subqueryHead : unionAll.Subqueries) {
+                auto subFragment = PreparePlanFragmentImpl(
+                    callbacks,
+                    source,
+                    subqueryHead->Ast,
+                    subqueryHead->AliasMap,
+                    options,
+                    memoryTracker,
+                    depth + 1);
+
+                auto subSchema = subFragment->Query->GetTableSchema();
+
+                if (!commonSchema) {
+                    commonSchema = subSchema;
+                } else {
+                    if (subSchema->GetColumnCount() != commonSchema->GetColumnCount()) {
+                        THROW_ERROR_EXCEPTION(
+                            "UNION ALL subqueries have different column counts %v and %v",
+                            commonSchema->GetColumnCount(),
+                            subSchema->GetColumnCount());
+                    }
+                    for (int i = 0; i < subSchema->GetColumnCount(); ++i) {
+                        const auto& expected = commonSchema->Columns()[i];
+                        const auto& actual = subSchema->Columns()[i];
+                        if (actual.Name() != expected.Name()) {
+                            THROW_ERROR_EXCEPTION(
+                                "UNION ALL subqueries name column %v differently: %Qv and %Qv",
+                                i,
+                                expected.Name(),
+                                actual.Name());
+                        }
+                        if (*actual.LogicalType() != *expected.LogicalType()) {
+                            THROW_ERROR_EXCEPTION(
+                                "UNION ALL subqueries have incompatible types for column %Qv, %v and %v",
+                                expected.Name(),
+                                *expected.LogicalType(),
+                                *actual.LogicalType());
+                        }
+                    }
+                }
+                unionAllQuery->SubqueryFragments.push_back(std::move(subFragment));
+            }
+
+            unionAllQuery->Schema = std::move(commonSchema);
+            fragment->UnionAllQuery = std::move(unionAllQuery);
         });
 
     auto functions = New<TTypeInferrerMap>();
@@ -1603,6 +1678,8 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
         const auto& dataSplit = GetDataSplitOrThrow(dataSplits, table->Path);
         fragment->DataSource.ObjectId = dataSplit.ObjectId;
         query->Schema.Original = dataSplit.TableSchema;
+    } else if (fragment->UnionAllQuery) {
+        query->Schema.Original = fragment->UnionAllQuery->Schema;
     } else {
         query->Schema.Original = fragment->SubqueryFragment->Query->GetTableSchema();
     }
@@ -1616,6 +1693,9 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
         },
         [&] (const NAst::TExpressionList&) -> std::optional<std::string> {
             return std::nullopt;
+        },
+        [&] (const NAst::TUnionAllClause& unionAll) {
+            return unionAll.Alias;
         });
 
     TPreparePlanFragmentContext context{Logger, dataSplits, options};
@@ -1646,7 +1726,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
                     functions,
                     &commonKeyPrefix,
                     query->Schema.Original,
-                    table->Alias,
+                    table ? table->Alias : std::nullopt,
                     builder.get(),
                     context));
             },
