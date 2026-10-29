@@ -708,6 +708,23 @@ DEFINE_REFCOUNTED_TYPE(TDynamicConsistentReplicaPlacementConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDynamicChunkProlongatorConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+    i64 MaxQueueSize;
+    TDuration QueueTtl;
+    TDuration QueueTrimPeriod;
+
+    REGISTER_YSON_STRUCT(TDynamicChunkProlongatorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicChunkProlongatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDynamicChunkManagerConfig
     : public NYTree::TYsonStruct
 {
@@ -964,6 +981,8 @@ struct TDynamicChunkManagerConfig
 
     // Reset HNV on requisition update once the chunk requires durability again.
     bool RecomputeHistoricallyNonVitalOnRequisitionUpdate;
+
+    TDynamicChunkProlongatorConfigPtr ChunkProlongator;
 
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 

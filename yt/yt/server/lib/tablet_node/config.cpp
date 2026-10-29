@@ -573,6 +573,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(5);
 
+    registrar.Parameter("enable_chunk_prolongation", &TThis::EnableChunkProlongation)
+        .Default(false);
+
     registrar.Postprocessor([&] (TCustomTableMountConfig* config) {
         if (config->MaxDynamicStoreRowCount > config->MaxDynamicStoreValueCount) {
             THROW_ERROR_EXCEPTION("\"max_dynamic_store_row_count\" must be less than or equal to \"max_dynamic_store_value_count\"");

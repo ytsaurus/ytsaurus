@@ -125,6 +125,7 @@ SRCS(
     tablet_node/bootstrap.cpp
     tablet_node/cached_row.cpp
     tablet_node/chaos_agent.cpp
+    tablet_node/chunk_prolongator.cpp
     tablet_node/chunk_replica_cache_pinger.cpp
     tablet_node/chunk_view_size_compaction_hint.cpp
     tablet_node/compaction_hint_controllers.cpp

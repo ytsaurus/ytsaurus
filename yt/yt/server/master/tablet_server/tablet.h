@@ -125,6 +125,9 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(NChaosClient::TReplicationProgress, ReplicationProgress);
 
+    using TProlongedChunks = THashSet<NChunkClient::TChunkId>;
+    DEFINE_BYREF_RW_PROPERTY(TProlongedChunks, ProlongedChunks);
+
 public:
     using TTabletBase::TTabletBase;
 

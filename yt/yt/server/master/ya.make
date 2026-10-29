@@ -104,6 +104,7 @@ SRCS(
     chunk_server/chunk_owner_node_proxy.cpp
     chunk_server/chunk_owner_type_handler.cpp
     chunk_server/chunk_placement.cpp
+    chunk_server/chunk_prolongator.cpp
     chunk_server/chunk_proxy.cpp
     chunk_server/chunk_reincarnator.cpp
     chunk_server/chunk_replacer.cpp

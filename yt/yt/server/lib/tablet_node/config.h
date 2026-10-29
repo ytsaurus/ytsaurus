@@ -415,6 +415,8 @@ struct TCustomTableMountConfig
     bool TablePullerForceSameClusterQueue;
     int TablePullerMaxPartialFailures;
 
+    bool EnableChunkProlongation;
+
     REGISTER_YSON_STRUCT(TCustomTableMountConfig);
 
     static void Register(TRegistrar registrar);

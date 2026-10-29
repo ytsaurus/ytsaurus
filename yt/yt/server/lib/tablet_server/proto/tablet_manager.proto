@@ -69,6 +69,7 @@ message TRspUnmountTablet
     optional NYT.NChaosClient.NProto.TReplicationProgress replication_progress = 3;
     optional uint64 mount_revision = 4;
     optional uint64 conflict_horizon_timestamp = 5;
+    repeated NYT.NProto.TGuid prolonged_chunks_to_remove = 6;
 }
 
 message TRspFreezeTablet
@@ -119,6 +120,8 @@ message TReqUpdateTabletStores
     optional bool create_hunk_chunks_during_prepare = 10 [default = false];
     optional NYT.NProto.TGuid unleashed_backing_store_id = 11;
     optional bool throttle_at_master = 13 [default = false];
+    repeated NYT.NProto.TGuid prolonged_chunks_to_add = 14;
+    repeated NYT.NProto.TGuid prolonged_chunks_to_remove = 15;
 }
 
 message TReqUpdateTabletTrimmedRowCount

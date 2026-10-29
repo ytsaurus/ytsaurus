@@ -454,6 +454,7 @@
     XX(ProfilingMode, profiling_mode) \
     XX(ProfilingTag, profiling_tag) \
     XX(ProjectId, project_id) \
+    XX(ProlongedChunkCount, prolonged_chunk_count) \
     XX(ProxyKind, proxy_kind) \
     XX(PullReplicationChunkCount, pull_replication_chunk_count) \
     XX(PullReplicationQueueSize, pull_replication_queue_size) \

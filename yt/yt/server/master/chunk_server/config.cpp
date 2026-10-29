@@ -782,6 +782,24 @@ void TDynamicConsistentReplicaPlacementConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicChunkProlongatorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Parameter("max_queue_size", &TThis::MaxQueueSize)
+        .Default(100'000)
+        .GreaterThanOrEqual(0);
+
+    registrar.Parameter("queue_ttl", &TThis::QueueTtl)
+        .Default(TDuration::Minutes(30));
+
+    registrar.Parameter("queue_trim_period", &TThis::QueueTrimPeriod)
+        .Default(TDuration::Minutes(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_chunk_replicator", &TThis::EnableChunkReplicator)
@@ -1115,6 +1133,9 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("recompute_historically_non_vital_on_requisition_update", &TThis::RecomputeHistoricallyNonVitalOnRequisitionUpdate)
         .Default(false)
         .DontSerializeDefault();
+
+    registrar.Parameter("chunk_prolongator", &TThis::ChunkProlongator)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         for (const auto& dataCenter : config->BannedStorageDataCenters) {

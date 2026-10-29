@@ -5173,6 +5173,24 @@ private:
             FromProto<std::vector<TStoreId>>(response->mount_hint().eden_store_ids()));
         DiscardDynamicStores(typedTablet);
 
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        for (const auto& protoChunkId : response->prolonged_chunks_to_remove()) {
+            auto chunkId = FromProto<TChunkId>(protoChunkId);
+            chunkManager->ExpireProlongedChunk(chunkId, TChunkProlongationCookie(tabletId));
+            bool erased = typedTablet->ProlongedChunks().erase(chunkId);
+
+            YT_TLOG_DEBUG_UNLESS(erased, "Expired prolonged chunk missing from tablet")
+                .With("ChunkId", chunkId)
+                .With("TabletId", tabletId);
+        }
+        if (!typedTablet->ProlongedChunks().empty()) {
+            YT_TLOG_ALERT("Tablet contains prolonged chunks after unmount, clearing")
+                .With("TabletId", tabletId)
+                .With("ChunkIds", typedTablet->ProlongedChunks());
+
+            typedTablet->ProlongedChunks().clear();
+        }
+
         DoTabletServantUnmounted(tablet, servant, /*force*/ false);
 
         TabletActionManager_->OnTabletActionStateChanged(tablet->GetAction());
@@ -6637,6 +6655,14 @@ private:
         }
 
         DoUnmountTabletBase(tablet, force);
+
+        if (force) {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            for (const auto& chunkId : tablet->ProlongedChunks()) {
+                chunkManager->ExpireProlongedChunk(chunkId, TChunkProlongationCookie(tablet->GetId()));
+            }
+            tablet->ProlongedChunks().clear();
+        }
 
         YT_VERIFY(tablet->Servant());
 

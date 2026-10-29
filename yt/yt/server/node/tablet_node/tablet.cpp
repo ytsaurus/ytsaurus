@@ -1177,6 +1177,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, CompressionDictionaryInfos_);
     Save(context, SmoothMovementData_);
     Save(context, CustomRuntimeData_);
+    ChunkProlongator_->Save(context);
 
     HunkLockManager_->Save(context);
 
@@ -1386,6 +1387,11 @@ void TTablet::Load(TLoadContext& context)
     // COMPAT(gryzlov-ad)
     if (context.GetVersion() >= ETabletReign::AddTabletCustomRuntimeData) {
         Load(context, CustomRuntimeData_);
+    }
+
+    // COMPAT(sabdenovch)
+    if (context.GetVersion() >= ETabletReign::DynamicTableChunkProlongation) {
+        ChunkProlongator_->Load(context);
     }
 
     HunkLockManager_->Load(context);
@@ -2374,6 +2380,23 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
 
     snapshot->OriginatorTablets = OriginatorTablets_;
 
+    if (slot && Settings_.MountConfig->EnableChunkProlongation) {
+        if (!StoreIdMap_.empty()) {
+            std::vector<TChunkId> snapshotChunkIds;
+            snapshotChunkIds.reserve(StoreIdMap_.size());
+            for (const auto& [_, store] : StoreIdMap_) {
+                if (store->IsChunk()) {
+                    snapshotChunkIds.push_back(store->AsChunk()->GetChunkId());
+                }
+            }
+
+            snapshot->ChunkProlongationGuard = std::make_unique<TChunkProlongationGuard>(
+                ChunkProlongator_,
+                slot->GetEpochAutomatonInvoker(),
+                std::move(snapshotChunkIds));
+        }
+    }
+
     return snapshot;
 }
 
@@ -3019,6 +3042,8 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
         entry->set_row_index(rowIndex);
     }
 
+    ChunkProlongator_->ToProto(request->mutable_prolonged_chunk_ids());
+
     if (auto transactionId = ChaosData()->PreparedAdvanceReplicationProgressTransactionId.Load()) {
         TError error("Tablet %v cannot be smoothy moved becase it has "
             "replication progress advance prepared by transaction %v",
@@ -3140,6 +3165,8 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
             entry.row_index());
     }
     ChaosData()->CurrentReplicationRowIndexes.Store(std::move(currentReplicationRowIndexes));
+
+    ChunkProlongator_->FromProto(request->prolonged_chunk_ids());
 }
 
 i64 TTablet::Lock(ETabletLockType lockType)
@@ -3767,7 +3794,12 @@ void TTablet::BuildOrchidYson(TFluentMap fluent) const
 
             fluent
                 .Item("min_eden_timestamp").Value(minEdenTimestamp);
-        });
+        })
+        .Item("prolonged_chunk_ids").DoListFor(
+            ChunkProlongator_->ProlongedChunks(),
+            [&] (TFluentList fluent, const TChunkId& chunkId) {
+                fluent.Item().Value(chunkId);
+            });
 }
 
 void TTablet::ResetRowCache(const ITabletSlotPtr& slot)

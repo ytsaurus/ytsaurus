@@ -429,6 +429,12 @@ struct IChunkManager
     virtual TFuture<THashMap<TChunkId, ECrossMediumChunkStatus>> GetChunksReplicationStatuses(
         const std::vector<TChunkRawPtr>& chunks) = 0;
 
+    virtual void ProlongChunk(
+        TChunkId chunkId,
+        TChunkProlongationCookie prolongationCookie,
+        TInstant prolongationInstant) = 0;
+    virtual void ExpireProlongedChunk(TChunkId chunkId, TChunkProlongationCookie prolongationCookie) = 0;
+
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, LastSequoiaReplicasCommitTimestamp, NTransactionClient::NullTimestamp);
 
 private:

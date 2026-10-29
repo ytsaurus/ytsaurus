@@ -215,6 +215,8 @@ message TReqReplicateTabletContent
     }
 
     required TChaosData chaos_data = 14;
+
+    repeated NYT.NProto.TGuid prolonged_chunk_ids = 16;
 }
 
 message TReqUnmountTablet
