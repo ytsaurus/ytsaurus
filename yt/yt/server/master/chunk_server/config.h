@@ -939,6 +939,8 @@ struct TDynamicChunkManagerConfig
 
     int MaxLostVitalChunksToLog;
 
+    int MaxLostChunksToReportInDetailedReplicationStatistics;
+
     bool AlwaysFetchNonOnlineReplicas;
 
     // COMPAT(grphil)
