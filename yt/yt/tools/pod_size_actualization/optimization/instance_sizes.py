@@ -1,4 +1,4 @@
-"""Build the optimizer container catalog from bundle-controller zone config."""
+"""Collect bundle-controller info and build the optimizer container catalog."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from yt.yson import YsonBoolean
 from yt.yt.tools.pod_size_actualization.optimization.scripts.shared import CLUSTER_GROUPS
 
 _RESOURCE_GUARANTEE = "resource_guarantee"
+_DATA_CENTERS_PATH = "//sys/bundle_controller/controller/zones/zone_default/@data_centers"
 _TABLET_NODE_SIZES_PATH = "//sys/bundle_controller/controller/zones/zone_default/@tablet_node_sizes"
 _RPC_PROXY_SIZES_PATH = "//sys/bundle_controller/controller/zones/zone_default/@rpc_proxy_sizes"
 
@@ -152,7 +153,20 @@ def collect_group_instance_sizes(
     return sizes
 
 
-def _load_cached_group_instance_sizes(cache_client: object, cache_path: str) -> dict:
+def build_data_center_rows(catalogs: list[dict]) -> list[dict]:
+    """Merge per-group topology snapshots into the YQL input table."""
+    rows = []
+    seen = set()
+    for catalog in catalogs:
+        for cluster, centers in catalog["data_centers"].items():
+            if cluster in seen:
+                raise ValueError(f"duplicate cluster in data center catalogs: {cluster}")
+            seen.add(cluster)
+            rows.extend({"cluster": cluster, "data_center": center} for center in centers)
+    return sorted(rows, key=lambda row: (row["cluster"], row["data_center"]))
+
+
+def _load_cached_group_bc_info(cache_client: object, cache_path: str) -> dict:
     payload = json.loads(cache_client.read_file(cache_path).read())
     if not isinstance(payload, dict):
         raise TypeError(f"cached instance size catalog {cache_path!r} must be a map")
@@ -163,7 +177,7 @@ def _load_cached_group_instance_sizes(cache_client: object, cache_path: str) -> 
     return payload
 
 
-def _store_cached_group_instance_sizes(
+def _store_cached_group_bc_info(
     cache_client: object,
     cache_path: str,
     payload: dict,
@@ -182,7 +196,7 @@ def _store_cached_group_instance_sizes(
     cache_client.write_file(cache_path, json.dumps(payload).encode())
 
 
-def collect_group_instance_sizes_with_fallback(
+def collect_group_bc_info_with_fallback(
     cluster_group: str,
     client_factory: Callable[[str], object],
     cache_client: object,
@@ -192,9 +206,9 @@ def collect_group_instance_sizes_with_fallback(
     force_cluster_read: bool = False,
     loaded_at: str | None = None,
 ) -> dict:
-    """Read a group catalog, falling back to its last successfully loaded value.
+    """Read group bundle-controller info, falling back to its last saved snapshot.
 
-    Only exceptions raised by a cluster ``get`` are recoverable. Catalog parsing,
+    Only exceptions raised while reading a cluster are recoverable. Catalog parsing,
     cross-cluster validation and cache I/O errors intentionally propagate.
     """
     try:
@@ -203,23 +217,30 @@ def collect_group_instance_sizes_with_fallback(
         raise ValueError(f"unknown cluster group {cluster_group!r}") from error
 
     catalogs = {}
+    data_centers = {}
     for cluster in clusters:
         # Client construction is deliberately outside the recoverable section.
         client = client_factory(cluster)
         try:
             tablet_node_sizes = client.get(_TABLET_NODE_SIZES_PATH)
             rpc_proxy_sizes = client.get(_RPC_PROXY_SIZES_PATH)
+            dc_config = client.get(_DATA_CENTERS_PATH) if client.exists(_DATA_CENTERS_PATH) else {"default": {}}
         except Exception as error:
             if force_cluster_read:
                 raise
             print(
-                f"cluster_group={cluster_group}: failed to read instance sizes "
+                f"cluster_group={cluster_group}: failed to read bundle-controller catalog "
                 f"from {cluster}: {error}; loading {cache_path}"
             )
-            return _load_cached_group_instance_sizes(cache_client, cache_path)
+            return _load_cached_group_bc_info(cache_client, cache_path)
 
         # Everything after successful gets is strict: malformed or mismatching
         # catalogs must not be hidden by a stale cache.
+        if not isinstance(dc_config, dict) or not dc_config:
+            raise ValueError(f"{cluster}: data_centers must be a non-empty map")
+        if any(not isinstance(center, str) or not center for center in dc_config):
+            raise ValueError(f"{cluster}: data center names must be non-empty strings")
+        data_centers[cluster] = sorted(dc_config)
         catalogs[cluster] = build_cluster_instance_sizes(
             tablet_node_sizes,
             rpc_proxy_sizes,
@@ -229,9 +250,10 @@ def collect_group_instance_sizes_with_fallback(
     sizes = ensure_cluster_instance_sizes_match(catalogs)
     payload = {
         "sizes": sizes,
+        "data_centers": data_centers,
         "cluster_group_catalog_loaded_at": loaded_at or datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
-    _store_cached_group_instance_sizes(cache_client, cache_path, payload, account)
+    _store_cached_group_bc_info(cache_client, cache_path, payload, account)
 
     node_count = sum(row["InstanceType"] == "node" for row in sizes)
     proxy_count = sum(row["InstanceType"] == "proxy" for row in sizes)
