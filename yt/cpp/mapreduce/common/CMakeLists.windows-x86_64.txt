@@ -19,7 +19,6 @@ target_link_libraries(cpp-mapreduce-common PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-json
-  library-cpp-svnversion
   cpp-threading-future
   library-cpp-yson
   cpp-yson-json

@@ -33,7 +33,6 @@ target_link_libraries(cpp-mapreduce-http PUBLIC
   cpp-http-io
   cpp-string_utils-base64
   cpp-string_utils-quote
-  cpp-threading-cron
   cpp-mapreduce-common
   cpp-mapreduce-interface
   mapreduce-interface-logging

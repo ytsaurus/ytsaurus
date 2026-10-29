@@ -29,6 +29,7 @@ target_link_libraries(cpp-mapreduce-interface PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-protobuf-runtime
+  library-cpp-svnversion
   library-cpp-type_info
   cpp-threading-future
   cpp-yson-node
