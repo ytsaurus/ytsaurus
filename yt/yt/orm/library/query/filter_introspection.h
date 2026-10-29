@@ -59,6 +59,10 @@ TOptionalLiteralValueWrapper IntrospectFilterForDefinedAttributeValue(
     const std::string& filterQuery,
     const NYPath::TYPath& attributePath);
 
+TOptionalLiteralValueWrapper IntrospectFilterForDefinedAttributeValue(
+    const NQueryClient::NAst::TExpressionPtr filterExpression,
+    const NYPath::TYPath& attributePath);
+
 //! Introspects #filterExpression, trying to find non-trivial reference to #referenceName,
 /*! i.e. such reference that affects the result of selection by this filter.
  *
