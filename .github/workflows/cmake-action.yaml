@@ -15,6 +15,10 @@ on:
         required: false
         default: false
         type: boolean
+      build-gpuagent:
+        required: false
+        default: true
+        type: boolean
       update-remote-cache:
         required: false
         default: false
@@ -51,6 +55,7 @@ jobs:
       runs-on-value: ${{ inputs.runs-on-value }}
       cpp-build-system: cmake
       build-ytsaurus: true
+      build-gpuagent: ${{ inputs.build-gpuagent }}
       build-chyt: ${{ inputs.build-chyt }}
       build-python: true
       update-remote-cache: ${{ inputs.update-remote-cache }}

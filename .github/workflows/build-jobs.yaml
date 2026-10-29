@@ -14,6 +14,10 @@ on:
         default: false
         required: false
         type: boolean
+      build-gpuagent:
+        default: true
+        required: false
+        type: boolean
       build-ytsaurus-tests:
         default: false
         required: false
@@ -84,7 +88,7 @@ jobs:
   gpuagent:
     needs: venv
     runs-on: ${{ inputs.runs-on-value }}
-    if: ${{ inputs.build-ytsaurus }}
+    if: ${{ inputs.build-ytsaurus && inputs.build-gpuagent }}
     timeout-minutes: 480
     steps:
       - name: Build GPU Agent
