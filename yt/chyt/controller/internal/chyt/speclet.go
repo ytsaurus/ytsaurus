@@ -64,7 +64,6 @@ const (
 
 	DefaultGeodataPath = ypath.Path("//sys/clickhouse/geodata/geodata.tgz")
 
-	DefaultRuntimeDataPath              = ypath.Path("//sys/clickhouse/kolkhoz")
 	DefaultRuntimeDataExpirationTimeout = 12 * 7 * (24 * time.Hour)
 
 	DefaultQueryStickyGroupSize = 2
@@ -114,9 +113,9 @@ func (speclet *Speclet) EnableRuntimeDataOrDefault(defaultValue bool) bool {
 	return defaultValue
 }
 
-func (speclet *Speclet) RuntimeDataSpecOrDefault() runtimeDataSpec {
+func (speclet *Speclet) RuntimeDataSpecOrDefault(defaultPath ypath.Path) runtimeDataSpec {
 	spec := runtimeDataSpec{
-		RuntimeDataPath:              DefaultRuntimeDataPath,
+		RuntimeDataPath:              defaultPath,
 		RuntimeDataExpirationTimeout: uint64(DefaultRuntimeDataExpirationTimeout.Milliseconds()),
 	}
 
