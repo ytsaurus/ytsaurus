@@ -3,6 +3,7 @@ GTEST()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
+    read_delay_ut.cpp
     availability_groups_ut.cpp
     compact_output_store_ut.cpp
     key_count_observer_ut.cpp

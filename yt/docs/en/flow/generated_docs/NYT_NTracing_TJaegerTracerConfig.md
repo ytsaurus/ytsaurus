@@ -7,6 +7,9 @@ Source: [yt/yt/library/tracing/jaeger/config.h]({{source-root}}/yt/yt/library/tr
 || **Parameter** | **Description** ||
 || `collector_channel_config` | **Type**: `NYT::TIntrusivePtr<`[NYT::NRpc::NGrpc::TChannelConfig](./all_yson_structs#NYT_NRpc_NGrpc_TChannelConfig)`>`
  ||
+|| `collector_headers` | **Type**: `THashMap<std::string, std::string>`
+**Default value**: `{}`
+ ||
 || `flush_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `15s`
  ||

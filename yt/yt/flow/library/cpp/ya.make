@@ -1,4 +1,5 @@
 RECURSE(
+    source_read_delay
     pipeline_helpers
     buffers
     client

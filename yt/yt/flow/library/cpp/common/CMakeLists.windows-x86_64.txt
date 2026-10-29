@@ -24,6 +24,7 @@ add_library(library-cpp-common)
 target_link_libraries(library-cpp-common PUBLIC
   contrib-libs-cxxsupp
   yutil
+  library-cpp-source_read_delay
   library-cpp-client
   library-cpp-pipeline_tables
   library-cpp-serializer

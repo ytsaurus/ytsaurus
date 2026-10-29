@@ -783,6 +783,151 @@ class Test(FlowTestBase):
 
             wait(check_reconfigured_filter, timeout=120)
 
+    @pytest.mark.authors(["mikari"])
+    @pytest.mark.parametrize("custom_config", [True, False])
+    def test_source_read_delay_offered(self, custom_config):
+        run_yt_sync("primary", self.work_yt_path)
+        config = get_yson_config(PIPELINE_CONFIG_PATH)
+        reader = config["spec"]["computations"]["reader"]
+        clock = copy.deepcopy(reader)
+        clock["computation_class_name"] = "TTransformReader"
+        clock["output_stream_ids"] = ["clock"]
+        config["spec"]["computations"]["clock"] = clock
+        config["spec"]["streams"]["clock"] = copy.deepcopy(config["spec"]["streams"]["data"])
+        config["dynamic_spec"]["computations"]["clock"] = copy.deepcopy(
+            config["dynamic_spec"]["computations"]["reader"]
+        )
+        reader["source_streams"]["random"]["source_class_name"] = "TReadDelayTelemetrySource"
+        reader["watermark_strategy"] = {"watermark_alignment": {"read_delays": {"clock": "1h"}}}
+        if custom_config:
+            config["dynamic_spec"]["computations"]["reader"]["source_read_delay_estimator"] = {"smoothing_period": "5s"}
+        self.patch_config(config)
+        config_path = self.dump_config_to_log_dir(config, "pipeline.yson")
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ) as federation:
+
+            def check_offered(previous_jobs=()):
+                view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                for partition_id, partition in view["state"]["execution_spec"]["layout"]["partitions"].items():
+                    if partition["computation_id"] != "reader":
+                        continue
+                    if partition.get("current_job_id") in previous_jobs:
+                        return False
+                    status = (
+                        view["feedback"]["partition_job_statuses"].get(partition_id, {}).get("current_job_status", {})
+                    )
+                    streams = status.get("from_partition_traverse_data", {}).get("node", {}).get("streams", {})
+                    metrics = streams.get("random", {}).get("inflight_metrics", {})
+                    if not any("read_delay_estimate" in name for name in status.get("retryable_errors", {})):
+                        return False
+                    held = status.get("partition_status", {}).get("read_delay", {})
+                    if held.get("held_count") != 0 or held.get("held_byte_size") != 0:
+                        return False
+                    ratios = []
+                    for axis in ("count", "bytes"):
+                        offered = metrics.get(f"offered_{axis}_per_sec")
+                        new = metrics.get(f"new_{axis}_per_sec")
+                        if offered is None or new is None or new <= 0:
+                            return False
+                        ratios.append(offered / new)
+                    # A 20-minute timestamp offset translates the 1h delay to a 40-minute delay.
+                    # At a 2h system lag, interpolation gives roughly two thirds of New.
+                    ready_ratios = []
+                    for ready_name, total_name in (("ready_count", "count"), ("ready_byte_size", "byte_size")):
+                        ready = metrics.get(ready_name)
+                        total = metrics.get(total_name)
+                        if ready is None or total is None or total <= 0:
+                            return False
+                        ready_ratios.append(ready / total)
+                    return all(0.4 < ratio < 0.9 for ratio in ratios) and all(
+                        0.60 < ratio < 0.75 for ratio in ready_ratios
+                    )
+                return False
+
+            wait(check_offered, timeout=180)
+
+            def has_persisted_estimator():
+                states = self.client.read_states(self.pipeline_path, computation_id="reader", limit=100)
+                return any(
+                    state.get("read_delay_estimator", {}).get("last_density_observation_time")
+                    for key in states["key_states"]
+                    for state in key["states"].values()
+                    if isinstance(state, dict)
+                )
+
+            wait(has_persisted_estimator, timeout=60)
+
+            if custom_config:
+                dynamic_spec = self.client.get_pipeline_dynamic_spec(self.pipeline_path)
+                dynamic_spec["spec"]["computations"]["reader"]["source_read_delay_estimator"]["smoothing_period"] = "1s"
+                self.client.set_pipeline_dynamic_spec(
+                    self.pipeline_path, dynamic_spec["spec"], expected_version=dynamic_spec["version"]
+                )
+                view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                previous_jobs = {
+                    partition.get("current_job_id")
+                    for partition in view["state"]["execution_spec"]["layout"]["partitions"].values()
+                    if partition["computation_id"] == "reader"
+                }
+                federation.workers[0].restart()
+                wait(lambda: check_offered(previous_jobs), timeout=180)
+                wait(has_persisted_estimator, timeout=60)
+
+    @pytest.mark.authors(["mikari"])
+    def test_source_read_delay_held_status(self):
+        run_yt_sync("primary", self.work_yt_path)
+        config = get_yson_config(PIPELINE_CONFIG_PATH)
+        reader = config["spec"]["computations"]["reader"]
+        clock = copy.deepcopy(reader)
+        clock["computation_class_name"] = "TTransformReader"
+        clock["output_stream_ids"] = ["clock"]
+        config["spec"]["computations"]["clock"] = clock
+        config["spec"]["streams"]["clock"] = copy.deepcopy(config["spec"]["streams"]["data"])
+        config["dynamic_spec"]["computations"]["clock"] = copy.deepcopy(
+            config["dynamic_spec"]["computations"]["reader"]
+        )
+        reader["source_streams"]["random"]["source_class_name"] = "TReadDelayTelemetrySource"
+        reader["watermark_strategy"] = {"watermark_alignment": {"read_delays": {"clock": "3h"}}}
+        self.patch_config(config)
+        config_path = self.dump_config_to_log_dir(config, "pipeline.yson")
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+
+            def has_blocked_batch():
+                view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                for partition_id, partition in view["state"]["execution_spec"]["layout"]["partitions"].items():
+                    if partition["computation_id"] != "reader":
+                        continue
+                    status = (
+                        view["feedback"]["partition_job_statuses"].get(partition_id, {}).get("current_job_status", {})
+                    )
+                    held = status.get("partition_status", {}).get("read_delay", {})
+                    threshold = held.get("event_threshold", 0)
+                    required = held.get("required_event_threshold", 0)
+                    # This input is 2h20m old; the 3h gate holds its sole raw batch.
+                    return (
+                        held.get("held_count") == 1
+                        and held.get("held_byte_size", 0) > 0
+                        and held.get("held_batch_count") == 1
+                        and held.get("first_blocking_message_id")
+                        and not held.get("draining")
+                        and threshold > 0
+                        and 2200 < required - threshold < 2600
+                    )
+                return False
+
+            wait(has_blocked_batch, timeout=180)
+
     @pytest.mark.authors(["pechatnov"])
     @pytest.mark.parametrize("reader_class", ["TReader", "TTransformReader", "TDelayedReader"])
     def test_source_processing_observations(self, reader_class):

@@ -16,6 +16,9 @@ Maximum size of an input batch in rows. Calculated separately for `input_streams
 Maximum size of an input batch in bytes. Calculated similarly to `max_rows_per_batch`. For {{product-name}} queues, the size of unpacked messages is counted; the limit may be exceeded as for `max_rows_per_batch`. ||
 || `max_keys_per_batch` | **Type**: `std::optional<`[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>`
  ||
+|| `source_read_delay_estimator` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TSourceReadDelayEstimatorSpec](./all_yson_structs#NYT_NFlow_TSourceReadDelayEstimatorSpec)`>`
+**Default value**: `{}`
+Controls Offered and eligible unread Ready estimation in Swift ordered sources with nonempty `watermark_alignment.read_delays`. Estimation always applies; this section only changes its parameters. Learning follows the source key across partition restarts. Unknown estimates remain unknown. ||
 || `draining` | **Type**: `bool`
 **Default value**: `false`
 The `Draining` mode is used to drain the pipeline. In this mode, the `Computation` stops running timers and fetching new events from the `Source`.

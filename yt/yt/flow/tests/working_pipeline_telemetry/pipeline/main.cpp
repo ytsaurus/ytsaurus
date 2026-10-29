@@ -75,6 +75,33 @@ protected:
 
 YT_FLOW_DEFINE_SOURCE(TSlowTelemetrySource);
 
+class TReadDelayTelemetrySource
+    : public TSlowTelemetrySource
+{
+public:
+    using TSlowTelemetrySource::TSlowTelemetrySource;
+
+private:
+    TFuture<std::vector<TRecord>> DoReadNextBatch(
+        const TMessageBatcherSettingsPtr& settings,
+        TOffset nextOffset,
+        std::optional<TOffset> offsetLimit) override
+    {
+        auto records = NConcurrency::WaitFor(TSlowTelemetrySource::DoReadNextBatch(settings, nextOffset, offsetLimit)).ValueOrThrow();
+        for (auto& record : records) {
+            record.CreateTimestamp = TSystemTimestamp(record.WriteTimestamp.Underlying() - 8400);
+            record.WriteTimestamp = TSystemTimestamp(record.WriteTimestamp.Underlying() - 7200);
+        }
+        // The writer produces 1000 records/s; the reader visits a much sparser historical interval.
+        UpdatePartitionInfo(TPartitionInfoUpdate{
+            .MaxOffsetExclusive = IntToOffset(TInstant::Now().Seconds() * 1000),
+        });
+        return MakeFuture(std::move(records));
+    }
+};
+
+YT_FLOW_DEFINE_SOURCE(TReadDelayTelemetrySource);
+
 class TSingleBatchTelemetrySource
     : public TSlowTelemetrySource
 {

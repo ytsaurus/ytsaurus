@@ -31,6 +31,7 @@ DECLARE_REFCOUNTED_STRUCT(TWatermarkGeneratorState);
 DECLARE_REFCOUNTED_STRUCT(IWatermarkGenerator);
 
 DECLARE_REFCOUNTED_STRUCT(TSwiftOrderedSourceTimestampMemory);
+DECLARE_REFCOUNTED_STRUCT(TReadDelayStatus);
 
 DECLARE_REFCOUNTED_STRUCT(TSimpleExternalStateManagerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicSimpleExternalStateManagerSpec);

@@ -31,6 +31,7 @@ target_link_libraries(library-cpp-computation PUBLIC
   contrib-libs-cxxsupp
   yutil
   contrib-libs-pdqsort
+  library-cpp-source_read_delay
   cpp-containers-absl
   cpp-containers-insert_only_concurrent_cache
   library-cpp-iterator
@@ -49,6 +50,7 @@ target_link_libraries(library-cpp-computation PUBLIC
 
 target_sources(library-cpp-computation PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/key_count_observer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/read_delay.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/computation_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/computation_tracer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/controller_base.cpp
@@ -98,6 +100,7 @@ target_link_libraries(library-cpp-computation.global PUBLIC
   contrib-libs-cxxsupp
   yutil
   contrib-libs-pdqsort
+  library-cpp-source_read_delay
   cpp-containers-absl
   cpp-containers-insert_only_concurrent_cache
   library-cpp-iterator

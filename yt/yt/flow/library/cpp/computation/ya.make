@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
     key_count_observer.cpp
+    read_delay.cpp
     computation_base.cpp
     computation_tracer.cpp
     controller_base.cpp
@@ -37,6 +38,7 @@ SRCS(
 
 PEERDIR(
     contrib/libs/pdqsort
+    yt/yt/flow/library/cpp/source_read_delay
     library/cpp/containers/absl
     library/cpp/containers/insert_only_concurrent_cache
     library/cpp/iterator

@@ -34,6 +34,7 @@ target_compile_options(library-cpp-common PRIVATE
 target_link_libraries(library-cpp-common PUBLIC
   contrib-libs-cxxsupp
   yutil
+  library-cpp-source_read_delay
   library-cpp-client
   library-cpp-pipeline_tables
   library-cpp-serializer

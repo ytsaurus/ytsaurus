@@ -16,6 +16,9 @@
 Максимальный размер входного батча в байтах. Считается аналогично `max_rows_per_batch`. Для очередей {{product-name}} считается размер распакованных сообщений; превышение — как для `max_rows_per_batch`. ||
 || `max_keys_per_batch` | **Тип**: `std::optional<`[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>`
  ||
+|| `source_read_delay_estimator` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TSourceReadDelayEstimatorSpec](./all_yson_structs#NYT_NFlow_TSourceReadDelayEstimatorSpec)`>`
+**Значение по умолчанию**: `{}`
+Настройки оценки Offered и доступного непрочитанного объёма Ready для Swift ordered source с непустым `watermark_alignment.read_delays`. Оценка применяется всегда; раздел задаёт только её параметры. Обученные величины сохраняются по ключу Source при рестарте партиции. Неизвестная оценка остаётся неизвестной. ||
 || `draining` | **Тип**: `bool`
 **Значение по умолчанию**: `false`
 Режим `Draining` нужен для сброса пайплайна &mdash; в нём `Computation` перестанет запускать таймеры и доставать новые события из `Source`.
