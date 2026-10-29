@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           npm install -g @diplodoc/cli@stable
-          npm install -g @diplodoc/algolia-extension
+          npm install -g @diplodoc/algolia-extension@0.7.3
           echo "$(npm prefix -g)/bin" >> "$GITHUB_PATH"
           # Build and upload documentation with the same Diplodoc version.
           cli_version=$(node -p "require('$(npm root -g)/@diplodoc/cli/package.json').version")
