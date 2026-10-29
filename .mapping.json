@@ -3881,6 +3881,7 @@
   "yt/cpp/roren/yt/proto/CMakeLists.windows-x86_64.txt":"",
   "yt/docs/.yfm":"yt/opensource/repos/ytsaurus/github_toplevel/yt/docs/.yfm",
   "yt/docs/README.md":"yt/opensource/repos/ytsaurus/github_toplevel/yt/docs/README.md",
+  "yt/docs/_assets/style/feedback-position.css":"yt/opensource/repos/ytsaurus/github_toplevel/yt/docs/_assets/style/feedback-position.css",
   "yt/examples/CMakeLists.txt":"",
   "yt/examples/rpc_proxy_sample/CMakeLists.darwin-arm64.txt":"",
   "yt/examples/rpc_proxy_sample/CMakeLists.darwin-x86_64.txt":"",
