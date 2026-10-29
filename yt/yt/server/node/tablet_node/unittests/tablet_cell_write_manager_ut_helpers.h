@@ -114,6 +114,12 @@ public:
         return Automaton_;
     }
 
+    const INodeMemoryTrackerPtr& GetNodeMemoryUsageTracker() override
+    {
+        static const INodeMemoryTrackerPtr result;
+        return result;
+    }
+
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue /*queue*/ = EAutomatonThreadQueue::Default) override
     {
         return AutomatonInvoker_;
