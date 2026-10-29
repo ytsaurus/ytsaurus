@@ -513,7 +513,6 @@ private:
     NQueueClient::ISubConsumerClientPtr SubConsumerClient_;
     std::vector<TRefreshResult> RefreshResults_;
     bool NeedCommit_ = false;
-    bool NeedProgressFlush_ = false;
     bool Refreshed_ = false;
 
     i64 SuccessCount_ = 0;
@@ -546,8 +545,6 @@ private:
                 View_.SourcePath,
                 CurrentProgress_->QueueConsumerInitialized,
                 Config_->TableMountTimeout);
-
-            NeedProgressFlush_ = !CurrentProgress_->QueueConsumerInitialized;
         }
 
         auto partitionInfos = FetchPartitionInfos(
@@ -557,14 +554,13 @@ private:
             FromObjectId(sourceObjectId),
             MasterReadOptions_);
 
-        NextProgress_ = BuildNextProgress(CurrentProgress_, partitionInfos);
+        NextProgress_ = TryBuildNextProgress(CurrentProgress_, partitionInfos);
 
         if (View_.SourceType == EMaterializedViewSourceType::Queue) {
-            NextProgress_->QueueConsumerInitialized = true;
-            RecoverConsumerOffsetsIfNeeded(NextProgress_);
+            RecoverConsumerOffsetsIfNeeded(NextProgress_ ? NextProgress_ : CurrentProgress_);
         }
 
-        auto tasks = BuildTasks(NextProgress_);
+        auto tasks = BuildTasks(NextProgress_ ? NextProgress_ : CurrentProgress_);
 
         if (View_.SourceType == EMaterializedViewSourceType::TableRange) {
             std::vector<TFuture<TLockNodeResult>> lockFutures;
@@ -584,9 +580,9 @@ private:
                 "Testing exception after materialized view refresh query");
         }
 
-        UpdateProgress(NextProgress_, results);
+        UpdateProgress(results);
 
-        if (NeedProgressFlush_) {
+        if (NextProgress_) {
             ProgressStore_->SetProgress(
                 Transaction_,
                 View_.ObjectId,
@@ -615,16 +611,10 @@ private:
         }
     }
 
-    TMaterializedViewProgressPtr BuildNextProgress(
+    TMaterializedViewProgressPtr TryBuildNextProgress(
         const TMaterializedViewProgressPtr& currentProgress,
         const std::vector<TPartitionInfo>& partitionInfos)
     {
-        auto progress = New<TMaterializedViewProgress>();
-        progress->LastError = currentProgress->LastError;
-        progress->QueueConsumerInitialized = currentProgress->QueueConsumerInitialized;
-        progress->NextPartitionIndex = currentProgress->NextPartitionIndex;
-        progress->Partitions.reserve(partitionInfos.size());
-
         THashMap<std::pair<TObjectId, std::optional<int>>, TMaterializedViewPartitionProgressPtr> partitionProgresses;
         for (const auto& partition : currentProgress->Partitions) {
             partitionProgresses.emplace(
@@ -632,14 +622,36 @@ private:
                 partition);
         }
 
-        bool changed = currentProgress->Partitions.size() != partitionInfos.size();
+        auto sourceChanged = [&] () {
+            if (View_.SourceType == EMaterializedViewSourceType::Queue && !currentProgress->QueueConsumerInitialized) {
+                return true;
+            }
+            if (currentProgress->Partitions.size() != partitionInfos.size()) {
+                return true;
+            }
+            for (const auto& info : partitionInfos) {
+                auto key = std::pair(info.ObjectId, info.PartitionIndex);
+                auto it = partitionProgresses.find(key);
+                if (it == partitionProgresses.end() || it->second->TotalRowCount != info.RowCount) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        if (!sourceChanged()) {
+            return nullptr;
+        }
+
+        std::vector<TMaterializedViewPartitionProgressPtr> partitions;
+        partitions.reserve(partitionInfos.size());
         for (const auto& info : partitionInfos) {
             TMaterializedViewPartitionProgressPtr partition;
             auto key = std::pair(info.ObjectId, info.PartitionIndex);
-            if (auto it = partitionProgresses.find(key); it != partitionProgresses.end()) {
+            auto it = partitionProgresses.find(key);
+            if (it != partitionProgresses.end()) {
                 partition = CloneYsonStruct(it->second);
             } else {
-                changed = true;
                 partition = New<TMaterializedViewPartitionProgress>();
                 partition->ObjectId = info.ObjectId;
                 partition->PartitionIndex = info.PartitionIndex;
@@ -650,14 +662,15 @@ private:
                 .With("object_id", info.ObjectId)
                 .With("partition_index", info.PartitionIndex);
 
-            if (partition->TotalRowCount != info.RowCount) {
-                changed = true;
-            }
             partition->TotalRowCount = info.RowCount;
-            progress->Partitions.push_back(std::move(partition));
+            partitions.push_back(std::move(partition));
         }
 
-        NeedProgressFlush_ |= changed;
+        auto progress = New<TMaterializedViewProgress>();
+        progress->LastError = currentProgress->LastError;
+        progress->QueueConsumerInitialized = true;
+        progress->NextPartitionIndex = currentProgress->NextPartitionIndex;
+        progress->Partitions = std::move(partitions);
 
         return progress;
     }
@@ -677,7 +690,6 @@ private:
             if (progress->NextRowIndex == progress->TotalRowCount) {
                 continue;
             }
-            nextProgress->NextPartitionIndex = (index + 1) % partitionCount;
 
             auto lowerRowIndex = progress->NextRowIndex;
             auto upperRowIndex = progress->TotalRowCount;
@@ -696,10 +708,13 @@ private:
         return tasks;
     }
 
-    void UpdateProgress(
-        const TMaterializedViewProgressPtr& progress,
-        const std::vector<TRefreshResult>& results)
+    void UpdateProgress(const std::vector<TRefreshResult>& results)
     {
+        if (!results.empty() && !NextProgress_) {
+            NextProgress_ = CloneYsonStruct(CurrentProgress_);
+        }
+
+        const auto& progress = NextProgress_ ? NextProgress_ : CurrentProgress_;
         auto now = TInstant::Now();
 
         for (const auto& result : results) {
@@ -719,7 +734,10 @@ private:
             partition->LastError.clear();
             partition->NextRowIndex = result.Result.Value();
         }
-        NeedProgressFlush_ |= !results.empty();
+
+        if (!results.empty()) {
+            progress->NextPartitionIndex = (results.back().PartitionIndex + 1) % std::ssize(progress->Partitions);
+        }
 
         bool allPartitionsFailed = !progress->Partitions.empty();
         for (const auto& partition : progress->Partitions) {
@@ -728,11 +746,17 @@ private:
                 break;
             }
         }
+
+        std::string lastError;
         if (allPartitionsFailed) {
-            progress->LastError = "All materialized view partitions are in a failed state";
-        } else if (!progress->LastError.empty()) {
-            progress->LastError.clear();
-            NeedProgressFlush_ = true;
+            lastError = "All materialized view partitions are in a failed state";
+        }
+
+        if (progress->LastError != lastError) {
+            if (!NextProgress_) {
+                NextProgress_ = CloneYsonStruct(CurrentProgress_);
+            }
+            NextProgress_->LastError = std::move(lastError);
         }
     }
 
