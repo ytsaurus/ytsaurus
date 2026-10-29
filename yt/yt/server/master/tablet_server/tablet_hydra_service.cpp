@@ -75,8 +75,8 @@ private:
         for (auto storeCount : storeCounts) {
             THROW_ERROR_EXCEPTION_IF(
                 storeCount < 0,
-                "Store count cannot be negative")
-                .With("store_count", storeCount);
+                "Store count %v is negative",
+                storeCount);
         }
 
         const auto& tabletChunkManager = Bootstrap_->GetTabletManager()->GetTabletChunkManager();

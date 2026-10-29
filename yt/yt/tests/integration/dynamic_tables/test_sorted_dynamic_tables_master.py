@@ -1122,76 +1122,109 @@ class TestUpdateTabletStoresThrottling(TestSortedDynamicTablesBase):
             return [11 + i for i in range(self.NUM_SECONDARY_MASTER_CELLS)]
         return [None]
 
+    def _get_throttler_config(self, bottleneck, rate=1):
+        match bottleneck:
+            case "total":
+                return {"throttler": {"limit": rate}}
+            case "bundle":
+                return {"bundle_limit": rate, "regular_relative_limit": 1., "flush_relative_limit": 1.}
+            case "regular":
+                return {"bundle_limit": 1000, "regular_relative_limit": rate / 1000}
+            case "flush":
+                return {"bundle_limit": 1000, "flush_relative_limit": rate / 1000}
+            case _:
+                assert False
+
+    def _create_table(self, path, with_hunks, external_cell_tag):
+        attributes = {}
+
+        if with_hunks:
+            attributes["schema"] = [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+            ]
+
+        if external_cell_tag is not None:
+            attributes["external_cell_tag"] = external_cell_tag
+
+        self._create_simple_table(path, **attributes)
+        set(f"{path}/@replication_factor", 1)
+
+    def _make_rows(self, keys, with_hunks):
+        suffix = "x" * 20 if with_hunks else ""
+        return [{"key": key, "value": f"value{key}{suffix}"} for key in keys]
+
+    def _check_throttling(self, tables, get_new_count, total_count, duration, store_cost):
+        expected_new_count = duration // store_cost
+
+        time.sleep(duration)
+
+        for path in tables:
+            new_count = get_new_count(path)
+            assert new_count > expected_new_count * 0.5
+            assert new_count < expected_new_count * 1.5
+
+        for path in tables:
+            wait(lambda: get_new_count(path) == total_count)
+
     @authors("alexelexa")
     @pytest.mark.parametrize("cell_count", [1, 4])
     @pytest.mark.parametrize("bottleneck", ["total", "bundle", "regular"])
-    def test_compaction_throttling(self, bottleneck, cell_count):
+    @pytest.mark.parametrize("with_hunks", [False, True])
+    def test_compaction_throttling(self, bottleneck, cell_count, with_hunks):
         sync_create_cells(cell_count)
 
-        chunk_count = 5 * cell_count
+        # A store costs one unit at the node (the input store) and one at the master (the
+        # output store); with hunks the master charges one more for the output hunk chunk.
+        store_cost = 3 if with_hunks else 2
+
+        duration = 12
+
+        # Twice the work that fits the measured window, so that it never runs out of stores.
+        chunk_count = max(cell_count, 2 * duration // store_cost)
 
         external_cell_tags = self._get_external_cell_tags()
         tables = [f"//tmp/t{i}" for i in range(len(external_cell_tags))]
         for path, external_cell_tag in zip(tables, external_cell_tags):
-            attributes = {}
-            if external_cell_tag is not None:
-                attributes["external_cell_tag"] = external_cell_tag
-            self._create_simple_table(path, **attributes)
-            set(f"{path}/@replication_factor", 1)
+            self._create_table(path, with_hunks, external_cell_tag)
 
             sync_reshard_table(path, [[]] + [[i * 1000] for i in range(1, chunk_count)])
             sync_mount_table(path)
-            insert_rows(path, [{"key": i * 1000, "value": str(i)} for i in range(chunk_count)])
+            insert_rows(path, self._make_rows([i * 1000 for i in range(chunk_count)], with_hunks))
             sync_unmount_table(path)
-
-        def _make_config(bottleneck, rate=1):
-            match bottleneck:
-                case "total":
-                    return {"throttler": {"limit": rate}}
-                case "bundle":
-                    return {"bundle_limit": rate, "regular_relative_limit": 1.}
-                case "regular":
-                    return {"bundle_limit": 1000, "regular_relative_limit": rate / 1000}
-                case "flush":
-                    return {"bundle_limit": 1000, "flush_relative_limit": rate / 1000}
-                case _:
-                    assert False
 
         update_nodes_dynamic_config({
             "tablet_node": {
                 "global_stores_update_throttler": {
                     "enable": True,
                 },
+                # Sweeps of the compacted hunk chunks are throttled separately.
+                "hunk_chunk_sweeper": {
+                    "enable": False,
+                },
             },
         })
 
-        set("//sys/@config/tablet_manager/stores_update_throttler", _make_config(bottleneck))
+        set("//sys/@config/tablet_manager/stores_update_throttler", self._get_throttler_config(bottleneck))
 
         old_chunk_ids = {}
         for path in tables:
-            chunk_ids = builtins.set(get(f"{path}/@chunk_ids"))
+            chunk_ids = builtins.set(self._get_store_chunk_ids(path))
             assert chunk_count == len(chunk_ids)
             old_chunk_ids[path] = chunk_ids
 
         for path in tables:
             set(f"{path}/@forced_compaction_revision", 1)
+            if with_hunks:
+                set(f"{path}/@forced_hunk_compaction_revision", 1)
             sync_mount_table(path)
 
-        duration = 10
-        # Since we throttle both input and output chunks, we need to count the output chunks here as well.
-        expected_new_chunk_count = duration / 2
-
-        time.sleep(duration)
-
-        for path in tables:
-            new_chunk_ids = get(f"{path}/@chunk_ids")
-            old_chunk_count = len(old_chunk_ids[path].intersection(new_chunk_ids))
-            new_chunk_count = chunk_count - old_chunk_count
-            assert new_chunk_count > expected_new_chunk_count * 0.5
-            assert new_chunk_count < expected_new_chunk_count * 1.5
-
-        for path in tables:
-            wait(lambda: len(old_chunk_ids[path].intersection(get(f"{path}/@chunk_ids"))) == 0)
+        self._check_throttling(
+            tables,
+            lambda path: chunk_count - len(old_chunk_ids[path].intersection(get(f"{path}/@chunk_ids"))),
+            chunk_count,
+            duration,
+            store_cost)
 
 
 class TestUpdateTabletStoresThrottlingMulticell(TestUpdateTabletStoresThrottling):
