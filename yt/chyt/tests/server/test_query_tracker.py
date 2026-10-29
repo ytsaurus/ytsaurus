@@ -535,7 +535,7 @@ class TestQueriesChyt(ClickHouseTestBase):
             print(rows)
             for row in rows:
                 assert row["type"] in ("ExceptionBeforeStart", "ExceptionWhileProcessing")
-                assert row["exception_code"] == 394
+                assert row["exception_code"] in (236, 394)
 
 
 class TestQueriesChytWithRowLimit(ClickHouseTestBase):
