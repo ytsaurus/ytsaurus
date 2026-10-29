@@ -10,19 +10,20 @@ jobs:
   build:
     name: Build RPC bindings (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 360
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        include:
+        include: &platforms
           - platform: linux-x86_64
             runner: ubuntu-24.04
             manylinux-image: quay.io/pypa/manylinux_2_28_x86_64:2026.04.08-5
+            check-image: quay.io/pypa/manylinux2014_x86_64:2026.04.08-5
           - platform: linux-aarch64
             runner: ubuntu-24.04-arm
             manylinux-image: quay.io/pypa/manylinux_2_28_aarch64:2026.04.08-5
+            check-image: quay.io/pypa/manylinux2014_aarch64:2026.04.08-5
           - platform: macos-x86_64
             runner: macos-15-intel
           - platform: macos-arm64
@@ -54,13 +55,13 @@ jobs:
             -v "$RUNNER_TEMP/rpc-build:/build" \
             -e YTSAURUS_PACKAGE_VERSION \
             "$MANYLINUX_IMAGE" \
-            bash -c 'export PATH="/opt/python/cp38-cp38/bin:$PATH"; bash /ytsaurus/yt/python/packages/build_rpc_bindings.sh /build'
+            bash -c 'git config --global --add safe.directory /ytsaurus; export PATH="/opt/python/cp38-cp38/bin:$PATH"; bash /ytsaurus/yt/python/packages/build_rpc_bindings_external.sh /build'
 
       - name: Build macOS wheel
         if: ${{ runner.os == 'macOS' }}
         env:
           MACOSX_DEPLOYMENT_TARGET: '12.0'
-        run: bash yt/python/packages/build_rpc_bindings.sh "$RUNNER_TEMP/rpc-build"
+        run: bash yt/python/packages/build_rpc_bindings_external.sh "$RUNNER_TEMP/rpc-build"
 
       - name: Upload wheel
         uses: actions/upload-artifact@v4
@@ -80,17 +81,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - platform: linux-x86_64
-            runner: ubuntu-24.04
-            manylinux-image: quay.io/pypa/manylinux_2_28_x86_64:2026.04.08-5
-          - platform: linux-aarch64
-            runner: ubuntu-24.04-arm
-            manylinux-image: quay.io/pypa/manylinux_2_28_aarch64:2026.04.08-5
-          - platform: macos-x86_64
-            runner: macos-15-intel
-          - platform: macos-arm64
-            runner: macos-15
+        include: *platforms
     defaults:
       run:
         shell: bash
@@ -110,7 +101,7 @@ jobs:
       - name: Check wheel and string request ID
         timeout-minutes: 5
         env:
-          MANYLINUX_IMAGE: ${{ matrix.manylinux-image }}
+          MANYLINUX_IMAGE: ${{ matrix.check-image }}
         run: |
           cat > "$RUNNER_TEMP/rpc-build/check_rpc.py" <<'PY'
           from yt_driver_rpc_bindings import Driver, Request
