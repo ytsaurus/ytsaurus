@@ -3,6 +3,7 @@ apply-presets: true
 varsPreset: public
 langs: ['ru', 'en']
 allow-custom-resources: true
+buildManifest: true
 #mtimes: true
 
 docs-viewer:
@@ -35,13 +36,25 @@ docs-viewer:
   gtm:
     id: GTM-W2MMVTR
 
+yafeedback:
+  ownerId:
+    ru: 47e5fcf7-a17e-46df-bc61-2d70740fccb0
+    en: 47e5fcf7-a17e-46df-bc61-2d70740fccb0
+  hideHeader: true
+
 resources:
+  style:
+    - _assets/style/feedback-position.css
   csp:
     - script-src-elem:
         - https://mc.yandex.ru
+        - https://surveys.yandex.ru
     - connect-src:
         - https://*.algolia.net
         - https://*.algolianet.com
+        - https://surveys.yandex.ru
+    - frame-src:
+        - https://yandex.ru
     - img-src:
         - https://storage.yandexcloud.net
 

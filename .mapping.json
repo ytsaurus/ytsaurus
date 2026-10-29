@@ -162,6 +162,7 @@
   "yt/chyt/controller/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/yt/chyt/controller/go.sum",
   "yt/docs/.yfm":"yt/opensource/repos/ytsaurus/github_toplevel/yt/docs/.yfm",
   "yt/docs/README.md":"yt/opensource/repos/ytsaurus/github_toplevel/yt/docs/README.md",
+  "yt/docs/_assets/style/feedback-position.css":"yt/opensource/repos/ytsaurus/github_toplevel/yt/docs/_assets/style/feedback-position.css",
   "yt/go/README.md":"yt/opensource/repos/ytsaurus/github_toplevel/yt/go/README.md",
   "yt/go/flow/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/yt/go/flow/go.mod",
   "yt/go/flow/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/yt/go/flow/go.sum",

@@ -77,6 +77,7 @@ Public и Internal из `yt/docs`:
 
 ## Open Source и экспорт в GitHub
 
+- Для GitHub-сборки используется отдельный `.yfm`: `yt/opensource/repos/ytsaurus/github_toplevel/yt/docs/.yfm` в Аркадии экспортируется как `yt/docs/.yfm` на GitHub. Файл `yt/docs/.yfm` в Аркадии исключён из экспорта правилами Piglet. Настройки публичной GitHub-сборки меняй в файле из `github_toplevel`: правки только в `yt/docs/.yfm` Аркадии в GitHub не попадут.
 - Piglet экспортирует разрешённую часть Arcadia в `ytsaurus/ytsaurus`. В [`devtools/contrib/piglet/projects/yt/config.yaml`](../../devtools/contrib/piglet/projects/yt/config.yaml) AI-файлы исключаются из экспорта в GitHub.
 - В GitHub workflow `.github/workflows/docs-build.yaml` проверяет документацию в pull request, а `.github/workflows/docs-release.yaml` собирает и публикует артефакты из `main`.
 - Для локального предпросмотра open-source-сборки из `yt/docs` доступен `./build-and-serve.sh`; ему нужны CLI `yfm` и Python 3. Это долгоживущий HTTP-сервер, а не автоматическая проверка.

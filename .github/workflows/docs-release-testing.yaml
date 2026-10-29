@@ -6,6 +6,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      cli-version: ${{ steps.install-diplodoc.outputs.cli-version }}
     permissions: write-all
     env:
       src-root: "./yt/docs"
@@ -29,9 +31,15 @@ jobs:
           node-version: 24
 
       - name: Install diplodoc
+        id: install-diplodoc
         run: |
+          set -euo pipefail
           npm install -g @diplodoc/cli@stable
           npm install -g @diplodoc/algolia-extension
+          echo "$(npm prefix -g)/bin" >> "$GITHUB_PATH"
+          # Build and upload documentation with the same Diplodoc version.
+          cli_version=$(node -p "require('$(npm root -g)/@diplodoc/cli/package.json').version")
+          echo "cli-version=${cli_version}" >> "$GITHUB_OUTPUT"
         shell: bash
 
       - name: Check docs sources
@@ -59,7 +67,7 @@ jobs:
         run: |
           set -o pipefail
           exitcode=0
-          yfm -i ${{ env.src-root }} -o ${{ env.build-root }} --arcadia-root "$GITHUB_WORKSPACE" --output-format md --add-map-file --allow-custom-resources 2>&1 | tee './build-md.log' || exitcode=$?
+          yfm -i ${{ env.src-root }} -o ${{ env.build-root }} --arcadia-root "$GITHUB_WORKSPACE" --output-format md --build-manifest --allow-custom-resources 2>&1 | tee './build-md.log' || exitcode=$?
           rm -rf "${{ env.build-root }}/.ya-make-input"
 
           echo "exitcode=$exitcode" >> "$GITHUB_OUTPUT"
@@ -126,6 +134,7 @@ jobs:
       - name: Upload to testing
         uses: diplodoc-platform/docs-upload-action@v1
         with:
+          cli-version: ${{ needs.build.outputs.cli-version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           storage-endpoint: ${{ vars.DIPLODOC_STORAGE_ENDPOINT }}
           storage-region: ${{ vars.DIPLODOC_STORAGE_REGION }}
