@@ -4,6 +4,7 @@
 #include <yql/essentials/core/yql_aggregate_expander.h>
 #include <contrib/ydb/library/yql/providers/dq/expr_nodes/dqs_expr_nodes.h>
 #include <yql/essentials/providers/common/transform/yql_optimize.h>
+#include <yql/essentials/providers/common/provider/yql_provider_names.h>
 #include <contrib/ydb/library/yql/dq/opt/dq_opt_join.h>
 #include <yql/essentials/core/dq_integration/yql_dq_optimization.h>
 #include <contrib/ydb/library/yql/dq/opt/dq_opt_log.h>
@@ -217,6 +218,18 @@ protected:
         if (TypesCtx.CostBasedOptimizer == ECostBasedOptimizerType::Disable) {
             return node;
         }
+
+        // Projection pushdown and stage construction replace the nodes annotated
+        // by the statistics proposal pass. Infer statistics on the current inputs
+        // before choosing a join order, including filters and aggregates in stages.
+        auto dqSource = TypesCtx.DataSourceMap.FindPtr(DqProviderName);
+        YQL_ENSURE(dqSource);
+        TExprNode::TPtr output;
+        const auto status = (*dqSource)->GetStatisticsProposalTransformer().Transform(node.Ptr(), output, ctx);
+        if (status.Level == IGraphTransformer::TStatus::Error) {
+            return {};
+        }
+        YQL_ENSURE(status == IGraphTransformer::TStatus::Ok && output == node.Ptr());
 
         std::function<void(const TString&)> log = [&](auto str) {
             YQL_CLOG(INFO, ProviderDq) << str;
