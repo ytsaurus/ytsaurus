@@ -22,6 +22,7 @@
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <set>
 #include <typeinfo>
 
 namespace NYT::NFlow {
@@ -246,6 +247,11 @@ public:
     { }
 
     virtual TFuture<TListResult> List(TFilter filter, i64 limit, std::optional<TKey> offsetExclusive = std::nullopt);
+
+    //! Called by a key visitor that sweeps the joiner as a weak source, once per read: the rows
+    //! the joiner listed over |range| whose keys are not in |visitKeys| get no visit, so a joiner
+    //! that keeps listed rows until a visit consumes them must drop those. Default: no-op.
+    virtual void RetainListed(const TKeyRange& range, const std::set<TKey>& visitKeys);
 };
 
 DEFINE_REFCOUNTED_TYPE(IExternalStateJoiner);

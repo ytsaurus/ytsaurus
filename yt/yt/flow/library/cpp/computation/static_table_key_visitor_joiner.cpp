@@ -419,6 +419,23 @@ IExternalStateJoiner::TListResult TStaticTableKeyVisitorJoiner::HandleFailedList
     return {};
 }
 
+void TStaticTableKeyVisitorJoiner::RetainListed(const TKeyRange& range, const std::set<TKey>& visitKeys)
+{
+    std::vector<TListedRows::node_type> dropped;
+    auto guard = Guard(Lock_);
+    dropped.reserve(Listed_.size());
+    // A full scan: with the unvisited rows dropped on every read, the map holds only the rows
+    // of visits still waiting in the visitor's buffer.
+    for (auto it = Listed_.begin(); it != Listed_.end();) {
+        if (range.Contains(it->first) && !visitKeys.contains(it->first)) {
+            dropped.push_back(Listed_.extract(it++));
+        } else {
+            ++it;
+        }
+    }
+    ListedSizeGauge_.Update(std::ssize(Listed_));
+}
+
 void TStaticTableKeyVisitorJoiner::AddListedRange(const TKeyRange& range)
 {
     ListedRanges_.push_back(range);

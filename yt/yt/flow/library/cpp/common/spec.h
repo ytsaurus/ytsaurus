@@ -276,18 +276,29 @@ DEFINE_REFCOUNTED_TYPE(TTimerSpec);
 struct TKeyVisitorStreamSpec
     : public NYTree::TYsonStruct
 {
-    // Internal state names to visit. If both Names and ExternalNames are unset, the visitor
-    // sweeps all internal names and all external state managers; otherwise only the listed ones.
+    // Internal state names to visit.
+    // Null means all internal states when ExternalNames is null too (the scan-all mode) and nothing
+    // otherwise; empty means nothing.
     std::optional<THashSet<std::string>> Names;
     // External-state-manager and joiner names to visit. A joiner is swept only when explicitly
-    // listed here; the unset scan-all mode never sweeps joiners.
-    // A visitor-driven joiner may be listed in at most one key-visitor stream.
+    // listed here. A visitor-driven joiner may be listed in at most one key-visitor stream.
+    // Null means all external state managers, but no joiners, when Names is null too (the scan-all
+    // mode) and nothing otherwise; empty means nothing.
     std::optional<THashSet<std::string>> ExternalNames;
 
+    // Visitor-driven joiners swept alongside the stream without contributing keys: each is listed
+    // over the same key ranges as the stream's own sources, so its rows are available to the
+    // visit handler, but a key present only in the joiner produces no visit — a weak (left) join
+    // against the keys of Names/ExternalNames. Disjoint with ExternalNames; the one-stream rule
+    // above counts both lists.
+    // Null means nothing, the same as empty.
+    std::optional<THashSet<std::string>> WeakExternalNames;
+
     // Input and source streams whose completion the visitor waits for before it may finalize.
-    // Unset — every input and source stream of the computation. Narrowing lets a visitor
-    // retire once the streams it actually feeds on are done, ignoring the ones that outlive
-    // it; an explicit empty set waits for nothing, so the visitor may finalize right away.
+    // Narrowing lets a visitor retire once the streams it actually feeds on are done, ignoring
+    // the ones that outlive it.
+    // Null means all: every input and source stream of the computation; empty means nothing, so
+    // the visitor may finalize right away.
     std::optional<THashSet<TStreamId>> UpstreamStreams;
 
     // Static — changing it invalidates persisted coverage intervals.
