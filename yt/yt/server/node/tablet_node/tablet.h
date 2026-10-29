@@ -2,6 +2,7 @@
 
 #include "lock_manager.h"
 #include "chaos_agent.h"
+#include "chunk_prolongator.h"
 #include "object_detail.h"
 #include "partition.h"
 #include "puller_replica_cache.h"
@@ -328,6 +329,8 @@ struct TTabletSnapshot
     std::vector<NTabletServer::TOriginatorTablet> OriginatorTablets;
 
     std::atomic<bool> Unregistered = false;
+
+    std::unique_ptr<TChunkProlongationGuard> ChunkProlongationGuard;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
@@ -738,6 +741,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TLookupHeavyHitters, LookupHeavyHitters);
 
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, SnapshotEvictionTimeout);
+
+    DEFINE_BYREF_RW_PROPERTY(IChunkProlongatorPtr, ChunkProlongator, CreateChunkProlongator());
 
 public:
     TTablet(

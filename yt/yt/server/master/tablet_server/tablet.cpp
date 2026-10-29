@@ -173,6 +173,7 @@ void TTablet::Save(NCellMaster::TSaveContext& context) const
     Save(context, BackedUpReplicaInfos_);
     Save(context, DynamicStores_);
     Save(context, ReplicationProgress_);
+    Save(context, ProlongedChunks_);
 }
 
 void TTablet::Load(NCellMaster::TLoadContext& context)
@@ -203,6 +204,9 @@ void TTablet::Load(NCellMaster::TLoadContext& context)
     Load(context, BackedUpReplicaInfos_);
     Load(context, DynamicStores_);
     Load(context, ReplicationProgress_);
+    if (context.GetVersion() >= EMasterReign::DynamicTableChunkProlongation) {
+        Load(context, ProlongedChunks_);
+    }
 }
 
 TTableNode* TTablet::GetTable() const

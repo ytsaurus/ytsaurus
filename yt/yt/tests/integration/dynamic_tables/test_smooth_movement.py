@@ -1060,6 +1060,48 @@ class TestSmoothMovement(SmoothMovementBase):
         assert old_mount_revision == old_logical_mount_revision
         assert old_logical_mount_revision == new_logical_mount_revision
 
+    @authors("sabdenovch")
+    def test_chunk_prolongation(self):
+        set("//sys/@config/chunk_manager/chunk_prolongator/enable", True)
+
+        sync_create_cells(2)
+        create("table", "//tmp/a", attributes={
+            "dynamic": True,
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type_v3": {"type_name": "list", "item": "int64"}},
+            ],
+            "mount_config": {
+                "enable_chunk_prolongation": True,
+            }
+        })
+        sync_mount_table("//tmp/a")
+        insert_rows("//tmp/a", [{"key": 0, "value": list(range(5))}])
+        sync_flush_table("//tmp/a")
+        initial_chunk_id = get("//tmp/a/@chunk_ids/0")
+        tablet_id = get("//tmp/a/@tablets/0/tablet_id")
+        source_cell_id = get(f"#{tablet_id}/@cell_id")
+
+        set("//tmp/a/@forced_compaction_revision", 1)
+        remount_table("//tmp/a")
+        wait(lambda: get("//tmp/a/@chunk_ids/0") != initial_chunk_id)
+
+        assert exists(f"#{initial_chunk_id}")
+
+        prolonged_chunks_before = get(f"#{tablet_id}/orchid/prolonged_chunk_ids")
+        assert [initial_chunk_id] == prolonged_chunks_before
+
+        target_cell_id = [c for c in ls("//sys/tablet_cells") if c != source_cell_id][0]
+        self._sync_move_tablet(tablet_id, target_cell_id)
+
+        prolonged_chunks_after = get(f"#{tablet_id}/orchid/prolonged_chunk_ids")
+        assert [initial_chunk_id] == prolonged_chunks_after
+
+        set("//tmp/a/@forced_compaction_revision", 1)
+        remount_table("//tmp/a")
+        wait(lambda: not exists(f"#{initial_chunk_id}"))
+        wait(lambda: initial_chunk_id not in get(f"#{tablet_id}/orchid/prolonged_chunk_ids"))
+
 
 ##################################################################
 

@@ -35,6 +35,12 @@ void TTabletTypeHandlerBase<TImpl>::CheckInvariants(TBootstrap* bootstrap)
     for (auto [tabletId, tablet] : tabletManager->Tablets()) {
         if (tablet->GetType() == this->GetType()) {
             tablet->CheckInvariants(bootstrap);
+
+            if constexpr (std::is_same_v<TImpl, TTablet>) {
+                if (tablet->GetState() == ETabletState::Unmounted) {
+                    YT_VERIFY(tablet->As<TTablet>()->ProlongedChunks().empty());
+                }
+            }
         }
     }
 }

@@ -4095,6 +4095,101 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 for item in get(f"{cell_path}/@health_history")
             ))
 
+    @authors("sabdenovch")
+    def test_chunk_prolongation(self):
+        set("//sys/@config/chunk_manager/chunk_prolongator/enable", True)
+        sync_create_cells(1)
+        create("table", "//tmp/a", attributes={
+            "dynamic": True,
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type_v3": {"type_name": "list", "item": "int64"}},
+            ],
+            "mount_config": {
+                "enable_chunk_prolongation": True,
+            }
+        })
+        sync_mount_table("//tmp/a")
+        insert_rows("//tmp/a", [{"key": 0, "value": list(range(5))}])
+        sync_flush_table("//tmp/a")
+        initial_chunk_id = get("//tmp/a/@chunk_ids/0")
+        tablet_id = get("//tmp/a/@tablets/0/tablet_id")
+
+        set("//tmp/a/@forced_compaction_revision", 1)
+        remount_table("//tmp/a")
+        wait(lambda: get("//tmp/a/@chunk_ids/0") != initial_chunk_id)
+
+        assert exists(f"#{initial_chunk_id}")
+        assert [initial_chunk_id] == get(f"#{tablet_id}/orchid/prolonged_chunk_ids")
+
+        set("//tmp/a/@forced_compaction_revision", 1)
+        remount_table("//tmp/a")
+        wait(lambda: not exists(f"#{initial_chunk_id}"))
+        wait(lambda: initial_chunk_id not in get(f"#{tablet_id}/orchid/prolonged_chunk_ids"))
+
+        assert get(f"#{tablet_id}/orchid/prolonged_chunk_ids") != []
+        sync_unmount_table("//tmp/a", force=True)
+        tablet_id = get("//tmp/a/@tablets/0/tablet_id")
+        assert get(f"#{tablet_id}/@prolonged_chunk_count") == 0
+
+    @authors("sabdenovch")
+    def test_chunk_view_prolongation(self):
+        set("//sys/@config/chunk_manager/chunk_prolongator/enable", True)
+        sync_create_cells(1)
+        create("table", "//tmp/a", attributes={
+            "dynamic": True,
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "int64"},
+            ],
+            "mount_config": {
+                "enable_chunk_prolongation": True,
+                "min_data_ttl": 0,
+                "max_data_ttl": 0,
+                "min_data_versions": 0,
+                "max_data_versions": 0,
+            },
+        })
+        sync_mount_table("//tmp/a")
+        insert_rows("//tmp/a", [{"key": i, "value": 0} for i in range(9)])
+        sync_unmount_table("//tmp/a")
+        initial_chunk_id = get("//tmp/a/@chunk_ids/0")
+
+        # Single chunk behind three chunk views, two in the first tablet, one in the second.
+        # Cut the middle out of the chunk to prevent chunk views from remerging.
+        sync_reshard_table("//tmp/a", [[], [2], [3], [6]])
+        set("//tmp/a/@forced_compaction_revision", 1)
+        sync_mount_table("//tmp/a", first_tablet_index=1, last_tablet_index=1)
+        wait(lambda: get("//tmp/a/@tablets/1/statistics/chunk_count") == 0)
+        sync_unmount_table("//tmp/a", first_tablet_index=1, last_tablet_index=1)
+        set("//tmp/a/@mount_config", {"enable_chunk_prolongation": True})
+        sync_reshard_table("//tmp/a", [[], [6]])
+        first_tablet_id = get("//tmp/a/@tablets/0/tablet_id")
+        second_tablet_id = get("//tmp/a/@tablets/1/tablet_id")
+
+        chunk_tree = get(f"#{get('//tmp/a/@chunk_list_id')}/@tree")
+        assert chunk_tree[0][0].attributes["type"] == "chunk_view"
+        assert list(chunk_tree[0][0]) == [initial_chunk_id]
+        assert chunk_tree[0][1].attributes["type"] == "chunk_view"
+        assert list(chunk_tree[0][1]) == [initial_chunk_id]
+        assert chunk_tree[1][0].attributes["type"] == "chunk_view"
+        assert list(chunk_tree[1][0]) == [initial_chunk_id]
+
+        # Tablet node should handle a chunk being "prolonged twice".
+        # Master should handle same chunk being prolonged and deprolonged by two tablets.
+        set("//tmp/a/@forced_compaction_revision", 1)
+        sync_mount_table("//tmp/a")
+        wait(lambda: initial_chunk_id not in get("//tmp/a/@chunk_ids"))
+        assert exists(f"#{initial_chunk_id}")
+        wait(lambda: [initial_chunk_id] == get(f"#{first_tablet_id}/orchid/prolonged_chunk_ids"))
+        wait(lambda: [initial_chunk_id] == get(f"#{second_tablet_id}/orchid/prolonged_chunk_ids"))
+
+        set("//tmp/a/@forced_compaction_revision", 1)
+        remount_table("//tmp/a")
+        wait(lambda: not exists(f"#{initial_chunk_id}"))
+        wait(lambda: initial_chunk_id not in get(f"#{first_tablet_id}/orchid/prolonged_chunk_ids"))
+        wait(lambda: initial_chunk_id not in get(f"#{second_tablet_id}/orchid/prolonged_chunk_ids"))
+
 
 ##################################################################
 

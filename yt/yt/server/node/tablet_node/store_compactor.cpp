@@ -2,6 +2,7 @@
 
 #include "background_activity_orchid.h"
 #include "bootstrap.h"
+#include "chunk_prolongator.h"
 #include "config.h"
 #include "error_manager.h"
 #include "global_stores_update_throttler.h"
@@ -116,6 +117,7 @@ using NYT::ToProto;
 
 static const i64 MaxRowsPerRead = 8 * 1024;
 static const i64 MaxRowsPerWrite = 8 * 1024;
+static const int MaxExpiredChunksPerBatch = 128;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1845,7 +1847,7 @@ private:
                 AddStoresToAdd(&actionRequest, writer);
             }
             AddStoresToAdd(&actionRequest, partitioningResult.HunkWriter);
-            AddStoresToRemove(&actionRequest, stores);
+            AddStoresToRemove(&actionRequest, stores, tablet->ChunkProlongator());
 
             std::vector<TStoreId> storeIdsToAdd;
             for (const auto& [writer, partitionIndex] : partitionWriters) {
@@ -1986,7 +1988,7 @@ private:
             actionRequest.set_retained_timestamp(ToProto(retainedTimestamp));
             actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::Compaction));
             actionRequest.set_throttle_at_master(GlobalStoresUpdateThrottler_->IsEnabled());
-            AddStoresToRemove(&actionRequest, stores);
+            AddStoresToRemove(&actionRequest, stores, tablet->ChunkProlongator());
 
             YT_TLOG_INFO("Partition stores discarded by TTL")
                 .With("UnmergedRowCount", partition->GetUnmergedRowCount())
@@ -2273,7 +2275,7 @@ private:
             actionRequest.set_throttle_at_master(GlobalStoresUpdateThrottler_->IsEnabled());
             AddStoresToAdd(&actionRequest, compactionResult.StoreWriter);
             AddStoresToAdd(&actionRequest, compactionResult.HunkWriter);
-            AddStoresToRemove(&actionRequest, stores);
+            AddStoresToRemove(&actionRequest, stores, tablet->ChunkProlongator());
 
             std::vector<TStoreId> storeIdsToAdd;
             for (const auto& chunkSpec : compactionResult.StoreWriter->GetWrittenChunkSpecs()) {
@@ -2507,12 +2509,32 @@ private:
 
     static void AddStoresToRemove(
         NTabletServer::NProto::TReqUpdateTabletStores* actionRequest,
-        const std::vector<TSortedChunkStorePtr>& stores)
+        const std::vector<TSortedChunkStorePtr>& stores,
+        const IChunkProlongatorPtr& chunkProlongator)
     {
+        // NB(sabdenovch): Technically a race that triggers alerts on master and tablet node is possible.
+        // If two compactions on two different partitions initialized at the same time, each
+        // containing a chunk view referencing some chunk C, manage to order their respective transactions -
+        // PrepareA, CommitA, PrepareB, CommitB - both compactions will HAVE to include chunk C in
+        // their prolongation lists and both will reach commit, triggering double prolongation.
+        // It's harmless, since both tablet node and mastet ignore the second prolongation, but unusual.
+        THashSet<TChunkId> uniqueChunkIds;
+        uniqueChunkIds.reserve(stores.size());
+
         for (const auto& store : stores) {
-            auto storeId = store->GetId();
             auto* descriptor = actionRequest->add_stores_to_remove();
-            ToProto(descriptor->mutable_store_id(), storeId);
+            ToProto(descriptor->mutable_store_id(), store->GetId());
+
+            auto chunkId = store->GetChunkId();
+            if (chunkProlongator->IsChunkProlongationRequired(chunkId) && uniqueChunkIds.insert(chunkId).second) {
+                ToProto(actionRequest->add_prolonged_chunks_to_add(), chunkId);
+            }
+        }
+
+        auto expiredChunkIds = chunkProlongator->GetNotReferencedProlongedChunkIds(
+            MaxExpiredChunksPerBatch);
+        for (auto chunkId : expiredChunkIds) {
+            ToProto(actionRequest->add_prolonged_chunks_to_remove(), chunkId);
         }
     }
 
