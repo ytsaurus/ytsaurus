@@ -641,6 +641,10 @@ void TYtConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("http_header_blacklist", &TThis::HttpHeaderBlacklist)
         .Default();
+    registrar.Parameter("enable_http_tvm_authentication", &TThis::EnableHttpTvmAuthentication)
+        .Default(false);
+    registrar.Parameter("http_allowed_service_tvm_ids", &TThis::HttpAllowedServiceTvmIds)
+        .Default();
     registrar.Parameter("user_name_blacklist", &TThis::UserNameBlacklist)
         .Default();
 

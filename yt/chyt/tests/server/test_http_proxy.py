@@ -12,6 +12,8 @@ from yt_helpers import profiler_factory, write_log_barrier, read_structured_log
 
 import yt.environment.init_operations_archive as init_operations_archive
 
+import yt.packages.requests as requests
+
 from yt_env_setup import Restarter, SCHEDULERS_SERVICE
 
 from requests.auth import HTTPBasicAuth
@@ -89,6 +91,68 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
     def _get_proxy_metric(self, metric_name):
         return profiler_factory().at_http_proxy(self.Env.get_http_proxy_address()).counter(metric_name)
+
+    @authors("buyval01")
+    @pytest.mark.parametrize(
+        "authentication_enabled,allowed_source,ticket_checking",
+        [(False, True, True), (True, True, True), (True, False, True), (True, True, False)],
+        ids=["disabled", "trusted-source", "empty-allowlist", "checking-disabled"],
+    )
+    def test_http_tvm_authentication(self, authentication_enabled, allowed_source, ticket_checking):
+        native_authentication = Clique.base_config.get("native_authentication_manager")
+        if not native_authentication:
+            pytest.skip("TVM service support is required")
+        tvm_id = native_authentication["tvm_service"]["client_self_id"]
+        patch = {
+            "yt": {
+                "enable_http_tvm_authentication": authentication_enabled,
+                "http_allowed_service_tvm_ids": [tvm_id] if allowed_source else [],
+            },
+            "native_authentication_manager": {
+                "tvm_service": {
+                    "client_enable_service_ticket_checking": ticket_checking,
+                },
+            },
+        }
+
+        with Clique(1, config_patch=patch, wait_discovery_sync=False) as clique:
+            instance = clique.get_active_instances()[0]
+            address = "http://{}:{}".format(
+                instance.attributes["host"], instance.attributes["http_port"]
+            )
+            wait(lambda: requests.get(
+                address + "/ping",
+                headers={"Accept-Encoding": "identity"},
+                timeout=5,
+            ).status_code == 200, ignore_exceptions=True)
+            query = "select currentUser() as user format JSON"
+            for method in ["GET", "POST"]:
+                for ticket, status in [
+                    (None, 403),
+                    ("", 403),
+                    ("invalid-ticket", 403),
+                    (f"TestTicket-{tvm_id}-{tvm_id + 1}", 403),
+                    (f"TestTicket-{tvm_id + 1}-{tvm_id}", 403),
+                    (f"TestTicket-{tvm_id}-{tvm_id}", 200),
+                ]:
+                    if not authentication_enabled:
+                        status = 200
+                    elif status == 200 and not (allowed_source and ticket_checking):
+                        status = 403
+                    headers = {"X-ClickHouse-User": "root"}
+                    if ticket is not None:
+                        headers["X-Ya-Service-Ticket"] = ticket
+                    response = requests.request(
+                        method,
+                        address + "/query",
+                        headers=headers,
+                        params={"query": query} if method == "GET" else None,
+                        data=query if method == "POST" else None,
+                        timeout=30,
+                    )
+                    assert response.status_code == status, (method, ticket, response.text)
+                    if status == 200:
+                        assert response.json()["data"] == [{"user": "root"}]
 
     @authors("evgenstf", "barykinni")
     def test_instance_choice(self):

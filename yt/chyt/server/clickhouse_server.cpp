@@ -13,6 +13,12 @@
 #include "tcp_handler.h"
 #include "user_defined_sql_objects_storage.h"
 
+#include <yt/yt/ytlib/auth/native_authentication_manager.h>
+
+#include <yt/yt/library/tvm/service/config.h>
+
+#include <yt/yt/core/http/helpers.h>
+
 #include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -26,6 +32,7 @@
 #include <Server/IServer.h>
 
 #include <Access/AccessControl.h>
+#include <Access/Credentials.h>
 #include <Access/MemoryAccessStorage.h>
 #include <Common/ClickHouseRevision.h>
 #include <Common/MemoryTracker.h>
@@ -47,6 +54,7 @@
 #include <Storages/System/attachSystemTablesImpl.h>
 
 #include <DBPoco/DirectoryIterator.h>
+#include <DBPoco/String.h>
 #include <DBPoco/ThreadPool.h>
 #include <DBPoco/Util/LayeredConfiguration.h>
 #include <DBPoco/Util/ServerApplication.h>
@@ -71,6 +79,75 @@ namespace NYT::NClickHouseServer {
 using namespace NConcurrency;
 
 constinit const auto Logger = ClickHouseYtLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAccessStorage
+    : public DB::MemoryAccessStorage
+{
+public:
+    TAccessStorage(THost* host, DB::AccessChangesNotifier& changesNotifier)
+        : DB::MemoryAccessStorage("access", changesNotifier, /*allow_backup*/ false)
+        , Host_(host)
+    { }
+
+private:
+    THost* const Host_;
+
+    std::optional<DB::AuthResult> authenticateImpl(
+        const DB::Credentials& credentials,
+        const DBPoco::Net::IPAddress& address,
+        const DB::ExternalAuthenticators& externalAuthenticators,
+        const DB::ClientInfo& clientInfo,
+        bool throwIfUserNotExists,
+        bool allowNoPassword,
+        bool allowPlaintextPassword) const override
+    {
+        if (clientInfo.interface == DB::ClientInfo::Interface::HTTP) {
+            if (Host_->GetConfig()->EnableHttpTvmAuthentication) {
+                ValidateServiceTicket(clientInfo);
+            }
+
+            YT_LOG_DEBUG("Preparing ClickHouse user (UserName: %v)", credentials.getUserName());
+            Host_->PrepareClickHouseUser(credentials.getUserName());
+            YT_LOG_DEBUG("User prepared");
+        }
+
+        return DB::MemoryAccessStorage::authenticateImpl(
+            credentials,
+            address,
+            externalAuthenticators,
+            clientInfo,
+            throwIfUserNotExists,
+            allowNoPassword,
+            allowPlaintextPassword);
+    }
+
+    void ValidateServiceTicket(const DB::ClientInfo& clientInfo) const
+    {
+        std::string serviceTicket;
+        for (const auto& [name, value] : clientInfo.http_headers) {
+            if (DBPoco::icompare(name, NHttp::NHeaders::ServiceTicketHeaderName) == 0) {
+                serviceTicket = value;
+                break;
+            }
+        }
+        if (serviceTicket.empty()) {
+            THROW_ERROR_EXCEPTION("TVM service ticket is missing");
+        }
+
+        auto tvmService = NAuth::TNativeAuthenticationManager::Get()->GetTvmService();
+        if (!tvmService || !tvmService->GetConfig()->ClientEnableServiceTicketChecking) {
+            THROW_ERROR_EXCEPTION("HTTP TVM authentication is unavailable");
+        }
+
+        auto parsedTicket = tvmService->ParseServiceTicket(serviceTicket);
+
+        if (!Host_->GetConfig()->HttpAllowedServiceTvmIds.contains(parsedTicket.TvmId)) {
+            THROW_ERROR_EXCEPTION("Source TVM ID %v is not trusted", parsedTicket.TvmId);
+        }
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -220,6 +297,18 @@ private:
         ServerContext_->makeGlobalContext();
         ServerContext_->setApplicationType(DB::Context::ApplicationType::SERVER);
         ServerContext_->setConfig(LayeredConfig_);
+
+        YT_LOG_DEBUG("Setting up access manager");
+
+        DB::AccessControl& accessControl = ServerContext_->getAccessControl();
+
+        auto accessStorage = std::make_unique<TAccessStorage>(
+            Host_,
+            accessControl.getChangesNotifier());
+
+        // TAccessStorage must be first so other storages cannot bypass its access checks.
+        accessControl.addStorage(std::move(accessStorage));
+
         ServerContext_->setUsersConfig(ConvertToPocoConfig(ConvertToNode(Config_->Users)));
 
         Host_->SetContext(ServerContext_);
@@ -304,17 +393,6 @@ private:
             total_memory_tracker.setDescription("(total)");
             total_memory_tracker.setMetric(CurrentMetrics::MemoryTracking);
         }
-
-        YT_LOG_DEBUG("Setting up access manager");
-
-        DB::AccessControl& accessControl = ServerContext_->getAccessControl();
-
-        auto accessStorage = std::make_unique<DB::MemoryAccessStorage>(
-            "access" /*storage_name*/,
-            accessControl.getChangesNotifier(),
-            false /*allow_backup*/);
-
-        accessControl.addStorage(std::move(accessStorage));
 
         RegisterNewUser(accessControl, InternalRemoteUserName, Host_->GetUserDefinedDatabaseNames());
 

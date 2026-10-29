@@ -101,6 +101,7 @@ class Clique(object):
                  alias=None,
                  export_query_log=False,
                  enable_object_repository=True,
+                 wait_discovery_sync=True,
                  **kwargs):
         """
         alias: str
@@ -294,6 +295,7 @@ class Clique(object):
                 task["environment"] = environment
 
         self.instance_count = instance_count
+        self.wait_discovery_sync = wait_discovery_sync
 
         create_access_control_object(name=self.alias, namespace="chyt")
 
@@ -444,7 +446,8 @@ class Clique(object):
             # print_debug("Clique sizes over all instances: {}".format(clique_size_per_instance))
             return min(clique_size_per_instance) == self.instance_count
 
-        wait(check_all_instance_pairs)
+        if self.wait_discovery_sync:
+            wait(check_all_instance_pairs)
 
         return self
 

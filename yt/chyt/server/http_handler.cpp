@@ -153,10 +153,6 @@ public:
             return;
         }
 
-        YT_LOG_DEBUG("Preparing clickhouse user (UserName: %v)", userName);
-        Host_->PrepareClickHouseUser(userName);
-        YT_LOG_DEBUG("User prepared");
-
         DB::HTTPHandler::handleRequest(request, response, writeEvent);
     }
 
