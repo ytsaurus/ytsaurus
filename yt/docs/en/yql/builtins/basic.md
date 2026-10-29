@@ -402,7 +402,7 @@ SELECT Udf(Foo::Bar, "4.5" AS Cpu, "100M" AS ExtraMem)(1);
 ```
 
 
-## CurrentUtc... {#current-utc}
+## CurrentUtc... {#current-utc} {#currentutcdate}
 
 `CurrentUtcDate()`, `CurrentUtcDatetime()` and `CurrentUtcTimestamp()`: Getting the current date and/or time in UTC. The result data type is specified at the end of the function name.
 
@@ -550,7 +550,7 @@ SELECT MIN_OF(1, 2, 3);
 ```
 
 
-## AsTuple, AsStruct, AsList, AsDict, AsSet, AsListStrict, AsDictStrict and AsSetStrict {#as-container}
+## AsTuple, AsStruct, AsList, AsDict, AsSet, AsListStrict, AsDictStrict and AsSetStrict {#as-container} {#aslist} {#asstruct} {#astuple}
 
 Creates containers of the appropriate types. [Operator writing](#containerliteral) of container literals is also available.
 
@@ -950,7 +950,7 @@ TableRow()->Struct
 SELECT TableRow() FROM my_table;
 ```
 
-## FileContent and FilePath {#file-content-path}
+## FileContent and FilePath {#file-content-path} {#filecontent}
 
 You can attach arbitrary named files to your query both in the {% if audience == "internal" %}[console]({{yql.link}}/docs/yt/interfaces/cli){% else %}console{% endif %} and {% if audience == "internal" %}[web]({{yql.link}}/docs/yt/interfaces/web){% else %}web{% endif %} interfaces. With these functions, you can use the name of the attached file to get its contents or the path in the sandbox, and then use it as you like in the query.
 

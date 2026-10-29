@@ -22,7 +22,7 @@
 * `mode` — способ распределения ресурсов между операциями в пуле;
 * `fifo_sort_parameters` — управление очередностью запуска операций в fifo-пулах;
 * `resource_limits` — словарь, задающий верхние ограничения для ресурсов, доступных пулу;
-* `create_ephemeral_subpools` — разрешение создавать [эфемерные пулы](../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md#puly-i-derevya-pulov);
+* `create_ephemeral_subpools` — разрешение создавать [эфемерные пулы](../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md#pools-and-pool-trees);
 * `ephemeral_subpool_config` — словарь, описывающий конфигурацию виртуальных пулов.
 
 Подробное описание указанных атрибутов см. в разделе [Конфигурация пула](../../../../user-guide/data-processing/scheduler/pool-settings.md#pools).

@@ -40,7 +40,7 @@ SELECT key, COUNT(value) FROM my_table GROUP BY key;
 SELECT COUNT(DISTINCT value) FROM my_table;
 ```
 
-## MIN и MAX {#min-max}
+## MIN и MAX {#min-max} {#min}
 
 #### Сигнатура
 
@@ -282,7 +282,7 @@ FROM my_table;
 
 
 
-## AGGREGATE_LIST {#agg-list}
+## AGGREGATE_LIST {#agg-list} {#aggregate-list}
 
 #### Сигнатура
 
@@ -341,7 +341,7 @@ FROM users
 {% if audience == "internal" %}[Пример в tutorial]({{yql.link}}/Tutorial/yt_07_Conditional_values_and_UDF){% endif %}
 
 
-## MAX_BY и MIN_BY {#max-min-by}
+## MAX_BY и MIN_BY {#max-min-by} {#minby}
 
 #### Сигнатура
 
@@ -613,7 +613,7 @@ SELECT
 FROM my_table;
 ```
 
-## PERCENTILE и MEDIAN {#percentile-median}
+## PERCENTILE и MEDIAN {#percentile-median} {#percentile}
 
 #### Сигнатура
 
@@ -928,7 +928,7 @@ FROM my_table;
 В случае раширенного варианта `SessionWindow` – значение второго элемента кортежа, возвращаемого `<calculate_lambda>`, при котором первый элемент кортежа равен `True`.
 
 
-## AGGREGATE_BY и MULTI_AGGREGATE_BY {#aggregate-by}
+## AGGREGATE_BY и MULTI_AGGREGATE_BY {#aggregate-by} {#aggregateby} {#multiaggregateby}
 
 Применение [фабрики агрегационной функции](basic.md#aggregationfactory) ко всем значениям колонки или выражения. Функция `MULTI_AGGREGATE_BY` требует, чтобы в значении колонки или выражения была структура, кортеж или список, и применяет фабрику поэлементно, размещая результат в контейнере той же формы. Если в разных значениях колонки или выражения содержатся списки разной длины, результирующий список будет иметь наименьшую из длин этих списков.
 

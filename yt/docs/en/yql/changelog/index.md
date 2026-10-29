@@ -2,7 +2,7 @@
 
 This section contains a list of changes in different versions of the YQL
 
-## General description of YQL versions
+## General description of YQL versions {#general-description-of-yql-versions} {#langver-desc}
 
 The goal of language versioning is a controlled and user-safe evolution of the language, within which it is possible to:
 

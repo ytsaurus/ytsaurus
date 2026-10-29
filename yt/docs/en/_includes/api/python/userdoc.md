@@ -547,7 +547,7 @@ For more information about files in Cypress, see the [section](../../../user-gui
 - [put_file_to_cache](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.put_file_to_cache)
   Upload the file existing at the given Cypress path to the cache. Note that the file should be uploaded to Cypress with a special option that enables md5 calculation.
 
-### Working with tables { #table_commands }
+### Working with tables { #working-with-tables }
 
 For more information about tables, see [Static tables](../../../user-guide/storage/static-tables.md).
 
@@ -1085,7 +1085,7 @@ When running a `map_reduce` operation with multiple input tables, keep in mind 
 
 For the [run_map_reduce](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_map_reduce) function, all the options specific to a given job exist in three copies: for the mapper, reducer, and reduce_combiner. That is, the function has the options `map_local_files`, `reduce_local_files`, `reduce_combiner_local_files`, etc. For a full list of options, see [pydoc](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_map_reduce).
 
-## Commands { #commands }
+### Working with operations and jobs { #operation_and_job_commands }
 
 - [get_operation_state](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.get_operation_state) — returns the state of the current operation. The returned object is a class that has a single field `name` and methods `is_finished`, `is_running`, `is_unsuccessfully_finished`.
 - [abort_operation](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.abort_operation) — abort the operation without saving its result.
@@ -1218,13 +1218,13 @@ yt.get_attribute("//sys/groups/testers", "members")
 List of commands for working with the contents of dynamic tables:
 
 - [insert_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.insert_rows) — [insert](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#insert_rows) rows into a dynamic table.
-- [lookup_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.lookup_rows) — [select](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#chtenie-stroki) rows with specified keys.
-- [delete_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.delete_rows) — [delete](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#udalenie-stroki) rows with specified keys.
-- [select_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.select_rows) — [select](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#vypolnenie-zaprosa) rows that match a query in the [SQL dialect](../../../user-guide/dynamic-tables/dyn-query-language.md).
-- [lock_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.lock_rows) — [lock](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#blokirovka-stroki) rows with specified keys.
-- [trim_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.trim_rows) — [delete](../../../user-guide/dynamic-tables/ordered-dynamic-tables#trim) a specified number of rows from an ordered table.
+- [lookup_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.lookup_rows) — [select](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#reading-rows) rows with specified keys.
+- [delete_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.delete_rows) — [delete](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#deleting-rows) rows with specified keys.
+- [select_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.select_rows) — [select](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#running-a-script) rows that match a query in the [SQL dialect](../../../user-guide/dynamic-tables/dyn-query-language.md).
+- [lock_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.lock_rows) — [lock](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#locking-rows) rows with specified keys.
+- [trim_rows](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.trim_rows) — [delete](../../../user-guide/dynamic-tables/ordered-dynamic-tables.md#trim) a specified number of rows from an ordered table.
 
-Commands related to [mounting](../../../user-guide/dynamic-tables/overview.md#mount_table) tables:
+Commands related to [mounting](../../../user-guide/dynamic-tables/operations.md#mount_table) tables:
 
 - [mount_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.mount_table) — mount a dynamic table.
 - [unmount_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.unmount_table) — unmount a dynamic table.
@@ -1237,12 +1237,12 @@ Commands related to [sharding](../../../user-guide/dynamic-tables/resharding.md)
 
 Other commands:
 
-- [freeze_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.freeze_table) — [freeze](../../../user-guide/dynamic-tables/overview.md#zamorozka) a table.
-- [unfreeze_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.unfreeze_table) — [unfreeze](../../../user-guide/dynamic-tables/overview.md#zamorozka) a table.
-- [balance_tablet_cells](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.balance_tablet_cells) — distribute tablets evenly across [tablet cells](../../../user-guide/dynamic-tables/overview.md#tablet_cells).
-- [get_tablet_infos](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.get_tablet_infos) — get the attributes of a [tablet](../../../user-guide/dynamic-tables/overview.md#tablets).
-- [get_tablet_errors](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.get_tablet_errors) — get the errors of a [tablet](../../../user-guide/dynamic-tables/overview.md#tablets).
-- [alter_table_replica](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.alter_table_replica) — [change the attributes](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md#nastrojki-replik) of a replica of a [replicated table](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md).
+- [freeze_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.freeze_table) — [freeze](../../../user-guide/dynamic-tables/operations.md#freeze) a table.
+- [unfreeze_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.unfreeze_table) — [unfreeze](../../../user-guide/dynamic-tables/operations.md#freeze) a table.
+- [balance_tablet_cells](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.balance_tablet_cells) — distribute tablets evenly across [tablet cells](../../../user-guide/dynamic-tables/concepts.md#tablet_cells).
+- [get_tablet_infos](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.get_tablet_infos) — get the attributes of a [tablet](../../../user-guide/dynamic-tables/concepts.md#tablets).
+- [get_tablet_errors](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.get_tablet_errors) — get the errors of a [tablet](../../../user-guide/dynamic-tables/concepts.md#tablets).
+- [alter_table_replica](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.dynamic_table_commands.alter_table_replica) — [change the attributes](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md#replica-state) of a replica of a [replicated table](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md).
 
 ### Other commands { #etc_commands }
 
@@ -1260,7 +1260,7 @@ The function starts a `map_reduce` operation that sorts the table by an added co
 
 ### General information { #python_operations_intro }
 
-To run an operation, you need to define a special subclass of `yt.wrapper.TypedJob` and pass an object of this class to the [operation run function](#run_operation_commands) (or specify it in the corresponding field of the [SpecBuilder](#spec_builders)).
+To run an operation, you need to define a special subclass of `yt.wrapper.TypedJob` and pass an object of this class to the [operation run function](#run_operation_commands) (or specify it in the corresponding field of the [SpecBuilder](#spec_builder)).
 
 Your job class must define the `__call__(self, row)` method (for a mapper) or the `__call__(self, rows)` method (for a reducer). This method receives table rows as input (in the case of a reducer, one `__call__` invocation corresponds to a set of rows with the same key). It must return (using `yield`) the rows that need to be written to the output table. If there are multiple output tables, use the wrapper class `yt.wrapper.OutputRow`, whose constructor accepts the row to be written and `table_index` as a named parameter (see the [example](../../../api/python/examples.md#table_switches) in the tutorial).
 
@@ -1274,10 +1274,9 @@ You can also define the [.prepare_operation(self, context, preparer)](https://py
 - [{#T}](../../../api/python/examples.md#prepare_operation)
 - [{#T}](../../../api/python/examples.md#grep)
 
-
 ### Data type description { #prepare_operation }
 
-To specify input and output row types in the job class, you can use type hints (see examples in the tutorial: [one](../../../api/python/examples.md#simple_map), [two](../../../api/python/examples.md#multiple_input_reduce), [three](../../../api/python/examples.md#multiple_input_multiple_output_reduce), and [four](../../../api/python/examples.md#map_reduce_multiple_intermediate_streams)), or override the [.prepare_operation(self, context, preparer)](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation) method. You specify types via methods of the `preparer` object of type [`OperationPreparer`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer). Useful methods include:
+To specify input and output row types in the job class, you can use type hints (see examples in the tutorial: [one](../../../api/python/examples.md#simple_map), [two](../../../api/python/examples.md#reduce_multiple_output), [three](../../../api/python/examples.md#reduce_multiple_input_output), and [four](../../../api/python/examples.md#map_reduce_multiple_intermediate_streams)), or override the [.prepare_operation(self, context, preparer)](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation) method. You specify types via methods of the `preparer` object of type [`OperationPreparer`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer). Useful methods include:
 1. [`inputs`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer.inputs): lets you specify the input row type for multiple input tables (it must be a class with the [`@yt.wrapper.yt_dataclass`](#dataclass) decorator), the list of column names the job needs, and column renames.
 2. [`outputs`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer.outputs): lets you specify the output row type for multiple output tables (it must be a class with the [`@yt.wrapper.yt_dataclass`](#dataclass) decorator), and the schema you want to output for these tables (by default, the schema is derived from the dataclass).
 3. `input` and `output` — these are similar to the corresponding methods but accept a single index.
@@ -1340,7 +1339,7 @@ print(op.get_job_statistics()["custom"])
 
 ### Porto layers { #porto_layers }
 
-When you start an operation, you can specify which [filesystem image](../../../user-guide/data-processing/layers/layer-paths.md) to prepare before running the jobs. There’s a set of [prebuilt layers](../../../user-guide/data-processing/layers/layer-paths.md#gotovye-sloi-v-kiparise) located at `//porto_layers`.
+When you start an operation, you can specify which [filesystem image](../../../user-guide/data-processing/layers/layer-paths.md) to prepare before running the jobs. There’s a set of [prebuilt layers](../../../user-guide/data-processing/layers/layer-paths.md#porto_layers) located at `//porto_layers`.
 
 You can specify the path to the required layer via the `layer_paths` parameter in the job spec, for example:
 ```python

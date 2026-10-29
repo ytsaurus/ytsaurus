@@ -3,8 +3,8 @@
 
 To diagnose the operation of direct submit, you can use the following tools:
 
-- **Job log analysis** — diagnostic information can be obtained in [{{product-name}} operation logs](../../../../../user-guide/data-processing/spyt/direct-submit/desc.md#joblogs).
-- **SparkUI** — for monitoring during application execution. [Below](../../../../../user-guide/data-processing/spyt/direct-submit/desc.md#info) is information on how to get a link to SparkUI.
+- **Job log analysis** — diagnostic information can be obtained in [{{product-name}} operation logs](../../../../../user-guide/data-processing/spyt/direct-submit/diagnostics.md#joblogs).
+- **SparkUI** — for monitoring during application execution. [Below](../../../../../user-guide/data-processing/spyt/direct-submit/diagnostics.md#info) is information on how to get a link to SparkUI.
 - **Spark History Server** — for analyzing the Spark application event logs after it has completed. [More details](../../../../../user-guide/data-processing/spyt/direct-submit/shs.md).
 
 ### Job Log Analysis {#joblogs}

@@ -6,7 +6,7 @@
 
 #### **Q: Можно ли изменять схему таблицы?** {#change-table-schema}
 
-**A:** Можно, примеры и ограничения можно найти в разделе [Схема таблиц](../../user-guide/storage/static-schema.md#create).
+**A:** Можно, примеры и ограничения можно найти в разделе [Схема таблиц](../../user-guide/storage/static-schema.md#changing-a-schema).
 
 ------
 
@@ -26,7 +26,7 @@ yt set //home/path/to/table/@primary_medium ssd_blobs
 yt mount-table --sync //home/path/to/table
 ```
 
-Сразу после выставления атрибута новые данные будут записываться на SSD, старые данные будут переложены в фоне. Подробнее о том, как влиять на данный процесс и отслеживать его динамику, в разделе [статические таблицы](../../user-guide/storage/static-tables.md#medium).
+Сразу после выставления атрибута новые данные будут записываться на SSD, старые данные будут переложены в фоне. Подробнее о том, как влиять на данный процесс и отслеживать его динамику, в разделе [статические таблицы](../../user-guide/storage/media.md#primary).
 
 ------
 
@@ -53,4 +53,4 @@ yt merge --src table --dst table --spec "{combine_chunks=true}"
 
 #### **Q: Получаю ошибку: Format "YamredDsv" is disabled. Что делать?** {#yamreddsv-disabled}
 
-**A:** Формат `YAMRED_DSV` больше не поддерживается. Стоит воспользоваться другим [форматом](../../user-guide/storage/formats.md#formaty-predstavleniya-tablichnyh-dannyh).
+**A:** Формат `YAMRED_DSV` больше не поддерживается. Стоит воспользоваться другим [форматом](../../user-guide/storage/formats.md#table_formats).

@@ -17,7 +17,7 @@ SELECT "fo" || "o";
 ```
 
 
-## Проверка строки на соответствие шаблону {#check-match}
+## Проверка строки на соответствие шаблону {#check-match} {#like} {#regexp} {#escape}
 
 `REGEXP` и `RLIKE` являются алиасами и представляют собой короткий способ записи для вызова [Re2::Grep](../udf/list/re2.md#match). `MATCH` — аналогично для [Re2::Match](../udf/list/re2.md#match).
 
@@ -439,7 +439,7 @@ $x, $y = AsTuple($y, $x); -- swap значений выражений
 
     Здесь табличные выражения работают как ожидается – например `$input = SELECT a, b, c FROM T; SELECT * FROM $input` вернет таблицу с тремя колонками.
 
-    Табличный контекст также возникает после [UNION [ALL]](select/operators.md#union), [INTERSECT [ALL]](select/operators.md#intersect), [EXCEPT [ALL]](select/operators.md#except), [JOIN](join.md#join), [PROCESS](process.md#process), [REDUCE](reduce.md#reduce);
+    Табличный контекст также возникает после [UNION [ALL]](select/operators.md#union), [INTERSECT [ALL]](select/operators.md#intersect), [EXCEPT [ALL]](select/operators.md#except), [JOIN](join.md), [PROCESS](process.md), [REDUCE](reduce.md);
 
 * векторный контекст &mdash; после [IN](#in). В этом контексте табличное выражение обязано содержать ровно одну колонку (имя этой колонки никак не влияет на результат выражения).
 
@@ -450,7 +450,7 @@ $x, $y = AsTuple($y, $x); -- swap значений выражений
 Порядок строк в табличном контексте, порядок элементов в векторном контексте и правило выбора значения в скалярном контексте (в случае если значений несколько) не определены. На этот порядок также нельзя повлиять с помощью `ORDER BY`: `ORDER BY` без `LIMIT` в табличных выражениях будет игнорироваться с выдачей предупреждения, а использование `ORDER BY` с `LIMIT` определяет множество элементов, но не порядок внутри этого множества.
 
 
-Из этого правила есть исключение. Именованное выражение с [PROCESS](process.md#process), будучи использованным в скалярном контексте, ведет себя как в табличном:
+Из этого правила есть исключение. Именованное выражение с [PROCESS](process.md), будучи использованным в скалярном контексте, ведет себя как в табличном:
 
 ```yql
 $input = SELECT 1 AS key, 2 AS value;

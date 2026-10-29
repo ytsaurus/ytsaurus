@@ -6,7 +6,7 @@
 
 #### **Q: Can I modify a table's schema?**
 
-**A:** Yes. You can find examples and limits in the [Table schema](../../../user-guide/storage/static-schema.md#create) section.
+**A:** Yes. You can find examples and limits in the [Table schema](../../../user-guide/storage/static-schema.md#changing-a-schema) section.
 
 ------
 
@@ -24,7 +24,7 @@ yt unmount-table --sync //home/path/to/table
 yt set //home/path/to/table/@primary_medium ssd_blobs
 yt mount-table --sync //home/path/to/table
 ```
-Immediately after you set the attribute, new data will start writing to an SSD while old data will be moved in the background. For more information about controlling this process and tracking its progress, please see the section on [static tables](../../../user-guide/storage/static-tables.md#medium).
+Immediately after you set the attribute, new data will start writing to an SSD while old data will be moved in the background. For more information about controlling this process and tracking its progress, please see the section on [static tables](../../../user-guide/storage/media.md#primary).
 
 ------
 #### **Q: What do I do if table reads are slow?**
@@ -48,4 +48,4 @@ In certain cases, files may use large numbers of chunks (for instance, when you 
 ------
 #### **Q: I am getting the Format "YamredDsv" is disabled error. What should I do?**
 
-**A:** It is true that the `YAMRED_DSV` format is no longer supported. Use a different [format](../../../user-guide/storage/formats.md#formaty-predstavleniya-tablichnyh-dannyh).
+**A:** It is true that the `YAMRED_DSV` format is no longer supported. Use a different [format](../../../user-guide/storage/formats.md#table_formats).

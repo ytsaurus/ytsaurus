@@ -22,7 +22,7 @@ You can change the compute pool settings by editing the relevant pool attributes
 * `mode`: A way of allocating resources between operations in the pool.
 * `fifo_sort_parameters`: Managing the order in which operations are started in fifo pools.
 * `resource_limits`: A dict that sets the upper limits for the resources available to the pool.
-* `create_ephemeral_subpools`: Allows creating [ephemeral pools](../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md#puly-i-derevya-pulov).
+* `create_ephemeral_subpools`: Allows creating [ephemeral pools](../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md#pools-and-pool-trees).
 * `ephemeral_subpool_config`: A dictionary describing the configuration of virtual pools.
 
 For more information about the listed attributes, see [Pool configuration](../../../../user-guide/data-processing/scheduler/pool-settings.md#pools).

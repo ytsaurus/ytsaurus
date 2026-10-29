@@ -67,7 +67,7 @@ Reading from a replicated dynamic table can be performed using the `select-rows`
 ## Replication { #replication }
 The asynchronous replication process works according to the push schema. There is a replicator for each tablet of the replicated dynamic table and each replica there, which reads fresh changes from the replication queue and sends the data to the asynchronous replicas. The sending process is a distributed (between clusters) transaction, in which data is written to the replica table and data portion replication is recorded in the replicated dynamic table metadata.
 
-### Guarantees
+### Guarantees {#guarantees}
 
 For asynchronous replicas, replication transactions (delivering data to replicas) are in no way coordinated with write transactions to the replicated table. Changes in a single write transaction to a replicated table can be broken down into multiple replication transactions. Guarantees:
 
@@ -293,7 +293,7 @@ The limit you set does not apply to the entire table, but to each table tablet i
 
 {% endnote %}
 
-### Maintaining the tablet index during ordered table replication
+### Maintaining the tablet index during ordered table replication { #preserve_tablet_index }
 
 By default, asynchronous replication of an ordered dynamic table writes rows to an arbitrary replica tablet. If you need to maintain the tablet index (this is important if you want the same tablet row to appear under the same index across different replicas), set the `preserve_tablet_index` attribute of the ordered dynamic table itself to `%true`. When using this attribute, you need to manually track that the replicated table and the replica tables have the exact same number of tablets.
 

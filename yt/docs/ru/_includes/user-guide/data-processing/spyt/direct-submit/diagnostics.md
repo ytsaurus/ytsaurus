@@ -2,8 +2,8 @@
 
 Для диагностики работы прямого сабмита можно использовать следующие инструменты:
 
-- **Анализ логов джобов** — диагностическую информацию можно получить в [логах {{product-name}} операций](../../../../../user-guide/data-processing/spyt/direct-submit/desc.md#joblogs).
-- **SparkUI** — для мониторинга во время работы приложения. [Ниже](../../../../../user-guide/data-processing/spyt/direct-submit/desc.md#info) содержится информация о том, как получить ссылку на SparkUI.
+- **Анализ логов джобов** — диагностическую информацию можно получить в [логах {{product-name}} операций](../../../../../user-guide/data-processing/spyt/direct-submit/diagnostics.md#joblogs).
+- **SparkUI** — для мониторинга во время работы приложения. [Ниже](../../../../../user-guide/data-processing/spyt/direct-submit/diagnostics.md#info) содержится информация о том, как получить ссылку на SparkUI.
 - **Spark History Server** — для анализа event log Spark приложения после завершения работы. [Подробнее](../../../../../user-guide/data-processing/spyt/direct-submit/shs.md).
 
 ### Анализ логов джобов { #joblogs }

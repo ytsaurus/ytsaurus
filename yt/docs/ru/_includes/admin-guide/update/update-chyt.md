@@ -23,7 +23,7 @@
 
 {% endnote %}
 
-{% if audience == "public" %}Доступные версии CHYT и изменения в них описаны в [релизах CHYT](../../../admin-guide/releases.md#chyt.){% endif %}
+{% if audience == "public" %}Доступные версии CHYT и изменения в них описаны в [релизах CHYT](../../../admin-guide/releases.md#chyt-releases){% endif %}
 
 ## Подготовка к обновлению {#before-update}
 

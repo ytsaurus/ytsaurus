@@ -126,7 +126,7 @@ $ yt create document //sys/controller_agents/config --attributes '{value={}}'
 
 **A:** This error occurs due to read-write conflicts – you attempt to read by a key used by a concurrent transaction. The system must wait for the result of that transaction to ensure the required level of isolation between transactions.
 
-If you don't require strict consistency, you can [weaken](../../user-guide/dynamic-tables/sorted-dynamic-tables#chtenie-stroki) the isolation level for the reading transaction.
+If you don't require strict consistency, you can [weaken](../../user-guide/dynamic-tables/sorted-dynamic-tables.md#reading-rows) the isolation level for the reading transaction.
 
 ------
 #### **Q: When writing to a dynamic table, I get the "Row lock conflict due to concurrent ... write" error.** {#row-lock-conflict}
@@ -141,7 +141,7 @@ In some scenarios, weakening [guarantees](../../user-guide/dynamic-tables/transa
 #### **Q: When reading from a dynamic table, I get the "No working in-sync replicas found for table" error.** {#no-working-replicas}
 
 **A:** This error occurs when reading from a replicated or chaotic table if there is no replica to read from. The replica must meet the following criteria:
-1. It must contain fairly recent data. If a timestamp is specified when reading, the replica must contain data up to that timestamp. If a timestamp is not specified, reads must be made from an *actually synchronous* replica: a one that has `mode=sync` and definitely contains older data. For more information, see [guarantees of replicated dynamic tables](../../user-guide/dynamic-tables/replicated-dynamic-tables#garantii).
+1. It must contain fairly recent data. If a timestamp is specified when reading, the replica must contain data up to that timestamp. If a timestamp is not specified, reads must be made from an *actually synchronous* replica: a one that has `mode=sync` and definitely contains older data. For more information, see [guarantees of replicated dynamic tables](../../user-guide/dynamic-tables/replicated-dynamic-tables.md#guarantees).
 2. It must be a working replica. If the client has recently got an error from a replica, next time it will try to access a different replica. The replicas you cannot read data from are listed in the `banned_replicas` attribute of the error in question.
 
 ---

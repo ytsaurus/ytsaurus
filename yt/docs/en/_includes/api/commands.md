@@ -3500,7 +3500,7 @@ The table describes the `TJob` type, which contains information about the job re
 | `pool_tree` | `string` | Name of the [pool tree](../../user-guide/data-processing/scheduler/scheduler-and-pools.md) where the job was run. |
 | `progress` | `float in [0,1]` | Evaluation of the share of work executed by the job by the current moment. |
 | `stderr_size` | `int` | Size of the saved stderr of the job (you can get stderr using the [`get_job_stderr`](#get_job_stderr) command). |
-| `fail_context_size` | `int` | Size of the saved fail_context of the job (you can get fail_context using the [`get_fail_context`](#get_fail_context) command). |
+| `fail_context_size` | `int` | Size of the saved fail_context of the job (you can get fail_context using the [`get_fail_context`](#get_job_fail_context) command). |
 | `error` | `map` | Error that interrupted the job. |
 | `statistics` | `map` | Job statistics. |
 | `brief_statistics` | `map` | Summarized job statistics. |

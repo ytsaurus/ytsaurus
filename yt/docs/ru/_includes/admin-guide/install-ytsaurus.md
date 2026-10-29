@@ -31,7 +31,7 @@ ytsaurus-ytop-chart-controller-manager-7478f9b6cb-qr8wd   2/2     Running   0   
 
 Про обновление оператора можно прочитать в разделе [обновление оператора](../../admin-guide/update/update-ytsaurus.md#update-operator).
 
-## Запуск кластера {{product-name}}
+## Запуск кластера {{product-name}} {#starting-cluster}
 
 Создайте пространство имён для запуска кластера:
 ```bash
@@ -292,7 +292,7 @@ Events:
 
 {% endcut %}
 
-## Установка веб-интерфейса {{product-name}} { #ui }
+## Установка веб-интерфейса {{product-name}} {#ui}
 
 ### Установка helm chart
 
@@ -310,7 +310,7 @@ helm upgrade --install ytsaurus-ui oci://ghcr.io/ytsaurus/ytsaurus-ui-chart
 
 * настроенная CLI-утилита `kubectl`;
 * запущенный кластер {{product-name}} и адрес HTTP прокси (`http_proxy`);
-* специальный пользователь-робот для веб-интерфейса {{product-name}} с выписанным для него токеном (см. раздел [Управление токенами](../../user-guide/storage/auth.md#token-management)).
+* специальный пользователь-робот для веб-интерфейса {{product-name}} с выписанным для него токеном (см. раздел [Управление токенами](../../user-guide/storage/auth.md#{% if audience == "internal" %}getting_token_for_robot{% else %}token-management{% endif %})).
 
 #### Быстрый старт
 
