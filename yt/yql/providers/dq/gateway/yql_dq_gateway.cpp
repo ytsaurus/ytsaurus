@@ -149,6 +149,23 @@ public:
     }
 };
 
+template<typename TResponse>
+TOperationStatistics MakeOperationStatistics(const TResponse& resp) {
+    TOperationStatistics statistics;
+    statistics.Entries.reserve(resp.GetMetric().size());
+    for (const auto& metric : resp.GetMetric()) {
+        YQL_CLOG(TRACE, ProviderDq) << "Counter: " << metric.GetName() << " : " << metric.GetSum() << " : " << metric.GetCount();
+        statistics.Entries.emplace_back(
+            metric.GetName(),
+            metric.GetSum(),
+            metric.GetMax(),
+            metric.GetMin(),
+            metric.GetAvg(),
+            metric.GetCount());
+    }
+    return statistics;
+}
+
 class TDqGatewaySession: public std::enable_shared_from_this<TDqGatewaySession> {
 public:
     using TResult = IDqGateway::TResult;
@@ -182,21 +199,7 @@ public:
 
             result.Truncated = resp.GetTruncated();
 
-            TOperationStatistics statistics;
-
-            for (const auto& t : resp.GetMetric()) {
-                YQL_CLOG(TRACE, ProviderDq) << "Counter: " << t.GetName() << " : " << t.GetSum() << " : " << t.GetCount();
-                TOperationStatistics::TEntry entry(
-                    t.GetName(),
-                    t.GetSum(),
-                    t.GetMax(),
-                    t.GetMin(),
-                    t.GetAvg(),
-                    t.GetCount());
-                statistics.Entries.push_back(entry);
-            }
-
-            result.Statistics = statistics;
+            result.Statistics = MakeOperationStatistics(resp);
 
             NYql::TIssues issues;
             auto operation = resp.operation();
@@ -489,43 +492,6 @@ public:
         }
     }
 
-    static std::unordered_map<ui64, IDqGateway::TStageStats> ExtractStats(const Yql::DqsProto::QueryStatusResponse& resp) {
-        std::unordered_map<ui64, IDqGateway::TStageStats> ret;
-        for (const auto& metric : resp.GetMetric()) {
-            auto longName = metric.GetName();
-            TString prefix;
-            TString name;
-            std::map<TString, TString> labels;
-            if (!NYql::NCommon::ParseCounterName(&prefix, &labels, &name, longName)) {
-                continue;
-            }
-
-            auto maybeStage = labels.find("Stage");
-            if (maybeStage == labels.end()) {
-                continue;
-            }
-            auto stageId = atoi(maybeStage->second.data());
-            if (!stageId) {
-                continue;
-            }
-            auto& stage = ret[stageId];
-
-            if (name == "OutputRows") {
-                stage.OutputRows += metric.GetSum();
-            }
-            if (name == "InputRows") {
-                stage.InputRows += metric.GetSum();
-            }
-            if (name == "OutputBytes") {
-                stage.OutputBytes += metric.GetSum();
-            }
-            if (name == "InputBytes") {
-                stage.InputBytes += metric.GetSum();
-            }
-        }
-        return ret;
-    }
-
     void RequestQueryStatus(const TDqProgressWriter& progressWriter, uint64_t querySeqNo) {
         Yql::DqsProto::QueryStatusRequest request;
         request.SetSession(SessionId);
@@ -537,7 +503,11 @@ public:
                 return;
             }
 
-            this_->OnRequestQueryStatus(progressWriter, std::move(IDqGateway::TProgressWriterState{resp.GetStatus(), std::move(ExtractStats(resp))}), status.Ok(), querySeqNo);
+            this_->OnRequestQueryStatus(
+                progressWriter,
+                IDqGateway::TProgressWriterState{resp.GetStatus(), ExtractDqStagesStats(MakeOperationStatistics(resp))},
+                status.Ok(),
+                querySeqNo);
         };
 
         Service.DoRequest<Yql::DqsProto::QueryStatusRequest, Yql::DqsProto::QueryStatusResponse>(
