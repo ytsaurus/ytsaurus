@@ -47,20 +47,20 @@ class TestTracing(YTEnvSetup):
     def test_tracing_http_cypress(self):
         yw = yt.wrapper.YtClient(proxy=self.Env.get_proxy_address())
         yw.get("//@")
-        yw.create("map_node", "//home/prime", force=True, recursive=True)
-        yw.create("table", "//home/prime/t")
+        yw.create("map_node", "//tmp/prime")
+        yw.create("table", "//tmp/prime/t")
 
-        yw.write_table("//home/prime/t", [{"foo": "bar"}])
-        assert list(yw.read_table("//home/prime/t")) == [{"foo": "bar"}]
+        yw.write_table("//tmp/prime/t", [{"foo": "bar"}])
+        assert list(yw.read_table("//tmp/prime/t")) == [{"foo": "bar"}]
 
     @authors("prime")
     def test_tracing_http_scheduler(self):
         yw = yt.wrapper.YtClient(proxy=self.Env.get_proxy_address())
-        yw.create("map_node", "//home/prime", force=True, recursive=True)
+        yw.create("map_node", "//tmp/prime")
 
         yw.create("table", "//tmp/t")
         yw.create("table", "//tmp/out")
-        yw.write_table("//home/prime/t", [{"foo": "bar"}])
+        yw.write_table("//tmp/prime/t", [{"foo": "bar"}])
 
         yw.run_map("cat", "//tmp/t", "//tmp/out", format="yson", sync=True)
 

@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, with_portals_dir
 
 from yt_commands import (
     authors, raises_yt_error, wait, create, ls, get, set, copy, remove,
@@ -1487,23 +1487,23 @@ class TestChunkMerger(YTEnvSetup):
     @authors("cherepashka")
     @pytest.mark.parametrize("merge_mode", ["auto", "deep", "shallow"])
     @pytest.mark.parametrize("operation", [copy, move])
+    @with_portals_dir
     def test_inherit_chunk_merger_mode_after_copy(self, merge_mode, operation):
         create("map_node", "//tmp/d")
         set("//tmp/d/@chunk_merger_mode", merge_mode)
         assert get("//tmp/d/@chunk_merger_mode") == merge_mode
 
-        create("table", "//aba/d1/d2/t", recursive=True)
-        set("//aba/d1/d2/t/@chunk_merger_mode", "none")
-        self._remove_merge_quotas("//aba/d1/d2/t")
+        create("table", "//portals/d1/d2/t", recursive=True)
+        set("//portals/d1/d2/t/@chunk_merger_mode", "none")
+        self._remove_merge_quotas("//portals/d1/d2/t")
         # Keep the account whose merge quotas were zeroed.
-        operation("//aba/d1", "//tmp/d/d1", preserve_account=True)
+        operation("//portals/d1", "//tmp/d/d1", preserve_account=True)
         assert get("//tmp/d/d1/d2/t/@chunk_merger_mode") == merge_mode
 
         write_table("<append=true>//tmp/d/d1/d2/t", {"a": "b"})
         write_table("<append=true>//tmp/d/d1/d2/t", {"a": "c"})
         write_table("<append=true>//tmp/d/d1/d2/t", {"a": "d"})
         _wait_for_merge("//tmp/d/d1/d2/t", None)
-        remove("//aba", force=True)
 
     @authors("kazachonok")
     def test_shallow_merge_cancellation(self):
@@ -1613,6 +1613,7 @@ class TestChunkMergerPortal(TestChunkMergerMulticell):
 
     @authors("cherepashka")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    @with_portals_dir
     def test_cross_portal_merge(self, merge_mode):
         create("table", "//tmp/t1")
         self._remove_merge_quotas("//tmp/t1")
@@ -1623,9 +1624,9 @@ class TestChunkMergerPortal(TestChunkMergerMulticell):
         write_table("<append=true>//tmp/t1", {"a": "e"})
         set("//tmp/t1/@chunk_merger_mode", merge_mode)
 
-        copy("//tmp/t1", "//home/t2", recursive=True)
+        copy("//tmp/t1", "//portals/t2")
 
-        _wait_for_merge("//home/t2", None)
+        _wait_for_merge("//portals/t2", None)
 
 
 class TestChunkMergerSequoia(TestChunkMergerMulticell):

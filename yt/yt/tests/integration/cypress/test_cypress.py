@@ -55,6 +55,7 @@ class TestCypressRootCreationTime(YTEnvSetup):
         create("map_node", "//a", tx=tx)
         commit_transaction(tx)
         assert creation_time == get("//@creation_time")
+        remove("//a")
 
 
 class TestCypress(YTEnvSetup):
@@ -4289,12 +4290,13 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/test_node/child/@annotation")
 
     @authors("danilalexeev")
+    @with_portals_dir
     def test_annotation_clone(self):
         create("map_node", "//tmp/test_node")
         create("map_node", "//tmp/test_node/child")
         set("//tmp/test_node/@annotation", "test")
-        move("//tmp/test_node", "//test")
-        assert get("//test/@annotation") == get("//test/child/@annotation") == "test"
+        move("//tmp/test_node", "//portals/test")
+        assert get("//portals/test/@annotation") == get("//portals/test/child/@annotation") == "test"
 
     @authors("theevilbird")
     def test_immediate_annotation_attribute(self):

@@ -1234,8 +1234,7 @@ class TestQuery(DynamicTablesBase):
 
     @authors("lukyan")
     def test_udf_custom_path(self):
-        registry_path = "//home/udfs"
-        create("map_node", "//home")
+        registry_path = "//tmp/custom_udfs"
         create("map_node", registry_path)
 
         abs_path = os.path.join(registry_path, "abs_udf")

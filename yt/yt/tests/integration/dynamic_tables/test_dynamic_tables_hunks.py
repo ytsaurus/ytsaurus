@@ -16,7 +16,8 @@ from yt_env_setup import (
     YTEnvSetup,
     Restarter,
     NODES_SERVICE,
-    MASTERS_SERVICE
+    MASTERS_SERVICE,
+    with_portals_dir,
 )
 
 from yt.common import YtError
@@ -5994,8 +5995,9 @@ class TestHunksInStaticTablePortals(TestHunksInStaticTableMulticell):
     }
 
     @authors("akozhikhov")
+    @with_portals_dir
     def test_static_hunks_portals_1(self):
-        create("portal_entrance", "//p", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 11})
 
         sync_create_cells(1)
 
@@ -6004,28 +6006,27 @@ class TestHunksInStaticTablePortals(TestHunksInStaticTableMulticell):
             hunk_storage_attrs={"external_cell_tag": 12})
 
         chunk_ids = get("//tmp/t/@chunk_ids")
-        move("//tmp/t", "//p/t")
+        move("//tmp/t", "//portals/p/t")
         sync_unmount_table("//tmp/h")
         remove("//tmp/h")
-        assert read_table("//p/t") == rows
+        assert read_table("//portals/p/t") == rows
 
-        assert chunk_ids == get("//p/t/@chunk_ids")
+        assert chunk_ids == get("//portals/p/t/@chunk_ids")
 
         assert not exists("//tmp/t")
         assert get("#{}/@sealed".format(chunk_ids[0]))
         assert get("#{}/@sealed".format(chunk_ids[1]))
-        assert get("#{}/@owning_nodes".format(chunk_ids[0])) == ["//p/t"]
-        assert get("#{}/@owning_nodes".format(chunk_ids[1])) == ["//p/t"]
+        assert get("#{}/@owning_nodes".format(chunk_ids[0])) == ["//portals/p/t"]
+        assert get("#{}/@owning_nodes".format(chunk_ids[1])) == ["//portals/p/t"]
 
-        remove("//p/t")
+        remove("//portals/p/t")
         wait(lambda: not exists("#{}".format(chunk_ids[0])))
         wait(lambda: not exists("#{}".format(chunk_ids[1])))
 
-        remove("//p")
-
     @authors("akozhikhov")
+    @with_portals_dir
     def test_static_hunks_portals_2(self):
-        create("portal_entrance", "//p", attributes={"exit_cell_tag": 12})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
         sync_create_cells(1)
 
@@ -6034,9 +6035,7 @@ class TestHunksInStaticTablePortals(TestHunksInStaticTableMulticell):
             hunk_storage_attrs={"external": False})
 
         with raises_yt_error("Node .* must be external to support cross-cell copying"):
-            move("//tmp/t", "//p/t")
-
-        remove("//p")
+            move("//tmp/t", "//portals/p/t")
 
 
 class TestOrderedDynamicTablesHunksRpc(TestSortedDynamicTablesBase):

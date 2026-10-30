@@ -3,6 +3,7 @@ from yt_env_setup import (
     Restarter,
     MASTERS_SERVICE,
     is_asan_build,
+    with_portals_dir,
 )
 
 from yt_dynamic_tables_base import DynamicTablesBase
@@ -2479,6 +2480,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                     assert store.attributes["type"] == "dynamic_store"
 
     @authors("cherepashka")
+    @with_portals_dir
     def test_owning_nodes(self):
         def check_owning_nodes(object_id, owning_nodes):
             cell_indicies = {0}  # primary cell
@@ -2511,10 +2513,10 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                     assert store.attributes["type"] == "dynamic_store"
         assert len(chunk_views_ids) > 0
 
-        copy("//tmp/t", "//home/t", recursive=True, force=True)
-        copy("//home/t", "//tmp/t1")
+        copy("//tmp/t", "//portals/t")
+        copy("//portals/t", "//tmp/t1")
         for chunk_view_id in chunk_views_ids:
-            check_owning_nodes(chunk_view_id, ["//tmp/t", "//home/t", "//tmp/t1"])
+            check_owning_nodes(chunk_view_id, ["//tmp/t", "//portals/t", "//tmp/t1"])
 
     @authors("savrus", "ifsmirnov")
     def test_select_rows_access_tracking(self):
