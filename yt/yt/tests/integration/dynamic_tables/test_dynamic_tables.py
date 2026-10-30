@@ -4217,6 +4217,64 @@ class TestDynamicTablesErasureJournals(TestDynamicTablesSingleCell):
 ##################################################################
 
 
+class TestDynamicTablesHighParityErasureJournals(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_NODES = 10
+
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "hydra_manager": {"snapshot_build_period": 100000000},
+            "changelogs": {"writer": {"validate_erasure_coding": True}},
+        },
+    }
+
+    @authors("savrus")
+    @pytest.mark.parametrize("erasure_codec, read_quorum, write_quorum", [
+        ("reed_solomon_3_3", 4, 5),
+        ("reed_solomon_4_6", 5, 9),
+        ("reed_solomon_5_5", 6, 9),
+    ])
+    def test_tablet_cell_journal_recovery(self, erasure_codec, read_quorum, write_quorum):
+        set("//sys/tablet_cell_bundles/default/@options", {
+            "changelog_account": "sys",
+            "changelog_erasure_codec": erasure_codec,
+            "changelog_replication_factor": 1,
+            "changelog_read_quorum": read_quorum,
+            "changelog_write_quorum": write_quorum,
+            "snapshot_account": "sys",
+            "snapshot_replication_factor": 3,
+        })
+        cell_id = sync_create_cells(1)[0]
+        self._create_sorted_table("//tmp/t", mount_config={"enable_store_flush": False})
+        sync_mount_table("//tmp/t", cell_id=cell_id)
+
+        snapshot_id = build_snapshot(cell_id=cell_id)
+        wait(lambda: get(f"#{cell_id}/@max_snapshot_id") == snapshot_id)
+        rows = [{"key": key, "value": f"value-{key}"} for key in range(20)]
+        insert_rows("//tmp/t", rows)
+        assert lookup_rows("//tmp/t", [{"key": key} for key in range(20)]) == rows
+        assert get("//tmp/t/@chunk_ids") == []
+
+        changelogs_path = f"//sys/tablet_cells/{cell_id}/changelogs"
+        changelogs = ls(changelogs_path, attributes=["erasure_codec", "replication_factor", "read_quorum", "write_quorum"])
+        assert changelogs
+        for changelog in changelogs:
+            assert changelog.attributes["erasure_codec"] == erasure_codec
+            assert changelog.attributes["replication_factor"] == 1
+            assert changelog.attributes["read_quorum"] == read_quorum
+            assert changelog.attributes["write_quorum"] == write_quorum
+
+        with self.CellsDisabled(clusters=["primary"], tablet_bundles=["default"]):
+            assert get(f"#{cell_id}/@max_snapshot_id") == snapshot_id
+
+        assert lookup_rows("//tmp/t", [{"key": key} for key in range(20)]) == rows
+        insert_rows("//tmp/t", [{"key": 20, "value": "after-recovery"}])
+        assert lookup_rows("//tmp/t", [{"key": 20}]) == [{"key": 20, "value": "after-recovery"}]
+
+
+##################################################################
+
+
 class TestDynamicTablesAvailability(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     USE_PERMISSION_CACHE = False

@@ -238,6 +238,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixCrossMediumHistoricallyNonVital)                           (3363))  // kvk1920
     ((PersistLastSequoiaReplicasCommitTimestamp)                    (3364))  // grphil
     ((DynamicTableChunkProlongation)                                (3365))  // sabdenovch
+    ((ReedSolomon46And55)                                           (3366))  // savrus
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
