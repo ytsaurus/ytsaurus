@@ -549,4 +549,314 @@ In the `Ytsaurus` specification, you can manage component images individually. H
   ```
 
   ```bash
-  kubectl apply -f y
+  kubectl apply -f ytsaurus-spec-new.yaml
+  ```
+
+  The operator will update only the `qt` pods, without affecting other components.
+
+- Targeted update of server components
+
+  You can override the image for a specific server component — for example, only for `tabletNodes` — by specifying a separate `image` for it instead of the common `coreImage`.
+
+  Specify the `image` field for the required component in the `ytsaurus-spec-new.yaml` file and apply the change:
+
+  ```bash
+  kubectl apply -f ytsaurus-spec-new.yaml
+  ```
+
+### Updating static configs {#configs}
+
+The operator automatically generates configuration files for each component — master servers, proxies, nodes — based on the `Ytsaurus` specification. Sometimes you need to modify parameters that go into these files — for example, add a new storage location `locations` or configure component-specific parameters via `configOverrides`.
+
+In such cases, do not set the `updatePlan` field. It is sufficient to modify the specification and apply it — the operator will detect that the configuration has changed and restart only the pods of the affected components.
+
+Make the necessary changes in `ytsaurus-spec-new.yaml` and apply them:
+
+```bash
+kubectl apply -f ytsaurus-spec-new.yaml
+```
+
+During the pod restart, the cluster will transition to the `Reconfiguration` state:
+
+```bash
+kubectl get ytsaurus <cluster_name> -n <namespace>
+```
+
+```bash
+NAME       CLUSTERSTATE      UPDATESTATE
+ytsaurus   Reconfiguration
+```
+
+Once the pods restart and become ready, the cluster will return to the `Running` state.
+
+### Automatic update after operator upgrade {#auto-update-operator-scenario}
+
+When the operator is upgraded, its new version may automatically trigger a cluster update — without you changing the `coreImage`. This happens because different operator versions may generate different configuration files for the same components — for example, a new field may be added in the newer version. The operator detects the discrepancy between the current cluster state and the desired state and initiates reconciliation.
+
+If the update turns out to be impossible, the cluster will remain in the `Updating` state, and `UPDATESTATE` will transition to `ImpossibleToStart`. In this case, there are two options:
+
+- Roll back the operator to the previous version:
+
+  ```bash
+  helm rollback ytsaurus -n <namespace>
+  ```
+
+- Leave the `updatePlan` field empty in the `Ytsaurus` specification — the operator will cancel the update and will not run it automatically:
+
+  ```yaml
+  spec:
+    updatePlan: []
+  ```
+
+  ```bash
+  kubectl apply -f ytsaurus-spec-new.yaml
+  ```
+
+  After that, bring the cluster to a working state and retry when you are ready, specifying the required components in `updatePlan` — for example, `- class: Everything`.
+
+### Updating the cluster without downtime via RollingUpdate {#rolling-update-scenario}
+
+To keep the cluster available during the update, configure the `RollingUpdate` strategy via the `updatePlan` field in the `Ytsaurus` specification. The operator will update the pods one by one, maintaining the minimum number of available instances.
+
+{% note warning "Requirements" %}
+
+For `RollingUpdate` to work correctly, each component being updated must have **at least 2 instances**. If there is only one instance, it will be unavailable during the update, just as with `BulkUpdate`. `RollingUpdate` is not yet implemented for master servers — they are updated via `BulkUpdate` or `OnDelete`.
+
+For more details on the strategy, component availability, and the recommended number of instances, see the section [RollingUpdate Strategy](../../../admin-guide/update/update_strategy.md#configure-rolling).
+
+{% endnote %}
+
+{% cut "Minimal example: RollingUpdate for all components" %}
+
+```yaml
+apiVersion: cluster.ytsaurus.tech/v1
+kind: Ytsaurus
+metadata:
+  name: ytsaurus
+spec:
+  coreImage: ghcr.io/ytsaurus/ytsaurus:stable-25.2.0-relwithdebinfo
+  updatePlan:
+    - class: Everything
+      strategy:
+        rollingUpdate: {}
+```
+
+{% endcut %}
+
+{% cut "Custom strategy per component for production" %}
+
+```yaml
+updatePlan:
+  # HTTP Proxies — Rolling Update
+  - component:
+      type: HttpProxy
+    strategy:
+      rollingUpdate: {}
+      runPreChecks: true
+
+  # RPC Proxies — Rolling Update
+  - component:
+      type: RpcProxy
+    strategy:
+      rollingUpdate: {}
+      runPreChecks: true
+
+  # Data Nodes — Rolling Update
+  - component:
+      type: DataNode
+    strategy:
+      rollingUpdate: {}
+      runPreChecks: true
+
+  # Exec Nodes — Rolling Update with drain
+  - component:
+      type: ExecNode
+    strategy:
+      rollingUpdate: {}
+      runPreChecks: true
+
+  # Other components — BulkUpdate
+  - class: Everything
+    concurrency: 2  # no more than 2 instance groups simultaneously
+```
+
+{% endcut %}
+
+{% cut "RollingUpdate with image preloading" %}
+
+The `enableImageHeater` flag downloads new images to the nodes before the update starts. Combined with `RollingUpdate`, this reduces the pod switchover time:
+
+```yaml
+apiVersion: cluster.ytsaurus.tech/v1
+kind: Ytsaurus
+metadata:
+  name: ytsaurus
+spec:
+  coreImage: ghcr.io/ytsaurus/ytsaurus:stable-25.2.0-relwithdebinfo
+  clusterFeatures:
+    enableImageHeater: true
+  updatePlan:
+    - class: Everything
+      strategy:
+        rollingUpdate: {}
+```
+
+For more details on preloading, see the section [Image Preloading](../../../admin-guide/update/update_strategy.md#image-heater).
+
+{% endcut %}
+
+For a description of all `updatePlan` fields, see the section [Configuring the updatePlan field](../../../admin-guide/update/update_strategy.md#updateplan).
+
+### Manual intervention {#manual-intervention}
+
+{% note warning "Attention" %}
+
+Before performing manual intervention, it is recommended to consult the [{{product-name}} team](https://ytsaurus.tech/#contact).
+
+{% endnote %}
+
+If the automatic update cannot complete and manual actions are required, temporarily disable the operator’s management of the cluster. To do this, set the `isManaged: false` flag in the `Ytsaurus` specification.
+
+After this, the operator will stop making changes to the cluster, and you will be able to perform manual actions.
+
+This scenario can be useful if the operator is stuck on a problematic component. It can also help if you need to manually check or restore the state of a part of the cluster. Or if you are troubleshooting an unusual error that cannot be resolved by simply reapplying the specification.
+
+## Status reference {#statuses-reference}
+
+- [How to check the cluster status](#get-status)
+- [UPDATESTATE](#update-statuses)
+- [CLUSTERSTATE](#cluster-states)
+- [Pod states](#pod-states)
+
+#### How to check the cluster status {#get-status}
+
+You can monitor the update via the `Ytsaurus` resource status:
+
+```bash
+kubectl get ytsaurus -n <namespace>
+```
+
+During the update, the cluster transitions to the `Updating` state, and the detailed stage is displayed in the `UPDATESTATE` field. After the update completes, the cluster returns to the `Running` state:
+
+```bash
+NAME         CLUSTERSTATE   UPDATESTATE   UPDATINGCOMPONENTS
+minisaurus   Running        None
+```
+
+#### UPDATESTATE {#update-statuses}
+
+Not all statuses appear during every update — the set depends on which components are affected. For example, the `WaitingForTabletCells` statuses appear only when updating tablet nodes, and `WaitingForOpArchiveUpdate` appears only when updating the scheduler.
+
+{% cut "Table of UPDATESTATE field statuses" %}
+
+#|
+|| **Status** | **Condition** | **Description** ||
+|| `None` | — | No update is in progress ||
+|| `WaitingForImageHeater` | If image preloading is enabled | The operator is waiting for the new image to be preloaded onto the cluster nodes ||
+|| `PossibilityCheck` | If master servers or tablet nodes are being updated | The operator is checking whether it is safe to start the update ||
+|| `ImpossibleToStart` | — | The operator cannot start the update. For example, tablet cells of bundles are in a bad state. The update will not start until you resolve the issue ||
+|| `WaitingForSafeModeEnabled` | If master servers are being updated | The operator enables safe mode — it prohibits writes to the cluster during the master server update ||
+|| `WaitingForTabletCellsSaving` | If tablet nodes are being updated | The operator saves the current topology of the tablet cell before deleting them ||
+|| `WaitingForTabletCellsRemovingStart` | If tablet nodes are being updated | The operator initiates the deletion of the tablet cell ||
+|| `WaitingForTabletCellsRemoved` | If tablet nodes are being updated | The operator waits for the tablet cell to be fully deleted ||
+|| `WaitingForImaginaryChunksAbsence` | If data nodes or master servers are being updated | The operator waits for “imaginary” chunks — temporary metadata created during data rebalancing — to disappear ||
+|| `WaitingForSnapshots` | If master servers are being updated | The operator waits for the master servers to save snapshots of their state ||
+|| `WaitingForPodsRemoval` | Always | The operator deletes the old pods of the components being updated ||
+|| `WaitingForPodsCreation` | Always | The operator waits for the new pods with the updated image to start ||
+|| `WaitingForMasterExitReadOnly` | If master servers are being updated | The operator waits for the master servers to exit read-only mode after restart ||
+|| `WaitingForSidecarsInitializingPrepare` | If master servers are being updated | The operator prepares to initialize sidecar containers ||
+|| `WaitingForSidecarsInitialize` | If master servers are being updated | The operator initializes sidecar containers ||
+|| `WaitingForCypressPatch` | Always | The operator applies changes to the Cypress metadata tree after updating components ||
+|| `WaitingForTabletCellsRecovery` | If tablet nodes are being updated | The operator restores tablet cells on the updated nodes ||
+|| `WaitingForOpArchiveUpdatingPrepare` | If the scheduler is being updated | The operator prepares to update the operational archive ||
+|| `WaitingForOpArchiveUpdate` | If the scheduler is being updated | The operator updates the operational archive — the internal storage of operation metadata ||
+|| `WaitingForQTStateUpdatingPrepare` | If the query tracker is being updated | The operator prepares to update the query tracker state ||
+|| `WaitingForQTStateUpdate` | If the query tracker is being updated | The operator updates the query tracker state ||
+|| `WaitingForYqlaUpdatingPrepare` | If the YQL agent is being updated | The operator prepares to update the YQL agent state ||
+|| `WaitingForYqlaUpdate` | If the YQL agent is being updated | The operator updates the YQL agent state ||
+|| `WaitingForQAStateUpdatingPrepare` | If the queue agent is being updated | The operator prepares to update the queue agent state ||
+|| `WaitingForQAStateUpdate` | If the queue agent is being updated | The operator updates the queue agent state ||
+|| `WaitingForSafeModeDisabled` | If master servers are being updated | The operator disables safe mode after successfully updating the master servers ||
+|| `WaitingForTimbertruckPrepared` | Always | The operator waits for Timbertruck — the component for collecting structured logs — to be ready ||
+|#
+
+{% endcut %}
+
+#### CLUSTERSTATE {#cluster-states}
+
+{% cut "Table of CLUSTERSTATE field statuses" %}
+
+#|
+|| **Status** | **Description** ||
+|| `Created` | The cluster has been created but not yet initialized ||
+|| `Initializing` | The cluster is being initialized for the first time ||
+|| `Running` | The cluster is operating normally ||
+|| `Reconfiguration` | The operator is applying configuration changes without fully updating the components ||
+|| `Updating` | The cluster is being updated ||
+|| `UpdateBlocked` | The image has been changed, but `updatePlan` does not allow updating these components. The operator waits for you to add the required components to `updatePlan` ||
+|| `UpdateFinishing` | The update is finishing — the operator is applying final changes ||
+|| `CancelUpdate` | The operator cancels the update and returns the cluster to the `Running` state ||
+|#
+
+{% endcut %}
+
+#### Pod states {#pod-states}
+
+{% cut "Table of pod state statuses" %}
+
+#|
+|| **Status** | **Description** ||
+|| `Init:0/2` | Pod initialization ||
+|| `Pending` | Waiting for resources ||
+|| `ContainerCreating` | Container creation ||
+|| `Running` | Pod is running ||
+|| `ImagePullBackOff` | Image pull error ||
+|| `CrashLoopBackOff` | Pod is crashing and restarting ||
+|#
+
+{% endcut %}
+
+## Component reference {#via-ytsaurus-crd}
+
+#### Components updated together with the cluster {#server-components-ref}
+
+The operator updates these components simultaneously with the cluster when the `coreImage` field in the `Ytsaurus` specification is changed. For each component, you can override the image separately via the `image` field.
+
+{% cut "Table of components updated together with the cluster" %}
+
+#|
+|| **Component** | **Specification field** ||
+|| Master primary, secondary | `primaryMasters`, `secondaryMasters` ||
+|| Master caches | `masterCaches` ||
+|| HTTP proxies | `httpProxies` ||
+|| RPC proxies | `rpcProxies` ||
+|| TCP proxies | `tcpProxies` ||
+|| Kafka proxies | `kafkaProxies` ||
+|| Cypress proxies | `cypressProxies` ||
+|| Data nodes | `dataNodes` ||
+|| Exec nodes | `execNodes` ||
+|| Tablet nodes | `tabletNodes` ||
+|| Discovery | `discovery` ||
+|| Scheduler | `schedulers` ||
+|| Controller agents | `controllerAgents` ||
+|| Queue agents | `queueAgents` ||
+|| Tablet balancer | `tabletBalancers` ||
+|| Bundle controller | `bundleController` ||
+|#
+
+{% endcut %}
+
+#### Components with their own release cycle {#additional-components-ref}
+
+These components have their own release cycles; the operator updates them independently via the `image` field of the specific component in the `Ytsaurus` specification.
+
+{% cut "Table of components with their own release cycle" %}
+
+#|
+|| **Component** | **Specification field** ||
+|| Query trackers | `queryTrackers` ||
+|| YQL agents | `yqlAgents` ||
+|| Strawberry controller | `strawberry` ||
+|#
+
+{% endcut %}
