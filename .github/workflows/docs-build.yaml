@@ -65,7 +65,7 @@ jobs:
         run: |
           set -o pipefail
           exitcode=0
-          yfm -i ${{ env.src-root }} -o ${{ env.build-root }} --arcadia-root "$GITHUB_WORKSPACE" --output-format md --build-manifest --allow-custom-resources 2>&1 | tee './build-md.log' || exitcode=$?
+          yfm -i ${{ env.src-root }} -o ${{ env.build-root }} --arcadia-root "$GITHUB_WORKSPACE" --output-format md --add-map-file --build-manifest --allow-custom-resources 2>&1 | tee './build-md.log' || exitcode=$?
           rm -rf "${{ env.build-root }}/.ya-make-input"
 
           echo "exitcode=$exitcode" >> "$GITHUB_OUTPUT"
