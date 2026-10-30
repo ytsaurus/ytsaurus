@@ -19,6 +19,9 @@ type ClusterInitializerConfig struct {
 	RobotUsername string `yson:"robot_username"`
 
 	Families []string `yson:"families"`
+
+	// DefaultNetworkProject is the default network project used for oplets.
+	DefaultNetworkProject string `yson:"default_network_project"`
 }
 
 type ClusterInitializer struct {
@@ -52,6 +55,21 @@ func NewClusterInitializer(config *ClusterInitializerConfig, familyToInitializer
 	return
 }
 
+func (initializer *ClusterInitializer) checkNetworkProject(ctx context.Context) error {
+	if initializer.config.DefaultNetworkProject == "" {
+		return nil
+	}
+	path := ypath.Path("//sys/network_projects").Child(initializer.config.DefaultNetworkProject)
+	exists, err := initializer.ytc.NodeExists(ctx, path, nil)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return yterrors.Err(fmt.Sprintf("network project %q does not exist", initializer.config.DefaultNetworkProject))
+	}
+	return nil
+}
+
 func (initializer *ClusterInitializer) setUpRobotPermissions(ctx context.Context) error {
 	if initializer.config.RobotUsername == "" {
 		return nil
@@ -69,6 +87,9 @@ func (initializer *ClusterInitializer) setUpRobotPermissions(ctx context.Context
 	pathToPermissions := map[ypath.Path][]yt.Permission{
 		initializer.config.StrawberryRoot:                 commonPermissions,
 		ypath.Path("//sys/schemas/access_control_object"): {yt.PermissionCreate},
+	}
+	if project := initializer.config.DefaultNetworkProject; project != "" {
+		pathToPermissions[ypath.Path("//sys/network_projects").Child(project)] = []yt.Permission{yt.PermissionUse}
 	}
 	for _, family := range initializer.config.Families {
 		pathToPermissions[initializer.config.StrawberryRoot.Child(family)] = []yt.Permission{
@@ -156,6 +177,9 @@ func (initializer *ClusterInitializer) createACONamespaceIfNotExists(ctx context
 
 func (initializer *ClusterInitializer) InitCluster() error {
 	ctx := context.Background()
+	if err := initializer.checkNetworkProject(ctx); err != nil {
+		return err
+	}
 	if err := initializer.createRootsIfNotExists(ctx); err != nil {
 		return err
 	}
