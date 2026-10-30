@@ -123,6 +123,10 @@ public:
 
         RefillBuffer();
 
+        if (IsExhausted()) {
+            return nullptr;
+        }
+
         auto frameInput = std::make_unique<TFrameInput>(this);
         return std::make_unique<TUncompressedZstdFrameStream>(std::move(frameInput));
     }

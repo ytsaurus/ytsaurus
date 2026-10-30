@@ -275,6 +275,10 @@ private:
 
         void OnProgress(i64 bytesIndexed, i64 bytesTotal) final
         {
+            if (bytesTotal == 0) {
+                return;
+            }
+
             Program_->WriteProgressLine(Format("Building index: %v%% done...", bytesIndexed * 100 / bytesTotal));
         }
 
