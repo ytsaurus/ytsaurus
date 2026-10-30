@@ -74,7 +74,6 @@ TRUSTED_UDF_NAMES=(
     hyperloglog
     hyperscan
     ip_base
-    json
     json2
     math
     pire
