@@ -692,8 +692,9 @@ def reshard_table(path,
         desired tablet count used by the system to determine pivot keys
         automatically.
     :param bool uniform:
-        pick pivot keys uniformly for given tablet_count. First key column
-        must have integral type.
+        pick pivot keys uniformly over the first key column's integer range.
+        The column must be ascending and integral. A top-level modulo with a
+        positive integer literal divisor narrows the range.
     :param bool enable_slicing:
         use more precise algorithm for picking pivot keys when tablet_count
         is specified.

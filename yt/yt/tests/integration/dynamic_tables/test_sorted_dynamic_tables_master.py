@@ -792,6 +792,75 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         reshard_table("//tmp/t4", 5, uniform=True)
         assert get("//tmp/t4/@pivot_keys") == [[], [-19661], [-6554], [6553], [19660]]
 
+    @authors("dgolear")
+    @pytest.mark.parametrize(
+        "expression, key_type, hash_type, tablet_count, pivots",
+        [
+            (
+                "farm_hash(key) % 100",
+                "string",
+                "uint64",
+                10,
+                [[], [10], [20], [30], [40], [50], [60], [70], [80], [90]],
+            ),
+            ("farm_hash(key) % (100u)", "string", "uint64", 3, [[], [33], [66]]),
+            ("farm_hash(key) % +100u", "string", "uint64", 2, [[], [2**63]]),
+            ("farm_hash(key) % -10u", "string", "uint64", 2, [[], [2**63]]),
+            ("farm_hash(key) % -10", "string", "uint64", 2, [[], [2**63]]),
+            (
+                "farm_hash(key) % (50u + 50u)",
+                "string",
+                "uint64",
+                3,
+                [[]] + [[2**64 * i // 3] for i in range(1, 3)],
+            ),
+            ("farm_hash(key) % 1u", "string", "uint64", 10, [[]]),
+            ("farm_hash(key) % 4u", "string", "uint64", 10, [[], [1], [2], [3]]),
+            ("farm_hash(key) % 18446744073709551615u", "string", "uint64", 2, [[], [9223372036854775807]]),
+            ("farm_hash(key) % 18446744073709551615", "string", "uint64", 2, [[], [2**63]]),
+            ("key % 10", "int64", "int64", 3, [[], [-3], [3]]),
+            ("key % -10", "int64", "int64", 3, [[]] + [[-(2**63) + 2**64 * i // 3] for i in range(1, 3)]),
+            ("key % -9223372036854775808", "int64", "int64", 2, [[], [0]]),
+        ],
+    )
+    def test_reshard_uniform_modulo(self, expression, key_type, hash_type, tablet_count, pivots):
+        create_dynamic_table(
+            "//tmp/t",
+            schema=[
+                {"name": "hash", "type": hash_type, "sort_order": "ascending", "expression": expression},
+                {"name": "key", "type": key_type, "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+        )
+        reshard_table("//tmp/t", tablet_count, uniform=True)
+        assert get("//tmp/t/@pivot_keys") == pivots
+
+    @authors("dgolear")
+    @pytest.mark.parametrize("key_type", ["int8", "uint64"])
+    def test_reshard_uniform_uses_first_column_only(self, key_type):
+        create_dynamic_table(
+            "//tmp/t",
+            schema=[
+                {"name": "hash", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(key) % 4u"},
+                {"name": "key", "type": key_type, "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+        )
+        reshard_table("//tmp/t", 8, uniform=True)
+        assert get("//tmp/t/@pivot_keys") == [[], [1], [2], [3]]
+
+    @authors("dgolear")
+    def test_reshard_uniform_small_integer_domain(self):
+        create_dynamic_table(
+            "//tmp/t",
+            schema=[
+                {"name": "key", "type": "uint8", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+        )
+        reshard_table("//tmp/t", 300, uniform=True)
+        assert get("//tmp/t/@pivot_keys") == [[]] + [[key] for key in range(1, 256)]
+
     @authors("ifsmirnov")
     def test_reshard_YT_20800(self):
         def _get_schema(key_column_count):

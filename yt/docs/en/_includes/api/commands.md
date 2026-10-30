@@ -1905,7 +1905,9 @@ Semantics:
 - In the case of a sorted table:
   - When passing `pivot_keys`, the first key in `pivot_keys` must match the first key of the first resharded tablet. The number of `pivot_keys` is equal to the number of new tablets that the resharded tablets are split into.
   - When passing `tablet_count`, the system will select boundary keys based on the data available in the table as evenly as possible. If the table isn't large enough, you might get less tablets then requested as a result. At default settings, your resulting tablets can't be smaller than about 200 MB each. For smaller slicing, use the option`enable_slicing`.
-  - If the first key column of the table has an integer type, then along with `tablet_count`, you can use `uniform=True`. In this case, uniform values from the range of the appropriate type will be selected as boundary keys. `0, 2^64/n, 2^64\*2/n, ...` for an unsigned 64-bit type and `-2^63, -2^63 + 2^64/n, -2^63 + 2^64\*2/n, ...` for a signed 64-bit type.
+  - If the first key column has an integer type and ascending sort order, you can specify `uniform=True` together with `tablet_count`. Boundary keys are selected uniformly from this column's range without inspecting the table data; subsequent key columns are not used. The first boundary key is `[]`. For a range `[lower, upper]` and a resulting tablet count `n`, the remaining keys are `[lower + floor((upper - lower + 1) * i / n)]` for `i = 1, ..., n - 1`.
+    If the column's expression is `expression % divisor` with a positive integer literal divisor, the type's range is narrowed to the possible remainders: `[0, divisor - 1]` for unsigned integers or `[-divisor + 1, divisor - 1]` for signed integers.
+    The resulting tablet count is the smaller of `tablet_count` and the number of integer values in this range. For example, a `uint8` column with no expression and `tablet_count=300` produces 256 tablets with boundary keys `[]`, `[1]`, ..., `[255]`. Some tablets may be empty if the data does not fill the range.
 - For an ordered table, `table_count` specifies the number of new tablets that the sharded tablets are split into. In this case, if the resulting tablets are higher in numbers than the old ones, new empty tablets are created. If the resulting tablets are smaller in numbers, the corresponding number of source trailing tablets are merged into a single tablet in their natural order.
 
 Parameters:
@@ -1917,7 +1919,7 @@ Parameters:
 | `last_tablet_index` | No | `tablet_count - 1` | Index of the last resharded tablet. |
 | `pivot_keys` | No |                           | Boundary keys for the new tablets (for a sorted table). |
 | `tablet_count` | No |                           | Number of new tablets. |
-| `uniform` | No | `false` | Uniformly reshard tablets based on an integer key column. |
+| `uniform` | No | `false` | Uniformly reshard by the first ascending integer key column, taking modulo bounds with a literal divisor into account. The resulting tablet count may be less than `tablet_count`. |
 | `enable_slicing` | No | `false` | Use sampling to increase granularity (for a more precise splitting into tablets) when boundary keys are selected automatically. This might help if you have many entries on one key and few entries on another key. |
 | `slicing_accuracy` | No | `0.05` | Tolerance acceptable for uniform regarding into a given number of tablets. |
 

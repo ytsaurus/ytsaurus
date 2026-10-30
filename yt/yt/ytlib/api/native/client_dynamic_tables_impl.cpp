@@ -112,6 +112,7 @@
 
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
+#include <yt/yt/library/query/base/expr_builder_base.h>
 #include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/library/query/base/query_preparer.h>
@@ -588,6 +589,43 @@ private:
         };
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::pair<i128, i128> GetUniformReshardColumnBounds(const TColumnSchema& column)
+{
+    auto type = column.CastToV1Type();
+    bool isSigned = IsIntegralTypeSigned(type);
+    i128 size = static_cast<i128>(1) << GetIntegralTypeBitWidth(type);
+    i128 lower = isSigned ? -size / 2 : 0;
+    i128 upper = lower + size - 1;
+
+    if (column.Expression()) {
+        auto parsed = ParseSource(*column.Expression(), EParseMode::Expression);
+        auto* binaryExpression = std::get<NAst::TExpressionPtr>(parsed->AstHead.Ast)->As<NAst::TBinaryOpExpression>();
+        if (binaryExpression && binaryExpression->Opcode == EBinaryOp::Modulo &&
+            binaryExpression->Rhs.size() == 1)
+        {
+            auto* literal = binaryExpression->Rhs.front()->As<NAst::TLiteralExpression>();
+            if (literal && IsIntegralType(GetType(literal->Value))) {
+                auto value = GetValue(literal->Value);
+                i128 modulo = value.Type == EValueType::Int64
+                    ? static_cast<i128>(value.Data.Int64)
+                    : static_cast<i128>(value.Data.Uint64);
+                if (modulo == 0) {
+                    THROW_ERROR_EXCEPTION("Cannot pick uniform pivot keys for a modulo expression with zero divisor")
+                        .With("column", column.Name());
+                }
+                if (modulo > 0) {
+                    lower = std::max(lower, isSigned ? -modulo + 1 : static_cast<i128>(0));
+                    upper = std::min(upper, modulo - 1);
+                }
+            }
+        }
+    }
+
+    return {lower, upper};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2455,51 +2493,31 @@ std::vector<TLegacyOwningKey> TClient::PickUniformPivotKeys(
         THROW_ERROR_EXCEPTION("First key column type %Qv is too complex",
             *column.LogicalType());
     }
-
-    auto buildPivotKeys = [tabletCount] (i128 lo, i128 hi, bool isSigned)
-    {
-        TUnversionedOwningRowBuilder builder;
-        std::vector<TLegacyOwningKey> pivots;
-        pivots.push_back(builder.FinishRow());
-
-        i128 span = hi - lo + 1;
-        for (int i = 1; i < tabletCount; ++i) {
-            i128 value = lo + (span * i) / tabletCount;
-            if (isSigned) {
-                builder.AddValue(MakeUnversionedInt64Value(static_cast<i64>(value)));
-            } else {
-                builder.AddValue(MakeUnversionedUint64Value(static_cast<ui64>(value)));
-            }
-            pivots.push_back(builder.FinishRow());
-        }
-
-        return pivots;
-    };
-
-    switch (column.CastToV1Type()) {
-        case ESimpleLogicalValueType::Uint8:
-            return buildPivotKeys(0, std::numeric_limits<ui8>::max(), false);
-        case ESimpleLogicalValueType::Uint16:
-            return buildPivotKeys(0, std::numeric_limits<ui16>::max(), false);
-        case ESimpleLogicalValueType::Uint32:
-            return buildPivotKeys(0, std::numeric_limits<ui32>::max(), false);
-        case ESimpleLogicalValueType::Uint64:
-            return buildPivotKeys(0, std::numeric_limits<ui64>::max(), false);
-
-        case ESimpleLogicalValueType::Int8:
-            return buildPivotKeys(std::numeric_limits<i8>::min(), std::numeric_limits<i8>::max(), true);
-        case ESimpleLogicalValueType::Int16:
-            return buildPivotKeys(std::numeric_limits<i16>::min(), std::numeric_limits<i16>::max(), true);
-        case ESimpleLogicalValueType::Int32:
-            return buildPivotKeys(std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), true);
-        case ESimpleLogicalValueType::Int64:
-            return buildPivotKeys(std::numeric_limits<i64>::min(), std::numeric_limits<i64>::max(), true);
-
-        default:
-            THROW_ERROR_EXCEPTION("First key column has improper type: expected "
-                "integral, got %Qv",
-                *column.LogicalType());
+    if (!IsIntegralType(column.CastToV1Type())) {
+        THROW_ERROR_EXCEPTION("First key column has improper type: expected integral, got %Qv",
+            *column.LogicalType());
     }
+
+    auto [lower, upper] = GetUniformReshardColumnBounds(column);
+    i128 rangeSize = upper - lower + 1;
+    bool isSigned = IsIntegralTypeSigned(column.CastToV1Type());
+    tabletCount = static_cast<int>(std::min<i128>(tabletCount, rangeSize));
+
+    TUnversionedOwningRowBuilder builder;
+    std::vector<TLegacyOwningKey> pivots;
+    pivots.push_back(builder.FinishRow());
+
+    for (int tabletIndex = 1; tabletIndex < tabletCount; ++tabletIndex) {
+        i128 value = lower + rangeSize * tabletIndex / tabletCount;
+        if (isSigned) {
+            builder.AddValue(MakeUnversionedInt64Value(static_cast<i64>(value)));
+        } else {
+            builder.AddValue(MakeUnversionedUint64Value(static_cast<ui64>(value)));
+        }
+        pivots.push_back(builder.FinishRow());
+    }
+
+    return pivots;
 }
 
 void TClient::DoReshardTableWithPivotKeys(

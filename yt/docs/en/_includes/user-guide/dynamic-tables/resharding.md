@@ -79,6 +79,12 @@ To distribute the load evenly, you can use the standard approach: prepend an aux
 
 To split it into *k* tablets, simply split the [0, 2<sup>64</sup>-1] range into *k* parts. To do this, you can use the "reshard-table" command with the `--uniform` flag: when `tablet_count` is specified, the system will set the boundary keys [], [2<sup>64</sup> / *k*], [2<sup>64</sup> * 2 / *k*], and so on.
 
+The `--uniform` flag uses only the first key column, which must have an integer type and ascending sort order. It selects boundary keys from that column's range without inspecting the table data or splitting by subsequent key columns.
+
+For a computed column whose expression is `expression % divisor`, where the divisor is a positive integer literal, the range is narrowed to the possible remainders within the column's type. For example, `farm_hash(key) % 100u` uses the range [0, 99]; requesting 10 tablets produces the boundary keys [], [10], [20], ..., [90].
+
+The requested `tablet_count` is an upper bound: if the range contains fewer integer values, fewer tablets are created. For example, a first key column of type `uint8` with no expression has 256 values, so requesting 300 tablets with `--uniform` creates 256 tablets with boundary keys [], [1], ..., [255]. Actual data may occupy only part of the range, so some tablets may be empty.
+
 The value of the key column can be calculated on the client side and transmitted when writing to the table, but computed columns can be used as an alternative.
 
 ### Computed columns { #expression }
