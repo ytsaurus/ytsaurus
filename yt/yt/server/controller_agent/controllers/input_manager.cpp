@@ -1368,15 +1368,16 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
                     std::remove_if(
                         dataSlices.begin(),
                         dataSlices.end(),
-                        [&] (TDataSlicePtr slice) {
-                            try {
+                        [&] (const TDataSlicePtr& slice) {
+                            if (slice->IsTrivial()) {
                                 return chunkId == slice->GetSingleUnversionedChunk()->GetChunkId();
-                            } catch (const std::exception& ex) {
-                                //FIXME(savrus) allow data slices to be unavailable.
-                                Host_->OnOperationFailed(TError(NChunkClient::EErrorCode::ChunkUnavailable, "Dynamic table chunk became unavailable")
-                                    .With(ex));
-                                return true;
                             }
+                            //FIXME(savrus) allow data slices to be unavailable.
+                            Host_->OnOperationFailed(TError(
+                                NChunkClient::EErrorCode::ChunkUnavailable,
+                                "Dynamic table chunk %v became unavailable",
+                                chunkId));
+                            return true;
                         }),
                     dataSlices.end());
 
