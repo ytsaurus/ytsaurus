@@ -5302,6 +5302,7 @@ class TestChaosSpecialRpcProxy(TestChaosSpecial):
 
 class TestChaosRpcProxy(TestChaos):
     ENABLE_MULTIDAEMON = True
+    NUM_TEST_PARTITIONS = 60
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     NUM_CHAOS_CACHES = 1
