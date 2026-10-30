@@ -12,13 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(cgroup)
 add_subdirectory(syncmap)
 add_subdirectory(undumpable)
 add_subdirectory(profiling)
 add_subdirectory(ytprof)
 add_subdirectory(signals)
 add_subdirectory(procfs)
-add_subdirectory(cgroup)
 add_subdirectory(tracing)
 add_subdirectory(numeric)
 add_subdirectory(auth)
