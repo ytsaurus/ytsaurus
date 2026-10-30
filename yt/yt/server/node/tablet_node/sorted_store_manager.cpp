@@ -1146,7 +1146,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             TColumnFilter(),
             mountConfig,
             currentTimestamp,
-            majorTimestamp,
+            mountConfig->ForceZeroMajorTimestamp ? MinTimestamp : majorTimestamp,
             tabletSnapshot->ColumnEvaluator,
             tabletSnapshot->CustomRuntimeData,
             /*mergeRowsOnFlush*/ false,

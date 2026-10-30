@@ -393,6 +393,8 @@ struct TCustomTableMountConfig
 
     bool InsertMetaUponStoreUpdate;
 
+    bool ForceZeroMajorTimestamp;
+
     //! In case of non-block reads will open partition readers instantly at the start of the lookup session
     //! so chunk read sessions corresponding to this amount of keys will be opened.
     std::optional<int> PartitionReaderPrefetchKeyLimit;
