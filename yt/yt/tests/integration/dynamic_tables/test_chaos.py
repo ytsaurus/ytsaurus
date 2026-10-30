@@ -3741,12 +3741,20 @@ class TestChaos(ChaosTestBase):
             "tablet_cell_bundle_name_failure_interval": 100,
         }
 
-        def _create_supertable(prefix, clusters, sync_cluster):
+        clusters = self.get_cluster_names()
+
+        def _create_supertable(args):
+            prefix, sync_cluster = args
             return self._create_chaos_supertable(prefix, clusters, sync_cluster, "c", replicated_table_options)
 
-        clusters = self.get_cluster_names()
-        crt1, card1, replicas1, replica_ids1 = _create_supertable("//tmp/a", clusters, clusters[0])
-        crt2, card2, replicas2, replica_ids2 = _create_supertable("//tmp/b", clusters, clusters[1])
+        # Each helper creates missing cells in every replica cluster, but only waits
+        # for its own cells. Prepare them before concurrent setup can reuse them.
+        map_in_parallel(lambda driver: sync_create_cells(1, driver=driver), self._get_drivers())
+        supertables = map_in_parallel(_create_supertable, [
+            ("//tmp/a", clusters[0]),
+            ("//tmp/b", clusters[1]),
+        ])
+        (crt1, card1, replicas1, _), (crt2, card2, replicas2, _) = supertables
 
         for crt in [crt1, crt2]:
             assert get("{0}/@collocated_replication_card_ids".format(crt)) == []
@@ -3788,15 +3796,17 @@ class TestChaos(ChaosTestBase):
         alter_replication_card(card2, enable_replicated_table_tracker=True)
 
         if snapshotting == "snapshot":
-            for cell in cells:
-                def _get_snapshots(cell):
+            def _build_snapshot(cell):
+                def _get_snapshot_counts():
                     return [
                         len(ls("//sys/chaos_cells/{0}/{1}/snapshots".format(cell, index), driver=driver))
                         for index, driver in enumerate(self._get_drivers())
                     ]
-                snapshots = _get_snapshots(cell)
+                snapshot_counts = _get_snapshot_counts()
                 build_snapshot(cell_id=cell)
-                wait(lambda: all(new > old for new, old in zip(_get_snapshots(cell), snapshots)))
+                wait(lambda: all(new > old for new, old in zip(_get_snapshot_counts(), snapshot_counts)))
+
+            map_in_parallel(_build_snapshot, cells)
             with self.CellsDisabled(clusters=self.get_cluster_names(), chaos_bundles=["c"]):
                 pass
 
