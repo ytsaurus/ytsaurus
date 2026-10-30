@@ -10,21 +10,18 @@ wheel_flags=(--py-limited-api cp34)
 
 if [[ $(uname -s) == Linux ]]; then
     wheel_flags+=(--plat-name "linux_$target_arch")
-    # Build against ya's default Linux SDK and keep __cxa_thread_atexit_impl weak to support glibc 2.17.
-    ya_flags=(-DUSER_CXXFLAGS=-UHAVE___CXA_THREAD_ATEXIT_IMPL)
-    repair_packages=(auditwheel patchelf)
-    repair_command=(auditwheel repair --plat "manylinux_2_17_$target_arch" --only-plat)
+    repair_packages=(auditwheel==6.1.0 patchelf==0.19.1.0)
+    repair_command=(auditwheel repair --plat "manylinux_2_28_$target_arch" --only-plat)
 elif [[ $(uname -s) == Darwin ]]; then
     wheel_flags+=(--plat-name "macosx_${MACOSX_DEPLOYMENT_TARGET//./_}_$target_arch")
-    ya_flags=(-DOS_SDK=local)
-    repair_packages=(delocate)
+    repair_packages=(delocate==0.12.0)
     repair_command=(delocate-wheel --require-archs "$target_arch")
 else
     echo "Unsupported OS: $(uname -s)" >&2
     exit 1
 fi
 
-python3 -m pip install --upgrade setuptools wheel abi3audit "${repair_packages[@]}"
+python3 -m pip install setuptools==75.3.4 wheel==0.45.1 abi3audit==0.0.17 "${repair_packages[@]}"
 python3 -m pip install -e "$source_root/yt/python/packages"
 
 cd "$source_root"
@@ -34,7 +31,7 @@ env -u MACOSX_DEPLOYMENT_TARGET ./ya make \
     --build=release \
     -DUSE_ARCADIA_PYTHON=no -DUSE_LOCAL_PYTHON \
     -DPYTHON_CONFIG="$python3_config" -DPYTHON_BIN="$(command -v python3)" \
-    "${ya_flags[@]}" \
+    -DOS_SDK=local \
     --output "$build_root"
 
 mkdir -p "$build_root/package"
