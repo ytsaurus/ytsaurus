@@ -2584,7 +2584,12 @@ protected:
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables();
 
-            if (IsRowCountPreserved() && !(SimpleSortTask_ && isNontrivialInput) && !IsSamplingEnabled() && !InputHasDynamicStores()) {
+            if (IsRowCountPreserved() &&
+                !(SimpleSortTask_ && isNontrivialInput) &&
+                !IsSamplingEnabled() &&
+                !InputHasDynamicStores() &&
+                !InputManager_->HasSkippedInputChunks())
+            {
                 // We don't check row count for simple sort if nontrivial read limits are specified,
                 // since input row count can be estimated inaccurate.
                 i64 totalInputRowCount = 0;

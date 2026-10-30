@@ -698,7 +698,7 @@ private:
 
     void OnOperationCompleted(bool interrupted) override
     {
-        if (!interrupted) {
+        if (!interrupted && !InputManager_->HasSkippedInputChunks()) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables() || InputHasDynamicStores();
             if (!isNontrivialInput && IsRowCountPreserved() && Spec_->ForceTransform) {
                 YT_TLOG_ERROR_IF(

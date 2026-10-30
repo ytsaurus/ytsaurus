@@ -975,7 +975,7 @@ protected:
 
     void OnOperationCompleted(bool interrupted) override
     {
-        if (!interrupted) {
+        if (!interrupted && !InputManager_->HasSkippedInputChunks()) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables();
             if (!isNontrivialInput && IsRowCountPreserved() && Spec_->ForceTransform) {
                 YT_TLOG_ERROR_IF(

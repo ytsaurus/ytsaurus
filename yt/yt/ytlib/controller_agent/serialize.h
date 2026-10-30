@@ -134,6 +134,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobPhaseSpacing)                       (302403))
     ((RlsAuthenticatedUser)                  (302404))
     ((PushBasedShuffle)                      (302405))
+    ((PersistSkippedInputChunks)             (302406))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
