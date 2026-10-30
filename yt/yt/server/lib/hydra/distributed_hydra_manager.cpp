@@ -31,6 +31,8 @@
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
 
+#include <yt/yt/client/transaction_client/public.h>
+
 #include <yt/yt/core/concurrency/context_switch.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -728,6 +730,8 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(), StopFollowing);
 
     DEFINE_SIGNAL_OVERRIDE(TFuture<void>(), LeaderLeaseCheck);
+
+    DEFINE_SIGNAL_OVERRIDE(void(), PrerequisiteTransactionAborted);
 
 private:
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
@@ -2085,6 +2089,11 @@ private:
             } catch (const std::exception& ex) {
                 YT_TLOG_WARNING("Error initializing persistent stores, backing off and retrying")
                     .With(ex);
+
+                if (TError(ex).FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
+                    PrerequisiteTransactionAborted_.Fire();
+                }
+
                 TDelayedExecutor::WaitForDuration(backoffTime);
                 backoffTime = std::min(
                     backoffTime * Config_->Get()->PersistentStoreInitializationBackoffTimeMultiplier,

@@ -442,6 +442,8 @@ public:
 
     DEFINE_SIGNAL_OVERRIDE(TFuture<void>(), LeaderLeaseCheck);
 
+    DEFINE_SIGNAL_OVERRIDE(void(), PrerequisiteTransactionAborted);
+
     // Stuff from IDistributedHydraManager
     TDistributedHydraManagerDynamicOptions GetDynamicOptions() const override
     {

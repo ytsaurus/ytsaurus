@@ -249,6 +249,11 @@ struct IHydraManager
     //! A subscriber must start an appropriate check and return a future
     //! summarizing its outcome.
     DECLARE_INTERFACE_SIGNAL(TFuture<void>(), LeaderLeaseCheck);
+
+    //! Raised when persistent store initialization fails because the prerequisite
+    //! transaction was aborted. A subscriber must force a heartbeat to get an
+    //! updated transaction id from the master.
+    DECLARE_INTERFACE_SIGNAL(void(), PrerequisiteTransactionAborted);
 };
 
 DEFINE_REFCOUNTED_TYPE(IHydraManager)
