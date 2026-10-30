@@ -4,7 +4,7 @@ from yt_env_setup import Restarter, NODES_SERVICE
 
 from yt_commands import (
     authors, wait, get, set, mount_table, unmount_table, freeze_table, unfreeze_table,
-    wait_for_tablet_state, sync_create_cells, create,
+    wait_for_tablet_state, sync_create_cells, create, get_cell_leader_address,
     sync_mount_table, sync_unmount_table, sync_unfreeze_table,
     remount_table, sync_flush_table, select_rows, insert_rows, alter_table,
     sync_enable_table_replica, create_table_replica,
@@ -179,7 +179,8 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
     def _do_test_transition(self, initial, first_command, second_command):
         expected = self._get_expected_state(initial, first_command, second_command)
         if expected == "error":
-            with Restarter(self.Env, NODES_SERVICE):
+            node_address = get_cell_leader_address(self._cell_id)
+            with Restarter(self.Env, NODES_SERVICE, addresses=[node_address]):
                 self._get_callback(first_command)("//tmp/t")
                 with raises_yt_error("Cannot .* tablet .* in .* state"):
                     self._get_callback(second_command)("//tmp/t")
