@@ -2,7 +2,6 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/contrib/ydb/public/sdk/cpp/sdk_common_arcadia.inc)
 
 SRCS(
-    authenticator.cpp
     endpoint_pool.cpp
     state.cpp
 )
