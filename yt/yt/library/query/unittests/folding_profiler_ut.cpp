@@ -803,6 +803,187 @@ TEST_P(TOrderByCacheTest, OrderItemCount)
         {"a=1;b=2", "a=2;b=1"});
 }
 
+TEST_P(TOrderByCacheTest, CombinedGroupByReusedExpressionRoot)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` group by a, b order by a+b, a limit 1",
+            .ExpectedRows = {"a=1;b=2"},
+        },
+        {
+            .Query = "a, b from `//t` group by a, b order by a+b, b limit 1",
+            .ExpectedRows = {"a=2;b=1"},
+        },
+        MakeInputSplit(),
+        {"a=1;b=2", "a=2;b=1"});
+}
+
+TEST_P(TOrderByCacheTest, CombinedGroupByExpressionRootOrder)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` group by a, b order by a+b, a, b limit 2",
+            .ExpectedRows = {"a=1;b=2", "a=2;b=1"},
+        },
+        {
+            .Query = "a, b from `//t` group by a, b order by a+b, b, a limit 2",
+            .ExpectedRows = {"a=2;b=1", "a=1;b=2"},
+        },
+        MakeInputSplit(),
+        {"a=1;b=2", "a=2;b=1"});
+}
+
+TEST_P(TOrderByCacheTest, CombinedGroupByDescendingReusedExpressionRoot)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` group by a, b order by a+b desc, a desc limit 1",
+            .ExpectedRows = {"a=2;b=1"},
+        },
+        {
+            .Query = "a, b from `//t` group by a, b order by a+b desc, b desc limit 1",
+            .ExpectedRows = {"a=1;b=2"},
+        },
+        MakeInputSplit(),
+        {"a=1;b=2", "a=2;b=1"});
+}
+
+TEST_P(TOrderByCacheTest, CombinedGroupByOffset)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` group by a, b order by a+b, a offset 1 limit 1",
+            .ExpectedRows = {"a=2;b=1"},
+        },
+        {
+            .Query = "a, b from `//t` group by a, b order by a+b, b offset 1 limit 1",
+            .ExpectedRows = {"a=1;b=2"},
+        },
+        MakeInputSplit(),
+        {"a=1;b=2", "a=2;b=1"});
+}
+
+TEST_P(TOrderByCacheTest, CombinedGroupByStringExpressionRoot)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` group by a, b order by concat(a,b), a limit 1",
+            .ExpectedRows = {"a=a;b=aa"},
+        },
+        {
+            .Query = "a, b from `//t` group by a, b order by concat(a,b), b limit 1",
+            .ExpectedRows = {"a=aa;b=a"},
+        },
+        MakeInputSplit(EValueType::String),
+        {"a=a;b=aa", "a=aa;b=a"});
+}
+
+TEST_P(TOrderByCacheTest, CombinedGroupByNullableExpressionRoot)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` group by a, b order by a+b, a limit 1",
+            .ExpectedRows = {"a=#;b=1"},
+        },
+        {
+            .Query = "a, b from `//t` group by a, b order by a+b, b limit 1",
+            .ExpectedRows = {"a=2;b=#"},
+        },
+        MakeInputSplit(),
+        {"a=#;b=1", "a=2;b=#"});
+}
+
+TEST_P(TOrderByCacheTest, CombinedGroupByReusedCompoundExpressionRoot)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` group by a, b order by (a+b)*(a-b), a+b limit 1",
+            .ExpectedRows = {"a=3;b=-1"},
+        },
+        {
+            .Query = "a, b from `//t` group by a, b order by (a+b)*(a-b), a-b limit 1",
+            .ExpectedRows = {"a=3;b=1"},
+        },
+        MakeInputSplit(),
+        {"a=3;b=1", "a=3;b=-1"});
+}
+
+TEST_P(TOrderByCacheTest, CombinedGroupByComputedKeys)
+{
+    CheckCacheReuse(
+        {
+            .Query = "x, y from `//t` group by a+1 as x, b-1 as y order by x+y, x limit 1",
+            .ExpectedRows = {"x=1;y=2"},
+        },
+        {
+            .Query = "x, y from `//t` group by a+1 as x, b-1 as y order by x+y, y limit 1",
+            .ExpectedRows = {"x=2;y=1"},
+        },
+        MakeInputSplit(),
+        {"a=0;b=3", "a=1;b=2"});
+}
+
+TEST_P(TOrderByCacheTest, CombinedGroupByAggregatePayload)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b, sum(v) as s from `//t` group by a, b order by a+b, a limit 1",
+            .ExpectedRows = {"a=1;b=2;s=30"},
+        },
+        {
+            .Query = "a, b, sum(v) as s from `//t` group by a, b order by a+b, b limit 1",
+            .ExpectedRows = {"a=2;b=1;s=7"},
+        },
+        MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::Int64}, {"v", EValueType::Int64}}),
+        {"a=1;b=2;v=10", "a=2;b=1;v=3", "a=1;b=2;v=20", "a=2;b=1;v=4"});
+}
+
+TEST_P(TOrderByCacheTest, CombinedGroupByDifferentDirections)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` group by a, b order by a+b, a limit 1",
+            .ExpectedRows = {"a=1;b=2"},
+        },
+        {
+            .Query = "a, b from `//t` group by a, b order by a+b, a desc limit 1",
+            .ExpectedRows = {"a=2;b=1"},
+        },
+        MakeInputSplit(),
+        {"a=1;b=2", "a=2;b=1"});
+}
+
+TEST_P(TOrderByCacheTest, CombinedGroupByLiteralValues)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` group by a, b order by abs(a-1), b limit 1",
+            .ExpectedRows = {"a=1;b=2"},
+        },
+        {
+            .Query = "a, b from `//t` group by a, b order by abs(a-2), b limit 1",
+            .ExpectedRows = {"a=2;b=1"},
+        },
+        MakeInputSplit(),
+        {"a=1;b=2", "a=2;b=1"},
+        /*sameKey*/ true);
+}
+
+TEST_P(TOrderByCacheTest, CombinedGroupByOrderItemCount)
+{
+    CheckCacheReuse(
+        {
+            .Query = "a, b from `//t` group by a, b order by a+b, a limit 2",
+            .ExpectedRows = {"a=1;b=2", "a=2;b=1"},
+        },
+        {
+            .Query = "a, b from `//t` group by a, b order by a+b, a, b limit 2",
+            .ExpectedRows = {"a=1;b=2", "a=2;b=1"},
+        },
+        MakeInputSplit(),
+        {"a=1;b=2", "a=2;b=1"});
+}
+
 INSTANTIATE_TEST_SUITE_P(
     Backends,
     TOrderByCacheTest,
