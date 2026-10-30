@@ -48,6 +48,7 @@ def test_string_proxy():
 
     b = YsonStringProxy()
     b._bytes = b"\xFB"
+    assert bool(b)
     assert not is_unicode(b)
     assert get_bytes(b) == b"\xFB"
 
