@@ -103,7 +103,7 @@ class CheckWatcher(object):
 
 
 @contextlib.contextmanager
-def configure_odin(yt_cluster_url, checks_path):
+def configure_odin(yt_cluster_url, checks_path, cluster_name="test_cluster"):
     storage_file = tempfile.mkstemp()[1]
     storage_factory = lambda: FileStorage(storage_file)  # noqa
 
@@ -114,7 +114,7 @@ def configure_odin(yt_cluster_url, checks_path):
     odin_module.RELOAD_CHECKS = True
     odin = Odin(
         storage_factory,
-        "test_cluster",
+        cluster_name,
         yt_cluster_url,
         token=None,
         token_env_variable=None,
@@ -130,8 +130,8 @@ def configure_odin(yt_cluster_url, checks_path):
         shutil.rmtree(socket_dir, ignore_errors=True)
 
 
-def configure_and_run_checks(yt_cluster_url, checks_path):
-    with configure_odin(yt_cluster_url, checks_path) as odin:
+def configure_and_run_checks(yt_cluster_url, checks_path, cluster_name="test_cluster"):
+    with configure_odin(yt_cluster_url, checks_path, cluster_name) as odin:
         run_checks(odin)
         time.sleep(5)
         return odin.create_db_client()
@@ -160,6 +160,7 @@ class YtTestEnvironment(object):
             queue_agent_count=yt_instance_params.get("queue_agent_count", 0),
             queue_agent_config=yt_instance_params.get("queue_agent_config", {}),
             tcmalloc_profile_sampling_rate=yt_instance_params.get("tcmalloc_profile_sampling_rate", 0),
+            cell_tag=yt_instance_params.get("cell_tag", 1),
             path=path,
             id=self.yt_instance_id,
             fqdn="localhost",
@@ -233,15 +234,37 @@ def yt_env_two_clusters(request):
     return environments
 
 
+YT_ENV_ONE_QUEUE_AGENT_PARAMS = {
+    "queue_agent_count": 1,
+    "queue_agent_config": {
+        "dynamic_config_manager": {
+            "update_period": 1000,  # 1 second
+        },
+    },
+}
+
+
 @pytest.fixture(scope="function")
 def yt_env_one_queue_agent(request):
-    environment = YtTestEnvironment({
-        "queue_agent_count": 1,
-        "queue_agent_config": {
-            "dynamic_config_manager": {
-                "update_period": 1000,  # 1 second
-            },
-        },
-    })
+    environment = YtTestEnvironment(YT_ENV_ONE_QUEUE_AGENT_PARAMS)
     request.addfinalizer(lambda: environment.cleanup())
     return environment
+
+
+@pytest.fixture(scope="function")
+def yt_env_two_clusters_one_queue_agent(request):
+    """Queue agent cluster and a remote cluster without queue agent, connected to each other."""
+    queue_agent_environment = YtTestEnvironment(YT_ENV_ONE_QUEUE_AGENT_PARAMS)
+    request.addfinalizer(lambda: queue_agent_environment.cleanup())
+    remote_environment = YtTestEnvironment({"cell_tag": 2})
+    request.addfinalizer(lambda: remote_environment.cleanup())
+
+    for client, other_client in [
+        (queue_agent_environment.yt_client, remote_environment.yt_client),
+        (remote_environment.yt_client, queue_agent_environment.yt_client),
+    ]:
+        client.set(
+            "//sys/clusters/{}".format(other_client.get("//sys/@cluster_name")),
+            other_client.get("//sys/@cluster_connection"))
+
+    return queue_agent_environment, remote_environment
