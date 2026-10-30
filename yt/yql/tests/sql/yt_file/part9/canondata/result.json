@@ -135,7 +135,7 @@
             "uri": "https://{canondata_backend}/1936947/55852d6e47034f53aebf2bd4233b3784c87bfbe5/resource.tar.gz#test.test_aggregate-group_by_expr--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_aggregate-group_by_expr--Results_/extracted"
+            "uri": "file://test.TestYtFile_aggregate-group_by_expr-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_aggregate-group_by_rollup_aggr_expr-.test[Debug]": [
@@ -921,7 +921,7 @@
             "uri": "https://{canondata_backend}/1936947/55852d6e47034f53aebf2bd4233b3784c87bfbe5/resource.tar.gz#test.test_in-in_types_cast-default.txt-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_in-in_types_cast-default.txt-Results_/extracted"
+            "uri": "file://test.TestYtFile_in-in_types_cast-default.txt.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_in-in_with_tuple-default.txt.test[Debug]": [
@@ -1041,7 +1041,7 @@
             "uri": "https://{canondata_backend}/1936947/55852d6e47034f53aebf2bd4233b3784c87bfbe5/resource.tar.gz#test.test_insert-append_sorted--Results_/Output8.yqlrun.txt.attr"
         },
         {
-            "uri": "file://test.test_insert-append_sorted--Results_/extracted"
+            "uri": "file://test.TestYtFile_insert-append_sorted-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_insert-empty_select_limit_zero-.test[Debug]": [
@@ -2412,7 +2412,7 @@
             "uri": "https://{canondata_backend}/1936947/55852d6e47034f53aebf2bd4233b3784c87bfbe5/resource.tar.gz#test.test_simple_columns-simple_columns_join_subreq_same_key_without-default.txt-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_simple_columns-simple_columns_join_subreq_same_key_without-default.txt-Results_/extracted"
+            "uri": "file://test.TestYtFile_simple_columns-simple_columns_join_subreq_same_key_without-default.txt.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_tpch-q17-default.txt.test[Debug]": [
@@ -2624,7 +2624,7 @@
             "uri": "https://{canondata_backend}/1936947/55852d6e47034f53aebf2bd4233b3784c87bfbe5/resource.tar.gz#test.test_weak_field-yql-7888_mapfieldsubset--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_weak_field-yql-7888_mapfieldsubset--Results_/extracted"
+            "uri": "file://test.TestYtFile_weak_field-yql-7888_mapfieldsubset-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_window-current/ansi_current_mixed-.test[Debug]": [

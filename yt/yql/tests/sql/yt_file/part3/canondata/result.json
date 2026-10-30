@@ -130,7 +130,7 @@
             "uri": "https://{canondata_backend}/1936947/e303affa3eb5be253a3438535c57aac7732bf4c6/resource.tar.gz#test.test_aggregate-aggregate_distinct_expr_with_groupby_expr-default.txt-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_aggregate-aggregate_distinct_expr_with_groupby_expr-default.txt-Results_/extracted"
+            "uri": "file://test.TestYtFile_aggregate-aggregate_distinct_expr_with_groupby_expr-default.txt.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_aggregate-compact_distinct-.test[Debug]": [
@@ -770,7 +770,7 @@
             "uri": "https://{canondata_backend}/1936947/e303affa3eb5be253a3438535c57aac7732bf4c6/resource.tar.gz#test.test_flatten_by-flatten_with_resource--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_flatten_by-flatten_with_resource--Results_/extracted"
+            "uri": "file://test.TestYtFile_flatten_by-flatten_with_resource-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_hor_join-merge_multiouts_all-.test[Debug]": [
@@ -999,7 +999,7 @@
             "uri": "https://{canondata_backend}/1936947/e303affa3eb5be253a3438535c57aac7732bf4c6/resource.tar.gz#test.test_insert-append_sorted-to_sorted_desc-Results_/Output8.yqlrun.txt.attr"
         },
         {
-            "uri": "file://test.test_insert-append_sorted-to_sorted_desc-Results_/extracted"
+            "uri": "file://test.TestYtFile_insert-append_sorted-to_sorted_desc.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_insert-insert_relabeled-default.txt.test[Debug]": [
@@ -2542,7 +2542,7 @@
             "uri": "https://{canondata_backend}/1936947/e303affa3eb5be253a3438535c57aac7732bf4c6/resource.tar.gz#test.test_view-view_with_library--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_view-view_with_library--Results_/extracted"
+            "uri": "file://test.TestYtFile_view-view_with_library-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_weak_field-optimize_weak_fields_map-.test[Debug]": [

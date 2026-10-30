@@ -62,7 +62,7 @@
             "uri": "https://{canondata_backend}/1925842/ebd1c64d31887b8e4309e5c5c6ba2107d5b1cf7e/resource.tar.gz#test.test_aggregate-group_by_expr_mul_col--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_aggregate-group_by_expr_mul_col--Results_/extracted"
+            "uri": "file://test.TestYtFile_aggregate-group_by_expr_mul_col-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_aggregate-group_by_expr_with_join-.test[Debug]": [
@@ -261,7 +261,7 @@
             "uri": "https://{canondata_backend}/1925842/ebd1c64d31887b8e4309e5c5c6ba2107d5b1cf7e/resource.tar.gz#test.test_blocks-bitcast_scalar--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_blocks-bitcast_scalar--Results_/extracted"
+            "uri": "file://test.TestYtFile_blocks-bitcast_scalar-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_blocks-combine_all_max_filter-.test[Debug]": [
@@ -691,7 +691,7 @@
             "uri": "https://{canondata_backend}/1925842/ebd1c64d31887b8e4309e5c5c6ba2107d5b1cf7e/resource.tar.gz#test.test_flatten_by-flatten_by_opt_dict--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_flatten_by-flatten_by_opt_dict--Results_/extracted"
+            "uri": "file://test.TestYtFile_flatten_by-flatten_by_opt_dict-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_flatten_by-flatten_one_field_another-.test[Debug]": [
@@ -715,7 +715,7 @@
             "uri": "https://{canondata_backend}/1925842/ebd1c64d31887b8e4309e5c5c6ba2107d5b1cf7e/resource.tar.gz#test.test_flatten_by-flatten_one_field_another--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_flatten_by-flatten_one_field_another--Results_/extracted"
+            "uri": "file://test.TestYtFile_flatten_by-flatten_one_field_another-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_flatten_by-flatten_with_group_by_expr-.test[Debug]": [
@@ -739,7 +739,7 @@
             "uri": "https://{canondata_backend}/1925842/ebd1c64d31887b8e4309e5c5c6ba2107d5b1cf7e/resource.tar.gz#test.test_flatten_by-flatten_with_group_by_expr--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_flatten_by-flatten_with_group_by_expr--Results_/extracted"
+            "uri": "file://test.TestYtFile_flatten_by-flatten_with_group_by_expr-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_hor_join-row_num_per_sect-.test[Debug]": [
@@ -826,7 +826,7 @@
             "uri": "https://{canondata_backend}/1925842/ebd1c64d31887b8e4309e5c5c6ba2107d5b1cf7e/resource.tar.gz#test.test_in-in_tablesource_to_equijoin--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_in-in_tablesource_to_equijoin--Results_/extracted"
+            "uri": "file://test.TestYtFile_in-in_tablesource_to_equijoin-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_insert-anonymous_tables-default.txt.test[Debug]": [
@@ -1089,7 +1089,7 @@
             "uri": "https://{canondata_backend}/1925842/ebd1c64d31887b8e4309e5c5c6ba2107d5b1cf7e/resource.tar.gz#test.test_join-join_without_correlation_and_struct_access--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_join-join_without_correlation_and_struct_access--Results_/extracted"
+            "uri": "file://test.TestYtFile_join-join_without_correlation_and_struct_access-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_join-left_join_null_column-.test[Debug]": [
@@ -2030,7 +2030,7 @@
             "uri": "https://{canondata_backend}/1925842/ebd1c64d31887b8e4309e5c5c6ba2107d5b1cf7e/resource.tar.gz#test.test_schema-select_all-row_spec_hide_sort-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_schema-select_all-row_spec_hide_sort-Results_/extracted"
+            "uri": "file://test.TestYtFile_schema-select_all-row_spec_hide_sort.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_schema-select_all_inferschema-extra_field.test[Debug]": [

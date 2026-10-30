@@ -641,7 +641,7 @@
             "uri": "https://{canondata_backend}/1871002/97f31c8231f4b7b175799459db3d9e3c1cf1a6ca/resource.tar.gz#test.test_insert-select_operate_with_columns--Results_/Output.yqlrun.txt.attr"
         },
         {
-            "uri": "file://test.test_insert-select_operate_with_columns--Results_/extracted"
+            "uri": "file://test.TestYtFile_insert-select_operate_with_columns-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_insert-trivial_literals-default.txt.test[Debug]": [
@@ -1035,7 +1035,7 @@
             "uri": "https://{canondata_backend}/1871002/97f31c8231f4b7b175799459db3d9e3c1cf1a6ca/resource.tar.gz#test.test_materialize-unused_result-default.txt-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_materialize-unused_result-default.txt-Results_/extracted"
+            "uri": "file://test.TestYtFile_materialize-unused_result-default.txt.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_multicluster-partition_by_key_force-.test[Debug]": [
@@ -1527,7 +1527,7 @@
             "uri": "https://{canondata_backend}/1871002/97f31c8231f4b7b175799459db3d9e3c1cf1a6ca/resource.tar.gz#test.test_schema-remap_desc--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_schema-remap_desc--Results_/extracted"
+            "uri": "file://test.TestYtFile_schema-remap_desc-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_schema-select_all_inferschema-.test[Debug]": [
@@ -2049,7 +2049,7 @@
             "uri": "https://{canondata_backend}/1871002/97f31c8231f4b7b175799459db3d9e3c1cf1a6ca/resource.tar.gz#test.test_window-win_func_part_by_expr_new-default.txt-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_window-win_func_part_by_expr_new-default.txt-Results_/extracted"
+            "uri": "file://test.TestYtFile_window-win_func_part_by_expr_new-default.txt.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_window-win_func_rank_by_part-.test[Debug]": [
@@ -2115,7 +2115,7 @@
             "uri": "https://{canondata_backend}/1871002/97f31c8231f4b7b175799459db3d9e3c1cf1a6ca/resource.tar.gz#test.test_window-win_over_few_partitions_other--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_window-win_over_few_partitions_other--Results_/extracted"
+            "uri": "file://test.TestYtFile_window-win_over_few_partitions_other-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_ypath-complex-default.txt.test[Debug]": [

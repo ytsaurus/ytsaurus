@@ -1427,7 +1427,7 @@
             "uri": "https://{canondata_backend}/1936947/02b1456005a26233783c5ef35d3c13d847faf711/resource.tar.gz#test.test_order_by-warn_offset_wo_sort--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_order_by-warn_offset_wo_sort--Results_/extracted"
+            "uri": "file://test.TestYtFile_order_by-warn_offset_wo_sort-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_pg-aggregate_combine-.test[Debug]": [
@@ -1828,7 +1828,7 @@
             "uri": "https://{canondata_backend}/1936947/02b1456005a26233783c5ef35d3c13d847faf711/resource.tar.gz#test.test_schema-select_all-row_spec_diff_sort2-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_schema-select_all-row_spec_diff_sort2-Results_/extracted"
+            "uri": "file://test.TestYtFile_schema-select_all-row_spec_diff_sort2.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_schema-select_field-schema.test[Debug]": [
