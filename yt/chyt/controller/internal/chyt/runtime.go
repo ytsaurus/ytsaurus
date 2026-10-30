@@ -17,8 +17,8 @@ type runtimePaths struct {
 func (c *Controller) prepareBlobTable(ctx context.Context, kind string, root ypath.Path, incarnationIndex int, expirationTimeout uint64) (path ypath.Path, err error) {
 	path = root.Child(kind).Child(strconv.Itoa(incarnationIndex))
 	_, err = c.ytc.CreateNode(ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
-		Force:     true,
-		Recursive: true,
+		IgnoreExisting: true,
+		Recursive:      true,
 		Attributes: map[string]any{
 			"expiration_timeout": expirationTimeout,
 		},
