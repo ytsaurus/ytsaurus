@@ -134,6 +134,7 @@ public:
             .ValueOrThrow();
 
         auto rpcConfig = New<NRpcProxy::TConnectionConfig>();
+        rpcConfig->BusClient = nativeConfig->BusClient;
         rpcConfig->ProxyAddresses = std::move(proxies.Addresses);
         rpcConfig->EnableProxyDiscovery = false;
         rpcConfig->DefaultSelectRowsTimeout = nativeConfig->DefaultSelectRowsTimeout;
