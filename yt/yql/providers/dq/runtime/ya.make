@@ -13,6 +13,7 @@ PEERDIR(
     yql/essentials/minikql/invoke_builtins
     yql/essentials/parser/pg_catalog
     yql/essentials/parser/pg_wrapper/interface
+    yql/essentials/providers/common/codec
     yql/essentials/providers/common/provider
     yql/essentials/utils
     yql/essentials/utils/backtrace
