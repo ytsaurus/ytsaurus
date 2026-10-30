@@ -245,12 +245,26 @@ func (r *CreateNodeRequest) SetRetry(retry bool) {
 	*r.MutatingOptions.Retry = retry
 }
 
+var _ MutatingRequest = (*CreateObjectRequest)(nil)
+
 type CreateObjectRequest struct {
 	*rpc_proxy.TReqCreateObject
 }
 
 func NewCreateObjectRequest(r *rpc_proxy.TReqCreateObject) *CreateObjectRequest {
 	return &CreateObjectRequest{TReqCreateObject: r}
+}
+
+func (r *CreateObjectRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
+func (r *CreateObjectRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
+	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *CreateObjectRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 func (r CreateObjectRequest) Log() []log.Field {
@@ -681,6 +695,7 @@ func (r *LinkNodeRequest) SetRetry(retry bool) {
 
 var _ TransactionalRequest = (*StartTxRequest)(nil)
 var _ ReadRetryRequest = (*StartTxRequest)(nil)
+var _ MutatingRequest = (*StartTxRequest)(nil)
 
 type StartTxRequest struct {
 	*rpc_proxy.TReqStartTransaction
@@ -698,6 +713,18 @@ func (r StartTxRequest) Log() []log.Field {
 
 func (r StartTxRequest) Path() (string, bool) {
 	return "", false
+}
+
+func (r *StartTxRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
+func (r *StartTxRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
+	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *StartTxRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 func (r *StartTxRequest) SetTxOptions(opts *TransactionOptions) {
@@ -745,6 +772,8 @@ func (r PingTxRequest) Path() (string, bool) {
 	return "", false
 }
 
+var _ MutatingRequest = (*AbortTxRequest)(nil)
+
 type AbortTxRequest struct {
 	*rpc_proxy.TReqAbortTransaction
 }
@@ -763,6 +792,20 @@ func (r AbortTxRequest) Path() (string, bool) {
 	return "", false
 }
 
+func (r *AbortTxRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
+func (r *AbortTxRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
+	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *AbortTxRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
+}
+
+var _ MutatingRequest = (*CommitTxRequest)(nil)
+
 type CommitTxRequest struct {
 	*rpc_proxy.TReqCommitTransaction
 }
@@ -779,6 +822,18 @@ func (r CommitTxRequest) Log() []log.Field {
 
 func (r CommitTxRequest) Path() (string, bool) {
 	return "", false
+}
+
+func (r *CommitTxRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
+func (r *CommitTxRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
+	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *CommitTxRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 var _ TransactionalRequest = (*WriteFileRequest)(nil)
@@ -2382,12 +2437,26 @@ func (r *UnfreezeTableRequest) SetRetry(retry bool) {
 	*r.MutatingOptions.Retry = retry
 }
 
+var _ MutatingRequest = (*AlterTableReplicaRequest)(nil)
+
 type AlterTableReplicaRequest struct {
 	*rpc_proxy.TReqAlterTableReplica
 }
 
 func NewAlterTableReplicaRequest(r *rpc_proxy.TReqAlterTableReplica) *AlterTableReplicaRequest {
 	return &AlterTableReplicaRequest{TReqAlterTableReplica: r}
+}
+
+func (r *AlterTableReplicaRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
+func (r *AlterTableReplicaRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
+	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *AlterTableReplicaRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 func (r AlterTableReplicaRequest) Log() []log.Field {

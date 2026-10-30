@@ -14,6 +14,8 @@ import (
 )
 
 var _ MutatingParams = (*StartQueryParams)(nil)
+var _ MutatingParams = (*StartTxParams)(nil)
+var _ MutatingParams = (*AlterTableReplicaParams)(nil)
 
 func TestMutationRetrierIgnoresGet(t *testing.T) {
 	r := MutationRetrier{}

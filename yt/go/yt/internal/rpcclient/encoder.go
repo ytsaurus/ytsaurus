@@ -126,9 +126,10 @@ func (e *Encoder) CreateObject(
 	}
 
 	req := &rpc_proxy.TReqCreateObject{
-		Type:           ptr.Int32(int32(objectType)),
-		Attributes:     attrs,
-		IgnoreExisting: &opts.IgnoreExisting,
+		Type:            ptr.Int32(int32(objectType)),
+		Attributes:      attrs,
+		IgnoreExisting:  &opts.IgnoreExisting,
+		MutatingOptions: convertMutatingOptions(opts.MutatingOptions),
 	}
 
 	call := e.newCall(MethodCreateObject, NewCreateObjectRequest(req), nil)
@@ -1458,6 +1459,7 @@ func (e *Encoder) AlterTableReplica(
 		Mode:               tableReplicaMode,
 		PreserveTimestamps: nil, // todo
 		Atomicity:          nil, // todo
+		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
 	}
 
 	call := e.newCall(MethodAlterTableReplica, NewAlterTableReplicaRequest(req), nil)
@@ -1528,6 +1530,7 @@ func (e *Encoder) startTx(
 		Attributes:                 attrs,
 		Deadline:                   convertTime(opts.Deadline),
 		PrerequisiteTransactionIds: convertPrerequisiteTxIDs(opts.PrerequisiteTransactionIDs),
+		MutatingOptions:            convertMutatingOptions(opts.MutatingOptions),
 	}
 
 	call := e.newCall(MethodStartTransaction, NewStartTxRequest(req), nil)
@@ -1632,8 +1635,13 @@ func (e *Encoder) AbortTx(
 	id yt.TxID,
 	opts *yt.AbortTxOptions,
 ) (err error) {
+	if opts == nil {
+		opts = &yt.AbortTxOptions{}
+	}
+
 	req := &rpc_proxy.TReqAbortTransaction{
-		TransactionId: convertTxID(id),
+		TransactionId:   convertTxID(id),
+		MutatingOptions: convertMutatingOptions(opts.MutatingOptions),
 	}
 
 	call := e.newCall(MethodAbortTransaction, NewAbortTxRequest(req), nil)
@@ -1659,6 +1667,7 @@ func (e *Encoder) CommitTx(
 	req := &rpc_proxy.TReqCommitTransaction{
 		TransactionId:       convertTxID(id),
 		PrerequisiteOptions: convertPrerequisiteOptions(opts.PrerequisiteOptions),
+		MutatingOptions:     convertMutatingOptions(opts.MutatingOptions),
 	}
 
 	call := e.newCall(MethodCommitTransaction, NewCommitTxRequest(req), nil)

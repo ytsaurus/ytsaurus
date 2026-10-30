@@ -376,6 +376,7 @@ type StartTxOptions struct {
 	Attributes                 map[string]any `http:"attributes,omitnil"`
 
 	*TransactionOptions
+	*MutatingOptions
 	*ReadRetryOptions
 }
 
@@ -1334,6 +1335,8 @@ type AlterTableOptions struct {
 type AlterTableReplicaOptions struct {
 	Enabled *bool             `http:"enabled,omitnil"`
 	Mode    *TableReplicaMode `http:"mode,omitnil"`
+
+	*MutatingOptions
 }
 
 // Tx is high level API for master transactions.
