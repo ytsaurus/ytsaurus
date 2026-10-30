@@ -58,6 +58,7 @@ target_link_options(unittester-library-erasure PRIVATE
 
 target_sources(unittester-library-erasure PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/erasure/impl/unittests/erasure_stability_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/erasure/impl/unittests/reed_solomon_ut.cpp
 )
 
 
