@@ -4463,12 +4463,12 @@ private:
 
         i64 GetSize() const override
         {
-            YT_ABORT();
+            THROW_ERROR_EXCEPTION("Getting allocation count is not supported");
         }
 
         std::vector<std::string> GetKeys(i64 /*limit*/) const override
         {
-            YT_ABORT();
+            THROW_ERROR_EXCEPTION("Listing allocations is not supported");
         }
 
         IYPathServicePtr FindItemService(const std::string& key) const override
