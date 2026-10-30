@@ -11,6 +11,7 @@ TAG(
     ya:relwithdebinfo
     ya:dump_test_env
     ya:large_tests_on_single_slots
+    ya:strip_global_resources
 )
 
 ENV(YT_DEBUG_TAKEN_PORT=1)
