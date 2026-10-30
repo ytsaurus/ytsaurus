@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"go.ytsaurus.tech/library/go/ptr"
+	"go.ytsaurus.tech/yt/go/internal/retry"
 	"go.ytsaurus.tech/yt/go/skiff"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
@@ -366,72 +367,32 @@ func (e *skiffEncoder) finish() error {
 	return e.encoder.Flush()
 }
 
-// Error is retriable chunk error only if it doesn't contains non-retriable chunk errors
-// and contains at least one chunk error in error tree.
-func isRetriableChunkError(errorCodes map[yterrors.ErrorCode]struct{}) bool {
-	for _, code := range []yterrors.ErrorCode{
-		yterrors.CodeSessionAlreadyExists,
-		yterrors.CodeChunkAlreadyExists,
-		yterrors.CodeWindowError,
-		yterrors.CodeBlockContentMismatch,
-		yterrors.CodeInvalidBlockChecksum,
-		yterrors.CodeMalformedReadRequest,
-		yterrors.CodeMissingExtension,
-		yterrors.CodeNoSuchBlock,
-		yterrors.CodeNoSuchChunk,
-		yterrors.CodeNoSuchChunkList,
-		yterrors.CodeNoSuchChunkTree,
-		yterrors.CodeNoSuchChunkView,
-		yterrors.CodeNoSuchMedium,
-	} {
-		if _, ok := errorCodes[code]; ok {
-			return false
-		}
-	}
-
-	for code := range errorCodes {
-		if code/100 == 7 {
-			return true
-		}
-	}
-
-	return false
-}
-
 func tryGetBackoffDuration(err error) *time.Duration {
+	var httpErr *yterrors.HTTPError
+	if errors.As(err, &httpErr) {
+		switch httpErr.StatusCode {
+		case http.StatusTooManyRequests:
+			return ptr.T(rateLimitRetryBackoff)
+		case http.StatusInternalServerError, http.StatusServiceUnavailable:
+			return ptr.T(defaultRetryBackoff)
+		}
+	}
+
 	errorCodes := yterrors.GetErrorCodes(err)
 
 	if _, ok := errorCodes[yterrors.CodeRequestQueueSizeLimitExceeded]; ok {
 		return ptr.T(rateLimitRetryBackoff)
 	}
-
-	if _, ok := errorCodes[yterrors.CodeTooManyOperations]; ok {
+	if _, ok := errorCodes[yterrors.CodeRPCRequestQueueSizeLimitExceeded]; ok {
 		return ptr.T(rateLimitRetryBackoff)
 	}
 
-	if isRetriableChunkError(errorCodes) {
+	if retry.IsRetriableChunkError(err) {
 		return ptr.T(chunkErrorRetryBackoff)
 	}
 
-	for _, code := range []yterrors.ErrorCode{
-		yterrors.CodeTransportError,
-		yterrors.CodeUnavailable,
-		yterrors.CodeRetriableArchiveError,
-		yterrors.CodeTransientFailure,
-		yterrors.CodeCanceled,
-		yterrors.CodeTimeout,
-	} {
-		if _, ok := errorCodes[code]; ok {
-			return ptr.T(defaultRetryBackoff)
-		}
-	}
-
-	var httpErr *yterrors.HTTPError
-	if errors.As(err, &httpErr) {
-		switch httpErr.StatusCode {
-		case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-			return ptr.T(defaultRetryBackoff)
-		}
+	if retry.IsRetriableHTTPResponseError(err) {
+		return ptr.T(defaultRetryBackoff)
 	}
 
 	var opErr *net.OpError

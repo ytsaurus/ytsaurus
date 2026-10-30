@@ -15,9 +15,9 @@ import (
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/bus"
+	"go.ytsaurus.tech/yt/go/internal/retry"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/internal"
-	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 const ProtocolVersionMajor = 1
@@ -125,14 +125,5 @@ func shouldBanProxy(err error) bool {
 		return true
 	}
 
-	return isProxyBannedError(err)
-}
-
-func isProxyBannedError(err error) bool {
-	var ytErr *yterrors.Error
-	if errors.As(err, &ytErr) && ytErr.Message == "Proxy is banned" {
-		return true
-	}
-
-	return false
+	return retry.IsProxyBannedError(err)
 }

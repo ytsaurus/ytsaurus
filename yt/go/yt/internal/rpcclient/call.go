@@ -22,6 +22,7 @@ type Call struct {
 
 	RequestedProxy string
 	SelectedProxy  string
+	FixedProxy     bool
 	Backoff        backoff.BackOff
 	DisableRetries bool
 }

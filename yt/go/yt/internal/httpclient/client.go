@@ -323,10 +323,41 @@ func unexpectedStatusCode(rsp *http.Response) error {
 	return internal.NewHTTPError(rsp.StatusCode, rsp.Header, body)
 }
 
+func retryableHTTPStatusError(rsp *http.Response) error {
+	var code yterrors.ErrorCode
+	switch rsp.StatusCode {
+	case http.StatusTooManyRequests:
+		code = yterrors.CodeRequestQueueSizeLimitExceeded
+	case http.StatusInternalServerError:
+		code = yterrors.CodeUnavailable
+	case http.StatusServiceUnavailable:
+		code = yterrors.CodeTransportError
+	default:
+		return nil
+	}
+
+	httpErr := &yterrors.HTTPError{
+		StatusCode: rsp.StatusCode,
+		L7Hostname: rsp.Header.Get("X-L7-Hostname"),
+		Err:        yterrors.Err(code, http.StatusText(rsp.StatusCode)),
+	}
+	headerErr, err := decodeYTErrorFromHeaders(rsp.Header)
+	if err != nil {
+		return httpErr
+	}
+	if headerErr != nil {
+		httpErr.Err = yterrors.Err(code, http.StatusText(rsp.StatusCode), headerErr)
+	}
+	return httpErr
+}
+
 func (c *httpClient) readResult(rsp *http.Response) (res *internal.CallResult, err error) {
 	defer func() { _ = rsp.Body.Close() }()
 
 	res = &internal.CallResult{}
+	if err = retryableHTTPStatusError(rsp); err != nil {
+		return nil, err
+	}
 
 	var ytErr *yterrors.Error
 	ytErr, err = decodeYTErrorFromHeaders(rsp.Header)
@@ -658,15 +689,18 @@ func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.Read
 
 	c.logResponse(ctx, rsp)
 	if rsp.StatusCode != 200 {
-		_ = rsp.Body.Close()
-
-		var callErr *yterrors.Error
-		callErr, err = decodeYTErrorFromHeaders(rsp.Header)
-		if err == nil && callErr != nil {
-			err = callErr
+		if statusErr := retryableHTTPStatusError(rsp); statusErr != nil {
+			err = statusErr
 		} else {
-			err = unexpectedStatusCode(rsp)
+			var callErr *yterrors.Error
+			callErr, err = decodeYTErrorFromHeaders(rsp.Header)
+			if err == nil && callErr != nil {
+				err = callErr
+			} else {
+				err = unexpectedStatusCode(rsp)
+			}
 		}
+		_ = rsp.Body.Close()
 	}
 
 	if err == nil && call.OnRspParams != nil {

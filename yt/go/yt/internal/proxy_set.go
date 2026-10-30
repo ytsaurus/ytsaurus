@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/yt/go/internal/retry"
 )
 
 type proxyBan struct {
@@ -522,7 +523,7 @@ func (b *ProxyBouncer) banProxy(call *Call, err error) {
 	}
 
 	var opErr *net.OpError
-	if errors.As(err, &opErr) || isProxyBannedError(err) {
+	if errors.As(err, &opErr) || retry.IsProxyBannedError(err) {
 		b.Log.Debug("banning proxy", log.String("fqdn", call.SelectedProxy), log.Error(err))
 		b.ProxySet.BanProxy(call.SelectedProxy)
 	}

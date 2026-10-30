@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"testing"
@@ -12,9 +13,136 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
+
+func checkRetrierAttempts(t *testing.T, call *Call, failure error, retries bool, interceptors ...CallInterceptor) {
+	t.Helper()
+	call.Backoff = backoff.WithMaxRetries(&backoff.ZeroBackOff{}, 1)
+	attempts := 0
+	invoke := CallInvoker(func(context.Context, *Call) (*CallResult, error) {
+		attempts++
+		if attempts == 1 {
+			return nil, failure
+		}
+		return &CallResult{}, nil
+	})
+	for _, intercept := range interceptors {
+		invoke = invoke.Wrap(intercept)
+	}
+	_, err := invoke(context.Background(), call)
+	if retries {
+		require.NoError(t, err)
+		require.Equal(t, 2, attempts)
+	} else {
+		require.ErrorIs(t, err, failure)
+		require.Equal(t, 1, attempts)
+	}
+}
+
+func TestRetrierProxyBan(t *testing.T) {
+	for _, failure := range []error{
+		fmt.Errorf("request failed: %w", yterrors.Err(yterrors.CodeTimeout, yterrors.Err(yterrors.CodeProxyBanned))),
+		fmt.Errorf("request failed: %w", yterrors.Err(yterrors.CodeTimeout, yterrors.Err(yterrors.CodePeerBanned))),
+		fmt.Errorf("request failed: %w", yterrors.Err("Proxy is banned")),
+	} {
+		for _, tc := range []struct {
+			name    string
+			proxy   string
+			retries bool
+		}{
+			{"ordinary", "", true},
+			{"sticky", "proxy", false},
+		} {
+			t.Run(fmt.Sprintf("%s/%v", tc.name, failure), func(t *testing.T) {
+				require.Equal(t, tc.retries, (&Retrier{Config: &yt.Config{}}).shouldRetry(false, tc.proxy != "", failure))
+				require.Equal(t, tc.retries, (&MutationRetrier{}).shouldRetry(tc.proxy != "", failure))
+				call := &Call{
+					Params:         NewSetNodeParams(ypath.Root, nil),
+					RequestedProxy: tc.proxy,
+				}
+				checkRetrierAttempts(t, call, failure, tc.retries, (&MutationRetrier{}).Intercept, (&Retrier{Config: &yt.Config{}}).Intercept)
+			})
+		}
+	}
+}
+
+func TestRetrierMutationIDOnRetry(t *testing.T) {
+	for _, tc := range []struct {
+		failure error
+		sameID  bool
+	}{
+		{&netError{timeout: true}, true},
+		{yterrors.Err(yterrors.Err(yterrors.CodeTimeout)), true},
+		{yterrors.Err(yterrors.CodeUnavailable), true},
+		{NewHTTPError(http.StatusBadGateway, http.Header{}, nil), true},
+		{yterrors.Err(yterrors.CodeRequestQueueSizeLimitExceeded), false},
+	} {
+		for _, userID := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%v/user_id=%t", tc.failure, userID), func(t *testing.T) {
+				options := &yt.SetNodeOptions{}
+				if userID {
+					options.MutatingOptions = &yt.MutatingOptions{MutationID: yt.MutationID(guid.New())}
+				}
+				call := &Call{
+					Params:  NewSetNodeParams(ypath.Root, options),
+					Backoff: backoff.WithMaxRetries(&backoff.ZeroBackOff{}, 1),
+				}
+				var first yt.MutatingOptions
+				attempts := 0
+				invoke := CallInvoker(func(_ context.Context, call *Call) (*CallResult, error) {
+					attempts++
+					mut := **call.Params.(MutatingParams).MutatingOptions()
+					if attempts == 1 {
+						first = mut
+						return nil, tc.failure
+					}
+					sameID := tc.sameID || userID
+					require.Equal(t, sameID, mut.MutationID == first.MutationID)
+					require.Equal(t, sameID, mut.Retry)
+					return &CallResult{}, nil
+				}).Wrap((&MutationRetrier{}).Intercept).Wrap((&Retrier{Config: &yt.Config{}}).Intercept)
+				_, err := invoke(context.Background(), call)
+				require.NoError(t, err)
+				require.Equal(t, 2, attempts)
+			})
+		}
+	}
+}
+
+func TestRetrierMutationRetryPolicy(t *testing.T) {
+	networkFailure := &net.OpError{Op: "read", Err: io.EOF}
+	for _, tc := range []struct {
+		params              Params
+		retriesNetworkError bool
+	}{
+		{NewAbortQueryParams(yt.QueryID(guid.New()), nil), false},
+		{NewStartTxParams(nil), true},
+	} {
+		for _, failure := range []error{
+			yterrors.Err(yterrors.CodeTimeout),
+			networkFailure,
+		} {
+			t.Run(fmt.Sprintf("%T/%v", tc.params, failure), func(t *testing.T) {
+				retries := failure != networkFailure || tc.retriesNetworkError
+				checkRetrierAttempts(t, &Call{Params: tc.params}, failure, retries, (&MutationRetrier{}).Intercept, (&Retrier{Config: &yt.Config{}}).Intercept)
+			})
+		}
+	}
+}
+
+func TestRetrierLeavesMutationWithIDToMutationRetrier(t *testing.T) {
+	options := &yt.SetNodeOptions{MutatingOptions: &yt.MutatingOptions{MutationID: yt.MutationID(guid.New())}}
+	for _, failure := range []error{
+		yterrors.Err(yterrors.CodeTimeout),
+		NewHTTPError(http.StatusBadGateway, http.Header{}, nil),
+	} {
+		checkRetrierAttempts(t, &Call{Params: NewSetNodeParams(ypath.Root, options)}, failure, false, (&Retrier{Config: &yt.Config{}}).Intercept)
+	}
+}
 
 type netError struct {
 	timeout   bool
@@ -150,7 +278,7 @@ func TestReadRetrierRetriesMutationOnAnnotatedHTTPGatewayError(t *testing.T) {
 
 	var attempts int
 	ew := &ErrorWrapper{}
-	_, err := r.Intercept(context.Background(), call, func(ctx context.Context, c *Call) (*CallResult, error) {
+	invoke := CallInvoker(func(ctx context.Context, c *Call) (*CallResult, error) {
 		return ew.Intercept(ctx, c, func(context.Context, *Call) (*CallResult, error) {
 			attempts++
 			if attempts == 1 {
@@ -158,7 +286,8 @@ func TestReadRetrierRetriesMutationOnAnnotatedHTTPGatewayError(t *testing.T) {
 			}
 			return &CallResult{}, nil
 		})
-	})
+	}).Wrap((&MutationRetrier{}).Intercept).Wrap(r.Intercept)
+	_, err := invoke(context.Background(), call)
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, attempts)
