@@ -164,6 +164,16 @@ public:
 
     TFuture<TCriImageCacheEntryPtr> PullImage(const TCriImageDescriptor& image, TCriAuthConfigPtr authConfig, EImagePullPolicy pullPolicy) override
     {
+        return DoPullImage(image, std::move(authConfig), pullPolicy)
+            .ToImmediatelyCancelable(/*propagateCancelation*/ false);
+    }
+
+private:
+    TFuture<TCriImageCacheEntryPtr> DoPullImage(
+        const TCriImageDescriptor& image,
+        TCriAuthConfigPtr authConfig,
+        EImagePullPolicy pullPolicy)
+    {
         if (!IsManagedImage(image)) {
             // Bypass cache for unmanaged images.
             return Executor_->GetImageStatus(image)
@@ -219,7 +229,7 @@ public:
                         if (!imageStatus->has_image() || imageStatus->image().id() != entry->Image().Id) {
                             YT_LOG_DEBUG("Docker image was removed externally (Image: %v)", entry->Image());
                             TryRemove(image.Image, /*forbidResurrection*/ true);
-                            return PullImage(image, std::move(authConfig), pullPolicy);
+                            return DoPullImage(image, std::move(authConfig), pullPolicy);
                         }
                         YT_LOG_DEBUG("Docker image found in cache (Image: %v, LastPullTime: %v, LastUsageTime: %v)",
                             entry->Image(),
@@ -243,7 +253,7 @@ public:
                         return MakeFuture<TCriImageCacheEntryPtr>(std::move(imageOrError.Value()));
                     }
                     YT_LOG_DEBUG("Retry docker image pull (Image: %v)", image);
-                    return PullImage(image, std::move(authConfig), pullPolicy);
+                    return DoPullImage(image, std::move(authConfig), pullPolicy);
                 }));
         }
 
@@ -292,7 +302,6 @@ public:
             }));
     }
 
-private:
     bool IsManagedImage(const TCriImageDescriptor& image) const
     {
         for (const auto& prefix : Config_->UnmanagedPrefixes) {
