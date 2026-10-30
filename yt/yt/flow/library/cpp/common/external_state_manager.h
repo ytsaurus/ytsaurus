@@ -22,6 +22,8 @@
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <functional>
+#include <optional>
 #include <set>
 #include <typeinfo>
 
@@ -34,6 +36,9 @@ struct TExternalStateManagerContext
 {
     TExternalStateManagerSpecPtr ExternalStateManagerSpec;
     TJobNamedStateCachePtr StateCache;
+
+    //! Current epoch unique sequence number; called on SerializedInvoker when syncing state.
+    std::function<std::optional<TUniqueSeqNo>()> EpochUniqueSeqNoProvider;
 
     NTableClient::TTableSchemaPtr KeySchema;
 

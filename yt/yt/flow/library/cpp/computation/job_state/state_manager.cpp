@@ -318,6 +318,7 @@ TExternalStateManagerContextPtr TJobStateManager::CreateExternalStateManagerCont
     auto result = New<TExternalStateManagerContext>();
     result->ExternalStateManagerSpec = spec;
     result->StateCache = context->StateCache ? context->StateCache->WithName(name) : nullptr;
+    result->EpochUniqueSeqNoProvider = context->EpochUniqueSeqNoProvider;
     result->KeySchema = context->KeySchema;
     result->ClientsCache = context->ClientsCache;
     result->StaticResources = context->StaticResources;
