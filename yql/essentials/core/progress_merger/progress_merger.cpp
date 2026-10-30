@@ -9,7 +9,9 @@ namespace NYql::NProgressMerger {
 TNodeProgressBase::TNodeProgressBase(const TOperationProgress& p)
     : Progress_(p)
     , StartedAt_(TInstant::Now())
-    , FinishedAt_(p.State == EState::Finished ? StartedAt_ : TInstant::Max())
+    , FinishedAt_(p.State == EState::Finished || p.State == EState::Failed || p.State == EState::Aborted
+        ? StartedAt_
+        : TInstant::Max())
     , Dirty_(true)
 {
     if (!p.Stage.first.empty()) {
@@ -58,7 +60,7 @@ bool TNodeProgressBase::MergeWith(const TOperationProgress& p) {
     }
 
     // (5) finished time
-    if (Progress_.State == EState::Finished) {
+    if (!IsUnfinished() && FinishedAt_ == TInstant::Max()) {
         FinishedAt_ = TInstant::Now();
         dirty = true;
     }

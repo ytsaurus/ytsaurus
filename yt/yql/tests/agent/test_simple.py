@@ -909,6 +909,27 @@ class TestPartialYqlAgentsOverload(TestQueriesYqlSimpleBase):
 
 
 class TestYqlAgent(TestQueriesYqlSimpleBase):
+    @authors("a-romanov")
+    @pytest.mark.timeout(180)
+    def test_failed_query_final_progress(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        write_table("//tmp/t", [{"a": 42}])
+
+        query = self.start_query("yql", 'select a, unwrap(3 / 0) from primary.`//tmp/t`')
+        with raises_yt_error("Failed to unwrap empty optional"):
+            query.track()
+
+        query_info = query.get()
+        assert query_info["state"] == "failed"
+        progress = query_info["progress"]["yql_progress"]
+        assert progress
+        assert any(node["state"] == "Failed" for node in progress.values())
+        for node in progress.values():
+            assert node["state"] in ("Finished", "Failed", "Aborted")
+            assert "finishedAt" in node
+
     @authors("mpereskokova")
     @pytest.mark.timeout(180)
     def test_progress(self, query_tracker, yql_agent):
