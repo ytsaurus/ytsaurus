@@ -16,7 +16,8 @@ from yt_commands import (
     raises_yt_error, get_driver, ls, disable_write_sessions_on_node,
     create_dynamic_table,
     update_controller_agent_config, remember_controller_agent_config,
-    write_file, wait_for_nodes, read_file, get_singular_chunk_id)
+    write_file, wait_for_nodes, read_file, get_singular_chunk_id,
+    start_transaction, commit_transaction, abort_transaction, lock, link)
 
 from yt_helpers import skip_if_component_old, profiler_factory
 from yt_type_helpers import make_column, make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type
@@ -85,6 +86,126 @@ class TestSchedulerRemoteCopyCommandsBase(YTEnvSetup):
     def setup_class(cls):
         super(TestSchedulerRemoteCopyCommandsBase, cls).setup_class()
         cls.remote_driver = get_driver(cluster=cls.REMOTE_CLUSTER_NAME)
+
+
+##################################################################
+
+
+class TestRemoteCopyFileParentTransactions(TestSchedulerRemoteCopyCommandsBase):
+    NUM_NODES = 3
+    NUM_NODES_REMOTE_0 = 3
+    NUM_TEST_PARTITIONS = 1
+
+    @authors("pogorelov")
+    def test_copy_file_parent_transactions_commit(self):
+        source_parent = start_transaction(timeout=120000, driver=self.remote_driver)
+        source_child = start_transaction(tx=source_parent, driver=self.remote_driver)
+        create("file", "//tmp/in.txt", attributes={"layer_identity": "source-layer"},
+               tx=source_child, driver=self.remote_driver)
+        write_file("//tmp/in.txt", b"layer header\n", tx=source_child, driver=self.remote_driver)
+        write_file("<append=%true>//tmp/in.txt", b"layer payload\n", tx=source_child, driver=self.remote_driver)
+        commit_transaction(source_child, driver=self.remote_driver)
+
+        assert not exists("//tmp/in.txt", driver=self.remote_driver)
+
+        destination_parent = start_transaction(timeout=120000)
+        destination_child = start_transaction(tx=destination_parent)
+        remote_copy(
+            in_=f'<transaction_id="{source_parent}">//tmp/in.txt',
+            out="<create=%true>//tmp/out.txt",
+            tx=destination_child,
+            spec={"cluster_name": self.REMOTE_CLUSTER_NAME, "copy_attributes": True},
+        )
+
+        # Successful operation tracking does not wait for input transaction cleanup.
+        commit_transaction(source_parent, driver=self.remote_driver)
+        link("//tmp/out.txt", "//tmp/current", tx=destination_child)
+        commit_transaction(destination_child)
+
+        assert read_file("//tmp/out.txt", tx=destination_parent) == b"layer header\nlayer payload\n"
+        assert read_file("//tmp/current", tx=destination_parent) == b"layer header\nlayer payload\n"
+        assert get("//tmp/out.txt/@layer_identity", tx=destination_parent) == "source-layer"
+        assert get("//tmp/out.txt/@chunk_count", tx=destination_parent) == 2
+        assert not exists("//tmp/out.txt")
+        assert not exists("//tmp/current&")
+
+        commit_transaction(destination_parent)
+
+        assert read_file("//tmp/in.txt", driver=self.remote_driver) == b"layer header\nlayer payload\n"
+        assert read_file("//tmp/out.txt") == b"layer header\nlayer payload\n"
+        assert read_file("//tmp/current") == b"layer header\nlayer payload\n"
+        assert get("//tmp/current/@layer_identity") == "source-layer"
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("commit_child", [False, True])
+    def test_copy_file_parent_transactions_abort(self, commit_child):
+        source_parent = start_transaction(timeout=120000, driver=self.remote_driver)
+        source_child = start_transaction(tx=source_parent, driver=self.remote_driver)
+        create("file", "//tmp/in.txt", attributes={"layer_identity": "aborted-layer"},
+               tx=source_child, driver=self.remote_driver)
+        write_file("//tmp/in.txt", b"aborted layer", tx=source_child, driver=self.remote_driver)
+        create("file", "//tmp/successor.txt", attributes={"layer_identity": "successor-layer"},
+               tx=source_child, driver=self.remote_driver)
+        write_file("//tmp/successor.txt", b"successor layer", tx=source_child, driver=self.remote_driver)
+        commit_transaction(source_child, driver=self.remote_driver)
+        assert not exists("//tmp/in.txt", driver=self.remote_driver)
+        assert not exists("//tmp/successor.txt", driver=self.remote_driver)
+
+        create("map_node", "//tmp/guard")
+        destination_parent = start_transaction(timeout=120000)
+        lock("//tmp/guard", mode="exclusive", tx=destination_parent)
+        destination_child = start_transaction(tx=destination_parent)
+        remote_copy(
+            in_=f'<transaction_id="{source_parent}">//tmp/in.txt',
+            out="<create=%true>//tmp/out.txt",
+            tx=destination_child,
+            spec={"cluster_name": self.REMOTE_CLUSTER_NAME, "copy_attributes": True},
+        )
+        link("//tmp/out.txt", "//tmp/current", tx=destination_child)
+        assert read_file("//tmp/current", tx=destination_child) == b"aborted layer"
+        assert get("//tmp/current/@layer_identity", tx=destination_child) == "aborted-layer"
+
+        if commit_child:
+            commit_transaction(destination_child)
+            assert read_file("//tmp/current", tx=destination_parent) == b"aborted layer"
+            stale_child = start_transaction(tx=destination_parent)
+        else:
+            stale_child = destination_child
+
+        assert not exists("//tmp/out.txt")
+        assert not exists("//tmp/current&")
+        abort_transaction(destination_parent)
+        assert not exists("//tmp/out.txt")
+        assert not exists("//tmp/current&")
+        with raises_yt_error("No such transaction"):
+            create("file", "//tmp/late.txt", tx=stale_child)
+        with raises_yt_error("No such transaction"):
+            commit_transaction(stale_child)
+
+        successor_parent = start_transaction(timeout=120000)
+        lock("//tmp/guard", mode="exclusive", tx=successor_parent)
+        successor_child = start_transaction(tx=successor_parent)
+        remote_copy(
+            in_=f'<transaction_id="{source_parent}">//tmp/successor.txt',
+            out="<create=%true>//tmp/out.txt",
+            tx=successor_child,
+            spec={"cluster_name": self.REMOTE_CLUSTER_NAME, "copy_attributes": True},
+        )
+        commit_transaction(source_parent, driver=self.remote_driver)
+        link("//tmp/out.txt", "//tmp/current", tx=successor_child)
+        commit_transaction(successor_child)
+        assert not exists("//tmp/out.txt")
+        assert not exists("//tmp/current&")
+        commit_transaction(successor_parent)
+
+        with raises_yt_error("No such transaction"):
+            write_file("//tmp/out.txt", b"stale overwrite", tx=stale_child)
+        with raises_yt_error("No such transaction"):
+            commit_transaction(stale_child)
+        assert read_file("//tmp/out.txt") == b"successor layer"
+        assert read_file("//tmp/current") == b"successor layer"
+        assert get("//tmp/current/@layer_identity") == "successor-layer"
+        assert not exists("//tmp/late.txt")
 
 
 ##################################################################
