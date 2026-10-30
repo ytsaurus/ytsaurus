@@ -440,6 +440,70 @@ class TestQueryTrackerBan(QueriesTestBase):
         start_query("mock", "run_forever")
         return False
 
+    @authors("sinister")
+    def test_active_queries_metrics_on_banned_tracker(self, query_tracker):
+        address = query_tracker.query_tracker.addresses[0]
+        instance_path = f"//sys/query_tracker/instances/{address}"
+        monitoring_port = get(f"{instance_path}/orchid/config/monitoring_port")
+        active_queries_metric = profiler_factory().at_query_tracker(address).gauge("query_tracker/active_queries")
+
+        def exported_query_count(state):
+            response = requests.get(f"http://localhost:{monitoring_port}/solomon/all", timeout=10)
+            response.raise_for_status()
+            for sensor in response.json()["sensors"]:
+                labels = sensor["labels"]
+                if (
+                    labels.get("sensor") == "yt.query_tracker.active_queries"
+                    and labels.get("state") == state
+                    and "engine" not in labels
+                    and "assigned_tracker" not in labels
+                ):
+                    return sensor.get("value")
+
+        query = start_query("mock", "run_forever")
+        wait(lambda: query.get_state() == "running")
+        wait(lambda: active_queries_metric.get({"state": "Running"}) == 1)
+        wait(lambda: exported_query_count("Running") == 1)
+
+        set(f"{instance_path}/@banned", True)
+        pending_query_ids = [generate_uuid() for _ in range(2)]
+        try:
+            wait(lambda: get(f"{instance_path}/orchid/state_checker/banned"))
+            insert_rows("//sys/query_tracker/active_queries", [{
+                "query_id": query_id,
+                "engine": "mock",
+                "user": "root",
+                "query": "run_forever",
+                "incarnation": 0,
+                "start_time": 0,
+                "execution_start_time": 0,
+                "state": "pending",
+                "settings": {},
+                "annotations": {},
+            } for query_id in pending_query_ids])
+
+            wait(lambda: active_queries_metric.get({"state": "Pending"}) == 2)
+            wait(lambda: exported_query_count("Pending") == 2)
+            assert active_queries_metric.get({"state": "Running"}) == 1
+
+            iterations_path = f"{instance_path}/orchid/query_tracker/acquisition_iterations"
+            acquisition_iterations = get(iterations_path)
+            wait(lambda: get(iterations_path) - acquisition_iterations >= 3)
+            rows = select_rows("* from [//sys/query_tracker/active_queries]")
+            assert {row["query_id"]: row["state"] for row in rows if row["query_id"] in pending_query_ids} == {
+                query_id: "pending" for query_id in pending_query_ids
+            }
+        finally:
+            set(f"{instance_path}/@banned", False)
+
+        wait(lambda: active_queries_metric.get({"state": "Running"}) == 3)
+        wait(lambda: active_queries_metric.get({"state": "Pending"}) == 0)
+        wait(lambda: exported_query_count("Running") == 3)
+        wait(lambda: query.get_state() == "running", ignore_exceptions=True)
+        query.abort()
+        for query_id in pending_query_ids:
+            Query(query_id).abort()
+
     @authors("mpereskokova")
     def test_query_tracker_ban(self, query_tracker):
         address = query_tracker.query_tracker.addresses[0]
