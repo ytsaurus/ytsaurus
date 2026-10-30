@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup, parametrize_external, Restarter, NODES_SERVICE
 from yt_commands import (
-    authors, print_debug, wait, create, remove, get, set, copy, insert_rows, trim_rows,
+    authors, print_debug, wait, create, remove, get, set, copy, insert_rows, trim_rows, delete_rows,
     alter_table, write_file, read_table, write_table, map, sort, reduce, map_reduce, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table, merge, join_reduce,
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
@@ -1183,6 +1183,45 @@ class TestMapOnDynamicTables(YTEnvSetup):
         op.track()
 
         assert_items_equal(read_table("//tmp/t_output"), [{"k": 1, "v": "c"}])
+
+    @authors("sabdenovch")
+    def test_index_deletions_preserved(self):
+        sync_create_cells(1)
+
+        create("table", "//tmp/indexed_table_snapshot")
+        write_table("//tmp/indexed_table_snapshot", [{"key": 1, "value": "foo"}])
+
+        create_dynamic_table(
+            "//tmp/index_table",
+            schema=[
+                {"name": "value", "type": "string", "sort_order": "ascending"},
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "$empty", "type": "int64"},
+            ],
+            mount_config={
+                "force_zero_major_timestamp": True,
+                "min_data_ttl": 0,
+                "max_data_ttl": 0,
+            })
+        sync_mount_table("//tmp/index_table")
+
+        ts = generate_timestamp()
+        delete_rows("//tmp/index_table", [{"value": "foo", "key": 1}])
+        insert_rows("//tmp/index_table", [{"value": "boo", "key": 1}])
+
+        sync_unmount_table("//tmp/index_table")
+        set("//tmp/index_table/@forced_compaction_revision", 0)
+        chunk_id = get("//tmp/index_table/@chunk_ids/0")
+        sync_mount_table("//tmp/index_table")
+
+        wait(lambda: chunk_id not in get("//tmp/index_table/@chunk_ids"))
+
+        assert select_rows("value from [//tmp/index_table]") == [{"value": "boo"}]
+        merge(
+            in_="//tmp/indexed_table_snapshot",
+            out=f"<append=%true;output_timestamp={ts}>//tmp/index_table",
+            mode="ordered")
+        assert select_rows("value from [//tmp/index_table]") == [{"value": "boo"}]
 
 
 ##################################################################
