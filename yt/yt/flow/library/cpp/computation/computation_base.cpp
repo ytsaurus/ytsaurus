@@ -975,6 +975,13 @@ TJobStateManagerPtr TUniversalComputationBase::CreateStateManager() const
     managerContext->ComputationId = GetContext()->Partition->ComputationId;
     managerContext->PartitionId = GetContext()->Partition->PartitionId;
     managerContext->StateCache = GetContext()->JobStateCache;
+    managerContext->EpochUniqueSeqNoProvider = [weakThis = MakeWeak(this)] {
+        auto computation = weakThis.Lock();
+
+        THROW_ERROR_EXCEPTION_UNLESS(computation, "Cannot sync state after computation destruction");
+
+        return computation->GetEpochUniqueSeqNo();
+    };
     managerContext->LoadThroughputThrottler = GetContext()->LoadThroughputThrottler;
     managerContext->Logger = Logger;
     managerContext->Profiler = GetContext()->Profiler;
