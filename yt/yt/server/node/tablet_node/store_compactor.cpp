@@ -1000,15 +1000,6 @@ public:
 
     void OnBeginSlotScan() override
     {
-        // NB: Strictly speaking, redundant.
-        auto guard = Guard(ScanSpinLock_);
-
-        // Save some scheduling resources by skipping unnecessary work.
-        ScanForPartitioning_ = PartitioningSemaphore_->IsReady();
-        ScanForCompactions_ = CompactionSemaphore_->IsReady();
-        PartitioningCandidates_.clear(); // Though must be clear already.
-        CompactionCandidates_.clear(); // Though must be clear already.
-
         CompactionOrchid_->OnProfiling();
         PartitioningOrchid_->OnProfiling();
     }
@@ -1033,14 +1024,26 @@ public:
 
     void DoProcessLsmActionBatch(const NLsm::TLsmActionBatch& batch)
     {
+        auto finallyGuard = Finally([&] {
+            IsProcessingActionBatch_ = false;
+        });
+
         TEventTimerGuard timerGuard(ScanTimer_);
 
         const auto& Logger = TabletNodeLogger;
         auto dynamicConfig = Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor;
 
-        auto finallyGuard = Finally([&] {
-            IsProcessingActionBatch_ = false;
-        });
+        // Save some scheduling resources by skipping unnecessary work.
+        auto scanForPartitioning = PartitioningSemaphore_->IsReady();
+        auto scanForCompactions = CompactionSemaphore_->IsReady();
+
+        {
+            // NB: Strictly speaking, redundant.
+            auto guard = Guard(ScanSpinLock_);
+
+            PartitioningCandidates_.clear(); // Though must be clear already.
+            CompactionCandidates_.clear(); // Though must be clear already.
+        }
 
         YT_TLOG_DEBUG("Store compactor started processing action batch");
 
@@ -1163,7 +1166,7 @@ public:
             orchid->AddPendingTasks(std::move(pendingTaskInfos));
         };
 
-        if (ScanForCompactions_) {
+        if (scanForCompactions) {
             scanForCandidates(
                 batch.Compactions,
                 "Compaction",
@@ -1173,7 +1176,7 @@ public:
                 CompactionOrchid_);
         }
 
-        if (ScanForPartitioning_) {
+        if (scanForPartitioning) {
             scanForCandidates(
                 batch.Partitionings,
                 "Partitioning",
@@ -1185,15 +1188,9 @@ public:
 
         YT_TLOG_DEBUG("Store compactor finished processing action batch");
 
-        bool scanForPartitioning;
-        bool scanForCompactions;
-
         {
             // NB: Strictly speaking, redundant.
             auto guard = Guard(ScanSpinLock_);
-
-            scanForPartitioning = ScanForPartitioning_;
-            scanForCompactions = ScanForCompactions_;
 
             if (scanForPartitioning) {
                 PickMorePartitionings(guard);
@@ -1257,8 +1254,6 @@ private:
 
     // Variables below contain per-iteration state for slot scan.
     YT_DECLARE_SPIN_LOCK(TSpinLock, ScanSpinLock_);
-    bool ScanForPartitioning_;
-    bool ScanForCompactions_;
     std::vector<std::unique_ptr<TCompactionTask>> PartitioningCandidates_;
     std::vector<std::unique_ptr<TCompactionTask>> CompactionCandidates_;
 
