@@ -2748,6 +2748,7 @@ void TQueryProfiler::Profile(
                     arrayExpressions[index],
                     schema,
                     &arrayAndPredicateFragments);
+                Fold(arrayIds[index]);
             }
 
             auto fragmentInfos = arrayAndPredicateFragments.ToFragmentInfos("joinedArrays");

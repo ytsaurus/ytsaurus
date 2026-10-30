@@ -991,5 +991,271 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TArrayJoinCacheTest
+    : public TCodegenCacheTest
+{
+protected:
+    TDataSplit MakeInputSplit(const TLogicalTypePtr& elementType = SimpleLogicalType(ESimpleLogicalValueType::Int64))
+    {
+        auto listType = OptionalLogicalType(ListLogicalType(elementType));
+        return MakeSplit({{"a", listType}, {"b", listType}});
+    }
+};
+
+TEST_P(TArrayJoinCacheTest, ReusedExpressionRoot)
+{
+    CheckCacheReuse(
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, a as z",
+            .ExpectedRows = {"x=1;y=2;z=1"},
+        },
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, b as z",
+            .ExpectedRows = {"x=1;y=2;z=2"},
+        },
+        MakeInputSplit(),
+        {"a=[1];b=[2]"});
+}
+
+TEST_P(TArrayJoinCacheTest, ExpressionRootOrder)
+{
+    CheckCacheReuse(
+        {
+            .Query = "x, y, z, w from `//t` array join a as x, b as y, a as z, b as w",
+            .ExpectedRows = {"x=1;y=2;z=1;w=2"},
+        },
+        {
+            .Query = "x, y, z, w from `//t` array join a as x, b as y, b as z, a as w",
+            .ExpectedRows = {"x=1;y=2;z=2;w=1"},
+        },
+        MakeInputSplit(),
+        {"a=[1];b=[2]"});
+}
+
+TEST_P(TArrayJoinCacheTest, MultipleElements)
+{
+    CheckCacheReuse(
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, a as z",
+            .ExpectedRows = {"x=1;y=2;z=1", "x=3;y=4;z=3"},
+        },
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, b as z",
+            .ExpectedRows = {"x=1;y=2;z=2", "x=3;y=4;z=4"},
+        },
+        MakeInputSplit(),
+        {"a=[1;3];b=[2;4]"});
+}
+
+TEST_P(TArrayJoinCacheTest, UnequalArrayLengths)
+{
+    CheckCacheReuse(
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, a as z",
+            .ExpectedRows = {"x=1;y=2;z=1", "x=#;y=3;z=#"},
+        },
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, b as z",
+            .ExpectedRows = {"x=1;y=2;z=2", "x=#;y=3;z=3"},
+        },
+        MakeInputSplit(),
+        {"a=[1];b=[2;3]"});
+}
+
+TEST_P(TArrayJoinCacheTest, EmptyReferencedArray)
+{
+    CheckCacheReuse(
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, a as z",
+            .ExpectedRows = {"x=#;y=2;z=#"},
+        },
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, b as z",
+            .ExpectedRows = {"x=#;y=2;z=2"},
+        },
+        MakeInputSplit(),
+        {"a=[];b=[2]"});
+}
+
+TEST_P(TArrayJoinCacheTest, NullReferencedArray)
+{
+    CheckCacheReuse(
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, a as z",
+            .ExpectedRows = {"x=#;y=2;z=#"},
+        },
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, b as z",
+            .ExpectedRows = {"x=#;y=2;z=2"},
+        },
+        MakeInputSplit(),
+        {"a=#;b=[2]"});
+}
+
+TEST_P(TArrayJoinCacheTest, NullableElements)
+{
+    CheckCacheReuse(
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, a as z",
+            .ExpectedRows = {"x=#;y=2;z=#", "x=3;y=#;z=3"},
+        },
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, b as z",
+            .ExpectedRows = {"x=#;y=2;z=2", "x=3;y=#;z=#"},
+        },
+        MakeInputSplit(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
+        {"a=[#;3];b=[2;#]"});
+}
+
+TEST_P(TArrayJoinCacheTest, StringElements)
+{
+    CheckCacheReuse(
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, a as z",
+            .ExpectedRows = {"x=p;y=q;z=p"},
+        },
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, b as z",
+            .ExpectedRows = {"x=p;y=q;z=q"},
+        },
+        MakeInputSplit(SimpleLogicalType(ESimpleLogicalValueType::String)),
+        {"a=[p];b=[q]"});
+}
+
+TEST_P(TArrayJoinCacheTest, CompositeElements)
+{
+    CheckCacheReuse(
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, a as z",
+            .ExpectedRows = {"x=[1];y=[2];z=[1]"},
+        },
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, b as z",
+            .ExpectedRows = {"x=[1];y=[2];z=[2]"},
+        },
+        MakeInputSplit(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
+        {"a=[[1]];b=[[2]]"});
+}
+
+TEST_P(TArrayJoinCacheTest, Predicate)
+{
+    CheckCacheReuse(
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, a as z and z=1",
+            .ExpectedRows = {"x=1;y=2;z=1"},
+        },
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, b as z and z=1",
+            .ExpectedRows = {},
+        },
+        MakeInputSplit(),
+        {"a=[1];b=[2]"});
+}
+
+TEST_P(TArrayJoinCacheTest, LeftJoinPredicate)
+{
+    CheckCacheReuse(
+        {
+            .Query = "x, y, z from `//t` left array join a as x, b as y, a as z and z=1",
+            .ExpectedRows = {"x=1;y=2;z=1"},
+        },
+        {
+            .Query = "x, y, z from `//t` left array join a as x, b as y, b as z and z=1",
+            .ExpectedRows = {"x=#;y=#;z=#"},
+        },
+        MakeInputSplit(),
+        {"a=[1];b=[2]"});
+}
+
+TEST_P(TArrayJoinCacheTest, UnusedArrayOutputs)
+{
+    CheckCacheReuse(
+        {
+            .Query = "z from `//t` array join a as x, b as y, a as z",
+            .ExpectedRows = {"z=1"},
+        },
+        {
+            .Query = "z from `//t` array join a as x, b as y, b as z",
+            .ExpectedRows = {"z=2"},
+        },
+        MakeInputSplit(),
+        {"a=[1];b=[2]"});
+}
+
+TEST_P(TArrayJoinCacheTest, WithTableJoin)
+{
+    auto listType = ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64));
+    auto splits = TSplitMap{
+        {"//left", MakeSplit({{"k", EValueType::Int64}, {"a", listType}, {"b", listType}})},
+        {"//right", MakeSplit({{"k", EValueType::Int64}, {"v", EValueType::Int64}})},
+    };
+    CheckCacheReuse(
+        {
+            .Query = "x, y, z, r.v as v from `//left` l join `//right` r on l.k=r.k "
+                "array join l.a as x, l.b as y, l.a as z",
+            .ExpectedRows = {"x=1;y=2;z=1;v=10"},
+        },
+        {
+            .Query = "x, y, z, r.v as v from `//left` l join `//right` r on l.k=r.k "
+                "array join l.a as x, l.b as y, l.b as z",
+            .ExpectedRows = {"x=1;y=2;z=2;v=10"},
+        },
+        splits,
+        {{"k=1;a=[1];b=[2]"}, {"k=1;v=10"}});
+}
+
+TEST_P(TArrayJoinCacheTest, ExpressionArity)
+{
+    CheckCacheReuse(
+        {
+            .Query = "x from `//t` array join a as x",
+            .ExpectedRows = {"x=1", "x=2"},
+        },
+        {
+            .Query = "x from `//t` array join a as x, a as unused",
+            .ExpectedRows = {"x=1", "x=2"},
+        },
+        MakeInputSplit(),
+        {"a=[1;2];b=[3]"});
+}
+
+TEST_P(TArrayJoinCacheTest, PredicateLiteralValues)
+{
+    CheckCacheReuse(
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, a as z and z=1",
+            .ExpectedRows = {"x=1;y=3;z=1"},
+        },
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, a as z and z=2",
+            .ExpectedRows = {"x=2;y=4;z=2"},
+        },
+        MakeInputSplit(),
+        {"a=[1;2];b=[3;4]"},
+        /*sameKey*/ true);
+}
+
+TEST_P(TArrayJoinCacheTest, DifferentPredicates)
+{
+    CheckCacheReuse(
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, a as z and z=1",
+            .ExpectedRows = {"x=1;y=3;z=1"},
+        },
+        {
+            .Query = "x, y, z from `//t` array join a as x, b as y, a as z and z!=1",
+            .ExpectedRows = {"x=2;y=4;z=2"},
+        },
+        MakeInputSplit(),
+        {"a=[1;2];b=[3;4]"});
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Backends,
+    TArrayJoinCacheTest,
+    ::testing::Values(EExecutionBackend::Native, EExecutionBackend::WebAssembly));
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NQueryClient
