@@ -193,7 +193,7 @@
             "uri": "https://{canondata_backend}/1871002/93156cce630a13d42dbc95b204156f4db6121388/resource.tar.gz#test.test_aggregate-group_by_expr_with_where-default.txt-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_aggregate-group_by_expr_with_where-default.txt-Results_/extracted"
+            "uri": "file://test.TestYtFile_aggregate-group_by_expr_with_where-default.txt.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_aggregate-group_by_gs_with_rollup-.test[Debug]": [
@@ -738,7 +738,7 @@
             "uri": "https://{canondata_backend}/1871002/93156cce630a13d42dbc95b204156f4db6121388/resource.tar.gz#test.test_flatten_by-flatten_and_where--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_flatten_by-flatten_and_where--Results_/extracted"
+            "uri": "file://test.TestYtFile_flatten_by-flatten_and_where-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_flatten_by-flatten_one_field-.test[Debug]": [
@@ -762,7 +762,7 @@
             "uri": "https://{canondata_backend}/1871002/93156cce630a13d42dbc95b204156f4db6121388/resource.tar.gz#test.test_flatten_by-flatten_one_field--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_flatten_by-flatten_one_field--Results_/extracted"
+            "uri": "file://test.TestYtFile_flatten_by-flatten_one_field-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_hor_join-max_outtables-.test[Debug]": [

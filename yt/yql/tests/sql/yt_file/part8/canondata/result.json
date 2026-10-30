@@ -670,7 +670,7 @@
             "uri": "https://{canondata_backend}/1925842/6ec307d7d4e057aa566958c809f38ee90dc11a07/resource.tar.gz#test.test_insert-yql-13083-existig-Results_/Output2.yqlrun.txt.attr"
         },
         {
-            "uri": "file://test.test_insert-yql-13083-existig-Results_/extracted"
+            "uri": "file://test.TestYtFile_insert-yql-13083-existig.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_insert_dynamic-insert_with_truncate_simple-.test[Debug]": [
@@ -919,7 +919,7 @@
             "uri": "https://{canondata_backend}/1925842/6ec307d7d4e057aa566958c809f38ee90dc11a07/resource.tar.gz#test.test_key_filter-dict_contains_optional--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_key_filter-dict_contains_optional--Results_/extracted"
+            "uri": "file://test.TestYtFile_key_filter-dict_contains_optional-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_key_filter-split_input_with_key_filter1-.test[Debug]": [
@@ -1366,7 +1366,7 @@
             "uri": "https://{canondata_backend}/1925842/6ec307d7d4e057aa566958c809f38ee90dc11a07/resource.tar.gz#test.test_order_by-native_without_native_desc_sort--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_order_by-native_without_native_desc_sort--Results_/extracted"
+            "uri": "file://test.TestYtFile_order_by-native_without_native_desc_sort-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_order_by-order_by_expr_mul_cols-.test[Debug]": [
@@ -1880,7 +1880,7 @@
             "uri": "https://{canondata_backend}/1925842/6ec307d7d4e057aa566958c809f38ee90dc11a07/resource.tar.gz#test.test_schema-select_all-row_spec_part-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_schema-select_all-row_spec_part-Results_/extracted"
+            "uri": "file://test.TestYtFile_schema-select_all-row_spec_part.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_schema-select_simple-default.txt.test[Debug]": [

@@ -525,7 +525,7 @@
             "uri": "https://{canondata_backend}/21537087/16d00f590b7b8eda45442461205ba61915dbc0a9/resource.tar.gz#test.test_blocks-type_and_callable_stats--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_blocks-type_and_callable_stats--Results_/extracted"
+            "uri": "file://test.TestYtFile_blocks-type_and_callable_stats-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_column_group-hint-perusage.test[Debug]": [
@@ -693,7 +693,7 @@
             "uri": "https://{canondata_backend}/21537087/16d00f590b7b8eda45442461205ba61915dbc0a9/resource.tar.gz#test.test_epochs-reset_sortness_on_append--Results_/Output.yqlrun.txt.attr"
         },
         {
-            "uri": "file://test.test_epochs-reset_sortness_on_append--Results_/extracted"
+            "uri": "file://test.TestYtFile_epochs-reset_sortness_on_append-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_flatten_by-flatten_with_subquery-default.txt.test[Debug]": [
@@ -834,7 +834,7 @@
             "uri": "https://{canondata_backend}/21537087/16d00f590b7b8eda45442461205ba61915dbc0a9/resource.tar.gz#test.test_insert-append_sorted-to_sorted-Results_/Output8.yqlrun.txt.attr"
         },
         {
-            "uri": "file://test.test_insert-append_sorted-to_sorted-Results_/extracted"
+            "uri": "file://test.TestYtFile_insert-append_sorted-to_sorted.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_insert-append_sorted-to_sorted_calc.test[Debug]": [
@@ -933,7 +933,7 @@
             "uri": "https://{canondata_backend}/21537087/16d00f590b7b8eda45442461205ba61915dbc0a9/resource.tar.gz#test.test_insert-append_sorted-to_sorted_calc-Results_/Output8.yqlrun.txt.attr"
         },
         {
-            "uri": "file://test.test_insert-append_sorted-to_sorted_calc-Results_/extracted"
+            "uri": "file://test.TestYtFile_insert-append_sorted-to_sorted_calc.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_insert-multiappend_sorted-default.txt.test[Debug]": [
@@ -962,7 +962,7 @@
             "uri": "https://{canondata_backend}/21537087/16d00f590b7b8eda45442461205ba61915dbc0a9/resource.tar.gz#test.test_insert-multiappend_sorted-default.txt-Results_/Output.yqlrun.txt.attr"
         },
         {
-            "uri": "file://test.test_insert-multiappend_sorted-default.txt-Results_/extracted"
+            "uri": "file://test.TestYtFile_insert-multiappend_sorted-default.txt.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_insert-override-.test[Debug]": [
@@ -2205,7 +2205,7 @@
             "uri": "https://{canondata_backend}/21537087/16d00f590b7b8eda45442461205ba61915dbc0a9/resource.tar.gz#test.test_table_range-tablepath_with_non_existing--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_table_range-tablepath_with_non_existing--Results_/extracted"
+            "uri": "file://test.TestYtFile_table_range-tablepath_with_non_existing-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_tpch-q15-default.txt.test[Debug]": [
@@ -2542,7 +2542,7 @@
             "uri": "https://{canondata_backend}/21537087/16d00f590b7b8eda45442461205ba61915dbc0a9/resource.tar.gz#test.test_window-win_func_auto_arg-default.txt-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_window-win_func_auto_arg-default.txt-Results_/extracted"
+            "uri": "file://test.TestYtFile_window-win_func_auto_arg-default.txt.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_window-win_func_in_lib-.test[Debug]": [
@@ -2587,7 +2587,7 @@
             "uri": "https://{canondata_backend}/21537087/16d00f590b7b8eda45442461205ba61915dbc0a9/resource.tar.gz#test.test_window-win_func_over_group_by_list_names--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_window-win_func_over_group_by_list_names--Results_/extracted"
+            "uri": "file://test.TestYtFile_window-win_func_over_group_by_list_names-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_window-win_func_over_group_by_list_names_order_prefix-.test[Debug]": [
@@ -2611,7 +2611,7 @@
             "uri": "https://{canondata_backend}/21537087/16d00f590b7b8eda45442461205ba61915dbc0a9/resource.tar.gz#test.test_window-win_func_over_group_by_list_names_order_prefix--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_window-win_func_over_group_by_list_names_order_prefix--Results_/extracted"
+            "uri": "file://test.TestYtFile_window-win_func_over_group_by_list_names_order_prefix-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_window-win_func_with_struct_access_full_access-default.txt.test[Debug]": [

@@ -426,7 +426,7 @@
             "uri": "https://{canondata_backend}/1880306/144b205fe668e2bfdcc1d11e6cb1aa5d02fa8d77/resource.tar.gz#test.test_file-parse_file_in_select_as_uint64--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_file-parse_file_in_select_as_uint64--Results_/extracted"
+            "uri": "file://test.TestYtFile_file-parse_file_in_select_as_uint64-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_flatten_by-flatten_dict-.test[Debug]": [
@@ -450,7 +450,7 @@
             "uri": "https://{canondata_backend}/1880306/144b205fe668e2bfdcc1d11e6cb1aa5d02fa8d77/resource.tar.gz#test.test_flatten_by-flatten_dict--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_flatten_by-flatten_dict--Results_/extracted"
+            "uri": "file://test.TestYtFile_flatten_by-flatten_dict-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_hor_join-skip_sampling-.test[Debug]": [
@@ -530,7 +530,7 @@
             "uri": "https://{canondata_backend}/1880306/144b205fe668e2bfdcc1d11e6cb1aa5d02fa8d77/resource.tar.gz#test.test_in-in_types_cast_all-default.txt-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_in-in_types_cast_all-default.txt-Results_/extracted"
+            "uri": "file://test.TestYtFile_in-in_types_cast_all-default.txt.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_insert-append-.test[Debug]": [
@@ -1819,7 +1819,7 @@
             "uri": "https://{canondata_backend}/1880306/144b205fe668e2bfdcc1d11e6cb1aa5d02fa8d77/resource.tar.gz#test.test_schema-select_all-row_spec_diff_sort_desc-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_schema-select_all-row_spec_diff_sort_desc-Results_/extracted"
+            "uri": "file://test.TestYtFile_schema-select_all-row_spec_diff_sort_desc.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_schema-select_all_inferschema_op_custom_tmp-.test[Debug]": [
@@ -2382,7 +2382,7 @@
             "uri": "https://{canondata_backend}/1880306/144b205fe668e2bfdcc1d11e6cb1aa5d02fa8d77/resource.tar.gz#test.test_window-win_func_over_group_by_compl--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_window-win_func_over_group_by_compl--Results_/extracted"
+            "uri": "file://test.TestYtFile_window-win_func_over_group_by_compl-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_window-win_func_rank_by_opt_part-.test[Debug]": [

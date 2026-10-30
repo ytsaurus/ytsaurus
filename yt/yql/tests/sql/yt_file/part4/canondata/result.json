@@ -594,7 +594,7 @@
             "uri": "https://{canondata_backend}/1880306/7ecab161d91465216972e18a850b613458a47e1e/resource.tar.gz#test.test_flatten_by-flatten_member_is_struct--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_flatten_by-flatten_member_is_struct--Results_/extracted"
+            "uri": "file://test.TestYtFile_flatten_by-flatten_member_is_struct-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_hor_join-fuse_multi_outs2-.test[Debug]": [
@@ -702,7 +702,7 @@
             "uri": "https://{canondata_backend}/1880306/7ecab161d91465216972e18a850b613458a47e1e/resource.tar.gz#test.test_in-basic_in-default.txt-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_in-basic_in-default.txt-Results_/extracted"
+            "uri": "file://test.TestYtFile_in-basic_in-default.txt.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_insert-double_append_to_anonymous-.test[Debug]": [
@@ -872,7 +872,7 @@
             "uri": "https://{canondata_backend}/1880306/7ecab161d91465216972e18a850b613458a47e1e/resource.tar.gz#test.test_join-join_without_correlation_and_dict_access--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_join-join_without_correlation_and_dict_access--Results_/extracted"
+            "uri": "file://test.TestYtFile_join-join_without_correlation_and_dict_access-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_join-left_trivial-.test[Debug]": [
@@ -1086,7 +1086,7 @@
             "uri": "https://{canondata_backend}/1880306/7ecab161d91465216972e18a850b613458a47e1e/resource.tar.gz#test.test_lineage-in_yql_21186--Results_/Output2.yqlrun.txt.attr"
         },
         {
-            "uri": "file://test.test_lineage-in_yql_21186--Results_/extracted"
+            "uri": "file://test.TestYtFile_lineage-in_yql_21186-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_lineage-select_group_by_key-default.txt.test[Debug]": [
@@ -1862,7 +1862,7 @@
             "uri": "https://{canondata_backend}/1880306/7ecab161d91465216972e18a850b613458a47e1e/resource.tar.gz#test.test_select_yql-insert_into_select_union_order_by-default.txt-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_select_yql-insert_into_select_union_order_by-default.txt-Results_/extracted"
+            "uri": "file://test.TestYtFile_select_yql-insert_into_select_union_order_by-default.txt.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_simple_columns-simple_columns_join_coalesce_without_left_semi_1-default.txt.test[Debug]": [
@@ -1907,7 +1907,7 @@
             "uri": "https://{canondata_backend}/1880306/7ecab161d91465216972e18a850b613458a47e1e/resource.tar.gz#test.test_simple_columns-simple_columns_join_subreq_all_key_without-default.txt-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_simple_columns-simple_columns_join_subreq_all_key_without-default.txt-Results_/extracted"
+            "uri": "file://test.TestYtFile_simple_columns-simple_columns_join_subreq_all_key_without-default.txt.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_table_range-limit_with_table_path_over_sorted_range-.test[Debug]": [
@@ -1931,7 +1931,7 @@
             "uri": "https://{canondata_backend}/1880306/7ecab161d91465216972e18a850b613458a47e1e/resource.tar.gz#test.test_table_range-limit_with_table_path_over_sorted_range--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_table_range-limit_with_table_path_over_sorted_range--Results_/extracted"
+            "uri": "file://test.TestYtFile_table_range-limit_with_table_path_over_sorted_range-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_table_range-table_funcs_expr-.test[Debug]": [
@@ -2043,7 +2043,7 @@
             "uri": "https://{canondata_backend}/1880306/7ecab161d91465216972e18a850b613458a47e1e/resource.tar.gz#test.test_type_v3-append_diff_layout2--Results_/Output3.yqlrun.txt.attr"
         },
         {
-            "uri": "file://test.test_type_v3-append_diff_layout2--Results_/extracted"
+            "uri": "file://test.TestYtFile_type_v3-append_diff_layout2-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_type_v3-ignore_v3_hint-opt.test[Debug]": [

@@ -835,7 +835,7 @@
             "uri": "https://{canondata_backend}/1925842/406d16561d1873e4a14250b4e670bc9daac11159/resource.tar.gz#test.test_flatten_by-flatten_few_fields--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_flatten_by-flatten_few_fields--Results_/extracted"
+            "uri": "file://test.TestYtFile_flatten_by-flatten_few_fields-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_flatten_by-flatten_with_group_by-.test[Debug]": [
@@ -859,7 +859,7 @@
             "uri": "https://{canondata_backend}/1925842/406d16561d1873e4a14250b4e670bc9daac11159/resource.tar.gz#test.test_flatten_by-flatten_with_group_by--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_flatten_by-flatten_with_group_by--Results_/extracted"
+            "uri": "file://test.TestYtFile_flatten_by-flatten_with_group_by-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_hor_join-table_record-.test[Debug]": [
@@ -904,7 +904,7 @@
             "uri": "https://{canondata_backend}/1925842/406d16561d1873e4a14250b4e670bc9daac11159/resource.tar.gz#test.test_in-in_with_table_of_tuples-default.txt-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_in-in_with_table_of_tuples-default.txt-Results_/extracted"
+            "uri": "file://test.TestYtFile_in-in_with_table_of_tuples-default.txt.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_in-yql-10038-default.txt.test[Debug]": [
@@ -1097,7 +1097,7 @@
             "uri": "https://{canondata_backend}/1925842/406d16561d1873e4a14250b4e670bc9daac11159/resource.tar.gz#test.test_insert-unique_distinct_hints--Results_/Output8.yqlrun.txt.attr"
         },
         {
-            "uri": "file://test.test_insert-unique_distinct_hints--Results_/extracted"
+            "uri": "file://test.TestYtFile_insert-unique_distinct_hints-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_join-compact_join-.test[Debug]": [
@@ -1205,7 +1205,7 @@
             "uri": "https://{canondata_backend}/1925842/406d16561d1873e4a14250b4e670bc9daac11159/resource.tar.gz#test.test_join-join_without_correlation_names--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_join-join_without_correlation_names--Results_/extracted"
+            "uri": "file://test.TestYtFile_join-join_without_correlation_names-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_join-left_semi_with_other-.test[Debug]": [
@@ -1376,7 +1376,7 @@
             "uri": "https://{canondata_backend}/1925842/406d16561d1873e4a14250b4e670bc9daac11159/resource.tar.gz#test.test_join-star_join_hint_warnings--Results_/results.txt"
         },
         {
-            "uri": "file://test.test_join-star_join_hint_warnings--Results_/extracted"
+            "uri": "file://test.TestYtFile_join-star_join_hint_warnings-.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_join-yql-8131-off.test[Debug]": [
@@ -2218,7 +2218,7 @@
             "uri": "https://{canondata_backend}/1925842/406d16561d1873e4a14250b4e670bc9daac11159/resource.tar.gz#test.test_simple_columns-simple_columns_join_all-default.txt-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_simple_columns-simple_columns_join_all-default.txt-Results_/extracted"
+            "uri": "file://test.TestYtFile_simple_columns-simple_columns_join_all-default.txt.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_simple_columns-simple_columns_join_without_resolve_dublicates_mult-default.txt.test[Debug]": [
@@ -2242,7 +2242,7 @@
             "uri": "https://{canondata_backend}/1925842/406d16561d1873e4a14250b4e670bc9daac11159/resource.tar.gz#test.test_simple_columns-simple_columns_join_without_resolve_dublicates_mult-default.txt-Results_/results.txt"
         },
         {
-            "uri": "file://test.test_simple_columns-simple_columns_join_without_resolve_dublicates_mult-default.txt-Results_/extracted"
+            "uri": "file://test.TestYtFile_simple_columns-simple_columns_join_without_resolve_dublicates_mult-default.txt.test_Results_/extracted"
         }
     ],
     "test.TestYtFile_tpch-q12-default.txt.test[Debug]": [
