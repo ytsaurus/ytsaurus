@@ -8,6 +8,7 @@ from yt_env_setup import (
     NODES_SERVICE,
     CHAOS_NODES_SERVICE,
     RPC_PROXIES_SERVICE,
+    with_portals_dir,
 )
 
 from yt_commands import (
@@ -1657,6 +1658,7 @@ class TestChaos(ChaosTestBase):
         assert attributes["cluster_name"] == "remote_0"
 
     @authors("h0pless")
+    @with_portals_dir
     def test_chaos_replicated_table_node_type_handler(self):
         def branch_my_table():
             tx = start_transaction()
@@ -1715,9 +1717,9 @@ class TestChaos(ChaosTestBase):
 
         # Cross shard copy if portals are enabled
         if self.ENABLE_TMP_PORTAL:
-            create("portal_entrance", "//non_tmp", attributes={"exit_cell_tag": 12})
-            copy("//tmp/table", "//non_tmp/table_copy")
-            assert get("//tmp/table/@schema") == get("//non_tmp/table_copy/@schema")
+            create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
+            copy("//tmp/table", "//portals/p/table_copy")
+            assert get("//tmp/table/@schema") == get("//portals/p/table_copy/@schema")
 
     @authors("savrus")
     def test_chaos_table_alter(self):

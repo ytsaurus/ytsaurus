@@ -951,8 +951,9 @@ class TestHunkStoragePortal(DynamicTablesBase):
             set("//portals/t2/@hunk_storage_id", hunk_storage_id2)
 
     @authors("akozhikhov")
+    @with_portals_dir
     def test_forbid_portal_move_table_with_hunk_storage(self):
-        create("portal_entrance", "//p", attributes={"exit_cell_tag": 12})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
         hunk_storage_id = self._create_hunk_storage("//tmp/h", external_cell_tag=12)
         self._create_ordered_table("//tmp/t", external_cell_tag=12)
@@ -960,13 +961,12 @@ class TestHunkStoragePortal(DynamicTablesBase):
         set("//tmp/t/@hunk_storage_id", hunk_storage_id)
 
         with raises_yt_error("Cannot cross-cell copy"):
-            move("//tmp/t", "//p/t")
-
-        remove("//p")
+            move("//tmp/t", "//portals/p/t")
 
     @authors("akozhikhov")
+    @with_portals_dir
     def test_forbid_portal_copy_table_with_hunk_storage(self):
-        create("portal_entrance", "//p", attributes={"exit_cell_tag": 12})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
         hunk_storage_id = self._create_hunk_storage("//tmp/h", external_cell_tag=12)
         self._create_ordered_table("//tmp/t", external_cell_tag=12)
@@ -974,6 +974,4 @@ class TestHunkStoragePortal(DynamicTablesBase):
         set("//tmp/t/@hunk_storage_id", hunk_storage_id)
 
         with raises_yt_error("Cannot cross-cell copy"):
-            copy("//tmp/t", "//p/t")
-
-        remove("//p")
+            copy("//tmp/t", "//portals/p/t")

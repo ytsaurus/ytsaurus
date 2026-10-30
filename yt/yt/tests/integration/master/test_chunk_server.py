@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE, with_additional_threads
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE, with_additional_threads, with_portals_dir
 
 from yt_commands import (
     authors, copy, create_user, get_driver, print_debug, set_nodes_banned, wait, create, ls, get, set, remove, exists,
@@ -1938,11 +1938,11 @@ class TestChunkServerMulticell(TestChunkServer):
         create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 12})
 
     @authors("aleksandra-zh")
+    @with_portals_dir
     def test_multicell_with_primary_chunk_host(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {"10": {"roles": ["cypress_node_host", "chunk_host"]}})
 
-        create("table", "//t")
-        remove("//t")
+        create("table", "//portals/t")
 
     @authors("babenko")
     def test_owning_nodes3(self):
@@ -1970,6 +1970,7 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("cherepashka")
     @pytest.mark.parametrize("to_concatenate", [True, False])
+    @with_portals_dir
     def test_owning_nodes4(self, to_concatenate):
         def check_owning_nodes(object_id, owning_nodes):
             cell_indices = {0}  # primary cell
@@ -1986,22 +1987,21 @@ class TestChunkServerMulticell(TestChunkServer):
         chunk_list_id = get("//tmp/t/@chunk_list_id")
         chunk_list_owning_nodes = ["//tmp/t"]
         if to_concatenate:
-            create("table", "//home/t", recursive=True, force=True, attributes={"external_cell_tag": 11})
+            create("table", "//portals/t", attributes={"external_cell_tag": 11})
             # Export from 12 cell to 11.
-            concatenate(["//tmp/t", "//tmp/t"], "//home/t")
+            concatenate(["//tmp/t", "//tmp/t"], "//portals/t")
 
             create("table", "//tmp/t1", attributes={"external_cell_tag": 13})
             # Export from 11 cell to 13.
-            concatenate(["//home/t", "//home/t"], "//tmp/t1")
+            concatenate(["//portals/t", "//portals/t"], "//tmp/t1")
         else:
-            copy("//tmp/t", "//home/t", recursive=True, force=True)
-            copy("//home/t", "//tmp/t1")
-            chunk_list_owning_nodes.append("//home/t")
+            copy("//tmp/t", "//portals/t")
+            copy("//portals/t", "//tmp/t1")
+            chunk_list_owning_nodes.append("//portals/t")
             chunk_list_owning_nodes.append("//tmp/t1")
 
-        check_owning_nodes(chunk_id, ["//tmp/t", "//home/t", "//tmp/t1"])
+        check_owning_nodes(chunk_id, ["//tmp/t", "//portals/t", "//tmp/t1"])
         check_owning_nodes(chunk_list_id, chunk_list_owning_nodes)
-        remove("//home/t")
 
     @authors("babenko")
     def test_chunk_requisition_registry_orchid(self):
