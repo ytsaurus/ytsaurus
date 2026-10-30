@@ -13,6 +13,8 @@ ENDIF()
 
 INCLUDE(../YaMakeDependsBoilerplate.txt)
 
+YT_SPEC(yt/yt/tests/integration/spec_job_batching.yson)
+
 # Set REQUIREMENTS after INCLUDE for proper override
 IF (SANITIZER_TYPE == "thread")
     REQUIREMENTS(
