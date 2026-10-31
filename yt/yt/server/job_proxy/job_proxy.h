@@ -167,6 +167,7 @@ private:
     NApi::NNative::IClientPtr Client_;
 
     NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
+    TFuture<void> LastHeartbeatFuture_ = OKFuture;
     NConcurrency::TPeriodicExecutorPtr MemoryWatchdogExecutor_;
 
     TDuration RefCountedTrackerLogPeriod_;

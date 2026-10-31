@@ -398,6 +398,7 @@ void TJobProxy::SendHeartbeat()
 
     auto job = FindJob();
     if (!job) {
+        LastHeartbeatFuture_ = OKFuture;
         return;
     }
 
@@ -445,7 +446,7 @@ void TJobProxy::SendHeartbeat()
         }
     }
 
-    req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
+    LastHeartbeatFuture_ = req->Invoke().AsVoid().Apply(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 }
 
 void TJobProxy::OnHeartbeatResponse(const TError& error)
@@ -2077,6 +2078,17 @@ void TJobProxy::CheckMemoryUsage()
         YT_TLOG_DEBUG("Requesting node for memory usage increase")
             .With("OldMemoryReserve", RequestedMemoryReserve_.load())
             .With("NewMemoryReserve", memoryReserve);
+        // The node may abort the job for overdraft on this request, reporting the statistics it has.
+        // Deliver fresh max_memory first; otherwise the controller agent cannot tell which process overdrafted.
+        auto executedEvent = HeartbeatExecutor_->GetExecutedEvent();
+        HeartbeatExecutor_->ScheduleOutOfBand();
+        auto error = WaitFor(executedEvent);
+        if (error.IsOK()) {
+            auto heartbeatFuture = LastHeartbeatFuture_;
+            error = WaitFor(heartbeatFuture);
+        }
+        YT_TLOG_ERROR_UNLESS(error.IsOK(), "Failed to send heartbeat before memory reserve increase")
+            .With(error);
         RequestedMemoryReserve_ = memoryReserve;
         UpdateResourceUsage();
     }
