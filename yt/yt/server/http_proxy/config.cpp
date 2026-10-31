@@ -183,6 +183,32 @@ void TMemoryLimitRatiosConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCommandMemoryReservationConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("reservation", &TThis::Reservation)
+        .Optional()
+        .GreaterThanOrEqual(0);
+}
+
+void THeavyRequestMemoryReservationConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Parameter("overhead", &TThis::Overhead)
+        .Default(16_MB)
+        .GreaterThanOrEqual(0);
+
+    registrar.Parameter("default_reservation", &TThis::DefaultReservation)
+        .Default(16_MB)
+        .GreaterThanOrEqual(0);
+
+    registrar.Parameter("commands", &TThis::Commands)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TApiConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("ban_cache_expiration_time", &TThis::BanCacheExpirationTime)
@@ -237,6 +263,9 @@ void TApiDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("role_to_memory_limit_ratios", &TThis::RoleToMemoryLimitRatios)
         .Default();
+
+    registrar.Parameter("heavy_request_memory_reservation", &TThis::HeavyRequestMemoryReservation)
+        .DefaultNew();
 
     registrar.Postprocessor([&] (TApiDynamicConfig* config) {
         for (const auto& [name, value] : config->UserToConcurrencyLimitRatio) {

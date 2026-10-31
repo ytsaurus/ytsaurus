@@ -75,6 +75,12 @@ public:
     std::optional<TSemaphoreGuard> AcquireSemaphore(const std::string& user, const std::string& command);
     void ReleaseSemaphore(const TUserCommandPair& key);
 
+    i64 GetHeavyRequestMemoryReservation(
+        const NDriver::TCommandDescriptor& descriptor,
+        const NYTree::IMapNodePtr& parameters) const;
+    void UpdateHeavyRequestReservedMemory(const TUserCommandPair& key, i64 delta);
+    void IncrementHeavyRequestReservationRejectCount(const TUserCommandPair& key);
+
     void IncrementBytesOutProfilingCounters(
         const std::string& user,
         const NNet::TNetworkAddress& clientAddress,
@@ -113,6 +119,7 @@ public:
 
 private:
     const TApiConfigPtr Config_;
+    const NDriver::TDriverConfigPtr DriverConfig_;
     TAtomicIntrusivePtr<TApiDynamicConfig> DynamicConfig_;
 
     const NDriver::IDriverPtr DriverV3_;
@@ -148,6 +155,9 @@ private:
         NProfiling::TCounter RequestCount;
         NProfiling::TEventTimer RequestWallTime;
         NProfiling::TTimeCounter CumulativeRequestCpuTime;
+        std::atomic<i64> HeavyRequestReservedMemory{0};
+        NProfiling::TGauge HeavyRequestReservedMemoryGauge;
+        NProfiling::TCounter HeavyRequestReservationRejectCount;
 
         NConcurrency::TSyncMap<TErrorCode, NProfiling::TCounter> ApiErrors;
     };

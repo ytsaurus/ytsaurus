@@ -1,7 +1,11 @@
 #include "helpers.h"
 
+#include "config.h"
 #include "coordinator.h"
 #include "private.h"
+
+#include <yt/yt/client/driver/command_memory_estimate.h>
+#include <yt/yt/client/driver/driver.h>
 
 #include <yt/yt/core/http/http.h>
 #include <yt/yt/core/http/helpers.h>
@@ -386,6 +390,26 @@ void RedirectToDataProxy(const IRequestPtr& request, const IResponseWriterPtr& r
         response->GetHeaders()->Set("Retry-After", "60");
         ReplyError(response, TError("There are no data proxies available"));
     }
+}
+
+i64 ResolveHeavyRequestMemoryReservation(
+    const NDriver::TCommandDescriptor& descriptor,
+    const IMapNodePtr& parameters,
+    const NDriver::TDriverConfigPtr& driverConfig,
+    const THeavyRequestMemoryReservationConfigPtr& config)
+{
+    if (!descriptor.Heavy) {
+        return 0;
+    }
+
+    if (auto it = config->Commands.find(descriptor.CommandName);
+        it != config->Commands.end() && it->second->Reservation)
+    {
+        return *it->second->Reservation;
+    }
+
+    auto estimate = NDriver::EstimateHeavyCommandMemoryUsage(descriptor.CommandName, driverConfig, parameters);
+    return estimate.value_or(config->DefaultReservation) + config->Overhead;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
