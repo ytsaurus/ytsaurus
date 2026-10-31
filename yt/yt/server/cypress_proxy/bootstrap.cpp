@@ -30,6 +30,7 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
@@ -330,6 +331,10 @@ private:
             OrchidRoot_,
             "/sequoia_reign",
             ConvertToNode(GetCurrentSequoiaReign()));
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/master_cell_directory",
+            CreateVirtualNode(NativeConnection_->GetMasterCellDirectory()->GetOrchidService()));
         SetNodeByYPath(
             OrchidRoot_,
             "/ground_reign",

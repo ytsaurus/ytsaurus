@@ -405,6 +405,8 @@ struct TCellDirectoryMock
 
     MOCK_METHOD(TCellTagList, GetMasterCellTagsWithRole, (EMasterCellRole), (override));
 
+    MOCK_METHOD(NYTree::IYPathServicePtr, GetOrchidService, (), (override));
+
     MOCK_METHOD(TCellId, GetRandomMasterCellWithRoleOrThrow, (EMasterCellRole), (override));
 
     MOCK_METHOD(bool, IsClientSideCacheEnabled, (), (const, override));
