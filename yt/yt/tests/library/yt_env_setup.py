@@ -1364,7 +1364,7 @@ class YTEnvSetup(object):
             driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
             if yt_commands.is_multicell and not cls.DEFER_SECONDARY_CELL_START:
                 if cls.get_param("ENABLE_SYS_OPERATIONS_ROOTSTOCK", cluster_index):
-                    cls._wait_for_sequoia_node_host_available(driver)
+                    cls._wait_for_sequoia_node_host_available(driver, cluster_index)
                     yt_commands.remove("//sys/operations", force=True, driver=driver)
                     yt_commands.create("rootstock", "//sys/operations", force=True, driver=driver)
                 elif "11" in cls.get_param("MASTER_CELL_DESCRIPTORS", 0) and \
@@ -1819,15 +1819,37 @@ class YTEnvSetup(object):
             env.restore_default_rpc_proxy_dynamic_config()
 
     @classmethod
-    def _wait_for_sequoia_node_host_available(cls, driver):
+    def _wait_for_sequoia_node_host_available(cls, driver, cluster_index):
         yt_commands.print_debug("Waiting for cell with \"sequoia_node_host\" role")
-        wait(lambda: yt_commands.create(
-            "rootstock",
-            "//check_cell_role",
-            force=True,
-            driver=driver),
-            ignore_exceptions=True)
-        yt_commands.remove("//check_cell_role", force=True, driver=driver)
+        expected_cell_tags = {
+            int(cell_tag)
+            for cell_tag, descriptor in cls.get_param("MASTER_CELL_DESCRIPTORS", cluster_index).items()
+            if "sequoia_node_host" in descriptor["roles"]
+        }
+        assert expected_cell_tags
+
+        def check_cell_role():
+            yt_commands.remove("//check_cell_role", force=True, driver=driver)
+            return yt_commands.create("rootstock", "//check_cell_role", force=True, driver=driver)
+
+        def proxies_have_sequoia_node_hosts():
+            proxies = yt_commands.ls("//sys/cypress_proxies", driver=driver)
+            if len(proxies) != cls.get_param("NUM_CYPRESS_PROXIES", cluster_index):
+                return False
+
+            paths = [
+                f"//sys/cypress_proxies/{proxy}/orchid/master_cell_directory/role_to_cell_tags/sequoia_node_host"
+                for proxy in proxies
+            ]
+            # COMPAT(babenko): Older Cypress proxies do not expose cached master cell roles.
+            if any(not yt_commands.exists(path, driver=driver) for path in paths):
+                wait(check_cell_role, ignore_exceptions=True)
+                yt_commands.remove("//check_cell_role", force=True, driver=driver)
+                return True
+
+            return all(set(yt_commands.get(path, driver=driver)) == expected_cell_tags for path in paths)
+
+        wait(proxies_have_sequoia_node_hosts)
 
     def setup_cluster(self, method, cluster_index):
         driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
@@ -1955,7 +1977,7 @@ class YTEnvSetup(object):
                         "MASTER_CELL_DESCRIPTORS",
                         cluster_index
                     ).values()):
-            self._wait_for_sequoia_node_host_available(driver)
+            self._wait_for_sequoia_node_host_available(driver, cluster_index)
 
         if self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index) and not self._is_ground_cluster(cluster_index):
             assert self.get_param("USE_SEQUOIA", cluster_index)

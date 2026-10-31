@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/rpc/public.h>
 
+#include <yt/yt/core/ytree/public.h>
+
 namespace NYT::NCellMasterClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,6 +69,8 @@ struct ICellDirectory
 
     //! Throws when passed EMasterCellRole::Unknown. Returns empty list if no cells have the specified role.
     virtual NObjectClient::TCellTagList GetMasterCellTagsWithRole(EMasterCellRole role) = 0;
+
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
     //! Throws when passed EMasterCellRole::Unknown. Throws if no cells have the specified role.
     virtual NObjectClient::TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role) = 0;
