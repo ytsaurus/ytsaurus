@@ -1192,6 +1192,50 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         assert_items_equal(read_table("//tmp/t_output"), [{"k": 1, "v": "c"}])
 
+    @authors("apollo1321")
+    def test_unavailable_versioned_chunk_skip_tactics(self):
+        sync_create_cells(1)
+
+        create_dynamic_table(
+            "//tmp/t_input",
+            schema=[
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "v", "type": "string"},
+            ],
+            replication_factor=1)
+        sync_mount_table("//tmp/t_input")
+        insert_rows("//tmp/t_input", [{"k": 1, "v": "a"}])
+        sync_unmount_table("//tmp/t_input")
+
+        chunk_id = get_singular_chunk_id("//tmp/t_input")
+        replicas = get(f"#{chunk_id}/@stored_replicas")
+        assert len(replicas) == 1
+        replica = str(replicas[0])
+
+        op = merge(
+            in_="//tmp/t_input",
+            out="<create=%true>//tmp/t_output",
+            mode="sorted",
+            track=False,
+            spec={
+                "suspend_operation_after_materialization": True,
+                "unavailable_chunk_strategy": "skip",
+                "unavailable_chunk_tactics": "skip",
+                "job_io": {
+                    "table_reader": {"retry_count": 1, "pass_count": 1},
+                },
+            })
+
+        wait(lambda: get(op.get_path() + "/@suspended"))
+        set_node_banned(replica, True)
+        try:
+            wait(lambda: get(f"#{chunk_id}/@replication_status/default/lost"))
+            op.resume()
+            with raises_yt_error("Dynamic table chunk .* became unavailable"):
+                op.track()
+        finally:
+            set_node_banned(replica, False)
+
 
 ##################################################################
 
