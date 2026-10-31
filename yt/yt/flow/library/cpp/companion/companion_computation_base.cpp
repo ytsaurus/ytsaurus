@@ -79,27 +79,33 @@ void AddJoinedExternalStates(
     const IInputContextPtr& input)
 {
     for (const auto& [stateName, adapter] : joiners) {
-        for (const auto& key : adapter->ExtractKeys(input)) {
+        auto keys = adapter->ExtractKeys(input);
+        auto descriptor = adapter->Describe();
+        // A filtered first batch may precede schema discovery for a row joiner.
+        if (keys.empty() && descriptor.Format == EStateFormat::SimpleRow && !descriptor.Schema) {
+            continue;
+        }
+        // Keep the descriptor even when every profile in the batch is absent.
+        auto& holder = GetOrInsert(
+            request->JoinedExternalStates,
+            stateName,
+            [&] {
+                return TStateHolder<TSharedRef>{
+                    .StateName = stateName,
+                    .Schema = descriptor.Schema,
+                    .Format = descriptor.Format,
+                    .ProtoType = descriptor.ProtoType,
+                };
+            });
+        for (const auto& key : keys) {
             auto payload = adapter->EncodeState(key);
             if (!payload) {
                 continue;
             }
-            GetOrInsert(
-                request->JoinedExternalStates,
-                stateName,
-                [&] {
-                    auto descriptor = adapter->Describe();
-                    return TStateHolder<TSharedRef>{
-                        .StateName = stateName,
-                        .Schema = descriptor.Schema,
-                        .Format = descriptor.Format,
-                        .ProtoType = descriptor.ProtoType,
-                    };
-                })
-                .StateItems.push_back({
-                    .Key = key,
-                    .State = std::move(payload),
-                });
+            holder.StateItems.push_back({
+                .Key = key,
+                .State = std::move(payload),
+            });
         }
     }
 }

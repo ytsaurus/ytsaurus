@@ -1,6 +1,8 @@
 """Tests for the Pythonic Pipeline API."""
 
 import pytest
+from google.protobuf.descriptor_pb2 import FileDescriptorProto, FileDescriptorSet
+from google.protobuf.message import Message as ProtoMessage
 
 from yt.yt.flow.library.python.companion._api import Pipeline
 from yt.yt.flow.library.python.companion.computation import (
@@ -201,3 +203,103 @@ class TestPipelineRegistration:
         pipeline.add_resource(_PlainResource)
         with pytest.raises(ValueError):
             pipeline.add_resource(_PlainResource)
+
+
+class TestProtoStateDeclarations:
+    @staticmethod
+    def noop(message, output, ctx):
+        pass
+
+    def test_add_and_decorator_scope_states_and_copy_declarations(self):
+        pipeline = Pipeline()
+        declarations = {"/state": FileDescriptorProto}
+        pipeline.add("owner", self.noop, proto_external_states=declarations)
+        declarations["/state"] = FileDescriptorSet
+
+        @pipeline.computation("reader", joined_proto_external_states={"/state": FileDescriptorSet})
+        def reader(message, output, ctx):
+            pass
+
+        assert pipeline.context.get_proto_external_states() == {"owner": {"/state": FileDescriptorProto}}
+        assert pipeline.context.get_joined_proto_external_states() == {"reader": {"/state": FileDescriptorSet}}
+        snapshot = pipeline.context.get_proto_external_states()
+        snapshot["owner"]["/state"] = FileDescriptorSet
+        assert pipeline.context.get_proto_external_states()["owner"]["/state"] is FileDescriptorProto
+
+    @pytest.mark.parametrize(
+        "invalid,valid",
+        [
+            ("proto_external_states", "joined_proto_external_states"),
+            ("joined_proto_external_states", "proto_external_states"),
+        ],
+    )
+    @pytest.mark.parametrize("proto_class", [object, FileDescriptorProto(), ProtoMessage])
+    def test_invalid_class_leaves_registration_unchanged(self, invalid, valid, proto_class):
+        pipeline = Pipeline()
+        with pytest.raises(TypeError, match="requires a protobuf message class"):
+            pipeline.add(
+                "join", self.noop, **{valid: {"/valid": FileDescriptorProto}, invalid: {"/state": proto_class}}
+            )
+        assert pipeline.context.get_computation("join") is None
+        assert pipeline.context.get_proto_external_states() == {}
+        assert pipeline.context.get_joined_proto_external_states() == {}
+        pipeline.add("join", self.noop, **{invalid: {"/state": FileDescriptorProto}})
+
+    @pytest.mark.parametrize("name", ["", "state", "/", "/state/", "/a//b"])
+    def test_invalid_state_name(self, name):
+        pipeline = Pipeline()
+        with pytest.raises(ValueError):
+            pipeline.add("join", self.noop, proto_external_states={name: FileDescriptorProto})
+        assert pipeline.context.get_computation("join") is None
+
+    def test_frozen_context_rejects_declarations(self):
+        pipeline = Pipeline()
+        pipeline.context._freeze()
+        with pytest.raises(RuntimeError, match="frozen"):
+            pipeline.add("join", self.noop, proto_external_states={"/state": FileDescriptorProto})
+        assert pipeline.context.get_proto_external_states() == {}
+
+    def test_run_passes_declarations_to_runner(self, monkeypatch):
+        from yt.yt.flow.library.python import runner
+
+        monkeypatch.delenv("YT_FLOW_COMPANION_CONFIG", raising=False)
+        monkeypatch.setattr(runner.sys, "argv", ["pipeline", "--config", "pipeline.yson", "--flow-bin", "/flow_server"])
+        calls = []
+        monkeypatch.setattr(runner, "launch", lambda *args, **kwargs: calls.append((args, kwargs)))
+        pipeline = Pipeline()
+        pipeline.add(
+            "join",
+            self.noop,
+            proto_external_states={"/state": FileDescriptorProto},
+            joined_proto_external_states={"/joined": FileDescriptorSet},
+        )
+        pipeline.run()
+        assert calls == [
+            (
+                ("pipeline.yson", "/flow_server"),
+                {
+                    "proto_external_states": {"join": {"/state": FileDescriptorProto}},
+                    "joined_proto_external_states": {"join": {"/joined": FileDescriptorSet}},
+                },
+            )
+        ]
+
+    def test_companion_mode_does_not_launch_runner(self, monkeypatch):
+        from yt.yt.flow.library.python.companion import _api
+
+        monkeypatch.setenv("YT_FLOW_COMPANION_CONFIG", "{}")
+        executions = []
+
+        class Execution:
+            def __init__(self, context, port):
+                self.context = context
+                assert port == 1234
+
+            def start(self):
+                executions.append(self.context)
+
+        monkeypatch.setattr(_api, "GrpcServerExecution", Execution)
+        pipeline = Pipeline()
+        pipeline.add("join", self.noop, proto_external_states={"/state": FileDescriptorProto})
+        pipeline.run(port=1234)
+        assert executions == [pipeline.context]

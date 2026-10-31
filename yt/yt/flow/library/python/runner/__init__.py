@@ -24,6 +24,8 @@ import tempfile
 
 from yt.wrapper import yson
 
+from .profile_state import patch_profile_states
+
 log = logging.getLogger(__name__)
 
 _PYTHON_COMPANION_NAME = "py_companion"
@@ -42,10 +44,11 @@ def parse_launch_args(argv):
     return args.config, args.flow_bin
 
 
-def launch(config_path, flow_bin):
+def launch(config_path, flow_bin, *, proto_external_states=None, joined_proto_external_states=None):
     """Enrich the pipeline config to ship this binary as the companion, then exec flow_server.
 
     ``flow_bin`` may be None: then ``$YT_FLOW_BIN`` is used.
+    Proto state declarations map computation ids to state names and protobuf message classes.
     """
     if not config_path:
         raise RuntimeError("--config <pipeline.yson> is required to launch the pipeline")
@@ -53,6 +56,12 @@ def launch(config_path, flow_bin):
 
     with open(config_path, "rb") as f:
         pipeline_config = yson.load(f)
+
+    patch_profile_states(
+        pipeline_config.get("spec", {}),
+        proto_external_states=proto_external_states,
+        joined_proto_external_states=joined_proto_external_states,
+    )
 
     vanilla = pipeline_config.get("vanilla")
     if vanilla and vanilla.get("enable"):
