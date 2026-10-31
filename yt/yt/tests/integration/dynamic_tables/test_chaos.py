@@ -4405,6 +4405,7 @@ class TestChaos(ChaosTestBase):
     @pytest.mark.parametrize("mode", ["sync", "async", "async_queue"])
     def test_schema_coexistence(self, schemas, tablet_count, mode):
         cell_id = self._sync_create_chaos_bundle_and_cell()
+        sync_create_cells(1)
 
         enabled = mode != "async_queue"
         replica_mode = "sync" if mode == "sync" else "async"
@@ -4432,7 +4433,13 @@ class TestChaos(ChaosTestBase):
                 return [[]] + [[i] for i in range(1, tablet_count)]
 
         schema1, schema2 = self._get_schemas_by_name(schemas)
-        self._create_replica_tables(replicas[:3], replica_ids[:3], schema=schema2, pivot_keys=_create_pivots(schema2))
+        self._create_replica_tables(
+            replicas[:3],
+            replica_ids[:3],
+            create_tablet_cells=False,
+            schema=schema2,
+            pivot_keys=_create_pivots(schema2),
+        )
 
         replica_ids.append(self._create_chaos_table_replica(replicas[3], replication_card_id=card_id, catchup=False))
         self._create_replica_tables(replicas[3:4], replica_ids[3:4], schema=schema1, pivot_keys=_create_pivots(schema1))
