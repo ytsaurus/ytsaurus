@@ -17,7 +17,7 @@ from yt_commands import (
     create_user, create_proxy_role, issue_token, make_ace,
     create_access_control_object_namespace, create_access_control_object,
     with_breakpoint, wait_breakpoint, print_debug, raises_yt_error,
-    read_table, write_table, add_member, Operation, discover_proxies,
+    read_table, write_table, write_file, add_member, Operation, discover_proxies,
     start_transaction,
 )
 
@@ -763,6 +763,99 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
         # Total memory limit for data role was not reached.
         self._execute_command("GET", "get", {"path": "//@"})
         self._execute_command("GET", "read_table", {"path": "//tmp/test"})
+
+    def _wait_heavy_request_memory_reservation_config(self, proxy_name, enable):
+        def config_updated():
+            config = get(
+                f"//sys/http_proxies/{proxy_name}/orchid/dynamic_config_manager/effective_config")
+            reservation_config = config.get("api", {}).get("heavy_request_memory_reservation", {})
+            return reservation_config.get("enable") == enable
+
+        wait(config_updated)
+
+    def _start_streaming_read_file(self, path):
+        headers = {
+            "X-YT-Parameters": yson.dumps({"path": path}),
+            "X-YT-Header-Format": "<format=text>yson",
+            "X-YT-User-Name": "root",
+        }
+        rsp = requests.get(
+            f"{self._get_proxy_address()}/api/v4/read_file",
+            headers=headers,
+            stream=True,
+        )
+        try_parse_yt_error_headers(rsp)
+        return rsp
+
+    @authors("achains")
+    @pytest.mark.timeout(180)
+    def test_heavy_request_memory_reservation(self):
+        proxy_name = ls("//sys/http_proxies")[0]
+        reservation = 300 * 10**6
+
+        create("file", "//tmp/file")
+        write_file("//tmp/file", b"x" * (128 * 2**20))
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_memory_limit_ratios": {
+                    "heavy_request_memory_limit_ratio": 0.5,
+                },
+                "heavy_request_memory_reservation": {
+                    "enable": True,
+                    "commands": {"read_file": {"reservation": reservation}},
+                },
+            },
+        })
+        self._wait_heavy_request_memory_reservation_config(proxy_name, True)
+
+        profiler = profiler_factory().at_http_proxy(
+            proxy_name,
+            fixed_tags={"category": "heavy_request"},
+        )
+        heavy_request_memory_usage = profiler.gauge("http_proxy/memory_usage/used")
+
+        # The body is not consumed, so the proxy blocks on the socket and keeps the reservation.
+        blocked_rsp = self._start_streaming_read_file("//tmp/file")
+        wait(lambda: heavy_request_memory_usage.get(default=0) >= reservation)
+
+        with raises_yt_error("Request is dropped due to high memory pressure") as err:
+            self._execute_command("GET", "read_file", {"path": "//tmp/file"})
+        assert err[0].is_rpc_unavailable()
+        assert err[0].find_matching_error(
+            predicate=lambda error: "heavy_request_memory_reservation" in error.attributes)
+
+        self._execute_command("GET", "get", {"path": "//@"})
+
+        blocked_rsp.close()
+        wait(lambda: heavy_request_memory_usage.get(default=0) < reservation)
+
+        self._execute_command("GET", "read_file", {"path": "//tmp/file"})
+
+    @authors("achains")
+    @pytest.mark.timeout(180)
+    def test_heavy_request_memory_reservation_disabled(self):
+        proxy_name = ls("//sys/http_proxies")[0]
+
+        create("file", "//tmp/file")
+        write_file("//tmp/file", b"x" * (128 * 2**20))
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_memory_limit_ratios": {
+                    "heavy_request_memory_limit_ratio": 0.5,
+                },
+                "heavy_request_memory_reservation": {
+                    "enable": False,
+                    "commands": {"read_file": {"reservation": 300 * 10**6}},
+                },
+            },
+        })
+        self._wait_heavy_request_memory_reservation_config(proxy_name, False)
+
+        blocked_rsp = self._start_streaming_read_file("//tmp/file")
+        self._execute_command("GET", "read_file", {"path": "//tmp/file"})
+        blocked_rsp.close()
 
 
 class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):

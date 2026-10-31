@@ -214,6 +214,39 @@ struct TMemoryLimitsConfig
 
 DEFINE_REFCOUNTED_TYPE(TMemoryLimitsConfig)
 
+struct TCommandMemoryReservationConfig
+    : public NYTree::TYsonStruct
+{
+    //! Explicit reservation; overrides the estimate.
+    std::optional<i64> Reservation;
+
+    REGISTER_YSON_STRUCT(TCommandMemoryReservationConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCommandMemoryReservationConfig)
+
+struct THeavyRequestMemoryReservationConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+
+    //! Added to every reservation; covers response compression and transport buffers.
+    i64 Overhead;
+
+    //! Reservation for heavy commands without a known estimate.
+    i64 DefaultReservation;
+
+    THashMap<std::string, TCommandMemoryReservationConfigPtr> Commands;
+
+    REGISTER_YSON_STRUCT(THeavyRequestMemoryReservationConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(THeavyRequestMemoryReservationConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TApiConfig
@@ -256,6 +289,8 @@ struct TApiDynamicConfig
 
     TMemoryLimitRatiosConfigPtr DefaultMemoryLimitRatios;
     THashMap<std::string, TMemoryLimitRatiosConfigPtr> RoleToMemoryLimitRatios;
+
+    THeavyRequestMemoryReservationConfigPtr HeavyRequestMemoryReservation;
 
     // COMPAT(ignat): drop the option after 25.2.
     bool UseCompressionThreadPool;

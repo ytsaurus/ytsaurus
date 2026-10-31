@@ -5,6 +5,7 @@
 #include "config.h"
 #include "context.h"
 #include "dynamic_config_manager.h"
+#include "helpers.h"
 #include "private.h"
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
@@ -46,6 +47,7 @@ TSemaphoreGuard::~TSemaphoreGuard()
 
 TApi::TApi(TBootstrap* bootstrap)
     : Config_(bootstrap->GetConfig()->Api)
+    , DriverConfig_(bootstrap->GetConfig()->Driver)
     , DynamicConfig_(New<TApiDynamicConfig>())
     , DriverV3_(bootstrap->GetDriverV3())
     , DriverV4_(bootstrap->GetDriverV4())
@@ -182,6 +184,29 @@ void TApi::ReleaseSemaphore(const TUserCommandPair& key)
     counters->ConcurrencySemaphore.Update(--counters->LocalSemaphore);
 }
 
+i64 TApi::GetHeavyRequestMemoryReservation(
+    const NDriver::TCommandDescriptor& descriptor,
+    const IMapNodePtr& parameters) const
+{
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    const auto& config = dynamicConfig->HeavyRequestMemoryReservation;
+    if (!config->Enable) {
+        return 0;
+    }
+    return ResolveHeavyRequestMemoryReservation(descriptor, parameters, DriverConfig_, config);
+}
+
+void TApi::UpdateHeavyRequestReservedMemory(const TUserCommandPair& key, i64 delta)
+{
+    auto* counters = GetProfilingCounters(key);
+    counters->HeavyRequestReservedMemoryGauge.Update(counters->HeavyRequestReservedMemory += delta);
+}
+
+void TApi::IncrementHeavyRequestReservationRejectCount(const TUserCommandPair& key)
+{
+    GetProfilingCounters(key)->HeavyRequestReservationRejectCount.Increment();
+}
+
 TApi::TProfilingCounters* TApi::GetProfilingCounters(const TUserCommandPair& key)
 {
     return Counters_.FindOrInsert(key, [&, this] {
@@ -194,6 +219,8 @@ TApi::TProfilingCounters* TApi::GetProfilingCounters(const TUserCommandPair& key
         counters->RequestCount = profiler.Counter("/request_count");
         counters->RequestWallTime = profiler.Timer("/request_duration");
         counters->CumulativeRequestCpuTime = profiler.TimeCounter("/cumulative_request_cpu_time");
+        counters->HeavyRequestReservedMemoryGauge = profiler.Gauge("/heavy_request_reserved_memory");
+        counters->HeavyRequestReservationRejectCount = profiler.Counter("/heavy_request_reservation_reject_count");
         return counters;
     }).first->get();
 }

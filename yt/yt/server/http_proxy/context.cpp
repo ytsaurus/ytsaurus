@@ -87,6 +87,11 @@ TContext::TContext(
     DriverRequest_.Id = Request_->GetRequestId();
 }
 
+TContext::~TContext()
+{
+    ReleaseHeavyRequestMemory();
+}
+
 bool TContext::TryPrepare()
 {
     ProcessDebugHeaders(Request_, Response_, Api_->GetCoordinator());
@@ -832,6 +837,51 @@ void TContext::SetupMemoryUsageTracker()
     }
 }
 
+void TContext::ReserveHeavyRequestMemory()
+{
+    if (!Descriptor_->Heavy || !Api_->GetMemoryUsageTracker()) {
+        return;
+    }
+
+    auto reservation = Api_->GetHeavyRequestMemoryReservation(*Descriptor_, DriverRequest_.Parameters);
+    if (reservation == 0) {
+        return;
+    }
+
+    const auto& user = DriverRequest_.AuthenticatedUser;
+    auto tracker = WithCategory(Api_->GetMemoryUsageTracker(), EMemoryCategory::HeavyRequest, user);
+    auto guardOrError = TMemoryUsageTrackerGuard::TryAcquire(tracker, reservation);
+    if (!guardOrError.IsOK()) {
+        Api_->IncrementHeavyRequestReservationRejectCount({user, DriverRequest_.CommandName});
+        THROW_ERROR_EXCEPTION(
+            NRpc::EErrorCode::Unavailable,
+            "Request is dropped due to high memory pressure")
+            .With(guardOrError)
+            .With("heavy_request_memory_reservation", reservation)
+            .With("heavy_request_memory_limit", tracker->GetLimit())
+            .With("heavy_request_memory_usage", tracker->GetUsed());
+    }
+
+    HeavyRequestMemoryGuard_ = std::move(guardOrError.Value());
+    Api_->UpdateHeavyRequestReservedMemory({user, DriverRequest_.CommandName}, reservation);
+
+    YT_TLOG_DEBUG("Heavy request memory reserved")
+        .With("Reservation", reservation);
+}
+
+void TContext::ReleaseHeavyRequestMemory()
+{
+    if (!HeavyRequestMemoryGuard_) {
+        return;
+    }
+
+    auto reservation = HeavyRequestMemoryGuard_.GetSize();
+    HeavyRequestMemoryGuard_.Release();
+    Api_->UpdateHeavyRequestReservedMemory(
+        {DriverRequest_.AuthenticatedUser, DriverRequest_.CommandName},
+        -reservation);
+}
+
 void TContext::AddHeaders()
 {
     auto headers = Response_->GetHeaders();
@@ -993,6 +1043,8 @@ void TContext::Run()
                     userPoolTag));
         }
     }
+
+    ReserveHeavyRequestMemory();
 
     if (*ApiVersion_ == 4) {
         WaitFor(Api_->GetDriverV4()->Execute(driverRequest))
