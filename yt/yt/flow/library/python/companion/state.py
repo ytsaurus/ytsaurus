@@ -1,6 +1,7 @@
 """State classes: State, ExternalState, StatesHolder."""
 
 from dataclasses import dataclass, field
+from enum import IntEnum
 from typing import Any, Callable, Dict, Generic, Optional, TypeVar
 
 from .row import Payload, TableSchema
@@ -54,6 +55,24 @@ class State:
         return True
 
 
+class StateFormat(IntEnum):
+    """External-state payload formats defined by the companion protocol."""
+
+    SIMPLE_ROW = 0
+    PROTO = 1
+
+
+@dataclass
+class ProtoExternalState:
+    """An external protobuf snapshot; empty bytes are a present value."""
+
+    reset: bool = False
+    state: Optional[bytes] = None
+
+    def sync_bytes(self) -> bool:
+        return False
+
+
 @dataclass
 class ExternalState:
     """Wrapper for external state backed by Payload."""
@@ -70,7 +89,7 @@ class ExternalState:
 EXTERNAL_STATE_RESET = ExternalState(reset=True, state=None)
 
 
-T = TypeVar("T", State, ExternalState)
+T = TypeVar("T", State, ExternalState, ProtoExternalState)
 
 
 class StatesHolder(Generic[T]):
@@ -81,10 +100,15 @@ class StatesHolder(Generic[T]):
         name: str,
         key_schema: Optional[TableSchema] = None,
         state_schema: Optional[TableSchema] = None,
+        *,
+        state_format: StateFormat = StateFormat.SIMPLE_ROW,
+        proto_type: Optional[str] = None,
     ):
         self.name = name
         self.key_schema = key_schema
         self.state_schema = state_schema
+        self.state_format = StateFormat(state_format)
+        self.proto_type = proto_type
         self._states: Dict[tuple, tuple[UnversionedRow, T]] = {}
         # Entries changed during the current epoch: via set() (writes from state accessors), or
         # in place through a mutable value, as found by collect_modified().

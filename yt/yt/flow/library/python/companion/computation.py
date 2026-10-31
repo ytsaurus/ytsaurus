@@ -405,6 +405,7 @@ class Computation:
         return {
             "computation_id": self.computation_id,
             "computation_type": self.computation_type,
+            "supported_state_formats": ["simple_row", "proto"],
         }
 
 

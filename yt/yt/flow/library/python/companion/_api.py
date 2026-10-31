@@ -2,7 +2,7 @@
 
 import os
 import sys
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from .computation import (
     BatchFunction,
@@ -69,19 +69,34 @@ class Pipeline:
         """Access underlying PipelineContext for advanced use."""
         return self._context
 
-    def computation(self, computation_id: str, *, source: bool = False):
+    def computation(
+        self,
+        computation_id: str,
+        *,
+        source: bool = False,
+        proto_external_states: Optional[Dict[str, type]] = None,
+        joined_proto_external_states: Optional[Dict[str, type]] = None,
+    ):
         """Decorator that registers a function or class as a computation.
 
         Args:
             computation_id: Unique identifier for the computation.
             source: If True, creates a SourceComputation.
+            proto_external_states: Profile manager names mapped to protobuf message classes.
+            joined_proto_external_states: Profile joiner names mapped to protobuf message classes.
 
         Returns:
             Decorator that registers and returns the original callable.
         """
 
         def decorator(fn):
-            self.add(computation_id, fn, source=source)
+            self.add(
+                computation_id,
+                fn,
+                source=source,
+                proto_external_states=proto_external_states,
+                joined_proto_external_states=joined_proto_external_states,
+            )
             return fn
 
         return decorator
@@ -108,13 +123,23 @@ class Pipeline:
             raise TypeError(f"Expected a FlowResource subclass or a name string, got {resource!r}")
         self._context.register_resource_class(resource_class_name(resource), factory or resource)
 
-    def add(self, computation_id: str, fn: Any, *, source: bool = False):
+    def add(
+        self,
+        computation_id: str,
+        fn: Any,
+        *,
+        source: bool = False,
+        proto_external_states: Optional[Dict[str, type]] = None,
+        joined_proto_external_states: Optional[Dict[str, type]] = None,
+    ):
         """Imperative registration of a computation.
 
         Args:
             computation_id: Unique identifier for the computation.
             fn: A callable, RowFunction, BatchFunction, or class with on_message/on_messages.
             source: If True, creates a SourceComputation.
+            proto_external_states: Profile manager names mapped to protobuf message classes.
+            joined_proto_external_states: Profile joiner names mapped to protobuf message classes.
         """
         process_fn, function_type = _classify_callable(fn)
 
@@ -130,7 +155,11 @@ class Pipeline:
                 process_function=process_fn,
                 function_type=function_type,
             )
-        self._context.register_computation(comp)
+        self._context.register_computation(
+            comp,
+            proto_external_states=proto_external_states,
+            joined_proto_external_states=joined_proto_external_states,
+        )
 
     def run(self, *, port: Optional[int] = None):
         """Entry point with two modes, selected by ``YT_FLOW_COMPANION_CONFIG``:
@@ -143,7 +172,11 @@ class Pipeline:
         if "YT_FLOW_COMPANION_CONFIG" not in os.environ:
             from yt.yt.flow.library.python.runner import launch, parse_launch_args
 
-            launch(*parse_launch_args(sys.argv))
+            launch(
+                *parse_launch_args(sys.argv),
+                proto_external_states=self._context.get_proto_external_states(),
+                joined_proto_external_states=self._context.get_joined_proto_external_states(),
+            )
             return
         self._execution = GrpcServerExecution(self._context, port=port)
         self._execution.start()
