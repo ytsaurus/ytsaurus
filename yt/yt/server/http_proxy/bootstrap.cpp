@@ -113,6 +113,21 @@ constinit const auto Logger = HttpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+IThreadPoolPtr CreateHeavyCommandThreadPool(const TProxyBootstrapConfigPtr& config)
+{
+    if (!config->HeavyCommandThreadPoolSize) {
+        return nullptr;
+    }
+
+    return CreateThreadPool(*config->HeavyCommandThreadPoolSize, "HeavyCommand");
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBootstrap::TBootstrap(
     TProxyBootstrapConfigPtr config,
     INodePtr configNode,
@@ -123,6 +138,7 @@ TBootstrap::TBootstrap(
     , Control_(New<TActionQueue>("Control"))
     , Poller_(CreateThreadPoolPoller(Config_->ThreadCount, "Poller"))
     , Acceptor_(CreateThreadPoolPoller(1, "Acceptor"))
+    , HeavyCommandThreadPool_(CreateHeavyCommandThreadPool(Config_))
 {
     // TODO(gepardo): Pass native authenticator here.
     if (Config_->AbortOnUnrecognizedOptions) {
@@ -260,19 +276,28 @@ void TBootstrap::DoInitialize()
         GetControlInvoker());
     Connection_->SetSignatureGenerator(SignatureComponents_->GetSignatureGenerator());
 
+    IInvokerPtr heavyCommandInvoker;
+    if (HeavyCommandThreadPool_) {
+        heavyCommandInvoker = HeavyCommandThreadPool_->GetInvoker();
+        YT_TLOG_INFO("Heavy command thread pool enabled")
+            .With("ThreadCount", HeavyCommandThreadPool_->GetThreadCount());
+    }
+
     auto driverV3Config = CloneYsonStruct(Config_->Driver);
     driverV3Config->ApiVersion = ApiVersion3;
     DriverV3_ = CreateDriver(
         Connection_,
         driverV3Config,
-        SignatureComponents_->GetSignatureValidator());
+        SignatureComponents_->GetSignatureValidator(),
+        heavyCommandInvoker);
 
     auto driverV4Config = CloneYsonStruct(Config_->Driver);
     driverV4Config->ApiVersion = ApiVersion4;
     DriverV4_ = CreateDriver(
         Connection_,
         driverV4Config,
-        SignatureComponents_->GetSignatureValidator());
+        SignatureComponents_->GetSignatureValidator(),
+        heavyCommandInvoker);
 
     AuthenticationManager_ = CreateAuthenticationManager(
         Config_->Auth,
@@ -465,6 +490,14 @@ void TBootstrap::OnDynamicConfigChanged(
     }
 
     Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(newConfig->MasterCellDirectorySynchronizer);
+
+    if (HeavyCommandThreadPool_) {
+        HeavyCommandThreadPool_->SetThreadCount(
+            newConfig->HeavyCommandThreadPoolSize.value_or(*Config_->HeavyCommandThreadPoolSize));
+    } else if (newConfig->HeavyCommandThreadPoolSize) {
+        YT_TLOG_WARNING("Heavy command thread pool size from dynamic config ignored since the pool is not enabled in static config")
+            .With("ThreadCount", *newConfig->HeavyCommandThreadPoolSize);
+    }
 
     AuthenticationManager_->Reconfigure(newConfig->Auth);
     if (TvmOnlyAuthenticationManager_) {
