@@ -1169,7 +1169,14 @@ class TestChaos(ChaosTestBase):
 
         # Duplicated paths in replication card are prohibited.
         with pytest.raises(YtResponseError):
-            alter_table_replica(replica_ids[1], replica_path=replicas[0]["replica_path"])
+            alter_table_replica(
+                replica_ids[1],
+                mode="async",
+                enabled=False,
+                replica_path=replicas[0]["replica_path"])
+
+        assert get(f"#{card_id}/@replicas/{replica_ids[1]}/mode") == "sync"
+        assert get(f"#{card_id}/@replicas/{replica_ids[1]}/state") == "enabled"
 
         # Moving queue replicas.
         self._sync_alter_replica(card_id, replicas, replica_ids, 3, mode="sync")
