@@ -348,6 +348,10 @@ struct TProxyBootstrapConfig
     int Port;
     int ThreadCount;
 
+    //! If set, heavy driver commands (see NDriver::TCommandDescriptor::Heavy) are executed
+    //! in a dedicated thread pool of this size instead of the cluster connection thread pool.
+    std::optional<int> HeavyCommandThreadPoolSize;
+
     NHttp::TServerConfigPtr HttpServer;
     NHttps::TServerConfigPtr HttpsServer;
     NHttp::TServerConfigPtr TvmOnlyHttpServer;
@@ -457,6 +461,10 @@ struct TProxyDynamicConfig
     TNodeMemoryTrackerConfigPtr MemoryTracker;
 
     NAuth::TAuthenticationManagerDynamicConfigPtr Auth;
+
+    //! Overrides the size of the heavy command thread pool.
+    //! Has no effect unless the pool is enabled in the static config.
+    std::optional<int> HeavyCommandThreadPoolSize;
 
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 

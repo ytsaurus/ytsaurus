@@ -2494,6 +2494,103 @@ class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
         wait(lambda: frozenset(ls(owner_path)) != static_keys)
 
 
+class TestHttpProxyHeavyCommandThreadPool(HttpProxyTestBase):
+    NUM_HTTP_PROXIES = 1
+
+    HEAVY_COMMAND_THREAD_POOL_SIZE = 2
+    HEAVY_COMMAND_THREAD_NAME = "HeavyCommand"
+    ENABLE_RESOURCE_TRACKING = True
+
+    DELTA_HTTP_PROXY_CONFIG = deep_update(HttpProxyTestBase.DELTA_HTTP_PROXY_CONFIG, {
+        "heavy_command_thread_pool_size": HEAVY_COMMAND_THREAD_POOL_SIZE,
+    })
+
+    @classmethod
+    def setup_class(cls):
+        super(TestHttpProxyHeavyCommandThreadPool, cls).setup_class()
+        # Distributed write needs signatures, so wait until the proxy publishes its keys.
+        owner = ls("//sys/http_proxies")[0]
+        wait(lambda: exists(f"{TestHttpProxySignaturesBase.OWNERS_PATH}/{owner}"))
+
+    def teardown_method(self, method):
+        set("//sys/http_proxies/@config", {})
+        super(TestHttpProxyHeavyCommandThreadPool, self).teardown_method(method)
+
+    def _heavy_pool_profiler(self):
+        proxy = ls("//sys/http_proxies")[0]
+        return profiler_factory().at_http_proxy(
+            proxy,
+            fixed_tags={"thread": self.HEAVY_COMMAND_THREAD_NAME})
+
+    @authors("achains")
+    def test_heavy_commands_run_in_dedicated_pool(self):
+        table_path = "//tmp/heavy_command_pool_table"
+        create("table", table_path, attributes={"schema": [
+            {"name": "key", "type": "int64"},
+            {"name": "values", "type_v3": {"type_name": "list", "item": "uint32"}},
+        ]})
+
+        dequeued = self._heavy_pool_profiler().counter("action_queue/dequeued")
+
+        # Light commands stay on the connection thread pool.
+        for _ in range(5):
+            self._execute_command("GET", "get", {"path": table_path + "/@row_count"})
+            self._execute_command("GET", "exists", {"path": table_path})
+        assert dequeued.get_delta() == 0
+
+        # Distributed write: session commands are light, fragments are heavy.
+        rsp = self._execute_command(
+            "POST",
+            "start_distributed_write_session",
+            {"path": table_path, "cookie_count": 2})
+        session_with_cookies = yson.loads(rsp.content)
+
+        rows = [
+            {"key": i, "values": [yson.YsonUint64(i), yson.YsonUint64(i + 1)]}
+            for i in range(100)
+        ]
+        results = []
+        for cookie in session_with_cookies["cookies"]:
+            rsp = self._execute_command(
+                "PUT",
+                "write_table_fragment",
+                {"cookie": cookie},
+                data=yson.dumps(rows, yson_type="list_fragment"))
+            results.append(yson.loads(rsp.content))
+
+        self._execute_command(
+            "POST",
+            "finish_distributed_write_session",
+            {"session": session_with_cookies["session"], "results": results})
+
+        assert read_table(table_path) == rows * 2
+        wait(lambda: dequeued.get_delta() > 0)
+
+        # A plain heavy command goes to the same pool.
+        dequeued = self._heavy_pool_profiler().counter("action_queue/dequeued")
+        self._execute_command("GET", "read_table", {"path": table_path})
+        wait(lambda: dequeued.get_delta() > 0)
+
+    @authors("achains")
+    def test_heavy_command_thread_pool_dynamic_config(self):
+        # Thread pools spawn their threads lazily, so run a heavy command first.
+        table_path = "//tmp/heavy_command_pool_warmup_table"
+        create("table", table_path)
+        self._execute_command("GET", "read_table", {"path": table_path})
+
+        thread_count = self._heavy_pool_profiler().gauge("resource_tracker/thread_count")
+        wait(lambda: thread_count.get() == self.HEAVY_COMMAND_THREAD_POOL_SIZE)
+
+        set("//sys/http_proxies/@config", {
+            "heavy_command_thread_pool_size": self.HEAVY_COMMAND_THREAD_POOL_SIZE + 1,
+        })
+        wait(lambda: thread_count.get() == self.HEAVY_COMMAND_THREAD_POOL_SIZE + 1)
+
+        # Dropping the override returns the pool to the static size.
+        set("//sys/http_proxies/@config", {})
+        wait(lambda: thread_count.get() == self.HEAVY_COMMAND_THREAD_POOL_SIZE)
+
+
 class TestHttpsProxy(HttpProxyTestBase):
     ENABLE_TLS = True
 
