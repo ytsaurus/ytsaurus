@@ -78,9 +78,7 @@ class TestSchedulerRemoteCopyCommandsBase(YTEnvSetup):
         },
     }
 
-    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
-        "21": {"roles": ["chunk_host", "cypress_node_host"]},
-    }
+    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {}
 
     @classmethod
     def setup_class(cls):
@@ -1744,6 +1742,10 @@ class TestSchedulerRemoteCopyCommandsMulticell(TestSchedulerRemoteCopyCommands):
         "12": {"roles": ["chunk_host"]},
     }
 
+    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
+        "21": {"roles": ["chunk_host", "cypress_node_host"]},
+    }
+
 
 ##################################################################
 
@@ -2629,6 +2631,10 @@ class TestSchedulerRemoteCopyDynamicTablesMulticell(TestSchedulerRemoteCopyDynam
         "12": {"roles": ["chunk_host"]},
     }
 
+    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
+        "21": {"roles": ["chunk_host", "cypress_node_host"]},
+    }
+
     @authors("ifsmirnov")
     def test_remote_copy_from_primary_cell_to_secondary(self):
         sync_create_cells(1)
@@ -2664,6 +2670,10 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunksMulticell(TestSchedulerRemote
     MASTER_CELL_DESCRIPTORS = {
         "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host"]},
+    }
+
+    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
+        "21": {"roles": ["chunk_host", "cypress_node_host"]},
     }
 
 

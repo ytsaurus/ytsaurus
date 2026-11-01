@@ -1468,7 +1468,6 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
 
     MASTER_CELL_DESCRIPTORS = {
         "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
     }
 
     @classmethod

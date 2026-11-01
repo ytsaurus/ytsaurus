@@ -5822,7 +5822,6 @@ class TestCypressSequoia(TestCypressMulticell):
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["sequoia_node_host"]},
         "13": {"roles": ["chunk_host"]},
-        "14": {"roles": ["sequoia_node_host"]},
     }
 
     @authors("theevilbird")
