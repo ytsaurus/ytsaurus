@@ -50,6 +50,7 @@ target_proto_messages(yt_proto-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/tracing/proto/tracing_ext.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/bus/proto/bus.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/rpc/proto/rpc.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/yson/proto/list_types.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/yson/proto/protobuf_interop.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/ytree/proto/attributes.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/ytree/proto/request_complexity_limits.proto
@@ -67,6 +68,7 @@ target_sources(yt_proto-yt-core PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/tracing/proto/tracing_ext.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/bus/proto/bus.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/rpc/proto/rpc.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/yson/proto/list_types.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/yson/proto/protobuf_interop.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/ytree/proto/attributes.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/ytree/proto/request_complexity_limits.pb.h
