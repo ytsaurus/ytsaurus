@@ -4,6 +4,7 @@ import itertools
 import json
 import os
 import os.path
+import resource
 import shutil
 import urllib.request
 
@@ -124,6 +125,16 @@ class TestYtflowBase(TestQueueAgentBase):
     YT_PRODUCER_PATH = '//tmp/main_producer'
 
     YTFLOW_WORKER_BIN = yatest.common.binary_path("yt/yql/tools/ytflow_worker/ytflow_worker")
+
+    @classmethod
+    def setup_class(cls):
+        # Effectively disable mlock calls for test runs
+        mlock_limits = resource.getrlimit(resource.RLIMIT_MEMLOCK)
+        try:
+            resource.setrlimit(resource.RLIMIT_MEMLOCK, (0, mlock_limits[1]))
+            super(TestYtflowBase, cls).setup_class()
+        finally:
+            resource.setrlimit(resource.RLIMIT_MEMLOCK, mlock_limits)
 
     def setup_method(self, method):
         super(TestYtflowBase, self).setup_method(method)
