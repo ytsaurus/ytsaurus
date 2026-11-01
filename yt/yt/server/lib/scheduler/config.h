@@ -520,6 +520,9 @@ struct TStrategyTreeConfig
     int MaxEventLogPoolBatchSize;
     int MaxEventLogOperationBatchSize;
 
+    int MaxAccumulatedUsageLogPoolBatchSize;
+    int MaxAccumulatedUsageLogOperationBatchSize;
+
     TDuration AccumulatedResourceDistributionUpdatePeriod;
 
     bool AllowAggressivePreemptionForGangOperations;
