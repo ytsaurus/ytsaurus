@@ -3274,7 +3274,8 @@ class TestQuery(DynamicTablesBase):
         assert expected == actual
 
     @authors("dgolear")
-    def test_hierarchical_join_orm_repeated_view(self):
+    @pytest.mark.parametrize("with_parent_table", [False, True])
+    def test_hierarchical_join_orm_repeated_view(self, with_parent_table):
         sync_create_cells(1)
 
         self._create_table(
@@ -3305,26 +3306,40 @@ class TestQuery(DynamicTablesBase):
         self._create_table(
             "//tmp/books",
             [
+                {
+                    "name": "hash",
+                    "type": "uint64",
+                    "expression": "farm_hash([meta.publisher_id])",
+                    "sort_order": "ascending",
+                },
+                {"name": "meta.publisher_id", "type": "int64", "sort_order": "ascending"},
                 {"name": "meta.id", "type": "int64", "sort_order": "ascending"},
+                {"name": "meta.id2", "type": "int64", "sort_order": "ascending"},
                 {"name": "spec.author_ids", "type": "any"},
                 {"name": "status.related_books_ids", "type": "any"},
                 {"name": "status.related_books_id2s", "type": "any"},
             ],
             [
                 {
+                    "meta.publisher_id": 100,
                     "meta.id": 1,
+                    "meta.id2": 10,
                     "spec.author_ids": ["c", "a", "c", "missing"],
                     "status.related_books_ids": [2, 1, 1],
                     "status.related_books_id2s": [20, 10, 12],
                 },
                 {
-                    "meta.id": 2,
+                    "meta.publisher_id": 100,
+                    "meta.id": 1,
+                    "meta.id2": 20,
                     "spec.author_ids": [],
                     "status.related_books_ids": [],
                     "status.related_books_id2s": [],
                 },
                 {
+                    "meta.publisher_id": 200,
                     "meta.id": 3,
+                    "meta.id2": 10,
                     "spec.author_ids": ["b"],
                     "status.related_books_ids": [1],
                     "status.related_books_id2s": [11],
@@ -3332,9 +3347,39 @@ class TestQuery(DynamicTablesBase):
             ],
         )
 
-        actual = select_rows(
+        book_source = "`//tmp/books` as b"
+        if with_parent_table:
+            self._create_table(
+                "//tmp/books_to_publishers",
+                [
+                    {
+                        "name": "hash",
+                        "type": "uint64",
+                        "expression": "farm_hash([meta.id], [meta.id2])",
+                        "sort_order": "ascending",
+                    },
+                    {"name": "meta.id", "type": "int64", "sort_order": "ascending"},
+                    {"name": "meta.id2", "type": "int64", "sort_order": "ascending"},
+                    {"name": "meta.publisher_id", "type": "int64"},
+                ],
+                [
+                    {"meta.id": 1, "meta.id2": 10, "meta.publisher_id": 100},
+                    {"meta.id": 1, "meta.id2": 20, "meta.publisher_id": 100},
+                    {"meta.id": 3, "meta.id2": 10, "meta.publisher_id": 200},
+                ],
+            )
+            book_source = """
+                `//tmp/books_to_publishers` as p
+                join `//tmp/books` as b
+                    on (p.`meta.publisher_id`, p.`meta.id`, p.`meta.id2`) =
+                        (b.`meta.publisher_id`, b.`meta.id`, b.`meta.id2`)
             """
+
+        actual = select_rows(
+            f"""
             b.`meta.id` as id,
+            b.`meta.id2` as id2,
+            b.`meta.publisher_id` as publisher_id,
             (select a.`spec.name` as author_name
                 from (cast(b.`spec.author_ids` as `List<String>`) as author_id)
                 join `//tmp/authors` as a on author_id = a.`meta.id`
@@ -3349,8 +3394,8 @@ class TestQuery(DynamicTablesBase):
                     cast(b.`status.related_books_id2s` as `List<Int64>`) as related_id2)
                 join `//tmp/editions` as e on (related_id, related_id2) = (e.`meta.id`, e.`meta.id2`)
             ) as related_books
-            from `//tmp/books` as b
-            order by id
+            from {book_source}
+            order by id, id2
             limit 100
             """,
             expression_builder_version=2,
@@ -3360,6 +3405,8 @@ class TestQuery(DynamicTablesBase):
         assert actual == [
             {
                 "id": 1,
+                "id2": 10,
+                "publisher_id": 100,
                 "authors": [{"author_name": "Carol"}, {"author_name": "Alice"}, {"author_name": "Carol"}],
                 "authors_with_missing": [
                     {"left_author_id": "c", "left_author_name": "Carol"},
@@ -3370,13 +3417,17 @@ class TestQuery(DynamicTablesBase):
                 "related_books": [{"edition_name": "E2"}, {"edition_name": "E1"}],
             },
             {
-                "id": 2,
+                "id": 1,
+                "id2": 20,
+                "publisher_id": 100,
                 "authors": [],
                 "authors_with_missing": [],
                 "related_books": [],
             },
             {
                 "id": 3,
+                "id2": 10,
+                "publisher_id": 200,
                 "authors": [{"author_name": "Bob"}],
                 "authors_with_missing": [{"left_author_id": "b", "left_author_name": "Bob"}],
                 "related_books": [{"edition_name": "E1b"}],
