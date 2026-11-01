@@ -4830,7 +4830,6 @@ class TestDynamicTablesHydraPersistenceMigrationPortal(TestDynamicTablesMulticel
         "10": {"roles": ["cypress_node_host"]},
         "11": {"roles": ["cypress_node_host", "chunk_host"]},
         "12": {"roles": ["chunk_host"]},
-        "13": {"roles": ["transaction_coordinator"]},
     }
 
     @classmethod

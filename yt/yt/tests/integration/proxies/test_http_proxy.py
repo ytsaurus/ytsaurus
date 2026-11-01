@@ -82,11 +82,6 @@ class HttpProxyTestBase(YTEnvSetup):
         "cancel_fiber_on_connection_close": True,
     }
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
     USER = "root"
     PATH = "//tmp/test"
     PARAMS = {"path": PATH, "output_format": "yson"}
@@ -1113,6 +1108,10 @@ class TestHttpProxyPoolMetrics(HttpProxyTestBase):
 class TestFullDiscoverVersions(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = False  # Cell balancer crashes in multidaemon mode.
     NUM_SECONDARY_MASTER_CELLS = 2
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
     NUM_SCHEDULERS = 1
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 2
@@ -1183,6 +1182,11 @@ class TestCypressProxyDiscoverVersions(HttpProxyTestBase):
 
     USE_SEQUOIA = True
     NUM_SECONDARY_MASTER_CELLS = 2
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {}
     ENABLE_RPC_PROXY = True
     NUM_SCHEDULERS = 1
     NUM_RPC_PROXIES = 2

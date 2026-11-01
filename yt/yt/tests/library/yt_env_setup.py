@@ -1484,13 +1484,18 @@ class YTEnvSetup(object):
             return
 
         for cell_tag in cls.get_param("MASTER_CELL_DESCRIPTORS", cluster_index):
-            assert cell_tag in cell_tags
+            assert cell_tag in cell_tags, (
+                f"Unknown master cell tag {cell_tag} in MASTER_CELL_DESCRIPTORS "
+                f"(cluster index: {cluster_index}, configured cell tags: {cell_tags})"
+            )
 
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index, cluster_path):
+        cell_tags = [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]
+        cls._validate_cell_descriptors(cluster_index, cell_tags)
         multidaemon_config = configs["multi"]
 
-        for cell_index, cell_tag in enumerate([configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]):
+        for cell_index, cell_tag in enumerate(cell_tags):
             for peer_index, config in enumerate(configs["master"][cell_tag]):
                 cls._apply_effective_config_patch(config, "DELTA_MASTER_CONFIG", cluster_index)
                 if not cls.get_param("USE_SEQUOIA", cluster_index):
