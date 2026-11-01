@@ -332,9 +332,11 @@ public:
     TFuture<void> GetReadyEvent() const override
     {
         auto reader = RowsetReader_.Acquire();
+        // NB: The RPC is owned by the subplan holders, not the reader; this lets sibling
+        // servant errors be collected after the first subquery fails.
         return reader
             ? reader->GetReadyEvent()
-            : QueryResult_.As<void>();
+            : QueryResult_.As<void>().ToUncancelable();
     }
 
     TFuture<TQueryStatistics> GetQueryResult() const
