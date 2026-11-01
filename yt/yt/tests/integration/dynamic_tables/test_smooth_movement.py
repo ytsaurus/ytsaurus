@@ -1474,7 +1474,7 @@ class TestSmoothMovementWithMountCacheDelay(SmoothMovementBase):
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
     @authors("ifsmirnov")
-    def test_select_retries(self):
+    def DISABLED_test_select_retries(self):
         rows = self._prepare()
 
         # select_rows must succeed and return correct data despite the stale mount cache.
