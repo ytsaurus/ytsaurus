@@ -9,13 +9,10 @@ PEERDIR(
     contrib/ydb/library/yql/dq/comp_nodes
     yql/essentials/core/dq_integration/transform
     contrib/ydb/library/yql/dq/transform
-    contrib/ydb/library/yql/dq/runtime
     yql/essentials/providers/common/comp_nodes
-    contrib/ydb/library/yql/providers/dq/common
     yt/yql/providers/dq/runtime
     yt/yql/providers/yt/comp_nodes/dq/llvm16
     yt/yql/providers/yt/mkql_dq
-    yt/yql/providers/yt/codec/codegen
     yt/yql/providers/yt/comp_nodes/llvm16
     yql/essentials/sql/pg
     yql/essentials/parser/pg_wrapper
