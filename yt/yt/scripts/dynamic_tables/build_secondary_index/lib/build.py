@@ -29,6 +29,19 @@ class UnfoldingMapper:
             yield row
 
 
+class Cleanuper:
+    def __init__(self, path, client, remount_path=None):
+        self.path = path
+        self.client = client
+        self.remount_path = remount_path
+
+    def __call__(self):
+        logging.info(f"\n\t\tRemoving {self.path}")
+        self.client.remove(self.path)
+        if self.remount_path is not None:
+            self.client.remount_table(self.remount_path)
+
+
 def unfold_type(column_type):
     if column_type["type_name"] == "optional":
         column_type = column_type["item"]
@@ -161,10 +174,20 @@ def build_secondary_index(
     evaluated_columns_schema=None,
     pool=None,
     pools={},
+    preserve_bijective_correspondence=False,
 ):
     assert not ((kind == UNIQUE) and online), "A correct unique index can only be built strictly"
 
+    on_fail_cleanup_callbacks = []
+    cleanup_callbacks = []
+
     client = yt.YtClient(proxy=proxy, config=get_config_from_env())
+
+    preserve_bijective_correspondence = (
+        preserve_bijective_correspondence
+        and online
+        and client.get_supported_features().get("force_zero_major_timestamp", False)
+    )
 
     attr_list = ["type", "dynamic", "sorted", "schema", "replicas", "upstream_replica_id"]
 
@@ -219,7 +242,6 @@ def build_secondary_index(
     logging.info(f"\n\t\t{index_table} unmounted")
 
     barrier_timestamp = client.generate_timestamp()
-    secondary_index_id = None
 
     try:
         attributes = {
@@ -228,7 +250,10 @@ def build_secondary_index(
             "kind": kind,
         }
 
-        attributes["table_to_index_correspondence"] = "injective" if online else "bijective"
+        if online and not preserve_bijective_correspondence:
+            attributes["table_to_index_correspondence"] = "injective"
+        else:
+            attributes["table_to_index_correspondence"] = "bijective"
         if predicate:
             attributes["predicate"] = predicate
         if kind == UNFOLDING:
@@ -239,6 +264,16 @@ def build_secondary_index(
 
         logging.info("\n\t\tCreating secondary index link")
         secondary_index_id = client.create("secondary_index", attributes=attributes)
+        on_fail_cleanup_callbacks.append(Cleanuper(f"#{secondary_index_id}", client))
+
+        if table_attrs["type"] == "table" and preserve_bijective_correspondence:
+            logging.info(f"\n\t\tSetting {index_table}/@mount_config/force_zero_major_timestamp")
+            client.set(index_table + "/@mount_config/force_zero_major_timestamp", True)
+
+            cleanup_callbacks.append(Cleanuper(
+                index_table + "/@mount_config/force_zero_major_timestamp",
+                client,
+                index_table))
 
         logging.info(f"\n\t\tLink created: {secondary_index_id}. Mounting {index_table} and freezing {table}")
         client.mount_table(table, sync=True)
@@ -272,6 +307,17 @@ def build_secondary_index(
                 replica_client = yt.YtClient(proxy=cluster, config=get_config_from_env())
                 replica_client.freeze_table(replica, sync=True)
                 replica_client.unfreeze_table(replica, sync=True)
+
+                if preserve_bijective_correspondence:
+                    index_replica = info["index_replica_path"]
+                    replica_client.unmount_table(index_replica, sync=True)
+                    logging.info(f"\n\t\tSetting {cluster}:{index_replica}/@mount_config/force_zero_major_timestamp")
+                    replica_client.set(index_replica + "/@mount_config/force_zero_major_timestamp", True)
+
+                    cleanup_callbacks.append(Cleanuper(
+                        index_replica + "/@mount_config/force_zero_major_timestamp",
+                        replica_client,
+                        index_replica))
 
             logging.info("\n\t\tAll replicas caught up")
 
@@ -307,8 +353,19 @@ def build_secondary_index(
         logging.info(f"\n\t\tBuild finished. You may now read from {table} using index")
 
     except Exception:
-        logging.exception("Unexpected error when building secondary index")
-        if secondary_index_id:
-            logging.info(f"\n\t\tRemoving secondary index link {secondary_index_id}")
-            client.remove(f"#{secondary_index_id}")
+        logging.exception("Unexpected error when building secondary index, cleaning up")
+
+        for cb in on_fail_cleanup_callbacks:
+            try:
+                cb()
+            except Exception:
+                pass
+
         raise
+
+    finally:
+        for cb in cleanup_callbacks:
+            try:
+                cb()
+            except Exception:
+                pass
