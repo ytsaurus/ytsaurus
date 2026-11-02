@@ -1319,6 +1319,10 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("environment", &TThis::Environment)
         .Default();
+    // Filled in by the controller agent from the docker image config;
+    // not meant to be set by users.
+    registrar.Parameter("docker_image_environment", &TThis::DockerImageEnvironment)
+        .Default();
     registrar.Parameter("cpu_limit", &TThis::CpuLimit)
         .Default(1)
         .GreaterThanOrEqual(0);

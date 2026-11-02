@@ -252,6 +252,10 @@ message TUserJobSpec
     // Environment strings (K=V format) for starting user process.
     repeated string environment = 5;
 
+    // Environment strings (K=V format) inherited from the docker image config;
+    // passed to the process verbatim, without $(...)-pattern substitution.
+    repeated string docker_image_environment = 92;
+
     // Hard memory limit for user process, in bytes.
     required int64 memory_limit = 7;
 

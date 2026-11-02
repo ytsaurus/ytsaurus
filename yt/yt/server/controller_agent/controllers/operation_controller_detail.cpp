@@ -10752,6 +10752,12 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         }
     };
 
+    // Image environment is passed through a separate channel: the job proxy
+    // applies it verbatim, without $(...)-pattern substitution.
+    for (const auto& [key, value] : jobSpecConfig->DockerImageEnvironment) {
+        jobSpec->add_docker_image_environment(Format("%v=%v", key, value));
+    }
+
     // Global environment.
     fillEnvironment(Config_->Environment);
 
