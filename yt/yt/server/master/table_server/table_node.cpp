@@ -10,6 +10,7 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 
+#include <yt/yt/server/master/tablet_server/config.h>
 #include <yt/yt/server/master/tablet_server/helpers.h>
 #include <yt/yt/server/master/tablet_server/hunk_storage_node.h>
 #include <yt/yt/server/master/tablet_server/mount_config_storage.h>
@@ -758,6 +759,18 @@ void TTableNode::ValidateReshard(
         }
     } else {
         int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
+
+        if (bootstrap->GetConfigManager()->GetConfig()->TabletManager->ForbidMergingTabletsWithCumulativeDataWeight &&
+            newTabletCount < oldTabletCount)
+        {
+            const auto& tableManager = bootstrap->GetTableManager();
+            auto heavySchema = tableManager->GetHeavyTableSchemaSync(GetSchema());
+            if (heavySchema->FindColumn(CumulativeDataWeightColumnName)) {
+                THROW_ERROR_EXCEPTION("Cannot reduce tablet count of an ordered table that has column %Qv",
+                    CumulativeDataWeightColumnName);
+            }
+        }
+
         int createdTabletCount = std::max(0, newTabletCount - oldTabletCount);
         if (!trimmedRowCounts.empty() && ssize(trimmedRowCounts) != createdTabletCount) {
             THROW_ERROR_EXCEPTION("\"trimmed_row_counts\" has invalid size: expected "
