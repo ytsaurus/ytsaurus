@@ -1548,7 +1548,7 @@ private:
                                 .With(error);
                         }
                         TDelayedExecutor::WaitForDuration(pipelineState == EPipelineState::Unknown
-                                ? std::max(Config_->SchedulerPeriod, NoSpecIterationBackoff)
+                                ? std::max(Config_->SchedulerPeriod, Config_->NoSpecIterationBackoff)
                                 : Config_->SchedulerPeriod);
                         schedulerActivityContext.TotalIterations.Increment();
                     }
