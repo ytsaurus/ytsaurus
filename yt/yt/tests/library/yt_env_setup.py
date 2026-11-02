@@ -363,6 +363,7 @@ class YTEnvSetup(object):
     NUM_CHAOS_CACHES = 0
     NUM_SCHEDULERS = 0
     DEFER_SCHEDULER_START = False
+    REMOVE_OPERATIONS_ARCHIVE_ON_TEARDOWN = True
     NUM_CONTROLLER_AGENTS = None
     DEFER_CONTROLLER_AGENT_START = False
     ENABLE_HTTP_PROXY = False
@@ -2823,6 +2824,7 @@ class YTEnvSetup(object):
                 yt_commands.make_batch_request(abort_command, operation_id=operation_id)),
             remove_action=lambda *args, **kwargs: remove_requests.append(
                 yt_commands.make_batch_request("remove", *args, **kwargs)),
+            remove_operations_archive=self.REMOVE_OPERATIONS_ARCHIVE_ON_TEARDOWN,
         )
 
         for response in yt_commands.execute_batch(abort_requests, driver=driver):
