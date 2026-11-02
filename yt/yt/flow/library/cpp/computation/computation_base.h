@@ -57,6 +57,8 @@ namespace NYT::NFlow {
 
 inline constexpr TStringBuf ActiveSourceStateName = "$active_source";
 inline constexpr TStringBuf WatermarkStateName = "$watermark";
+inline constexpr char BufferWarmupStateName[] = "/__buffer_warmup";
+inline constexpr char LegacyBufferWarmupStateName[] = "__buffer_warmup";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -619,6 +621,7 @@ protected:
     IMutableStateProviderPtr BufferWarmupState_;
     TPartitionBufferWarmup LastWrittenWarmup_;
     TInstant LastWarmupRefreshInstant_;
+    bool LegacyBufferWarmupCleanupPending_ = true;
     const bool HasVisitorDrivenJoiners_;
     const std::optional<TStreamId> ActiveSourceStreamId_;
     const ISourcePtr ActiveSource_;

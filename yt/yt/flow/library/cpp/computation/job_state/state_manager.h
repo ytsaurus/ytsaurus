@@ -83,6 +83,7 @@ public:
     bool HasPreloadCallbacks() const;
     TFuture<void> PreloadKeyStates(const IInputContextPtr& inputContext);
     void Sync(IRetryableTransactionPtr transaction);
+    void ErasePartitionState(IRetryableTransactionPtr transaction, const std::string& name);
 
     //! Unregisters state providers and releases external managers and joiners without flushing them.
     void Clear();

@@ -1602,10 +1602,17 @@ void TUniversalComputationBase::Commit(
         }
         RefreshBufferWarmupState();
         StateManager_->Sync(transaction);
+        // Drop this compatibility erase only after old workers and rollback releases
+        // can no longer recreate the legacy key and all persisted legacy rows are gone.
+        // Discarding the old sizing estimates intentionally allows a cold start.
+        if (LegacyBufferWarmupCleanupPending_) {
+            StateManager_->ErasePartitionState(transaction, LegacyBufferWarmupStateName);
+        }
     }
     {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Commit"));
         WaitFor(GetTransactionManager()->CommitTransaction(transaction)).ThrowOnError();
+        LegacyBufferWarmupCleanupPending_ = false;
         committed = true;
     }
     {
@@ -1876,7 +1883,7 @@ void TUniversalComputationBase::InitBufferWarmupState()
     // block the partition, it just means a cold start.
     try {
         BufferWarmupState_ = WaitFor(StateManager_->CreatePartitionMutableStateProvider(
-            "__buffer_warmup",
+            BufferWarmupStateName,
             [] () -> IStateHolderPtr {
                 return New<TYsonSerializableStateHolder<TPartitionBufferWarmup>>();
             }))
