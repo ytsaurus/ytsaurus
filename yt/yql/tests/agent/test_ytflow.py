@@ -93,6 +93,7 @@ def with_ytflow_default_settings(**new_values):
 
 
 class TestYtflowBase(TestQueueAgentBase):
+    REMOVE_OPERATIONS_ARCHIVE_ON_TEARDOWN = False
     CLASS_TEST_LIMIT = 1000
     ENABLE_MULTIDAEMON = True
 
@@ -126,8 +127,16 @@ class TestYtflowBase(TestQueueAgentBase):
     YTFLOW_WORKER_BIN = yatest.common.binary_path("yt/yql/tools/ytflow_worker/ytflow_worker")
 
     @classmethod
+    def get_operations_archive_prepared(cls):
+        return cls._operations_archive_prepared
+
+    @classmethod
+    def set_operations_archive_prepared(cls, value):
+        cls._operations_archive_prepared = value
+
+    @classmethod
     def setup_class(cls):
-        # Effectively disable mlock calls for test runs
+        # Effectively disable mlock calls for test runs.
         mlock_limits = resource.getrlimit(resource.RLIMIT_MEMLOCK)
         try:
             resource.setrlimit(resource.RLIMIT_MEMLOCK, (0, mlock_limits[1]))
@@ -135,9 +144,27 @@ class TestYtflowBase(TestQueueAgentBase):
         finally:
             resource.setrlimit(resource.RLIMIT_MEMLOCK, mlock_limits)
 
+        cls.set_operations_archive_prepared(False)
+
     def setup_method(self, method):
         super(TestYtflowBase, self).setup_method(method)
-        init_operations_archive.create_tables_latest_version(self.Env.create_client())
+
+        if not self.get_operations_archive_prepared():
+            client = self.Env.create_client()
+            init_operations_archive.create_tables_latest_version(client)
+
+            if not self.REMOVE_OPERATIONS_ARCHIVE_ON_TEARDOWN:
+                self.add_cleanup_ignore_object_ids(
+                    client.get("//sys/accounts/operations_archive/@id")
+                )
+
+            self.set_operations_archive_prepared(True)
+
+    def teardown_method(self, method):
+        super(TestYtflowBase, self).teardown_method(method)
+
+        if self.REMOVE_OPERATIONS_ARCHIVE_ON_TEARDOWN:
+            self.set_operations_archive_prepared(False)
 
     @classmethod
     def modify_yql_agent_config(cls, config):
