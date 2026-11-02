@@ -42,6 +42,7 @@ namespace NYT {
 
 constexpr auto CommandPrefix = TStringBuf("ytserver-");
 constexpr auto AllCommand = TStringBuf("ytserver-all");
+constexpr auto ComponentFlag = TStringBuf("--component");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -191,6 +192,17 @@ private:
 int main(int argc, const char** argv)
 {
     using namespace NYT;
+
+    // Handle launching with arbitrary program name (for example in yt operations).
+    // Example: ./cppbinary --component ytserver-sequoia-reconstructor
+    if (argc >= 3 &&
+        !TStringBuf(argv[0]).Contains(CommandPrefix) &&
+        TStringBuf(argv[1]) == ComponentFlag &&
+        TStringBuf(argv[2]).StartsWith(CommandPrefix))
+    {
+        argc -= 2;
+        argv += 2;
+    }
 
     // Shift arguments to handle "program-name" specified in the first argument.
     // Example: ./ytserver-all ytserver-master --help

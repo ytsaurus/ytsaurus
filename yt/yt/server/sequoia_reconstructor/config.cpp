@@ -1,71 +1,102 @@
 #include "config.h"
 
+#include <yt/yt/core/ytree/node.h>
+
 namespace NYT::NSequoiaReconstructor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTableOutputConfig::Register(TRegistrar registrar)
+void TFileOutputConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("file_name", &TThis::FileName)
-        .IsRequired();
+    registrar.Parameter("file_name", &TThis::FileName);
+
     registrar.Parameter("text_yson_output_format", &TThis::TextYsonOutputFormat)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSequoiaReconstructorConfig::Register(TRegistrar registrar)
+void TSingleCellSequoiaReconstructorConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("single_cell_single_run", &TThis::SingleCellSingleRun)
-        .Default(false);
+    registrar.Parameter("master_config_path", &TThis::MasterConfigPath);
 
-    registrar.Parameter("node_id_to_path_output", &TThis::NodeIdToPathOutput)
-        .Default();
+    registrar.Parameter("snapshot_path", &TThis::SnapshotPath);
 
-    registrar.Parameter("node_forks_output", &TThis::NodeForksOutput)
-        .Default();
-
-    registrar.Parameter("node_snapshots_output", &TThis::NodeSnapshotsOutput)
-        .Default();
-
-    registrar.Parameter("child_nodes_output", &TThis::ChildNodesOutput)
-        .Default();
-
-    registrar.Parameter("child_forks_output", &TThis::ChildForksOutput)
-        .Default();
-
-    registrar.Parameter("path_to_node_id_output", &TThis::PathToNodeIdOutput)
-        .Default();
-
-    registrar.Parameter("path_forks_output", &TThis::PathForksOutput)
-        .Default();
-
-    registrar.Parameter("path_to_node_changes_output", &TThis::PathToNodeChangesOutput)
-        .Default();
-
-    registrar.Parameter("acls_output", &TThis::AclsOutput)
-        .Default();
-
-    registrar.Parameter("transactions_output", &TThis::TransactionsOutput)
-        .Default();
-
-    registrar.Parameter("transaction_descendants_output", &TThis::TransactionDescendantsOutput)
-        .Default();
-
-    registrar.Parameter("dependent_transactions_output", &TThis::DependentTransactionsOutput)
-        .Default();
-
-    registrar.Parameter("transaction_replicas_output", &TThis::TransactionReplicasOutput)
-        .Default();
+    registrar.Parameter("tables_output", &TThis::TablesOutput)
+        .NonEmpty();
 
     registrar.Postprocessor([] (TThis* config) {
-        if (config->SingleCellSingleRun) {
-            THROW_ERROR_EXCEPTION_IF(
-                config->PathToNodeChangesOutput,
-                "Single cell single run sequoia reconstructor will not construct \"path_to_node_changes_output\" table. "
-                "This table is used only in separate map and reduce stages.");
+        if (config->TablesOutput.contains(EOutputTableType::PathToNodeChanges)) {
+            THROW_ERROR_EXCEPTION("path_to_node_changes is not supported for single cell sequoia reconstructor");
         }
-        // TODO(grphil): Add verifications for map and reduce configs.
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCellConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cell_tag", &TThis::CellTag);
+    registrar.Parameter("config_ypath", &TThis::ConfigYPath);
+    registrar.Parameter("snapshot_ypath", &TThis::SnapshotYPath);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMulticellMapReduceSequoiaReconstructorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cluster_name", &TThis::ClusterName);
+
+    registrar.Parameter("rpc_connection_config", &TThis::RpcConnectionConfig)
+        .Default();
+
+    registrar.Parameter("pool", &TThis::Pool)
+        .Default();
+
+    registrar.Parameter("cells", &TThis::Cells)
+        .NonEmpty();
+
+    registrar.Parameter("workdir_ypath", &TThis::WorkdirYPath);
+    registrar.Parameter("table_paths", &TThis::TablePaths)
+        .NonEmpty();
+
+    registrar.Parameter("mapper_job_count", &TThis::MapperJobCount)
+        .Default(10)
+        .GreaterThan(0);
+    registrar.Parameter("mapper_cpu_limit", &TThis::MapperCpuLimit)
+        .Default(1.0);
+    registrar.Parameter("mapper_time_limit", &TThis::MapperTimeLimit)
+        .Default(TDuration::Minutes(90));
+    registrar.Parameter("mapper_memory_limit_gb", &TThis::MapperMemoryLimitGb)
+        .Default(3.0);
+    registrar.Parameter("max_failed_job_count", &TThis::MaxFailedJobCount)
+        .Default(1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TYtMapJobConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("master_config_file", &TThis::MasterConfigFile);
+    registrar.Parameter("snapshot_file", &TThis::SnapshotFile);
+
+    registrar.Parameter("job_count", &TThis::JobCount);
+    registrar.Parameter("job_index", &TThis::JobIndex)
+        .GreaterThanOrEqual(0);
+
+    registrar.Parameter("table_indexes", &TThis::TableIndexes)
+        .NonEmpty();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->JobIndex >= config->JobCount) {
+            THROW_ERROR_EXCEPTION("Job index %v must be less than job count %v",
+                config->JobIndex,
+                config->JobCount);
+        }
+
+        if (config->TableIndexes.contains(EOutputTableType::PathForks)) {
+            THROW_ERROR_EXCEPTION("path_forks should not be created in map operation");
+        }
     });
 }
 
