@@ -369,6 +369,12 @@ std::vector<std::pair<std::string, double>> TChunkLocation::BuildFairShareTags(
     auto config = GetRuntimeConfig();
 
     std::vector<std::pair<std::string, double>> tags;
+    auto isSystem = IsSystemWorkloadCategory(category);
+    auto groupWeight = isSystem ? config->FairShareSystemWeight : config->FairShareUserWeight;
+    // Keep Idle at the root so it cannot claim a positive group share.
+    if (groupWeight && category != EWorkloadCategory::Idle) {
+        tags.emplace_back(isSystem ? "system" : "user", *groupWeight);
+    }
     tags.emplace_back(
         ToString(category),
         GetFairShareWorkloadCategoryWeight(category));

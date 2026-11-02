@@ -111,6 +111,9 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
         UpdateYsonStructField(FairShareWorkloadCategoryWeights[category], dynamicConfig.FairShareWorkloadCategoryWeights[category]);
     }
 
+    UpdateYsonStructField(FairShareSystemWeight, dynamicConfig.FairShareSystemWeight);
+    UpdateYsonStructField(FairShareUserWeight, dynamicConfig.FairShareUserWeight);
+
     UpdateYsonStructField(WeightedRequestWeight, dynamicConfig.WeightedRequestWeight);
     UpdateYsonStructField(UnweightedRequestWeight, dynamicConfig.UnweightedRequestWeight);
 
@@ -130,6 +133,13 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("fair_share_workload_category_weights", &TThis::FairShareWorkloadCategoryWeights)
         .Default();
+
+    registrar.Parameter("fair_share_system_weight", &TThis::FairShareSystemWeight)
+        .GreaterThan(0.0)
+        .Optional();
+    registrar.Parameter("fair_share_user_weight", &TThis::FairShareUserWeight)
+        .GreaterThan(0.0)
+        .Optional();
 
     registrar.Parameter("weighted_request_weight", &TThis::WeightedRequestWeight)
         .GreaterThanOrEqual(0.0)
@@ -186,6 +196,13 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("fair_share_workload_category_weights", &TThis::FairShareWorkloadCategoryWeights)
         .Default();
+
+    registrar.Parameter("fair_share_system_weight", &TThis::FairShareSystemWeight)
+        .GreaterThan(0.0)
+        .Optional();
+    registrar.Parameter("fair_share_user_weight", &TThis::FairShareUserWeight)
+        .GreaterThan(0.0)
+        .Optional();
 
     registrar.Parameter("weighted_request_weight", &TThis::WeightedRequestWeight)
         .GreaterThanOrEqual(0.0)
