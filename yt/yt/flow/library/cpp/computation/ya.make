@@ -25,6 +25,10 @@ SRCS(
     job_state/state_manager.cpp
     stores/compact_output_store.cpp
     stores/input_store.cpp
+    stores/paged_timer_store.cpp
+    stores/timer_page_catalogue.cpp
+    stores/timer_page_data.cpp
+    stores/timer_store_conversion.cpp
     stores/timer_store.cpp
     swift_map_computation.cpp
     swift_ordered_source_computation.cpp

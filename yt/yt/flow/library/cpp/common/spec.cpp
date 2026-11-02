@@ -509,6 +509,12 @@ void TComputationSpec::Register(TRegistrar registrar)
     registrar.Parameter("use_compact_input_messages", &TThis::UseCompactInputMessages)
         .Default();
 
+    registrar.Parameter("timer_store_backend", &TThis::TimerStoreBackend)
+        .Default(TComputationSpec::DefaultTimerStoreBackend);
+    registrar.Parameter("timer_page_size", &TThis::TimerPageSize)
+        .Default(NYTree::TSize(TComputationSpec::DefaultTimerPageSize))
+        .GreaterThanOrEqual(NYTree::TSize(TComputationSpec::MinTimerPageSize));
+
     registrar.Postprocessor([] (TThis* computationSpec) {
         if (!computationSpec->SourceStreams.empty() && !computationSpec->WatermarkStrategy->WatermarkGenerator) {
             computationSpec->WatermarkStrategy->WatermarkGenerator = New<TWatermarkGeneratorSpec>();
@@ -603,6 +609,11 @@ THashSet<TStreamId> ComputeKeyVisitorUpstreamStreams(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool ResolveTimerEventOrdering(const TComputationSpecPtr& spec)
+{
+    return spec->WatermarkStrategy->WatermarkPercentile->Value < PreciseWatermarkPercentile;
+}
 
 bool ResolveUseCompactInputMessages(const TComputationSpecPtr& spec)
 {
@@ -879,6 +890,13 @@ void TDynamicTimerStoreSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("table_request", &TThis::TableRequest)
         .DefaultNew();
+
+    registrar.Parameter("timer_write_multiplier", &TThis::TimerWriteMultiplier)
+        .Default(2.0)
+        .CheckThat([] (double value) {
+            THROW_ERROR_EXCEPTION_IF(!std::isfinite(value) || value < 1.0,
+                "Timer write multiplier must be finite and at least one");
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1991,6 +2009,15 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
             TRegistry::Get()->ValidateComputationSpec(computationSpec);
             if (computationSpec->ProcessingFunction == ProcessFunctionGraphFunctionName) {
                 ValidateProcessFunctionGraphComputation(spec, computationId, computationSpec);
+            }
+
+            if (computationSpec->TimerStoreBackend == ETimerStoreBackend::Paged &&
+                !computationSpec->TimerStreams.empty() &&
+                ResolveTimerEventOrdering(computationSpec))
+            {
+                THROW_ERROR_EXCEPTION(
+                    "\"timer_store_backend\" = \"paged\" does not support \"watermark_percentile\" below %v yet",
+                    PreciseWatermarkPercentile);
             }
 
             if (ResolveUseCompactInputMessages(computationSpec) &&

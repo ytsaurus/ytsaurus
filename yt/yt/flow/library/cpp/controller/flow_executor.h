@@ -38,6 +38,9 @@ struct IFlowExecutor
     virtual TSetFlowCoreTargetResult SetFlowCoreTarget(const TSetFlowCoreTargetArg& argument) = 0;
 };
 
+//! Throws if some computation resolves the "paged" timer store backend while it is not enabled.
+void ValidateTimerStoreBackends(const TPipelineSpecPtr& spec, bool enablePagedTimerStore);
+
 IFlowExecutorPtr CreateFlowExecutor(IFlowExecutorRuntimePtr runtime);
 
 IFlowExecutorPtr CreateFlowExecutor(

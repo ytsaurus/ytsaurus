@@ -42,6 +42,7 @@ struct TJobContext
     IInvokerPtr PoolInvoker;
     NObjectClient::TCellTag ClockClusterTag;
     TLoadThroughputThrottlerPtr LoadThroughputThrottler;
+    ITimerPageCataloguePtr TimerPageCatalogue;
     TComputationStreamSpecStoragePtr StreamSpecStorage;
     TJobStateCachePtr JobStateCache;
     TLineageTrackerPtr LineageTracker;

@@ -37,6 +37,11 @@ inline constexpr TStringBuf StatesTableName = "states";
 inline constexpr TStringBuf PartitionStatesTableName = "partition_states";
 inline constexpr TStringBuf KeyVisitorStatesTableName = "key_visitor_states";
 inline constexpr TStringBuf TimersTableName = "timers";
+//! Paged timer store (see library/cpp/computation/stores): timer rows in pages of a family,
+//! page and family metadata, and the commit-ordered journal of metadata changes.
+inline constexpr TStringBuf TimerPagesTableName = "timer_pages";
+inline constexpr TStringBuf TimerPageMetaTableName = "timer_page_meta";
+inline constexpr TStringBuf TimerPageJournalTableName = "timer_page_journal";
 inline constexpr TStringBuf ControllerLogsTableName = "controller_logs";
 inline constexpr TStringBuf LogsDirectoryName = "logs";
 inline constexpr TStringBuf LogsTableName = "logs";

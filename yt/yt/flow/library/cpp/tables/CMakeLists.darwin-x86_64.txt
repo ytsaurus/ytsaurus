@@ -48,6 +48,7 @@ target_sources(library-cpp-tables PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/key_visitor_states.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/partition_states.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/timer_pages.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/timers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/transaction_manager.cpp
 )

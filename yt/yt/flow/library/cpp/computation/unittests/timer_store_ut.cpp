@@ -276,7 +276,8 @@ TEST_F(TTimerStoreTest, InitialCountIsZero)
     auto store = CreateTimerStore(context, MakeDynamicContext());
     WaitFor(store->Init()).ThrowOnError();
 
-    EXPECT_EQ(store->GetCount(), 0);
+    EXPECT_EQ(store->GetInMemoryCount(), 0);
+    EXPECT_TRUE(store->IsEmpty());
 }
 
 TEST_F(TTimerStoreTest, RegisterIncreasesCount)
@@ -290,10 +291,11 @@ TEST_F(TTimerStoreTest, RegisterIncreasesCount)
     auto timer2 = MakeTimer("timer-2", /*triggerTimestamp*/ 200);
 
     store->Register({timer1});
-    EXPECT_EQ(store->GetCount(), 1);
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
+    EXPECT_FALSE(store->IsEmpty());
 
     store->Register({timer2});
-    EXPECT_EQ(store->GetCount(), 2);
+    EXPECT_EQ(store->GetInMemoryCount(), 2);
 }
 
 TEST_F(TTimerStoreTest, UnregisterDecreasesCount)
@@ -307,13 +309,14 @@ TEST_F(TTimerStoreTest, UnregisterDecreasesCount)
     auto timer2 = MakeTimer("timer-2", /*triggerTimestamp*/ 200);
 
     store->Register({timer1, timer2});
-    EXPECT_EQ(store->GetCount(), 2);
+    EXPECT_EQ(store->GetInMemoryCount(), 2);
 
     store->Unregister({New<TInputTimer>(TTimer(timer1))});
-    EXPECT_EQ(store->GetCount(), 1);
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
 
     store->Unregister({New<TInputTimer>(TTimer(timer2))});
-    EXPECT_EQ(store->GetCount(), 0);
+    EXPECT_EQ(store->GetInMemoryCount(), 0);
+    EXPECT_TRUE(store->IsEmpty());
 }
 
 TEST_F(TTimerStoreTest, RegisterAndSyncWritesToTable)
@@ -474,7 +477,7 @@ TEST_F(TTimerStoreTest, RestoredTimerBecomesReadyOnlyAfterTrigger)
 
     auto restoredStore = CreateTimerStore(context, MakeDynamicContext());
     WaitFor(restoredStore->Init()).ThrowOnError();
-    ASSERT_EQ(restoredStore->GetCount(), 1);
+    ASSERT_EQ(restoredStore->GetInMemoryCount(), 1);
     auto inflight = restoredStore->BuildInflight().at(TimerStreamId);
     EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 0);
 
@@ -648,7 +651,7 @@ TEST_F(TTimerStoreTest, DeduplicateEqualTimestampsKeepsLowestEventTimestamp)
     store->Register({timerLate, timerEarly});
 
     // Only one timer must remain after deduplication.
-    EXPECT_EQ(store->GetCount(), 1);
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
     EXPECT_EQ(ReadCounter(registry, "yt/test/timer_streams/registered_count"), 2);
     EXPECT_EQ(ReadCounter(registry, "yt/test/timer_streams/offered_count"), 0);
     EXPECT_EQ(ReadCounter(registry, "yt/test/timer_streams/unregistered_count"), 0);
@@ -681,7 +684,7 @@ TEST_F(TTimerStoreTest, UnregisterTriggeredTimerThenGetNextBatch)
 
     // Unregister the already-triggered timer.
     store->Unregister({New<TInputTimer>(TTimer(timer))});
-    EXPECT_EQ(store->GetCount(), 0);
+    EXPECT_EQ(store->GetInMemoryCount(), 0);
 
     // GetNextBatch must not crash and must return empty.
     auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1 << 20);
@@ -711,7 +714,7 @@ TEST_F(TTimerStoreTest, DeduplicateTriggeredTimerThenGetNextBatch)
         /*systemTimestamp*/ 100,
         /*eventTimestamp*/ 20);
     store->Register({timerOld});
-    EXPECT_EQ(store->GetCount(), 1);
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
 
     // Step 2: Advance watermark — T1 moves to TriggeredTimers_.
     SetWatermark(store, /*timestamp*/ 100);
@@ -726,7 +729,7 @@ TEST_F(TTimerStoreTest, DeduplicateTriggeredTimerThenGetNextBatch)
     store->Register({timerNew});
 
     // After deduplication, only one timer must remain.
-    EXPECT_EQ(store->GetCount(), 1);
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
 
     // Step 4: Re-trigger watermark so timerNew moves from SortedTimers_ to TriggeredTimers_.
     // (TriggerTimers() is only called inside UpdateWatermarkState.)
@@ -772,7 +775,7 @@ TEST_F(TTimerStoreTest, GetNextBatchThenRegisterDuplicateAndUnregisterOriginal)
     store->Unregister({New<TInputTimer>(TTimer(timer1))});
 
     // Timer2 must survive.
-    EXPECT_EQ(store->GetCount(), 1);
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
 
     // Step 5: Timer2 is already triggered (watermark=100 >= triggerTimestamp=50),
     // so it should appear in the next GetNextBatch.
@@ -810,7 +813,7 @@ TEST_F(TTimerStoreTest, ExtractedTimerIsNotDeduplicated)
         /*systemTimestamp*/ 100,
         /*eventTimestamp*/ 20);
     store->Register({timer1});
-    EXPECT_EQ(store->GetCount(), 1);
+    EXPECT_EQ(store->GetInMemoryCount(), 1);
 
     // Step 2: Trigger and extract timer1 via GetNextBatch.
     SetWatermark(store, /*timestamp*/ 100);
@@ -829,7 +832,7 @@ TEST_F(TTimerStoreTest, ExtractedTimerIsNotDeduplicated)
     store->Register({timer2});
 
     // Step 4: Both timers must survive — timer1 was already extracted, timer2 is new.
-    EXPECT_EQ(store->GetCount(), 2);
+    EXPECT_EQ(store->GetInMemoryCount(), 2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

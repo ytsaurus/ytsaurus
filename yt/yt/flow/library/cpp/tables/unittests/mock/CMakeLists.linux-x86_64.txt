@@ -41,6 +41,7 @@ target_sources(tables-unittests-mock PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/unittests/mock/key_states.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/unittests/mock/key_visitor_states.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/unittests/mock/partition_states.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/unittests/mock/timer_pages.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/tables/unittests/mock/timers.cpp
 )
 

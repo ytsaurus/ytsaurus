@@ -15,4 +15,5 @@
 add_subdirectory(test_input_messages)
 add_subdirectory(test_key_states)
 add_subdirectory(test_partition_states)
+add_subdirectory(test_timer_pages)
 add_subdirectory(test_transaction_manager)

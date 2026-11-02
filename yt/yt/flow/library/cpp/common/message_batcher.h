@@ -11,6 +11,7 @@
 #include <library/cpp/containers/absl/flat_hash_set.h>
 
 #include <deque>
+#include <type_traits>
 
 namespace NYT::NFlow {
 
@@ -58,13 +59,14 @@ DEFINE_REFCOUNTED_TYPE(TMessageBatcher);
 
 //////////////////////////////////////////////////////////////////////////////
 
+// Stops before the first priority rejected by |canExtract|.
 template <class TSet, class TPriority, class TMessageAccessor, class TOutputCallback>
 void MergingExtractBatch(
     std::vector<std::pair<TSet*, std::function<TPriority()>>> inputQueues,
     TMessageAccessor&& messageAccessor,
     TMessageBatchLimiter& batchLimiter, // Gets messageAccessor(queueElement).
-    TOutputCallback&& outputCallback    // Gets queueElement.
-);
+    TOutputCallback&& outputCallback,   // Gets queueElement.
+    const std::function<bool(const std::type_identity_t<TPriority>&)>& canExtract = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
