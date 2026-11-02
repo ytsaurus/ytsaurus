@@ -20,6 +20,7 @@ struct IJobEnvironment
 {
     virtual TError Init(int slotCount, double cpuLimit, double idleCpuFraction) = 0;
     virtual TFuture<void> InitSlot(int slotIndex) = 0;
+    virtual void PrepareSlotForJob(int slotIndex) = 0;
 
     virtual TFuture<void> RunJobProxy(
         const NJobProxy::TJobProxyInternalConfigPtr& config,

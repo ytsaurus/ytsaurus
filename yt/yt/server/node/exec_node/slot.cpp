@@ -24,6 +24,7 @@
 
 #include <yt/yt/core/logging/log_manager.h>
 
+#include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/proc.h>
 
 #include <library/cpp/yt/assert/assert.h>
@@ -112,16 +113,28 @@ public:
 
         VerifyEnabled();
 
-        if (!CleanProcessesFuture_) {
-            // First kill all processes that may hold open handles to slot directories.
-            CleanProcessesFuture_ = BIND(&IJobEnvironment::CleanProcesses, JobEnvironment_)
-                .AsyncVia(Bootstrap_->GetJobInvoker())
-                .Run(SlotIndex_, SlotGuard_->GetSlotType());
+        if (CleanProcessesFuture_ &&
+            (!CleanProcessesFuture_.IsSet() || CleanProcessesFuture_.GetOrCrash().IsOK()))
+        {
             return CleanProcessesFuture_;
-        } else {
-            return CleanProcessesFuture_.Apply(BIND(&IJobEnvironment::CleanProcesses, JobEnvironment_, SlotIndex_, SlotGuard_->GetSlotType())
-                .AsyncVia(Bootstrap_->GetJobInvoker()));
         }
+
+        PreparationCanceled_ = true;
+
+        CleanProcessesFuture_ = JobProxyPreparationFuture_.Apply(BIND(
+            &IJobEnvironment::CleanProcesses,
+            JobEnvironment_,
+            SlotIndex_,
+            SlotGuard_->GetSlotType())
+            .AsyncVia(Bootstrap_->GetJobInvoker()))
+            .Apply(BIND([Logger = Logger] (const TError& error) {
+                YT_TLOG_ERROR_IF(!error.IsOK(), "Failed to clean processes")
+                    .With(error);
+                return error;
+            }))
+            .ToUncancelable();
+
+        return CleanProcessesFuture_;
     }
 
     void CleanUserImportedPortoResources(const THashSet<std::string>& preservedVolumePaths) override
@@ -172,6 +185,10 @@ public:
 
         VerifyEnabled();
 
+        YT_VERIFY(!CleanProcessesFuture_ || CleanProcessesFuture_.IsSet());
+
+        JobEnvironment_->PrepareSlotForJob(SlotIndex_);
+
         PreparationCanceled_ = false;
         CleanProcessesFuture_.Reset();
     }
@@ -205,6 +222,12 @@ public:
             // a never-started job proxy process.
             /*uncancelable*/ true,
             [&] {
+                auto preparationPromise = NewPromise<void>();
+                JobProxyPreparationFuture_ = preparationPromise.ToFuture();
+                auto finally = Finally([&] {
+                    preparationPromise.Set();
+                });
+
                 if (auto delay = config->JobTestingOptions->DelayBeforeRunJobProxy) {
                     YT_TLOG_DEBUG("Testing delay before run job proxy");
                     TDelayedExecutor::WaitForDuration(*delay);
@@ -223,6 +246,11 @@ public:
 
                 YT_TLOG_DEBUG("Finish making job proxy config")
                     .With("JobId", jobId);
+
+                if (PreparationCanceled_) {
+                    return MakeFuture<void>(TError("Job preparation canceled")
+                        .With("slot_index", SlotIndex_));
+                }
 
                 auto result = JobEnvironment_->RunJobProxy(
                     config,
@@ -826,6 +854,7 @@ private:
 
     const std::optional<TNumaNodeInfo> NumaNodeAffinity_;
 
+    TFuture<void> JobProxyPreparationFuture_ = OKFuture;
     TFuture<void> CleanProcessesFuture_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);

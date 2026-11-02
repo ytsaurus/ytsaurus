@@ -605,12 +605,8 @@ void TAllocation::CreateAndSettleJob(
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    const auto& resourceHolder = GetResourceHolder();
-    if (auto state = resourceHolder->GetState(); state == EResourcesState::Acquired) {
-        StaticPointerCast<IUserSlot>(GetResourceHolder()->GetUserSlot())->Prepare();
-    } else {
-        YT_VERIFY(state == EResourcesState::Pending);
-    }
+    auto resourceState = GetResourceHolder()->GetState();
+    YT_VERIFY(resourceState == EResourcesState::Acquired || resourceState == EResourcesState::Pending);
 
     auto job = CreateJob(
         jobId,

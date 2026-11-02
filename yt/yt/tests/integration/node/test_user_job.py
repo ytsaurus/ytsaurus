@@ -4413,6 +4413,96 @@ class TestCpuSetCri(YTEnvSetup):
             assert actual_cpu_set == expected_cpu_set
 
 
+class TestJobCleanup(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    USE_PORTO = True
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "slot_manager": {
+                    "abort_on_jobs_disabled": False,
+                },
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 2,
+                "user_slots": 2,
+            },
+        },
+    }
+
+    @authors("dann239")
+    @pytest.mark.parametrize("job_phase", ["running", "preparing_artifacts"])
+    def test_job_cleanup_with_disabled_environment(self, job_phase):
+        from porto import Connection
+
+        update_nodes_dynamic_config(
+            {
+                "slot_manager": {
+                    "enable_job_environment_resurrection": False,
+                },
+                "job_controller": {
+                    "job_proxy": {
+                        "testing_config": {
+                            "halt_when_materializing_artifact": job_phase == "preparing_artifacts",
+                        },
+                    },
+                },
+            },
+            path="exec_node",
+        )
+
+        create("file", "//tmp/artifact", attributes={"replication_factor": 1})
+        write_file("//tmp/artifact", b"artifact")
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            task_patch={"file_paths": ["<copy_file=%true>//tmp/artifact"]},
+        )
+        wait(lambda: op.list_jobs())
+        job_id, = op.list_jobs()
+        wait(lambda: op.get_job_phase(job_id) == job_phase, ignore_exceptions=True)
+
+        proxy_container, = [
+            container for container in self.Env.list_node_subcontainers(0)
+            if container.endswith("/jp")
+        ]
+        node = ls("//sys/cluster_nodes")[0]
+
+        try:
+            other_op = run_test_vanilla(
+                with_breakpoint("BREAKPOINT", breakpoint_name="disable_environment"),
+                spec={"max_failed_job_count": 1},
+            )
+            wait_breakpoint(other_op, breakpoint_name="disable_environment")
+
+            other_proxy_container, = [
+                container for container in self.Env.list_node_subcontainers(0)
+                if container.endswith("/jp") and container != proxy_container
+            ]
+            assert proxy_container in self.Env.list_node_subcontainers(0)
+
+            # Removing the slot container makes cleanup fail, causing the job environment to disable itself.
+            Connection().Destroy(other_proxy_container.rsplit("/", 1)[0])
+
+            wait(lambda: any(
+                alert["message"] == "Job environment is disabled"
+                for alert in get(f"//sys/cluster_nodes/{node}/@alerts")
+            ))
+
+            op.abort()
+            wait(lambda: proxy_container not in self.Env.list_node_subcontainers(0))
+        finally:
+            with Restarter(self.Env, NODES_SERVICE):
+                pass
+
+
 class TestSlotManagerResurrect(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
