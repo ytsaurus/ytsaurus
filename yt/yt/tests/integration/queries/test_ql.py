@@ -244,3 +244,9 @@ class TestQueriesQLAuthentication(TestQueriesQL):
         with raises_yt_error("Access denied"):
             q.track()
         assert q.get_state() == "failed"
+
+
+class TestQueriesQLTls(TestQueriesQLAuthentication):
+    # Cypress proxy only gets its TLS listener configuration outside multidaemon.
+    ENABLE_MULTIDAEMON = False
+    ENABLE_TLS = True
