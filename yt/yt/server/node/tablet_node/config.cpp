@@ -289,6 +289,8 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("partitioning_query_pool", &TThis::PartitioningFairSharePool)
         .Optional();
+    registrar.Parameter("use_query_pool", &TThis::UseQueryPool)
+        .Default(false);
 
     registrar.Parameter("reuse_compaction_invoker_for_writer_compression", &TThis::ReuseCompactionInvokerForWriterCompression)
         .Default(false);

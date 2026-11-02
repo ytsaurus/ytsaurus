@@ -296,8 +296,10 @@ struct TStoreCompactorDynamicConfig
 
     TStoreBackgroundActivityOrchidConfigPtr Orchid;
 
+    // COMPAT(sabdenovch): Deprecate in next release.
     std::optional<std::string> CompactionFairSharePool;
     std::optional<std::string> PartitioningFairSharePool;
+    bool UseQueryPool;
 
     bool ReuseCompactionInvokerForWriterCompression;
     bool ReuseCompactionInvokerForReaderDecompression;

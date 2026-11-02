@@ -39,7 +39,7 @@ public:
             auto guard = ReaderGuard(SpinLock_);
 
             if (auto it = WeightOverrides_.find(poolName); it != WeightOverrides_.end()) {
-                return it->second;
+                return GetSanitizedWeight(it->second, poolName, Logger_);
             }
         }
 
@@ -115,15 +115,27 @@ private:
         }
 
         try {
-            auto weight = ConvertTo<double>(rspOrError.Value());
-            THROW_ERROR_EXCEPTION_IF(!std::isfinite(weight) || weight <= 0,
-                "Weight must be a finite positive number");
-            return weight;
+            return GetSanitizedWeight(ConvertTo<double>(rspOrError.Value()), poolName, Logger);
         } catch (const std::exception& ex) {
             YT_TLOG_WARNING("Error parsing pool weight retrieved from Cypress, assuming default")
                 .With("Pool", poolName)
                 .With(ex);
             return DefaultPoolWeight;
+        }
+    }
+
+    static double GetSanitizedWeight(
+        double weight,
+        const std::string& poolName,
+        const TLogger& Logger)
+    {
+        if (!std::isfinite(weight) || weight <= 0) {
+            YT_TLOG_WARNING("Expected a finite positive value as weight, falling back to default")
+                .With("Weight", weight)
+                .With("Pool", poolName);
+            return DefaultPoolWeight;
+        } else {
+            return weight;
         }
     }
 };
