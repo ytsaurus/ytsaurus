@@ -302,6 +302,7 @@ message TQtRunnerConfig {
     //// Qt shard pollers settings
     // Query Tracker polling interval
     optional uint32 QtTaskPollingIntervalMs = 11;
+    // Minimum interval between revision-driven status updates
     optional uint32 QtTaskStatusUpdateIntervalMs = 12;
     optional uint32 QtTaskAbortTimeoutMs = 13;
     optional uint32 YtClientPoolIdleTtlSeconds = 14 [default = 127];
