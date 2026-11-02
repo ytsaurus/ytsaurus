@@ -46,6 +46,9 @@ void TOrderedChunkPoolOptions::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(8, JobSizeAdjusterConfig,
         .SinceVersion(ESnapshotVersion::OrderedAndSortedJobSizeAdjuster));
+
+    PHOENIX_REGISTER_FIELD(9, AllowMultipleRangesInJob,
+        .SinceVersion(ESnapshotVersion::RemoteCopyRangeSeparation));
 }
 
 PHOENIX_DEFINE_TYPE(TOrderedChunkPoolOptions);
@@ -73,6 +76,7 @@ public:
         , Sampler_(JobSizeConstraints_->GetSamplingRate(), JobSizeConstraints_->GetSamplingSeed())
         , MaxTotalSliceCount_(options.MaxTotalSliceCount)
         , ShouldSliceByRowIndices_(options.ShouldSliceByRowIndices)
+        , AllowMultipleRangesInJob_(options.AllowMultipleRangesInJob)
         , EnablePeriodicYielder_(options.EnablePeriodicYielder)
     {
         Logger = options.Logger;
@@ -105,7 +109,9 @@ public:
             .With("BatchRowCount", JobSizeConstraints_->GetBatchRowCount())
             .With("SamplingRate", JobSizeConstraints_->GetSamplingRate())
             .With("SingleJob", SingleJob_)
-            .With("HasJobSizeAdjuster", static_cast<bool>(JobSizeAdjuster_));
+            .With("HasJobSizeAdjuster", static_cast<bool>(JobSizeAdjuster_))
+            .With("ShouldSliceByRowIndices", ShouldSliceByRowIndices_)
+            .With("AllowMultipleRangesInJob", AllowMultipleRangesInJob_);
     }
 
     // IPersistentChunkPoolInput implementation.
@@ -270,6 +276,8 @@ private:
     i64 MaxTotalSliceCount_ = 0;
 
     bool ShouldSliceByRowIndices_ = false;
+    bool AllowMultipleRangesInJob_ = true;
+    std::optional<int> LastInputStreamIndex_;
 
     bool EnablePeriodicYielder_;
 
@@ -371,6 +379,14 @@ private:
 
                     continue;
                 }
+
+                if (!AllowMultipleRangesInJob_ &&
+                    dataSlice->GetInputStreamIndex() != LastInputStreamIndex_ &&
+                    CurrentJob()->GetSliceCount() > 0)
+                {
+                    EndJob();
+                }
+                LastInputStreamIndex_ = dataSlice->GetInputStreamIndex();
 
                 if (IsDataSliceSplittable(dataSlice)) {
                     AddSplittablePrimaryDataSlice(dataSlice, inputCookie);
@@ -726,7 +742,8 @@ void TOrderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_DELETED_FIELD(15, bool, UseNewSlicingImplementation_, ESnapshotVersion::RemoveOldOrderedChunkPoolSlicing);
     PHOENIX_REGISTER_FIELD(16, JobSizeAdjuster_,
         .SinceVersion(ESnapshotVersion::OrderedAndSortedJobSizeAdjuster));
-
+    PHOENIX_REGISTER_FIELD(17, AllowMultipleRangesInJob_,
+        .SinceVersion(ESnapshotVersion::RemoteCopyRangeSeparation));
 }
 
 PHOENIX_DEFINE_TYPE(TOrderedChunkPool);
