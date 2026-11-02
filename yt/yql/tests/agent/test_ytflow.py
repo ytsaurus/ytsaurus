@@ -122,7 +122,6 @@ class TestYtflowBase(TestQueueAgentBase):
 
     YT_TABLE_PATH = '//tmp/Table'
     YT_CONSUMER_PATH = '//tmp/main_consumer'
-    YT_PRODUCER_PATH = '//tmp/main_producer'
 
     YTFLOW_WORKER_BIN = yatest.common.binary_path("yt/yql/tools/ytflow_worker/ytflow_worker")
 
@@ -432,7 +431,6 @@ pragma Ytflow.Cluster = "primary";
 pragma Ytflow.PipelinePath = "{pipeline_path}";
 
 pragma Ytflow.YtConsumerPath = "{self.YT_CONSUMER_PATH}";
-pragma Ytflow.YtProducerPath = "{self.YT_PRODUCER_PATH}";
 pragma Ytflow.ControllerRpcPort = "{port_manager.get_port()}";
 pragma Ytflow.ControllerMonitoringPort = "{port_manager.get_port()}";
 pragma Ytflow.WorkerRpcPort = "{port_manager.get_port()}";
@@ -1375,7 +1373,7 @@ select key, value from remote_0.`{input_path}`;
             output_path = self._create_yt_table(dict(schema=schema), cluster="remote_0")
 
             run_query(f"""
-insert into remote_0.`{output_path}`
+insert into remote_0.`{output_path}` with producer = '//tmp/remote_read_write_producer'
 select * from remote_0.`{input_path}`;
 """)
 
@@ -1417,7 +1415,7 @@ select key, value from `{input_path}`;
 insert into `{local_path}`
 select * from `{input_path}`;
 
-insert into remote_0.`{remote_path}`
+insert into remote_0.`{remote_path}` with producer = "//tmp/local_and_remote_write_producer"
 select * from `{input_path}`;
 """)
 
@@ -1427,7 +1425,10 @@ select * from `{input_path}`;
     @authors("ngc224")
     @pytest.mark.timeout(180)
     @pytest.mark.parametrize("kind", ["queue", "sorted_table"])
-    def test_write_to_two_remote_clusters(self, query_tracker, yql_agent, run_query, kind):
+    @pytest.mark.parametrize("write_local", [False, True])
+    def test_write_to_two_remote_clusters(
+        self, query_tracker, yql_agent, run_query, kind, write_local
+    ):
         schema = self._make_queue_schema([
             {"name": "key", "type": "string"},
             {"name": "value", "type": "int64"},
@@ -1441,16 +1442,33 @@ select * from `{input_path}`;
         input_path = self._create_yt_table(dict(schema=schema))
         self._write_yt_table(input_path, rows)
 
+        local_write = ""
+        if write_local:
+            if kind == "sorted_table":
+                local_path = self._allocate_yt_table_path()
+                local_write = f"""
+replace into `{local_path}` with primary_key = "[key]"
+select key, value from `{input_path}`;
+"""
+            else:
+                local_path = self._create_yt_table(dict(schema=schema))
+                local_write = f"""
+insert into `{local_path}`
+select * from `{input_path}`;
+"""
+
         if kind == "queue":
             output_0 = self._create_yt_table(dict(schema=schema), cluster="remote_0")
             output_1 = self._create_yt_table(dict(schema=schema), cluster="remote_1")
+            producer_0 = "//tmp/remote_0_producer"
+            producer_1 = "//tmp/remote_1_producer"
 
-            with raises_yt_error("Writing into several remote YT queues"):
-                run_query(f"""
-insert into remote_0.`{output_0}`
+            run_query(f"""
+{local_write}
+insert into remote_0.`{output_0}` with producer = "{producer_0}"
 select * from `{input_path}`;
 
-insert into remote_1.`{output_1}`
+insert into remote_1.`{output_1}` with producer = "{producer_1}"
 select * from `{input_path}`;
 """)
         else:
@@ -1458,6 +1476,7 @@ select * from `{input_path}`;
             output_1 = self._allocate_yt_table_path()
 
             run_query(f"""
+{local_write}
 replace into remote_0.`{output_0}` with primary_key = "[key]"
 select key, value from `{input_path}`;
 
@@ -1465,8 +1484,73 @@ replace into remote_1.`{output_1}` with primary_key = "[key]"
 select key, value from `{input_path}`;
 """)
 
-            self._assert_yt_table_content(output_0, rows, cluster="remote_0")
-            self._assert_yt_table_content(output_1, rows, cluster="remote_1")
+        self._assert_yt_table_content(output_0, rows, cluster="remote_0")
+        self._assert_yt_table_content(output_1, rows, cluster="remote_1")
+        if write_local:
+            self._assert_yt_table_content(local_path, rows)
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("shared_producer", [False, True])
+    def test_prepare_multiple_remote_producers(
+        self, query_tracker, yql_agent, run_query, shared_producer
+    ):
+        schema = self._make_queue_schema([
+            {"name": "value", "type": "string"},
+        ])
+
+        rows = [
+            {"value": "foo"},
+            {"value": "bar"},
+        ]
+
+        input_path = self._create_yt_table(dict(schema=schema))
+        self._write_yt_table(input_path, rows)
+
+        outputs = [
+            self._create_yt_table(dict(schema=schema), cluster="remote_0")
+            for _ in range(2)
+        ]
+
+        producers = [
+            "//tmp/first_producer",
+            "//tmp/first_producer" if shared_producer else "//tmp/second_producer"
+        ]
+
+        statements = [
+            f"""
+insert into remote_0.`{output}` with producer = '{producer}'
+select * from `{input_path}`;
+"""
+            for output, producer in zip(outputs, producers)
+        ]
+
+        run_query("\n".join(statements))
+
+        for output in outputs:
+            self._assert_yt_table_content(output, rows, cluster="remote_0")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("producer, error", [
+        (None, "requires an explicit 'producer' hint"),
+        ("", "Producer path must not be empty"),
+    ])
+    def test_invalid_remote_queue_producer(self, query_tracker, yql_agent, run_query, producer, error):
+        schema = self._make_queue_schema([
+            {"name": "value", "type": "string"},
+        ])
+
+        input_path = self._create_yt_table(dict(schema=schema))
+        output_path = self._create_yt_table(dict(schema=schema), cluster="remote_0")
+
+        hint = f" with producer = '{producer}'" if producer is not None else ""
+
+        with raises_yt_error(error):
+            run_query(f"""
+insert into remote_0.`{output_path}`{hint}
+select * from `{input_path}`;
+""")
 
     @authors("ngc224")
     @pytest.mark.timeout(180)

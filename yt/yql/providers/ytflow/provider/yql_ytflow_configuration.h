@@ -153,7 +153,6 @@ public:
     TString GetPipelinePath() const;
     TString GetYtConsumerPath() const;
     bool GetYtConsumerVital() const;
-    TString GetYtProducerPath() const;
     bool GetEnableComputationPatternResources() const;
 
 protected:
@@ -167,10 +166,6 @@ protected:
     NCommon::TConfSetting<TString, Static> YtConsumerName;
     NCommon::TConfSetting<TString, Static> YtConsumerPath;
     NCommon::TConfSetting<bool, Static> YtConsumerVital;
-
-    NCommon::TConfSetting<TString, Static> YtProducerDirectory;
-    NCommon::TConfSetting<TString, Static> YtProducerName;
-    NCommon::TConfSetting<TString, Static> YtProducerPath;
 };
 
 struct TYtflowConfiguration

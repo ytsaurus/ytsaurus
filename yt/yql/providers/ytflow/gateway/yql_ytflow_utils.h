@@ -41,6 +41,11 @@ NYT::NYPath::TRichYPath CanonizeYtRichPath(
 
 TString GetCanonicalPipelinePath(const TYtflowSettings& config);
 
+NYT::NYPath::TRichYPath MakeYtProducerRichPath(
+    TString path,
+    const TString& queueCluster,
+    const TYtflowSettings& config);
+
 TString ResolvePipelineClusterName(
     const TYtflowSettings& config,
     const TConfigClusters& configClusters);
