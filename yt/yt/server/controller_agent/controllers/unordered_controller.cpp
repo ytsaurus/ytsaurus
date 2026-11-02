@@ -938,7 +938,7 @@ private:
 
     void OnOperationCompleted(bool interrupted) override
     {
-        if (!interrupted) {
+        if (!interrupted && !InputManager_->HasSkippedInputChunks()) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables() || InputHasDynamicStores();
             if (!isNontrivialInput && IsRowCountPreserved()) {
                 YT_LOG_ERROR_IF(EstimatedInputStatistics_->RowCount != TeleportedOutputRowCount_ + UnorderedTask_->GetTotalOutputRowCount(),

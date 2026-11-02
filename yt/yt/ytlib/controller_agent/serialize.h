@@ -123,6 +123,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((HighThreadCountJobThreshold)           (302216))
     ((SamplingSeed)                          (302217))
     ((RlsAuthenticatedUser)                  (302218))
+    ((PersistSkippedInputChunks)             (302219))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

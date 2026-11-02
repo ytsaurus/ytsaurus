@@ -181,6 +181,7 @@ public:
 
     bool CanInterruptJobs() const;
     bool HasRowLevelAcl() const;
+    bool HasSkippedInputChunks() const;
 
     void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task);
     NChunkClient::TInputChunkPtr GetInputChunk(
@@ -270,6 +271,8 @@ private:
 
     bool InputHasOrderedDynamicStores_ = false;
     bool InputHasStaticTableWithHunks_ = false;
+
+    bool HasSkippedInputChunks_ = false;
 
     void FetchInputTablesAttributes();
 
