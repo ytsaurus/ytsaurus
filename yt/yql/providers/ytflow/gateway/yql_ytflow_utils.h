@@ -52,7 +52,8 @@ TString ResolvePipelineClusterName(
 
 NYT::NYPath::TRichYPath MakeYtConsumerRichPath(
     const TYtflowSettings& config,
-    const TConfigClusters& configClusters);
+    const TConfigClusters& configClusters,
+    TString path = {});
 
 TString GetAuth(
     TString cluster,

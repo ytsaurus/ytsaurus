@@ -31,6 +31,17 @@ TString TConfigClusters::GetRealName(const TString& clusterAlias) const
     return iterator->second.RealName;
 }
 
+TString TConfigClusters::GetAlias(const TString& clusterRealName) const
+{
+    for (const auto& [alias, clusterInfo] : Clusters) {
+        if (clusterInfo.RealName == clusterRealName) {
+            return alias;
+        }
+    }
+
+    YQL_ENSURE(false, "No Ytflow cluster mapping for YT cluster " << clusterRealName);
+}
+
 TString TConfigClusters::GetProxyUrl(const TString& clusterAlias) const
 {
     const auto& iterator = Clusters.find(clusterAlias);

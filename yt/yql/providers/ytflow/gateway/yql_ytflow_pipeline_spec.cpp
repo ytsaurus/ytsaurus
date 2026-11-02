@@ -428,7 +428,8 @@ void ProcessSource(
 
         auto consumerRichPath = MakeYtConsumerRichPath(
             *config,
-            configClusters);
+            configClusters,
+            ytQueueSourceSettings.GetConsumerPath());
 
         parameters->AddChild(
             "consumer_path", NYT::NYTree::ConvertToNode(consumerRichPath));
