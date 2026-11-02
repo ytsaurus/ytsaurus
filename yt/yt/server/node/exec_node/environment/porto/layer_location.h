@@ -1,10 +1,12 @@
 #pragma once
 
-#include "preparation_options.h"
-#include "private.h"
-#include "volume.h"
-#include "volume_counters.h"
+#include "layer.h"
+#include "layer_counters.h"
 #include "volume_options.h"
+
+#include <yt/yt/server/node/exec_node/preparation_options.h>
+#include <yt/yt/server/node/exec_node/private.h>
+#include <yt/yt/server/node/exec_node/volume.h>
 
 #include <yt/yt/server/node/cluster_node/public.h>
 

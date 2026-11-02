@@ -1,8 +1,10 @@
 #pragma once
 
-#include "private.h"
-#include "volume.h"
-#include "volume_counters.h"
+#include "layer.h"
+#include "layer_counters.h"
+
+#include <yt/yt/server/node/exec_node/private.h>
+#include <yt/yt/server/node/exec_node/volume.h>
 
 #include <yt/yt/server/node/data_node/public.h>
 

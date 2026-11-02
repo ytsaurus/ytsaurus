@@ -1,10 +1,11 @@
 #include "volume_cache.h"
 
-#include "bootstrap.h"
-#include "helpers.h"
+#include <yt/yt/server/node/exec_node/bootstrap.h>
+#include <yt/yt/server/node/exec_node/helpers.h>
+#include <yt/yt/server/node/exec_node/private.h>
+#include <yt/yt/server/node/exec_node/volume_counters.h>
+
 #include "layer_location.h"
-#include "private.h"
-#include "volume_counters.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -1145,7 +1146,7 @@ TLayerLocationPtr TLayerCache::PickRandomLocation() const
         "Failed to get any layer location");
 }
 
-void TLayerCache::PopulateAlerts(std::vector<TError>* alerts)
+void TLayerCache::PopulateAlerts(TNonNullPtr<std::vector<TError>> alerts)
 {
     for (const auto& location : LayerLocations_) {
         auto error = location->GetAlert();

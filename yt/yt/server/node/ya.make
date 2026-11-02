@@ -74,13 +74,11 @@ SRCS(
     exec_node/job.cpp
     exec_node/job_fs_secretary.cpp
     exec_node/job_info.cpp
-    exec_node/job_directory_manager.cpp
     exec_node/job_gpu_checker.cpp
     exec_node/job_controller.cpp
     exec_node/job_prober_service.cpp
     exec_node/job_proxy_log_manager.cpp
     exec_node/job_workspace_builder.cpp
-    exec_node/layer_location.cpp
     exec_node/master_connector.cpp
     exec_node/job_input_cache.cpp
     exec_node/proxying_data_node_service.cpp
@@ -89,20 +87,41 @@ SRCS(
     exec_node/private.cpp
     exec_node/public.cpp
     exec_node/scheduler_connector.cpp
-    exec_node/slot.cpp
     exec_node/slot_location.cpp
     exec_node/slot_manager.cpp
     exec_node/supervisor_service.cpp
     exec_node/throttler_manager.cpp
-    exec_node/volume.proto
-    exec_node/volume.cpp
     exec_node/volume_artifact.cpp
     exec_node/volume_helpers.cpp
-    exec_node/volume_cache.cpp
     exec_node/volume_counters.cpp
-    exec_node/volume_manager.cpp
-    exec_node/porto_volume.cpp
-    exec_node/tmpfs_layer_cache.cpp
+
+    exec_node/environment/common/host_slot.cpp
+    exec_node/environment/common/job_directory_manager.cpp
+    exec_node/environment/common/job_environment_base.cpp
+    exec_node/environment/common/job_filesystem.cpp
+    exec_node/environment/common/slot.cpp
+    exec_node/environment/common/tmpfs_volume.cpp
+    exec_node/environment/common/volume_manager.cpp
+    exec_node/environment/cri/job_environment.cpp
+    exec_node/environment/cri/job_workspace_builder.cpp
+    exec_node/environment/porto/health_checker.cpp
+    exec_node/environment/porto/job_directory_manager.cpp
+    exec_node/environment/porto/job_environment.cpp
+    exec_node/environment/porto/job_fs_secretary.cpp
+    exec_node/environment/porto/job_workspace_builder.cpp
+    exec_node/environment/porto/layer.cpp
+    exec_node/environment/porto/layer_counters.cpp
+    exec_node/environment/porto/layer_location.cpp
+    exec_node/environment/porto/overlay_data.cpp
+    exec_node/environment/porto/porto_volume.cpp
+    exec_node/environment/porto/slot.cpp
+    exec_node/environment/porto/slot_location.cpp
+    exec_node/environment/porto/tmpfs_layer_cache.cpp
+    exec_node/environment/porto/volume.proto
+    exec_node/environment/porto/volume_cache.cpp
+    exec_node/environment/porto/volume_manager.cpp
+    exec_node/environment/simple/job_environment.cpp
+    exec_node/environment/simple/job_workspace_builder.cpp
 
     job_agent/job_resource_manager.cpp
 

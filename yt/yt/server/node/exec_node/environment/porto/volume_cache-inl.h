@@ -5,7 +5,8 @@
 #endif
 
 #include "layer_location.h"
-#include "private.h"
+
+#include <yt/yt/server/node/exec_node/private.h>
 
 #include <yt/yt/core/logging/log.h>
 

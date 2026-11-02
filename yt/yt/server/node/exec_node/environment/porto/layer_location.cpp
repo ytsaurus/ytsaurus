@@ -1,9 +1,10 @@
 #include "layer_location.h"
-
-#include "private.h"
-#include "volume.h"
-#include "volume_counters.h"
+#include "overlay_data.h"
 #include "volume_options.h"
+
+#include <yt/yt/server/node/exec_node/private.h>
+#include <yt/yt/server/node/exec_node/volume.h>
+#include <yt/yt/server/node/exec_node/volume_counters.h>
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -27,6 +28,8 @@
 #include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/net/local_address.h>
+
+#include <library/cpp/yt/memory/non_null_ptr.h>
 
 #include <library/cpp/yt/string/string.h>
 
@@ -653,7 +656,7 @@ void TLayerLocation::LoadLayers()
             metaFileInput.Read(metaFileBlob.Begin(), metaFile.GetLength());
         });
 
-        const auto* metaHeader = reinterpret_cast<const TLayerMetaHeader*>(metaFileBlob.Begin());
+        TNonNullPtr<const TLayerMetaHeader> metaHeader(reinterpret_cast<const TLayerMetaHeader*>(metaFileBlob.Begin()));
         if (metaHeader->Signature != TLayerMetaHeader::ExpectedSignature) {
             THROW_ERROR_EXCEPTION(
                 "Incorrect layer header signature %x in layer meta file %v",
@@ -1245,7 +1248,7 @@ TVolumeMeta TLayerLocation::DoCreateOverlayVolume(
         &builder,
         overlayDataArray.begin(),
         overlayDataArray.end(),
-        [] (TStringBuilderBase* builder, const TOverlayData& volumeOrLayer) {
+        [] (TNonNullPtr<TStringBuilderBase> builder, const TOverlayData& volumeOrLayer) {
             builder->AppendString(volumeOrLayer.GetPath());
         },
         ";");

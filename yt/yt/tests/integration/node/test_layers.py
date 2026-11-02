@@ -4170,7 +4170,7 @@ class TestLayerReuseInAllocationBase(TestPortoLayersBase):
                         # Size of unpacked layer layers/static-bin.tar is 3207704 bytes.
                         # Quota below the layer size forces SLRU eviction after the
                         # first job; the layer must remain alive via the TLayerPtr
-                        # stored in TJobFSSecretary::PreparedLayers_.
+                        # stored in TPortoJobFSSecretary::PreparedLayers_.
                         "quota": 1 * 1024 * 1024,
                     },
                 ],
@@ -4266,7 +4266,7 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
         op.track()
 
         # The layer must be imported exactly once for the entire allocation:
-        # the second job sees its key already in TJobFSSecretary::PreparedLayers_
+        # the second job sees its key already in TPortoJobFSSecretary::PreparedLayers_
         # and the layer-preparation phase is skipped via the existing
         # "Layer preparation is not needed" early exit, even though the SLRU
         # cache evicted the layer due to quota (the TLayerPtr stored in
