@@ -1996,7 +1996,7 @@ class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
 @pytest.mark.enabled_multidaemon
 class TestLookupCache(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 3
 
     DELTA_NODE_CONFIG = {
         "cluster_connection": {
@@ -2550,6 +2550,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 @pytest.mark.enabled_multidaemon
 class TestLookupMulticell(TestLookup):
     ENABLE_MULTIDAEMON = True
+    NUM_TEST_PARTITIONS = 3
     NUM_SECONDARY_MASTER_CELLS = 2
 
     MASTER_CELL_DESCRIPTORS = {

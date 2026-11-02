@@ -1664,6 +1664,7 @@ assert hashlib.sha256(data.encode()).hexdigest() == '{hash_}'
 
 class TestUserJobIsolation(YTEnvSetup):
     USE_PORTO = True
+    NUM_TEST_PARTITIONS = 2
 
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -1915,7 +1916,7 @@ class TestUserJobIsolation(YTEnvSetup):
     def test_high_job_thread_count_alert_no_alert_when_below_limit(self):
         update_controller_agent_config("max_job_thread_count_formula", "1000")
 
-        cmd = "for i in $(seq 1 32); do nohup sleep 1 & done; wait"
+        cmd = "for i in $(seq 1 32); do nohup sleep 5 & done; wait"
 
         op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
         op.track()
@@ -1928,7 +1929,7 @@ class TestUserJobIsolation(YTEnvSetup):
     def test_high_job_thread_count_alert(self, formula):
         update_controller_agent_config("max_job_thread_count_formula", formula)
 
-        cmd = "for i in $(seq 1 32); do nohup sleep 1 & done; wait"
+        cmd = "for i in $(seq 1 32); do nohup sleep 5 & done; wait"
 
         op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
         op.track()
@@ -1940,7 +1941,7 @@ class TestUserJobIsolation(YTEnvSetup):
     def test_high_job_thread_count_alert_attributes(self):
         update_controller_agent_config("max_job_thread_count_formula", "1")
 
-        cmd = "for i in $(seq 1 32); do nohup sleep 1 & done; wait"
+        cmd = "for i in $(seq 1 32); do nohup sleep 5 & done; wait"
 
         op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
         op.track()
@@ -1962,7 +1963,7 @@ class TestUserJobIsolation(YTEnvSetup):
     def test_high_job_thread_count_alert_multiple_tasks(self):
         update_controller_agent_config("max_job_thread_count_formula", "1")
 
-        cmd = "for i in $(seq 1 32); do nohup sleep 1 & done; wait"
+        cmd = "for i in $(seq 1 32); do nohup sleep 5 & done; wait"
 
         op = vanilla(
             spec={
