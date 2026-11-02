@@ -48,127 +48,60 @@ The sink requires exactly one input stream with increasing `MessageId` values wi
 
 {% include [NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TArrivalOrderTableSink](../../../flow/generated_docs/NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TArrivalOrderTableSink.md) %}
 
-## Importing a static table into state {#import-into-state}
+## Reading a sequence of static tables {#static-table-sequence}
 
-A typical scenario is that a batch process (YQL{% if audience == "internal" %}, Nirvana{% endif %}, …) periodically rebuilds a reference dataset as a static YT table, and the real-time pipeline needs to join its stream against the latest version of this reference. The `static_table` connector supports this scenario out of the box, letting you load such a table into the pipeline’s [state](../../../flow/concepts/stateful.md) with custom business logic applied to each row before writing.
+The `static_table` source reads a sequence of static tables and emits their rows as ordinary input messages to a computation, just like a queue source. Set `tables_path` to the directory containing the tables, or provide an explicit list in `tables`. Source settings determine the read order and timestamps; the dynamic spec controls the read rate (see above).
 
-### How it works
+## Periodic full-state reloads (full states) {#reference-datasets} {#alternatives} {#import-into-state} {#alt-key-visitor}
 
-The setup is: one computation reads the reference via the `static_table` source and writes it to state (loader); a second computation on the input stream retrieves a value by key from the same state and emits an enriched message (enricher).
+Periodic full-state reloads (full states) are a scenario where a batch process periodically prepares the complete state of a reference dataset in a static table, and a streaming pipeline uses it when processing events. Below, each complete version is called a snapshot. Each snapshot fully defines the reference values: a key absent from it no longer has a value from this dataset. If the data is copied into the pipeline’s own state, an absent key requires clearing the corresponding field while preserving other state fields.
 
-1. The `static_table` source streams the table rows as regular messages. The controller automatically determines which table version is latest and feeds its rows to the pipeline as a separate stream.
-2. The loader-computation (stateful) accepts each row, optionally validates or normalizes it (`trim`, `lower-case`, enrichment from other sources, filtering, etc.), and writes the result to state by key.
-3. The enricher-computation, which sits on the event stream, reads values from the same state by the event’s key using a read-only [joiner](../../../flow/concepts/stateful.md#external-state-joiner) and emits the enriched message to the sink.
-
-The main advantage of this approach is the **ability to implement business logic for processing each row** after the table is built but before it lands in state. This is handy when the data format on disk doesn’t match what the join needs, or when you must filter or enrich some rows on the fly from other sources.
-
-### Reload semantics
-
-Each new version of a static table is a **full reload** of the entire reference dataset into state. This scheme doesn’t automatically clean up deleted rows: if a row is missing in the new version, you must explicitly remove it from state — for example, by tagging rows with a version and periodically deleting outdated ones using the [key visit](../../../flow/concepts/key_visitor.md) mechanism.
-
-The controller picks the latest version according to the rules defined in `TTableTimestampLocatorSpec` (see the source’s static spec above) — most often, this is the newest table in the directory whose name parses as an ISO8601 timestamp. A new table appearing in the directory automatically triggers a new run.
-
-### When to choose this approach
-
-- You need **business logic** on each row (normalization, validation, enrichment).
-- You can tolerate a **full reload** on every rebuild.
-
-These conditions aren’t strict: the approach works even without row-level business logic, and the complexities of full reloads are often manageable (see key visit above). Still, consider other options — see the [Alternatives](#alternatives) section.
-
-### Configuration (outline)
-
-The full spec is in the examples below; here we show only the key pipeline wiring. The loader writes to state via a **manager** (read-write), and the enricher reads from it via a **joiner** (read-only).
-
-{% cut "Spec outline" %}
-
-```yson
-{
-    "spec" = {
-        "computations" = {
-            "reference_reader" = {
-                "computation_class_name" = "...";
-                "output_stream_ids" = ["reference"];
-                "source_streams" = {
-                    "reference_table" = {
-                        "source_class_name" = "NYT::NFlow::NStaticTableConnector::TSource";
-                        "parameters" = { "tables_path" = "<cluster=primary>//path/to/reference"; };
-                    };
-                };
-            };
-            "reference_loader" = {
-                "computation_class_name" = "...";
-                "input_stream_ids" = ["reference"];
-                "group_by_schema" = [
-                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
-                    {"name" = "key"; "type" = "uint64";};
-                ];
-                "external_state_managers" = {
-                    "/reference_state" = {
-                        "external_state_manager_class_name" = "NYT::NFlow::TSimpleExternalStateManager";
-                        "parameters" = { "path" = "<cluster=primary>//path/to/state"; };
-                    };
-                };
-            };
-            "enricher" = {
-                "computation_class_name" = "...";
-                "input_stream_ids" = ["event"];
-                "group_by_schema" = [
-                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
-                    {"name" = "key"; "type" = "uint64";};
-                ];
-                "external_state_joiners" = {
-                    "/reference_state" = {
-                        "external_state_joiner_class_name" = "NYT::NFlow::TSimpleExternalStateJoiner";
-                        "parameters" = { "path" = "<cluster=primary>//path/to/state"; };
-                    };
-                };
-            };
-        };
-    };
-}
-```
-
-{% endcut %}
-
-Full working configs, binaries, `yt_sync`, and integration tests are in the examples.
-
-### Examples
-
-Fully working pipelines with tests that demonstrate this approach:
-
-- C++: [`examples/cpp/static_table_join`]({{source-root}}/yt/yt/flow/examples/cpp/static_table_join)
-- Python: [`examples/python/static_table_join`]({{source-root}}/yt/yt/flow/examples/python/static_table_join)
-- Java: [`examples/java/static_table_join`]({{source-root}}/yt/yt/flow/examples/java/static_table_join)
-- Kotlin: [`examples/kotlin/static_table_join`]({{source-root}}/yt/yt/flow/examples/kotlin/static_table_join)
-- Go: [`examples/go/static_table_join`]({{source-root}}/yt/yt/flow/examples/go/static_table_join)
-
-## Alternatives {#alternatives}
-
-Using the `static_table` extension to load into state isn’t the only way to join with a reference dataset; the alternatives and their trade-offs are in the table below.
+Below are several suggested ways to implement this scenario. This list is not exhaustive; for most tasks, we recommend key visitor synchronization.
 
 #|
-|| **Approach** | **When to choose** | **Cost** ||
-|| [#1 `static_table` extension → state](#import-into-state) (above) | you need row-level business logic before writing to state; full reloads are acceptable | cost of reloading within the pipeline on each version ||
-|| [#2 Convert to a dynamic table + symlink for external state](#alt-dyntable-symlink) | large volume, request-based lookup, need atomic version switching | network lookup to the dynamic table + symlink maintenance ||
-|| [#3 Embedded DB and deploy via Resource](#alt-embedded-db) | zero network calls on join, volume limited by worker memory/disk | complex maintenance, DB format and delivery to workers ||
-{% if audience == "internal" %}|| [#4 Plutonium KV](#alt-plutonium) | large reference dataset, high lookup RPS, low runtime cost | complex to operate (MDS quota, infractl, metadata) ||
-{% endif %}|#
+|| **Method** | **How data is updated** | **What happens to a missing key** | **Applicability and cost** ||
+|| Loading snapshots through a stream<br>Examples: [C++]({{source-root}}/yt/yt/flow/examples/cpp/static_table_join), [Python]({{source-root}}/yt/yt/flow/examples/python/static_table_join), [Java]({{source-root}}/yt/yt/flow/examples/java/static_table_join), [Kotlin]({{source-root}}/yt/yt/flow/examples/kotlin/static_table_join), [Go]({{source-root}}/yt/yt/flow/examples/go/static_table_join) | a `static_table` source emits rows; user logic writes the field into state | the application separately clears the field after loading or expires it | each row needs processing; no reload work without new snapshots, but expiration cleanup typically needs a key visitor over the computation’s own state by its primary key ||
+|| [Key visitor with an external static table](../../../flow/concepts/key_visitor.md#static-table-joiner) | a periodic scan updates a field in the computation’s own state from a completed table | the visit handler clears the field if the row is absent from the table | recommended for most tasks; predictable scan cost that continues even without new snapshots ||
+|| [Dynamic table lookup through a symlink](#alt-dyntable-symlink) | the user prepares a dynamic table from the snapshot and switches the symlink; the pipeline reads it as external state | the next read from the new table returns an absent row; no field copy is maintained in the computation’s own state | lookups during stream processing are sufficient; the supplier needs a tablet cell bundle and a table resharded in advance for the expected load ||
+|| [Embedded DB and deploy via Resource](#alt-embedded-db) | a batch process builds a local DB; Resource delivers a new version to workers | once the new DB version is loaded, a key absent from it is no longer found | no network lookup calls; size is limited by worker resources, and the user manages DB building and delivery ||
+{% if audience == "internal" %}|| [Plutonium KV](#alt-plutonium) | a batch process builds a new index generation; the pipeline performs network lookups in the runtime | after switching to the new generation, lookups do not find keys absent from it | large datasets and high RPS; requires MDS/S3 quota, runtime operation, and generation delivery monitoring ||
+{% endif %}
+|#
 
-### Convert to a dynamic table + symlink for external state {#alt-dyntable-symlink}
+Loading snapshots through a stream and synchronizing through key visitor update the field in the computation’s own state gradually. Dynamic table lookup through a symlink switches the external data source; when processing sees the new table depends in part on caching.
 
-In this approach, the dynamic table itself acts as the state: a batch process builds the new version of the reference dataset as a sorted dynamic table `…/reference.vN`, mounts it, and the pipeline accesses it via a **Cypress symlink** `…/current → …/reference.vN`. After the next version is built, the symlink is atomically redirected to `…/reference.v(N+1)` (`yt link --force …/reference.v(N+1) …/current` or `set @target_path`), and the pipeline starts receiving new values.
+### Conversion to a dynamic table + symlink for external state {#alt-dyntable-symlink}
 
-In the pipeline, the `path` of the external-state connector points to the symlink, not to a specific version. The lookup is performed by a read-only [joiner](../../../flow/concepts/stateful.md#external-state-joiner) (`TSimpleExternalStateJoiner`); by default, the joiner re-reads the value from YT on each lookup, so the symlink switch is immediately visible to the pipeline without a restart. For more details on preparing the dynamic table and its schema, see [sorted-dynamic-table.md](../../../flow/connectors/sorted-dynamic-table.md).
+A user-managed batch process prepares a separate **sorted dynamic table** from the complete static snapshot, for example `…/reference.vN`, and mounts it for reading. Once the new version is fully prepared, the user switches the Cypress symlink `…/current` to that table. The pipeline accesses the fixed `…/current` path through the read-only external state joiner `TSimpleExternalStateJoiner`.
 
-#### Examples
+When processing an incoming event, the computation obtains the external table row for the event’s key. If the key is absent from the new table, reading that version returns empty external state. This scheme does not require reloading the reference dataset into the computation’s own state or separately deleting missing values from it. If the application stores a copy of the field anyway, it must manage updates and cleanup separately; keys without incoming events will not update themselves.
+
+The drawback of this method is that the data supplier must prepare the dynamic table for the pipeline’s lookup load. The supplier needs a [tablet cell bundle](../../../user-guide/dynamic-tables/concepts.md), and the table must be resharded in advance and provisioned for the expected request load. Merely converting a static table to a dynamic one and mounting it is not sufficient.
+
+The table’s key schema must match `group_by_schema`, including computed column expressions. All versions must retain compatible schemas. The pipeline reads the table only; the user manages table preparation, mounting, and symlink switching.
+
+By default, the joiner’s TTL cache is disabled (`cache.ttl = 0`): a key is loaded when needed, the loaded value is reused within the epoch, and a new read is required after the epoch ends. Set `external_state_joiners.<name>.parameters.cache.ttl` in the dynamic spec to reuse values across epochs. After a symlink switch, cached values may then remain unchanged until the TTL expires and the next read occurs. Switching the symlink does not switch all keys and partitions to the new version simultaneously.
+
+Joiner configuration within the computation:
+
+```yson
+"external_state_joiners" = {
+    "/reference" = {
+        "external_state_joiner_class_name" = "NYT::NFlow::TSimpleExternalStateJoiner";
+        "parameters" = {
+            "path" = "<cluster=primary>//path/to/reference/current";
+        };
+    };
+};
+```
+
+See [TSimpleExternalStateJoiner](../../../flow/cpp/state.md#simple-external-state-joiner) for interface and caching details. Examples of stream processing with external state lookup:
 
 - C++: [`examples/cpp/external_state_join`]({{source-root}}/yt/yt/flow/examples/cpp/external_state_join)
 - Python: [`examples/python/external_state_join`]({{source-root}}/yt/yt/flow/examples/python/external_state_join)
 - Java: [`examples/java/external_state_join`]({{source-root}}/yt/yt/flow/examples/java/external_state_join)
 - Kotlin: [`examples/kotlin/external_state_join`]({{source-root}}/yt/yt/flow/examples/kotlin/external_state_join)
 - Go: [`examples/go/external_state_join`]({{source-root}}/yt/yt/flow/examples/go/external_state_join)
-
-In the example tests, `yt_sync` first builds `reference.v1` and links `current → reference.v1`; the pipeline enriches the event with value `v1`. Then `reference.v2` is built, the symlink is atomically redirected to the new version, and for **the same key**, the pipeline starts returning value `v2`.
 
 ### Embedded DB and deploy via Resource {#alt-embedded-db}
 
