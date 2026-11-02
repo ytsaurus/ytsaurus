@@ -289,7 +289,7 @@ class TestPortals(YTEnvSetup):
             "//tmp/p2/t",
             attributes={"account": "a", "external": True, "external_cell_tag": 12},
         )
-        wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory/total") > 0)
+        wait(lambda: get("//sys/accounts/a/@resource_usage/node_count") > 0)
         with raises_yt_error("Cannot remove account .* because its usage is not zero"):
             remove("//sys/accounts/a")
         assert get("//sys/accounts/a/@life_stage") == "creation_committed"
