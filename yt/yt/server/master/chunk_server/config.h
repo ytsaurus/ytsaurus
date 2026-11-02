@@ -1004,6 +1004,9 @@ struct TDynamicChunkServiceConfig
     NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserRequestWeightThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserRequestBytesThrottler;
 
+    // COMPAT(kvk1920)
+    bool UseLazyTransactionExternalization;
+
     REGISTER_YSON_STRUCT(TDynamicChunkServiceConfig);
 
     static void Register(TRegistrar registrar);

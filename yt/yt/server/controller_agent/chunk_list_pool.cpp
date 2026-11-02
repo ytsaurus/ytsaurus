@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/api/client.h>
@@ -37,12 +39,14 @@ TChunkListPool::TChunkListPool(
     IInvokerPoolPtr controllerInvokerPool,
     TOperationId operationId,
     TTransactionId transactionId,
+    bool useLazyTransactionExternalization,
     EChunkListKind kind)
     : Config_(config)
     , Client_(client)
     , ControllerInvokerPool_(controllerInvokerPool)
     , OperationId_(operationId)
     , TransactionId_(transactionId)
+    , UseLazyTransactionExternalization_(useLazyTransactionExternalization)
     , Kind_(kind)
     , Logger(ControllerLogger().WithTag("OperationId", operationId))
 {
@@ -122,7 +126,10 @@ void TChunkListPool::AllocateMore(TCellTag cellTag)
     auto req = proxy.CreateChunkLists();
     GenerateMutationId(req);
 
-    ToProto(req->mutable_transaction_id(), TransactionId_);
+    auto transactionId = UseLazyTransactionExternalization_ && cellTag != CellTagFromId(TransactionId_)
+        ? MakeExternalizedTransactionId(TransactionId_, CellTagFromId(TransactionId_))
+        : TransactionId_;
+    ToProto(req->mutable_transaction_id(), transactionId);
     req->set_count(count);
     req->set_kind(ToProto(Kind_));
     // COMPAT(babenko): a pre-"kind" master honors only this flag.
