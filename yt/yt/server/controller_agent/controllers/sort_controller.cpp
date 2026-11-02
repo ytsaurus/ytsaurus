@@ -5347,10 +5347,10 @@ IOperationControllerPtr CreateMapReduceController(
 
     ValidateAndEnrichVolumeSpec(config, spec, host, spec->Reducer.Get(), providedSpec->Reducer.Get());
     if (spec->Mapper) {
-        ValidateAndEnrichVolumeSpec(config, spec, host, spec->Mapper.Get(), providedSpec->Reducer.Get());
+        ValidateAndEnrichVolumeSpec(config, spec, host, spec->Mapper.Get(), providedSpec->Mapper.Get());
     }
     if (spec->ReduceCombiner) {
-        ValidateAndEnrichVolumeSpec(config, spec, host, spec->ReduceCombiner.Get(),  providedSpec->Reducer.Get());
+        ValidateAndEnrichVolumeSpec(config, spec, host, spec->ReduceCombiner.Get(), providedSpec->ReduceCombiner.Get());
     }
     AdjustSamplingFromConfig(spec, config);
     return New<TMapReduceController>(spec, config, options, host, operation);

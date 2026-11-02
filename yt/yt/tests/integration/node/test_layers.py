@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, ROOTFS_LAYER_PATH
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, CONTROLLER_AGENTS_SERVICE, ROOTFS_LAYER_PATH
 
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, link, exists,
@@ -1041,7 +1041,15 @@ class TestDockerImage(TestPortoLayersBase):
         )
 
     @staticmethod
-    def run_map(docker_image, **kwargs):
+    def create_mock_docker_image_with_env(tag, layers, env):
+        # Env hangs off the tag entry as node attributes; old controller
+        # agents ignore attributes and still parse the layers.
+        entry = yson.yson_types.YsonList(layers)
+        entry.attributes = {"env": env}
+        TestDockerImage.create_mock_docker_image({tag: entry})
+
+    @staticmethod
+    def run_map(docker_image, command=COMMAND, **kwargs):
         spec = {
             "max_failed_job_count": 1,
             "mapper": {
@@ -1053,7 +1061,7 @@ class TestDockerImage(TestPortoLayersBase):
         map(
             in_=TestDockerImage.INPUT_TABLE,
             out=TestDockerImage.OUTPUT_TABLE,
-            command=TestDockerImage.COMMAND,
+            command=command,
             spec=spec,
         )
 
@@ -1078,6 +1086,84 @@ class TestDockerImage(TestPortoLayersBase):
         self.create_mock_docker_image({tag: ["//tmp/layer1", ROOTFS_LAYER_PATH]})
 
         self.run_map(f"{TestDockerImage.IMAGE}:{tag}", layer_paths=["//tmp/layer2"])
+
+    @authors("yuryalekseev")
+    @pytest.mark.timeout(180)
+    def test_docker_image_env(self):
+        self.setup_files()
+        self.create_tables()
+
+        tag = "tag"
+        # HOME is part of the cluster-wide controller agent environment; the image must not override it.
+        self.create_mock_docker_image_with_env(
+            tag,
+            ["//tmp/layer1", "//tmp/layer2", ROOTFS_LAYER_PATH],
+            env=[
+                "DOCKER_IMAGE_ENV=image",
+                "SHARED_ENV=image",
+                "HOME=/root",
+                "DOCKER_IMAGE_DUP=first",
+                "DOCKER_IMAGE_DUP=last",
+                "LITERAL_VALUE=$(SandboxPath)",
+            ],
+        )
+
+        self.run_map(
+            f"{TestDockerImage.IMAGE}:{tag}",
+            command=(
+                'test "$DOCKER_IMAGE_ENV" = "image"'
+                ' && test "$SHARED_ENV" = "user"'
+                ' && test "$HOME" != "/root"'
+                ' && test "$DOCKER_IMAGE_DUP" = "last"'
+                " && test \"$LITERAL_VALUE\" = '$(SandboxPath)'"
+            ),
+            environment={"SHARED_ENV": "user"},
+        )
+
+    @authors("yuryalekseev")
+    @pytest.mark.parametrize(
+        "env, expected_error",
+        [
+            (["PATH_WITHOUT_EQUALS_SIGN", "VALID=yes"], "sets a malformed environment variable"),
+            (["FOO BAR=1"], "sets an invalid environment variable"),
+            (["=value"], "sets an invalid environment variable"),
+        ],
+    )
+    @pytest.mark.timeout(180)
+    def test_docker_image_env_rejected(self, env, expected_error):
+        self.setup_files()
+        self.create_tables()
+
+        self.create_mock_docker_image_with_env(
+            "bad_env",
+            ["//tmp/layer1", "//tmp/layer2", ROOTFS_LAYER_PATH],
+            env=env,
+        )
+        with raises_yt_error(expected_error):
+            self.run_map(f"{TestDockerImage.IMAGE}:bad_env")
+
+    @authors("yuryalekseev")
+    @pytest.mark.timeout(180)
+    def test_docker_image_env_spec_rejected(self):
+        self.setup_files()
+        self.create_tables()
+
+        with raises_yt_error('Option "docker_image_environment" is not allowed in the spec'):
+            self.run_map(f"{TestDockerImage.IMAGE}:tag", docker_image_environment={"FOO": "bar"})
+        for stage in ("mapper", "reduce_combiner"):
+            with raises_yt_error('Option "docker_image_environment" is not allowed in the spec'):
+                map_reduce(
+                    in_=TestDockerImage.INPUT_TABLE,
+                    out=TestDockerImage.OUTPUT_TABLE,
+                    mapper_command="cat",
+                    reducer_command="cat",
+                    reduce_combiner_command="cat",
+                    sort_by=["a"],
+                    spec={
+                        "max_failed_job_count": 1,
+                        stage: {"docker_image_environment": {"FOO": "bar"}},
+                    },
+                )
 
     @authors("galtsev")
     @pytest.mark.timeout(180)
@@ -1130,6 +1216,62 @@ class TestDockerImage(TestPortoLayersBase):
 
         with raises_yt_error('External docker image is not supported in Porto job environment'):
             self.run_map(self.INVALID_EXTERNAL_IMAGE)
+
+
+class TestDockerImageRevival(TestDockerImage):
+    # There are component restarts.
+    ENABLE_MULTIDAEMON = False
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+        },
+    }
+
+    @authors("yuryalekseev")
+    @pytest.mark.timeout(300)
+    def test_docker_image_env_revival(self):
+        self.setup_files()
+        self.create_tables()
+
+        tag = "tag"
+        self.create_mock_docker_image_with_env(
+            tag,
+            ["//tmp/layer1", "//tmp/layer2", ROOTFS_LAYER_PATH],
+            env=["DOCKER_IMAGE_ENV=image", "LITERAL_VALUE=$(SandboxPath)"],
+        )
+
+        op = map(
+            in_=TestDockerImage.INPUT_TABLE,
+            out=TestDockerImage.OUTPUT_TABLE,
+            track=False,
+            command=with_breakpoint(
+                'test "$DOCKER_IMAGE_ENV" = "image"'
+                " && test \"$LITERAL_VALUE\" = '$(SandboxPath)'"
+                " && cat"
+                " && BREAKPOINT"
+            ),
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "docker_image": f"{TestDockerImage.IMAGE}:{tag}",
+                },
+            },
+        )
+
+        # Hold the job so that the retried one is started by the revived controller.
+        job_id, = wait_breakpoint(op)
+        op.wait_for_fresh_snapshot()
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            time.sleep(10)
+        op.ensure_running()
+
+        abort_job(job_id)
+        # The aborted job's breakpoint is still registered, pick the fresh one.
+        breakpoint_job_ids = wait_breakpoint(op, check_fn=lambda ids: any(j != job_id for j in ids))
+        retry_job_id = next(j for j in breakpoint_job_ids if j != job_id)
+        release_breakpoint(job_id=retry_job_id)
+        op.track()
 
 
 class TestLayerCacheBase(TestPortoLayersBase):
