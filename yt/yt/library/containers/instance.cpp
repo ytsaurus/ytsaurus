@@ -64,7 +64,12 @@ i64 Extract(
     const std::string& pattern,
     const std::string& terminator = "\n")
 {
-    auto start = input.find(pattern) + pattern.length();
+    auto patternStart = input.find(pattern);
+    if (patternStart == input.npos) {
+        THROW_ERROR_EXCEPTION("Failed to extract pattern from porto statistics")
+            .With("pattern", pattern);
+    }
+    auto start = patternStart + pattern.length();
     auto end = input.find(terminator, start);
     return std::stol(input.substr(start, (end == input.npos) ? end : end - start));
 }
@@ -206,7 +211,7 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
 
     // Example of net_limit_soft_stat:
     //   BytesForcedToFB: 0; BytesUntouched: 0; ConnectionMarks: 0; ConnectionUnmarks: 0; PacketsAboveGuarantee: 0; PacketsForcedToFB: 0; PacketsUntouched: 0
-    {EStatField::NetSoftLimitBytesForcedToFb, {"net_limit_soft_stat", GetStatByKeyExtractor("BytesForcedToFb:", ";")}},
+    {EStatField::NetSoftLimitBytesForcedToFb, {"net_limit_soft_stat", GetStatByKeyExtractor("BytesForcedToFB:", ";")}},
     {EStatField::NetSoftLimitBytesUntouched, {"net_limit_soft_stat", GetStatByKeyExtractor("BytesUntouched:", ";")}},
     {EStatField::NetSoftLimitPacketsAboveGuarantee, {"net_limit_soft_stat", GetStatByKeyExtractor("PacketsAboveGuarantee:", ";")}},
 };
