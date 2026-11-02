@@ -203,7 +203,7 @@ In unit tests, set static parameters via `TTestStateEnvironment::SetStaticParame
 
 When several process functions handle data in sequence or split a stream, you can run them in one `Computation` as a graph. Each node of the graph is a separately registered process function; messages between nodes stay inside the worker instead of passing through intermediate pipeline streams.
 
-Describe the graph in the static spec, in the `process_function_graph` field of a computation with `computation_class_name = "NYT::NFlow::TProcessFunctionComputation"` (Transform) or `"NYT::NFlow::TProcessFunctionSwiftMapComputation"` (Swift map). A node has the same fields as a computation that hosts one process function: `processing_function`, `processing_function_parameters`, `input_stream_ids`, `output_stream_ids`, `timer_streams`, and `streams_dependency`. Nodes are connected by stream IDs, the same way computations are connected in a pipeline:
+Describe the graph in the static spec, in the `process_function_graph` field of a computation with `computation_class_name = "NYT::NFlow::TProcessFunctionComputation"` (Transform), `"NYT::NFlow::TProcessFunctionSwiftMapComputation"` (Swift map), or `"NYT::NFlow::TProcessFunctionSourceComputation"` (source). A node has the same fields as a computation that hosts one process function: `processing_function`, `processing_function_parameters`, `input_stream_ids`, `output_stream_ids`, `timer_streams`, and `streams_dependency`. Nodes are connected by stream IDs, the same way computations are connected in a pipeline:
 
 - The `input_stream_ids` and `output_stream_ids` of the computation are the boundary of the graph.
 - A node reads the streams listed in its `input_stream_ids`: inputs of the computation or outputs of other nodes. Several nodes can read one stream, and one node can read several streams.
@@ -213,7 +213,7 @@ In the pipeline spec of the integration test, the `graph` computation counts mes
 
 {% code '/yt/yt/flow/tests/process_function_graph/pipeline/pipeline.yson' lang='yson' %}
 
-Register every stream the nodes use, including internal ones, like any other pipeline stream. The same test does it in `PrepareSpec`:
+Register every stream the nodes use, including internal ones, like any other pipeline stream. The exception is the streams in `source_streams` of a source computation: they are not registered. The same test registers its streams in `PrepareSpec`:
 
 {% code '/yt/yt/flow/tests/process_function_graph/pipeline/main.cpp' lang='cpp' lines='[BEGIN register_streams]-[END register_streams]' %}
 
