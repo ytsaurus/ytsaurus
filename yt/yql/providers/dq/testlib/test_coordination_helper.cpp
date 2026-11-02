@@ -79,11 +79,11 @@ ui32 TTestCoordinationHelper::GetNodeId(
     return NodeId_;
 }
 
-TString TTestCoordinationHelper::GetHostname() {
+TString TTestCoordinationHelper::GetHostname() const {
     return "localhost";
 }
 
-TString TTestCoordinationHelper::GetIp() {
+TString TTestCoordinationHelper::GetIp() const {
     return "::1";
 }
 

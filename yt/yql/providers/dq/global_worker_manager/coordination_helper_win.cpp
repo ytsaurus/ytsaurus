@@ -14,7 +14,8 @@ ICoordinationHelper::TPtr CreateCoordiantionHelper(
     ui16 /*interconnectPort*/,
     const TString& /*host*/,
     const TString& /*ip*/,
-    TGlobalWorkerManagerActorIdOptions /*actorIdOptions*/)
+    TGlobalWorkerManagerActorIdOptions /*actorIdOptions*/,
+    EGwmHostAddress /*gwmHostAddress*/)
 {
     return nullptr;
 }

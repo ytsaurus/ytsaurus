@@ -1,6 +1,7 @@
 YQL_LIBRARY()
 
 SRCS(
+    coordination_helper_common.cpp
     dq_warmup_common.cpp
     global_worker_manager.cpp
     service_node_pinger.cpp
