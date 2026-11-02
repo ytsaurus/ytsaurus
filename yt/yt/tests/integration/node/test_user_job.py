@@ -122,6 +122,7 @@ class TestSandboxPath(YTEnvSetup):
 
 
 class TestSandboxTmpfs(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 2
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -818,15 +819,14 @@ time.sleep(10)
         assert ["file", "content_1", "file", "content_2"] == words
 
     @authors("ignat")
-    @pytest.mark.timeout(150)
     def test_vanilla(self):
         vanilla(
             spec={
                 "tasks": {
-                    "a": {"job_count": 2, "command": "sleep 5", "tmpfs_volumes": []},
+                    "a": {"job_count": 2, "command": "sleep 1", "tmpfs_volumes": []},
                     "b": {
                         "job_count": 1,
-                        "command": "sleep 10",
+                        "command": "sleep 1",
                         "tmpfs_volumes": [
                             {
                                 "path": "tmpfs",
@@ -836,7 +836,7 @@ time.sleep(10)
                     },
                     "c": {
                         "job_count": 3,
-                        "command": "sleep 15",
+                        "command": "sleep 1",
                         "tmpfs_volumes": [
                             {
                                 "path": "tmpfs",
