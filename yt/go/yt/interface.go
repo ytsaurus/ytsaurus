@@ -1390,6 +1390,10 @@ type LookupRowsOptions struct {
 	// Columns filters columns in lookup result.
 	Columns []string `http:"column_names,omitnil"`
 
+	// VersionedReadOptions adds "$timestamp:columnName" to the result
+	// if ReadMode is VersionedReadModeLatestTimestamp.
+	VersionedReadOptions *VersionedReadOptions `http:"versioned_read_options,omitnil"`
+
 	*TransactionOptions
 }
 
@@ -1461,6 +1465,10 @@ type SelectRowsOptions struct {
 	UseCanonicalNullRelations *bool `http:"use_canonical_null_relations,omitnil"`
 
 	Timestamp *Timestamp `http:"timestamp,omitnil"`
+
+	// VersionedReadOptions adds "$timestamp:columnName" to the result
+	// if ReadMode is VersionedReadModeLatestTimestamp.
+	VersionedReadOptions *VersionedReadOptions `http:"versioned_read_options,omitnil"`
 
 	PlaceholderValues any `http:"placeholder_values,omitnil"`
 

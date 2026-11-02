@@ -340,6 +340,17 @@ const (
 	ReplicaConsistencySync ReplicaConsistency = 1
 )
 
+type VersionedReadMode string
+
+const (
+	VersionedReadModeDefault         VersionedReadMode = "default"
+	VersionedReadModeLatestTimestamp VersionedReadMode = "latest_timestamp"
+)
+
+type VersionedReadOptions struct {
+	ReadMode VersionedReadMode `yson:"read_mode,omitempty"`
+}
+
 type TabletReadKind int32
 
 const (

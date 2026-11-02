@@ -2224,6 +2224,10 @@ func writeLookupRowsOptions(w *yson.Writer, o *yt.LookupRowsOptions) {
 		w.MapKeyString("column_names")
 		w.Any(o.Columns)
 	}
+	if o.VersionedReadOptions != nil {
+		w.MapKeyString("versioned_read_options")
+		w.Any(o.VersionedReadOptions)
+	}
 	writeTransactionOptions(w, o.TransactionOptions)
 }
 
@@ -2240,6 +2244,9 @@ func logLookupRowsOptions(o *yt.LookupRowsOptions) []log.Field {
 	}
 	if o.Columns != nil {
 		fields = append(fields, log.Any("column_names", o.Columns))
+	}
+	if o.VersionedReadOptions != nil {
+		fields = append(fields, log.Any("versioned_read_options", o.VersionedReadOptions))
 	}
 	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
 	return fields
@@ -2430,6 +2437,10 @@ func writeSelectRowsOptions(w *yson.Writer, o *yt.SelectRowsOptions) {
 		w.MapKeyString("timestamp")
 		w.Any(o.Timestamp)
 	}
+	if o.VersionedReadOptions != nil {
+		w.MapKeyString("versioned_read_options")
+		w.Any(o.VersionedReadOptions)
+	}
 	if o.PlaceholderValues != nil {
 		w.MapKeyString("placeholder_values")
 		w.Any(o.PlaceholderValues)
@@ -2457,6 +2468,9 @@ func logSelectRowsOptions(o *yt.SelectRowsOptions) []log.Field {
 	}
 	if o.Timestamp != nil {
 		fields = append(fields, log.Any("timestamp", o.Timestamp))
+	}
+	if o.VersionedReadOptions != nil {
+		fields = append(fields, log.Any("versioned_read_options", o.VersionedReadOptions))
 	}
 	if o.PlaceholderValues != nil {
 		fields = append(fields, log.Any("placeholder_values", o.PlaceholderValues))
