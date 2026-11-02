@@ -20,6 +20,7 @@ DATA(
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_59543/access-zero-match.json
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_59543/logslice-access-log-family-rejected.txt
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_59543/logslice-nearest-archive-boundary.txt
+    arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_62021/component-routing.json
 )
 
 SIZE(SMALL)

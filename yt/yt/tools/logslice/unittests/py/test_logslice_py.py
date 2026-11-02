@@ -1968,6 +1968,80 @@ class ComponentRoutingTest(unittest.TestCase):
             ("tablet-node", "node"),
         )
 
+    def test_tablet_balancer_retained_routing_fixture(self):
+        relative_path = (
+            "yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_62021/"
+            "component-routing.json")
+        try:
+            import yatest.common
+            path = yatest.common.source_path(relative_path)
+        except ImportError:
+            path = os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                "fixtures", "ytadminreq_62021", "component-routing.json")
+        with open(path) as stream:
+            fixture = json.load(stream)
+        self.assertEqual(
+            logslice.infer_host_component(fixture["host"]),
+            tuple(fixture["expected"]))
+
+        names = [
+            "node.error.log", "tablet-balancer-klg0-0000.error.log",
+            "tablet-balancer-klg0-0941.error.log",
+            "tablet-balancer-klg0-0941.error.log.1.zst",
+        ]
+        candidates = logslice._candidate_bases(names, "error")
+        route = logslice.resolve_component_route(fixture["host"], None, candidates)
+        self.assertEqual(route, {
+            "role": "tablet-balancer",
+            "component": "tablet-balancer-klg0-0941",
+            "base": "tablet-balancer-klg0-0941",
+            "source": "hostname",
+            "confidence": "high",
+        })
+        base, files = logslice.order_series(
+            [logslice.parse_log_name(name) for name in names], "error", route["base"])
+        self.assertEqual(base, "tablet-balancer-klg0-0941")
+        self.assertEqual([item.name for item in files], [
+            "tablet-balancer-klg0-0941.error.log.1.zst",
+            "tablet-balancer-klg0-0941.error.log",
+        ])
+
+    def test_tablet_balancer_hostname_normalization(self):
+        for host in (
+            "sas5-5383-tab-balancer-ada",
+            "nobody@SAS5-5383-TAB-BALANCER-ADA.sas.yp-c.yandex.net",
+        ):
+            with self.subTest(host=host):
+                route = logslice.resolve_component_route(
+                    host, None, ["tablet-balancer-sas5-5383"])
+                self.assertEqual(route["role"], "tablet-balancer")
+                self.assertEqual(route["base"], "tablet-balancer-sas5-5383")
+
+    def test_tablet_balancer_requires_exact_discovered_base(self):
+        for candidates in (
+            [],
+            ["node", "push-client", "tablet-balancer"],
+            ["tablet-balancer-klg0-0000", "tablet-balancer-klg0-0942"],
+            ["tablet-balancer-klg0-0941-sidecar"],
+        ):
+            with self.subTest(candidates=candidates):
+                with self.assertRaisesRegex(ValueError, "that base was not found"):
+                    logslice.resolve_component_route(
+                        "klg0-0941-tab-balancer-seneca-klg.klg.yp-c.yandex.net",
+                        None, candidates)
+
+    def test_tablet_balancer_requires_location_in_hostname(self):
+        for host in (
+            "tab-balancer-seneca-klg.klg.yp-c.yandex.net",
+            "klg-0941-tab-balancer-seneca-klg",
+            "prefix-klg0-0941-tab-balancer-seneca-klg",
+        ):
+            with self.subTest(host=host):
+                with self.assertRaisesRegex(ValueError, "cannot infer"):
+                    logslice.resolve_component_route(
+                        host, None, ["tablet-balancer-klg0-0941", "node"])
+
     def test_node_hostname_resolves_location_suffixed_base(self):
         route = logslice.resolve_component_route(
             "vla5-6094-bundlename-001-tab-sen-v.vla.yp-c.yandex.net",
