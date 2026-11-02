@@ -10,7 +10,6 @@ from yt.yql.tests.sql.runners.common import (
     add_table_clusters,
     patch_cfg_file,
     resolve_langver,
-    skip_if_non_trivial_gateway,
 )
 from yt.yql.tests.sql.runners.compare import compare_file_run_with_reference
 
@@ -40,8 +39,6 @@ def collect_test_classes(test_file):
 
 
 def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
-    skip_if_non_trivial_gateway(what)
-
     config = get_config(suite, case, cfg, data_path=DATA_PATH)
     cfg_postprocess = add_table_clusters(suite, config)
     patch_cfg_file_path = patch_cfg_file(DATA_PATH, suite, config)

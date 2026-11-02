@@ -1,10 +1,9 @@
 import codecs
 import os
 
-import pytest
 import yatest.common
 
-from yql_utils import get_gateway_cfg_suffix, get_gateway_cfg_patch, get_langver, get_table_clusters
+from yql_utils import get_gateway_cfg_patch, get_langver, get_table_clusters
 from test_utils import get_case_file
 
 SUITES_PATH = 'yt/yql/tests/sql/suites'
@@ -41,11 +40,6 @@ def patch_cfg_file(data_path, suite, config):
     if patch_name:
         return os.path.join(data_path, suite, patch_name)
     return None
-
-
-def skip_if_non_trivial_gateway(what):
-    if get_gateway_cfg_suffix() != '' and what != 'Results':
-        pytest.skip('non-trivial gateways.conf')
 
 
 def iter_out_tables_for_canon(out_tables, tables_res):
