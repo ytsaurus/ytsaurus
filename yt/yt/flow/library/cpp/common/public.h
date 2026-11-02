@@ -80,6 +80,7 @@ static constexpr auto InfinitySystemTimestamp = TSystemTimestamp(0xfffffffffffff
 static constexpr auto ZeroSystemTimestamp = TSystemTimestamp(0);
 
 DECLARE_REFCOUNTED_STRUCT(ITimeProvider);
+DECLARE_REFCOUNTED_STRUCT(ITimerPageCatalogue);
 DECLARE_REFCOUNTED_STRUCT(TDynamicPartitionSpec);
 DECLARE_REFCOUNTED_STRUCT(IPartitionBufferState);
 DECLARE_REFCOUNTED_STRUCT(IJobLineageTracker);
@@ -159,6 +160,14 @@ DEFINE_ENUM(EJobFinishReason,
     ((LostWorker)            (4))
     ((ExpiredLease)          (5))
     ((PartitionUpdated)      (6))
+);
+
+//! Where a computation keeps its timers.
+DEFINE_ENUM(ETimerStoreBackend,
+    // All timers of a partition are resident in worker memory, persisted in the "timers" table.
+    ((InMemory)    (0))
+    // Timers live in pages of a dynamic table; only the pages needed for firing are resident.
+    ((Paged)       (1))
 );
 
 DEFINE_ENUM(EDistributionOrdering,

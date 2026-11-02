@@ -35,6 +35,8 @@ FLOW_NODE_DEFAULT_CONFIG = {
         },
         "controller_service": {
             "set_spec_retry_period": "100ms",
+            # Integration tests run the paged timer store.
+            "enable_paged_timer_store": True,
         },
     },
     "worker": {

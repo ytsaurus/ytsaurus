@@ -78,6 +78,8 @@
 
 {% include [_](./NYT_NFlow_ETimeType.md) %}
 
+{% include [_](./NYT_NFlow_ETimerStoreBackend.md) %}
+
 {% include [_](./NYT_NFlow_ETimestampFormat.md) %}
 
 {% include [_](./NYT_NFlow_EUnavailableSourcePolicy.md) %}

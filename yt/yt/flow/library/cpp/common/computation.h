@@ -37,6 +37,14 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! The worker's catalogue of timer pages as the context carries it; the implementation lives
+//! in the computation library and is shared by every job of the worker.
+struct ITimerPageCatalogue
+    : public TRefCounted
+{ };
+
+DEFINE_REFCOUNTED_TYPE(ITimerPageCatalogue);
+
 struct TComputationContextBase
 {
     TComputationSpecPtr ComputationSpec;
@@ -54,6 +62,8 @@ struct TComputationContextBase
     NQueryClient::IColumnEvaluatorCachePtr EvaluatorCache;
     IPayloadConverterCachePtr ConverterCache;
     TLoadThroughputThrottlerPtr LoadThroughputThrottler;
+    //! The worker's timer page catalogue; null outside a worker job.
+    ITimerPageCataloguePtr TimerPageCatalogue;
     //! Per-job view of the worker's buffer manager; null outside a worker job.
     IPartitionBufferStatePtr PartitionBufferState;
     TComputationStreamSpecStoragePtr StreamSpecStorage;

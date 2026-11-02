@@ -82,9 +82,8 @@ void TSwiftOrderedSourceComputation::DoExecute(const IComputationRunContextPtr& 
     YT_VERIFY(OrderedSource_);
     WaitFor(InputStore_->Init()).ThrowOnError();
     WaitFor(TimerStore_->Init()).ThrowOnError();
-    if (TimerStore_->GetCount() != 0) {
-        THROW_ERROR_EXCEPTION("Persisted timer store expected to be empty, but it has %v records",
-            TimerStore_->GetCount());
+    if (!TimerStore_->IsEmpty()) {
+        THROW_ERROR_EXCEPTION("Persisted timer store expected to be empty");
     }
 
     const auto initContext = StateManager_->CreateContext()->AsKey(*GetContext()->Partition->SourceKey);

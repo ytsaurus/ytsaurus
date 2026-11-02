@@ -818,6 +818,7 @@ private:
         computationContext->EvaluatorCache = jobContext->EvaluatorCache;
         computationContext->ConverterCache = jobContext->ConverterCache;
         computationContext->LoadThroughputThrottler = jobContext->LoadThroughputThrottler;
+        computationContext->TimerPageCatalogue = jobContext->TimerPageCatalogue;
         computationContext->PartitionBufferState = jobContext->PartitionBufferState;
         computationContext->StreamSpecStorage = jobContext->StreamSpecStorage;
         computationContext->JobStateCache = jobContext->JobStateCache;

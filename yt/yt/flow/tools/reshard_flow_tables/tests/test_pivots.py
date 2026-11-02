@@ -10,6 +10,8 @@ from yt.yt.flow.tools.reshard_flow_tables.lib import (
     plan_leases_table,
     plan_partition_table,
     plan_pipeline_tables,
+    plan_timer_page_meta_table,
+    plan_timer_pages_table,
 )
 
 
@@ -206,3 +208,38 @@ def test_key_visitor_states_streams_get_exactly_the_requested_tablet_count():
 
     hashes = [pivot[2][0] for pivot in request.parameters["pivot_keys"][1:]]
     assert hashes == [(2**64 * k) // 10 for k in range(1, 10)]
+
+
+def test_timer_page_meta_table_gets_exactly_the_tablet_count_when_it_does_not_divide_the_hash_space():
+    plan = plan_timer_page_meta_table(["a"], "//pipeline", 3)
+
+    step = 2**64 // 3
+    assert plan.parameters["pivot_keys"] == [
+        [],
+        ["a", yson.YsonUint64(step)],
+        ["a", yson.YsonUint64(2 * step)],
+    ]
+
+
+def test_timer_page_meta_table_is_cut_per_computation_over_the_family_id():
+    plan = plan_timer_page_meta_table(["b", "a"], "//pipeline", 4)
+
+    assert plan.table == "//pipeline/timer_page_meta"
+    assert plan.parameters["pivot_keys"] == [
+        [],
+        ["a", yson.YsonUint64(2**62)],
+        ["a", yson.YsonUint64(2**63)],
+        ["a", yson.YsonUint64(3 * 2**62)],
+        ["b"],
+        ["b", yson.YsonUint64(2**62)],
+        ["b", yson.YsonUint64(2**63)],
+        ["b", yson.YsonUint64(3 * 2**62)],
+    ]
+
+
+def test_timer_pages_table_is_uniform_over_the_family_id():
+    assert plan_timer_pages_table(["a", "b"], "//pipeline", 3) == (
+        "//pipeline/timer_pages",
+        {"tablet_count": 6, "uniform": True},
+    )
+    assert plan_timer_pages_table([], "//pipeline", 3) is None

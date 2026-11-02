@@ -30,6 +30,10 @@ SRCS(
     state_client_ut.cpp
     state_providers_ut.cpp
     swift_map_validation_ut.cpp
+    paged_timer_store_differential_ut.cpp
+    paged_timer_store_ut.cpp
+    timer_page_catalogue_ut.cpp
+    timer_page_data_ut.cpp
     timer_store_ut.cpp
     transform_ordered_source_validation_ut.cpp
     watermark_generator_ut.cpp

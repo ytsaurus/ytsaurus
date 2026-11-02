@@ -638,6 +638,9 @@ struct TComputationSpec
     : public NYTree::TYsonStruct
 {
     static constexpr bool ExperimentalEnableNonUintKeyDefault = false;
+    static constexpr ETimerStoreBackend DefaultTimerStoreBackend = ETimerStoreBackend::InMemory;
+    static constexpr i64 DefaultTimerPageSize = 4096;
+    static constexpr i64 MinTimerPageSize = 16;
 
     std::string ComputationClassName;
 
@@ -689,6 +692,11 @@ struct TComputationSpec
     bool AllowTimerSelfDependency{};
     std::optional<bool> UseCompactInputMessages;
 
+    //! Timer store backend and page size. A backend change is applied by a conversion at
+    //! the next job start; pages are split and merged gradually to approach the configured page size.
+    ETimerStoreBackend TimerStoreBackend{};
+    NYTree::TSize TimerPageSize;
+
     REGISTER_YSON_STRUCT(TComputationSpec);
 
     static void Register(TRegistrar registrar);
@@ -711,6 +719,12 @@ THashSet<TStreamId> ComputeAllowedInputStreams(
 THashSet<TStreamId> ComputeKeyVisitorUpstreamStreams(
     const TComputationSpec& computationSpec,
     const TStreamId& visitStreamId);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Whether the computation keeps the event ordering of its timers, which only a percentile
+//! watermark needs; meaningful for the paged backend only.
+bool ResolveTimerEventOrdering(const TComputationSpecPtr& spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -881,6 +895,10 @@ struct TDynamicTimerStoreSpec
     : public NYTree::TYsonStruct
 {
     TDynamicTableRequestSpecPtr TableRequest;
+
+    // Paged backend only.
+    //! Maximum timer row writes per required insertion in one epoch.
+    double TimerWriteMultiplier{};
 
     REGISTER_YSON_STRUCT(TDynamicTimerStoreSpec);
 

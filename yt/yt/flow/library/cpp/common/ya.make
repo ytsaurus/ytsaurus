@@ -58,6 +58,7 @@ SRCS(
     stream_spec_storage.cpp
     timestamp_statistics.cpp
     timer.cpp
+    timer_page.cpp
     traverse.cpp
     visit.cpp
     yson_message.cpp

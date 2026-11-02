@@ -7,6 +7,7 @@
 #include "stores/compact_output_store.h"
 #include "stores/input_store.h"
 #include "stores/output_store.h"
+#include "stores/timer_page_catalogue.h"
 #include "stores/timer_store.h"
 
 #include "job_state/state_manager.h"
@@ -26,6 +27,7 @@
 #include <yt/yt/flow/library/cpp/tables/compact_partition_output_messages.h>
 #include <yt/yt/flow/library/cpp/tables/context.h>
 #include <yt/yt/flow/library/cpp/tables/input_messages.h>
+#include <yt/yt/flow/library/cpp/tables/timer_pages.h>
 #include <yt/yt/flow/library/cpp/tables/timers.h>
 #include <yt/yt/flow/library/cpp/tables/transaction_manager.h>
 
@@ -699,6 +701,7 @@ TUniversalComputationBase::TUniversalComputationBase(
                 auto dynamicTimerStoreContext = New<TDynamicTimerStoreContext>();
                 dynamicTimerStoreContext->DynamicTimerStoreSpec = GetDynamicSpec()->TimerStore;
                 dynamicTimerStoreContext->Draining = GetDynamicSpec()->Draining;
+                dynamicTimerStoreContext->MaxRowsPerBatch = GetDynamicSpec()->MaxRowsPerBatch;
                 TimerStore_->Reconfigure(std::move(dynamicTimerStoreContext));
             }
             if (InputStore_) {
@@ -1101,9 +1104,39 @@ ITimerStorePtr TUniversalComputationBase::CreateTimerStore()
         tableContext->Tag = Format("%s:timers", GetContext()->Partition->ComputationId);
         context->TimersTable = New<NTables::TTimers>(tableContext, New<TDynamicTableRequestSpec>());
     }
+    context->Backend = GetSpec()->TimerStoreBackend;
+    context->TransactionManager = GetTransactionManager();
+    // The in-memory backend needs the page tables only to take back the pages of a former
+    // paged backend, and only a worker knows whether the pipeline has them.
+    if (context->Backend == ETimerStoreBackend::Paged || (GetContext()->TimerPageCatalogue && !context->TimerSpecs.empty())) {
+        auto tableContext = New<NTables::TContext>();
+        tableContext->Client = GetRetryableClient()->WithErrorComponent("timer_pages");
+        tableContext->PipelinePath = GetContext()->PipelinePath;
+        tableContext->LoadThroughputThrottler = GetContext()->LoadThroughputThrottler;
+        tableContext->Logger = Logger;
+        tableContext->Profiler = GetContext()->Profiler.WithPrefix("/tables");
+        tableContext->Tag = Format("%s:timer_pages", GetContext()->Partition->ComputationId);
+        context->TimerPageSize = static_cast<i64>(GetSpec()->TimerPageSize);
+        context->TimerPagesTable = New<NTables::TTimerPages>(tableContext, New<TDynamicTableRequestSpec>());
+        context->PageCatalogue = StaticPointerCast<TTimerPageCatalogue>(GetContext()->TimerPageCatalogue);
+        context->TimeProvider = GetTimeProvider();
+        if (!context->PageCatalogue) {
+            // Outside a worker job there is no shared catalogue; a private one serves this store.
+            auto client = tableContext->Client;
+            context->PageCatalogue = New<TTimerPageCatalogue>(
+                context->TimerPagesTable,
+                [client] {
+                    return client->StartTransaction(NTransactionClient::ETransactionType::Tablet);
+                },
+                GetContext()->PoolInvoker,
+                Logger,
+                GetContext()->Profiler);
+        }
+    }
     auto dynamicTimerStoreContext = New<TDynamicTimerStoreContext>();
     dynamicTimerStoreContext->DynamicTimerStoreSpec = GetDynamicSpec()->TimerStore;
     dynamicTimerStoreContext->Draining = GetDynamicSpec()->Draining;
+    dynamicTimerStoreContext->MaxRowsPerBatch = GetDynamicSpec()->MaxRowsPerBatch;
     return NFlow::CreateTimerStore(context, std::move(dynamicTimerStoreContext));
 }
 
@@ -1487,6 +1520,8 @@ TUniversalComputationBase::TRunIterationGuard TUniversalComputationBase::StartRu
     EpochUniqueSeqNo_.reset();
 
     if (TimerStore_) {
+        // The pages due next are read before the watermark fires them.
+        WaitFor(TimerStore_->Preload()).ThrowOnError();
         TimerStore_->UpdateWatermarkState(GetWatermarkState());
     }
     for (const auto& [_, sink] : Sinks_) {
@@ -1767,11 +1802,11 @@ void TUniversalComputationBase::ValidateTimerStoreLimits(const TDynamicComputati
 {
     NTracing::TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Accounting"));
 
-    if (TimerStore_->GetCount() > dynamicSpec->TimerStoreCountLimit) {
-        THROW_ERROR_EXCEPTION(EErrorCode::TimerStoreLimitExceeded, "Too much timers in memory: count %v, limit %v", TimerStore_->GetCount(), dynamicSpec->TimerStoreCountLimit);
+    if (TimerStore_->GetInMemoryCount() > dynamicSpec->TimerStoreCountLimit) {
+        THROW_ERROR_EXCEPTION(EErrorCode::TimerStoreLimitExceeded, "Too much timers in memory: count %v, limit %v", TimerStore_->GetInMemoryCount(), dynamicSpec->TimerStoreCountLimit);
     }
-    if (TimerStore_->GetByteSize() > dynamicSpec->TimerStoreByteSizeLimit) {
-        THROW_ERROR_EXCEPTION(EErrorCode::TimerStoreLimitExceeded, "Too much timers in memory: byte size %v, limit %v", TimerStore_->GetByteSize(), dynamicSpec->TimerStoreByteSizeLimit);
+    if (TimerStore_->GetInMemoryByteSize() > dynamicSpec->TimerStoreByteSizeLimit) {
+        THROW_ERROR_EXCEPTION(EErrorCode::TimerStoreLimitExceeded, "Too much timers in memory: byte size %v, limit %v", TimerStore_->GetInMemoryByteSize(), dynamicSpec->TimerStoreByteSizeLimit);
     }
 }
 
