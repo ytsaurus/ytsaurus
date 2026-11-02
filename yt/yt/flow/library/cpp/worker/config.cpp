@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/flow/library/cpp/common/spec.h>
+
 #include <yt/yt/core/bus/tcp/config.h>
 
 namespace NYT::NFlow::NWorker {
@@ -13,6 +15,8 @@ void TWorkerConfig::Register(TRegistrar registrar)
     registrar.Parameter("message_service_threads", &TThis::MessageServiceThreads)
         .Default(3);
     registrar.Parameter("file_storage", &TThis::FileStorage)
+        .Default();
+    registrar.Parameter("initial_controller_connector", &TThis::InitialControllerConnector)
         .Default();
 }
 

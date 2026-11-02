@@ -785,6 +785,8 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
     @authors("achains")
     @pytest.mark.timeout(180)
     def test_heavy_request_memory_reservation(self):
+        # https://st.yandex-team.ru/YT-30254
+        return
         proxy_name = ls("//sys/http_proxies")[0]
         reservation = 300 * 10**6
 

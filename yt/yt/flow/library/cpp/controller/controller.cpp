@@ -598,12 +598,16 @@ public:
             } else {
                 metrics.ResetPerformanceMetrics();
             }
-            if (auto* computationInputMetrics = inputMetrics.FindPtr(computationId)) {
+
+            // Traverse data and input metrics may lag behind a replaced spec until a successful leader iteration syncs them.
+            auto* computationInputMetrics = inputMetrics.FindPtr(computationId);
+            auto* computationSpec = pipelineSpec->Computations.FindPtr(computationId);
+            if (computationInputMetrics && computationSpec) {
                 metrics.Apply(
                     *computationInputMetrics,
                     streamTraverseDatas[computationId],
                     flowView->EphemeralState->StreamTraverseDataMetrics[computationId],
-                    GetOrCrash(pipelineSpec->Computations, computationId));
+                    *computationSpec);
             } else {
                 metrics.ResetInputMetrics();
             }

@@ -23,8 +23,8 @@ public:
         ui32 maxNodeId,
         const THashMap<TString, TString>& attributes) override;
 
-    TString GetHostname() override;
-    TString GetIp() override;
+    TString GetHostname() const override;
+    TString GetIp() const override;
 
     NActors::IActor* CreateLockOnCluster(
         NActors::TActorId ytWrapper,

@@ -89,6 +89,7 @@ TYtflowConfiguration::TYtflowConfiguration()
         .Lower(TDuration::Zero());
 
     REGISTER_SETTING(*this, _ControllerConfig);
+    REGISTER_SETTING(*this, _ControllerConnectorConfig);
 
     REGISTER_SETTING(*this, _JobManagerConfig);
 
