@@ -1379,6 +1379,83 @@ class TestYtflowRemoteCluster(TestYtflowBase):
 
     @authors("ngc224")
     @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("consumer_cluster", ["primary", "remote_1"])
+    @pytest.mark.parametrize("shared_consumer", [False, True])
+    def test_source_consumer_hints(
+        self, query_tracker, yql_agent, run_query, consumer_cluster, shared_consumer
+    ):
+        schema = self._make_queue_schema([
+            {"name": "value", "type": "string"},
+        ])
+
+        rows = [
+            {"value": "foo"},
+            {"value": "bar"},
+        ]
+
+        statements = []
+        outputs = []
+        consumers = []
+
+        for index, queue_cluster in enumerate(["primary", "remote_0", "remote_1"]):
+            input_path = self._create_yt_table(dict(schema=schema), cluster=queue_cluster)
+            self._write_yt_table(input_path, rows, cluster=queue_cluster)
+
+            output_path = self._create_yt_table(dict(schema=schema))
+            outputs.append(output_path)
+
+            # The last source uses the pragma fallback alongside explicitly hinted sources.
+            if queue_cluster == "remote_1":
+                hint = ""
+                consumer_path = self.YT_CONSUMER_PATH
+                cluster = "primary"
+            else:
+                consumer_index = 0 if shared_consumer else index
+                consumer_path = f"//tmp/hinted_consumer_{consumer_index}"
+
+                cluster = consumer_cluster
+                rich_path = f'<cluster="{cluster}";>{consumer_path}'
+
+                hint = f" with consumer = '{rich_path}'"
+
+            consumers.append(
+                (queue_cluster, input_path, cluster, consumer_path)
+            )
+
+            statements.append(f"""
+insert into `{output_path}`
+select value from {queue_cluster}.`{input_path}`{hint};
+""")
+
+        run_query("\n".join(statements))
+
+        for output_path in outputs:
+            self._assert_yt_table_content(output_path, rows)
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("hint, error", [
+        ("with consumer = ''", "Consumer path must not be empty"),
+        ("", "Consumer cluster cannot be set via pragmas"),
+    ])
+    def test_invalid_source_consumer(self, query_tracker, yql_agent, run_query, hint, error):
+        schema = self._make_queue_schema([
+            {"name": "value", "type": "string"},
+        ])
+
+        input_path = self._create_yt_table(dict(schema=schema))
+        output_path = self._create_yt_table(dict(schema=schema))
+
+        with raises_yt_error(error):
+            run_query(f"""
+pragma Ytflow.YtConsumerPath = '<cluster="remote_1";>//tmp/invalid_pragma_consumer';
+
+insert into `{output_path}`
+select value from `{input_path}` {hint};
+""")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
     @pytest.mark.parametrize("kind", ["queue", "sorted_table"])
     def test_remote_read_and_write(self, query_tracker, yql_agent, run_query, kind):
         schema = self._make_queue_schema([

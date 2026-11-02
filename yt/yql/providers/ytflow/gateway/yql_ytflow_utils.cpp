@@ -101,13 +101,21 @@ TString ResolvePipelineClusterName(
 
 NYT::NYPath::TRichYPath MakeYtConsumerRichPath(
     const TYtflowSettings& config,
-    const TConfigClusters& configClusters)
+    const TConfigClusters& configClusters,
+    TString path)
 {
+    bool explicitHint = !path.empty();
     auto consumerPath = CanonizeYtRichPath(
-        config.GetYtConsumerPath(), config);
+        explicitHint
+            ? std::move(path)
+            : config.GetYtConsumerPath(),
+        config);
 
     if (auto cluster = consumerPath.GetCluster()) {
-        consumerPath.SetCluster(configClusters.GetRealName(TString(*cluster)));
+        YQL_ENSURE(explicitHint,
+            "Consumer cluster cannot be set via pragmas; "
+            "use an explicit 'consumer' hint instead");
+
     } else {
         consumerPath.SetCluster(
             ResolvePipelineClusterName(config, configClusters));

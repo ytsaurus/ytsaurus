@@ -43,10 +43,21 @@ using namespace NNodes;
 class TStreamTestIntegration : public TEmptyYtflowIntegration {
 public:
     void FillSourceSettings(
-        const TExprNode& /*source*/,
+        const TExprNode& sourceNode,
         ::google::protobuf::Any& settings,
         TExprContext& /*ctx*/) override
     {
+        if (sourceNode.IsCallable("TestQueueRead")) {
+            NProto::TYtQueueSourceMessage source;
+
+            source.SetCluster(TString(sourceNode.Child(2)->Content()));
+            source.SetPath("//tmp/queue");
+            source.SetConsumerPath(TString(sourceNode.Child(3)->Content()));
+            settings.PackFrom(source);
+
+            return;
+        }
+
         NProto::TPQSourceMessage source;
         source.SetTopicPath("input");
         settings.PackFrom(source);
@@ -105,10 +116,18 @@ protected:
         return lambda;
     }
 
-    TExprNode::TPtr MakeSourceMap()
+    TExprNode::TPtr MakeSourceMap(TString cluster = {}, TString consumer = {})
     {
         auto dataSource = Build<TCoDataSource>(Ctx_, Pos_).Category().Value("test").Build().Done();
         auto read = Ctx_.NewCallable(Pos_, "TestRead", {Ctx_.NewWorld(Pos_), dataSource.Ptr()});
+        if (!cluster.empty()) {
+            read = Ctx_.NewCallable(Pos_, "TestQueueRead", {
+                Ctx_.NewWorld(Pos_),
+                dataSource.Ptr(),
+                Ctx_.NewAtom(Pos_, cluster),
+                Ctx_.NewAtom(Pos_, consumer),
+            });
+        }
         auto source = Build<TYtflowPersistentSource>(Ctx_, Pos_)
             .Input<TYtflowReadWrap>().Input(read).Build()
             .Done();
@@ -174,11 +193,17 @@ protected:
             NCommon::ALL_CLUSTERS, "_FiniteStreams", TString("false"),
             NCommon::ISettingDispatcher::EStage::STATIC, onError));
         YQL_ENSURE(config->Dispatch(
+            NCommon::ALL_CLUSTERS, "_YtUseSourceWatermark", TString("false"),
+            NCommon::ISettingDispatcher::EStage::STATIC, onError));
+        YQL_ENSURE(config->Dispatch(
             NCommon::ALL_CLUSTERS, "Cluster", TString("primary"),
+            NCommon::ISettingDispatcher::EStage::STATIC, onError));
+        YQL_ENSURE(config->Dispatch(
+            NCommon::ALL_CLUSTERS, "YtConsumerPath", TString("//tmp/pragma-consumer"),
             NCommon::ISettingDispatcher::EStage::STATIC, onError));
 
         TYtflowGatewayConfig gatewayConfig;
-        for (const auto& cluster : {"primary", "remote_0", "remote_1"}) {
+        for (const auto& cluster : {"primary", "remote", "remote_0", "remote_1"}) {
             auto* mapping = gatewayConfig.AddClusterMapping();
             mapping->SetName(cluster);
             mapping->SetRealName(TString(cluster) + "-cluster");
@@ -285,6 +310,36 @@ TEST_F(TPipelineStreamsTest, WritesToLocalAndTwoRemoteQueuesWithDistinctProducer
     ASSERT_EQ(2U, producers.size());
     EXPECT_EQ("//tmp/producer_0", producers.at("remote_0-cluster"));
     EXPECT_EQ("//tmp/producer_1", producers.at("remote_1-cluster"));
+}
+
+TEST_F(TPipelineStreamsTest, PerSourceConsumerHintsAndPragmaFallback)
+{
+    auto spec = BuildSpec({
+        MakeSink(MakeOutput(MakeSourceMap("primary", "//tmp/hinted-consumer"))),
+        MakeSink(MakeOutput(MakeSourceMap("remote", "<cluster=remote-cluster;>//tmp/remote-consumer"))),
+        MakeSink(MakeOutput(MakeSourceMap("remote"))),
+    });
+
+    THashMap<TString, TString> consumers;
+    for (const auto& [_, computation] : spec->Computations) {
+        for (const auto& [sourceId, source] : computation->SourceStreams) {
+            Y_UNUSED(sourceId);
+
+            auto consumer = source->Parameters->GetChildValueOrThrow<
+                NYT::NYPath::TRichYPath
+            >("consumer_path");
+
+            ASSERT_TRUE(consumer.GetCluster());
+            consumers.emplace(
+                TString(consumer.GetPath()),
+                TString(*consumer.GetCluster()));
+        }
+    }
+
+    ASSERT_EQ(3U, consumers.size());
+    EXPECT_EQ("primary-cluster", consumers.at("//tmp/hinted-consumer"));
+    EXPECT_EQ("remote-cluster", consumers.at("//tmp/remote-consumer"));
+    EXPECT_EQ("primary-cluster", consumers.at("//tmp/pragma-consumer"));
 }
 
 TUserDataBlock MakeUserDataBlock(std::initializer_list<EUserDataBlockUsage> usages)
