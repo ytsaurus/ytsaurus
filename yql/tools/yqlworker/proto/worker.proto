@@ -41,6 +41,9 @@ message TProcessTaskResponse {
 
 message TKillTaskRequest {
     optional string Id = 1;
+    optional string Username = 2;
+    optional bytes AuthData = 3;
+    optional bytes Attributes = 4;
 }
 
 message TKillTaskResponse {
