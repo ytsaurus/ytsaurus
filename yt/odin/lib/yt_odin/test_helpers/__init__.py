@@ -165,6 +165,8 @@ class YtTestEnvironment(object):
             id=self.yt_instance_id,
             fqdn="localhost",
             enable_debug_logging=True,
+            enable_logging_compression=True,
+            log_compression_method="zstd",
             enable_master_cache=True)
         self.yt_client = self.yt_instance.create_client()
 
@@ -184,7 +186,9 @@ class YtRandomNameTestEnvironment(object):
             id=self.yt_instance_id,
             cell_tag=cell_tag,
             fqdn="localhost",
-            enable_debug_logging=True)
+            enable_debug_logging=True,
+            enable_logging_compression=True,
+            log_compression_method="zstd")
         self.yt_client = self.yt_instance.create_client()
 
     def cleanup(self):
