@@ -75,8 +75,8 @@ public:
     ui32 GetNodeId() override { return 1; }
     ui32 GetNodeId(const TMaybe<ui32>, const TMaybe<TString>&, ui32, ui32,
                    const THashMap<TString, TString>&) override { return 1; }
-    TString GetHostname() override { return "localhost"; }
-    TString GetIp() override { return "::1"; }
+    TString GetHostname() const override { return "localhost"; }
+    TString GetIp() const override { return "::1"; }
 
     NActors::IActor* CreateLockOnCluster(NActors::TActorId, const TString&,
                                           const TString&, bool) override {

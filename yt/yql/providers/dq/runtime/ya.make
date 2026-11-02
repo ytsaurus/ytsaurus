@@ -18,11 +18,13 @@ PEERDIR(
     yql/essentials/utils
     yql/essentials/utils/backtrace
     yql/essentials/utils/failure_injector
+    yt/yql/providers/dq/config
     yt/yt/core
 )
 
 SRCS(
     file_cache.cpp
+    porto.cpp
     task_command_executor.cpp
     task_runner_invoker_factory.cpp
 )

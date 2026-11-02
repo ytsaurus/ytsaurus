@@ -39,9 +39,11 @@ public:
         ui16 interconnectPort,
         const TString& hostName,
         const TString& ip,
-        TGlobalWorkerManagerActorIdOptions actorIdOptions)
+        TGlobalWorkerManagerActorIdOptions actorIdOptions,
+        EGwmHostAddress gwmHostAddress)
         : Config(config), SchedulerConfig(schedulerConfig)
         , ActorIdOptions(actorIdOptions)
+        , GwmHostAddress(gwmHostAddress)
         , Role(role)
         , Host(hostName)
         , Ip(ip)
@@ -112,7 +114,7 @@ public:
 
         auto attributes = NYT::BuildYsonNodeFluently()
             .BeginMap()
-                .Item(NCommonAttrs::HOSTNAME_ATTR).Value(GetHostname())
+                .Item(NCommonAttrs::HOSTNAME_ATTR).Value(GetGwmHost())
                 .Item(NCommonAttrs::GRPCPORT_ATTR).Value(GrpcPort) // optional
                 .Item(NCommonAttrs::UPLOAD_EXECUTABLE_ATTR).Value("true") // compat
             .EndMap();
@@ -160,11 +162,11 @@ public:
         Register(actorSystem, CreateNodeIdCleaner(GetWrapper(actorSystem), co));
     }
 
-    TString GetHostname() override {
+    TString GetHostname() const override {
         return Host;
     }
 
-    TString GetIp() override {
+    TString GetIp() const override {
         return Ip;
     }
 
@@ -292,6 +294,11 @@ public:
     }
 
 protected:
+    TString GetGwmHost() const
+    {
+        return GwmHostAddress == EGwmHostAddress::Ip ? GetGrpcHost() : GetHostname();
+    }
+
     TActorId Register(TActorSystem* actorSystem, IActor* actor) {
         auto id = actorSystem->Register(actor);
         Children.push_back(id);
@@ -324,6 +331,7 @@ protected:
     const TMaybe<NProto::TDqConfig::TYtCoordinator> Config;
     const NProto::TDqConfig::TScheduler SchedulerConfig;
     const TGlobalWorkerManagerActorIdOptions ActorIdOptions;
+    const EGwmHostAddress GwmHostAddress;
 
     TString Role;
 
@@ -355,8 +363,9 @@ public:
         ui16 interconnectPort,
         const TString& host,
         const TString& ip,
-        TGlobalWorkerManagerActorIdOptions actorIdOptions)
-        : TCoordinationHelper(MakeMaybe(config), schedulerConfig, role, interconnectPort, host, ip, actorIdOptions)
+        TGlobalWorkerManagerActorIdOptions actorIdOptions,
+        EGwmHostAddress gwmHostAddress)
+        : TCoordinationHelper(MakeMaybe(config), schedulerConfig, role, interconnectPort, host, ip, actorIdOptions, gwmHostAddress)
     { }
 
     NActors::IActor* CreateLockOnCluster(NActors::TActorId ytWrapper, const TString& prefix, const TString& lockName, bool temporary) override {
@@ -369,7 +378,7 @@ public:
         auto attributes = NYT::BuildYsonNodeFluently()
             .BeginMap()
                 .Item(NCommonAttrs::ACTOR_NODEID_ATTR).Value(NodeId)
-                .Item(NCommonAttrs::HOSTNAME_ATTR).Value(GetHostname())
+                .Item(NCommonAttrs::HOSTNAME_ATTR).Value(GetGwmHost())
                 .Item(NCommonAttrs::GRPCPORT_ATTR).Value(GrpcPort) // optional
                 .Item(NCommonAttrs::UPLOAD_EXECUTABLE_ATTR).Value("true") // compat
             .EndMap();
@@ -394,7 +403,8 @@ ICoordinationHelper::TPtr CreateUploadCoordinationHelper(const TString& hostName
         /*interconnectPort*/ 0,
         hostName,
         /*ip*/ {},
-        /*actorIdOptions*/ {});
+        /*actorIdOptions*/ {},
+        EGwmHostAddress::Hostname);
 }
 
 ICoordinationHelper::TPtr CreateCoordiantionHelper(
@@ -404,7 +414,8 @@ ICoordinationHelper::TPtr CreateCoordiantionHelper(
     ui16 interconnectPort,
     const TString& host,
     const TString& ip,
-    TGlobalWorkerManagerActorIdOptions actorIdOptions)
+    TGlobalWorkerManagerActorIdOptions actorIdOptions,
+    EGwmHostAddress gwmHostAddress)
 {
     NProto::TDqConfig::TYtCoordinator config = cfg;
     const auto proxyAddress = config.GetProxyAddress();
@@ -438,9 +449,9 @@ ICoordinationHelper::TPtr CreateCoordiantionHelper(
     config.SetToken(token);
 
     if (config.GetLockType() == "dummy") {
-        return new TCoordinationHelperWithDummyLock(config, schedulerConfig, role, interconnectPort, host, ip, actorIdOptions);
+        return new TCoordinationHelperWithDummyLock(config, schedulerConfig, role, interconnectPort, host, ip, actorIdOptions, gwmHostAddress);
     } else {
-        return new TCoordinationHelper(MakeMaybe(config), schedulerConfig, role, interconnectPort, host, ip, actorIdOptions);
+        return new TCoordinationHelper(MakeMaybe(config), schedulerConfig, role, interconnectPort, host, ip, actorIdOptions, gwmHostAddress);
     }
 }
 
