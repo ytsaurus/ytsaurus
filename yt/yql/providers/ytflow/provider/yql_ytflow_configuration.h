@@ -40,6 +40,8 @@ public:
 
     // YSON map patched into the controller job's "controller" config section.
     NCommon::TConfSetting<TString, Static> _ControllerConfig;
+    // YSON map used for the initial and dynamic controller connector settings.
+    NCommon::TConfSetting<TString, Static> _ControllerConnectorConfig;
     // YSON map merged into the dynamic pipeline spec's "job_manager" section.
     NCommon::TConfSetting<TString, Static> _JobManagerConfig;
 

@@ -71,7 +71,8 @@ IControllerConnectorPtr CreateControllerConnector(
     IJobTrackerPtr jobTracker,
     TStreamSpecStoragePtr streamSpecStorage,
     bool ignoreSingletonsDynamicConfig,
-    IStatusProfilerPtr rootStatusProfiler);
+    IStatusProfilerPtr rootStatusProfiler,
+    TDynamicControllerConnectorSpecPtr initialControllerConnector = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
