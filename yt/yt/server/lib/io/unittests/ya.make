@@ -7,6 +7,7 @@ ALLOCATOR(TCMALLOC)
 SRCS(
     erasure_ut.cpp
     gentle_loader_ut.cpp
+    huge_page_manager_ut.cpp
     chunk_file_writer_ut.cpp
     io_engine_ut.cpp
     io_tracker_ut.cpp
