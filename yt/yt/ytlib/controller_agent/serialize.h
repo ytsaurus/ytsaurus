@@ -135,6 +135,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((RlsAuthenticatedUser)                  (302404))
     ((PushBasedShuffle)                      (302405))
     ((PersistSkippedInputChunks)             (302406))
+    ((RemoteCopyRangeSeparation)             (302407))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
