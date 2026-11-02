@@ -856,6 +856,37 @@ class TestHunkStorage(DynamicTablesBase):
 
         assert hunk_chunk_id1 != hunk_chunk_id2
 
+    @authors("akozhikhov")
+    def test_reshard_nonempty_hunk_storage(self):
+        sync_create_cells(1)
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
+        self._create_hunk_storage("//tmp/h", store_rotation_period=1000000)
+        sync_mount_table("//tmp/h")
+
+        hunk = self._write_hunks_with_retries("//tmp/h", ["payload"])[0]
+        chunk_id = hunk["chunk_id"]
+        sync_unmount_table("//tmp/h", force=True)
+
+        tablet_id = get("//tmp/h/@tablets/0/tablet_id")
+        chunk_list_id = get(f"#{tablet_id}/@chunk_list_id")
+        child_ids = get(f"#{chunk_list_id}/@child_ids")
+        assert chunk_id in child_ids
+        assert not get(f"#{chunk_id}/@sealed")
+        assert get(f"#{chunk_list_id}/@statistics/chunk_count") == 0
+
+        for sealed in [False, True]:
+            if sealed:
+                set("//sys/@config/chunk_manager/enable_chunk_sealer", True)
+                wait(lambda: get(f"#{chunk_id}/@sealed"))
+
+            with raises_yt_error("Non-empty hunk tablet .* cannot participate in reshard"):
+                sync_reshard_table("//tmp/h", 2)
+
+            assert get("//tmp/h/@tablets/0/tablet_id") == tablet_id
+            assert get(f"#{tablet_id}/@chunk_list_id") == chunk_list_id
+            assert get(f"#{chunk_list_id}/@child_ids") == child_ids
+            assert read_hunks([hunk]) == [{"payload": "payload"}]
+
 
 class TestHunkStorageMulticell(TestHunkStorage):
     ENABLE_MULTIDAEMON = True
