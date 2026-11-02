@@ -11,13 +11,30 @@
 
 #include <yt/yt/core/ytree/node.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NExecNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJobEnvironmentCapabilities
+{
+    bool SupportsVolumeReuse = false;
+    bool SupportsGpuLayers = false;
+    bool SupportsSidecarDockerImages = true;
+    bool SupportsSidecarVolumeMounts = true;
+    bool UsePrivilegedFilesystemAccess = true;
+    bool UseJobUserForPrivateSandbox = false;
+    int PrivateSandboxPermissions = 0700;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IJobEnvironment
     : public virtual TRefCounted
 {
+    virtual TJobEnvironmentCapabilities GetCapabilities() const = 0;
+
     virtual TError Init(int slotCount, double cpuLimit, double idleCpuFraction) = 0;
     virtual TFuture<void> InitSlot(int slotIndex) = 0;
     virtual void PrepareSlotForJob(int slotIndex) = 0;
@@ -69,6 +86,10 @@ struct IJobEnvironment
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager) = 0;
 
+    virtual IUserSlotPtr CreateUserSlot(TUserSlotContext context) = 0;
+
+    virtual TJobFSSecretaryPtr CreateJobFSSecretary(NLogging::TLogger logger) = 0;
+
     virtual IVolumeManagerPtr CreateVolumeManager(
         const std::vector<TSlotLocationConfigPtr>& locations) = 0;
 
@@ -83,7 +104,7 @@ DEFINE_REFCOUNTED_TYPE(IJobEnvironment)
 
 IJobEnvironmentPtr CreateJobEnvironment(
     NJobProxy::TJobEnvironmentConfig config,
-    IBootstrap* bootstrap);
+    TNonNullPtr<IBootstrap> bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

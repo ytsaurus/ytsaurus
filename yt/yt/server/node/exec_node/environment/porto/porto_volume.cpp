@@ -1,7 +1,8 @@
 #include "layer_location.h"
 #include "porto_volume.h"
-#include "private.h"
-#include "volume_counters.h"
+
+#include <yt/yt/server/node/exec_node/private.h>
+#include <yt/yt/server/node/exec_node/volume_counters.h>
 
 #include <yt/yt/server/lib/nbd/block_device.h>
 #include <yt/yt/server/lib/nbd/server.h>

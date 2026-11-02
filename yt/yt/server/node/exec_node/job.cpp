@@ -7,6 +7,7 @@
 #include "controller_agent_connector.h"
 #include "gpu_manager.h"
 #include "job_controller.h"
+#include "job_environment.h"
 #include "job_fs_secretary.h"
 #include "job_gpu_checker.h"
 #include "job_input_cache.h"
@@ -3103,23 +3104,12 @@ void TJob::Cleanup()
 
     if (const auto& slot = GetUserSlot()) {
         try {
-            THashSet<std::string> preservedVolumePaths;
-            if (const auto& rootVolume = FSSecretary_->GetRootVolume()) {
-                preservedVolumePaths.insert(rootVolume->GetPath());
-            }
-            if (const auto& gpuCheckVolume = FSSecretary_->GetGpuCheckVolume()) {
-                preservedVolumePaths.insert(gpuCheckVolume->GetPath());
-            }
-            for (const auto& [_, volumeResult] : FSSecretary_->GetNonRootVolumes()) {
-                preservedVolumePaths.insert(volumeResult->Volume->GetPath());
-            }
-            YT_TLOG_DEBUG("Clean user imported porto resources")
-                .With("SlotIndex", slot->GetSlotIndex())
-                .With("PreservedVolumePaths", preservedVolumePaths);
-            slot->CleanUserImportedPortoResources(preservedVolumePaths);
+            YT_TLOG_DEBUG("Clean job workspace resources")
+                .With("SlotIndex", slot->GetSlotIndex());
+            slot->CleanJobWorkspaceResources(*FSSecretary_);
         } catch (const std::exception& ex) {
             // Errors during cleanup phase do not affect job outcome.
-            YT_TLOG_ERROR("Failed to clean user imported porto resources")
+            YT_TLOG_ERROR("Failed to clean job workspace resources")
                 .With("SlotIndex", slot->GetSlotIndex())
                 .With(ex);
         }
@@ -4603,8 +4593,8 @@ void TJob::ReportJobProxyProcessFinish(const TError& error)
 
 bool TJob::NeedGpuLayers()
 {
-    auto jobEnvironmentType = Bootstrap_->GetJobEnvironmentType();
-    if (jobEnvironmentType != EJobEnvironmentType::Porto) {
+    auto capabilities = Bootstrap_->GetJobEnvironmentCapabilities();
+    if (!capabilities.SupportsGpuLayers) {
         return false;
     }
 

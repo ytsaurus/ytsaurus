@@ -1,16 +1,18 @@
 #include "volume_manager.h"
 
-#include "artifact.h"
-#include "bootstrap.h"
-#include "helpers.h"
+#include <yt/yt/server/node/exec_node/artifact.h>
+#include <yt/yt/server/node/exec_node/bootstrap.h>
+#include <yt/yt/server/node/exec_node/helpers.h>
+#include <yt/yt/server/node/exec_node/private.h>
+#include <yt/yt/server/node/exec_node/volume.h>
+#include <yt/yt/server/node/exec_node/volume_artifact.h>
+#include <yt/yt/server/node/exec_node/volume_counters.h>
+
+#include "slot_location.h"
+#include "volume_options.h"
 #include "layer_location.h"
 #include "porto_volume.h"
-#include "private.h"
-#include "volume.h"
-#include "volume_artifact.h"
 #include "volume_cache.h"
-#include "volume_counters.h"
-#include "volume_options.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -65,312 +67,10 @@ constinit const auto Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TSimpleVolumeManager)
-
-class TSimpleVolumeManager
-    : public IVolumeManager
-{
-public:
-    TSimpleVolumeManager(
-        IInvokerPtr invoker,
-        bool detachedTmpfsUmount)
-        : Invoker_(std::move(invoker))
-        , DetachUnmount_(detachedTmpfsUmount)
-    { }
-
-    //! Prepare root overlayfs volume.
-    TFuture<IVolumePtr> PrepareVolume(
-        std::vector<TOverlayData>,
-        TBaseVolumeParamsPtr,
-        const TVolumePreparationOptions&) override
-    {
-        YT_UNIMPLEMENTED("PrepareVolume is not implemented for SimpleVolumeManager");
-    }
-
-    TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
-        const std::optional<std::string>& sandboxPath,
-        const TJobId& jobId,
-        const std::vector<TBaseVolumeParamsPtr>& volumes,
-        std::vector<std::vector<TOverlayData>> /*perVolumeOverlayData*/,
-        const std::vector<TVolumeMountPtr>& volumeMounts) override
-    {
-        YT_VERIFY(sandboxPath);
-        // Create debug tag.
-        auto tag = TGuid::Create();
-
-        auto future = OKFuture;
-        auto result = std::make_shared<std::vector<TVolumeResultPtr>>();
-        result->reserve(volumes.size());
-        for (const auto& volume : volumes) {
-            YT_VERIFY(volume->VolumeType == EVolumeType::Tmpfs);
-            auto mountPath(GetVolumeMountPathByVolumeId(volume->VolumeId, volumeMounts));
-            future = future
-                .Apply(BIND([tag, jobId, sandboxPath, volume, mountPath, result, this, this_ = MakeStrong(this)] {
-                    return CreateTmpfsVolume(tag, jobId, *sandboxPath, StaticPointerCast<TTmpfsVolumeParams>(volume), mountPath)
-                        .Apply(
-                            BIND([result = std::move(result)] (TVolumeResultPtr volumeResult) {
-                                result->push_back(std::move(volumeResult));
-                            })
-                            .AsyncVia(GetCurrentInvoker())
-                        )
-                        .ToUncancelable();
-                }));
-        }
-
-        return future.Apply(BIND([result] { return std::move(*result); }));
-    }
-
-    TFuture<IVolumePtr> RbindRootVolume(
-        const IVolumePtr&,
-        const std::string&) override
-    {
-        YT_UNIMPLEMENTED("RbindRootVolume is not implemented for SimpleVolumeManager");
-    }
-
-    TFuture<void> LinkVolumes(
-        const std::string&,
-        const std::vector<TVolumeResultPtr>&,
-        const std::vector<TVolumeMountPtr>&) override
-    {
-        YT_UNIMPLEMENTED("LinkVolumes is not implemented for SimpleVolumeManager");
-    }
-
-    TFuture<void> RemoveVolumes(
-        const std::string& place,
-        TDuration timeout,
-        const THashSet<std::string>& /*excludedVolumePaths*/) override
-    {
-        YT_TLOG_DEBUG("RemoveVolumes is empty in SimpleVolumeManager")
-            .With("Place", place)
-            .With("Timeout", timeout);
-        return OKFuture;
-    }
-
-    TFuture<void> RemoveLayers(const std::string& place, TDuration timeout) override
-    {
-        YT_TLOG_DEBUG("RemoveLayers is empty in SimpleVolumeManager")
-            .With("Place", place)
-            .With("Timeout", timeout);
-        return OKFuture;
-    }
-
-    TFuture<void> Initialize(const std::vector<TSlotLocationConfigPtr>& locations)
-    {
-        // NB: Iterating over /proc/mounts is not reliable,
-        // see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=593516.
-        // To avoid problems with undeleting tmpfs ordered by user in sandbox
-        // we always try to remove it several times.
-        for (int attempt = 0; attempt < TmpfsRemoveAttemptCount; ++attempt) {
-            std::vector<std::string> mountPaths;
-            for (const auto& location : locations) {
-                FindTmpfsMountPathsInLocation(location->Path, mountPaths);
-            }
-
-            // Sort from longest paths, to shortest.
-            std::sort(mountPaths.begin(), mountPaths.end(), [] (const std::string& lhs, const std::string& rhs) {
-                return StringSplitter(lhs).Split('/').Count() > StringSplitter(rhs).Split('/').Count();
-            });
-
-            auto error = WaitFor(CleanupTmpfsMountPaths(std::move(mountPaths)));
-            if (!error.IsOK()) {
-                THROW_ERROR_EXCEPTION("Failed to initialize simple volume manager")
-                    .With(error);
-            }
-        }
-
-        return OKFuture;
-    }
-
-    void BuildOrchid(NYTree::TFluentAny fluent) const override
-    {
-        fluent
-            .BeginMap()
-            .EndMap();
-    }
-
-    void ClearCaches() const override
-    { }
-
-    void MarkLayersAsNotRemovable() const override
-    { }
-
-    TFuture<void> GetVolumeReleaseEvent() override
-    {
-        return OKFuture;
-    }
-
-    TFuture<void> DisableLayerCache(const TError&) override
-    {
-        return OKFuture;
-    }
-
-    bool IsEnabled() const override
-    {
-        return true;
-    }
-
-    std::vector<TFuture<TOverlayData>> PrepareOverlayLayers(
-        TJobId /*jobId*/,
-        std::vector<TOverlayLayerPreparationOptions> /*layerOptions*/,
-        const TArtifactDownloadContext& /*artifactDownloadContext*/) override
-    {
-        YT_UNIMPLEMENTED("PrepareOverlayLayers is not implemented for SimpleVolumeManager");
-    }
-
-    void OnDynamicConfigChanged(
-        const TVolumeManagerDynamicConfigPtr&,
-        const TVolumeManagerDynamicConfigPtr&) override
-    { }
-
-private:
-    const IInvokerPtr Invoker_;
-    const bool DetachUnmount_;
-
-    TFuture<TVolumeResultPtr> CreateTmpfsVolume(
-        TGuid tag,
-        const TJobId& jobId,
-        const std::string& sandboxPath,
-        const TTmpfsVolumeParamsPtr& volume,
-        const TAbsoluteNormalizedPath& mountPath)
-    {
-        YT_VERIFY(!sandboxPath.empty());
-
-        auto tagSet = TVolumeProfilerCounters::MakeTagSet(
-            /*volume type*/ "tmpfs",
-            /*Cypress path*/ "n/a");
-        TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
-
-        // mountPath is the path inside the user job container (e.g. "/sandbox/tmpfs"), rooted at
-        // the container sandbox. Re-root it onto the host slot sandbox so the tmpfs is created
-        // inside the slot.
-        std::filesystem::path relativeMountPath;
-        for (const char* sandboxRoot : {"/slot/sandbox", "/sandbox"}) {
-            if (mountPath.Path().native().starts_with(sandboxRoot)) {
-                relativeMountPath = mountPath.Path().lexically_relative(sandboxRoot);
-                break;
-            }
-        }
-        auto path = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, relativeMountPath.string()));
-
-        YT_VERIFY(volume->Size);
-        auto config = New<TMountTmpfsConfig>();
-        config->Path = path;
-        config->Size = *volume->Size;
-        config->UserId = volume->UserId;
-
-        YT_TLOG_DEBUG("Creating tmpfs volume")
-            .With("Tag", tag)
-            .With("JobId", jobId)
-            .With("Config", ConvertToYsonString(config, EYsonFormat::Text));
-
-        return BIND(
-            [
-                tagSet,
-                volumeId = volume->VolumeId,
-                sandboxPath,
-                volumeCreateTimeGuard = std::move(volumeCreateTimeGuard),
-                config = std::move(config),
-                tmpfsIndex = volume->Index,
-                this,
-                this_ = MakeStrong(this)
-            ] {
-                try {
-                    if (config->Path != sandboxPath) {
-                        if (NFS::Exists(config->Path)) {
-                            THROW_ERROR_EXCEPTION("Target path already exists")
-                                .With("target", config->Path);
-                        }
-                        NFS::MakeDirRecursive(config->Path);
-                    }
-
-                    RunTool<TMountTmpfsAsRootTool>(config);
-
-                    TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
-                        .Update(VolumeCounters().Increment(tagSet));
-                    TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created")
-                        .Increment(1);
-
-                    auto result = New<TTmpfsVolumeResult>(
-                        std::move(volumeId),
-                        EVolumeType::Tmpfs,
-                        New<TSimpleTmpfsVolume>(
-                            tagSet,
-                            config->Path,
-                            Invoker_,
-                            DetachUnmount_),
-                        tmpfsIndex);
-                    return StaticPointerCast<TVolumeResult>(std::move(result));
-                } catch (const std::exception& ex) {
-                    TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
-                    throw;
-                }
-            })
-            .AsyncVia(Invoker_)
-            .Run()
-            .ToUncancelable();
-    }
-
-    void FindTmpfsMountPathsInLocation(const std::string& locationPath, std::vector<std::string>& mountPaths) const
-    {
-        auto mountPoints = NFS::GetMountPoints("/proc/mounts");
-        for (const auto& mountPoint : mountPoints) {
-            if (mountPoint.Path.starts_with(locationPath + "/")) {
-                mountPaths.push_back(mountPoint.Path);
-            }
-        }
-    }
-
-    TFuture<void> CleanupTmpfsMountPaths(std::vector<std::string>&& mountPaths) const
-    {
-        return BIND([mountPaths = std::move(mountPaths), detachUnmount = DetachUnmount_] {
-            for (const auto& path : mountPaths) {
-                YT_TLOG_DEBUG("Removing mount point")
-                    .With("Path", path);
-                try {
-                    // Due to bug in the kernel, this can sometimes fail with "Directory is not empty" error.
-                    // More info: https://bugzilla.redhat.com/show_bug.cgi?id=1066751
-                    RunTool<TRemoveDirContentAsRootTool>(path);
-                } catch (const std::exception& ex) {
-                    YT_TLOG_WARNING("Failed to remove mount point")
-                        .With("Path", path)
-                        .With(ex);
-                }
-
-                auto config = New<TUmountConfig>();
-                config->Path = path;
-                config->Detach = detachUnmount;
-                RunTool<TUmountAsRootTool>(config);
-            }
-        })
-        .AsyncVia(Invoker_)
-        .Run();
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TSimpleVolumeManager)
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<IVolumeManagerPtr> CreateSimpleVolumeManager(
-    const std::vector<TSlotLocationConfigPtr>& locations,
-    IInvokerPtr invoker,
-    bool detachedTmpfsUmount)
-{
-    auto volumeManager = New<TSimpleVolumeManager>(
-        std::move(invoker),
-        detachedTmpfsUmount);
-
-    return volumeManager->Initialize(locations).Apply(BIND([=] {
-        return static_cast<IVolumeManagerPtr>(volumeManager);
-    }));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 DECLARE_REFCOUNTED_CLASS(TPortoVolumeManager)
 
 class TPortoVolumeManager
-    : public IVolumeManager
+    : public IPortoVolumeManager
 {
 public:
     TPortoVolumeManager(
@@ -500,11 +200,35 @@ public:
         return LayerCache_->GetVolumeReleaseEvent();
     }
 
-    TFuture<void> DisableLayerCache(const TError& reason) override
+    void InitializeSlot(TNonNullPtr<TSlotLocation> location, int slotIndex) override
+    {
+        CleanPortoSlotResources(
+            location,
+            slotIndex,
+            this,
+            *DynamicConfigManager_->GetConfig()->ExecNode->SlotManager,
+            /*preservedVolumePaths*/ {},
+            /*initializing*/ true);
+    }
+
+    void PrepareForReplacement() const override
+    {
+        MarkLayersAsNotRemovable();
+        ClearCaches();
+    }
+
+    TFuture<void> Disable(const TError& reason) override
     {
         YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
         return LayerCache_->Disable(reason);
+    }
+
+    TError GetHealthCheckError() const override
+    {
+        return IsEnabled()
+            ? TError()
+            : TError(EErrorCode::PortoVolumeManagerFailure, "Layer cache is disabled");
     }
 
     bool IsEnabled() const override
@@ -1082,7 +806,7 @@ DEFINE_REFCOUNTED_TYPE(TPortoVolumeManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
+TFuture<IPortoVolumeManagerPtr> CreatePortoVolumeManager(
     NDataNode::TDataNodeConfigPtr config,
     NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
     IVolumeArtifactCachePtr artifactCache,
@@ -1100,7 +824,7 @@ TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
 
     return volumeManager->Initialize()
         .Apply(BIND([volumeManager = std::move(volumeManager)] () mutable {
-            return StaticPointerCast<IVolumeManager>(std::move(volumeManager));
+            return StaticPointerCast<IPortoVolumeManager>(std::move(volumeManager));
         }));
 }
 

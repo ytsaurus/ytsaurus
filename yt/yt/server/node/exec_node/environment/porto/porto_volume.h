@@ -1,9 +1,12 @@
 #pragma once
 
-#include "artifact.h"
-#include "public.h"
-#include "volume.h"
-#include "volume_artifact.h"
+#include "layer.h"
+#include "overlay_data.h"
+
+#include <yt/yt/server/node/exec_node/artifact.h>
+#include <yt/yt/server/node/exec_node/public.h>
+#include <yt/yt/server/node/exec_node/volume.h>
+#include <yt/yt/server/node/exec_node/volume_artifact.h>
 
 #include <yt/yt/server/lib/nbd/public.h>
 

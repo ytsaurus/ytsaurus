@@ -1081,7 +1081,8 @@ private:
             portoExecutor->SubscribeFailed(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
                 YT_TLOG_ERROR("Porto executor failed")
                     .With(error);
-                ExecNodeBootstrap_->GetSlotManager()->OnPortoExecutorFailed(error);
+                ExecNodeBootstrap_->GetSlotManager()->OnJobEnvironmentExecutorFailed(
+                    TError(NExecNode::EErrorCode::PortoExecutorFailure, "Porto executor failed").With(error));
             }));
 
             auto useDaemonSubcontainer = topLevelPortoConfig
@@ -1316,7 +1317,7 @@ private:
 
 #ifdef __linux__
         if (ContainerDevicesChecker_) {
-            ContainerDevicesChecker_->SubscribeCheck(BIND_NO_PROPAGATE(&TSlotManager::OnContainerDevicesCheckFinished, ExecNodeBootstrap_->GetSlotManager())
+            ContainerDevicesChecker_->SubscribeCheck(BIND_NO_PROPAGATE(&TBootstrap::OnContainerDevicesCheckFinished, MakeStrong(this))
                 .Via(GetControlInvoker()));
             ContainerDevicesChecker_->Start();
         }
@@ -1445,6 +1446,33 @@ private:
 
         ClientBlockCache_->Reconfigure(blockCacheConfig);
         VersionedChunkMetaManager_->Reconfigure(versionedChunkMetaConfig);
+    }
+
+    void OnContainerDevicesCheckFinished(const TError& error)
+    {
+        auto config = DynamicConfigManager_->GetConfig()->ExecNode->SlotManager;
+
+        TError result;
+        if (config->EnableContainerDeviceChecker && !error.IsOK()) {
+            auto message = ToString(error);
+
+            if (error.FindMatching(NContainers::EErrorCode::FailedToStartContainer) &&
+                message.Contains("Operation not permitted: mknod"))
+            {
+                if (!IsDataNode() && !IsTabletNode() && config->RestartContainerAfterFailedDeviceCheck) {
+                    if (auto restartManager = GetRestartManager()) {
+                        YT_TLOG_ERROR("Request restart after test volume creation failed")
+                            .With(error);
+                        restartManager->RequestRestart();
+                    }
+                }
+
+                result = TError("Test container could not be created, snapshot container needs to be restarted")
+                    .With(error);
+            }
+        }
+
+        ExecNodeBootstrap_->GetSlotManager()->OnContainerDevicesCheckFinished(result);
     }
 
     void OnBundleDynamicConfigChanged(

@@ -1,12 +1,14 @@
 #pragma once
 
-#include "artifact.h"
+#include "layer.h"
 #include "porto_volume.h"
-#include "public.h"
 #include "tmpfs_layer_cache.h"
-#include "volume.h"
-#include "volume_artifact.h"
 #include "volume_options.h"
+
+#include <yt/yt/server/node/exec_node/artifact.h>
+#include <yt/yt/server/node/exec_node/public.h>
+#include <yt/yt/server/node/exec_node/volume.h>
+#include <yt/yt/server/node/exec_node/volume_artifact.h>
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
@@ -268,7 +270,7 @@ public:
     //! Pick random location.
     TLayerLocationPtr PickRandomLocation() const;
 
-    void PopulateAlerts(std::vector<TError>* alerts);
+    void PopulateAlerts(TNonNullPtr<std::vector<TError>> alerts);
 
     TFuture<void> Disable(const TError& reason);
 

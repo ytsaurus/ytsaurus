@@ -1,5 +1,7 @@
 #include "job_fs_secretary.h"
 
+#include "job_environment.h"
+
 #include "bootstrap.h"
 #include "gpu_manager.h"
 #include "helpers.h"
@@ -492,20 +494,19 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
         return lhs->MountPath < rhs->MountPath;
     });
 
+    auto environmentCapabilities = Bootstrap_->GetJobEnvironmentCapabilities();
+
     description->SidecarsVolumeMounts.reserve(userJobSpec->sidecars().size());
     for (const auto& [sidecarName, sidecar] : userJobSpec->sidecars()) {
-        if (Bootstrap_->GetJobEnvironmentType() == NJobProxy::EJobEnvironmentType::Porto) {
-            if (sidecar.has_docker_image()) {
-                THROW_ERROR_EXCEPTION(
-                    NExecNode::EErrorCode::DockerImagePullingFailed,
-                    "External sidecar docker image is not supported in porto job environment");
-            }
-        } else if (Bootstrap_->GetJobEnvironmentType() == NJobProxy::EJobEnvironmentType::Cri) {
-            if (!sidecar.sidecar_volume_mounts().empty()) {
-                THROW_ERROR_EXCEPTION(
-                    NExecNode::EErrorCode::LayerUnpackingFailed,
-                    "Porto volumes are not supported in cri job environment");
-            }
+        if (!environmentCapabilities.SupportsSidecarDockerImages && sidecar.has_docker_image()) {
+            THROW_ERROR_EXCEPTION(
+                NExecNode::EErrorCode::DockerImagePullingFailed,
+                "External sidecar docker image is not supported by the job environment");
+        }
+        if (!environmentCapabilities.SupportsSidecarVolumeMounts && !sidecar.sidecar_volume_mounts().empty()) {
+            THROW_ERROR_EXCEPTION(
+                NExecNode::EErrorCode::LayerUnpackingFailed,
+                "Sidecar volume mounts are not supported by the job environment");
         }
 
         auto& sidecarVolumeMounts = description->SidecarsVolumeMounts[sidecarName];
@@ -542,9 +543,8 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
                 if (localVolumeParams->LayerArtifactKeys.GetAll().empty()) {
                     continue;
                 }
-                // Root volume reuse is only supported in Porto environment.
                 localVolumeParams->AllowReusing = protoVolume.allow_reusing() &&
-                    Bootstrap_->GetJobEnvironmentType() == NJobProxy::EJobEnvironmentType::Porto;
+                    environmentCapabilities.SupportsVolumeReuse;
 
                 description->RootVolumeParams = std::move(localVolumeParams);
                 break;
@@ -558,9 +558,8 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
                     localVolumeParams->InodeLimit = localDiskRequest.disk_request().inode_count();
                 }
 
-                // Volume reuse is only supported in Porto environment.
                 localVolumeParams->AllowReusing = protoVolume.allow_reusing() &&
-                    Bootstrap_->GetJobEnvironmentType() == NJobProxy::EJobEnvironmentType::Porto;
+                    environmentCapabilities.SupportsVolumeReuse;
 
                 localVolumeParams->LayerArtifactKeys.AddRegularArtifactKeys(getLayersFromVolume(protoVolume));
 
@@ -604,9 +603,8 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
                 auto tmpfsVolumeParams = New<TTmpfsVolumeParams>(volumeId, userId);
                 NExecNode::FromProto(tmpfsVolumeParams.Get(), protoVolume.tmpfs_storage_request());
 
-                // Volume reuse is only supported in Porto environment.
                 tmpfsVolumeParams->AllowReusing = protoVolume.allow_reusing() &&
-                    Bootstrap_->GetJobEnvironmentType() == NJobProxy::EJobEnvironmentType::Porto;
+                    environmentCapabilities.SupportsVolumeReuse;
 
                 tmpfsVolumeParams->LayerArtifactKeys.AddRegularArtifactKeys(getLayersFromVolume(protoVolume));
 
@@ -933,69 +931,13 @@ void TJobFSSecretary::SetCachedArtifacts(std::vector<TArtifactPtr> artifacts)
     ArtifactsCached_ = true;
 }
 
-void TJobFSSecretary::AddPreparedLayers(TPreparedLayers layers)
+const NLogging::TLogger& TJobFSSecretary::GetLogger() const
 {
-    YT_TLOG_DEBUG("Adding prepared layers")
-        .With("NewLayerCount", size(layers.ArtifactKeyToOverlayData))
-        .With("ExistingLayerCount", size(PreparedLayers_.ArtifactKeyToOverlayData));
-
-    for (auto& [key, overlayData] : layers.ArtifactKeyToOverlayData) {
-        EmplaceOrCrash(
-            PreparedLayers_.ArtifactKeyToOverlayData,
-            std::move(key),
-            std::move(overlayData));
-    }
+    return Logger;
 }
 
-bool TJobFSSecretary::HasPreparedLayer(const TArtifactKey& key) const
-{
-    return PreparedLayers_.ArtifactKeyToOverlayData.contains(key);
-}
-
-std::vector<TOverlayData> TJobFSSecretary::GetPreparedRootVolumeOverlayData() const
-{
-    if (!Description_->RootVolumeParams) {
-        return {};
-    }
-
-    auto overlayDataArray = GetPreparedOverlayData(*Description_->RootVolumeParams);
-    if (VirtualSandboxOptions_) {
-        overlayDataArray.push_back(GetOrCrash(
-            PreparedLayers_.ArtifactKeyToOverlayData,
-            VirtualSandboxOptions_->ArtifactKey));
-    }
-    return overlayDataArray;
-}
-
-std::vector<TOverlayData> TJobFSSecretary::GetPreparedGpuCheckVolumeOverlayData() const
-{
-    if (!Description_->GpuCheckVolumeParams) {
-        return {};
-    }
-    return GetPreparedOverlayData(*Description_->GpuCheckVolumeParams);
-}
-
-std::vector<TOverlayData> TJobFSSecretary::GetPreparedNonRootVolumeOverlayData(const TBaseVolumeParams& params) const
-{
-    return GetPreparedOverlayData(params);
-}
-
-std::vector<TOverlayData> TJobFSSecretary::GetPreparedOverlayData(const TBaseVolumeParams& params) const
-{
-    std::vector<TOverlayData> overlayDataArray;
-    overlayDataArray.reserve(size(params.LayerArtifactKeys.GetAll()));
-    for (const auto& key : params.LayerArtifactKeys.GetAll()) {
-        overlayDataArray.push_back(GetOrCrash(PreparedLayers_.ArtifactKeyToOverlayData, key));
-    }
-    return overlayDataArray;
-}
-
-void TJobFSSecretary::ReleasePreparedLayers()
-{
-    YT_TLOG_DEBUG("Releasing prepared layers")
-        .With("LayerCount", size(PreparedLayers_.ArtifactKeyToOverlayData));
-    PreparedLayers_ = {};
-}
+void TJobFSSecretary::ReleaseWorkspaceResources()
+{ }
 
 void TJobFSSecretary::ReleaseArtifacts()
 {

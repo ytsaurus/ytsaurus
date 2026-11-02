@@ -1,9 +1,10 @@
 #include "tmpfs_layer_cache.h"
 
-#include "bootstrap.h"
-#include "helpers.h"
+#include <yt/yt/server/node/exec_node/bootstrap.h>
+#include <yt/yt/server/node/exec_node/helpers.h>
+#include <yt/yt/server/node/exec_node/private.h>
+
 #include "layer_location.h"
-#include "private.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>

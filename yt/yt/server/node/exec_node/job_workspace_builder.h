@@ -29,7 +29,27 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <library/cpp/yt/misc/enum.h>
+
 namespace NYT::NExecNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EJobWorkspaceBuildingStep,
+    (PrepareLayers)
+    (BuildSlotRootDirectory)
+    (PrepareRootVolume)
+    (PrepareNonRootVolumes)
+    (PrepareGpuCheckVolume)
+    (BindRootVolume)
+    (LinkVolumes)
+    (ValidateRootFS)
+    (PrepareSandboxDirectories)
+    (RunSetupCommand)
+    (RunCustomPreparations)
+    (ApplyNetworkPriority)
+    (RunGpuCheckCommand)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,17 +118,6 @@ struct TJobWorkspaceBuilderTimePoints
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobWorkspaceBuilder;
-
-// A step is a pointer to a workspace building method of any builder class.
-template <auto Step>
-concept CWorkspaceBuilderStep = requires
-{
-    static_cast<TFuture<void>(TJobWorkspaceBuilder::*)()>(Step);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TJobWorkspaceBuilder
     : public TRefCounted
 {
@@ -127,6 +136,8 @@ public:
     TJobWorkspaceBuildingResult ExtractResult();
 
 protected:
+    using EStep = EJobWorkspaceBuildingStep;
+
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     const IInvokerPtr Invoker_;
@@ -156,7 +167,7 @@ protected:
 
     virtual TFuture<void> DoLinkVolumes() = 0;
 
-    virtual TFuture<void> DoValidateRootFS() = 0;
+    virtual TFuture<void> DoValidateRootFS();
 
     virtual TFuture<void> DoPrepareSandboxDirectories() = 0;
 
@@ -182,44 +193,21 @@ protected:
 
     void SetNowTime(std::optional<TInstant>& timeField);
 
-    template <auto Step> requires CWorkspaceBuilderStep<Step>
+    template <EStep Step>
     TCallback<TFuture<void>()> MakeStep();
 
     TFuture<void> FinishRun(TFuture<void> future);
 
 private:
-    template <auto Step> requires CWorkspaceBuilderStep<Step>
-    TFuture<void> GuardedAction();
-
-    template <auto Step> requires CWorkspaceBuilderStep<Step>
-    constexpr const char* GetStepName();
+    TFuture<void> GuardedAction(EStep step);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobWorkspaceBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobWorkspaceBuilderPtr CreateSimpleJobWorkspaceBuilder(
-    IInvokerPtr invoker,
-    TJobWorkspaceBuildingContext context,
-    IJobDirectoryManagerPtr directoryManager);
-
-#ifdef _linux_
-
-TJobWorkspaceBuilderPtr CreatePortoJobWorkspaceBuilder(
-    IInvokerPtr invoker,
-    TJobWorkspaceBuildingContext context,
-    IJobDirectoryManagerPtr directoryManager,
-    TGpuManagerPtr gpuManager);
-
-#endif
-
-TJobWorkspaceBuilderPtr CreateCriJobWorkspaceBuilder(
-    IInvokerPtr invoker,
-    TJobWorkspaceBuildingContext context,
-    IJobDirectoryManagerPtr directoryManager,
-    NContainers::NCri::ICriImageCachePtr imageCache);
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NExecNode
+
+#define JOB_WORKSPACE_BUILDER_INL_H_
+#include "job_workspace_builder-inl.h"
+#undef JOB_WORKSPACE_BUILDER_INL_H_
