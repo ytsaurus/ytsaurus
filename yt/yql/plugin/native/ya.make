@@ -18,6 +18,7 @@ PEERDIR(
     yt/cpp/mapreduce/common
     yt/yt/client
     yt/yt/library/program
+    yt/yt/library/profiling
     yql/essentials/ast
     yql/essentials/sql/pg
     yql/essentials/parser/pg_wrapper
