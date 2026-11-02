@@ -992,6 +992,8 @@ void TTestingOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("secure_vault_creation_delay", &TThis::SecureVaultCreationDelay)
         .Default();
+    registrar.Parameter("operations_cleaner_fetch_delay", &TThis::OperationsCleanerFetchDelay)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

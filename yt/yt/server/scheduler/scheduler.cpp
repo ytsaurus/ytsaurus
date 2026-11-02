@@ -180,7 +180,7 @@ public:
         YT_VERIFY(bootstrap);
         YT_ASSERT_INVOKER_THREAD_AFFINITY(GetControlInvoker(EControlQueue::Default), ControlThread);
 
-        OperationsCleaner_ = New<TOperationsCleaner>(Config_->OperationsCleaner, this, Bootstrap_);
+        OperationsCleaner_ = New<TOperationsCleaner>(Config_, this, Bootstrap_);
 
         OperationsCleaner_->SubscribeOperationsRemovedFromCypress(BIND_NO_PROPAGATE(&TImpl::OnOperationsRemovedFromCypress, MakeWeak(this)));
 
@@ -2454,7 +2454,7 @@ private:
 
             Strategy_->UpdateConfig(Config_);
             MasterConnector_->UpdateConfig(Config_);
-            OperationsCleaner_->UpdateConfig(Config_->OperationsCleaner);
+            OperationsCleaner_->UpdateConfig(Config_);
             ExecNodeMemoryDistributionByTagsCache_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
 
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
