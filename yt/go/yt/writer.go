@@ -57,6 +57,17 @@ func WithWriteTableFormat(format any) WriteTableOption {
 	}
 }
 
+// WithRawRows makes Write accept rows already encoded in format: each value must be []byte holding whole rows,
+// since batches are cut between values.
+//
+// Bytes are sent as is. A table created on the first Write has no schema.
+func WithRawRows(format any) WriteTableOption {
+	return func(w *tableWriter) {
+		w.format = format
+		w.rawRows = true
+	}
+}
+
 func WithTableWriterConfig(config map[string]any) WriteTableOption {
 	return func(w *tableWriter) {
 		w.tableWriterConfig = config
@@ -131,6 +142,7 @@ type (
 		retryCount              uint64
 		lazyCreate, eagerCreate bool
 		format                  any
+		rawRows                 bool
 		tableWriterConfig       map[string]any
 		createTransaction       bool
 
@@ -146,7 +158,9 @@ func (w *tableWriter) Write(value any) error {
 	}
 
 	if w.lazyCreate {
-		w.createOptions = append(w.createOptions, WithInferredSchema(value))
+		if !w.rawRows {
+			w.createOptions = append(w.createOptions, WithInferredSchema(value))
+		}
 		w.err = w.createTable()
 		if w.err != nil {
 			return w.err
@@ -314,7 +328,9 @@ func (w *tableWriter) initBuffer(reuse bool) (err error) {
 		w.buffer = new(bytes.Buffer)
 	}
 	w.encoder = newYSONEncoder(w.buffer)
-	if w.format != nil {
+	if w.rawRows {
+		w.encoder = &rawEncoder{w: w.buffer}
+	} else if w.format != nil {
 		if skiffFormat, ok := w.format.(skiff.Format); ok {
 			w.encoder, err = newSkiffEncoder(w.buffer, skiffFormat)
 		} else {
@@ -341,6 +357,23 @@ func (e *ysonEncoder) encode(value any) error {
 
 func (e *ysonEncoder) finish() error {
 	return e.w.Finish()
+}
+
+type rawEncoder struct {
+	w io.Writer
+}
+
+func (e *rawEncoder) encode(value any) error {
+	row, ok := value.([]byte)
+	if !ok {
+		return xerrors.Errorf("yt: raw row must be []byte, got %T", value)
+	}
+	_, err := e.w.Write(row)
+	return err
+}
+
+func (e *rawEncoder) finish() error {
+	return nil
 }
 
 type skiffEncoder struct {
