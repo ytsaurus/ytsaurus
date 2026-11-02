@@ -2751,7 +2751,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("a2", "max", empty=True)
 
         create("table", "//tmp/t", attributes={"account": "a1"})
-        wait(lambda: self._get_detailed_master_memory_usage("a1", "nodes") > 0)
+        wait(lambda: get("//sys/accounts/a1/@resource_usage/node_count") > 0)
 
         with raises_yt_error("Cannot remove account .* because its usage is not zero"):
             remove("//sys/account_tree/max/*")
