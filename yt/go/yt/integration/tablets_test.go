@@ -51,6 +51,7 @@ func TestTabletClient(t *testing.T) {
 		{Name: "TabletTxPrerequisite", Test: suite.TestTabletTxPrerequisite},
 		{Name: "LookupColumnFilter", Test: suite.TestLookupColumnFilter},
 		{Name: "ReadTimestamp", Test: suite.TestReadTimestamp},
+		{Name: "VersionedReadOptions", Test: suite.TestVersionedReadOptions},
 		{Name: "InsertRows_map", Test: suite.TestInsertRows_map},
 		{Name: "InsertRows_empty", Test: suite.TestInsertRows_empty},
 		{Name: "DeleteRows_empty", Test: suite.TestDeleteRows_empty},
@@ -311,6 +312,126 @@ func (s *Suite) TestReadTimestamp(ctx context.Context, t *testing.T, yc yt.Clien
 	require.NoError(t, err)
 	defer r.Close()
 	checkReader(r)
+}
+
+func (s *Suite) TestVersionedReadOptions(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	tableSchema := schema.MustInfer(&testRowWithTwoColumns{})
+	tableSchema.Columns[2].Required = false
+
+	testTable := tmpPath().Child("table")
+	require.NoError(t, migrate.Create(ctx, yc, testTable, tableSchema))
+	require.NoError(t, migrate.MountAndWait(ctx, yc, testTable))
+
+	beforeInsert, err := yc.GenerateTimestamp(ctx, nil)
+	require.NoError(t, err)
+	require.NoError(t, yc.InsertRows(ctx, testTable, []any{&testRowWithTwoColumns{"foo", "1", "2"}}, nil))
+
+	beforeUpdate, err := yc.GenerateTimestamp(ctx, nil)
+	require.NoError(t, err)
+	update := struct {
+		Key    string `yson:"table_key"`
+		Value0 string `yson:"value0"`
+	}{"foo", "3"}
+	require.NoError(t, yc.InsertRows(ctx, testTable, []any{&update}, &yt.InsertRowsOptions{
+		Update: ptr.Bool(true),
+	}))
+	afterUpdate, err := yc.GenerateTimestamp(ctx, nil)
+	require.NoError(t, err)
+
+	type timestampedRow struct {
+		Key             string       `yson:"table_key"`
+		Value0          string       `yson:"value0"`
+		Value1          string       `yson:"value1"`
+		Value0Timestamp yt.Timestamp `yson:"$timestamp:value0"`
+		Value1Timestamp yt.Timestamp `yson:"$timestamp:value1"`
+	}
+	readRow := func(t *testing.T, r yt.TableReader) (row timestampedRow) {
+		t.Helper()
+		defer r.Close()
+
+		require.True(t, r.Next())
+		require.NoError(t, r.Scan(&row))
+		require.False(t, r.Next())
+		require.NoError(t, r.Err())
+		return
+	}
+
+	for _, method := range []struct {
+		name string
+		read func(*yt.VersionedReadOptions, *yt.Timestamp, bool) (yt.TableReader, error)
+	}{
+		{
+			name: "LookupRows",
+			read: func(options *yt.VersionedReadOptions, timestamp *yt.Timestamp, filterColumns bool) (yt.TableReader, error) {
+				var columns []string
+				if filterColumns {
+					columns = []string{"table_key", "value0", "$timestamp:value0"}
+				}
+				return yc.LookupRows(ctx, testTable, []any{&testKey{"foo"}}, &yt.LookupRowsOptions{
+					Columns:              columns,
+					Timestamp:            timestamp,
+					VersionedReadOptions: options,
+				})
+			},
+		},
+		{
+			name: "SelectRows",
+			read: func(options *yt.VersionedReadOptions, timestamp *yt.Timestamp, filterColumns bool) (yt.TableReader, error) {
+				columns := "*"
+				if filterColumns {
+					columns = "table_key, value0, [$timestamp:value0]"
+				}
+				return yc.SelectRows(ctx, fmt.Sprintf("%s from [%s]", columns, testTable), &yt.SelectRowsOptions{
+					Timestamp:            timestamp,
+					VersionedReadOptions: options,
+				})
+			},
+		},
+	} {
+		t.Run(method.name, func(t *testing.T) {
+			for _, options := range []*yt.VersionedReadOptions{
+				nil,
+				{},
+				{ReadMode: yt.VersionedReadModeDefault},
+			} {
+				r, err := method.read(options, nil, false)
+				require.NoError(t, err)
+				require.Equal(t, timestampedRow{Key: "foo", Value0: "3", Value1: "2"}, readRow(t, r))
+			}
+
+			options := &yt.VersionedReadOptions{ReadMode: yt.VersionedReadModeLatestTimestamp}
+			r, err := method.read(options, nil, false)
+			require.NoError(t, err)
+			latest := readRow(t, r)
+			require.Equal(t, "foo", latest.Key)
+			require.Equal(t, "3", latest.Value0)
+			require.Equal(t, "2", latest.Value1)
+			require.Greater(t, latest.Value1Timestamp, beforeInsert)
+			require.Less(t, latest.Value1Timestamp, beforeUpdate)
+			require.Greater(t, latest.Value0Timestamp, beforeUpdate)
+			require.Less(t, latest.Value0Timestamp, afterUpdate)
+
+			r, err = method.read(options, nil, true)
+			require.NoError(t, err)
+			require.Equal(t, timestampedRow{
+				Key:             "foo",
+				Value0:          "3",
+				Value0Timestamp: latest.Value0Timestamp,
+			}, readRow(t, r))
+
+			r, err = method.read(options, &beforeUpdate, false)
+			require.NoError(t, err)
+			require.Equal(t, timestampedRow{
+				Key:             "foo",
+				Value0:          "1",
+				Value1:          "2",
+				Value0Timestamp: latest.Value1Timestamp,
+				Value1Timestamp: latest.Value1Timestamp,
+			}, readRow(t, r))
+		})
+	}
 }
 
 func (s *Suite) TestInsertRows_map(ctx context.Context, t *testing.T, yc yt.Client) {

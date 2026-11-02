@@ -646,6 +646,11 @@ func (e *Encoder) SelectRows(
 		opts = &yt.SelectRowsOptions{}
 	}
 
+	versionedReadOptions, err := convertVersionedReadOptions(opts.VersionedReadOptions)
+	if err != nil {
+		return
+	}
+
 	placeholderValues, err := convertPlaceHolderValues(opts.PlaceholderValues)
 	if err != nil {
 		err = xerrors.Errorf("unable to serialize placeholder values: %w", err)
@@ -655,8 +660,9 @@ func (e *Encoder) SelectRows(
 	req := &rpc_proxy.TReqSelectRows{
 		Query: ptr.String(query),
 
-		Timestamp:          convertTimestamp(opts.Timestamp),
-		RetentionTimestamp: nil, // todo
+		Timestamp:            convertTimestamp(opts.Timestamp),
+		RetentionTimestamp:   nil, // todo
+		VersionedReadOptions: versionedReadOptions,
 
 		InputRowLimit:             intPtrToUint64Ptr(opts.InputRowLimit),
 		OutputRowLimit:            intPtrToUint64Ptr(opts.OutputRowLimit),
@@ -693,6 +699,11 @@ func (e *Encoder) LookupRows(
 		opts = &yt.LookupRowsOptions{}
 	}
 
+	versionedReadOptions, err := convertVersionedReadOptions(opts.VersionedReadOptions)
+	if err != nil {
+		return
+	}
+
 	attachments, descriptor, err := encodeToWire(keys)
 	if err != nil {
 		err = xerrors.Errorf("unable to encode request into wire format: %w", err)
@@ -700,15 +711,16 @@ func (e *Encoder) LookupRows(
 	}
 
 	req := &rpc_proxy.TReqLookupRows{
-		Path:                []byte(path.String()),
-		Timestamp:           convertTimestamp(opts.Timestamp),
-		Columns:             opts.Columns,
-		KeepMissingRows:     &opts.KeepMissingRows,
-		EnablePartialResult: nil, // todo
-		UseLookupCache:      nil, // todo
-		TabletReadOptions:   nil, // todo
-		MultiplexingBand:    nil, // todo
-		RowsetDescriptor:    descriptor,
+		Path:                 []byte(path.String()),
+		Timestamp:            convertTimestamp(opts.Timestamp),
+		Columns:              opts.Columns,
+		KeepMissingRows:      &opts.KeepMissingRows,
+		EnablePartialResult:  nil, // todo
+		UseLookupCache:       nil, // todo
+		TabletReadOptions:    nil, // todo
+		MultiplexingBand:     nil, // todo
+		RowsetDescriptor:     descriptor,
+		VersionedReadOptions: versionedReadOptions,
 	}
 
 	call := e.newCall(MethodLookupRows, NewLookupRowsRequest(req), attachments)
