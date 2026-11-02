@@ -176,15 +176,6 @@ void WriteFile(const TFsPath& path, TStringBuf value)
     output.Finish();
 }
 
-void SetPermissions(const TFsPath& path, int mode)
-{
-    THROW_ERROR_EXCEPTION_UNLESS(
-        Chmod(path.GetPath().c_str(), mode) == 0,
-        "Failed to change permissions of %Qv",
-        path.GetPath())
-        .With(TError::FromSystem());
-}
-
 void FlushFile(const TFsPath& path)
 {
     TFile(path.GetPath(), OpenExisting | RdOnly).FlushData();
@@ -268,34 +259,6 @@ void ValidateStagingRoot(const TFsPath& stagingDirectory)
         .With("staging_path", stagingDirectory.GetPath());
 }
 
-void MakeTreeReadOnly(const TFsPath& path)
-{
-    auto stat = GetFileStatus(path);
-    THROW_ERROR_EXCEPTION_IF(
-        stat.IsSymlink(),
-        "File storage payload contains symlink %Qv",
-        path.GetPath());
-
-    if (stat.IsDir()) {
-        TVector<TFsPath> children;
-        ListDirectory(path, &children);
-        for (const auto& child : children) {
-            MakeTreeReadOnly(child);
-        }
-        SetPermissions(
-            path,
-            (stat.Mode & ~(S_IWUSR | S_IWGRP | S_IWOTH)) | S_IRUSR | S_IXUSR);
-    } else {
-        THROW_ERROR_EXCEPTION_UNLESS(
-            stat.IsFile(),
-            "File storage payload contains unsupported entry %Qv",
-            path.GetPath());
-        SetPermissions(
-            path,
-            stat.Mode & ~(S_IWUSR | S_IWGRP | S_IWOTH));
-    }
-}
-
 void FlushTree(const TFsPath& path)
 {
     auto stat = GetFileStatus(path);
@@ -309,26 +272,6 @@ void FlushTree(const TFsPath& path)
     } else {
         FlushFile(path);
     }
-}
-
-bool IsTreeReadOnly(const TFsPath& path)
-{
-    auto stat = GetFileStatus(path);
-    if (stat.IsSymlink() || (stat.Mode & (S_IWUSR | S_IWGRP | S_IWOTH)) != 0) {
-        return false;
-    }
-    if (!stat.IsDir()) {
-        return stat.IsFile();
-    }
-
-    TVector<TFsPath> children;
-    ListDirectory(path, &children);
-    for (const auto& child : children) {
-        if (!IsTreeReadOnly(child)) {
-            return false;
-        }
-    }
-    return true;
 }
 
 bool AreManifestsEqual(const TManifestPtr& lhs, const TManifestPtr& rhs)
@@ -692,7 +635,6 @@ private:
             WaitFor(filler(payload.GetPath())).ThrowOnError();
             ValidateStagingRoot(stagingDirectory);
             auto manifest = BuildManifest(payload, id);
-            MakeTreeReadOnly(payload);
             FlushTree(payload);
 
             auto manifestYson = ConvertToYsonString(manifest);
@@ -881,9 +823,7 @@ private:
             }
             auto manifestStatus = GetFileStatus(manifestPath);
             auto payloadStatus = GetFileStatus(payload);
-            if (!manifestStatus.IsFile() || !payloadStatus.IsDir() ||
-                !IsTreeReadOnly(payload))
-            {
+            if (!manifestStatus.IsFile() || !payloadStatus.IsDir()) {
                 return EObjectValidationResult::Invalid;
             }
             manifestYson = ReadFile(manifestPath);
