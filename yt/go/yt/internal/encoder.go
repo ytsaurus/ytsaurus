@@ -677,10 +677,8 @@ func (e *Encoder) WriteTableRaw(
 	body *bytes.Buffer,
 ) (err error) {
 	call := e.newCall(NewWriteTableParams(path, options))
-	call.YSONValue = body.Bytes()
 	call.DisableRetries = true
-	err = e.do(ctx, call, noopResultDecoder)
-	return
+	return e.writeRaw(ctx, call, body)
 }
 
 func (e *Encoder) WriteFileRaw(
@@ -690,10 +688,20 @@ func (e *Encoder) WriteFileRaw(
 	body *bytes.Buffer,
 ) (err error) {
 	call := e.newCall(NewWriteFileParams(path, options))
-	call.YSONValue = body.Bytes()
 	call.DisableRetries = true
-	err = e.do(ctx, call, noopResultDecoder)
-	return
+	return e.writeRaw(ctx, call, body)
+}
+
+func (e *Encoder) writeRaw(ctx context.Context, call *Call, body *bytes.Buffer) error {
+	w, err := e.InvokeWrite(ctx, call)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(body.Bytes())
+	if closeErr := w.Close(); err == nil {
+		err = closeErr
+	}
+	return err
 }
 
 func (e *Encoder) WriteTable(
