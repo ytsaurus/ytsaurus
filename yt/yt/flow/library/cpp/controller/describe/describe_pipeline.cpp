@@ -493,7 +493,13 @@ void FillStreamTraverseData(const TFlowViewPtr& flowView, const TPipelineSpecPtr
     };
 
     for (const auto& [computationId, nodeTraverseData] : flowView->State->TraverseData->Computations) {
-        const auto& computationSpec = GetOrCrash(pipelineSpec->Computations, computationId);
+        // Traverse data may lag behind a replaced spec until a successful leader iteration syncs it.
+        const auto* computationSpecPtr = pipelineSpec->Computations.FindPtr(computationId);
+        if (!computationSpecPtr) {
+            continue;
+        }
+
+        const auto& computationSpec = *computationSpecPtr;
         for (const auto& [streamId, streamTraverseData] : nodeTraverseData->Streams) {
             if (computationSpec->InputStreamIds.contains(streamId)) {
                 // Use stream from corresponding output stream.
@@ -568,7 +574,13 @@ void FillStreamStateMessage(
     int drainedStreams = 0;
 
     for (const auto& [computationId, nodeTraverseData] : flowView->State->TraverseData->Computations) {
-        const auto& computationSpec = GetOrCrash(pipelineSpec->Computations, computationId);
+        // Traverse data may lag behind a replaced spec until a successful leader iteration syncs it.
+        const auto* computationSpecPtr = pipelineSpec->Computations.FindPtr(computationId);
+        if (!computationSpecPtr) {
+            continue;
+        }
+
+        const auto& computationSpec = *computationSpecPtr;
 
         for (const auto& [streamId, streamTraverseData] : nodeTraverseData->Streams) {
             // Skip input streams.

@@ -787,6 +787,40 @@ TEST_W(TDescribeTest, DescribePipeline)
     EXPECT_EQ(description.Computations.size(), 3u);
 }
 
+// After a recovered pipeline gets a replaced spec, its traverse data may still have computations that the spec lacks.
+TEST_W(TDescribeTest, DescribeToleratesComputationMissingFromSpec)
+{
+    Prepare();
+
+    auto traverseData = ConvertTo<TNodeTraverseDataPtr>(TYsonStringBuf(TStringBuf(R""""({
+            "streams" = {
+                "output_stream" = {
+                    "state" = "Active";
+                    "inflight_metrics" = {
+                        "count" = 10;
+                        "byte_size" = 100;
+                        "processed_bytes_per_sec" = 200.;
+                    }
+                };
+            }
+        })"""")));
+    for (const auto& computationId : {TComputationId("Computation_1"), TComputationId("Computation_removed")}) {
+        FlowView->State->TraverseData->Computations[computationId] = CloneYsonStruct(traverseData);
+    }
+
+    for (bool statusOnly : {false, true}) {
+        SCOPED_TRACE(Format("StatusOnly: %v", statusOnly));
+        auto description = DescribePipeline({.FlowView = FlowView, .Logger = TLogger("test"), .StatusOnly = statusOnly});
+        // Computations present in the spec are still described from their traverse data.
+        EXPECT_TRUE(MessagesContain(description.Messages, "TotalStreams: 1"));
+        if (!statusOnly) {
+            EXPECT_EQ(description.Computations.size(), Spec->Computations.size());
+            EXPECT_FALSE(description.Computations.contains(TComputationId("Computation_removed")));
+            EXPECT_EQ(description.Streams.at(TStreamId("output_stream")).InflightRows, 10);
+        }
+    }
+}
+
 TEST_W(TDescribeTest, DescribePipelineUsesProvidedNow)
 {
     Prepare();
