@@ -1217,7 +1217,7 @@ std::vector<TWriterCase> MakeSmallIntWriterCases()
             .TableSchema = MakeTableSchema({{"column", logicalType}}),
             .Rows = {{{"column", value}}},
             .Expected = TExpectedError{Format(
-                "Value %v is out of range for possible values for skiff type %Qlv",
+                "Value %v is out of range of wire type %Qlv",
                 value,
                 wireType)},
         });
