@@ -263,6 +263,16 @@ void TJobStateManager::Sync(IRetryableTransactionPtr transaction)
     }
 }
 
+void TJobStateManager::ErasePartitionState(
+    IRetryableTransactionPtr transaction,
+    const std::string& name)
+{
+    YT_VERIFY(transaction);
+    Context_->PartitionStates->Erase(
+        transaction,
+        std::vector<NTables::IPartitionStates::TTableKey>{{Context_->PartitionId, name}});
+}
+
 IJobInitContextPtr TJobStateManager::CreateContext(std::string prefix)
 {
     if (!prefix.empty()) {
