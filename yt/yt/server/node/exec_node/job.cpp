@@ -514,21 +514,24 @@ void TJob::Start() noexcept
         return;
     }
 
-    if (auto slot = GetUserSlot()) {
-        try {
-            slot->ValidateEnabled();
-        } catch (const std::exception& ex) {
-            static constexpr auto Message = "Cannot start job"_sb;
-            YT_TLOG_WARNING(Message)
-                .With("AbortReason", EAbortReason::UserSlotDisabled)
-                .With(ex);
-            auto error = TError(Message)
-                .With("abort_reason", EAbortReason::UserSlotDisabled)
-                .With(ex);
-            Abort(std::move(error));
-            return;
-        }
+    auto slot = GetUserSlot();
+    YT_VERIFY(slot);
+
+    try {
+        slot->ValidateEnabled();
+    } catch (const std::exception& ex) {
+        static constexpr auto Message = "Cannot start job"_sb;
+        YT_TLOG_WARNING(Message)
+            .With("AbortReason", EAbortReason::UserSlotDisabled)
+            .With(ex);
+        auto error = TError(Message)
+            .With("abort_reason", EAbortReason::UserSlotDisabled)
+            .With(ex);
+        Abort(std::move(error));
+        return;
     }
+
+    slot->Prepare();
 
     YT_VERIFY(!std::exchange(Started_, true));
 
@@ -3032,7 +3035,6 @@ void TJob::Cleanup()
         try {
             WaitFor(StopJobProxy())
                 .ThrowOnError();
-            // TODO(pogorelov): Maybe we should wait until the process is actually stopped?
         } catch (const std::exception& ex) {
             // Errors during cleanup phase do not affect job outcome.
             YT_TLOG_ERROR("Failed to clean processes")

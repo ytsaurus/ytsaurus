@@ -43,10 +43,12 @@
 
 #include <yt/yt/library/process/process.h>
 
+#include <yt/yt/core/concurrency/async_rw_lock.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/net/connection.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/proc.h>
 
 #include <library/cpp/yt/string/string.h>
@@ -93,6 +95,13 @@ public:
 
         Bootstrap_->SubscribePopulateAlerts(
             BIND(&TProcessJobEnvironmentBase::PopulateAlerts, MakeWeak(this)));
+
+        for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
+            auto state = New<TProcessCreationState>();
+            state->CreationDisabled = true;
+            EmplaceOrCrash(ProcessCreationStates_, slotIndex, std::move(state));
+        }
+
         // Shutdown all possible processes.
         try {
             DoInit(slotCount, cpuLimit, idleCpuFraction);
@@ -113,6 +122,15 @@ public:
         return BIND(&IJobEnvironment::CleanProcesses, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetJobInvoker())
             .Run(slotIndex, ESlotType::Common);
+    }
+
+    void PrepareSlotForJob(int slotIndex) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        auto& state = GetOrCrash(ProcessCreationStates_, slotIndex);
+        YT_VERIFY(state->CreationDisabled);
+        state = New<TProcessCreationState>();
     }
 
     TFuture<void> RunJobProxy(
@@ -183,7 +201,11 @@ public:
 
             TJobProxyProcess jobProxyProcess;
             jobProxyProcess.Process = process;
+            auto creationState = GetOrCrash(ProcessCreationStates_, slotIndex);
             jobProxyProcess.Result = BIND([=] {
+                    auto guard = WaitFor(AcquireProcessCreationGuard(creationState))
+                        .ValueOrThrow();
+
                     // Make forks outside controller thread.
                     return process->Spawn();
                 })
@@ -278,12 +300,24 @@ protected:
         TFuture<void> Result;
     };
 
+    struct TProcessCreationState
+        : public TRefCounted
+    {
+        // Read lock means processes are being created.
+        // Write lock means further process creation is being disabled.
+        TAsyncReaderWriterLock Lock;
+        bool CreationDisabled = false;
+    };
+
+    using TProcessCreationStatePtr = TIntrusivePtr<TProcessCreationState>;
+
     const TJobEnvironmentConfig Config_;
     IBootstrap* const Bootstrap_;
 
     const TActionQueuePtr ActionQueue_ = New<TActionQueue>("JobEnvironment");
 
     THashMap<int, TJobProxyProcess> JobProxyProcesses_;
+    THashMap<int, TProcessCreationStatePtr> ProcessCreationStates_;
 
     TFuture<void> JobProxyResult_;
 
@@ -312,6 +346,13 @@ protected:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
+        {
+            auto state = GetOrCrash(ProcessCreationStates_, slotIndex);
+            auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&state->Lock))
+                .ValueOrThrow();
+            state->CreationDisabled = true;
+        }
+
         auto it = JobProxyProcesses_.find(slotIndex);
         if (it != JobProxyProcesses_.end()) {
             if (kill) {
@@ -333,6 +374,16 @@ protected:
             // Drop reference to a process.
             JobProxyProcesses_.erase(it);
         }
+    }
+
+    static TFuture<TIntrusivePtr<TAsyncLockReaderGuard>> AcquireProcessCreationGuard(
+        const TProcessCreationStatePtr& state)
+    {
+        return TAsyncLockReaderGuard::Acquire(&state->Lock)
+            .Apply(BIND([state] (const TIntrusivePtr<TAsyncLockReaderGuard>& guard) {
+                THROW_ERROR_EXCEPTION_IF(state->CreationDisabled, "Job preparation canceled");
+                return guard;
+            }));
     }
 
     virtual void AddArguments(TProcessBasePtr /*process*/, int /*slotIndex*/)
@@ -377,8 +428,6 @@ public:
     void CleanProcesses(int slotIndex, ESlotType slotType) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
-
-        ValidateEnabled();
 
         YT_TLOG_DEBUG("Start clean processes")
             .With("SlotIndex", slotIndex);
@@ -558,8 +607,6 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        ValidateEnabled();
-
         YT_TLOG_DEBUG("Start clean processes")
             .With("SlotIndex", slotIndex);
 
@@ -638,7 +685,8 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        return BIND([this, this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, hostName, ipAddresses, tag, throwOnFailedCommand] {
+        auto creationState = GetOrCrash(ProcessCreationStates_, slotIndex);
+        return BIND([this, this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, hostName, ipAddresses, tag, throwOnFailedCommand, creationState] {
             std::vector<TShellCommandResult> outputs;
             outputs.reserve(commands.size());
 
@@ -668,7 +716,11 @@ public:
                     launcher->SetIPAddresses(ipAddresses, /*enableNat64*/ false);
                 }
 
+                auto guard = WaitFor(AcquireProcessCreationGuard(creationState))
+                    .ValueOrThrow();
                 auto instanceOrError = WaitFor(launcher->Launch(command->Path, command->Args, command->EnvironmentVariables));
+                guard->Release();
+
                 YT_TLOG_WARNING_IF(!instanceOrError.IsOK(), "Failed to launch command")
                     .With("JobId", jobId)
                     .With(instanceOrError);
@@ -1163,8 +1215,6 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        ValidateEnabled();
-
         try {
             EnsureJobProxyFinished(slotIndex, /*kill */ true);
             Executor_->CleanPodSandbox(PodDescriptors_[slotIndex]);
@@ -1269,6 +1319,7 @@ public:
             spec->Resources.CpusetCpus = cpusetCpu;
         }
 
+        auto creationState = GetOrCrash(ProcessCreationStates_, slotIndex);
         std::vector<TFuture<void>> results;
         results.reserve(std::ssize(commands));
         for (int index = 0; index < std::ssize(commands); ++index) {
@@ -1286,6 +1337,8 @@ public:
 
             results.push_back(
                 BIND([=] {
+                    auto guard = WaitFor(AcquireProcessCreationGuard(creationState))
+                        .ValueOrThrow();
                     return process->Spawn();
                 })
                 .AsyncVia(ActionQueue_->GetInvoker())
