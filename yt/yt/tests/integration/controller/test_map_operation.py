@@ -1778,7 +1778,15 @@ print(json.dumps(input))
             track=False,
             in_=input_table,
             out=output,
-            command=with_breakpoint("""read row; echo $row; BREAKPOINT; while read row; do echo $row; sleep 1; done"""),
+            command=with_breakpoint("""read row; echo $row; BREAKPOINT; python3 -c '
+import sys
+import time
+
+for row in sys.stdin.buffer:
+    sys.stdout.buffer.write(row)
+    sys.stdout.buffer.flush()
+    time.sleep(1)
+'"""),
             spec={
                 "force_allow_job_interruption": True,
                 "job_count": job_count,
