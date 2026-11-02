@@ -1449,6 +1449,11 @@ def infer_host_component(host):
             "exec": "exec-node",
         }[node.group("role")]
         return role, "node"
+    if re.search(r"(?:^|-)tab-balancer(?:-|$)", short):
+        location = re.match(r"^(?P<location>[a-z]{3}\d+-\d+)(?:-|$)", short)
+        return "tablet-balancer", (
+            "tablet-balancer-" + location.group("location") if location else None
+        )
     if re.search(r"(?:^|-)tab(?:-|$)", short):
         return "tablet-node", "node"
     if re.search(r"(?:^|-)master-cache(?:-|$)", short):
@@ -1484,8 +1489,8 @@ def infer_host_component(host):
 def _resolve_base(role, component, available):
     if component in available:
         return component
-    # Generic node hostnames identify an exact location, not a base prefix.
-    if role == "node":
+    # Location-qualified hosts require their exact base, not a prefix match.
+    if role in ("node", "tablet-balancer"):
         return None
     if role == "master":
         matches = [
