@@ -158,6 +158,11 @@ void TChunkTeleporterConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_teleport_chunks_per_request", &TThis::MaxTeleportChunksPerRequest)
         .GreaterThan(0)
         .Default(5000);
+
+    // COMPAT(kvk1920)
+    registrar.Parameter("use_lazy_transaction_externalization", &TThis::UseLazyTransactionExternalization)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

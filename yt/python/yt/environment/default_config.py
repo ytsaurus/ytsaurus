@@ -109,6 +109,10 @@ def get_dynamic_master_config():
             }
         },
 
+        "chunk_service": {
+            "use_lazy_transaction_externalization": True,
+        },
+
         "node_tracker": {
             "master_cache_manager": {
                 "update_period": 1000,
@@ -158,6 +162,7 @@ def get_dynamic_master_config():
             "forbid_transaction_actions_for_cypress_transactions": True,
             "profiling_period": 100,
             "alert_flush_period": 100,
+            "enable_lazy_transaction_externalization": True,
         },
         "table_manager": {
             "enable_column_constraints_for_tables": True,
@@ -220,6 +225,12 @@ def get_dynamic_master_config():
 
         "cell_master": {
             "alert_update_period": 500,
+            "logging": {
+                "message_level_overrides": {
+                    "Unexpected Cypress transaction in ChunkService request": "alert",
+                    "Starting mirrored Cypress transaction with replication to master cells with unexpected roles": "alert",
+                }
+            }
         },
     }
 
@@ -438,6 +449,8 @@ def get_controller_agent_config():
                 "duration_before_job_considered_disappeared_from_node": 1000,
                 "node_disconnection_timeout": 2000,
             },
+
+            "use_lazy_transaction_externalization": True,
         },
     }
 
