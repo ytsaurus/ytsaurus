@@ -1078,12 +1078,27 @@ class TestFairShareHierarchicalIoEngine(TestIoEngine):
     def _category_orchid_key(category):
         return "".join(w.capitalize() for w in category.split("_"))
 
-    def _verify_bucket_tree_on_node(self, node, category_weights):
+    @staticmethod
+    def _workload_group(category):
+        if category == "idle":
+            return None
+        return "system" if category.startswith("system_") else "user"
+
+    def _category_bucket(self, root, category, group_weights):
+        group = self._workload_group(category)
+        parent = root if group_weights.get(group) is None else root["buckets"].get(group, {})
+        return parent.get("buckets", {}).get(self._category_orchid_key(category), {})
+
+    def _verify_bucket_tree_on_node(self, node, category_weights, group_weights):
         orchid = get("//sys/cluster_nodes/{}/orchid/fair_share_hierarchical_scheduler".format(node))
         root = orchid["root"]
 
         for category, weight in category_weights.items():
-            bucket = root["buckets"][self._category_orchid_key(category)]
+            group_weight = group_weights.get(self._workload_group(category))
+            if group_weight is not None:
+                group = root["buckets"][self._workload_group(category)]
+                assert abs(group["request_weight"] - group_weight) <= 0.05
+            bucket = self._category_bucket(root, category, group_weights)
 
             actual_request_weight = bucket["request_weight"]
             assert abs(actual_request_weight - weight) <= 0.05, (
@@ -1091,14 +1106,21 @@ class TestFairShareHierarchicalIoEngine(TestIoEngine):
                     node, category, weight, actual_request_weight))
 
     @authors("vvshlyaga")
-    @pytest.mark.parametrize("category_weights", [
-        {"user_batch": 1.0, "user_interactive": 1.0},
-        {"user_batch": 1.0, "user_interactive": 2.0},
-        {"user_batch": 1.0, "user_interactive": 2.0, "user_realtime": 4.0},
-        {"idle": 0.0, "user_batch": 1.0, "user_interactive": 2.0, "user_realtime": 4.0},
+    @pytest.mark.parametrize("category_weights, system_weight, user_weight", [
+        ({"system_replication": 1.0, "system_repair": 2.0, "user_realtime": 4.0}, None, None),
+        ({"system_replication": 1.0, "system_repair": 2.0, "user_realtime": 4.0}, 2.0, None),
+        ({"system_replication": 1.0, "system_repair": 2.0, "user_realtime": 4.0}, None, 3.0),
+        ({"system_replication": 1.0, "system_repair": 2.0, "user_realtime": 4.0}, 1.0, 1.0),
+        ({"system_replication": 1.0, "system_repair": 2.0, "user_realtime": 4.0}, 2.0, 3.0),
+        ({"idle": 0.0, "system_replication": 1.0, "user_realtime": 4.0}, 1.0, 3.0),
+        ({"user_batch": 1.0, "user_interactive": 1.0}, None, None),
+        ({"user_batch": 1.0, "user_interactive": 2.0}, None, None),
+        ({"user_batch": 1.0, "user_interactive": 2.0, "user_realtime": 4.0}, None, None),
+        ({"idle": 0.0, "user_batch": 1.0, "user_interactive": 2.0, "user_realtime": 4.0}, None, None),
     ])
-    def test_category_weights(self, category_weights):
+    def test_category_weights(self, category_weights, system_weight, user_weight):
         nodes = ls("//sys/cluster_nodes")
+        group_weights = {"system": system_weight, "user": user_weight}
 
         dynamic_config = {
             "fair_share_hierarchical_scheduler": {
@@ -1120,6 +1142,11 @@ class TestFairShareHierarchicalIoEngine(TestIoEngine):
         }
         if category_weights:
             dynamic_config["data_node"]["store_location_config_per_medium"]["default"]["fair_share_workload_category_weights"] = category_weights
+
+        location_config = dynamic_config["data_node"]["store_location_config_per_medium"]["default"]
+        for group, weight in group_weights.items():
+            if weight is not None:
+                location_config["fair_share_{}_weight".format(group)] = weight
 
         update_nodes_dynamic_config(dynamic_config)
 
@@ -1162,11 +1189,11 @@ class TestFairShareHierarchicalIoEngine(TestIoEngine):
                     orchid = get("//sys/cluster_nodes/{}/orchid/fair_share_hierarchical_scheduler".format(node))
                     root = orchid["root"]
                     if all(
-                        root["buckets"].get(self._category_orchid_key(cat), {}).get("slot_window_size", 0) > 0
-                        and root["buckets"].get(self._category_orchid_key(cat), {}).get("request_window_size", 0) > 0
+                        self._category_bucket(root, cat, group_weights).get("slot_window_size", 0) > 0
+                        and self._category_bucket(root, cat, group_weights).get("request_window_size", 0) > 0
                         for cat in categories
                     ):
-                        self._verify_bucket_tree_on_node(node, category_weights)
+                        self._verify_bucket_tree_on_node(node, category_weights, group_weights)
                         return True
                 return False
             except Exception:

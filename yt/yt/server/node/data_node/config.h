@@ -110,6 +110,10 @@ struct TChunkLocationConfig
 
     TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
 
+    //! When absent, categories of the corresponding group remain directly under the root.
+    std::optional<double> FairShareSystemWeight;
+    std::optional<double> FairShareUserWeight;
+
     double WeightedRequestWeight;
     double UnweightedRequestWeight;
 
@@ -137,6 +141,9 @@ struct TChunkLocationDynamicConfig
     std::optional<i64> CoalescedReadMaxGapSize;
 
     TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
+
+    std::optional<double> FairShareSystemWeight;
+    std::optional<double> FairShareUserWeight;
 
     std::optional<double> WeightedRequestWeight;
     std::optional<double> UnweightedRequestWeight;
