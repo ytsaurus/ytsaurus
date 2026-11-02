@@ -56,21 +56,6 @@ bool TYtflowSettings::GetYtConsumerVital() const
     return YtConsumerVital.Get().GetOrElse(false);
 }
 
-TString TYtflowSettings::GetYtProducerPath() const
-{
-    if (auto ytProducerPath = YtProducerPath.Get()) {
-        return *ytProducerPath;
-    }
-
-    auto ytProducerDirectoryString = YtProducerDirectory.Get().GetOrElse(
-        Join('/', GetPipelinePath(), YTFLOW_SUBDIRECTORY, YT_PRODUCERS_SUBDIRECTORY));
-
-    auto ytProducerNameString = YtProducerName.Get().GetOrElse(
-        TString(DEFAULT_YT_PRODUCER_NAME));
-
-    return Join('/', ytProducerDirectoryString, ytProducerNameString);
-}
-
 bool TYtflowSettings::GetEnableComputationPatternResources() const
 {
     // Service configurations set this explicitly. Keep the conservative fallback
@@ -297,10 +282,6 @@ TYtflowConfiguration::TYtflowConfiguration()
     REGISTER_SETTING(*this, YtConsumerName);
     REGISTER_SETTING(*this, YtConsumerPath);
     REGISTER_SETTING(*this, YtConsumerVital);
-
-    REGISTER_SETTING(*this, YtProducerDirectory);
-    REGISTER_SETTING(*this, YtProducerName);
-    REGISTER_SETTING(*this, YtProducerPath);
 
     REGISTER_SETTING(*this, _RunVanillaOperation);
     REGISTER_SETTING(*this, _DumpPipelineSpecToDirectory);

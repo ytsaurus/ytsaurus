@@ -520,7 +520,6 @@ void ProcessSink(
     NYT::NFlow::TPipelineSpecPtr pipelineSpec,
     THashMap<TString, TString>& outputIndicesByOutputStreamId,
     TRequestedCredentials& requestedCredentials,
-    std::optional<TString>& asyncQueueCluster,
     TBuildPipelineSpecContext& ctx)
 {
     const auto& streamName = GetStreamName(sink.Ref(), ctx);
@@ -563,6 +562,7 @@ void ProcessSink(
 
         TString clusterAlias;
         TString path;
+        TString producerPath;
 
         if (isSortedTable) {
             NProto::TYtSortedTableSinkMessage sortedSettings;
@@ -576,6 +576,7 @@ void ProcessSink(
 
             clusterAlias = queueSettings.GetCluster();
             path = queueSettings.GetPath();
+            producerPath = queueSettings.GetProducerPath();
         }
 
         YQL_ENSURE(
@@ -604,25 +605,8 @@ void ProcessSink(
                 "table_path", NYT::NYTree::ConvertToNode(tableRichPath));
         } else {
             if (isRemoteTable) {
-                YQL_ENSURE(
-                    !asyncQueueCluster || *asyncQueueCluster == cluster,
-                    "Writing into several remote YT queues "
-                    "on separate clusters is not supported yet");
-
-                asyncQueueCluster = cluster;
-
-                auto producerRichPath = CanonizeYtRichPath(
-                    config->GetYtProducerPath(), *config);
-
-                if (auto producerCluster = producerRichPath.GetCluster()) {
-                    producerRichPath.SetCluster(
-                        configClusters.GetRealName(TString(*producerCluster)));
-                } else {
-                    producerRichPath.SetCluster(cluster);
-                }
-
-                YQL_ENSURE(producerRichPath.GetCluster() == cluster,
-                    "YT queue producer and YT queue must be on the same cluster: " << cluster);
+                auto producerRichPath = MakeYtProducerRichPath(
+                    std::move(producerPath), cluster, *config);
 
                 sinkSpec->SinkClassName = "NYT::NFlow::TAsyncQueueSink";
 
@@ -1302,7 +1286,6 @@ TBuildPipelineSpecResult BuildPipelineSpec(
     pipelineSpec->Resources[NYT::NFlow::YTClientFactoryDefaultResourceId] = std::move(resourceSpec);
 
     TRequestedCredentials requestedCredentials;
-    std::optional<TString> asyncQueueCluster;
 
     for (const auto& operation : operations) {
         TVector<TYtflowPersistentSource> persistentSources;
@@ -1354,7 +1337,6 @@ TBuildPipelineSpecResult BuildPipelineSpec(
                 pipelineSpec,
                 outputIndicesByOutputStreamId,
                 requestedCredentials,
-                asyncQueueCluster,
                 ctx);
         }
 

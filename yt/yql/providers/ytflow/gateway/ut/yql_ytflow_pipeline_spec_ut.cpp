@@ -26,6 +26,8 @@
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/resources/public.h>
 
+#include <yt/yt/client/ypath/rich.h>
+
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 
@@ -51,10 +53,19 @@ public:
     }
 
     void FillSinkSettings(
-        const TExprNode& /*sink*/,
+        const TExprNode& sinkNode,
         ::google::protobuf::Any& settings,
         TExprContext& /*ctx*/) override
     {
+        if (sinkNode.IsCallable("TestQueueWrite")) {
+            NProto::TYtQueueSinkMessage sink;
+            sink.SetCluster(TString(sinkNode.Child(2)->Content()));
+            sink.SetPath(TString(sinkNode.Child(3)->Content()));
+            sink.SetProducerPath(TString(sinkNode.Child(4)->Content()));
+            settings.PackFrom(sink);
+            return;
+        }
+
         NProto::TPQSinkMessage sink;
         sink.SetTopicPath("output");
         settings.PackFrom(sink);
@@ -162,17 +173,55 @@ protected:
         YQL_ENSURE(config->Dispatch(
             NCommon::ALL_CLUSTERS, "_FiniteStreams", TString("false"),
             NCommon::ISettingDispatcher::EStage::STATIC, onError));
+        YQL_ENSURE(config->Dispatch(
+            NCommon::ALL_CLUSTERS, "Cluster", TString("primary"),
+            NCommon::ISettingDispatcher::EStage::STATIC, onError));
+
+        TYtflowGatewayConfig gatewayConfig;
+        for (const auto& cluster : {"primary", "remote_0", "remote_1"}) {
+            auto* mapping = gatewayConfig.AddClusterMapping();
+            mapping->SetName(cluster);
+            mapping->SetRealName(TString(cluster) + "-cluster");
+            mapping->SetProxyUrl(TString(cluster) + ".example.com");
+        }
+
+        auto clusters = MakeIntrusive<TConfigClusters>(gatewayConfig);
 
         IYtflowGateway::TRunOptions runOptions;
         runOptions.Config(std::make_shared<const TYtflowSettings>(*config)).Types(&types);
 
-        NPrepare::TContext prepareCtx{Ctx_, runOptions, nullptr};
+        NPrepare::TContext prepareCtx{Ctx_, runOptions, clusters};
         auto registry = NKikimr::NMiniKQL::CreateFunctionRegistry(NKikimr::NMiniKQL::CreateBuiltinRegistry());
         THashMap<TStringBuf, ui32> computationCounters;
         TUserDataTable userDataBlocks;
         TBuildPipelineSpecContext buildCtx(prepareCtx, computationCounters, registry.Get(), userDataBlocks, {});
 
         return BuildPipelineSpec(Ctx_.NewList(Pos_, std::move(roots)), buildCtx).PipelineSpec;
+    }
+
+    TExprNode::TPtr MakeQueueSink(const TExprNode::TPtr& output, TString cluster, TString producer)
+    {
+        auto dataSink = Build<TCoDataSink>(Ctx_, Pos_)
+            .Category()
+                .Value("test")
+                .Build()
+            .Done();
+
+        auto write = Ctx_.NewCallable(Pos_, "TestQueueWrite", {
+            Ctx_.NewWorld(Pos_),
+            dataSink.Ptr(),
+            Ctx_.NewAtom(Pos_, cluster),
+            Ctx_.NewAtom(Pos_, "//tmp/queue_" + cluster),
+            Ctx_.NewAtom(Pos_, producer),
+        });
+
+        return Build<TYtflowPersistentSink>(Ctx_, Pos_)
+            .World(Ctx_.NewWorld(Pos_))
+            .Output(output)
+            .Write<TYtflowWriteWrap>()
+                .Input(write)
+                .Build()
+            .Done().Ptr();
     }
 
     void AssertSharedStream(const NYT::NFlow::TPipelineSpecPtr& spec)
@@ -196,6 +245,47 @@ protected:
         }
     }
 };
+
+TEST_F(TPipelineStreamsTest, WritesToLocalAndTwoRemoteQueuesWithDistinctProducers)
+{
+    auto output = MakeOutput(MakeSourceMap());
+    auto spec = BuildSpec({
+        MakeQueueSink(output, "primary", ""),
+        MakeQueueSink(output, "remote_0", "//tmp/producer_0"),
+        MakeQueueSink(output, "remote_1", "//tmp/producer_1"),
+    });
+
+    THashMap<TString, TString> producers;
+    size_t syncSinkCount = 0;
+
+    for (const auto& [_, computation] : spec->Computations) {
+        for (const auto& [sinkId, sink] : computation->Sinks) {
+            Y_UNUSED(sinkId);
+
+            if (sink->SinkClassName == "NYT::NFlow::TSyncQueueSink") {
+                ++syncSinkCount;
+                EXPECT_FALSE(sink->Parameters->FindChild("producer_path"));
+            } else {
+                ASSERT_EQ("NYT::NFlow::TAsyncQueueSink", sink->SinkClassName);
+
+                auto producer = sink->Parameters->GetChildValueOrThrow<
+                    NYT::NYPath::TRichYPath
+                >("producer_path");
+
+                ASSERT_TRUE(producer.GetCluster());
+
+                producers.emplace(
+                    TString(*producer.GetCluster()),
+                    TString(producer.GetPath()));
+            }
+        }
+    }
+
+    EXPECT_EQ(1, syncSinkCount);
+    ASSERT_EQ(2U, producers.size());
+    EXPECT_EQ("//tmp/producer_0", producers.at("remote_0-cluster"));
+    EXPECT_EQ("//tmp/producer_1", producers.at("remote_1-cluster"));
+}
 
 TUserDataBlock MakeUserDataBlock(std::initializer_list<EUserDataBlockUsage> usages)
 {

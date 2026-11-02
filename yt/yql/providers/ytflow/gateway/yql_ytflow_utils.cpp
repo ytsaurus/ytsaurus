@@ -58,8 +58,7 @@ NYT::NYPath::TRichYPath CanonizeYtRichPath(
     TString path,
     const TYtflowSettings& config)
 {
-    // TRichYPath rejects relative paths, while default consumer and producer
-    // paths derived from PipelinePath may be relative.
+    // TRichYPath rejects relative paths, while consumer and producer paths may be relative.
     if (!path.StartsWith('<')) {
         return NYT::NYPath::TRichYPath(
             CanonizeYtPath(std::move(path), config));
@@ -73,6 +72,21 @@ NYT::NYPath::TRichYPath CanonizeYtRichPath(
 TString GetCanonicalPipelinePath(const TYtflowSettings& config)
 {
     return CanonizeYtPath(config.GetPipelinePath(), config);
+}
+
+NYT::NYPath::TRichYPath MakeYtProducerRichPath(
+    TString path,
+    const TString& queueCluster,
+    const TYtflowSettings& config)
+{
+    YQL_ENSURE(!path.empty(),
+        "Writing to a YT queue outside the pipeline cluster requires "
+        "an explicit 'producer' hint");
+
+    auto producerPath = CanonizeYtRichPath(std::move(path), config);
+    producerPath.SetCluster(queueCluster);
+
+    return producerPath;
 }
 
 TString ResolvePipelineClusterName(

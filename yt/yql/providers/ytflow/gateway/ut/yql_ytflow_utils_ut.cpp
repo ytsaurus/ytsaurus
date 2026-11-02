@@ -91,5 +91,29 @@ TEST(TYtConsumerRichPath, ResolvesExplicitConsumerCluster)
     ASSERT_EQ("remote-cluster", *consumerPath.GetCluster());
 }
 
+class TYtProducerRichPath : public testing::Test {
+protected:
+    TYtflowConfiguration Config_;
+
+    void SetUp() override
+    {
+        ASSERT_TRUE(DispatchSetting(Config_, "PathPrefix", "//home/test/"));
+    }
+};
+
+TEST_F(TYtProducerRichPath, UsesQueueClusterAndCanonicalPath)
+{
+    auto path = MakeYtProducerRichPath("producer", "remote-cluster", Config_);
+
+    EXPECT_EQ("//home/test/producer", path.GetPath());
+    ASSERT_TRUE(path.GetCluster());
+    EXPECT_EQ("remote-cluster", *path.GetCluster());
+}
+
+TEST_F(TYtProducerRichPath, RequiresExplicitProducer)
+{
+    EXPECT_THROW(MakeYtProducerRichPath("", "remote-cluster", Config_), std::exception);
+}
+
 } // namespace
 } // namespace NYql::NYtflow::NPrivate

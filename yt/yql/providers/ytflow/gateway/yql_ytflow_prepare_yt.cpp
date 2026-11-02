@@ -24,6 +24,7 @@
 #include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <util/generic/hash.h>
 #include <util/string/join.h>
 #include <util/system/guard.h>
 #include <util/system/spinlock.h>
@@ -76,11 +77,6 @@ public:
     uint64_t GetYtConsumerVital() const
     {
         return GetConfig()->GetYtConsumerVital();
-    }
-
-    TString GetYtProducerPath() const
-    {
-        return GetConfig()->GetYtProducerPath();
     }
 
     uint64_t GetYtPartitionCount() const
@@ -966,14 +962,23 @@ public:
                 ::NYql::NYtflow::NPrivate::ResolvePipelineClusterName(
                     *GetConfig(), *ConfigClusters))
             {
-                AsyncQueueCluster = settings.GetCluster();
+                auto producerPath = ::NYql::NYtflow::NPrivate::MakeYtProducerRichPath(
+                    settings.GetProducerPath(),
+                    ConfigClusters->GetRealName(settings.GetCluster()),
+                    *GetConfig());
+
+                ProducerPaths.emplace(
+                    std::pair(
+                        TString(*producerPath.GetCluster()),
+                        TString(producerPath.GetPath())),
+                    settings.GetCluster());
             }
         });
     }
 
     NYT::TFuture<void> Run(NYT::IInvokerPtr invoker) override
     {
-        if (!AsyncQueueCluster) {
+        if (ProducerPaths.empty()) {
             return NYT::OKFuture;
         }
 
@@ -984,13 +989,32 @@ public:
 
         auto logCtx = NYql::NLog::CurrentLogContextPath();
 
-        auto future = BIND([
+        TVector<NYT::TFuture<void>> futures;
+        for (const auto& [producerPath, clusterAlias] : ProducerPaths) {
+            futures.push_back(
+                PrepareYtProducer(clusterAlias, producerPath.second, invoker));
+        }
+
+        return NYT::AllSucceeded(std::move(futures))
+            .Apply(BIND([=] {
+                YQL_LOG_CTX_ROOT_SESSION_SCOPE(logCtx);
+
+                YQL_CLOG(INFO, ProviderYtflow)
+                    << "Prepared yt producers";
+            }).AsyncVia(invoker));
+    }
+
+private:
+    NYT::TFuture<void> PrepareYtProducer(TString cluster, TString path, NYT::IInvokerPtr invoker)
+    {
+        auto logCtx = NYql::NLog::CurrentLogContextPath();
+
+        return BIND([
             =,
             this,
             this_ = NYT::MakeStrong(this),
-            path = ::NYql::NYtflow::NPrivate::CanonizeYtRichPath(
-                GetYtProducerPath(), *GetConfig()).GetPath(),
-            cluster = *AsyncQueueCluster,
+            path = std::move(path),
+            cluster = std::move(cluster),
             config = GetConfig()
         ]() mutable {
             return CreateYtNode(
@@ -1044,18 +1068,10 @@ public:
         })
             .AsyncVia(invoker)
             .Run();
-
-        return future
-            .Apply(BIND([=] {
-                YQL_LOG_CTX_ROOT_SESSION_SCOPE(logCtx);
-
-                YQL_CLOG(INFO, ProviderYtflow)
-                    << "Prepared yt producers";
-            }).AsyncVia(invoker));
     }
 
 private:
-    std::optional<TString> AsyncQueueCluster;
+    THashMap<std::pair<TString, TString>, TString> ProducerPaths;
 };
 
 } // namespace NYql::NYtflow::NPrepare::NPrivate
