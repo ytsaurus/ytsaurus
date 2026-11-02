@@ -746,6 +746,16 @@ private:
 
         NTesting::SetCurrentReignOverride(newConfig->TabletNode->Testing.ReignOverride);
 
+        NBus::NTcp::TDispatcher::Get()->GetXferPoller()->SetWorkerPool(
+            tabletNodeConfig->UseQueryPoolForBusXfer
+                ? QueryThreadPool_
+                : nullptr);
+
+        NRpc::TDispatcher::Get()->SetWorkerPool(
+            tabletNodeConfig->UseQueryPoolForRpc
+                ? QueryThreadPool_
+                : nullptr);
+
         TabletNodeConfigChanged_.Fire(
             oldConfig->TabletNode,
             newConfig->TabletNode);
@@ -789,17 +799,9 @@ private:
                 bundleConfig->CpuLimits->PullRowsThreadPoolSize.value_or(fallbackPullRowsThreadCount));
         }
 
-        QueryPoolWeightProvider_->SetOverrides(nodeConfig->QueryAgent->QueryPoolWeightOverrides);
-
-        NBus::NTcp::TDispatcher::Get()->GetXferPoller()->SetWorkerPool(
-            nodeConfig->TabletNode->UseQueryPoolForBusXfer
-                ? QueryThreadPool_
-                : nullptr);
-
-        NRpc::TDispatcher::Get()->SetWorkerPool(
-            nodeConfig->TabletNode->UseQueryPoolForRpc
-                ? QueryThreadPool_
-                : nullptr);
+        {
+            QueryPoolWeightProvider_->SetOverrides(bundleConfig->FairSharePoolWeights);
+        }
     }
 
     const NRpc::IOverloadControllerPtr& GetOverloadController() const override

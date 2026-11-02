@@ -828,6 +828,7 @@ void ManageBundlesDynamicConfig(TSchedulerInputState& input, TSchedulerMutations
         bundleConfig->CpuLimits = GetBundleEffectiveCpuLimits(bundleName, bundleInfo, input);
         bundleConfig->MemoryLimits = NYTree::CloneYsonStruct(bundleInfo->TargetConfig->MemoryLimits);
         bundleConfig->MediumThroughputLimits = NYTree::CloneYsonStructs(bundleInfo->TargetConfig->MediumThroughputLimits);
+        bundleConfig->FairSharePoolWeights = bundleInfo->TargetConfig->FairSharePoolWeights;
         freshConfig[bundleInfo->NodeTagFilter] = bundleConfig;
     }
 

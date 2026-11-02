@@ -1275,6 +1275,7 @@ private:
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, PoolNamesLock_);
     std::optional<std::string> CompactionFairSharePool_;
     std::optional<std::string> PartitioningFairSharePool_;
+    bool UseQueryPool_ = false;
 
     IYPathServicePtr CreateOrchidService()
     {
@@ -1306,6 +1307,7 @@ private:
             auto guard = WriterGuard(PoolNamesLock_);
             CompactionFairSharePool_ = config->CompactionFairSharePool;
             PartitioningFairSharePool_ = config->PartitioningFairSharePool;
+            UseQueryPool_ = config->UseQueryPool;
         }
     }
 
@@ -2413,14 +2415,16 @@ private:
     {
         auto guard = ReaderGuard(PoolNamesLock_);
 
-        if (partition && PartitioningFairSharePool_.has_value()) {
+        static constexpr TStringBuf StoreCompactorPoolName = "$store_compact";
+
+        if (partition && (UseQueryPool_ || PartitioningFairSharePool_.has_value())) {
             return Bootstrap_->GetQueryPoolInvoker(
-                *PartitioningFairSharePool_,
+                PartitioningFairSharePool_.value_or(std::string(StoreCompactorPoolName)),
                 ToString(readSessionId));
         }
-        if (!partition && CompactionFairSharePool_.has_value()) {
+        if (!partition && (UseQueryPool_ || CompactionFairSharePool_.has_value())) {
             return Bootstrap_->GetQueryPoolInvoker(
-                *CompactionFairSharePool_,
+                CompactionFairSharePool_.value_or(std::string(StoreCompactorPoolName)),
                 ToString(readSessionId));
         }
 
