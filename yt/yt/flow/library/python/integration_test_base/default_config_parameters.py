@@ -4,6 +4,17 @@ import yatest
 
 IS_CI = bool(os.getenv('CI'))
 
+CONTROLLER_CONNECTOR_DEFAULT_CONFIG = {
+    "controller_discover_period": "100ms",
+    "controller_heartbeat_period": "10ms",
+    "controller_wait_timeout": "1s",
+    "controller_heartbeat_rpc_timeout": "1s",
+    "controller_handshake_rpc_timeout": "1s",
+    "controller_heartbeat_failure_backoff": "100ms",
+    "controller_handshake_failure_backoff": "100ms",
+    "orchid_update_period": "500ms",
+}
+
 FLOW_NODE_DEFAULT_CONFIG = {
     "enable_porto_resource_tracker": False,
     "solomon_exporter": {
@@ -25,6 +36,9 @@ FLOW_NODE_DEFAULT_CONFIG = {
         "controller_service": {
             "set_spec_retry_period": "100ms",
         },
+    },
+    "worker": {
+        "initial_controller_connector": CONTROLLER_CONNECTOR_DEFAULT_CONFIG,
     },
     "logging": {
         "suppressed_messages": [],
@@ -94,13 +108,7 @@ DEFAULT_DYNAMIC_SPEC = {
     "message_distributor": {
         "push_messages_timeout": "1s",
     },
-    "controller_connector": {
-        "controller_discover_period": "500ms",
-        "controller_heartbeat_period": "300ms",
-        "controller_heartbeat_rpc_timeout": "1s",
-        "controller_handshake_rpc_timeout": "1s",
-        "orchid_update_period": "500ms",
-    },
+    "controller_connector": CONTROLLER_CONNECTOR_DEFAULT_CONFIG,
 }
 
 COMPUTATION_DEFAULT_DYNAMIC_SPEC = {

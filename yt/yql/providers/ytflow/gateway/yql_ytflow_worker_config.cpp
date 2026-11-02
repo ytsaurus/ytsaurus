@@ -410,6 +410,20 @@ NYT::TNode MakeWorkerConfig(
     auto dynamicPipelineSpec = NPrivate::SerializeUseCpuAwareBalancer(
         config._UseCpuAwareBalancer.Get());
 
+    if (auto controllerConnectorConfig = config._ControllerConnectorConfig.Get()) {
+        auto overrides = NYT::NodeFromYsonString(*controllerConnectorConfig);
+        workerConfig["worker"]["initial_controller_connector"] = overrides;
+        if (!dynamicPipelineSpec) {
+            dynamicPipelineSpec = NYT::TNode::CreateMap()
+                ("controller_connector", std::move(overrides));
+        } else {
+            auto& controllerConnector = (*dynamicPipelineSpec)["controller_connector"];
+            for (const auto& [key, value] : overrides.AsMap()) {
+                controllerConnector[key] = value;
+            }
+        }
+    }
+
     if (auto jobManagerConfig = config._JobManagerConfig.Get()) {
         auto overrides = NYT::NodeFromYsonString(*jobManagerConfig);
         if (!dynamicPipelineSpec) {

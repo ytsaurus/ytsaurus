@@ -78,7 +78,8 @@ public:
         IJobTrackerPtr jobTracker,
         TStreamSpecStoragePtr streamSpecStorage,
         bool ignoreSingletonsDynamicConfig,
-        IStatusProfilerPtr rootStatusProfiler)
+        IStatusProfilerPtr rootStatusProfiler,
+        TDynamicControllerConnectorSpecPtr initialControllerConnector)
         : NodeInfo_(std::move(nodeInfo))
         , YTConnector_(std::move(ytConnector))
         , ControlInvoker_(std::move(controlInvoker))
@@ -98,6 +99,9 @@ public:
         , ProcessHeartbeatResponseTimer_(Profiler_.Timer("/heartbeat/process_response_time"))
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
+        if (initialControllerConnector) {
+            ExecutionSpec_->DynamicPipelineSpec->GetValue()->ControllerConnector = std::move(initialControllerConnector);
+        }
     }
 
     void Initialize() override
@@ -649,7 +653,8 @@ IControllerConnectorPtr CreateControllerConnector(
     IJobTrackerPtr jobTracker,
     TStreamSpecStoragePtr streamSpecStorage,
     bool ignoreSingletonsDynamicConfig,
-    IStatusProfilerPtr rootStatusProfiler)
+    IStatusProfilerPtr rootStatusProfiler,
+    TDynamicControllerConnectorSpecPtr initialControllerConnector)
 {
     return New<TControllerConnector>(
         std::move(nodeInfo),
@@ -663,7 +668,8 @@ IControllerConnectorPtr CreateControllerConnector(
         std::move(jobTracker),
         std::move(streamSpecStorage),
         ignoreSingletonsDynamicConfig,
-        std::move(rootStatusProfiler));
+        std::move(rootStatusProfiler),
+        std::move(initialControllerConnector));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

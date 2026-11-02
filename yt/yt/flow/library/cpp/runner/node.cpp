@@ -638,7 +638,8 @@ private:
             JobTracker_,
             streamSpecStorage,
             Config_->IgnoreSingletonsDynamicConfig,
-            WorkerStatusProfiler_);
+            WorkerStatusProfiler_,
+            Config_->Worker->InitialControllerConnector);
         ControllerConnector_->Initialize();
 
         SetNodeByYPath(

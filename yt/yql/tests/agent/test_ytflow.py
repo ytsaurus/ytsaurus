@@ -155,6 +155,11 @@ class TestYtflowBase(TestQueueAgentBase):
                      value='{warm_up_time=1000;scheduler_period=500;publish_retry_period=1000;'
                            'publish_request_timeout=10000;'
                            'controller_service={set_spec_retry_period=1000};}'),
+                dict(name='_ControllerConnectorConfig',
+                     value='{controller_heartbeat_period=10;controller_discover_period=100;'
+                           'controller_wait_timeout=1000;controller_heartbeat_rpc_timeout=1000;'
+                           'controller_handshake_rpc_timeout=1000;'
+                           'controller_heartbeat_failure_backoff=100;controller_handshake_failure_backoff=100;}'),
                 # Balancer timings (ms) merged into the dynamic pipeline spec's job_manager.
                 dict(name='_JobManagerConfig', value='{rebalance_sync_period=500;}'),
                 dict(name='_FiniteStreams', value=str(run_vanilla_operation)),
