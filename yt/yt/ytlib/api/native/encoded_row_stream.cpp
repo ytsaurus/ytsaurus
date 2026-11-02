@@ -9,6 +9,9 @@
 #include <yt/yt/client/api/row_batch_reader.h>
 #include <yt/yt/client/api/table_reader.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/invoker_util.h>
+
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -53,25 +56,11 @@ public:
 
     TFuture<TSharedRef> Read() override
     {
-        auto batch = RowReader_->Read();
-
-        if (batch && !batch->IsEmpty()) {
-            Data_.clear();
-
-            FormatWriter_->WriteBatch(batch);
-
-            return FormatWriter_->Flush().Apply(
-                BIND([=, this, this_ = MakeStrong(this)] {
-                    return TSharedRef::FromString(Data_);
-                }));
-        }
-
-        if (batch) {
-            return RowReader_->GetReadyEvent().Apply(
-                BIND(&TEncodedRowStream::Read, MakeStrong(this)));
-        }
-
-        return MakeFuture(TSharedRef());
+        auto promise = NewPromise<TSharedRef>();
+        auto context = New<TCancelableContext>();
+        promise.OnCanceled(BIND(&TCancelableContext::Cancel, context));
+        ContinueRead(promise, context, TError());
+        return promise.ToFuture();
     }
 
     TTableReaderTimingStatistics GetTimingStatistics() const override
@@ -89,6 +78,62 @@ public:
     }
 
 private:
+    void ContinueRead(
+        const TPromise<TSharedRef>& promise,
+        const TCancelableContextPtr& context,
+        const TError& error)
+    {
+        if (!error.IsOK()) {
+            promise.TrySet(error);
+            return;
+        }
+
+        try {
+            while (true) {
+                if (context->IsCanceled()) {
+                    promise.TrySet(TError(NYT::EErrorCode::Canceled, "Read canceled")
+                        .With(context->GetCancelationError()));
+                    return;
+                }
+
+                auto batch = RowReader_->Read();
+                if (!batch) {
+                    promise.TrySet(TSharedRef());
+                    return;
+                }
+
+                if (!batch->IsEmpty()) {
+                    Data_.clear();
+                    FormatWriter_->WriteBatch(batch);
+                    promise.SetFrom(FormatWriter_->Flush().Apply(
+                        BIND([this, this_ = MakeStrong(this)] {
+                            return TSharedRef::FromString(Data_);
+                        })));
+                    return;
+                }
+
+                auto readyEvent = RowReader_->GetReadyEvent();
+                auto readyError = readyEvent.TryGet();
+                if (!readyError) {
+                    context->PropagateTo(readyEvent);
+                    readyEvent.Subscribe(BIND(
+                        &TEncodedRowStream::ContinueRead,
+                        MakeStrong(this),
+                        promise,
+                        context)
+                        .Via(GetSyncInvoker()));
+                    return;
+                }
+                if (!readyError->IsOK()) {
+                    promise.TrySet(*readyError);
+                    return;
+                }
+            }
+        } catch (const std::exception& ex) {
+            promise.TrySet(TError(ex));
+        }
+    }
+
     /// NB(achains): Non-const members come first because async stream and format writer depends on them.
     std::string Data_;
     TStdStringOutput OutputStream_;
