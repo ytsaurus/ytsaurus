@@ -735,13 +735,14 @@ public:
 
                     buffer.AddGauge("/master_memory", usage.GetTotalMasterMemory());
 
-                    for (auto memoryType : TEnumTraits<EMasterMemoryType>::GetDomainValues())
-                    {
-                        TWithTagGuard guard(&buffer, "type", Format("%lv", memoryType));
-                        profileDetailed(
-                            usage.DetailedMasterMemory()[memoryType],
-                            committedUsage.DetailedMasterMemory()[memoryType],
-                            "/detailed_master_memory");
+                    if (GetDynamicConfig()->EnableDetailedMasterMemoryProfiling) {
+                        for (auto memoryType : TEnumTraits<EMasterMemoryType>::GetDomainValues()) {
+                            TWithTagGuard guard(&buffer, "type", Format("%lv", memoryType));
+                            profileDetailed(
+                                usage.DetailedMasterMemory()[memoryType],
+                                committedUsage.DetailedMasterMemory()[memoryType],
+                                "/detailed_master_memory");
+                        }
                     }
                 }
             }
