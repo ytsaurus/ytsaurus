@@ -15,7 +15,7 @@ namespace NYT::NFlow::NTesting {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Runs a Transform or Swift map process function graph and commits managed test state between epochs.
+//! Runs a Transform, Swift map or Swift source process function graph and commits managed test state between epochs.
 //! Does not simulate job recovery or roll back a failed epoch. The graph is resolved like in
 //! the runner; outputs pass production metadata and stream dependency checks.
 class TProcessFunctionGraphTestHarness
@@ -26,6 +26,8 @@ public:
         TMessage Message;
         //! IDs of the computation input messages and timers the message derives from.
         std::vector<TMessageId> ParentIds;
+        //! False for a message a source keeps out of its output, which only advances the watermark.
+        bool Distribute = true;
     };
 
     struct TOutputTimer
@@ -40,6 +42,7 @@ public:
     //! |computationYson| is a computation spec with `process_function_graph`, as in the pipeline spec.
     //! `computation_class_name` defaults to `TProcessFunctionComputation` and `group_by_schema` to |keySchema|;
     //! a set `group_by_schema` must equal |keySchema|, which must also be the key schema of |environment|.
+    //! A source computation keeps its `group_by_schema`: the source keys messages by partition.
     TProcessFunctionGraphTestHarness(
         TTestStateEnvironment& environment,
         TStringBuf computationYson,
@@ -53,6 +56,7 @@ public:
     ~TProcessFunctionGraphTestHarness();
 
     //! Registers a stream carrying YSON message type |T|; every stream the nodes use must be registered.
+    //! A source stream is registered only to build its messages and, like in the runner, has no pipeline spec.
     template <CYsonMessage T>
     TProcessFunctionGraphTestHarness& RegisterStream(const TStreamId& streamId);
 

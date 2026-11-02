@@ -47,6 +47,7 @@ void TFinalMessage::Register(TRegistrar registrar)
 
 // The functions below are referenced by their registered names in the pipeline spec only.
 
+//! Copies the key of a queue row or of a #TKeyMessage into a #TKeyMessage.
 class TQueueReaderFunction
     : public IProcessFunction
 {

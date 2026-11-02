@@ -3,7 +3,6 @@
         "computations" = {
             "left_reader" = {
                 "computation_class_name" = "NYT::NFlow::TProcessFunctionSourceComputation";
-                "processing_function" = "NYT::NFlow::NProcessFunctionGraphTest::TQueueReaderFunction";
                 "output_stream_ids" = ["left"];
                 "source_streams" = {
                     "queue" = {
@@ -12,6 +11,20 @@
                             "queue_path" = "<cluster=primary>//path/to/left_queue";
                             "consumer_path" = "<cluster=primary>//path/to/left_consumer";
                             "finite" = %false;
+                        };
+                    };
+                };
+                "process_function_graph" = {
+                    "nodes" = {
+                        "parse" = {
+                            "processing_function" = "NYT::NFlow::NProcessFunctionGraphTest::TQueueReaderFunction";
+                            "input_stream_ids" = ["queue"];
+                            "output_stream_ids" = ["left_keys"];
+                        };
+                        "relay" = {
+                            "processing_function" = "NYT::NFlow::NProcessFunctionGraphTest::TQueueReaderFunction";
+                            "input_stream_ids" = ["left_keys"];
+                            "output_stream_ids" = ["left"];
                         };
                     };
                 };

@@ -18,6 +18,7 @@
 
 #include <yt/yt/flow/library/cpp/tables/unittests/mock/timers.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/yson/string.h>
@@ -555,6 +556,69 @@ public:
     }
 };
 
+//! Records the keys of the input messages and relays each message.
+class TGraphKeyProbeFunction
+    : public IProcessFunction
+{
+public:
+    void ProcessMessage(
+        const TInputMessageConstPtr& message,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override
+    {
+        GetObserved().push_back(message->Key);
+        auto builder = context->MakeOutputMessageBuilder();
+        builder.Payload().Set(GetColumnValue<ui64>(message, "key"), "key");
+        output->AddMessage(builder.Finish());
+    }
+
+    static std::vector<TKey>& GetObserved()
+    {
+        static std::vector<TKey> Keys;
+        return Keys;
+    }
+};
+
+//! Records the computation spec its node sees and relays each message.
+class TGraphSpecProbeFunction
+    : public IProcessFunction
+{
+public:
+    void ProcessMessage(
+        const TInputMessageConstPtr& message,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override
+    {
+        GetObserved().push_back(context->GetSpec());
+        auto builder = context->MakeOutputMessageBuilder();
+        builder.Payload().Set(GetColumnValue<ui64>(message, "key"), "key");
+        output->AddMessage(builder.Finish());
+    }
+
+    static std::vector<TComputationSpecPtr>& GetObserved()
+    {
+        static std::vector<TComputationSpecPtr> Specs;
+        return Specs;
+    }
+};
+
+//! Relays each message, distributing only the ones with an even key, like a source filtering its input.
+class TGraphFilterFunction
+    : public IProcessFunction
+{
+public:
+    void ProcessMessage(
+        const TInputMessageConstPtr& message,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override
+    {
+        auto key = GetColumnValue<ui64>(message, "key");
+        auto builder = context->MakeOutputMessageBuilder();
+        builder.Payload().Set(key, "key");
+        output->AddMessage(builder.Finish(), /*distribute*/ key % 2 == 0);
+    }
+};
+
 YT_FLOW_DEFINE_PROCESS_FUNCTION(
     TGraphCounterFunction,
     TGraphCounterParameters,
@@ -579,6 +643,9 @@ YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphSyncFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphSavedCollectorFunction, TGraphSavedCollectorParameters);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphCollectorKeeperFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphFailingInitFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphKeyProbeFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphSpecProbeFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphFilterFunction);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -620,6 +687,9 @@ std::string SubstituteFunctions(TStringBuf yson)
     SubstGlobal(result, "$saved_collector", TypeName<TGraphSavedCollectorFunction>());
     SubstGlobal(result, "$collector_keeper", TypeName<TGraphCollectorKeeperFunction>());
     SubstGlobal(result, "$failing_init", TypeName<TGraphFailingInitFunction>());
+    SubstGlobal(result, "$key_probe", TypeName<TGraphKeyProbeFunction>());
+    SubstGlobal(result, "$spec_probe", TypeName<TGraphSpecProbeFunction>());
+    SubstGlobal(result, "$filter", TypeName<TGraphFilterFunction>());
     return result;
 }
 
@@ -945,6 +1015,7 @@ TEST(TProcessFunctionGraphSpecTest, RejectsInvalidGraphsAtomically)
         {{{"/processing_function_parameters", "{}"}}, "cannot be combined with"},
         {{{"/allow_timer_self_dependency", "%true"}}, "cannot be combined with"},
         {{{"/computation_class_name", R"("NYT::NFlow::TProcessFunctionTransformOrderedSourceComputation")"}}, "requires computation class"},
+        {{{"/source_streams/queue", R"({source_class_name = "NYT::NFlow::TTestSource";})"}}, "cannot set [source_streams]"},
         {{{"/watermark_strategy/event_timestamp_assigner", "{column = key;}"}}, R"(cannot set "watermark_strategy/event_timestamp_assigner")"},
         {{{"/watermark_strategy/watermark_percentile/value", "50"}}, R"("watermark_strategy/watermark_percentile/value" must be 100)"},
         {{{"/process_function_graph/nodes/a/output_stream_ids", R"(["a/out"])"}, {"/process_function_graph/nodes/c/input_stream_ids", R"(["a/out"; b_out])"}},
@@ -2373,6 +2444,204 @@ TEST(TProcessFunctionGraphTestHarnessTest, RejectsCollectorsFromPreviousInvocati
             EXPECT_THROW_WITH_SUBSTRING(run(), "outside its Process invocation");
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// A source graph splits every source message into two results, probing the spec and keys on the way.
+constexpr TStringBuf SourceGraphComputation = R"({
+    computation_class_name = "NYT::NFlow::TProcessFunctionSourceComputation";
+    output_stream_ids = [result];
+    source_streams = {queue = {source_class_name = "NYT::NFlow::TTestSource";};};
+    sinks = {output = {sink_class_name = "NYT::NFlow::TTestSink"; input_stream_ids = [result];};};
+    process_function_graph = {
+        nodes = {
+            parse = {processing_function = "$spec_probe"; input_stream_ids = [queue]; output_stream_ids = [parsed];};
+            split = {processing_function = "$batch_map"; input_stream_ids = [parsed]; output_stream_ids = [split];};
+            probe = {processing_function = "$key_probe"; input_stream_ids = [split]; output_stream_ids = [probed];};
+            export = {processing_function = "$spec_probe"; input_stream_ids = [probed]; output_stream_ids = [result];};
+        };
+    };
+})";
+
+const std::vector<TStringBuf> SourceGraphStreams = {"parsed", "split", "probed", "result"};
+
+TPipelineSpecPtr MakeSourceGraphPipeline()
+{
+    auto pipeline = New<TPipelineSpec>();
+    for (const auto& streamId : SourceGraphStreams) {
+        pipeline->Streams[TStreamId(streamId)] = MakeStreamSpec();
+    }
+    pipeline->Computations["source"] = ConvertTo<TComputationSpecPtr>(ParseYson(SourceGraphComputation));
+    return pipeline;
+}
+
+std::unique_ptr<TProcessFunctionGraphTestHarness> MakeSourceGraphHarness(
+    TTestStateEnvironment& environment,
+    TStringBuf computationYson = SourceGraphComputation)
+{
+    auto harness = std::make_unique<TProcessFunctionGraphTestHarness>(environment, SubstituteFunctions(computationYson));
+    harness->RegisterStream("queue", MakeTestPayloadSchema());
+    for (const auto& streamId : SourceGraphStreams) {
+        harness->RegisterStream(TStreamId(streamId), MakeTestPayloadSchema());
+    }
+    return harness;
+}
+
+//! A source keys its messages by partition, so the payload key of this message differs from its key.
+TInputMessageConstPtr MakeSourceMessage(const TProcessFunctionGraphTestHarness& harness, ui64 payloadKey)
+{
+    return harness.MakeMessage("queue", MakeKey<ui64>(ui64{100}), [&] (TMessageBuilder& builder) {
+        builder.Payload().Set<ui64>(payloadKey, "key");
+        builder.SetSystemTimestamp(TSystemTimestamp(5));
+        builder.SetEventTimestamp(TSystemTimestamp(4));
+    });
+}
+
+TEST(TProcessFunctionGraphSpecTest, ResolvesGraphHostedBySource)
+{
+    auto pipeline = MakeSourceGraphPipeline();
+    ResolveProcessFunctionGraphs(pipeline);
+    const auto& computation = GetOrCrash(pipeline->Computations, TComputationId("source"));
+    EXPECT_EQ(*computation->ProcessingFunction, std::string(ProcessFunctionGraphFunctionName));
+    EXPECT_TRUE(computation->InputStreamIds.empty());
+    EXPECT_TRUE(computation->TimerStreams.empty());
+    EXPECT_FALSE(computation->AllowTimerSelfDependency);
+    // Outputs depend on the source, as in any source computation.
+    EXPECT_EQ(computation->StreamsDependency, (THashMap<TStreamId, THashSet<TStreamId>>{{"result", {"queue"}}}));
+    EXPECT_TRUE(computation->WatermarkStrategy->WatermarkGenerator);
+
+    // The source stream has no spec, and internal streams move into the graph parameters.
+    auto parameters = ConvertTo<TProcessFunctionGraphParametersPtr>(computation->ProcessingFunctionParameters);
+    auto graphStreams = GetKeys(parameters->Streams);
+    std::sort(graphStreams.begin(), graphStreams.end());
+    EXPECT_EQ(graphStreams, std::vector<TStreamId>({"parsed", "probed", "result", "split"}));
+    EXPECT_EQ(GetKeys(pipeline->Streams), std::vector<TStreamId>({"result"}));
+    EXPECT_NO_THROW(ValidateProcessFunctionGraphComputation(pipeline, TComputationId("source"), computation));
+}
+
+TEST(TProcessFunctionGraphSpecTest, RejectsInvalidSourceGraphs)
+{
+    struct TCase
+    {
+        TStringBuf Path;
+        TStringBuf Value;
+        TStringBuf Error;
+    };
+
+    const std::vector<TCase> cases = {
+        {"/process_function_graph/nodes/parse/timer_streams", "{timer = {};}", R"(Process function graph node "parse" of a source computation cannot have timer streams)"},
+        {"/source_streams/other", R"({source_class_name = "NYT::NFlow::TTestSource";})", R"(Input stream "other" of the computation is not read by any process function graph node)"},
+        {"/process_function_graph/nodes/export/output_stream_ids", "[result; queue]", R"(Output stream "queue" is an input stream of the computation)"},
+    };
+    for (const auto& [path, value, error] : cases) {
+        SCOPED_TRACE(path);
+        auto node = ParseYson(SourceGraphComputation);
+        SetNodeByYPath(node, NYPath::TYPath(path), ParseYson(value), /*force*/ true);
+        auto pipeline = MakeSourceGraphPipeline();
+        pipeline->Computations["source"] = ConvertTo<TComputationSpecPtr>(node);
+        EXPECT_THROW_WITH_SUBSTRING(ResolveProcessFunctionGraphs(pipeline), error);
+    }
+}
+
+TEST(TProcessFunctionGraphTestHarnessTest, SourceGraphKeepsSourceKeysAndReplaysIds)
+{
+    TTestStateEnvironment environment;
+    auto harness = MakeSourceGraphHarness(environment);
+    std::vector<TInputMessageConstPtr> messages = {MakeSourceMessage(*harness, 7), MakeSourceMessage(*harness, 8)};
+    std::vector<TMessageId> previousIds;
+    for (int epoch = 0; epoch < 2; ++epoch) {
+        SCOPED_TRACE(epoch);
+        TGraphKeyProbeFunction::GetObserved().clear();
+        harness->RunEpoch(messages);
+        // Internal messages keep the key of their source message, whatever their payload.
+        EXPECT_EQ(TGraphKeyProbeFunction::GetObserved(), std::vector<TKey>(4, messages.front()->Key));
+        ASSERT_EQ(harness->GetMessages().size(), 4u);
+        std::vector<TMessageId> ids;
+        for (int index = 0; index < 4; ++index) {
+            const auto& output = harness->GetMessages()[index];
+            const auto& parent = messages[index / 2];
+            ids.push_back(output.Message.MessageId);
+            EXPECT_EQ(GetColumnValue<ui64>(output.Message, "key"), GetColumnValue<ui64>(parent, "key"));
+            EXPECT_EQ(output.ParentIds, std::vector<TMessageId>{parent->MessageId});
+            EXPECT_EQ(output.Message.SystemTimestamp, parent->SystemTimestamp);
+            EXPECT_EQ(output.Message.EventTimestamp, parent->EventTimestamp);
+        }
+        EXPECT_EQ(THashSet<TMessageId>(ids.begin(), ids.end()).size(), ids.size());
+        if (!previousIds.empty()) {
+            EXPECT_EQ(ids, previousIds);
+        }
+        previousIds = std::move(ids);
+    }
+}
+
+TEST(TProcessFunctionGraphTestHarnessTest, SourceGraphRejectsOutputsOfSeveralSourceMessages)
+{
+    auto computation = std::string(SourceGraphComputation);
+    SubstGlobal(computation, "$batch_map", "$repeated_batch");
+    TTestStateEnvironment environment;
+    auto harness = MakeSourceGraphHarness(environment, computation);
+    EXPECT_NO_THROW(harness->RunEpoch({MakeSourceMessage(*harness, 7)}));
+    EXPECT_THROW_WITH_SUBSTRING(
+        harness->RunEpoch({MakeSourceMessage(*harness, 7), MakeSourceMessage(*harness, 8)}),
+        "each output of a source computation must derive from one source message");
+}
+
+TEST(TProcessFunctionGraphTestHarnessTest, SourceGraphNodesSeeTheirSourcesAndSinks)
+{
+    TTestStateEnvironment environment;
+    auto harness = MakeSourceGraphHarness(environment);
+    TGraphSpecProbeFunction::GetObserved().clear();
+    harness->RunEpoch({MakeSourceMessage(*harness, 7)});
+    const auto& observed = TGraphSpecProbeFunction::GetObserved();
+    ASSERT_EQ(observed.size(), 3u);
+
+    // A node reading the source sees it as a function hosted by the source alone would.
+    const auto& parse = observed.front();
+    EXPECT_TRUE(parse->InputStreamIds.empty());
+    EXPECT_EQ(GetKeys(parse->SourceStreams), std::vector<TStreamId>({"queue"}));
+    EXPECT_TRUE(parse->Sinks.empty());
+
+    // A node writing an output of the computation sees the sinks of that output.
+    const auto& exporter = observed.back();
+    EXPECT_EQ(exporter->InputStreamIds, THashSet<TStreamId>({"probed"}));
+    EXPECT_TRUE(exporter->SourceStreams.empty());
+    EXPECT_EQ(GetKeys(exporter->Sinks), std::vector<TSinkId>({"output"}));
+}
+
+TEST(TProcessFunctionGraphTestHarnessTest, SourceGraphExportsMessagesItDoesNotDistribute)
+{
+    // `filter` keeps odd keys out of the output, and `relay` reads the same stream.
+    constexpr TStringBuf Computation = R"({
+        computation_class_name = "NYT::NFlow::TProcessFunctionSourceComputation";
+        output_stream_ids = [result; relayed];
+        source_streams = {queue = {source_class_name = "NYT::NFlow::TTestSource";};};
+        sinks = {output = {sink_class_name = "NYT::NFlow::TTestSink"; input_stream_ids = [result; relayed];};};
+        process_function_graph = {
+            nodes = {
+                filter = {processing_function = "$filter"; input_stream_ids = [queue]; output_stream_ids = [result];};
+                relay = {processing_function = "$relay"; input_stream_ids = [result]; output_stream_ids = [relayed];};
+            };
+        };
+    })";
+    TTestStateEnvironment environment;
+    TProcessFunctionGraphTestHarness harness(environment, SubstituteFunctions(Computation));
+    for (const auto& streamId : {"queue", "result", "relayed"}) {
+        harness.RegisterStream(TStreamId(streamId), MakeTestPayloadSchema());
+    }
+    harness.RunEpoch({MakeSourceMessage(harness, 7), MakeSourceMessage(harness, 8)});
+
+    // The source gets the message it does not distribute to advance the watermark, while `relay` does not.
+    std::vector<std::tuple<TStreamId, ui64, bool>> outputs;
+    for (const auto& output : harness.GetMessages()) {
+        outputs.emplace_back(output.Message.StreamId, GetColumnValue<ui64>(output.Message, "key"), output.Distribute);
+        EXPECT_EQ(output.Message.EventTimestamp, TSystemTimestamp(4));
+    }
+    EXPECT_EQ(outputs, (std::vector<std::tuple<TStreamId, ui64, bool>>{
+            {TStreamId("result"), 7, false},
+            {TStreamId("result"), 8, true},
+            {TStreamId("relayed"), 8, true},
+                       }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

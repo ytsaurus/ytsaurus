@@ -259,6 +259,13 @@ DECLARE_REFCOUNTED_STRUCT(TProcessFunctionGraphParameters);
 DECLARE_REFCOUNTED_STRUCT(TProcessFunctionGraphDynamicParameters);
 DECLARE_REFCOUNTED_STRUCT(TPipelineSpec);
 
+//! Computation classes that can host a process function graph.
+DEFINE_ENUM(EProcessFunctionGraphHost,
+    ((Transform)      (0))
+    ((SwiftMap)       (1))
+    ((SwiftSource)    (2))
+);
+
 DECLARE_REFCOUNTED_STRUCT(TExtendedComputationSpec);
 DECLARE_REFCOUNTED_STRUCT(TExtendedPipelineSpec);
 
