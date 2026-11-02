@@ -3,5 +3,5 @@ rules:
   - yt/docs/ai/artifacts/reference/target-audience.md
 
 skills:
-  - docs/yateam/infradocs/configs/skills/write-yt-doc
+  - teams/infradocs/infradocs-yfm-writer
   - yt/docs/ai/artifacts/skills
