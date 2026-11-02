@@ -53,6 +53,7 @@ struct TDynamicSecurityManagerConfig
 
     // COMPAT(h0pless): This is a panic button, in case account profiling breaks.
     bool EnableAccountsProfiling;
+    bool EnableDetailedMasterMemoryProfiling;
     bool EnableDelayedMembershipClosureRecomputation;
     bool EnableAccessLog;
     TDuration MembershipClosureRecomputePeriod;

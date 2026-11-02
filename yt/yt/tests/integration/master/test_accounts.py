@@ -4993,6 +4993,48 @@ class TestAccountsProfiling(YTEnvSetup):
         for profiler in secondary_profilers:
             self._check_profiler_values(profiler, gauge_name, False)
 
+    @authors("danilalexeev")
+    def test_detailed_master_memory_profiling_toggle(self):
+        set("//sys/@config/incumbent_manager/scheduler/incumbents/security_manager/use_followers", False)
+        set("//sys/@config/security_manager/accounts_profiling_period", 100)
+
+        account = "profiling_test"
+        account_path = f"//sys/accounts/{account}"
+        create_account(account)
+        create("map_node", "//tmp/profiled", attributes={"account": account})
+
+        profiler = profiler_factory().at_primary_master(get_active_primary_master_leader_address(self))
+        detailed_memory = profiler.gauge("accounts/detailed_master_memory")
+        detailed_tags = {
+            "account": account,
+            "cell_tag": str(get("//sys/@cell_tag")),
+            "type": "nodes",
+            "status": "committed",
+        }
+        total_memory = profiler.gauge("accounts/master_memory", fixed_tags={"account": account})
+        node_count = profiler.gauge("accounts/node_count", fixed_tags={"account": account})
+
+        # Detailed profiling is enabled by default.
+        wait(lambda: detailed_memory.get(tags=detailed_tags, default=0) > 0)
+        wait(lambda: total_memory.get(default=0) > 0 and node_count.get() == 1)
+        initial_nodes_memory = get(f"{account_path}/@resource_usage/detailed_master_memory/nodes")
+
+        set("//sys/@config/security_manager/enable_detailed_master_memory_profiling", False)
+        wait(lambda: detailed_memory.get_all() == [])
+
+        # Accounting and the remaining account metrics keep updating while detailed profiling is disabled.
+        create("map_node", "//tmp/profiled/child")
+        wait(lambda: get(f"{account_path}/@resource_usage/detailed_master_memory/nodes") > initial_nodes_memory)
+        wait(lambda: node_count.get() == 2)
+        wait(lambda: total_memory.get() == get(f"{account_path}/@resource_usage/master_memory/total"))
+        assert detailed_memory.get_all() == []
+
+        set("//sys/@config/security_manager/enable_detailed_master_memory_profiling", True)
+        wait(lambda: detailed_memory.get(tags=detailed_tags) ==
+             get(f"{account_path}/@committed_resource_usage/detailed_master_memory/nodes"))
+        assert total_memory.get() > 0
+        assert node_count.get() == 2
+
     @authors("kazachonok")
     def test_accounts_profiling_totality(self):
         # Testing that every existing account is profiled by someone, and that all profiled accounts exist
