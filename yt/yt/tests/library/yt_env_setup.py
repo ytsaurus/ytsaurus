@@ -1884,7 +1884,6 @@ class YTEnvSetup(object):
 
         self._restore_globals(
             cluster_index=cluster_index,
-            scheduler_count=scheduler_count,
             scheduler_pool_trees_root=scheduler_pool_trees_root,
             driver=driver,
         )
@@ -1974,6 +1973,7 @@ class YTEnvSetup(object):
                 orchids.append("//sys/controller_agents/instances/{}/orchid/controller_agent".format(instance))
             orchids.append("//sys/scheduler/orchid/scheduler")
             _wait_for_configs(orchids)
+            self._wait_for_scheduler_state_restored(driver=driver)
 
         if not self.get_param("ENABLE_SYS_OPERATIONS_ROOTSTOCK", cluster_index) and \
                 self.get_param("USE_SEQUOIA", cluster_index) and \
@@ -2451,7 +2451,6 @@ class YTEnvSetup(object):
 
     def _restore_globals(self,
                          cluster_index,
-                         scheduler_count,
                          scheduler_pool_trees_root,
                          driver=None):
         dynamic_master_config = self._apply_master_dynamic_config_patches(get_dynamic_master_config(), cluster_index)
@@ -2537,9 +2536,6 @@ class YTEnvSetup(object):
 
         if should_set_default_config:
             yt_commands.set(scheduler_pool_trees_root + "/default/@config", default_pool_tree_config, driver=driver)
-
-        if scheduler_count > 0:
-            self._wait_for_scheduler_state_restored(driver=driver)
 
     @classmethod
     def _apply_cypress_proxy_dynamic_config_patches(cls, config, cluster_index):
