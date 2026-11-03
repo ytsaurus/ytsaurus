@@ -1333,6 +1333,8 @@ struct TDynamicJobManagerSpec
     THashMap<TWorkerGroupId, TDynamicJobManagerGroupSpecPtr> WorkerGroupOverride;
     //! Most partition histories kept in the balancer state; the lightest one goes when it is full.
     i64 PartitionHistoryLimit{};
+    //! A merged element of a timer watermark history spans at most 1/K of its age.
+    int WatermarkHistoryThinningFactor{};
 
     TDynamicPartitioningCoordinatorSpecPtr Partitioning;
 

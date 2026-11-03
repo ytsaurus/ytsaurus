@@ -582,6 +582,7 @@ public:
                 StreamMetrics_,
                 now,
                 traverseData,
+                CollectTimerStreamIds(pipelineSpec),
                 executionSpec->DynamicPipelineSpec->GetValue()->EnableUnitedStreamMetrics,
                 Profiler_);
         }

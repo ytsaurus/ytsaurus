@@ -86,6 +86,26 @@ Timer streams belong to the same group if they use the same `time_type` (`event_
 
 Groups include all timer streams configured for the computation, not just those with registered timers. Grouping does not add ordering guarantees across streams.
 
+## Monitoring timer lag {#monitoring}
+
+For every stream, including timer streams and united streams (`__united__`, `__united_timer__`, and others), the controller publishes `yt.flow.controller.streams.*` metrics with the `stream_id` tag:
+
+- `time_lag`, `count_lag`, `byte_size_lag` — include all registered timers. A timer's lag starts at its creation, so timers scheduled far in the future produce a constant lag "shelf" even when processing keeps up.
+- `ready_time_lag` — the longest time an unprocessed timer has been due: time since the earliest due moment among timers that are not processed yet. For timers with `time_type` `current_time`, the due moment is `TriggerTimestamp` itself. For `event_time` and `system_time`, the controller finds the moment when the watermarks of the streams the timer waits for first reached `TriggerTimestamp` plus their delays, using a persisted history of these watermarks. The history is thinned over time, so for timers that became due long ago the lag can be over-reported by up to `1 / watermark_history_thinning_factor` (25% by default), but it is never under-reported.
+- `ready_count_lag`, `ready_byte_size_lag` — the number and size of timers that have triggered but are not processed yet. Timers that have not triggered are excluded.
+
+For streams without timers, `ready_*` equal `time_lag`, `count_lag`, and `byte_size_lag`. The `ready_*` metrics never exceed the corresponding regular lags.
+
+{% note warning %}
+
+- If the watermark that timers wait for does not advance, the timers never become due and `ready_time_lag` stays near zero. Use `time_lag` and the lags of input streams as a backstop for alerts.
+- A timer registered with a `TriggerTimestamp` in the past can briefly (usually for 1–2 job reports, until it is processed) raise `ready_time_lag` up to `time_lag`.
+- If an `event_time` or `system_time` timer became due before the watermark history starts, `ready_time_lag` is not published for its stream and the united streams that include it until that timer is processed. This happens right after the first rollout or a controller rollback, and for timers with a `TriggerTimestamp` far in the past. `ready_count_lag` and `ready_byte_size_lag` are still published. Configure alerts on `ready_time_lag` to treat missing data as OK, and use `time_lag` as a backstop.
+
+{% endnote %}
+
+The `ready_count_lag` metric is not the same as the `ready_count` lifecycle metric. For timer streams their values match. For other streams, `ready_count_lag` equals `count_lag`, while `ready_count` counts only messages that are ready to be delivered but not yet handed over for processing.
+
 ## Timer structure {#timer-structure}
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TTimerSerializer.md) %}

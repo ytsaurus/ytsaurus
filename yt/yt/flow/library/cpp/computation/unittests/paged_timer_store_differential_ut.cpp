@@ -203,6 +203,12 @@ protected:
             EXPECT_FALSE(pair.Paged->IsEmpty()) << where;
             EXPECT_LE(actualInflight->MinEventTimestamp, expectedInflight->MinEventTimestamp) << where;
             EXPECT_LE(actualInflight->MinSystemTimestamp, expectedInflight->MinSystemTimestamp) << where;
+            ASSERT_TRUE(actualInflight->MinTriggerTimestamp) << where;
+            EXPECT_LE(actualInflight->MinTriggerTimestamp, expectedInflight->MinTriggerTimestamp) << where;
+            // A non-resident page reports its range begin, so only a fully resident store is exact.
+            if (exact && pair.Paged->GetInMemoryCount() == pair.Paged->GetCount()) {
+                EXPECT_EQ(actualInflight->MinTriggerTimestamp, expectedInflight->MinTriggerTimestamp) << where;
+            }
             if (exact) {
                 EXPECT_EQ(actualInflight->MinEventTimestamp, expectedInflight->MinEventTimestamp) << where;
                 if (!Deduplicate()) {

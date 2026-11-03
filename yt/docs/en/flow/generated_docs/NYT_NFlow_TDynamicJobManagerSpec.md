@@ -105,5 +105,8 @@ Pipeline partitioning settings. ||
 || `partition_history_limit` | **Type**: `long`
 **Default value**: `4096`
 Most partition histories the balancer keeps across job restarts, see `balancer_metrics_source`. The histories live in one persisted document with a size limit, so when the limit is reached the lightest history gives way to a heavier one and lighter ones are not saved. A pipeline stop saves no histories at all. ||
+|| `watermark_history_thinning_factor` | **Type**: `int`
+**Default value**: `4`
+Thinning factor K of the watermark histories the controller keeps to compute `ready_time_lag` for event-time and system-time timers. A history element spans at most 1/K of its age, so the lag may be over-reported by at most 1/K of its value and is never under-reported; a larger K keeps more elements. A change applies to new samples only: existing elements are never split. ||
 |#
 

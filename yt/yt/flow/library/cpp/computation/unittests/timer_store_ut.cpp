@@ -9,10 +9,13 @@
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/timer.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/library/profiling/solomon/registry.h>
+
+#include <util/generic/size_literals.h>
 
 namespace NYT::NFlow {
 
@@ -108,6 +111,11 @@ protected:
         auto watermarkState = New<TWatermarkState>();
         watermarkState->CurrentTimestamp = TSystemTimestamp(timestamp);
         store->UpdateWatermarkState(watermarkState);
+    }
+
+    TInflightStreamTraverseDataPtr GetInflight(const ITimerStorePtr& store)
+    {
+        return GetOrCrash(store->BuildInflight(), TimerStreamId);
     }
 
     i64 ReadCounter(const NProfiling::TSolomonRegistryPtr& registry, TStringBuf name)
@@ -227,7 +235,7 @@ TEST(TTimerTriggerConditionsTest, ResolveConditions)
         emptyDelaysSpec->Streams = THashSet<TStreamId>{"ignored"};
         emptyDelaysSpec->StreamsWithDelays.emplace();
 
-        auto conditions = BuildTimerTriggerConditions(context);
+        auto conditions = BuildTimerTriggerConditions(context->TimerSpecs, context->StreamsDependency);
         ASSERT_EQ(conditions.size(), 5u);
         for (const auto& [timerId, condition] : conditions) {
             EXPECT_EQ(condition.TimeType, timeType);
@@ -453,6 +461,36 @@ TEST_F(TTimerStoreTest, TracksReadyLifecycle)
     EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 0);
 }
 
+TEST_F(TTimerStoreTest, ReportsMinTriggerTimestampAndReadyVolume)
+{
+    auto context = MakeContext();
+    auto store = CreateTimerStore(context, MakeDynamicContext());
+    WaitFor(store->Init())
+        .ThrowOnError();
+
+    store->Register({MakeTimer("timer-1", /*triggerTimestamp*/ 50, /*systemTimestamp*/ 10)});
+    auto inflight = GetInflight(store);
+    EXPECT_EQ(inflight->MinTriggerTimestamp, TSystemTimestamp(50));
+    EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 0);
+    EXPECT_GT(inflight->InflightMetrics->ByteSize.value_or(0), 0);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyByteSize, 0);
+
+    SetWatermark(store, /*timestamp*/ 100);
+    inflight = GetInflight(store);
+    EXPECT_EQ(inflight->MinTriggerTimestamp, TSystemTimestamp(50));
+    EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 1);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyByteSize, inflight->InflightMetrics->ByteSize);
+
+    auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB);
+    ASSERT_EQ(std::ssize(batch), 1);
+
+    store->Unregister(batch);
+    inflight = GetInflight(store);
+    EXPECT_FALSE(inflight->MinTriggerTimestamp);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 0);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyByteSize, 0);
+}
+
 TEST_F(TTimerStoreTest, RestoredTimerBecomesReadyOnlyAfterTrigger)
 {
     auto table = New<NTables::TInMemoryTimers>();
@@ -480,6 +518,7 @@ TEST_F(TTimerStoreTest, RestoredTimerBecomesReadyOnlyAfterTrigger)
     ASSERT_EQ(restoredStore->GetInMemoryCount(), 1);
     auto inflight = restoredStore->BuildInflight().at(TimerStreamId);
     EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 0);
+    EXPECT_EQ(inflight->MinTriggerTimestamp, TSystemTimestamp(50));
 
     SetWatermark(restoredStore, /*timestamp*/ 100);
     inflight = restoredStore->BuildInflight().at(TimerStreamId);
@@ -730,6 +769,10 @@ TEST_F(TTimerStoreTest, DeduplicateTriggeredTimerThenGetNextBatch)
 
     // After deduplication, only one timer must remain.
     EXPECT_EQ(store->GetInMemoryCount(), 1);
+    // The evicted timer was triggered, so nothing is ready until the survivor triggers.
+    auto inflight = GetInflight(store);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 0);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyByteSize, 0);
 
     // Step 4: Re-trigger watermark so timerNew moves from SortedTimers_ to TriggeredTimers_.
     // (TriggerTimers() is only called inside UpdateWatermarkState.)

@@ -60,7 +60,9 @@ SRCS(
     timer.cpp
     timer_page.cpp
     traverse.cpp
+    trigger_condition.cpp
     visit.cpp
+    watermark_history.cpp
     yson_message.cpp
     control_table.cpp
     yt_connector.cpp

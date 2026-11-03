@@ -1343,6 +1343,9 @@ void TDynamicJobManagerSpec::Register(TRegistrar registrar)
     registrar.Parameter("partition_history_limit", &TThis::PartitionHistoryLimit)
         .Default(4096)
         .GreaterThanOrEqual(0);
+    registrar.Parameter("watermark_history_thinning_factor", &TThis::WatermarkHistoryThinningFactor)
+        .Default(4)
+        .GreaterThanOrEqual(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
