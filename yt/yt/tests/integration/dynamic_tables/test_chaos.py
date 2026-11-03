@@ -6509,6 +6509,16 @@ class TestChaosMetaCluster(ChaosTestBase):
         )
         wait(lambda: exists(migrated_card_path, driver=drivers[-1]))
 
+        def _all_granted(cell, driver):
+            migrated_card_coordinators_path = "{0}/chaos_manager/replication_cards/{1}/coordinators".format(
+                self._get_chaos_cell_orchid_path(cell, driver=driver), card_id
+            )
+            coordinators = get(migrated_card_coordinators_path, driver=driver)
+            granted_coordinators = [coordinator for coordinator in coordinators.values() if coordinator == "granted"]
+            return len(granted_coordinators) == len(cells)
+
+        wait(lambda: _all_granted(cells[1], drivers[-1]))
+
         self._sync_replication_era(card_id, replicas)
 
         values = [{"key": 0, "value": "0"}]
@@ -6520,6 +6530,7 @@ class TestChaosMetaCluster(ChaosTestBase):
         wait(lambda: get("{0}/state".format(migration_path), driver=drivers[-2]) == "normal")
         wait(_migrated(migrated_card_path, origin=False, driver=drivers[-1]))
         wait(lambda: not exists(migrated_card_path, driver=drivers[-1]))
+        wait(lambda: _all_granted(cells[0], drivers[-2]))
 
         self._sync_replication_era(card_id, replicas)
 
