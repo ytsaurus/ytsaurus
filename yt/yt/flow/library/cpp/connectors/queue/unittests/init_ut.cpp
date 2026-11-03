@@ -45,6 +45,28 @@ TEST(TAsyncMultiClusterQueueSinkParametersTest, RejectsDuplicateClusters)
         "Duplicate cluster");
 }
 
+TEST(TAsyncMultiClusterQueueSinkParametersTest, RejectsFlowQueueMetaWithAtMostOnce)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TAsyncMultiClusterQueueSinkParametersPtr>(TYsonStringBuf(R"({
+            queue_path = "<clusters=[\"cluster-a\";\"cluster-b\"]>//queue";
+            producer_path = "<clusters=[\"cluster-a\";\"cluster-b\"]>//producer";
+            use_clusters = %true;
+            write_flow_queue_meta = %true;
+            at_most_once_strategy = {enabled = %true};
+        })")),
+        "is not supported together with an enabled \"at_most_once_strategy\"");
+
+    EXPECT_NO_THROW(
+        ConvertTo<TAsyncMultiClusterQueueSinkParametersPtr>(TYsonStringBuf(R"({
+            queue_path = "<clusters=[\"cluster-a\";\"cluster-b\"]>//queue";
+            producer_path = "<clusters=[\"cluster-a\";\"cluster-b\"]>//producer";
+            use_clusters = %true;
+            write_flow_queue_meta = %true;
+            at_most_once_strategy = {enabled = %false};
+        })")));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFixedClientsCache

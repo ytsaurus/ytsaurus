@@ -17,7 +17,13 @@
 
 #include <yt/yt/client/table_client/name_table.h>
 
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
+
 #include <yt/yt/client/ypath/rich.h>
+
+#include <yt/yt/core/concurrency/delayed_executor.h>
+
+#include <yt/yt/core/misc/backoff_strategy.h>
 
 #include <yt/yt/core/ypath/helpers.h>
 
@@ -98,7 +104,7 @@ public:
     {
         YT_VERIFY(IsOpen());
 
-        const i64 targetOffset = GetTotalRowCount();
+        const i64 targetOffset = GetCommittedRowCount();
         while (*CurrentOffset_ < targetOffset && Read(dataColumnName) > 0) {
             // No-op.
         }
@@ -110,12 +116,42 @@ private:
 
     std::optional<i64> CurrentOffset_;
 
-    i64 GetTotalRowCount() const
+    NApi::TTabletInfo GetTabletInfo() const
     {
         auto info = WaitFor(Client_->GetTabletInfos(LogTablePath_, {0}))
             .ValueOrThrow();
         YT_VERIFY(info.size() == 1);
-        return info[0].TotalRowCount;
+        return info[0];
+    }
+
+    i64 GetTotalRowCount() const
+    {
+        return GetTabletInfo().TotalRowCount;
+    }
+
+    // Committed rows may not be appended to the tablet yet; the count covers them once the barrier passes a fresh
+    // timestamp. Falls back to the current count after a short wait, since this only serves diagnostics.
+    i64 GetCommittedRowCount() const
+    {
+        const NTransactionClient::TTimestamp timestamp = WaitFor(Client_->GetTimestampProvider()->GenerateTimestamps())
+            .ValueOrThrow();
+        const auto deadline = TInstant::Now() + TDuration::Seconds(5);
+        TBackoffStrategy backoff(TExponentialBackoffOptions{
+            .InvocationCount = std::numeric_limits<int>::max(),
+            .MinBackoff = TDuration::MilliSeconds(10),
+            .MaxBackoff = TDuration::Seconds(1),
+            .BackoffMultiplier = 2.0,
+        });
+        while (true) {
+            auto info = GetTabletInfo();
+            const auto now = TInstant::Now();
+            if (info.BarrierTimestamp >= timestamp || now >= deadline) {
+                return info.TotalRowCount;
+            }
+
+            backoff.Next();
+            TDelayedExecutor::WaitForDuration(std::min(backoff.GetBackoff(), deadline - now));
+        }
     }
 };
 

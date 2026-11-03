@@ -234,6 +234,14 @@ void TAsyncMultiClusterQueueSinkParameters::Register(TRegistrar registrar)
 {
     registrar.Parameter("use_clusters", &TThis::UseClusters)
         .Default(false);
+
+    registrar.Postprocessor([] (TThis* parameters) {
+        if (parameters->WriteFlowQueueMeta && parameters->AtMostOnceStrategy && parameters->AtMostOnceStrategy->Enabled) {
+            THROW_ERROR_EXCEPTION(
+                "\"write_flow_queue_meta\" is not supported together with an enabled \"at_most_once_strategy\" "
+                "in a multi-cluster async queue sink");
+        }
+    });
 }
 
 void TAsyncMultiClusterQueueSinkParameters::ValidateClusters() const
