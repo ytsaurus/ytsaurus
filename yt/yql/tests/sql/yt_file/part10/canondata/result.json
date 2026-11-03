@@ -1302,16 +1302,16 @@
     ],
     "test.TestYtFile_join-push_any_over_equijoin_key_shapes-.test[Debug]": [
         {
-            "checksum": "652097108cc589cccd98e19a0cbee3be",
-            "size": 10009,
-            "uri": "https://{canondata_backend}/21537087/16d00f590b7b8eda45442461205ba61915dbc0a9/resource.tar.gz#test.test_join-push_any_over_equijoin_key_shapes--Debug_/opt.yql"
+            "checksum": "b58f041ba222842490bbae1ad6f049cf",
+            "size": 9245,
+            "uri": "https://{canondata_backend}/1931696/1d56167264de6097459e703d0097c4a8b76fde8e/resource.tar.gz#test.TestYtFile_join-push_any_over_equijoin_key_shapes-.test_Debug_/opt.yql"
         }
     ],
     "test.TestYtFile_join-push_any_over_equijoin_key_shapes-.test[Plan]": [
         {
-            "checksum": "8c86e2fa1696ab304e52274e1999083a",
-            "size": 24935,
-            "uri": "https://{canondata_backend}/21537087/16d00f590b7b8eda45442461205ba61915dbc0a9/resource.tar.gz#test.test_join-push_any_over_equijoin_key_shapes--Plan_/plan.txt"
+            "checksum": "26961637b0ab7e9c278b7bffe31db67e",
+            "size": 23171,
+            "uri": "https://{canondata_backend}/1931696/1d56167264de6097459e703d0097c4a8b76fde8e/resource.tar.gz#test.TestYtFile_join-push_any_over_equijoin_key_shapes-.test_Plan_/plan.txt"
         }
     ],
     "test.TestYtFile_join-push_any_over_equijoin_key_shapes-.test[Results]": [
