@@ -261,7 +261,7 @@ class TestYtflowBase(TestQueueAgentBase):
                 dict(name='_MasterLockPingPeriod', value='30s'),
                 # Controller timings (ms) patched into the controller job config.
                 dict(name='_ControllerConfig',
-                     value='{warm_up_time=0;scheduler_period=10;'
+                     value='{warm_up_time=0;scheduler_period=10;no_spec_iteration_backoff=100;'
                            'cache_period=100;feedback_period=10;'
                            'publish_retry_period=1000;'
                            'publish_request_timeout=10000;'
