@@ -40,11 +40,9 @@ public:
 
     THost(
         IInvokerPtr controlInvoker,
+        NApi::NNative::IConnectionPtr connection,
         TPorts ports,
-        TYtConfigPtr config,
-        NApi::NNative::TConnectionCompoundConfigPtr connectionConfig,
-        NApi::NNative::EClusterConnectionDynamicConfigPolicy connectionDynamicConfigPolicy,
-        NYTree::INodePtr clusterConnectionNode);
+        TYtConfigPtr config);
 
     virtual ~THost() override;
 

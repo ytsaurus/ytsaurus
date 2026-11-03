@@ -12,6 +12,11 @@
 #include <yt/yt/server/lib/admin/admin_service.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
+#include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
@@ -41,6 +46,7 @@
 #include <yt/yt/core/ytree/attributes.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
 #include <contrib/clickhouse/src/Common/Exception.h>
@@ -118,6 +124,8 @@ void TBootstrap::DoRun()
     TSignalRegistry::Get()->PushCallback(AllCrashSignals, CrashSignalHandler);
     TSignalRegistry::Get()->PushDefaultSignalHandler(AllCrashSignals);
 
+    InitializeConnection();
+
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
     NYTree::IMapNodePtr orchidRoot;
@@ -132,6 +140,10 @@ void TBootstrap::DoRun()
             orchidRoot,
             "/config",
             ConfigNode_);
+        SetNodeByYPath(
+            orchidRoot,
+            "/cluster_connection",
+            CreateVirtualNode(Connection_->GetOrchidService()));
     }
     SetBuildAttributes(
         orchidRoot,
@@ -159,18 +171,9 @@ void TBootstrap::DoRun()
     {
         auto host = New<THost>(
             GetControlInvoker(),
+            Connection_,
             Config_->GetPorts(),
-            Config_->Yt,
-            Config_->ClusterConnection,
-            Config_->ClusterConnectionDynamicConfigPolicy,
-            ConfigNode_->AsMap()->GetChildOrThrow("cluster_connection"));
-
-        if (Config_->ExposeConfigInOrchid) {
-            SetNodeByYPath(
-                orchidRoot,
-                "/cluster_connection",
-                CreateVirtualNode(host->GetConnection()->GetOrchidService()));
-        }
+            Config_->Yt);
 
         ClickHouseServer_ = CreateClickHouseServer(host.Get(), Config_->ClickHouse);
         // We dont need this caches, but they must be initialized to read system.server_settings, delete this when it's fixed in upstream.
@@ -222,6 +225,42 @@ void TBootstrap::DoRun()
 
     // Bootstrap never dies, so it is _kinda_ safe.
     TSignalRegistry::Get()->PushCallback(SIGINT, [this] { HandleSigint(); });
+}
+
+void TBootstrap::InitializeConnection()
+{
+    auto clusterConnectionNode = ConfigNode_->AsMap()->GetChildOrThrow("cluster_connection");
+
+    NNative::TConnectionOptions connectionOptions;
+    connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
+    connectionOptions.CreateQueueConsumerRegistrationManager =
+        Config_->Yt->CypressObjectRepository && Config_->Yt->MaterializedViews;
+
+    Connection_ = CreateConnection(
+        Config_->ClusterConnection,
+        connectionOptions);
+
+    if (Config_->ClusterConnectionDynamicConfigPolicy != EClusterConnectionDynamicConfigPolicy::FromStaticConfig) {
+        // Cache sizes belong to the clique's memory budget, including overrides
+        // applied by the bootstrap config postprocessor.
+        auto cachePatch = BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("block_cache").Value(Config_->ClusterConnection->Dynamic->BlockCache)
+                .Item("chunk_meta_cache").Value(Config_->ClusterConnection->Dynamic->ChunkMetaCache)
+            .EndMap();
+        auto staticPatch = Config_->ClusterConnectionDynamicConfigPolicy == EClusterConnectionDynamicConfigPolicy::FromClusterDirectory
+            ? cachePatch
+            : PatchNode(clusterConnectionNode, cachePatch);
+        SetupClusterConnectionDynamicConfigUpdate(
+            Connection_,
+            EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch,
+            staticPatch,
+            Logger());
+        Connection_->GetClusterDirectorySynchronizer()->Start();
+    }
+
+    // Kick-start node directory synchronizing; otherwise it will start only with first query.
+    Connection_->GetNodeDirectorySynchronizer()->Start();
 }
 
 const IInvokerPtr& TBootstrap::GetControlInvoker() const
