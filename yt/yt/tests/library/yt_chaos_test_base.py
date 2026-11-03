@@ -456,6 +456,18 @@ class ChaosTestBase(DynamicTablesBase):
                 return False
         wait(_do)
 
+    def _insistent_create(self, type, path, **kwargs):
+        def _do():
+            try:
+                create(type, path, **kwargs)
+                return True
+            except YtError as err:
+                if not err.contains_code(yt_error_codes.Unavailable):
+                    raise
+                print_debug("Create of {0} failed: ".format(path), err)
+                return False
+        wait(_do)
+
     def _init_replicated_table_tracker(self):
         def init_tracker(driver):
             set("//sys/@config/tablet_manager/replicated_table_tracker/use_new_replicated_table_tracker", True, driver=driver)
