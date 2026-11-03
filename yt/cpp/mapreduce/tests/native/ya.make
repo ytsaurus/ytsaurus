@@ -8,6 +8,10 @@ RECURSE(
 
 IF (NOT OPENSOURCE AND NOT USE_VANILLA_PROTOC)
     RECURSE(
+        auth
+        auth_core_http
+        auth_recipe
+        auth_rpc
         check_initialized
         check_initialized/test_program
         crash_writer_on_exception
