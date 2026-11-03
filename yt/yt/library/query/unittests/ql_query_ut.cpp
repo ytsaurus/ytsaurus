@@ -6874,17 +6874,19 @@ TEST_F(TQueryEvaluateTest, YPathTryGetInt64)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, YPathTryGetInt64FromList)
+TEST_F(TQueryEvaluateTest, YPathTryGetFrontInt64FromList)
 {
     auto split = MakeSplit({
         {"yson", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))},
+        {"unoptimized", OptionalLogicalType(ListLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))))},
+        {"unoptimized_2", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))},
     });
 
     auto source = TSource{
         "yson=[1; 2; 3]",
-        "yson=[4]",
-        "yson=[]",
-        "",
+        "yson=[4];unoptimized_2=[\"abacaba\"]",
+        "yson=[];unoptimized=[1;#]",
+        "unoptimized=[#]",
     };
 
     auto resultSplit = MakeSplit({
@@ -6892,13 +6894,17 @@ TEST_F(TQueryEvaluateTest, YPathTryGetInt64FromList)
     });
 
     auto result = YsonToRows({
-        "result=1",
-        "result=4",
-        "result=#",
-        "result=#",
+        "result=1; u1=#; u2=#",
+        "result=4; u1=#; u2=#",
+        "result=#; u1=1; u2=#",
+        "result=#; u1=#; u2=#",
     }, resultSplit);
 
-    Evaluate("try_get_int64(yson, \"/0\") as result FROM [//t]", split, source, ResultMatcher(result));
+    Evaluate(
+        "try_get_int64(yson, \"/0\") as result, try_get_int64(unoptimized, \"/0\") as u1, try_get_int64(unoptimized_2, \"/0\") as u2 FROM [//t]",
+        split,
+        source,
+        ResultMatcher(result));
 
     SUCCEED();
 }
