@@ -587,6 +587,13 @@
             "uri": "https://{canondata_backend}/212715/518eccc4f4ec01de8dc123407e658a409146ad5a/resource.tar.gz#test.test_order_by-presort_order_by_table-default.txt-Plan_/plan.txt"
         }
     ],
+    "test.TestDqFile_order_by-subquery_merge_for_ordered-.test[Plan]": [
+        {
+            "checksum": "ac97c570037942e48a23cb13fad8a315",
+            "size": 9445,
+            "uri": "https://{canondata_backend}/1931696/d3e20f0051cff4b45155fcd2fd583655ae0f3540/resource.tar.gz#test.TestDqFile_order_by-subquery_merge_for_ordered-.test_Plan_/plan.txt"
+        }
+    ],
     "test.TestDqFile_pg-in_mixed-.test[Plan]": [
         {
             "checksum": "9b5b4076cb02474cfaa13b3ce650899e",
