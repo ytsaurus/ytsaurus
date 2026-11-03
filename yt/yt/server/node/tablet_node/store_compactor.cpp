@@ -76,7 +76,6 @@
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/virtual.h>
 
-#include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/heap.h>
 
 #include <yt/yt/core/yson/consumer.h>
@@ -1564,12 +1563,6 @@ private:
                 task->TabletLoggingTag,
                 chunkReadOptions.ReadSessionId);
 
-        auto doneGuard = Finally([&] {
-            if (Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
-                ScheduleMorePartitionings();
-            }
-        });
-
         auto traceId = task->Info->TaskId;
         auto traceContext = TTraceContext::NewRoot("StoreCompactor", traceId);
         TTraceContextGuard traceContextGuard(traceContext);
@@ -1780,7 +1773,6 @@ private:
 
             // We can release semaphore, because we are no longer actively using resources.
             task->SemaphoreGuard.Release();
-            doneGuard.Release();
 
             if (RandomNumber<double>() < mountConfig->Testing.PartitioningFailureProbability) {
                 THROW_ERROR_EXCEPTION("Partitioning failed for testing purposes");
@@ -1983,12 +1975,6 @@ private:
             .WithTag("%v, ReadSessionId: %v",
                 task->TabletLoggingTag,
                 chunkReadOptions.ReadSessionId);
-
-        auto doneGuard = Finally([&] {
-            if (Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
-                ScheduleMoreCompactions();
-            }
-        });
 
         auto traceId = task->Info->TaskId;
         auto traceContext = TTraceContext::NewRoot("StoreCompactor", traceId);
@@ -2209,7 +2195,6 @@ private:
 
             // We can release semaphore, because we are no longer actively using resources.
             task->SemaphoreGuard.Release();
-            doneGuard.Release();
 
             if (RandomNumber<double>() < mountConfig->Testing.CompactionFailureProbability) {
                 THROW_ERROR_EXCEPTION("Compaction failed for testing purposes");

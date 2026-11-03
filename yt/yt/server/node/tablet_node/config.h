@@ -298,8 +298,6 @@ struct TStoreCompactorDynamicConfig
     bool ReuseCompactionInvokerForWriterCompression;
     bool ReuseCompactionInvokerForReaderDecompression;
 
-    bool ScheduleNewTasksAfterTaskCompletion;
-
     double StarvingTablesTasksRatio;
     TDuration BackgroundTaskHistoryWindow;
 
