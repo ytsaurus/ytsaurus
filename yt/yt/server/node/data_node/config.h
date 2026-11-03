@@ -267,7 +267,6 @@ DEFINE_REFCOUNTED_TYPE(TCacheLocationDynamicConfig);
 
 struct TMultiplexedChangelogConfig
     : public NHydra::TFileChangelogConfig
-    , public NHydra::TFileChangelogDispatcherConfig
 {
     static constexpr bool EnableHazard = true;
 

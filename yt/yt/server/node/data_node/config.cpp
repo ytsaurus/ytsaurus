@@ -854,7 +854,6 @@ void TJournalManagerConfig::Register(TRegistrar registrar)
             // Assumes journal placement on a fast medium (SSD, NVME), consider changing
             // these settings if you use HDD.
             auto multiplexedChangelog = New<TMultiplexedChangelogConfig>();
-            multiplexedChangelog->FlushQuantum = TDuration::MilliSeconds(1);
             multiplexedChangelog->FlushPeriod = TDuration::MilliSeconds(1);
 
             return multiplexedChangelog;

@@ -13,14 +13,10 @@ namespace NYT::NHydra {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a factory for creating new and opening existing file changelogs.
-//! Manages a background thread that keeps track of unflushed changelogs and
-//! issues flush requests periodically.
+//! Manages a background thread that flushes changelogs.
 struct IFileChangelogDispatcher
     : public TRefCounted
 {
-    //! Updates the configuration.
-    virtual void Reconfigure(TFileChangelogDispatcherConfigPtr config) = 0;
-
     //! Returns the invoker managed by the dispatcher.
     virtual IInvokerPtr GetInvoker() = 0;
 
@@ -48,7 +44,6 @@ DEFINE_REFCOUNTED_TYPE(IFileChangelogDispatcher)
 IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
     NIO::IIOEnginePtr ioEngine,
     IMemoryUsageTrackerPtr indexMemoryUsageTracker,
-    TFileChangelogDispatcherConfigPtr config,
     std::string threadName,
     NProfiling::TProfiler profiler = {});
 

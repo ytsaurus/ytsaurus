@@ -6,7 +6,7 @@
 #include "config.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
@@ -83,7 +83,7 @@ public:
             AppendQueue_.push_back(record);
         }
 
-        AppendQueueByteSize_ += byteSize;
+        AppendQueueByteSize_.fetch_add(byteSize, std::memory_order::relaxed);
         AppendQueueEmpty_.store(false);
 
         YT_VERIFY(FlushPromise_);
@@ -111,16 +111,16 @@ public:
 
         const auto& config = Changelog_->GetConfig();
 
-        if (AppendQueueByteSize_.load() >= config->DataFlushSize) {
-            return true;
-        }
-
         if (!AppendQueueEmpty_.load()) {
+            if (AppendQueueByteSize_.load(std::memory_order::relaxed) >= config->DataFlushSize) {
+                return true;
+            }
+
             if (config->FlushPeriod == TDuration::Zero()) {
                 return true;
             }
 
-            if (LastFlushed_.load() + NProfiling::DurationToCpuDuration(config->FlushPeriod) <  NProfiling::GetCpuInstant()) {
+            if (LastFlushed_.load(std::memory_order::relaxed) + NProfiling::DurationToCpuDuration(config->FlushPeriod) <  NProfiling::GetCpuInstant()) {
                 return true;
             }
         }
@@ -235,11 +235,13 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        if (ProcessQueueCallbackPending_.load(std::memory_order::relaxed)) {
+        // NB: seq_cst pairs with the store in #Process; a stale true here would lose the wakeup.
+        if (ProcessQueueCallbackPending_.load()) {
             return;
         }
 
         if (!HasPendingFlushes()) {
+            ScheduleFlushDeadlineWakeup();
             return;
         }
 
@@ -259,6 +261,9 @@ public:
         if (HasPendingFlushes()) {
             SyncFlush();
         }
+
+        // Wakeup skips arming while Process is pending.
+        Wakeup();
     }
 
 private:
@@ -289,6 +294,7 @@ private:
     std::atomic<bool> FlushForced_ = false;
     std::atomic<NProfiling::TCpuInstant> LastFlushed_ = GetCpuInstant();
     std::atomic<bool> ProcessQueueCallbackPending_ = false;
+    std::atomic<bool> FlushDeadlineWakeupArmed_ = false;
 
     TEventTimer ChangelogReadIOTimer_;
     TEventTimer ChangelogReadCopyTimer_;
@@ -296,6 +302,36 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(SyncThread);
 
+
+    void ScheduleFlushDeadlineWakeup()
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (AppendQueueEmpty_.load() ||
+            FlushDeadlineWakeupArmed_.load() ||
+            FlushDeadlineWakeupArmed_.exchange(true))
+        {
+            return;
+        }
+
+        // LastFlushed_ only grows: the wakeup is never late, and an early one just rearms.
+        // The slack covers TDelayedExecutor firing up to its coalescing interval early.
+        constexpr auto DeadlineSlack = TDuration::MicroSeconds(100);
+        auto deadline = LastFlushed_.load(std::memory_order::relaxed) + DurationToCpuDuration(Changelog_->GetConfig()->FlushPeriod);
+        auto delay = CpuDurationToDuration(std::max<TCpuDuration>(deadline - GetCpuInstant(), 0)) + DeadlineSlack;
+        TDelayedExecutor::Submit(
+            BIND_NO_PROPAGATE(&TFileChangelogQueue::OnFlushDeadline, MakeWeak(this)),
+            delay,
+            Invoker_);
+    }
+
+    void OnFlushDeadline()
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        FlushDeadlineWakeupArmed_.store(false);
+        Wakeup();
+    }
 
     void SyncFlush()
     {
@@ -308,7 +344,7 @@ private:
             YT_VERIFY(FlushQueue_.empty());
             FlushQueue_.swap(AppendQueue_);
 
-            AppendQueueByteSize_.store(0);
+            AppendQueueByteSize_.store(0, std::memory_order::relaxed);
             AppendQueueEmpty_.store(true);
 
             YT_VERIFY(FlushPromise_);
@@ -324,7 +360,7 @@ private:
             try {
                 Changelog_->Append(FlushedRecordCount_, FlushQueue_);
                 Changelog_->Flush(/*withIndex*/ false);
-                LastFlushed_.store(NProfiling::GetCpuInstant());
+                LastFlushed_.store(NProfiling::GetCpuInstant(), std::memory_order::relaxed);
             } catch (const std::exception& ex) {
                 error = ex;
             }
@@ -351,17 +387,11 @@ public:
     TFileChangelogDispatcher(
         NIO::IIOEnginePtr ioEngine,
         IMemoryUsageTrackerPtr indexMemoryUsageTracker,
-        TFileChangelogDispatcherConfigPtr config,
         std::string threadName,
         TProfiler profiler)
         : IOEngine_(std::move(ioEngine))
         , IndexMemoryUsageTracker_(std::move(indexMemoryUsageTracker))
-        , ProcessQueuesCallback_(BIND(&TFileChangelogDispatcher::ProcessQueues, MakeWeak(this)))
         , ActionQueue_(New<TActionQueue>(std::move(threadName)))
-        , PeriodicExecutor_(New<TPeriodicExecutor>(
-            ActionQueue_->GetInvoker(),
-            ProcessQueuesCallback_,
-            config->FlushQuantum))
         , Profiler_(std::move(profiler))
         , RecordCounter_(Profiler_.Counter("/records"))
         , ByteCounter_(Profiler_.Counter("/bytes"))
@@ -370,19 +400,11 @@ public:
         , ChangelogCloseIOTimer_(Profiler_.Timer("/changelog_close_io_time"))
         , ChangelogReadRecordCountGauge_(Profiler_.Gauge("/changelog_read_record_count"))
         , ChangelogReadSizeGauge_(Profiler_.Gauge("/changelog_read_size"))
-    {
-        PeriodicExecutor_->Start();
-    }
+    { }
 
     ~TFileChangelogDispatcher()
     {
-        YT_UNUSED_FUTURE(PeriodicExecutor_->Stop());
         ActionQueue_->Shutdown();
-    }
-
-    void Reconfigure(TFileChangelogDispatcherConfigPtr config) override
-    {
-        PeriodicExecutor_->SetPeriod(config->FlushQuantum);
     }
 
     IInvokerPtr GetInvoker() override
@@ -495,10 +517,8 @@ public:
 private:
     const NIO::IIOEnginePtr IOEngine_;
     const IMemoryUsageTrackerPtr IndexMemoryUsageTracker_;
-    const TClosure ProcessQueuesCallback_;
 
     const TActionQueuePtr ActionQueue_;
-    const TPeriodicExecutorPtr PeriodicExecutor_;
 
     const TProfiler Profiler_;
 
@@ -511,13 +531,6 @@ private:
     TEventTimer ChangelogCloseIOTimer_;
     TGauge ChangelogReadRecordCountGauge_;
     TGauge ChangelogReadSizeGauge_;
-
-    void ProcessQueues()
-    {
-        for (const auto& queue : Queues_) {
-            queue->Wakeup();
-        }
-    }
 
     void DoRegisterQueue(const TFileChangelogQueuePtr& queue)
     {
@@ -619,6 +632,7 @@ private:
         flushResults.reserve(Queues_.size());
         for (const auto& queue : Queues_) {
             flushResults.push_back(queue->AsyncFlush());
+            queue->Wakeup();
         }
         return AllSucceeded(std::move(flushResults));
     }
@@ -780,14 +794,12 @@ IFileChangelogPtr CreateFileChangelog(
 IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
     NIO::IIOEnginePtr ioEngine,
     IMemoryUsageTrackerPtr indexMemoryUsageTracker,
-    TFileChangelogDispatcherConfigPtr config,
     std::string threadName,
     TProfiler profiler)
 {
     return New<TFileChangelogDispatcher>(
         std::move(ioEngine),
         std::move(indexMemoryUsageTracker),
-        std::move(config),
         std::move(threadName),
         std::move(profiler));
 }

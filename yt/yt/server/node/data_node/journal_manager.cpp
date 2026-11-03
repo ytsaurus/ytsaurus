@@ -966,13 +966,11 @@ public:
         MultiplexedChangelogDispatcher_ = CreateFileChangelogDispatcher(
             Location_->GetIOEngine(),
             journalIndexMemoryTracker,
-            config->MultiplexedChangelog,
             "MFlush:" + Location_->GetId(),
             Location_->GetProfiler().WithPrefix("/multiplexed_changelogs"));
         SplitChangelogDispatcher_ = CreateFileChangelogDispatcher(
             Location_->GetIOEngine(),
             journalIndexMemoryTracker,
-            config->MultiplexedChangelog,
             "SFlush:" + Location_->GetId(),
             Location_->GetProfiler().WithPrefix("/split_changelogs"));
 
@@ -1005,9 +1003,6 @@ public:
 
     void Reconfigure(TJournalManagerConfigPtr config) override
     {
-        MultiplexedChangelogDispatcher_->Reconfigure(config->MultiplexedChangelog);
-        SplitChangelogDispatcher_->Reconfigure(config->MultiplexedChangelog);
-
         MultiplexedWriter_->Reconfigure(config->MultiplexedChangelog);
 
         Config_.Store(std::move(config));
