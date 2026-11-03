@@ -642,13 +642,16 @@ class CacheLocationOverflowBase(YTEnvSetup):
             assert get(f"//sys/cluster_nodes/{node}/@resource_limits/user_slots") == 1
             assert not os.path.exists(f"{self.cache_volume_path}/disabled")
 
-        leftover_temp_files = [
-            os.path.join(root, name)
-            for root, _, files in os.walk(self.cache_volume_path)
-            for name in files
-            if name.endswith("~")
-        ]
-        assert len(leftover_temp_files) == 0, leftover_temp_files
+        def check_no_temp_files():
+            leftover_temp_files = [
+                os.path.join(root, name)
+                for root, _, files in os.walk(self.cache_volume_path)
+                for name in files
+                if name.endswith("~")
+            ]
+            assert len(leftover_temp_files) == 0, leftover_temp_files
+
+        wait_no_assert(check_no_temp_files)
 
         def read_abort_entries():
             return read_structured_log(
