@@ -5,6 +5,7 @@ SRCS(
 )
 
 PEERDIR(
+    library/cpp/threading/bounded_queue
     library/cpp/threading/queue
     contrib/ydb/library/actors/util
 )
