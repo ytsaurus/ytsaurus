@@ -3,11 +3,12 @@ from common import TestQueriesYqlBase, TestUpdateYqlAgentDynamicConfigMixin
 import yql.library.langver.python as langver
 
 from yt.environment.helpers import assert_items_equal
+from yt.environment import YTServerComponentBase
 
 from yt_commands import (authors, create, create_user, sync_create_cells, sync_mount_table, get_driver,
                          write_table, insert_rows, alter_table, raises_yt_error,
                          write_file, create_pool, wait, get, set, ls, list_operations,
-                         get_operation, issue_token, create_group)
+                         get_operation, issue_token, create_group, remove, exists, make_ace)
 
 from yt_helpers import profiler_factory
 
@@ -406,6 +407,17 @@ class TestYqlAgentBan(TestQueriesYqlSimpleBase):
     NUM_YQL_AGENTS = 1
     YQL_AGENT_DYNAMIC_CONFIG = {"state_check_period": 2000}
 
+    def _restart_yql_agent(self, yql_agent):
+        component = yql_agent.yql_agent
+        previous_pids = component.pids[:]
+        component.env.kill_service("yql_agent")
+        # Preserve Cypress and the external QtWorker processes.
+        YTServerComponentBase.run(component)
+        assert component.pids and component.pids != previous_pids
+        component.wait()
+        address = component.addresses[0]
+        wait(lambda: get(f"//sys/yql_agent/instances/{address}/orchid/yql_agent/ready"))
+
     def _test_query_fails(self):
         query = self.start_query("yql", 'select 1')
         query.track()
@@ -454,6 +466,65 @@ class TestYqlAgentBan(TestQueriesYqlSimpleBase):
 
         set("//sys/pools/small/@resource_limits/user_slots", 1)
         long_query.track()
+
+    @authors("lucius")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("banned", [True, False, None])
+    @pytest.mark.parametrize("remove_orchid", [False, True])
+    def test_yql_agent_restart_preserves_instance(self, query_tracker, yql_agent, banned, remove_orchid):
+        address = yql_agent.yql_agent.addresses[0]
+        path = f"//sys/yql_agent/instances/{address}"
+        node_id = get(f"{path}/@id")
+        orchid_id = get(f"{path}/orchid/@id")
+        annotations = get(f"{path}/@annotations")
+        previous_acl = get(f"{path}/@acl")
+        acl = [make_ace("allow", "everyone", "read")]
+
+        try:
+            if banned is None:
+                remove(f"{path}/@banned", force=True)
+            else:
+                set(f"{path}/@banned", banned)
+            set(f"{path}/@qt_ban_owner", "restart-test")
+            set(f"{path}/@restart_test", {"preserve": True})
+            set(f"{path}/@acl", acl)
+            child_id = create("map_node", f"{path}/restart_test")
+            wait(lambda: get(f"{path}/orchid/state_checker/banned") == bool(banned))
+
+            set(f"{path}/@annotations", {"stale": True})
+            if remove_orchid:
+                remove(f"{path}/orchid&")
+            self._restart_yql_agent(yql_agent)
+
+            assert get(f"{path}/@id") == node_id
+            assert get(f"{path}/restart_test/@id") == child_id
+            if remove_orchid:
+                assert get(f"{path}/orchid/@id") != orchid_id
+            else:
+                assert get(f"{path}/orchid/@id") == orchid_id
+            if banned is None:
+                assert not exists(f"{path}/@banned")
+            else:
+                assert get(f"{path}/@banned") == banned
+            assert get(f"{path}/@qt_ban_owner") == "restart-test"
+            assert get(f"{path}/@restart_test") == {"preserve": True}
+            assert get(f"{path}/@acl") == acl
+            assert get(f"{path}/@annotations") == annotations
+            assert get(f"{path}/orchid/@remote_addresses") == {"default": address}
+
+            wait(lambda: get(f"{path}/orchid/state_checker/banned") == bool(banned))
+            if banned:
+                with raises_yt_error(code=yt_error_codes.Unavailable) as err:
+                    wait(self._test_query_fails)
+                assert err[0].contains_text("No alive peers found")
+                set(f"{path}/@banned", False)
+            wait(self._test_query_completes)
+        finally:
+            set(f"{path}/@banned", False)
+            set(f"{path}/@acl", previous_acl)
+            remove(f"{path}/@qt_ban_owner", force=True)
+            remove(f"{path}/@restart_test", force=True)
+            remove(f"{path}/restart_test", force=True)
 
 
 class TestYqlAgentDynConfig(TestQueriesYqlSimpleBase, TestUpdateYqlAgentDynamicConfigMixin):
