@@ -275,6 +275,42 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         assert sorted_dicts(read_table("//tmp/t2")) == [{"a": "b"}, {"c": "d"}]
         assert get("//tmp/t2/@chunk_count") == 2
 
+    @authors("coteeq")
+    def test_multiple_ranges(self):
+        skip_if_component_old(self.Env, (26, 3), "controller-agent")
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        chunks = [
+            [{"a": chunk_index * 2}, {"a": chunk_index * 2 + 1}]
+            for chunk_index in range(5)
+        ]
+        for rows in chunks:
+            write_table("<append=%true>//tmp/t1", rows, driver=self.remote_driver)
+        assert get("//tmp/t1/@chunk_count", driver=self.remote_driver) == len(chunks)
+
+        create("table", "//tmp/t2")
+        remote_copy(
+            in_=yson.to_yson_type(
+                "//tmp/t1",
+                attributes={
+                    "ranges": [
+                        {
+                            "lower_limit": {"chunk_index": 1},
+                            "upper_limit": {"chunk_index": 2},
+                        },
+                        {
+                            "lower_limit": {"chunk_index": 2},
+                            "upper_limit": {"chunk_index": 4},
+                        },
+                    ],
+                },
+            ),
+            out="//tmp/t2",
+            spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
+        )
+
+        assert read_table("//tmp/t2") == [row for rows in chunks[1:4] for row in rows]
+        assert get("//tmp/t2/@chunk_count") == 3
+
     @authors("ignat")
     def test_multi_chunk_sorted_table(self):
         create("table", "//tmp/t1", driver=self.remote_driver)

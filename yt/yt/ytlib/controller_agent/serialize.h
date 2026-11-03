@@ -124,6 +124,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((SamplingSeed)                          (302217))
     ((RlsAuthenticatedUser)                  (302218))
     ((PersistSkippedInputChunks)             (302219))
+    ((RemoteCopyRangeSeparation)             (302220))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

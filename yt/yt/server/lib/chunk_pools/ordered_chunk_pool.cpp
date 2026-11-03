@@ -49,6 +49,9 @@ void TOrderedChunkPoolOptions::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(8, JobSizeAdjusterConfig,
         .SinceVersion(ESnapshotVersion::OrderedAndSortedJobSizeAdjuster));
+
+    PHOENIX_REGISTER_FIELD(9, AllowMultipleRangesInJob,
+        .SinceVersion(ESnapshotVersion::RemoteCopyRangeSeparation));
 }
 
 PHOENIX_DEFINE_TYPE(TOrderedChunkPoolOptions);
@@ -76,6 +79,7 @@ public:
         , Sampler_(JobSizeConstraints_->GetSamplingRate(), JobSizeConstraints_->GetSamplingSeed())
         , MaxTotalSliceCount_(options.MaxTotalSliceCount)
         , ShouldSliceByRowIndices_(options.ShouldSliceByRowIndices)
+        , AllowMultipleRangesInJob_(options.AllowMultipleRangesInJob)
         , EnablePeriodicYielder_(options.EnablePeriodicYielder)
     {
         Logger = options.Logger;
@@ -100,7 +104,8 @@ public:
             "Ordered chunk pool created (DataWeightPerJob: %v, SamplingDataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
             "CompressedDataSizePerJob: %v, MaxCompressedDataSizePerJob: %v, "
             "MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v, InputSliceRowCount: %v, "
-            "BatchRowCount: %v, SamplingRate: %v, SingleJob: %v, HasJobSizeAdjuster: %v)",
+            "BatchRowCount: %v, SamplingRate: %v, SingleJob: %v, HasJobSizeAdjuster: %v, "
+            "ShouldSliceByRowIndices: %v, AllowMultipleRangesInJob: %v)",
             JobSizeConstraints_->GetDataWeightPerJob(),
             JobSizeConstraints_->GetSamplingRate() ? std::optional<i64>(JobSizeConstraints_->GetSamplingDataWeightPerJob()) : std::nullopt,
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
@@ -112,7 +117,9 @@ public:
             JobSizeConstraints_->GetBatchRowCount(),
             JobSizeConstraints_->GetSamplingRate(),
             SingleJob_,
-            static_cast<bool>(JobSizeAdjuster_));
+            static_cast<bool>(JobSizeAdjuster_),
+            ShouldSliceByRowIndices_,
+            AllowMultipleRangesInJob_);
     }
 
     // IPersistentChunkPoolInput implementation.
@@ -281,6 +288,8 @@ private:
     i64 MaxTotalSliceCount_ = 0;
 
     bool ShouldSliceByRowIndices_ = false;
+    bool AllowMultipleRangesInJob_ = true;
+    std::optional<int> LastInputStreamIndex_;
 
     bool EnablePeriodicYielder_;
 
@@ -386,6 +395,15 @@ private:
                 }
 
                 YT_VERIFY(!dataSlice->IsLegacy);
+
+                if (!AllowMultipleRangesInJob_ &&
+                    dataSlice->GetInputStreamIndex() != LastInputStreamIndex_ &&
+                    CurrentJob()->GetSliceCount() > 0)
+                {
+                    EndJob();
+                }
+                LastInputStreamIndex_ = dataSlice->GetInputStreamIndex();
+
                 if (IsDataSliceSplittable(dataSlice)) {
                     AddSplittablePrimaryDataSlice(dataSlice, inputCookie);
                 } else {
@@ -748,6 +766,8 @@ void TOrderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_DELETED_FIELD(15, bool, UseNewSlicingImplementation_, ESnapshotVersion::RemoveOldOrderedChunkPoolSlicing);
     PHOENIX_REGISTER_FIELD(16, JobSizeAdjuster_,
         .SinceVersion(ESnapshotVersion::OrderedAndSortedJobSizeAdjuster));
+    PHOENIX_REGISTER_FIELD(17, AllowMultipleRangesInJob_,
+        .SinceVersion(ESnapshotVersion::RemoteCopyRangeSeparation));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);
