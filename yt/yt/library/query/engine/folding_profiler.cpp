@@ -902,7 +902,7 @@ size_t TExpressionProfiler::Profile(
             {.ExecutionBackend = ExecutionBackend_},
             Id_),
         functionExpr->GetWireType(),
-        function->IsNullable(nullableArgs));
+        functionExpr->GetWireType() == EValueType::Null || function->IsNullable(nullableArgs));
 
     if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
         if (auto bytecode = function->GetWebAssemblyBytecodeFile(); !bytecode.Data.Empty()) {
@@ -1154,6 +1154,7 @@ size_t TExpressionProfiler::Profile(
     id.AddInteger(static_cast<int>(ExecutionBackend_));
     id.AddInteger(static_cast<int>(EFoldingObjectType::CaseExpr));
     id.AddInteger(static_cast<ui8>(caseExpr->GetWireType()));
+    id.AddBoolean(UseCanonicalNullRelations_);
     id.AddBoolean(static_cast<bool>(caseExpr->OptionalOperand));
     if (caseExpr->OptionalOperand) {
         id.AddInteger(static_cast<ui8>(caseExpr->OptionalOperand->GetWireType()));
@@ -1209,6 +1210,8 @@ size_t TExpressionProfiler::Profile(
         ++fragments->Items[*defaultExprId].UseCount;
 
         nullable |= fragments->Items[*defaultExprId].Nullable;
+    } else {
+        nullable = true;
     }
 
     auto argIds = std::vector<size_t>();
@@ -1228,6 +1231,7 @@ size_t TExpressionProfiler::Profile(
             std::move(whenThenExpressionIds),
             defaultExprId,
             caseExpr->GetWireType(),
+            nullable,
             ComparerManager_,
             UseCanonicalNullRelations_),
         caseExpr->GetWireType(),
