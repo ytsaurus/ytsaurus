@@ -268,6 +268,8 @@ private:
     NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
     IStatusErrorStatePtr WriteMetaErrorState_;
 
+    const IStatusErrorStatePtr HeartbeatOrderingErrorState_;
+
     void WriteFlowQueueMeta();
 };
 
@@ -299,6 +301,8 @@ private:
     THashMap<std::string, TQueueInfoControllerPtr> InfoByCluster_;
     NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
     IStatusErrorStatePtr WriteMetaErrorState_;
+
+    const IStatusErrorStatePtr HeartbeatOrderingErrorState_;
 
     void WriteFlowQueueMeta();
 };

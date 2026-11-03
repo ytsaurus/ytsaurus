@@ -18,6 +18,8 @@
 
 #include <yt/yt/client/queue_client/public.h>
 
+#include <yt/yt/client/transaction_client/public.h>
+
 #include <yt/yt/core/ypath/public.h>
 
 #include <deque>
@@ -108,6 +110,7 @@ private:
     {
         i64 TrimmedRowCount = 0;
         i64 TotalRowCount = 0;
+        NTransactionClient::TTimestamp BarrierTimestamp = NTransactionClient::NullTimestamp;
     };
 
     //! Resolves any enabled synchronous replica from the replicated table's @replicas attribute.
@@ -161,6 +164,9 @@ private:
 
     // Cached queue object type, resolved once. Only accessed from the serialized invoker.
     std::optional<NObjectClient::EObjectType> QueueObjectType_;
+
+    // Timestamp the finite run starts at, generated once. Only accessed from the serialized invoker.
+    NTransactionClient::TTimestamp FiniteRunTimestamp_ = NTransactionClient::NullTimestamp;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

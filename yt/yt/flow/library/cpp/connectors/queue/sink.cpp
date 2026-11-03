@@ -15,13 +15,21 @@
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
 
+#include <yt/yt/client/object_client/public.h>
+
 #include <yt/yt/client/table_client/name_table.h>
 
+#include <yt/yt/client/transaction_client/public.h>
+
+#include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/backoff_strategy.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
+#include <yt/yt/core/ytree/attributes.h>
 #include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/node.h>
 
 #include <algorithm>
 #include <limits>
@@ -849,6 +857,44 @@ void TAsyncQueueSink::TerminateWriter()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TError CheckHeartbeatCommitOrdering(const NApi::IClientPtr& client, const NYPath::TYPath& path)
+{
+    try {
+        NApi::TGetNodeOptions options;
+        options.Attributes = {"type", "commit_ordering"};
+        auto node = NYTree::ConvertToNode(NConcurrency::WaitFor(client->GetNode(path, options))
+                .ValueOrThrow());
+        const auto& attributes = node->Attributes();
+        // Ordered replicas of a chaos replicated table are always strong; the table itself has no commit ordering.
+        if (attributes.Get<NObjectClient::EObjectType>("type") == NObjectClient::EObjectType::ChaosReplicatedTable) {
+            return {};
+        }
+
+        auto commitOrdering = attributes.Get<NTransactionClient::ECommitOrdering>("commit_ordering");
+        if (commitOrdering == NTransactionClient::ECommitOrdering::Weak) {
+            return TError(
+                "Queue heartbeats to %v with weak commit ordering are unreliable: heartbeats may overtake data rows",
+                path)
+                .With("commit_ordering", commitOrdering);
+        }
+
+        return {};
+    } catch (const std::exception& ex) {
+        return TError("Failed to check heartbeat commit ordering of queue %v", path)
+            .With(ex);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TQueueSinkController::TQueueSinkController(
     TSinkControllerContextPtr context,
     TDynamicSinkControllerContextPtr dynamicContext)
@@ -867,6 +913,7 @@ TQueueSinkController::TQueueSinkController(
         BIND(&TQueueSinkController::WriteFlowQueueMeta, MakeWeak(this)),
         NConcurrency::TPeriodicExecutorOptions::WithJitter(GetDynamicParameters()->FlowQueueMetaHeartbeatPeriod)))
     , WriteMetaErrorState_(GetContext()->StatusProfiler->ErrorState("write_meta"))
+    , HeartbeatOrderingErrorState_(GetContext()->StatusProfiler->ErrorState("/heartbeat_ordering"))
 {
     SubscribeReconfigured(BIND([this] (const TDynamicSinkControllerContextPtr& /*dynamicContext*/) {
         HeartbeatExecutor_->SetPeriod(this->GetDynamicParameters()->FlowQueueMetaHeartbeatPeriod);
@@ -898,6 +945,7 @@ std::optional<i64> TQueueSinkController::GetReceiverChannelCount()
 
 void TQueueSinkController::WriteFlowQueueMeta()
 {
+    HeartbeatOrderingErrorState_->SetError(CheckHeartbeatCommitOrdering(Client_, GetParameters()->QueuePath.GetPath()));
     try {
         auto watermarkState = GetWatermarkState();
         if (!watermarkState) {
@@ -959,6 +1007,7 @@ TMultiClusterQueueSinkController::TMultiClusterQueueSinkController(
         BIND(&TMultiClusterQueueSinkController::WriteFlowQueueMeta, MakeWeak(this)),
         NConcurrency::TPeriodicExecutorOptions::WithJitter(GetDynamicParameters()->FlowQueueMetaHeartbeatPeriod)))
     , WriteMetaErrorState_(GetContext()->StatusProfiler->ErrorState("/write_meta"))
+    , HeartbeatOrderingErrorState_(GetContext()->StatusProfiler->ErrorState("/heartbeat_ordering"))
 {
     if (auto cluster = GetParameters()->QueuePath.GetCluster()) {
         ConstructByCluster(
@@ -995,6 +1044,10 @@ void TMultiClusterQueueSinkController::Init(IInitContextPtr initContext)
     for (const auto& [cluster, info] : InfoByCluster_) {
         info->Init(initContext->WithPrefix("queue_info_" + cluster));
     }
+
+    if (GetParameters()->WriteFlowQueueMeta) {
+        HeartbeatExecutor_->Start();
+    }
 }
 
 void TMultiClusterQueueSinkController::Sync()
@@ -1028,6 +1081,22 @@ std::optional<i64> TMultiClusterQueueSinkController::GetReceiverChannelCount()
 
 void TMultiClusterQueueSinkController::WriteFlowQueueMeta()
 {
+    TError orderingError;
+    for (const auto& [cluster, client] : ClientByCluster_) {
+        auto error = CheckHeartbeatCommitOrdering(client, GetParameters()->QueuePath.GetPath());
+        if (!error.IsOK()) {
+            if (orderingError.IsOK()) {
+                orderingError = TError("Queue heartbeat commit ordering is unsafe or could not be checked");
+            }
+
+            auto clusterError = std::move(error)
+                .With("cluster", cluster);
+            orderingError = std::move(orderingError)
+                .With(std::move(clusterError));
+        }
+    }
+
+    HeartbeatOrderingErrorState_->SetError(orderingError);
     try {
         auto watermarkState = GetWatermarkState();
         if (!watermarkState) {
@@ -1050,6 +1119,7 @@ void TMultiClusterQueueSinkController::WriteFlowQueueMeta()
         auto metaField = nameTable->RegisterNameOrThrow(GetParameters()->FlowQueueMetaColumn);
         auto tabletField = nameTable->RegisterNameOrThrow("$tablet_index");
 
+        std::vector<TError> clusterErrors;
         for (const auto& [cluster, info] : InfoByCluster_) {
             auto partitions = info->GetPartitionCount();
             if (!partitions) {
@@ -1058,22 +1128,35 @@ void TMultiClusterQueueSinkController::WriteFlowQueueMeta()
                 continue;
             }
 
-            auto iter = ClientByCluster_.find(cluster);
-            YT_VERIFY(iter != ClientByCluster_.end());
-            auto transaction = NConcurrency::WaitFor(iter->second->StartTransaction(NTransactionClient::ETransactionType::Tablet, NApi::TTransactionStartOptions())).ValueOrThrow();
+            // Clusters are independent: a failure on one must not block heartbeats on the others.
+            try {
+                const auto& client = GetOrCrash(ClientByCluster_, cluster);
 
-            auto buffer = New<NTableClient::TRowBuffer>();
-            std::vector<NTableClient::TUnversionedRow> rows;
-            for (int i = 0; i < *partitions; ++i) {
-                NTableClient::TUnversionedRowBuilder builder(2);
-                builder.AddValue(NTableClient::MakeUnversionedAnyValue(serializedMeta.AsStringBuf(), metaField));
-                builder.AddValue(NTableClient::MakeUnversionedInt64Value(i, tabletField));
-                rows.push_back(buffer->CaptureRow(builder.GetRow()));
+                auto transaction = NConcurrency::WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Tablet, NApi::TTransactionStartOptions()))
+                    .ValueOrThrow();
+
+                auto buffer = New<NTableClient::TRowBuffer>();
+                std::vector<NTableClient::TUnversionedRow> rows;
+                for (int i = 0; i < *partitions; ++i) {
+                    NTableClient::TUnversionedRowBuilder builder(2);
+                    builder.AddValue(NTableClient::MakeUnversionedAnyValue(serializedMeta.AsStringBuf(), metaField));
+                    builder.AddValue(NTableClient::MakeUnversionedInt64Value(i, tabletField));
+                    rows.push_back(buffer->CaptureRow(builder.GetRow()));
+                }
+                auto range = MakeSharedRange(std::move(rows), std::move(buffer));
+                transaction->WriteRows(GetParameters()->QueuePath.GetPath(), nameTable, std::move(range));
+                NConcurrency::WaitFor(transaction->Commit()).ValueOrThrow();
+            } catch (const std::exception& ex) {
+                clusterErrors.push_back(TError("Failed to write flow queue meta heartbeat to cluster %Qv", cluster)
+                        .With(ex));
             }
-            auto range = MakeSharedRange(std::move(rows), std::move(buffer));
-            transaction->WriteRows(GetParameters()->QueuePath.GetPath(), nameTable, std::move(range));
-            NConcurrency::WaitFor(transaction->Commit()).ValueOrThrow();
         }
+
+        if (!clusterErrors.empty()) {
+            THROW_ERROR TError("Failed to write flow queue meta heartbeat to some clusters")
+                .With(std::move(clusterErrors));
+        }
+
         WriteMetaErrorState_->ClearError();
     } catch (const std::exception& ex) {
         auto error = TError("Failed to write flow queue meta heartbeat").With(ex);

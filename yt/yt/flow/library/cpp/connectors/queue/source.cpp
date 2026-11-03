@@ -25,6 +25,7 @@
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
@@ -254,6 +255,7 @@ TQueueSourceImpl::TTrimInfo TQueueSourceImpl::FetchTrimInfo()
     return TTrimInfo{
         .TrimmedRowCount = tabletInfos[0].TrimmedRowCount,
         .TotalRowCount = tabletInfos[0].TotalRowCount,
+        .BarrierTimestamp = tabletInfos[0].BarrierTimestamp,
     };
 }
 
@@ -263,6 +265,13 @@ void TQueueSourceImpl::TryUpdatePartitionInfo()
 
     try {
         const auto startInstant = TInstant::Now();
+
+        // Acknowledged writes may not be appended to the tablet yet, so the total row count is a final bound only once
+        // the tablet barrier passes a timestamp taken at the start of the finite run.
+        if (IsFinite() && FiniteRunTimestamp_ == NTransactionClient::NullTimestamp) {
+            FiniteRunTimestamp_ = NConcurrency::WaitFor(QueueClient_->GetTimestampProvider()->GenerateTimestamps())
+                .ValueOrThrow();
+        }
 
         auto consumerInfoFuture = SubConsumerClient_->CollectPartitions(std::vector<int>{PartitionIndex_});
         const auto trimInfo = FetchTrimInfo();
@@ -277,12 +286,19 @@ void TQueueSourceImpl::TryUpdatePartitionInfo()
         // The trim point is a valid read lower bound: it keeps lag falling on trims while stopped and avoids reading
         // already-trimmed offsets.
         CommittedOffsetExclusive_.store(std::max(committedOffset, trimInfo.TrimmedRowCount));
-        MaxOffsetExclusive_.store(trimInfo.TotalRowCount);
+
+        const bool totalRowCountComplete = FiniteRunTimestamp_ == NTransactionClient::NullTimestamp ||
+            trimInfo.BarrierTimestamp >= FiniteRunTimestamp_;
+        if (totalRowCountComplete) {
+            MaxOffsetExclusive_.store(trimInfo.TotalRowCount);
+        }
 
         UpdatePartitionInfo(
             TPartitionInfoUpdate{
                 .CommittedOffsetExclusive = IntToOffset(CommittedOffsetExclusive_.load()),
-                .MaxOffsetExclusive = IntToOffset(MaxOffsetExclusive_.load()),
+                .MaxOffsetExclusive = totalRowCountComplete
+                    ? std::optional(IntToOffset(MaxOffsetExclusive_.load()))
+                    : std::nullopt,
                 .UpdateInstant = startInstant,
             });
 
