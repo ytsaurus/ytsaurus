@@ -8,9 +8,9 @@ from yt_commands import (
     authors, events_on_fs, print_debug, raises_yt_error, remove, set_nodes_banned, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get, sorted_dicts, check_permission,
     set, exists, create_user, make_ace, alter_table, write_file, read_table, write_table,
-    map, merge, sort, interrupt_job, get_first_chunk_id, abort_job, get_job,
+    map, merge, sort, interrupt_job, get_first_chunk_id, abort_job, get_job, get_operation,
     get_singular_chunk_id, check_all_stderrs, make_random_string,
-    create_test_tables, assert_statistics, extract_statistic_v2,
+    create_test_tables, assert_statistics, extract_statistic_v2, sync_create_cells,
     set_node_banned, update_inplace, update_controller_agent_config, update_nodes_dynamic_config, get_table_columnar_statistics)
 
 from yt_type_helpers import make_schema, normalize_schema, make_column, list_type, tuple_type, optional_type
@@ -19,9 +19,10 @@ from yt_helpers import skip_if_component_old, skip_if_old, skip_if_delivery_fenc
 
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
+import yt.environment.init_operations_archive as init_operations_archive
 import yt.yson as yson
 from yt.test_helpers import assert_items_equal
-from yt.common import YtError
+from yt.common import YtError, date_string_to_datetime
 
 from flaky import flaky
 
@@ -32,6 +33,24 @@ import pytest
 import random
 import string
 import time
+
+##################################################################
+
+
+def get_job_phase_durations(events):
+    phase_events = sorted(
+        (event for event in events if "phase" in event),
+        key=lambda event: date_string_to_datetime(event["time"]),
+    )
+    durations = {}
+    for event, next_event in zip(phase_events, phase_events[1:]):
+        duration = (date_string_to_datetime(next_event["time"])
+                    - date_string_to_datetime(event["time"]))
+        phase = event["phase"]
+        assert phase not in durations
+        durations[phase] = duration
+    return durations
+
 
 ##################################################################
 
@@ -2773,6 +2792,10 @@ for row in sys.stdin.buffer:
     @authors("coteeq")
     def test_writer_timing_statistics(self):
         skip_if_component_old(self.Env, (26, 2), "node")
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
         create("table", "//tmp/t1")
         create("table", "//tmp/t_out0", attributes={"chunk_writer": {"testing_delay_before_chunk_close": 100}})
         create("table", "//tmp/t_out1", attributes={"chunk_writer": {"testing_delay_before_chunk_close": 100}})
@@ -2794,11 +2817,16 @@ for row in sys.stdin.buffer:
             }
         )
 
-        statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+        progress = get_operation(op.id, attributes=["progress"])["progress"]
+        statistics = progress["job_statistics_v2"]
         chunk_count = len(get("//tmp/t_out0/@chunk_ids"))
 
-        assert op.get_job_count("completed") == 1
-        job_time_ms = extract_statistic_v2(statistics, "time.exec")
+        assert progress["jobs"]["completed"]["total"] == 1
+        wait(lambda: len(op.list_jobs()) == 1)
+        job_id, = op.list_jobs()
+        wait(lambda: "running" in get_job_phase_durations(get_job(op.id, job_id).get("events", [])))
+        phase_durations = get_job_phase_durations(get_job(op.id, job_id)["events"])
+        running_time_ms = phase_durations["running"].total_seconds() * 1000
 
         eps_ms = 20
         # The empty writer's Close() shares the single-threaded ChunkWriter queue with the two
@@ -2807,7 +2835,7 @@ for row in sys.stdin.buffer:
 
         def assert_total_time(total_time):
             # Not very precise :(.
-            assert abs(job_time_ms - total_time) < 1000
+            assert abs(running_time_ms - total_time) < 1000
 
         for table_index in [0, 1]:
             wait_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.wait_time")
