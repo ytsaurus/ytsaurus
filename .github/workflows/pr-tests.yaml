@@ -168,6 +168,7 @@ jobs:
                   --yt-root ../ytsaurus/ytsaurus \
                   --ya-test-flags "${{ steps.vars.outputs.TEST_FLAGS }} --pytest-args=\"-m 'not ignore_in_opensource_ci and enabled_multidaemon' -vv\"" \
                   --test-to-run "yt/yt/tests/integration/size_s:ci-viewer/${{ github.run_id }}/size_s:10" \
+                  --test-to-run "yt/yt/tests/integration/scheduler_simulator/bin:ci-viewer/${{ github.run_id }}/scheduler_simulator:10" \
                   --s3-upload-artifacts "ci-viewer/${{ github.run_id }}" \
                   --s3-bucket-name "files.ytsaurus.tech" \
                   --s3-endpoint-url "${{ vars.S3_ENDPOINT_URL }}" \
