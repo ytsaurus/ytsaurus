@@ -49,21 +49,8 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFileChangelogDispatcherConfig
-    : public virtual NYTree::TYsonStruct
-{
-    TDuration FlushQuantum;
-
-    REGISTER_YSON_STRUCT(TFileChangelogDispatcherConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TFileChangelogDispatcherConfig)
-
 struct TFileChangelogStoreConfig
     : public TFileChangelogConfig
-    , public TFileChangelogDispatcherConfig
 {
     //! A path where changelogs are stored.
     std::string Path;
