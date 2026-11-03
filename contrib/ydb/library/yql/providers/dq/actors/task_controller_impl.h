@@ -14,8 +14,6 @@
 
 #include <contrib/ydb/library/yql/utils/actor_log/log.h>
 #include <yql/essentials/utils/log/log.h>
-
-#include <contrib/ydb/public/lib/yson_value/ydb_yson_value.h>
 #include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor_checkpoints.h>
 #include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor.h>
 #include <contrib/ydb/core/fq/libs/checkpointing/events/events.h>

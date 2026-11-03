@@ -117,7 +117,6 @@ PEERDIR(
     contrib/ydb/library/actors/struct_log
     contrib/ydb/library/actors/util
     contrib/ydb/library/services
-    library/cpp/execprofile
     library/cpp/json/writer
     library/cpp/logger
     library/cpp/lwtrace

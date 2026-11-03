@@ -4,8 +4,6 @@
 #include "actor_helpers.h"
 
 #include <contrib/ydb/library/yql/providers/dq/common/yql_dq_settings.h>
-#include <contrib/ydb/library/yql/providers/dq/task_runner/tasks_runner_proxy.h>
-#include <contrib/ydb/library/yql/providers/dq/task_runner/file_cache.h>
 #include <contrib/ydb/library/yql/providers/dq/task_runner_actor/task_runner_actor.h>
 #include <contrib/ydb/library/yql/providers/dq/worker_manager/local_worker_manager.h>
 

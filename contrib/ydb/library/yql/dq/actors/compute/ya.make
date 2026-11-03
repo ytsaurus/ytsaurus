@@ -28,7 +28,6 @@ PEERDIR(
     contrib/ydb/library/yql/dq/proto
     contrib/ydb/library/yql/dq/runtime
     contrib/ydb/library/yql/dq/runtime/streaming
-    contrib/ydb/library/yql/dq/tasks
     yql/essentials/minikql
     yql/essentials/minikql/comp_nodes
     yql/essentials/public/issue

@@ -12,7 +12,6 @@ PEERDIR(
     contrib/proto/opentelemetry
     contrib/ydb/library/actors/core
     contrib/ydb/library/actors/protos
-    contrib/ydb/library/actors/wilson/protos
 )
 
 END()
