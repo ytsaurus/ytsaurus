@@ -96,6 +96,28 @@ TEST(TWorkerConfigBalancerInvariant, AbsentMeansCpuAwareByDefault)
     AssertBalancerType({}, NYT::NFlow::EJobBalancerType::CpuAware);
 }
 
+TEST(TWorkerConfigTest, DynamicComputationConfig)
+{
+    auto pipelineSpec = NYT::New<NYT::NFlow::TPipelineSpec>();
+    pipelineSpec->Computations.emplace(
+        NYT::NFlow::TComputationId("map"),
+        NYT::New<NYT::NFlow::TComputationSpec>());
+    pipelineSpec->Computations.emplace(
+        NYT::NFlow::TComputationId("reduce"),
+        NYT::New<NYT::NFlow::TComputationSpec>());
+
+    auto computations = SerializeDynamicComputationConfig(
+        R"({batch_duration="100ms";empty_batch_backoff="25ms"})",
+        pipelineSpec);
+
+    ASSERT_EQ(2u, computations.Size());
+    for (const auto& computationName : {"map", "reduce"}) {
+        const auto& computation = computations[computationName];
+        EXPECT_EQ("100ms", computation["batch_duration"].AsString());
+        EXPECT_EQ("25ms", computation["empty_batch_backoff"].AsString());
+    }
+}
+
 TEST(TPreviousOperationDiscoveryTest, MatchesCanonicalPipelineIdentity)
 {
     auto config = MakeIntrusive<TYtflowConfiguration>();

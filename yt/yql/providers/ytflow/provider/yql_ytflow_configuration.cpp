@@ -92,6 +92,11 @@ TYtflowConfiguration::TYtflowConfiguration()
     REGISTER_SETTING(*this, _ControllerConnectorConfig);
 
     REGISTER_SETTING(*this, _JobManagerConfig);
+    REGISTER_SETTING(*this, _ComputationConfig);
+    REGISTER_SETTING(*this, _YtQueueSourceUpdateInfoPeriod)
+        .Lower(TDuration::MilliSeconds(1));
+    REGISTER_SETTING(*this, _LogbrokerSourceUpdateInfoPeriod)
+        .Lower(TDuration::MilliSeconds(1));
 
     REGISTER_SETTING(*this, _FiniteStreams);
     REGISTER_SETTING(*this, _YtUseSourceWatermark);

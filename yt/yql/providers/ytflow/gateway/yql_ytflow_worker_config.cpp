@@ -13,6 +13,7 @@
 
 #include <yt/yt/client/ypath/rich.h>
 #include <yt/yt/core/ypath/helpers.h>
+#include <yt/yt/flow/library/cpp/common/spec.h>
 
 #include <util/generic/vector.h>
 #include <util/stream/file.h>
@@ -295,12 +296,25 @@ TMaybe<NYT::TNode> NPrivate::SerializeUseCpuAwareBalancer(
             ("use_cpu_aware_balancer", *useCpuAwareBalancer));
 }
 
+NYT::TNode NPrivate::SerializeDynamicComputationConfig(
+    const TString& computationConfig,
+    const NYT::NFlow::TPipelineSpecPtr& pipelineSpec)
+{
+    auto computations = NYT::TNode::CreateMap();
+    for (const auto& [computationId, _] : pipelineSpec->Computations) {
+        computations[computationId.Underlying()] = NYT::NodeFromYsonString(computationConfig);
+    }
+
+    return computations;
+}
+
 NYT::TNode MakeWorkerConfig(
     const TYqlOperationOptions& operationOptions,
     const TYtflowSettings& config,
     const TConfigClusters& configClusters,
     const TUserDataTable& userDataBlocks,
-    const TVector<TFile>& files)
+    const TVector<TFile>& files,
+    const NYT::NFlow::TPipelineSpecPtr& pipelineSpec)
 {
     auto logsDirectory = config._LogsDirectory.Get();
     YQL_ENSURE(logsDirectory, "Ytflow._LogsDirectory system setting is not set");
@@ -435,6 +449,17 @@ NYT::TNode MakeWorkerConfig(
             }
         }
     }
+
+    if (auto computationConfig = config._ComputationConfig.Get()) {
+        if (!dynamicPipelineSpec) {
+            dynamicPipelineSpec = NYT::TNode::CreateMap();
+        }
+
+        (*dynamicPipelineSpec)["computations"] = NPrivate::SerializeDynamicComputationConfig(
+            *computationConfig,
+            pipelineSpec);
+    }
+
     if (dynamicPipelineSpec) {
         workerConfig = workerConfig
             ("dynamic_pipeline_spec", *dynamicPipelineSpec);

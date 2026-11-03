@@ -44,6 +44,12 @@ public:
     NCommon::TConfSetting<TString, Static> _ControllerConnectorConfig;
     // YSON map merged into the dynamic pipeline spec's "job_manager" section.
     NCommon::TConfSetting<TString, Static> _JobManagerConfig;
+    // YSON map applied to every dynamic computation spec.
+    NCommon::TConfSetting<TString, Static> _ComputationConfig;
+    // Optional queue partition-info refresh period.
+    NCommon::TConfSetting<TDuration, Static> _YtQueueSourceUpdateInfoPeriod;
+    // Optional Logbroker partition-info refresh period.
+    NCommon::TConfSetting<TDuration, Static> _LogbrokerSourceUpdateInfoPeriod;
 
     NCommon::TConfSetting<bool, Static> _FiniteStreams;
     NCommon::TConfSetting<bool, Static> _YtUseSourceWatermark;
