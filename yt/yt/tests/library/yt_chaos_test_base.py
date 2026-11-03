@@ -436,6 +436,7 @@ class ChaosTestBase(DynamicTablesBase):
         super(ChaosTestBase, self)._create_ordered_table(path, **attributes)
 
     def _create_queue_table(self, path, **attributes):
+        self._update_mount_config(attributes)
         attributes.update({"dynamic": True})
         if "schema" not in attributes:
             attributes.update({

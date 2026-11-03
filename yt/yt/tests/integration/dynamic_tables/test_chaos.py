@@ -1474,8 +1474,6 @@ class TestChaos(ChaosTestBase):
         rows = [{"key": 0, "value": "0"}]
         insert_rows("//tmp/crt", rows)
 
-        timestamp = generate_timestamp()
-
         sync_unmount_table("//tmp/t")
         alter_table_replica(replica_ids[0], enabled=True)
 
@@ -1483,12 +1481,12 @@ class TestChaos(ChaosTestBase):
         assert len(_get_in_sync_replicas("//tmp/crt")) == 0
 
         sync_mount_table("//tmp/t")
-        # Wait for updated replica progress is reported back to chaos node.
-        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[0]}/replication_lag_timestamp") > timestamp)
 
         # Trigger era switch so chaos caches get updated
         alter_table_replica(replica_ids[2], enabled=False)
         self._sync_alter_replica(card_id, replicas, replica_ids, 2, enabled=True)
+
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[0]}/replica_reached_last_own_era"))
 
         assert len(_get_in_sync_replicas("//tmp/t")) == 1
         assert len(_get_in_sync_replicas("//tmp/crt")) == 1
@@ -2861,7 +2859,7 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
             {"cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/r"}
         ]
-        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+        self._create_chaos_tables(cell_id, replicas)
         _, remote_driver0, remote_driver1 = self._get_drivers()
 
         values0 = [{"key": 0, "value": "0"}]
@@ -4462,7 +4460,7 @@ class TestChaos(ChaosTestBase):
         self._sync_replication_era(card_id)
 
         sync_unmount_table("//tmp/rqs", driver=remote_driver0)
-        progress = get("#{0}/@replication_progress".format(replica_ids[3]))
+        progress = get("//tmp/rqs/@replication_progress", driver=remote_driver0)
         replica_ids.append(self._create_chaos_table_replica(replicas[4], replication_card_id=card_id, replication_progress=progress))
         replica_ids.append(self._create_chaos_table_replica(replicas[5], replication_card_id=card_id, replication_progress=progress))
         self._create_replica_tables(
