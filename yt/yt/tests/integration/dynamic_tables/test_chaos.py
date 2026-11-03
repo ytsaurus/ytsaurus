@@ -4411,8 +4411,12 @@ class TestChaos(ChaosTestBase):
     @pytest.mark.parametrize("tablet_count", [1, 3])
     @pytest.mark.parametrize("mode", ["sync", "async", "async_queue"])
     def test_schema_coexistence(self, schemas, tablet_count, mode):
-        cell_id = self._sync_create_chaos_bundle_and_cell()
-        sync_create_cells(1)
+        primary_driver, remote_driver0, _ = self._get_drivers()
+        cell_id, _, _ = map_in_parallel(lambda create_cells: create_cells(), [
+            self._sync_create_chaos_bundle_and_cell,
+            lambda: sync_create_cells(1, driver=primary_driver),
+            lambda: sync_create_cells(1, driver=remote_driver0),
+        ])
 
         enabled = mode != "async_queue"
         replica_mode = "sync" if mode == "sync" else "async"
@@ -4426,7 +4430,6 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "remote_0", "content_type": "queue", "mode": replica_mode, "enabled": True, "replica_path": "//tmp/rqa"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas[:3], create_replica_tables=False, sync_replication_era=False)
-        _, remote_driver0, remote_driver1 = self._get_drivers()
 
         create("chaos_replicated_table", "//tmp/crt", attributes={
             "replication_card_id": card_id,
@@ -4449,15 +4452,29 @@ class TestChaos(ChaosTestBase):
         )
 
         replica_ids.append(self._create_chaos_table_replica(replicas[3], replication_card_id=card_id, catchup=False))
-        self._create_replica_tables(replicas[3:4], replica_ids[3:4], schema=schema1, pivot_keys=_create_pivots(schema1))
+        self._create_replica_tables(
+            replicas[3:4],
+            replica_ids[3:4],
+            create_tablet_cells=False,
+            schema=schema1,
+            pivot_keys=_create_pivots(schema1),
+        )
         self._sync_replication_era(card_id)
 
         sync_unmount_table("//tmp/rqs", driver=remote_driver0)
         progress = get("#{0}/@replication_progress".format(replica_ids[3]))
         replica_ids.append(self._create_chaos_table_replica(replicas[4], replication_card_id=card_id, replication_progress=progress))
         replica_ids.append(self._create_chaos_table_replica(replicas[5], replication_card_id=card_id, replication_progress=progress))
-        sync_mount_table("//tmp/rqs", driver=remote_driver0)
-        self._create_replica_tables(replicas[4:], replica_ids[4:], schema=schema1, pivot_keys=_create_pivots(schema1), replication_progress=progress)
+        self._create_replica_tables(
+            replicas[4:],
+            replica_ids[4:],
+            create_tablet_cells=False,
+            mount_tables=False,
+            schema=schema1,
+            pivot_keys=_create_pivots(schema1),
+            replication_progress=progress,
+        )
+        self._mount_replicas(replicas[3:])
         self._sync_replication_era(card_id)
 
         assert get("//tmp/pd/@tablet_count") == tablet_count
