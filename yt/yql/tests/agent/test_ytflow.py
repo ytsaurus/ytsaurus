@@ -275,6 +275,9 @@ class TestYtflowBase(TestQueueAgentBase):
                            'controller_heartbeat_failure_backoff=100;controller_handshake_failure_backoff=100;}'),
                 # Balancer timings (ms) merged into the dynamic pipeline spec's job_manager.
                 dict(name='_JobManagerConfig', value='{rebalance_sync_period=100;}'),
+                dict(name='_ComputationConfig',
+                     value='{batch_duration=100;empty_batch_backoff=25;}'),
+                dict(name='_YtQueueSourceUpdateInfoPeriod', value='100ms'),
                 dict(name='_UseCpuAwareBalancer', value='false'),
                 dict(name='_FiniteStreams', value=str(run_vanilla_operation)),
                 dict(name='_YtUseSourceWatermark', value='false'),

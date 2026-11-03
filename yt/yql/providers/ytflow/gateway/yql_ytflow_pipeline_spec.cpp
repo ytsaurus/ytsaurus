@@ -392,6 +392,11 @@ void ProcessSource(
 
     if (settings.Is<NProto::TYtQueueSourceMessage>()) {
         sourceSpec->SourceClassName = "NYT::NFlow::TQueueSource";
+        if (auto updateInfoPeriod = config->_YtQueueSourceUpdateInfoPeriod.Get()) {
+            parameters->AddChild(
+                "update_info_period",
+                NYT::NYTree::ConvertToNode(*updateInfoPeriod));
+        }
 
         auto useSourceWatermark = config->_YtUseSourceWatermark.Get();
         YQL_ENSURE(
@@ -438,6 +443,11 @@ void ProcessSource(
             "source_type", NYT::NYTree::ConvertToNode(NYT::Format("%lv", ESourceType::Yt)));
     } else if (settings.Is<NProto::TPQSourceMessage>()) {
         sourceSpec->SourceClassName = "NYT::NFlow::TLogbrokerSource";
+        if (auto updateInfoPeriod = config->_LogbrokerSourceUpdateInfoPeriod.Get()) {
+            parameters->AddChild(
+                "update_info_period",
+                NYT::NYTree::ConvertToNode(*updateInfoPeriod));
+        }
 
         auto resourceSpec = NYT::New<NYT::NFlow::TResourceSpec>();
         resourceSpec->ResourceClassName = "NYT::NFlow::TYdbDriver";
