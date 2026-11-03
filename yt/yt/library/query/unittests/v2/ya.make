@@ -7,6 +7,7 @@ SRCS(
     ql_cast_ut.cpp
     ql_hierarchical_join_ut.cpp
     ql_nested_subqueries_ut.cpp
+    ql_union_all_ut.cpp
 )
 
 PEERDIR(
