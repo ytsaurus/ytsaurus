@@ -5697,6 +5697,7 @@ class TestStandaloneChaosCache(ChaosTestBase):
 
     DELTA_DRIVER_CONFIG = {
         "replication_card_cache": deepcopy(REPLICATION_CARD_CACHE_CONFIG),
+        "enable_chaos_lease_transaction_participants": True,
     }
 
     def _create_native_driver(self):
@@ -5704,6 +5705,61 @@ class TestStandaloneChaosCache(ChaosTestBase):
         config["connection_type"] = "native"
         config["api_version"] = 3
         return Driver(config)
+
+    @authors("shamteev")
+    @pytest.mark.parametrize("enable_watching", [True, False])
+    def test_chaos_lease_participant_through_cache(self, enable_watching):
+        assert len(self.Env.configs["chaos_cache"]) == 1
+        cache_config = self.Env.configs["chaos_cache"][0]
+        cache_address = "{}:{}".format(self.Env.yt_config.fqdn, cache_config["rpc_port"])
+
+        card_cell = self._sync_create_chaos_bundle_and_cell(name="cards")
+        lease_cell = self._sync_create_chaos_bundle_and_cell(name="leases")
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+        ]
+        card_id, _ = self._create_chaos_tables(card_cell, replicas)
+
+        wait(lambda: self._get_chaos_cell_orchid(
+            lease_cell,
+            "/chaos_lease_manager/internal/state") == "enabled")
+        lease_id = create_chaos_lease(lease_cell)
+        self._wait_for_chaos_lease_shortcuts(lease_cell, lease_id)
+
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["connection_type"] = "native"
+        driver_config["api_version"] = 4
+        driver_config["chaos_lease_cache"] = {
+            "addresses": [cache_address],
+            "enable_watching": enable_watching,
+            "expire_after_successful_update_time": 60000,
+            "expire_after_failed_update_time": 1000,
+            "expire_after_access_time": 60000,
+            "refresh_time": 60000,
+            "expiration_period": 1000,
+        }
+        driver = Driver(driver_config)
+
+        for key in [0, 1]:
+            tx = start_transaction(type="tablet", prerequisite_transaction_ids=[lease_id], driver=driver)
+            insert_rows("//tmp/t", [{"key": key, "value": str(key)}], tx=tx, driver=driver)
+            commit_transaction(tx, driver=driver)
+            assert lookup_rows("//tmp/t", [{"key": key}]) == [{"key": key, "value": str(key)}]
+
+        remove(f"#{lease_id}")
+        if not enable_watching:
+            wait(lambda: lease_id not in self._get_chaos_cell_orchid(
+                lease_cell,
+                "/coordinator_manager/shortcuts"))
+        tx = start_transaction(type="tablet", prerequisite_transaction_ids=[lease_id], driver=driver)
+        insert_rows("//tmp/t", [{"key": 2, "value": "2"}], tx=tx, driver=driver)
+        with raises_yt_error("No such chaos lease|No such chaos object|Shortcut for chaos lease is not found"):
+            commit_transaction(tx, driver=driver)
+        assert lookup_rows("//tmp/t", [{"key": 2}]) == []
+        wait(lambda: not self._get_chaos_cell_orchid(
+            card_cell,
+            f"/coordinator_manager/shortcuts/{card_id}/alive_transaction_ids"))
 
     @authors("shamteev")
     def test_replication_card_cache_hit(self):
@@ -6186,6 +6242,7 @@ class TestChaosMetaCluster(ChaosTestBase):
         _, _, remote_driver1, remote_driver2 = self._get_drivers()
 
         lease_id = create_chaos_lease(alpha_cell)
+        self._wait_for_chaos_lease_shortcuts(alpha_cell, lease_id, driver=remote_driver1)
         tx = start_transaction(type="tablet", prerequisite_transaction_ids=[lease_id])
 
         values = [{"key": 0, "value": "0"}]
@@ -6203,7 +6260,7 @@ class TestChaosMetaCluster(ChaosTestBase):
         values = [{"key": 1, "value": "0"}]
         insert_rows("//tmp/t", values, tx=tx)
 
-        with raises_yt_error("Shortcut for chaos lease is not found"):
+        with raises_yt_error("No such chaos lease|Shortcut for chaos lease is not found"):
             commit_transaction(tx)
 
     @authors("osidorkin")
@@ -6226,6 +6283,7 @@ class TestChaosMetaCluster(ChaosTestBase):
         self._create_chaos_tables(alpha_cell, replicas1)
 
         lease_id = create_chaos_lease(alpha_cell)
+        self._wait_for_chaos_lease_shortcuts(alpha_cell, lease_id, driver=self._get_drivers()[-2])
         tx = start_transaction(type="tablet", prerequisite_transaction_ids=[lease_id])
 
         values = [{"key": 0, "value": "0"}]
@@ -6262,6 +6320,7 @@ class TestChaosMetaCluster(ChaosTestBase):
 
         wait(lambda: lease_id in _get_shortcuts(alpha_cell))
         wait(lambda: lease_id in _get_shortcuts(beta_cell))
+        self._wait_for_chaos_lease_shortcuts(alpha_cell, lease_id, driver=drivers[alpha_cell])
 
         cluster_names = self.get_cluster_names()
         new_coordinator_cell = self._sync_create_chaos_cell(
@@ -7284,6 +7343,10 @@ class TestChaosSingleCluster(ChaosTestBase):
 
     ENABLE_MULTIDAEMON = True
 
+    DELTA_DRIVER_CONFIG = {
+        "enable_chaos_lease_transaction_participants": True,
+    }
+
     NUM_REMOTE_CLUSTERS = 0
     NUM_CHAOS_NODES = 1
 
@@ -7318,6 +7381,33 @@ class TestChaosSingleCluster(ChaosTestBase):
                 timeout=10000)
 
         assert select_rows("key, value from [//tmp/t]") == rows
+
+    @authors("shamteev")
+    @pytest.mark.parametrize("lease_count", [1, 2])
+    def test_chaos_lease_from_another_bundle(self, lease_count):
+        card_cell = self._sync_create_chaos_bundle_and_cell(name="cards")
+        lease_cell = self._sync_create_chaos_bundle_and_cell(name="leases", align_cell_tags=True)
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+        ]
+        self._create_chaos_tables(card_cell, replicas)
+
+        wait(lambda: self._get_chaos_cell_orchid(
+            lease_cell,
+            "/chaos_lease_manager/internal/state") == "enabled")
+        lease_ids = [create_chaos_lease(lease_cell) for _ in range(lease_count)]
+
+        for lease_id in lease_ids:
+            self._wait_for_chaos_lease_shortcuts(lease_cell, lease_id)
+
+        tx = start_transaction(type="tablet", prerequisite_transaction_ids=lease_ids)
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values, tx=tx)
+        commit_transaction(tx)
+
+        assert lookup_rows("//tmp/t", [{"key": 0}]) == values
 
     @authors("osidorkin")
     def test_multiple_chaos_slots_on_single_node(self):

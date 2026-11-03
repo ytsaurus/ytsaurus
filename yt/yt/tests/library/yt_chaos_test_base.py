@@ -117,6 +117,16 @@ class ChaosTestBase(DynamicTablesBase):
         orchid_path = self._get_chaos_cell_orchid_path(cell_id, driver=driver)
         return exists("{0}{1}".format(orchid_path, path), driver=driver)
 
+    def _wait_for_chaos_lease_shortcuts(self, cell_id, lease_id, driver=None):
+        def _are_shortcuts_granted():
+            coordinators = self._get_chaos_cell_orchid(
+                cell_id,
+                f"/chaos_lease_manager/chaos_leases/{lease_id}/coordinators",
+                driver=driver)
+            return coordinators and all(state == "granted" for state in coordinators.values())
+
+        wait(_are_shortcuts_granted)
+
     def _wait_for_card_era(self, replica, card_id, era=1, driver=None):
         import logging
         logger = logging.getLogger()
