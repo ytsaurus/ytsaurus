@@ -2029,6 +2029,32 @@
             "uri": "https://{canondata_backend}/1925842/a4a4cc73eb2d8b4ad53ff5c7c91bfd04844f38af/resource.tar.gz#test.test_order_by-presort_order_by_table-default.txt-Results_/results.txt"
         }
     ],
+    "test.TestYtFile_order_by-subquery_merge_for_ordered-.test[Debug]": [
+        {
+            "checksum": "4f43e869881c927b8667a9ec752d15e6",
+            "size": 1934,
+            "uri": "https://{canondata_backend}/1942415/b482cdfd85eaa6c96c28dfcc39ae6518e4405212/resource.tar.gz#test.TestYtFile_order_by-subquery_merge_for_ordered-.test_Debug_/opt.yql"
+        }
+    ],
+    "test.TestYtFile_order_by-subquery_merge_for_ordered-.test[Plan]": [
+        {
+            "checksum": "3460ba224ccfc2d11ea6de04032363c4",
+            "size": 7891,
+            "uri": "https://{canondata_backend}/1942415/b482cdfd85eaa6c96c28dfcc39ae6518e4405212/resource.tar.gz#test.TestYtFile_order_by-subquery_merge_for_ordered-.test_Plan_/plan.txt"
+        }
+    ],
+    "test.TestYtFile_order_by-subquery_merge_for_ordered-.test[Results]": [
+        {
+            "checksum": "400e9cbbe27a1cb055e18f041ba1c5a5",
+            "size": 332,
+            "uri": "https://{canondata_backend}/1942415/b482cdfd85eaa6c96c28dfcc39ae6518e4405212/resource.tar.gz#test.TestYtFile_order_by-subquery_merge_for_ordered-.test_Results_/Output.txt"
+        },
+        {
+            "checksum": "3469a71986def599dc71892ba95f81cf",
+            "size": 811,
+            "uri": "https://{canondata_backend}/1942415/b482cdfd85eaa6c96c28dfcc39ae6518e4405212/resource.tar.gz#test.TestYtFile_order_by-subquery_merge_for_ordered-.test_Results_/Output.yqlrun.txt.attr"
+        }
+    ],
     "test.TestYtFile_pg-in_mixed-.test[Debug]": [
         {
             "checksum": "3207916bc43ed7cf8f0a5cb3b1905bf2",
