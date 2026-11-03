@@ -198,7 +198,7 @@ void TPortoVolumeBase::SetRemoveCallback(TCallback<TFuture<void>()> callback)
         });
 }
 
-TFuture<void> TPortoVolumeBase::UnlinkTargets(TLayerLocationPtr location, std::string source, const std::vector<std::string>& targets)
+TFuture<void> TPortoVolumeBase::UnlinkTargets(TLayerLocationPtr location, const std::string& source, const std::vector<std::string>& targets)
 {
     auto Logger = ExecNodeLogger()
         .WithTag("VolumePath", source);
@@ -258,8 +258,6 @@ TFuture<void> TSquashFSVolume::DoRemove(
         std::move(location),
         std::move(volumeMeta));
 }
-
-DEFINE_REFCOUNTED_TYPE(TSquashFSVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -330,8 +328,6 @@ TFuture<void> TRWNbdVolume::DoRemove(
             std::move(volumeMeta),
             std::move(postRemovalCleanup)));
 }
-
-DEFINE_REFCOUNTED_TYPE(TRWNbdVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -404,8 +400,6 @@ TFuture<void> TRONbdVolume::DoRemove(
             std::move(postRemovalCleanup)));
 }
 
-DEFINE_REFCOUNTED_TYPE(TRONbdVolume)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TOverlayVolume::TOverlayVolume(
@@ -470,8 +464,6 @@ TFuture<void> TOverlayVolume::DoRemove(
         std::move(postRemovalCleanup));
 }
 
-DEFINE_REFCOUNTED_TYPE(TOverlayVolume)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TTmpfsVolume::TTmpfsVolume(
@@ -507,8 +499,6 @@ TFuture<void> TTmpfsVolume::DoRemove(
         std::move(volumeMeta));
 }
 
-DEFINE_REFCOUNTED_TYPE(TTmpfsVolume)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TLoopVolume::TLoopVolume(
@@ -543,8 +533,6 @@ TFuture<void> TLoopVolume::DoRemove(
         std::move(location),
         std::move(volumeMeta));
 }
-
-DEFINE_REFCOUNTED_TYPE(TLoopVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
