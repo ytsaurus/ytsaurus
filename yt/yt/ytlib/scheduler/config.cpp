@@ -2537,6 +2537,10 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
                 THROW_ERROR_EXCEPTION("Empty task names are not allowed");
             }
 
+            if (taskName == "source" || taskName == "sink") {
+                THROW_ERROR_EXCEPTION("Task name %Qv is reserved", taskName);
+            }
+
             taskSpec->TaskTitle = taskName;
 
             ValidateNoOutputStreams(taskSpec, EOperationType::Vanilla);

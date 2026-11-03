@@ -680,6 +680,21 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             )
             op.track()
 
+    @authors("apollo1321")
+    @pytest.mark.parametrize("task_name", ["source", "sink"])
+    def test_reserved_task_name(self, task_name):
+        with raises_yt_error(f'Task name "{task_name}" is reserved'):
+            vanilla(
+                spec={
+                    "tasks": {
+                        task_name: {
+                            "job_count": 1,
+                            "command": "echo A",
+                        },
+                    },
+                }
+            )
+
     @authors("ignat")
     def test_event_log_with_failed_on_job_restart(self):
         op = vanilla(
