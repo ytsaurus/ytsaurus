@@ -1,10 +1,10 @@
 #pragma once
 
+#include "public.h"
 #include "layer.h"
 #include "overlay_data.h"
 
 #include <yt/yt/server/node/exec_node/artifact.h>
-#include <yt/yt/server/node/exec_node/public.h>
 #include <yt/yt/server/node/exec_node/volume.h>
 #include <yt/yt/server/node/exec_node/volume_artifact.h>
 
@@ -21,14 +21,6 @@
 #include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NExecNode {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Forward declarations.
-class TLayerLocation;
-DECLARE_REFCOUNTED_CLASS(TLayerLocation)
-
-class TVolumeProfilerCounters;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,7 +70,7 @@ private:
 
     TCallback<TFuture<void>(const std::vector<std::string>&)> RemoveCallback_;
 
-    static TFuture<void> UnlinkTargets(TLayerLocationPtr location, std::string source, const std::vector<std::string>& targets);
+    static TFuture<void> UnlinkTargets(TLayerLocationPtr location, const std::string& source, const std::vector<std::string>& targets);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,18 +85,9 @@ public:
         NProfiling::TTagSet tagSet,
         TVolumeMeta volumeMeta,
         TLayerLocationPtr layerLocation,
-        const TKey& key)
-        : TPortoVolumeBase(
-            std::move(tagSet),
-            std::move(volumeMeta),
-            std::move(layerLocation))
-        , TAsyncCacheValueBase<TKey, TCachedVolume<TKey>>(key)
-    { }
+        const TKey& key);
 
-    bool IsCached() const override final
-    {
-        return true;
-    }
+    bool IsCached() const override final;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,7 +115,7 @@ private:
         TVolumeMeta volumeMeta);
 };
 
-DECLARE_REFCOUNTED_CLASS(TSquashFSVolume)
+DEFINE_REFCOUNTED_TYPE(TSquashFSVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -161,7 +144,7 @@ private:
         NNbd::INbdServerPtr nbdServer);
 };
 
-DECLARE_REFCOUNTED_CLASS(TRWNbdVolume)
+DEFINE_REFCOUNTED_TYPE(TRWNbdVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -190,7 +173,7 @@ private:
         NNbd::INbdServerPtr nbdServer);
 };
 
-DECLARE_REFCOUNTED_CLASS(TRONbdVolume)
+DEFINE_REFCOUNTED_TYPE(TRONbdVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,7 +204,7 @@ private:
         IVolumePtr volumeForUpperLayer);
 };
 
-DECLARE_REFCOUNTED_CLASS(TOverlayVolume)
+DEFINE_REFCOUNTED_TYPE(TOverlayVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -243,7 +226,7 @@ private:
         TVolumeMeta volumeMeta);
 };
 
-DECLARE_REFCOUNTED_CLASS(TTmpfsVolume)
+DEFINE_REFCOUNTED_TYPE(TTmpfsVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -265,8 +248,12 @@ private:
         TVolumeMeta volumeMeta);
 };
 
-DECLARE_REFCOUNTED_CLASS(TLoopVolume)
+DEFINE_REFCOUNTED_TYPE(TLoopVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode
+
+#define PORTO_VOLUME_INL_H_
+#include "porto_volume-inl.h"
+#undef PORTO_VOLUME_INL_H_
