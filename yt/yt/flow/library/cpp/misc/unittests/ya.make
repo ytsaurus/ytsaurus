@@ -15,6 +15,7 @@ SRCS(
     crash_recorder_ut.cpp
     bipartite_map_ut.cpp
     ema_ut.cpp
+    exponential_history_ut.cpp
     error_backtrace_enricher_ut.cpp
     indexed_yson_string_ut.cpp
     keyed_heap_ut.cpp

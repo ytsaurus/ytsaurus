@@ -6,6 +6,7 @@
 
 #include "checksum.h"
 #include "resource.h"
+#include "watermark_history.h"
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
@@ -1525,6 +1526,9 @@ void TFlowState::Register(TRegistrar registrar)
 
     registrar.Parameter("speed_statistics", &TThis::SpeedStatistics)
         .Default();
+
+    registrar.Parameter("watermark_history", &TThis::WatermarkHistory)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

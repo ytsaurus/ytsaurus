@@ -975,6 +975,9 @@ struct TFlowState
     // Used to warm up buffer demand on pipeline restart. Stored here to survive controller restarts.
     TPipelineSpeedStatistics SpeedStatistics;
 
+    // Used to resolve when timers became due. Stored here to survive controller restarts.
+    TPipelineWatermarkHistoryPtr WatermarkHistory;
+
     void AttachToControl(TPersistedStateControlPtr<std::string> control);
     void SetAsSlave();
     TFlowStatePtr Clone() const;

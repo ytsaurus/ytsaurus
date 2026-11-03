@@ -85,26 +85,6 @@ struct TCompareTimerByTriggerTimestampAndMessageId
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTimerTriggerConditions BuildTimerTriggerConditions(const TTimerStoreContextPtr& context)
-{
-    TTimerTriggerConditions conditions;
-    for (const auto& [timerId, spec] : context->TimerSpecs) {
-        auto& condition = conditions[timerId];
-        condition.TimeType = spec->TimeType;
-        if (spec->StreamsWithDelays) {
-            condition.StreamsWithDelays = *spec->StreamsWithDelays;
-        } else {
-            const auto& streams = spec->Streams
-                ? *spec->Streams
-                : GetOrCrash(context->StreamsDependency, timerId);
-            for (const auto& streamId : streams) {
-                condition.StreamsWithDelays.emplace(streamId, TDuration::Zero());
-            }
-        }
-    }
-    return conditions;
-}
-
 std::vector<std::vector<TStreamId>> BuildTimerStreamGroups(const TTimerTriggerConditions& conditions)
 {
     THashMap<std::pair<ETimeType, TStreamId>, TStreamId> firstTimerByCondition;
@@ -154,7 +134,7 @@ class TTimerStore
 public:
     explicit TTimerStore(TTimerStoreContextPtr context, TDynamicTimerStoreContextPtr dynamicContext)
         : Context_(std::move(context))
-        , TriggerConditions_(BuildTimerTriggerConditions(Context_))
+        , TriggerConditions_(BuildTimerTriggerConditions(Context_->TimerSpecs, Context_->StreamsDependency))
         , TimerStreamGroups_(BuildTimerStreamGroups(TriggerConditions_))
         , Table_(Context_->TimersTable)
         , Logger(Context_->Logger)
@@ -456,8 +436,9 @@ public:
     THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflight() override
     {
         auto inflights = InflightStore_->BuildInflights();
-        for (auto& [_, inflight] : inflights) {
+        for (auto& [streamId, inflight] : inflights) {
             inflight->Suspended = Draining_;
+            inflight->MinTriggerTimestamp = GetMinTriggerTimestamp(streamId);
         }
         return inflights;
     }
@@ -488,6 +469,23 @@ private:
     std::deque<std::pair<TInputTimerConstPtr, bool>> ModificationQueue_;
 
 private:
+    // Taken timers are not tracked: callers unregister a taken batch before building inflights.
+    std::optional<TSystemTimestamp> GetMinTriggerTimestamp(const TStreamId& streamId) const
+    {
+        std::optional<TSystemTimestamp> result;
+        for (const auto* timerSets : {&SortedTimers_, &TriggeredTimers_}) {
+            auto it = timerSets->find(streamId);
+            if (it == timerSets->end() || it->second.empty()) {
+                continue;
+            }
+
+            auto triggerTimestamp = (*it->second.begin())->TriggerTimestamp;
+            result = result ? std::min(*result, triggerTimestamp) : triggerTimestamp;
+        }
+
+        return result;
+    }
+
     void TriggerTimers()
     {
         bool offered = false;

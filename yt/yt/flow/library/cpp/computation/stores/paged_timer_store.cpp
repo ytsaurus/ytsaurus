@@ -134,7 +134,7 @@ public:
         , TimeProvider_(Context_->TimeProvider)
         , ComputationId_(Context_->Partition->ComputationId)
         , PartitionRange_(GetPartitionKeyRange(*Context_->Partition))
-        , TimerStreamGroups_(BuildTimerStreamGroups(BuildTimerTriggerConditions(Context_)))
+        , TimerStreamGroups_(BuildTimerStreamGroups(BuildTimerTriggerConditions(Context_->TimerSpecs, Context_->StreamsDependency)))
         , PageSize_(Context_->TimerPageSize)
         , Logger(Context_->Logger)
         , Metrics_{.Profiler = Context_->Profiler.WithPrefix("/paged_timer_store")}
@@ -441,6 +441,7 @@ public:
             inflight->Empty = summary.CountHigh == 0;
             inflight->MinEventTimestamp = summary.MinEvent;
             inflight->MinSystemTimestamp = summary.MinSystem;
+            inflight->MinTriggerTimestamp = GetMinTriggerTimestamp(stream);
             inflight->InflightMetrics->Count = summary.CountHigh;
             inflight->InflightMetrics->ByteSize = summary.CountHigh * summary.AverageRowByteSize;
             inflight->InflightMetrics->NewCountPerSec = stream.RegisteredCounter.GetDecayedRate();
@@ -2312,6 +2313,34 @@ private:
         } else {
             change.Erase = true;
         }
+    }
+
+    //! A lower bound of the trigger timestamps of the stream's unprocessed timers, offered and triggered ones included.
+    static std::optional<TSystemTimestamp> GetMinTriggerTimestamp(const TStreamState& stream)
+    {
+        std::optional<TSystemTimestamp> result;
+        for (const auto& [familyId, family] : stream.Families) {
+            for (const auto& [begin, page] : family.Pages) {
+                std::optional<TSystemTimestamp> pageMin;
+                if (page.Resident) {
+                    if (page.Resident->Count) {
+                        pageMin = page.StaleMinima
+                            ? family.Data.GetStatistics(page.Meta.Begin, page.Meta.End).MinTimestamp
+                            : page.Resident->MinTimestamp;
+                    }
+                } else if (page.Meta.Count > 0) {
+                    // |Begin| is a lower bound of the rows, so the lag may be over-reported but never under-reported.
+                    pageMin = page.Meta.Begin;
+                }
+
+                if (pageMin) {
+                    result = result ? std::min(*result, *pageMin) : *pageMin;
+                    break;
+                }
+            }
+        }
+
+        return result;
     }
 
     TStreamSummary Summarize(const TStreamState& stream) const

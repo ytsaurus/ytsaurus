@@ -597,6 +597,46 @@ TEST_F(TPagedTimerStoreTest, LargePageSizeDoesNotForceSplits)
     EXPECT_EQ(FireAll(store), 2 * PageSize);
 }
 
+TEST_F(TPagedTimerStoreTest, ReportsMinTriggerTimestampOfUnprocessedTimers)
+{
+    auto store = CreateStore();
+    auto getMinTriggerTimestamp = [&] {
+        return GetOrCrash(store->BuildInflight(), TimerStreamId)->MinTriggerTimestamp;
+    };
+    EXPECT_FALSE(getMinTriggerTimestamp());
+
+    Iterate(store, /*watermark*/ 0, {MakeTimer("t-200", 1, 200), MakeTimer("t-100", 2, 100), MakeTimer("t-300", 3, 300)});
+    EXPECT_EQ(getMinTriggerTimestamp(), TSystemTimestamp(100));
+
+    // A triggered timer is unprocessed until unregistered.
+    SetWatermark(store, 150);
+    EXPECT_EQ(getMinTriggerTimestamp(), TSystemTimestamp(100));
+
+    auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 1000, std::numeric_limits<i64>::max());
+    ASSERT_EQ(Ids(batch), std::vector<std::string>{"t-100"});
+    store->Unregister(batch);
+    EXPECT_EQ(getMinTriggerTimestamp(), TSystemTimestamp(200));
+
+    batch = Iterate(store, /*watermark*/ 1000);
+    EXPECT_EQ(std::ssize(batch), 2);
+    EXPECT_FALSE(getMinTriggerTimestamp());
+}
+
+TEST_F(TPagedTimerStoreTest, ReportsBeginOfNonResidentPageAsMinTriggerTimestamp)
+{
+    SeedFamily(7, 0, 100, /*pages*/ 2, /*perPage*/ PageSize);
+    // The resident limit of two batches keeps the second page out of memory.
+    auto store = CreateStore(nullptr, /*maxRowsPerBatch*/ 4);
+    EXPECT_EQ(GetOrCrash(store->BuildInflight(), TimerStreamId)->MinTriggerTimestamp, TSystemTimestamp(1));
+
+    SetWatermark(store, PageSize);
+    auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 1000, std::numeric_limits<i64>::max());
+    ASSERT_EQ(std::ssize(batch), PageSize);
+    store->Unregister(batch);
+    ASSERT_LT(store->GetInMemoryCount(), store->GetCount());
+    EXPECT_EQ(GetOrCrash(store->BuildInflight(), TimerStreamId)->MinTriggerTimestamp, TSystemTimestamp(PageSize + 1));
+}
+
 TEST_F(TPagedTimerStoreTest, RegisterFireRoundTrip)
 {
     auto store = CreateStore();

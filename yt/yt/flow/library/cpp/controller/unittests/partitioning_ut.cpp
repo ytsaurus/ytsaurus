@@ -298,6 +298,13 @@ public:
         }
         Spec->Computations[ComputationId]->OutputStreamIds.insert("output_stream");
         Spec->Computations[ComputationId]->TimerStreams["timer_stream"] = New<TTimerSpec>();
+        // The spec postprocessor fills this in production; the controller resolves timer conditions from it.
+        auto& timerDependency = Spec->Computations[ComputationId]->StreamsDependency["timer_stream"];
+        timerDependency = Spec->Computations[ComputationId]->InputStreamIds;
+        for (const auto& streamId : GetKeys(Spec->Computations[ComputationId]->SourceStreams)) {
+            timerDependency.insert(streamId);
+        }
+
         if (withSink) {
             Spec->Computations[ComputationId]->Sinks["sink"] = New<TSinkSpec>();
             Spec->Computations[ComputationId]->Sinks["sink"]->SinkClassName = TypeName<TChannelCountSink>();

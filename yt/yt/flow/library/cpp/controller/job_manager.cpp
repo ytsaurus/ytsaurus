@@ -13,6 +13,7 @@
 #include <yt/yt/flow/library/cpp/common/resource_controller.h>
 #include <yt/yt/flow/library/cpp/common/resource_manager.h>
 #include <yt/yt/flow/library/cpp/common/state.h>
+#include <yt/yt/flow/library/cpp/common/trigger_condition.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 #include <yt/yt/flow/library/cpp/partitioning/partitioning_coordinator.h>
@@ -493,6 +494,41 @@ public:
             }
         }
         flowView->State->ExecutionSpec->WatermarkState->TrySetValue(watermarkState, Context_->VersionProvider);
+        UpdateWatermarkHistory(flowView, watermarkState);
+    }
+
+    //! Records the published watermarks of the streams that event-time and system-time timers wait for.
+    void UpdateWatermarkHistory(const TFlowViewPtr& flowView, const TWatermarkStatePtr& watermarkState)
+    {
+        THashSet<TStreamId> eventTimeStreams;
+        THashSet<TStreamId> systemTimeStreams;
+        for (const auto& [_, computationSpec] : Spec_->Computations) {
+            for (const auto& [timerId, condition] : BuildTimerTriggerConditions(computationSpec->TimerStreams, computationSpec->StreamsDependency)) {
+                if (condition.TimeType == ETimeType::CurrentTime) {
+                    continue;
+                }
+
+                auto& streams = condition.TimeType == ETimeType::EventTime ? eventTimeStreams : systemTimeStreams;
+                for (const auto& [streamId, delay] : condition.StreamsWithDelays) {
+                    streams.insert(streamId);
+                }
+            }
+        }
+
+        const auto& watermarkHistory = flowView->State->WatermarkHistory;
+        // A changed factor needs no migration: existing elements are never split, so after an increase
+        // the bound tightens gradually as new samples arrive.
+        auto thinningFactor = DynamicSpec_->JobManager->WatermarkHistoryThinningFactor;
+        for (auto timeType : {ETimeType::EventTime, ETimeType::SystemTime}) {
+            auto& histories = watermarkHistory->Get(timeType);
+            const auto& streams = timeType == ETimeType::EventTime ? eventTimeStreams : systemTimeStreams;
+            DropMissingKeys(histories, streams);
+
+            for (const auto& streamId : streams) {
+                // The same lookup as the worker's trigger pass, so a missing stream is recorded as zero.
+                histories[streamId].Append(flowView->State->CurrentTimestamp, watermarkState->GetWatermark(streamId, timeType), thinningFactor);
+            }
+        }
     }
 
     void UpdateResourceControllers(const TFlowViewPtr& flowView) override
