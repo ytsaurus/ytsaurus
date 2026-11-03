@@ -142,6 +142,27 @@ TEST_F(TCastExpressionTest, ImplicitIntegerCastsInModulo)
     Check("farm_hash(s1) % i1", "s1=abc;i1=10", MakeUint64(8));
 }
 
+TEST_F(TCastExpressionTest, CaseCastToNull)
+{
+    for (const auto& prefix : {"case b when true", "case when b"}) {
+        for (const auto& [literal, value] : std::vector<std::pair<TStringBuf, TUnversionedValue>>{
+            {"7", MakeInt64(7)},
+            {"true", MakeBoolean(true)},
+            {"'abc'", MakeString("abc")},
+        }) {
+            auto nullThen = Format("%v then CAST(1 AS `Null`) else %v end", prefix, literal);
+            SCOPED_TRACE(nullThen);
+            Check(nullThen, "b=%true", MakeNull());
+            Check(nullThen, "b=%false", value);
+
+            auto nullElse = Format("%v then %v else CAST(1 AS `Null`) end", prefix, literal);
+            SCOPED_TRACE(nullElse);
+            Check(nullElse, "b=%false", MakeNull());
+            Check(nullElse, "b=%true", value);
+        }
+    }
+}
+
 TEST_F(TCastExpressionTest, AnyToBasic)
 {
     Check("CAST(yson_string_to_any(\"123\") AS Int64)", "", MakeInt64(123));

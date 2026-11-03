@@ -6,6 +6,7 @@ SRCS(
     GLOBAL ast_ut.cpp
     GLOBAL folding_profiler_ut.cpp
     GLOBAL join_profilers_ut.cpp
+    GLOBAL ql_case_ut.cpp
     GLOBAL ql_computed_columns_ut.cpp
     GLOBAL ql_distributed_ut.cpp
     GLOBAL ql_expressions_ut.cpp

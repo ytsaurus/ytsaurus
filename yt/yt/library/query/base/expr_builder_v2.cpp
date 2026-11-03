@@ -50,6 +50,10 @@ TConstExpressionPtr CreateCoercion(EValueType type, TConstExpressionPtr operand)
         castName = "uint64";
     } else if (type == EValueType::Double) {
         castName = "double";
+    } else if (type == EValueType::Boolean) {
+        castName = "boolean";
+    } else if (type == EValueType::String) {
+        castName = "string";
     } else if (type == EValueType::Any) {
         castName = "to_any";
     } else {
@@ -1143,6 +1147,12 @@ TConstExpressionPtr TExpressionBuilderV2::OnCaseOp(const NAst::TCaseExpression* 
         if (resultType != thenResultType) {
             typedWhenThen->Result = CreateCoercion(TypingCtx_.GetWireType(resultType), typedWhenThen->Result);
         }
+    }
+
+    if (typedDefaultExpression &&
+        resultType != TypingCtx_.GetTypeId(typedDefaultExpression->GetWireType()))
+    {
+        typedDefaultExpression = CreateCoercion(TypingCtx_.GetWireType(resultType), typedDefaultExpression);
     }
 
     return New<TCaseExpression>(
