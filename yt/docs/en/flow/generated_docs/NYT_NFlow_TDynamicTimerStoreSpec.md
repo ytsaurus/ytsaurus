@@ -7,6 +7,9 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || **Parameter** | **Description** ||
 || `table_request` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicTableRequestSpec](./all_yson_structs#NYT_NFlow_TDynamicTableRequestSpec)`>`
 **Default value**: `{}`
- ||
+Select limits of the timer table reads. ||
+|| `timer_write_multiplier` | **Type**: `double`
+**Default value**: `2.0`
+`paged` store: maximum timer row writes per required insertion in an epoch, after deduplication. Must be finite and at least 1. Unused allowance is discarded. Epochs without insertions do not relocate timers. Deletions and page metadata do not count. ||
 |#
 

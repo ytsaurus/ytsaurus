@@ -258,5 +258,12 @@ TEST(TElectionManagerConfigTest, DoesNotConstrainTheCypressBackend)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TControllerServiceConfigTest, PagedTimerStoreIsDisabledByDefault)
+{
+    EXPECT_FALSE(New<TControllerServiceConfig>()->EnablePagedTimerStore);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NFlow::NController

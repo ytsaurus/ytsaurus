@@ -46,6 +46,7 @@ def main():
         action="store_true",
         help="build injective index. Indexed table will be unavailable for a short period of time. "
         "Upon completion index table might have extra rows in it")
+    parser.add_argument("--preserve-bijective-correspondence", action="store_true", help="experimental - preserve bijective correspondence even if building online")
     args = parser.parse_args()
 
     build_secondary_index(
@@ -57,8 +58,10 @@ def main():
         args.unfolded_column,
         args.dry_run,
         args.online if args.online is not None else True,
-        args.pool,
-        args.pools or {})
+        evaluated_columns_schema=None,
+        pool=args.pool,
+        pools=args.pools or {},
+        preserve_bijective_correspondence=args.preserve_bijective_correspondence)
 
 
 if __name__ == "__main__":

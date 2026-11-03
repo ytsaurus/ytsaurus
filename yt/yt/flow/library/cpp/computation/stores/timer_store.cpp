@@ -1,5 +1,9 @@
 #include "timer_store.h"
 
+#include "paged_timer_store.h"
+#include "timer_page_catalogue.h"
+#include "timer_store_conversion.h"
+
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/inflight_tracker.h>
 #include <yt/yt/flow/library/cpp/common/message.h>
@@ -9,7 +13,10 @@
 
 #include <yt/yt/flow/library/cpp/common/message_migration.h>
 
+#include <yt/yt/flow/library/cpp/tables/timer_pages.h>
 #include <yt/yt/flow/library/cpp/tables/timers.h>
+
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <library/cpp/containers/absl/flat_hash_map.h>
 #include <library/cpp/containers/absl/flat_hash_set.h>
@@ -21,6 +28,35 @@
 #include <util/generic/hash.h>
 
 namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<void> ITimerStore::Preload()
+{
+    return OKFuture;
+}
+
+bool ITimerStore::IsEmpty() const
+{
+    return GetCount() == 0;
+}
+
+i64 ITimerStore::GetInMemoryByteSize() const
+{
+    return GetByteSize();
+}
+
+i64 ITimerStore::GetInMemoryCount() const
+{
+    return GetCount();
+}
+
+i64 ITimerStore::GetByteSize() const
+{
+    return GetInMemoryByteSize();
+}
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,6 +170,7 @@ public:
 
     void Reconfigure(TDynamicTimerStoreContextPtr dynamicContext) override
     {
+        DynamicContext_ = dynamicContext;
         Draining_ = dynamicContext->Draining;
         Table_->Reconfigure(dynamicContext->DynamicTimerStoreSpec->TableRequest);
     }
@@ -303,7 +340,51 @@ public:
         YT_TLOG_DEBUG("Timer store init completed");
     }
 
+    TFuture<void> Preload() override
+    {
+        return OKFuture;
+    }
+
     TFuture<void> Init() override
+    {
+        return BIND(&TTimerStore::ExportPages, MakeStrong(this))
+            .AsyncVia(GetCurrentInvoker())
+            .Run()
+            .Apply(BIND(&TTimerStore::Load, MakeStrong(this)));
+    }
+
+    //! Timers left in pages by a switch from the paged backend go back to the |timers| table.
+    void ExportPages()
+    {
+        if (Context_->TimerSpecs.empty() || !Context_->PageCatalogue || !Context_->TimerPagesTable) {
+            return;
+        }
+        if (!WaitFor(Context_->TimerPagesTable->TablesExist()).ValueOrThrow()) {
+            return;
+        }
+        // A direct probe rather than the worker catalogue: a pipeline that never used the paged
+        // backend does not depend on the catalogue then. Empty pages count as well: an export
+        // leaves none behind.
+        auto range = GetPartitionKeyRange(*Context_->Partition);
+        auto pages = WaitFor(Context_->TimerPagesTable->LoadMeta({.ComputationId = Context_->Partition->ComputationId}))
+            .ValueOrThrow();
+        bool hasPages = std::any_of(pages.begin(), pages.end(), [&] (const TTimerPageMeta& page) {
+            return Context_->TimerSpecs.contains(page.StreamId) && page.KeyRange.Lower < range.Upper && range.Lower < page.KeyRange.Upper;
+        });
+        if (!hasPages) {
+            return;
+        }
+        YT_TLOG_INFO("Exporting timer pages into the timers table");
+        // The export extracts the timers through #GetNextBatch(), which draining would block.
+        auto dynamicContext = New<TDynamicTimerStoreContext>();
+        dynamicContext->DynamicTimerStoreSpec = DynamicContext_->DynamicTimerStoreSpec;
+        dynamicContext->MaxRowsPerBatch = DynamicContext_->MaxRowsPerBatch;
+        auto pagedStore = CreatePagedTimerStore(Context_, dynamicContext);
+        pagedStore->InitSync();
+        ExportPagesIntoTimers(Context_, pagedStore);
+    }
+
+    TFuture<void> Load()
     {
         auto loadTimers = Table_->LoadAll({
             .ComputationId = Context_->Partition->ComputationId,
@@ -352,12 +433,22 @@ public:
         InflightStore_->Commit();
     }
 
-    i64 GetByteSize() const override
+    bool IsEmpty() const override
+    {
+        return InflightStore_->GetTotalCount() == 0;
+    }
+
+    i64 GetCount() const override
+    {
+        return InflightStore_->GetTotalCount();
+    }
+
+    i64 GetInMemoryByteSize() const override
     {
         return InflightStore_->GetTotalByteSize();
     }
 
-    i64 GetCount() const override
+    i64 GetInMemoryCount() const override
     {
         return InflightStore_->GetTotalCount();
     }
@@ -382,6 +473,7 @@ private:
     const NLogging::TLogger Logger;
     // Do not increase due to possible problems with transactions.
     const TMultiInflightTrackerPtr InflightStore_;
+    TDynamicTimerStoreContextPtr DynamicContext_;
     bool Draining_ = false;
 
     TWatermarkStatePtr WatermarkState_;
@@ -456,7 +548,12 @@ private:
 
 ITimerStorePtr CreateTimerStore(TTimerStoreContextPtr context, TDynamicTimerStoreContextPtr dynamicContext)
 {
-    return New<TTimerStore>(std::move(context), std::move(dynamicContext));
+    switch (context->Backend) {
+        case ETimerStoreBackend::InMemory:
+            return New<TTimerStore>(std::move(context), std::move(dynamicContext));
+        case ETimerStoreBackend::Paged:
+            return CreatePagedTimerStore(std::move(context), std::move(dynamicContext));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

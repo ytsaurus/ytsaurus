@@ -76,7 +76,7 @@ TYsonString CreateFeatureRegistryYson(
             .Item("primitive_types").List(GetPrimitiveTypes())
             .Item("compression_codecs").List(GetCompressionCodecs(configuredForbiddenCompressionCodecs))
             .Item("erasure_codecs").List(GetErasureCodecs())
-            .Item("query_memory_limit_in_tablet_nodes").Value(true)
+            .Item("force_zero_major_timestamp").Value(true)
             .Item("node_flavors").List(GetNodeFlavors())
         .EndMap();
 }

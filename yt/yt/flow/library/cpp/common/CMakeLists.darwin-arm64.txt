@@ -118,6 +118,7 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/stream_spec_storage.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/timestamp_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/timer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/timer_page.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/traverse.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/visit.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/yson_message.cpp

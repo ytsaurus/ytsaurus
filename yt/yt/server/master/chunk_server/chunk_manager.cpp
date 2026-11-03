@@ -732,11 +732,35 @@ public:
             this);
     }
 
+    std::unique_ptr<TMutation> CreateExecuteBatchMutation(
+        TCtxExecuteBatchPtr context,
+        TReqExecuteBatch* request) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            context,
+            *request,
+            &TChunkManager::HydraExecuteBatch,
+            this);
+    }
+
     std::unique_ptr<TMutation> CreateCreateChunkMutation(TCtxCreateChunkPtr context) override
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             std::move(context),
+            &TChunkManager::HydraCreateChunk,
+            this);
+    }
+
+    std::unique_ptr<TMutation> CreateCreateChunkMutation(
+        TCtxCreateChunkPtr context,
+        NChunkClient::NProto::TReqCreateChunk* request) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            context,
+            *request,
             &TChunkManager::HydraCreateChunk,
             this);
     }
@@ -5920,6 +5944,9 @@ private:
         ValidateReplicationFactor(replicationFactor);
 
         auto transactionId = FromProto<TTransactionId>(subrequest->transaction_id());
+
+        MaybeLogCypressTransactionInChunkServiceRequest(transactionId, *subrequest);
+
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
@@ -6041,6 +6068,8 @@ private:
         auto transactionId = FromProto<TTransactionId>(subrequest->transaction_id());
         int count = subrequest->count();
 
+        MaybeLogCypressTransactionInChunkServiceRequest(transactionId, *subrequest);
+
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
@@ -6097,6 +6126,8 @@ private:
         auto transactionId = subrequest->has_transaction_id()
             ? FromProto<TTransactionId>(subrequest->transaction_id())
             : NullTransactionId;
+
+        MaybeLogCypressTransactionInChunkServiceRequest(transactionId, *subrequest);
 
         if (parent->GetKind() == EChunkListKind::HunkStorageRoot ||
             parent->GetKind() == EChunkListKind::HunkTablet)
@@ -6200,6 +6231,28 @@ private:
             .With("ParentId", parentId)
             .With("ChildIds", MakeShrunkFormattableView(children, TObjectIdFormatter(), 500))
             .With("TransactionId", transactionId);
+    }
+
+    void MaybeLogCypressTransactionInChunkServiceRequest(
+        TTransactionId transactionId,
+        const ::google::protobuf::Message& subrequest)
+    {
+        constexpr static auto AllowedRoles =
+            EMasterCellRoles::CypressNodeHost |
+            EMasterCellRoles::SequoiaNodeHost |
+            EMasterCellRoles::TransactionCoordinator |
+            EMasterCellRoles::ExTransactionCoordinator;
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (Any(multicellManager->GetMasterCellRoles(Bootstrap_->GetCellTag()) & AllowedRoles)) {
+            return;
+        }
+
+        YT_TLOG_TRACE_IF(
+            transactionId && IsCypressTransactionType(TypeFromId(transactionId)) && CellTagFromId(transactionId) != Bootstrap_->GetCellTag(),
+            "Unexpected Cypress transaction in ChunkService request")
+            .With("TransactionId", transactionId)
+            .With("RequestType", subrequest.GetTypeName());
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const

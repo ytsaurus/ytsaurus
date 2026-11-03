@@ -61,6 +61,10 @@ target_sources(library-cpp-computation PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/job_state/state_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/stores/compact_output_store.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/stores/input_store.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/stores/paged_timer_store.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/stores/timer_page_catalogue.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/stores/timer_page_data.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/stores/timer_store_conversion.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/stores/timer_store.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/swift_map_computation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/swift_ordered_source_computation.cpp

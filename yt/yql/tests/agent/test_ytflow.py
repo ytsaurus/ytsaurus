@@ -93,8 +93,89 @@ def with_ytflow_default_settings(**new_values):
 
 
 class TestYtflowBase(TestQueueAgentBase):
+    REMOVE_OPERATIONS_ARCHIVE_ON_TEARDOWN = False
     CLASS_TEST_LIMIT = 1000
     ENABLE_MULTIDAEMON = True
+
+    # Make newly materialized operations eligible for scheduling promptly.
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 10,
+        },
+    }
+
+    # Avoid tablet commit timestamp batching and reuse nearby resource-limit checks.
+    DELTA_NODE_CONFIG = {
+        # Persist tablet journal records without the data-node batching delay.
+        "data_node": {
+            "multiplexed_changelog": {
+                "flush_period": 0,
+            },
+        },
+        # Request transaction timestamps without waiting for a batch to accumulate.
+        "cluster_connection": {
+            "timestamp_provider": {
+                "batch_period": 0,
+            },
+        },
+        "tablet_node": {
+            # Synchronize prerequisite leases without delaying the first write.
+            "hive_manager": {
+                "sync_delay": 0,
+            },
+            # Send journal batches promptly once data-node flush batching is disabled.
+            "changelogs": {
+                "writer": {
+                    "max_batch_delay": 0,
+                },
+            },
+            # Reuse account resource-limit checks across nearby tablet writes.
+            "security_manager": {
+                "resource_limits_cache": {
+                    "expire_after_successful_update_time": 1000,
+                    "refresh_time": 1000,
+                    "expiration_period": 1000,
+                },
+            },
+        },
+    }
+
+    # Flush master mutations and deliver leadership leases without batching delays.
+    DELTA_MASTER_CONFIG = {
+        "changelogs": {
+            "flush_period": 0,
+        },
+        "hive_manager": {
+            "post_batching_period": 0,
+        },
+    }
+
+    # Avoid timestamp batching waits when starting and locking cache transactions.
+    DELTA_RPC_PROXY_CONFIG = {
+        "api_service": {
+            "enable_large_columnar_statistics": True,
+        },
+        "cluster_connection": {
+            "timestamp_provider": {
+                "batch_period": 0,
+            },
+        },
+    }
+
+    # Avoid cross-proxy batching delays in the local single-proxy test environment.
+    DELTA_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = {
+        "cache": {
+            "batch_lookup": {
+                "startup_batch_delay": 0,
+            },
+        },
+    }
+
+    # Pick up submitted queries and refresh active-query ownership more frequently.
+    QUERY_TRACKER_DYNAMIC_CONFIG = {
+        "active_query_acquisition_period": 100,
+        "active_query_ping_period": 100,
+    }
 
     NUM_MASTERS = 1
     NUM_DISCOVERY_SERVERS = 1
@@ -126,8 +207,16 @@ class TestYtflowBase(TestQueueAgentBase):
     YTFLOW_WORKER_BIN = yatest.common.binary_path("yt/yql/tools/ytflow_worker/ytflow_worker")
 
     @classmethod
+    def get_operations_archive_prepared(cls):
+        return cls._operations_archive_prepared
+
+    @classmethod
+    def set_operations_archive_prepared(cls, value):
+        cls._operations_archive_prepared = value
+
+    @classmethod
     def setup_class(cls):
-        # Effectively disable mlock calls for test runs
+        # Effectively disable mlock calls for test runs.
         mlock_limits = resource.getrlimit(resource.RLIMIT_MEMLOCK)
         try:
             resource.setrlimit(resource.RLIMIT_MEMLOCK, (0, mlock_limits[1]))
@@ -135,13 +224,32 @@ class TestYtflowBase(TestQueueAgentBase):
         finally:
             resource.setrlimit(resource.RLIMIT_MEMLOCK, mlock_limits)
 
+        cls.set_operations_archive_prepared(False)
+
     def setup_method(self, method):
         super(TestYtflowBase, self).setup_method(method)
-        init_operations_archive.create_tables_latest_version(self.Env.create_client())
+
+        if not self.get_operations_archive_prepared():
+            client = self.Env.create_client()
+            init_operations_archive.create_tables_latest_version(client)
+
+            if not self.REMOVE_OPERATIONS_ARCHIVE_ON_TEARDOWN:
+                self.add_cleanup_ignore_object_ids(
+                    client.get("//sys/accounts/operations_archive/@id")
+                )
+
+            self.set_operations_archive_prepared(True)
+
+    def teardown_method(self, method):
+        super(TestYtflowBase, self).teardown_method(method)
+
+        if self.REMOVE_OPERATIONS_ARCHIVE_ON_TEARDOWN:
+            self.set_operations_archive_prepared(False)
 
     @classmethod
     def modify_yql_agent_config(cls, config):
         run_vanilla_operation = cls.debug_flow_output_directory is None
+        config.setdefault('dynamic_config_manager', {})['update_period'] = 100
 
         config['yql_agent']['ytflow_gateway_config'] = dict(
             ytflow_worker_bin=cls.YTFLOW_WORKER_BIN,
@@ -152,16 +260,21 @@ class TestYtflowBase(TestQueueAgentBase):
                 dict(name='_MasterLockPingPeriod', value='30s'),
                 # Controller timings (ms) patched into the controller job config.
                 dict(name='_ControllerConfig',
-                     value='{warm_up_time=1000;scheduler_period=500;publish_retry_period=1000;'
+                     value='{warm_up_time=0;scheduler_period=10;'
+                           'cache_period=100;feedback_period=10;'
+                           'publish_retry_period=1000;'
                            'publish_request_timeout=10000;'
-                           'controller_service={set_spec_retry_period=1000};}'),
+                           'election_manager={transaction_timeout=1000;transaction_ping_period=100;'
+                           'lock_acquisition_period=100;leader_cache_update_period=100;};'
+                           'controller_service={set_spec_retry_period=100};}'),
                 dict(name='_ControllerConnectorConfig',
                      value='{controller_heartbeat_period=10;controller_discover_period=100;'
                            'controller_wait_timeout=1000;controller_heartbeat_rpc_timeout=1000;'
                            'controller_handshake_rpc_timeout=1000;'
                            'controller_heartbeat_failure_backoff=100;controller_handshake_failure_backoff=100;}'),
                 # Balancer timings (ms) merged into the dynamic pipeline spec's job_manager.
-                dict(name='_JobManagerConfig', value='{rebalance_sync_period=500;}'),
+                dict(name='_JobManagerConfig', value='{rebalance_sync_period=100;}'),
+                dict(name='_UseCpuAwareBalancer', value='false'),
                 dict(name='_FiniteStreams', value=str(run_vanilla_operation)),
                 dict(name='_YtUseSourceWatermark', value='false'),
                 dict(name='EnableComputationPatternResources', value='false'),
@@ -1349,6 +1462,83 @@ class TestYtflowRemoteCluster(TestYtflowBase):
                 real_name=remote_env.id,
                 proxy_url=remote_env.get_http_proxy_address(),
             ))
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("consumer_cluster", ["primary", "remote_1"])
+    @pytest.mark.parametrize("shared_consumer", [False, True])
+    def test_source_consumer_hints(
+        self, query_tracker, yql_agent, run_query, consumer_cluster, shared_consumer
+    ):
+        schema = self._make_queue_schema([
+            {"name": "value", "type": "string"},
+        ])
+
+        rows = [
+            {"value": "foo"},
+            {"value": "bar"},
+        ]
+
+        statements = []
+        outputs = []
+        consumers = []
+
+        for index, queue_cluster in enumerate(["primary", "remote_0", "remote_1"]):
+            input_path = self._create_yt_table(dict(schema=schema), cluster=queue_cluster)
+            self._write_yt_table(input_path, rows, cluster=queue_cluster)
+
+            output_path = self._create_yt_table(dict(schema=schema))
+            outputs.append(output_path)
+
+            # The last source uses the pragma fallback alongside explicitly hinted sources.
+            if queue_cluster == "remote_1":
+                hint = ""
+                consumer_path = self.YT_CONSUMER_PATH
+                cluster = "primary"
+            else:
+                consumer_index = 0 if shared_consumer else index
+                consumer_path = f"//tmp/hinted_consumer_{consumer_index}"
+
+                cluster = consumer_cluster
+                rich_path = f'<cluster="{cluster}";>{consumer_path}'
+
+                hint = f" with consumer = '{rich_path}'"
+
+            consumers.append(
+                (queue_cluster, input_path, cluster, consumer_path)
+            )
+
+            statements.append(f"""
+insert into `{output_path}`
+select value from {queue_cluster}.`{input_path}`{hint};
+""")
+
+        run_query("\n".join(statements))
+
+        for output_path in outputs:
+            self._assert_yt_table_content(output_path, rows)
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("hint, error", [
+        ("with consumer = ''", "Consumer path must not be empty"),
+        ("", "Consumer cluster cannot be set via pragmas"),
+    ])
+    def test_invalid_source_consumer(self, query_tracker, yql_agent, run_query, hint, error):
+        schema = self._make_queue_schema([
+            {"name": "value", "type": "string"},
+        ])
+
+        input_path = self._create_yt_table(dict(schema=schema))
+        output_path = self._create_yt_table(dict(schema=schema))
+
+        with raises_yt_error(error):
+            run_query(f"""
+pragma Ytflow.YtConsumerPath = '<cluster="remote_1";>//tmp/invalid_pragma_consumer';
+
+insert into `{output_path}`
+select value from `{input_path}` {hint};
+""")
 
     @authors("ngc224")
     @pytest.mark.timeout(180)

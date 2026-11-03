@@ -15,7 +15,6 @@ from yt.yql.tests.sql.runners.common import (
     patch_cfg_file,
     read_sql_query,
     resolve_langver,
-    skip_if_non_trivial_gateway,
 )
 from yt.yql.tests.sql.runners.compare import compare_file_run_with_reference
 
@@ -45,8 +44,6 @@ def collect_test_classes(test_file):
 
 
 def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
-    skip_if_non_trivial_gateway(what)
-
     if get_param('SQL_FLAGS') and what == 'Plan':
         pytest.skip('SKIP')
 

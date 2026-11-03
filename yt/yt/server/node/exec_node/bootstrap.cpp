@@ -1,5 +1,7 @@
 #include "bootstrap.h"
 
+#include "job_environment.h"
+
 #include "artifact_cache.h"
 #include "controller_agent_connector.h"
 #include "exec_node_admin_service.h"
@@ -336,9 +338,9 @@ public:
         return ArtifactCache_;
     }
 
-    bool IsSimpleEnvironment() const override
+    TJobEnvironmentCapabilities GetJobEnvironmentCapabilities() const override
     {
-        return GetJobEnvironmentType() == EJobEnvironmentType::Simple;
+        return SlotManager_->GetJobEnvironmentCapabilities();
     }
 
     const IJobControllerPtr& GetJobController() const override

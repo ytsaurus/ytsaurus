@@ -111,6 +111,32 @@ PIPELINE_TABLES_PRESET = {
             },
         },
     },
+    "timer_pages": {
+        "$merge_presets": ["builtin:pipeline_sorted_table_preset"],
+        "clusters": {
+            "_all_data_clusters": {
+                "attributes": {
+                    "in_memory_mode": "none",
+                    "mount_config": {
+                        "enable_lookup_hash_table": False,
+                    },
+                },
+            },
+        },
+    },
+    "timer_page_meta": {
+        "$merge_presets": ["builtin:pipeline_sorted_table_preset"],
+        "clusters": {
+            "_all_data_clusters": {
+                "attributes": {
+                    "in_memory_mode": "none",
+                    "mount_config": {
+                        "enable_lookup_hash_table": False,
+                    },
+                },
+            },
+        },
+    },
     "input_messages": {
         "$merge_presets": ["builtin:pipeline_sorted_table_preset"],
         "clusters": {
@@ -348,6 +374,10 @@ PIPELINE_TABLES_PRESET = {
 }
 
 PIPELINE_QUEUES_PRESET = {
+    "timer_page_journal": {
+        "$merge_presets": ["builtin:pipeline_ordered_table_preset"],
+        "clusters": {},
+    },
     "controller_logs": {
         "$merge_presets": ["builtin:pipeline_ordered_table_preset"],
         "clusters": {},

@@ -100,5 +100,13 @@ Settings for the distribution order of output messages. Controls whether a race 
 Use the `compact_input_messages` table for [input message deduplication](../concepts/guarantees.md) instead of `input_messages`. The compact deduplication key stores only the hash of `key[0]` and `CityHash128(message_id)`, which reduces the row size (~200 bytes → ~71 bytes).
 
 An optional parameter. If not set, the table is chosen automatically: the compact table is always used except when `experimental_enable_non_uint_key` is enabled (in that case, the first key column may not be `uint64`, and deduplication requires the full key). An explicitly set value takes priority over automatic selection. Enabling `use_compact_input_messages` together with `experimental_enable_non_uint_key` is prohibited. ||
+|| `timer_store_backend` | **Type**: [NYT::NFlow::ETimerStoreBackend](./all_yson_structs#NYT_NFlow_ETimerStoreBackend)
+**Default value**: `in_memory`
+Timer store of this `Computation`: `in_memory` (all timers of a partition are resident in worker memory and persisted in the `timers` table) or `paged` (timers live in pages of a dynamic table, only the pages needed for firing are resident).
+
+Static: a change means a stop and a conversion of the timers at the next start. The `paged` store does not support a `watermark_percentile` below 100 on a `Computation` with timer streams yet. The `paged` backend must be enabled on the controller with `enable_paged_timer_store`. ||
+|| `timer_page_size` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
+**Default value**: `4Ki`
+Timer page size (number of timers) for the `paged` store. At least 16. Pages are split and merged gradually under the maintenance budget. Timer rows stay in their family. ||
 |#
 

@@ -363,6 +363,7 @@ class YTEnvSetup(object):
     NUM_CHAOS_CACHES = 0
     NUM_SCHEDULERS = 0
     DEFER_SCHEDULER_START = False
+    REMOVE_OPERATIONS_ARCHIVE_ON_TEARDOWN = True
     NUM_CONTROLLER_AGENTS = None
     DEFER_CONTROLLER_AGENT_START = False
     ENABLE_HTTP_PROXY = False
@@ -1883,7 +1884,6 @@ class YTEnvSetup(object):
 
         self._restore_globals(
             cluster_index=cluster_index,
-            scheduler_count=scheduler_count,
             scheduler_pool_trees_root=scheduler_pool_trees_root,
             driver=driver,
         )
@@ -1973,6 +1973,7 @@ class YTEnvSetup(object):
                 orchids.append("//sys/controller_agents/instances/{}/orchid/controller_agent".format(instance))
             orchids.append("//sys/scheduler/orchid/scheduler")
             _wait_for_configs(orchids)
+            self._wait_for_scheduler_state_restored(driver=driver)
 
         if not self.get_param("ENABLE_SYS_OPERATIONS_ROOTSTOCK", cluster_index) and \
                 self.get_param("USE_SEQUOIA", cluster_index) and \
@@ -2450,7 +2451,6 @@ class YTEnvSetup(object):
 
     def _restore_globals(self,
                          cluster_index,
-                         scheduler_count,
                          scheduler_pool_trees_root,
                          driver=None):
         dynamic_master_config = self._apply_master_dynamic_config_patches(get_dynamic_master_config(), cluster_index)
@@ -2536,9 +2536,6 @@ class YTEnvSetup(object):
 
         if should_set_default_config:
             yt_commands.set(scheduler_pool_trees_root + "/default/@config", default_pool_tree_config, driver=driver)
-
-        if scheduler_count > 0:
-            self._wait_for_scheduler_state_restored(driver=driver)
 
     @classmethod
     def _apply_cypress_proxy_dynamic_config_patches(cls, config, cluster_index):
@@ -2823,6 +2820,7 @@ class YTEnvSetup(object):
                 yt_commands.make_batch_request(abort_command, operation_id=operation_id)),
             remove_action=lambda *args, **kwargs: remove_requests.append(
                 yt_commands.make_batch_request("remove", *args, **kwargs)),
+            remove_operations_archive=self.REMOVE_OPERATIONS_ARCHIVE_ON_TEARDOWN,
         )
 
         for response in yt_commands.execute_batch(abort_requests, driver=driver):

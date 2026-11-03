@@ -97,6 +97,8 @@ void TControllerServiceConfig::Register(TRegistrar registrar)
         .Default(3);
     registrar.Parameter("set_spec_retry_period", &TThis::SetSpecRetryPeriod)
         .Default(TDuration::Seconds(5));
+    registrar.Parameter("enable_paged_timer_store", &TThis::EnablePagedTimerStore)
+        .Default(false);
     registrar.Parameter("tables_throttler", &TThis::TablesThrottler)
         .DefaultNew();
 }

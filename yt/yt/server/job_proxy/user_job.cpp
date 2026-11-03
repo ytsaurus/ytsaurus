@@ -1441,6 +1441,12 @@ private:
         SetEnvironmentVariable("YT_JOB_PROXY_GRPC_SOCKET_PATH", ToString(Host_->GetJobProxyGrpcUnixDomainSocketPath()));
         SetEnvironmentVariable("YT_JOB_PROXY_HTTP_SOCKET_PATH", ToString(Host_->GetJobProxyHttpUnixDomainSocketPath()));
 
+        // Image environment values are applied verbatim, without $(...)-pattern
+        // substitution, so that values like "$(...)" survive as literals.
+        for (const auto& pair : UserJobSpec_.docker_image_environment()) {
+            SetEnvironmentVariable(pair);
+        }
+
         for (const auto& pair : UserJobSpec_.environment()) {
             SetEnvironmentVariable(formatter.Format(pair));
         }

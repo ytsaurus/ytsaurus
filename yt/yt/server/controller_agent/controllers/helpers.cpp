@@ -361,7 +361,7 @@ std::string TDockerImageSpec::GetDockerImage() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TRichYPath> GetLayerPathsFromDockerImage(
+TDockerImageHint GetDockerImageHint(
     const NApi::NNative::IClientPtr& client,
     const TDockerImageSpec& dockerImage)
 {
@@ -391,9 +391,17 @@ std::vector<TRichYPath> GetLayerPathsFromDockerImage(
                 rspTags->AsMap()->GetKeys());
         }
 
-        auto layerPaths = ConvertTo<std::vector<TRichYPath>>(rspTag);
-        std::reverse(layerPaths.begin(), layerPaths.end());
-        return layerPaths;
+        TDockerImageHint result;
+
+        // Entries written by older registry versions carry no attributes.
+        const auto& entryAttributes = rspTag->Attributes();
+        if (auto env = entryAttributes.FindYson("env")) {
+            result.Config.Env = ConvertTo<std::vector<std::string>>(env);
+        }
+
+        result.Layers = ConvertTo<std::vector<TRichYPath>>(rspTag);
+        std::reverse(result.Layers.begin(), result.Layers.end());
+        return result;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(
             "Failed to load docker image %v:%v",
@@ -402,6 +410,8 @@ std::vector<TRichYPath> GetLayerPathsFromDockerImage(
             .With(ex);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void GenerateDockerAuthFromToken(
     const NYTree::IMapNodePtr& secureVault,

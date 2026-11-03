@@ -9,6 +9,7 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
+#include <yt/yt/ytlib/controller_agent/helpers.h>
 #include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
@@ -503,7 +504,7 @@ PHOENIX_DEFINE_TEMPLATE_TYPE(TAvgSummary, int);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void EnrichLayers(
+void EnrichFromDockerImage(
     const TControllerAgentConfigPtr& config,
     const TOperationSpecBasePtr& operationSpec,
     const IOperationControllerHostPtr& host,
@@ -520,7 +521,7 @@ void EnrichLayers(
         return layers;
     };
 
-    auto enrichRootVolumeLayers = [&] (TVolumePtr& rootVolume, bool isSidecar) {
+    auto enrichFromDockerImage = [&] (TVolumePtr& rootVolume, bool isSidecar) {
         if (!isSidecar && spec->DockerImage) {
             NYT::NControllerAgent::NControllers::TDockerImageSpec dockerImage(*spec->DockerImage, config->DockerRegistry);
 
@@ -529,9 +530,32 @@ void EnrichLayers(
                 return rootVolume->Layers.clear();
             }
 
-            // Resolve internal docker image into base layers.
-            auto layersFromDocker = makeLayersFromRichYPaths(GetLayerPathsFromDockerImage(host->GetClient(), dockerImage));
+            auto dockerImageContent = GetDockerImageHint(host->GetClient(), dockerImage);
+            auto layersFromDocker = makeLayersFromRichYPaths(dockerImageContent.Layers);
             rootVolume->Layers.insert(rootVolume->Layers.end(), layersFromDocker.begin(), layersFromDocker.end());
+
+            const auto& dockerConfig = dockerImageContent.Config;
+            // The last entry wins for duplicate keys, as in docker.
+            for (auto it = dockerConfig.Env.rbegin(); it != dockerConfig.Env.rend(); ++it) {
+                const auto& env = *it;
+                if (auto delimiterPos = env.find('='); delimiterPos != std::string::npos) {
+                    auto key = env.substr(0, delimiterPos);
+                    try {
+                        ValidateEnvironmentVariableName(key);
+                    } catch (const std::exception& ex) {
+                        THROW_ERROR_EXCEPTION("Docker image %Qv sets an invalid environment variable %Qv", dockerImage.GetDockerImage(), key)
+                            .With(ex);
+                    }
+                    // The image env is carried in its own channel so that the job proxy
+                    // applies it verbatim, without $(...)-pattern substitution, as docker does.
+                    // The image must not override the cluster-wide environment (e.g. HOME and TMPDIR pointing to the sandbox).
+                    if (!config->Environment.contains(key)) {
+                        spec->DockerImageEnvironment.emplace(std::move(key), env.substr(delimiterPos + 1));
+                    }
+                } else {
+                    THROW_ERROR_EXCEPTION("Docker image %Qv sets a malformed environment variable %Qv", dockerImage.GetDockerImage(), env);
+                }
+            }
         }
         if (rootVolume->Layers.empty() && operationSpec->DefaultBaseLayerPath) {
             auto newLayer = New<TLayer>();
@@ -599,7 +623,7 @@ void EnrichLayers(
     auto jobRootVolumeId = getRootVolumeId(spec->JobVolumeMounts);
     YT_VERIFY(jobRootVolumeId);
     auto& jobRootVolume = GetOrCrash(spec->Volumes, *jobRootVolumeId);
-    enrichRootVolumeLayers(jobRootVolume, /*isSidecar*/ false);
+    enrichFromDockerImage(jobRootVolume, /*isSidecar*/ false);
     volumesWasEnriched.insert(*jobRootVolumeId);
 
     for (auto& [_, sidecar] : spec->Sidecars) {
@@ -612,7 +636,7 @@ void EnrichLayers(
         }
 
         auto& sidecarRootVolume = GetOrCrash(spec->Volumes, *sidecarRootVolumeId);
-        enrichRootVolumeLayers(sidecarRootVolume, /*isSidecar*/ true);
+        enrichFromDockerImage(sidecarRootVolume, /*isSidecar*/ true);
         volumesWasEnriched.insert(*sidecarRootVolumeId);
     }
 }
@@ -1038,8 +1062,14 @@ void ValidateAndEnrichVolumeSpec(
     TNonNullPtr<NScheduler::TUserJobSpec> providedSpec)
 {
     ValidateProvidedVolumeMountsSpec(providedSpec);
+    // DockerImageEnvironment is derived from the docker image config during enrichment;
+    // user-supplied entries would bypass environment name validation and, once
+    // present, survive the emplace below and override the image values.
+    if (!providedSpec->DockerImageEnvironment.empty()) {
+        THROW_ERROR_EXCEPTION("Option \"docker_image_environment\" is not allowed in the spec: it is derived from the docker image config");
+    }
     ValidateAndEnrichVolumeSpec(spec);
-    EnrichLayers(config, operationSpec, host, spec);
+    EnrichFromDockerImage(config, operationSpec, host, spec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

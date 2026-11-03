@@ -12,6 +12,7 @@ SRCS(
     key_visitor_states.cpp
     partition_states.cpp
     state.cpp
+    timer_pages.cpp
     timers.cpp
     transaction_manager.cpp
 )

@@ -311,7 +311,7 @@ TEST_W(TTestTimerStore, BasicTimers)
     dynamicContext->DynamicTimerStoreSpec = New<TDynamicTimerStoreSpec>();
     const auto timerStore = CreateTimerStore(timerContext, dynamicContext);
     WaitFor(timerStore->Init()).ThrowOnError();
-    EXPECT_EQ(timerStore->GetCount(), 0);
+    EXPECT_TRUE(timerStore->IsEmpty());
 
     {
         timerStore->Register({timer});
@@ -392,7 +392,7 @@ TEST_W(TTestTimerStore, DeduplicateTimers)
     dynamicContext->DynamicTimerStoreSpec = New<TDynamicTimerStoreSpec>();
     const auto timerStore = CreateTimerStore(timerContext, dynamicContext);
     WaitFor(timerStore->Init()).ThrowOnError();
-    EXPECT_EQ(timerStore->GetCount(), 0);
+    EXPECT_TRUE(timerStore->IsEmpty());
 
     {
         timerStore->Register({firstTimer});
@@ -519,7 +519,7 @@ TEST_W(TTestTimerStore, NoDeduplicationTimers)
     dynamicContext->DynamicTimerStoreSpec = New<TDynamicTimerStoreSpec>();
     const auto timerStore = CreateTimerStore(timerContext, dynamicContext);
     WaitFor(timerStore->Init()).ThrowOnError();
-    EXPECT_EQ(timerStore->GetCount(), 0);
+    EXPECT_TRUE(timerStore->IsEmpty());
 
     {
         timerStore->Register({secondTimer, firstTimer});

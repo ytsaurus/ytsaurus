@@ -882,6 +882,125 @@ TEST(TSpecTest, UnusedOutputStream)
     ValidatePipelineSpec(spec);
 }
 
+TEST(TSpecTest, TimerStoreSettingsOfComputation)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                defaults = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                };
+                explicit = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    timer_store_backend = "paged";
+                    timer_page_size = 256;
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    ValidatePipelineSpec(spec);
+
+    const auto& defaults = GetOrCrash(spec->Computations, "defaults");
+    EXPECT_EQ(defaults->TimerStoreBackend, ETimerStoreBackend::InMemory);
+    EXPECT_EQ(static_cast<i64>(defaults->TimerPageSize), TComputationSpec::DefaultTimerPageSize);
+    const auto& overridden = GetOrCrash(spec->Computations, "explicit");
+    EXPECT_EQ(overridden->TimerStoreBackend, ETimerStoreBackend::Paged);
+    EXPECT_EQ(static_cast<i64>(overridden->TimerPageSize), 256);
+
+    // The pipeline spec has no timer store settings of its own, so nothing is lost on a round trip.
+    auto roundTripped = ConvertTo<TPipelineSpecPtr>(ConvertToNode(spec));
+    EXPECT_EQ(GetOrCrash(roundTripped->Computations, "defaults")->TimerStoreBackend, ETimerStoreBackend::InMemory);
+    EXPECT_EQ(GetOrCrash(roundTripped->Computations, "explicit")->TimerStoreBackend, ETimerStoreBackend::Paged);
+}
+
+TEST(TSpecTest, PagedTimerStoreRejectsPercentile)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    timer_store_backend = "paged";
+                    timer_streams = {
+                        timer = {};
+                    };
+                    watermark_strategy = {
+                        watermark_percentile = {
+                            value = 90;
+                        };
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "does not support \"watermark_percentile\"");
+
+    // Without timer streams the percentile concerns input streams only and is allowed.
+    TStringBuf noTimersYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    timer_store_backend = "paged";
+                    watermark_strategy = {
+                        watermark_percentile = {
+                            value = 90;
+                        };
+                    };
+                };
+            };
+        }
+    )"""");
+    ValidatePipelineSpec(ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(noTimersYson)));
+}
+
+TEST(TSpecTest, TimerPageSizeTooSmall)
+{
+    TStringBuf specYson(R""""(
+        {
+            computation_class_name = "NYT::NFlow::TNullComputation";
+            group_by_schema = [];
+            timer_page_size = 1;
+        }
+    )"""");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ConvertTo<TComputationSpecPtr>(TYsonStringBuf(specYson)); },
+        "timer_page_size");
+}
+
+TEST(TSpecTest, ProcessFunctionGraphTimerPageSize)
+{
+    auto parseSpec = [] (int pageSize) {
+        return ConvertTo<TComputationSpecPtr>(TYsonStringBuf(Format(R""""(
+            {
+                computation_class_name = "NYT::NFlow::TProcessFunctionComputation";
+                group_by_schema = [{name = key; type = uint64;}];
+                input_stream_ids = [input];
+                timer_page_size = %v;
+                process_function_graph = {
+                    nodes = {
+                        consume = {
+                            processing_function = "test_function";
+                            input_stream_ids = [input];
+                        };
+                    };
+                };
+            }
+        )"""",
+            pageSize)));
+    };
+    EXPECT_THROW_WITH_SUBSTRING(parseSpec(15), "timer_page_size");
+    EXPECT_EQ(static_cast<i64>(parseSpec(16)->TimerPageSize), 16);
+}
+
 TEST(TSpecTest, CycleFound)
 {
     TStringBuf specYson(R""""(
@@ -3374,6 +3493,17 @@ TEST(TExternalStateManagerSpecTest, AutoPreloadParsesFalse)
     auto spec = ConvertTo<TExternalStateManagerSpecPtr>(TYsonStringBuf(
         R"({class_name = "NYT::NFlow::TSimpleExternalStateManager"; auto_preload = %false; parameters = {}})"));
     EXPECT_FALSE(spec->AutoPreload);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TDynamicTimerStoreSpecTest, WriteMultiplier)
+{
+    EXPECT_EQ(ConvertTo<TDynamicTimerStoreSpecPtr>(TYsonStringBuf("{}"))->TimerWriteMultiplier, 2.0);
+    EXPECT_EQ(ConvertTo<TDynamicTimerStoreSpecPtr>(TYsonStringBuf("{timer_write_multiplier=1;}"))->TimerWriteMultiplier, 1.0);
+    for (auto value : {"0.9", "-1", "%nan", "%inf", "%-inf"}) {
+        EXPECT_THROW(ConvertTo<TDynamicTimerStoreSpecPtr>(TYsonStringBuf(Format("{timer_write_multiplier=%v;}", value))), std::exception);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

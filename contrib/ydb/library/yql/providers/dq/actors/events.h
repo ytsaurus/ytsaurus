@@ -1,7 +1,6 @@
 #pragma once
 
 #include <contrib/ydb/library/yql/providers/dq/api/protos/dqs.pb.h>
-#include <contrib/ydb/library/yql/providers/dq/task_runner/tasks_runner_proxy.h>
 
 #include <contrib/ydb/library/yql/dq/common/dq_common.h>
 #include <contrib/ydb/library/yql/dq/proto/dq_tasks.pb.h>

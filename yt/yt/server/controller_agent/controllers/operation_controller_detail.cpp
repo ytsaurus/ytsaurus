@@ -1879,6 +1879,10 @@ TFuture<NNative::ITransactionPtr> TOperationControllerBase::StartTransaction(
     };
 
     auto replicateToCellTags = [&] () -> TCellTagList {
+        if (GetConfig()->UseLazyTransactionExternalization) {
+            return {};
+        }
+
         switch (type) {
             // NB: These transactions are started when no basic attributes have been
             // fetched yet and collecting cell tags is therefore useless.
@@ -1987,7 +1991,8 @@ void TOperationControllerBase::InitChunkListPools()
             OutputClient_,
             CancelableInvokerPool_,
             OperationId_,
-            OutputTransaction_->GetId());
+            OutputTransaction_->GetId(),
+            GetConfig()->UseLazyTransactionExternalization);
 
         CellTagToRequiredOutputChunkListCount_.clear();
         for (const auto& table : OutputTables_) {
@@ -2004,6 +2009,7 @@ void TOperationControllerBase::InitChunkListPools()
                         CancelableInvokerPool_,
                         OperationId_,
                         OutputTransaction_->GetId(),
+                        GetConfig()->UseLazyTransactionExternalization,
                         EChunkListKind::Hunk);
 
                     CellTagToRequiredOutputHunkChunkListCount_.clear();
@@ -2024,7 +2030,8 @@ void TOperationControllerBase::InitChunkListPools()
             OutputClient_,
             CancelableInvokerPool_,
             OperationId_,
-            DebugTransaction_->GetId());
+            DebugTransaction_->GetId(),
+            GetConfig()->UseLazyTransactionExternalization);
     }
 
     CellTagToRequiredDebugChunkListCount_.clear();
@@ -2788,12 +2795,20 @@ void TOperationControllerBase::TeleportOutputChunks()
         OutputClient_,
         GetCancelableInvoker(),
         OutputCompletionTransaction_->GetId(),
-        Logger);
+        Logger,
+        /*useLazyTransactionExternalizationOverride*/ Config_->UseLazyTransactionExternalization);
 
+    auto transactionId = OutputCompletionTransaction_->GetId();
     for (auto& table : OutputTables_) {
         for (const auto& [key, chunkTreeId] : table->OutputChunkTreeIds) {
             if (IsPhysicalChunkType(TypeFromId(chunkTreeId))) {
-                teleporter->RegisterChunk(chunkTreeId, table->ExternalCellTag);
+                teleporter->RegisterChunk(
+                    chunkTreeId,
+                    table->ExternalCellTag,
+                    CellTagFromId(transactionId) == CellTagFromId(chunkTreeId)
+                        ? transactionId
+                        : MakeExternalizedTransactionId(transactionId, CellTagFromId(transactionId)),
+                    table->ExternalTransactionId);
             }
         }
     }
@@ -10751,6 +10766,12 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             jobSpec->add_environment(Format("%v=%v", key, value));
         }
     };
+
+    // Image environment is passed through a separate channel: the job proxy
+    // applies it verbatim, without $(...)-pattern substitution.
+    for (const auto& [key, value] : jobSpecConfig->DockerImageEnvironment) {
+        jobSpec->add_docker_image_environment(Format("%v=%v", key, value));
+    }
 
     // Global environment.
     fillEnvironment(Config_->Environment);

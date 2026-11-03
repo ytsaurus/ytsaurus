@@ -543,6 +543,12 @@ class CacheLocationOverflowBase(YTEnvSetup):
     _BACKEND = None
     _EXPECTED_ERROR = None
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_allocation_abort_on_zero_user_slots": False,
+        },
+    }
+
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
@@ -680,6 +686,12 @@ class TestSlotLocationOverflow(YTEnvSetup):
 
     _TMPFS_SIZE = 1024 * 1024 * 1024
     _INODE_LIMIT = 1024
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_allocation_abort_on_zero_user_slots": False,
+        },
+    }
 
     @classmethod
     def setup_class(cls):
