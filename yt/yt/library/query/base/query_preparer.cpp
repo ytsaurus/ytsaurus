@@ -1776,6 +1776,10 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
 
     if (fragment->SubqueryFragment) {
         EliminateRedundantProjections(fragment->SubqueryFragment->Query, *readSchema);
+    } else if (fragment->UnionAllQuery) {
+        for (const auto& subqueryFragment : fragment->UnionAllQuery->SubqueryFragments) {
+            EliminateRedundantProjections(subqueryFragment->Query, *readSchema);
+        }
     }
 
     auto queryFingerprint = InferName(query, {.OmitValues = true});
