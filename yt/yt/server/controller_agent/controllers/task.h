@@ -346,7 +346,8 @@ protected:
         NControllerAgent::NProto::TTableInputSpec* inputSpec,
         NChunkPools::TChunkStripePtr stripe,
         TNonNullPtr<THashSet<NChunkClient::TChunkId>> seenHunkChunks,
-        NTableClient::TComparator comparator = NTableClient::TComparator());
+        NTableClient::TComparator comparator,
+        NControllerAgent::NProto::TJobSpecExt* jobSpecExt);
 
     void AddOutputTableSpecs(NControllerAgent::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
 
