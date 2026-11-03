@@ -94,6 +94,7 @@ def with_ytflow_default_settings(**new_values):
 
 class TestYtflowBase(TestQueueAgentBase):
     REMOVE_OPERATIONS_ARCHIVE_ON_TEARDOWN = False
+    PREPARE_QUEUE_AGENT_STATE_ONCE = True
     CLASS_TEST_LIMIT = 1000
     ENABLE_MULTIDAEMON = True
 
