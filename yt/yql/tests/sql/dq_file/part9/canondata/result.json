@@ -379,9 +379,9 @@
     ],
     "test.TestDqFile_join-prune_keys_yt_opt-.test[Plan]": [
         {
-            "checksum": "3ed11f3470f91b7d6c496e0eaa817baa",
-            "size": 32625,
-            "uri": "https://{canondata_backend}/1781765/4a75ddc9f037a74877e1bb0159edb9c6b5389d03/resource.tar.gz#test.test_join-prune_keys_yt_opt--Plan_/plan.txt"
+            "checksum": "484c5fd3523fe60ec9d6da3be7d9f8f3",
+            "size": 30099,
+            "uri": "https://{canondata_backend}/1784117/96bebde5adc7b350abdccc4b6326592e71433ee2/resource.tar.gz#test.test_join-prune_keys_yt_opt--Plan_/plan.txt"
         }
     ],
     "test.TestDqFile_join-pullup_extend-.test[Plan]": [

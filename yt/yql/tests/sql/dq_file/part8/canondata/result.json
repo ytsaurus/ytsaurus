@@ -246,9 +246,9 @@
     ],
     "test.TestDqFile_join-prune_keys_not_for_join_leaves-.test[Plan]": [
         {
-            "checksum": "b4f7753d5501347aeb36296ac4248fb4",
-            "size": 12489,
-            "uri": "https://{canondata_backend}/1781765/8477be1eb117ece848c04fa203acc79810ef3db8/resource.tar.gz#test.test_join-prune_keys_not_for_join_leaves--Plan_/plan.txt"
+            "checksum": "32281785a88552ca6bffc79391a7d498",
+            "size": 11230,
+            "uri": "https://{canondata_backend}/1600758/7b44774b034f53437e70ff61d76f289188711404/resource.tar.gz#test.TestDqFile_join-prune_keys_not_for_join_leaves-.test_Plan_/plan.txt"
         }
     ],
     "test.TestDqFile_join-pullup_inner-.test[Plan]": [

@@ -428,9 +428,9 @@
     ],
     "test.TestDqFile_join-push_any_over_equijoin_multilevel-.test[Plan]": [
         {
-            "checksum": "841992084f88e77ec8ea07389f3bb790",
-            "size": 18140,
-            "uri": "https://{canondata_backend}/212715/9a912128ffaa691923debaaf97ac36566b7b257b/resource.tar.gz#test.test_join-push_any_over_equijoin_multilevel--Plan_/plan.txt"
+            "checksum": "3f1cb73cba34f737fd485c42caafeecd",
+            "size": 15622,
+            "uri": "https://{canondata_backend}/1597364/fdb407713e8f9db3ac34613970da1dbfc891a830/resource.tar.gz#test.TestDqFile_join-push_any_over_equijoin_multilevel-.test_Plan_/plan.txt"
         }
     ],
     "test.TestDqFile_join-pushdown_filter_over_inner_with_assume_strict-.test[Plan]": [

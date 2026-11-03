@@ -309,9 +309,9 @@
     ],
     "test.TestDqFile_join-push_any_over_equijoin_key_shapes-.test[Plan]": [
         {
-            "checksum": "d75576619703643af0e2478847f62628",
-            "size": 21054,
-            "uri": "https://{canondata_backend}/1781765/6239f41269ea25b1a6c653819738ddd35e65126b/resource.tar.gz#test.test_join-push_any_over_equijoin_key_shapes--Plan_/plan.txt"
+            "checksum": "136144856eaa87ca88fa46d4bee28ca5",
+            "size": 17279,
+            "uri": "https://{canondata_backend}/1599023/3d9064bb362c7565d425d317fdd3e49a50c9c3b5/resource.tar.gz#test.TestDqFile_join-push_any_over_equijoin_key_shapes-.test_Plan_/plan.txt"
         }
     ],
     "test.TestDqFile_join-split_to_list_as_key-off.test[Plan]": [
