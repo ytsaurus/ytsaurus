@@ -38,6 +38,7 @@
 #include <yt/yt/client/api/dynamic_table_transaction_mixin.h>
 #include <yt/yt/client/api/queue_transaction_mixin.h>
 
+#include <yt/yt/client/chaos_client/chaos_lease.h>
 #include <yt/yt/client/chaos_client/replication_card_cache.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -720,6 +721,12 @@ private:
 
     class TTableCommitSession;
     using TTableCommitSessionPtr = TIntrusivePtr<TTableCommitSession>;
+
+    struct TPrerequisites
+    {
+        std::vector<TTransactionId> PrerequisiteIds;
+        std::vector<TChaosLeasePtr> ChaosLeases;
+    };
 
     class TTabletCommitSession;
     using TTabletCommitSessionPtr = TIntrusivePtr<TTabletCommitSession>;
@@ -2310,22 +2317,81 @@ private:
             Counters_);
     }
 
-    void BuildAdjustedCommitOptions(const TTransactionCommitOptions& options)
+    std::vector<TTransactionId> GetPrerequisiteIds(const TTransactionCommitOptions& options) const
     {
-        CommitOptions_ = options;
-
         // NB: Include prerequisite ids which have been set during start_transaction call.
         std::vector<TTransactionId> prerequisiteIds;
         prerequisiteIds.reserve(
             Transaction_->GetPrerequisiteTransactionIds().size() +
-            CommitOptions_.PrerequisiteTransactionIds.size());
+            options.PrerequisiteTransactionIds.size());
         prerequisiteIds.insert(prerequisiteIds.end(),
             Transaction_->GetPrerequisiteTransactionIds().begin(),
             Transaction_->GetPrerequisiteTransactionIds().end());
         prerequisiteIds.insert(prerequisiteIds.end(),
-            CommitOptions_.PrerequisiteTransactionIds.begin(),
-            CommitOptions_.PrerequisiteTransactionIds.end());
+            options.PrerequisiteTransactionIds.begin(),
+            options.PrerequisiteTransactionIds.end());
         SortUnique(prerequisiteIds);
+
+        return prerequisiteIds;
+    }
+
+    bool IsChaosTableCommitSession(
+        const TTableCommitSessionPtr& session,
+        const TTransactionCommitOptions& options) const
+    {
+        return session->GetInfo()->ReplicationCardId &&
+            session->GetReplicationCard()->Era > InitialReplicationEra &&
+            !options.CoordinatorCellId;
+    }
+
+    TFuture<TPrerequisites> FetchPrerequisites(
+        const TTransactionCommitOptions& options,
+        bool enableChaosLeaseTransactionParticipants)
+    {
+        TPrerequisites prerequisites{
+            .PrerequisiteIds = GetPrerequisiteIds(options),
+        };
+
+        if (!enableChaosLeaseTransactionParticipants || prerequisites.PrerequisiteIds.empty()) {
+            return MakeFuture(std::move(prerequisites));
+        }
+
+        std::optional<TYPath> chaosTablePath;
+        for (const auto& [path, session] : TablePathToSession_) {
+            if (IsChaosTableCommitSession(session, options)) {
+                chaosTablePath = path;
+                break;
+            }
+        }
+
+        if (!chaosTablePath) {
+            return MakeFuture(std::move(prerequisites));
+        }
+
+        std::vector<TFuture<TChaosLeasePtr>> futures;
+        futures.reserve(prerequisites.PrerequisiteIds.size());
+        for (auto prerequisiteId : prerequisites.PrerequisiteIds) {
+            try {
+                ValidateChaosLeaseType(prerequisiteId, *chaosTablePath);
+            } catch (const std::exception& ex) {
+                return MakeFuture<TPrerequisites>(TError(ex));
+            }
+            futures.push_back(Client_->GetChaosLease(prerequisiteId));
+        }
+        return AllSucceeded(std::move(futures))
+            .AsUnique()
+            .Apply(BIND([prerequisites = std::move(prerequisites)] (std::vector<TChaosLeasePtr>&& chaosLeases) mutable {
+                prerequisites.ChaosLeases = std::move(chaosLeases);
+                return std::move(prerequisites);
+            }));
+    }
+
+    void BuildAdjustedCommitOptions(
+        const TTransactionCommitOptions& options,
+        TPrerequisites prerequisites,
+        bool enableChaosLeaseTransactionParticipants)
+    {
+        CommitOptions_ = options;
 
         THashSet<NObjectClient::TCellId> selectedCellIds;
         THashSet<NChaosClient::TReplicationCardId> requestedReplicationCardIds;
@@ -2340,10 +2406,7 @@ private:
 
             const auto& replicationCard = session->GetReplicationCard();
             auto replicationCardId = session->GetInfo()->ReplicationCardId;
-            if (replicationCardId &&
-                replicationCard->Era > InitialReplicationEra &&
-                !options.CoordinatorCellId)
-            {
+            if (IsChaosTableCommitSession(session, options)) {
                 affectsChaosTables = true;
                 if (!requestedReplicationCardIds.insert(replicationCardId).second) {
                     YT_TLOG_DEBUG("Coordinator for replication card already selected, skipping")
@@ -2392,11 +2455,14 @@ private:
                 }
 
                 NChaosClient::NProto::TReqReplicatedCommit request;
-                ToProto(request.mutable_replication_card_id(), replicationCardId);
-                request.set_replication_era(session->GetReplicationCard()->Era);
-                if (isNewCoordinator && !prerequisiteIds.empty()) {
-                    request.mutable_prerequisite_ids()->Reserve(prerequisiteIds.size());
-                    for (const auto& prerequisiteId : prerequisiteIds) {
+                ToProto(request.mutable_chaos_object_id(), replicationCardId);
+                request.set_chaos_object_era(session->GetReplicationCard()->Era);
+                if (!enableChaosLeaseTransactionParticipants &&
+                    isNewCoordinator &&
+                    !prerequisites.PrerequisiteIds.empty())
+                {
+                    request.mutable_prerequisite_ids()->Reserve(prerequisites.PrerequisiteIds.size());
+                    for (const auto& prerequisiteId : prerequisites.PrerequisiteIds) {
                         ValidateChaosLeaseType(prerequisiteId, path);
                         ToProto(request.add_prerequisite_ids(), prerequisiteId);
                     }
@@ -2420,11 +2486,53 @@ private:
         }
 
         if (affectsChaosTables) {
+            if (enableChaosLeaseTransactionParticipants) {
+                YT_VERIFY(prerequisites.ChaosLeases.size() == prerequisites.PrerequisiteIds.size());
+                for (int index = 0; index < std::ssize(prerequisites.PrerequisiteIds); ++index) {
+                    auto chaosLeaseId = prerequisites.PrerequisiteIds[index];
+                    const auto& coordinatorCellIds = prerequisites.ChaosLeases[index]->CoordinatorCellIds;
+
+                    YT_TLOG_DEBUG("Considering chaos lease")
+                        .With("ChaosLeaseId", chaosLeaseId)
+                        .With("CoordinatorCellIds", coordinatorCellIds);
+
+                    if (coordinatorCellIds.empty()) {
+                        THROW_ERROR_EXCEPTION(NTransactionClient::EErrorCode::ChaosCoordinatorsAreNotAvailable,
+                            "Coordinators are not available")
+                            .With("chaos_lease_id", chaosLeaseId);
+                    }
+
+                    NObjectClient::TCellId coordinatorCellId;
+                    for (auto candidate : coordinatorCellIds) {
+                        if (selectedCellIds.contains(candidate)) {
+                            coordinatorCellId = candidate;
+                            break;
+                        }
+                    }
+
+                    if (!coordinatorCellId) {
+                        const auto& downedCellTracker = Client_->GetNativeConnection()->GetDownedCellTracker();
+                        coordinatorCellId = downedCellTracker->ChooseOne(coordinatorCellIds);
+                        selectedCellIds.insert(coordinatorCellId);
+                        Transaction_->RegisterParticipant(coordinatorCellId);
+                    }
+
+                    NChaosClient::NProto::TReqReplicatedCommit request;
+                    ToProto(request.mutable_chaos_object_id(), chaosLeaseId);
+                    request.set_chaos_object_era(InitialReplicationEra);
+                    DoAddAction(coordinatorCellId, MakeTransactionActionData(request));
+
+                    YT_TLOG_DEBUG("Coordinator selected for chaos lease")
+                        .With("ChaosLeaseId", chaosLeaseId)
+                        .With("CoordinatorCellId", coordinatorCellId);
+                }
+            }
+
             // NB: If commit affects chaos tables, then the list of prerequisite ids can contain only chaos leases,
             // As the tab nodes can only handle master transactions as prerequisites, we send them only to chaos coordinators.
             CommitOptions_.PrerequisiteTransactionIds = {};
         } else {
-            CommitOptions_.PrerequisiteTransactionIds = std::move(prerequisiteIds);
+            CommitOptions_.PrerequisiteTransactionIds = std::move(prerequisites.PrerequisiteIds);
         }
     }
 
@@ -2454,6 +2562,9 @@ private:
 
     TFuture<TTransactionCommitResult> DoCommit(const TTransactionCommitOptions& options, bool needsFlush)
     {
+        bool enableChaosLeaseTransactionParticipants =
+            Client_->GetNativeConnection()->GetConfig()->EnableChaosLeaseTransactionParticipants;
+
         for (auto cellId : options.AdditionalParticipantCellIds) {
             Transaction_->RegisterParticipant(cellId);
         }
@@ -2466,8 +2577,15 @@ private:
             }()
             .Apply(
                 BIND([=, this, this_ = MakeStrong(this)] {
-                    BuildAdjustedCommitOptions(options);
-
+                    return FetchPrerequisites(options, enableChaosLeaseTransactionParticipants);
+                }).AsyncVia(SerializedInvoker_))
+            .AsUnique()
+            .Apply(
+                BIND([=, this, this_ = MakeStrong(this)] (TPrerequisites&& prerequisites) {
+                    BuildAdjustedCommitOptions(
+                        options,
+                        std::move(prerequisites),
+                        enableChaosLeaseTransactionParticipants);
                     return needsFlush ? PrepareRequests() : OKFuture;
                 }).AsyncVia(SerializedInvoker_))
             .Apply(

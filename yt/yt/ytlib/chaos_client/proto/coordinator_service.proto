@@ -47,8 +47,9 @@ message TRspRegisterTransactionActions
 
 message TReqReplicatedCommit
 {
-    required NYT.NProto.TGuid replication_card_id = 2;
-    required uint64 replication_era = 1; // NChaosClient::TReplicationEra
+    // COMPAT(shamteev): Keep the message name and field numbers for wire compatibility.
+    required NYT.NProto.TGuid chaos_object_id = 2; // NChaosClient::TChaosObjectId
+    required uint64 chaos_object_era = 1; // NChaosClient::TReplicationEra
     repeated NYT.NProto.TGuid prerequisite_ids = 3; // NChaosClient::TChaosLeaseId
 }
 

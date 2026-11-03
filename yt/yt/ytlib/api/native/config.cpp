@@ -626,6 +626,10 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_two_phase_dynamicity_alter", &TThis::UseTwoPhaseDynamicityAlter)
         .Default(false);
 
+    // COMPAT(shamteev)
+    registrar.Parameter("enable_chaos_lease_transaction_participants", &TThis::EnableChaosLeaseTransactionParticipants)
+        .Default(false);
+
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {
             config->UploadTransactionPingPeriod = config->UploadTransactionTimeout / 4;

@@ -469,6 +469,9 @@ struct TConnectionDynamicConfig
     // COMPAT(ifsmirnov)
     bool UseTwoPhaseDynamicityAlter;
 
+    // COMPAT(shamteev)
+    bool EnableChaosLeaseTransactionParticipants;
+
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 
     static void Register(TRegistrar registrar);
