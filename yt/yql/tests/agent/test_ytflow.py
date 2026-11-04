@@ -1,4 +1,3 @@
-import copy
 import functools
 import itertools
 import json
@@ -1462,19 +1461,9 @@ class TestYtflowRemoteCluster(TestYtflowBase):
     }
 
     @classmethod
-    def _use_primary_timestamp_provider(cls, config, cluster_index):
-        # The queue agent uses primary-cluster clocks for both clusters' tablet bundles.
-        if cluster_index > 0:
-            config["cluster_connection"]["timestamp_provider"] = copy.deepcopy(
-                cls.Env.configs["master"][0]["cluster_connection"]["timestamp_provider"])
-
-    @classmethod
-    def modify_rpc_proxy_config(cls, config, cluster_index, multidaemon_config, proxy_index):
-        cls._use_primary_timestamp_provider(config, cluster_index)
-
-    @classmethod
-    def modify_http_proxy_config(cls, config, cluster_index, multidaemon_config, proxy_index):
-        cls._use_primary_timestamp_provider(config, cluster_index)
+    def _set_clock_cluster_tag(cls):
+        # Keep each cluster's clock independent instead of using the queue-agent base's shared clock.
+        pass
 
     @classmethod
     def extend_yql_agent_config(cls, config):
