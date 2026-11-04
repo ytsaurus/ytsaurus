@@ -122,7 +122,7 @@ public:
         return OKFuture;
     }
 
-    TFuture<void> Disable(const TError&) override
+    TFuture<void> Disable(const TError& /*reason*/) override
     {
         return OKFuture;
     }
@@ -138,8 +138,8 @@ public:
     }
 
     void OnDynamicConfigChanged(
-        const TVolumeManagerDynamicConfigPtr&,
-        const TVolumeManagerDynamicConfigPtr&) override
+        const TVolumeManagerDynamicConfigPtr& /*oldConfig*/,
+        const TVolumeManagerDynamicConfigPtr& /*newConfig*/) override
     { }
 
 private:

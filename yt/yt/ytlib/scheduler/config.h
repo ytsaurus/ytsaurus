@@ -1982,7 +1982,6 @@ private:
     PHOENIX_DECLARE_OPAQUE_TYPE(TMapOperationSpec, 0x4aa00f9d);
 };
 
-
 DEFINE_REFCOUNTED_TYPE(TMapOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2100,7 +2099,6 @@ private:
     PHOENIX_DECLARE_OPAQUE_TYPE(TEraseOperationSpec, 0xbaec2ff5);
 };
 
-
 DEFINE_REFCOUNTED_TYPE(TEraseOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2138,7 +2136,6 @@ struct TReduceOperationSpec
 private:
     PHOENIX_DECLARE_OPAQUE_TYPE(TReduceOperationSpec, 0x7353c0af);
 };
-
 
 DEFINE_REFCOUNTED_TYPE(TReduceOperationSpec)
 
@@ -2249,7 +2246,6 @@ private:
     PHOENIX_DECLARE_OPAQUE_TYPE(TSortOperationSpecBase, 0xdd19ecde);
 };
 
-
 DEFINE_REFCOUNTED_TYPE(TSortOperationSpecBase)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2271,7 +2267,6 @@ struct TSortOperationSpec
 private:
     PHOENIX_DECLARE_OPAQUE_TYPE(TSortOperationSpec, 0xa6709f80);
 };
-
 
 DEFINE_REFCOUNTED_TYPE(TSortOperationSpec)
 
@@ -2501,7 +2496,6 @@ struct TOperationRuntimeParametersUpdate
     TJobShellOptionsUpdateMap OptionsPerJobShell;
     std::optional<NYTree::IMapNodePtr> Annotations;
     std::optional<std::string> ControllerAgentTag;
-
 
     bool ContainsPool() const;
 

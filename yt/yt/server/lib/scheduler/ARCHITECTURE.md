@@ -88,7 +88,7 @@ Namespace: `NYT::NScheduler` (with `NYT::NScheduler::NProto` for proto messages)
 
 **`transactions.h`** — Operation transaction bookkeeping.
 - `TRichTransactionId` — `(Id, ParentId, Cluster)` — a transaction id tagged with its owning cluster, for remote-copy inputs. `operator<=>`, hash, YSON, proto.
-- `TControllerTransactionIds` — the six transactions every operation carries (`AsyncId`, `InputId`, `OutputId`, `DebugId`, `OutputCompletionId`, `DebugCompletionId`) plus a vector `InputIds` of per-cluster remote inputs. `ToCypressAttributes` / `FromCypressAttributes` read/write to a `IAttributeDictionary` (Cypress round-trip). `AttributeKeys` is the list of Cypress keys it occupies.
+- `TControllerTransactionIds` — the transactions an operation carries (`AsyncId`, `InputId`, `OutputId`, `DebugId`, `OutputCompletionId`, `DebugCompletionId`, and `JournalNbdId` for journal NBD disks) plus a vector `InputIds` of per-cluster remote inputs. `ToCypressAttributes` / `FromCypressAttributes` read/write to a `IAttributeDictionary` (Cypress round-trip). `AttributeKeys` is the list of Cypress keys it occupies.
 - `TOperationTransactions` — the live `ITransactionPtr` counterpart; keep the field order aligned with `TControllerTransactionIds`.
 - `AttachControllerTransactions(callback, ids)` — materialize `TOperationTransactions` from ids using a caller-supplied attach callback (which knows which native client to call per cluster).
 

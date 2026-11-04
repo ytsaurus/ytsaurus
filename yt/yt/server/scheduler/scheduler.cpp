@@ -3704,13 +3704,18 @@ private:
             .With("OperationId", operation->GetId());
 
         if (operation->RevivalDescriptor()->ShouldCommitOutputTransaction) {
-            WaitFor(operation->Transactions()->OutputTransaction->Commit())
+            const auto& transactions = operation->Transactions();
+            WaitFor(transactions->OutputTransaction->Commit())
                 .ThrowOnError();
             // We don't know whether debug transaction is committed.
-            if (operation->Transactions()->DebugTransaction) {
-                Y_UNUSED(operation->Transactions()->DebugTransaction->Commit());
+            if (transactions->DebugTransaction) {
+                Y_UNUSED(transactions->DebugTransaction->Commit());
             }
-            for (auto transaction : {operation->Transactions()->InputTransaction, operation->Transactions()->AsyncTransaction}) {
+            for (auto transaction : {
+                transactions->InputTransaction,
+                transactions->AsyncTransaction,
+                transactions->JournalNbdTransaction,
+            }) {
                 if (transaction) {
                     Y_UNUSED(transaction->Abort());
                 }

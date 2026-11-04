@@ -590,6 +590,15 @@ void TUserSlotBase::VerifyEnabled() const
     YT_TLOG_FATAL_UNLESS(IsEnabled_.load(), "Accessing disabled UserSlot");
 }
 
+TVolumePreparationContext TUserSlotBase::MakeVolumePreparationContext() const
+{
+    return {
+        .HeavyInvoker = Location_->GetHeavyInvoker(),
+        .ToolInvoker = Location_->GetToolInvoker(),
+        .SlotPath = GetSlotPath(),
+    };
+}
+
 std::string TUserSlotBase::GetJobProxyGrpcUnixDomainSocketPath() const
 {
     VerifyEnabled();

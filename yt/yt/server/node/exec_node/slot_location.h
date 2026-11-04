@@ -111,6 +111,12 @@ public:
 
     std::string GetSlotPath(int slotIndex) const;
 
+    //! Invoker for blocking filesystem work on this location.
+    const IInvokerPtr& GetHeavyInvoker() const;
+
+    //! Invoker serializing tool invocations on this location.
+    const IInvokerPtr& GetToolInvoker() const;
+
     TDiskStatistics GetDiskStatistics(int slotIndex) const;
 
     std::string GetMediumName() const;
@@ -148,8 +154,6 @@ public:
 
     //! Cleans the slot directory, initializes the location and enables it.
     TFuture<void> Repair();
-
-    const IInvokerPtr& GetToolInvoker() const;
 
     IJobDirectoryManagerPtr GetJobDirectoryManager();
 

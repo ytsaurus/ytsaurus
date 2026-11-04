@@ -586,6 +586,7 @@ TFuture<void> TOperation::AbortCommonTransactions()
     };
 
     scheduleAbort(Transactions_->AsyncTransaction, "Async");
+    scheduleAbort(Transactions_->JournalNbdTransaction, "JournalNbd");
     scheduleAbort(Transactions_->InputTransaction, "Input");
     scheduleAbort(Transactions_->OutputTransaction, "Output");
     scheduleAbort(Transactions_->DebugTransaction, "Debug");

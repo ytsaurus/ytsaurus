@@ -48,6 +48,8 @@
 
 #include <library/cpp/yt/cpu_clock/clock.h>
 
+#include <library/cpp/yt/misc/variant.h>
+
 namespace NYT::NExecNode {
 
 using namespace NChunkClient;
@@ -385,6 +387,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::GetOrCreateVolume(
 
 TFuture<IVolumePtr> TNbdVolumeFactory::CreateVolume(
     TGuid tag,
+    const TVolumePreparationContext& context,
     TPrepareRWNbdVolumeOptions options)
 {
     ValidatePrepareRWNbdVolumeOptions(options);
@@ -397,39 +400,13 @@ TFuture<IVolumePtr> TNbdVolumeFactory::CreateVolume(
     // NB. RW NBD volumes are not cached.
     YT_TLOG_DEBUG("Creating RW NBD volume");
 
-    auto volumeFuture = PrepareRWChunkNbdSession(options)
-        .Apply(BIND(
-            [
-                tag,
-                Logger,
-                options,
-                this,
-                this_ = MakeStrong(this)
-            ] (const TErrorOr<std::optional<std::tuple<NRpc::IChannelPtr, TSessionId>>>& rspOrError) mutable {
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
-
-                auto& chunkOptions = GetOrCrash<TChunkNbdVolumeOptions>(options.BackendOptions);
-
-                const auto& response = rspOrError.Value();
-                if (!response) {
-                    THROW_ERROR_EXCEPTION("Could not find suitable data node to host NBD disk")
-                        .With("medium_index", chunkOptions.Spec.MediumIndex)
-                        .With("size", options.DeviceSize)
-                        .With("filesystem_type", options.FilesystemType);
-                }
-
-                const auto& [channel, sessionId] = *response;
-                chunkOptions.DataNodeChannel = channel;
-                chunkOptions.SessionId = sessionId;
-
-                YT_TLOG_DEBUG("Prepared NBD session")
-                    .With("SessionId", sessionId)
-                    .With("MediumIndex", chunkOptions.Spec.MediumIndex)
-                    .With("Size", options.DeviceSize)
-                    .With("FilesystemType", options.FilesystemType);
-
-                return PrepareRWChunkNbdVolume(tag, options);
-            })).As<IVolumePtr>();
+    auto volumeFuture = Visit(options.BackendOptions,
+        [&] (const TChunkNbdVolumeOptions& /*chunkOptions*/) {
+            return OpenSessionAndPrepareRWChunkNbdVolume(tag, options);
+        },
+        [&] (const TJournalNbdVolumeOptions& /*journalOptions*/) {
+            return PrepareRWJournalNbdVolume(tag, context, options);
+        });
 
     return volumeFuture
         .Apply(BIND(
@@ -808,6 +785,48 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRWChunkNbdDevice(
     return InitializeNbdDevice(device, Logger);
 }
 
+TFuture<IVolumePtr> TNbdVolumeFactory::OpenSessionAndPrepareRWChunkNbdVolume(
+    TGuid tag,
+    TPrepareRWNbdVolumeOptions options)
+{
+    auto Logger = ExecNodeLogger()
+        .WithTag("Tag", tag)
+        .WithTag("JobId", options.JobId)
+        .WithTag("DeviceId", options.DeviceId)
+        .WithTag("Type", "RW");
+
+    return PrepareRWChunkNbdSession(options)
+        .Apply(BIND(
+            [
+                tag,
+                Logger,
+                options,
+                this,
+                this_ = MakeStrong(this)
+            ] (const std::optional<std::tuple<NRpc::IChannelPtr, TSessionId>>& response) mutable {
+                auto& chunkOptions = GetOrCrash<TChunkNbdVolumeOptions>(options.BackendOptions);
+
+                if (!response) {
+                    THROW_ERROR_EXCEPTION("Could not find suitable data node to host NBD disk")
+                        .With("medium_index", chunkOptions.Spec.MediumIndex)
+                        .With("size", options.DeviceSize)
+                        .With("filesystem_type", options.FilesystemType);
+                }
+
+                const auto& [channel, sessionId] = *response;
+                chunkOptions.DataNodeChannel = channel;
+                chunkOptions.SessionId = sessionId;
+
+                YT_TLOG_DEBUG("Prepared NBD session")
+                    .With("SessionId", sessionId)
+                    .With("MediumIndex", chunkOptions.Spec.MediumIndex)
+                    .With("Size", options.DeviceSize)
+                    .With("FilesystemType", options.FilesystemType);
+
+                return PrepareRWChunkNbdVolume(tag, options);
+            })).As<IVolumePtr>();
+}
+
 TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRWChunkNbdVolume(
     TGuid tag,
     TPrepareRWNbdVolumeOptions options)
@@ -829,6 +848,43 @@ TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRWChunkNbdVolume(
     auto tagSet = TTagSet({{"type", "nbd"}});
 
     auto deviceFuture = CreateRWChunkNbdDevice(tag, std::move(options));
+
+    return PrepareNbdVolume(
+        Logger,
+        tag,
+        tagSet,
+        std::move(deviceFuture),
+        TCreateNbdVolumeOptions{
+            .JobId = jobId,
+            .DeviceId = deviceId,
+            .FilesystemType = ToString(filesystemType),
+            .IsReadOnly = false,
+        },
+        MakeVolumeFactory<TRWNbdVolume>());
+}
+
+TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRWJournalNbdVolume(
+    TGuid tag,
+    const TVolumePreparationContext& context,
+    TPrepareRWNbdVolumeOptions options)
+{
+    const auto jobId = options.JobId;
+    const auto deviceId = options.DeviceId;
+    const auto filesystemType = options.FilesystemType;
+    const auto& journalOptions = GetOrCrash<TJournalNbdVolumeOptions>(options.BackendOptions);
+
+    auto Logger = ExecNodeLogger()
+        .WithTag("Tag", tag)
+        .WithTag("JobId", options.JobId)
+        .WithTag("DeviceId", options.DeviceId)
+        .WithTag("Type", "RW")
+        .WithTag("VolumeSize", journalOptions.Spec.DeviceSize)
+        .WithTag("VolumeMediumName", journalOptions.Spec.MediumName)
+        .WithTag("VolumeFilesystemType", options.FilesystemType);
+
+    auto tagSet = TTagSet({{"type", "nbd"}});
+
+    auto deviceFuture = CreateRWJournalNbdDevice(tag, context, std::move(options));
 
     return PrepareNbdVolume(
         Logger,

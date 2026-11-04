@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/server/controller_agent/controllers/journal_nbd_spec.h>
+
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
@@ -196,12 +198,16 @@ void ValidateAndEnrichVolumeSpec(
     TNonNullPtr<NScheduler::TUserJobSpec> spec,
     TNonNullPtr<NScheduler::TUserJobSpec> providedSpec);
 
+//! The journal backend charges and places its chunks in Cypress, so it needs an account and a medium.
+void ValidateJournalNbdDiskRequests(const NScheduler::TUserJobSpecPtr& spec);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildVolumeSpec(
     NControllerAgent::NProto::TVolume* volumeProto,
     const NScheduler::TVolume& volume,
-    const THashMap<TStringBuf, const NControllerAgent::TUserFile*>& layerPathToUserFile);
+    const THashMap<TStringBuf, const NControllerAgent::TUserFile*>& layerPathToUserFile,
+    const NControllers::TJournalNbdSpec* journalNbdSpec);
 
 void BuildTmpfsVolumeSpec(
     NControllerAgent::NProto::TTmpfsVolume* protoTmpfsVolume,
@@ -211,9 +217,12 @@ void BuildChunkNbdDiskSpec(
     NScheduler::NProto::TChunkNbdDisk* protoChunkNbdDisk,
     const NScheduler::TNbdDiskConfig& nbdDiskConfig);
 
+//! Fills the disk request of a job spec volume, picking the backend the operation resolved:
+//! the journal one when #journalNbdSpec is given, the chunk one otherwise.
 void BuildNbdDiskRequestSpec(
     NScheduler::NProto::TNbdDiskRequest* protoDiskRequestConfig,
-    const NScheduler::TNbdDiskRequest& diskRequestConfig);
+    const NScheduler::TNbdDiskRequest& diskRequestConfig,
+    const NControllers::TJournalNbdSpec* journalNbdSpec);
 
 void BuildLocalDiskRequestSpec(
     NScheduler::NProto::TLocalDiskRequest* protoDiskRequestConfig,

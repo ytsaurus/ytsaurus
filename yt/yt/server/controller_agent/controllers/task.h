@@ -130,6 +130,8 @@ public:
 
     bool IsCoreTableEnabled() const;
 
+    bool IsJournalNbdEnabled() const;
+
     virtual TDuration GetLocalityTimeout() const;
     virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const;
     virtual bool HasInputLocality() const;
@@ -443,6 +445,8 @@ private:
     int CachedTotalJobCount_;
 
     THashMap<std::string, std::optional<i64>> MaximumUsedTmpfsSizes_;
+
+    i64 JournalNbdMemoryUsage_ = 0;
 
     mutable std::optional<TExtendedJobResources> CachedMinNeededResources_;
 

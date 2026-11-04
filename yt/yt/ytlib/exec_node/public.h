@@ -59,6 +59,7 @@ YT_DEFINE_ERROR_ENUM(
     ((NonRootVolumeLinkingFailed)            (1148))
     ((NbdServerDisabledOnNode)               (1149))
     ((OverlayLayerPreparationFailed)         (1150))
+    ((InvalidNbdDiskRequest)                 (1151))
 );
 
 // COMPAT(pogorelov): Remove in 26.3.
@@ -127,10 +128,10 @@ EJobPhaseOld ConvertJobPhaseToOld(EJobPhase phase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr i64 MaxNbdDiskSize = 512_GB;
-
-//! Default number of TCP connections used for NBD RPC requests (multiplexing parallelism).
-static constexpr int DefaultNbdMultiplexingParallelism = 3;
+//! Bounds on a job's NBD disk: below the minimum an ext4 filesystem does not fit, and the maximum
+//! is what a single device is allowed to grow to.
+constexpr i64 MinNbdDiskSize = 8_MBs;
+constexpr i64 MaxNbdDiskSize = 512_GBs;
 
 ////////////////////////////////////////////////////////////////////////////////
 

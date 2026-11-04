@@ -1,3 +1,5 @@
+INCLUDE(${ARCADIA_ROOT}/yt/ya_features.make.inc)
+
 GTEST(unittester-controller-agent)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
@@ -18,6 +20,10 @@ SRCS(
     push_based_shuffle_registry_ut.cpp
     universal_monitoring_descriptor_manager_ut.cpp
 )
+
+IF (YT_ENABLE_JOURNAL_NBD)
+    SRCS(journal_nbd_helpers_ut.cpp)
+ENDIF()
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 

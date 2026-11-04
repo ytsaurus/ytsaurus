@@ -21,6 +21,7 @@ import pytest
 
 import os
 import io
+import shutil
 import gzip
 import re
 import sys
@@ -2366,19 +2367,12 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         op1.track()
 
 
-@authors("yuryalekseev")
-class TestNbdSquashFSLayers(YTEnvSetup):
+class TestNbdDiskBase(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
     NUM_USER_SLOTS = 2
-    NUM_TEST_PARTITIONS = 3
 
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "cypress_manager": {
-            "default_table_replication_factor": 1,
-            "default_file_replication_factor": 1,
-        }
-    }
+    USE_PORTO = True
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
@@ -2394,6 +2388,53 @@ class TestNbdSquashFSLayers(YTEnvSetup):
                 "user_slots": NUM_USER_SLOTS,
             },
         },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "nbd_media": ["ssd_nbd"],
+        }
+    }
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        # The fake SSD path is shared by every node, so a single-node cluster is assumed.
+        assert cls.NUM_NODES == 1
+
+        ssd_store_path = os.path.join(cls.fake_ssd_disk_path, "store")
+        ssd_slot_path = os.path.join(cls.fake_ssd_disk_path, "slots")
+        for path in (ssd_store_path, ssd_slot_path):
+            if os.path.exists(path):
+                shutil.rmtree(path)
+            os.makedirs(path)
+        config["data_node"]["store_locations"].append({
+            "path": ssd_store_path,
+            "medium_name": "ssd_nbd",
+        })
+        config["exec_node"]["slot_manager"]["locations"].append({
+            "path": ssd_slot_path,
+            "disk_quota": 2 * 1024 * 1024 * 1024,
+            "disk_usage_watermark": 0,
+            "medium_name": "ssd_nbd",
+        })
+
+    @classmethod
+    def on_masters_started(cls):
+        create_domestic_medium("ssd_nbd")
+
+
+##################################################################
+
+
+@authors("yuryalekseev")
+class TestNbdSquashFSLayers(TestNbdDiskBase):
+    NUM_TEST_PARTITIONS = 3
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_file_replication_factor": 1,
+        }
     }
 
     DELTA_DYNAMIC_NODE_CONFIG = {
@@ -2417,36 +2458,6 @@ class TestNbdSquashFSLayers(YTEnvSetup):
             },
         }
     }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "nbd_media": ["ssd_nbd"],
-        }
-    }
-
-    USE_PORTO = True
-
-    @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        ssd_store_path = os.path.join(cls.fake_ssd_disk_path, "store")
-        ssd_slot_path = os.path.join(cls.fake_ssd_disk_path, "slots")
-        for path in (ssd_store_path, ssd_slot_path):
-            if not os.path.exists(path):
-                os.makedirs(path)
-        config["data_node"]["store_locations"].append({
-            "path": ssd_store_path,
-            "medium_name": "ssd_nbd",
-        })
-        config["exec_node"]["slot_manager"]["locations"].append({
-            "path": ssd_slot_path,
-            "disk_quota": 2 * 1024 * 1024 * 1024,
-            "disk_usage_watermark": 0,
-            "medium_name": "ssd_nbd",
-        })
-
-    @classmethod
-    def on_masters_started(cls):
-        create_domestic_medium("ssd_nbd")
 
     def _get_node_debug_logs(self, filter_string):
         writers = self.Env.configs["node"][0]["logging"]["writers"]
@@ -4430,3 +4441,167 @@ class TestLayerReuseInAllocationOfGangOperation(TestLayerReuseInAllocationBase):
             "the reused allocation's reincarnation job must reuse PreparedLayers_ on the same node " \
             "and skip layer import; new imports on this node: {}, total: {}".format(
                 delta, reused_node_final_imports)
+
+
+##################################################################
+
+
+class TestRWNbdDisk(TestNbdDiskBase):
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "nbd": {
+                    "enabled": True,
+                    "read_write_enabled": True,
+                    "server": {
+                        "unix_domain_socket": {
+                            "path": _make_random_uds_path(),
+                        },
+                    },
+                },
+            },
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = update(TestNbdDiskBase.DELTA_CONTROLLER_AGENT_CONFIG, {
+        "controller_agent": {
+            "vanilla_operation_options": {
+                "user_job": {
+                    "journal_nbd": {
+                        # Single-node test cluster: keep the journal chunks unreplicated.
+                        "block_store": {
+                            "replication_factor": 1,
+                            "read_quorum": 1,
+                            "write_quorum": 1,
+                        },
+                    },
+                },
+            },
+        }
+    })
+
+    def _set_journal_nbd_enabled(self, enabled):
+        update_controller_agent_config("vanilla_operation_options/user_job/journal_nbd/enable", enabled)
+
+    @authors("babenko")
+    @pytest.mark.timeout(300)
+    @pytest.mark.parametrize("backend", ["chunk", "journal"])
+    def test_rw_nbd_disk(self, backend):
+        set_account_disk_space_limit("tmp", 10 * 1024 * 1024 * 1024, "ssd_nbd")
+        self._set_journal_nbd_enabled(backend == "journal")
+
+        self._create_squashfs_layer()
+
+        # A vanilla operation (no output tables) is the primary NBD-disk use case; the journal
+        # backend must allocate its per-job chunk list without an output chunk-list pool.
+        # The NBD disk is the job's writable root-fs upper layer: write a file and read it back.
+        command = "echo nbd-rw-ok | tee $YT_ROOT_FS/probe.txt 1>&2 && cat $YT_ROOT_FS/probe.txt 1>&2"
+
+        task_spec = {
+            "job_count": 1,
+            "command": command,
+            "layer_paths": ["//tmp/squashfs.img", ROOTFS_LAYER_PATH],
+            "disk_request": {
+                "medium_name": "ssd_nbd",
+                "account": "tmp",
+                "disk_space": 64 * 1024 * 1024,
+                "nbd_disk": {},
+            },
+        }
+        op = vanilla(spec={
+            "max_failed_job_count": 1,
+            "tasks": {"task": task_spec},
+        })
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        assert b"nbd-rw-ok" in op.read_stderr(job_ids[0])
+
+    @authors("babenko")
+    @pytest.mark.timeout(300)
+    def test_rw_journal_nbd_disk_with_volume_mounts(self):
+        set_account_disk_space_limit("tmp", 10 * 1024 * 1024 * 1024, "ssd_nbd")
+        self._set_journal_nbd_enabled(True)
+
+        self._create_squashfs_layer()
+
+        # A tmpfs volume next to the NBD root checks that journal specs are matched by volume name.
+        command = (
+            "echo nbd-rw-ok | tee $YT_ROOT_FS/probe.txt 1>&2 && cat $YT_ROOT_FS/probe.txt 1>&2 && "
+            "echo tmpfs-ok > /sandbox/data/probe.txt && cat /sandbox/data/probe.txt 1>&2"
+        )
+
+        op = vanilla(spec={
+            "max_failed_job_count": 1,
+            "tasks": {
+                "task": {
+                    "job_count": 1,
+                    "command": command,
+                    "volumes": {
+                        "root": {
+                            "layers": rootfs_layers("//tmp/squashfs.img"),
+                            "disk_request": {
+                                "type": "nbd",
+                                "medium_name": "ssd_nbd",
+                                "account": "tmp",
+                                "disk_space": 64 * 1024 * 1024,
+                                "nbd_disk": {},
+                            },
+                        },
+                        "data": {
+                            "disk_request": {
+                                "type": "tmpfs",
+                                "disk_space": 1024 * 1024,
+                            },
+                        },
+                    },
+                    "job_volume_mounts": [
+                        {"volume_id": "root", "mount_path": "/"},
+                        {"volume_id": "data", "mount_path": "/sandbox/data"},
+                    ],
+                },
+            },
+        })
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        stderr = op.read_stderr(job_ids[0])
+        assert b"nbd-rw-ok" in stderr
+        assert b"tmpfs-ok" in stderr
+
+    def _create_squashfs_layer(self):
+        create("file", "//tmp/squashfs.img", attributes={"replication_factor": 1})
+        write_file("//tmp/squashfs.img", open("layers/squashfs.img", "rb").read())
+        set("//tmp/squashfs.img/@filesystem", "squashfs")
+        set("//tmp/squashfs.img/@access_method", "nbd")
+
+    @authors("babenko")
+    @pytest.mark.timeout(300)
+    @pytest.mark.parametrize("disk_request,error", [
+        # The journal backend creates chunks in Cypress, so it needs an account.
+        ({"medium_name": "ssd_nbd", "disk_space": 64 * 1024 * 1024, "nbd_disk": {}},
+         "are required in disk request"),
+        ({"account": "tmp", "disk_space": 64 * 1024 * 1024, "nbd_disk": {}},
+         '"medium_name" is required in disk request'),
+        # Smaller than the smallest journalled ext4.
+        ({"medium_name": "ssd_nbd", "account": "tmp", "disk_space": 1024 * 1024, "nbd_disk": {}},
+         "too small for NBD disk"),
+        ({"medium_name": "ssd_nbd", "account": "tmp", "disk_space": 1024 ** 4, "nbd_disk": {}},
+         "exceeds maximum limit for NBD disk"),
+    ])
+    def test_malformed_journal_nbd_disk_request(self, disk_request, error):
+        set_account_disk_space_limit("tmp", 10 * 1024 * 1024 * 1024, "ssd_nbd")
+        self._set_journal_nbd_enabled(True)
+
+        with raises_yt_error(error):
+            vanilla(
+                spec={
+                    "max_failed_job_count": 1,
+                    "tasks": {
+                        "task": {
+                            "job_count": 1,
+                            "command": "true",
+                            "disk_request": disk_request,
+                        },
+                    },
+                })

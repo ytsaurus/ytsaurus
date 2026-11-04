@@ -40,6 +40,8 @@
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
 
+#include <library/cpp/yt/misc/variant.h>
+
 #include <util/string/vector.h>
 
 #include <util/system/fs.h>
@@ -297,6 +299,7 @@ public:
     TFuture<IVolumePtr> PrepareVolume(
         std::vector<TOverlayData> overlayDataArray,
         TBaseVolumeParamsPtr volumeParams,
+        const TVolumePreparationContext& context,
         const TVolumePreparationOptions& options) override
     {
         auto tag = TGuid::Create();
@@ -325,14 +328,19 @@ public:
             // the same way tmpfs/disk upper layers are handled in PrepareNonRootVolumes().
             return CreateRWNbdVolume(
                 tag,
+                context,
                 TPrepareRWNbdVolumeOptions{
                     .JobId = jobId,
                     .DeviceId = sandboxNbdRootVolumeSpec.DeviceId,
                     .DeviceSize = sandboxNbdRootVolumeSpec.DeviceSize,
                     .FilesystemType = sandboxNbdRootVolumeSpec.FilesystemType,
-                    .BackendOptions = TChunkNbdVolumeOptions{
-                        .Spec = GetOrCrash<TChunkNbdVolumeSpec>(sandboxNbdRootVolumeSpec.BackendSpec),
-                    },
+                    .BackendOptions = Visit(sandboxNbdRootVolumeSpec.BackendSpec,
+                        [] (const TChunkNbdVolumeSpec& spec) -> TRWNbdVolumeBackendOptions {
+                            return TChunkNbdVolumeOptions{.Spec = spec};
+                        },
+                        [] (const TJournalNbdVolumeSpec& spec) -> TRWNbdVolumeBackendOptions {
+                            return TJournalNbdVolumeOptions{.Spec = spec};
+                        }),
                 })
                 .AsUnique()
                 .Apply(BIND(
@@ -377,11 +385,12 @@ public:
     }
 
     TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
-        const std::optional<std::string>&,
+        const std::optional<std::string>& /*sandboxPath*/,
         const TJobId& jobId,
         const std::vector<TBaseVolumeParamsPtr>& volumes,
         std::vector<std::vector<TOverlayData>> perVolumeOverlayData,
-        const std::vector<TVolumeMountPtr>&) override
+        const std::vector<TVolumeMountPtr>& /*volumeMounts*/,
+        const TVolumePreparationContext& /*context*/) override
     {
         YT_VERIFY(volumes.size() == perVolumeOverlayData.size());
 
@@ -582,9 +591,10 @@ private:
 
     TFuture<IVolumePtr> CreateRWNbdVolume(
         TGuid tag,
+        const TVolumePreparationContext& context,
         TPrepareRWNbdVolumeOptions options)
     {
-        return NbdVolumeFactory_->CreateVolume(tag, std::move(options));
+        return NbdVolumeFactory_->CreateVolume(tag, context, std::move(options));
     }
 
     TFuture<TOverlayData> GetOrCreateSquashFSVolume(

@@ -22,13 +22,18 @@
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/helpers.h>
 
-#include <yt/yt/client/chunk_client/public.h>
+#include <yt/yt/client/api/config.h>
+
+#include <yt/yt/client/chunk_client/config.h>
 
 #include <yt/yt/library/containers/porto_helpers.h>
+
+#include <yt/yt/library/nbd/chunk/public.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/misc/adjusted_exponential_moving_average.h>
+#include <yt/yt/core/misc/cache_config.h>
 #include <yt/yt/core/misc/config.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/fs.h>
@@ -125,7 +130,8 @@ void ValidateOutputTablePaths(std::vector<NYPath::TRichYPath> paths)
 template <class TConfig>
 void RegisterDiskSpace(TYsonStructRegistrar<TConfig>& registrar)
 {
-    registrar.Parameter("disk_space", &TConfig::DiskSpace);
+    registrar.Parameter("disk_space", &TConfig::DiskSpace)
+        .GreaterThanOrEqual(0);
 }
 
 template <class TConfig>
@@ -155,7 +161,6 @@ void RegisterNbdDisk(TYsonStructRegistrar<TConfig>& registrar)
         .Default();
 
     registrar.Postprocessor([&] (TConfig* config) {
-        // NBD disk size shall not exceed NExecNode::MaxNbdDiskSize.
         if (config->NbdDisk && config->DiskSpace > NExecNode::MaxNbdDiskSize) {
             THROW_ERROR_EXCEPTION("\"disk_space\" exceeds maximum limit for NBD disk")
                 .With("max_disk_space", NExecNode::MaxNbdDiskSize)
@@ -590,7 +595,7 @@ void TNbdDiskConfig::Register(TRegistrar registrar)
         .Default(3);
     registrar.Parameter("multiplexing_parallelism", &TThis::MultiplexingParallelism)
         .GreaterThanOrEqual(1)
-        .Default(NExecNode::DefaultNbdMultiplexingParallelism);
+        .Default(NNbd::NChunk::DefaultNbdMultiplexingParallelism);
 
     registrar.Postprocessor([&] (TNbdDiskConfig* config) {
         if (config->MinDataNodeCount > config->MaxDataNodeCount) {

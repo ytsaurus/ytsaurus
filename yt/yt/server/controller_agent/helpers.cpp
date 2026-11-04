@@ -725,6 +725,69 @@ void ValidateProvidedVolumeMountsSpec(TNonNullPtr<TUserJobSpec>& providedUserSpe
     ValidateSharedVolumes(providedUserSpec);
 }
 
+namespace {
+
+void ValidateAndEnrichNbdDiskRequests(TNonNullPtr<TUserJobSpec> spec)
+{
+    for (const auto& [volumeId, volume] : spec->Volumes) {
+        if (!volume->DiskRequest) {
+            continue;
+        }
+
+        auto nbdDiskRequest = volume->DiskRequest->TryGetConcrete<TNbdDiskRequest>();
+        if (!nbdDiskRequest) {
+            continue;
+        }
+
+        if (nbdDiskRequest->DiskSpace > NExecNode::MaxNbdDiskSize) {
+            THROW_ERROR_EXCEPTION("Option \"disk_space\" exceeds maximum limit for NBD disk")
+                .With("volume_id", volumeId)
+                .With("max_disk_space", NExecNode::MaxNbdDiskSize)
+                .With("disk_space", nbdDiskRequest->DiskSpace);
+        }
+
+        if (!nbdDiskRequest->NbdDisk) {
+            nbdDiskRequest->NbdDisk = New<TNbdDiskConfig>();
+        }
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateJournalNbdDiskRequests(const TUserJobSpecPtr& spec)
+{
+    for (const auto& [volumeId, volume] : spec->Volumes) {
+        if (!volume->DiskRequest) {
+            continue;
+        }
+
+        auto nbdDiskRequest = volume->DiskRequest->TryGetConcrete<TNbdDiskRequest>();
+        if (!nbdDiskRequest) {
+            continue;
+        }
+
+        if (!nbdDiskRequest->MediumName || !nbdDiskRequest->Account) {
+            THROW_ERROR_EXCEPTION(
+                "Options \"medium_name\" and \"account\" are required in disk request "
+                "when journal NBD is enabled")
+                .With("volume_id", volumeId)
+                .With("medium_name", nbdDiskRequest->MediumName)
+                .With("account", nbdDiskRequest->Account);
+        }
+
+        if (nbdDiskRequest->DiskSpace < NExecNode::MinNbdDiskSize) {
+            THROW_ERROR_EXCEPTION("Option \"disk_space\" is too small for NBD disk")
+                .With("volume_id", volumeId)
+                .With("min_disk_space", NExecNode::MinNbdDiskSize)
+                .With("disk_space", nbdDiskRequest->DiskSpace);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ValidateAndEnrichVolumeSpec(TNonNullPtr<TUserJobSpec> spec)
 {
     if (!spec->DeprecatedTmpfsVolumes.empty() && !spec->Volumes.empty()) {
@@ -1069,6 +1132,7 @@ void ValidateAndEnrichVolumeSpec(
         THROW_ERROR_EXCEPTION("Option \"docker_image_environment\" is not allowed in the spec: it is derived from the docker image config");
     }
     ValidateAndEnrichVolumeSpec(spec);
+    ValidateAndEnrichNbdDiskRequests(spec);
     EnrichFromDockerImage(config, operationSpec, host, spec);
 }
 
@@ -1077,11 +1141,15 @@ void ValidateAndEnrichVolumeSpec(
 void BuildVolumeSpec(
     NControllerAgent::NProto::TVolume* volumeProto,
     const NScheduler::TVolume& volume,
-    const THashMap<TStringBuf, const NControllerAgent::TUserFile*>& layerPathToUserFile)
+    const THashMap<TStringBuf, const NControllerAgent::TUserFile*>& layerPathToUserFile,
+    const NControllers::TJournalNbdSpec* journalNbdSpec)
 {
     if (volume.DiskRequest) {
         if (auto nbdDiskRequest = volume.DiskRequest->TryGetConcrete<TNbdDiskRequest>()) {
-            BuildNbdDiskRequestSpec(volumeProto->mutable_nbd_disk_request(), *nbdDiskRequest);
+            BuildNbdDiskRequestSpec(
+                volumeProto->mutable_nbd_disk_request(),
+                *nbdDiskRequest,
+                journalNbdSpec);
         } else if (auto localDiskRequest = volume.DiskRequest->TryGetConcrete<TLocalDiskRequest>()) {
             BuildLocalDiskRequestSpec(volumeProto->mutable_local_disk_request(), *localDiskRequest);
         } else if (auto tmpfsDiskRequest = volume.DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()) {
@@ -1131,12 +1199,22 @@ void BuildChunkNbdDiskSpec(
 
 void BuildNbdDiskRequestSpec(
     NScheduler::NProto::TNbdDiskRequest* protoDiskRequestConfig,
-    const TNbdDiskRequest& diskRequestConfig)
+    const TNbdDiskRequest& diskRequestConfig,
+    const NControllers::TJournalNbdSpec* journalNbdSpec)
 {
     BuildCommonDiskRequestSpec(
         protoDiskRequestConfig->mutable_disk_request(),
         static_cast<const TDiskRequestConfig&>(diskRequestConfig));
-    BuildChunkNbdDiskSpec(protoDiskRequestConfig->mutable_chunk_nbd(), *diskRequestConfig.NbdDisk);
+
+    if (journalNbdSpec) {
+        auto* protoJournalDisk = protoDiskRequestConfig->mutable_journal_nbd();
+        ToProto(protoJournalDisk->mutable_config(), journalNbdSpec->Config);
+        protoJournalDisk->set_device_size(journalNbdSpec->DeviceSize);
+        protoJournalDisk->set_block_size(journalNbdSpec->BlockSize);
+        protoJournalDisk->set_account(journalNbdSpec->Account);
+    } else {
+        BuildChunkNbdDiskSpec(protoDiskRequestConfig->mutable_chunk_nbd(), *diskRequestConfig.NbdDisk);
+    }
 }
 
 void BuildLocalDiskRequestSpec(
@@ -1162,6 +1240,10 @@ void BuildCommonDiskRequestSpec(
 
     if (diskRequestConfig.MediumIndex) {
         protoDiskRequestConfig->set_medium_index(*diskRequestConfig.MediumIndex);
+    }
+
+    if (diskRequestConfig.MediumName) {
+        protoDiskRequestConfig->set_medium_name(*diskRequestConfig.MediumName);
     }
 }
 

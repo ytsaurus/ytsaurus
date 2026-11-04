@@ -836,6 +836,7 @@ public:
                 const auto& transactionIds = result.TransactionIds;
                 std::vector<TTransactionId> watchTransactionIds({
                     transactionIds.AsyncId,
+                    transactionIds.JournalNbdId,
                     transactionIds.InputId,
                     transactionIds.OutputId,
                     transactionIds.DebugId,

@@ -1,3 +1,5 @@
+INCLUDE(${ARCADIA_ROOT}/yt/ya_features.make.inc)
+
 LIBRARY()
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
@@ -237,6 +239,13 @@ SRCS(
     tablet_node/write_commands.cpp
     tablet_node/write_log.cpp
 )
+
+IF (YT_ENABLE_JOURNAL_NBD)
+    SRCS(exec_node/volume_cache_journal_nbd.cpp)
+    PEERDIR(yt/yt/server/lib/nbd/journal)
+ELSE()
+    SRCS(exec_node/volume_cache_journal_nbd_dummy.cpp)
+ENDIF()
 
 PEERDIR(
     yt/yt/core/https

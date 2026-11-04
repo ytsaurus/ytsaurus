@@ -35,6 +35,8 @@
 
 #include <yt/yt/library/program/config.h>
 
+#include <yt/yt/library/nbd/journal/config.h>
+
 #include <yt/yt/library/re2/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
@@ -325,11 +327,30 @@ DEFINE_REFCOUNTED_TYPE(TPushBasedShuffleOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJournalNbdOptions
+    : public NNbd::NJournal::TJournalBlockDeviceConfig
+{
+    //! RW NBD disks use the journal backend instead of the chunk backend.
+    bool Enable;
+
+    std::optional<i64> BlockSize;
+
+    REGISTER_YSON_STRUCT(TJournalNbdOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJournalNbdOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TUserJobOptions
     : public NYTree::TYsonStruct
 {
     //! Thread limit for the user job container as a function of cpu (variable "cpu" = ceil(job cpu_limit)).
     TArithmeticFormula ThreadLimitFormula;
+
+    TJournalNbdOptionsPtr JournalNbd;
 
     REGISTER_YSON_STRUCT(TUserJobOptions);
 
