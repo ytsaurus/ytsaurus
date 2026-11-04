@@ -1415,7 +1415,7 @@ TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression
     result->ProjectClause = projectClause;
     result->OrderClause = orderClause;
     result->Offset = queryExpr->Query.Offset.value_or(0);
-    result->Limit = queryExpr->Query.Limit.value_or(UnorderedReadHint);
+    result->Limit = queryExpr->Query.Limit;
 
     return result;
 }

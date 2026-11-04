@@ -241,10 +241,12 @@ void DropLimitClauseWhenGroupByOne(const TQueryPtr& query)
         query->GroupClause &&
         std::ssize(query->GroupClause->GroupItems) == 1 &&
         query->GroupClause->GroupItems[0].Expression->As<TLiteralExpression>() &&
-        query->Limit != UnorderedReadHint &&
-        query->Limit != 0)
+        query->Limit &&
+        query->Offset == 0 &&
+        *query->Limit != 0)
     {
-        query->Limit = UnorderedReadHint;
+        query->Limit = std::nullopt;
+        query->ScanOrder = EScanOrder::Unordered;
     }
 }
 
@@ -354,6 +356,7 @@ void PrepareQuery(
         bool canOmitOrderBy = CanOmitOrderBy(0, orderClause->OrderItems, query->GetKeyColumns());
         if (!canOmitOrderBy) {
             query->OrderClause = std::move(orderClause);
+            query->ScanOrder = EScanOrder::Unordered;
         }
 
         bool canReverseScanForOrderBy = false;
@@ -368,8 +371,13 @@ void PrepareQuery(
         }
 
         if (canReverseScanForOrderBy) {
-            query->IsReverseScan = true;
+            query->ScanOrder = EScanOrder::Reversed;
         }
+    } else if (!ast.Limit) {
+        // COMPAT(sabdenovch): For queries with LIMIT the scan order is resolved
+        // in PreparePlanFragmentImpl, after the group clause (including aggregate
+        // items), the limit clause and the group-by push-down are final.
+        query->ScanOrder = EScanOrder::Unordered;
     }
 
     if (ast.SelectExprs) {
@@ -385,8 +393,6 @@ void PrepareQuery(
         // Select all columns.
         builder->PopulateAllColumns();
     }
-
-    DropLimitClauseWhenGroupByOne(query);
 
     builder->Finish();
 }
@@ -1538,22 +1544,21 @@ void ValidateOrderByOffsetAndLimit(const NAst::TQuery& queryAst)
     }
 
     i64 offset = queryAst.Offset.value_or(0);
-    i64 limit = queryAst.Limit.value_or(UnorderedReadHint);
     if (offset < 0) {
         THROW_ERROR_EXCEPTION("Negative OFFSET is forbidden")
             .With("offset", offset);
     }
 
-    if (limit < 0) {
+    if (queryAst.Limit && *queryAst.Limit < 0) {
         THROW_ERROR_EXCEPTION("Negative LIMIT is forbidden")
-            .With("limit", limit);
+            .With("limit", *queryAst.Limit);
     }
 
     THROW_ERROR_EXCEPTION_IF(
-        offset > std::numeric_limits<i64>::max() - limit,
+        queryAst.Limit && offset > std::numeric_limits<i64>::max() - *queryAst.Limit,
         "Sum of offset %v and limit %v overflows i64",
         offset,
-        limit);
+        *queryAst.Limit);
 }
 
 void ValidateHaving(const NAst::TQuery& queryAst, bool hasOrderBy)
@@ -1763,14 +1768,29 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
     ValidateHaving(queryAst, /*hasOrderBy*/ query->OrderClause != nullptr);
 
     if (queryAst.Limit) {
-        query->Limit = *queryAst.Limit;
+        query->Limit = queryAst.Limit;
     }
 
     if (queryAst.Offset) {
         query->Offset = *queryAst.Offset;
     }
 
+    DropLimitClauseWhenGroupByOne(query);
+
     TryPushDownGroupBy(query, queryAst, Logger);
+
+    // COMPAT(sabdenovch): Group by with limit may be processed in unordered fashion
+    // only if the group clause cannot be processed in order. Resolve it here, where
+    // the group clause (including aggregate items), the limit clause and the
+    // group-by push-down are final.
+    if (!query->OrderClause && query->Limit &&
+        options.AllowUnorderedGroupByWithLimit &&
+        query->GroupClause &&
+        !query->GroupClause->AllAggregatesAreFirst() &&
+        query->GroupClause->CommonPrefixWithPrimaryKey == 0)
+    {
+        query->ScanOrder = EScanOrder::Unordered;
+    }
 
     auto readSchema = query->GetReadSchema();
 

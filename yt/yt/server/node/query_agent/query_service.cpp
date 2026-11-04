@@ -436,6 +436,12 @@ private:
         queryOptions.InputRowLimit = request->query().input_row_limit();
         queryOptions.OutputRowLimit = request->query().output_row_limit();
 
+        // COMPAT(sabdenovch)
+        if (!request->query().has_scan_order()) {
+            auto* mutableQuery = const_cast<TQuery*>(query.Get());
+            mutableQuery->ScanOrder = DeriveLegacyScanOrder(query, queryOptions.AllowUnorderedGroupByWithLimit);
+        }
+
         auto requestFeatureFlags = MostFreshFeatureFlags();
 
         if (request->has_feature_flags()) {

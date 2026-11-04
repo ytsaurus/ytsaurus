@@ -41,12 +41,18 @@ std::pair<TConstFrontQueryPtr, TConstQueryPtr> GetDistributedQueryPattern(const 
     bottomQuery->HavingClause = query->HavingClause;
     bottomQuery->GroupClause = query->GroupClause;
     bottomQuery->Offset = 0;
-    bottomQuery->Limit = query->Offset + query->Limit;
+    if (query->Limit) {
+        bottomQuery->Limit = query->Offset + *query->Limit;
+    }
+    // COMPAT(sabdenovch): Reverse scan for the bottom query is re-derived at the node
+    // from the order clause and the inferred key ranges.
+    bottomQuery->ScanOrder = query->ScanOrder == EScanOrder::Reversed
+        ? EScanOrder::Unordered
+        : query->ScanOrder;
     bottomQuery->UseDisjointGroupBy = query->UseDisjointGroupBy;
     bottomQuery->InferRanges = query->InferRanges;
     bottomQuery->IsFinal = false;
     bottomQuery->WhereClause = query->WhereClause;
-    bottomQuery->IsReverseScan = false;
     bottomQuery->HierarchicalJoinsInWhereClause = query->HierarchicalJoinsInWhereClause;
     bottomQuery->HierarchicalJoinsBeforeGroupBy = query->HierarchicalJoinsBeforeGroupBy;
 
@@ -57,14 +63,14 @@ std::pair<TConstFrontQueryPtr, TConstQueryPtr> GetDistributedQueryPattern(const 
     // When the scan is reversed, tablets are read in descending key order so
     // the merged stream is already sorted correctly. The front query only
     // needs to apply OFFSET/LIMIT without re-sorting.
-    frontQuery->OrderClause = query->IsReverseScan ? nullptr : query->OrderClause;
+    frontQuery->OrderClause = query->ScanOrder == EScanOrder::Reversed ? nullptr : query->OrderClause;
     frontQuery->Offset = query->Offset;
     frontQuery->Limit = query->Limit;
     frontQuery->IsFinal = query->IsFinal;
     frontQuery->ProjectClause = query->ProjectClause;
     frontQuery->HierarchicalJoinsAfterGroupBy = query->HierarchicalJoinsAfterGroupBy;
     frontQuery->Schema = bottomQuery->GetTableSchema();
-    frontQuery->IsReverseScan = query->IsReverseScan;
+    frontQuery->ScanOrder = query->ScanOrder;
 
     return {frontQuery, bottomQuery};
 }
@@ -237,7 +243,7 @@ std::pair<TDataSource, TConstQueryPtr> InferRanges(
             auto fixedKeyPrefix = GetLongestCommonPrimaryKeyPrefixLength(ranges);
 
             auto canEnableReverseScanForOrderBy = [&] {
-                bool reverseScanAlreadyEnabledAtPrepareStage = newQuery->IsReverseScan;
+                bool reverseScanAlreadyEnabledAtPrepareStage = newQuery->ScanOrder == EScanOrder::Reversed;
                 bool haveMoreKeyRangeInfoThanAtPrepareStage = fixedKeyPrefix > 0;
                 return options.AllowReverseScanForOrderBy &&
                     haveMoreKeyRangeInfoThanAtPrepareStage &&
@@ -250,11 +256,12 @@ std::pair<TDataSource, TConstQueryPtr> InferRanges(
                     .With("FixedKeyPrefix", fixedKeyPrefix);
 
                 newQuery->OrderClause.Reset();
+                newQuery->ScanOrder = EScanOrder::Ordered;
             } else if (canEnableReverseScanForOrderBy()) {
                 YT_TLOG_DEBUG("Enabling reverse scan for ORDER BY on fixed key prefix")
                     .With("FixedKeyPrefix", fixedKeyPrefix);
 
-                newQuery->IsReverseScan = true;
+                newQuery->ScanOrder = EScanOrder::Reversed;
             }
         }
 

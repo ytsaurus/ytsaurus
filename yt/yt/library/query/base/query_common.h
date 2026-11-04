@@ -295,6 +295,8 @@ struct TPreparePlanFragmentOptions
     bool AllowReverseScanForOrderBy = false;
     std::optional<int> MaxProjectionCount;
     bool EnableScalarSubqueryOrderByAndLimit = false; // COMPAT(dtorilov): Remove after 26.2.
+    // COMPAT(sabdenovch)
+    bool AllowUnorderedGroupByWithLimit = true;
 };
 
 struct TPreparePlanFragmentContext

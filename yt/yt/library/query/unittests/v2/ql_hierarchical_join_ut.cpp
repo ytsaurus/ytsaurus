@@ -3737,7 +3737,7 @@ TEST_F(TQueryEvaluateTest, HierarchicalJoinAfterGroupByOrderByOffsetAndLimit)
     EXPECT_EQ(hierarchicalJoin->JoiningSubquery->Limit, 2);
     EXPECT_EQ(hierarchicalJoin->SelfSideJoinKeys->OrderClause, nullptr);
     EXPECT_EQ(hierarchicalJoin->SelfSideJoinKeys->Offset, 0);
-    EXPECT_EQ(hierarchicalJoin->SelfSideJoinKeys->Limit, UnorderedReadHint);
+    EXPECT_EQ(hierarchicalJoin->SelfSideJoinKeys->Limit, std::nullopt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

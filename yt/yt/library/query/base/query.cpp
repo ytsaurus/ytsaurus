@@ -23,6 +23,10 @@ using NCodegen::EOptimizationLevel;
 struct TExpressionRowsetTag
 { };
 
+// COMPAT(sabdenovch)
+constexpr i64 UnorderedReadHint = std::numeric_limits<i64>::max();
+constexpr i64 OrderedReadWithPrefetchHint = UnorderedReadHint - 1;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 
@@ -599,6 +603,25 @@ TWhenThenExpression::TWhenThenExpression(TConstExpressionPtr condition, TConstEx
 
 ////////////////////////////////////////////////////////////////////////////////
 
+EScanOrder DeriveLegacyScanOrder(const TConstBaseQueryPtr& query, bool allowUnorderedGroupByWithLimit)
+{
+    // COMPAT(sabdenovch)
+    if (query->Limit || query->Prefetching) {
+        if (allowUnorderedGroupByWithLimit) {
+            bool ordered = !query->OrderClause &&
+                (!query->GroupClause ||
+                 query->GroupClause->AllAggregatesAreFirst() ||
+                 query->GroupClause->CommonPrefixWithPrimaryKey > 0);
+            return ordered ? EScanOrder::Ordered : EScanOrder::Unordered;
+        } else {
+            return !query->OrderClause ? EScanOrder::Ordered : EScanOrder::Unordered;
+        }
+    } else {
+        YT_VERIFY(!query->OrderClause);
+        return EScanOrder::Unordered;
+    }
+}
+
 TBaseQuery::TBaseQuery(TGuid id)
     : Id(id)
 { }
@@ -612,34 +635,11 @@ TBaseQuery::TBaseQuery(const TBaseQuery& other)
     , ProjectClause(other.ProjectClause)
     , Offset(other.Offset)
     , Limit(other.Limit)
+    , ScanOrder(other.ScanOrder)
     , UseDisjointGroupBy(other.UseDisjointGroupBy)
     , InferRanges(other.InferRanges)
-    , IsReverseScan(other.IsReverseScan)
+    , Prefetching(other.Prefetching)
 { }
-
-EScanOrder TBaseQuery::GetScanOrder(bool allowUnorderedGroupByWithLimit) const
-{
-    if (IsReverseScan) {
-        return EScanOrder::Reversed;
-    }
-
-    if (Limit < std::numeric_limits<i64>::max()) {
-        if (allowUnorderedGroupByWithLimit) {
-            bool ordered = !OrderClause && (!GroupClause || GroupClause->AllAggregatesAreFirst() || GroupClause->CommonPrefixWithPrimaryKey > 0);
-            return ordered ? EScanOrder::Ordered : EScanOrder::Unordered;
-        } else {
-            return !OrderClause ? EScanOrder::Ordered : EScanOrder::Unordered;
-        }
-    } else {
-        YT_VERIFY(!OrderClause);
-        return EScanOrder::Unordered;
-    }
-}
-
-bool TBaseQuery::IsPrefetching() const
-{
-    return Limit == OrderedReadWithPrefetchHint;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -883,11 +883,11 @@ std::string InferName(TConstBaseQueryPtr query, const TInferNameOptions& options
         clauses.push_back(std::string("ORDER BY ") + JoinToString(query->OrderClause->OrderItems, orderItemFormatter));
     }
 
-    if (query->Limit < std::numeric_limits<i64>::max()) {
+    if (query->Limit) {
         if (query->Offset != 0) {
             clauses.push_back(std::string("OFFSET ") + (options.OmitValues ? "?" : ToString(query->Offset)));
         }
-        clauses.push_back(std::string("LIMIT ") + (options.OmitValues ? "?" : ToString(query->Limit)));
+        clauses.push_back(std::string("LIMIT ") + (options.OmitValues ? "?" : ToString(*query->Limit)));
     }
 
     return JoinToString(clauses, TStringBuf(" "));
@@ -1380,7 +1380,9 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         }
 
         proto->set_offset(subqueryExpr->Offset);
-        proto->set_limit(subqueryExpr->Limit);
+        if (subqueryExpr->Limit) {
+            proto->set_limit(*subqueryExpr->Limit);
+        }
 
         ToProto(proto->mutable_join_clauses(), subqueryExpr->JoinClauses);
     }
@@ -1585,7 +1587,8 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             }
 
             result->Offset = ext.offset();
-            if (ext.has_limit()) {
+            if (ext.has_limit() && ext.limit() != UnorderedReadHint) {
+                // COMPAT(sabdenovch): UnorderedReadHint in subquery limit means no limit.
                 result->Limit = ext.limit();
             }
 
@@ -1924,7 +1927,16 @@ void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
     ToProto(serialized->mutable_id(), original->Id);
 
     serialized->set_offset(original->Offset);
-    serialized->set_limit(original->Limit);
+    if (original->Limit) {
+        serialized->set_limit(*original->Limit);
+    } else {
+        // COMPAT(sabdenovch)
+        serialized->set_limit(
+            original->Prefetching || original->ScanOrder == EScanOrder::Ordered
+                ? OrderedReadWithPrefetchHint
+                : UnorderedReadHint);
+    }
+    serialized->set_scan_order(ToProto(original->ScanOrder));
     serialized->set_use_disjoint_group_by(original->UseDisjointGroupBy);
     serialized->set_infer_ranges(original->InferRanges);
     serialized->set_is_final(original->IsFinal);
@@ -1963,7 +1975,15 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
     auto result = New<TQuery>(FromProto<TGuid>(serialized.id()));
 
     result->Offset = serialized.offset();
-    result->Limit = serialized.limit();
+    // COMPAT(sabdenovch)
+    if (!serialized.has_limit() || serialized.limit() == UnorderedReadHint) {
+        result->ScanOrder = EScanOrder::Unordered;
+    } else if (serialized.limit() == OrderedReadWithPrefetchHint) {
+        result->Prefetching = true;
+        result->ScanOrder = EScanOrder::Ordered;
+    } else {
+        result->Limit = serialized.limit();
+    }
     result->UseDisjointGroupBy = serialized.use_disjoint_group_by();
     result->InferRanges = serialized.infer_ranges();
 
@@ -1995,6 +2015,10 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
 
     if (serialized.has_project_clause()) {
         FromProto(&result->ProjectClause, serialized.project_clause());
+    }
+
+    if (serialized.has_scan_order()) {
+        FromProto(&result->ScanOrder, serialized.scan_order());
     }
 
     *original = result;

@@ -12,6 +12,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/library/query/unittests
+    yt/yt/library/query/proto
 )
 
 FORK_SUBTESTS(MODULO)
