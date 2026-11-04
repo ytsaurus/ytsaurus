@@ -62,6 +62,7 @@ target_link_libraries(yt-yt-core PUBLIC
   contrib-deprecated-yajl
   contrib-libs-lz4
   contrib-libs-openssl
+  cpp-containers-absl
   cpp-openssl-init
   cpp-openssl-io
   cpp-threading-thread_local
@@ -415,6 +416,7 @@ target_link_libraries(yt-yt-core.global PUBLIC
   contrib-deprecated-yajl
   contrib-libs-lz4
   contrib-libs-openssl
+  cpp-containers-absl
   cpp-openssl-init
   cpp-openssl-io
   cpp-threading-thread_local

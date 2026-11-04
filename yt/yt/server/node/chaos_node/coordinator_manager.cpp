@@ -25,6 +25,9 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <library/cpp/containers/absl/flat_hash_map.h>
+#include <library/cpp/containers/absl/flat_hash_set.h>
+
 #include <util/generic/algorithm.h>
 
 namespace NYT::NChaosNode {
@@ -172,7 +175,7 @@ private:
         TCellId CellId;
         TReplicationEra Era;
         EShortcutState State;
-        THashSet<TTransactionId> AliveTransactions;
+        absl::flat_hash_set<TTransactionId> AliveTransactions;
         TTimestamp EraStartTimestamp = NullTimestamp;
         TTimestamp LastTransactionCommitTimestamp = NullTimestamp;
 
@@ -202,7 +205,7 @@ private:
     const TCoordinatorManagerConfigPtr Config_;
     const IShortcutSnapshotStorePtr SnapshotStore_;
 
-    using TShortcutMap = THashMap<NChaosClient::TChaosObjectId, TShortcut>;
+    using TShortcutMap = absl::flat_hash_map<NChaosClient::TChaosObjectId, TShortcut>;
     TShortcutMap Shortcuts_;
     bool Suspended_ = false;
 
