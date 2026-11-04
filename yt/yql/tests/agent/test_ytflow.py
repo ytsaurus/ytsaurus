@@ -40,8 +40,9 @@ from yt.yql.tests.common.test_framework.test_utils import (
 )
 
 from yt_commands import (
-    authors, create, sync_mount_table, insert_rows, select_rows,
-    list_queue_consumer_registrations, raises_yt_error, get, get_driver,
+    authors, create, mount_table, insert_rows, select_rows,
+    list_queue_consumer_registrations,
+    raises_yt_error, get, get_driver, wait,
 )
 
 from yt_queries import start_query
@@ -405,12 +406,25 @@ class TestYtflowBase(TestQueueAgentBase):
         table_path = self.YT_TABLE_PATH + str(table_index)
         return table_path
 
-    def _create_yt_table(self, input_table_attrs, cluster=None):
+    def _wait_yt_table_mounted(self, table_path, cluster=None):
+        driver = None
+        if cluster is not None:
+            driver = get_driver(cluster=cluster)
+
+        wait(
+            lambda: get(table_path + "/@tablet_state", driver=driver) == "mounted",
+            sleep_backoff=0.05,
+            timeout=30)
+
+    def _create_yt_table(self, input_table_attrs, cluster=None, wait_for_mount=True):
         table_path = self._allocate_yt_table_path()
         input_table_attrs.update(dynamic=True)
         driver = get_driver(cluster=cluster) if cluster is not None else None
         create("table", table_path, attributes=input_table_attrs, driver=driver)
-        sync_mount_table(table_path, driver=driver)
+        mount_table(table_path, driver=driver)
+        if wait_for_mount:
+            self._wait_yt_table_mounted(table_path, cluster=cluster)
+
         return table_path
 
     def _write_yt_table(self, table_path, rows, cluster=None):
@@ -669,12 +683,7 @@ class TestYtflow(TestYtflowBase):
                 {"name": "string_field", "type": "string"},
                 {"name": "int64_field", "type": "int64"},
             ]),
-        ))
-        self._write_yt_table(input_table_path, [
-            {"string_field": "foo", "int64_field": 1},
-            {"string_field": "bar", "int64_field": 10},
-            {"string_field": "foobar", "int64_field": 100},
-        ])
+        ), wait_for_mount=False)
 
         out_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
@@ -682,7 +691,16 @@ class TestYtflow(TestYtflowBase):
                 {"name": "int64_field", "type": "int64"},
                 {"name": "bool_field", "type": "boolean"},
             ]),
-        ))
+        ), wait_for_mount=False)
+
+        self._wait_yt_table_mounted(input_table_path)
+        self._write_yt_table(input_table_path, [
+            {"string_field": "foo", "int64_field": 1},
+            {"string_field": "bar", "int64_field": 10},
+            {"string_field": "foobar", "int64_field": 100},
+        ])
+
+        self._wait_yt_table_mounted(out_table_path)
 
         run_query(f"""
 insert into `{out_table_path}`
