@@ -42,7 +42,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23.8'
+          go-version: '1.24.13'
 
       - name: Build chyt-controller
         working-directory: ytsaurus/yt/chyt/controller/cmd/chyt-controller
