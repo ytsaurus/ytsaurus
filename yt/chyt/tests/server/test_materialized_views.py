@@ -112,6 +112,8 @@ class ClickHouseQueueAgentTestBase(_QueueAgentTestBase):
 
 
 class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 4
+
     @authors("buyval01")
     @pytest.mark.parametrize("table_range", [False, True])
     def test_populate(self, table_range):
