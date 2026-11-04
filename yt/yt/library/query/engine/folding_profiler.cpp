@@ -833,6 +833,7 @@ size_t TExpressionProfiler::Profile(
         }
 
         if (ysonType->GetMetatype() == ELogicalMetatype::List &&
+            ysonType->GetElement()->GetMetatype() == ELogicalMetatype::Simple &&
             ysonType->GetElement()->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Int64)
         {
             if (auto ysonPath = functionExpr->Arguments[1]->As<TLiteralExpression>()) {
