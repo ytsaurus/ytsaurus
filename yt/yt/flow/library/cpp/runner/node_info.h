@@ -30,7 +30,7 @@ TSelfSignedCertificate GenerateIncarnationCertificate(const TNodeInfoBase& nodeI
 //! incarnation, which is published in |nodeInfo| so that the runner can pin it in the direct mode.
 //! Leaves |busServerConfig| untouched, keeping the generated private key out of the node config, and
 //! returns it as is when the config gives the bus server a certificate and key of its own or disables
-//! encryption.
+//! encryption. Rejects an incomplete certificate/key pair when encryption is enabled.
 NBus::NTcp::TBusServerConfigPtr CreateBusServerConfigWithIncarnationCertificate(
     TNodeInfo* nodeInfo,
     const NBus::NTcp::TBusServerConfigPtr& busServerConfig,

@@ -527,6 +527,11 @@ NBus::NTcp::TBusServerConfigPtr CreateBusServerConfigWithIncarnationCertificate(
 {
     const TLogger& Logger = logger;
 
+    THROW_ERROR_EXCEPTION_IF(
+        busServerConfig->EncryptionMode != NBus::EEncryptionMode::Disabled &&
+            static_cast<bool>(busServerConfig->CertificateChain) != static_cast<bool>(busServerConfig->PrivateKey),
+        "Bus server TLS requires both \"cert_chain\" and \"private_key\" to be configured together");
+
     bool hasConfiguredTlsMaterial = busServerConfig->CertificateChain && busServerConfig->PrivateKey;
     if (hasConfiguredTlsMaterial || busServerConfig->EncryptionMode == NBus::EEncryptionMode::Disabled) {
         YT_TLOG_INFO("Incarnation certificate is not generated: the bus server TLS is configured explicitly")
