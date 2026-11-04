@@ -8,6 +8,8 @@
 
 #include <library/cpp/yt/string/guid.h>
 
+#include <library/cpp/containers/absl/flat_hash_map.h>
+
 namespace NYT::NChaosNode {
 
 using namespace NChaosClient;
@@ -48,7 +50,7 @@ public:
         auto* bucket = GetBucket(chaosObjectId);
         {
             auto guard = ReaderGuard(bucket->Lock);
-            if (auto it = bucket->ShortcutSnapshots.find(chaosObjectId)) {
+            if (auto it = bucket->ShortcutSnapshots.find(chaosObjectId); it != bucket->ShortcutSnapshots.end()) {
                 return it->second;
             }
         }
@@ -78,7 +80,7 @@ public:
 private:
     struct TBucket
     {
-        THashMap<TChaosObjectId, TShortcutSnapshot> ShortcutSnapshots;
+        absl::flat_hash_map<TChaosObjectId, TShortcutSnapshot> ShortcutSnapshots;
         YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock);
     };
 
