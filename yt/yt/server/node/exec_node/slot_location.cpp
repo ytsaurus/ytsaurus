@@ -1028,6 +1028,11 @@ std::string TSlotLocation::GetSlotPath(int slotIndex) const
     return CombinePaths(LocationPath_, Format("%v", slotIndex));
 }
 
+const IInvokerPtr& TSlotLocation::GetHeavyInvoker() const
+{
+    return HeavyInvoker_;
+}
+
 TDiskStatistics TSlotLocation::GetDiskStatistics(int slotIndex) const
 {
     auto guard = ReaderGuard(SlotsLock_);

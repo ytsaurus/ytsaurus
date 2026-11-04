@@ -374,8 +374,24 @@ void FromProto(TSandboxNbdRootVolumeSpec* nbd, const NScheduler::NProto::TNbdDis
             break;
         }
 
+        case NScheduler::NProto::TNbdDiskRequest::kJournalNbd: {
+            const auto& protoJournalNbd = protoNbd.journal_nbd();
+            nbd->BackendSpec = TJournalNbdVolumeSpec{
+                .Config = NYson::TYsonString(protoJournalNbd.config()),
+                .DeviceSize = protoJournalNbd.device_size(),
+                .BlockSize = protoJournalNbd.block_size(),
+                .MediumName = protoNbd.disk_request().medium_name(),
+                .Account = protoJournalNbd.account(),
+                .TransactionId = FromProto<TTransactionId>(protoJournalNbd.transaction_id()),
+                .ChunkListId = FromProto<TChunkListId>(protoJournalNbd.chunk_list_id()),
+            };
+            break;
+        }
+
         case NScheduler::NProto::TNbdDiskRequest::BACKEND_NOT_SET:
-            THROW_ERROR_EXCEPTION("NBD disk request specifies no backend");
+            THROW_ERROR_EXCEPTION(
+                NExecNode::EErrorCode::InvalidNbdDiskRequest,
+                "NBD disk request specifies no backend");
     }
 }
 

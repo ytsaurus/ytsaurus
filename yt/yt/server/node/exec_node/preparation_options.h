@@ -69,4 +69,15 @@ struct TVolumePreparationOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Resources of the slot the volume is being prepared for: the journal NBD backend formats the
+//! device on #HeavyInvoker, runs mke2fs on #ToolInvoker and stages the image under #SlotPath.
+struct TVolumePreparationContext
+{
+    IInvokerPtr HeavyInvoker;
+    IInvokerPtr ToolInvoker;
+    std::string SlotPath;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NExecNode

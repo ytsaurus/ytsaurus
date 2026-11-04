@@ -176,6 +176,8 @@ struct TJoblet
     NChunkClient::TChunkListId StderrTableChunkListId;
     NChunkClient::TChunkListId CoreTableChunkListId;
 
+    NChunkClient::TChunkListId JournalNbdChunkListId;
+
     NScheduler::TJobMetrics JobMetrics;
     bool HasLoggedJobMetricsMonotonicityViolation = false;
 

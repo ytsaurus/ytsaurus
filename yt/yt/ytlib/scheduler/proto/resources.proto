@@ -1,5 +1,7 @@
 package NYT.NScheduler.NProto;
 
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TJobResources
@@ -42,6 +44,23 @@ message TChunkNbdDisk
     optional int32 multiplexing_parallelism = 8 [default = 3];
 }
 
+message TJournalNbdDisk
+{
+    //! The requested disk space, truncated to a whole number of blocks by the agent.
+    required int64 device_size = 1;
+    required int64 block_size = 2;
+
+    //! Account the journal chunks are charged to.
+    required string account = 3;
+
+    //! Transaction under which the journal chunks are created and the chunk list is staged.
+    optional NYT.NProto.TGuid transaction_id = 4;
+    optional NYT.NProto.TGuid chunk_list_id = 5;
+
+    //! YSON-serialized NNbd::NJournal::TJournalBlockDeviceConfig, already resolved by the agent.
+    required bytes config = 6;
+}
+
 message TDeprecatedDiskRequest
 {
     optional int64 disk_space = 1;
@@ -69,6 +88,7 @@ message TDiskRequest
     required TStorageRequestCommonParameters storage_request_common_parameters = 1;
     optional int64 inode_count = 2;
     optional int64 medium_index = 3;
+    optional string medium_name = 4;
 }
 
 message TLocalDiskRequest
@@ -82,6 +102,7 @@ message TNbdDiskRequest
 
     oneof backend {
         TChunkNbdDisk chunk_nbd = 2;
+        TJournalNbdDisk journal_nbd = 3;
     }
 }
 

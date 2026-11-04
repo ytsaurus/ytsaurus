@@ -6,6 +6,7 @@
 #include "job_info.h"
 #include "job_memory.h"
 #include "job_splitter.h"
+#include "journal_nbd_spec.h"
 #include "task_host.h"
 
 #include <yt/yt/server/controller_agent/chunk_list_pool.h>
@@ -158,6 +159,14 @@ void TTask::Prepare()
         GetChunkPoolOutput().Get(),
         Logger);
 
+    if (userJobSpec) {
+        i64 journalNbdMemoryUsage = 0;
+        for (const auto& [_, journalNbdSpec] : TaskHost_->GetJournalNbdSpecs(userJobSpec)) {
+            journalNbdMemoryUsage += journalNbdSpec.MemoryUsage;
+        }
+        JournalNbdMemoryUsage_ = journalNbdMemoryUsage;
+    }
+
     if (TaskHost_->GetConfig()->UseResourceOverdraftMemoryMultiplierFromSpec) {
         if (userJobSpec) {
             UserJobMemoryMultiplier_ = userJobSpec->UserJobResourceOverdraftMemoryMultiplier;
@@ -298,6 +307,11 @@ bool TTask::IsCoreTableEnabled() const
 {
     // Same as above.
     return TaskHost_->GetCoreTablePath() && GetUserJobSpec();
+}
+
+bool TTask::IsJournalNbdEnabled() const
+{
+    return TaskHost_->IsJournalNbdEnabled() && HasNbdDiskRequest(GetUserJobSpec());
 }
 
 i64 TTask::GetLocality(TNodeId nodeId) const
@@ -812,6 +826,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
 
     auto userJobSpec = GetUserJobSpec();
     if (userJobSpec) {
+        auto journalNbdEnabled = IsJournalNbdEnabled();
         for (const auto& [_, volume] : userJobSpec->Volumes) {
             if (!volume->DiskRequest) {
                 continue;
@@ -822,9 +837,17 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
                 continue;
             }
 
+            auto isNbd = volume->DiskRequest->GetType() == NExecNode::EVolumeType::Nbd;
+
+            // The journal backend's chunks are charged to the account by master as they are written,
+            // so an account resource usage lease on top of that would count the disk twice.
+            if (isNbd && journalNbdEnabled) {
+                continue;
+            }
+
             auto diskQuota = CreateDiskQuota(diskRequest, TaskHost_->GetMediumDirectory());
             // Do not set needed resources in case of NBD disk since we do not need these resources on exe nodes.
-            if (volume->DiskRequest->GetType() != NExecNode::EVolumeType::Nbd) {
+            if (!isNbd) {
                 neededResources.DiskQuota() = diskQuota;
             }
             joblet->DiskRequestAccount = diskRequest->Account;
@@ -850,8 +873,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     }
 
     // Check the usage against the limits. This is the last chance to give up.
-    if (!context.CanSatisfyDemand(neededResources))
-    {
+    if (!context.CanSatisfyDemand(neededResources)) {
         YT_TLOG_DEBUG("Actual resource demand is not met")
             .With("AvailableResources", context.GetResourcesString(TaskHost_->GetMediumDirectory()))
             .With("NeededResources", FormatResources(neededResources));
@@ -948,6 +970,10 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
 
     if (TaskHost_->CoreTable() && IsCoreTableEnabled()) {
         joblet->CoreTableChunkListId = TaskHost_->ExtractDebugChunkList(TaskHost_->CoreTable()->ExternalCellTag);
+    }
+
+    if (IsJournalNbdEnabled()) {
+        joblet->JournalNbdChunkListId = TaskHost_->ExtractJournalNbdChunkList();
     }
 
     // Sync part.
@@ -1230,6 +1256,9 @@ void TTask::RegisterMetadata(auto&& registrar)
             this_->JobCollectiveManager_.InitializeCounter();
         }));
 
+    PHOENIX_REGISTER_FIELD(39, JournalNbdMemoryUsage_,
+        .SinceVersion(ESnapshotVersion::JournalNbd));
+
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // COMPAT(galtsev)
         if (this_->TaskHost_->GetSpec()->JobExperiment) {
@@ -1429,6 +1458,12 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
         }
     }
 
+    // The disk's chunks are scratch; release the chunk list once completion is durable.
+    if (joblet->JournalNbdChunkListId) {
+        TaskHost_->ReleaseChunkTrees({joblet->JournalNbdChunkListId}, /*unstageRecursively*/ true, /*waitForSnapshot*/ true);
+        joblet->JournalNbdChunkListId = NullChunkListId;
+    }
+
     return result;
 }
 
@@ -1454,6 +1489,10 @@ void TTask::ReleaseJobletResources(TJobletPtr joblet, bool waitForSnapshot)
         }
     }
     TaskHost_->ReleaseChunkTrees(joblet->ChunkListIds, /*recursive*/ true, waitForSnapshot);
+    // The disk's chunks are scratch; release the chunk list on any non-completion finish.
+    if (joblet->JournalNbdChunkListId) {
+        TaskHost_->ReleaseChunkTrees({joblet->JournalNbdChunkListId}, /*unstageRecursively*/ true, waitForSnapshot);
+    }
 }
 
 TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
@@ -2212,7 +2251,9 @@ bool TTask::IsJobInterruptible() const
 
 void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const
 {
-    jobResources.SetFootprintMemory(TaskHost_->GetConfig()->FootprintMemory.value_or(GetFootprintMemorySize()));
+    jobResources.SetFootprintMemory(
+        TaskHost_->GetConfig()->FootprintMemory.value_or(GetFootprintMemorySize()) +
+        JournalNbdMemoryUsage_);
     auto userJobSpec = GetUserJobSpec();
     if (userJobSpec) {
         jobResources.SetUserJobMemory(userJobSpec->MemoryLimit + TaskHost_->GetConfig()->ExecFootprintMemory.value_or(0L));

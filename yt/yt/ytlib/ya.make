@@ -845,6 +845,7 @@ PEERDIR(
     library/cpp/yt/backtrace/symbolizers/dwarf
     library/cpp/containers/absl
     yt/yt/library/erasure/impl
+    yt/yt/library/nbd
     yt/yt/library/containers
     yt/yt/library/discovery_client
     yt/yt/library/disk_manager

@@ -91,6 +91,7 @@ IAttributeDictionaryPtr TControllerTransactionIds::ToCypressAttributes() const
 {
     return BuildAttributeDictionaryFluently()
         .Item("async_scheduler_transaction_id").Value(AsyncId)
+        .Item("journal_nbd_transaction_id").Value(JournalNbdId)
         .Item("input_transaction_id").Value(InputId)
         .Item("output_transaction_id").Value(OutputId)
         .Item("debug_transaction_id").Value(DebugId)
@@ -104,6 +105,7 @@ TControllerTransactionIds TControllerTransactionIds::FromCypressAttributes(NYTre
 {
     return TControllerTransactionIds {
         .AsyncId = attributes->Get<TTransactionId>("async_scheduler_transaction_id", NullTransactionId),
+        .JournalNbdId = attributes->Get<TTransactionId>("journal_nbd_transaction_id", NullTransactionId),
         .InputId = attributes->Get<TTransactionId>("input_transaction_id", NullTransactionId),
         .OutputId = attributes->Get<TTransactionId>("output_transaction_id", NullTransactionId),
         .DebugId = attributes->Get<TTransactionId>("debug_transaction_id", NullTransactionId),
@@ -115,6 +117,7 @@ TControllerTransactionIds TControllerTransactionIds::FromCypressAttributes(NYTre
 
 const std::vector<std::string> TControllerTransactionIds::AttributeKeys = {
     "async_scheduler_transaction_id",
+    "journal_nbd_transaction_id",
     "input_transaction_id",
     "output_transaction_id",
     "debug_transaction_id",
@@ -126,6 +129,7 @@ const std::vector<std::string> TControllerTransactionIds::AttributeKeys = {
 void ToProto(NControllerAgent::NProto::TControllerTransactionIds* transactionIdsProto, const TControllerTransactionIds& transactionIds)
 {
     ToProto(transactionIdsProto->mutable_async_id(), transactionIds.AsyncId);
+    ToProto(transactionIdsProto->mutable_journal_nbd_id(), transactionIds.JournalNbdId);
     ToProto(transactionIdsProto->mutable_input_id(), transactionIds.InputId);
     ToProto(transactionIdsProto->mutable_output_id(), transactionIds.OutputId);
     ToProto(transactionIdsProto->mutable_debug_id(), transactionIds.DebugId);
@@ -137,6 +141,7 @@ void ToProto(NControllerAgent::NProto::TControllerTransactionIds* transactionIds
 void FromProto(TControllerTransactionIds* transactionIds, const NControllerAgent::NProto::TControllerTransactionIds& transactionIdsProto)
 {
     transactionIds->AsyncId = FromProto<TTransactionId>(transactionIdsProto.async_id());
+    transactionIds->JournalNbdId = FromProto<TTransactionId>(transactionIdsProto.journal_nbd_id());
     transactionIds->InputId = FromProto<TTransactionId>(transactionIdsProto.input_id());
     transactionIds->OutputId = FromProto<TTransactionId>(transactionIdsProto.output_id());
     transactionIds->DebugId = FromProto<TTransactionId>(transactionIdsProto.debug_id());
@@ -177,6 +182,9 @@ TOperationTransactions AttachControllerTransactions(
     transactions.AsyncTransaction = attachIfNotAttached(
         transactionIds.AsyncId,
         "async");
+    transactions.JournalNbdTransaction = attachIfNotAttached(
+        transactionIds.JournalNbdId,
+        "journal NBD");
     transactions.InputTransaction = attachIfNotAttached(
         transactionIds.InputId,
         "input");

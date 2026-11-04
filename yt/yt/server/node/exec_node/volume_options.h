@@ -59,7 +59,12 @@ struct TChunkNbdVolumeOptions
     NChunkClient::TSessionId SessionId;
 };
 
-using TRWNbdVolumeBackendOptions = std::variant<TChunkNbdVolumeOptions>;
+struct TJournalNbdVolumeOptions
+{
+    TJournalNbdVolumeSpec Spec;
+};
+
+using TRWNbdVolumeBackendOptions = std::variant<TChunkNbdVolumeOptions, TJournalNbdVolumeOptions>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

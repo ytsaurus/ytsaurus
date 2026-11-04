@@ -462,6 +462,31 @@ bool HasJobUniquenessRequirements(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool HasNbdDiskRequest(const NScheduler::TUserJobSpecPtr& userJobSpec)
+{
+    if (!userJobSpec) {
+        return false;
+    }
+
+    return std::ranges::any_of(
+        userJobSpec->Volumes,
+        [] (const auto& volume) {
+            return volume.second->DiskRequest &&
+                volume.second->DiskRequest->GetType() == NExecNode::EVolumeType::Nbd;
+        });
+}
+
+bool HasNbdDiskRequests(const std::vector<NScheduler::TUserJobSpecPtr>& userJobSpecs)
+{
+    return std::ranges::any_of(
+        userJobSpecs,
+        [] (const auto& userJobSpec) {
+            return HasNbdDiskRequest(userJobSpec);
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TTablePtr>
 void FetchTableSchemas(
     const NApi::NNative::IClientPtr& client,

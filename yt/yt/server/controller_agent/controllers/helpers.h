@@ -137,6 +137,12 @@ bool HasJobUniquenessRequirements(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool HasNbdDiskRequest(const NScheduler::TUserJobSpecPtr& userJobSpec);
+
+bool HasNbdDiskRequests(const std::vector<NScheduler::TUserJobSpecPtr>& userJobSpecs);
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TTablePtr>
 void FetchTableSchemas(
     const NApi::NNative::IClientPtr& client,

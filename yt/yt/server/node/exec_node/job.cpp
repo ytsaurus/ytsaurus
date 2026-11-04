@@ -4146,6 +4146,7 @@ bool TJob::IsFatalError(const TError& error)
         error.FindMatching(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed) ||
         error.FindMatching(NExecNode::EErrorCode::VolumeSizeLimitExceeded) ||
         error.FindMatching(NExecNode::EErrorCode::FatalJobPreparationTimeout) ||
+        error.FindMatching(NExecNode::EErrorCode::InvalidNbdDiskRequest) ||
         error.FindMatching(NFormats::EErrorCode::InvalidFormat);
 }
 

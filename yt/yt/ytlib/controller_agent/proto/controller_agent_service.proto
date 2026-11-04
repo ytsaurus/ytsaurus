@@ -118,8 +118,10 @@ message TControllerTransactionIds
     optional NYT.NProto.TGuid debug_id = 4;
     optional NYT.NProto.TGuid output_completion_id = 5;
     optional NYT.NProto.TGuid debug_completion_id = 6;
-    reserved 7;
     repeated NScheduler.NProto.TRichTransactionId input_ids = 8;
+    optional NYT.NProto.TGuid journal_nbd_id = 9;
+
+    reserved 7;
 }
 
 message TInitializeOperationResult

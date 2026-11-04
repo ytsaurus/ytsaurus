@@ -27,7 +27,8 @@ struct IPortoVolumeManager
     virtual TFuture<IVolumePtr> PrepareVolume(
         std::vector<TOverlayData> overlayDataArray,
         TBaseVolumeParamsPtr volumeParams,
-        const TVolumePreparationOptions& options) = 0;
+        const TVolumePreparationContext& context,
+        const TVolumePreparationOptions& options = {}) = 0;
 
     //! Prepare non-root volumes from pre-prepared overlay layer data.
     //! perVolumeOverlayData[i] is the overlay data for volumes[i].
@@ -36,7 +37,8 @@ struct IPortoVolumeManager
         const TJobId& jobId,
         const std::vector<TBaseVolumeParamsPtr>& volumes,
         std::vector<std::vector<TOverlayData>> perVolumeOverlayData,
-        const std::vector<TVolumeMountPtr>& volumeMounts) = 0;
+        const std::vector<TVolumeMountPtr>& volumeMounts,
+        const TVolumePreparationContext& context) = 0;
 
     //! Prepare overlay layers (download/import) for a set of artifact keys.
     //! Returns one future per layer; each resolves to TOverlayData.

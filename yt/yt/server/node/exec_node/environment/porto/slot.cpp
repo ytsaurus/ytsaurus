@@ -99,6 +99,7 @@ TFuture<IVolumePtr> TPortoUserSlot::PrepareRootVolume(
             return GetVolumeManager()->PrepareVolume(
                 std::move(overlayDataArray),
                 volumeParams,
+                MakeVolumePreparationContext(),
                 options);
         });
 }
@@ -142,6 +143,7 @@ TFuture<IVolumePtr> TPortoUserSlot::PrepareGpuCheckVolume(
             return GetVolumeManager()->PrepareVolume(
                 std::move(overlayDataArray),
                 volumeParams,
+                MakeVolumePreparationContext(),
                 options);
         });
 }
@@ -163,7 +165,8 @@ TFuture<std::vector<TVolumeResultPtr>> TPortoUserSlot::PrepareNonRootVolumes(
                 jobId,
                 volumeParams,
                 std::move(perVolumeOverlayData),
-                volumeMounts);
+                volumeMounts,
+                MakeVolumePreparationContext());
         }));
 }
 

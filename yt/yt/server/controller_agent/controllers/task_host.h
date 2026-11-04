@@ -2,6 +2,7 @@
 
 #include "data_flow_graph.h"
 #include "extended_job_resources.h"
+#include "journal_nbd_spec.h"
 #include "private.h"
 #include "table.h"
 
@@ -59,6 +60,14 @@ struct ITaskHost
     // TODO(max42): get rid of this; serialize files either in tasks or in controller.
     virtual const std::vector<TUserFile>& GetUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec) const = 0;
 
+    //! Whether this operation's RW NBD disks use the journal backend.
+    //! Decided at clean start and kept across revive.
+    virtual bool IsJournalNbdEnabled() const = 0;
+
+    //! Volume name -> resolved journal NBD spec; empty unless journal NBD is enabled.
+    virtual const THashMap<std::string, TJournalNbdSpec>& GetJournalNbdSpecs(
+        const NScheduler::TUserJobSpecPtr& userJobSpec) const = 0;
+
     /*!
      *  \note Invoker affinity: JobSpecBuildInvoker.
      */
@@ -88,6 +97,7 @@ struct ITaskHost
     virtual NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) = 0;
     virtual NChunkClient::TChunkListId ExtractOutputHunkChunkList(NObjectClient::TCellTag cellTag) = 0;
     virtual NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) = 0;
+    virtual NChunkClient::TChunkListId ExtractJournalNbdChunkList() = 0;
     virtual void ReleaseChunkTrees(
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
         bool unstageRecursively = true,

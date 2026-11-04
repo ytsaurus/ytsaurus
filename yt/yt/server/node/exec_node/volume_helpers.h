@@ -4,9 +4,17 @@
 
 #include <yt/yt/server/lib/nbd/public.h>
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
+#include <yt/yt/ytlib/object_client/public.h>
+
+#include <yt/yt/library/nbd/chunk/public.h>
+
 #include <yt/yt/library/nbd/config.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/core/yson/string.h>
 
 namespace NYT::NExecNode {
 
@@ -30,7 +38,7 @@ struct TChunkNbdVolumeSpec
     int MaxDataNodeCount = 0;
 
     //! Number of TCP connections to use for NBD RPC requests.
-    int MultiplexingParallelism = DefaultNbdMultiplexingParallelism;
+    int MultiplexingParallelism = NNbd::NChunk::DefaultNbdMultiplexingParallelism;
 
     bool operator==(const TChunkNbdVolumeSpec&) const = default;
 };
@@ -39,7 +47,31 @@ void FormatValue(TStringBuilderBase* builder, const TChunkNbdVolumeSpec& volumeS
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TRWNbdVolumeBackendSpec = std::variant<TChunkNbdVolumeSpec>;
+struct TJournalNbdVolumeSpec
+{
+    //! YSON-serialized NNbd::NJournal::TJournalBlockDeviceConfig, resolved by the controller agent.
+    NYson::TYsonString Config;
+
+    //! The requested disk space, truncated to a whole number of blocks by the agent.
+    i64 DeviceSize = 0;
+    i64 BlockSize = 0;
+
+    //! Medium the journal chunks are placed on and account they are charged to.
+    std::string MediumName;
+    std::string Account;
+
+    //! Transaction under which the journal chunks are created and the chunk list is staged.
+    NObjectClient::TTransactionId TransactionId;
+    NChunkClient::TChunkListId ChunkListId;
+
+    bool operator==(const TJournalNbdVolumeSpec&) const = default;
+};
+
+void FormatValue(TStringBuilderBase* builder, const TJournalNbdVolumeSpec& volumeSpec, TStringBuf spec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TRWNbdVolumeBackendSpec = std::variant<TChunkNbdVolumeSpec, TJournalNbdVolumeSpec>;
 
 //! Sandbox NBD root volume as requested by the job spec.
 struct TSandboxNbdRootVolumeSpec

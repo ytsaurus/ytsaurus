@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/yt/server/node/exec_node/preparation_options.h>
 #include <yt/yt/server/node/exec_node/slot.h>
 #include <yt/yt/server/node/exec_node/slot_manager.h>
 
@@ -183,6 +184,8 @@ protected:
     explicit TUserSlotBase(TUserSlotContext context);
 
     TString GetRootPath(const IVolumePtr& rootVolume) const;
+
+    TVolumePreparationContext MakeVolumePreparationContext() const;
 
     void VerifyEnabled() const;
 

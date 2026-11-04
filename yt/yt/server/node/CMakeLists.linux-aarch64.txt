@@ -326,6 +326,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/write_commands.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/write_log.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_cache_journal_nbd_dummy.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/exec_node/artifact.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/exec_node/environment/porto/volume.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/in_memory_service.pb.h

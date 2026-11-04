@@ -136,6 +136,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PushBasedShuffle)                      (302405))
     ((PersistSkippedInputChunks)             (302406))
     ((RemoteCopyRangeSeparation)             (302407))
+    ((JournalNbd)                            (302408))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

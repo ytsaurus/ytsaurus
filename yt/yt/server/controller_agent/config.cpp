@@ -327,10 +327,22 @@ void TDataBalancerOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJournalNbdOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+    registrar.Parameter("block_size", &TThis::BlockSize)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TUserJobOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("thread_limit_formula", &TThis::ThreadLimitFormula)
         .DefaultCtor([] { return MakeArithmeticFormula("250000"); });
+    registrar.Parameter("journal_nbd", &TThis::JournalNbd)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
