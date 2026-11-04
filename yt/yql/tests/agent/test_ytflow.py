@@ -620,7 +620,8 @@ pragma Ytflow.WorkerMemoryLimit = "1G";
                     wait_pipeline_state_or_failed_jobs(
                         target_state, pipeline_path,
                         client=client,
-                        timeout=600)
+                        timeout=600,
+                        poll_period=0.1)
 
                     if on_target_state_reached is not None:
                         on_target_state_reached(client)
@@ -633,6 +634,7 @@ pragma Ytflow.WorkerMemoryLimit = "1G";
                             timeout=success_condition_timeout,
                             condition_description="query success condition",
                             ignore_exceptions=True,
+                            poll_period=0.1,
                         )
 
                 finally:

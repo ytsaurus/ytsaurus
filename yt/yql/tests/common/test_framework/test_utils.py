@@ -94,6 +94,7 @@ def wait_pipeline_condition_or_failed_jobs(
     client=None,
     condition_description="condition",
     ignore_exceptions=False,
+    poll_period=1,
 ):
     import yt.logger as logger
 
@@ -159,13 +160,14 @@ def wait_pipeline_condition_or_failed_jobs(
         logger.info("Still waiting (current state: %s, condition: %s)",
                     current_state, condition_description)
 
-        time.sleep(1)
+        time.sleep(poll_period)
 
 
 def wait_pipeline_state_or_failed_jobs(
     target_state, pipeline_path,
     timeout=600,
     client=None,
+    poll_period=1,
 ):
     import yt.logger as logger
 
@@ -205,6 +207,7 @@ def wait_pipeline_state_or_failed_jobs(
         timeout=timeout,
         client=client,
         condition_description="target state: %s" % target_state,
+        poll_period=poll_period,
     )
 
 
