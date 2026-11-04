@@ -278,6 +278,8 @@ class TestYtflowBase(TestQueueAgentBase):
                 dict(name='_ComputationConfig',
                      value='{batch_duration=100;empty_batch_backoff=25;}'),
                 dict(name='_YtQueueSourceUpdateInfoPeriod', value='100ms'),
+                dict(name='_EnablePortoResourceTracker', value='false'),
+                dict(name='_SolomonExporterConfig', value='{enable_self_profiling=%false;}'),
                 dict(name='_UseCpuAwareBalancer', value='false'),
                 dict(name='_FiniteStreams', value=str(run_vanilla_operation)),
                 dict(name='_YtUseSourceWatermark', value='false'),

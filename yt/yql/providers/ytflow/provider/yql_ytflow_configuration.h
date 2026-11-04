@@ -42,6 +42,10 @@ public:
     NCommon::TConfSetting<TString, Static> _ControllerConfig;
     // YSON map used for the initial and dynamic controller connector settings.
     NCommon::TConfSetting<TString, Static> _ControllerConnectorConfig;
+    // Optional node-level Porto resource tracking override.
+    NCommon::TConfSetting<bool, Static> _EnablePortoResourceTracker;
+    // YSON map for the Flow node's metrics exporter.
+    NCommon::TConfSetting<TString, Static> _SolomonExporterConfig;
     // YSON map merged into the dynamic pipeline spec's "job_manager" section.
     NCommon::TConfSetting<TString, Static> _JobManagerConfig;
     // YSON map applied to every dynamic computation spec.
