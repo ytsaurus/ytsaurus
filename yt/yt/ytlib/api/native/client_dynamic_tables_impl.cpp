@@ -2092,6 +2092,11 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         options.DetailedProfilingInfo,
         options.ExpectedTableSchemas);
 
+    auto requestFeatureFlags = MostFreshFeatureFlags();
+
+    bool allowUnorderedGroupByWithLimit = requestFeatureFlags.GroupByWithLimitIsUnordered &&
+        dynamicConfig->GroupByWithLimitIsUnordered;
+
     auto fragment = PreparePlanFragment(
         queryPreparer.Get(),
         parsedQuery->Source,
@@ -2121,6 +2126,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             .EnableScalarSubqueryOrderByAndLimit = queryEngineConfig
                 ? queryEngineConfig->EnableScalarSubqueryOrderByAndLimit.value_or(false)
                 : false,
+            .AllowUnorderedGroupByWithLimit = allowUnorderedGroupByWithLimit,
         },
         HeavyRequestMemoryUsageTracker_);
 
@@ -2181,9 +2187,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         }
     }
 
-    auto requestFeatureFlags = MostFreshFeatureFlags();
-
-    queryOptions.AllowUnorderedGroupByWithLimit = requestFeatureFlags.GroupByWithLimitIsUnordered && dynamicConfig->GroupByWithLimitIsUnordered;
+    queryOptions.AllowUnorderedGroupByWithLimit = allowUnorderedGroupByWithLimit;
 
     IUnversionedRowsetWriterPtr writer;
     TFuture<IUnversionedRowsetPtr> asyncRowset;
@@ -2291,7 +2295,7 @@ NYson::TYsonString TClient::DoExplainQuery(
 
     auto requestFeatureFlags = MostFreshFeatureFlags();
 
-    auto allowUnorderedGroupByWithLimit = requestFeatureFlags.GroupByWithLimitIsUnordered && GetNativeConnection()
+    bool allowUnorderedGroupByWithLimit = requestFeatureFlags.GroupByWithLimitIsUnordered && GetNativeConnection()
         ->GetConfig()
         ->GroupByWithLimitIsUnordered;
 
@@ -2324,6 +2328,7 @@ NYson::TYsonString TClient::DoExplainQuery(
             .EnableScalarSubqueryOrderByAndLimit = queryEngineConfig
                 ? queryEngineConfig->EnableScalarSubqueryOrderByAndLimit.value_or(false)
                 : false,
+            .AllowUnorderedGroupByWithLimit = allowUnorderedGroupByWithLimit,
         },
         HeavyRequestMemoryUsageTracker_);
 
@@ -2338,7 +2343,6 @@ NYson::TYsonString TClient::DoExplainQuery(
         udfRegistryPath,
         options,
         memoryChunkProvider,
-        allowUnorderedGroupByWithLimit,
         /*allowReverseScanForOrderBy*/ queryEngineConfig
             ? queryEngineConfig->AllowReverseScanForOrderBy.value_or(false)
             : false);

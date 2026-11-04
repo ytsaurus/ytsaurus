@@ -15,6 +15,9 @@
 namespace NYT::NQueryClient {
 namespace {
 
+using NYT::ToProto;
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryEvaluateScalarSubqueryTest
@@ -864,8 +867,7 @@ TEST_P(TQueryEvaluateScalarSubqueryTest, OrderByOffsetAndLimit)
         {"OFFSET 18446744073709551615 LIMIT 2", "Negative OFFSET is forbidden"},
         {"LIMIT 9223372036854775808", "Negative LIMIT is forbidden"},
         {"LIMIT 18446744073709551615", "Negative LIMIT is forbidden"},
-        {Format("LIMIT %v", UnorderedReadHint), "Maximum LIMIT exceeded"},
-        {Format("LIMIT %v", OrderedReadWithPrefetchHint), "Maximum LIMIT exceeded"},
+        {Format("LIMIT %v", MaxQueryLimit + 1), "Maximum LIMIT exceeded"},
         {Format("OFFSET 3 LIMIT %v", MaxQueryLimit), "overflows i64"},
         {"OFFSET 9223372036854775807 LIMIT 1", "overflows i64"},
         {Format("OFFSET 9223372036854775807 LIMIT %v", MaxQueryLimit), "overflows i64"},
@@ -891,8 +893,8 @@ TEST_P(TQueryEvaluateScalarSubqueryTest, OrderByOffsetAndLimit)
         /*placeholderValues*/ {},
         prepareOptions);
     EXPECT_EQ(query->Limit, MaxQueryLimit);
-    EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true), EScanOrder::Ordered);
-    EXPECT_FALSE(query->IsPrefetching());
+    EXPECT_EQ(query->ScanOrder, EScanOrder::Ordered);
+    EXPECT_FALSE(query->Prefetching);
 }
 
 TEST_P(TQueryEvaluateScalarSubqueryTest, NestedSubqueryOrderByAndLimitReusedAlias)
@@ -1241,22 +1243,28 @@ TEST_P(TQueryEvaluateScalarSubqueryTest, NestedSubqueryLegacyLimit)
         }, /*removedFieldStableNames*/ {}))},
     });
 
-    for (const auto& [rootLimit, limit, expected] : std::vector<std::tuple<i64, std::optional<i64>, std::string>>{
-        {UnorderedReadHint, std::nullopt, "[[3];[1];[2]]"},
-        {UnorderedReadHint, 0, "[]"},
-        {UnorderedReadHint, 2, "[[3];[1]]"},
-        {UnorderedReadHint, MaxQueryLimit, "[[3];[1];[2]]"},
-        {UnorderedReadHint, UnorderedReadHint, "[[3];[1];[2]]"},
-        {OrderedReadWithPrefetchHint, std::nullopt, "[[3];[1];[2]]"},
-        {OrderedReadWithPrefetchHint, 0, "[]"},
-        {OrderedReadWithPrefetchHint, 2, "[[3];[1]]"},
-        {OrderedReadWithPrefetchHint, MaxQueryLimit, "[[3];[1];[2]]"},
-        {OrderedReadWithPrefetchHint, UnorderedReadHint, "[[3];[1];[2]]"},
+    for (const auto& [rootLimit, scanOrder, limit, expected] : std::vector<std::tuple<std::optional<i64>, std::optional<EScanOrder>, std::optional<i64>, std::string>>{
+        {std::nullopt, std::nullopt, std::nullopt, "[[3];[1];[2]]"},
+        {std::nullopt, std::nullopt, 0, "[]"},
+        {std::nullopt, std::nullopt, 2, "[[3];[1]]"},
+        {std::nullopt, std::nullopt, MaxQueryLimit, "[[3];[1];[2]]"},
+        {std::nullopt, EScanOrder::Ordered, std::nullopt, "[[3];[1];[2]]"},
+        {std::nullopt, EScanOrder::Ordered, 0, "[]"},
+        {std::nullopt, EScanOrder::Ordered, 2, "[[3];[1]]"},
+        {std::nullopt, EScanOrder::Ordered, MaxQueryLimit, "[[3];[1];[2]]"},
+        {MaxQueryLimit, std::nullopt, std::nullopt, "[[3];[1];[2]]"},
     }) {
-        SCOPED_TRACE(Format("Root limit: %v, Subquery limit: %v", rootLimit, limit));
+        SCOPED_TRACE(Format("Root limit: %v, Scan order: %v, Subquery limit: %v", rootLimit, scanOrder, limit));
         auto serialized = NProto::TQuery();
         ToProto(&serialized, query);
-        serialized.set_limit(rootLimit);
+        serialized.clear_limit();
+        serialized.clear_scan_order();
+        if (rootLimit) {
+            serialized.set_limit(*rootLimit);
+        }
+        if (scanOrder) {
+            serialized.set_scan_order(ToProto(*scanOrder));
+        }
         serialized.set_input_row_limit(std::numeric_limits<i64>::max());
         serialized.set_output_row_limit(std::numeric_limits<i64>::max());
         auto* subquery = serialized.mutable_project_clause()->mutable_projections(0)->mutable_expression()
@@ -1276,13 +1284,13 @@ TEST_P(TQueryEvaluateScalarSubqueryTest, NestedSubqueryLegacyLimit)
         FromProto(&restored, parsed);
 
         EXPECT_EQ(restored->Limit, rootLimit);
-        EXPECT_EQ(restored->IsPrefetching(), rootLimit == OrderedReadWithPrefetchHint);
+        EXPECT_FALSE(restored->Prefetching);
         EXPECT_EQ(
-            restored->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true),
-            rootLimit == UnorderedReadHint ? EScanOrder::Unordered : EScanOrder::Ordered);
+            restored->ScanOrder,
+            scanOrder ? *scanOrder : (rootLimit ? EScanOrder::Ordered : EScanOrder::Unordered));
         const auto* restoredSubquery = restored->ProjectClause->Projections[0].Expression->As<TSubqueryExpression>();
         ASSERT_NE(restoredSubquery, nullptr);
-        EXPECT_EQ(restoredSubquery->Limit, limit.value_or(UnorderedReadHint));
+        EXPECT_EQ(restoredSubquery->Limit, limit);
 
         auto pipe = RunOnNodeThread(
             restored,

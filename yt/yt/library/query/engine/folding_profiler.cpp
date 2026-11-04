@@ -1621,14 +1621,14 @@ size_t TExpressionProfiler::Profile(
     }
 
     bool considerLimit = !subqueryExpr->OrderClause &&
-        (subqueryExpr->Offset != 0 || subqueryExpr->Limit < UnorderedReadHint);
+        (subqueryExpr->Offset != 0 || subqueryExpr->Limit.has_value());
     Fold(considerLimit);
 
     int offsetId = -1;
     int limitId = -1;
     if (considerLimit || subqueryExpr->OrderClause) {
         offsetId = Variables_->AddOpaque<i64>(subqueryExpr->Offset);
-        limitId = Variables_->AddOpaque<i64>(subqueryExpr->Limit);
+        limitId = Variables_->AddOpaque<i64>(subqueryExpr->Limit.value_or(std::numeric_limits<i64>::max()));
     }
 
     if (auto orderClause = subqueryExpr->OrderClause.Get()) {
@@ -1795,7 +1795,6 @@ public:
             sdk)
         , MaxJoinBatchSize_(options.MaxJoinBatchSize)
         , OptimizationLevel_(options.OptimizationLevel)
-        , AllowUnorderedGroupByWithLimit_(options.AllowUnorderedGroupByWithLimit)
     { }
 
     void Profile(
@@ -1831,9 +1830,6 @@ private:
 protected:
     const i64 MaxJoinBatchSize_;
     const EOptimizationLevel OptimizationLevel_;
-
-    // COMPAT(sabdenovch)
-    const bool AllowUnorderedGroupByWithLimit_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1842,13 +1838,11 @@ protected:
 // we should account totals on the query coordinator side,
 // since the coordinator decides which rows will be included into the response.
 // When totals are calculated at the coordinator, the coordinator should also finalize aggregated.
-bool ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator(
-    const TConstBaseQueryPtr& query,
-    bool allowUnorderedGroupByWithLimit)
+bool ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator(const TConstBaseQueryPtr& query)
 {
     return query->GroupClause &&
         query->GroupClause->TotalsMode != ETotalsMode::None &&
-        query->GetScanOrder(allowUnorderedGroupByWithLimit) == EScanOrder::Ordered;
+        query->ScanOrder == EScanOrder::Ordered;
 }
 
 class TGroupByStreamManager
@@ -1868,8 +1862,7 @@ public:
         const TCodegenFragmentInfosPtr& havingFragmentsInfos,
         size_t havingPredicateId,
         TCGVariables* variables,
-        bool combineGroupOpWithOrderOp,
-        bool allowUnorderedGroupByWithLimit)
+        bool combineGroupOpWithOrderOp)
         : FinalMode_(finalMode)
         , ExclusiveGroupKeyView_(exclusiveGroupKeyView)
         , MergeMode_(mergeMode)
@@ -1886,7 +1879,6 @@ public:
         , HavingPredicateId_(havingPredicateId)
         , Variables_(variables)
         , CombineGroupOpWithOrderOp_(combineGroupOpWithOrderOp)
-        , AllowUnorderedGroupByWithLimit_(allowUnorderedGroupByWithLimit)
     { }
 
     void Process(size_t* intermediate, size_t* aggregated, size_t* delta, size_t* totals)
@@ -1924,9 +1916,6 @@ private:
     TCGVariables* const Variables_;
 
     const bool CombineGroupOpWithOrderOp_;
-
-    // COMPAT(sabdenovch)
-    const bool AllowUnorderedGroupByWithLimit_;
 
     // We should convert intermediates to deltas at the last stage of execution (query is final), since there will be no more groupings.
     // We can also convert intermediate to deltas if the query is disjoint (when the grouping key and the primary key are identical).
@@ -1979,11 +1968,11 @@ private:
 
     void LimitTotalsInput(size_t* totals) const
     {
-        bool considerLimit = (Query_->GetScanOrder(AllowUnorderedGroupByWithLimit_) == EScanOrder::Ordered) && Query_->IsFinal;
+        bool considerLimit = Query_->ScanOrder == EScanOrder::Ordered && Query_->IsFinal;
 
         if (considerLimit) {
             int offsetId = Variables_->AddOpaque<size_t>(Query_->Offset);
-            int limitId = Variables_->AddOpaque<size_t>(Query_->Limit);
+            int limitId = Variables_->AddOpaque<size_t>(Query_->Limit.value_or(std::numeric_limits<i64>::max()));
             *totals = MakeCodegenOffsetLimiterOp(CodegenSource_, SlotCount_, *totals, offsetId, limitId);
         }
     }
@@ -1994,7 +1983,7 @@ private:
             return;
         }
 
-        if (ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator(Query_, AllowUnorderedGroupByWithLimit_)) {
+        if (ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator(Query_)) {
             if (!FinalMode_) {
                 // Do nothing.
             } else {
@@ -2045,7 +2034,7 @@ private:
 
     void AddDeltaToAggregated(size_t* delta, size_t* aggregated) const
     {
-        if (!ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator(Query_, AllowUnorderedGroupByWithLimit_)) {
+        if (!ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator(Query_)) {
             *delta = MakeCodegenFinalizeOp(
                 CodegenSource_,
                 SlotCount_,
@@ -2068,7 +2057,7 @@ private:
             return;
         }
 
-        if (ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator(Query_, AllowUnorderedGroupByWithLimit_)) {
+        if (ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator(Query_)) {
             *aggregated = MakeCodegenFinalizeOp(
                 CodegenSource_,
                 SlotCount_,
@@ -2128,7 +2117,7 @@ void TQueryProfiler::Profile(
 
     bool finalMode = query->IsFinal;
     bool exclusiveGroupKeyView = query->HasExclusiveGroupKeyView;
-    bool finalizeAggregatesAtCoordinator = ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator(query, AllowUnorderedGroupByWithLimit_);
+    bool finalizeAggregatesAtCoordinator = ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator(query);
 
     Fold(EFoldingObjectType::FinalMode);
     Fold(finalMode);
@@ -2136,7 +2125,7 @@ void TQueryProfiler::Profile(
     Fold(mergeMode);
     Fold(exclusiveGroupKeyView);
     Fold(EFoldingObjectType::QueryIsOrdered);
-    Fold(query->GetScanOrder(AllowUnorderedGroupByWithLimit_));
+    Fold(query->ScanOrder);
 
     auto combineGroupOpWithOrderOp = TCodegenOrderOpInfosPtr();
 
@@ -2301,7 +2290,7 @@ void TQueryProfiler::Profile(
             groupClause->TotalsMode != ETotalsMode::None,
             // Input is ordered for ordered queries and bottom fragments if CommonPrefixWithPrimaryKey > 0.
             // Prefix comparer can be used only if input is ordered.
-            (!mergeMode || query->GetScanOrder(AllowUnorderedGroupByWithLimit_) == EScanOrder::Ordered) && (!combineGroupOpWithOrderOp) ? groupClause->CommonPrefixWithPrimaryKey : 0,
+            (!mergeMode || query->ScanOrder == EScanOrder::Ordered) && (!combineGroupOpWithOrderOp) ? groupClause->CommonPrefixWithPrimaryKey : 0,
             combineGroupOpWithOrderOp,
             ComparerManager_);
 
@@ -2337,8 +2326,7 @@ void TQueryProfiler::Profile(
             havingFragmentsInfos,
             havingPredicateId,
             Variables_,
-            combineGroupOpWithOrderOp != nullptr,
-            AllowUnorderedGroupByWithLimit_);
+            combineGroupOpWithOrderOp != nullptr);
 
         manager.Process(&intermediateSlot, &aggregatedSlot, &deltaSlot, &totalsSlot);
 
@@ -2442,7 +2430,7 @@ void TQueryProfiler::Profile(
         schema = projectClause->GetTableSchema();
     }
 
-    bool considerLimit = (query->Limit < std::numeric_limits<i64>::max()) &&
+    bool considerLimit = query->Limit.has_value() &&
         !query->OrderClause &&
         (!query->GroupClause || query->IsFinal);
     Fold(considerLimit);
@@ -2451,7 +2439,7 @@ void TQueryProfiler::Profile(
         // it is safe to apply `limit` to the finalSlot of grouping queries.
 
         int offsetId = Variables_->AddOpaque<size_t>(query->Offset);
-        int limitId = Variables_->AddOpaque<size_t>(query->Limit);
+        int limitId = Variables_->AddOpaque<size_t>(*query->Limit);
 
         aggregatedSlot = MakeCodegenOffsetLimiterOp(codegenSource, slotCount, aggregatedSlot, offsetId, limitId);
     }
@@ -2807,8 +2795,11 @@ void TQueryProfiler::Profile(
 
         size_t joinBatchSize = MaxJoinBatchSize_;
 
-        if ((query->GetScanOrder(AllowUnorderedGroupByWithLimit_) == EScanOrder::Ordered) && query->Offset + query->Limit < static_cast<ssize_t>(joinBatchSize)) {
-            joinBatchSize = query->Offset + query->Limit;
+        if (query->Limit &&
+            query->ScanOrder == EScanOrder::Ordered &&
+            query->Offset + *query->Limit < static_cast<ssize_t>(joinBatchSize))
+        {
+            joinBatchSize = query->Offset + *query->Limit;
         }
 
         std::vector<TSingleJoinCGParameters> parameters;

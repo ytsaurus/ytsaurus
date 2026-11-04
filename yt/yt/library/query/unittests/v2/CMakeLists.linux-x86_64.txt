@@ -26,6 +26,7 @@ target_link_libraries(unittester-query-v2 PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   library-query-unittests
+  library-query-proto
 )
 
 target_allocator(unittester-query-v2

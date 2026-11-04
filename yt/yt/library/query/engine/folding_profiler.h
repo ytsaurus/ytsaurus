@@ -39,7 +39,6 @@ struct TQueryFoldingProfilerOptions
     bool UseCanonicalNullRelations = false;
     NCodegen::EExecutionBackend ExecutionBackend = NCodegen::EExecutionBackend::Native;
     NCodegen::EOptimizationLevel OptimizationLevel = NCodegen::EOptimizationLevel::Default;
-    bool AllowUnorderedGroupByWithLimit = true;
     i64 MaxJoinBatchSize = DefaultMaxJoinBatchSize;
 };
 

@@ -643,7 +643,8 @@ private:
             VerifyIdsInKeys(dataSource.first.Keys);
         }
 
-        if (coordinatedQuery->GetScanOrder(options.AllowUnorderedGroupByWithLimit) == EScanOrder::Reversed) {
+        auto scanOrder = coordinatedQuery->ScanOrder;
+        if (scanOrder == EScanOrder::Reversed) {
             std::reverse(allSplits.begin(), allSplits.end());
             YT_TLOG_DEBUG("Reversed tablet order for DESC scan")
                 .With("SplitCount", allSplits.size());
@@ -651,7 +652,6 @@ private:
 
         std::vector<std::pair<std::vector<TDataSource>, std::string>> groupedDataSplits;
 
-        auto scanOrder = coordinatedQuery->GetScanOrder(options.AllowUnorderedGroupByWithLimit);
         if (scanOrder == EScanOrder::Ordered || scanOrder == EScanOrder::Reversed) {
             // Splits are ordered by tablet bounds (or reversed for DESC scans).
             YT_TLOG_DEBUG("Got ordered splits")
@@ -950,7 +950,7 @@ private:
         try {
             TQueryStatistics statistics;
 
-            auto scanOrder = query->GetScanOrder(options.AllowUnorderedGroupByWithLimit);
+            auto scanOrder = query->ScanOrder;
             if (options.EnableParallelizeUnorderedGroupBy &&
                 scanOrder == EScanOrder::Unordered &&
                 query->GroupClause &&
@@ -1008,10 +1008,10 @@ private:
             } else {
                 statistics = CoordinateAndExecute(
                     scanOrder,
-                    query->IsPrefetching(),
+                    query->Prefetching,
                     splitCount,
                     query->Offset,
-                    query->Limit,
+                    query->Limit.value_or(std::numeric_limits<i64>::max()),
                     options.AdaptiveOrderedSchemafulReader,
                     std::move(evaluateBottom),
                     getEvaluateTop(frontQuery),
@@ -1313,7 +1313,10 @@ private:
             auto foreignQuery = joinClause->GetJoinSubquery();
             foreignQuery->InferRanges = false;
             if (joinClause->ForeignKeyPrefix > 0) {
-                foreignQuery->Limit = OrderedReadWithPrefetchHint;
+                foreignQuery->Prefetching = true;
+                foreignQuery->ScanOrder = EScanOrder::Ordered;
+            } else {
+                foreignQuery->ScanOrder = EScanOrder::Unordered;
             }
 
             // TODO(sabdenovch): Use SplitPredicateByColumnSubset to filter rows from joined table even further.
@@ -1402,18 +1405,16 @@ private:
         middleQuery->Schema = frontQuery->Schema;
         middleQuery->OrderClause = frontQuery->OrderClause;
         middleQuery->Offset = 0;
-        if (frontQuery->Limit == UnorderedReadHint ||
-            frontQuery->Limit == OrderedReadWithPrefetchHint)
-        {
-            middleQuery->Limit = frontQuery->Limit;
-        } else {
+        if (frontQuery->Limit) {
             THROW_ERROR_EXCEPTION_IF(
-                frontQuery->Offset > std::numeric_limits<i64>::max() - frontQuery->Limit,
+                frontQuery->Offset > std::numeric_limits<i64>::max() - *frontQuery->Limit,
                 "Sum of offset %v and limit %v overflows i64",
                 frontQuery->Offset,
-                frontQuery->Limit);
-            middleQuery->Limit = frontQuery->Offset + frontQuery->Limit;
+                *frontQuery->Limit);
+            middleQuery->Limit = frontQuery->Offset + *frontQuery->Limit;
         }
+        middleQuery->ScanOrder = frontQuery->ScanOrder;
+        middleQuery->Prefetching = frontQuery->Prefetching;
         middleQuery->IsFinal = false;
         middleQuery->HasExclusiveGroupKeyView = true;
         // Why does this field even exist for front query. This code makes no gosh darn sense.

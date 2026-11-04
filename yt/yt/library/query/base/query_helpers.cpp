@@ -612,10 +612,9 @@ ui64 GetEvaluatedColumnModulo(const TConstExpressionPtr& expr)
 bool ShouldPrefetchJoinSource(
     const TConstQueryPtr& query,
     const TJoinClause& joinClause,
-    size_t minKeyWidth,
-    bool ordered)
+    size_t minKeyWidth)
 {
-    if (ordered) {
+    if (query->ScanOrder == EScanOrder::Ordered) {
         return false;
     }
 
