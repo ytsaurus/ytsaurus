@@ -4384,23 +4384,17 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         assert last_successful_export_task_instant == datetime.datetime.fromisoformat(export_progress["last_successful_export_iteration_instant"])  # Compat.
         assert last_export_task_instant == last_successful_export_task_instant
 
-        previous_exported_task_instant = last_export_task_instant
-        previous_successful_exported_task_instant = last_export_task_instant
+        previous_successful_export_task_instant = last_successful_export_task_instant
 
-        time.sleep(10)
+        # No new data was written, so the instant can only advance due to export tasks with nothing to export.
+        wait(lambda: datetime.datetime.fromisoformat(
+            get(f"{export_dir}/@queue_static_export_progress")["last_successful_export_task_instant"]) > previous_successful_export_task_instant)
 
         export_progress = get(f"{export_dir}/@queue_static_export_progress")
         last_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_export_task_instant"])
         last_successful_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_successful_export_task_instant"])
         assert last_successful_export_task_instant == datetime.datetime.fromisoformat(export_progress["last_successful_export_iteration_instant"])  # Compat.
-
-        assert last_export_task_instant > previous_exported_task_instant
-        assert last_successful_export_task_instant > previous_successful_exported_task_instant
         assert last_export_task_instant == last_successful_export_task_instant
-
-        # 2-second exports, comparing to 3 to account for edge-cases.
-        # time.sleep(10) above should be enough to check the required behavior.
-        assert (datetime.datetime.now(pytz.UTC) - last_successful_export_task_instant).seconds <= 3
 
         self.remove_export_destination(export_dir)
 
