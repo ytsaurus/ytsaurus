@@ -1,6 +1,7 @@
 RECURSE(
     common
     client
+    doc
     examples/tutorial
     http
     http_client
@@ -16,10 +17,8 @@ RECURSE(
 
 IF (NOT OPENSOURCE)
     RECURSE(
-        doc
         examples
         initialize
         tools
     )
 ENDIF()
-
