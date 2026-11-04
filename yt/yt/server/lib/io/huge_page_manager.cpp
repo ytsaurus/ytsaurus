@@ -8,6 +8,9 @@
 
 #include <library/cpp/yt/system/spin_lock.h>
 
+#include <util/system/align.h>
+#include <util/system/info.h>
+
 #ifdef _linux_
 #include <sys/mman.h>
 #endif
@@ -376,16 +379,38 @@ private:
                 .With("used_huge_page_memory", GetHugePageMemory(hugePageManager));
         }
 #ifdef _linux_
-        void* page = ::aligned_malloc(pageCount * hugePageSize, hugePageSize);
+        YT_VERIFY(hugePageSize % 4_KB == 0);
 
-        if (!page) {
-            return TError("Failed to allocate aligned huge page")
+        auto blobSize = pageCount * hugePageSize;
+        auto mappingSize = blobSize + hugePageSize;
+        void* page = ::mmap(
+            nullptr,
+            mappingSize,
+            PROT_READ | PROT_WRITE,
+            MAP_PRIVATE | MAP_ANONYMOUS,
+            -1,
+            0);
+
+        if (page == MAP_FAILED) {
+            return TError("Failed to mmap huge page blob")
                 .With(TSystemError());
         }
 
+        auto* alignedPage = AlignUp(static_cast<char*>(page), hugePageSize);
+        auto prefixSize = alignedPage - static_cast<char*>(page);
+        auto suffixSize = mappingSize - prefixSize - blobSize;
+        if (prefixSize > 0) {
+            ::munmap(page, prefixSize);
+        }
+        ::munmap(alignedPage + blobSize, suffixSize);
+
+        page = alignedPage;
+
         if (::madvise(page, pageCount * hugePageSize, MADV_HUGEPAGE) != 0) {
+            int error = errno;
+            ::munmap(page, pageCount * hugePageSize);
             return TError("Failed to mark memory MADV_HUGEPAGE")
-                .With(TSystemError(errno));
+                .With(TSystemError(error));
         }
 #else
         YT_UNIMPLEMENTED();
@@ -397,8 +422,7 @@ private:
     void DoDeallocateHugePageBlob(TMutableRef hugePageBlob) override
     {
 #ifdef _linux_
-        ::madvise(hugePageBlob.Begin(), hugePageBlob.Size(), MADV_DONTNEED);
-        ::free(hugePageBlob.Begin());
+        ::munmap(hugePageBlob.Begin(), hugePageBlob.Size());
 #else
         YT_UNIMPLEMENTED();
 #endif
