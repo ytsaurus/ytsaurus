@@ -421,6 +421,16 @@ NYT::TNode MakeWorkerConfig(
             ("controller", NYT::NodeFromYsonString(*controllerConfig));
     }
 
+    if (auto enablePortoResourceTracker = config._EnablePortoResourceTracker.Get()) {
+        workerConfig = workerConfig
+            ("enable_porto_resource_tracker", *enablePortoResourceTracker);
+    }
+
+    if (auto exporterConfig = config._SolomonExporterConfig.Get()) {
+        workerConfig = workerConfig
+            ("solomon_exporter", NYT::NodeFromYsonString(*exporterConfig));
+    }
+
     auto dynamicPipelineSpec = NPrivate::SerializeUseCpuAwareBalancer(
         config._UseCpuAwareBalancer.Get());
 

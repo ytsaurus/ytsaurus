@@ -90,6 +90,8 @@ TYtflowConfiguration::TYtflowConfiguration()
 
     REGISTER_SETTING(*this, _ControllerConfig);
     REGISTER_SETTING(*this, _ControllerConnectorConfig);
+    REGISTER_SETTING(*this, _EnablePortoResourceTracker);
+    REGISTER_SETTING(*this, _SolomonExporterConfig);
 
     REGISTER_SETTING(*this, _JobManagerConfig);
     REGISTER_SETTING(*this, _ComputationConfig);
