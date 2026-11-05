@@ -6,7 +6,7 @@
 ![YTsaurus Flow](../../flow/_images/flow-logo.png)
 {% endif %}
 
-{{product-name}} Flow is a framework for streaming cross-DC event processing with exactly-once guarantees within the {{product-name}} ecosystem. It offers APIs for [C++](../../flow/cpp/getting-started.md), [Java and Kotlin](../../flow/java/getting-started.md), [Python](../../flow/python/getting-started.md), and [Go](../../flow/go/getting-started.md), and supports declarative pipeline descriptions in [YQL](../../flow/yql/getting-started.md).{% if audience == "internal" %} The system is a logical evolution of the [BigRT](https://docs.yandex-team.ru/big_rt/) framework.{% endif %}
+{{product-name}} Flow is a framework for streaming cross-DC event processing with exactly-once guarantees within the {{product-name}} ecosystem. It offers APIs for [C++](../../flow/cpp/getting-started.md), [Java](../../flow/java/getting-started.md), [Kotlin](../../flow/kotlin/getting-started.md), [Python](../../flow/python/getting-started.md), and [Go](../../flow/go/getting-started.md), and supports declarative pipeline descriptions in [YQL](../../flow/yql/getting-started.md).{% if audience == "internal" %} The system is a logical evolution of the [BigRT](https://docs.yandex-team.ru/big_rt/) framework.{% endif %}
 
 Its closest external counterparts are [Google Cloud Dataflow](https://cloud.google.com/products/dataflow?skip_cache=true%22%22) and [Apache Flink](https://flink.apache.org/).{% if audience == "internal" %} You can read a [detailed comparison with alternative technologies](../../yandex-specific/flow/other/comparison.md) in a separate article.{% endif %}
 
@@ -35,7 +35,7 @@ For any issues with {{product-name}} Flow, open a [GitHub Issue](https://github.
 - Typical event processing latency under stable operation: 1s–10s.
 - Automatic balancing of [partitions](../../flow/concepts/glossary.md#partition) across machines.
 - Fault tolerance: the pipeline survives the failure of individual machines and data centers.
-- Ability to implement business logic in [C++](../../flow/cpp/getting-started.md), [Java and Kotlin](../../flow/java/getting-started.md), [Python](../../flow/python/getting-started.md), [Go](../../flow/go/getting-started.md), and [YQL](../../flow/yql/getting-started.md).
+- Ability to implement business logic in [C++](../../flow/cpp/getting-started.md), [Java](../../flow/java/getting-started.md), [Kotlin](../../flow/kotlin/getting-started.md), [Python](../../flow/python/getting-started.md), [Go](../../flow/go/getting-started.md), and [YQL](../../flow/yql/getting-started.md).
 - Support for [stateful processing](../../flow/concepts/stateful.md) with persistent state in {{product-name}} dynamic tables.
 - Support for running in {{product-name}}{% if audience == "internal"%}, and in [Deploy](https://docs.yandex-team.ru/deploy){% endif %}.
 

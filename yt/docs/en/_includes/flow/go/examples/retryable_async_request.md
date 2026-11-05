@@ -19,7 +19,6 @@ The two computations are grouped by different keys for a reason: `processor` is 
 The entry point: creating the pipeline and registering both computations of the companion.
 
 [Source code: `main.go`]({{source-root}}/yt/yt/flow/examples/go/retryable_async_request/main.go)
-
 {% code '/yt/yt/flow/examples/go/retryable_async_request/main.go' lang='go' lines='[BEGIN main]-[END main]' %}
 
 ## `state_keeper.go` {#state-keeper-go}

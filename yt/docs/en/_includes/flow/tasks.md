@@ -11,7 +11,6 @@ The page is actively being updated. If your task (or a sufficiently similar one)
 ## Incremental update of various objects’ states
 
 {% if audience == "internal" %}Examples of such services are BigB, CaeSaR, and HitMaster.{% endif %}
-
 The input is multiple (tens) of different logs; each line contains the `ProfileID` key.
 
 Your goal is to maintain the current `ProfileID` => `Profile` state by defining functions that apply the lines to the profile. You also need to make batch requests to external systems (both synchronously and asynchronously), including requests that pass the profiles themselves.

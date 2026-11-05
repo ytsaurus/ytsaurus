@@ -88,4 +88,3 @@ This single entry point starts the pipeline or serves as its companion, dependin
 - **Configuration via Spring Boot**: you register computations with the `@FlowSourceComputation` / `@FlowComputation` annotations; `flow-spring-boot-starter` manages the gRPC server lifecycle.
 - **ExternalStateAccessor**: you work with the external state using `Payload` and `PayloadBuilder`.
 - **SourceComputation with ProcessFunction**: the `reader` uses `EventMapper` to transform input data on the companion side.
-

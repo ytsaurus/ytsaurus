@@ -41,7 +41,6 @@ func (*enricher) OnMessage(
 	out.AddMessage(encoded)
 	return nil
 }
-
 func joinedName(rt flow.Runtime, msg flow.ExtendedMessage) (string, bool, error) {
 	state, err := flow.OpenJoinedExternalState(rt, referenceStateName, msg)
 	if errors.Is(err, flow.ErrStateNotRead) {

@@ -11,3 +11,7 @@ items:
     href: wait_click_join.md
   - name: URL Downloader
     href: url_downloader.md
+  - name: Static Table Join
+    href: static_table_join.md
+  - name: External State Join
+    href: external_state_join.md

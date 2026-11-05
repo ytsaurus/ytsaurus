@@ -12,12 +12,11 @@ const (
 	enrichedStreamID   = "enriched"
 )
 
-// [BEGIN lookup_join]
-
 type referenceState struct {
 	Name *string `yson:"name"`
 }
 
+// [BEGIN lookup_join]
 type lookupJoin struct{}
 
 var _ flow.RowFunction = (*lookupJoin)(nil)

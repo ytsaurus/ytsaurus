@@ -6,19 +6,22 @@ Learn more about `StateAccessor` and general principles for working with state: 
 
 General information about stateful processing is in the [Stateful processing](../../../flow/concepts/stateful.md) section.
 
-## Overview
+## Overview {#overview}
 
-The Python SDK provides three types of accessors for working with Internal State, which differ by serialization format. To work with external state, use a separate accessor: [ExternalStateAccessor](../../../flow/python/external-state.md).
+The Python SDK provides three types of accessors for working with Internal State, which differ by serialization format. External state has separate [row accessors](../../../flow/python/external-state.md#getting-accessor) and [protobuf accessors](../../../flow/python/external-state.md#proto-external-state), including read-only joined variants.
 
-| Accessor | Format | Description |
-|----------|--------|----------|
-| [YsonStateAccessor](#yson-state-accessor) | YSON (dict) | Serializes a Python dict using YSON |
-| [RawStateAccessor](#raw-state-accessor) | `bytes` | No serialization (raw bytes) |
-| [ProtoStateAccessor](#proto-state-accessor) | Protobuf | Serializes using Protobuf |
+#|
+|| **Accessor** | **Format** | **Description** ||
+|| [YsonStateAccessor](#yson-state-accessor) | YSON (dict) | Serializes a Python dict using YSON ||
+|| [RawStateAccessor](#raw-state-accessor) | `bytes` | No serialization (raw bytes) ||
+|| [ProtoStateAccessor](#proto-state-accessor) | Protobuf | Serializes using Protobuf ||
+|#
 
 All accessors provide the same set of methods: `get()`, `set(value)`, `clear()`, `get_or_default(default)`, `read_only()`.
 
 ## Changing the value in place {#in-place}
+
+The live-value behavior in this section applies to internal accessors. Protobuf external accessors return independent snapshots and require explicit `set()` calls to save changes.
 
 The value returned by `get()` and `get_or_default()` is live: it is decoded once per key and batch, every accessor for that key returns the same object, and the changes made to it are written to the state at the end of the batch without a `set()` call. Nothing is written when the value did not change. The default from `get_or_default()` is attached to the key but not written: it can be changed right away, and it becomes the state value only once it is changed, so an untouched default creates no row in the state table:
 
@@ -42,7 +45,7 @@ The value is shared, not a copy: if a writable accessor read the same key earlie
 
 `YsonStateAccessor` uses YSON serialization. The state is stored as a Python dict, which is automatically serialized to YSON and deserialized back.
 
-### Get the accessor
+### Get the accessor {#yson-state-accessor-getting-accessor}
 
 ```python
 # For a message
@@ -52,16 +55,17 @@ state = ctx.state("state-name", message)
 state = ctx.state("state-name", timer)
 ```
 
-### Methods
+### Methods {#yson-state-accessor-methods}
 
-| Method | Return type | Description |
-|-------|-----------------|----------|
-| `get()` | `dict` or `None` | Deserialize and return the current value |
-| `set(value)` | — | Serialize and save the value (dict or bytes) |
-| `clear()` | — | Delete the state for the current key |
-| `get_or_default(default)` | `dict` | Return the current value, or `default` (written only once you change it) |
+#|
+|| **Method** | **Return type** | **Description** ||
+|| `get()` | `dict` or `None` | Deserialize and return the current value ||
+|| `set(value)` | — | Serialize and save the value (dict or bytes) ||
+|| `clear()` | — | Delete the state for the current key ||
+|| `get_or_default(default)` | `dict` | Return the current value, or `default` (written only once you change it) ||
+|#
 
-### Example from WordCount
+### Example from WordCount {#wordcount-example}
 
 {% code '/yt/yt/flow/examples/python/word_count/word_count_mapper.py' lang='python' lines='[BEGIN word_count_mapper]-[END word_count_mapper]' %}
 
@@ -75,7 +79,7 @@ Here, the state is tied to the [message](../../../flow/concepts/glossary.md#mess
 
 `RawStateAccessor` works with raw bytes without serialization or deserialization.
 
-### Get the accessor
+### Get the accessor {#raw-state-accessor-getting-accessor}
 
 ```python
 # For a message
@@ -85,16 +89,17 @@ state = ctx.raw_state("state-name", message)
 state = ctx.raw_state("state-name", timer)
 ```
 
-### Methods
+### Methods {#raw-state-accessor-methods}
 
-| Method | Return type | Description |
-|-------|-----------------|----------|
-| `get()` | `bytes` or `None` | Get the raw bytes |
-| `set(value: bytes)` | — | Save the raw bytes |
-| `clear()` | — | Delete the state for the current key |
-| `get_or_default(default: bytes)` | `bytes` | Return the current value, or attach and return `default` (reaches {{product-name}} only through `set()`) |
+#|
+|| **Method** | **Return type** | **Description** ||
+|| `get()` | `bytes` or `None` | Get the raw bytes ||
+|| `set(value: bytes)` | — | Save the raw bytes ||
+|| `clear()` | — | Delete the state for the current key ||
+|| `get_or_default(default: bytes)` | `bytes` | Return the current value, or attach and return `default` (reaches {{product-name}} only through `set()`) ||
+|#
 
-### Usage example
+### Usage example {#usage-example}
 
 ```python
 state = ctx.raw_state("raw-state", message)
@@ -117,7 +122,7 @@ state.clear()
 
 `ProtoStateAccessor` uses Protobuf serialization. The state is deserialized into an instance of the specified Protobuf class.
 
-### Get the accessor
+### Get the accessor {#proto-state-accessor-getting-accessor}
 
 ```python
 # For a message
@@ -129,14 +134,15 @@ state = ctx.proto_state("state-name", timer, TJoinState)
 
 The third argument is the Protobuf message class used for deserialization.
 
-### Methods
+### Methods {#proto-state-accessor-methods}
 
-| Method | Return type | Description |
-|-------|-----------------|----------|
-| `get()` | Proto object or `None` | Deserialize and return the value |
-| `set(value)` | — | Serialize and save the Proto object |
-| `clear()` | — | Delete the state for the current key |
-| `get_or_default(default=None)` | Proto object | Return the value, `default`, or an empty instance of the Proto class (written only once you change it) |
+#|
+|| **Method** | **Return type** | **Description** ||
+|| `get()` | Proto object or `None` | Deserialize and return the value ||
+|| `set(value)` | — | Serialize and save the Proto object ||
+|| `clear()` | — | Delete the state for the current key ||
+|| `get_or_default(default=None)` | Proto object | Return the value, `default`, or an empty instance of the Proto class (written only once you change it) ||
+|#
 
 {% note info %}
 
@@ -146,7 +152,7 @@ The `get_or_default()` method with no arguments returns an empty instance of the
 
 {% if audience == "internal" %}
 
-### Example from lb_wait_click_join
+### Example from lb_wait_click_join {#lb-wait-click-join-example}
 
 {% note info %}
 
@@ -180,7 +186,7 @@ If the state name isn’t declared in `internal_states`, calling it via `ctx.sta
 
 {% endnote %}
 
-## See also
+## See also {#see-also}
 
 - [StateAccessor (Python)](../../../flow/python/state-accessor.md)
 - [External State (Python)](../../../flow/python/external-state.md)

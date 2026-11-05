@@ -15,6 +15,10 @@ items:
     include:
       mode: link
       path: java/toc_i.yaml
+  - name: Kotlin
+    include:
+      mode: link
+      path: kotlin/toc_i.yaml
   - name: Python
     include:
       mode: link

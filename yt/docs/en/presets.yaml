@@ -15,3 +15,9 @@ default:
     community-tg: https://t.me/ytsaurus
     cluster-ui: https://<host-root>/<cluster-name>
     python-lib-qt: SystemPython3_8
+public:
+    flow-example-cluster: <cluster-name>
+    flow-data-cluster: <cluster-name>
+    flow-runtime-cluster: <cluster-name>
+    flow-consumer-cluster: <cluster-name>
+    yt-cli: yt
