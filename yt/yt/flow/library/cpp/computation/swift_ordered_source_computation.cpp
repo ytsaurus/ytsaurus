@@ -242,9 +242,14 @@ std::vector<TReadDelayInput> TSwiftOrderedSourceComputation::ProcessSourceBatche
     THashMap<TStreamId, TBatchStatistics> skippedStatistics;
     std::vector<ISource::TMessageBatch> keptBatches;
     keptBatches.reserve(sourceMessageBatches.size());
+    // The timestamp memory is keyed by these ids, so they are taken before filtering: a dynamic
+    // filter change must not move a re-read batch past the registered boundary.
+    std::vector<TMessageId> keptFirstMessageIds;
+    keptFirstMessageIds.reserve(sourceMessageBatches.size());
     i64 skippedCount = 0;
     for (int batchIndex = 0; batchIndex < std::ssize(sourceMessageBatches); ++batchIndex) {
         auto& batch = sourceMessageBatches[batchIndex];
+        auto firstMessageId = batch.Messages.empty() ? TMessageId{} : batch.Messages.front()->MessageId;
         if (Filter_->IsEnabled()) {
             auto [kept, skipped, statistics] = Filter_->Partition(std::move(batch.Messages));
             skippedCount += std::ssize(skipped);
@@ -262,6 +267,7 @@ std::vector<TReadDelayInput> TSwiftOrderedSourceComputation::ProcessSourceBatche
             keptSampleIndices.push_back(batchIndex);
         }
         keptBatches.push_back(std::move(batch));
+        keptFirstMessageIds.push_back(std::move(firstMessageId));
     }
     if (skippedCount > 0) {
         SkippedByExpressionCounter_.Increment(skippedCount);
@@ -352,7 +358,7 @@ std::vector<TReadDelayInput> TSwiftOrderedSourceComputation::ProcessSourceBatche
         }
         ReadDelayQueue_.Push(
             {
-                .FirstMessageId = sourceMessageBatches[i].Messages[0]->MessageId,
+                .FirstMessageId = std::move(keptFirstMessageIds[i]),
                 .BatchCookie = std::move(sourceMessageBatches[i].Cookie),
                 .InputStatistics = readSamples.empty() ? TBatchStatistics{} : readSamples[keptSampleIndices[i]].Statistics,
                 .CandidateOutputMessages = std::move(candidateOutputMessages[i]),
