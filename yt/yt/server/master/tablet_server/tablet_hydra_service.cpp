@@ -73,10 +73,10 @@ private:
             updateReason);
 
         for (auto storeCount : storeCounts) {
-            if (storeCount < 0) {
-                THROW_ERROR_EXCEPTION("Store count cannot be negative")
-                    << TErrorAttribute("store_count", storeCount);
-            }
+            THROW_ERROR_EXCEPTION_IF(
+                storeCount < 0,
+                "Store count %v is negative",
+                storeCount);
         }
 
         const auto& tabletChunkManager = Bootstrap_->GetTabletManager()->GetTabletChunkManager();

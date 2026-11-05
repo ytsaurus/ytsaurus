@@ -1063,7 +1063,7 @@ public:
                 .Run(
                     bundle ? bundle->GetName() : "",
                     updateReason,
-                    ssize(chunksToAttach));
+                    ssize(chunksToAttach) + ssize(hunkChunksToAttach));
         }
 
         return Format("AttachedChunkIds: %v, DetachedChunkOrViewIds: %v, "
