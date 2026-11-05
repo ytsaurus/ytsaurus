@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(30.15.0)
+VERSION(30.23.0)
 
 LICENSE(MIT)
 
@@ -119,6 +119,7 @@ PY_SRCS(
     sqlglot/optimizer/eliminate_ctes.py
     sqlglot/optimizer/eliminate_joins.py
     sqlglot/optimizer/eliminate_subqueries.py
+    sqlglot/optimizer/helpers.py
     sqlglot/optimizer/isolate_table_selects.py
     sqlglot/optimizer/journal.py
     sqlglot/optimizer/merge_subqueries.py

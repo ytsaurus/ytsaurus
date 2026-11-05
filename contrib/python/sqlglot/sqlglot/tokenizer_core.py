@@ -8,6 +8,8 @@ from sqlglot.errors import TokenError
 # dict lookup is faster than .upper() and .isdigit()
 _CHAR_UPPER: dict[str, str] = {chr(i): chr(i).upper() for i in range(97, 123)}
 _DIGIT_CHARS: frozenset[str] = frozenset("0123456789")
+_DIGIT_VALUES: dict[str, int] = {c: int(c, 16) for c in "0123456789abcdefABCDEF"}
+_OCTAL_CHARS: frozenset[str] = frozenset("01234567")
 
 
 class TokenType(IntEnum):
@@ -107,6 +109,7 @@ class TokenType(IntEnum):
     BIT_STRING = auto()
     HEX_STRING = auto()
     BYTE_STRING = auto()
+    NATIONAL_RAW_STRING = auto()
     NATIONAL_STRING = auto()
     RAW_STRING = auto()
     HEREDOC_STRING = auto()
@@ -556,10 +559,11 @@ class TokenizerCore:
         "string_escapes",
         "byte_string_escapes",
         "identifier_escapes",
-        "escape_follow_chars",
         "commands",
         "command_prefix_tokens",
         "nested_comments",
+        "dash_comment_requires_boundary",
+        "comments_terminate_at_newline_only",
         "hint_start",
         "tokens_preceding_hint",
         "has_bit_strings",
@@ -574,6 +578,11 @@ class TokenizerCore:
         "numbers_can_have_decimals",
         "identifiers_can_start_with_digit",
         "unescaped_sequences",
+        "numeric_escapes",
+        "drop_unknown_escapes",
+        "numeric_escapes_are_bytes",
+        "byte_strings_are_bytes",
+        "lone_surrogate_replacement",
     )
 
     def __init__(
@@ -587,10 +596,11 @@ class TokenizerCore:
         string_escapes: set[str],
         byte_string_escapes: set[str],
         identifier_escapes: set[str],
-        escape_follow_chars: set[str],
         commands: set[TokenType],
         command_prefix_tokens: set[TokenType],
         nested_comments: bool,
+        dash_comment_requires_boundary: bool,
+        comments_terminate_at_newline_only: bool,
         hint_start: str,
         tokens_preceding_hint: set[TokenType],
         has_bit_strings: bool,
@@ -605,6 +615,11 @@ class TokenizerCore:
         numbers_can_have_decimals: bool,
         identifiers_can_start_with_digit: bool,
         unescaped_sequences: dict[str, str],
+        numeric_escapes: dict[str, tuple[int, int, int, int]],
+        drop_unknown_escapes: bool,
+        numeric_escapes_are_bytes: bool,
+        byte_strings_are_bytes: bool,
+        lone_surrogate_replacement: str,
     ) -> None:
         self.single_tokens = single_tokens
         self.keywords = keywords
@@ -615,10 +630,11 @@ class TokenizerCore:
         self.string_escapes = string_escapes
         self.byte_string_escapes = byte_string_escapes
         self.identifier_escapes = identifier_escapes
-        self.escape_follow_chars = escape_follow_chars
         self.commands = commands
         self.command_prefix_tokens = command_prefix_tokens
         self.nested_comments = nested_comments
+        self.dash_comment_requires_boundary = dash_comment_requires_boundary
+        self.comments_terminate_at_newline_only = comments_terminate_at_newline_only
         self.hint_start = hint_start
         self.tokens_preceding_hint = tokens_preceding_hint
         self.has_bit_strings = has_bit_strings
@@ -633,6 +649,11 @@ class TokenizerCore:
         self.numbers_can_have_decimals = numbers_can_have_decimals
         self.identifiers_can_start_with_digit = identifiers_can_start_with_digit
         self.unescaped_sequences = unescaped_sequences
+        self.numeric_escapes = numeric_escapes
+        self.drop_unknown_escapes = drop_unknown_escapes
+        self.numeric_escapes_are_bytes = numeric_escapes_are_bytes
+        self.byte_strings_are_bytes = byte_strings_are_bytes
+        self.lone_surrogate_replacement = lone_surrogate_replacement
         self.sql = ""
         self.size = 0
         self.tokens: list[Token] = []
@@ -672,7 +693,7 @@ class TokenizerCore:
             start = max(self._current - 50, 0)
             end = min(self._current + 50, self.size - 1)
             context = self.sql[start:end]
-            raise TokenError(f"Error tokenizing '{context}'") from e
+            raise TokenError(f"Error tokenizing '{context}'", start=start, end=end) from e
 
         return self.tokens
 
@@ -848,10 +869,11 @@ class TokenizerCore:
             if self._scan_comment(word):
                 return
             if prev_space or single_token or not char:
-                self._advance(size - 1)
                 word = word.upper()
-                self._add(self.keywords[word], text=word)
-                return
+                if word in self.keywords:
+                    self._advance(size - 1)
+                    self._add(self.keywords[word], text=word)
+                    return
 
         if self._char in single_tokens:
             self._add(single_tokens[self._char], text=self._char)
@@ -862,6 +884,15 @@ class TokenizerCore:
     def _scan_comment(self, comment_start: str) -> bool:
         if comment_start not in self.comments:
             return False
+
+        if comment_start == "--" and self.dash_comment_requires_boundary:
+            boundary_index = self._current + 1
+            if boundary_index < self.size:
+                boundary_char = self.sql[boundary_index]
+                if not (
+                    boundary_char.isspace() or ord(boundary_char) < 32 or ord(boundary_char) == 127
+                ):
+                    return False
 
         comment_start_line = self._line
         comment_start_size = len(comment_start)
@@ -896,7 +927,12 @@ class TokenizerCore:
             self._advance(comment_end_size - 1)
         else:
             _peek = self._peek
-            while not self._end and _peek != "\n" and _peek != "\r":
+            terminates_at_carriage_return = not self.comments_terminate_at_newline_only
+            while (
+                not self._end
+                and _peek != "\n"
+                and (not terminates_at_carriage_return or _peek != "\r")
+            ):
                 self._advance(alnum=True)
                 _peek = self._peek
             self._comments.append(self._text[comment_start_size:])
@@ -920,8 +956,8 @@ class TokenizerCore:
     def _scan_number(self) -> None:
         if self._char == "0":
             peek = _CHAR_UPPER.get(self._peek, self._peek)
-            if peek == "B":
-                return self._scan_bits() if self.has_bit_strings else self._add(TokenType.NUMBER)
+            if peek == "B" and self.has_bit_strings:
+                return self._scan_bits()
             elif peek == "X":
                 return self._scan_hex() if self.has_hex_strings else self._add(TokenType.NUMBER)
 
@@ -1080,7 +1116,9 @@ class TokenizerCore:
                 if token_type == TokenType.BYTE_STRING
                 else self.string_escapes
             ),
-            raw_string=token_type == TokenType.RAW_STRING,
+            raw_string=token_type
+            in (TokenType.RAW_STRING, TokenType.NATIONAL_RAW_STRING, TokenType.HEREDOC_STRING),
+            bytes_literal=token_type == TokenType.BYTE_STRING and self.byte_strings_are_bytes,
         )
 
         if base and text:
@@ -1119,18 +1157,137 @@ class TokenizerCore:
             else self.keywords.get(self.sql[self._start : self._current].upper(), TokenType.VAR)
         )
 
+    def _read_numeric_escape(
+        self, start: int, base: int, min_digits: int, max_digits: int, max_value: int
+    ) -> tuple[int, int]:
+        """
+        Reads up to `max_digits` digits from `start`, stopping before the value exceeds `max_value`.
+        Returns the value and the end index, or -1 as the value if fewer than `min_digits` were read.
+        """
+        sql = self.sql
+        value = 0
+        end = start
+        limit = min(start + max_digits, self.size)
+
+        while end < limit:
+            digit = _DIGIT_VALUES.get(sql[end], 16)
+            if digit >= base or value * base + digit > max_value:
+                break
+            value = value * base + digit
+            end += 1
+
+        return (value, end) if end - start >= min_digits else (-1, end)
+
+    def _read_byte_escape(self, pos: int) -> tuple[int, int]:
+        """Reads the numeric escape at `pos` (a backslash) if it encodes a byte, else returns -1."""
+        peek = self.sql[pos + 1 : pos + 2]
+        is_octal = peek in _OCTAL_CHARS
+        spec = self.numeric_escapes.get("0" if is_octal else peek)
+        if not spec or (spec[0] != 8 and spec[3] > 0xFF):
+            return -1, pos
+
+        base, min_digits, max_digits, max_value = spec
+        value, end = self._read_numeric_escape(
+            pos + 1 if is_octal else pos + 2, base, min_digits, max_digits, max_value
+        )
+        return (value & 0xFF if value >= 0 else value), end
+
+    def _scan_numeric_escape(self) -> str:
+        """
+        Decodes the numeric escape sequence starting at the current char, which is a backslash,
+        according to `numeric_escapes`. Returns an empty string if nothing is decoded.
+        """
+        sql = self.sql
+        start = self._current
+        peek = self._peek
+
+        # Octal escapes start with a digit (e.g. \101), the others with a letter (e.g. \x41)
+        is_octal = peek in _OCTAL_CHARS
+        spec = self.numeric_escapes.get("0" if is_octal else peek)
+
+        if spec:
+            base, min_digits, max_digits, max_value = spec
+            value, end = self._read_numeric_escape(
+                start if is_octal else start + 1, base, min_digits, max_digits, max_value
+            )
+
+            # With byte semantics, octal and hex escapes encode a byte, so octal values wrap around,
+            # e.g. \541 is \x61
+            is_byte = self.numeric_escapes_are_bytes and (base == 8 or max_value <= 0xFF)
+            if is_byte and value >= 0:
+                value &= 0xFF
+
+            # A UTF-16 surrogate is only valid as a high half (D800-DBFF) followed by an escaped
+            # low half (DC00-DFFF), e.g. \uD83D\uDE00 is U+1F600
+            if 0xD800 <= value <= 0xDFFF:
+                low, low_end = -1, end
+                if value <= 0xDBFF and sql[end : end + 2] == "\\" + peek:
+                    low, low_end = self._read_numeric_escape(
+                        end + 2, base, min_digits, max_digits, max_value
+                    )
+
+                if 0xDC00 <= low <= 0xDFFF:
+                    # Combine the two halves into a single code point (standard formula)
+                    value = 0x10000 + ((value - 0xD800) << 10) + (low - 0xDC00)
+                    end = low_end
+                elif self.lone_surrogate_replacement and end < self.size:
+                    # A lone surrogate isn't a character, so some engines replace it (e.g. with ?)
+                    self._advance(end - start + 1)
+                    return self.lone_surrogate_replacement
+                else:
+                    # A lone surrogate isn't a character, so the escape isn't decoded
+                    value = -1
+
+            # Decode one UTF-8 character at a time to avoid rescanning long invalid byte runs.
+            # Invalid UTF-8 falls back to decoding each byte as a code point. This first check
+            # detects whether the byte can start a multi-byte UTF-8 character.
+            if is_byte and 0xC2 <= value <= 0xF4:
+                run = bytearray([value])
+                run_end = end
+                byte_count = 2 if value < 0xE0 else 3 if value < 0xF0 else 4
+                while len(run) < byte_count and sql[run_end : run_end + 1] == "\\":
+                    byte, byte_end = self._read_byte_escape(run_end)
+                    if not 0x80 <= byte <= 0xBF:
+                        break
+                    run.append(byte)
+                    run_end = byte_end
+
+                try:
+                    decoded = run.decode("utf-8")
+                except UnicodeDecodeError:
+                    decoded = ""
+
+                if decoded and run_end < self.size:
+                    self._advance(run_end - start + 1)
+                    return decoded
+
+            # -1 means the escape isn't decoded, e.g. because it has too few digits. An escape at the
+            # end of the input is left to the caller, which reports the unterminated string
+            if value >= 0 and end < self.size:
+                # Move past the whole escape, from the backslash through its last digit
+                self._advance(end - start + 1)
+                return chr(value)
+
+        return ""
+
     def _extract_string(
         self,
         delimiter: str,
         escapes: set[str] | None = None,
         raw_string: bool = False,
         raise_unmatched: bool = True,
+        bytes_literal: bool = False,
     ) -> str:
+        """
+        Extracts a string up to the delimiter, decoding its escape sequences. For byte literals,
+        each char of the result is a byte, so non-ASCII chars are stored as their UTF-8 bytes.
+        """
         text = ""
         delim_size = len(delimiter)
         escapes = self.string_escapes if escapes is None else escapes
         unescaped_sequences = self.unescaped_sequences
-        escape_follow_chars = self.escape_follow_chars
+        numeric_escapes = self.numeric_escapes
+        drop_unknown_escapes = self.drop_unknown_escapes
         string_escapes_allowed_in_raw_strings = self.string_escapes_allowed_in_raw_strings
         quotes = self.quotes
         sql = self.sql
@@ -1159,19 +1316,48 @@ class TokenizerCore:
                 self._end = self._current >= self.size
                 self._char = sql[end]
                 self._peek = "" if self._end else sql[self._current]
-                return sql[pos:end]
+                text = sql[pos:end]
+                if bytes_literal and not text.isascii():
+                    text = text.encode("utf-8").decode("latin-1")
+                return text
 
         while True:
-            if not raw_string and unescaped_sequences and self._peek and self._char in escapes:
+            backslash_escape = not raw_string and self._char == "\\" and "\\" in escapes
+
+            # Numeric escapes come first, since they may overlap fixed sequences (e.g. \000 vs \0)
+            if backslash_escape and numeric_escapes:
+                decoded = self._scan_numeric_escape()
+                if decoded:
+                    text += decoded
+                    continue
+
+            # An escape at the end of the input is left to the checks below, which report the
+            # unterminated string
+            if (
+                not raw_string
+                and unescaped_sequences
+                and self._char in escapes
+                and self._current + 1 < self.size
+            ):
                 unescaped_sequence = unescaped_sequences.get(self._char + self._peek)
-                if unescaped_sequence:
-                    self._advance(2)
+                if unescaped_sequence is not None:
+                    # Advance one char at a time so that line numbers are updated for a newline
+                    if self._peek in "\n\r":
+                        self._advance()
+                        self._advance()
+                    else:
+                        self._advance(2)
                     text += unescaped_sequence
                     continue
 
-            is_valid_custom_escape = (
-                escape_follow_chars and self._char == "\\" and self._peek not in escape_follow_chars
-            )
+            # Not decoded: drop the backslash if configured, unless the string is unterminated
+            if backslash_escape and drop_unknown_escapes and self._current + 1 < self.size:
+                # Advance one char at a time so that line numbers are updated if `peek` is a newline
+                peek = self._peek
+                self._advance()
+                self._advance()
+                text += peek.encode("utf-8").decode("latin-1") if bytes_literal else peek
+                continue
 
             # An escaped quote before the closing delimiter (e.g. \" in """a\"""") must be
             # consumed here, otherwise it'd be picked up by the delimiter check below and
@@ -1184,13 +1370,11 @@ class TokenizerCore:
             if (
                 (string_escapes_allowed_in_raw_strings or not raw_string)
                 and self._char in escapes
-                and (escaped_delimiter or self._peek in escapes or is_valid_custom_escape)
+                and (escaped_delimiter or self._peek in escapes)
                 and (self._char not in quotes or self._char == self._peek)
             ):
                 if escaped_delimiter:
                     text += self._peek if not raw_string else self._char + self._peek
-                elif is_valid_custom_escape and self._char != self._peek:
-                    text += self._peek
                 else:
                     text += self._char + self._peek
 
@@ -1212,6 +1396,9 @@ class TokenizerCore:
 
                 current = self._current - 1
                 self._advance(alnum=True)
-                text += sql[current : self._current - 1]
+                chunk = sql[current : self._current - 1]
+                if bytes_literal and not chunk.isascii():
+                    chunk = chunk.encode("utf-8").decode("latin-1")
+                text += chunk
 
         return text

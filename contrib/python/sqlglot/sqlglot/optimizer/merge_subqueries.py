@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import typing as t
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from sqlglot import expressions as exp
 from sqlglot.helper import find_new_name, seq_get
-from sqlglot.optimizer.scope import Scope, traverse_scope
+from sqlglot.optimizer.scope import Scope, find_all_in_scope, traverse_scope
 
 if t.TYPE_CHECKING:
     from sqlglot._typing import E
@@ -14,7 +14,61 @@ if t.TYPE_CHECKING:
     FromOrJoin = t.Union[exp.From, exp.Join]
 
 
-def merge_subqueries(expression: E, leave_tables_isolated: bool = False) -> E:
+class CopyBudget:
+    """
+    Merging copies an inner projection into every outer reference to it, so chained merges of
+    repeatedly referenced projections can grow the AST exponentially. The number of copied nodes
+    is capped per statement, relative to its size, and merges that would exceed the cap are skipped.
+    """
+
+    MAX_COPY_FACTOR = 8
+    """Smallest factor that changed no ordinary query among 1,121 real-world queries"""
+
+    MIN_COPY_BUDGET = 1000
+    """Spares small statements"""
+
+    def __init__(
+        self,
+        expression: exp.Expr,
+        max_copy_factor: int | None = MAX_COPY_FACTOR,
+        min_copy_budget: int = MIN_COPY_BUDGET,
+    ) -> None:
+        self.expression = expression
+        self.max_copy_factor = max_copy_factor
+        self.min_copy_budget = min_copy_budget
+        self.remaining: int | None = None
+
+    def consume(self, outer_scope: Scope, inner_scope: Scope, alias: str) -> bool:
+        """Charges the copies needed to merge `inner_scope` into `outer_scope`, if they fit."""
+        if self.max_copy_factor is None:
+            return True
+
+        if self.remaining is None:
+            # Sized on first use, which precedes any merge, so statements with nothing to merge skip it
+            size = sum(1 for _ in self.expression.walk())
+            self.remaining = max(self.max_copy_factor * size, self.min_copy_budget)
+
+        references = Counter(c.name for c in outer_scope.columns if c.table == alias)
+        copies = 0
+        for projection in inner_scope.expression.expressions:
+            # The last reference receives the projection itself rather than a copy
+            count = references.get(projection.alias_or_name, 0) - 1
+            if count > 0:
+                for _ in projection.unalias().walk():
+                    copies += count
+                    if copies > self.remaining:
+                        return False
+
+        self.remaining -= copies
+        return True
+
+
+def merge_subqueries(
+    expression: E,
+    leave_tables_isolated: bool = False,
+    max_copy_factor: int | None = CopyBudget.MAX_COPY_FACTOR,
+    min_copy_budget: int = CopyBudget.MIN_COPY_BUDGET,
+) -> E:
     """
     Rewrite sqlglot AST to merge derived tables into the outer query.
 
@@ -37,6 +91,8 @@ def merge_subqueries(expression: E, leave_tables_isolated: bool = False) -> E:
     Args:
         expression (sqlglot.Expr): expression to optimize
         leave_tables_isolated (bool):
+        max_copy_factor: see `CopyBudget.MAX_COPY_FACTOR`; `None` disables the copy budget.
+        min_copy_budget: see `CopyBudget.MIN_COPY_BUDGET`.
     Returns:
         sqlglot.Expr: optimized expression
     """
@@ -44,12 +100,20 @@ def merge_subqueries(expression: E, leave_tables_isolated: bool = False) -> E:
     # doesn't mutate the AST; if it does, the scopes it was given are no longer valid, so the
     # scope tree needs to be rebuilt before merge_derived_tables runs.
     scopes = traverse_scope(expression)
-    expression, merged_ctes = merge_ctes(expression, leave_tables_isolated, scopes=scopes)
+
+    copy_budget = CopyBudget(
+        expression, max_copy_factor=max_copy_factor, min_copy_budget=min_copy_budget
+    )
+    expression, merged_ctes = merge_ctes(
+        expression, leave_tables_isolated, scopes=scopes, copy_budget=copy_budget
+    )
 
     if merged_ctes:
         scopes = traverse_scope(expression)
 
-    expression = merge_derived_tables(expression, leave_tables_isolated, scopes=scopes)
+    expression = merge_derived_tables(
+        expression, leave_tables_isolated, scopes=scopes, copy_budget=copy_budget
+    )
     return expression
 
 
@@ -79,7 +143,10 @@ def merge_ctes(
     expression: E,
     leave_tables_isolated: bool = False,
     scopes: list[Scope] | None = None,
+    copy_budget: CopyBudget | None = None,
 ) -> tuple[E, bool]:
+    copy_budget = copy_budget or CopyBudget(expression)
+
     # All places where we select from CTEs.
     # We key on the CTE scope so we can detect CTES that are selected from multiple times.
     cte_selections = defaultdict(list)
@@ -100,8 +167,10 @@ def merge_ctes(
         from_or_join = table.find_ancestor(exp.From, exp.Join)
         if not isinstance(from_or_join, (exp.From, exp.Join)):
             continue
-        if _mergeable(outer_scope, inner_scope, leave_tables_isolated, from_or_join):
-            alias = table.alias_or_name
+        alias = table.alias_or_name
+        if _mergeable(
+            outer_scope, inner_scope, leave_tables_isolated, from_or_join
+        ) and copy_budget.consume(outer_scope, inner_scope, alias):
             _rename_inner_sources(outer_scope, inner_scope, alias)
             _merge_from(outer_scope, inner_scope, table, alias)
             _merge_expressions(outer_scope, inner_scope, alias)
@@ -119,7 +188,10 @@ def merge_derived_tables(
     expression: E,
     leave_tables_isolated: bool = False,
     scopes: list[Scope] | None = None,
+    copy_budget: CopyBudget | None = None,
 ) -> E:
+    copy_budget = copy_budget or CopyBudget(expression)
+
     for outer_scope in traverse_scope(expression) if scopes is None else scopes:
         for subquery in outer_scope.derived_tables:
             from_or_join = subquery.find_ancestor(exp.From, exp.Join)
@@ -129,7 +201,9 @@ def merge_derived_tables(
             inner_scope = outer_scope.sources[alias]
             if not isinstance(inner_scope, Scope):
                 continue
-            if _mergeable(outer_scope, inner_scope, leave_tables_isolated, from_or_join):
+            if _mergeable(
+                outer_scope, inner_scope, leave_tables_isolated, from_or_join
+            ) and copy_budget.consume(outer_scope, inner_scope, alias):
                 _rename_inner_sources(outer_scope, inner_scope, alias)
                 _merge_from(outer_scope, inner_scope, subquery, alias)
                 _merge_expressions(outer_scope, inner_scope, alias)
@@ -228,7 +302,7 @@ def _mergeable(
         on = from_or_join.args.get("on")
         if not on:
             return False
-        selections = [c.name for c in on.find_all(exp.Column) if c.table == inner_name]
+        selections = [c.name for c in find_all_in_scope(on, exp.Column) if c.table == inner_name]
         inner_from = inner_scope.expression.args.get("from_")
         if not inner_from:
             return False
@@ -286,7 +360,7 @@ def _mergeable(
             and inner_select.args.get("where")
             and any(j.side in ("FULL", "RIGHT") for j in outer_args.get("joins", []))
         )
-        or (inner_select.args.get("order") and outer_scope.is_union)
+        or (inner_select.args.get("order") and outer_scope.is_set_operation)
         or isinstance(seq_get(inner_select.expressions, 0), exp.QueryTransform)
     ):
         return False
@@ -303,7 +377,7 @@ def _mergeable(
         if s.unalias().is_number:
             number_literal_aliases.add(name)
         for node in s.walk():
-            if isinstance(node, (exp.AggFunc, exp.Select, exp.Explode)):
+            if isinstance(node, (exp.AggFunc, exp.Select, *exp.SET_RETURNING_FUNCTIONS)):
                 return False
             if isinstance(node, exp.Window):
                 window_aliases.add(name)
@@ -322,7 +396,7 @@ def _rename_inner_sources(outer_scope: Scope, inner_scope: Scope, alias: str) ->
     Renames any sources in the inner query that conflict with names in the outer query.
     """
     inner_taken = set(inner_scope.selected_sources)
-    outer_taken = set(outer_scope.selected_sources)
+    outer_taken = {name for name, _ in outer_scope.references}
     conflicts = outer_taken.intersection(inner_taken)
     conflicts -= {alias}
 
@@ -453,18 +527,20 @@ def _merge_expressions(outer_scope: Scope, inner_scope: Scope, alias: str) -> No
                     item.replace(exp.Literal.number(group_ordinal))
                     continue
 
+            # Skip the expensive deep copy for the last reference since the inner query
+            # is about to be removed, so we can move the expression directly
+            replacement = expression.copy() if i < last else expression
+
             # Ensures we don't alter the intended operator precedence if there's additional
             # context surrounding the outer expression (i.e. it's not a simple projection).
             if isinstance(parent, (exp.Unary, exp.Binary)) and must_wrap_expression:
-                expression = exp.paren(expression, copy=False)
+                replacement = exp.paren(replacement, copy=False)
 
             # make sure we do not accidentally change the name of the column
             if isinstance(parent, exp.Select) and column.name != expression.name:
-                expression = exp.alias_(expression, column.name)
+                replacement = exp.alias_(replacement, column.name, copy=False)
 
-            # Skip the expensive deep copy for the last reference since the inner query
-            # is about to be removed, so we can move the expression directly
-            column.replace(expression.copy() if i < last else expression)
+            column.replace(replacement)
 
 
 def _merge_where(outer_scope: Scope, inner_scope: Scope, from_or_join: FromOrJoin) -> None:

@@ -30,11 +30,13 @@ def canonicalize_internal_names(expression: E) -> E:
         >>> canonicalize_internal_names(qualify(sqlglot.parse_one("WITH t AS (SELECT c1, c2 FROM c.db.src) SELECT * FROM t"), schema=schema)).sql()
         'WITH "_t1" AS (SELECT "_t0"."c1" AS "_c0", "_t0"."c2" AS "_c1" FROM "c"."db"."src" AS "_t0") SELECT "_t1"."_c0" AS "c1", "_t1"."_c1" AS "c2" FROM "_t1" AS "_t1"'
     """
+    # Skip non-queries for now (e.g., UPDATE ... SET x = s.x FROM (SELECT ...) AS s)
+    if not isinstance(expression, exp.Query):
+        return expression
 
-    # Top-level output scopes: their aliases are the query's data contract.
-    # Regular UNION takes names from the left branch; UNION BY NAME takes names
-    # from the union of all branches, so both sides of a by_name SetOperation
-    # contribute.
+    # Top-level output scopes: their aliases are the query's data contract. Regular UNION takes names
+    # from the left branch; UNION BY NAME takes names from the union of all branches, so both sides of
+    # a by_name SetOperation contribute.
     output_scope_exprs: set[int] = set()
     stack: list[exp.Expr] = [expression]
     while stack:
@@ -203,10 +205,12 @@ def canonicalize_internal_names(expression: E) -> E:
                             ],
                         )
 
-                # BigQuery UNNEST ... WITH OFFSET AS <id> declares a pseudo-column via
-                # the offset arg (not the alias).
-                if isinstance(alias_holder, exp.Unnest):
-                    offset_id = alias_holder.args.get("offset")
+                # UNNEST stores its offset column outside the alias, including under LATERAL.
+                unnest = (
+                    alias_holder.this if isinstance(alias_holder, exp.Lateral) else alias_holder
+                )
+                if isinstance(unnest, exp.Unnest):
+                    offset_id = unnest.args.get("offset")
                     if isinstance(offset_id, exp.Identifier) and offset_id.name in name_map:
                         _canon(offset_id, name_map[offset_id.name])
 
@@ -268,13 +272,13 @@ def canonicalize_internal_names(expression: E) -> E:
                         sel.set("alias", exp.to_identifier(new_name, quoted=True))
 
                     output_map[old_alias] = new_name
-        elif isinstance(scope_expr, exp.SetOperation) and scope.union_scopes:
+        elif isinstance(scope_expr, exp.SetOperation) and scope.set_operation_scopes:
             # Regular UNION names come from the left branch. UNION BY NAME folds
             # in right-branch names too (any column unique to the right still
             # appears in the output).
-            output_map = scope_outputs.get(id(scope.union_scopes[0].expression), {}).copy()
+            output_map = scope_outputs.get(id(scope.set_operation_scopes[0].expression), {}).copy()
             if scope_expr.args.get("by_name"):
-                right_out = scope_outputs.get(id(scope.union_scopes[1].expression), {})
+                right_out = scope_outputs.get(id(scope.set_operation_scopes[1].expression), {})
                 for k, v in right_out.items():
                     output_map.setdefault(k, v)
         elif scope.is_udtf and scope.subquery_scopes:
@@ -293,7 +297,7 @@ def canonicalize_internal_names(expression: E) -> E:
         # the right branch's canonicals to the left's. No-op when both branches
         # preserved their aliases (top-level UBN).
         if isinstance(scope_expr, exp.SetOperation) and scope_expr.args.get("by_name"):
-            left_scope, right_scope = scope.union_scopes
+            left_scope, right_scope = scope.set_operation_scopes
             left_out = scope_outputs.get(id(left_scope.expression), {})
             right_out = scope_outputs.get(id(right_scope.expression), {})
 

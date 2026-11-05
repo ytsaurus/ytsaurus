@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import typing as t
 
 from sqlglot import exp, transforms
 from sqlglot.dialects.dialect import (
@@ -11,6 +12,7 @@ from sqlglot.dialects.dialect import (
     property_sql,
     var_map_sql,
 )
+from sqlglot.generator import Generator
 from sqlglot.generators.mysql import MySQLGenerator
 
 
@@ -60,23 +62,31 @@ class StarRocksGenerator(MySQLGenerator):
     WITH_PROPERTIES_PREFIX = "PROPERTIES"
     UPDATE_STATEMENT_SUPPORTS_FROM = True
     INSERT_OVERWRITE = " OVERWRITE"
+    CAST_TO_INT_ROUNDS = False
 
     # StarRocks doesn't support "IS TRUE/FALSE" syntax.
     IS_BOOL_ALLOWED = False
     # StarRocks doesn't support renaming a table with a database.
     RENAME_TABLE_WITH_DB = False
 
-    CAST_MAPPING = {}
+    ALTER_PARTITION_OPTIONS = (
+        *MySQLGenerator.ALTER_PARTITION_OPTIONS,
+        exp.DistributedByProperty,
+        exp.PartitionedByProperty,
+    )
+
+    CAST_MAPPING: t.ClassVar[dict[exp.DType, str]] = {}
 
     TYPE_MAPPING = {
         **MySQLGenerator.TYPE_MAPPING,
+        exp.DType.HLLSKETCH: "HLL",
         exp.DType.INT128: "LARGEINT",
         exp.DType.TEXT: "STRING",
         exp.DType.TIMESTAMP: "DATETIME",
         exp.DType.TIMESTAMPTZ: "DATETIME",
     }
 
-    SQL_SECURITY_VIEW_LOCATION = exp.Properties.Location.POST_SCHEMA
+    SQL_SECURITY_VIEW_LOCATION: t.ClassVar = exp.Properties.Location.POST_SCHEMA
 
     PROPERTIES_LOCATION = {
         **MySQLGenerator.PROPERTIES_LOCATION,
@@ -84,6 +94,7 @@ class StarRocksGenerator(MySQLGenerator):
         exp.UniqueKeyProperty: exp.Properties.Location.POST_SCHEMA,
         exp.RollupProperty: exp.Properties.Location.POST_SCHEMA,
         exp.PartitionedByProperty: exp.Properties.Location.POST_SCHEMA,
+        exp.Property: exp.Properties.Location.POST_WITH,
     }
 
     TRANSFORMS = {
@@ -291,6 +302,24 @@ class StarRocksGenerator(MySQLGenerator):
         "with",
     }
 
+    def ignorenulls_sql(self, expression: exp.IgnoreNulls) -> str:
+        # IGNORE NULLS follows the first argument, e.g. LAG(x IGNORE NULLS, 1, 0)
+        # https://docs.starrocks.io/docs/sql-reference/sql-functions/Window_function/
+        func = expression.this
+        if isinstance(func, (exp.FirstValue, exp.LastValue, exp.Lag, exp.Lead)):
+            return self.func(
+                func.sql_name(),
+                Generator.ignorenulls_sql(self, exp.IgnoreNulls(this=func.this)),
+                func.args.get("offset"),
+                func.args.get("default"),
+            )
+
+        return super().ignorenulls_sql(expression)
+
+    def respectnulls_sql(self, expression: exp.RespectNulls) -> str:
+        # RESPECT NULLS is the default behavior, and StarRocks rejects the keyword
+        return self.sql(expression, "this")
+
     def create_sql(self, expression: exp.Create) -> str:
         # Starrocks' primary key is defined outside of the schema, so we need to move it there
         schema = expression.this
@@ -351,3 +380,23 @@ class StarRocksGenerator(MySQLGenerator):
         every = f" EVERY (INTERVAL {every} {unit})" if every and unit else ""
 
         return f"REFRESH{method}{kind}{starts}{every}"
+
+    def refresh_sql(self, expression: exp.Refresh) -> str:
+        this = self.sql(expression, "this")
+        kind = "" if isinstance(expression.this, exp.Literal) else f"{expression.text('kind')} "
+        partition_start = self.sql(expression, "partition_start")
+        partition_end = self.sql(expression, "partition_end")
+        partition = (
+            f" PARTITION START ({partition_start}) END ({partition_end})" if partition_start else ""
+        )
+        force = " FORCE" if expression.args.get("force") else ""
+        mode = self.sql(expression, "mode")
+        mode = f" WITH {mode} MODE" if mode else ""
+
+        return f"REFRESH {kind}{this}{partition}{force}{mode}"
+
+    def timeslice_sql(self, expression: exp.TimeSlice) -> str:
+        interval = exp.Interval(this=expression.expression, unit=expression.unit)
+        kind = expression.text("kind").upper()
+        boundary = exp.var("CEIL" if kind == "END" else "FLOOR") if kind else None
+        return self.func("TIME_SLICE", expression.this, interval, boundary)

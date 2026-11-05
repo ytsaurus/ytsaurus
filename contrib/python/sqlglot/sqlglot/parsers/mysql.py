@@ -239,25 +239,37 @@ class MySQLParser(parser.Parser):
 
     CONSTRAINT_PARSERS = {
         **parser.Parser.CONSTRAINT_PARSERS,
+        "BINARY": lambda self: self.expression(exp.BinaryColumnConstraint()),
         "FULLTEXT": lambda self: self._parse_index_constraint(kind="FULLTEXT"),
         "INDEX": lambda self: self._parse_index_constraint(),
         "KEY": lambda self: self._parse_index_constraint(),
         "SPATIAL": lambda self: self._parse_index_constraint(kind="SPATIAL"),
         "ZEROFILL": lambda self: self.expression(exp.ZeroFillColumnConstraint()),
         "INVISIBLE": lambda self: self.expression(exp.InvisibleColumnConstraint()),
+        # MySQL defines ASCII as latin1, not the ascii character set, and UNICODE as ucs2
+        "ASCII": lambda self: self.expression(
+            exp.CharacterSetColumnConstraint(this=exp.var("latin1"))
+        ),
+        "UNICODE": lambda self: self.expression(
+            exp.CharacterSetColumnConstraint(this=exp.var("ucs2"))
+        ),
     }
 
     ALTER_PARSERS = {
         **parser.Parser.ALTER_PARSERS,
         "CHANGE": lambda self: self._parse_alter_table_modify(rename=True),
         "MODIFY": lambda self: self._parse_alter_table_modify(),
-        "AUTO_INCREMENT": lambda self: self._parse_property_assignment(exp.AutoIncrementProperty),
+        "FORCE": lambda self: self.expression(exp.ForceProperty()),
     }
 
     ALTER_ALTER_PARSERS = {
         **parser.Parser.ALTER_ALTER_PARSERS,
         "INDEX": lambda self: self._parse_alter_table_alter_index(),
     }
+
+    ADD_CONSTRAINT_KEYWORDS = {"FULLTEXT", "SPATIAL"}
+
+    RESERVED_CONSTRAINT_KINDS = {"CHECK", "FOREIGN KEY", "PRIMARY KEY", "UNIQUE"}
 
     SCHEMA_UNNAMED_CONSTRAINTS = {
         *parser.Parser.SCHEMA_UNNAMED_CONSTRAINTS,
@@ -267,7 +279,7 @@ class MySQLParser(parser.Parser):
         "SPATIAL",
     }
 
-    PROFILE_TYPES: parser.OPTIONS_TYPE = {
+    PROFILE_TYPES: t.ClassVar[parser.OPTIONS_TYPE] = {
         **dict.fromkeys(("ALL", "CPU", "IPC", "MEMORY", "SOURCE", "SWAPS"), tuple()),
         "BLOCK": ("IO",),
         "CONTEXT": ("SWITCHES",),
@@ -295,10 +307,21 @@ class MySQLParser(parser.Parser):
         "SQL_CALC_FOUND_ROWS",
     }
 
+    ALTER_DROP_REQUIRES_COLUMN = False
+    ALTER_TABLE_MIXED_ACTIONS = True
+    ALTER_TABLE_REQUIRES_ACTION = False
     LOG_DEFAULTS_TO_LN = True
     STRING_ALIASES = True
     VALUES_FOLLOWED_BY_PAREN = False
     SUPPORTS_PARTITION_SELECTION = True
+
+    def _parse_column_constraint(self) -> exp.Expr | None:
+        # SIGNED is the default for numeric types, so MySQL ignores it
+        self._match_text_seq("SIGNED")
+        if self._match(TokenType.KEY):
+            return self.expression(exp.ColumnConstraint(kind=self._parse_primary_key()))
+
+        return super()._parse_column_constraint()
 
     def _parse_range(self, this: exp.Expr | None = None) -> exp.Expr | None:
         this = this or self._parse_bitwise()
@@ -318,15 +341,19 @@ class MySQLParser(parser.Parser):
 
     def _parse_alter_table_rename(self):
         if self._match_texts(("INDEX", "KEY")):
-            old = self._parse_field(any_token=True)
+            old = self._parse_id_var()
             self._match_text_seq("TO")
-            new = self._parse_field(any_token=True)
+            new = self._parse_id_var()
             return self.expression(exp.RenameIndex(this=old, to=new))
         return super()._parse_alter_table_rename()
 
     def _parse_alter_drop_action(self) -> exp.Expr | None:
         if self._match_pair(TokenType.DROP, TokenType.PRIMARY_KEY):
             return self.expression(exp.DropPrimaryKey())
+        if self._match_pair(TokenType.DROP, TokenType.KEY):
+            return self._parse_drop(kind="INDEX")
+        if self._match_text_seq("DROP", "CHECK"):
+            return self._parse_drop(kind="CHECK")
         return super()._parse_alter_drop_action()
 
     def _parse_alter_table_modify(self, rename: bool = False) -> exp.Expr | None:
@@ -381,14 +408,42 @@ class MySQLParser(parser.Parser):
         self._match_r_paren()
         return self.expression(exp.ColumnPrefix(this=this, expression=expression))
 
+    def _parse_index_constraint_part(self) -> exp.Expr | None:
+        # key_part: {col_name [(length)] | (expr)}, so only a prefixed column is followed by "("
+        if (
+            not self._match(TokenType.L_PAREN, advance=False)
+            and self._next
+            and self._next.token_type == TokenType.L_PAREN
+        ):
+            return self._parse_primary_key_part()
+
+        return self._parse_disjunction()
+
+    def _parse_index_key_part(self) -> exp.Expr | None:
+        # Only keep the Ordered wrapper for an explicit ASC/DESC, otherwise the implicit
+        # nulls_first leaks into other dialects as NULLS FIRST
+        ordered = self._parse_ordered(self._parse_index_constraint_part)
+        return ordered.this if ordered and ordered.args.get("desc") is None else ordered
+
     def _parse_index_constraint(self, kind: str | None = None) -> exp.IndexColumnConstraint:
         if kind:
             self._match_texts(("INDEX", "KEY"))
 
         this = self._parse_id_var(any_token=False)
         index_type = self._match(TokenType.USING) and self._advance_any() and self._prev.text
-        expressions = self._parse_wrapped_csv(self._parse_ordered)
+        expressions = self._parse_wrapped_csv(self._parse_index_key_part)
 
+        return self.expression(
+            exp.IndexColumnConstraint(
+                this=this,
+                expressions=expressions,
+                kind=kind,
+                index_type=index_type,
+                options=self._parse_index_constraint_options(),
+            )
+        )
+
+    def _parse_index_constraint_options(self) -> list[exp.IndexConstraintOption]:
         options = []
         while True:
             if self._match_text_seq("KEY_BLOCK_SIZE"):
@@ -418,15 +473,32 @@ class MySQLParser(parser.Parser):
 
             options.append(opt)
 
+        return options
+
+    def _parse_unique(self) -> exp.UniqueColumnConstraint:
+        self._match_texts(("KEY", "INDEX"))
+        this = self._parse_unique_key()
+        index_type = self._parse_index_type()
+
+        # UNIQUE [INDEX | KEY] [index_name] [index_type] (key_part,...) [index_option] ...
+        if not self._match(TokenType.L_PAREN, advance=False):
+            return self.expression(exp.UniqueColumnConstraint(this=this, index_type=index_type))
+
+        expressions = self._parse_wrapped_csv(self._parse_index_key_part)
+
         return self.expression(
-            exp.IndexColumnConstraint(
-                this=this,
-                expressions=expressions,
-                kind=kind,
-                index_type=index_type,
-                options=options,
+            exp.UniqueColumnConstraint(
+                this=self.expression(exp.Schema(this=this, expressions=expressions)),
+                index_type=index_type or self._parse_index_type(),
+                options=self._parse_index_constraint_options(),
             )
         )
+
+    def _parse_index_type(self) -> str | None:
+        if self._match(TokenType.USING) and self._advance_any():
+            return self._prev.text
+
+        return None
 
     def _parse_show_mysql(
         self,
@@ -640,12 +712,31 @@ class MySQLParser(parser.Parser):
         part_list = self.expression(exp.PartitionList(this=name, expressions=values))
         return self.expression(exp.Partition(expressions=[part_list]))
 
+    def _parse_foreign_key(self) -> exp.ForeignKey:
+        # MySQL only uses this name when CONSTRAINT has none and no existing index fits
+        this = (
+            self._parse_id_var()
+            if self._next and self._next.token_type == TokenType.L_PAREN
+            else None
+        )
+        foreign_key = super()._parse_foreign_key()
+        foreign_key.set("this", this)
+        return foreign_key
+
     def _parse_primary_key(
         self,
         wrapped_optional: bool = False,
         in_props: bool = False,
         named_primary_key: bool = False,
     ) -> exp.PrimaryKeyColumnConstraint | exp.PrimaryKey:
-        return super()._parse_primary_key(
+        this = super()._parse_primary_key(
             wrapped_optional=wrapped_optional, in_props=in_props, named_primary_key=True
         )
+        if isinstance(this, exp.PrimaryKey):
+            # KEY_BLOCK_SIZE, COMMENT etc. after the key parts belong to the key, not the table
+            this.set(
+                "options",
+                [*(this.args.get("options") or []), *self._parse_index_constraint_options()],
+            )
+
+        return this

@@ -12,12 +12,14 @@ from sqlglot.expressions.core import (
     Condition,
     Distinct,
     Dot,
+    DynamicIdentifier,
     Expr,
     Expression,
     Func,
     Hint,
     Identifier,
     In,
+    Var,
     _apply_builder,
     _apply_child_list_builder,
     _apply_list_builder,
@@ -440,11 +442,24 @@ class QueryBand(Expression):
 
 
 class RecursiveWithSearch(Expression):
-    arg_types = {"kind": True, "this": True, "expression": True, "using": False}
+    arg_types = {
+        "kind": True,
+        "this": True,
+        "expression": True,
+        "to": False,
+        "default": False,
+        "using": False,
+    }
 
 
 class With(Expression):
-    arg_types = {"expressions": False, "recursive": False, "search": False, "udfs": False}
+    arg_types = {
+        "expressions": False,
+        "recursive": False,
+        "search": False,
+        "cycle": False,
+        "udfs": False,
+    }
 
     @property
     def recursive(self) -> bool:
@@ -485,14 +500,17 @@ class HexString(Expression, Condition):
 class ByteString(Expression, Condition):
     arg_types = {"this": True, "is_bytes": False}
     is_primitive = True
+    _hash_raw_args = True
 
 
 class RawString(Expression, Condition):
     is_primitive = True
+    _hash_raw_args = True
 
 
 class UnicodeString(Expression, Condition):
     arg_types = {"this": True, "escape": False}
+    _hash_raw_args = True
 
 
 class ColumnPosition(Expression):
@@ -571,7 +589,7 @@ class ConditionalInsert(Expression):
 
 
 class MultitableInserts(Expression):
-    arg_types = {"expressions": True, "kind": True, "source": True}
+    arg_types = {"with_": False, "expressions": True, "kind": False, "source": True}
 
 
 class OnCondition(Expression):
@@ -584,6 +602,7 @@ class Introducer(Expression):
 
 class National(Expression):
     is_primitive = True
+    _hash_raw_args = True
 
 
 class Partition(Expression):
@@ -655,6 +674,11 @@ class Limit(Expression):
         "limit_options": False,
         "expressions": False,
     }
+
+    @property
+    def is_limit_all(self) -> bool:
+        limit_expression = self.args.get("expression")
+        return isinstance(limit_expression, Var) and limit_expression.name.upper() == "ALL"
 
 
 class LimitOptions(Expression):
@@ -803,6 +827,19 @@ class Lateral(Expression, UDTF):
         "ordinality": False,
     }
 
+    @property
+    def selects(self) -> list[Expr]:
+        from sqlglot.expressions.array import Unnest
+
+        columns = super().selects
+
+        # UNNEST ... WITH ORDINALITY stores the ordinality column's name in Unnest.offset
+        offset = self.this.args.get("offset") if isinstance(self.this, Unnest) else None
+        if isinstance(offset, Identifier):
+            columns = columns + [offset]
+
+        return columns
+
 
 class TableFromRows(Expression, UDTF):
     arg_types = {
@@ -940,6 +977,12 @@ class Get(Expression):
     arg_types = {"this": True, "target": True, "properties": False}
 
 
+class ListStage(Expression):
+    """Lists files in a Snowflake stage or Git repository clone."""
+
+    arg_types = {"this": True, "pattern": False}
+
+
 class Table(Expression, Selectable):
     arg_types = {
         "this": False,
@@ -966,9 +1009,10 @@ class Table(Expression, Selectable):
 
     @property
     def name(self) -> str:
-        if not self.this or isinstance(self.this, Func):
+        this = self.this
+        if not this or (isinstance(this, Func) and not isinstance(this, DynamicIdentifier)):
             return ""
-        return self.this.name
+        return this.name
 
     @property
     def db(self) -> str:
@@ -1018,6 +1062,20 @@ class Table(Expression, Selectable):
         return col
 
 
+def _is_star(expression: Expr) -> bool:
+    stack = [expression]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, SetOperation):
+            stack.append(node.this)
+            stack.append(node.expression)
+        elif isinstance(node, Subquery):
+            stack.append(node.this)
+        elif node.is_star:
+            return True
+    return False
+
+
 class SetOperation(Expression, Query):
     arg_types = {
         "with_": False,
@@ -1050,12 +1108,17 @@ class SetOperation(Expression, Query):
     def named_selects(self) -> list[str]:
         expr: Expr = self
         while isinstance(expr, SetOperation):
+            if expr.args.get("by_name"):
+                left = t.cast(Selectable, expr.this.unnest()).named_selects
+                right = t.cast(Selectable, expr.expression.unnest()).named_selects
+                return list(dict.fromkeys(left + right))
+
             expr = expr.this.unnest()
         return _named_selects(expr)
 
     @property
     def is_star(self) -> bool:
-        return self.this.is_star or self.expression.is_star
+        return _is_star(self)
 
     @property
     def selects(self) -> list[Expr]:
@@ -1713,7 +1776,7 @@ class Subquery(Expression, DerivedTable, Query):
 
     @property
     def is_star(self) -> bool:
-        return self.this.is_star
+        return _is_star(self)
 
     @property
     def output_name(self) -> str:
@@ -1886,7 +1949,7 @@ class Where(Expression):
 class Analyze(Expression):
     arg_types = {
         "kind": False,
-        "this": False,
+        "tables": False,
         "options": False,
         "mode": False,
         "partition": False,
@@ -1988,14 +2051,17 @@ class JSONPathPart(Expression):
 
 class JSONPathFilter(JSONPathPart):
     arg_types = {"this": True}
+    _hash_raw_args = True
 
 
 class JSONPathKey(JSONPathPart):
     arg_types = {"this": True, "quoted": False}
+    _hash_raw_args = True
 
 
 class JSONPathRecursive(JSONPathPart):
     arg_types = {"this": False}
+    _hash_raw_args = True
 
 
 class JSONPathRoot(JSONPathPart):
@@ -2004,6 +2070,7 @@ class JSONPathRoot(JSONPathPart):
 
 class JSONPathScript(JSONPathPart):
     arg_types = {"this": True}
+    _hash_raw_args = True
 
 
 class JSONPathSlice(JSONPathPart):
@@ -2020,6 +2087,7 @@ class JSONPathSubscript(JSONPathPart):
 
 class JSONPathUnion(JSONPathPart):
     arg_types = {"expressions": True}
+    _hash_raw_args = True
 
 
 class JSONPathWildcard(JSONPathPart):
@@ -2119,8 +2187,28 @@ class IfBlock(Expression):
     arg_types = {"this": True, "true": True, "false": False}
 
 
+class CaseStatement(Expression):
+    arg_types = {"this": False, "ifs": True, "default": False}
+
+
 class WhileBlock(Expression):
-    arg_types = {"this": True, "body": True}
+    arg_types = {"this": True, "body": True, "label": False}
+
+
+class LoopBlock(Expression):
+    arg_types = {"body": True, "label": False}
+
+
+class RepeatBlock(Expression):
+    arg_types = {"body": True, "until": True, "label": False}
+
+
+class Leave(Expression):
+    pass
+
+
+class Iterate(Expression):
+    pass
 
 
 class EndStatement(Expression):

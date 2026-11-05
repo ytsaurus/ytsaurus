@@ -20,6 +20,7 @@ from sqlglot.helper import seq_get
 class RedshiftGenerator(PostgresGenerator):
     LOCKING_READS_SUPPORTED = False
     QUERY_HINTS = False
+    CAST_TO_INT_ROUNDS = True
     VALUES_AS_TABLE = False
     TZ_TO_WITH_TIME_ZONE = True
     NVL2_SUPPORTED = True
@@ -66,6 +67,7 @@ class RedshiftGenerator(PostgresGenerator):
                 exp.LastDay,
                 exp.SHA2,
                 exp.Getbit,
+                exp.IntDiv,
                 exp.Round,
                 exp.TryCast,
             }
@@ -271,6 +273,12 @@ class RedshiftGenerator(PostgresGenerator):
         "with",
         "without",
     }
+
+    def bytestring_sql(self, expression: exp.ByteString) -> str:
+        if not expression.args.get("is_bytes"):
+            return self.sql(exp.Literal.string(expression.this))
+
+        return self.func("FROM_HEX", exp.Literal.string(expression.this.encode("latin-1").hex()))
 
     def stpoint_sql(self, expression: exp.StPoint) -> str:
         # ST_POINT only accepts 2 args in Redshift; use ST_MAKEPOINT for 3 or 4 args

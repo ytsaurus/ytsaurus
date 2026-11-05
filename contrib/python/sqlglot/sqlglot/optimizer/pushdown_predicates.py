@@ -51,18 +51,30 @@ def pushdown_predicates(expression: E, dialect: DialectType = None) -> E:
                 selected_sources: Sources = scope.selected_sources
                 join_index = {join.alias_or_name: i for i, join in enumerate(joins)}
 
-                # a right join can only push down to itself and not the source FROM table
-                # presto, trino and athena don't support inner joins where the RHS is an UNNEST expression
+                # A RIGHT or FULL join null-extends everything joined before it, and an outer WHERE filter
+                # removes those rows, so a source can only be pushed into if no such join comes after it.
+                last_null_extending = max(
+                    (i for i, join in enumerate(joins) if join.side in ("RIGHT", "FULL")),
+                    default=-1,
+                )
+
+                # Presto, trino and athena don't support inner joins where the RHS is an UNNEST expression
                 pushdown_allowed = True
+                reachable: dict[str, tuple[exp.Selectable, exp.Table | Scope]] = {}
                 for k, (node, source) in selected_sources.items():
                     parent = node.find_ancestor(exp.Join, exp.From)
                     if isinstance(parent, exp.Join):
-                        if parent.side == "RIGHT":
-                            selected_sources = {k: (node, source)}
-                            break
                         if isinstance(node, exp.Unnest) and unnest_requires_cross_join:
                             pushdown_allowed = False
                             break
+                        position = join_index.get(parent.alias_or_name, -1)
+                    else:
+                        position = -1
+
+                    if position >= last_null_extending:
+                        reachable[k] = (node, source)
+
+                selected_sources = reachable
 
                 if pushdown_allowed:
                     pushdown(where.this, selected_sources, scope_ref_count, dialect, join_index)
@@ -170,35 +182,41 @@ def pushdown_dnf(
 
     # pushdown all predicates to their respective nodes
     for table in sorted(pushdown_tables):
+        table_node: exp.Expr | None = None
+        incomplete = False
+
         for predicate in predicates:
             nodes = nodes_for_predicate(predicate, sources, scope_ref_count)
 
             if table not in nodes:
-                continue
+                # An arm that can't be pushed would leave an incomplete OR, so skip this table
+                incomplete = True
+                break
 
+            table_node = nodes[table]
             conditions[table] = (
                 exp.or_(conditions[table], predicate) if table in conditions else predicate
             )
 
-        for name, node in nodes.items():
-            if name not in conditions:
-                continue
+        if incomplete:
+            conditions.pop(table, None)
+            continue
 
-            predicate = conditions[name]
+        predicate = conditions[table]
 
-            if isinstance(node, exp.Join):
-                if join_index:
-                    this_index = join_index[name]
-                    predicate_tables = exp.column_table_names(predicate, name)
-                    if not all(join_index.get(t, -1) < this_index for t in predicate_tables):
-                        continue
-                node.on(predicate, copy=False)
-            elif isinstance(node, exp.Select):
-                inner_predicate = replace_aliases(node, predicate)
-                if find_in_scope(inner_predicate, exp.AggFunc):
-                    node.having(inner_predicate, copy=False)
-                else:
-                    node.where(inner_predicate, copy=False)
+        if isinstance(table_node, exp.Join):
+            if join_index:
+                this_index = join_index[table]
+                predicate_tables = exp.column_table_names(predicate, table)
+                if not all(join_index.get(t, -1) < this_index for t in predicate_tables):
+                    continue
+            table_node.on(predicate, copy=False)
+        elif isinstance(table_node, exp.Select):
+            inner_predicate = replace_aliases(table_node, predicate)
+            if find_in_scope(inner_predicate, exp.AggFunc):
+                table_node.having(inner_predicate, copy=False)
+            else:
+                table_node.where(inner_predicate, copy=False)
 
 
 def nodes_for_predicate(
@@ -264,6 +282,9 @@ def nodes_for_predicate(
     return nodes
 
 
+OPERATOR_EXPRESSIONS = (exp.Binary, exp.Unary, exp.Predicate)
+
+
 def replace_aliases(source: exp.Select, predicate: exp.Expr) -> exp.Expr:
     aliases: dict[str, exp.Expr] = {}
 
@@ -275,7 +296,12 @@ def replace_aliases(source: exp.Select, predicate: exp.Expr) -> exp.Expr:
 
     def _replace_alias(column: exp.Expr) -> exp.Expr:
         if isinstance(column, exp.Column) and column.name in aliases:
-            return aliases[column.name].copy()
+            replaced = aliases[column.name].copy()
+            if isinstance(replaced, OPERATOR_EXPRESSIONS) and isinstance(
+                column.parent, OPERATOR_EXPRESSIONS
+            ):
+                replaced = exp.paren(replaced, copy=False)
+            return replaced
         return column
 
     return predicate.transform(_replace_alias)

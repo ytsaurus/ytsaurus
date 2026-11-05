@@ -46,15 +46,19 @@ class JSONArrayInsert(Expression, Func):
     _sql_names = ["JSON_ARRAY_INSERT"]
 
 
-class JSONBContains(Expression, Binary, Func):
+class JSONBContains(Expression, Binary, Predicate, Func):
     _sql_names = ["JSONB_CONTAINS"]
 
 
-class JSONBContainsAllTopKeys(Expression, Binary, Func):
+class JSONBContainsAllTopKeys(Expression, Binary, Predicate, Func):
     pass
 
 
-class JSONBContainsAnyTopKeys(Expression, Binary, Func):
+class JSONBContainsTopKey(Expression, Binary, Predicate, Func):
+    pass
+
+
+class JSONBContainsAnyTopKeys(Expression, Binary, Predicate, Func):
     pass
 
 
@@ -96,6 +100,7 @@ class JSONExists(Expression, Func):
         "on_condition": False,
         "from_dcolonqmark": False,
     }
+    _hash_raw_args = True
 
 
 class JSONExtract(Expression, Binary, Func):
@@ -133,6 +138,7 @@ class JSONExtractScalar(Expression, Binary, Func):
         "expressions": False,
         "json_type": False,
         "scalar_only": False,
+        "json_subtype": False,
     }
     _sql_names = ["JSON_EXTRACT_SCALAR"]
     is_var_len_args = True
@@ -235,8 +241,12 @@ class OpenJSON(Expression, Func):
     arg_types = {"this": True, "path": False, "expressions": False}
 
 
+class FromJson(Expression, Func):
+    arg_types = {"this": True, "expression": True, "options": False}
+
+
 class ParseJSON(Expression, Func):
     # BigQuery, Snowflake have PARSE_JSON, Presto has JSON_PARSE
     # Snowflake also has TRY_PARSE_JSON, which is represented using `safe`
     _sql_names = ["PARSE_JSON", "JSON_PARSE"]
-    arg_types = {"this": True, "expression": False, "safe": False}
+    arg_types = {"this": True, "expression": False, "safe": False, "is_literal": False}
