@@ -5,24 +5,24 @@
 
 namespace NYT::NOrm::NQuery {
 
-using TComputedFieldsDetector = std::function<bool(NQueryClient::NAst::TReferenceExpressionPtr)>;
+//! Predicate for AST nodes that access a column or attribute.
+using TExpressionPredicate = std::function<bool(NQueryClient::NAst::TReferenceExpressionPtr)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Splits filter expression into computable and non-computable parts.
-//! First part in pair does not contain computed fields.
-std::pair<NQueryClient::NAst::TExpressionPtr, NQueryClient::NAst::TExpressionPtr> SplitFilterByComputedFields(
+//! First part has no column-access nodes matching |predicate|; second part contains the remaining conjuncts.
+std::pair<NQueryClient::NAst::TExpressionPtr, NQueryClient::NAst::TExpressionPtr> SplitFilterByPredicate(
     TObjectsHolder* context,
-    TComputedFieldsDetector detector,
+    TExpressionPredicate predicate,
     NQueryClient::NAst::TExpressionPtr filter);
 
 //! Splits expression into a forest of subtrees, combined by AND construction after applying De Morgan's laws.
 std::vector<NQueryClient::NAst::TExpressionPtr> SplitIntoSubTrees(TObjectsHolder* context, NQueryClient::NAst::TExpressionPtr expression);
 
-//! Checks if the expression contains computed fields using detector.
-bool ContainsComputedFields(
+//! Returns true if |predicate| matches at least one column-access node in the expression.
+bool CheckExpressionByPredicate(
     NQueryClient::NAst::TExpressionPtr expression,
-    TComputedFieldsDetector detector);
+    TExpressionPredicate predicate);
 
 ////////////////////////////////////////////////////////////////////////////////
 

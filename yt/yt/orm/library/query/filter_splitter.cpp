@@ -1,4 +1,4 @@
-#include "computed_fields_filter.h"
+#include "filter_splitter.h"
 
 #include "misc.h"
 
@@ -139,15 +139,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TComputedFieldsChecker
-    : public TBaseAstVisitor<bool, TComputedFieldsChecker>
+class TExpressionPredicateChecker
+    : public TBaseAstVisitor<bool, TExpressionPredicateChecker>
 {
 public:
-    explicit TComputedFieldsChecker(std::function<bool(TReferenceExpressionPtr)> detector)
-        : Detector_(std::move(detector))
+    explicit TExpressionPredicateChecker(TExpressionPredicate predicate)
+        : Predicate_(std::move(predicate))
     { }
 
-    bool ContainsComputedField(TExpressionPtr expression)
+    bool Check(TExpressionPtr expression)
     {
         return Visit(expression);
     }
@@ -159,7 +159,7 @@ public:
 
     bool OnReference(TReferenceExpressionPtr referenceExpr)
     {
-        return Detector_(referenceExpr);
+        return Predicate_(referenceExpr);
     }
 
     bool OnAlias(TAliasExpressionPtr aliasExpr)
@@ -212,9 +212,9 @@ public:
     }
 
 private:
-    using TBaseAstVisitor<bool, TComputedFieldsChecker>::Visit;
+    using TBaseAstVisitor<bool, TExpressionPredicateChecker>::Visit;
 
-    TComputedFieldsDetector Detector_;
+    TExpressionPredicate Predicate_;
 
     bool Visit(const TNullableExpressionList& list)
     {
@@ -261,14 +261,14 @@ std::vector<TExpressionPtr> SplitIntoSubTrees(TObjectsHolder* context, TExpressi
     return TSubTreesSplitter(context).Run(expression);
 }
 
-bool ContainsComputedFields(TExpressionPtr expression, std::function<bool(TReferenceExpressionPtr)> detector)
+bool CheckExpressionByPredicate(TExpressionPtr expression, TExpressionPredicate predicate)
 {
-    return TComputedFieldsChecker(std::move(detector)).ContainsComputedField(expression);
+    return TExpressionPredicateChecker(std::move(predicate)).Check(expression);
 }
 
-std::pair<TExpressionPtr, TExpressionPtr> SplitFilterByComputedFields(
+std::pair<TExpressionPtr, TExpressionPtr> SplitFilterByPredicate(
     TObjectsHolder* context,
-    std::function<bool(TReferenceExpressionPtr)> detector,
+    TExpressionPredicate predicate,
     TExpressionPtr filter)
 {
     if (!filter) {
@@ -277,24 +277,24 @@ std::pair<TExpressionPtr, TExpressionPtr> SplitFilterByComputedFields(
 
     auto subTrees = SplitIntoSubTrees(context, filter);
 
-    TComputedFieldsChecker checker(std::move(detector));
-    std::vector<TExpressionPtr> nonComputedPart;
-    std::vector<TExpressionPtr> computedPart;
+    TExpressionPredicateChecker checker(std::move(predicate));
+    std::vector<TExpressionPtr> unmatchedPart;
+    std::vector<TExpressionPtr> matchedPart;
     for (auto subTree : subTrees) {
-        if (checker.ContainsComputedField(subTree)) {
-            computedPart.push_back(std::move(subTree));
+        if (checker.Check(subTree)) {
+            matchedPart.push_back(std::move(subTree));
         } else {
-            nonComputedPart.push_back(std::move(subTree));
+            unmatchedPart.push_back(std::move(subTree));
         }
     }
     return {
         BuildBinaryOperationTree(
             context,
-            std::move(nonComputedPart),
+            std::move(unmatchedPart),
             NQueryClient::EBinaryOp::And),
         BuildBinaryOperationTree(
             context,
-            std::move(computedPart),
+            std::move(matchedPart),
             NQueryClient::EBinaryOp::And)
     };
 }

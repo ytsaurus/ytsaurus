@@ -34,10 +34,10 @@ target_link_libraries(orm-library-query PUBLIC
 )
 
 target_sources(orm-library-query PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/computed_fields_filter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/continuation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/enforce_aggregate.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/filter_introspection.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/filter_splitter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/implication_checker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/misc.cpp
