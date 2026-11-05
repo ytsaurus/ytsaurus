@@ -179,7 +179,7 @@ public:
 
         if (Config_->CypressObjectRepository) {
             CypressObjectRepository_ = New<TCypressObjectRepository>(
-                DictionariesClient_,
+                SqlObjectsClient_,
                 Config_->CypressObjectRepository,
                 FetcherInvoker_);
         }
