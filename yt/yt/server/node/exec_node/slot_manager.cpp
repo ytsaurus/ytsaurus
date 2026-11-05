@@ -659,11 +659,14 @@ TSlotManager::TSlotManagerInfo TSlotManager::DoGetStateSnapshot() const
         }
     }
 
+    auto jobEnvironment = JobEnvironment_;
+
     return {
         .SlotCount = SlotCount_,
         .FreeSlotCount = static_cast<int>(FreeSlots_.size()),
         .UsedIdleSlotCount = UsedIdleSlotCount_,
         .IdlePolicyRequestedCpu = IdlePolicyRequestedCpu_,
+        .IdleCpuLimit = jobEnvironment ? jobEnvironment->GetCpuLimit(ESlotType::Idle) : 0.0,
         .NumaNodeStates = NumaNodeStates_,
         .Alerts = std::move(alerts),
         .Locations = std::move(locations),
@@ -1059,6 +1062,7 @@ void TSlotManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
             .Item("free_slot_count").Value(slotManagerInfo.FreeSlotCount)
             .Item("used_idle_slot_count").Value(slotManagerInfo.UsedIdleSlotCount)
             .Item("idle_policy_requested_cpu").Value(slotManagerInfo.IdlePolicyRequestedCpu)
+            .Item("idle_cpu_limit").Value(slotManagerInfo.IdleCpuLimit)
             .Item("numa_node_states").DoMapFor(
                 slotManagerInfo.NumaNodeStates,
                 [&] (TFluentMap fluent, const TNumaNodeState& numaNodeState) {
