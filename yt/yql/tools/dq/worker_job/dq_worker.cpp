@@ -208,6 +208,11 @@ namespace NYql::NDq::NWorker {
         if (auto certFile = TryGetEnv("SSL_CERT_FILE")) {
             pfOptions.Env["SSL_CERT_FILE"] = *certFile;
         }
+        pfOptions.LocalJobProxy = NTaskRunnerProxy::ConfigureChildLocalJobProxy(
+            &pfOptions.Env,
+            backendConfig.GetUseLocalJobProxyForTableReads(),
+            backendConfig.GetProxyAddress(),
+            GetEnv("YT_JOB_PROXY_SOCKET_PATH"));
         if (backendConfig.GetEnforceJobYtIsolation()) {
             pfOptions.Env["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = "0";
             pfOptions.Env["YT_FORBID_REQUESTS_FROM_JOB"] = "1";

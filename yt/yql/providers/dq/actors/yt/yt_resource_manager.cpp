@@ -1170,6 +1170,8 @@ namespace NYql {
                 operationLayersList.push_back(operationLayer);
             }
 
+            const bool enableLocalJobProxy = Options.YtBackend.GetUseLocalJobProxyForTableReads() ||
+                Options.YtBackend.GetUseLocalJobProxyForResourceDownloads();
             auto operationSpec = NYT::BuildYsonNodeFluently()
                 .BeginMap()
                     .DoIf(Options.YtBackend.GetOwner().size() > 0, [&] (NYT::TFluentMap fluent) {
@@ -1238,6 +1240,7 @@ namespace NYql {
                                             fluent.Item("set_container_cpu_limit").Value(Options.YtBackend.GetContainerCpuLimit());
                                         })
                                         .Item("command").Value(command)
+                                        .Item("enable_rpc_proxy_in_job_proxy").Value(enableLocalJobProxy)
                                         .DoIf(!operationLayersList.empty(), [&] (NYT::TFluentMap fluent) {
                                             fluent.Item("layer_paths").DoListFor(operationLayersList, [&] (NYT::TFluentList list, const TString& operationLayer) {
                                                 list.Item().Value(operationLayer);

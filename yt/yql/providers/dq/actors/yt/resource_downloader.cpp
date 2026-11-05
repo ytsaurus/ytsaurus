@@ -1,5 +1,6 @@
 
 #include "yt_wrapper.h"
+#include "local_job_proxy.h"
 
 #include <yql/essentials/utils/yql_panic.h>
 #include <yql/essentials/utils/log/log.h>
@@ -15,6 +16,7 @@
 
 #include <util/system/fs.h>
 #include <util/folder/tempdir.h>
+#include <util/system/env.h>
 
 #include <yt/cpp/mapreduce/interface/fluent.h>
 
@@ -63,7 +65,8 @@ private:
             ctx.ActorSystem(),
             Options.UploadClusterAddress,
             Options.YtBackend.GetUser(),
-            Options.YtBackend.GetToken());
+            Options.YtBackend.GetToken(),
+            GetResourceDownloadProxySocket(Options.YtBackend, Options.UploadClusterAddress, GetEnv("YT_JOB_PROXY_SOCKET_PATH")));
         DownloadFile();
     }
 

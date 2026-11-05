@@ -222,14 +222,14 @@ public:
         return *Config;
     }
 
-    NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem, const TString& proxyAddress, const TString& user, const TString& token) override {
-        auto key = std::make_tuple(proxyAddress, user, token);
+    NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem, const TString& proxyAddress, const TString& user, const TString& token, const TString& jobProxySocketPath = {}) override {
+        auto key = std::make_tuple(proxyAddress, user, token, jobProxySocketPath);
         auto guard = Guard(Mutex);
         auto it = Yt.find(key);
         if (it != Yt.end()) {
             return it->second;
         } else {
-            auto client = GetYtClient(proxyAddress, user, token);
+            auto client = GetYtClient(proxyAddress, user, token, jobProxySocketPath);
             auto wrapper = CreateYtWrapper(client, proxyAddress);
             auto actorId = Register(actorSystem, wrapper);
             Yt.emplace(key, actorId);
@@ -243,12 +243,12 @@ public:
 
     NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem) override {
         const auto& config = GetConfig();
-        return GetWrapper(actorSystem, config.GetProxyAddress(), config.GetUser(), config.GetToken());
+        return GetWrapper(actorSystem, config.GetProxyAddress(), config.GetUser(), config.GetToken(), /*jobProxySocketPath*/ {});
     }
 
     NActors::TActorId GetWrapper() override {
         const auto& config = GetConfig();
-        auto key = std::make_tuple(config.GetProxyAddress(), config.GetUser(), config.GetToken());
+        auto key = std::make_tuple(config.GetProxyAddress(), config.GetUser(), config.GetToken(), TString());
         auto guard = Guard(Mutex);
         auto it = Yt.find(key);
         Y_ABORT_UNLESS(it != Yt.end());
@@ -305,12 +305,16 @@ protected:
         return id;
     }
 
-    NYT::NApi::IClientPtr GetYtClient(const TString& proxyAddress, const TString& user, const TString& token)
+    NYT::NApi::IClientPtr GetYtClient(const TString& proxyAddress, const TString& user, const TString& token, const TString& jobProxySocketPath = {})
     {
         NYT::NApi::NRpcProxy::TConnectionConfigPtr config = NYT::New<NYT::NApi::NRpcProxy::TConnectionConfig>();
         config->RequestCodec = NYT::NCompression::ECodec::Lz4;
         config->ClusterUrl = proxyAddress;
         config->ConnectionType = NYT::NApi::EConnectionType::Rpc;
+        if (!jobProxySocketPath.empty()) {
+            config->ProxyUnixDomainSocket = jobProxySocketPath;
+            config->EnableProxyDiscovery = false;
+        }
 
         auto connection = NYT::NApi::NRpcProxy::CreateConnection(config);
 
@@ -341,7 +345,7 @@ protected:
     TString NodeName;
 
     TMutex Mutex;
-    THashMap<std::tuple<TString, TString, TString>, TActorId> Yt;
+    THashMap<std::tuple<TString, TString, TString, TString>, TActorId> Yt;
 
     ui32 NodeId = -1;
     TString GrpcPort = "";

@@ -57,7 +57,8 @@ public:
         NActors::TActorSystem* actorSystem,
         const TString& cluster,
         const TString& user,
-        const TString& token) override;
+        const TString& token,
+        const TString& jobProxySocketPath = {}) override;
     NActors::TActorId GetWrapper() override;
 
     TWorkerRuntimeData* GetRuntimeData() override;
