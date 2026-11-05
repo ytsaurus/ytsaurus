@@ -20,7 +20,6 @@
 #include <contrib/libs/cppkafka/include/cppkafka/message_builder.h>
 
 #include <deque>
-#include <map>
 #include <memory>
 
 namespace cppkafka {
@@ -43,6 +42,7 @@ std::vector<int> GroupKafkaRecordRows(const std::vector<i64>& frameSizes, i64 ma
 //! One record queued for the producer thread.
 struct TKafkaMessageToWrite
 {
+    //! Assigned by the queue; never persisted or used for deduplication.
     i64 SeqNo = 0;
     std::optional<std::string> Key;
     //! Disengaged writes a Kafka null value (a compaction tombstone), distinct from an empty one.
@@ -66,56 +66,31 @@ void ProduceKafkaMessage(cppkafka::Producer& producer, const cppkafka::MessageBu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! The queue between the sink fibers and the writer's producer thread. Promises resolve strictly in
-//! seqNo order (TOrderedAsyncSinkBase requires it; delivery reports arrive interleaved), and a
-//! failed seqNo poisons the queue — every later seqNo fails even on an OK report, so the persisted
-//! frontier never passes a message that did not reach Kafka and the replay re-sends it
-//! (at-least-once: duplicates possible, loss not).
+//! Thread-safe producer handoff with ordered, all-record request completion.
 class TKafkaWriteQueue
 {
 public:
-    //! Queues |message| and returns the future resolved once the broker acknowledges it; fails fast
-    //! once the queue has failed.
-    TFuture<void> Enqueue(TKafkaMessageToWrite&& message);
+    using TOnWritten = TCallback<void(const TError&)>;
 
-    //! Queues several records under one seqNo (a split batch), acknowledged together; the first
-    //! failed record fails the whole seqNo.
-    TFuture<void> Enqueue(i64 seqNo, std::vector<TKafkaMessageToWrite> records);
-
-    //! Producer side. Hands over everything queued so far.
+    void Enqueue(std::vector<TKafkaMessageToWrite> records, TOnWritten onWritten);
     std::deque<TKafkaMessageToWrite> TakePending();
-
-    //! Producer side. Hands over the longest queued prefix within both limits, but at least one record
-    //! if any is queued.
+    //! Takes a bounded prefix, including at least one queued record.
     std::deque<TKafkaMessageToWrite> TakePending(i64 maxCount, i64 maxByteSize);
-
-    //! Producer side. Records the delivery result of |seqNo| and resolves the longest already-completed
-    //! prefix of promises in seqNo order. Resolving an error poisons the queue (see the class comment).
     void Complete(i64 seqNo, TError error);
-
-    //! Registers |seqNo| as failed although none of its records were enqueued (e.g. the batch failed
-    //! to pack). A skipped seqNo would anchor the frontier past its messages or wedge later ones
-    //! behind the gap.
-    void Reject(i64 seqNo, TError error);
-
-    //! Records a fatal error, fails every pending promise, and makes further Enqueue() calls fail fast
-    //! so no promise is ever left unresolved.
     void Fail(const TError& error);
-
-    //! The fatal (or poison) error, or OK while the queue is healthy.
     TError GetFatalError() const;
 
 private:
+    struct TCompletion
+    {
+        i64 RemainingRecords = 0;
+        TOnWritten OnWritten;
+    };
+
     YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     std::deque<TKafkaMessageToWrite> Pending_;
-    THashMap<i64, TPromise<void>> Promises_;
-    //! Outstanding record count for a multi-record seqNo; absent means a single record.
-    THashMap<i64, i64> RemainingRecords_;
-    //! Next seqNo whose promise may be resolved; delivery results for later seqNos wait for it.
-    i64 NextSeqNoToResolve_ = -1;
-    //! Delivery results that have arrived but cannot be resolved yet (a lower seqNo is still pending).
-    std::map<i64, TError> CompletedResults_;
-    //! Set once the writer can no longer make progress (e.g. producer construction failed); OK until then.
+    std::deque<TCompletion> Completions_;
+    i64 FirstSeqNo_ = 1;
     TError FatalError_;
 };
 
@@ -141,10 +116,7 @@ public:
     void Start();
     void Terminate();
 
-    TFuture<void> Write(TMessageToWrite&& message);
-    TFuture<void> WriteMany(i64 seqNo, std::vector<TMessageToWrite> records);
-    //! See #TKafkaWriteQueue::Reject().
-    void Reject(i64 seqNo, TError error);
+    void WriteMany(std::vector<TMessageToWrite> records, TKafkaWriteQueue::TOnWritten onWritten);
 
     //! See #TKafkaWriteQueue::GetFatalError().
     TError GetFatalError() const;
@@ -174,9 +146,10 @@ DEFINE_REFCOUNTED_TYPE(TRetryableKafkaWriter);
 struct TKafkaSinkState
     : public NYTree::TYsonStruct
 {
-    //! The seqNo up to which messages may have been handed to the writer: earlier sessions may have
-    //! committed messages up to this one, but none past it.
+    //! Retained only to detect ambiguous writes when migrating legacy state.
     i64 MaxDistributedSeqNo = 0;
+    //! The ID up to which earlier sessions may have committed messages.
+    std::optional<TMessageId> MaxDistributedMessageId;
 
     REGISTER_YSON_STRUCT(TKafkaSinkState);
 
@@ -187,8 +160,7 @@ DEFINE_REFCOUNTED_TYPE(TKafkaSinkState);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Shared logic for all Kafka sink flavors: holds the client resource and the retryable writer, and
-//! turns a (seqNo, payload, key) into a broker write returning a per-message future.
+//! Shared resource, record conversion and nontransactional writer for Kafka sinks.
 class TCommonKafkaSink
     : public virtual TRefCounted
 {
@@ -204,39 +176,29 @@ public:
 protected:
     const NLogging::TLogger Logger;
 
-    void InitSession(const std::string& producerId);
-    //! Extracts the payload (and optional key) column from the message into one Kafka record.
-    TKafkaMessageToWrite MakeRecord(const TOutputMessageConstPtr& message, i64 seqNo) const;
-    //! Writes the record #MakeRecord() makes.
-    TFuture<void> Write(const TOutputMessageConstPtr& message, i64 seqNo);
-    //! Writes already-serialized values as records acknowledged together under one seqNo (for sinks
-    //! packing several Flow messages into one record); no key or message id header — such a record
-    //! has no single Flow message it speaks for.
-    TFuture<void> WriteRecords(i64 seqNo, std::vector<TKafkaMessageToWrite> records);
+    TRetryableKafkaWriterPtr Writer_;
 
-    //! Registers |seqNo| as failed without writing anything, keeping the ordered frontier intact.
-    void Reject(i64 seqNo, TError error);
+    void InitSession(const std::string& producerId);
+    TKafkaMessageToWrite MakeRecord(const TOutputMessageConstPtr& message, bool includeMessageId = false) const;
+    void TerminateWriter();
 
     const std::string& PayloadColumn() const;
     const TKafkaClientPtr& GetClient() const;
-    //! The error the writer #InitSession() starts failed with, or OK.
-    TError GetWriterError() const;
 
 private:
     const TCommonKafkaSinkParametersPtr Parameters_;
     const TKafkaClientPtr Client_;
     const std::string Topic_;
     const IStatusProfilerPtr StatusProfiler_;
-    TRetryableKafkaWriterPtr Writer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Primary sink: per-message async writes. Exactly-once by default (see #TTransactionalKafkaWriter);
+//! Primary sink: asynchronous writes. Exactly-once by default (see #TTransactionalKafkaWriter);
 //! at-least-once with #EKafkaDeliveryGuarantee::AtLeastOnce, where the idempotent producer drops the
 //! retries within a session but not the replays after a restart.
 class TKafkaSink
-    : public TOrderedAsyncSinkBase
+    : public TSinkBase
     , public TCommonKafkaSink
 {
 public:
@@ -252,29 +214,35 @@ public:
     ~TKafkaSink() override;
 
     void Init(IInitContextPtr initContext) override;
+    void Distribute(const TOutputMessageConstPtr& message, TOnDistributedCallback onDistributed) override;
     void Sync(NApi::IDynamicTableTransactionPtr transaction) override;
     void Commit() override;
 
-private:
+protected:
     using TCommonKafkaSink::Logger;
 
-    //! A message kept from the writer until a persisted bound covers it.
-    struct TWithheldWrite
+    struct TPendingMessage
     {
-        TKafkaMessageToWrite Record;
-        TPromise<void> Promise;
+        TOutputMessageConstPtr Message;
+        TOnDistributedCallback OnDistributed;
     };
 
-    //! Set with #EKafkaDeliveryGuarantee::ExactlyOnce, in place of the writer of #TCommonKafkaSink.
+    TMutableStateClient<TOrderedAsyncSinkState> State_;
+    TMessageId AcknowledgedMessageId_;
+    TMessageId ReleaseMessageId_;
+    std::deque<TPendingMessage> Pending_;
+    bool Terminated_ = false;
+    TError Error_;
+
+    virtual void InitWriter(IInitContextPtr initContext);
+    void ThrowIfFailed() const;
+
+private:
     TTransactionalKafkaWriterPtr TransactionalWriter_;
     TMutableStateClient<TKafkaSinkState> TransactionalState_;
-    //! What the last Sync recorded as #TKafkaSinkState::MaxDistributedSeqNo.
-    i64 MaxDistributedSeqNo_ = 0;
-    //! The writes past #MaxDistributedSeqNo_, in seqNo order.
-    std::deque<TWithheldWrite> WithheldWrites_;
+    TMessageId LastMessageId_;
 
-    void DoInit(const std::string& producerId) final;
-    TFuture<void> DoDistribute(const TOutputMessageConstPtr& message, i64 seqNo) final;
+    void DoTerminate() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TKafkaSink);
@@ -298,8 +266,6 @@ public:
 
 private:
     using TCommonKafkaSink::Logger;
-
-    i64 SeqNo_ = 0;
 
     void DoInit() final;
     void DoDistribute(NApi::IDynamicTableTransactionPtr transaction, const std::deque<TOutputMessageConstPtr>& messages) final;

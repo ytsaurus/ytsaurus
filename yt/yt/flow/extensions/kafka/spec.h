@@ -125,7 +125,7 @@ DEFINE_REFCOUNTED_TYPE(TCommonKafkaSinkParameters);
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TKafkaSinkParameters
-    : public TOrderedAsyncSinkBase::TParameters
+    : public TSinkBase::TParameters
     , public virtual TCommonKafkaSinkParameters
 {
     EKafkaDeliveryGuarantee DeliveryGuarantee = EKafkaDeliveryGuarantee::ExactlyOnce;
@@ -150,7 +150,7 @@ struct TKafkaSinkParameters
 DEFINE_REFCOUNTED_TYPE(TKafkaSinkParameters);
 
 struct TDynamicKafkaSinkParameters
-    : public TOrderedAsyncSinkBase::TDynamicParameters
+    : public TSinkBase::TDynamicParameters
 {
     //! With #EKafkaDeliveryGuarantee::ExactlyOnce, lets the sink start when its progress marker is
     //! missing although earlier sessions may have committed messages the persisted state does not
