@@ -1,8 +1,8 @@
 from .base import QueriesTestBase
 
 from yt_commands import (
-    abort_transaction, add_member, authors, create_access_control_object, remove,
-    make_ace, raises_yt_error, wait, create_user, print_debug, select_rows,
+    abort_transaction, add_member, authors, create_access_control_object, create_group,
+    remove, make_ace, raises_yt_error, wait, create_user, print_debug, select_rows,
     set, get, insert_rows, sync_compact_table, generate_uuid, ls)
 
 from yt_error_codes import AuthorizationErrorCode, ResolveErrorCode
@@ -29,6 +29,16 @@ import pyarrow as pa
 
 import pytest
 import time
+
+
+ADMIN_GROUPS = ("superusers", "qt_admins")
+
+
+def add_query_tracker_admin(user, admin_group):
+    if admin_group != "superusers":
+        create_group(admin_group)
+
+    add_member(user, admin_group)
 
 
 def expect_queries(queries, list_result, incomplete=False):
@@ -687,6 +697,10 @@ class TestAccessControl(QueriesTestBase):
 
     ENABLE_MULTIDAEMON = True
 
+    @classmethod
+    def modify_query_tracker_config(cls, config):
+        config["admins_group"] = "qt_admins"
+
     @authors("krock21")
     def test_no_acos(self, query_tracker):
         create_user("u1")
@@ -739,6 +753,50 @@ class TestAccessControl(QueriesTestBase):
             })
         q_u1 = start_query("mock", "run_forever", authenticated_user="u1", access_control_object="aco_denies_author")
         q_u1.get(authenticated_user="u1")
+
+    @authors("ngc224")
+    @pytest.mark.parametrize("admin_group", ADMIN_GROUPS)
+    def test_query_tracker_admins_bypass_access_control(self, query_tracker, admin_group):
+        create_user("u1")
+        create_user("qt_admin")
+        add_query_tracker_admin("qt_admin", admin_group)
+
+        q = start_query(
+            "mock",
+            "run_forever",
+            authenticated_user="u1",
+            access_control_object="nobody",
+        )
+
+        q.get(authenticated_user="qt_admin")
+        expect_queries([q], list_queries(authenticated_user="qt_admin"))
+        q.alter(authenticated_user="qt_admin", annotations={"owner": "u1"})
+        wait(lambda: q.get_state() == "running")
+        q.abort(authenticated_user="qt_admin")
+
+        finished = start_query(
+            "mock",
+            "complete_after",
+            authenticated_user="u1",
+            access_control_objects=["nobody"],
+            settings={
+                "duration": 0,
+                "results": [{
+                    "schema": [{"name": "value", "type": "int64"}],
+                    "rows": [{"value": 42}],
+                }],
+            },
+        )
+
+        finished.track()
+
+        assert finished.get_result(
+            0, authenticated_user="qt_admin"
+        )["schema"][0]["name"] == "value"
+
+        assert list(finished.read_result(
+            0, authenticated_user="qt_admin")
+        ) == [{"value": 42}]
 
     @authors("krock21")
     def test_get(self, query_tracker):
@@ -1336,9 +1394,9 @@ class TestTutorials(QueriesTestBase):
         u2q3 = start_query("mock", "complete_after", settings={"duration": 1000}, annotations={"is_tutorial": False}, authenticated_user="u2", access_control_objects=["nobody"])
         u2q4 = start_query("mock", "complete_after", settings={"duration": 1000}, annotations={"is_tutorial": False}, authenticated_user="u2", access_control_objects=["everyone"])
 
-        with raises_yt_error("Non-superusers cannot create tutorial queries"):
+        with raises_yt_error("Users without Query Tracker admin access cannot create tutorial queries"):
             start_query("mock", "some_query", draft=True, annotations={"is_tutorial": True}, authenticated_user="u2", access_control_objects=["nobody"])
-        with raises_yt_error("Non-superusers cannot create tutorial queries"):
+        with raises_yt_error("Users without Query Tracker admin access cannot create tutorial queries"):
             start_query("mock", "some_query", draft=True, annotations={"is_tutorial": True}, authenticated_user="u2", access_control_objects=["everyone"])
 
         def check_tutorial_queries():
@@ -1391,7 +1449,7 @@ class TestTutorials(QueriesTestBase):
         from_ordinary_to_tutorial.get()
         with raises_yt_error("Tutorials should be in draft state"):
             ordinary_not_tutorial.alter(annotations={"is_tutorial": True}, authenticated_user="u1_superuser")
-        with raises_yt_error("Non-superusers cannot change tutorial flag"):
+        with raises_yt_error("Users without Query Tracker admin access cannot change tutorial flag"):
             ordinary_not_superuser.alter(annotations={"is_tutorial": True}, authenticated_user="u2")
 
         # check that there are no tutorials in common search

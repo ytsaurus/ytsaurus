@@ -1,5 +1,6 @@
 from conftest_lib.conftest_queries import *  # noqa
-from conftest_lib.conftest_queries import QueryTracker, update_query_tracker_environment
+from conftest_lib.conftest_queries import (
+    QueryTracker, build_query_tracker_config, update_query_tracker_environment)
 
 from common import merge_old_dynconfig_into_new_static
 
@@ -204,7 +205,8 @@ def yql_env(request):
         agent.yql_agent.run()
 
         qt = stack.enter_context(QueryTracker(cls.Env, getattr(cls, "NUM_QUERY_TRACKERS", 1),
-                                              dedicated_tablet_cell_bundle=QT_STATE_BUNDLE))
+                                              dedicated_tablet_cell_bundle=QT_STATE_BUNDLE,
+                                              config=build_query_tracker_config(cls)))
         update_query_tracker_environment(cls, qt)
 
         # Block on the agent only now; its init() probe query needs the query-tracker up.

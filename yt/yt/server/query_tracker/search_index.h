@@ -32,9 +32,15 @@ DEFINE_REFCOUNTED_TYPE(ISearchIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISearchIndexPtr CreateTimeBasedIndex(NApi::IClientPtr stateClient, NYPath::TYPath stateRoot);
+ISearchIndexPtr CreateTimeBasedIndex(
+    NApi::IClientPtr stateClient,
+    NYPath::TYPath stateRoot,
+    std::optional<std::string> adminsGroup);
 
-ISearchIndexPtr CreateTokenBasedIndex(NApi::IClientPtr stateClient, NYPath::TYPath stateRoot);
+ISearchIndexPtr CreateTokenBasedIndex(
+    NApi::IClientPtr stateClient,
+    NYPath::TYPath stateRoot,
+    std::optional<std::string> adminsGroup);
 
 ////////////////////////////////////////////////////////////////////////////////
 

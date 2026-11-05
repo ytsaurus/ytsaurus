@@ -178,6 +178,8 @@ void TQueryTrackerBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("proxy_thread_pool_size", &TThis::ProxyThreadPoolSize)
         .Default(4);
     registrar.Parameter("user", &TThis::User);
+    registrar.Parameter("admins_group", &TThis::AdminsGroup)
+        .Default();
     registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)
         .Default(NYTree::BuildYsonNodeFluently()
             .BeginMap()
